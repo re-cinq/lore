@@ -1,0 +1,365 @@
+# The folder layering, enforced by `lore/no-cross-layer-import`.
+#
+# Each package maps a folder to the folders it may import. Four rules:
+#   1. A key matches the folder it names and everything under it; `*` is one segment.
+#   2. A folder may always import itself and its own descendants.
+#   3. It may import what its list names, and nothing else.
+#   4. The most specific matching key wins, so `jobs/lib` beats `jobs/*`.
+#
+# Sibling isolation needs no syntax: `jobs/*` lists `jobs/lib`, so `jobs/review`
+# reaches lib and itself while `jobs/merge` is simply not on the list.
+#
+# A package absent from this file is not checked, so packages join one at a
+# time. Inside a package that IS here, a folder with no entry may import
+# nothing — that is what stops the file rotting as folders are added.
+#
+# npm and `node:` specifiers are never governed; package.json owns those.
+
+layers:
+  # The Floor is three event-bus layers over a shared substrate (ADR-015):
+  # listeners write rows, the loop dispatches them, jobs handle them. `kernel`
+  # is the substrate and reaches nothing; `delivery` is the process entry tier,
+  # reachable only from index.ts because nothing else lists it.
+  # The Floor is the package this arrangement was designed around: `events`
+  # receives and routes, `work` holds one folder per job, and the two are
+  # separate tiers because who dispatches a job is not the job.
+  apps/floor:
+    # The process entry starts the worker, the scheduler and the health server,
+    # so it reaches every tier — that is what a composition root does.
+    ".":
+      - app
+      - transport
+      - events
+      - work
+      - outbound
+      - domain
+      - lib
+      - "@re-cinq/lore-shared"
+    # The wiring root: it builds the station backend out of the job domains and
+    # hands it to `outbound`, which owns `projectFor` but must not import work
+    # to get one.
+    app:
+      - work
+      - outbound
+      - domain
+      - lib
+      - "@re-cinq/lore-assembly-lines"
+      - "@re-cinq/lore-shared"
+    # Ways in: the webhook/SSE server, plus two CLI entrypoints — the CronJob
+    # batch runner and the catalog generator.
+    transport:
+      - app
+      - events
+      - work
+      - outbound
+      - domain
+      - lib
+      - "@re-cinq/lore-assembly-lines"
+      - "@re-cinq/lore-shared"
+    # `listeners/` write rows, `main-loop/` claims and dispatches them, and
+    # `handlers/` maps each event name to the job that answers it. That last one
+    # used to sit loose inside jobs/, which is what made the folder mean two things.
+    events:
+      - work
+      - outbound
+      - domain
+      - lib
+      - "@re-cinq/agent-contracts"
+      - "@re-cinq/lore-assembly-lines"
+      - "@re-cinq/lore-shared"
+    # Fourteen folders, one job each — and nothing else. `work/lib` used to sit
+    # among them holding ten unrelated modules; it turned out to be a tier split
+    # rather than a shared-helper folder, and it is gone.
+    work:
+      - outbound
+      - domain
+      - lib
+      - "@re-cinq/agent-contracts"
+      - "@re-cinq/lore-assembly-lines"
+      - "@re-cinq/lore-shared"
+      - "@re-cinq/lore-stations"
+    # Adapters reach domain, never the reverse: an adapter needs the shapes it
+    # persists. `agent-invocation` started in domain and was moved here because
+    # it wraps the YAML config loader — the import that proved it was not pure.
+    outbound:
+      - domain
+      - lib
+      - "@re-cinq/agent-contracts"
+      - "@re-cinq/lore-assembly-lines"
+      - "@re-cinq/lore-shared"
+    # The bus contract, so a job can implement a handler without importing the
+    # loop that dispatches it. A leaf with no I/O.
+    # `agent-watcher-logic` and `assembly-line-names` reason about Agent CRs and
+    # assembly-line definitions, so they name those packages. A package is not a
+    # tier above — these stay pure of I/O, which is what domain means here.
+    domain:
+      - "@re-cinq/agent-contracts"
+      - "@re-cinq/lore-assembly-lines"
+      - "@re-cinq/lore-shared"
+    lib:
+      - "@re-cinq/lore-shared"
+
+  # One cluster-agent per cluster: it watches Agent CRs and claims work. `kernel`
+  # currently reaches `delivery` and `reap`, which is the substrate importing
+  # upward — stated here as a leaf so the finding is visible rather than settled
+  # by writing the tangle down.
+  apps/cluster-agent:
+    ".":
+      - transport
+      - events
+      - work
+      - outbound
+      - "@re-cinq/lore-shared"
+    transport:
+      - domain
+      - outbound
+      - lib
+      - "@re-cinq/agent-contracts"
+      - "@re-cinq/lore-shared"
+    # `listeners/` (the Agent-CR watch) and `claim/` (registration, heartbeat,
+    # the claim loop) — both are how work arrives, so both are this tier.
+    events:
+      - work
+      - domain
+      - outbound
+      - lib
+      - "@re-cinq/agent-contracts"
+      - "@re-cinq/lore-shared"
+    work:
+      - domain
+      - outbound
+      - lib
+      - "@re-cinq/agent-contracts"
+      - "@re-cinq/lore-shared"
+    # Shared is listed because the CR contracts reference shared's pod/agent TYPES.
+    # A package is not a tier above, so this is not an upward edge — but it is the
+    # edge that closes properly only once libs/shared is itself tiered.
+    domain:
+      - "@re-cinq/agent-contracts"
+      - "@re-cinq/lore-shared"
+    outbound:
+      - domain
+      - lib
+      - "@re-cinq/agent-contracts"
+      - "@re-cinq/lore-shared"
+    lib:
+      - "@re-cinq/lore-shared"
+    # A suite whose subject IS the collaboration between two tiers has to see
+    # both; the repo already treats `integration-tests` as that place.
+    integration-tests:
+      - work
+      - domain
+      - outbound
+      - "@re-cinq/agent-contracts"
+      - "@re-cinq/lore-shared"
+
+  # The pooled station service. `kernel` reaches `delivery` and `stations` today,
+  # the same substrate-imports-upward shape as cluster-agent.
+  apps/stations:
+    ".":
+      - transport
+      - events
+      - outbound
+      - "@re-cinq/lore-shared"
+    transport:
+      - events
+      - work
+      - domain
+      - outbound
+      - "@re-cinq/lore-assembly-lines"
+      - "@re-cinq/lore-shared"
+    # Holds `runner/` as well as the drain loop. The runner picks a station and
+    # invokes it, which is dispatch, not work — `work/` is one folder per station
+    # and `registry.test.ts` enforces exactly that by enumerating the folder.
+    events:
+      - work
+      - domain
+      - outbound
+      - "@re-cinq/lore-assembly-lines"
+      - "@re-cinq/lore-shared"
+    work:
+      - domain
+      - outbound
+      - "@re-cinq/lore-assembly-lines"
+      - "@re-cinq/lore-shared"
+    domain: []
+    outbound:
+      - "@re-cinq/lore-assembly-lines"
+      - "@re-cinq/lore-shared"
+
+  # The light business logic both deployables import (ADR-032).
+  # libs/shared has the tier FOLDERS (transport / outbound / work / domain / lib)
+  # but deliberately no entry yet. Thirteen modules still cross the wrong way —
+  # `outbound/project/trace/trace-port.ts` needs `TraceDocument`, which lives in
+  # `work/spec-trace/`, and twelve more of that shape. They are contracts two
+  # tiers share, so they belong in `domain`; moving them is a refactor, not a
+  # rename, and it is the follow-up that earns this package its entry.
+  #
+  # Adding the entry first would mean listing `work` under `outbound` to make
+  # the errors go away, which is writing the tangle down rather than untangling
+  # it. Until then shared stays the one surface the rule does not check.
+
+  # The package every other one imports, tiered by the same vocabulary so the
+  # rule reaches THROUGH it rather than stopping at its edge. Until now shared
+  # was the one surface no entry described, which made it a way to reach any
+  # tier from any tier.
+  #
+  # The 70 files still loose at src/ are deliberately not listed: they are the
+  # `.` layer for now, and sorting them is the follow-up where the duplicate
+  # hunting actually pays off.
+  libs/shared:
+    ".":
+      - transport
+      - outbound
+      - work
+      - domain
+      - lib
+    # Inbound request helpers — bearer checks, error envelopes, raw-body reads.
+    # A way IN, which is why it is not filed with the adapters below.
+    transport:
+      - outbound
+      - domain
+      - lib
+    # Every way out: the Project facade and its adapters, the pg pool, the
+    # Kubernetes and Dgraph clients, the LLM providers, embeddings.
+    outbound:
+      - domain
+      - lib
+      - test-helpers
+      - "@re-cinq/agent-contracts"
+    work:
+      - outbound
+      - domain
+      - lib
+      - test-helpers
+      - "@re-cinq/agent-contracts"
+    domain:
+      - lib
+      - "@re-cinq/agent-contracts"
+    lib: []
+    # In-memory doubles and fixtures. A leaf that only tests reach — listed so it
+    # has an entry at all, since an unlisted folder may import nothing.
+    test-helpers:
+      - domain
+      - lib
+
+  libs/server-core:
+    ".":
+      - outbound
+      - work
+      - "@re-cinq/lore-shared"
+    work:
+      - outbound
+      - "@re-cinq/lore-shared"
+    outbound:
+      - "@re-cinq/lore-shared"
+    test-helpers: []
+
+  libs/assembly-lines:
+    ".":
+      - relay
+      - "@re-cinq/lore-assembly-lines"
+      - "@re-cinq/lore-shared"
+    relay:
+      - "@re-cinq/lore-shared"
+
+  # The stdio MCP adapter (ADR-032): it holds no pool, so every folder above
+  # `features` is transport and the data work is a proxy call.
+  apps/mcp-server:
+    ".":
+      - transport
+      - "@re-cinq/lore-server-core"
+    # The MCP protocol surface: 27 tool registrations, the server factory both
+    # entry points call, the HTTP gateway and the skills registry it serves.
+    # A way in, like http or cli elsewhere.
+    transport:
+      - work
+      - "@re-cinq/lore-server-core"
+      - "@re-cinq/lore-shared"
+    work:
+      - "@re-cinq/lore-server-core"
+      - "@re-cinq/lore-shared"
+
+  # The remote REST backend. `http` is the route-authoring toolkit — error
+  # envelope, bearer scopes, zod request/response wiring, token + rate-limit
+  # checks — which every route and the server both use; it lived under `server/`
+  # and `api/routes/`, which made every route import the server it mounts into.
+  # `server` builds the hapi tree, so it is the composition root and reaches the
+  # routes; the routes must not reach back.
+  apps/lore-api:
+    ".":
+      - app
+      - outbound
+      - "@re-cinq/lore-server-core"
+      - "@re-cinq/lore-shared"
+    # The hapi server and its plugins — the composition root, above transport
+    # rather than inside it, so a route can never import the server that mounts it.
+    app:
+      - transport
+      - work
+      - outbound
+      - "@re-cinq/lore-assembly-lines"
+      - "@re-cinq/lore-server-core"
+      - "@re-cinq/lore-shared"
+    # Routes, the HTTP plumbing they share (auth, rate-limit, zod), and the
+    # OpenAPI document generated from them. `tests` is what a *.test.ts here may
+    # ALSO reach: 54 route tests inject through the built server, which is the
+    # hapi idiom for exercising a route in situ. One list cannot say both.
+    transport:
+      imports:
+        - work
+        - outbound
+        - "@re-cinq/lore-assembly-lines"
+        - "@re-cinq/lore-server-core"
+        - "@re-cinq/lore-shared"
+      tests:
+        - app
+        - integration-tests
+    work:
+      - outbound
+      - "@re-cinq/lore-server-core"
+      - "@re-cinq/lore-shared"
+    outbound:
+      - "@re-cinq/lore-server-core"
+      - "@re-cinq/lore-shared"
+    integration-tests:
+      - transport
+      - app
+      - "@re-cinq/lore-server-core"
+      - "@re-cinq/lore-shared"
+
+  # The deliberately-wrong fixture package behind scripts/check-eslint-canaries.sh.
+  # `kernel` is a leaf here so that src/kernel/a.ts importing ../jobs/ MUST be
+  # reported; if it ever stops being reported, a rule has gone quiet.
+  tools/eslint-canaries/pkg:
+    kernel: []
+    jobs:
+      - kernel
+
+  # The Next app — the system's `ui` tier, and the one package the service
+  # vocabulary does not describe. `transport / events / work / outbound` are
+  # shapes a service has; a browser app has none of them, and bending it into
+  # those names would say something untrue about every folder in it.
+  #
+  # Its internals keep the names they had: `lib` is the data and pure-logic
+  # tier, `components` the shared presentational atoms, `app` the routes that
+  # compose them. They are already one-way and already enforced, so refining
+  # them into micro-tiers is a separate step, not a prerequisite for naming what
+  # this package is.
+  apps/web-ui:
+    lib:
+      - "@re-cinq/lore-shared"
+    components:
+      - lib
+      - "@re-cinq/lore-shared"
+    app:
+      - components
+      - lib
+      - "@re-cinq/lore-shared"
+
+# A package that imports through a tsconfig path alias needs it declared, or the
+# rule sees a bare specifier and skips it — 639 of web-ui's imports look like
+# `@/lib/x`, so without this the package would be adopted and unchecked.
+aliases:
+  apps/web-ui:
+    "@/": ""

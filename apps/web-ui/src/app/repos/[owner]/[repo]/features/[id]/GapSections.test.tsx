@@ -29,9 +29,6 @@ describe("GapSections", () => {
   });
 
   it("falls back to the draft spec when the round produced no sections", () => {
-    // A GapResult with an empty sections list is structurally valid — sanitizeGapResult
-    // accepts it — and one round produced exactly that beside an 8KB draft. Rendering
-    // nothing over a result that exists is the worst of both worlds.
     renderGap({
       sections: [],
       draft_spec_markdown: "# Assembly lines live view\n\nThe whole plan.",
@@ -48,6 +45,27 @@ describe("GapSections", () => {
 
     expect(screen.getByText("Section content.")).toBeTruthy();
     expect(screen.queryByText("Draft body.")).toBeNull();
+  });
+
+  it("shows the split suggestion with a create-draft control per proposed feature", () => {
+    renderGap({
+      sections: [{ title: "Overview", content: "Section content." }],
+      draft_spec_markdown: "",
+      split_suggestion: {
+        rationale: "This covers two unrelated workflows.",
+        proposed_features: [
+          { title: "Search", scope: "Keyword search over context" },
+          { title: "Onboarding", scope: "Self-service repo onboarding" },
+        ],
+      },
+    } as GapResult);
+
+    expect(
+      screen.getByText("This covers two unrelated workflows."),
+    ).toBeTruthy();
+    expect(
+      screen.getAllByRole("button", { name: "Create draft" }),
+    ).toHaveLength(2);
   });
 
   it("renders nothing to review when the round produced neither", () => {

@@ -1,0 +1,130 @@
+import { enforceTrue } from "../../../lib/enforce.js";
+import { randomUUID } from "node:crypto";
+import type { ClusterAgent } from "../../../domain/models/cluster-agent.js";
+import type {
+  ClusterAgentsRepository,
+  RegisterClusterAgentInput,
+} from "./cluster-agents-port.js";
+
+/** The behavioral spec of {@link ClusterAgentsRepository}, backed by a Map. */
+export class InMemoryClusterAgents implements ClusterAgentsRepository {
+  private readonly agents = new Map<string, ClusterAgent>();
+
+  constructor(private readonly now: () => Date = () => new Date()) {}
+
+  async findByName(name: string): Promise<ClusterAgent | null> {
+    return (
+      [...this.agents.values()].find((agent) => agent.name === name) ?? null
+    );
+  }
+
+  async findById(id: string): Promise<ClusterAgent | null> {
+    return this.agents.get(id) ?? null;
+  }
+
+  async findByTokenHash(tokenHash: string): Promise<ClusterAgent | null> {
+    return (
+      [...this.agents.values()].find(
+        (agent) => agent.tokenHash === tokenHash,
+      ) ?? null
+    );
+  }
+
+  async create(input: RegisterClusterAgentInput): Promise<ClusterAgent | null> {
+    // Synchronous check-and-set to close the check-then-insert race.
+    if ([...this.agents.values()].some((agent) => agent.name === input.name)) {
+      return null;
+    }
+
+    const at = this.now();
+    const agent: ClusterAgent = {
+      id: randomUUID(),
+      name: input.name,
+      tags: input.tags,
+      tokenHash: input.tokenHash,
+      registeredAt: at,
+      lastSeenAt: at,
+      status: "active",
+      paused: false,
+      clusterInfo: input.clusterInfo,
+      catalogCursor: null,
+    };
+
+    this.agents.set(agent.id, agent);
+
+    return agent;
+  }
+
+  async refresh(
+    id: string,
+    input: RegisterClusterAgentInput,
+  ): Promise<ClusterAgent> {
+    const existing = this.agents.get(id);
+
+    enforceTrue(existing, Error, `cluster agent ${id} not found`);
+    const refreshed: ClusterAgent = {
+      ...existing,
+      tags: input.tags,
+      tokenHash: input.tokenHash,
+      clusterInfo: input.clusterInfo,
+      lastSeenAt: this.now(),
+      status: "active",
+    };
+
+    this.agents.set(id, refreshed);
+
+    return refreshed;
+  }
+
+  async heartbeat(id: string, at: Date): Promise<void> {
+    const existing = this.agents.get(id);
+
+    if (existing) {
+      this.agents.set(id, { ...existing, lastSeenAt: at, status: "active" });
+    }
+  }
+
+  async setPaused(id: string, paused: boolean): Promise<ClusterAgent | null> {
+    const existing = this.agents.get(id);
+
+    if (!existing) {
+      return null;
+    }
+    const updated: ClusterAgent = { ...existing, paused };
+
+    this.agents.set(id, updated);
+
+    return updated;
+  }
+
+  async markOffline(cutoff: Date): Promise<ClusterAgent[]> {
+    const newlyOffline = [...this.agents.values()].filter(
+      (agent) => agent.status === "active" && agent.lastSeenAt < cutoff,
+    );
+
+    for (const agent of newlyOffline) {
+      this.agents.set(agent.id, { ...agent, status: "offline" });
+    }
+
+    return newlyOffline.map((agent) => ({ ...agent, status: "offline" }));
+  }
+
+  async advanceCatalogCursor(id: string, cursor: string): Promise<void> {
+    const existing = this.agents.get(id);
+
+    // Null→set even when acking empty snapshot: tail mode not loop, mirroring Pg GREATEST.
+    if (
+      existing &&
+      (existing.catalogCursor === null ||
+        BigInt(cursor) > BigInt(existing.catalogCursor))
+    ) {
+      this.agents.set(id, { ...existing, catalogCursor: cursor });
+    }
+  }
+
+  async list(): Promise<ClusterAgent[]> {
+    return [...this.agents.values()].sort((a, b) =>
+      a.name.localeCompare(b.name),
+    );
+  }
+}

@@ -36,10 +36,6 @@ describe("userCanAccessRepo", () => {
   });
 });
 
-// A gate that cannot say WHY it denied is a support ticket. The three reasons are
-// materially different — 404 is "this token cannot see the repo" (private repo, or
-// an OAuth app the org has never approved), 401 is a stale or revoked token, 403 is
-// a rate limit — and the caller only ever sees one flat "Access denied".
 describe("what a denial reports to the server log", () => {
   afterEach(() => {
     vi.restoreAllMocks();

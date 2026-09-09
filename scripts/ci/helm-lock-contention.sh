@@ -11,7 +11,7 @@
 # crash-looped against a router that lacked the routes they had just started
 # calling.
 #
-# Three spellings, one condition — another deploy holds the release:
+# Four spellings, one condition — another deploy holds or just moved the release:
 #   - "another operation (install/upgrade/rollback) is in progress"
 #     the plain lock, seen when helm takes the upgrade path.
 #   - "release: already exists"
@@ -19,7 +19,13 @@
 #     other deploy's pending one), chooses INSTALL, and then finds it there.
 #   - "cannot re-use a name that is still in use"
 #     the older phrasing of the same collision.
+#   - `secrets "sh.helm.release.v1.<release>.v<N>" not found`
+#     a revision secret this upgrade expected to read/finalize was already
+#     pruned or superseded by a sibling deploy racing the same release
+#     (2026-09-01: misread as a hard failure, the mcp-gateway deploy was
+#     abandoned while every other service in the same fan-out retried past it
+#     and shipped).
 set -euo pipefail
 
 grep -qiE \
-  'another operation \(.*\) is in progress|release: already exists|cannot re-use a name that is still in use'
+  'another operation \(.*\) is in progress|release: already exists|cannot re-use a name that is still in use|secrets "sh\.helm\.release\.v1\..*" not found'

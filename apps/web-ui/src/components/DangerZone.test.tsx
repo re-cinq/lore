@@ -45,8 +45,6 @@ describe("DangerZone", () => {
   });
 
   it("carries the destructive styling that made it a card", () => {
-    // The point of extracting it: the two-class string and the globals.css
-    // coupling live here now, not at each call site.
     const { container } = render(
       <DangerZone description="x">{null}</DangerZone>,
     );

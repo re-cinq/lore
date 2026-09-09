@@ -14,7 +14,7 @@ Two boundaries are load-bearing and enforced by credentials rather than conventi
 
 <p align="center"><img src="../../badges/architecture.svg" width="720" alt="System topology: developer machine, the nine GKE services, GitHub and Slack" /></p>
 
-> **Webhook cutover, in progress.** The event-router's public ingress serves `/api/events` and is standing, but `LORE_WEBHOOK_URL` still points onboarded repos at the Floor's `/api/webhook/github`. Either door is correct today — the Floor's route no longer writes to the database, it reports through the router like every other producer — and the repos get re-pointed before that route is deleted. Reversing that order would drop deliveries.
+> **Webhook cutover, done (2026-09-08).** GitHub delivers to the event-router's `/api/events`; that is the URL lore-api installs on a repo and classifies against (`LORE_WEBHOOK_URL`). The Floor's `/api/webhook/github` route is gone, but the URL is not: the Floor-host ingress rewrites that exact path onto the router, so a repo onboarded before the cutover keeps delivering until lore-api repoints its hook (ensure / the repo page). Nothing forces the migration and GitHub never sees a 404.
 
 ## Task lifecycle
 
@@ -42,7 +42,7 @@ flowchart TB
 
 ## Scheduling and ingestion
 
-There are two live scheduling layers (split per ADR-019). Hot-path ticks are emitted in-process inside the Floor; heavy batch jobs run as isolated K8s CronJob pods via `node dist/delivery/job-runner.js <job>`. An emitter only writes a `cron.<name>.tick` event — the drain loop dispatches the handler — and a handler is not obliged to do the work itself: `merge_check` and `approval_check` call the **stations** service over HTTP, because scheduling *when* something runs and owning *what* it does are separate concerns ([ADR-044](../../adrs/ADR-044-event-router-owns-the-event-bus.md) amendment). Context reaches the vector store two ways: the push-triggered `/api/ingest` doorbell (immediate, changed files only) and the nightly `context-reindex` crawl (full reconciliation, deletes orphans).
+There are two live scheduling layers (split per ADR-019). Hot-path ticks are emitted in-process inside the Floor; heavy batch jobs run as isolated K8s CronJob pods via `node dist/transport/job-runner.js <job>`. An emitter only writes a `cron.<name>.tick` event — the drain loop dispatches the handler — and a handler is not obliged to do the work itself: `merge_check` and `approval_check` call the **stations** service over HTTP, because scheduling *when* something runs and owning *what* it does are separate concerns ([ADR-044](../../adrs/ADR-044-event-router-owns-the-event-bus.md) amendment). Context reaches the vector store one way: the push-triggered `/api/ingest` doorbell (immediate, changed files only, a rename posted as delete + add). The nightly `context-reindex` crawl was retired (#1880); orphan chunks — paths gone from the tree, or refused by today's classifier — are swept on demand by `POST /api/repos/{owner}/{repo}/chunks/prune` (`scripts/infra/prune-orphan-chunks.sh` posts `git ls-files`).
 
 ```mermaid
 flowchart LR
@@ -58,14 +58,12 @@ flowchart LR
 
     subgraph k8scron["K8s CronJobs (ADR-019)"]
         direction TB
-        C1["context-reindex · 0 2 * * *<br/>full repo crawl + embeddings"]
         C5["memory-ttl / importance-decay / consolidation"]
         C6["eval-runner · daily · autoresearch · weekly"]
         C7["context-core-builder · daily · anthropic-cost-sync · daily"]
     end
 
     PUSH["git push to main<br/>(whitelisted paths incl. specs/**)"] -->|"GitHub Action → POST /api/ingest"| ING["ingestFiles(): classify →<br/>upsert chunks → embed"]
-    C1 --> ING
     ING --> DB[("{team}.chunks<br/>+ pgvector embeddings")]
 ```
 
@@ -127,7 +125,7 @@ The Floor chooses an execution mode based on the task type configured in `task-t
 
 Every mode includes **deterministic validation** — after the agent edits code, lint and typecheck run as mandatory pipeline stages (detected from `package.json`, `go.mod`, `pyproject.toml`, or `Cargo.toml`). If validation fails, one automatic fix retry runs before escalating to human review. K8s Jobs retry once on transient failures (`backoffLimit: 1`). Failed tasks can be retried via `/lore retry <task_id>`, the `lore_retry_task` MCP tool, or the API.
 
-All agent API calls also go through **multi-block prompt caching** (ADR-015 + `libs/shared/src/llm/prompt-cache.ts`): the system prompt and tool schemas each carry a `cache_control: {type: "ephemeral"}` breakpoint, so a tool edit doesn't bust the system cache and vice versa. Jobs whose prompts are stable and cluster within an hour (auto-curation, review-reactor fixes, fact extraction, graph extraction — override via `LORE_CACHE_1H_JOBS`) use the 1-hour cache TTL; eligibility is latched at process start to prevent mid-session TTL flips. Each call's log line annotates the cache outcome (`hit` / `first-call` / `break:system` / `break:tools` / `break:ttl(42m)`) for live cost diagnostics.
+All agent API calls also go through **multi-block prompt caching** (ADR-015 + `libs/shared/src/outbound/llm/prompt-cache.ts`): the system prompt and tool schemas each carry a `cache_control: {type: "ephemeral"}` breakpoint, so a tool edit doesn't bust the system cache and vice versa. Jobs whose prompts are stable and cluster within an hour (auto-curation, review-reactor fixes, fact extraction, graph extraction — override via `LORE_CACHE_1H_JOBS`) use the 1-hour cache TTL; eligibility is latched at process start to prevent mid-session TTL flips. Each call's log line annotates the cache outcome (`hit` / `first-call` / `break:system` / `break:tools` / `break:ttl(42m)`) for live cost diagnostics.
 
 ## Dark Factory mode
 

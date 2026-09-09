@@ -1,11 +1,9 @@
-// The "why" behind a single node: assembles the plain-language explanation and
-// the supporting facts a reader wants when they click a node — did it run, what
-// ran, why is it in this state. Pure; the transcript comes from the reducer and
-// the walk facts from the row, so this stays unit-testable.
+// Assemble plain-language explanation + supporting facts for a clicked node; pure (transcript from reducer, walk facts from row).
 
 import type { AssemblyLineDefinition } from "./assembly-line-definition";
 import type { AssemblyRunNode } from "./assembly-runs";
 import type { NodeRunState } from "./run-event-reducer";
+import type { RunStreamEvent } from "./run-stream-types";
 import { nodeRunVisual, type NodeStatusTone } from "./run-node-status";
 import { humanStation } from "./human-station";
 import { formatDuration } from "./assembly-run-presenter";
@@ -28,8 +26,7 @@ export interface NodeDetail {
   tone: NodeStatusTone;
   statusLabel: string;
   why: string;
-  /** Every errored step in the node's transcript, in order — the full "why it
-   *  failed" trace behind the one-line `why`. Empty when nothing errored. */
+  /** Every errored step in order; empty when nothing errored. */
   failures: FailedStep[];
   files: string[];
   eventCount: number;
@@ -57,127 +54,239 @@ function uniqueFiles(state: NodeRunState | undefined): string[] {
   const files = new Set<string>();
 
   for (const event of state?.transcript ?? []) {
-    for (const path of event.filePaths) {
-      files.add(path);
-    }
+    event.filePaths.forEach((path) => files.add(path));
   }
 
   return [...files];
 }
 
-/** The last errored `result` line's summary — the closest thing to a failure
- *  message the stream carries. */
+function isFailedResult(event: RunStreamEvent): boolean {
+  return (
+    event.eventType === "result" && event.isError && Boolean(event.summary)
+  );
+}
+
+/** Last errored result line's summary; closest thing to a failure message in the stream. */
 function failureSummary(state: NodeRunState | undefined): string | null {
-  for (const event of [...(state?.transcript ?? [])].reverse()) {
-    if (event.eventType === "result" && event.isError && event.summary) {
-      return event.summary;
-    }
-  }
+  const failure = [...(state?.transcript ?? [])].reverse().find(isFailedResult);
 
-  return null;
+  return failure?.summary ?? null;
 }
 
-/** Every errored step carrying a message, in order — the concrete causes (a
- *  failed tool call, the agent's error verdict) behind the one-line why. */
+function toFailedStep(event: RunStreamEvent): FailedStep {
+  return {
+    tool:
+      event.toolName ??
+      (event.eventType === "result" ? "agent" : event.eventType),
+    detail: event.summary ?? "",
+  };
+}
+
+/** Every errored step with message, in order; concrete causes (tool calls, verdicts) behind the one-line why. */
 function erroredSteps(state: NodeRunState | undefined): FailedStep[] {
-  const steps: FailedStep[] = [];
-
-  for (const event of state?.transcript ?? []) {
-    if (event.isError && event.summary) {
-      steps.push({
-        tool:
-          event.toolName ??
-          (event.eventType === "result" ? "agent" : event.eventType),
-        detail: event.summary,
-      });
-    }
-  }
-
-  return steps;
+  return (state?.transcript ?? [])
+    .filter((event) => event.isError && event.summary)
+    .map(toFailedStep);
 }
+
+interface NodeStanding {
+  tone: NodeStatusTone;
+  terminal: boolean;
+  duration: string;
+}
+
+interface RowFacts {
+  outcome: string | null;
+  durationSeconds: number | null;
+  iteration: number | null;
+  agentCrName: string | null;
+  commitSha: string | null;
+  startedAt: string | null;
+}
+
+const EMPTY_ROW_FACTS: RowFacts = {
+  outcome: null,
+  durationSeconds: null,
+  iteration: null,
+  agentCrName: null,
+  commitSha: null,
+  startedAt: null,
+};
+
+function rowFacts(row: AssemblyRunNode | undefined): RowFacts {
+  return row
+    ? {
+        outcome: row.outcome,
+        durationSeconds: row.durationSeconds,
+        iteration: row.iteration,
+        agentCrName: row.agentCrName,
+        commitSha: row.commitSha,
+        startedAt: row.startedAt ?? null,
+      }
+    : EMPTY_ROW_FACTS;
+}
+
+interface StateFacts {
+  eventCount: number;
+  droppedCount: number;
+  iteration: number | null;
+}
+
+const EMPTY_STATE_FACTS: StateFacts = {
+  eventCount: 0,
+  droppedCount: 0,
+  iteration: null,
+};
+
+function stateFacts(state: NodeRunState | undefined): StateFacts {
+  return state
+    ? {
+        eventCount: state.transcript.length,
+        droppedCount: state.droppedCount,
+        iteration: state.iteration,
+      }
+    : EMPTY_STATE_FACTS;
+}
+
+function resolveIteration(row: RowFacts, state: StateFacts): number {
+  return row.iteration ?? state.iteration ?? 0;
+}
+
+function resolveVisual(
+  row: AssemblyRunNode | undefined,
+  state: NodeRunState | undefined,
+  nodeType: string | undefined,
+) {
+  return nodeRunVisual(row?.outcome ?? null, state?.status ?? "idle", nodeType);
+}
+
+function resolveStatusLabel(
+  visual: { tone: NodeStatusTone; label: string },
+  { terminal }: { terminal: boolean },
+): string {
+  return visual.tone === "idle" && terminal ? "Terminal" : visual.label;
+}
+
+function resolveOutcomeLabel(
+  outcome: string | null,
+  { running }: { running: boolean },
+): string {
+  return running ? "in progress" : (outcome ?? "—");
+}
+
+function resolveDurationLabel(
+  durationSeconds: number | null,
+  { running }: { running: boolean },
+): string {
+  return running ? "running" : formatDuration(durationSeconds);
+}
+
+function resolveFailures(
+  tone: NodeStatusTone,
+  state: NodeRunState | undefined,
+): FailedStep[] {
+  return tone === "err" ? erroredSteps(state) : [];
+}
+
+interface WhyArgs {
+  noun: string;
+  type: string | undefined;
+  input: NodeDetailInput;
+  terminal: boolean;
+  duration: string;
+}
+
+// Parked human station: reader needs to know whose move it is (often their own).
+function whyWaiting({ type }: WhyArgs): string {
+  return (
+    humanStation(type)?.whyParked ??
+    "Parked — waiting for you to review this round."
+  );
+}
+
+function whyOk({ noun, input, terminal, duration }: WhyArgs): string {
+  const finalNote = terminal ? " Final step of the run." : "";
+
+  return `Ran ${noun} and emitted ${input.row?.outcome ?? "success"} in ${duration}.${finalNote}`;
+}
+
+function whyErr({ noun, input }: WhyArgs): string {
+  return `Failed: ${failureSummary(input.state) ?? input.reason ?? `${noun} did not complete`}.`;
+}
+
+function whyIdle({ terminal }: WhyArgs): string {
+  return terminal
+    ? "Terminal marker — the run ends here."
+    : "Not reached — the run finished along another branch before it ran.";
+}
+
+const WHY_BY_TONE: Record<NodeStatusTone, (args: WhyArgs) => string> = {
+  running: ({ noun }) => `In progress — ${noun} is running.`,
+  waiting: whyWaiting,
+  ok: whyOk,
+  warn: ({ noun, duration }) =>
+    `Ran ${noun} and requested changes in ${duration}.`,
+  err: whyErr,
+  idle: whyIdle,
+};
 
 function whyText(
   input: NodeDetailInput,
   type: string | undefined,
-  tone: NodeStatusTone,
-  terminal: boolean,
-  duration: string,
+  { tone, terminal, duration }: NodeStanding,
 ): string {
   const noun = type ? `the ${type} node` : "this step";
 
-  if (tone === "running") {
-    return `In progress — ${noun} is running.`;
-  }
+  return WHY_BY_TONE[tone]({ noun, type, input, terminal, duration });
+}
 
-  // A parked human station has no pod and no progress to report; what the reader
-  // needs is whose move it is, since it is often their own.
-  if (tone === "waiting") {
-    return (
-      humanStation(type)?.whyParked ??
-      "Parked — waiting for you to review this round."
-    );
-  }
-
-  if (tone === "ok") {
-    return `Ran ${noun} and emitted ${input.row?.outcome ?? "success"} in ${duration}.${
-      terminal ? " Final step of the run." : ""
-    }`;
-  }
-
-  if (tone === "warn") {
-    return `Ran ${noun} and requested changes in ${duration}.`;
-  }
-
-  if (tone === "err") {
-    return `Failed: ${failureSummary(input.state) ?? input.reason ?? `${noun} did not complete`}.`;
-  }
-
-  if (terminal) {
-    return "Terminal marker — the run ends here.";
-  }
-
-  return "Not reached — the run finished along another branch before it ran.";
+function findNode(input: NodeDetailInput) {
+  return (input.definition?.nodes ?? []).find((n) => n.id === input.nodeId);
 }
 
 export function describeNode(input: NodeDetailInput): NodeDetail {
-  // The ONE lookup — every fact below reads this node, not its own find.
-  const node = input.definition?.nodes.find((n) => n.id === input.nodeId);
-  // The verdict on the walk row is authoritative; the execution status only fills
-  // in while a node is still in flight (no recorded outcome yet).
-  const visual = nodeRunVisual(
-    input.row?.outcome ?? null,
-    input.state?.status ?? "idle",
-    node?.type,
-  );
+  const nodeType = findNode(input)?.type;
+  const visual = resolveVisual(input.row, input.state, nodeType);
   const terminal = isTerminal(input.definition, input.nodeId);
-  const durationSeconds = input.row?.durationSeconds ?? null;
-  const running = visual.tone === "running";
-  const statusLabel =
-    visual.tone === "idle" && terminal ? "Terminal" : visual.label;
+  const row = rowFacts(input.row);
 
   return {
     tone: visual.tone,
-    statusLabel,
-    why: whyText(
-      input,
-      node?.type,
-      visual.tone,
+    statusLabel: resolveStatusLabel(visual, { terminal }),
+    why: whyText(input, nodeType, {
+      tone: visual.tone,
       terminal,
-      formatDuration(durationSeconds),
-    ),
-    // Only a failed node lists errored steps: a succeeded node can carry errored
-    // tool calls it retried past, which are not the reason for anything.
-    failures: visual.tone === "err" ? erroredSteps(input.state) : [],
+      duration: formatDuration(row.durationSeconds),
+    }),
+    failures: resolveFailures(visual.tone, input.state),
     files: uniqueFiles(input.state),
-    eventCount: input.state?.transcript.length ?? 0,
-    droppedCount: input.state?.droppedCount ?? 0,
-    nodeType: node?.type ?? null,
-    outcomeLabel: running ? "in progress" : (input.row?.outcome ?? "—"),
-    durationLabel: running ? "running" : formatDuration(durationSeconds),
-    iteration: input.row?.iteration ?? input.state?.iteration ?? 0,
-    agentCrName: input.row?.agentCrName ?? null,
-    commitSha: input.row?.commitSha ?? null,
-    durationSeconds,
-    startedAt: input.row?.startedAt ?? null,
+    nodeType: nodeType ?? null,
+    ...nodeFacts(input, row, { running: visual.tone === "running" }),
+  };
+}
+
+type NodeFacts = Omit<
+  NodeDetail,
+  "tone" | "statusLabel" | "why" | "failures" | "files" | "nodeType"
+>;
+
+/** The counters and display labels read off the walk row and the reducer state. */
+function nodeFacts(
+  input: NodeDetailInput,
+  row: RowFacts,
+  run: { running: boolean },
+): NodeFacts {
+  const state = stateFacts(input.state);
+
+  return {
+    eventCount: state.eventCount,
+    droppedCount: state.droppedCount,
+    outcomeLabel: resolveOutcomeLabel(row.outcome, run),
+    durationLabel: resolveDurationLabel(row.durationSeconds, run),
+    iteration: resolveIteration(row, state),
+    agentCrName: row.agentCrName,
+    commitSha: row.commitSha,
+    durationSeconds: row.durationSeconds,
+    startedAt: row.startedAt,
   };
 }

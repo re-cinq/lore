@@ -1,7 +1,6 @@
 import { defineConfig } from "vitest/config";
 
-// Probe the local Dgraph exactly the way the container-gated integration suites
-// do (src/spec-trace/*, the memory stores), so the config can react to it.
+// Probes the local Dgraph the same way the container-gated integration suites do, so the config can react.
 async function dgraphReachable(): Promise<boolean> {
   const url = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 
@@ -13,9 +12,7 @@ async function dgraphReachable(): Promise<boolean> {
   }
 }
 
-// Excludes dist/** (compiled duplicates of the src tests) so the suite no longer
-// requires `npm run build` first to avoid running stale compiled tests — matches
-// the agent/mcp configs. setupFiles installs the global No-LLM guard.
+// Excludes dist/** so the suite doesn't need npm run build first (matches agent/mcp configs); setupFiles installs the No-LLM guard.
 export default defineConfig(async () => {
   const dgraphUp = await dgraphReachable();
 
@@ -25,16 +22,9 @@ export default defineConfig(async () => {
       environment: "node",
       setupFiles: ["./vitest.setup.ts"],
       exclude: ["dist/**", "node_modules/**"],
-      // ~two dozen container-gated suites write to ONE real Dgraph. Running their
-      // files in parallel races on that single container (throughput + the schema
-      // applier), which flakes them non-deterministically. When a Dgraph is
-      // reachable (local dev) serialize files so they can't contend; in CI no
-      // Dgraph is reachable, those suites skip, and full parallelism is kept.
+      // ~2 dozen suites share ONE real Dgraph; serialize files when it's reachable (local dev) to avoid flaky races, else full parallelism.
       fileParallelism: !dgraphUp,
-      // The real Dgraph round-trips (schema apply + per-test mutations/queries)
-      // can exceed the 5s default on a cold/contended container; use the repo's
-      // integration ceiling (cf. apps/lore-api/vitest.integration.config.ts).
-      // Unit tests finish in ms — the ceiling only bounds a genuine hang.
+      // A cold/contended Dgraph can exceed the 5s default; use the repo's integration ceiling (cf. lore-api/vitest.integration.config.ts).
       testTimeout: 30000,
       hookTimeout: 30000,
     },

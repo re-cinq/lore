@@ -22,7 +22,7 @@ unit of work without re-running a full readiness scan.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L317)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/pipeline-tools-spec-tasks.ts#L115)).
 
 - **name**: `lore_complete_task`
 - **description** (verbatim):
@@ -43,7 +43,7 @@ Marks a claimed ('running') spec-task as 'completed' and returns which dependent
    adapter holds no pool (ADR-032), so the completion and the dependents scan run
    in lore-api ([`POST /api/spec-tasks/complete`](../../api-routes/spec-tasks/spec.md)).
 2. The route delegates to `completeTask(pool, task_id)`
-   ([handler](../../../libs/server-core/src/features/pipeline/tasks.ts#L51)). It:
+   ([handler](../../../libs/server-core/src/work/pipeline/tasks.ts#L51)). It:
    1. `SELECT id, status, context_bundle, target_repo FROM pipeline.tasks WHERE id = $1`. If no row → `{ completed: false, unblocked: [] }`.
    2. If `status !== 'running'` → `{ completed: false, unblocked: [] }` (no write).
    3. `UPDATE pipeline.tasks SET status = 'completed', updated_at = now() WHERE id = $1`.
@@ -73,26 +73,26 @@ throws.
 
 ## Acceptance Criteria
 
-A non-existent task id yields `completed: false` with no unblocked entries. ([validated by `returns completed false when the task does not exist`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L187))
+A non-existent task id yields `completed: false` with no unblocked entries. ([validated by `returns completed false when the task does not exist`](apps/mcp-server/src/work/pipeline/tasks-db.test.ts#L185))
 
-A task that is not in `running` state is not completed. ([validated by `returns completed false when the task is not running`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L199))
+A task that is not in `running` state is not completed. ([validated by `returns completed false when the task is not running`](apps/mcp-server/src/work/pipeline/tasks-db.test.ts#L197))
 
 A running task is marked completed and reports no unblocked dependents when none
-qualify. ([validated by `marks a running task completed and records the transition, no slug scan`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L214))
+qualify. ([validated by `marks a running task completed and records the transition, no slug scan`](apps/mcp-server/src/work/pipeline/tasks-db.test.ts#L212))
 
 Newly unblocked dependents are returned as `spec_task_id: description`
-descriptors. ([validated by `returns formatted descriptors for newly unblocked same-spec dependents`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L237))
+descriptors. ([validated by `returns formatted descriptors for newly unblocked same-spec dependents`](apps/mcp-server/src/work/pipeline/tasks-db.test.ts#L235))
 
 When the completed task carries no `spec_slug`/`spec_task_id` the dependents
-query is skipped. ([validated by `marks a running task completed and records the transition, no slug scan`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L214))
+query is skipped. ([validated by `marks a running task completed and records the transition, no slug scan`](apps/mcp-server/src/work/pipeline/tasks-db.test.ts#L212))
 
 Newly unblocked dependents are appended to the completion message as a bullet
-list. ([validated by `lore_complete_task lists the newly unblocked dependents`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L416))
+list. ([validated by `lore_complete_task lists the newly unblocked dependents`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L551))
 
-A task that was not running renders the not-running message. ([validated by `lore_complete_task reports a task that was not running`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L430))
+A task that was not running renders the not-running message. ([validated by `lore_complete_task reports a task that was not running`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L565))
 
 An unconfigured API yields the not-configured message rather than a PostgreSQL
-message. ([validated by `every proxied pipeline tool reports a missing API configuration`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L440))
+message. ([validated by `every proxied pipeline tool reports a missing API configuration`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L575))
 
 ## Out of Scope
 

@@ -13,7 +13,7 @@ trace graph, polluting context assembly and the web-UI spec lists.
 
 Nothing here reaches any index:
 
-- **pgvector** — `classifyFile()` (`libs/shared/src/content-classify.ts`) returns
+- **pgvector** — `classifyFile()` (`libs/shared/src/domain/content-classify.ts`) returns
   `null` for every repo-root `graveyard/` path, and it is the single chokepoint
   both ingest paths share (lore-api `POST /api/ingest` and the floor nightly
   reindex), so a graveyard file is never chunked or embedded.

@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { getChunksByPath } from "@/lib/api/chunks";
 import ContextFileView, { type ContextFileChunk } from "../ContextFileView";
+import { decodeCatchAllPath } from "@/lib/catch-all-path";
 
 export default async function RepoContextFile({
   params,
@@ -9,7 +10,7 @@ export default async function RepoContextFile({
 }) {
   const { owner, repo, path } = await params;
   const fullName = `${owner}/${repo}`;
-  const filePath = path.map(decodeURIComponent).join("/");
+  const filePath = decodeCatchAllPath(path);
 
   const result = await getChunksByPath(filePath, fullName);
   const chunks = (result.status === "ok"

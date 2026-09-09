@@ -42,6 +42,12 @@ describe("parseFrontmatter", () => {
     expect(parseFrontmatter(source).meta.domains).toEqual(["floor", "web-ui"]);
   });
 
+  it("drops a key with an empty scalar value and no block list following it", () => {
+    const source = "---\nempty:\ntitle: T\n---\n\nBody.\n";
+
+    expect(parseFrontmatter(source).meta).toEqual({ title: "T" });
+  });
+
   it("returns the body starting right after the closing fence", () => {
     expect(parseFrontmatter(adr).body).toBe(
       "\n# ADR-032: Split\n\nLead paragraph.\n",

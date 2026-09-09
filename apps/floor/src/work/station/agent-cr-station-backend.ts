@@ -1,0 +1,121 @@
+// The agent-cr execution path (ADR-031 #688): routes a task to the Floor-side AssemblyLine when one is defined for its task type, else runs it as a SINGLE Agent CR (onboard/review/runbook); both halves ENQUEUE for a cluster-agent to claim (specs/running-stations-in-any-k8s-cluster FR3) — nothing here pushes a CR anymore. Only the LIFECYCLE differs: no graph means no walk, so the agent-watcher still resolves a single CR's completion.
+
+import type {
+  LoreTaskSpec,
+  StationBackend,
+  StationLaunchResult,
+  AgentLister,
+} from "@re-cinq/lore-shared";
+import {
+  agentCrName,
+  isTaskAgentActive,
+} from "@re-cinq/lore-shared/cluster/agent-backend.js";
+import { resolveRequiredTags } from "@re-cinq/lore-shared/project/cluster-agents/required-tags.js";
+import type { AssemblyRunsPort } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
+import { boundedStationRunInput } from "./station-run-input.js";
+
+/** A task type runs on the assembly line when a builtin assembly line is defined for it. */
+export function shouldUseAssemblyLine(
+  taskType: string,
+  assemblyLineNames: ReadonlySet<string>,
+): boolean {
+  return assemblyLineNames.has(taskType);
+}
+
+// The node id a single-CR task's one visit is recorded under; names what the visit IS rather than the task type (blueprintName already carries that), since the claim matches on required_tags, which this id is the type half of.
+const SINGLE_CR_NODE_ID = "agent";
+
+/** Run rows a single-CR re-dispatch may converge on rather than opening a second. */
+const OPEN_STATUSES = ["queued", "running"];
+
+export interface AgentCrStationBackendDeps {
+  assemblyLine: StationBackend;
+  assemblyLineNames: ReadonlySet<string>;
+  assemblyRuns: Pick<
+    AssemblyRunsPort,
+    "start" | "listForTask" | "ensureStationRun"
+  >;
+  agents: AgentLister;
+  repoSettings: (repo: string) => Promise<Record<string, unknown> | null>;
+}
+
+export class AgentCrStationBackend implements StationBackend {
+  private readonly assemblyLine: StationBackend;
+  private readonly assemblyLineNames: ReadonlySet<string>;
+  private readonly assemblyRuns: AgentCrStationBackendDeps["assemblyRuns"];
+  private readonly agents: AgentLister;
+  private readonly repoSettings: AgentCrStationBackendDeps["repoSettings"];
+
+  constructor(deps: AgentCrStationBackendDeps) {
+    this.assemblyLine = deps.assemblyLine;
+    this.assemblyLineNames = deps.assemblyLineNames;
+    this.assemblyRuns = deps.assemblyRuns;
+    this.agents = deps.agents;
+    this.repoSettings = deps.repoSettings;
+  }
+
+  /** The run row this attempt belongs to. Single-CR tasks get one too, so pipeline.assembly_runs is the COMPLETE execution history — and an OPEN row is reused rather than replaced, because a crash-recovery re-dispatch would otherwise mint a phantom second run for one execution. */
+  private async runForTask(spec: LoreTaskSpec): Promise<string> {
+    const open = (await this.assemblyRuns.listForTask(spec.taskId)).find(
+      (row) => OPEN_STATUSES.includes(row.status),
+    );
+
+    return (
+      open?.id ??
+      (await this.assemblyRuns.start({
+        blueprintName: spec.taskType,
+        repo: spec.targetRepo,
+        branch: spec.branch,
+        taskId: spec.taskId,
+        args: { description: spec.description },
+      }))
+    );
+  }
+
+  async launch(spec: LoreTaskSpec): Promise<StationLaunchResult> {
+    if (shouldUseAssemblyLine(spec.taskType, this.assemblyLineNames)) {
+      return this.assemblyLine.launch(spec);
+    }
+
+    // The name the row records and the name the spec carries are the same value on purpose — a spelling drift would not fail to compile, it would just never correlate, reading as a run nobody ever launched.
+    const name = agentCrName(spec.taskId);
+    // One call, not an insert plus an arm: ensureStationRun's unique key is what makes a re-dispatch converge, keeping the spec it was armed with rather than overwriting a pod already being built from the first.
+    const { created } = await this.assemblyRuns.ensureStationRun(
+      await this.singleCrStationRun(spec, name),
+    );
+
+    return { ref: name, launched: created };
+  }
+
+  /** The one station-run row a single-CR task is enqueued as. */
+  private async singleCrStationRun(spec: LoreTaskSpec, name: string) {
+    return {
+      assemblyRunId: await this.runForTask(spec),
+      nodeId: SINGLE_CR_NODE_ID,
+      iteration: 1,
+      agentCrName: name,
+      status: "queued" as const,
+      requiredTags: await this.singleCrTags(spec.targetRepo),
+      input: boundedStationRunInput({
+        description: spec.description,
+        prompt: spec.prompt,
+        repo: spec.targetRepo,
+        ref: spec.branch,
+      }),
+      dispatchSpec: { ...spec, name },
+    };
+  }
+
+  private async singleCrTags(repo: string): Promise<string[]> {
+    return resolveRequiredTags(
+      SINGLE_CR_NODE_ID,
+      undefined,
+      await this.repoSettings(repo),
+    );
+  }
+
+  // Probe the cluster's CRs by task-id label, which finds a single Agent and an assembly line's per-node Agents alike — so the reaper sees either path.
+  isActive(taskId: string): Promise<boolean> {
+    return isTaskAgentActive(this.agents, taskId);
+  }
+}

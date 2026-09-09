@@ -71,15 +71,12 @@ describe("getAssemblyLineDefinition", () => {
     expect(await getAssemblyLineDefinition("nope")).toBeNull();
   });
 
-  it("returns null when the Floor is unreachable", async () => {
-    // The create form must render whether or not the Floor is up.
+  it("returns null when the Floor is unreachable, so the create form still renders", async () => {
     fetchMock.mockRejectedValue(new Error("ECONNREFUSED"));
     expect(await getAssemblyLineDefinition("feature-planning")).toBeNull();
   });
 
   it("returns null for a payload carrying no nodes", async () => {
-    // An error envelope would otherwise reach the renderer as a shape it does not
-    // expect, and a node-less graph cannot be drawn anyway.
     fetchMock.mockResolvedValue(
       new Response(JSON.stringify({ error: "boom" }), { status: 200 }),
     );
@@ -87,8 +84,6 @@ describe("getAssemblyLineDefinition", () => {
   });
 
   it("returns null for a payload missing the entry the layout roots on", async () => {
-    // The cast is a claim, not a check: a truncated payload would otherwise reach
-    // the layout code as a shape it does not expect.
     fetchMock.mockResolvedValue(
       new Response(JSON.stringify({ ...definition, entry: undefined }), {
         status: 200,

@@ -1,15 +1,15 @@
 # Feature Specification: Lore — Shared Context Infrastructure
 
-| Field             | Value                                      |
-|-------------------|--------------------------------------------|
-| Feature           | Lore Platform                              |
-| Branch            | 1-lore-platform                            |
-| Status            | Shipped                                    |
-| Created           | 2026-03-25                                 |
-| Updated           | 2026-04-20                                 |
-| Owner             | Platform Engineering                       |
-| Phase 0 Target    | 3-4 working days                           |
-| Full Stack Target | 6-8 weeks                                  |
+| Field             | Value                |
+| ----------------- | -------------------- |
+| Feature           | Lore Platform        |
+| Branch            | 1-lore-platform      |
+| Status            | Shipped              |
+| Created           | 2026-03-25           |
+| Updated           | 2026-04-20           |
+| Owner             | Platform Engineering |
+| Phase 0 Target    | 3-4 working days     |
+| Full Stack Target | 6-8 weeks            |
 
 Lore is shared context infrastructure for Claude Code: one install command
 gives every developer full organizational awareness — conventions, ADRs, team
@@ -84,6 +84,7 @@ system is performing.
 **Actor:** New Developer
 
 **Flow:**
+
 1. Developer runs a single install command.
 2. System clones the context repository, builds the MCP server,
    detects the developer's team, configures Claude Code settings,
@@ -93,6 +94,7 @@ system is performing.
    available work.
 
 **Acceptance Criteria:**
+
 - Installation completes in under 5 minutes on macOS and Linux.
 - Health check reports all green on a clean machine with standard
   prerequisites (Node.js, Python, Git).
@@ -105,6 +107,7 @@ system is performing.
 **Actor:** Active Developer
 
 **Flow:**
+
 1. Developer opens Claude Code.
 2. Context and task state sync automatically in the background.
 3. Developer asks what to work on.
@@ -112,6 +115,7 @@ system is performing.
 5. Developer claims a task and begins work.
 
 **Acceptance Criteria:**
+
 - Context sync completes silently without developer action.
 - Task list shows only unblocked work.
 - Claimed tasks are tracked automatically during the session.
@@ -123,6 +127,7 @@ system is performing.
 **Actor:** Active Developer
 
 **Flow:**
+
 1. Developer invokes the `/lore-feature` skill.
 2. System asks what they want to build (one question).
 3. System generates a project constitution from real ADRs and team
@@ -135,6 +140,7 @@ system is performing.
 7. Developer sees their tasks and begins implementation.
 
 **Acceptance Criteria:**
+
 - The full loop completes in under 30 minutes.
 - Developer speaks fewer than 10 words total — system does the work,
   developer confirms at decision points.
@@ -146,6 +152,7 @@ system is performing.
 **Actor:** Active Developer
 
 **Flow:**
+
 1. Developer invokes the `/lore-pr` skill.
 2. System reads the current task, spec file, changed files, and
    ADR references automatically.
@@ -155,6 +162,7 @@ system is performing.
 5. System reminds developer to mark the task as done.
 
 **Acceptance Criteria:**
+
 - PR description includes Why, Alternatives Rejected, ADR References,
   and Spec sections — all populated from existing context.
 - Developer does not write the description from scratch.
@@ -166,6 +174,7 @@ system is performing.
 **Actor:** Any Developer (via CI)
 
 **Flow:**
+
 1. Developer opens a PR that modifies context files (CLAUDE.md, ADRs,
    team conventions).
 2. CI runs context evaluation tests against the changes.
@@ -174,6 +183,7 @@ system is performing.
    CI fails the PR.
 
 **Acceptance Criteria:**
+
 - CI fails PRs that contradict active ADRs.
 - CI fails PRs with empty "Why" or "Alternatives Rejected" sections.
 - Warning-only mode for the first 2 weeks, hard fail after.
@@ -184,6 +194,7 @@ system is performing.
 **Actor:** Active Developer
 
 **Flow:**
+
 1. Developer asks Claude Code a question about a specific code
    pattern or decision.
 2. System performs hybrid search (vector + keyword) across the
@@ -192,6 +203,7 @@ system is performing.
    ranked by relevance.
 
 **Acceptance Criteria:**
+
 - Search returns relevant results in under 200ms (p99).
 - A query like "ChargeBuilder idempotency" returns both the code
   chunk (matched by vector similarity) and the PR that introduced
@@ -204,6 +216,7 @@ system is performing.
 **Actor:** Active Developer
 
 **Flow:**
+
 1. Developer identifies a well-defined task that will take more
    than 20 minutes (e.g., writing integration tests).
 2. Developer asks Claude Code to delegate it to the cluster via
@@ -216,6 +229,7 @@ system is performing.
    updated with task progress.
 
 **Acceptance Criteria:**
+
 - Task submission returns immediately with a tracking ID.
 - Agent nodes also get a **live, scoped** Lore MCP for the run's duration:
   the seeded agent recipe carries a `resources.mcp_servers` entry
@@ -224,20 +238,28 @@ system is performing.
   targeted memory throughout the run — the only context path, since nothing is
   fetched before the pod starts. A shared `lore-mcp`
   gateway serves those tools over MCP-over-HTTP at a public `:443` host (the
-  agent-pod NetworkPolicy allows only public `:443` egress). ([validated by `agent-catalog.test.ts:69`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L69), [`agent-catalog.test.ts:21`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L21))
+  agent-pod NetworkPolicy allows only public `:443` egress). ([validated by `agent-catalog.test.ts:69`](apps/floor/src/work/agent/agent-catalog.test.ts#L69), [`agent-catalog.test.ts:21`](apps/floor/src/work/agent/agent-catalog.test.ts#L21))
 - The gateway reads each request body defensively: it JSON-parses the body
   (an empty body carries no payload), caps it at 1 MB (`413` over the cap) so an
   authenticated-but-rogue pod cannot exhaust gateway memory, and returns `400`
-  for a malformed body rather than a `500`. ([validated by `http-transport.test.ts:10`](apps/mcp-server/src/server/http-transport.test.ts#L10), [`http-transport.test.ts:14`](apps/mcp-server/src/server/http-transport.test.ts#L14), [`http-transport.test.ts:18`](apps/mcp-server/src/server/http-transport.test.ts#L18), [`http-transport.test.ts:24`](apps/mcp-server/src/server/http-transport.test.ts#L24))
+  for a malformed body rather than a `500`. ([validated by `http-transport.test.ts:11`](apps/mcp-server/src/transport/http-transport.test.ts#L11), [`http-transport.test.ts:15`](apps/mcp-server/src/transport/http-transport.test.ts#L15), [`http-transport.test.ts:19`](apps/mcp-server/src/transport/http-transport.test.ts#L19), [`http-transport.test.ts:25`](apps/mcp-server/src/transport/http-transport.test.ts#L25))
 - When no gateway URL is configured (the default, and every cluster before the
   gateway is deployed), the seeded agent recipes omit the `mcp_servers` block
-  entirely — no empty-`url` MCP entry lands in any recipe CRD. ([validated by `catalog-mcp-guard.test.ts:12`](apps/floor/src/jobs/agent/catalog-mcp-guard.test.ts#L12))
+  entirely — no empty-`url` MCP entry lands in any recipe CRD. ([validated by `catalog-mcp-guard.test.ts:10`](apps/floor/src/work/agent/catalog-mcp-guard.test.ts#L10))
 - The gateway also serves an **agent-skills registry** at `/skills` (unauthenticated —
   skills are org conventions, not secrets): `GET /skills/settings.json` returns the org
   session settings/hooks, and `GET /skills/<name>.tar.gz` streams a gzip tarball of the
   baked skill directory, rejecting an unsafe/traversing name with `404`. The
   ai-agent-subsystem init fetches these into a run's `$HOME/.claude` (recipe
-  `resources.skills` + `skills_source`, ADR-030). ([validated by `skills-registry.test.ts:47`](apps/mcp-server/src/server/skills-registry.test.ts#L47), [`skills-registry.test.ts:55`](apps/mcp-server/src/server/skills-registry.test.ts#L55), [`skills-registry.test.ts:68`](apps/mcp-server/src/server/skills-registry.test.ts#L68), [`skills-registry.test.ts:79`](apps/mcp-server/src/server/skills-registry.test.ts#L79))
+  `resources.skills` + `skills_source`, ADR-030). A path only counts as owned on
+  `GET /skills/*`; a bare `/skills/<name>` with no `.tar.gz` suffix (and not
+  `settings.json`) 404s the same as an unsafe name. ([validated by `skills-registry.test.ts:46`](apps/mcp-server/src/transport/skills-registry.test.ts#L46), [`skills-registry.test.ts:54`](apps/mcp-server/src/transport/skills-registry.test.ts#L54), [`skills-registry.test.ts:67`](apps/mcp-server/src/transport/skills-registry.test.ts#L67), [`skills-registry.test.ts:101`](apps/mcp-server/src/transport/skills-registry.test.ts#L101), [`404s a /skills/ path with no recognized suffix`](apps/mcp-server/src/transport/skills-registry.test.ts#L78), [`returns false for a non-GET method even on a /skills/ path`](apps/mcp-server/src/transport/skills-registry.test.ts#L89))
+- The gateway's top-level router tries `/healthz`, then `/skills/*`, before
+  falling through to `/mcp`: a non-`/mcp` path 404s, an `/mcp` request missing
+  the configured bearer token 401s, and on `/mcp` itself POST mints or resumes
+  a session (400 without a valid session on a non-initialize body) while
+  GET/DELETE require an already-minted session id (400 otherwise) and any
+  other method 405s. ([validated by `answers /healthz without touching /mcp or /skills routing`](apps/mcp-server/src/transport/http-transport.test.ts#L51), [`falls through to the skills registry for a /skills path`](apps/mcp-server/src/transport/http-transport.test.ts#L61), [`404s a path that is neither /healthz, /skills, nor /mcp`](apps/mcp-server/src/transport/http-transport.test.ts#L71), [`401s an /mcp request missing the configured bearer token`](apps/mcp-server/src/transport/http-transport.test.ts#L80), [`400s a POST /mcp with no session and a non-initialize body`](apps/mcp-server/src/transport/http-transport.test.ts#L90), [`400s a GET /mcp with an unknown session id`](apps/mcp-server/src/transport/http-transport.test.ts#L118), [`405s an unsupported method on /mcp`](apps/mcp-server/src/transport/http-transport.test.ts#L115))
 - Developer can check task status and retrieve results without
   leaving Claude Code.
 - The pipeline task is visible in the shared task tracker — no
@@ -249,6 +271,7 @@ system is performing.
 **Actor:** Platform Engineer (reviewer), System (initiator)
 
 **Flow:**
+
 1. Weekly job analyzes low-confidence context retrievals from the
    past week.
 2. System clusters gaps by topic similarity.
@@ -259,6 +282,7 @@ system is performing.
 5. Team reviews and merges or closes with feedback.
 
 **Acceptance Criteria:**
+
 - Gap detection identifies recurring low-confidence queries.
 - Drafted content is specific and actionable (not just "add
   information about X").
@@ -271,6 +295,7 @@ system is performing.
 **Actor:** Active Developer or Tech Lead
 
 **Flow:**
+
 1. Developer asks "why does the auth service work this way?"
 2. System queries the live knowledge graph to traverse relationships:
    code → PR → ADR → Spec, including entity relationships and
@@ -278,6 +303,7 @@ system is performing.
 3. System presents the chain of reasoning across sources.
 
 **Acceptance Criteria:**
+
 - `lore_query_graph` returns multi-hop traversal results that vector
   search alone cannot answer.
 - Graph entities carry typed relationships (OWNS, CALLS, IMPLEMENTS,
@@ -324,7 +350,7 @@ The system MUST provide a single-command install experience. ([validated by `ins
 ### FR-4: Task Tracking Integration
 
 The system MUST provide agent-native task tracking via PostgreSQL
-pipeline tasks and GitHub Issues. ([validated by `task-queue.test.ts:22`](libs/shared/src/project/tasks/task-queue.test.ts#L22))
+pipeline tasks and GitHub Issues. ([validated by `task-queue.test.ts:20`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L20))
 
 - Decision: the generated `AGENTS.md` instructs Claude Code on task-tracking
   commands and proactive guidance behaviour.
@@ -332,57 +358,57 @@ pipeline tasks and GitHub Issues. ([validated by `task-queue.test.ts:22`](libs/s
 - Decision: a Stop (session-end) hook reminds about open claimed tasks.
 - FR-4.4: `lore_sync_tasks` MCP tool converts tasks.md task output into
   pipeline tasks with dependency relationships parsed from
-  `[DEPENDS ON: ...]` annotations. ([validated by `tasks.test.ts:60`](libs/shared/src/tasks.test.ts#L60))
+  `[DEPENDS ON: ...]` annotations. ([validated by `tasks.test.ts:60`](libs/shared/src/domain/tasks.test.ts#L60))
 - FR-4.5: Concurrent task claiming uses `SELECT ... FOR UPDATE SKIP
-  LOCKED` — atomically prevents duplicate work without versioning
+LOCKED` — atomically prevents duplicate work without versioning
   overhead. A claim attempt on a taken task returns an immediate
   error; the developer or agent reads the ready list and picks
-  another task. ([validated by `task-queue.test.ts:9`](libs/shared/src/project/tasks/task-queue.test.ts#L9))
+  another task. ([validated by `task-queue.test.ts:7`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L7))
 - FR-4.6: Every pipeline task automatically creates a GitHub Issue
   on the target repo (labelled `lore-managed`). The issue receives
-  status comments and is closed when the PR is created. ([validated by `issues.test.ts:102`](libs/shared/src/project/issues/issues.test.ts#L103), [`issues.test.ts:115`](libs/shared/src/project/issues/issues.test.ts#L116))
+  status comments and is closed when the PR is created. ([validated by `issues.test.ts:102`](libs/shared/src/outbound/project/issues/issues.test.ts#L98), [`issues.test.ts:111`](libs/shared/src/outbound/project/issues/issues.test.ts#L111))
 - FR-4.7: Optional approval gates: tasks can require a human to add
   an `approved` label on the GitHub Issue before processing.
-  Configured via the settings UI or `lore.settings` table. ([validated by `SettingsView.test.tsx:123`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L123))
+  Configured via the settings UI or `lore.settings` table. ([validated by `SettingsView.test.tsx:123`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L120))
 - FR-4.8: `parseTasks` turns each `- [ ] Tnnn ...` markdown line into a task
   record — id, description, `completed` from the checkbox, `parallelizable` with a
   stripped description from a `[P]` marker, a `dependsOn` list from a `[DEPENDS ON: ...]`
-  marker, a plain-or-backtick file path from the trailing ` | ` suffix, and the phase
+  marker, a plain-or-backtick file path from the trailing `|` suffix, and the phase
   number carried from the preceding `## Phase N` header — defaulting phase to 0 and
-  ignoring lines that are neither tasks nor phase headers. ([validated by `tasks.test.ts:25`](libs/shared/src/tasks.test.ts#L25), [`tasks.test.ts:39`](libs/shared/src/tasks.test.ts#L39), [`tasks.test.ts:46`](libs/shared/src/tasks.test.ts#L46), [`tasks.test.ts:53`](libs/shared/src/tasks.test.ts#L53), [`tasks.test.ts:69`](libs/shared/src/tasks.test.ts#L69), [`tasks.test.ts:85`](libs/shared/src/tasks.test.ts#L85), [`tasks.test.ts:101`](libs/shared/src/tasks.test.ts#L101), [`tasks.test.ts:23`](libs/server-core/src/features/pipeline/tasks.test.ts#L23), [`tasks.test.ts:31`](libs/server-core/src/features/pipeline/tasks.test.ts#L31), [`tasks.test.ts:39`](libs/server-core/src/features/pipeline/tasks.test.ts#L39), [`tasks.test.ts:47`](libs/server-core/src/features/pipeline/tasks.test.ts#L47), [`tasks.test.ts:54`](libs/server-core/src/features/pipeline/tasks.test.ts#L54), [`tasks.test.ts:73`](libs/server-core/src/features/pipeline/tasks.test.ts#L73), [`tasks.test.ts:92`](libs/server-core/src/features/pipeline/tasks.test.ts#L92))
+  ignoring lines that are neither tasks nor phase headers. ([validated by `tasks.test.ts:25`](libs/shared/src/domain/tasks.test.ts#L25), [`tasks.test.ts:39`](libs/shared/src/domain/tasks.test.ts#L39), [`tasks.test.ts:46`](libs/shared/src/domain/tasks.test.ts#L46), [`tasks.test.ts:53`](libs/shared/src/domain/tasks.test.ts#L53), [`tasks.test.ts:69`](libs/shared/src/domain/tasks.test.ts#L69), [`tasks.test.ts:85`](libs/shared/src/domain/tasks.test.ts#L85), [`tasks.test.ts:101`](libs/shared/src/domain/tasks.test.ts#L101), [`tasks.test.ts:23`](libs/server-core/src/work/pipeline/tasks.test.ts#L23), [`tasks.test.ts:31`](libs/server-core/src/work/pipeline/tasks.test.ts#L31), [`tasks.test.ts:39`](libs/server-core/src/work/pipeline/tasks.test.ts#L39), [`tasks.test.ts:47`](libs/server-core/src/work/pipeline/tasks.test.ts#L47), [`tasks.test.ts:54`](libs/server-core/src/work/pipeline/tasks.test.ts#L54), [`tasks.test.ts:73`](libs/server-core/src/work/pipeline/tasks.test.ts#L73), [`tasks.test.ts:92`](libs/server-core/src/work/pipeline/tasks.test.ts#L92))
 - FR-4.9: `inferPhaseDependencies` derives dependency edges deterministically: a task
   depends on every task of the previous phase, sequential (non-`[P]`) tasks chain within a
   phase, `[P]` tasks stay free of intra-phase deps, explicit `[DEPENDS ON: ...]` deps are
   preserved rather than overwritten, and task lists with no phases (or empty input) are
-  returned unchanged. ([validated by `tasks.test.ts:110`](libs/shared/src/tasks.test.ts#L110), [`tasks.test.ts:114`](libs/shared/src/tasks.test.ts#L114), [`tasks.test.ts:120`](libs/shared/src/tasks.test.ts#L120), [`tasks.test.ts:138`](libs/shared/src/tasks.test.ts#L138), [`tasks.test.ts:150`](libs/shared/src/tasks.test.ts#L150), [`tasks.test.ts:160`](libs/shared/src/tasks.test.ts#L160), [`tasks.test.ts:106`](libs/server-core/src/features/pipeline/tasks.test.ts#L106), [`tasks.test.ts:116`](libs/server-core/src/features/pipeline/tasks.test.ts#L116), [`tasks.test.ts:133`](libs/server-core/src/features/pipeline/tasks.test.ts#L133), [`tasks.test.ts:149`](libs/server-core/src/features/pipeline/tasks.test.ts#L149), [`tasks.test.ts:166`](libs/server-core/src/features/pipeline/tasks.test.ts#L166), [`tasks.test.ts:181`](libs/server-core/src/features/pipeline/tasks.test.ts#L181), [`tasks.test.ts:212`](libs/server-core/src/features/pipeline/tasks.test.ts#L212))
+  returned unchanged. ([validated by `tasks.test.ts:110`](libs/shared/src/domain/tasks.test.ts#L110), [`tasks.test.ts:114`](libs/shared/src/domain/tasks.test.ts#L114), [`tasks.test.ts:120`](libs/shared/src/domain/tasks.test.ts#L120), [`tasks.test.ts:138`](libs/shared/src/domain/tasks.test.ts#L138), [`tasks.test.ts:150`](libs/shared/src/domain/tasks.test.ts#L150), [`tasks.test.ts:160`](libs/shared/src/domain/tasks.test.ts#L160), [`tasks.test.ts:106`](libs/server-core/src/work/pipeline/tasks.test.ts#L106), [`tasks.test.ts:116`](libs/server-core/src/work/pipeline/tasks.test.ts#L116), [`tasks.test.ts:133`](libs/server-core/src/work/pipeline/tasks.test.ts#L133), [`tasks.test.ts:149`](libs/server-core/src/work/pipeline/tasks.test.ts#L149), [`tasks.test.ts:165`](libs/server-core/src/work/pipeline/tasks.test.ts#L165), [`tasks.test.ts:179`](libs/server-core/src/work/pipeline/tasks.test.ts#L179), [`tasks.test.ts:206`](libs/server-core/src/work/pipeline/tasks.test.ts#L206))
 - FR-4.10: `specSlugFromBranch` extracts the spec slug from a
   `lore/feature-request/<slug>-<8hex>` branch by dropping the 8-hex task suffix, and returns
-  null for a non-feature-request branch or one that has the prefix but no slug. ([validated by `tasks.test.ts:9`](libs/shared/src/tasks.test.ts#L9), [`tasks.test.ts:15`](libs/shared/src/tasks.test.ts#L15), [`tasks.test.ts:19`](libs/shared/src/tasks.test.ts#L19))
+  null for a non-feature-request branch or one that has the prefix but no slug. ([validated by `tasks.test.ts:9`](libs/shared/src/domain/tasks.test.ts#L9), [`tasks.test.ts:15`](libs/shared/src/domain/tasks.test.ts#L15), [`tasks.test.ts:19`](libs/shared/src/domain/tasks.test.ts#L19))
 
 ### FR-5: Spec-Driven Feature Workflow
 
 The system MUST provide an end-to-end feature workflow via platform
-skills. ([validated by `planning-prompt.test.ts:21`](libs/shared/src/feature-planning/planning-prompt.test.ts#L52))
+skills. ([validated by `planning-prompt.test.ts:47`](libs/shared/src/domain/feature-planning/planning-prompt.test.ts#L47))
 
 - FR-5.1: `/lore-feature` skill guides the full loop: constitution
-  generation → specification → task breakdown → pipeline task wiring. ([validated by `planning-prompt.test.ts:143`](libs/shared/src/feature-planning/planning-prompt.test.ts#L168), [`planning-prompt.test.ts:21`](libs/shared/src/feature-planning/planning-prompt.test.ts#L52))
+  generation → specification → task breakdown → pipeline task wiring. ([validated by `planning-prompt.test.ts:153`](libs/shared/src/domain/feature-planning/planning-prompt.test.ts#L153), [`planning-prompt.test.ts:47`](libs/shared/src/domain/feature-planning/planning-prompt.test.ts#L47))
 - FR-5.2: `/lore-pr` skill drafts PR descriptions from spec, task
-  context, and changed files. ([validated by `pr-body.test.ts:5`](libs/shared/src/pr-body.test.ts#L5), [`pr-body.test.ts:11`](libs/shared/src/pr-body.test.ts#L11))
+  context, and changed files. ([validated by `pr-body.test.ts:5`](libs/shared/src/domain/pr-body.test.ts#L5), [`pr-body.test.ts:11`](libs/shared/src/domain/pr-body.test.ts#L11))
 - Decision: constitution generation (the `lore-gen-constitution` glue script)
   calls `lore_assemble_context` to populate `.specify/constitution.md` with
   real ADRs and team conventions.
 - FR-5.4: Claude Code does mechanical work; developer confirms only
   at decision points (constitution review, spec review, task
-  breakdown review). ([validated by `planning-prompt.test.ts:59`](libs/shared/src/feature-planning/planning-prompt.test.ts#L90), [`planning-prompt.test.ts:71`](libs/shared/src/feature-planning/planning-prompt.test.ts#L102))
+  breakdown review). ([validated by `planning-prompt.test.ts:85`](libs/shared/src/domain/feature-planning/planning-prompt.test.ts#L85), [`planning-prompt.test.ts:97`](libs/shared/src/domain/feature-planning/planning-prompt.test.ts#L97))
 
 ### FR-6: PR Quality Enforcement
 
-The system MUST enforce PR description quality from day one. ([validated by `pr-section-check.test.ts:28`](libs/shared/src/pr-section-check.test.ts#L28), [`pr-section-check.test.ts:32`](libs/shared/src/pr-section-check.test.ts#L32))
+The system MUST enforce PR description quality from day one. ([validated by `pr-section-check.test.ts:26`](libs/shared/src/work/pr-section-check.test.ts#L26), [`pr-section-check.test.ts:30`](libs/shared/src/work/pr-section-check.test.ts#L30))
 
 - FR-6.1: PR template with required sections: Why, What Changed,
   Alternatives Considered, ADRs & Architecture, and Testing. ([validated by `pr-template.test.ts:11`](libs/shared/src/pr-template.test.ts#L11), [`pr-template.test.ts:15`](libs/shared/src/pr-template.test.ts#L15), [`pr-template.test.ts:19`](libs/shared/src/pr-template.test.ts#L19), [`pr-template.test.ts:23`](libs/shared/src/pr-template.test.ts#L23), [`pr-template.test.ts:27`](libs/shared/src/pr-template.test.ts#L27), [`pr-template.test.ts:31`](libs/shared/src/pr-template.test.ts#L31))
 - FR-6.2: CI check fails PRs with an empty Why or Alternatives Considered
-  section. ([validated by `pr-section-check.test.ts:36`](libs/shared/src/pr-section-check.test.ts#L36), [`pr-section-check.test.ts:46`](libs/shared/src/pr-section-check.test.ts#L46), [`pr-section-check.test.ts:57`](libs/shared/src/pr-section-check.test.ts#L57), [`pr-section-check.test.ts:69`](libs/shared/src/pr-section-check.test.ts#L69), [`pr-section-check.test.ts:80`](libs/shared/src/pr-section-check.test.ts#L80), [`pr-section-check.test.ts:94`](libs/shared/src/pr-section-check.test.ts#L94), [`pr-section-check.test.ts:103`](libs/shared/src/pr-section-check.test.ts#L103), [`pr-section-check.test.ts:109`](libs/shared/src/pr-section-check.test.ts#L109), [`pr-section-check.test.ts:113`](libs/shared/src/pr-section-check.test.ts#L113))
+  section. ([validated by `pr-section-check.test.ts:34`](libs/shared/src/work/pr-section-check.test.ts#L34), [`pr-section-check.test.ts:44`](libs/shared/src/work/pr-section-check.test.ts#L44), [`pr-section-check.test.ts:55`](libs/shared/src/work/pr-section-check.test.ts#L55), [`pr-section-check.test.ts:67`](libs/shared/src/work/pr-section-check.test.ts#L67), [`pr-section-check.test.ts:78`](libs/shared/src/work/pr-section-check.test.ts#L78), [`pr-section-check.test.ts:92`](libs/shared/src/work/pr-section-check.test.ts#L92), [`pr-section-check.test.ts:101`](libs/shared/src/work/pr-section-check.test.ts#L101), [`pr-section-check.test.ts:107`](libs/shared/src/work/pr-section-check.test.ts#L107), [`pr-section-check.test.ts:111`](libs/shared/src/work/pr-section-check.test.ts#L111))
 - Decision: PR-quality enforcement starts in warning-only mode; the platform
   team flips it to hard-fail via a configuration flag in the CI workflow —
   there is no automatic date-based cutoff.
@@ -390,38 +416,37 @@ The system MUST enforce PR description quality from day one. ([validated by `pr-
 ### FR-7: Ingestion Pipeline (Phase 1)
 
 The system MUST ingest content from multiple sources into the vector
-store via the Lore Agent service. ([validated by `content-classify.test.ts:5`](libs/shared/src/content-classify.test.ts#L5))
+store via the Lore Agent service. ([validated by `content-classify.test.ts:5`](libs/shared/src/domain/content-classify.test.ts#L5))
 
 - FR-7.1: Fast path: on-push to main triggers incremental ingestion
-  via pipeline task. ([validated by `ingest-workflow.test.ts:22`](libs/shared/src/ingest-workflow.test.ts#L22), [`ci-ingest.test.ts:78`](apps/floor/src/delivery/http/routes/ci-ingest.test.ts#L78))
-- FR-7.2: Full path: nightly job triggers complete re-index via
-  pipeline task. ([validated by `reindex-backfill.test.ts:24`](apps/floor/src/jobs/context-jobs/reindex/reindex-backfill.test.ts#L24), [`reindex-seed.test.ts:5`](apps/floor/src/jobs/context-jobs/reindex/reindex-seed.test.ts#L5))
+  via pipeline task. ([validated by `ingest-workflow.test.ts:22`](libs/shared/src/work/ingest-workflow.test.ts#L22), [`ci-ingest.test.ts:79`](apps/floor/src/transport/http/routes/ci-ingest.test.ts#L79))
+- FR-7.2: Retired 2026-09-08 (ADR-019 amendment). There is no nightly
+  full re-index and the job runner no longer dispatches one: merge-time CI
+  ingest (FR-7.1) is the only ingestion path, so a file no merge has
+  touched since onboarding stays unindexed until one does. ([validated by exposes exactly the 3 batch jobs left after detection (ADR-019), the single-op jobs (#1348-1351) and the nightly reindex (2026-09-08) moved off K8s CronJobs](apps/floor/src/transport/job-runner.test.ts#L28))
 - FR-7.3: Content types: code (AST-split), pull requests (diff +
   description + comments), ADRs, docs (section-chunked), specs,
-  runbooks. ([validated by `chunker.test.ts:6`](libs/shared/src/chunker.test.ts#L6), [`chunker.test.ts:172`](libs/shared/src/chunker.test.ts#L172), [`content-classify.test.ts:11`](libs/shared/src/content-classify.test.ts#L11))
+  runbooks. ([validated by `chunker.test.ts:6`](libs/shared/src/work/chunker.test.ts#L6), [`chunker.test.ts:172`](libs/shared/src/work/chunker.test.ts#L172), [`content-classify.test.ts:11`](libs/shared/src/domain/content-classify.test.ts#L11))
 - FR-7.4: Secret and credential redaction runs at ingest time via
   `redactSecrets()`; matched secrets are stripped before content is
-  embedded and made searchable. ([validated by `redact.test.ts:5`](libs/shared/src/redact.test.ts#L5), [`redact.test.ts:30`](libs/shared/src/redact.test.ts#L30))
+  embedded and made searchable. ([validated by `redact.test.ts:5`](libs/shared/src/lib/redact.test.ts#L5), [`redact.test.ts:30`](libs/shared/src/lib/redact.test.ts#L30))
 - FR-7.5: Beyond chunking and embedding, the Lore Agent drafts missing
-  content and opens PRs (the gap-detection drafting path, FR-10). ([validated by `gap-detect.test.ts:123`](libs/shared/src/detect/gap-detect.test.ts#L123))
-- FR-7.6: Nightly re-index MUST hard-delete chunks whose source
-  file, PR, or ADR no longer exists or has been superseded. No
-  stale content is retained. ([validated by `verify.test.ts:69`](apps/floor/src/jobs/context-jobs/reindex/verify.test.ts#L69), [`chunks.test.ts:394`](libs/shared/src/project/chunks/chunks.test.ts#L394))
+  content and opens PRs (the gap-detection drafting path, FR-10). ([validated by `gap-detect.test.ts:123`](libs/shared/src/work/detect/gap-detect.test.ts#L124))
 
 ### FR-8: Observability (Phase 1)
 
-The system MUST provide observability into context retrieval quality. ([validated by `otel.test.ts:6`](libs/server-core/src/platform/otel.test.ts#L6), [`usage-tools.test.ts:51`](apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L51))
+The system MUST provide observability into context retrieval quality. ([validated by `otel.test.ts:6`](libs/server-core/src/outbound/otel.test.ts#L6), [`usage-tools.test.ts:44`](apps/mcp-server/src/transport/tools/usage-tools.test.ts#L44))
 
 - Decision: all MCP retrieval calls are traced via OpenTelemetry spans
   exported to Cloud Monitoring (SDK-level instrumentation).
 - FR-8.2: Low-confidence retrievals (score < threshold) tagged as
   gap candidates via OTEL span attributes and Cloud Monitoring
-  custom metrics. ([validated by `otel.test.ts:6`](libs/server-core/src/platform/otel.test.ts#L6), [`otel.test.ts:10`](libs/server-core/src/platform/otel.test.ts#L10), [`otel.test.ts:14`](libs/server-core/src/platform/otel.test.ts#L14))
+  custom metrics. ([validated by `otel.test.ts:6`](libs/server-core/src/outbound/otel.test.ts#L6), [`otel.test.ts:10`](libs/server-core/src/outbound/otel.test.ts#L10), [`otel.test.ts:14`](libs/server-core/src/outbound/otel.test.ts#L14))
 - See ADR-010 for the autoresearch loop: the low-confidence gap signal
   (Langfuse trace queries → candidate generation → PromptFoo eval → PR)
   drives automated context improvement.
 - FR-8.4: `lore_my_usage` tool exposes per-developer token consumption
-  (today / 7-day / 30-day) without leaving Claude Code. ([validated by `usage-tools.test.ts:51`](apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L51), [`usage-pg.test.ts:105`](libs/shared/src/project/usage/usage-pg.test.ts#L145))
+  (today / 7-day / 30-day) without leaving Claude Code. ([validated by `usage-tools.test.ts:44`](apps/mcp-server/src/transport/tools/usage-tools.test.ts#L44), [`usage-pg.test.ts:144`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L153))
 
 ### FR-9: Context Evaluation (Phase 1)
 
@@ -436,135 +461,128 @@ The system MUST validate context quality via CI.
 
 ### FR-10: Gap Detection (Phase 2)
 
-The system MUST automatically identify and address knowledge gaps. ([validated by `gap-detect.test.ts:105`](libs/shared/src/detect/gap-detect.test.ts#L105))
+The system MUST automatically identify and address knowledge gaps. ([validated by `gap-detect.test.ts:105`](libs/shared/src/work/detect/gap-detect.test.ts#L106))
 
 - See ADR-010: a weekly job analyzes low-confidence retrievals from the
   previous week (the autoresearch gap loop).
 - Decision: candidate gaps are clustered by embedding similarity.
 - FR-10.3: For a repo missing a documentation kind (CLAUDE.md, ADRs, or
   specs), the `gap-detect` job drafts the missing content as a `gap-fill`
-  task. ([validated by `gap-detect.test.ts:123`](libs/shared/src/detect/gap-detect.test.ts#L123))
+  task. ([validated by `gap-detect.test.ts:123`](libs/shared/src/work/detect/gap-detect.test.ts#L124))
 - Decision: the agent opens PRs to the context repo with the drafted content,
   assigned to the relevant team.
 - Decision: human review is required before any auto-drafted content is merged.
 - FR-10.6: The per-repo `gap-detect` job skips repos that are not
-  onboarded. ([validated by `gap-detect.test.ts:105`](libs/shared/src/detect/gap-detect.test.ts#L105))
+  onboarded. ([validated by `gap-detect.test.ts:105`](libs/shared/src/work/detect/gap-detect.test.ts#L106))
 - FR-10.7: It checks the repo's resolved-schema chunks for a CLAUDE.md
   doc chunk, ADR chunks, and spec chunks — filing a `gap-fill` task per
   missing kind, and none when all are present.
-  ([validated by `gap-detect.test.ts:114`](libs/shared/src/detect/gap-detect.test.ts#L114), [`gap-detect.test.ts:123`](libs/shared/src/detect/gap-detect.test.ts#L123))
-- FR-10.8: It files a stale-content `gap-fill` task only when more than
-  10 reindex-owned chunks have gone unverified for over 90 days;
-  api-ingested chunks never count toward the stale floor (semantics per
-  the ADR-019 2026-07 verification-sweep amendment: a non-zero count
-  means reindex has stopped covering the repo, not that files are
-  unchanged).
-  ([validated by `gap-detect.test.ts:135`](libs/shared/src/detect/gap-detect.test.ts#L135), [`gap-detect.test.ts:152`](libs/shared/src/detect/gap-detect.test.ts#L152), [`gap-detect.test.ts:163`](libs/shared/src/detect/gap-detect.test.ts#L163))
+  ([validated by `gap-detect.test.ts:114`](libs/shared/src/work/detect/gap-detect.test.ts#L115), [`gap-detect.test.ts:123`](libs/shared/src/work/detect/gap-detect.test.ts#L124))
 - FR-10.9: An in-flight or failed matching `gap-fill` task suppresses a
-  duplicate filing. ([validated by `gap-detect.test.ts:175`](libs/shared/src/detect/gap-detect.test.ts#L175))
+  duplicate filing. ([validated by `gap-detect.test.ts:175`](libs/shared/src/work/detect/gap-detect.test.ts#L136))
 
 ### FR-11: Live Knowledge Graph (Phase 1+)
 
 The system MUST support traversable knowledge via a PostgreSQL-backed
-live knowledge graph. ([validated by `graph.test.ts:49`](libs/server-core/src/features/memory/graph.test.ts#L49))
+live knowledge graph. ([validated by `graph.test.ts:47`](libs/server-core/src/work/memory/graph.test.ts#L5))
 
 - FR-11.1: Knowledge graph stored in `memory.entities` and
   `memory.edges` tables in PostgreSQL. Updated incrementally on
-  every `lore_write_episode` call via the Lore Agent fact extractor. ([validated by `graph.test.ts:137`](libs/server-core/src/features/memory/graph.test.ts#L137))
+  every `lore_write_episode` call via the Lore Agent fact extractor. ([validated by `graph.test.ts:133`](libs/server-core/src/work/memory/graph.test.ts#L91))
 - FR-11.2: Entity types: Service, Team, Function, PR, ADR, Spec,
   Concept, Runbook. Typed relationships: OWNS, CALLS, IMPLEMENTS,
-  SUPERSEDES, REFERENCES, AUTHORED_BY, DEFINES. ([validated by `graph.test.ts:49`](libs/server-core/src/features/memory/graph.test.ts#L49), [`graph.test.ts:117`](libs/server-core/src/features/memory/graph.test.ts#L117))
+  SUPERSEDES, REFERENCES, AUTHORED_BY, DEFINES. ([validated by `graph.test.ts:47`](libs/server-core/src/work/memory/graph.test.ts#L5), [`graph.test.ts:73`](libs/server-core/src/work/memory/graph.test.ts#L73))
 - FR-11.3: `lore_query_graph(query)` MCP tool traverses the live graph
-  for multi-hop relationship results. ([validated by `memory-tools.test.ts:48`](apps/mcp-server/src/mcp/tools/memory-tools.test.ts#L48))
+  for multi-hop relationship results. ([validated by `memory-tools.test.ts:50`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L50))
 - FR-11.4: Facts carry temporal validity (`valid_from`/`valid_to`),
   confidence tiers (`verified` / `observed` / `inferred` / `stale`),
   and retrieval metadata (`retrieval_count`, `last_retrieved_at`,
-  `half_life_days`). ([validated by `facts.test.ts:105`](libs/server-core/src/features/memory/facts.test.ts#L105), [`memory-ranking.test.ts:162`](libs/shared/src/memory-ranking.test.ts#L162))
+  `half_life_days`). ([validated by `facts.test.ts:96`](libs/server-core/src/work/memory/facts.test.ts#L71), [`memory-ranking.test.ts:162`](libs/shared/src/domain/memory-ranking.test.ts#L162))
 - FR-11.5: Contradiction detection: when a new fact has cosine
   similarity ≥ 0.92 to an existing one, the old fact is invalidated
   and a conflict record written to `memory.fact_conflicts`. Context
   assembly prefixes `[CONFLICT]` on facts with recent (7-day)
-  conflicts. ([validated by `facts.test.ts:105`](libs/server-core/src/features/memory/facts.test.ts#L105), [`facts.test.ts:138`](libs/server-core/src/features/memory/facts.test.ts#L138))
+  conflicts. ([validated by `facts.test.ts:96`](libs/server-core/src/work/memory/facts.test.ts#L71), [`facts.test.ts:104`](libs/server-core/src/work/memory/facts.test.ts#L104))
 
 ### FR-12: Intelligent Memory Lifecycle (Phase 1)
 
 The system MUST manage agent memory automatically without agent
-cooperation. ([validated by `session-tracker.test.ts:193`](libs/server-core/src/platform/session-tracker.test.ts#L193))
+cooperation. ([validated by `session-tracker.test.ts:193`](libs/server-core/src/outbound/session-tracker.test.ts#L123))
 
 - FR-12.1: MCP server tracks all tool calls in a 500-entry ring
   buffer (`session-tracker.ts`). On exit, dumps to
   `~/.lore/last-session.json`. Stop hook POSTs to
-  `/api/session-summary` for automatic episode + fact extraction. ([validated by `session-tracker.test.ts:193`](libs/server-core/src/platform/session-tracker.test.ts#L193), [`session-tracker.test.ts:73`](libs/server-core/src/platform/session-tracker.test.ts#L73))
+  `/api/session-summary` for automatic episode + fact extraction. ([validated by `session-tracker.test.ts:193`](libs/server-core/src/outbound/session-tracker.test.ts#L123), [`session-tracker.test.ts:15`](libs/server-core/src/outbound/session-tracker.test.ts#L15))
 - FR-12.2: Daily job at 5 AM scores memories 0-10 using half-life
   decay (`strength = 0.5^(age / half_life_days)`). Evicts
   lowest-scoring memories when agent exceeds 500 entries. Cleans
-  invalidated facts older than 30 days beyond the 2000 cap. ([validated by `memory-ranking.test.ts:143`](libs/shared/src/memory-ranking.test.ts#L143))
+  invalidated facts older than 30 days beyond the 2000 cap. ([validated by `memory-ranking.test.ts:143`](libs/shared/src/domain/memory-ranking.test.ts#L143))
 - FR-12.3: Daily job at 5:30 AM groups recent facts (7-day lookback)
   by repo and calls Haiku to extract 1-3 higher-level patterns per
   repo. Stored as `consolidated/{repo}/{timestamp}` memories.
-  Minimum 5 facts required to trigger consolidation. ([validated by `memory-lifecycle.test.ts:103`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L103), [`memory-lifecycle.test.ts:202`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L202))
+  Minimum 5 facts required to trigger consolidation. ([validated by `memory-lifecycle.test.ts:99`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L108), [`memory-lifecycle.test.ts:198`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L207))
 - FR-12.4: Every `lore_search_memory` call asynchronously increments
   `retrieval_count`, updates `last_retrieved_at`, and extends
   `half_life_days` (+2, cap 365) on returned facts. Stale facts
   revive to `observed` on retrieval. Fire-and-forget — adds zero
-  latency to search. ([validated by `memory-lifecycle.test.ts:218`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L218), [`memory-lifecycle.test.ts:192`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L192))
+  latency to search. ([validated by `memory-lifecycle.test.ts:214`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L223), [`memory-lifecycle.test.ts:188`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L197))
 - FR-12.5: After every pipeline task completion (PR, no-changes,
   failure), an episode is automatically written. For high-signal
   events (PRs, failures), Haiku extracts a lesson and stores it
-  as `auto-curation/{ref}` memory. ([validated by `episode-writer.test.ts:79`](libs/shared/src/episode-writer.test.ts#L79))
+  as `auto-curation/{ref}` memory. ([validated by `episode-writer.test.ts:89`](libs/shared/src/work/episode-writer.test.ts#L89))
 
 ### FR-13: Autonomous Review Loop (Phase 1, opt-in)
 
 The system MUST support an opt-in, webhook-driven autonomous review loop per
 repo with a safety-net cron (ADR-015; the review agent runs on the
-ai-agent-subsystem per ADR-031). ([validated by `code-review.test.ts:91`](apps/floor/src/jobs/review/code-review.test.ts#L100))
+ai-agent-subsystem per ADR-031). ([validated by `code-review.test.ts:91`](apps/floor/src/work/review/code-review.test.ts#L99))
 
 - FR-13.1: After an implementation PR is created, an auto-review is started on
   the ai-agent-subsystem when `auto_review` is enabled on the repo (ADR-031
-  retired the loretask-watcher). ([validated by `should-auto-review.test.ts:5`](apps/floor/src/jobs/review/should-auto-review.test.ts#L5), [`code-review.test.ts:91`](apps/floor/src/jobs/review/code-review.test.ts#L100))
+  retired the loretask-watcher). ([validated by `should-auto-review.test.ts:5`](apps/floor/src/outbound/should-auto-review.test.ts#L5), [`code-review.test.ts:100`](apps/floor/src/work/review/code-review.test.ts#L99))
 - FR-13.2: The review agent reads spec + conventions and posts ONE formal PR
   review — inline comments per finding plus a summary, carrying the verdict as its
-  GitHub review event (`APPROVE` / `REQUEST_CHANGES`, always on, no longer a neutral comment). ([validated by `post-review.test.ts:78`](apps/floor/src/jobs/review/post-review.test.ts#L78), [`post-review.test.ts:178`](apps/floor/src/jobs/review/post-review.test.ts#L178))
+  GitHub review event (`APPROVE` / `REQUEST_CHANGES`, always on, no longer a neutral comment). ([validated by `post-review.test.ts:78`](apps/floor/src/work/review/post-review.test.ts#L77), [`post-review.test.ts:180`](apps/floor/src/work/review/post-review.test.ts#L180))
 - FR-13.3: On a formal `APPROVE` the PR becomes eligible for (auto-)merge once the
-  remaining gates pass; auto-merge reads the bot's latest review, so a later push's re-check verdict supersedes the earlier one. ([validated by `post-review.test.ts:178`](apps/floor/src/jobs/review/post-review.test.ts#L178), [`auto-merge.test.ts:32`](apps/floor/src/jobs/merge/auto-merge.test.ts#L32))
+  remaining gates pass; auto-merge reads the bot's latest review, so a later push's re-check verdict supersedes the earlier one. ([validated by `post-review.test.ts:181`](apps/floor/src/work/review/post-review.test.ts#L180), [`auto-merge.test.ts:32`](apps/floor/src/work/merge/auto-merge.test.ts#L32))
 - FR-13.4: When changes are requested, a follow-up round is started on the same
-  branch carrying the feedback (the code-review-reply path). ([validated by `code-review.test.ts:113`](apps/floor/src/jobs/review/code-review.test.ts#L122))
+  branch carrying the feedback (the code-review-reply path). ([validated by `code-review.test.ts:113`](apps/floor/src/work/review/code-review.test.ts#L121))
 - FR-13.5: After further iterations the loop escalates to human review via a
-  `needs-human-help` Issue, with no further autonomous iterations. ([validated by opens the issue and carries its url forward for the notify step](apps/stations/src/stations/escalation-step/escalation-step.test.ts#L27), [`escalation-line.test.ts:45`](libs/assembly-lines/src/escalation-line.test.ts#L45))
+  `needs-human-help` Issue, with no further autonomous iterations. ([validated by opens the issue and carries its url forward for the notify step](apps/stations/src/work/escalation-step/escalation-step.test.ts#L27), [`escalation-line.test.ts:37`](libs/assembly-lines/src/escalation-line.test.ts#L37))
 - FR-13.6: The primary trigger is GitHub webhooks (ADR-015): the Floor webhook
   ingress maps qualifying `pull_request`, `pull_request_review`, and PR
   `issue_comment` events to the code-review choreography, which starts or
   replies on a code-review assembly line; bot-authored events are skipped as a
-  loop guard. ([validated by `code-review.test.ts:91`](apps/floor/src/jobs/review/code-review.test.ts#L100), [`code-review.test.ts:242`](apps/floor/src/jobs/review/code-review.test.ts#L251))
+  loop guard. ([validated by `code-review.test.ts:91`](apps/floor/src/work/review/code-review.test.ts#L99), [`code-review.test.ts:246`](apps/floor/src/work/review/code-review.test.ts#L245))
 - FR-13.7: **Safety-net cron** fires at `7 7-17 * * 1-5` (UTC,
   Mon-Fri) to catch dropped webhook deliveries. Cron-triggered runs
   are gated by `isBusinessHours()` (default: Europe/Berlin, 09:00-18:00
   Mon-Fri via `LORE_BUSINESS_HOURS_{TZ,START,END,DAYS}` env vars).
-  Webhook-triggered runs are never gated by business hours. ([validated by `business-hours.test.ts:38`](libs/shared/src/business-hours.test.ts#L38))
+  Webhook-triggered runs are never gated by business hours. ([validated by `business-hours.test.ts:37`](libs/shared/src/lib/business-hours.test.ts#L37))
 - Decision: the webhook trigger degrades gracefully when its ingress env is
   absent — a warning is logged and the safety-net cron (FR-13.7) covers the gap.
 
 ### FR-14: Spec Drift Detection (Phase 2)
 
-The system MUST detect when specifications diverge from implementation. ([validated by `chunks.test.ts:190`](libs/shared/src/project/chunks/chunks.test.ts#L190), [`chunks.test.ts:212`](libs/shared/src/project/chunks/chunks.test.ts#L212))
+The system MUST detect when specifications diverge from implementation. ([validated by `chunks.test.ts:190`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L203), [`chunks.test.ts:209`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L225))
 
 - FR-14.1: Weekly job reads spec assertions and checks against
-  current code via AST analysis. ([validated by `fan-out.test.ts:41`](apps/floor/src/jobs/detect/fan-out.test.ts#L42))
+  current code via AST analysis. ([validated by `fan-out.test.ts:41`](apps/floor/src/work/detect/fan-out.test.ts#L42))
 - Decision: divergence above 20% of a spec's assertions triggers a `gap-fill`
   pipeline task for the owning team.
-- FR-14.3: Test files and generated files are excluded. ([validated by `chunks.test.ts:887`](libs/shared/src/project/chunks/chunks.test.ts#L887), [`chunks.test.ts:920`](libs/shared/src/project/chunks/chunks.test.ts#L920))
+- FR-14.3: Test files and generated files are excluded. ([validated by `chunks.test.ts:914`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L657), [`chunks.test.ts:947`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L690))
 - FR-14.4: Spec-drift reads a repo's spec chunks and code symbols from
   the repo's resolved schema (team schema when provisioned, `org_shared`
   otherwise) — the same schema the reindex job wrote them to. The
   `codeSymbols` read excludes `symbol_type = 'call'` chunks, so a test
   file's `describe` title can never satisfy the drift heuristic's
   known-symbol check for a deleted declaration.
-  ([validated by `chunks.test.ts:153`](libs/shared/src/project/chunks/chunks.test.ts#L153), [`chunks.test.ts:171`](libs/shared/src/project/chunks/chunks.test.ts#L171), [`chunks.test.ts:190`](libs/shared/src/project/chunks/chunks.test.ts#L190), [`chunks.test.ts:212`](libs/shared/src/project/chunks/chunks.test.ts#L212), [`chunks.test.ts:887`](libs/shared/src/project/chunks/chunks.test.ts#L887), [`chunks.test.ts:920`](libs/shared/src/project/chunks/chunks.test.ts#L920))
+  ([validated by `chunks.test.ts:153`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L166), [`chunks.test.ts:168`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L184), [`chunks.test.ts:187`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L203), [`chunks.test.ts:209`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L225), [`chunks.test.ts:914`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L657), [`chunks.test.ts:947`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L690))
 
 ### FR-15: Progressive Trust (Phase 1)
 
 The system MUST gate task types per-repo based on demonstrated
-reliability. ([validated by `pipeline-tasks.trust.test.ts:37`](libs/shared/src/pipeline-tasks.trust.test.ts#L37))
+reliability. ([validated by `pipeline-tasks.trust.test.ts:33`](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L33))
 
 - FR-15.1: `settings.trust.level` controls which task types are
   allowed: `docs` (gap-fill/runbook/onboard + feature-planning
@@ -572,42 +590,50 @@ reliability. ([validated by `pipeline-tasks.trust.test.ts:37`](libs/shared/src/p
   `implementation` (+implementation/feature-request/general),
   `full` (all). `onboard` is allowed at every tier — it produces a
   docs-only scaffolding PR and duplicate protection lives in its own
-  route's guard, not the trust ladder. ([validated by `allows an onboard task at trust level %s`](libs/shared/src/pipeline-tasks.trust.test.ts#L37), [`still refuses an implementation task at trust level docs`](libs/shared/src/pipeline-tasks.trust.test.ts#L52))
+  route's guard, not the trust ladder. ([validated by `allows an onboard task at trust level %s`](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L33), [`still refuses an implementation task at trust level docs`](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L48))
 - FR-15.2: Trust auto-promotes after 3 successful merges at the current level
   (overridable per repo via `auto_promote_threshold`), climbing
   `docs → tests → implementation → full` and resetting the merge counter on
   each promotion. A repo already at `full`, or carrying no level at all, is
   left untouched rather than banking a counter with nothing to spend it on.
-  The default level is `implementation` for backward compatibility. ([validated by `trust-ladder.test.ts:5`](apps/stations/src/stations/lib/trust-ladder.test.ts#L5), [`trust-ladder.test.ts:14`](apps/stations/src/stations/lib/trust-ladder.test.ts#L14), [`trust-ladder.test.ts:23`](apps/stations/src/stations/lib/trust-ladder.test.ts#L23), [`trust-ladder.test.ts:38`](apps/stations/src/stations/lib/trust-ladder.test.ts#L38), [`trust-ladder.test.ts:47`](apps/stations/src/stations/lib/trust-ladder.test.ts#L47), [`trust-ladder.test.ts:56`](apps/stations/src/stations/lib/trust-ladder.test.ts#L56))
+  The default level is `implementation` for backward compatibility. An
+  unrecognised level demotes to the lowest rung rather than throwing or
+  inventing an out-of-range index. ([validated by `trust-ladder.test.ts:5`](apps/stations/src/work/lib/trust-ladder.test.ts#L5), [`trust-ladder.test.ts:14`](apps/stations/src/work/lib/trust-ladder.test.ts#L14), [`trust-ladder.test.ts:23`](apps/stations/src/work/lib/trust-ladder.test.ts#L23), [`trust-ladder.test.ts:38`](apps/stations/src/work/lib/trust-ladder.test.ts#L38), [`trust-ladder.test.ts:47`](apps/stations/src/work/lib/trust-ladder.test.ts#L47), [`trust-ladder.test.ts:65`](apps/stations/src/work/lib/trust-ladder.test.ts#L65), [`demotes to the lowest rung rather than inventing an index for an unrecognised level`](apps/stations/src/work/lib/trust-ladder.test.ts#L56))
 
 ### FR-16: Prompt Caching on Agent LLM Calls (Phase 1)
 
 The system MUST cache repeated LLM prefixes on all agent-side Anthropic
-API calls to reduce token cost (ADR-015, added 2026-04-17). ([validated by `prompt-cache.test.ts:93`](libs/shared/src/llm/prompt-cache.test.ts#L93))
+API calls to reduce token cost (ADR-015, added 2026-04-17). ([validated by `prompt-cache.test.ts:87`](libs/shared/src/outbound/llm/prompt-cache.test.ts#L87))
 
-- FR-16.1: `libs/shared/src/llm/anthropic-provider.ts` places two cache
+- FR-16.1: `libs/shared/src/outbound/llm/anthropic-provider.ts` places two cache
   breakpoints per request — one on the system prompt block
   (`buildCacheableSystem`), one on the tool schema block
   (`buildCacheableTools`) — so a tool-schema edit cannot bust the system
-  cache and vice versa. ([validated by `anthropic-provider.test.ts:13`](libs/shared/src/llm/anthropic-provider.test.ts#L13), [`anthropic-provider.test.ts:39`](libs/shared/src/llm/anthropic-provider.test.ts#L39), [`anthropic-provider.test.ts:55`](libs/shared/src/llm/anthropic-provider.test.ts#L55))
+  cache and vice versa. ([validated by `anthropic-provider.test.ts:9`](libs/shared/src/outbound/llm/anthropic-provider.test.ts#L9), [`anthropic-provider.test.ts:32`](libs/shared/src/outbound/llm/anthropic-provider.test.ts#L32), [`anthropic-provider.test.ts:48`](libs/shared/src/outbound/llm/anthropic-provider.test.ts#L48))
 - FR-16.2: `getCacheControl(jobName)` from `agent/src/lib/prompt-cache.ts`
   returns `{type: "ephemeral", ttl: "1h"}` for jobs in the
   `LORE_CACHE_1H_JOBS` allowlist and `{type: "ephemeral"}` (5-min)
   otherwise. Default allowlist: `auto-curation`, `review_reactor`,
   `fact-extraction`, `graph-extraction`. Special values: `none`
-  disables 1h everywhere; `*` enables it for every job. ([validated by `prompt-cache.test.ts:93`](libs/shared/src/llm/prompt-cache.test.ts#L93), [`anthropic-provider.test.ts:25`](libs/shared/src/llm/anthropic-provider.test.ts#L25))
+  disables 1h everywhere; `*` enables it for every job. ([validated by `prompt-cache.test.ts:87`](libs/shared/src/outbound/llm/prompt-cache.test.ts#L87), [`anthropic-provider.test.ts:21`](libs/shared/src/outbound/llm/anthropic-provider.test.ts#L21))
 - Decision: cache eligibility is latched at module load to prevent
   mid-process toggles from busting the server-side cache.
 - FR-16.4: Each call computes a djb2 hash of the system + tools prefix
   and compares to the last call for the same `jobName`. Log line
   emits: `cache hit | first-call | break:system | break:tools |
-  break:ttl(Nm)`. ([validated by `prompt-cache.test.ts:123`](libs/shared/src/llm/prompt-cache.test.ts#L123), [`prompt-cache.test.ts:129`](libs/shared/src/llm/prompt-cache.test.ts#L129))
+break:ttl(Nm)`. ([validated by `prompt-cache.test.ts:117`](libs/shared/src/outbound/llm/prompt-cache.test.ts#L117), [`prompt-cache.test.ts:123`](libs/shared/src/outbound/llm/prompt-cache.test.ts#L123))
 - FR-16.5: `response.usage.cache_creation_input_tokens` and
   `cache_read_input_tokens` feed cost accounting (1.25× writes,
-  0.1× reads). ([validated by `anthropic-provider.test.ts:79`](libs/shared/src/llm/anthropic-provider.test.ts#L79), [`anthropic-provider.test.ts:87`](libs/shared/src/llm/anthropic-provider.test.ts#L87), [`anthropic-provider.test.ts:95`](libs/shared/src/llm/anthropic-provider.test.ts#L95))
+  0.1× reads). ([validated by `anthropic-provider.test.ts:74`](libs/shared/src/outbound/llm/anthropic-provider.test.ts#L74), [`anthropic-provider.test.ts:101`](libs/shared/src/outbound/llm/anthropic-provider.test.ts#L101), [`anthropic-provider.test.ts:128`](libs/shared/src/outbound/llm/anthropic-provider.test.ts#L128))
 - Decision: MCP-server raw fetch call sites (fact extraction, graph
   extraction) have static prefixes below Haiku's 2048-token cache
   minimum — caching is not applied there.
+- FR-16.6: `computeCost(model, ...)` prices a call at that model's own
+  per-1M-token rate rather than a single flat rate, so a Sonnet or Opus
+  call is not silently billed at Haiku's price; an unrecognized model
+  falls back to the Haiku-tier rate rather than throwing. Every model
+  offered in the agent-definitions `KNOWN_MODELS` picker has its own
+  `MODEL_PRICING` entry, so none of them silently falls back. ([validated by `anthropic-provider.test.ts:139`](libs/shared/src/outbound/llm/anthropic-provider.test.ts#L139), [`anthropic-provider.test.ts:158`](libs/shared/src/outbound/llm/anthropic-provider.test.ts#L158), [`anthropic-provider.test.ts:177`](libs/shared/src/outbound/llm/anthropic-provider.test.ts#L177))
 
 ### FR-17: Per-Template Context Budgets (Phase 1)
 
@@ -626,19 +652,19 @@ Added 2026-04-17 per ADR-015.
 ### FR-18: Stuck-Task Terminal-State Recovery (Phase 1)
 
 The system MUST detect and surface pipeline tasks that are stuck in
-non-terminal states and resolve them without manual intervention. ([validated by `task-queue.test.ts:348`](libs/shared/src/project/tasks/task-queue.test.ts#L348))
+non-terminal states and resolve them without manual intervention. ([validated by `task-queue.test.ts:342`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L342))
 
 - FR-18.1: A `stale_task_check` job runs hourly at `:17` and flags
   tasks in `running` or `pending` state for longer than their
-  configured timeout plus a grace period. ([validated by `task-queue.test.ts:348`](libs/shared/src/project/tasks/task-queue.test.ts#L348))
+  configured timeout plus a grace period. ([validated by `task-queue.test.ts:342`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L342))
 - FR-18.2: Stuck tasks are transitioned to a terminal state
   (`failed` with reason `timeout_exceeded`) so the pipeline does not
-  stall waiting for a pod that has already exited. ([validated by `task-queue.test.ts:348`](libs/shared/src/project/tasks/task-queue.test.ts#L348))
+  stall waiting for a pod that has already exited. ([validated by `task-queue.test.ts:342`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L342))
 - FR-18.3: The transition is idempotent — if a task completes between
-  detection and the state write, the write is a no-op. ([validated by `task-store-pg.test.ts:74`](libs/shared/src/project/tasks/task-store-pg.test.ts#L74))
+  detection and the state write, the write is a no-op. ([validated by `task-store-pg.test.ts:68`](libs/shared/src/outbound/project/tasks/task-store-pg.test.ts#L68))
 - FR-18.4: A failure episode is written for each stuck task so the
   auto-curation pipeline can surface patterns (e.g. a task type that
-  consistently times out). ([validated by `episode-writer.test.ts:79`](libs/shared/src/episode-writer.test.ts#L79), [`episode-writer.test.ts:13`](libs/shared/src/episode-writer.test.ts#L13))
+  consistently times out). ([validated by `episode-writer.test.ts:89`](libs/shared/src/work/episode-writer.test.ts#L89), [`episode-writer.test.ts:13`](libs/shared/src/work/episode-writer.test.ts#L13))
 
 ### FR-19: Task Detail UI (Phase 1)
 
@@ -648,7 +674,7 @@ cancel/revision controls, and the list of run attempts — while all
 execution detail (per-node timeline, transcript, pod logs, event
 history, LLM-call ledger) lives on the run detail page at
 `/assembly-runs/[id]` (issue #1608: task = the request, run = one
-attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L109), [`TaskDetailView.test.tsx:318`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L318))
+attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L109), [`TaskDetailView.test.tsx:316`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L316))
 
 - FR-19.1: The detail heading reads `Task: <description>` with the
   description truncated to 80 characters, and the view shows the task
@@ -658,7 +684,7 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
 - FR-19.2: The agent row, failure row, and review-iterations row each
   render only when their value is present (agent assigned, failure
   reason set, review iteration greater than zero) and are omitted
-  otherwise. ([validated by `TaskDetailView.test.tsx:209`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L209), [`TaskDetailView.test.tsx:215`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L215), [`TaskDetailView.test.tsx:237`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L237), [`TaskDetailView.test.tsx:243`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L243), [`TaskDetailView.test.tsx:249`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L249))
+  otherwise. ([validated by `TaskDetailView.test.tsx:209`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L207), [`TaskDetailView.test.tsx:213`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L213), [`TaskDetailView.test.tsx:235`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L235), [`TaskDetailView.test.tsx:241`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L241), [`TaskDetailView.test.tsx:247`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L247))
 - FR-19.3: The view lists the task's run attempts under a "Runs"
   heading, each linking to its run detail at `/assembly-runs/<run-id>`
   with a status-classed badge showing the run's outcome (falling back
@@ -667,7 +693,7 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
 - FR-19.3a: When the task has exactly one run attempt, the page
   redirects straight to that run's detail page — the run page links
   back via "View task →"; with zero or several attempts the lifecycle
-  shell renders with its runs list. ([validated by `TaskDetailView.test.tsx:340`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L340), [`TaskDetailView.test.tsx:346`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L346), [`TaskDetailView.test.tsx:350`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L350))
+  shell renders with its runs list. ([validated by `TaskDetailView.test.tsx:340`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L338), [`TaskDetailView.test.tsx:344`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L344), [`TaskDetailView.test.tsx:348`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L348))
 - FR-19.4: In-flight controls follow actions-up: a "Run Now" form
   posting to `/api/tasks/<id>/run-now` appears only for pending
   normal-priority tasks; a "Cancel Task" control appears for
@@ -676,18 +702,16 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   then reveals a form posting to `/api/tasks/<id>/cancel` that "Keep
   task" backs out of; and a "Give Feedback" form wired to the injected
   server action (with a hidden `task_id`) shows only for a task that has
-  a PR and is not cancelled. ([validated by `TaskDetailView.test.tsx:162`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L162), [`TaskDetailView.test.tsx:173`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L173), [`TaskDetailView.test.tsx:180`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L180), [`TaskDetailView.test.tsx:189`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L189), [`TaskDetailView.test.tsx:202`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L202), [`TaskDetailView.test.tsx:277`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L277), [`TaskDetailView.test.tsx:298`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L298), [`TaskDetailView.test.tsx:305`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L305), [`CancelTaskButton.test.tsx:7`](apps/web-ui/src/app/tasks/[id]/CancelTaskButton.test.tsx#L7), [`CancelTaskButton.test.tsx:17`](apps/web-ui/src/app/tasks/[id]/CancelTaskButton.test.tsx#L17), [`CancelTaskButton.test.tsx:30`](apps/web-ui/src/app/tasks/[id]/CancelTaskButton.test.tsx#L30))
+  a PR and is not cancelled. ([validated by `TaskDetailView.test.tsx:162`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L162), [`TaskDetailView.test.tsx:173`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L173), [`TaskDetailView.test.tsx:180`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L180), [`TaskDetailView.test.tsx:187`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L187), [`TaskDetailView.test.tsx:200`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L200), [`TaskDetailView.test.tsx:275`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L275), [`TaskDetailView.test.tsx:296`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L296), [`TaskDetailView.test.tsx:303`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L303), [`CancelTaskButton.test.tsx:7`](apps/web-ui/src/app/tasks/[id]/CancelTaskButton.test.tsx#L7), [`CancelTaskButton.test.tsx:17`](apps/web-ui/src/app/tasks/[id]/CancelTaskButton.test.tsx#L17), [`CancelTaskButton.test.tsx:30`](apps/web-ui/src/app/tasks/[id]/CancelTaskButton.test.tsx#L30))
 - FR-19.5: When a failed task carries a failed-event with metadata, the
   view renders a "Failure" panel surfacing the error; absent that
-  metadata no panel is shown. ([validated by `TaskDetailView.test.tsx:254`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L254), [`TaskDetailView.test.tsx:270`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L270))
-- FR-19.6: The run detail page renders the task's event timeline: one
-  badge per status transition (sentence-cased to-status with a
-  from-status arrow), pretty-printed event metadata as JSON, and an
-  empty-state note when there are no events. ([validated by `EventTimeline.test.tsx:18`](apps/web-ui/src/app/tasks/[id]/EventTimeline.test.tsx#L18), [`EventTimeline.test.tsx:32`](apps/web-ui/src/app/tasks/[id]/EventTimeline.test.tsx#L32), [`EventTimeline.test.tsx:40`](apps/web-ui/src/app/tasks/[id]/EventTimeline.test.tsx#L40))
+  metadata no panel is shown. ([validated by `TaskDetailView.test.tsx:254`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L252), [`TaskDetailView.test.tsx:268`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L268))
+- FR-19.6: _(Restated 2026-09-09.)_ The run detail page renders the task's status transitions inside the selected node's transcript rather than as a separate Event Timeline card: each transition that fell inside that node's visits reads as a `· task From → To` system line in the conversation, with its metadata folded behind the line and the from-status omitted on the first transition; a run with no backing task shows the note that no status history is available. ([validated by `transcript-entries.test.ts:116`](apps/web-ui/src/lib/transcript-entries.test.ts#L116), [`transcript-entries.test.ts:141`](apps/web-ui/src/lib/transcript-entries.test.ts#L141), [`TranscriptView.test.tsx:56`](apps/web-ui/src/app/assembly-runs/[id]/TranscriptView.test.tsx#L56), [`RunLiveShell.test.tsx:146`](apps/web-ui/src/app/assembly-runs/[id]/RunLiveShell.test.tsx#L146))
 - FR-19.7: The run detail page renders the task's LLM-call table: one
   row per call with the model, `input / output` token counts, duration,
   and a status badge (red with the error text on failure), and an
-  empty-state note in place of the table when there are none. ([validated by `LlmCallsTable.test.tsx:19`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L19), [`LlmCallsTable.test.tsx:27`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L27), [`LlmCallsTable.test.tsx:35`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L35))
+  empty-state note in place of the table when there are none; the section
+  is a collapsible card titled LLM Calls. ([validated by `LlmCallsTable.test.tsx:25`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L25), [`LlmCallsTable.test.tsx:33`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L33), [`LlmCallsTable.test.tsx:41`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L41), [`LlmCallsTable.test.tsx:19`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L19), [`LlmCallsTable.test.tsx:53`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L53), [`LlmCallsTable.test.tsx:65`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L65))
 - FR-19.10: The pure PR status card shows a loading placeholder until
   details arrive, an "unavailable" fallback with a "View on GitHub" link
   when only an error is present, keeps the loaded details on screen even
@@ -697,13 +721,13 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   (success / skipped), failing (failure / timed_out), and pending (any
   non-completed) checks — showing no counts when every check is
   zero-bucketed — and lists approvers and change-requesters (or both),
-  omitting the reviews row when there are neither. ([validated by `PRStatusCard.test.tsx:44`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L44), [`PRStatusCard.test.tsx:53`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L53), [`PRStatusCard.test.tsx:70`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L70), [`PRStatusCard.test.tsx:83`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L83), [`PRStatusCard.test.tsx:106`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L106), [`PRStatusCard.test.tsx:120`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L120), [`PRStatusCard.test.tsx:136`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L136), [`PRStatusCard.test.tsx:148`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L148), [`PRStatusCard.test.tsx:169`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L169), [`PRStatusCard.test.tsx:188`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L188), [`PRStatusCard.test.tsx:205`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L205), [`PRStatusCard.test.tsx:225`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L225), [`PRStatusCard.test.tsx:242`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L242), [`PRStatusCard.test.tsx:254`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L254), [`PRStatusCard.test.tsx:288`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L288))
+  omitting the reviews row when there are neither. ([validated by `PRStatusCard.test.tsx:44`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L42), [`PRStatusCard.test.tsx:51`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L51), [`PRStatusCard.test.tsx:68`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L68), [`PRStatusCard.test.tsx:81`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L81), [`PRStatusCard.test.tsx:104`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L104), [`PRStatusCard.test.tsx:118`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L118), [`PRStatusCard.test.tsx:134`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L134), [`PRStatusCard.test.tsx:146`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L146), [`PRStatusCard.test.tsx:167`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L167), [`PRStatusCard.test.tsx:186`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L186), [`PRStatusCard.test.tsx:203`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L203), [`PRStatusCard.test.tsx:223`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L223), [`PRStatusCard.test.tsx:240`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L240), [`PRStatusCard.test.tsx:252`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L252), [`PRStatusCard.test.tsx:286`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L286))
 - FR-19.11: The PR status container fetches `/api/tasks/<id>/pr-status`
   and renders the card, surfaces the unavailable fallback on an error
   payload or a rejected fetch, refetches when the task id changes, does
   not fetch after unmount, keeps the loaded details when a later
   refresh fails, and reports inactive after a failed refresh so the
-  coordinator stops re-fetching it. ([validated by `PRStatusPanel.test.tsx:84`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L84), [`PRStatusPanel.test.tsx:94`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L97), [`PRStatusPanel.test.tsx:107`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L110), [`PRStatusPanel.test.tsx:123`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L126), [`PRStatusPanel.test.tsx:139`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L142), [`PRStatusPanel.test.tsx:157`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L168), [`PRStatusPanel.test.tsx:185`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L196))
+  coordinator stops re-fetching it. ([validated by `PRStatusPanel.test.tsx:84`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L79), [`PRStatusPanel.test.tsx:92`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L92), [`PRStatusPanel.test.tsx:105`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L105), [`PRStatusPanel.test.tsx:121`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L121), [`PRStatusPanel.test.tsx:137`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L137), [`PRStatusPanel.test.tsx:163`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L163), [`PRStatusPanel.test.tsx:191`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L191))
 
 - FR-19.12: The task-refresh presenter makes every scheduling decision
   as pure functions: the live run is the newest non-terminal
@@ -740,7 +764,7 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   and a discovery response with no live run keeps polling; and the
   attached run's recorded status is re-checked on ticks, detaching a
   finished run back to coordinated polling and attaching a retry's
-  fresh run in its place. ([validated by `TaskRefreshProvider.test.tsx:147`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L147), [`TaskRefreshProvider.test.tsx:157`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L157), [`TaskRefreshProvider.test.tsx:177`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L177), [`TaskRefreshProvider.test.tsx:193`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L193), [`TaskRefreshProvider.test.tsx:206`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L206), [`TaskRefreshProvider.test.tsx:218`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L218), [`TaskRefreshProvider.test.tsx:232`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L232), [`TaskRefreshProvider.test.tsx:243`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L243), [`TaskRefreshProvider.test.tsx:254`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L254), [`TaskRefreshProvider.test.tsx:269`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L269), [`TaskRefreshProvider.test.tsx:288`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L288), [`TaskRefreshProvider.test.tsx:309`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L309), [`TaskRefreshProvider.test.tsx:336`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L336), [`TaskRefreshProvider.test.tsx:357`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L357), [`TaskRefreshProvider.test.tsx:388`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L388), [`TaskRefreshProvider.test.tsx:414`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L417), [`TaskRefreshProvider.test.tsx:440`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L443), [`TaskRefreshProvider.test.tsx:470`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L473), [`TaskRefreshProvider.test.tsx:489`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L492))
+  fresh run in its place. ([validated by `TaskRefreshProvider.test.tsx:149`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L147), [`TaskRefreshProvider.test.tsx:157`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L157), [`TaskRefreshProvider.test.tsx:177`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L177), [`TaskRefreshProvider.test.tsx:193`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L193), [`TaskRefreshProvider.test.tsx:206`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L206), [`TaskRefreshProvider.test.tsx:218`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L218), [`TaskRefreshProvider.test.tsx:232`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L232), [`TaskRefreshProvider.test.tsx:243`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L243), [`TaskRefreshProvider.test.tsx:254`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L254), [`TaskRefreshProvider.test.tsx:269`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L269), [`TaskRefreshProvider.test.tsx:288`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L291), [`TaskRefreshProvider.test.tsx:309`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L315), [`TaskRefreshProvider.test.tsx:336`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L351), [`TaskRefreshProvider.test.tsx:357`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L375), [`TaskRefreshProvider.test.tsx:387`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L405), [`TaskRefreshProvider.test.tsx:416`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L434), [`TaskRefreshProvider.test.tsx:442`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L460), [`TaskRefreshProvider.test.tsx:472`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L490), [`TaskRefreshProvider.test.tsx:491`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L509))
 - FR-19.14: `GET /api/tasks/[id]/runs` serves the task's per-attempt
   run rows newest first, behind the timeline route's auth ladder (401
   without a session, 404 for an unknown task, 403 without repo access),
@@ -758,14 +782,14 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   `pipeline.assembly_lines` table. The 404 comes before the run query
   deliberately: an unknown id and a task with no runs both answered
   `{runs: []}` before, which reads as "nothing started yet" for a task
-  that never existed. ([validated by `task-runs.test.ts:30`](apps/lore-api/src/api/routes/tasks/task-runs.test.ts#L30), [`task-runs.test.ts:36`](apps/lore-api/src/api/routes/tasks/task-runs.test.ts#L36), [`task-runs.test.ts:46`](apps/lore-api/src/api/routes/tasks/task-runs.test.ts#L46), [`task-runs.test.ts:72`](apps/lore-api/src/api/routes/tasks/task-runs.test.ts#L72))
+  that never existed. ([validated by `task-runs.test.ts:30`](apps/lore-api/src/transport/routes/tasks/task-runs.test.ts#L30), [`task-runs.test.ts:36`](apps/lore-api/src/transport/routes/tasks/task-runs.test.ts#L36), [`task-runs.test.ts:46`](apps/lore-api/src/transport/routes/tasks/task-runs.test.ts#L46), [`task-runs.test.ts:72`](apps/lore-api/src/transport/routes/tasks/task-runs.test.ts#L72))
 - FR-19.16: The two task transitions the UI offers are shared seams in
   `libs/shared`, not route-local SQL. `escalateTask` (run-now) refuses an
   unknown id and anything past `pending`, sets `priority = 'immediate'`,
   and records the transition carrying the priority it replaced.
   `cancelTask` treats `completed`, `merged`, `failed` and `cancelled` as
   terminal — `completed` was missing, so the web UI's own guard refused
-  a click the API accepted. ([validated by `sets priority immediate on a pending task`](libs/shared/src/pipeline-tasks.escalate.test.ts#L28), [`pipeline-tasks.escalate.test.ts:42`](libs/shared/src/pipeline-tasks.escalate.test.ts#L42), [`pipeline-tasks.escalate.test.ts:59`](libs/shared/src/pipeline-tasks.escalate.test.ts#L59), [`pipeline-tasks.escalate.test.ts:67`](libs/shared/src/pipeline-tasks.escalate.test.ts#L67), [`pipeline-tasks.escalate.test.ts:80`](libs/shared/src/pipeline-tasks.escalate.test.ts#L80), [`pipeline-tasks.escalate.test.ts:91`](libs/shared/src/pipeline-tasks.escalate.test.ts#L91))
+  a click the API accepted. ([validated by `sets priority immediate on a pending task`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L20), [`pipeline-tasks.escalate.test.ts:34`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L34), [`pipeline-tasks.escalate.test.ts:51`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L51), [`pipeline-tasks.escalate.test.ts:59`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L59), [`pipeline-tasks.escalate.test.ts:69`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L69), [`pipeline-tasks.escalate.test.ts:80`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L80))
 
 - FR-19.17: lore-api serves one `lore.repos` row at
   `GET /api/repos/{owner}/{repo}` under the `read` scope, reading it
@@ -774,11 +798,11 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   rather than a per-caller projection: nine web-ui call sites across
   five files each selected a different column subset of this row, and
   projecting per caller would move that duplication into the API
-  instead of removing it. ([validated by `repo-record.test.ts:69`](apps/lore-api/src/api/routes/repos/repo-record.test.ts#L69), [`repo-record.test.ts:78`](apps/lore-api/src/api/routes/repos/repo-record.test.ts#L78), [`repo-record.test.ts:86`](apps/lore-api/src/api/routes/repos/repo-record.test.ts#L86), [`repo-record.test.ts:95`](apps/lore-api/src/api/routes/repos/repo-record.test.ts#L95))
+  instead of removing it. ([validated by `repo-record.test.ts:66`](apps/lore-api/src/transport/routes/repos/repo-record.test.ts#L66), [`repo-record.test.ts:75`](apps/lore-api/src/transport/routes/repos/repo-record.test.ts#L75), [`repo-record.test.ts:83`](apps/lore-api/src/transport/routes/repos/repo-record.test.ts#L83), [`repo-record.test.ts:92`](apps/lore-api/src/transport/routes/repos/repo-record.test.ts#L92))
 - FR-19.18: `SettingsPort.record(repo)` is that read — the whole row or
   null — implemented by the Pg adapter against `lore.repos` and by the
   in-memory double over its seeded rows, so a caller that needs more
-  than `rawSettings` or `team` has one place to get it. ([validated by returns the seeded row as the camelCase model](libs/shared/src/project/settings/settings-record.test.ts#L55), [`settings-record.test.ts:66`](libs/shared/src/project/settings/settings-record.test.ts#L66), [`settings-record.test.ts:74`](libs/shared/src/project/settings/settings-record.test.ts#L74), [`settings-record.test.ts:92`](libs/shared/src/project/settings/settings-record.test.ts#L92), [`settings-record.test.ts:104`](libs/shared/src/project/settings/settings-record.test.ts#L104))
+  than `rawSettings` or `team` has one place to get it. ([validated by returns the seeded row as the camelCase model](libs/shared/src/outbound/project/settings/settings-record.test.ts#L44), [`settings-record.test.ts:55`](libs/shared/src/outbound/project/settings/settings-record.test.ts#L55), [`settings-record.test.ts:63`](libs/shared/src/outbound/project/settings/settings-record.test.ts#L63), [`settings-record.test.ts:81`](libs/shared/src/outbound/project/settings/settings-record.test.ts#L81), [`settings-record.test.ts:93`](libs/shared/src/outbound/project/settings/settings-record.test.ts#L93))
 
 - FR-19.19: lore-api serves the run views' four reads under the `read`
   scope — `GET /api/assembly-lines` (filterable by status, repo, or a
@@ -793,7 +817,7 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   not go down over an unmigrated cluster. Token usage reads
   `pipeline.agent_run_turns`, not `llm_calls`: the cost table is
   authoritative but a row lands only when a run ENDS, which is the
-  moment the card showing the number disappears. ([validated by `assembly-lines.test.ts:102`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L102), [`assembly-lines.test.ts:106`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L106), [`assembly-lines.test.ts:122`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L122), [`assembly-lines.test.ts:169`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L169), [`assembly-lines.test.ts:185`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L185), [`assembly-lines.test.ts:202`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L240), [`assembly-lines.test.ts:383`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L421), [`assembly-lines.test.ts:396`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L434), [`assembly-lines.test.ts:404`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L442), [`assembly-lines.test.ts:416`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L454), [`assembly-lines.test.ts:464`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L240), [`assembly-lines.test.ts:476`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L514), [`assembly-lines.test.ts:496`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L534), [`assembly-lines.test.ts:506`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L544))
+  moment the card showing the number disappears. ([validated by `assembly-lines.test.ts:86`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L86), [`assembly-lines.test.ts:90`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L90), [`assembly-lines.test.ts:106`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L106), [`assembly-lines.test.ts:153`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L153), [`assembly-lines.test.ts:169`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L169), [`assembly-lines.test.ts:223`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L223), [`assembly-lines.test.ts:397`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L397), [`assembly-lines.test.ts:410`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L410), [`assembly-lines.test.ts:418`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L418), [`assembly-lines.test.ts:430`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L430), [`assembly-lines.test.ts:223`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L223), [`assembly-lines.test.ts:490`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L490), [`assembly-lines.test.ts:508`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L508), [`assembly-lines.test.ts:518`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L518))
 
 - FR-19.20: lore-api serves the activity reads the audit, gaps, events,
   job-run and repo-overview views need, all under the `read` scope:
@@ -804,7 +828,7 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   `GET /api/repos/{owner}/{repo}/activity-counts` (7-day tasks,
   auto-merges and escalations). A count the database cannot answer is
   NULL, never zero: an unmigrated cluster must not render as "nothing
-  happened", and no dashboard figure may take its page down. ([validated by `activity.test.ts:31`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L31), [`activity.test.ts:35`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L35), [`activity.test.ts:49`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L49), [`activity.test.ts:60`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L60), [`activity.test.ts:70`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L70), [`activity.test.ts:83`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L83), [`activity.test.ts:94`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L94), [`activity.test.ts:98`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L98), [`activity.test.ts:112`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L112), [`activity.test.ts:125`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L125), [`activity.test.ts:135`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L135), [`activity.test.ts:148`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L148))
+  happened", and no dashboard figure may take its page down. ([validated by `activity.test.ts:31`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L31), [`activity.test.ts:35`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L35), [`activity.test.ts:49`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L49), [`activity.test.ts:60`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L60), [`activity.test.ts:70`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L70), [`activity.test.ts:83`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L83), [`activity.test.ts:94`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L94), [`activity.test.ts:98`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L98), [`activity.test.ts:112`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L112), [`activity.test.ts:125`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L125), [`activity.test.ts:135`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L135), [`activity.test.ts:148`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L148))
 
 - FR-19.21: lore-api serves the memory browse reads under the `read`
   scope — `GET /api/graph-browse` (counts, type breakdown, entity list,
@@ -820,7 +844,7 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   whose `has_facts` says it has none; the page it replaced fanned out up
   to 201 round trips for one screen. `/api/memory-search` is LEXICAL
   (ts_rank over raw text), the search page's question — the embedding
-  search remains `POST /api/memory`. ([validated by `memory-browse.test.ts:31`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L31), [`memory-browse.test.ts:35`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L35), [`memory-browse.test.ts:51`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L51), [`memory-browse.test.ts:64`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L64), [`memory-browse.test.ts:78`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L78), [`memory-browse.test.ts:91`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L91), [`memory-browse.test.ts:106`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L106), [`memory-browse.test.ts:117`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L117), [`memory-browse.test.ts:130`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L130), [`memory-browse.test.ts:140`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L140), [`memory-browse.test.ts:153`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L153), [`memory-browse.test.ts:164`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L164), [`memory-browse.test.ts:179`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L179), [`memory-browse.test.ts:189`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L189), [`memory-browse.test.ts:218`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L218), [`memory-browse.test.ts:195`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L195), [`memory-browse.test.ts:230`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L230))
+  search remains `POST /api/memory`. ([validated by `memory-browse.test.ts:31`](apps/lore-api/src/transport/routes/memory/memory-browse.test.ts#L31), [`memory-browse.test.ts:35`](apps/lore-api/src/transport/routes/memory/memory-browse.test.ts#L35), [`memory-browse.test.ts:51`](apps/lore-api/src/transport/routes/memory/memory-browse.test.ts#L51), [`memory-browse.test.ts:64`](apps/lore-api/src/transport/routes/memory/memory-browse.test.ts#L64), [`memory-browse.test.ts:78`](apps/lore-api/src/transport/routes/memory/memory-browse.test.ts#L78), [`memory-browse.test.ts:91`](apps/lore-api/src/transport/routes/memory/memory-browse.test.ts#L91), [`memory-browse.test.ts:106`](apps/lore-api/src/transport/routes/memory/memory-browse.test.ts#L106), [`memory-browse.test.ts:117`](apps/lore-api/src/transport/routes/memory/memory-browse.test.ts#L117), [`memory-browse.test.ts:130`](apps/lore-api/src/transport/routes/memory/memory-browse.test.ts#L130), [`memory-browse.test.ts:140`](apps/lore-api/src/transport/routes/memory/memory-browse.test.ts#L140), [`memory-browse.test.ts:153`](apps/lore-api/src/transport/routes/memory/memory-browse.test.ts#L153), [`memory-browse.test.ts:164`](apps/lore-api/src/transport/routes/memory/memory-browse.test.ts#L164), [`memory-browse.test.ts:179`](apps/lore-api/src/transport/routes/memory/memory-browse.test.ts#L179), [`memory-browse.test.ts:189`](apps/lore-api/src/transport/routes/memory/memory-browse.test.ts#L189), [`memory-browse.test.ts:218`](apps/lore-api/src/transport/routes/memory/memory-browse.test.ts#L218), [`memory-browse.test.ts:195`](apps/lore-api/src/transport/routes/memory/memory-browse.test.ts#L195), [`memory-browse.test.ts:230`](apps/lore-api/src/transport/routes/memory/memory-browse.test.ts#L230))
 
 - FR-19.22: lore-api serves the task-shaped dashboard reads under the
   `read` scope — `GET /api/repo-tasks` (a repo's most recent, empty on a
@@ -833,10 +857,11 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   memories — a developer's local MCP — appears in no task row, and
   dropping it would hide exactly the agents a human recognises. The
   aggregates stay SQL-side because the alternative is shipping the whole
-  pipeline history to Node for one dashboard row per agent. ([validated by [`task-views.test.ts:31`](apps/lore-api/src/api/routes/tasks/task-views.test.ts#L31), [`task-views.test.ts:37`](apps/lore-api/src/api/routes/tasks/task-views.test.ts#L37), [`task-views.test.ts:48`](apps/lore-api/src/api/routes/tasks/task-views.test.ts#L48), [`task-views.test.ts:52`](apps/lore-api/src/api/routes/tasks/task-views.test.ts#L52), [`task-views.test.ts:66`](apps/lore-api/src/api/routes/tasks/task-views.test.ts#L66), [`task-views.test.ts:79`](apps/lore-api/src/api/routes/tasks/task-views.test.ts#L79), [`task-views.test.ts:90`](apps/lore-api/src/api/routes/tasks/task-views.test.ts#L90), [`task-views.test.ts:102`](apps/lore-api/src/api/routes/tasks/task-views.test.ts#L102), [`task-views.test.ts:117`](apps/lore-api/src/api/routes/tasks/task-views.test.ts#L117), [`task-views.test.ts:135`](apps/lore-api/src/api/routes/tasks/task-views.test.ts#L135))
+  pipeline history to Node for one dashboard row per agent. ([validated by [`task-views.test.ts:31`](apps/lore-api/src/transport/routes/tasks/task-views.test.ts#L31), [`task-views.test.ts:37`](apps/lore-api/src/transport/routes/tasks/task-views.test.ts#L37), [`task-views.test.ts:48`](apps/lore-api/src/transport/routes/tasks/task-views.test.ts#L48), [`task-views.test.ts:52`](apps/lore-api/src/transport/routes/tasks/task-views.test.ts#L52), [`task-views.test.ts:66`](apps/lore-api/src/transport/routes/tasks/task-views.test.ts#L66), [`task-views.test.ts:79`](apps/lore-api/src/transport/routes/tasks/task-views.test.ts#L79), [`task-views.test.ts:90`](apps/lore-api/src/transport/routes/tasks/task-views.test.ts#L90), [`task-views.test.ts:102`](apps/lore-api/src/transport/routes/tasks/task-views.test.ts#L102), [`task-views.test.ts:117`](apps/lore-api/src/transport/routes/tasks/task-views.test.ts#L117), [`task-views.test.ts:135`](apps/lore-api/src/transport/routes/tasks/task-views.test.ts#L135))
 
 - FR-19.23: lore-api serves the two spend/analytics screens whole —
-  `GET /api/spend` (ten month-to-date aggregates) and
+  `GET /api/analytics/spend-window` (the interval-scoped spend screen,
+  FR-19f — the old month-to-date `GET /api/spend` merged into it) and
   `GET /api/analytics-overview` (six reads). Spend draws on BOTH cost
   sources deliberately: `pipeline.anthropic_cost_daily` is Anthropic's
   authoritative billed figure, but its buckets close at UTC midnight and
@@ -851,7 +876,7 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   availability is decided by the `as_of` STAMP rather than a row count:
   only the stamp separates "synced, nothing owed" from "never synced",
   and the view hides the section for the second instead of showing a
-  confident zero. ([validated by [`spend.test.ts:33`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L33), [`spend.test.ts:37`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L37), [`spend.test.ts:49`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L49), [`spend.test.ts:79`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L79), [`spend.test.ts:83`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L83), [`spend.test.ts:108`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L108), [`spend.test.ts:132`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L132), [`spend.test.ts:193`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L193), [`spend.test.ts:209`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L209), [`spend.test.ts:222`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L222), [`spend.test.ts:145`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L145))
+  confident zero. ([validated by [`spend.test.ts:30`](apps/lore-api/src/transport/routes/analytics/spend.test.ts#L30), [`spend.test.ts:34`](apps/lore-api/src/transport/routes/analytics/spend.test.ts#L34), [`spend.test.ts:46`](apps/lore-api/src/transport/routes/analytics/spend.test.ts#L46), [`spend-window.test.ts:148`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L148), [`spend-window.test.ts:338`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L338), [`spend-window.test.ts:359`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L359), [`spend-window.test.ts:377`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L377))
 
 - FR-19.24: `reviseTask` is the human feedback loop as ONE seam: it
   queues a follow-up task on the parent's branch and PR at immediate
@@ -863,7 +888,7 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   UI reaches it through `POST /api/task` with `action: "revise"`; the
   three writes were previously three separate statements in a server
   action, where a dropped event left a parent pointing at a revision the
-  timeline could not explain. ([validated by [`pipeline-tasks.escalate.test.ts:132`](libs/shared/src/pipeline-tasks.escalate.test.ts#L132), [`pipeline-tasks.escalate.test.ts:141`](libs/shared/src/pipeline-tasks.escalate.test.ts#L141), [`pipeline-tasks.escalate.test.ts:161`](libs/shared/src/pipeline-tasks.escalate.test.ts#L161), [`pipeline-tasks.escalate.test.ts:176`](libs/shared/src/pipeline-tasks.escalate.test.ts#L176), [`pipeline-tasks.escalate.test.ts:188`](libs/shared/src/pipeline-tasks.escalate.test.ts#L188), [`pipeline-tasks.escalate.test.ts:208`](libs/shared/src/pipeline-tasks.escalate.test.ts#L208), [`pipeline-tasks.escalate.test.ts:220`](libs/shared/src/pipeline-tasks.escalate.test.ts#L220), [`pipeline-tasks.escalate.test.ts:228`](libs/shared/src/pipeline-tasks.escalate.test.ts#L228))
+  timeline could not explain. ([validated by [`pipeline-tasks.escalate.test.ts:116`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L116), [`pipeline-tasks.escalate.test.ts:125`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L125), [`pipeline-tasks.escalate.test.ts:145`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L145), [`pipeline-tasks.escalate.test.ts:160`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L160), [`pipeline-tasks.escalate.test.ts:172`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L172), [`pipeline-tasks.escalate.test.ts:192`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L192), [`pipeline-tasks.escalate.test.ts:204`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L204), [`pipeline-tasks.escalate.test.ts:212`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L212))
 
 - FR-19.25: lore-api serves the org-wide `lore.settings` under the
   `admin` scope — `GET /api/settings` (the entries plus the repo count
@@ -874,7 +899,7 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   stored one alone rather than erasing it, because the form posts every
   field and an untouched secret arrives empty.
   `GET /api/repos/{owner}/{repo}/sessions` answers how many
-  developers have run a local session against a repo. ([validated by [`org-settings.test.ts:44`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L44), [`org-settings.test.ts:50`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L50), [`org-settings.test.ts:69`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L69), [`org-settings.test.ts:83`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L69), [`org-settings.test.ts:97`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L85), [`org-settings.test.ts:109`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L109), [`org-settings.test.ts:118`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L109), [`org-settings.test.ts:69`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L69), [`org-settings.test.ts:85`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L85), [`org-settings.test.ts:99`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L99), [`org-settings.test.ts:109`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L109), [`org-settings.test.ts:120`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L120), [`repos.test.ts:110`](apps/web-ui/src/lib/api/repos.test.ts#L110), [`repos.test.ts:120`](apps/web-ui/src/lib/api/repos.test.ts#L120))
+  developers have run a local session against a repo. ([validated by [`org-settings.test.ts:44`](apps/lore-api/src/transport/routes/repos/org-settings.test.ts#L44), [`org-settings.test.ts:50`](apps/lore-api/src/transport/routes/repos/org-settings.test.ts#L50), [`org-settings.test.ts:69`](apps/lore-api/src/transport/routes/repos/org-settings.test.ts#L69), [`org-settings.test.ts:69`](apps/lore-api/src/transport/routes/repos/org-settings.test.ts#L69), [`org-settings.test.ts:85`](apps/lore-api/src/transport/routes/repos/org-settings.test.ts#L85), [`org-settings.test.ts:109`](apps/lore-api/src/transport/routes/repos/org-settings.test.ts#L109), [`org-settings.test.ts:109`](apps/lore-api/src/transport/routes/repos/org-settings.test.ts#L109), [`org-settings.test.ts:69`](apps/lore-api/src/transport/routes/repos/org-settings.test.ts#L69), [`org-settings.test.ts:85`](apps/lore-api/src/transport/routes/repos/org-settings.test.ts#L85), [`org-settings.test.ts:99`](apps/lore-api/src/transport/routes/repos/org-settings.test.ts#L99), [`org-settings.test.ts:109`](apps/lore-api/src/transport/routes/repos/org-settings.test.ts#L109), [`org-settings.test.ts:120`](apps/lore-api/src/transport/routes/repos/org-settings.test.ts#L120), [`repos.test.ts:107`](apps/web-ui/src/lib/api/repos.test.ts#L107), [`repos.test.ts:117`](apps/web-ui/src/lib/api/repos.test.ts#L117))
 
 - FR-19.26: lore-api serves the context browser's chunk reads —
   `GET /api/chunks` (ranked, org-wide or repo-scoped, one row past the
@@ -889,19 +914,19 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   set is deliberately unfiltered by the active type so a chip never
   disappears the moment it is selected. Moving this read, and the union
   builder with it, is what let web-ui stop holding a Postgres pool at all.
-  ([validated by [`chunks-browse.test.ts:62`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L62), [`chunks-browse.test.ts:66`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L66), [`chunks-browse.test.ts:83`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L83), [`chunks-browse.test.ts:97`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L97), [`chunks-browse.test.ts:110`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L110), [`chunks-browse.test.ts:124`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L124), [`chunks-browse.test.ts:138`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L138), [`chunks-browse.test.ts:162`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L162), [`chunks-browse.test.ts:190`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L190), [`chunks-browse.test.ts:212`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L212), [`chunks-browse.test.ts:243`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L243), [`chunks-browse.test.ts:243`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L243))
+  ([validated by [`chunks-browse.test.ts:55`](apps/lore-api/src/transport/routes/context/chunks-browse.test.ts#L55), [`chunks-browse.test.ts:59`](apps/lore-api/src/transport/routes/context/chunks-browse.test.ts#L59), [`chunks-browse.test.ts:76`](apps/lore-api/src/transport/routes/context/chunks-browse.test.ts#L76), [`chunks-browse.test.ts:88`](apps/lore-api/src/transport/routes/context/chunks-browse.test.ts#L88), [`chunks-browse.test.ts:101`](apps/lore-api/src/transport/routes/context/chunks-browse.test.ts#L101), [`chunks-browse.test.ts:115`](apps/lore-api/src/transport/routes/context/chunks-browse.test.ts#L115), [`chunks-browse.test.ts:129`](apps/lore-api/src/transport/routes/context/chunks-browse.test.ts#L129), [`chunks-browse.test.ts:153`](apps/lore-api/src/transport/routes/context/chunks-browse.test.ts#L153), [`chunks-browse.test.ts:181`](apps/lore-api/src/transport/routes/context/chunks-browse.test.ts#L181), [`chunks-browse.test.ts:203`](apps/lore-api/src/transport/routes/context/chunks-browse.test.ts#L203), [`chunks-browse.test.ts:234`](apps/lore-api/src/transport/routes/context/chunks-browse.test.ts#L234), [`chunks-browse.test.ts:234`](apps/lore-api/src/transport/routes/context/chunks-browse.test.ts#L234))
 
 - FR-19.27: Anthropic's Admin API reports usage and cost and exposes NO
   credit balance, so what is LEFT cannot be fetched and is instead
   accumulated in `pipeline.credit_ledger` — an append-only record of money
   added, written through `POST /api/spend/credits` under the `write` scope
-  and read back on `GET /api/spend` as a `budget` block. The ledger is
+  and read back on `GET /api/analytics/spend-window` as a `budget` block. The ledger is
   append-only rather than a single mutable balance row: a wrong entry is
   compensated with a negative `correction`, never updated, so every write
   is one atomic INSERT and two people recording a top-up at the same moment
   cannot lose each other's entry. `remaining` is the recorded total minus
   spend since the EARLIEST entry, and that window is deliberately not
-  month-to-date like every other figure on the screen — a balance added in
+  interval-scoped like every other figure on the screen — a balance added in
   June is still money in August, and clipping it to the current month would
   silently forgive every dollar spent before the 1st. Spend within the
   window is the same two sources the rest of the page reports side by side,
@@ -912,10 +937,10 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   NULL budget rather than a zero one, on the same reasoning that makes
   `org_available` a stamp rather than a row count — nobody having recorded
   the balance is a different fact from the balance being nothing.
-  ([`credit-ledger.test.ts:51`](apps/lore-api/src/api/routes/analytics/credit-ledger.test.ts#L51), [`credit-ledger.test.ts:63`](apps/lore-api/src/api/routes/analytics/credit-ledger.test.ts#L63), [`credit-ledger.test.ts:67`](apps/lore-api/src/api/routes/analytics/credit-ledger.test.ts#L67), [`credit-ledger.test.ts:74`](apps/lore-api/src/api/routes/analytics/credit-ledger.test.ts#L74), [`credit-ledger.test.ts:91`](apps/lore-api/src/api/routes/analytics/credit-ledger.test.ts#L91), [`credit-ledger.test.ts:146`](apps/lore-api/src/api/routes/analytics/credit-ledger.test.ts#L146), [`credit-ledger.test.ts:163`](apps/lore-api/src/api/routes/analytics/credit-ledger.test.ts#L163), [`credit-ledger.test.ts:169`](apps/lore-api/src/api/routes/analytics/credit-ledger.test.ts#L169), [`credit-ledger.test.ts:175`](apps/lore-api/src/api/routes/analytics/credit-ledger.test.ts#L175), [`credit-ledger.test.ts:181`](apps/lore-api/src/api/routes/analytics/credit-ledger.test.ts#L181), [`spend.test.ts:254`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L254), [`spend.test.ts:264`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L264), [`spend.test.ts:279`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L279), [`spend.test.ts:300`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L300), [`spend.test.ts:318`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L318), [`spend.test.ts:343`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L343), [`credit-ledger.test.ts:181`](apps/lore-api/src/api/routes/analytics/credit-ledger.test.ts#L181), [`credit-ledger.test.ts:211`](apps/lore-api/src/api/routes/analytics/credit-ledger.test.ts#L211), [`credit-ledger.test.ts:110`](apps/lore-api/src/api/routes/analytics/credit-ledger.test.ts#L110), [`credit-ledger.test.ts:134`](apps/lore-api/src/api/routes/analytics/credit-ledger.test.ts#L134), [`credit-ledger.test.ts:140`](apps/lore-api/src/api/routes/analytics/credit-ledger.test.ts#L140), [`credit-ledger.test.ts:191`](apps/lore-api/src/api/routes/analytics/credit-ledger.test.ts#L191), [`spend.test.ts:366`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L366))
+  ([`credit-ledger.test.ts:51`](apps/lore-api/src/transport/routes/analytics/credit-ledger.test.ts#L51), [`credit-ledger.test.ts:61`](apps/lore-api/src/transport/routes/analytics/credit-ledger.test.ts#L61), [`credit-ledger.test.ts:65`](apps/lore-api/src/transport/routes/analytics/credit-ledger.test.ts#L65), [`credit-ledger.test.ts:72`](apps/lore-api/src/transport/routes/analytics/credit-ledger.test.ts#L72), [`credit-ledger.test.ts:85`](apps/lore-api/src/transport/routes/analytics/credit-ledger.test.ts#L85), [`credit-ledger.test.ts:134`](apps/lore-api/src/transport/routes/analytics/credit-ledger.test.ts#L134), [`credit-ledger.test.ts:149`](apps/lore-api/src/transport/routes/analytics/credit-ledger.test.ts#L149), [`credit-ledger.test.ts:155`](apps/lore-api/src/transport/routes/analytics/credit-ledger.test.ts#L155), [`credit-ledger.test.ts:161`](apps/lore-api/src/transport/routes/analytics/credit-ledger.test.ts#L161), [`credit-ledger.test.ts:167`](apps/lore-api/src/transport/routes/analytics/credit-ledger.test.ts#L167), [`spend-window.test.ts:397`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L397), [`spend-window.test.ts:406`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L406), [`spend-window.test.ts:416`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L416), [`SpendView.test.tsx:474`](apps/web-ui/src/app/spend/SpendView.test.tsx#L474), [`spend-window.test.ts:427`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L427), [`spend-window.test.ts:427`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L427), [`credit-ledger.test.ts:167`](apps/lore-api/src/transport/routes/analytics/credit-ledger.test.ts#L167), [`credit-ledger.test.ts:190`](apps/lore-api/src/transport/routes/analytics/credit-ledger.test.ts#L190), [`credit-ledger.test.ts:100`](apps/lore-api/src/transport/routes/analytics/credit-ledger.test.ts#L100), [`credit-ledger.test.ts:122`](apps/lore-api/src/transport/routes/analytics/credit-ledger.test.ts#L122), [`credit-ledger.test.ts:128`](apps/lore-api/src/transport/routes/analytics/credit-ledger.test.ts#L128), [`credit-ledger.test.ts:175`](apps/lore-api/src/transport/routes/analytics/credit-ledger.test.ts#L175), [`spend-window.test.ts:461`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L461))
 
 - FR-19.28: `/spend` renders the remaining balance BELOW the
-  month-to-date figures, so the spend it is derived from is read first —
+  interval figures, so the spend it is derived from is read first —
   the balance is that spend subtracted from what someone recorded, and it
   lands better after those figures than before them. The card is sized to
   its content rather than stretched: it is the only card in its row, and
@@ -950,7 +975,7 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   than to now — the label says so instead of saying "defaults to today",
   which reads either way — and a top-up recorded days late still yields the
   right figure, since only the opening entry moves the counting window.
-  ([`SpendView.test.tsx:322`](apps/web-ui/src/app/spend/SpendView.test.tsx#L322), [`SpendView.test.tsx:364`](apps/web-ui/src/app/spend/SpendView.test.tsx#L364), [`SpendView.test.tsx:374`](apps/web-ui/src/app/spend/SpendView.test.tsx#L374), [`SpendView.test.tsx:386`](apps/web-ui/src/app/spend/SpendView.test.tsx#L386), [`SpendView.test.tsx:409`](apps/web-ui/src/app/spend/SpendView.test.tsx#L409), [`SpendView.test.tsx:418`](apps/web-ui/src/app/spend/SpendView.test.tsx#L418), [`SpendView.test.tsx:424`](apps/web-ui/src/app/spend/SpendView.test.tsx#L424), [`SpendView.test.tsx:432`](apps/web-ui/src/app/spend/SpendView.test.tsx#L432), [`SpendView.test.tsx:436`](apps/web-ui/src/app/spend/SpendView.test.tsx#L436), [`actions.test.ts:33`](apps/web-ui/src/app/spend/actions.test.ts#L33), [`actions.test.ts:46`](apps/web-ui/src/app/spend/actions.test.ts#L46), [`actions.test.ts:60`](apps/web-ui/src/app/spend/actions.test.ts#L60), [`actions.test.ts:74`](apps/web-ui/src/app/spend/actions.test.ts#L74), [`actions.test.ts:85`](apps/web-ui/src/app/spend/actions.test.ts#L85), [`actions.test.ts:94`](apps/web-ui/src/app/spend/actions.test.ts#L94), [`actions.test.ts:101`](apps/web-ui/src/app/spend/actions.test.ts#L101), [`actions.test.ts:108`](apps/web-ui/src/app/spend/actions.test.ts#L108), [`actions.test.ts:124`](apps/web-ui/src/app/spend/actions.test.ts#L124), [`actions.test.ts:136`](apps/web-ui/src/app/spend/actions.test.ts#L136), [`SpendView.test.tsx:449`](apps/web-ui/src/app/spend/SpendView.test.tsx#L449), [`SpendView.test.tsx:461`](apps/web-ui/src/app/spend/SpendView.test.tsx#L461), [`SpendView.test.tsx:480`](apps/web-ui/src/app/spend/SpendView.test.tsx#L480), [`SpendView.test.tsx:510`](apps/web-ui/src/app/spend/SpendView.test.tsx#L510), [`SpendView.test.tsx:520`](apps/web-ui/src/app/spend/SpendView.test.tsx#L520), [`SpendView.test.tsx:535`](apps/web-ui/src/app/spend/SpendView.test.tsx#L535), [`SpendView.test.tsx:546`](apps/web-ui/src/app/spend/SpendView.test.tsx#L546), [`SpendView.test.tsx:554`](apps/web-ui/src/app/spend/SpendView.test.tsx#L554), [`SpendView.test.tsx:566`](apps/web-ui/src/app/spend/SpendView.test.tsx#L566), [`SpendView.test.tsx:579`](apps/web-ui/src/app/spend/SpendView.test.tsx#L579), [`SpendView.test.tsx:591`](apps/web-ui/src/app/spend/SpendView.test.tsx#L591), [`SpendView.test.tsx:601`](apps/web-ui/src/app/spend/SpendView.test.tsx#L601), [`SpendView.test.tsx:120`](apps/web-ui/src/app/spend/SpendView.test.tsx#L120), [`SpendView.test.tsx:136`](apps/web-ui/src/app/spend/SpendView.test.tsx#L136), [`SpendView.test.tsx:348`](apps/web-ui/src/app/spend/SpendView.test.tsx#L348))
+  ([`SpendView.test.tsx:419`](apps/web-ui/src/app/spend/SpendView.test.tsx#L419), [`SpendView.test.tsx:454`](apps/web-ui/src/app/spend/SpendView.test.tsx#L454), [`SpendView.test.tsx:464`](apps/web-ui/src/app/spend/SpendView.test.tsx#L464), [`SpendView.test.tsx:474`](apps/web-ui/src/app/spend/SpendView.test.tsx#L474), [`SpendView.test.tsx:499`](apps/web-ui/src/app/spend/SpendView.test.tsx#L499), [`SpendView.test.tsx:506`](apps/web-ui/src/app/spend/SpendView.test.tsx#L506), [`SpendView.test.tsx:512`](apps/web-ui/src/app/spend/SpendView.test.tsx#L512), [`SpendView.test.tsx:518`](apps/web-ui/src/app/spend/SpendView.test.tsx#L518), [`SpendView.test.tsx:522`](apps/web-ui/src/app/spend/SpendView.test.tsx#L522), [`actions.test.ts:33`](apps/web-ui/src/app/spend/actions.test.ts#L33), [`actions.test.ts:46`](apps/web-ui/src/app/spend/actions.test.ts#L46), [`actions.test.ts:57`](apps/web-ui/src/app/spend/actions.test.ts#L57), [`actions.test.ts:71`](apps/web-ui/src/app/spend/actions.test.ts#L71), [`actions.test.ts:82`](apps/web-ui/src/app/spend/actions.test.ts#L82), [`actions.test.ts:89`](apps/web-ui/src/app/spend/actions.test.ts#L89), [`actions.test.ts:96`](apps/web-ui/src/app/spend/actions.test.ts#L96), [`actions.test.ts:103`](apps/web-ui/src/app/spend/actions.test.ts#L103), [`actions.test.ts:115`](apps/web-ui/src/app/spend/actions.test.ts#L115), [`actions.test.ts:127`](apps/web-ui/src/app/spend/actions.test.ts#L127), [`SpendView.test.tsx:535`](apps/web-ui/src/app/spend/SpendView.test.tsx#L535), [`SpendView.test.tsx:544`](apps/web-ui/src/app/spend/SpendView.test.tsx#L544), [`SpendView.test.tsx:565`](apps/web-ui/src/app/spend/SpendView.test.tsx#L565), [`SpendView.test.tsx:593`](apps/web-ui/src/app/spend/SpendView.test.tsx#L593), [`SpendView.test.tsx:600`](apps/web-ui/src/app/spend/SpendView.test.tsx#L600), [`SpendView.test.tsx:618`](apps/web-ui/src/app/spend/SpendView.test.tsx#L618), [`SpendView.test.tsx:674`](apps/web-ui/src/app/spend/SpendView.test.tsx#L674), [`SpendView.test.tsx:693`](apps/web-ui/src/app/spend/SpendView.test.tsx#L693), [`SpendView.test.tsx:645`](apps/web-ui/src/app/spend/SpendView.test.tsx#L645), [`SpendView.test.tsx:654`](apps/web-ui/src/app/spend/SpendView.test.tsx#L654), [`SpendView.test.tsx:664`](apps/web-ui/src/app/spend/SpendView.test.tsx#L664), [`SpendView.test.tsx:627`](apps/web-ui/src/app/spend/SpendView.test.tsx#L627), [`SpendView.test.tsx:175`](apps/web-ui/src/app/spend/SpendView.test.tsx#L175), [`SpendView.test.tsx:197`](apps/web-ui/src/app/spend/SpendView.test.tsx#L197), [`SpendView.test.tsx:448`](apps/web-ui/src/app/spend/SpendView.test.tsx#L448), [`RecordTopUp.test.tsx:9`](apps/web-ui/src/app/spend/RecordTopUp.test.tsx#L9), [`RecordTopUp.test.tsx:21`](apps/web-ui/src/app/spend/RecordTopUp.test.tsx#L21), [`RecordTopUp.test.tsx:31`](apps/web-ui/src/app/spend/RecordTopUp.test.tsx#L31), [`RecordTopUp.test.tsx:47`](apps/web-ui/src/app/spend/RecordTopUp.test.tsx#L47), [`RecordTopUp.test.tsx:63`](apps/web-ui/src/app/spend/RecordTopUp.test.tsx#L63))
 
 - FR-19.29: `/spend` attributes Lore-computed spend to the execution
   cluster that ran each call, so a satellite cluster's burn is legible
@@ -963,16 +988,62 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   under one `(central / regular)` bucket rather than being dropped, and
   read through the same degrade-to-empty guard the billed figures use so
   a deployment predating the station and cluster-agent tables renders
-  nothing instead of 500-ing the whole page. The table is optional in the
-  view: a caller that passes no cluster data renders exactly as before,
-  and an empty result shows an empty-state row rather than a blank table.
+  nothing instead of 500-ing the whole page. The table always renders — an empty
+  window shows an empty-state row rather than a blank table — and the
+  satellite note by the balance appears only when a registered cluster
+  actually shows up in the window.
   The same attribution keeps a satellite cluster's spend OUT of the
   recorded-credit balance: a call claimed by a registered cluster ran on
   that cluster's own credential (a colleague's subscription) and never
   drew these credits, so the balance's computed half counts only calls
   with no cluster-agent claim — home, central, and direct — and does not
   drag the balance negative on money the account never spent.
-  ([validated by [`spend.test.ts:392`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L392), [`spend.test.ts:411`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L411), [`spend.test.ts:432`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L432), [`spend.test.ts:449`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L449), [`SpendView.test.tsx:609`](apps/web-ui/src/app/spend/SpendView.test.tsx#L609), [`SpendView.test.tsx:627`](apps/web-ui/src/app/spend/SpendView.test.tsx#L627), [`SpendView.test.tsx:635`](apps/web-ui/src/app/spend/SpendView.test.tsx#L635)])
+  ([validated by [`spend-window.test.ts:148`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L148), [`spend-window.test.ts:478`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L478), [`spend-window.test.ts:492`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L492), [`spend-window.test.ts:427`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L427), [`SpendView.test.tsx:633`](apps/web-ui/src/app/spend/SpendView.test.tsx#L633), [`SpendView.test.tsx:703`](apps/web-ui/src/app/spend/SpendView.test.tsx#L703), [`SpendView.test.tsx:708`](apps/web-ui/src/app/spend/SpendView.test.tsx#L708), [`spend-window.test.ts:519`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L519)])
+
+- **FR-19f — Interval-scoped spend, with the Kubernetes half** _(added
+  2026-09-02)_. The spend page carries a date-interval selector — presets
+  (today / 7 days / 30 days / month-to-date) plus free date bounds — and
+  `GET /api/analytics/spend-window?from&to` serves the WHOLE page for the
+  selected window _(merged 2026-09-03: the old month-to-date `/api/spend`
+  sections became interval-scoped and moved into this response, and the
+  route was deleted)_: the metered LLM spend (realtime — the agent-events
+  sink writes cost rows within seconds of each model call) with its
+  by-assembly-line, by-repo, by-model, by-kind, daily, by-task-type and
+  by-cluster breakdowns, the interval-scoped Anthropic billed figures with
+  their unbilled remainder, the recorded balance (the one
+  interval-independent block), plus the Kubernetes compute ESTIMATE. That estimate has two halves, and both
+  say what they assumed: interval pod-hours from `station_runs` (rows that
+  named an Agent CR were pods; a run's size is not recorded, so hours are
+  priced at a named default profile), and the pods running RIGHT NOW, each
+  priced from its ACTUAL resource requests — requests, because requests
+  are what size the nodes the autoscaler bills for — read through the
+  central cluster-agent's `GET /api/cluster/pods`. Bad intervals are a 400
+  naming the rule (YYYY-MM-DD, from ≤ to, at most 92 days); an unreachable
+  cluster-agent degrades to an empty live list, never a failed page; a
+  station-run row with no `finished_at` is capped at two hours from its
+  start, never billed as still running — a stale row riding `now()` once
+  claimed 8,606 pod-hours for pods that ran minutes; rates
+  are env-overridable and echoed in the response so the UI labels the
+  number as the estimate it is — Google's invoice lags a day and stays the
+  truth.
+  ([validated by windows the metered llm spend and prices pod-hours at the assumed profile](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L117), [prices each live pod from its ACTUAL requests](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L269), [`spend-window.test.ts:293`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L293), [caps a never-finished station-run row at 2 hours](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L313), [`spend-window.test.ts:326`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L326), [carries every interval-scoped breakdown the merged spend page renders](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L148), [`spend-window.test.ts:248`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L248), [`SpendView.test.tsx:211`](apps/web-ui/src/app/spend/SpendView.test.tsx#L211), [`SpendView.test.tsx:219`](apps/web-ui/src/app/spend/SpendView.test.tsx#L219), [`SpendView.test.tsx:284`](apps/web-ui/src/app/spend/SpendView.test.tsx#L284), [`compute-cost.test.ts:12`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L12), [`compute-cost.test.ts:25`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L25), [`compute-cost.test.ts:34`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L34), [`compute-cost.test.ts:40`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L40), [`compute-cost.test.ts:47`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L47), [`compute-cost.test.ts:56`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L56), [`compute-cost.test.ts:65`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L65), [`compute-cost.test.ts:75`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L75), [`compute-cost.test.ts:82`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L82), [`compute-cost.test.ts:89`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L89), [lists the running pods with their requests](apps/cluster-agent/src/transport/routes/cluster.test.ts#L154), [fetches the default 7-day window and renders the whole spend view from it](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L99), [`SpendWindowPanel.test.tsx:129`](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L129), [`SpendWindowPanel.test.tsx:144`](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L144), [`SpendWindowPanel.test.tsx:155`](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L155), [`SpendWindowPanel.test.tsx:171`](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L171), [`SpendWindowPanel.test.tsx:192`](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L192), [`spend-window-presets.test.ts:7`](apps/web-ui/src/app/spend/spend-window-presets.test.ts#L7), [`spend-window-presets.test.ts:14`](apps/web-ui/src/app/spend/spend-window-presets.test.ts#L14), [`spend-window-presets.test.ts:25`](apps/web-ui/src/app/spend/spend-window-presets.test.ts#L25), [`spend-window-presets.test.ts:34`](apps/web-ui/src/app/spend/spend-window-presets.test.ts#L34), [`SpendWindowPanel.test.tsx:208`](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L208)])
+
+- **FR-19g — Whose invoice, and what a run costs** _(added 2026-09-03)_.
+  `pipeline.llm_calls` prices every model call Lore sees, whoever bills it, so
+  the page separates them. Metered spend is reported per VENDOR (folded from
+  the by-model rollup through the shared `modelVendor` classifier, dearest
+  first), and only the Anthropic slice draws the recorded balance: the review
+  family moved to Gemini on 2026-09-02, and counting that against the Anthropic
+  credits drew the balance down on money Anthropic never charged — the same
+  exclusion bounds the unbilled remainder under the billed card, since it is
+  compared against an Anthropic figure. The classification is one declaration:
+  the balance query passes the shared `NON_ANTHROPIC_LIKE_PATTERNS` straight to
+  `NOT LIKE ALL`, and an unrecognized model reads as Anthropic, which
+  understates what is left rather than reporting money already gone. The
+  by-assembly-line table also carries cost PER RUN, the figure that says whether
+  a model or prompt change paid off — a total hides it behind however many runs
+  the interval happened to contain.
+  ([validated by [`spend-window.test.ts:446`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L446), [`vendor-split.test.ts:5`](apps/lore-api/src/work/analytics/vendor-split.test.ts#L5), [`vendor-split.test.ts:19`](apps/lore-api/src/work/analytics/vendor-split.test.ts#L19), [`vendor-split.test.ts:25`](apps/lore-api/src/work/analytics/vendor-split.test.ts#L25), [`model-vendor.test.ts:5`](libs/shared/src/outbound/llm/model-vendor.test.ts#L5), [`model-vendor.test.ts:17`](libs/shared/src/outbound/llm/model-vendor.test.ts#L17), [`model-vendor.test.ts:21`](libs/shared/src/outbound/llm/model-vendor.test.ts#L21), [`model-vendor.test.ts:11`](libs/shared/src/outbound/llm/model-vendor.test.ts#L11), [`model-vendor.test.ts:25`](libs/shared/src/outbound/llm/model-vendor.test.ts#L25), [`model-vendor.test.ts:31`](libs/shared/src/outbound/llm/model-vendor.test.ts#L31), [`SpendView.test.tsx:721`](apps/web-ui/src/app/spend/SpendView.test.tsx#L721), [`SpendView.test.tsx:728`](apps/web-ui/src/app/spend/SpendView.test.tsx#L728), [`SpendView.test.tsx:741`](apps/web-ui/src/app/spend/SpendView.test.tsx#L741))
 
 ### FR-20: Project Facade Ports (Phase 1)
 
@@ -980,7 +1051,7 @@ The `Project` facade (ADR-024) exposes every data capability — tasks,
 events, chunks, features, agents, workspace, PRs, issues, cost/usage
 accounting — through repo-bound ports with a Postgres/GCS/HTTP adapter
 and an in-memory double per port, so Floor, mcp-server, and lore-api
-share one persistence surface instead of inline SQL. ([validated by `task-queue.test.ts:22`](libs/shared/src/project/tasks/task-queue.test.ts#L22))
+share one persistence surface instead of inline SQL. ([validated by `task-queue.test.ts:20`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L20))
 
 - FR-20.1: The `TaskQueue` port drives org-wide claim/sweep: it claims
   one runnable pending task (immediate-first, past the minute interval,
@@ -990,14 +1061,14 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   a repo when given, flips a running task to completed (reporting
   same-spec dependents it unblocks, false for unknown/non-running), and
   exposes `awaitingApproval`, `distinctTargetRepos`, `prInfo`, and
-  `findRecoverable`. ([validated by `task-queue.test.ts:22`](libs/shared/src/project/tasks/task-queue.test.ts#L22), [`task-queue.test.ts:29`](libs/shared/src/project/tasks/task-queue.test.ts#L29), [`task-queue.test.ts:37`](libs/shared/src/project/tasks/task-queue.test.ts#L37), [`task-queue.test.ts:51`](libs/shared/src/project/tasks/task-queue.test.ts#L51), [`task-queue.test.ts:60`](libs/shared/src/project/tasks/task-queue.test.ts#L60), [`task-queue.test.ts:69`](libs/shared/src/project/tasks/task-queue.test.ts#L69), [`task-queue.test.ts:77`](libs/shared/src/project/tasks/task-queue.test.ts#L77), [`task-queue.test.ts:85`](libs/shared/src/project/tasks/task-queue.test.ts#L85), [`task-queue.test.ts:95`](libs/shared/src/project/tasks/task-queue.test.ts#L95), [`task-queue.test.ts:104`](libs/shared/src/project/tasks/task-queue.test.ts#L104), [`task-queue.test.ts:115`](libs/shared/src/project/tasks/task-queue.test.ts#L115), [`task-queue.test.ts:129`](libs/shared/src/project/tasks/task-queue.test.ts#L129), [`task-queue.test.ts:182`](libs/shared/src/project/tasks/task-queue.test.ts#L182), [`task-queue.test.ts:193`](libs/shared/src/project/tasks/task-queue.test.ts#L193), [`task-queue.test.ts:206`](libs/shared/src/project/tasks/task-queue.test.ts#L206), [`task-queue.test.ts:220`](libs/shared/src/project/tasks/task-queue.test.ts#L220), [`task-queue.test.ts:278`](libs/shared/src/project/tasks/task-queue.test.ts#L278), [`task-queue.test.ts:288`](libs/shared/src/project/tasks/task-queue.test.ts#L288), [`task-queue.test.ts:317`](libs/shared/src/project/tasks/task-queue.test.ts#L317))
+  `findRecoverable`. ([validated by `task-queue.test.ts:20`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L20), [`task-queue.test.ts:27`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L27), [`task-queue.test.ts:35`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L35), [`task-queue.test.ts:49`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L49), [`task-queue.test.ts:58`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L58), [`task-queue.test.ts:67`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L67), [`task-queue.test.ts:75`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L75), [`task-queue.test.ts:83`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L83), [`task-queue.test.ts:93`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L93), [`task-queue.test.ts:102`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L102), [`task-queue.test.ts:113`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L113), [`task-queue.test.ts:127`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L127), [`task-queue.test.ts:180`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L180), [`task-queue.test.ts:191`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L191), [`task-queue.test.ts:204`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L204), [`task-queue.test.ts:218`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L218), [`task-queue.test.ts:272`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L272), [`task-queue.test.ts:282`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L282), [`task-queue.test.ts:311`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L311))
 - FR-20.1b: `setColumns` writes only the given allow-listed task columns
   WITHOUT touching status or updated_at, issues no SQL for an empty column
   set, and throws on any key outside `SETTABLE_TASK_COLUMNS` — identically
   in the Pg adapter and the in-memory double, so a typo'd column fails
   loudly in tests instead of silently no-oping in production; the double
   additionally assigns the columns onto the seeded row and stays a no-op
-  for an unknown task id. ([validated by `task-queue.test.ts:614`](libs/shared/src/project/tasks/task-queue.test.ts#L614), [`task-queue.test.ts:633`](libs/shared/src/project/tasks/task-queue.test.ts#L633), [`task-queue.test.ts:646`](libs/shared/src/project/tasks/task-queue.test.ts#L646), [`task-queue.test.ts:653`](libs/shared/src/project/tasks/task-queue.test.ts#L653), [`task-queue.test.ts:665`](libs/shared/src/project/tasks/task-queue.test.ts#L665), [`task-queue.test.ts:677`](libs/shared/src/project/tasks/task-queue.test.ts#L677))
+  for an unknown task id. ([validated by `task-queue.test.ts:608`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L608), [`task-queue.test.ts:627`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L627), [`task-queue.test.ts:640`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L640), [`task-queue.test.ts:647`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L647), [`task-queue.test.ts:659`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L659), [`task-queue.test.ts:671`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L671))
 - FR-20.1a: The `pipeline.tasks` queue, exercised end-to-end against Postgres,
   backs those port behaviors: a created task defaults to `pending` status and
   `normal` priority (accepting an explicit `immediate`); a claim is atomic (a
@@ -1007,7 +1078,7 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   recording a transition event per step for the audit trail and a
   `failure_reason` on failure; the review loop increments `review_iteration`;
   and run-now flips a pending task's priority from `normal` to `immediate`.
-  ([validated by `creates a task in pending status`](apps/lore-api/src/integration-tests/pipeline.test.ts#L30), [validated by `claims a task atomically`](apps/lore-api/src/integration-tests/pipeline.test.ts#L40), [validated by `30s grace period excludes recently created tasks`](apps/lore-api/src/integration-tests/pipeline.test.ts#L71), [validated by `full lifecycle pending running completed`](apps/lore-api/src/integration-tests/pipeline.test.ts#L91), [validated by `records task events for audit trail`](apps/lore-api/src/integration-tests/pipeline.test.ts#L123), [validated by `handles failure with reason`](apps/lore-api/src/integration-tests/pipeline.test.ts#L154), [validated by `tracks review iterations`](apps/lore-api/src/integration-tests/pipeline.test.ts#L176), [validated by `creates tasks with default priority normal`](apps/lore-api/src/integration-tests/pipeline.test.ts#L198), [validated by `creates tasks with explicit priority immediate`](apps/lore-api/src/integration-tests/pipeline.test.ts#L208), [validated by `GKE worker query picks up immediate tasks without grace`](apps/lore-api/src/integration-tests/pipeline.test.ts#L218), [validated by `run-now updates priority from normal to immediate`](apps/lore-api/src/integration-tests/pipeline.test.ts#L241))
+  ([validated by `creates a task in pending status`](apps/lore-api/src/integration-tests/pipeline.test.ts#L28), [validated by `claims a task atomically`](apps/lore-api/src/integration-tests/pipeline.test.ts#L38), [validated by `30s grace period excludes recently created tasks`](apps/lore-api/src/integration-tests/pipeline.test.ts#L68), [validated by `full lifecycle pending running completed`](apps/lore-api/src/integration-tests/pipeline.test.ts#L86), [validated by `records task events for audit trail`](apps/lore-api/src/integration-tests/pipeline.test.ts#L118), [validated by `handles failure with reason`](apps/lore-api/src/integration-tests/pipeline.test.ts#L149), [validated by `tracks review iterations`](apps/lore-api/src/integration-tests/pipeline.test.ts#L171), [validated by `creates tasks with default priority normal`](apps/lore-api/src/integration-tests/pipeline.test.ts#L192), [validated by `creates tasks with explicit priority immediate`](apps/lore-api/src/integration-tests/pipeline.test.ts#L202), [validated by `GKE worker query picks up immediate tasks without grace`](apps/lore-api/src/integration-tests/pipeline.test.ts#L212), [validated by `run-now updates priority from normal to immediate`](apps/lore-api/src/integration-tests/pipeline.test.ts#L234))
 - FR-20.2: The `TaskQueue` port also drives spec-task DAG dispatch: it
   claims a pending spec-task once via CAS (default claimer
   `spec-task-executor`), completes it reporting only the same-spec
@@ -1015,13 +1086,13 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   `awaitingApproval`/`distinctTargetRepos`/`prInfo`, and returns ready
   spec-tasks whose deps are completed/merged in the same spec — scoping
   the returned set to one repo while still resolving deps org-wide.
-  ([validated by `task-queue.test.ts:372`](libs/shared/src/project/tasks/task-queue.test.ts#L372), [`task-queue.test.ts:381`](libs/shared/src/project/tasks/task-queue.test.ts#L381), [`task-queue.test.ts:396`](libs/shared/src/project/tasks/task-queue.test.ts#L396), [`task-queue.test.ts:411`](libs/shared/src/project/tasks/task-queue.test.ts#L411), [`task-queue.test.ts:453`](libs/shared/src/project/tasks/task-queue.test.ts#L453), [`task-queue.test.ts:475`](libs/shared/src/project/tasks/task-queue.test.ts#L475), [`task-queue.test.ts:485`](libs/shared/src/project/tasks/task-queue.test.ts#L485), [`task-queue.test.ts:500`](libs/shared/src/project/tasks/task-queue.test.ts#L500), [`task-queue.test.ts:536`](libs/shared/src/project/tasks/task-queue.test.ts#L536))
+  ([validated by `task-queue.test.ts:366`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L366), [`task-queue.test.ts:375`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L375), [`task-queue.test.ts:390`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L390), [`task-queue.test.ts:405`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L405), [`task-queue.test.ts:447`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L447), [`task-queue.test.ts:469`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L469), [`task-queue.test.ts:479`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L479), [`task-queue.test.ts:494`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L494), [`task-queue.test.ts:530`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L530))
 - FR-20.3: The repo-scoped `TaskStore` port queries pending statuses,
   transitions a cancel to `cancelled`, writes `setStatus` (status +
   updated_at + only allowlisted extra columns), reads-old-then-writes-new
   status recording the transition event on `updateStatus`, and filters
   `findOpenLike` by repo, type, description prefix, and given statuses —
-  each bound to the facade's repo. ([validated by `task-store-pg.test.ts:29`](libs/shared/src/project/tasks/task-store-pg.test.ts#L29), [`task-store-pg.test.ts:44`](libs/shared/src/project/tasks/task-store-pg.test.ts#L44), [`task-store-pg.test.ts:57`](libs/shared/src/project/tasks/task-store-pg.test.ts#L57), [`task-store-pg.test.ts:74`](libs/shared/src/project/tasks/task-store-pg.test.ts#L74), [`task-store-pg.test.ts:88`](libs/shared/src/project/tasks/task-store-pg.test.ts#L88))
+  each bound to the facade's repo. ([validated by `task-store-pg.test.ts:23`](libs/shared/src/outbound/project/tasks/task-store-pg.test.ts#L23), [`task-store-pg.test.ts:38`](libs/shared/src/outbound/project/tasks/task-store-pg.test.ts#L38), [`task-store-pg.test.ts:51`](libs/shared/src/outbound/project/tasks/task-store-pg.test.ts#L51), [`task-store-pg.test.ts:68`](libs/shared/src/outbound/project/tasks/task-store-pg.test.ts#L68), [`task-store-pg.test.ts:82`](libs/shared/src/outbound/project/tasks/task-store-pg.test.ts#L82))
 - FR-20.3b: The in-memory `TaskStore` double is the behavioral spec of the
   Pg adapter across the whole port surface: the pending/running/executed
   views group the shared status unions newest-first per repo; `create`
@@ -1035,38 +1106,33 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   state guards; `transition` keeps `claimed_by` via COALESCE; and the
   dedup reads (`findOpenLike` with LIKE-wildcard semantics,
   `driftTasksForSpec` keyed on the bundle's spec_path), `list` paging, and
-  `getWithEvents` mirror the SQL. ([validated by `task-store-memory.test.ts:38`](libs/shared/src/project/tasks/task-store-memory.test.ts#L38), [`task-store-memory.test.ts:48`](libs/shared/src/project/tasks/task-store-memory.test.ts#L48), [`task-store-memory.test.ts:69`](libs/shared/src/project/tasks/task-store-memory.test.ts#L69), [`task-store-memory.test.ts:90`](libs/shared/src/project/tasks/task-store-memory.test.ts#L90), [`task-store-memory.test.ts:100`](libs/shared/src/project/tasks/task-store-memory.test.ts#L100), [`task-store-memory.test.ts:125`](libs/shared/src/project/tasks/task-store-memory.test.ts#L125), [`task-store-memory.test.ts:137`](libs/shared/src/project/tasks/task-store-memory.test.ts#L137), [`task-store-memory.test.ts:149`](libs/shared/src/project/tasks/task-store-memory.test.ts#L149), [`task-store-memory.test.ts:157`](libs/shared/src/project/tasks/task-store-memory.test.ts#L157), [`task-store-memory.test.ts:171`](libs/shared/src/project/tasks/task-store-memory.test.ts#L171), [`task-store-memory.test.ts:194`](libs/shared/src/project/tasks/task-store-memory.test.ts#L194), [`task-store-memory.test.ts:227`](libs/shared/src/project/tasks/task-store-memory.test.ts#L227), [`task-store-memory.test.ts:275`](libs/shared/src/project/tasks/task-store-memory.test.ts#L275), [`task-store-memory.test.ts:365`](libs/shared/src/project/tasks/task-store-memory.test.ts#L365), [`task-store-memory.test.ts:379`](libs/shared/src/project/tasks/task-store-memory.test.ts#L379), [`task-store-memory.test.ts:395`](libs/shared/src/project/tasks/task-store-memory.test.ts#L395))
+  `getWithEvents` mirror the SQL. ([validated by `task-store-memory.test.ts:38`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L38), [`task-store-memory.test.ts:48`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L48), [`task-store-memory.test.ts:69`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L69), [`task-store-memory.test.ts:90`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L90), [`task-store-memory.test.ts:100`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L100), [`task-store-memory.test.ts:125`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L125), [`task-store-memory.test.ts:137`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L137), [`task-store-memory.test.ts:149`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L149), [`task-store-memory.test.ts:157`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L157), [`task-store-memory.test.ts:171`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L171), [`task-store-memory.test.ts:194`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L194), [`task-store-memory.test.ts:226`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L226), [`task-store-memory.test.ts:274`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L274), [`task-store-memory.test.ts:362`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L362), [`task-store-memory.test.ts:376`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L376), [`task-store-memory.test.ts:392`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L392))
 - FR-20.4: The task-list surface returns the repo's pending tasks as
   typed `Task` wrappers and reflects the new status after `cancel()`.
-  ([validated by `task-list.test.ts:114`](libs/shared/src/project/tasks/task-list.test.ts#L114), [`task-list.test.ts:131`](libs/shared/src/project/tasks/task-list.test.ts#L131))
+  ([validated by `task-list.test.ts:114`](libs/shared/src/outbound/project/tasks/task-list.test.ts#L109), [`task-list.test.ts:126`](libs/shared/src/outbound/project/tasks/task-list.test.ts#L126))
 - FR-20.5: The `EventQueue` port claims runnable rows with `FOR UPDATE
-  SKIP LOCKED` incrementing attempts (oldest-first, flipping to
+SKIP LOCKED` incrementing attempts (oldest-first, flipping to
   processing), collapses a redelivery sharing a dedupe key, truncates the
   error and applies the backoff on `markFailed` (a failed row becomes
   claimable only after the backoff elapses), resets timed-out processing
   rows to failed on `reapStuck`, and prunes handled/terminal rows past
-  the window — returning affected-row counts. ([validated by `event-queue.test.ts:10`](libs/shared/src/project/events/event-queue.test.ts#L10), [`event-queue.test.ts:35`](libs/shared/src/project/events/event-queue.test.ts#L35), [`event-queue.test.ts:44`](libs/shared/src/project/events/event-queue.test.ts#L44), [`event-queue.test.ts:51`](libs/shared/src/project/events/event-queue.test.ts#L51), [`event-queue.test.ts:65`](libs/shared/src/project/events/event-queue.test.ts#L65), [`event-queue.test.ts:84`](libs/shared/src/project/events/event-queue.test.ts#L84), [`event-queue.test.ts:124`](libs/shared/src/project/events/event-queue.test.ts#L124), [`event-queue.test.ts:139`](libs/shared/src/project/events/event-queue.test.ts#L139), [`event-queue.test.ts:161`](libs/shared/src/project/events/event-queue.test.ts#L161))
+  the window — returning affected-row counts. ([validated by `event-queue.test.ts:8`](libs/shared/src/outbound/project/events/event-queue.test.ts#L8), [`event-queue.test.ts:33`](libs/shared/src/outbound/project/events/event-queue.test.ts#L33), [`event-queue.test.ts:42`](libs/shared/src/outbound/project/events/event-queue.test.ts#L42), [`event-queue.test.ts:49`](libs/shared/src/outbound/project/events/event-queue.test.ts#L49), [`event-queue.test.ts:61`](libs/shared/src/outbound/project/events/event-queue.test.ts#L61), [`event-queue.test.ts:80`](libs/shared/src/outbound/project/events/event-queue.test.ts#L80), [`event-queue.test.ts:118`](libs/shared/src/outbound/project/events/event-queue.test.ts#L118), [`event-queue.test.ts:133`](libs/shared/src/outbound/project/events/event-queue.test.ts#L133), [`event-queue.test.ts:155`](libs/shared/src/outbound/project/events/event-queue.test.ts#L155))
 - FR-20.6: The `Chunks` knowledge-store port checks schema existence via
   `information_schema`, counts/inserts/deletes chunks within an
   interpolated (injection-rejecting) schema, sets the caller-formatted
   embedding vector, resolves the repo's team schema (falling back to
   `org_shared`) for the spec-chunk and code-symbol reads, for
-  chunk-existence checks, and for the stale count —
-  which covers only reindex-owned rows (`ingested_by = 'reindex-job'`)
-  so the nightly verification pass can clear it — and for the coverage
+  chunk-existence checks, and for the coverage
   spec-chunk reads (with and without embeddings) ordered by `file_path` then
   `metadata.chunk_index` nulls-last then `ingested_at` so multi-chunk
-  specs reassemble in document order — lists, re-stamps (whole files
-  at a time to a single `NOW()`, gated to files whose oldest chunk is
-  past a caller-supplied age floor so steady-state nights rewrite
-  nothing), and prunes reindex-owned chunks by file path for
-  that pass, and returns distinct teams with per-team `org_shared`
-  counts (defaulting a missing count to zero).
-  ([validated by `chunks.test.ts:42`](libs/shared/src/project/chunks/chunks.test.ts#L42), [`chunks.test.ts:50`](libs/shared/src/project/chunks/chunks.test.ts#L50), [`chunks.test.ts:56`](libs/shared/src/project/chunks/chunks.test.ts#L56), [`chunks.test.ts:66`](libs/shared/src/project/chunks/chunks.test.ts#L66), [`chunks.test.ts:81`](libs/shared/src/project/chunks/chunks.test.ts#L81), [`chunks.test.ts:98`](libs/shared/src/project/chunks/chunks.test.ts#L98), [`chunks.test.ts:106`](libs/shared/src/project/chunks/chunks.test.ts#L106), [`chunks.test.ts:117`](libs/shared/src/project/chunks/chunks.test.ts#L117), [`chunks.test.ts:131`](libs/shared/src/project/chunks/chunks.test.ts#L131), [`chunks.test.ts:139`](libs/shared/src/project/chunks/chunks.test.ts#L139), [`chunks.test.ts:145`](libs/shared/src/project/chunks/chunks.test.ts#L145), [`chunks.test.ts:153`](libs/shared/src/project/chunks/chunks.test.ts#L153), [`chunks.test.ts:171`](libs/shared/src/project/chunks/chunks.test.ts#L171), [`chunks.test.ts:190`](libs/shared/src/project/chunks/chunks.test.ts#L190), [`chunks.test.ts:212`](libs/shared/src/project/chunks/chunks.test.ts#L212), [`chunks.test.ts:235`](libs/shared/src/project/chunks/chunks.test.ts#L235), [`chunks.test.ts:249`](libs/shared/src/project/chunks/chunks.test.ts#L249), [`chunks.test.ts:257`](libs/shared/src/project/chunks/chunks.test.ts#L257), [`chunks.test.ts:271`](libs/shared/src/project/chunks/chunks.test.ts#L271), [`chunks.test.ts:278`](libs/shared/src/project/chunks/chunks.test.ts#L278), [`chunks.test.ts:295`](libs/shared/src/project/chunks/chunks.test.ts#L295), [`chunks.test.ts:318`](libs/shared/src/project/chunks/chunks.test.ts#L318), [`chunks.test.ts:362`](libs/shared/src/project/chunks/chunks.test.ts#L362), [`chunks.test.ts:394`](libs/shared/src/project/chunks/chunks.test.ts#L394), [`chunks.test.ts:411`](libs/shared/src/project/chunks/chunks.test.ts#L411), [`chunks.test.ts:426`](libs/shared/src/project/chunks/chunks.test.ts#L426), [`chunks.test.ts:437`](libs/shared/src/project/chunks/chunks.test.ts#L437), [`chunks.test.ts:452`](libs/shared/src/project/chunks/chunks.test.ts#L452), [`chunks.test.ts:461`](libs/shared/src/project/chunks/chunks.test.ts#L461), [`chunks.test.ts:468`](libs/shared/src/project/chunks/chunks.test.ts#L468), [`chunks.test.ts:490`](libs/shared/src/project/chunks/chunks.test.ts#L490), [`chunks.test.ts:498`](libs/shared/src/project/chunks/chunks.test.ts#L498), [`chunks.test.ts:527`](libs/shared/src/project/chunks/chunks.test.ts#L527), [`chunks.test.ts:541`](libs/shared/src/project/chunks/chunks.test.ts#L541), [`chunks.test.ts:577`](libs/shared/src/project/chunks/chunks.test.ts#L577), [`chunks.test.ts:596`](libs/shared/src/project/chunks/chunks.test.ts#L596))
+  specs reassemble in document order — and returns distinct teams with per-team `org_shared`
+  counts (defaulting a missing count to zero). Rows predating team
+  tracking carry a null team and are left out of that list.
+  ([validated by returns true when information_schema lists the schema](libs/shared/src/outbound/project/chunks/chunks.test.ts#L48), [`chunks.test.ts:56`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L56), [`chunks.test.ts:62`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L62), [`chunks.test.ts:72`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L72), [`chunks.test.ts:87`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L87), [`chunks.test.ts:104`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L104), [`chunks.test.ts:112`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L112), [`chunks.test.ts:123`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L123), [`chunks.test.ts:137`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L137), [`chunks.test.ts:145`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L145), [`chunks.test.ts:151`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L151), [`chunks.test.ts:159`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L159), [`chunks.test.ts:177`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L177), [`chunks.test.ts:196`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L196), [`chunks.test.ts:218`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L218), [`chunks.test.ts:241`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L241), [`chunks.test.ts:255`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L255), [`chunks.test.ts:263`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L263), [`chunks.test.ts:307`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L307), [`chunks.test.ts:339`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L339), [`chunks.test.ts:349`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L349), [`chunks.test.ts:360`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L360), [`chunks.test.ts:375`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L375), [`chunks.test.ts:384`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L384), [`chunks.test.ts:391`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L391), [`chunks.test.ts:413`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L413), [`chunks.test.ts:436`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L436), [`chunks.test.ts:444`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L444), [`chunks.test.ts:473`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L473), [`chunks.test.ts:487`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L487), [`chunks.test.ts:650`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L650), [`chunks.test.ts:683`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L683))
 - FR-20.7: The HTTP `Chunks` adapter reads spec chunks (and backfill
   chunks with embeddings) from the repo-scoped API with a bearer token,
-  maps `hasChunk`/`staleChunkCount` to their query endpoints, and throws
-  on a non-ok response and on the Floor-only write surface. ([validated by `chunks-http.test.ts:28`](libs/shared/src/project/chunks/chunks-http.test.ts#L28), [`chunks-http.test.ts:43`](libs/shared/src/project/chunks/chunks-http.test.ts#L43), [`chunks-http.test.ts:60`](libs/shared/src/project/chunks/chunks-http.test.ts#L60), [`chunks-http.test.ts:94`](libs/shared/src/project/chunks/chunks-http.test.ts#L94))
+  maps `hasChunk` to its query endpoint, and throws
+  on a non-ok response and on the Floor-only write surface. ([validated by `chunks-http.test.ts:28`](libs/shared/src/outbound/project/chunks/chunks-http.test.ts#L28), [`chunks-http.test.ts:43`](libs/shared/src/outbound/project/chunks/chunks-http.test.ts#L43), [`chunks-http.test.ts:60`](libs/shared/src/outbound/project/chunks/chunks-http.test.ts#L57), [`chunks-http.test.ts:94`](libs/shared/src/outbound/project/chunks/chunks-http.test.ts#L91))
 - FR-20.8: The `Features` store persists feature planning bound to its
   repo: it lists by repo ordered by `updated_at` (with an optional status
   filter), attaches a `task_id` to an iteration, updates an iteration's
@@ -1074,23 +1140,23 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   deletes a feature scoped to its repo (returning whether a row was
   removed); the facade stamps the bound repo on every call, and the pure
   helpers gate finalizing to a settled planning state and return the gap
-  of the highest-numbered ready iteration (null when none). ([validated by `features-pg.test.ts:48`](libs/shared/src/project/features/features-pg.test.ts#L48), [`features-pg.test.ts:58`](libs/shared/src/project/features/features-pg.test.ts#L58), [`features-pg.test.ts:95`](libs/shared/src/project/features/features-pg.test.ts#L98), [`features-pg.test.ts:112`](libs/shared/src/project/features/features-pg.test.ts#L115), [`features-pg.test.ts:139`](libs/shared/src/project/features/features-pg.test.ts#L142), [`features-pg.test.ts:148`](libs/shared/src/project/features/features-pg.test.ts#L151), [`features-pg.test.ts:168`](libs/shared/src/project/features/features-pg.test.ts#L171), [`features-pg.test.ts:178`](libs/shared/src/project/features/features-pg.test.ts#L181), [`features.test.ts:45`](libs/shared/src/project/features/features.test.ts#L45), [`features.test.ts:52`](libs/shared/src/project/features/features.test.ts#L52), [`features.test.ts:62`](libs/shared/src/project/features/features.test.ts#L62), [`features.test.ts:72`](libs/shared/src/project/features/features.test.ts#L72), [`features-port.test.ts:28`](libs/shared/src/project/features/features-port.test.ts#L35), [`features-port.test.ts:34`](libs/shared/src/project/features/features-port.test.ts#L41), [`features-port.test.ts:48`](libs/shared/src/project/features/features-port.test.ts#L54), [`features-port.test.ts:58`](libs/shared/src/project/features/features-port.test.ts#L64), [`features-port.test.ts:68`](libs/shared/src/project/features/features-port.test.ts#L74))
+  of the highest-numbered ready iteration (null when none). ([validated by `features-pg.test.ts:47`](libs/shared/src/outbound/project/features/features-pg.test.ts#L47), [`features-pg.test.ts:57`](libs/shared/src/outbound/project/features/features-pg.test.ts#L57), [`features-pg.test.ts:93`](libs/shared/src/outbound/project/features/features-pg.test.ts#L93), [`features-pg.test.ts:110`](libs/shared/src/outbound/project/features/features-pg.test.ts#L110), [`features-pg.test.ts:134`](libs/shared/src/outbound/project/features/features-pg.test.ts#L134), [`features-pg.test.ts:143`](libs/shared/src/outbound/project/features/features-pg.test.ts#L143), [`features-pg.test.ts:163`](libs/shared/src/outbound/project/features/features-pg.test.ts#L163), [`features-pg.test.ts:173`](libs/shared/src/outbound/project/features/features-pg.test.ts#L173), [`features.test.ts:45`](libs/shared/src/outbound/project/features/features.test.ts#L45), [`features.test.ts:52`](libs/shared/src/outbound/project/features/features.test.ts#L52), [`features.test.ts:62`](libs/shared/src/outbound/project/features/features.test.ts#L62), [`features.test.ts:72`](libs/shared/src/outbound/project/features/features.test.ts#L72), [`features-port.test.ts:35`](libs/shared/src/outbound/project/features/features-port.test.ts#L35), [`features-port.test.ts:41`](libs/shared/src/outbound/project/features/features-port.test.ts#L41), [`features-port.test.ts:54`](libs/shared/src/outbound/project/features/features-port.test.ts#L54), [`features-port.test.ts:64`](libs/shared/src/outbound/project/features/features-port.test.ts#L64), [`features-port.test.ts:74`](libs/shared/src/outbound/project/features/features-port.test.ts#L74))
 - FR-20.9: Feature planning recovery orphans a running round older than
   the window (even while the runtime reports active), leaves a recent
   active round alone, no-ops when a ready round already moved the feature
   out of `planning` or there are no iterations, and keys on the latest
   iteration so a newer ready round supersedes an older running one; the
   round-in-flight helper returns a recent running iteration and null when
-  the only running one is orphaned or none is running. ([validated by `planning-recovery.test.ts:49`](libs/shared/src/project/features/planning-recovery.test.ts#L50), [`planning-recovery.test.ts:68`](libs/shared/src/project/features/planning-recovery.test.ts#L69), [`planning-recovery.test.ts:98`](libs/shared/src/project/features/planning-recovery.test.ts#L99), [`planning-recovery.test.ts:111`](libs/shared/src/project/features/planning-recovery.test.ts#L112), [`planning-recovery.test.ts:131`](libs/shared/src/project/features/planning-recovery.test.ts#L132), [`round-in-flight.test.ts:26`](libs/shared/src/project/features/round-in-flight.test.ts#L27), [`round-in-flight.test.ts:38`](libs/shared/src/project/features/round-in-flight.test.ts#L39), [`round-in-flight.test.ts:48`](libs/shared/src/project/features/round-in-flight.test.ts#L49))
+  the only running one is orphaned or none is running. ([validated by `planning-recovery.test.ts:49`](libs/shared/src/outbound/project/features/planning-recovery.test.ts#L50), [`planning-recovery.test.ts:69`](libs/shared/src/outbound/project/features/planning-recovery.test.ts#L69), [`planning-recovery.test.ts:99`](libs/shared/src/outbound/project/features/planning-recovery.test.ts#L99), [`planning-recovery.test.ts:112`](libs/shared/src/outbound/project/features/planning-recovery.test.ts#L112), [`planning-recovery.test.ts:132`](libs/shared/src/outbound/project/features/planning-recovery.test.ts#L132), [`round-in-flight.test.ts:27`](libs/shared/src/outbound/project/features/round-in-flight.test.ts#L27), [`round-in-flight.test.ts:39`](libs/shared/src/outbound/project/features/round-in-flight.test.ts#L39), [`round-in-flight.test.ts:49`](libs/shared/src/outbound/project/features/round-in-flight.test.ts#L49))
 - FR-20.10: The `AgentRunner` port launches a Station via the injected
   `StationBackend` in cluster mode (passing the execution image, throwing
   when no provider is supplied) and calls the injected `LlmPort` in
   direct mode; agent execution refuses LOCAL mode on the shared server
-  (`LORE_DB_HOST` set) yet allows cluster mode there. ([validated by `agent-runner.test.ts:33`](libs/shared/src/project/agents/agent-runner.test.ts#L33), [`agent-runner.test.ts:15`](libs/shared/src/project/agents/agent-runner.test.ts#L15), [`agent-runner.test.ts:70`](libs/shared/src/project/agents/agent-runner.test.ts#L100), [`agent-runner.test.ts:90`](libs/shared/src/project/agents/agent-runner.test.ts#L120), [`agent-runner.test.ts:114`](libs/shared/src/project/agents/agent-runner.test.ts#L144), [`agents.test.ts:22`](libs/shared/src/project/agents/agents.test.ts#L22), [`agents.test.ts:34`](libs/shared/src/project/agents/agents.test.ts#L34))
+  (`LORE_DB_HOST` set) yet allows cluster mode there. ([validated by `agent-runner.test.ts:33`](libs/shared/src/outbound/project/agents/agent-runner.test.ts#L27), [`agent-runner.test.ts:135`](libs/shared/src/outbound/project/agents/agent-runner.test.ts#L135), [`agent-runner.test.ts:15`](libs/shared/src/outbound/project/agents/agent-runner.test.ts#L15), [`agent-runner.test.ts:90`](libs/shared/src/outbound/project/agents/agent-runner.test.ts#L90), [`agent-runner.test.ts:110`](libs/shared/src/outbound/project/agents/agent-runner.test.ts#L110), [`agent-runner.test.ts:150`](libs/shared/src/outbound/project/agents/agent-runner.test.ts#L150), [`agents.test.ts:16`](libs/shared/src/outbound/project/agents/agents.test.ts#L16), [`agents.test.ts:28`](libs/shared/src/outbound/project/agents/agents.test.ts#L28))
 - FR-20.11: The station-mode selector honours explicit `k8s`/`docker`
   overrides and the `inprocess` escape hatch, defaults to `k8s`
   in-cluster and `docker` off-cluster, and ignores an unrecognized value
-  falling back to context. ([validated by `station-port.test.ts:5`](libs/shared/src/project/agents/station-port.test.ts#L5), [`station-port.test.ts:9`](libs/shared/src/project/agents/station-port.test.ts#L9), [`station-port.test.ts:18`](libs/shared/src/project/agents/station-port.test.ts#L18), [`station-port.test.ts:24`](libs/shared/src/project/agents/station-port.test.ts#L24), [`station-port.test.ts:30`](libs/shared/src/project/agents/station-port.test.ts#L30), [`station-port.test.ts:34`](libs/shared/src/project/agents/station-port.test.ts#L34))
+  falling back to context. ([validated by `station-port.test.ts:5`](libs/shared/src/outbound/project/agents/station-port.test.ts#L5), [`station-port.test.ts:9`](libs/shared/src/outbound/project/agents/station-port.test.ts#L9), [`station-port.test.ts:18`](libs/shared/src/outbound/project/agents/station-port.test.ts#L18), [`station-port.test.ts:24`](libs/shared/src/outbound/project/agents/station-port.test.ts#L24), [`station-port.test.ts:30`](libs/shared/src/outbound/project/agents/station-port.test.ts#L30), [`station-port.test.ts:34`](libs/shared/src/outbound/project/agents/station-port.test.ts#L34))
 - FR-20.12: The `AgentDefs` port resolves an agent definition through
   three layers (yaml base → org row → project row), inheriting nullable
   fields upward and letting each higher layer override, returning null
@@ -1102,7 +1168,7 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   `feature-decompose`, and returns null for an unknown name; the facade
   lists and delegates create/delete with the bound repo; and the HTTP
   adapter resolves/lists via the bearer-authed API (null on 404).
-  ([validated by `agent-defs-port.test.ts:23`](libs/shared/src/project/agents/agent-defs-port.test.ts#L23), [`agent-defs-port.test.ts:27`](libs/shared/src/project/agents/agent-defs-port.test.ts#L27), [`agent-defs-port.test.ts:31`](libs/shared/src/project/agents/agent-defs-port.test.ts#L31), [`agent-defs-port.test.ts:67`](libs/shared/src/project/agents/agent-defs-port.test.ts#L67), [`agent-defs-pg.test.ts:101`](libs/shared/src/project/agents/agent-defs-pg.test.ts#L101), [`agent-defs-pg.test.ts:110`](libs/shared/src/project/agents/agent-defs-pg.test.ts#L110), [`agent-defs-pg.test.ts:122`](libs/shared/src/project/agents/agent-defs-pg.test.ts#L122), [`agent-defs-pg.test.ts:138`](libs/shared/src/project/agents/agent-defs-pg.test.ts#L138), [`agent-defs-pg.test.ts:165`](libs/shared/src/project/agents/agent-defs-pg.test.ts#L165), [`agent-defs-yaml.test.ts:43`](libs/shared/src/project/agents/agent-defs-yaml.test.ts#L42), [`agent-defs-yaml.test.ts:58`](libs/shared/src/project/agents/agent-defs-yaml.test.ts#L57), [`agent-defs-yaml.test.ts:68`](libs/shared/src/project/agents/agent-defs-yaml.test.ts#L67), [`agent-defs-yaml.test.ts:77`](libs/shared/src/project/agents/agent-defs-yaml.test.ts#L76), [`agent-defs-yaml.test.ts:109`](libs/shared/src/project/agents/agent-defs-yaml.test.ts#L110), [`agent-defs.test.ts:60`](libs/shared/src/project/agents/agent-defs.test.ts#L60), [`agent-defs.test.ts:68`](libs/shared/src/project/agents/agent-defs.test.ts#L68), [`agent-defs-http.test.ts:55`](libs/shared/src/project/agents/agent-defs-http.test.ts#L55), [`agent-defs-http.test.ts:64`](libs/shared/src/project/agents/agent-defs-http.test.ts#L64), [`agent-defs-http.test.ts:70`](libs/shared/src/project/agents/agent-defs-http.test.ts#L70))
+  ([validated by `agent-defs-port.test.ts:17`](libs/shared/src/outbound/project/agents/agent-defs-port.test.ts#L17), [`agent-defs-port.test.ts:21`](libs/shared/src/outbound/project/agents/agent-defs-port.test.ts#L21), [`agent-defs-port.test.ts:25`](libs/shared/src/outbound/project/agents/agent-defs-port.test.ts#L25), [`agent-defs-port.test.ts:62`](libs/shared/src/outbound/project/agents/agent-defs-port.test.ts#L62), [`agent-defs-pg.test.ts:80`](libs/shared/src/outbound/project/agents/agent-defs-pg.test.ts#L80), [`agent-defs-pg.test.ts:99`](libs/shared/src/outbound/project/agents/agent-defs-pg.test.ts#L99), [`agent-defs-pg.test.ts:108`](libs/shared/src/outbound/project/agents/agent-defs-pg.test.ts#L108), [`agent-defs-pg.test.ts:120`](libs/shared/src/outbound/project/agents/agent-defs-pg.test.ts#L120), [`agent-defs-pg.test.ts:134`](libs/shared/src/outbound/project/agents/agent-defs-pg.test.ts#L134), [`agent-defs-yaml.test.ts:37`](libs/shared/src/outbound/project/agents/agent-defs-yaml.test.ts#L37), [`agent-defs-yaml.test.ts:53`](libs/shared/src/outbound/project/agents/agent-defs-yaml.test.ts#L53), [`agent-defs-yaml.test.ts:63`](libs/shared/src/outbound/project/agents/agent-defs-yaml.test.ts#L63), [`agent-defs-yaml.test.ts:72`](libs/shared/src/outbound/project/agents/agent-defs-yaml.test.ts#L72), [`agent-defs-yaml.test.ts:106`](libs/shared/src/outbound/project/agents/agent-defs-yaml.test.ts#L106), [`agent-defs.test.ts:55`](libs/shared/src/outbound/project/agents/agent-defs.test.ts#L55), [`agent-defs.test.ts:63`](libs/shared/src/outbound/project/agents/agent-defs.test.ts#L63), [`agent-defs-http.test.ts:56`](libs/shared/src/outbound/project/agents/agent-defs-http.test.ts#L56), [`agent-defs-http.test.ts:65`](libs/shared/src/outbound/project/agents/agent-defs-http.test.ts#L65), [`agent-defs-http.test.ts:71`](libs/shared/src/outbound/project/agents/agent-defs-http.test.ts#L71))
 - FR-20.13: The `Workspace`/`Git` ports carry the installation token as a
   base64 `x-access-token` `http.extraheader` override (honouring a
   non-default host, never embedding the raw token in the args or
@@ -1112,21 +1178,21 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   `ensureClone`/`ensureCheckout` cache-reuse via fetch, pin the branch,
   and refuse to switch a dirty tree; the workspace facade writes-then-
   reads a file committing through the GitPort and pushes then opens the
-  PR via the pulls port. ([validated by `git-auth.test.ts:5`](libs/shared/src/project/workspace/git-auth.test.ts#L5), [`git-auth.test.ts:14`](libs/shared/src/project/workspace/git-auth.test.ts#L14), [`git-auth.test.ts:20`](libs/shared/src/project/workspace/git-auth.test.ts#L20), [`git-auth.test.ts:26`](libs/shared/src/project/workspace/git-auth.test.ts#L26), [`git-cli-auth.test.ts:22`](libs/shared/src/project/workspace/git-cli-auth.test.ts#L22), [`git-cli-auth.test.ts:35`](libs/shared/src/project/workspace/git-cli-auth.test.ts#L35), [`git-cli-auth.test.ts:46`](libs/shared/src/project/workspace/git-cli-auth.test.ts#L46), [`git-cli.test.ts:53`](libs/shared/src/project/workspace/git-cli.test.ts#L53), [`git-cli.test.ts:63`](libs/shared/src/project/workspace/git-cli.test.ts#L63), [`git-cli.test.ts:81`](libs/shared/src/project/workspace/git-cli.test.ts#L81), [`git-cli.test.ts:100`](libs/shared/src/project/workspace/git-cli.test.ts#L100), [`git-cli.test.ts:112`](libs/shared/src/project/workspace/git-cli.test.ts#L112), [`git-cli.test.ts:130`](libs/shared/src/project/workspace/git-cli.test.ts#L130), [`workspace.test.ts:39`](libs/shared/src/project/workspace/workspace.test.ts#L39), [`workspace.test.ts:52`](libs/shared/src/project/workspace/workspace.test.ts#L52))
+  PR via the pulls port. ([validated by `git-auth.test.ts:5`](libs/shared/src/outbound/project/workspace/git-auth.test.ts#L5), [`git-auth.test.ts:14`](libs/shared/src/outbound/project/workspace/git-auth.test.ts#L14), [`git-auth.test.ts:20`](libs/shared/src/outbound/project/workspace/git-auth.test.ts#L20), [`git-auth.test.ts:26`](libs/shared/src/outbound/project/workspace/git-auth.test.ts#L26), [`git-cli-auth.test.ts:20`](libs/shared/src/outbound/project/workspace/git-cli-auth.test.ts#L20), [`git-cli-auth.test.ts:33`](libs/shared/src/outbound/project/workspace/git-cli-auth.test.ts#L33), [`git-cli-auth.test.ts:44`](libs/shared/src/outbound/project/workspace/git-cli-auth.test.ts#L44), [`git-cli.test.ts:47`](libs/shared/src/outbound/project/workspace/git-cli.test.ts#L47), [`git-cli.test.ts:57`](libs/shared/src/outbound/project/workspace/git-cli.test.ts#L57), [`git-cli.test.ts:75`](libs/shared/src/outbound/project/workspace/git-cli.test.ts#L75), [`git-cli.test.ts:94`](libs/shared/src/outbound/project/workspace/git-cli.test.ts#L94), [`git-cli.test.ts:105`](libs/shared/src/outbound/project/workspace/git-cli.test.ts#L105), [`git-cli.test.ts:123`](libs/shared/src/outbound/project/workspace/git-cli.test.ts#L123), [`workspace.test.ts:33`](libs/shared/src/outbound/project/workspace/workspace.test.ts#L33), [`workspace.test.ts:46`](libs/shared/src/outbound/project/workspace/workspace.test.ts#L46))
 - FR-20.14: The `Repo` files port reads a file at a given ref (null when
   absent) and creates a branch committing a file via the API, repo bound.
-  ([validated by `repo-files.test.ts:54`](libs/shared/src/project/repo/repo-files.test.ts#L55), [`repo-files.test.ts:60`](libs/shared/src/project/repo/repo-files.test.ts#L61), [`repo-files.test.ts:66`](libs/shared/src/project/repo/repo-files.test.ts#L67))
+  ([validated by `repo-files.test.ts:54`](libs/shared/src/outbound/project/repo/repo-files.test.ts#L50), [`repo-files.test.ts:56`](libs/shared/src/outbound/project/repo/repo-files.test.ts#L56), [`repo-files.test.ts:62`](libs/shared/src/outbound/project/repo/repo-files.test.ts#L62))
 - FR-20.15: The `PullRequests` port lists only the repo's PRs, merges by
   number with the requested method, and exposes PR reads bound to the
-  repo and number. ([validated by `pull-requests.test.ts:93`](libs/shared/src/project/pulls/pull-requests.test.ts#L94), [`pull-requests.test.ts:117`](libs/shared/src/project/pulls/pull-requests.test.ts#L130), [`pull-requests.test.ts:126`](libs/shared/src/project/pulls/pull-requests.test.ts#L139))
+  repo and number. ([validated by `pull-requests.test.ts:99`](libs/shared/src/outbound/project/pulls/pull-requests.test.ts#L94), [`pull-requests.test.ts:129`](libs/shared/src/outbound/project/pulls/pull-requests.test.ts#L130), [`pull-requests.test.ts:138`](libs/shared/src/outbound/project/pulls/pull-requests.test.ts#L139))
 - FR-20.16: The `Issues` port returns the GitHubPort issues for the
   project's repo, creates an issue bound to the repo, and comments,
-  closes, and labels by number bound to the repo. ([validated by `issues.test.ts:58`](libs/shared/src/project/issues/issues.test.ts#L59), [`issues.test.ts:102`](libs/shared/src/project/issues/issues.test.ts#L103), [`issues.test.ts:115`](libs/shared/src/project/issues/issues.test.ts#L116))
+  closes, and labels by number bound to the repo. ([validated by `issues.test.ts:58`](libs/shared/src/outbound/project/issues/issues.test.ts#L54), [`issues.test.ts:98`](libs/shared/src/outbound/project/issues/issues.test.ts#L98), [`issues.test.ts:111`](libs/shared/src/outbound/project/issues/issues.test.ts#L111))
 - FR-20.17: The `TestRunner` port lists tests in a trusted sandbox (no
   `LORE_DB_HOST`); its exec adapter lists the descriptors from the
   manifest `list` command, runs a single test aggregating the report, and
   runs `run` once per file (selector = file) fanning the result to each
-  descriptor. ([validated by `test-suite.test.ts:43`](libs/shared/src/project/test-runner/test-suite.test.ts#L43), [`test-runner-exec.test.ts:42`](libs/shared/src/project/test-runner/test-runner-exec.test.ts#L42), [`test-runner-exec.test.ts:50`](libs/shared/src/project/test-runner/test-runner-exec.test.ts#L50), [`test-runner-exec.test.ts:64`](libs/shared/src/project/test-runner/test-runner-exec.test.ts#L64))
+  descriptor. ([validated by `test-suite.test.ts:37`](libs/shared/src/outbound/project/test-runner/test-suite.test.ts#L37), [`test-runner-exec.test.ts:36`](libs/shared/src/outbound/project/test-runner/test-runner-exec.test.ts#L36), [`test-runner-exec.test.ts:44`](libs/shared/src/outbound/project/test-runner/test-runner-exec.test.ts#L44), [`test-runner-exec.test.ts:58`](libs/shared/src/outbound/project/test-runner/test-runner-exec.test.ts#L58))
 - FR-20.18: The accounting ports persist their own tables: `usage`
   inserts an `llm_calls` row (defaulting cost and null task) and returns
   today/total counts (missing rows default to zero); `cost` upserts
@@ -1140,7 +1206,7 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   check; and `baseline` inserts a JSON-serialized counter snapshot and
   reads windowed PR/median-time-to-merge counters from `pipeline.tasks`
   (defaulting an empty window to zero/null, excluding other repos and
-  out-of-window rows). ([validated by `usage-pg.test.ts:22`](libs/shared/src/project/usage/usage-pg.test.ts#L22), [`usage-pg.test.ts:48`](libs/shared/src/project/usage/usage-pg.test.ts#L51), [`usage-pg.test.ts:75`](libs/shared/src/project/usage/usage-pg.test.ts#L115), [`usage-pg.test.ts:90`](libs/shared/src/project/usage/usage-pg.test.ts#L130), [`usage-pg.test.ts:105`](libs/shared/src/project/usage/usage-pg.test.ts#L145), [`usage-pg.test.ts:121`](libs/shared/src/project/usage/usage-pg.test.ts#L161), [`usage-pg.test.ts:134`](libs/shared/src/project/usage/usage-pg.test.ts#L174), [`usage-pg.test.ts:151`](libs/shared/src/project/usage/usage-pg.test.ts#L191), [`usage-pg.test.ts:169`](libs/shared/src/project/usage/usage-pg.test.ts#L209), [`cost.test.ts:36`](libs/shared/src/project/cost/cost.test.ts#L36), [`cost.test.ts:60`](libs/shared/src/project/cost/cost.test.ts#L60), [`cost.test.ts:68`](libs/shared/src/project/cost/cost.test.ts#L68), [`cost.test.ts:80`](libs/shared/src/project/cost/cost.test.ts#L80), [`job-runs.test.ts:23`](libs/shared/src/project/job-runs/job-runs.test.ts#L23), [`job-runs.test.ts:36`](libs/shared/src/project/job-runs/job-runs.test.ts#L36), [`job-runs.test.ts:54`](libs/shared/src/project/job-runs/job-runs.test.ts#L54), [`job-runs.test.ts:62`](libs/shared/src/project/job-runs/job-runs.test.ts#L62), [`job-runs.test.ts:72`](libs/shared/src/project/job-runs/job-runs.test.ts#L72), [`job-runs.test.ts:86`](libs/shared/src/project/job-runs/job-runs.test.ts#L86), [`job-runs.test.ts:94`](libs/shared/src/project/job-runs/job-runs.test.ts#L94), [`job-runs.test.ts:104`](libs/shared/src/project/job-runs/job-runs.test.ts#L104), [`job-runs.test.ts:118`](libs/shared/src/project/job-runs/job-runs.test.ts#L118), [`job-runs.test.ts:131`](libs/shared/src/project/job-runs/job-runs.test.ts#L131), [`job-runs.test.ts:172`](libs/shared/src/project/job-runs/job-runs.test.ts#L172), [`evals.test.ts:23`](libs/shared/src/project/evals/evals.test.ts#L23), [`evals.test.ts:38`](libs/shared/src/project/evals/evals.test.ts#L38), [`evals.test.ts:48`](libs/shared/src/project/evals/evals.test.ts#L48), [`evals.test.ts:59`](libs/shared/src/project/evals/evals.test.ts#L59), [`evals.test.ts:81`](libs/shared/src/project/evals/evals.test.ts#L81), [`evals.test.ts:102`](libs/shared/src/project/evals/evals.test.ts#L102), [`evals.test.ts:123`](libs/shared/src/project/evals/evals.test.ts#L123), [`baseline.test.ts:23`](libs/shared/src/project/baseline/baseline.test.ts#L23), [`baseline.test.ts:46`](libs/shared/src/project/baseline/baseline.test.ts#L46), [`baseline.test.ts:64`](libs/shared/src/project/baseline/baseline.test.ts#L64), [`baseline.test.ts:78`](libs/shared/src/project/baseline/baseline.test.ts#L78), [`baseline.test.ts:92`](libs/shared/src/project/baseline/baseline.test.ts#L92), [`baseline.test.ts:125`](libs/shared/src/project/baseline/baseline.test.ts#L125))
+  out-of-window rows). ([validated by `usage-pg.test.ts:22`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L31), [`usage-pg.test.ts:50`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L59), [`usage-pg.test.ts:114`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L123), [`usage-pg.test.ts:129`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L138), [`usage-pg.test.ts:144`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L153), [`usage-pg.test.ts:160`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L169), [`usage-pg.test.ts:173`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L182), [`usage-pg.test.ts:190`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L199), [`usage-pg.test.ts:206`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L215), [`cost.test.ts:36`](libs/shared/src/outbound/project/cost/cost.test.ts#L36), [`cost.test.ts:60`](libs/shared/src/outbound/project/cost/cost.test.ts#L60), [`cost.test.ts:68`](libs/shared/src/outbound/project/cost/cost.test.ts#L68), [`cost.test.ts:80`](libs/shared/src/outbound/project/cost/cost.test.ts#L80), [`job-runs.test.ts:23`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L23), [`job-runs.test.ts:36`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L36), [`job-runs.test.ts:54`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L54), [`job-runs.test.ts:62`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L62), [`job-runs.test.ts:72`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L72), [`job-runs.test.ts:86`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L86), [`job-runs.test.ts:94`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L94), [`job-runs.test.ts:104`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L104), [`job-runs.test.ts:118`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L118), [`job-runs.test.ts:131`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L131), [`job-runs.test.ts:172`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L172), [`evals.test.ts:23`](libs/shared/src/outbound/project/evals/evals.test.ts#L23), [`evals.test.ts:38`](libs/shared/src/outbound/project/evals/evals.test.ts#L38), [`evals.test.ts:48`](libs/shared/src/outbound/project/evals/evals.test.ts#L48), [`evals.test.ts:59`](libs/shared/src/outbound/project/evals/evals.test.ts#L59), [`evals.test.ts:81`](libs/shared/src/outbound/project/evals/evals.test.ts#L81), [`evals.test.ts:102`](libs/shared/src/outbound/project/evals/evals.test.ts#L102), [`evals.test.ts:123`](libs/shared/src/outbound/project/evals/evals.test.ts#L123), [`baseline.test.ts:23`](libs/shared/src/outbound/project/baseline/baseline.test.ts#L23), [`baseline.test.ts:46`](libs/shared/src/outbound/project/baseline/baseline.test.ts#L46), [`baseline.test.ts:64`](libs/shared/src/outbound/project/baseline/baseline.test.ts#L64), [`baseline.test.ts:78`](libs/shared/src/outbound/project/baseline/baseline.test.ts#L78), [`baseline.test.ts:92`](libs/shared/src/outbound/project/baseline/baseline.test.ts#L92), [`baseline.test.ts:125`](libs/shared/src/outbound/project/baseline/baseline.test.ts#L125))
 - FR-20.18a: The in-memory `Usage` double mirrors the Pg write-time
   correlation as its behavioral spec: a seeded task id lands on `task_id`;
   a non-task id that matches a seeded assembly line falls back to
@@ -1151,11 +1217,11 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   Pg's `::uuid` cast; the write defaults (cost 0, status success, null
   error) apply; and
   `processedCounts` splits today (past local midnight) from total.
-  ([validated by `usage-memory.test.ts:12`](libs/shared/src/project/usage/usage-memory.test.ts#L12), [`usage-memory.test.ts:25`](libs/shared/src/project/usage/usage-memory.test.ts#L25), [`usage-memory.test.ts:38`](libs/shared/src/project/usage/usage-memory.test.ts#L38), [`usage-memory.test.ts:49`](libs/shared/src/project/usage/usage-memory.test.ts#L89), [`usage-memory.test.ts:65`](libs/shared/src/project/usage/usage-memory.test.ts#L105), [`usage-memory.test.ts:79`](libs/shared/src/project/usage/usage-memory.test.ts#L119))
+  ([validated by `usage-memory.test.ts:12`](libs/shared/src/outbound/project/usage/usage-memory.test.ts#L12), [`usage-memory.test.ts:25`](libs/shared/src/outbound/project/usage/usage-memory.test.ts#L25), [`usage-memory.test.ts:38`](libs/shared/src/outbound/project/usage/usage-memory.test.ts#L38), [`usage-memory.test.ts:87`](libs/shared/src/outbound/project/usage/usage-memory.test.ts#L87), [`usage-memory.test.ts:103`](libs/shared/src/outbound/project/usage/usage-memory.test.ts#L103), [`usage-memory.test.ts:117`](libs/shared/src/outbound/project/usage/usage-memory.test.ts#L117))
 - FR-20.19: The `Archive` GCS port saves to `<bucket>/<key>`
   non-resumable with the given content type (passing `cacheControl`
   through as file metadata) and returns the object content as utf-8, null
-  when the object is absent or the storage call throws. ([validated by `archive-gcs.test.ts:38`](libs/shared/src/project/archive/archive-gcs.test.ts#L38), [`archive-gcs.test.ts:55`](libs/shared/src/project/archive/archive-gcs.test.ts#L55), [`archive-gcs.test.ts:73`](libs/shared/src/project/archive/archive-gcs.test.ts#L73), [`archive-gcs.test.ts:83`](libs/shared/src/project/archive/archive-gcs.test.ts#L83), [`archive-gcs.test.ts:92`](libs/shared/src/project/archive/archive-gcs.test.ts#L92))
+  when the object is absent or the storage call throws. ([validated by `archive-gcs.test.ts:38`](libs/shared/src/outbound/project/archive/archive-gcs.test.ts#L37), [`archive-gcs.test.ts:54`](libs/shared/src/outbound/project/archive/archive-gcs.test.ts#L54), [`archive-gcs.test.ts:72`](libs/shared/src/outbound/project/archive/archive-gcs.test.ts#L72), [`archive-gcs.test.ts:82`](libs/shared/src/outbound/project/archive/archive-gcs.test.ts#L82), [`archive-gcs.test.ts:91`](libs/shared/src/outbound/project/archive/archive-gcs.test.ts#L91))
 - FR-20.20: Chunk-schema resolution is single-sourced in the shared
   `chunk-schema` module: a candidate schema name is kept only when it is
   regex-safe and provisioned (an invalid, injection-shaped, or absent
@@ -1167,22 +1233,22 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   lookup, pools stay isolated, and a failed lookup is never cached; and
   the schema enumeration lists every provisioned `chunks` schema,
   dropping regex-unsafe names and always including `org_shared` exactly
-  once. ([validated by `chunk-schema.test.ts:29`](libs/shared/src/project/chunks/chunk-schema.test.ts#L29), [`chunk-schema.test.ts:37`](libs/shared/src/project/chunks/chunk-schema.test.ts#L37), [`chunk-schema.test.ts:43`](libs/shared/src/project/chunks/chunk-schema.test.ts#L43), [`chunk-schema.test.ts:50`](libs/shared/src/project/chunks/chunk-schema.test.ts#L50), [`chunk-schema.test.ts:59`](libs/shared/src/project/chunks/chunk-schema.test.ts#L59), [`chunk-schema.test.ts:68`](libs/shared/src/project/chunks/chunk-schema.test.ts#L68), [`chunk-schema.test.ts:80`](libs/shared/src/project/chunks/chunk-schema.test.ts#L80), [`chunk-schema.test.ts:89`](libs/shared/src/project/chunks/chunk-schema.test.ts#L89), [`chunk-schema.test.ts:97`](libs/shared/src/project/chunks/chunk-schema.test.ts#L97), [`chunk-schema.test.ts:112`](libs/shared/src/project/chunks/chunk-schema.test.ts#L112), [`chunk-schema.test.ts:125`](libs/shared/src/project/chunks/chunk-schema.test.ts#L125), [`chunk-schema.test.ts:152`](libs/shared/src/project/chunks/chunk-schema.test.ts#L152), [`chunk-schema.test.ts:165`](libs/shared/src/project/chunks/chunk-schema.test.ts#L165))
-- FR-20.21: Legacy chunk relocation is self-healing: the nightly reindex,
-  before counting a team-resolved repo's chunks, MOVEs any rows the repo
-  still holds in `org_shared.chunks` into its resolved schema — per-file
+  once. ([validated by `chunk-schema.test.ts:29`](libs/shared/src/outbound/project/chunks/chunk-schema.test.ts#L27), [`chunk-schema.test.ts:35`](libs/shared/src/outbound/project/chunks/chunk-schema.test.ts#L35), [`chunk-schema.test.ts:41`](libs/shared/src/outbound/project/chunks/chunk-schema.test.ts#L41), [`chunk-schema.test.ts:48`](libs/shared/src/outbound/project/chunks/chunk-schema.test.ts#L48), [`chunk-schema.test.ts:57`](libs/shared/src/outbound/project/chunks/chunk-schema.test.ts#L57), [`chunk-schema.test.ts:66`](libs/shared/src/outbound/project/chunks/chunk-schema.test.ts#L66), [`chunk-schema.test.ts:78`](libs/shared/src/outbound/project/chunks/chunk-schema.test.ts#L78), [`chunk-schema.test.ts:87`](libs/shared/src/outbound/project/chunks/chunk-schema.test.ts#L87), [`chunk-schema.test.ts:95`](libs/shared/src/outbound/project/chunks/chunk-schema.test.ts#L95), [`chunk-schema.test.ts:110`](libs/shared/src/outbound/project/chunks/chunk-schema.test.ts#L110), [`chunk-schema.test.ts:123`](libs/shared/src/outbound/project/chunks/chunk-schema.test.ts#L123), [`chunk-schema.test.ts:150`](libs/shared/src/outbound/project/chunks/chunk-schema.test.ts#L150), [`chunk-schema.test.ts:163`](libs/shared/src/outbound/project/chunks/chunk-schema.test.ts#L163))
+- FR-20.21: Legacy chunk relocation runs when a repo's team changes
+  (`internal.repo.team_changed`, handled on the Floor): it MOVEs any rows
+  the repo still holds in `org_shared.chunks` into its resolved schema — per-file
   dedupe keeps a file already fresh in the target and drops its stale
   org_shared duplicates, files absent from the target relocate wholesale
   preserving id, embedding, and `ingested_at`, rewriting `team`, stamping
-  `metadata.migrated_from` ([validated by `chunks.test.ts:672`](libs/shared/src/project/chunks/chunks.test.ts#L672), [`chunks.test.ts:689`](libs/shared/src/project/chunks/chunks.test.ts#L689), [`chunks.test.ts:722`](libs/shared/src/project/chunks/chunks.test.ts#L722))
+  `metadata.migrated_from` ([validated by `chunks.test.ts:699`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L548), [`chunks.test.ts:716`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L565), [`chunks.test.ts:749`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L598))
   - Provenance-less rows with a classifyFile content type are adopted via
-    `ingested_by = 'reindex-job'`; other content types relocate unowned ([validated by `chunks.test.ts:672`](libs/shared/src/project/chunks/chunks.test.ts#L672), [`chunks.test.ts:712`](libs/shared/src/project/chunks/chunks.test.ts#L712))
+    `ingested_by = 'reindex-job'`; other content types relocate unowned ([validated by `chunks.test.ts:699`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L548), [`chunks.test.ts:739`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L588))
   - The Pg adapter issues copy and delete as one statement (shared
     snapshot, insert before delete, repo and team as bind parameters),
     a clean repo is a zero no-op, and `org_shared` is rejected as a
     relocation target in every adapter — self-relocation would dedupe
-    rows against themselves and delete them ([validated by `chunks.test.ts:735`](libs/shared/src/project/chunks/chunks.test.ts#L735), [`chunks.test.ts:746`](libs/shared/src/project/chunks/chunks.test.ts#L746), [`chunks.test.ts:758`](libs/shared/src/project/chunks/chunks.test.ts#L758))
-  - The station HTTP adapter refuses relocation as Floor-only ([validated by `chunks-http.test.ts:94`](libs/shared/src/project/chunks/chunks-http.test.ts#L94))
+    rows against themselves and delete them ([validated by `chunks.test.ts:762`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L611), [`chunks.test.ts:773`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L622), [`chunks.test.ts:785`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L634))
+  - The station HTTP adapter refuses relocation as Floor-only ([validated by `chunks-http.test.ts:94`](libs/shared/src/outbound/project/chunks/chunks-http.test.ts#L91))
   - `PUT /api/repos/:o/:r/settings` on lore-api emits one
     `internal.repo.team_changed` event only when the write actually changes
     the team value (settings-only patches and same-value writes emit
@@ -1193,45 +1259,45 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
     fields the CODEOWNER-approval ceremony guards, so a blanket merge here
     would be a way around that ceremony. The web-ui route forwards to it,
     normalizing a cleared team to null, and passes the refusal through
-    with its status ([validated by forwards a team change to lore-api](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L37), [`route.test.ts:48`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L48), [`route.test.ts:56`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L56), [`route.test.ts:66`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L66), [`route.test.ts:81`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L81), [`repo-settings.test.ts:39`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L39), [`repo-settings.test.ts:43`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L43), [`repo-settings.test.ts:51`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L51), [`repo-settings.test.ts:69`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L51), [`repo-settings.test.ts:86`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L74), [`repo-settings.test.ts:100`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L91), [`repo-settings.test.ts:118`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L105), [`repo-settings.test.ts:133`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L123), [`repo-settings.test.ts:147`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L138), [`repo-settings.test.ts:165`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L154), [`repo-settings.test.ts:182`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L177), [`repo-settings.test.ts:196`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L194), [`repo-settings.test.ts:74`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L74), [`repo-settings.test.ts:91`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L91), [`repo-settings.test.ts:105`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L105), [`repo-settings.test.ts:123`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L123), [`repo-settings.test.ts:138`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L138), [`repo-settings.test.ts:154`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L154), [`repo-settings.test.ts:177`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L177), [`repo-settings.test.ts:194`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L194), [`repo-settings.test.ts:208`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L208), [`repos.test.ts:131`](apps/web-ui/src/lib/api/repos.test.ts#L131))
+    with its status ([validated by forwards a team change to lore-api](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L32), [`route.test.ts:43`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L43), [`route.test.ts:51`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L51), [`route.test.ts:61`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L61), [`route.test.ts:76`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L76), [`repo-settings.test.ts:31`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L31), [`repo-settings.test.ts:35`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L35), [`repo-settings.test.ts:43`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L43), [`repo-settings.test.ts:43`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L43), [`repo-settings.test.ts:66`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L66), [`repo-settings.test.ts:83`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L83), [`repo-settings.test.ts:97`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L97), [`repo-settings.test.ts:115`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L115), [`repo-settings.test.ts:130`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L130), [`repo-settings.test.ts:146`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L146), [`repo-settings.test.ts:169`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L169), [`repo-settings.test.ts:202`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L202), [`repo-settings.test.ts:66`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L66), [`repo-settings.test.ts:83`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L83), [`repo-settings.test.ts:97`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L97), [`repo-settings.test.ts:115`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L115), [`repo-settings.test.ts:130`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L130), [`repo-settings.test.ts:146`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L146), [`repo-settings.test.ts:169`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L169), [`repo-settings.test.ts:202`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L202), [`repo-settings.test.ts:202`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L202), [`repo-settings.test.ts:202`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L202), [`repo-settings.test.ts:186`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L186), [`repo-settings.test.ts:216`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L216), [`repos.test.ts:128`](apps/web-ui/src/lib/api/repos.test.ts#L128))
   - The Floor's `team_changed` handler re-reads the team from `lore.repos`
     rather than trusting the event payload, resolves it through the uncached
     single-sourced `chunkSchemaOrOrgShared` (never the per-repo memoized
     resolver, which would serve the pre-change schema for its TTL), no-ops
     when resolution falls back to `org_shared`, and lets a relocation error
-    propagate so the event loop retries the idempotent move ([validated by `repo-team-changed.test.ts:49`](apps/floor/src/jobs/repo-team-changed.test.ts#L49), [`repo-team-changed.test.ts:68`](apps/floor/src/jobs/repo-team-changed.test.ts#L68), [`repo-team-changed.test.ts:83`](apps/floor/src/jobs/repo-team-changed.test.ts#L83), [`repo-team-changed.test.ts:91`](apps/floor/src/jobs/repo-team-changed.test.ts#L91), [`repo-team-changed.test.ts:104`](apps/floor/src/jobs/repo-team-changed.test.ts#L104))
+    propagate so the event loop retries the idempotent move ([validated by `repo-team-changed.test.ts:48`](apps/floor/src/events/handlers/repo-team-changed.test.ts#L48), [`repo-team-changed.test.ts:67`](apps/floor/src/events/handlers/repo-team-changed.test.ts#L67), [`repo-team-changed.test.ts:82`](apps/floor/src/events/handlers/repo-team-changed.test.ts#L82), [`repo-team-changed.test.ts:90`](apps/floor/src/events/handlers/repo-team-changed.test.ts#L90), [`repo-team-changed.test.ts:103`](apps/floor/src/events/handlers/repo-team-changed.test.ts#L103))
 
 ## Non-Functional Requirements
 
 ### NFR-1: Security
 
-- No long-lived credentials anywhere in the system. ([validated by `security-posture.test.ts:109`](libs/shared/src/infra-contract/security-posture.test.ts#L109), [`security-posture.test.ts:130`](libs/shared/src/infra-contract/security-posture.test.ts#L130))
-- Workload Identity for all GKE workloads. ([validated by `security-posture.test.ts:101`](libs/shared/src/infra-contract/security-posture.test.ts#L101))
-- Workload Identity Federation for GitHub Actions. ([validated by `security-posture.test.ts:126`](libs/shared/src/infra-contract/security-posture.test.ts#L126), [`security-posture.test.ts:130`](libs/shared/src/infra-contract/security-posture.test.ts#L130))
-- Schema-per-team isolation in the vector store. ([validated by `chunks.test.ts:153`](libs/shared/src/project/chunks/chunks.test.ts#L153), [`chunks.test.ts:171`](libs/shared/src/project/chunks/chunks.test.ts#L171))
+- No long-lived credentials anywhere in the system. ([validated by `security-posture.test.ts:107`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L107), [`security-posture.test.ts:128`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L128))
+- Workload Identity for all GKE workloads. ([validated by `security-posture.test.ts:99`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L99))
+- Workload Identity Federation for GitHub Actions. ([validated by `security-posture.test.ts:124`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L124), [`security-posture.test.ts:128`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L128))
+- Schema-per-team isolation in the vector store. ([validated by `chunks.test.ts:153`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L166), [`chunks.test.ts:168`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L184))
 - Secret and PII redaction runs at ingest time and on every memory write:
   `sanitizeContent()` / `redactSecrets()` strip API keys, JWTs, private keys,
   connection strings, and bearer tokens before storage in the org-wide
-  database. ([validated by `redact.test.ts:5`](libs/shared/src/redact.test.ts#L5), [`redact.test.ts:78`](libs/shared/src/redact.test.ts#L78))
+  database. ([validated by `redact.test.ts:5`](libs/shared/src/lib/redact.test.ts#L5), [`redact.test.ts:78`](libs/shared/src/lib/redact.test.ts#L78))
 - Centralized auth in `routes.ts`: every `/api/*` route enforces bearer
   token validation. Supports legacy single token (`LORE_INGEST_TOKEN`)
-  and per-client scoped tokens with SHA-256 hashes. ([validated by `auth.test.ts:58`](apps/lore-api/src/api/routes/auth.test.ts#L58), [`bearer-scope.test.ts:45`](apps/lore-api/src/server/plugins/bearer-scope.test.ts#L45))
+  and per-client scoped tokens with SHA-256 hashes. ([validated by `auth.test.ts:56`](apps/lore-api/src/transport/http/auth.test.ts#L56), [`bearer-scope.test.ts:41`](apps/lore-api/src/transport/http/bearer-scope.test.ts#L41))
 - Job pods run as non-root (uid 1000), drop all Linux capabilities,
   disallow privilege escalation. NetworkPolicy restricts egress to
-  DNS + HTTPS + internal Lore API only. ([validated by `security-posture.test.ts:73`](libs/shared/src/infra-contract/security-posture.test.ts#L73), [`security-posture.test.ts:78`](libs/shared/src/infra-contract/security-posture.test.ts#L78), [`security-posture.test.ts:86`](libs/shared/src/infra-contract/security-posture.test.ts#L86), [`security-posture.test.ts:92`](libs/shared/src/infra-contract/security-posture.test.ts#L92))
+  DNS + HTTPS + internal Lore API only. ([validated by `security-posture.test.ts:71`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L71), [`security-posture.test.ts:76`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L76), [`security-posture.test.ts:84`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L84), [`security-posture.test.ts:90`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L90))
 - Rate limiting: 30/min webhooks, 60/min task ops, 200/min other
-  (in-memory sliding window). 1 MB body size limit. ([validated by `rate-limit.test.ts:42`](apps/lore-api/src/server/plugins/rate-limit.test.ts#L42), [`auth.test.ts:19`](apps/lore-api/src/api/routes/auth.test.ts#L19), [`webhook-incident.test.ts:144`](apps/lore-api/src/api/routes/webhooks/webhook-incident.test.ts#L144))
-- Slack indexing opt-in per channel only; DMs never indexed. ([validated by `notify-slack.test.ts:16`](libs/shared/src/project/notify/notify-slack.test.ts#L16), [`notify-decision.test.ts:35`](libs/shared/src/project/notify/notify-decision.test.ts#L35))
+  (in-memory sliding window). 1 MB body size limit. ([validated by `rate-limit.test.ts:53`](apps/lore-api/src/transport/http/rate-limit.test.ts#L50), [`rate-limit.test.ts:39`](apps/lore-api/src/transport/http/rate-limit.test.ts#L39), [`auth.test.ts:17`](apps/lore-api/src/transport/http/auth.test.ts#L17), [`webhook-incident.test.ts:144`](apps/lore-api/src/transport/routes/webhooks/webhook-incident.test.ts#L144))
+- Slack indexing opt-in per channel only; DMs never indexed. ([validated by `notify-slack.test.ts:10`](libs/shared/src/outbound/project/notify/notify-slack.test.ts#L10), [`notify-decision.test.ts:30`](libs/shared/src/outbound/project/notify/notify-decision.test.ts#L30))
 
 ### NFR-2: Reliability & Freshness
 
 - `lore_assemble_context` warns when repo context is stale (>7 days since
-  last ingest) or missing (first-run welcome with suggested actions). ([validated by `context-freshness.test.ts:9`](libs/shared/src/project/knowledge/context-freshness.test.ts#L9), [`context-freshness.test.ts:15`](libs/shared/src/project/knowledge/context-freshness.test.ts#L15), [`context-freshness.test.ts:21`](libs/shared/src/project/knowledge/context-freshness.test.ts#L21), [`context-freshness.test.ts:25`](libs/shared/src/project/knowledge/context-freshness.test.ts#L25), [`context-freshness.test.ts:31`](libs/shared/src/project/knowledge/context-freshness.test.ts#L31))
+  last ingest) or missing (first-run welcome with suggested actions). ([validated by `context-freshness.test.ts:9`](libs/shared/src/outbound/project/knowledge/context-freshness.test.ts#L35), [`context-freshness.test.ts:15`](libs/shared/src/outbound/project/knowledge/context-freshness.test.ts#L41), [`context-freshness.test.ts:21`](libs/shared/src/outbound/project/knowledge/context-freshness.test.ts#L47), [`context-freshness.test.ts:25`](libs/shared/src/outbound/project/knowledge/context-freshness.test.ts#L51), [`context-freshness.test.ts:31`](libs/shared/src/outbound/project/knowledge/context-freshness.test.ts#L57))
 - When the MCP server is unreachable, Claude Code MUST fall back to
   the last-synced local copy of CLAUDE.md files and ADRs in
   `~/.re-cinq/lore` and display a one-time warning to the developer
   that search quality may be degraded. Semantic search is unavailable
-  in this mode; convention and ADR lookups continue from local files. ([validated by `context-tools.test.ts:62`](apps/mcp-server/src/mcp/tools/context-tools.test.ts#L62), [`context-tools.test.ts:108`](apps/mcp-server/src/mcp/tools/context-tools.test.ts#L108))
+  in this mode; convention and ADR lookups continue from local files. ([validated by `context-tools.test.ts:56`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L56), [`context-tools.test.ts:102`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L102))
 
 ## Operational Targets & Constraints (Background)
 
@@ -1323,7 +1389,7 @@ enforced by benchmarking, infrastructure configuration, and review process.
 - Autonomous review loop (opt-in per repo, webhook-driven per ADR-015).
 - Progressive trust gating.
 - Slack integration (`/lore` slash command + watcher notifications).
-- Web UI (`/onboard`, pipeline status, run transcripts, analytics, knowledge graph, gaps). ([validated by `GapsView.test.tsx:26`](apps/web-ui/src/app/gaps/GapsView.test.tsx#L26), [`GraphView.test.tsx:35`](apps/web-ui/src/app/graph/GraphView.test.tsx#L35), [`AnalyticsView.test.tsx:116`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L116), [`NodeLogPanel.test.tsx:67`](apps/web-ui/src/app/assembly-runs/[id]/NodeLogPanel.test.tsx#L67), [`OnboardView.test.tsx:9`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L9))
+- Web UI (`/onboard`, pipeline status, run transcripts, analytics, knowledge graph, gaps). ([validated by `GapsView.test.tsx:26`](apps/web-ui/src/app/gaps/GapsView.test.tsx#L26), [`GraphView.test.tsx:35`](apps/web-ui/src/app/graph/GraphView.test.tsx#L35), [`AnalyticsView.test.tsx:111`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L111), [`NodeLogPanel.test.tsx:67`](apps/web-ui/src/app/assembly-runs/[id]/NodeLogPanel.test.tsx#L67), [`OnboardView.test.tsx:9`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L9))
 - Spec drift detection (Phase 2).
 - Prompt caching on agent LLM calls (ADR-015).
 - Per-template context budgets (ADR-015).

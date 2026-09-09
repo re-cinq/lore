@@ -4,14 +4,14 @@ import EpisodesView, { type EpisodeRow } from "./EpisodesView";
 
 const PAGE_SIZE = 30;
 
-export default async function EpisodesPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ source?: string; offset?: string }>;
-}) {
-  const { source, offset: offsetStr } = await searchParams;
-  const offset = Math.max(0, parseInt(offsetStr || "0", 10) || 0);
+const SOURCES = ["manual", "session", "pr-review", "ci"];
 
+interface EpisodesPageProps {
+  searchParams: Promise<{ source?: string; offset?: string }>;
+}
+
+/** One page of episodes, with the total behind it. An unreachable lore-api reads as an empty page. */
+async function readEpisodePage(source: string | undefined, offset: number) {
   const page = await listEpisodes({
     source,
     limit: PAGE_SIZE,
@@ -22,7 +22,13 @@ export default async function EpisodesPage({
     ? page.data.episodes
     : []) as unknown as EpisodeRow[];
 
-  const sources = ["manual", "session", "pr-review", "ci"];
+  return { totalCount, episodes };
+}
+
+export default async function EpisodesPage(props: EpisodesPageProps) {
+  const { source, offset: offsetStr } = await props.searchParams;
+  const offset = Math.max(0, parseInt(offsetStr || "0", 10) || 0);
+  const { totalCount, episodes } = await readEpisodePage(source, offset);
 
   return (
     <EpisodesView
@@ -30,7 +36,7 @@ export default async function EpisodesPage({
       offset={offset}
       totalCount={totalCount}
       episodes={episodes}
-      sources={sources}
+      sources={SOURCES}
       pageSize={PAGE_SIZE}
     />
   );

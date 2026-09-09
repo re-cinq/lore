@@ -80,7 +80,7 @@ Release builds are cross-compiled in the **lore-api image**'s `gobuilder` stage
 `linux-amd64`, `linux-arm64`, `darwin-amd64`, `darwin-arm64` with
 `CGO_ENABLED=0 go build -ldflags="-s -w"`, plus a `checksums.txt`. The server
 serves them unauthenticated at `GET /dist/lore-code-trace/<os>-<arch>`
-(route: [`apps/lore-api/src/api/routes/dist/dist.ts`](../lore-api/src/api/routes/dist/dist.ts));
+(route: [`apps/lore-api/src/transport/routes/dist/dist.ts`](../lore-api/src/api/routes/dist/dist.ts));
 each repo's `lore-tests.yml` downloads the binary from there, verifies the
 checksum, and runs it — so a change under `apps/lore-code-trace/**` must
 rebuild + redeploy lore-api, or CI keeps downloading the old binary

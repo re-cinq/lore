@@ -21,7 +21,7 @@ must fail loudly rather than silently returning everything.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L131)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/pipeline-tools-listing.ts#L14)).
 
 - **name**: `lore_list_pipeline_tasks`
 - **description** (verbatim):
@@ -49,8 +49,8 @@ Lists pipeline tasks newest-first as JSON, optionally filtered by status. Genera
      `["pending","queued","running","pr-created","review","merged","failed","cancelled"]`;
      an invalid value returns `"invalid status: {status}. Valid values: {list}"`.
      Then call `listTasks(status, min(limit, 100))`
-     ([handler wrapper](../../../libs/server-core/src/features/pipeline/pipeline.ts#L45)).
-2. **Shared CRUD** ([`listTasks`](../../../libs/shared/src/pipeline-tasks.ts#L117)) — `SELECT id,
+     ([handler wrapper](../../../libs/server-core/src/work/pipeline/pipeline.ts#L45)).
+2. **Shared CRUD** ([`listTasks`](../../../libs/shared/src/domain/pipeline-tasks.ts#L40)) — `SELECT id,
    description, task_type, status, target_repo, agent_id, pr_url, created_by,
    created_at, updated_at FROM pipeline.tasks [WHERE status = $1] ORDER BY
    created_at DESC LIMIT $N`, plus `SELECT count(*)::int AS total FROM
@@ -74,15 +74,15 @@ remote-error message, the `"invalid status: …"` message, the pretty-printed
 ## Acceptance Criteria
 
 With no filter, all tasks are returned alongside a total count.
-([validated by `pipeline-crud.test.ts:48`](apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L48))
+([validated by `pipeline-crud.test.ts:40`](apps/mcp-server/src/work/pipeline/pipeline-crud.test.ts#L40))
 
 With a status filter, only matching rows and their total are returned.
-([validated by `pipeline-crud.test.ts:60`](apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L60))
+([validated by `pipeline-crud.test.ts:52`](apps/mcp-server/src/work/pipeline/pipeline-crud.test.ts#L52))
 
 An invalid status string is rejected with the list of valid values.
 *(untested: the status allowlist check is inline in the handler closure and not separately exported.)*
 
-The `/api/tasks` HTTP route (the stdio-proxy target) lists tasks with paging: it passes a `status` filter and `limit` through to `listTasks`, caps `limit` at 100, defaults to `limit 20` / `offset 0` and echoes them, passes `offset` through with `total`/`limit`/`offset` metadata, rejects a negative offset or a malformed `status` with 400, and returns 500 when `listTasks` throws. ([validated by GET /api/tasks lists with status and limit](apps/lore-api/src/api/routes/tasks/list-tasks.test.ts#L32), [`list-tasks.test.ts:41`](apps/lore-api/src/api/routes/tasks/list-tasks.test.ts#L41), [`list-tasks.test.ts:47`](apps/lore-api/src/api/routes/tasks/list-tasks.test.ts#L47), [`list-tasks.test.ts:55`](apps/lore-api/src/api/routes/tasks/list-tasks.test.ts#L55), [`list-tasks.test.ts:71`](apps/lore-api/src/api/routes/tasks/list-tasks.test.ts#L71), [`list-tasks.test.ts:84`](apps/lore-api/src/api/routes/tasks/list-tasks.test.ts#L84), [`list-tasks.test.ts:77`](apps/lore-api/src/api/routes/tasks/list-tasks.test.ts#L77))
+The `/api/tasks` HTTP route (the stdio-proxy target) lists tasks with paging: it passes a `status` filter and `limit` through to `listTasks`, caps `limit` at 100, defaults to `limit 20` / `offset 0` and echoes them, passes `offset` through with `total`/`limit`/`offset` metadata, rejects a negative offset or a malformed `status` with 400, and returns 500 when `listTasks` throws. ([validated by GET /api/tasks lists with status and limit](apps/lore-api/src/transport/routes/tasks/list-tasks.test.ts#L32), [`list-tasks.test.ts:41`](apps/lore-api/src/transport/routes/tasks/list-tasks.test.ts#L41), [`list-tasks.test.ts:47`](apps/lore-api/src/transport/routes/tasks/list-tasks.test.ts#L47), [`list-tasks.test.ts:55`](apps/lore-api/src/transport/routes/tasks/list-tasks.test.ts#L55), [`list-tasks.test.ts:71`](apps/lore-api/src/transport/routes/tasks/list-tasks.test.ts#L71), [`list-tasks.test.ts:84`](apps/lore-api/src/transport/routes/tasks/list-tasks.test.ts#L84), [`list-tasks.test.ts:77`](apps/lore-api/src/transport/routes/tasks/list-tasks.test.ts#L77))
 
 ## Out of Scope
 

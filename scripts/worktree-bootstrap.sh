@@ -5,9 +5,9 @@
 # A fresh `git worktree` has no node_modules and no built workspace libs, so
 # Node/TS module resolution walks up out of the worktree into the main
 # checkout's (possibly stale) install. The symptom mutates with whatever that
-# install happens to be missing: `npx eslint` crashes loading
-# tools/eslint-plugin-lore (missing `@re-cinq/lore-shared/dist/*` — or, with
-# an older main install, a missing dependency like `@eslint/markdown`), and
+# install happens to be missing: `npx eslint` crashes loading the config
+# (a missing dependency such as `@re-cinq/eslint-plugin-re-lint` or
+# `@eslint/markdown`, or a stale `@re-cinq/lore-shared/dist/*`), and
 # `tsc` typechecks against the main checkout's dist while vitest sees the
 # worktree's source — false green.
 #

@@ -1,9 +1,4 @@
-/**
- * Pure view-model deriver for the Dark Factory console tab. Folds the resolved
- * settings, the repo's recent tasks, and its dark-factory audit events into a
- * render-ready model (container/presentational, data-down). Activation is
- * `active` when the repo is enabled (all tasks run on the agent-cr subsystem).
- */
+/** View-model deriver: fold settings, tasks, and audit events into render-ready model for Dark Factory console. */
 
 import type { ResolvedDarkFactorySettings } from "@/lib/dark-factory-resolve";
 import type { components } from "@/lib/api/schema";
@@ -54,37 +49,67 @@ export interface DarkFactoryConsoleModel {
   decisions: DecisionItem[];
 }
 
-function deriveActivation(
-  repoEnabled: boolean,
-): Pick<Activation, "state" | "reason"> {
-  if (!repoEnabled) {
-    return {
-      state: "disabled",
-      reason: "Repo opted out — dark_factory.enabled is false.",
-    };
-  }
+const DISABLED_ACTIVATION: Pick<Activation, "state" | "reason"> = {
+  state: "disabled",
+  reason: "Repo opted out — dark_factory.enabled is false.",
+};
 
+const ACTIVE_ACTIVATION: Pick<Activation, "state" | "reason"> = {
+  state: "active",
+  reason: "Repo enabled — tasks run on the agent-cr subsystem.",
+};
+
+type AuditPayload = ConsoleAuditEvent["payload"];
+
+function summarizeAutoMerge(payload: AuditPayload): string {
+  return `Auto-merge: ${payload.outcome ?? "unknown"}`;
+}
+
+function summarizeEscalation(payload: AuditPayload): string {
+  return `Escalation: ${payload.reason ?? "needs-human-help"}`;
+}
+
+function summarizeLeaseExpired(payload: AuditPayload): string {
+  return `Lease takeover (prev ${payload.previous_holder ?? "unknown"})`;
+}
+
+function summarizeSpecTraceIngest(payload: AuditPayload): string {
+  return `Graph ingest: ${payload.validated_by ?? 0} validated_by, ${payload.violated ?? 0} violated`;
+}
+
+const SUMMARIZERS: Partial<Record<string, (payload: AuditPayload) => string>> =
+  {
+    auto_merge_decision: summarizeAutoMerge,
+    escalation_issued: summarizeEscalation,
+    lease_expired: summarizeLeaseExpired,
+    spec_trace_ingest: summarizeSpecTraceIngest,
+  };
+
+function summarize(event: ConsoleAuditEvent): string {
+  // openapi.json marks `payload` required, but it describes server intent, not the wire: a malformed audit row can omit it.
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+  const payload = event.payload ?? {};
+  const summarizer = SUMMARIZERS[event.event_type];
+
+  return summarizer ? summarizer(payload) : event.event_type;
+}
+
+function toWorkItem(task: ConsoleTask): WorkItem {
   return {
-    state: "active",
-    reason: "Repo enabled — tasks run on the agent-cr subsystem.",
+    id: task.id,
+    type: task.task_type,
+    status: task.status,
+    prUrl: task.pr_url,
+    createdAt: task.created_at,
   };
 }
 
-function summarize(event: ConsoleAuditEvent): string {
-  const payload = event.payload ?? {};
-
-  switch (event.event_type) {
-    case "auto_merge_decision":
-      return `Auto-merge: ${payload.outcome ?? "unknown"}`;
-    case "escalation_issued":
-      return `Escalation: ${payload.reason ?? "needs-human-help"}`;
-    case "lease_expired":
-      return `Lease takeover (prev ${payload.previous_holder ?? "unknown"})`;
-    case "spec_trace_ingest":
-      return `Graph ingest: ${payload.validated_by ?? 0} validated_by, ${payload.violated ?? 0} violated`;
-    default:
-      return event.event_type;
-  }
+function toDecisionItem(event: ConsoleAuditEvent): DecisionItem {
+  return {
+    kind: event.event_type,
+    summary: summarize(event),
+    createdAt: event.created_at,
+  };
 }
 
 export function deriveDarkFactoryConsole(
@@ -92,22 +117,12 @@ export function deriveDarkFactoryConsole(
 ): DarkFactoryConsoleModel {
   return {
     activation: {
-      ...deriveActivation(input.resolved.enabled),
+      ...(input.resolved.enabled ? ACTIVE_ACTIVATION : DISABLED_ACTIVATION),
       repoEnabled: input.resolved.enabled,
     },
     config: input.resolved,
     trustLevel: input.trustLevel,
-    workItems: input.tasks.map((task) => ({
-      id: task.id,
-      type: task.task_type,
-      status: task.status,
-      prUrl: task.pr_url,
-      createdAt: task.created_at,
-    })),
-    decisions: input.decisions.map((event) => ({
-      kind: event.event_type,
-      summary: summarize(event),
-      createdAt: event.created_at,
-    })),
+    workItems: input.tasks.map(toWorkItem),
+    decisions: input.decisions.map(toDecisionItem),
   };
 }

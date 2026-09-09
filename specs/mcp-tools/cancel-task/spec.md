@@ -22,7 +22,7 @@ or misleading.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L163)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/pipeline-tools-listing.ts#L53)).
 
 - **name**: `lore_cancel_task`
 - **description** (verbatim):
@@ -45,7 +45,7 @@ Cancels a server-side pipeline task, flipping it to 'cancelled' and best-effort 
 2. The route calls the shared `cancelTask(pool, task_id)`, so an unknown id
    answers `404 Task not found` and a terminal state answers
    `409 Cannot cancel task in {status} state` rather than silently no-op'ing.
-3. **Shared CRUD** ([`cancelTask`](../../../libs/shared/src/pipeline-tasks.ts#L195)):
+3. **Shared CRUD** ([`cancelTask`](../../../libs/shared/src/domain/pipeline-task-actions.ts#L41)):
    1. `getTask(pool, taskId)` (SELECT row + events); if `null`, throw `"Task not found"`.
    2. If `status ∈ {merged, failed, cancelled}`, throw `"Cannot cancel task in {status} state"`.
    3. Otherwise `updateTaskStatus(pool, taskId, "cancelled", {cancelled_by: "user"})`
@@ -76,23 +76,28 @@ A single MCP text content block — one of: the missing-DB message, the compact
 ## Acceptance Criteria
 
 A running task transitions to `cancelled` and the call returns that status.
-([validated by `returns cancelled status when the task is running`](apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L74))
+([validated by `returns cancelled status when the task is running`](apps/mcp-server/src/work/pipeline/pipeline-crud.test.ts#L66))
 
 A task id with no matching row is rejected with `Task not found`.
-([validated by `throws task not found when no row matches`](apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L89))
+([validated by `throws task not found when no row matches`](apps/mcp-server/src/work/pipeline/pipeline-crud.test.ts#L81))
 
 A task already in a terminal state (e.g. merged) is rejected with a
 `Cannot cancel task in <state> state` error.
-([validated by `throws cannot cancel when the task is already merged`](apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L100))
+([validated by `throws cannot cancel when the task is already merged`](apps/mcp-server/src/work/pipeline/pipeline-crud.test.ts#L92))
 
 The cancel action is posted to `/api/task` and the API's result is returned
-verbatim. ([validated by `lore_cancel_task posts the cancel action and returns the API result`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L256))
+verbatim. ([validated by `lore_cancel_task posts the cancel action and returns the API result`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L366))
 
 A server-side refusal (a merged task) reaches the caller with the server's own
-reason. ([validated by `lore_cancel_task reports the server's refusal for a merged task`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L271))
+reason. ([validated by `lore_cancel_task reports the server's refusal for a merged task`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L381))
 
 An unconfigured API yields the not-configured message rather than a PostgreSQL
-message. ([validated by `every proxied pipeline tool reports a missing API configuration`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L440))
+message. ([validated by `every proxied pipeline tool reports a missing API configuration`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L575))
+
+A 401 from the proxied cancel is reported as a denied error on the first
+attempt, without the retriable-status backoff loop. ([validated by
+`lore_cancel_task reports a denied error on a 401 without
+retrying`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L397))
 
 ## Out of Scope
 

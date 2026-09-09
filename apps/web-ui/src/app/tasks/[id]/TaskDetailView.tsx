@@ -1,10 +1,7 @@
 import Link from "next/link";
-import PRStatusPanel from "./PRStatusPanel";
 import TaskRefreshProvider from "./TaskRefreshProvider";
-import { CancelTaskButton } from "./CancelTaskButton";
+import TaskSummaryCard from "./TaskSummaryCard";
 import FailurePanel from "./FailurePanel";
-import Linkified from "@/components/Linkified";
-import { isCancellable } from "@/lib/task-status";
 import { TimeAgo } from "@/components/TimeAgo";
 import { formatEnumLabel } from "@/lib/enum-label";
 import type { TaskRuntimeEvent } from "@/lib/task-runtime";
@@ -36,8 +33,7 @@ export type TaskDetailEvent = TaskRuntimeEvent;
 /** One per-attempt run row (pipeline.assembly_runs) backing this task. */
 export type TaskRunRow = components["schemas"]["TaskRunList"]["runs"][number];
 
-/** With exactly one attempt the run page IS the detail — return its href.
- *  Zero or several attempts keep the lifecycle shell with its runs list. */
+/** Single attempt: run page is the detail; multiple: keep lifecycle shell with runs list. */
 export function soleRunHref(runs: TaskRunRow[]): string | null {
   return runs.length === 1 ? `/assembly-runs/${runs[0].id}` : null;
 }
@@ -47,6 +43,106 @@ export interface TaskDetailViewProps {
   failedEvent: TaskDetailEvent | undefined;
   runs?: TaskRunRow[];
   submitFeedback: (formData: FormData) => void | Promise<void>;
+}
+
+function TaskFailurePanel({
+  task,
+  failedEvent,
+}: {
+  task: TaskDetailTask;
+  failedEvent: TaskDetailEvent | undefined;
+}) {
+  if (task.status !== "failed" || !failedEvent?.metadata) {
+    return null;
+  }
+
+  return (
+    <FailurePanel metadata={failedEvent.metadata} repo={task.target_repo} />
+  );
+}
+
+const TERMINAL_TASK_STATUSES = ["merged", "cancelled"];
+
+/** What the reader tells the agent to change. The placeholder is a worked example rather than a prompt: feedback that names the approach produces a revision, feedback that says "fix it" produces another guess. */
+interface FeedbackFormProps {
+  taskId: string;
+  submitFeedback: (formData: FormData) => void | Promise<void>;
+}
+
+function FeedbackForm({ taskId, submitFeedback }: FeedbackFormProps) {
+  return (
+    <form action={submitFeedback}>
+      <input type="hidden" name="task_id" value={taskId} />
+      <textarea
+        name="feedback"
+        rows={3}
+        required
+        placeholder="e.g. Don't use a custom CLI — use the existing MCP tools instead. The approach should be..."
+        className={styles.feedbackTextarea}
+      />
+      <button type="submit" className={styles.feedbackBtn}>
+        Request Revision
+      </button>
+    </form>
+  );
+}
+
+interface FeedbackSectionProps {
+  task: TaskDetailTask;
+  submitFeedback: (formData: FormData) => void | Promise<void>;
+}
+
+/** Visible when the task has a PR and isn't in a terminal state. */
+function FeedbackSection({ task, submitFeedback }: FeedbackSectionProps) {
+  const { id: taskId, pr_url: prUrl, status } = task;
+
+  if (!prUrl || TERMINAL_TASK_STATUSES.includes(status)) {
+    return null;
+  }
+
+  return (
+    <div className={`spec-card ${styles.feedbackCard}`}>
+      <h3 className={styles.feedbackHeading}>Give Feedback</h3>
+      <p className={`meta ${styles.feedbackLede}`}>
+        Tell the agent what to change. A revision task will be created on the
+        same branch.
+      </p>
+      <FeedbackForm taskId={taskId} submitFeedback={submitFeedback} />
+    </div>
+  );
+}
+
+function RunListItem({ run }: { run: TaskRunRow }) {
+  return (
+    <li>
+      <Link href={`/assembly-runs/${run.id}`}>#{run.id.substring(0, 8)}</Link> —{" "}
+      <span className={`op-badge op-${run.status}`}>
+        {formatEnumLabel(run.outcome ?? run.status)}
+      </span>{" "}
+      · started <TimeAgo date={run.created_at} inline />
+    </li>
+  );
+}
+
+function RunsSection({ runs }: { runs: TaskRunRow[] }) {
+  if (runs.length === 0) {
+    return null;
+  }
+
+  return (
+    <section>
+      <h2>Runs</h2>
+      <p className="meta">
+        Each execution attempt of this task (a retry mints a new run). Open one
+        for its timeline, transcript, and pod logs.
+      </p>
+      <ul>
+        {runs.map((run) => (
+          <RunListItem key={run.id} run={run} />
+        ))}
+      </ul>
+    </section>
+  );
 }
 
 export default function TaskDetailView({
@@ -59,139 +155,13 @@ export default function TaskDetailView({
     <TaskRefreshProvider taskId={task.id} taskStatus={task.status} runs={runs}>
       <div>
         <h1>Task: {task.description.substring(0, 80)}</h1>
-        <div className="spec-card">
-          <p>
-            <strong>Type:</strong>{" "}
-            <span className="badge">{task.task_type}</span>
-          </p>
-          <p>
-            <strong>Status:</strong>{" "}
-            <span className={`op-badge op-${task.status}`}>
-              {formatEnumLabel(task.status)}
-            </span>
-          </p>
-          <p>
-            <strong>Priority:</strong>{" "}
-            <span
-              className={
-                task.priority === "immediate" ? "badge badge-red" : "meta"
-              }
-            >
-              {task.priority || "normal"}
-            </span>
-          </p>
-          <p>
-            <strong>Repo:</strong> {task.target_repo}
-          </p>
-          <p>
-            <strong>Description:</strong>{" "}
-            <Linkified text={task.description} repo={task.target_repo} />
-          </p>
-          {task.agent_id && (
-            <p>
-              <strong>Agent:</strong> {task.agent_id}
-            </p>
-          )}
-          {task.pr_url && (
-            <p>
-              <strong>PR:</strong>{" "}
-              <a href={task.pr_url} target="_blank">
-                {task.pr_url}
-              </a>
-            </p>
-          )}
-          {task.pr_url && task.pr_number && (
-            <PRStatusPanel taskId={task.id} prUrl={task.pr_url} />
-          )}
-          {task.failure_reason && (
-            <p>
-              <strong>Failure:</strong>{" "}
-              <span className={styles.failureText}>
-                <Linkified text={task.failure_reason} repo={task.target_repo} />
-              </span>
-            </p>
-          )}
-          {task.review_iteration > 0 && (
-            <p>
-              <strong>Review iterations:</strong> {task.review_iteration}
-            </p>
-          )}
-          <p>
-            <strong>Created by:</strong> {task.created_by}
-          </p>
-          <p className="meta">
-            Created: <TimeAgo date={task.created_at} inline /> · Updated:{" "}
-            <TimeAgo date={task.updated_at} inline />
-          </p>
-          <div className={styles.actions}>
-            {task.status === "pending" &&
-              (task.priority || "normal") === "normal" && (
-                <form action={`/api/tasks/${task.id}/run-now`} method="POST">
-                  <button type="submit" className={styles.runNowBtn}>
-                    Run Now
-                  </button>
-                </form>
-              )}
-            {isCancellable(task.status) && (
-              <CancelTaskButton taskId={task.id} />
-            )}
-          </div>
-        </div>
+        <TaskSummaryCard task={task} />
 
-        {task.status === "failed" && failedEvent?.metadata && (
-          <FailurePanel
-            metadata={failedEvent.metadata}
-            repo={task.target_repo}
-          />
-        )}
+        <TaskFailurePanel task={task} failedEvent={failedEvent} />
 
-        {/* Feedback form — visible when task has a PR and isn't in a terminal state */}
-        {task.pr_url && !["merged", "cancelled"].includes(task.status) && (
-          <div className={`spec-card ${styles.feedbackCard}`}>
-            <h3 className={styles.feedbackHeading}>Give Feedback</h3>
-            <p className={`meta ${styles.feedbackLede}`}>
-              Tell the agent what to change. A revision task will be created on
-              the same branch.
-            </p>
-            <form action={submitFeedback}>
-              <input type="hidden" name="task_id" value={task.id} />
-              <textarea
-                name="feedback"
-                rows={3}
-                required
-                placeholder="e.g. Don't use a custom CLI — use the existing MCP tools instead. The approach should be..."
-                className={styles.feedbackTextarea}
-              />
-              <button type="submit" className={styles.feedbackBtn}>
-                Request Revision
-              </button>
-            </form>
-          </div>
-        )}
+        <FeedbackSection task={task} submitFeedback={submitFeedback} />
 
-        {runs.length > 0 && (
-          <section>
-            <h2>Runs</h2>
-            <p className="meta">
-              Each execution attempt of this task (a retry mints a new run).
-              Open one for its timeline, transcript, and pod logs.
-            </p>
-            <ul>
-              {runs.map((run) => (
-                <li key={run.id}>
-                  <Link href={`/assembly-runs/${run.id}`}>
-                    #{run.id.substring(0, 8)}
-                  </Link>{" "}
-                  —{" "}
-                  <span className={`op-badge op-${run.status}`}>
-                    {formatEnumLabel(run.outcome ?? run.status)}
-                  </span>{" "}
-                  · started <TimeAgo date={run.created_at} inline />
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
+        <RunsSection runs={runs} />
       </div>
     </TaskRefreshProvider>
   );

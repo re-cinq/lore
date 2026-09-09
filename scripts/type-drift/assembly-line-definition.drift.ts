@@ -1,16 +1,4 @@
-/**
- * Compile-time drift guard for the assembly-line definition mirror.
- *
- * apps/web-ui cannot import libs/assembly-lines (npm-workspace exclusion +
- * isolated Docker build context), so the loader's zod-inferred definition types
- * are hand-mirrored in apps/web-ui/src/lib/assembly-line-definition.ts. This
- * file makes `npm run typecheck:drift` go red the moment the loader's schema
- * gains a field, or either closed union gains a member, that the mirror lacks.
- *
- * Keys-only on the object types, exact on the unions: the mirror declares
- * `version: 1` where the canonical type is the same literal, but optional
- * modifiers and zod's inference details are not worth asserting structurally.
- */
+// Drift guard: web-ui can't import libs/assembly-lines (npm-workspace exclusion), so its definition types are hand-mirrored; keys-only on objects, exact on unions.
 
 import type {
   AssemblyLineNode as CanonNode,

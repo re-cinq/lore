@@ -1,0 +1,150 @@
+import { errorMessage } from "@re-cinq/lore-shared";
+import type { Pool } from "pg";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
+import { z } from "zod";
+import { zodResponse } from "../../http/zod-response.js";
+import { bearerScope } from "../../http/bearer-scope.js";
+import { zodValidate } from "../../http/zod-validate.js";
+import { repoFullName } from "../common-schemas.js";
+
+const RepoStatusQuery = z.object({ repo: repoFullName.optional() });
+
+type RepoStatusQuery = z.infer<typeof RepoStatusQuery>;
+
+/** The statusline's read: onboarding state plus what the repo is doing now. */
+const RepoStatusSchema = z.object({
+  onboarded: z.boolean(),
+  repo: z.string().optional(),
+  running: z.number().optional(),
+  pr_ready: z.number().optional(),
+  memories: z.number().optional(),
+  auto_review: z.boolean().optional(),
+  last_ingested_at: z.string().nullable().optional(),
+  /** True when the last ingest is older than seven days. */
+  stale: z.boolean().optional(),
+  error: z.string().optional(),
+});
+
+const STALE_AFTER_MS = 7 * 86400000;
+
+function rowCount(result: { rows: Array<{ c?: string | number }> }): number {
+  const { rows } = result;
+
+  return Number(rows[0]?.c ?? 0);
+}
+
+function isStale(lastIngested: string | null): boolean {
+  if (!lastIngested) {
+    return true;
+  }
+
+  return Date.now() - new Date(lastIngested).getTime() > STALE_AFTER_MS;
+}
+
+function parseRepoRow(row: {
+  settings: { auto_review?: boolean } | null;
+  last_ingested_at: string | null;
+}): { settings: { auto_review?: boolean }; lastIngested: string | null } {
+  return {
+    settings: row.settings || {},
+    lastIngested: row.last_ingested_at || null,
+  };
+}
+
+async function repoActivity(pool: Pool, repo: string) {
+  const running = await pool.query(
+    `SELECT count(*) as c FROM pipeline.tasks WHERE target_repo = $1 AND status = 'running'`,
+    [repo],
+  );
+  const prReady = await pool.query(
+    `SELECT count(*) as c FROM pipeline.tasks WHERE target_repo = $1 AND status IN ('pr-created', 'review')`,
+    [repo],
+  );
+  const memories = await pool.query(
+    `SELECT count(*) as c FROM memory.memories WHERE is_deleted = false`,
+  );
+
+  return {
+    running: rowCount(running),
+    pr_ready: rowCount(prReady),
+    memories: rowCount(memories),
+  };
+}
+
+/** Onboarding state and current activity, including `last_ingested_at` and the staleness flag — the read that tells an agent its context may be out of date. */
+/** An onboarded repo's status. `stale` is computed here rather than left to the caller: every reader would otherwise pick its own threshold, and this flag is what an agent uses to decide whether to trust the context it just assembled. */
+async function onboardedStatus(
+  pool: Pool,
+  repo: string,
+  row: Parameters<typeof parseRepoRow>[0],
+) {
+  const { settings, lastIngested } = parseRepoRow(row);
+
+  return {
+    onboarded: true,
+    repo,
+    ...(await repoActivity(pool, repo)),
+    auto_review: settings.auto_review === true,
+    last_ingested_at: lastIngested,
+    stale: isStale(lastIngested),
+  };
+}
+
+/** The status document for one repo — an absent row reads as "not onboarded", not as an error. */
+async function repoStatusBody(pool: Pool, repo: string) {
+  const { rows } = await pool.query(
+    `SELECT settings, last_ingested_at FROM lore.repos WHERE full_name = $1`,
+    [repo],
+  );
+
+  if (rows.length === 0) {
+    return { onboarded: false, repo };
+  }
+
+  return onboardedStatus(pool, repo, rows[0]);
+}
+
+async function serveRepoStatus(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+  const { repo } = request.query as RepoStatusQuery;
+
+  if (!repo || !pool) {
+    return h.response({ onboarded: false });
+  }
+
+  try {
+    return h.response(await repoStatusBody(pool, repo));
+  } catch (err) {
+    console.error("[repo-status] Error:", errorMessage(err));
+
+    return h.response({ onboarded: false, error: errorMessage(err) });
+  }
+}
+
+export function repoStatusRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/repo-status",
+    options: zodResponse(
+      {
+        ...bearerScope("read"),
+        validate: { query: zodValidate(RepoStatusQuery) },
+      },
+      RepoStatusSchema,
+      {
+        name: "RepoStatus",
+        description: "Onboarding state and current activity for a repo",
+      },
+    ),
+    handler: (request, h) => serveRepoStatus(getPool, request, h),
+  };
+}

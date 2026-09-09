@@ -1,7 +1,4 @@
-// Minimal YAML-lite frontmatter parser covering exactly the shapes the ADR
-// corpus uses (scalars, quoted scalars, flow lists, block lists) — no yaml
-// dependency. Only a block opening the document counts; a later `---` is a
-// horizontal rule.
+// Minimal YAML-lite frontmatter parser for ADR corpus (no yaml dependency).
 
 export interface Frontmatter {
   meta: Record<string, string | string[]>;
@@ -12,6 +9,72 @@ const LEADING_FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
 
 const unquote = (value: string): string =>
   value.replace(/^["']|["']$/g, "").trim();
+
+function collectBlockListItems(lines: string[], startIndex: number): string[] {
+  const values: string[] = [];
+  let cursor = startIndex;
+
+  while (cursor < lines.length && /^\s*-\s+/.test(lines[cursor])) {
+    values.push(unquote(lines[cursor].replace(/^\s*-\s+/, "")));
+    cursor++;
+  }
+
+  return values;
+}
+
+function parseFlowList(value: string): string[] | null {
+  if (!value.startsWith("[") || !value.endsWith("]")) {
+    return null;
+  }
+
+  return value.slice(1, -1).split(",").map(unquote).filter(Boolean);
+}
+
+interface MetaLine {
+  lines: string[];
+  index: number;
+  key: string;
+  rawValue: string;
+}
+
+/** Applies the `- item` lines following a valueless key; returns the index to resume from. */
+function applyBlockList(
+  meta: Record<string, string | string[]>,
+  { lines, index, key }: MetaLine,
+): number {
+  const blockItems = collectBlockListItems(lines, index + 1);
+
+  if (blockItems.length === 0) {
+    return index;
+  }
+  meta[key] = blockItems;
+
+  return index + blockItems.length;
+}
+
+/** Applies one `key: value` line to `meta`; returns the line index to resume from (past any consumed block list). */
+function applyMetaLine(
+  meta: Record<string, string | string[]>,
+  metaLine: MetaLine,
+): number {
+  const { index, key, rawValue } = metaLine;
+  const value = rawValue.trim();
+  const flowList = parseFlowList(value);
+
+  if (flowList) {
+    meta[key] = flowList;
+
+    return index;
+  }
+
+  if (value !== "") {
+    meta[key] = unquote(value);
+
+    return index;
+  }
+
+  return applyBlockList(meta, metaLine);
+}
 
 export function parseFrontmatter(source: string): Frontmatter {
   const match = source.match(LEADING_FRONTMATTER);
@@ -29,24 +92,8 @@ export function parseFrontmatter(source: string): Frontmatter {
       continue;
     }
     const [, key, rawValue] = keyValue;
-    const value = rawValue.trim();
 
-    if (value.startsWith("[") && value.endsWith("]")) {
-      meta[key] = value.slice(1, -1).split(",").map(unquote).filter(Boolean);
-    } else if (value === "") {
-      const items: string[] = [];
-
-      while (i + 1 < lines.length && /^\s*-\s+/.test(lines[i + 1])) {
-        items.push(unquote(lines[i + 1].replace(/^\s*-\s+/, "")));
-        i++;
-      }
-
-      if (items.length > 0) {
-        meta[key] = items;
-      }
-    } else {
-      meta[key] = unquote(value);
-    }
+    i = applyMetaLine(meta, { lines, index: i, key, rawValue });
   }
 
   return { meta, body: source.slice(match[0].length) };

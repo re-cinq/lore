@@ -1,7 +1,4 @@
 // @vitest-environment node
-//
-// One repo read for nine call sites. The paths ARE the contract with lore-api.
-
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 vi.mock("server-only", () => ({}));

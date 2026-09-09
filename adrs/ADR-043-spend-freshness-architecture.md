@@ -59,12 +59,12 @@ day-old data.
    Anthropic caller.** The cost report changes once a day, so a single sync
    after the day settles is sufficient. The per-page live read, its Floor
    route (`GET /api/anthropic-cost/live`), and the web-ui mirror rollups
-   (`aggregateMonthToDate` and friends) are removed. ([validated by `anthropic-cost-sync.test.ts:31`](apps/stations/src/stations/anthropic-cost-sync/anthropic-cost-sync.test.ts#L31), [`anthropic-cost-sync.test.ts:37`](apps/stations/src/stations/anthropic-cost-sync/anthropic-cost-sync.test.ts#L37), [`anthropic-cost-sync.test.ts:43`](apps/stations/src/stations/anthropic-cost-sync/anthropic-cost-sync.test.ts#L43))
+   (`aggregateMonthToDate` and friends) are removed. ([validated by `anthropic-cost-sync.test.ts:29`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost-sync.test.ts#L29), [`anthropic-cost-sync.test.ts:35`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost-sync.test.ts#L35), [`anthropic-cost-sync.test.ts:41`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost-sync.test.ts#L41))
 2. **`/spend` reads the database only.** Billed figures come from
    `pipeline.anthropic_cost_daily`; everything current-day comes from
    `pipeline.llm_calls`, which is the only source that can cover today at
    all — and the only one with kind attribution (Anthropic reports by model
-   only). ([validated by `SpendView.test.tsx:188`](apps/web-ui/src/app/spend/SpendView.test.tsx#L188), [`SpendView.test.tsx:216`](apps/web-ui/src/app/spend/SpendView.test.tsx#L216))
+   only). ([validated by `SpendView.test.tsx:270`](apps/web-ui/src/app/spend/SpendView.test.tsx#L334), [`SpendView.test.tsx:353`](apps/web-ui/src/app/spend/SpendView.test.tsx#L353))
 3. **Everything Anthropic has not billed yet is shown as a labeled computed
    line on the billed card** ("billed through 8/18 — + $47.74 over 2 days
    since (Lore-computed)"), never silently summed into the authoritative
@@ -72,7 +72,7 @@ day-old data.
    day: the consequence below makes a cron outage surface as staleness, and
    a line hardcoded to "yesterday — + today" reported a one-day gap through
    an outage of any length, quietly stranding whole days of spend between
-   the two figures. ([validated by `SpendView.test.tsx:244`](apps/web-ui/src/app/spend/SpendView.test.tsx#L244), [`SpendView.test.tsx:269`](apps/web-ui/src/app/spend/SpendView.test.tsx#L269), [`SpendView.test.tsx:277`](apps/web-ui/src/app/spend/SpendView.test.tsx#L277))
+   the two figures. ([validated by `SpendView.test.tsx:329`](apps/web-ui/src/app/spend/SpendView.test.tsx#L380), [`SpendView.test.tsx:389`](apps/web-ui/src/app/spend/SpendView.test.tsx#L389), [`SpendView.test.tsx:395`](apps/web-ui/src/app/spend/SpendView.test.tsx#L395))
 
 ## Consequences
 
@@ -120,3 +120,57 @@ the midnight–07:00 gap for yesterday's figures is accepted and documented on
 the schedule entry. The overlay's cronJobs blind spot is tracked on
 issue #1120 (mechanism 3, "Helm stored-values shadowing") — any future
 `cronJobs` edit will silently no-op until the overlay covers it.
+
+## Amendment (2026-09-03): real GCP spend joins the page, same shape
+
+### Background
+
+The Kubernetes figure on `/spend` was only ever an estimate (pod-hours ×
+assumed profile × env rates), footnoted with "Google's invoice lags a day and
+is the truth". The invoice itself is now on the page, and it follows this
+ADR's architecture exactly rather than adding a third pattern.
+
+Google publishes actual spend through exactly one machine-readable channel —
+the **Cloud Billing export to BigQuery**. There is no API that returns spend
+(the Billing API serves SKU price lists), and enabling the export is a
+console-only, Billing-Admin-only, one-time step that only accumulates
+forward. Terraform (`enable_gcp_billing_export`) provisions the dataset, the
+read identity (Workload Identity, `bigquery.jobUser` + dataset-scoped
+`dataViewer`) and the env; a person flips the export on once. GKE **cost
+allocation** (`cost_management_config`) is enabled on the cluster so the
+export itemizes the cluster's line per namespace — free, and it enriches the
+same export the sync reads.
+
+### The GCP billed contract
+
+- The **`gcp-cost-sync` station** (sibling of `anthropic-cost-sync`, daily at
+  08:00 UTC) reads whichever export table the configured dataset holds,
+  preferring the standard `gcp_billing_export_v1_*` table over the detailed
+  resource-level one and reporting a dataset with neither as not-yet-enabled. ([validated by [`gcp-billing.test.ts:9`](apps/stations/src/work/gcp-cost-sync/gcp-billing.test.ts#L9), [`gcp-billing.test.ts:18`](apps/stations/src/work/gcp-cost-sync/gcp-billing.test.ts#L18), [`gcp-billing.test.ts:27`](apps/stations/src/work/gcp-cost-sync/gcp-billing.test.ts#L27), [`gcp-billing.test.ts:33`](apps/stations/src/work/gcp-cost-sync/gcp-billing.test.ts#L33))
+- Its rollup query reads the fully qualified export table windowed on
+  `usage_start_time`, filtered to the platform's own project (the export
+  spans the whole billing account), grouped per UTC day and service with
+  credits summed apart from cost. ([validated by [`gcp-billing.test.ts:48`](apps/stations/src/work/gcp-cost-sync/gcp-billing.test.ts#L48), [`gcp-billing.test.ts:57`](apps/stations/src/work/gcp-cost-sync/gcp-billing.test.ts#L57), [`gcp-billing.test.ts:61`](apps/stations/src/work/gcp-cost-sync/gcp-billing.test.ts#L61))
+- BigQuery's stringly f/v response cells parse positionally into day/service
+  rows, an empty window parses to no rows, and an incomplete query job throws
+  rather than storing a partial day. ([validated by [`gcp-billing.test.ts:69`](apps/stations/src/work/gcp-cost-sync/gcp-billing.test.ts#L69), [`gcp-billing.test.ts:108`](apps/stations/src/work/gcp-cost-sync/gcp-billing.test.ts#L108), [`gcp-billing.test.ts:112`](apps/stations/src/work/gcp-cost-sync/gcp-billing.test.ts#L112), [`gcp-billing.test.ts:118`](apps/stations/src/work/gcp-cost-sync/gcp-billing.test.ts#L118))
+- The window is the Anthropic sync's: today's UTC midnight minus 30 days, 31
+  whole candidate days, aligned so `bucket_date` means the same UTC day
+  downstream — and re-pulled daily so Google's late restatements self-heal
+  through the upsert. ([validated by [`gcp-cost-sync.test.ts:22`](apps/stations/src/work/gcp-cost-sync/gcp-cost-sync.test.ts#L22), [`gcp-cost-sync.test.ts:28`](apps/stations/src/work/gcp-cost-sync/gcp-cost-sync.test.ts#L28))
+- The sync skips (never fails) while `LORE_GCP_BILLING_PROJECT` /
+  `LORE_GCP_BILLING_DATASET` are unset or half-set — the states only a
+  person's terraform apply or console visit can change. ([validated by [`gcp-cost-sync.test.ts:6`](apps/stations/src/work/gcp-cost-sync/gcp-cost-sync.test.ts#L6), [`gcp-cost-sync.test.ts:12`](apps/stations/src/work/gcp-cost-sync/gcp-cost-sync.test.ts#L12))
+- Rows land in `pipeline.gcp_cost_daily` (migration 0060) through
+  `PgGcpCost`, upsert-keyed on `(bucket_date, service)` — a re-synced bucket
+  replaces the stored totals, mirrored by the `InMemoryGcpCost` double. ([validated by [`cost.test.ts:104`](libs/shared/src/outbound/project/cost/cost.test.ts#L104), [`cost.test.ts:123`](libs/shared/src/outbound/project/cost/cost.test.ts#L123), [`cost.test.ts:131`](libs/shared/src/outbound/project/cost/cost.test.ts#L131), [`cost.test.ts:141`](libs/shared/src/outbound/project/cost/cost.test.ts#L141))
+- `/api/analytics/spend-window` grew a `gcp` block under the same rules as
+  the Anthropic `billed` block: interval-scoped net-of-credits totals,
+  whole-table `as_of`/`billed_through` stamps, `available` decided by the
+  stamp (a synced zero is not "never synced"), and `optionalTableRows`
+  degradation when the table has not been migrated. ([validated by [`spend-window.test.ts:202`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L202), [`spend-window.test.ts:218`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L218), [`spend-window.test.ts:231`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L231))
+- The view renders a "Google Cloud (billed)" card (net total plus the day the
+  export has closed through) and by-service/daily tables only when available,
+  hiding them entirely until the export has synced; the estimate card stays
+  regardless, because the export lags a day or more and the estimate is the
+  only figure that covers "now". ([validated by [`SpendView.test.tsx:239`](apps/web-ui/src/app/spend/SpendView.test.tsx#L239), [`SpendView.test.tsx:248`](apps/web-ui/src/app/spend/SpendView.test.tsx#L248), [`SpendView.test.tsx:273`](apps/web-ui/src/app/spend/SpendView.test.tsx#L273))

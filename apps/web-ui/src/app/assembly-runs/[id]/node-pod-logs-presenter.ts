@@ -1,15 +1,11 @@
-// Pure logic behind NodeLogPanel — kept out of the component so it is directly
-// testable. The Floor's /api/agent-logs response drives what the panel shows and
-// whether it keeps polling.
-
+// Pure logic behind NodeLogPanel, kept out of the component so it is directly testable; driven by the Floor's /api/agent-logs response.
 export interface NodeLogsResponse {
   available: boolean;
   logs: string | null;
   phase: string | null;
   podName: string | null;
   reason?: string;
-  /** true when the logs were read back from the durable archive (Cloud Logging)
-   *  because the live pod was already cleaned up. */
+  // true when logs were read back from the durable archive (Cloud Logging) because the live pod was already cleaned up.
   archived?: boolean;
 }
 

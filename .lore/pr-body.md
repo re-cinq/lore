@@ -1,0 +1,15 @@
+Task types with no assembly-line YAML — `runbook`, `review`, and `onboard`-adjacent single-CR dispatches — were still going through `HttpAgentApi.create`, which means the Floor pushed an Agent CR directly to the one `CLUSTER_AGENT_URL` it knows about. Every other node had already flipped to the claim queue in the assembly-line rollout (step 3 of the plan in `specs/running-stations-in-any-k8s-cluster/spec.md`, Rollout section), but the single-CR path in `AgentCrStationBackend.launch()` had a separate branch that bypassed it.
+
+The fix, landed in commit 45eaf99b ("one mode in every cluster", 2026-08-29), makes `AgentCrStationBackend.launch()` write a `queued` station run for every node type that has no assembly-line YAML, rather than calling `HttpAgentApi.create`. The dispatch spec is written into the row at enqueue time, so a claiming cluster-agent receives everything it needs to build the Agent CR without any push from the Floor. `HttpAgentApi.create`, `agentCrBackend()`'s push wiring, and `POST /api/cluster/agents` were removed in the same change — not deprecated, not flagged, deleted, because there was no longer a caller.
+
+The reaper's definition-less arm (`if (!graph)` branch in `assemblyLineReaperJob`) already existed but previously bounded nothing for single-CR tasks. It now picks up two recovery cases: a single-CR visit that sat `queued` longer than the configured wait bound (default 30 minutes) is failed terminally, naming the unmatched `required_tags` to explain why no cluster claimed it; and a visit whose claiming cluster went offline is reset to `queued` on the same row, with a `cluster_agent_offline` audit entry, so another cluster can take it.
+
+Three acceptance tests define done. All three were green before this DoD pass, which is what the DoD note records:
+
+- `apps/floor/src/jobs/station/agent-cr-station-backend.test.ts`: "enqueues a single-CR task as a claimable row instead of pushing a CR" — the launch seam writes `status: "queued"`, not a pushed Agent CR.
+- `apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts`: "fails a single-CR run nobody claimed, naming the tags that went unmatched" — queue-wait timeout on the definition-less arm.
+- `apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts`: "requeues a single-CR visit whose claiming cluster went offline" — offline-requeue on the definition-less arm.
+
+This branch's only change is a traceability link in the Rollout section of `specs/running-stations-in-any-k8s-cluster/spec.md` pointing at the reaper tests that validate the definition-less arm. The implementation was already on main; this PR closes the spec gap and records provenance. The spec's `| Status |` row remains `In Progress` — the full feature spans FR1–FR9 across several branches, and this ticket covers the final step of FR3 (the single-CR dispatch path).
+
+No deviation from the DoD strategy. The DoD identified the launch seam and reaper arm as the right places to instrument; the implementation went exactly there.

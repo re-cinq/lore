@@ -1,5 +1,4 @@
-/** Shape of the assembly trace returned by `/api/context?debug=1` (mirrors the
- *  `AssemblyTrace` the MCP server's `assembleContext` emits). */
+/** Assembly trace from `/api/context?debug=1` (mirrors MCP assembleContext). */
 
 export type FetchStatus = "ok" | "empty" | "error" | "no-match" | "disabled";
 

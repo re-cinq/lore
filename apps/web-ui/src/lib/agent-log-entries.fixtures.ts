@@ -1,7 +1,4 @@
-// Real agent pod log lines, captured verbatim from a production review node
-// (assembly line f202c209, node f202c209-review, 2026-07-17). These are the
-// ground truth the parser is written against — do not hand-edit the payloads.
-
+// Real agent pod log lines captured verbatim (assembly line f202c209, node f202c209-review, 2026-07-17) — do not hand-edit the payloads.
 export const LIFECYCLE_STARTED =
   '{"kind":"lifecycle","phase":"agent","status":"started"}';
 
@@ -42,13 +39,12 @@ export const TOOL_RESULT_ARRAY =
   '{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_01RgyHaFrFWBTwWiWFZfmM5x","content":[{"type":"tool_reference","tool_name":"WebFetch"}]}]},"parent_tool_use_id":null,"session_id":"ce38714c-16fc-4b0e-9351-3b1b9b86a969","uuid":"7a65acfa-b5dd-4427-926a-3c559ea5d3d5","timestamp":"2026-07-17T08:48:18.553Z","tool_use_result":{"matches":["WebFetch"],"query":"select:WebFetch","total_deferred_tools":18}}';
 
 export const RESULT_TERMINAL =
-  '{"type":"result","subtype":"success","is_error":false,"api_error_status":null,"duration_ms":201372,"duration_api_ms":200468,"ttft_ms":3321,"ttft_stream_ms":1695,"time_to_request_ms":208,"num_turns":27,"result":"```REVIEW_FINDINGS\\n{\\n  \\"verdict\\": \\"approved\\",\\n  \\"summary\\": \\"Clean FR5 implementation — routes post-ingest validate through the shared cron handler; no blocking issues\\",\\n  \\"findings\\": [\\n    {\\n      \\"path\\": \\"apps/floor/src/main-loop/registry.test.ts\\",\\n      \\"line\\": 43,\\n      \\"label\\": \\"nit\\",\\n      \\"subject\\": \\"Avoid building the registry twice for a single comparison\\",\\n      \\"body\\": \\"Two `buildRegistry()` calls create two separate Map instances; a shared binding is cleaner and ensures no surprising re-initialisation cost.\\",\\n      \\"suggestion\\": \\"  it(\\\\\\"routes the post-ingest validate event through the detect tick (one substrate, FR5)\\\\\\", () => {\\\\n    // The same production handler serves the weekly cron and the post-ingest\\\\n    // trigger: params.repo narrows it to the one repo, and the validate core\\\\n    // runs in the detect station pod either way — never inline in the Floor.\\\\n    const r = buildRegistry();\\\\n    expect(r.get(\\\\\\"internal.ingest.spec_coverage_validate\\\\\\")).toBe(\\\\n      r.get(\\\\\\"cron.spec_coverage_validate.tick\\\\\\"),\\\\n    );\\\\n  });\\"\\n    },\\n    {\\n      \\"path\\": \\"apps/floor/src/main-loop/registry.ts\\",\\n      \\"line\\": 70,\\n      \\"label\\": \\"nit\\",\\n      \\"subject\\": \\"Trim the 3-line comment to one line (CLAUDE.md: one short line max)\\",\\n      \\"body\\": \\"CLAUDE.md says \'one short line max\' for WHY-comments. The cross-reference to the spec is already carried by the validated-by link in specs/ingest-station/spec.md, so the inline comment just needs the invariant.\\",\\n      \\"suggestion\\": \\"    // FR5: shares the cron handler — params.repo narrows fan-out to one repo, core runs in station pod.\\\\n    [\\\\\\"internal.ingest.spec_coverage_validate\\\\\\", detect.specCoverageValidateTick],\\"\\n    },\\n    {\\n      \\"path\\": \\"specs/ingest-station/spec.md\\",\\n      \\"line\\": 80,\\n      \\"label\\": \\"nit\\",\\n      \\"subject\\": \\"Fix `implemented by` link — points to comment line 70, not the binding at line 73\\",\\n      \\"body\\": \\"The `[implemented by registry.ts:70]` link lands on the comment, not the Map entry at line 73. Spec tooling renders the line number as the descriptor; pointing at the comment is misleading.\\",\\n      \\"suggestion\\": \\"  ([validated by `registry.test.ts:39`](apps/floor/src/main-loop/registry.test.ts#L39); implemented by [`registry.ts:73`](apps/floor/src/main-loop/registry.ts#L73))\\"\\n    },\\n    {\\n      \\"path\\": \\"apps/floor/src/main-loop/registry.ts\\",\\n      \\"line\\": 73,\\n      \\"label\\": \\"thought\\",\\n      \\"subject\\": \\"Missing `params.repo` now fans out to all spec repos instead of failing fast\\",\\n      \\"body\\": \\"The old `internal.specCoverageValidate` would crash or pass undefined to `validateSpecCoverageJob` if `params.repo` was absent. The new path\'s `createDetectTickHandler` silently fans out to every `specRepos()` repo when the field is missing or empty (fan-out.ts:99-101). In practice the mcp-server always supplies `params.repo`, and the overlap-guard prevents true duplicates, but the blast-radius on a malformed event is wider. No action needed unless you want an explicit guard.\\"\\n    },\\n    {\\n      \\"path\\": \\"apps/lore-station/src/stations/validate.ts\\",\\n      \\"line\\": 1,\\n      \\"label\\": \\"thought\\",\\n      \\"subject\\": \\"FR6 / AC5 (SERIAL_FAMILIES empty) still open after this PR\\",\\n      \\"body\\": \\"Acceptance Criterion 5 requires `SERIAL_FAMILIES` to be empty and no `internal.ingest.*` handler to call `createDgraphClient()`. This PR correctly claims only FR5 — `specTrace` still writes dgraph inline and `SERIAL_FAMILIES` still contains `internal.ingest.spec_trace`. Worth a follow-on task once FRs 1–4, 6–7 land so the spec status can flip to Implemented.\\"\\n    },\\n    {\\n      \\"path\\": \\"apps/floor/src/main-loop/registry.test.ts\\",\\n      \\"line\\": 39,\\n      \\"label\\": \\"praise\\",\\n      \\"subject\\": \\"Reference-equality assertion (`toBe`) is the right tool to lock this invariant\\",\\n      \\"body\\": \\"Using `toBe` rather than `toEqual` proves the two event names are wired to the *same function object* — exactly the \'one substrate\' architectural invariant FR5 demands. Clean.\\"\\n    }\\n  ]\\n}\\n```\\n\\nREVIEW_RESULT:APPROVED","stop_reason":"end_turn","session_id":"ce38714c-16fc-4b0e-9351-3b1b9b86a969","total_cost_usd":0.5066994499999999,"usage":{"input_tokens":106,"cache_creation_input_tokens":47123,"cache_read_input_tokens":651774,"output_tokens":8221,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":47123},"inference_geo":"global","iterations":[{"input_tokens":1,"output_tokens":1641,"cache_read_input_tokens":59536,"cache_creation_input_tokens":4505,"cache_creation":{"ephemeral_5m_input_tokens":4505,"ephemeral_1h_input_tokens":0},"type":"message"}],"speed":"standard"},"modelUsage":{"claude-haiku-4-5-20251001":{"inputTokens":10713,"outputTokens":22,"cacheReadInputTokens":0,"cacheCreationInputTokens":0,"webSearchRequests":0,"costUSD":0.010823000000000001,"contextWindow":200000,"maxOutputTokens":32000},"claude-sonnet-4-6":{"inputTokens":106,"outputTokens":8221,"cacheReadInputTokens":651774,"cacheCreationInputTokens":47123,"webSearchRequests":0,"costUSD":0.4958764499999999,"contextWindow":200000,"maxOutputTokens":32000}},"permission_denials":[],"terminal_reason":"completed","fast_mode_state":"off","uuid":"b256b67b-e196-4189-b90e-78b63118c1dd"}';
+  '{"type":"result","subtype":"success","is_error":false,"api_error_status":null,"duration_ms":201372,"duration_api_ms":200468,"ttft_ms":3321,"ttft_stream_ms":1695,"time_to_request_ms":208,"num_turns":27,"result":"```REVIEW_FINDINGS\\n{\\n  \\"verdict\\": \\"approved\\",\\n  \\"summary\\": \\"Clean FR5 implementation — routes post-ingest validate through the shared cron handler; no blocking issues\\",\\n  \\"findings\\": [\\n    {\\n      \\"path\\": \\"apps/floor/src/events/main-loop/registry.test.ts\\",\\n      \\"line\\": 43,\\n      \\"label\\": \\"nit\\",\\n      \\"subject\\": \\"Avoid building the registry twice for a single comparison\\",\\n      \\"body\\": \\"Two `buildRegistry()` calls create two separate Map instances; a shared binding is cleaner and ensures no surprising re-initialisation cost.\\",\\n      \\"suggestion\\": \\"  it(\\\\\\"routes the post-ingest validate event through the detect tick (one substrate, FR5)\\\\\\", () => {\\\\n    // The same production handler serves the weekly cron and the post-ingest\\\\n    // trigger: params.repo narrows it to the one repo, and the validate core\\\\n    // runs in the detect station pod either way — never inline in the Floor.\\\\n    const r = buildRegistry();\\\\n    expect(r.get(\\\\\\"internal.ingest.spec_coverage_validate\\\\\\")).toBe(\\\\n      r.get(\\\\\\"cron.spec_coverage_validate.tick\\\\\\"),\\\\n    );\\\\n  });\\"\\n    },\\n    {\\n      \\"path\\": \\"apps/floor/src/events/main-loop/registry.ts\\",\\n      \\"line\\": 70,\\n      \\"label\\": \\"nit\\",\\n      \\"subject\\": \\"Trim the 3-line comment to one line (CLAUDE.md: one short line max)\\",\\n      \\"body\\": \\"CLAUDE.md says \'one short line max\' for WHY-comments. The cross-reference to the spec is already carried by the validated-by link in specs/ingest-station/spec.md, so the inline comment just needs the invariant.\\",\\n      \\"suggestion\\": \\"    // FR5: shares the cron handler — params.repo narrows fan-out to one repo, core runs in station pod.\\\\n    [\\\\\\"internal.ingest.spec_coverage_validate\\\\\\", detect.specCoverageValidateTick],\\"\\n    },\\n    {\\n      \\"path\\": \\"specs/ingest-station/spec.md\\",\\n      \\"line\\": 80,\\n      \\"label\\": \\"nit\\",\\n      \\"subject\\": \\"Fix `implemented by` link — points to comment line 70, not the binding at line 73\\",\\n      \\"body\\": \\"The `[implemented by registry.ts:70]` link lands on the comment, not the Map entry at line 73. Spec tooling renders the line number as the descriptor; pointing at the comment is misleading.\\",\\n      \\"suggestion\\": \\"  ([validated by `registry.test.ts:39`](apps/floor/src/events/main-loop/registry.test.ts#L39); implemented by [`registry.ts:73`](apps/floor/src/events/main-loop/registry.ts#L73))\\"\\n    },\\n    {\\n      \\"path\\": \\"apps/floor/src/events/main-loop/registry.ts\\",\\n      \\"line\\": 73,\\n      \\"label\\": \\"thought\\",\\n      \\"subject\\": \\"Missing `params.repo` now fans out to all spec repos instead of failing fast\\",\\n      \\"body\\": \\"The old `internal.specCoverageValidate` would crash or pass undefined to `validateSpecCoverageJob` if `params.repo` was absent. The new path\'s `createDetectTickHandler` silently fans out to every `specRepos()` repo when the field is missing or empty (fan-out.ts:99-101). In practice the mcp-server always supplies `params.repo`, and the overlap-guard prevents true duplicates, but the blast-radius on a malformed event is wider. No action needed unless you want an explicit guard.\\"\\n    },\\n    {\\n      \\"path\\": \\"apps/lore-station/src/stations/validate.ts\\",\\n      \\"line\\": 1,\\n      \\"label\\": \\"thought\\",\\n      \\"subject\\": \\"FR6 / AC5 (SERIAL_FAMILIES empty) still open after this PR\\",\\n      \\"body\\": \\"Acceptance Criterion 5 requires `SERIAL_FAMILIES` to be empty and no `internal.ingest.*` handler to call `createDgraphClient()`. This PR correctly claims only FR5 — `specTrace` still writes dgraph inline and `SERIAL_FAMILIES` still contains `internal.ingest.spec_trace`. Worth a follow-on task once FRs 1–4, 6–7 land so the spec status can flip to Implemented.\\"\\n    },\\n    {\\n      \\"path\\": \\"apps/floor/src/events/main-loop/registry.test.ts\\",\\n      \\"line\\": 39,\\n      \\"label\\": \\"praise\\",\\n      \\"subject\\": \\"Reference-equality assertion (`toBe`) is the right tool to lock this invariant\\",\\n      \\"body\\": \\"Using `toBe` rather than `toEqual` proves the two event names are wired to the *same function object* — exactly the \'one substrate\' architectural invariant FR5 demands. Clean.\\"\\n    }\\n  ]\\n}\\n```\\n\\nREVIEW_RESULT:APPROVED","stop_reason":"end_turn","session_id":"ce38714c-16fc-4b0e-9351-3b1b9b86a969","total_cost_usd":0.5066994499999999,"usage":{"input_tokens":106,"cache_creation_input_tokens":47123,"cache_read_input_tokens":651774,"output_tokens":8221,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":47123},"inference_geo":"global","iterations":[{"input_tokens":1,"output_tokens":1641,"cache_read_input_tokens":59536,"cache_creation_input_tokens":4505,"cache_creation":{"ephemeral_5m_input_tokens":4505,"ephemeral_1h_input_tokens":0},"type":"message"}],"speed":"standard"},"modelUsage":{"claude-haiku-4-5-20251001":{"inputTokens":10713,"outputTokens":22,"cacheReadInputTokens":0,"cacheCreationInputTokens":0,"webSearchRequests":0,"costUSD":0.010823000000000001,"contextWindow":200000,"maxOutputTokens":32000},"claude-sonnet-4-6":{"inputTokens":106,"outputTokens":8221,"cacheReadInputTokens":651774,"cacheCreationInputTokens":47123,"webSearchRequests":0,"costUSD":0.4958764499999999,"contextWindow":200000,"maxOutputTokens":32000}},"permission_denials":[],"terminal_reason":"completed","fast_mode_state":"off","uuid":"b256b67b-e196-4189-b90e-78b63118c1dd"}';
 
 export const LIFECYCLE_SUCCEEDED =
   '{"kind":"lifecycle","exitCode":0,"phase":"agent","status":"succeeded"}';
 
-// The exact serialized output of eventLine() / resultLine() in
-// libs/assembly-lines/src/agent-output.ts (web-ui cannot import that lib).
+// Exact serialized output of eventLine()/resultLine() in libs/assembly-lines/src/agent-output.ts (web-ui cannot import that lib).
 export const STATION_LOG =
   '{"type":"log","message":"detect: scanning 42 specs"}';
 
@@ -58,24 +54,15 @@ export const NODE_RESULT_LINE =
 export const RUNNER_MARKER =
   "[runner] Reusing cached repo at /workspace/repo (fetch)";
 
-// Captured from a live review pod (task 7d723e6b, 2026-08-27). The init-phase
-// lifecycle marker carries no `type`, so the transcript store records it with a
-// null event_type — the case that used to render as an `unknown` JSON blob.
+// Live review pod capture (task 7d723e6b, 2026-08-27): init-phase marker carries no `type`, so it used to render as an `unknown` JSON blob.
 export const LIFECYCLE_INIT_STARTED =
   '{"kind":"lifecycle","phase":"init","status":"started"}';
 
-// Same pod, one minute later. `utilization` is a FRACTION of the window, and
-// `resetsAt` is epoch SECONDS.
+// Same pod, one minute later; `utilization` is a fraction of the window, `resetsAt` is epoch seconds.
 export const RATE_LIMIT_EVENT =
   '{"type":"rate_limit_event","uuid":"44497cba-94a4-40e9-a7e3-a99071319e87","session_id":"a4830f52-8b2f-4638-ab11-ba16813e728c","rate_limit_info":{"status":"allowed_warning","resetsAt":1787882400,"utilization":0.94,"rateLimitType":"seven_day","isUsingOverage":false,"unifiedWindows":{"five_hour":{"resetsAt":1787848200,"utilization":0.07},"seven_day":{"resetsAt":1787882400,"utilization":0.94}},"surpassedThreshold":0.75}}';
 
-// SessionStart hook events from a live implement pod (task e3bdf9f8, pod
-// agent-job-595d2b0b-ccb-implement-cczl8, 2026-08-28). Two hooks run
-// CONCURRENTLY, so their lines interleave, and `hook_progress` is CUMULATIVE —
-// every progress line repeats the whole output so far. The run emitted four
-// progress lines for the bootstrap hook; the two middle ones are elided here
-// because they differ from these only in how much of the same log they carry.
-
+// Live SessionStart hook capture (task e3bdf9f8, 2026-08-28): two hooks run concurrently and `hook_progress` is cumulative — each line repeats the whole output so far; two of four bootstrap progress lines are elided.
 export const HOOK_STARTED_SESSION =
   '{"type":"system","uuid":"9f3101c1-ac5b-48fd-a8bc-5b0dcc13afb5","hook_id":"56eebdca-70de-4c3c-a5f3-d3f4f4ec2096","subtype":"hook_started","hook_name":"SessionStart:startup","hook_event":"SessionStart","session_id":"c83b4bb1-f1fb-4039-b39c-d34f445d6c68"}';
 
@@ -98,28 +85,59 @@ export const HOOK_RESPONSE_BOOTSTRAP =
 export const HOOK_RESPONSE_FAILED =
   '{"type":"system","uuid":"5f2c0a71-3d5e-4a1b-9c88-2b6f0e4d1a33","output":"lore-doctor: skill drift detected\\n","stderr":"lore-doctor: skill drift detected\\n","stdout":"","hook_id":"aa11bb22-cc33-dd44-ee55-ff6677889900","outcome":"blocked","subtype":"hook_response","exit_code":2,"hook_name":"PreToolUse:Bash","hook_event":"PreToolUse","session_id":"c83b4bb1-f1fb-4039-b39c-d34f445d6c68"}';
 
-// Heartbeats from a live review pod (task f89164e0, pod
-// agent-job-f89164e0-31a-review-zhs6b, 2026-08-28), carrying the attribution
-// envelope exactly as the transcript store holds them. A tool that runs long
-// emits one every ~30s, and they are CUMULATIVE: `elapsed_time_seconds` is the
-// total so far, and each line's own `tool_use_id` is a fresh
-// `<parent>-heartbeat-<n>`, so only `parent_tool_use_id` identifies the call.
-// The run emitted nineteen of these for one Skill; the elided ones differ from
-// these two only in how far the clock had run.
-
+// Live heartbeat capture (task f89164e0, 2026-08-28): cumulative `elapsed_time_seconds`, fresh `tool_use_id` each line — only `parent_tool_use_id` identifies the call; 17 of 19 elided.
 export const TOOL_PROGRESS_SKILL_FIRST =
   '{"event":{"type":"tool_progress","uuid":"fef6ccfa-242e-4fb6-b3b7-86b01dd4a606","heartbeat":true,"tool_name":"Skill","session_id":"a87a1a11-4898-4b8c-b252-b5b48f3f9021","tool_use_id":"toolu_01U2T4eX8rrZghzWR3ETfD5X-heartbeat-13","parent_tool_use_id":"toolu_01U2T4eX8rrZghzWR3ETfD5X","elapsed_time_seconds":420},"source":{"pod":"agent-job-f89164e0-31a-review-zhs6b","task":"f89164e0-31ad-4429-9d46-f1a6367d8f89","agent":"f89164e0-31a-review","station":"pt-f89164e0","namespace":"ai-agents"}}';
 
 export const TOOL_PROGRESS_SKILL_LAST =
   '{"event":{"type":"tool_progress","uuid":"931f6491-d1ef-40c2-b2f7-5286c79f3b21","heartbeat":true,"tool_name":"Skill","session_id":"a87a1a11-4898-4b8c-b252-b5b48f3f9021","tool_use_id":"toolu_01U2T4eX8rrZghzWR3ETfD5X-heartbeat-19","parent_tool_use_id":"toolu_01U2T4eX8rrZghzWR3ETfD5X","elapsed_time_seconds":600},"source":{"pod":"agent-job-f89164e0-31a-review-zhs6b","task":"f89164e0-31ad-4429-9d46-f1a6367d8f89","agent":"f89164e0-31a-review","station":"pt-f89164e0","namespace":"ai-agents"}}';
 
-/** A `system` line of a subtype the parser has never seen. Pins the generic
- *  fallback: unrecognized system events must summarize, not dump raw JSON. */
+/** Unrecognized `system` subtype — pins that the fallback summarizes rather than dumping raw JSON. */
 export const SYSTEM_COMPACT_BOUNDARY =
   '{"type":"system","subtype":"compact_boundary","compact_metadata":{"trigger":"auto","pre_tokens":154238},"uuid":"7c1e9d40-8a2b-4f6c-b1d3-9e0a5c7f2b18","session_id":"c83b4bb1-f1fb-4039-b39c-d34f445d6c68"}';
 
-// The ai-agent-subsystem's attribution envelope (ADR-031 D8) — single and the
-// transitional double wrap both appear in prod streams.
+// gemini-cli stream-json is FLAT (no message.content blocks): `init`, string `content`, top-level `tool_use`/`tool_result` keyed by `tool_id`, `parameters` not `input`; prose arrives only as `delta:true` chunks to merge (nonInteractiveCli.ts never emits a final message).
+export const GEMINI_INIT =
+  '{"type":"init","model":"gemini-3.1-pro-preview","timestamp":"2026-09-02T07:09:20.459Z","session_id":"c8f63789-c5d5-4844-a11d-009f61886864"}';
+
+export const GEMINI_USER_MESSAGE =
+  '{"role":"user","type":"message","content":"Review pull request #1687 in re-cinq/lore (branch lore/implementation-loop/issue-1625).","timestamp":"2026-09-02T07:09:20.464Z"}';
+
+export const GEMINI_TOOL_USE =
+  '{"type":"tool_use","tool_id":"run_shell_command__call_659048","timestamp":"2026-09-02T07:09:23.523Z","tool_name":"run_shell_command","parameters":{"command":"git -C /workspace/target diff main...HEAD"}}';
+
+// `status` is the CLI's own dispatch verdict, not the command's exit — this live line carries a failed diff under status "success".
+export const GEMINI_TOOL_RESULT_OK =
+  '{"type":"tool_result","output":"error: cannot run : No such file or directory\\nfatal: external diff died, stopping at .lore/pr-body.md","status":"success","tool_id":"run_shell_command__call_659048","timestamp":"2026-09-02T07:09:23.683Z"}';
+
+// Schema-true (not captured) per packages/core/src/output/types.ts of gemini-cli — the run above ended before emitting these.
+export const GEMINI_TOOL_RESULT_ERROR =
+  '{"type":"tool_result","status":"error","error":{"type":"ToolError","message":"File not found: /workspace/target/missing.ts"},"tool_id":"read_file__call_112233","timestamp":"2026-09-02T07:10:01.000Z"}';
+
+export const GEMINI_ASSISTANT_DELTA_FIRST =
+  '{"type":"message","role":"assistant","content":"The PR adds a traceability","delta":true,"timestamp":"2026-09-02T07:10:02.000Z"}';
+
+export const GEMINI_ASSISTANT_DELTA_LAST =
+  '{"type":"message","role":"assistant","content":" link to the Rollout section.","delta":true,"timestamp":"2026-09-02T07:10:02.400Z"}';
+
+export const GEMINI_ERROR_EVENT =
+  '{"type":"error","severity":"error","message":"Model gemini-2.5-pro not found for this API key","timestamp":"2026-09-02T07:10:03.000Z"}';
+
+export const GEMINI_RESULT_SUCCESS =
+  '{"type":"result","status":"success","stats":{"total_tokens":48211},"timestamp":"2026-09-02T07:10:04.000Z"}';
+
+export const GEMINI_RESULT_ERROR =
+  '{"type":"result","status":"error","error":{"type":"QuotaError","message":"Resource has been exhausted"},"timestamp":"2026-09-02T07:10:04.000Z"}';
+
+// Declared-artifact delivery (task b0f8665a, 2026-09-02): each `output.watch` file raises as `kind:"file"`; its own `event` name must not be mistaken for the attribution wrapper.
+export const FILE_EVENT_PR_DESCRIPTION =
+  '{"event":{"kind":"file","path":"/workspace/target/.lore/pr-body.md","event":"pr.description","content":"The codebase already consolidated the duplicated clip.\\n\\nNo deviations were necessary.\\n"},"source":{"pod":"agent-job-94600b2c-cd7-ready-for-review-3-t2dnm","task":"b0f8665a-07ea-41e2-a602-92d871c192fd","agent":"94600b2c-cd7-ready-for-review-3","station":"pt-b0f8665a","namespace":"ai-agents"}}';
+
+// Other half of the contract: a never-produced artifact reports `reason` instead of `content` (mutually exclusive).
+export const FILE_EVENT_MISSING =
+  '{"kind":"file","path":"/workspace/target/.lore/pr-body.md","event":"pr.description","reason":"agent exited before writing the file"}';
+
+// ai-agent-subsystem attribution envelope (ADR-031 D8) — single and the transitional double wrap both appear in prod streams.
 export function wrapped(line: string): string {
   return JSON.stringify({ source: { task: "t1" }, event: JSON.parse(line) });
 }

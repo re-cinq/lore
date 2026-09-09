@@ -7,7 +7,7 @@
 ## Done when these pass
 
 - [ ] **deletes the per-task token key from agent-secrets when pruning an orphaned definition** — when `pruneOnce` sweeps a `pt-XXXX` definition it must call `deleteSecretKey("GH_TOKEN_XXXX")` so the satellite does not accumulate the key indefinitely
-  `apps/cluster-agent/src/reap/prune-loop.test.ts`
+  `apps/cluster-agent/src/work/reap/prune-loop.test.ts`
 
 ## Facets
 

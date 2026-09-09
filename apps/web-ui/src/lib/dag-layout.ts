@@ -1,12 +1,10 @@
-// Deterministic layered layout for assembly-line definition graphs. Zero
-// dependencies by design: the graphs are at most a handful of nodes, so a
-// longest-path layering plus fixed-pitch placement beats pulling dagre or d3
-// into the bundle for the same result.
+// Deterministic layered layout for assembly-line definition graphs.
 
 import type {
   AssemblyLineDefinition,
   DefinitionEdge,
 } from "./assembly-line-definition";
+import { contentBoxOf, pathFor } from "./dag-layout-paths";
 
 export type EdgeKind = "forward" | "back" | "self";
 
@@ -36,11 +34,7 @@ export interface GraphLayout {
   edges: LayoutEdge[];
   width: number;
   height: number;
-  /**
-   * Tight bounds of everything drawn — node boxes and edge arcs. The view fits
-   * its viewBox to this so a one-node graph sits in a small frame instead of
-   * floating in a canvas sized for the whole layer grid.
-   */
+  /** Tight bounds of everything drawn. */
   contentBox: Box;
 }
 
@@ -54,7 +48,7 @@ export interface LayoutOptions {
   arcDrop?: number;
 }
 
-type ResolvedOptions = Required<LayoutOptions>;
+export type ResolvedOptions = Required<LayoutOptions>;
 
 const DEFAULTS: ResolvedOptions = {
   layerGap: 240, // a 132px node box plus 108px of connector air per column; shrinking it crowds the edge paths
@@ -66,64 +60,73 @@ const DEFAULTS: ResolvedOptions = {
   arcDrop: 56,
 };
 
-/**
- * Edges that would make the graph cyclic, found by a DFS from `entry` in
- * declaration order: an edge into a node still on the stack is a back edge, and
- * an edge onto its own source is a self-loop. Both are excluded from layering.
- */
+/** Cyclic edges found by DFS; back-edges and self-loops excluded. */
 function cyclicEdges(def: AssemblyLineDefinition): Set<DefinitionEdge> {
-  const cyclic = new Set<DefinitionEdge>();
-  const onStack = new Set<string>();
-  const done = new Set<string>();
   const outgoing = new Map<string, DefinitionEdge[]>();
 
   for (const edge of def.edges) {
     outgoing.set(edge.from, [...(outgoing.get(edge.from) ?? []), edge]);
   }
-
-  const visit = (id: string): void => {
-    onStack.add(id);
-
-    for (const edge of outgoing.get(id) ?? []) {
-      if (edge.to === edge.from || onStack.has(edge.to)) {
-        cyclic.add(edge);
-        continue;
-      }
-
-      if (!done.has(edge.to)) {
-        visit(edge.to);
-      }
-    }
-
-    onStack.delete(id);
-    done.add(id);
+  const walk: CycleWalk = {
+    outgoing,
+    cyclic: new Set<DefinitionEdge>(),
+    onStack: new Set<string>(),
+    done: new Set<string>(),
   };
 
-  visit(def.entry);
+  visitForCycles(def.entry, walk);
 
   for (const node of def.nodes) {
-    if (!done.has(node.id)) {
-      visit(node.id);
+    if (!walk.done.has(node.id)) {
+      visitForCycles(node.id, walk);
     }
   }
 
-  return cyclic;
+  return walk.cyclic;
 }
 
-/**
- * Layer index per node: the longest acyclic path from a source, so a node sits
- * one column right of its latest predecessor. Back-edges and self-loops are
- * ignored, which is what keeps a retry loop from pushing its target rightwards.
- */
-export function layerByLongestPath(
-  def: AssemblyLineDefinition,
-): Map<string, number> {
+/** The bookkeeping one depth-first cycle hunt threads through its recursion. */
+interface CycleWalk {
+  outgoing: Map<string, DefinitionEdge[]>;
+  cyclic: Set<DefinitionEdge>;
+  onStack: Set<string>;
+  done: Set<string>;
+}
+
+/** Descend from one node, recording every edge that closes back onto the stack. */
+function visitForCycles(id: string, walk: CycleWalk): void {
+  const { onStack, done, cyclic, outgoing } = walk;
+
+  onStack.add(id);
+
+  for (const edge of outgoing.get(id) ?? []) {
+    if (edge.to === edge.from || onStack.has(edge.to)) {
+      cyclic.add(edge);
+      continue;
+    }
+
+    if (!done.has(edge.to)) {
+      visitForCycles(edge.to, walk);
+    }
+  }
+
+  onStack.delete(id);
+  done.add(id);
+}
+
+/** Whether this edge advances the layout. A back-edge would make every node in its cycle claim an ever-deeper layer; an edge naming an undeclared node would have the layout invent one. */
+function isForwardEdge(
+  edge: DefinitionEdge,
+  cyclic: Set<DefinitionEdge>,
+  declared: Set<string>,
+): boolean {
+  return !cyclic.has(edge) && declared.has(edge.from) && declared.has(edge.to);
+}
+
+/** The definition with its back-edges removed, indexed for a topological walk. Back-edges are dropped rather than followed: a retry loop points at a node the walk has already placed, and honouring it would make every node in the cycle claim a layer deeper than the last, forever. Edges naming an undeclared node go too — a definition can reference a node it does not define, and a layout must not invent one. */
+function forwardGraph(def: AssemblyLineDefinition) {
   const cyclic = cyclicEdges(def);
   const declared = new Set(def.nodes.map((node) => node.id));
-  const acyclic = def.edges.filter(
-    (edge) =>
-      !cyclic.has(edge) && declared.has(edge.from) && declared.has(edge.to),
-  );
   const layers: Record<string, number> = {};
   const indegree: Record<string, number> = {};
 
@@ -131,29 +134,38 @@ export function layerByLongestPath(
     layers[node.id] = 0;
     indegree[node.id] = 0;
   }
-
   const acyclicOut = new Map<string, DefinitionEdge[]>();
 
-  for (const edge of acyclic) {
+  for (const edge of def.edges) {
+    if (!isForwardEdge(edge, cyclic, declared)) {
+      continue;
+    }
     indegree[edge.to] += 1;
     acyclicOut.set(edge.from, [...(acyclicOut.get(edge.from) ?? []), edge]);
   }
 
-  const queue = def.nodes
-    .map((node) => node.id)
-    .filter((id) => indegree[id] === 0);
+  return { layers, indegree, acyclicOut };
+}
+
+/** Layer index per node: longest acyclic path from source. */
+export function layerByLongestPath(
+  def: AssemblyLineDefinition,
+): Map<string, number> {
+  const { layers, indegree, acyclicOut } = forwardGraph(def);
+  const nodeIds = def.nodes.map((node) => node.id);
+  const queue = nodeIds.filter((id) => indegree[id] === 0);
 
   for (let head = 0; head < queue.length; head += 1) {
     const id = queue[head];
 
-    for (const edge of acyclicOut.get(id) ?? []) {
+    acyclicOut.get(id)?.forEach((edge) => {
       layers[edge.to] = Math.max(layers[edge.to], layers[id] + 1);
       indegree[edge.to] -= 1;
 
       if (indegree[edge.to] === 0) {
         queue.push(edge.to);
       }
-    }
+    });
   }
 
   return new Map(Object.entries(layers));
@@ -185,21 +197,15 @@ function edgeKind(edge: DefinitionEdge, layers: Map<string, number>): EdgeKind {
     : "back";
 }
 
-/**
- * Positions and SVG path data for one definition. Forward edges run between
- * facing ports, back edges arc under the whole row so they read as returns
- * rather than as another forward hop, and a self-loop arcs over its own node so
- * it is visible instead of collapsing to a zero-length line.
- */
-export function layoutAssemblyLine(
+/** One node per row within its layer, in declaration order. Deterministic by construction — no sorting and no crossing minimization — because a layout that reshuffles between renders makes a live run look like it changed when only the renderer did. */
+function placeNodes(
   def: AssemblyLineDefinition,
-  options: LayoutOptions = {},
-): GraphLayout {
-  const opts = { ...DEFAULTS, ...options };
-  const layers = layerByLongestPath(def);
+  layers: Map<string, number>,
+  opts: ResolvedOptions,
+): LayoutNode[] {
   const rowsUsed = new Map<number, number>();
 
-  const nodes: LayoutNode[] = def.nodes.map((node) => {
+  return def.nodes.map((node) => {
     const layer = layerOf(layers, node.id);
     const row = rowsUsed.get(layer) ?? 0;
 
@@ -213,115 +219,61 @@ export function layoutAssemblyLine(
       y: opts.originY + row * opts.rowGap,
     };
   });
+}
 
-  const byId = new Map(nodes.map((node) => [node.id, node]));
-  const floor =
-    Math.max(...nodes.map((node) => node.y)) +
-    opts.nodeHeight / 2 +
-    opts.arcDrop;
-
-  const edges: LayoutEdge[] = classifyEdges(def, layers).map((edge) => ({
-    ...edge,
-    d: pathFor(edge, byId, opts, floor),
-  }));
+/** Positions, SVG path data for definition; forward/back/self-loop edges. */
+export function layoutAssemblyLine(
+  def: AssemblyLineDefinition,
+  options: LayoutOptions = {},
+): GraphLayout {
+  const opts = { ...DEFAULTS, ...options };
+  const layers = layerByLongestPath(def);
+  const nodes = placeNodes(def, layers, opts);
+  const floor = arcFloor(nodes, opts);
+  const edges = layoutEdges({ def, layers, nodes, opts, floor });
 
   return {
     nodes,
     edges,
-    width:
-      opts.originX +
-      Math.max(...nodes.map((n) => n.layer)) * opts.layerGap +
-      opts.nodeWidth,
+    width: layoutWidth(nodes, opts),
     height: floor + opts.arcDrop,
     contentBox: contentBoxOf(nodes, edges, opts),
   };
 }
 
-/** Every coordinate pair in a path's `d` — the curve stays within the hull of
- *  these, so bounding by them bounds the arc. */
-function pointsOf(d: string): { x: number; y: number }[] {
-  const nums = (d.match(/-?\d+(\.\d+)?/g) ?? []).map(Number);
-  const points: { x: number; y: number }[] = [];
-
-  for (let i = 0; i + 1 < nums.length; i += 2) {
-    points.push({ x: nums[i], y: nums[i + 1] });
-  }
-
-  return points;
+/** Back-edges arc BELOW everything, so the floor clears the lowest node plus the arc's own drop. */
+function arcFloor(nodes: LayoutNode[], opts: ResolvedOptions): number {
+  return (
+    Math.max(...nodes.map((node) => node.y)) +
+    opts.nodeHeight / 2 +
+    opts.arcDrop
+  );
 }
 
-function contentBoxOf(
-  nodes: LayoutNode[],
-  edges: LayoutEdge[],
-  opts: ResolvedOptions,
-): Box {
-  const halfW = opts.nodeWidth / 2;
-  const halfH = opts.nodeHeight / 2;
-  const xs: number[] = [];
-  const ys: number[] = [];
-
-  for (const node of nodes) {
-    xs.push(node.x - halfW, node.x + halfW);
-    ys.push(node.y - halfH, node.y + halfH);
-  }
-
-  for (const edge of edges) {
-    for (const point of pointsOf(edge.d)) {
-      xs.push(point.x);
-      ys.push(point.y);
-    }
-  }
-
-  return {
-    minX: Math.min(...xs),
-    minY: Math.min(...ys),
-    maxX: Math.max(...xs),
-    maxY: Math.max(...ys),
-  };
+/** Right edge of the deepest column, node box included. */
+function layoutWidth(nodes: LayoutNode[], opts: ResolvedOptions): number {
+  return (
+    opts.originX +
+    Math.max(...nodes.map((node) => node.layer)) * opts.layerGap +
+    opts.nodeWidth
+  );
 }
 
-function pathFor(
-  edge: ClassifiedEdge,
-  byId: Map<string, LayoutNode>,
-  opts: ResolvedOptions,
-  floor: number,
-): string {
-  const from = byId.get(edge.from);
-  const to = byId.get(edge.to);
+interface EdgeLayoutInput {
+  def: AssemblyLineDefinition;
+  layers: Map<string, number>;
+  nodes: LayoutNode[];
+  opts: ResolvedOptions;
+  floor: number;
+}
 
-  if (!from || !to) {
-    return "";
-  }
+/** Every classified edge with its drawn path resolved against the placed nodes. */
+function layoutEdges(input: EdgeLayoutInput): LayoutEdge[] {
+  const { def, layers, nodes, opts, floor } = input;
+  const byId = new Map(nodes.map((node) => [node.id, node]));
 
-  const halfW = opts.nodeWidth / 2;
-  const halfH = opts.nodeHeight / 2;
-
-  if (edge.kind === "self") {
-    const top = from.y - halfH;
-
-    return [
-      `M ${from.x} ${top}`,
-      `C ${from.x - halfW} ${top - opts.arcDrop}`,
-      `${from.x + halfW} ${top - opts.arcDrop}`,
-      `${from.x + halfW} ${from.y}`,
-    ].join(" ");
-  }
-
-  if (edge.kind === "back") {
-    return [
-      `M ${from.x} ${from.y + halfH}`,
-      `C ${from.x} ${floor}`,
-      `${to.x} ${floor}`,
-      `${to.x} ${to.y + halfH}`,
-    ].join(" ");
-  }
-
-  const bend = opts.layerGap / 3;
-
-  return [
-    `M ${from.x + halfW} ${from.y}`,
-    `C ${from.x + halfW + bend} ${from.y}`,
-    `${to.x - halfW - bend} ${to.y}`,
-    `${to.x - halfW} ${to.y}`,
-  ].join(" ");
+  return classifyEdges(def, layers).map((edge) => ({
+    ...edge,
+    d: pathFor(edge, byId, opts, floor),
+  }));
 }

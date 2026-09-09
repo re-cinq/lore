@@ -46,6 +46,7 @@ locals {
     "lore-cluster-agent-registration-token",
     ],
     var.enable_anthropic_admin_key ? ["lore-anthropic-admin-api-key"] : [],
+    var.enable_gemini ? ["lore-gemini-api-key"] : [],
   )
 }
 

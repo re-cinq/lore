@@ -11,6 +11,10 @@ podDisruptionBudget:
   enabled: true
   minAvailable: 1
 
+# GCP project of the `lore-api` GSA the pod's KSA impersonates for Vertex
+# embeddings (templates/serviceaccount.yaml). Set by terraform.
+gcpProject: ""
+
 image:
   repository: ghcr.io/re-cinq/lore-api
   tag: latest

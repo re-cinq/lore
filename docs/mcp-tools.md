@@ -7,7 +7,7 @@ language: what each one is for, and where the work happens.
 
 New to Lore? Start with the [README](../README.md). Engineers wanting the wiring
 details can start at the [mcp-server README](../apps/mcp-server/README.md) and
-read the source under `apps/mcp-server/src/mcp/tools/`.
+read the source under `apps/mcp-server/src/transport/tools/`.
 
 Want the per-tool reference — parameters, returns, and disambiguation between
 similar tools? See [mcp-tools-reference.md](./mcp-tools-reference.md).

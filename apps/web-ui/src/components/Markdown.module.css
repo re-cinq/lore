@@ -9,6 +9,10 @@
   line-height: 1.65;
   color: var(--text);
   overflow-wrap: anywhere;
+  /* Rendered prose owns its own whitespace — a pre-wrap ancestor (the
+     CollapsibleCard body) must not turn react-markdown's inter-element
+     newlines into visible gaps. */
+  white-space: normal;
 }
 
 .prose > :first-child {

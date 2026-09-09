@@ -83,7 +83,7 @@ resource "kubectl_manifest" "es_ai_agents_secrets" {
           }
         }
       }
-      data = [
+      data = concat([
         {
           secretKey = "ANTHROPIC_API_KEY"
           remoteRef = { key = "lore-anthropic-api-key" }
@@ -96,7 +96,15 @@ resource "kubectl_manifest" "es_ai_agents_secrets" {
           secretKey = "LORE_AGENT_INTERNAL_TOKEN"
           remoteRef = { key = "lore-agent-internal-token" }
         },
-      ]
+        ], var.enable_gemini ? [
+        {
+          # The GeminiAgent vendor's CLI reads this standard env var; the
+          # controller maps it from this Secret when a recipe's secrets list
+          # names it (which the catalog render does for gemini-family models).
+          secretKey = "GEMINI_API_KEY"
+          remoteRef = { key = "lore-gemini-api-key" }
+        },
+      ] : [])
     }
   })
 

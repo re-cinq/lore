@@ -3,6 +3,7 @@ import {
   parseAgentLog,
   parseAgentLogLine,
   logEntriesFromValue,
+  mergedDelta,
   supersedesPrevious,
   rateLimitSummary,
   formatTokens,
@@ -28,6 +29,8 @@ import {
   RESULT_TERMINAL,
   STATION_LOG,
   NODE_RESULT_LINE,
+  FILE_EVENT_PR_DESCRIPTION,
+  FILE_EVENT_MISSING,
   RUNNER_MARKER,
   wrapped,
   doubleWrapped,
@@ -44,6 +47,16 @@ import {
   TOOL_PROGRESS_SKILL_FIRST,
   TOOL_PROGRESS_SKILL_LAST,
   SYSTEM_COMPACT_BOUNDARY,
+  GEMINI_INIT,
+  GEMINI_USER_MESSAGE,
+  GEMINI_TOOL_USE,
+  GEMINI_TOOL_RESULT_OK,
+  GEMINI_TOOL_RESULT_ERROR,
+  GEMINI_ASSISTANT_DELTA_FIRST,
+  GEMINI_ASSISTANT_DELTA_LAST,
+  GEMINI_ERROR_EVENT,
+  GEMINI_RESULT_SUCCESS,
+  GEMINI_RESULT_ERROR,
 } from "./agent-log-entries.fixtures";
 
 describe("parseAgentLog", () => {
@@ -84,6 +97,16 @@ describe("parseAgentLog", () => {
     expect((entry as { detailsJson: string }).detailsJson).toMatch(
       /"permissionMode": "bypassPermissions"/,
     );
+  });
+
+  it("falls back to 'unknown model' and no version when an init line carries neither", () => {
+    const [entry] = parseAgentLogLine('{"type":"system","subtype":"init"}');
+
+    expect(entry).toEqual({
+      kind: "session-init",
+      model: "unknown model",
+      detailsJson: JSON.stringify({ type: "system", subtype: "init" }, null, 2),
+    });
   });
 
   it("coalesces a run of three thinking_tokens lines into one entry with the latest count 444", () => {
@@ -241,6 +264,22 @@ describe("parseAgentLog", () => {
     expect(parseAgentLog(twoBlocks)).toEqual([
       { kind: "thinking", text: "checking the diff first" },
       { kind: "tool-use", summary: "→ Bash: gh pr diff 871" },
+    ]);
+  });
+
+  it("drops a thinking block whose text is blank and a text block whose text is blank", () => {
+    const blankBlocks = JSON.stringify({
+      type: "assistant",
+      message: {
+        content: [
+          { type: "thinking", thinking: "   " },
+          { type: "text", text: "  " },
+        ],
+      },
+    });
+
+    expect(parseAgentLog(blankBlocks)).toEqual([
+      { kind: "raw", text: blankBlocks },
     ]);
   });
 
@@ -615,5 +654,188 @@ describe("unrecognized system subtypes", () => {
   it("keeps init and thinking_tokens on their own entries, not the fallback", () => {
     expect(parseAgentLog(SESSION_INIT)[0].kind).toBe("session-init");
     expect(parseAgentLog(THINKING_TOKENS_11)[0].kind).toBe("thinking-tokens");
+  });
+});
+
+describe("gemini stream-json dialect", () => {
+  it("parses the gemini init line to model gemini-3.1-pro-preview with pretty details", () => {
+    expect(parseAgentLog(wrapped(GEMINI_INIT))).toEqual([
+      {
+        kind: "session-init",
+        model: "gemini-3.1-pro-preview",
+        detailsJson: JSON.stringify(JSON.parse(GEMINI_INIT), null, 2),
+      },
+    ]);
+  });
+
+  it("parses a gemini user message with string content as user-text", () => {
+    expect(parseAgentLog(wrapped(GEMINI_USER_MESSAGE))).toEqual([
+      {
+        kind: "user-text",
+        text: "Review pull request #1687 in re-cinq/lore (branch lore/implementation-loop/issue-1625).",
+      },
+    ]);
+  });
+
+  it("summarizes a top-level gemini tool_use from tool_name and parameters.command", () => {
+    expect(parseAgentLog(wrapped(GEMINI_TOOL_USE))).toEqual([
+      {
+        kind: "tool-use",
+        summary:
+          "→ run_shell_command: git -C /workspace/target diff main...HEAD",
+      },
+    ]);
+  });
+
+  it("summarizes a gemini tool_use with no parameters as the bare tool name", () => {
+    expect(
+      parseAgentLog(
+        wrapped('{"type":"tool_use","tool_id":"x","tool_name":"ls"}'),
+      ),
+    ).toEqual([{ kind: "tool-use", summary: "→ ls" }]);
+  });
+
+  it("parses a gemini tool_result with status success as a non-error tool-result", () => {
+    expect(parseAgentLog(wrapped(GEMINI_TOOL_RESULT_OK))).toEqual([
+      {
+        kind: "tool-result",
+        text: "error: cannot run : No such file or directory\nfatal: external diff died, stopping at .lore/pr-body.md",
+        isError: false,
+      },
+    ]);
+  });
+
+  it("parses a gemini tool_result with status error to the error message and isError true", () => {
+    expect(parseAgentLog(wrapped(GEMINI_TOOL_RESULT_ERROR))).toEqual([
+      {
+        kind: "tool-result",
+        text: "File not found: /workspace/target/missing.ts",
+        isError: true,
+      },
+    ]);
+  });
+
+  it("merges consecutive delta chunks into one assistant-text entry", () => {
+    const log = [
+      wrapped(GEMINI_ASSISTANT_DELTA_FIRST),
+      wrapped(GEMINI_ASSISTANT_DELTA_LAST),
+    ].join("\n");
+
+    expect(parseAgentLog(log)).toEqual([
+      {
+        kind: "assistant-text",
+        text: "The PR adds a traceability link to the Rollout section.",
+        delta: true,
+      },
+    ]);
+  });
+
+  it("does not merge delta chunks across an intervening tool_use", () => {
+    const log = [
+      wrapped(GEMINI_ASSISTANT_DELTA_FIRST),
+      wrapped(GEMINI_TOOL_USE),
+      wrapped(GEMINI_ASSISTANT_DELTA_LAST),
+    ].join("\n");
+
+    expect(parseAgentLog(log).map((entry) => entry.kind)).toEqual([
+      "assistant-text",
+      "tool-use",
+      "assistant-text",
+    ]);
+  });
+
+  it("parses a gemini error event to agent-error with severity error", () => {
+    expect(parseAgentLog(wrapped(GEMINI_ERROR_EVENT))).toEqual([
+      {
+        kind: "agent-error",
+        severity: "error",
+        message: "Model gemini-2.5-pro not found for this API key",
+      },
+    ]);
+  });
+
+  it("parses a gemini error event with severity warning", () => {
+    expect(
+      parseAgentLog(
+        wrapped(
+          '{"type":"error","severity":"warning","message":"retrying after a transient failure"}',
+        ),
+      ),
+    ).toEqual([
+      {
+        kind: "agent-error",
+        severity: "warning",
+        message: "retrying after a transient failure",
+      },
+    ]);
+  });
+
+  it("parses a gemini result with status success as a non-error result", () => {
+    expect(parseAgentLog(wrapped(GEMINI_RESULT_SUCCESS))).toEqual([
+      { kind: "result", text: "", isError: false },
+    ]);
+  });
+
+  it("parses a gemini result with status error to the error message and isError true", () => {
+    expect(parseAgentLog(wrapped(GEMINI_RESULT_ERROR))).toEqual([
+      { kind: "result", text: "Resource has been exhausted", isError: true },
+    ]);
+  });
+
+  it("returns null from mergedDelta for a non-delta assistant entry", () => {
+    const plain: LogEntry = { kind: "assistant-text", text: "done" };
+    const delta: LogEntry = {
+      kind: "assistant-text",
+      text: " now",
+      delta: true,
+    };
+
+    expect(mergedDelta(plain, plain)).toBeNull();
+    expect(mergedDelta(undefined, delta)).toBeNull();
+    expect(mergedDelta(plain, delta)).toEqual({
+      kind: "assistant-text",
+      text: "done now",
+      delta: true,
+    });
+  });
+});
+
+describe("file artifact events", () => {
+  it("parses the wrapped pr.description artifact delivery into a file entry with its path and content", () => {
+    expect(parseAgentLog(FILE_EVENT_PR_DESCRIPTION)).toEqual([
+      {
+        kind: "file",
+        event: "pr.description",
+        path: "/workspace/target/.lore/pr-body.md",
+        content:
+          "The codebase already consolidated the duplicated clip.\n\nNo deviations were necessary.\n",
+      },
+    ]);
+  });
+
+  it("parses a never-produced artifact report into a file entry carrying the reason and empty content", () => {
+    expect(parseAgentLog(FILE_EVENT_MISSING)).toEqual([
+      {
+        kind: "file",
+        event: "pr.description",
+        path: "/workspace/target/.lore/pr-body.md",
+        content: "",
+        reason: "agent exited before writing the file",
+      },
+    ]);
+  });
+
+  it("defaults path and content to empty strings when a file event carries neither", () => {
+    expect(
+      parseAgentLogLine('{"kind":"file","event":"pr.description"}'),
+    ).toEqual([
+      { kind: "file", event: "pr.description", path: "", content: "" },
+    ]);
+  });
+
+  it("keeps a kind:file line without an event name as a raw entry", () => {
+    const line = '{"kind":"file","path":"/w/x.md","content":"c"}';
+
+    expect(parseAgentLog(line)).toEqual([{ kind: "raw", text: line }]);
   });
 });

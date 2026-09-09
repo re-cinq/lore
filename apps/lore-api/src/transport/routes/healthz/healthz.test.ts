@@ -1,0 +1,158 @@
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { buildServer } from "../../../app/build-server.js";
+import {
+  makePool,
+  useRateLimitSafeClock,
+  AUTH,
+  LEGACY_TOKEN,
+} from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
+
+vi.mock("@re-cinq/lore-server-core/platform/db.js", () => ({
+  getHealthStatus: vi.fn(),
+  isDbAvailable: vi.fn(),
+  getQueryEmbedding: vi.fn(),
+  embeddingHealth: vi.fn(),
+  embedderDegraded: vi.fn(),
+}));
+
+import {
+  getHealthStatus,
+  embeddingHealth,
+  embedderDegraded,
+} from "@re-cinq/lore-server-core/platform/db.js";
+
+const HEALTHY_EMBEDDER = {
+  lastOkAt: "2026-09-09T10:00:00.000Z",
+  lastFailureAt: null,
+  lastStatus: null,
+  consecutiveFailures: 0,
+};
+
+const originalEnv = { ...process.env };
+const inject = (pool: unknown, headers?: Record<string, string>) =>
+  buildServer(() => pool as any).inject({
+    method: "GET",
+    url: "/healthz",
+    headers,
+  });
+
+describe("GET /healthz", () => {
+  useRateLimitSafeClock();
+  beforeEach(() => {
+    process.env.LORE_INGEST_TOKEN = LEGACY_TOKEN;
+    delete process.env.LORE_DB_HOST;
+    vi.mocked(getHealthStatus).mockResolvedValue({ connected: true } as any);
+    vi.mocked(embeddingHealth).mockReturnValue(HEALTHY_EMBEDDER);
+    vi.mocked(embedderDegraded).mockReturnValue(false); // eslint-disable-line re-lint/no-flag-params -- a stubbed return value, not a flag argument
+  });
+  afterEach(() => {
+    process.env = { ...originalEnv };
+    vi.clearAllMocks();
+  });
+
+  it("returns 200 {status:ok} unauthenticated when connected", async () => {
+    const res = await inject(null);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.result).toEqual({ status: "ok" });
+  });
+
+  it("returns 503 {status:error} when disconnected and LORE_DB_HOST set", async () => {
+    process.env.LORE_DB_HOST = "db.internal";
+    vi.mocked(getHealthStatus).mockResolvedValue({ connected: false } as any);
+    const res = await inject(null);
+
+    expect(res.statusCode).toBe(503);
+    expect(res.result).toEqual({ status: "error" });
+  });
+
+  it("returns 200 ok when disconnected but no LORE_DB_HOST configured", async () => {
+    vi.mocked(getHealthStatus).mockResolvedValue({ connected: false } as any);
+    const res = await inject(null);
+
+    expect(res.result).toEqual({ status: "ok" });
+  });
+
+  it("includes database + task stats when authenticated and connected", async () => {
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({ rows: [{ today: 3, pending: 2 }] });
+    const res = await inject(pool, AUTH);
+
+    expect(res.result).toMatchObject({
+      status: "ok",
+      database: { connected: true },
+      tasks: { processed_today: 3, pending: 2 },
+    });
+  });
+
+  it("returns status degraded with the embeddings block when the embedder has 3 consecutive failures", async () => {
+    const pool = makePool();
+    const failing = {
+      lastOkAt: null,
+      lastFailureAt: "2026-09-09T10:05:00.000Z",
+      lastStatus: 403,
+      consecutiveFailures: 3,
+    };
+
+    pool.query.mockResolvedValue({ rows: [{ today: 0, pending: 0 }] });
+    vi.mocked(embeddingHealth).mockReturnValue(failing);
+    vi.mocked(embedderDegraded).mockReturnValue(true); // eslint-disable-line re-lint/no-flag-params -- a stubbed return value, not a flag argument
+    const res = await inject(pool, AUTH);
+
+    expect({ code: res.statusCode, body: res.result }).toEqual({
+      code: 200,
+      body: {
+        status: "degraded",
+        database: { connected: true },
+        embeddings: failing,
+        tasks: { processed_today: 0, pending: 0 },
+      },
+    });
+  });
+
+  it("falls back to zeroed task stats when the stats query throws", async () => {
+    const pool = makePool();
+
+    pool.query.mockRejectedValue(new Error("boom"));
+    const res = await inject(pool, AUTH);
+
+    expect((res.result as any).tasks).toEqual({
+      processed_today: 0,
+      pending: 0,
+    });
+  });
+
+  it("skips the stats query when authed but pool is null", async () => {
+    const res = await inject(null, AUTH);
+
+    expect(res.result).toMatchObject({
+      tasks: { processed_today: 0, pending: 0 },
+    });
+  });
+
+  it("zeroes task stats when the stats query returns no rows", async () => {
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({ rows: [] });
+    const res = await inject(pool, AUTH);
+
+    expect((res.result as any).tasks).toEqual({
+      processed_today: 0,
+      pending: 0,
+    });
+  });
+
+  it("authenticates using the first value of a duplicated authorization header", async () => {
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({ rows: [{ today: 1, pending: 1 }] });
+    const res = await inject(pool, {
+      authorization: [AUTH.authorization, "Bearer bogus"] as unknown as string,
+    });
+
+    expect(res.result).toMatchObject({
+      tasks: { processed_today: 1, pending: 1 },
+    });
+  });
+});

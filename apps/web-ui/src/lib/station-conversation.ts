@@ -1,6 +1,4 @@
-// Renders a Station's raw container log — interleaved runner markers and the
-// claude CLI's stream-json events — into a compact, human-readable transcript of
-// the model's conversation for the planning wizard's live view. Pure.
+// Renders Station log (runner markers + stream-json) into human-readable transcript.
 
 import { clip, toolSummary, toolResultText } from "./agent-log-entries";
 
@@ -15,6 +13,61 @@ interface StreamEvent {
   message?: { content?: ContentBlock[] };
 }
 
+function renderText(
+  block: Extract<ContentBlock, { type: "text" }>,
+): string | null {
+  return block.text?.trim() ? clip(block.text, 300) : null;
+}
+
+function renderThinking(
+  block: Extract<ContentBlock, { type: "thinking" }>,
+): string | null {
+  return block.thinking?.trim()
+    ? `thinking: ${clip(block.thinking, 240)}`
+    : null;
+}
+
+const RENDER_BY_TYPE: {
+  [K in ContentBlock["type"]]?: (
+    block: Extract<ContentBlock, { type: K }>,
+  ) => string | null;
+} = {
+  text: renderText,
+  thinking: renderThinking,
+  tool_use: toolSummary,
+};
+
+function renderContentPart<K extends ContentBlock["type"]>(
+  block: Extract<ContentBlock, { type: K }>,
+): string | null {
+  const render = RENDER_BY_TYPE[block.type];
+
+  return render ? render(block) : null;
+}
+
+function assistantParts(content: ContentBlock[]): string[] {
+  return content
+    .map(renderContentPart)
+    .filter((part): part is string => part !== null);
+}
+
+function renderAssistantEvent(content: ContentBlock[]): string | null {
+  const parts = assistantParts(content);
+
+  return parts.length ? parts.join("\n") : null;
+}
+
+function renderUserEvent(content: ContentBlock[]): string | null {
+  const results = content
+    .filter(
+      (b): b is Extract<ContentBlock, { type: "tool_result" }> =>
+        b.type === "tool_result",
+    )
+    .map((b) => `← ${clip(toolResultText(b.content), 120)}`);
+
+  return results.length ? results.join("\n") : null;
+}
+
 function renderEvent(event: StreamEvent): string | null {
   const content = event.message?.content;
 
@@ -23,30 +76,11 @@ function renderEvent(event: StreamEvent): string | null {
   }
 
   if (event.type === "assistant") {
-    const parts: string[] = [];
-
-    for (const block of content) {
-      if (block.type === "text" && block.text?.trim()) {
-        parts.push(clip(block.text, 300));
-      } else if (block.type === "thinking" && block.thinking?.trim()) {
-        parts.push(`thinking: ${clip(block.thinking, 240)}`);
-      } else if (block.type === "tool_use") {
-        parts.push(toolSummary(block));
-      }
-    }
-
-    return parts.length ? parts.join("\n") : null;
+    return renderAssistantEvent(content);
   }
 
   if (event.type === "user") {
-    const results = content
-      .filter(
-        (b): b is Extract<ContentBlock, { type: "tool_result" }> =>
-          b.type === "tool_result",
-      )
-      .map((b) => `← ${clip(toolResultText(b.content), 120)}`);
-
-    return results.length ? results.join("\n") : null;
+    return renderUserEvent(content);
   }
 
   return null; // system / result / thinking_tokens events are noise
@@ -54,36 +88,32 @@ function renderEvent(event: StreamEvent): string | null {
 
 const MARKER_RE = /^\[(runner|runner-cli|supervisor|agent)\b/;
 
+function renderJsonLine(trimmed: string): string | null {
+  try {
+    return renderEvent(JSON.parse(trimmed) as StreamEvent);
+  } catch {
+    return null;
+  }
+}
+
+function renderLine(trimmed: string): string | null {
+  if (trimmed.startsWith("{")) {
+    return renderJsonLine(trimmed);
+  }
+
+  return MARKER_RE.test(trimmed) ? trimmed : null;
+}
+
 export function formatStationConversation(
   rawLog: string,
   maxEvents = 30,
 ): string {
-  const out: string[] = [];
-
-  for (const line of rawLog.split("\n")) {
-    const trimmed = line.trim();
-
-    if (!trimmed) {
-      continue;
-    }
-
-    if (trimmed.startsWith("{")) {
-      let event: StreamEvent;
-
-      try {
-        event = JSON.parse(trimmed) as StreamEvent;
-      } catch {
-        continue;
-      }
-      const rendered = renderEvent(event);
-
-      if (rendered) {
-        out.push(rendered);
-      }
-    } else if (MARKER_RE.test(trimmed)) {
-      out.push(trimmed);
-    }
-  }
+  const out = rawLog
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((trimmed) => trimmed.length > 0)
+    .map(renderLine)
+    .filter((rendered): rendered is string => rendered !== null);
 
   return out.slice(-maxEvents).join("\n");
 }

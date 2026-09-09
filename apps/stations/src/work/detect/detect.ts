@@ -1,0 +1,83 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+// The detect station: runs one deterministic detection job (spec_drift / gap_detection / spec_coverage_validate / spec_coverage_backfill) against one repo, entirely over HTTP via createStationProject(repo) — no Postgres, Dgraph, or GitHub App in the pod (ADR-031 D6/D7); job_ref selects the detector.
+
+import {
+  specDriftJob,
+  gapDetectJob,
+  validateSpecCoverageJob,
+  specCoverageBackfillJob,
+} from "@re-cinq/lore-shared/detect/index.js";
+import { createStationProject, type Project } from "@re-cinq/lore-shared";
+import { eventLine, type NodeResult } from "@re-cinq/lore-assembly-lines";
+import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
+import type { StationEnv } from "../lib/station.js";
+
+const DETECT_SUMMARY_MAX = 200;
+
+// `specPath` narrows a detector to ONE specification — only the backfill honours it today, since the others are already short enough to run whole-repo.
+type Detector = (
+  repo: string,
+  project: Project,
+  specPath?: string,
+) => Promise<string>;
+
+const detectors: Record<string, Detector> = {
+  spec_drift: (repo, project) => specDriftJob({ repoFilter: repo, project }),
+  gap_detection: (repo, project) => gapDetectJob({ repoFilter: repo, project }),
+  spec_coverage_validate: (repo, project) =>
+    validateSpecCoverageJob({ repoFilter: repo, project }),
+  // The long one: an LLM judge over every candidate statement at a 30-minute budget; `specPathFilter` was declared and never set by anything, which is the seam that lets one node do one specification.
+  spec_coverage_backfill: (repo, project, specPath) =>
+    specCoverageBackfillJob({
+      repoFilter: repo,
+      project,
+      specPathFilter: specPath,
+    }),
+};
+
+// The detector this node names. A `job_ref` with no detector is a definition referring to something this build does not carry, so it fails here rather than reporting an empty detection.
+function detectorFor(
+  registry: Record<string, Detector>,
+  jobRef: string | undefined,
+): Detector {
+  const detector = jobRef ? registry[jobRef] : undefined;
+
+  enforceTrue(
+    detector,
+    Error,
+    `detect station: no detector for job_ref "${jobRef}"`,
+  );
+
+  return detector;
+}
+
+// What is about to be detected, named in the pod's log. The spec path is included only when the detection is scoped to one — a repo-wide run has none to name.
+function describeDetectStart(input: StationInput): string {
+  const scope = input.params.spec_path ? ` (${input.params.spec_path})` : "";
+
+  return `detect ${input.params.job_ref} on ${input.repo}${scope}`;
+}
+
+export async function runDetectStation(
+  input: StationInput,
+  _env?: StationEnv,
+  makeProject: (repo: string) => Project = (repo) => createStationProject(repo),
+  registry: Record<string, Detector> = detectors,
+): Promise<NodeResult> {
+  const jobRef = input.params.job_ref;
+  const detector = detectorFor(registry, jobRef);
+
+  console.log(eventLine(describeDetectStart(input)));
+  const summary = await detector(
+    input.repo,
+    makeProject(input.repo),
+    input.params.spec_path,
+  );
+
+  console.log(eventLine(summary.slice(0, DETECT_SUMMARY_MAX)));
+
+  return {
+    outcome: "success",
+    extras: { "Lore-Detect-Summary": summary.slice(0, DETECT_SUMMARY_MAX) },
+  };
+}

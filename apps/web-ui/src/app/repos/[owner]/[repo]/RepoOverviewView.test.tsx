@@ -5,10 +5,6 @@ import RepoOverviewView, { type RecentTask } from "./RepoOverviewView";
 import { type RepoEvent } from "./events/pagination";
 import { type Check } from "@/lib/enrollment";
 
-// EnrollmentSection (rendered as-is by the View) pulls in Icon, which calls
-// useTheme() and throws without a ThemeProvider. Stub the icon leaf so the
-// View's composition is the subject under test; EnrollmentSection's own markup
-// (incl. the reonboard button) still renders.
 vi.mock("@/components/Icon", () => ({ default: () => null }));
 
 const action = vi.fn();
@@ -23,12 +19,12 @@ const checks: Check[] = [
   },
   {
     id: "webhook",
-    label: "GitHub webhook → Floor",
+    label: "GitHub webhook → Lore",
     status: "warn",
     detail: "last delivery 401 — secret mismatch; re-set up",
     action: { kind: "setup-webhook", text: "set up" },
     copy: {
-      value: "https://lore-webhook.gcp.re-cinq.com/api/webhook/github",
+      value: "https://lore-events.gcp.re-cinq.com/api/events",
       label: "set this URL",
     },
   },
@@ -101,9 +97,7 @@ describe("RepoOverviewView", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "set up" })).toBeInTheDocument();
     expect(
-      screen.getByText(
-        "https://lore-webhook.gcp.re-cinq.com/api/webhook/github",
-      ),
+      screen.getByText("https://lore-events.gcp.re-cinq.com/api/events"),
     ).toBeInTheDocument();
   });
 
@@ -178,7 +172,6 @@ describe("RepoOverviewView", () => {
       "href",
       "https://github.com/re-cinq/lore/pull/7",
     );
-    // Second task has no PR — renders the em-dash placeholder.
     expect(screen.getByText("—")).toBeInTheDocument();
   });
 

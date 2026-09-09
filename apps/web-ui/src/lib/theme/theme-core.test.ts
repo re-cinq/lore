@@ -6,22 +6,22 @@ import {
   parseSchemePref,
   resolveColorScheme,
 } from "./theme-core";
-import { ICONS } from "@/components/icon-map";
+import { ICONS } from "@/lib/icon-map";
 
 describe("resolveColorScheme", () => {
   it("returns light when pref light regardless of system", () => {
-    expect(resolveColorScheme("light", true)).toBe("light");
-    expect(resolveColorScheme("light", false)).toBe("light");
+    expect(resolveColorScheme("light", "dark")).toBe("light");
+    expect(resolveColorScheme("light", "light")).toBe("light");
   });
 
   it("returns dark when pref dark regardless of system", () => {
-    expect(resolveColorScheme("dark", false)).toBe("dark");
-    expect(resolveColorScheme("dark", true)).toBe("dark");
+    expect(resolveColorScheme("dark", "light")).toBe("dark");
+    expect(resolveColorScheme("dark", "dark")).toBe("dark");
   });
 
   it("follows system when pref auto", () => {
-    expect(resolveColorScheme("auto", true)).toBe("dark");
-    expect(resolveColorScheme("auto", false)).toBe("light");
+    expect(resolveColorScheme("auto", "dark")).toBe("dark");
+    expect(resolveColorScheme("auto", "light")).toBe("light");
   });
 });
 

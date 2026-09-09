@@ -1,10 +1,7 @@
 export const dynamic = "force-dynamic";
 import { getRepo } from "@/lib/api/repos";
 import { revalidatePath } from "next/cache";
-import {
-  parsePrivilegedChanges,
-  type CurrentSettings,
-} from "@/lib/settings-form";
+import { parsePrivilegedChanges } from "@/lib/settings-form";
 import {
   putPrivilegedSettings,
   isEmptyPatch,
@@ -16,10 +13,11 @@ import {
 } from "@/lib/dark-factory-resolve";
 import DarkFactoryView from "./DarkFactoryView";
 import type { SaveState } from "../../settings/SaveResultBanner";
-
-interface RepoSettings {
-  dark_factory?: { execution?: { image?: string } };
-}
+import {
+  repoSettingsOf,
+  currentSettingsOf,
+  approvalPrFrom,
+} from "./page-input";
 
 async function saveDarkFactory(
   _prev: SaveState,
@@ -29,22 +27,17 @@ async function saveDarkFactory(
   const fullName = formData.get("full_name") as string;
 
   const repoRow = await getRepo(fullName);
-  const cur = (
-    repoRow.status === "ok" ? (repoRow.data.settings ?? {}) : {}
-  ) as RepoSettings;
-  const resolved = resolveDarkFactorySettings(cur.dark_factory ?? null);
-  const current: CurrentSettings = {
-    dark_factory: { ...resolved, execution: cur.dark_factory?.execution },
-  };
+  const current = currentSettingsOf(repoSettingsOf(repoRow));
   const patch = parsePrivilegedChanges(formData, current, []);
 
   let privileged: PrivilegedSaveResult | null = null;
 
   if (!isEmptyPatch(patch)) {
-    const approvalPr =
-      ((formData.get("approval_pr") as string) || "").trim() || undefined;
-
-    privileged = await putPrivilegedSettings(fullName, patch, approvalPr);
+    privileged = await putPrivilegedSettings(
+      fullName,
+      patch,
+      approvalPrFrom(formData),
+    );
   }
 
   revalidatePath(`/repos/${fullName}/dark-factory/settings`);
@@ -52,26 +45,26 @@ async function saveDarkFactory(
   return { saved: true, privileged };
 }
 
-export default async function RepoDarkFactory({
-  params,
-}: {
+interface RepoDarkFactoryProps {
   params: Promise<{ owner: string; repo: string }>;
-}) {
-  const { owner, repo } = await params;
+}
+
+export default async function RepoDarkFactory(props: RepoDarkFactoryProps) {
+  const { owner, repo } = await props.params;
   const fullName = `${owner}/${repo}`;
   const repoData = await getRepo(fullName);
 
   if (repoData.status !== "ok") {
     return <div>Repo not found</div>;
   }
-  const settings = (repoData.data.settings ?? {}) as RepoSettings;
-  const resolved = resolveDarkFactorySettings(settings.dark_factory ?? null);
+  const { dark_factory: darkFactory } = repoSettingsOf(repoData);
+  const resolved = resolveDarkFactorySettings(darkFactory ?? null);
 
   return (
     <DarkFactoryView
       fullName={fullName}
       resolved={resolved}
-      rawImage={settings.dark_factory?.execution?.image}
+      rawImage={darkFactory?.execution?.image}
       defaultExecutionImage={DEFAULT_EXECUTION_IMAGE}
       saveAction={saveDarkFactory}
     />

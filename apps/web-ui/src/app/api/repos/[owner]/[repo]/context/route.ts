@@ -1,14 +1,21 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
+import { pageOffsetParam } from "@/lib/page-offset";
 import { previewBlock } from "@/lib/preview-block";
 import { contentTypeOf } from "@/lib/content-types";
 import { fetchRepoChunks } from "@/app/repos/[owner]/[repo]/context/context-data";
 import { serverError } from "@/lib/api-error";
 import type { RepoContextChunk } from "@/app/repos/[owner]/[repo]/context/RepoContextView";
 
-// Load-more endpoint for the per-repo context list. The first page is rendered
-// server-side by page.tsx; this serves subsequent pages to the LoadMore client
-// component. Session is enforced upstream by withAuth (middleware.ts).
+/** Each chunk reduced to its preview block — the list shows excerpts, and shipping whole files to render an excerpt is the expensive half of this endpoint. */
+function previewChunks(chunks: RepoContextChunk[]) {
+  return chunks.map((c) => ({
+    ...c,
+    content: previewBlock(c.content, contentTypeOf(c.content_type)),
+  }));
+}
+
+// Load-more endpoint for the per-repo context list; session enforced upstream by withAuth (middleware.ts).
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ owner: string; repo: string }> },
@@ -18,17 +25,11 @@ export async function GET(
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q") || undefined;
   const type = searchParams.get("type") || undefined;
-  const offset = Math.max(
-    0,
-    parseInt(searchParams.get("offset") ?? "0", 10) || 0,
-  );
+  const offset = pageOffsetParam(searchParams);
 
   try {
     const page = await fetchRepoChunks(fullName, type, q, offset);
-    const chunks = (page.chunks as unknown as RepoContextChunk[]).map((c) => ({
-      ...c,
-      content: previewBlock(c.content, contentTypeOf(c.content_type)),
-    }));
+    const chunks = previewChunks(page.chunks as unknown as RepoContextChunk[]);
 
     return NextResponse.json({ chunks, hasMore: page.hasMore });
   } catch (err) {

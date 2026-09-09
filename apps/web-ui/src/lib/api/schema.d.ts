@@ -4,347 +4,6 @@
  */
 
 export interface paths {
-  "/api/platform/llm-status": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/platform/llm-status */
-    get: operations["get_api_platform_llm-status"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/repo-status": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/repo-status */
-    get: operations["get_api_repo-status"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/repos": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/repos */
-    get: operations["get_api_repos"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/repos/{owner}/{repo}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/repos/{owner}/{repo} */
-    get: operations["get_api_repos_owner_repo"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/settings": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/settings */
-    get: operations["get_api_settings"];
-    /** PUT /api/settings */
-    put: operations["put_api_settings"];
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/repos/{owner}/{repo}/sessions": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/repos/{owner}/{repo}/sessions */
-    get: operations["get_api_repos_owner_repo_sessions"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/repos/{owner}/{repo}/settings": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    /** PUT /api/repos/{owner}/{repo}/settings */
-    put: operations["put_api_repos_owner_repo_settings"];
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/pr-status": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/pr-status */
-    get: operations["get_api_pr-status"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/context": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/context */
-    get: operations["get_api_context"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/chunks": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/chunks */
-    get: operations["get_api_chunks"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/chunk-types": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/chunk-types */
-    get: operations["get_api_chunk-types"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/repos/{owner}/{repo}/chunk-summary": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/repos/{owner}/{repo}/chunk-summary */
-    get: operations["get_api_repos_owner_repo_chunk-summary"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/chunks/by-path": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/chunks/by-path */
-    get: operations["get_api_chunks_by-path"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/graph": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/graph */
-    get: operations["get_api_graph"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/task/{id}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/task/{id} */
-    get: operations["get_api_task_id"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/tasks": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/tasks */
-    get: operations["get_api_tasks"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/tasks/{id}/timeline": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/tasks/{id}/timeline */
-    get: operations["get_api_tasks_id_timeline"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/tasks/{id}/runs": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/tasks/{id}/runs */
-    get: operations["get_api_tasks_id_runs"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/repo-tasks": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/repo-tasks */
-    get: operations["get_api_repo-tasks"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/task-stats": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/task-stats */
-    get: operations["get_api_task-stats"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   "/api/agent-activity": {
     parameters: {
       query?: never;
@@ -362,15 +21,15 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/tasks/{id}/runtime": {
+  "/api/agent-definitions": {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    /** GET /api/tasks/{id}/runtime */
-    get: operations["get_api_tasks_id_runtime"];
+    /** GET /api/agent-definitions */
+    get: operations["get_api_agent-definitions"];
     put?: never;
     post?: never;
     delete?: never;
@@ -379,15 +38,168 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/audit-log": {
+  "/api/agent-definitions/usage": {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    /** GET /api/audit-log */
-    get: operations["get_api_audit-log"];
+    /** GET /api/agent-definitions/usage */
+    get: operations["get_api_agent-definitions_usage"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agent-definitions/{name}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** PUT /api/agent-definitions/{name} */
+    put: operations["put_api_agent-definitions_name"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agent-stats": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/agent-stats */
+    get: operations["get_api_agent-stats"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/analytics": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/analytics */
+    get: operations["get_api_analytics"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/analytics-overview": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/analytics-overview */
+    get: operations["get_api_analytics-overview"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/analytics/spend-window": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/analytics/spend-window */
+    get: operations["get_api_analytics_spend-window"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/assembly-lines": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/assembly-lines */
+    get: operations["get_api_assembly-lines"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/assembly-lines/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/assembly-lines/{id} */
+    get: operations["get_api_assembly-lines_id"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/assembly-lines/{id}/nodes": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/assembly-lines/{id}/nodes */
+    get: operations["get_api_assembly-lines_id_nodes"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/assembly-lines/{id}/token-usage": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/assembly-lines/{id}/token-usage */
+    get: operations["get_api_assembly-lines_id_token-usage"];
     put?: never;
     post?: never;
     delete?: never;
@@ -414,15 +226,32 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/assembly-lines": {
+  "/api/assembly-runs/{id}": {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    /** GET /api/assembly-lines */
-    get: operations["get_api_assembly-lines"];
+    /** GET /api/assembly-runs/{id} */
+    get: operations["get_api_assembly-runs_id"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/assembly-runs/{id}/dod": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/assembly-runs/{id}/dod */
+    get: operations["get_api_assembly-runs_id_dod"];
     put?: never;
     post?: never;
     delete?: never;
@@ -448,15 +277,15 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/assembly-lines/{id}/nodes": {
+  "/api/assembly-runs/{id}/stream": {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    /** GET /api/assembly-lines/{id}/nodes */
-    get: operations["get_api_assembly-lines_id_nodes"];
+    /** GET /api/assembly-runs/{id}/stream */
+    get: operations["get_api_assembly-runs_id_stream"];
     put?: never;
     post?: never;
     delete?: never;
@@ -482,15 +311,15 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/assembly-lines/{id}/token-usage": {
+  "/api/audit-log": {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    /** GET /api/assembly-lines/{id}/token-usage */
-    get: operations["get_api_assembly-lines_id_token-usage"];
+    /** GET /api/audit-log */
+    get: operations["get_api_audit-log"];
     put?: never;
     post?: never;
     delete?: never;
@@ -499,15 +328,15 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/assembly-lines/{id}": {
+  "/api/chunk-types": {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    /** GET /api/assembly-lines/{id} */
-    get: operations["get_api_assembly-lines_id"];
+    /** GET /api/chunk-types */
+    get: operations["get_api_chunk-types"];
     put?: never;
     post?: never;
     delete?: never;
@@ -516,15 +345,15 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/assembly-runs/{id}": {
+  "/api/chunks": {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    /** GET /api/assembly-runs/{id} */
-    get: operations["get_api_assembly-runs_id"];
+    /** GET /api/chunks */
+    get: operations["get_api_chunks"];
     put?: never;
     post?: never;
     delete?: never;
@@ -533,15 +362,15 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/tasks/by-pr/{owner}/{repo}/{number}": {
+  "/api/chunks/by-path": {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    /** GET /api/tasks/by-pr/{owner}/{repo}/{number} */
-    get: operations["get_api_tasks_by-pr_owner_repo_number"];
+    /** GET /api/chunks/by-path */
+    get: operations["get_api_chunks_by-path"];
     put?: never;
     post?: never;
     delete?: never;
@@ -550,18 +379,357 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/task-logs": {
+  "/api/cluster-agents": {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    /** GET /api/task-logs */
-    get: operations["get_api_task-logs"];
+    /** GET /api/cluster-agents */
+    get: operations["get_api_cluster-agents"];
     put?: never;
-    /** POST /api/task-logs */
-    post: operations["post_api_task-logs"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/cluster-agents/install-info": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/cluster-agents/install-info */
+    get: operations["get_api_cluster-agents_install-info"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/cluster-agents/install.sh": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/cluster-agents/install.sh */
+    get: operations["get_api_cluster-agents_install.sh"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/cluster-agents/register": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/cluster-agents/register */
+    post: operations["post_api_cluster-agents_register"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/cluster-agents/{id}/catalog-events": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/cluster-agents/{id}/catalog-events */
+    get: operations["get_api_cluster-agents_id_catalog-events"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/cluster-agents/{id}/catalog-status": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/cluster-agents/{id}/catalog-status */
+    post: operations["post_api_cluster-agents_id_catalog-status"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/cluster-agents/{id}/claim": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/cluster-agents/{id}/claim */
+    post: operations["post_api_cluster-agents_id_claim"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/cluster-agents/{id}/heartbeat": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/cluster-agents/{id}/heartbeat */
+    post: operations["post_api_cluster-agents_id_heartbeat"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/cluster-agents/{id}/paused": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** PUT /api/cluster-agents/{id}/paused */
+    put: operations["put_api_cluster-agents_id_paused"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/cluster-agents/{id}/release": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/cluster-agents/{id}/release */
+    post: operations["post_api_cluster-agents_id_release"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/cluster-agents/{id}/restart": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/cluster-agents/{id}/restart */
+    post: operations["post_api_cluster-agents_id_restart"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/context": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/context */
+    get: operations["get_api_context"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/docs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/docs */
+    get: operations["get_api_docs"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/embed": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/embed */
+    post: operations["post_api_embed"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/episode": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/episode */
+    post: operations["post_api_episode"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/episodes": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/episodes */
+    get: operations["get_api_episodes"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/events": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/events */
+    get: operations["get_api_events"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/graph": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/graph */
+    get: operations["get_api_graph"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/graph-browse": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/graph-browse */
+    get: operations["get_api_graph-browse"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/ingest": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/ingest */
+    post: operations["post_api_ingest"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/ingest/reembed": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/ingest/reembed */
+    post: operations["post_api_ingest_reembed"];
     delete?: never;
     options?: never;
     head?: never;
@@ -585,32 +753,15 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/task": {
+  "/api/job-runs/{id}": {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    get?: never;
-    put?: never;
-    /** POST /api/task */
-    post: operations["post_api_task"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/task-groups/{id}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/task-groups/{id} */
-    get: operations["get_api_task-groups_id"];
+    /** GET /api/job-runs/{id} */
+    get: operations["get_api_job-runs_id"];
     put?: never;
     post?: never;
     delete?: never;
@@ -619,88 +770,17 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/spec-tasks/sync": {
+  "/api/memories": {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    get?: never;
-    put?: never;
-    /** POST /api/spec-tasks/sync */
-    post: operations["post_api_spec-tasks_sync"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/spec-tasks/ready": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/spec-tasks/ready */
-    get: operations["get_api_spec-tasks_ready"];
+    /** GET /api/memories */
+    get: operations["get_api_memories"];
     put?: never;
     post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/spec-tasks/claim": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** POST /api/spec-tasks/claim */
-    post: operations["post_api_spec-tasks_claim"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/spec-tasks/complete": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** POST /api/spec-tasks/complete */
-    post: operations["post_api_spec-tasks_complete"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/task-turns/{taskId}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /**
-     * POST /api/task-turns/{taskId}
-     * @description Raw NDJSON body — one claude stream-json line per row, already redacted on the laptop before anything left the machine.
-     */
-    post: operations["post_api_task-turns_taskId"];
     delete?: never;
     options?: never;
     head?: never;
@@ -724,15 +804,83 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/graph-browse": {
+  "/api/memory-audit": {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    /** GET /api/graph-browse */
-    get: operations["get_api_graph-browse"];
+    /** GET /api/memory-audit */
+    get: operations["get_api_memory-audit"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/memory-search": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/memory-search */
+    get: operations["get_api_memory-search"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/onboard": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/onboard */
+    post: operations["post_api_onboard"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/openapi.json": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/openapi.json */
+    get: operations["get_api_openapi.json"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/platform/llm-status": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/platform/llm-status */
+    get: operations["get_api_platform_llm-status"];
     put?: never;
     post?: never;
     delete?: never;
@@ -775,15 +923,15 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/episodes": {
+  "/api/pr-status": {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    /** GET /api/episodes */
-    get: operations["get_api_episodes"];
+    /** GET /api/pr-status */
+    get: operations["get_api_pr-status"];
     put?: never;
     post?: never;
     delete?: never;
@@ -792,15 +940,15 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/memory-search": {
+  "/api/repo-status": {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    /** GET /api/memory-search */
-    get: operations["get_api_memory-search"];
+    /** GET /api/repo-status */
+    get: operations["get_api_repo-status"];
     put?: never;
     post?: never;
     delete?: never;
@@ -809,15 +957,15 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/memories": {
+  "/api/repo-tasks": {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    /** GET /api/memories */
-    get: operations["get_api_memories"];
+    /** GET /api/repo-tasks */
+    get: operations["get_api_repo-tasks"];
     put?: never;
     post?: never;
     delete?: never;
@@ -826,58 +974,58 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/episode": {
+  "/api/repos": {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    get?: never;
+    /** GET /api/repos */
+    get: operations["get_api_repos"];
     put?: never;
-    /** POST /api/episode */
-    post: operations["post_api_episode"];
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  "/api/session-summary": {
+  "/api/repos/{owner}/{repo}": {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    get?: never;
+    /** GET /api/repos/{owner}/{repo} */
+    get: operations["get_api_repos_owner_repo"];
     put?: never;
-    /** POST /api/session-summary */
-    post: operations["post_api_session-summary"];
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  "/api/ingest": {
+  "/api/repos/{owner}/{repo}/activity-counts": {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    get?: never;
+    /** GET /api/repos/{owner}/{repo}/activity-counts */
+    get: operations["get_api_repos_owner_repo_activity-counts"];
     put?: never;
-    /** POST /api/ingest */
-    post: operations["post_api_ingest"];
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  "/api/repos/{owner}/{repo}/ingest-graph": {
+  "/api/repos/{owner}/{repo}/agent-definitions": {
     parameters: {
       query?: never;
       header?: never;
@@ -886,8 +1034,132 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** POST /api/repos/{owner}/{repo}/ingest-graph */
-    post: operations["post_api_repos_owner_repo_ingest-graph"];
+    /** POST /api/repos/{owner}/{repo}/agent-definitions */
+    post: operations["post_api_repos_owner_repo_agent-definitions"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/agent-definitions/{name}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * GET /api/repos/{owner}/{repo}/agent-definitions/{name}
+     * @description A trailing path parameter is optional; omit it for the collection form.
+     */
+    get: operations["get_api_repos_owner_repo_agent-definitions_name"];
+    /** PUT /api/repos/{owner}/{repo}/agent-definitions/{name} */
+    put: operations["put_api_repos_owner_repo_agent-definitions_name"];
+    post?: never;
+    /** DELETE /api/repos/{owner}/{repo}/agent-definitions/{name} */
+    delete: operations["delete_api_repos_owner_repo_agent-definitions_name"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/branches": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/branches */
+    post: operations["post_api_repos_owner_repo_branches"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/chunk-summary": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/repos/{owner}/{repo}/chunk-summary */
+    get: operations["get_api_repos_owner_repo_chunk-summary"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/chunks/prune": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/chunks/prune */
+    post: operations["post_api_repos_owner_repo_chunks_prune"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/chunks/{kind}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/repos/{owner}/{repo}/chunks/{kind} */
+    get: operations["get_api_repos_owner_repo_chunks_kind"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/ci-conclusion": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/repos/{owner}/{repo}/ci-conclusion */
+    get: operations["get_api_repos_owner_repo_ci-conclusion"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/commit": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/commit */
+    post: operations["post_api_repos_owner_repo_commit"];
     delete?: never;
     options?: never;
     head?: never;
@@ -911,24 +1183,43 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/embed": {
+  "/api/repos/{owner}/{repo}/features": {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    get?: never;
+    /** GET /api/repos/{owner}/{repo}/features */
+    get: operations["get_api_repos_owner_repo_features"];
     put?: never;
-    /** POST /api/embed */
-    post: operations["post_api_embed"];
+    /** POST /api/repos/{owner}/{repo}/features */
+    post: operations["post_api_repos_owner_repo_features"];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  "/api/onboard": {
+  "/api/repos/{owner}/{repo}/features/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/repos/{owner}/{repo}/features/{id} */
+    get: operations["get_api_repos_owner_repo_features_id"];
+    put?: never;
+    post?: never;
+    /** DELETE /api/repos/{owner}/{repo}/features/{id} */
+    delete: operations["delete_api_repos_owner_repo_features_id"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/features/{id}/create-spec-file": {
     parameters: {
       query?: never;
       header?: never;
@@ -937,35 +1228,32 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** POST /api/onboard */
-    post: operations["post_api_onboard"];
+    /** POST /api/repos/{owner}/{repo}/features/{id}/create-spec-file */
+    post: operations["post_api_repos_owner_repo_features_id_create-spec-file"];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  "/api/webhook/slack": {
+  "/api/repos/{owner}/{repo}/features/{id}/decomposition": {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    get?: never;
+    /** GET /api/repos/{owner}/{repo}/features/{id}/decomposition */
+    get: operations["get_api_repos_owner_repo_features_id_decomposition"];
     put?: never;
-    /**
-     * POST /api/webhook/slack
-     * @description Request body is verified and parsed by the handler (HMAC/form-encoded), not JSON.
-     */
-    post: operations["post_api_webhook_slack"];
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  "/api/webhook/incident": {
+  "/api/repos/{owner}/{repo}/features/{id}/finalize": {
     parameters: {
       query?: never;
       header?: never;
@@ -974,11 +1262,385 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /**
-     * POST /api/webhook/incident
-     * @description Request body is verified and parsed by the handler (HMAC/form-encoded), not JSON.
-     */
-    post: operations["post_api_webhook_incident"];
+    /** POST /api/repos/{owner}/{repo}/features/{id}/finalize */
+    post: operations["post_api_repos_owner_repo_features_id_finalize"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/features/{id}/iterations": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/features/{id}/iterations */
+    post: operations["post_api_repos_owner_repo_features_id_iterations"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/features/{id}/iterations/{n}/result": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/features/{id}/iterations/{n}/result */
+    post: operations["post_api_repos_owner_repo_features_id_iterations_n_result"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/features/{id}/split": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/features/{id}/split */
+    post: operations["post_api_repos_owner_repo_features_id_split"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/features/{id}/status": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/repos/{owner}/{repo}/features/{id}/status */
+    get: operations["get_api_repos_owner_repo_features_id_status"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/impact": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/impact */
+    post: operations["post_api_repos_owner_repo_impact"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/impact/base": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/repos/{owner}/{repo}/impact/base */
+    get: operations["get_api_repos_owner_repo_impact_base"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/implementation-loop": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/repos/{owner}/{repo}/implementation-loop */
+    get: operations["get_api_repos_owner_repo_implementation-loop"];
+    /** PUT /api/repos/{owner}/{repo}/implementation-loop */
+    put: operations["put_api_repos_owner_repo_implementation-loop"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/ingest": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/ingest */
+    post: operations["post_api_repos_owner_repo_ingest"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/ingest-graph": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/ingest-graph */
+    post: operations["post_api_repos_owner_repo_ingest-graph"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/ingest-state": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/repos/{owner}/{repo}/ingest-state */
+    get: operations["get_api_repos_owner_repo_ingest-state"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/issues": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/repos/{owner}/{repo}/issues */
+    get: operations["get_api_repos_owner_repo_issues"];
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/issues */
+    post: operations["post_api_repos_owner_repo_issues"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/labels": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/repos/{owner}/{repo}/labels */
+    get: operations["get_api_repos_owner_repo_labels"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/onboarded": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/repos/{owner}/{repo}/onboarded */
+    get: operations["get_api_repos_owner_repo_onboarded"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/pulls": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/pulls */
+    post: operations["post_api_repos_owner_repo_pulls"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/pulls/{number}/files": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/repos/{owner}/{repo}/pulls/{number}/files */
+    get: operations["get_api_repos_owner_repo_pulls_number_files"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/sessions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/repos/{owner}/{repo}/sessions */
+    get: operations["get_api_repos_owner_repo_sessions"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/settings": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** PUT /api/repos/{owner}/{repo}/settings */
+    put: operations["put_api_repos_owner_repo_settings"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/settings/dark-factory": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/repos/{owner}/{repo}/settings/dark-factory */
+    get: operations["get_api_repos_owner_repo_settings_dark-factory"];
+    /** PUT /api/repos/{owner}/{repo}/settings/dark-factory */
+    put: operations["put_api_repos_owner_repo_settings_dark-factory"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/tasks": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/tasks */
+    post: operations["post_api_repos_owner_repo_tasks"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/tasks/drift": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/repos/{owner}/{repo}/tasks/drift */
+    get: operations["get_api_repos_owner_repo_tasks_drift"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/tasks/open-like": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/repos/{owner}/{repo}/tasks/open-like */
+    get: operations["get_api_repos_owner_repo_tasks_open-like"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/trace/{kind}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/repos/{owner}/{repo}/trace/{kind} */
+    get: operations["get_api_repos_owner_repo_trace_kind"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -1036,25 +1698,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/tokens": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/tokens */
-    get: operations["get_api_tokens"];
-    put?: never;
-    /** POST /api/tokens */
-    post: operations["post_api_tokens"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/cluster-agents/register": {
+  "/api/session-summary": {
     parameters: {
       query?: never;
       header?: never;
@@ -1063,15 +1707,33 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** POST /api/cluster-agents/register */
-    post: operations["post_api_cluster-agents_register"];
+    /** POST /api/session-summary */
+    post: operations["post_api_session-summary"];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  "/api/cluster-agents/{id}/claim": {
+  "/api/settings": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/settings */
+    get: operations["get_api_settings"];
+    /** PUT /api/settings */
+    put: operations["put_api_settings"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/spec-tasks/claim": {
     parameters: {
       query?: never;
       header?: never;
@@ -1080,66 +1742,15 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** POST /api/cluster-agents/{id}/claim */
-    post: operations["post_api_cluster-agents_id_claim"];
+    /** POST /api/spec-tasks/claim */
+    post: operations["post_api_spec-tasks_claim"];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  "/api/cluster-agents/install-info": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/cluster-agents/install-info */
-    get: operations["get_api_cluster-agents_install-info"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/cluster-agents/install.sh": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/cluster-agents/install.sh */
-    get: operations["get_api_cluster-agents_install.sh"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/cluster-agents/{id}/paused": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    /** PUT /api/cluster-agents/{id}/paused */
-    put: operations["put_api_cluster-agents_id_paused"];
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/cluster-agents/{id}/heartbeat": {
+  "/api/spec-tasks/complete": {
     parameters: {
       query?: never;
       header?: never;
@@ -1148,15 +1759,32 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** POST /api/cluster-agents/{id}/heartbeat */
-    post: operations["post_api_cluster-agents_id_heartbeat"];
+    /** POST /api/spec-tasks/complete */
+    post: operations["post_api_spec-tasks_complete"];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  "/api/cluster-agents/{id}/release": {
+  "/api/spec-tasks/ready": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/spec-tasks/ready */
+    get: operations["get_api_spec-tasks_ready"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/spec-tasks/sync": {
     parameters: {
       query?: never;
       header?: never;
@@ -1165,201 +1793,8 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** POST /api/cluster-agents/{id}/release */
-    post: operations["post_api_cluster-agents_id_release"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/cluster-agents": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/cluster-agents */
-    get: operations["get_api_cluster-agents"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/repos/{owner}/{repo}/settings/dark-factory": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/repos/{owner}/{repo}/settings/dark-factory */
-    get: operations["get_api_repos_owner_repo_settings_dark-factory"];
-    /** PUT /api/repos/{owner}/{repo}/settings/dark-factory */
-    put: operations["put_api_repos_owner_repo_settings_dark-factory"];
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/repos/{owner}/{repo}/agent-definitions/{name}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /**
-     * GET /api/repos/{owner}/{repo}/agent-definitions/{name}
-     * @description A trailing path parameter is optional; omit it for the collection form.
-     */
-    get: operations["get_api_repos_owner_repo_agent-definitions_name"];
-    /** PUT /api/repos/{owner}/{repo}/agent-definitions/{name} */
-    put: operations["put_api_repos_owner_repo_agent-definitions_name"];
-    post?: never;
-    /** DELETE /api/repos/{owner}/{repo}/agent-definitions/{name} */
-    delete: operations["delete_api_repos_owner_repo_agent-definitions_name"];
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/repos/{owner}/{repo}/agent-definitions": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** POST /api/repos/{owner}/{repo}/agent-definitions */
-    post: operations["post_api_repos_owner_repo_agent-definitions"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/usage": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/usage */
-    get: operations["get_api_usage"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/analytics": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/analytics */
-    get: operations["get_api_analytics"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/memory-audit": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/memory-audit */
-    get: operations["get_api_memory-audit"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/events": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/events */
-    get: operations["get_api_events"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/job-runs/{id}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/job-runs/{id} */
-    get: operations["get_api_job-runs_id"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/repos/{owner}/{repo}/activity-counts": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/repos/{owner}/{repo}/activity-counts */
-    get: operations["get_api_repos_owner_repo_activity-counts"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/spend": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/spend */
-    get: operations["get_api_spend"];
-    put?: never;
-    post?: never;
+    /** POST /api/spec-tasks/sync */
+    post: operations["post_api_spec-tasks_sync"];
     delete?: never;
     options?: never;
     head?: never;
@@ -1383,41 +1818,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/analytics-overview": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/analytics-overview */
-    get: operations["get_api_analytics-overview"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/agent-stats": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/agent-stats */
-    get: operations["get_api_agent-stats"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/repos/{owner}/{repo}/impact": {
+  "/api/task": {
     parameters: {
       query?: never;
       header?: never;
@@ -1426,23 +1827,23 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** POST /api/repos/{owner}/{repo}/impact */
-    post: operations["post_api_repos_owner_repo_impact"];
+    /** POST /api/task */
+    post: operations["post_api_task"];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  "/api/repos/{owner}/{repo}/impact/base": {
+  "/api/task-groups/{id}": {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    /** GET /api/repos/{owner}/{repo}/impact/base */
-    get: operations["get_api_repos_owner_repo_impact_base"];
+    /** GET /api/task-groups/{id} */
+    get: operations["get_api_task-groups_id"];
     put?: never;
     post?: never;
     delete?: never;
@@ -1451,15 +1852,33 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/repos/{owner}/{repo}/trace/{kind}": {
+  "/api/task-logs": {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    /** GET /api/repos/{owner}/{repo}/trace/{kind} */
-    get: operations["get_api_repos_owner_repo_trace_kind"];
+    /** GET /api/task-logs */
+    get: operations["get_api_task-logs"];
+    put?: never;
+    /** POST /api/task-logs */
+    post: operations["post_api_task-logs"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/task-stats": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/task-stats */
+    get: operations["get_api_task-stats"];
     put?: never;
     post?: never;
     delete?: never;
@@ -1468,76 +1887,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/repos/{owner}/{repo}/chunks/{kind}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/repos/{owner}/{repo}/chunks/{kind} */
-    get: operations["get_api_repos_owner_repo_chunks_kind"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/repos/{owner}/{repo}/onboarded": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/repos/{owner}/{repo}/onboarded */
-    get: operations["get_api_repos_owner_repo_onboarded"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/repos/{owner}/{repo}/issues": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/repos/{owner}/{repo}/issues */
-    get: operations["get_api_repos_owner_repo_issues"];
-    put?: never;
-    /** POST /api/repos/{owner}/{repo}/issues */
-    post: operations["post_api_repos_owner_repo_issues"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/repos/{owner}/{repo}/labels": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/repos/{owner}/{repo}/labels */
-    get: operations["get_api_repos_owner_repo_labels"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/repos/{owner}/{repo}/branches": {
+  "/api/task-turns/{taskId}": {
     parameters: {
       query?: never;
       header?: never;
@@ -1546,57 +1896,26 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** POST /api/repos/{owner}/{repo}/branches */
-    post: operations["post_api_repos_owner_repo_branches"];
+    /**
+     * POST /api/task-turns/{taskId}
+     * @description Raw NDJSON body — one claude stream-json line per row, already redacted on the laptop before anything left the machine.
+     */
+    post: operations["post_api_task-turns_taskId"];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  "/api/repos/{owner}/{repo}/commit": {
+  "/api/task/{id}": {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    get?: never;
-    put?: never;
-    /** POST /api/repos/{owner}/{repo}/commit */
-    post: operations["post_api_repos_owner_repo_commit"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/repos/{owner}/{repo}/pulls": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** POST /api/repos/{owner}/{repo}/pulls */
-    post: operations["post_api_repos_owner_repo_pulls"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/repos/{owner}/{repo}/ci-conclusion": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/repos/{owner}/{repo}/ci-conclusion */
-    get: operations["get_api_repos_owner_repo_ci-conclusion"];
+    /** GET /api/task/{id} */
+    get: operations["get_api_task_id"];
     put?: never;
     post?: never;
     delete?: never;
@@ -1605,15 +1924,15 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/repos/{owner}/{repo}/tasks/drift": {
+  "/api/tasks": {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    /** GET /api/repos/{owner}/{repo}/tasks/drift */
-    get: operations["get_api_repos_owner_repo_tasks_drift"];
+    /** GET /api/tasks */
+    get: operations["get_api_tasks"];
     put?: never;
     post?: never;
     delete?: never;
@@ -1622,15 +1941,15 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/repos/{owner}/{repo}/tasks/open-like": {
+  "/api/tasks/by-pr/{owner}/{repo}/{number}": {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    /** GET /api/repos/{owner}/{repo}/tasks/open-like */
-    get: operations["get_api_repos_owner_repo_tasks_open-like"];
+    /** GET /api/tasks/by-pr/{owner}/{repo}/{number} */
+    get: operations["get_api_tasks_by-pr_owner_repo_number"];
     put?: never;
     post?: never;
     delete?: never;
@@ -1639,17 +1958,69 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/repos/{owner}/{repo}/tasks": {
+  "/api/tasks/{id}/runs": {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    get?: never;
+    /** GET /api/tasks/{id}/runs */
+    get: operations["get_api_tasks_id_runs"];
     put?: never;
-    /** POST /api/repos/{owner}/{repo}/tasks */
-    post: operations["post_api_repos_owner_repo_tasks"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tasks/{id}/runtime": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/tasks/{id}/runtime */
+    get: operations["get_api_tasks_id_runtime"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tasks/{id}/timeline": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/tasks/{id}/timeline */
+    get: operations["get_api_tasks_id_timeline"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tokens": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/tokens */
+    get: operations["get_api_tokens"];
+    put?: never;
+    /** POST /api/tokens */
+    post: operations["post_api_tokens"];
     delete?: never;
     options?: never;
     head?: never;
@@ -1690,15 +2061,15 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/openapi.json": {
+  "/api/usage": {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    /** GET /api/openapi.json */
-    get: operations["get_api_openapi.json"];
+    /** GET /api/usage */
+    get: operations["get_api_usage"];
     put?: never;
     post?: never;
     delete?: never;
@@ -1707,94 +2078,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/docs": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/docs */
-    get: operations["get_api_docs"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/repos/{owner}/{repo}/features": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/repos/{owner}/{repo}/features */
-    get: operations["get_api_repos_owner_repo_features"];
-    put?: never;
-    /** POST /api/repos/{owner}/{repo}/features */
-    post: operations["post_api_repos_owner_repo_features"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/repos/{owner}/{repo}/features/{id}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/repos/{owner}/{repo}/features/{id} */
-    get: operations["get_api_repos_owner_repo_features_id"];
-    put?: never;
-    post?: never;
-    /** DELETE /api/repos/{owner}/{repo}/features/{id} */
-    delete: operations["delete_api_repos_owner_repo_features_id"];
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/repos/{owner}/{repo}/features/{id}/status": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/repos/{owner}/{repo}/features/{id}/status */
-    get: operations["get_api_repos_owner_repo_features_id_status"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/repos/{owner}/{repo}/features/{id}/decomposition": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/repos/{owner}/{repo}/features/{id}/decomposition */
-    get: operations["get_api_repos_owner_repo_features_id_decomposition"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/repos/{owner}/{repo}/features/{id}/iterations": {
+  "/api/webhook/incident": {
     parameters: {
       query?: never;
       header?: never;
@@ -1803,15 +2087,18 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** POST /api/repos/{owner}/{repo}/features/{id}/iterations */
-    post: operations["post_api_repos_owner_repo_features_id_iterations"];
+    /**
+     * POST /api/webhook/incident
+     * @description Request body is verified and parsed by the handler (HMAC/form-encoded), not JSON.
+     */
+    post: operations["post_api_webhook_incident"];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  "/api/repos/{owner}/{repo}/features/{id}/iterations/{n}/result": {
+  "/api/webhook/slack": {
     parameters: {
       query?: never;
       header?: never;
@@ -1820,77 +2107,11 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** POST /api/repos/{owner}/{repo}/features/{id}/iterations/{n}/result */
-    post: operations["post_api_repos_owner_repo_features_id_iterations_n_result"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/repos/{owner}/{repo}/features/{id}/create-spec-file": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** POST /api/repos/{owner}/{repo}/features/{id}/create-spec-file */
-    post: operations["post_api_repos_owner_repo_features_id_create-spec-file"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/repos/{owner}/{repo}/features/{id}/finalize": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** POST /api/repos/{owner}/{repo}/features/{id}/finalize */
-    post: operations["post_api_repos_owner_repo_features_id_finalize"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/repos/{owner}/{repo}/features/{id}/split": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** POST /api/repos/{owner}/{repo}/features/{id}/split */
-    post: operations["post_api_repos_owner_repo_features_id_split"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/repos/{owner}/{repo}/implementation-loop": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/repos/{owner}/{repo}/implementation-loop */
-    get: operations["get_api_repos_owner_repo_implementation-loop"];
-    /** PUT /api/repos/{owner}/{repo}/implementation-loop */
-    put: operations["put_api_repos_owner_repo_implementation-loop"];
-    post?: never;
+    /**
+     * POST /api/webhook/slack
+     * @description Request body is verified and parsed by the handler (HMAC/form-encoded), not JSON.
+     */
+    post: operations["post_api_webhook_slack"];
     delete?: never;
     options?: never;
     head?: never;
@@ -1901,352 +2122,10 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
-    Error: {
-      error: string;
-    };
-    PlatformLlmStatus: {
-      degraded: boolean;
-      failure_class: string | null;
-      detail: string | null;
-      since: string | null;
-      affected_runs: number;
-    };
-    RepoStatus: {
-      onboarded: boolean;
-      repo?: string;
-      running?: number;
-      pr_ready?: number;
-      memories?: number;
-      auto_review?: boolean;
-      last_ingested_at?: string | null;
-      stale?: boolean;
-      error?: string;
-    };
-    RepoList: {
-      repos: {
-        id: string;
-        owner: string;
-        name: string;
-        full_name: string;
-        team: string | null;
-        /** Format: date-time */
-        onboarded_at: string;
-        last_ingested_at: string | null;
-        onboarding_pr_url: string | null;
-        onboarding_pr_merged: boolean;
-        settings:
-          | ({
-              dark_factory?: {
-                enabled?: boolean;
-                /** @enum {string} */
-                create_issue?: "never" | "on_gate" | "always";
-                auto_merge?: {
-                  paths?: string[];
-                  /** @enum {string} */
-                  min_trust?: "docs" | "tests" | "implementation" | "full";
-                  require_green_ci?: boolean;
-                  require_bot_approval?: boolean;
-                };
-                /** @enum {string} */
-                review?: "trust_based" | "always" | "never";
-                notify?: ("escalation" | "watched" | "all")[];
-                execution?: {
-                  image?: string;
-                };
-              };
-              trust?: {
-                /** @enum {string} */
-                level?: "docs" | "tests" | "implementation" | "full";
-              } & {
-                [key: string]: unknown;
-              };
-              task_types?: string[];
-              task_overrides?: {
-                [key: string]: {
-                  model?: string;
-                  timeout_minutes?: number;
-                  system_prompt_suffix?: string;
-                  review_required?: boolean;
-                  execution?: {
-                    image?: string;
-                  };
-                } & {
-                  [key: string]: unknown;
-                };
-              };
-              auto_review?: boolean;
-              implementation_loop?: {
-                enabled?: boolean;
-              } & {
-                [key: string]: unknown;
-              };
-              cross_repo?: boolean;
-              cross_repo_repos?: string[];
-              slack_channel_id?: string;
-              dispatch_label?: string;
-              dispatch_default_type?: string;
-              test_commands?: unknown;
-              incidents?: unknown[];
-            } & {
-              [key: string]: unknown;
-            })
-          | null;
-        outcome_stats: {
-          [key: string]: unknown;
-        } | null;
-        task_count: number;
-        active_agents: number;
-      }[];
-      total: number;
-      limit: number;
-      offset: number;
-    };
-    Repo: {
-      id: string;
-      owner: string;
-      name: string;
-      full_name: string;
-      team: string | null;
-      /** Format: date-time */
-      onboarded_at: string;
-      last_ingested_at: string | null;
-      onboarding_pr_url: string | null;
-      onboarding_pr_merged: boolean;
-      settings:
-        | ({
-            dark_factory?: {
-              enabled?: boolean;
-              /** @enum {string} */
-              create_issue?: "never" | "on_gate" | "always";
-              auto_merge?: {
-                paths?: string[];
-                /** @enum {string} */
-                min_trust?: "docs" | "tests" | "implementation" | "full";
-                require_green_ci?: boolean;
-                require_bot_approval?: boolean;
-              };
-              /** @enum {string} */
-              review?: "trust_based" | "always" | "never";
-              notify?: ("escalation" | "watched" | "all")[];
-              execution?: {
-                image?: string;
-              };
-            };
-            trust?: {
-              /** @enum {string} */
-              level?: "docs" | "tests" | "implementation" | "full";
-            } & {
-              [key: string]: unknown;
-            };
-            task_types?: string[];
-            task_overrides?: {
-              [key: string]: {
-                model?: string;
-                timeout_minutes?: number;
-                system_prompt_suffix?: string;
-                review_required?: boolean;
-                execution?: {
-                  image?: string;
-                };
-              } & {
-                [key: string]: unknown;
-              };
-            };
-            auto_review?: boolean;
-            implementation_loop?: {
-              enabled?: boolean;
-            } & {
-              [key: string]: unknown;
-            };
-            cross_repo?: boolean;
-            cross_repo_repos?: string[];
-            slack_channel_id?: string;
-            dispatch_label?: string;
-            dispatch_default_type?: string;
-            test_commands?: unknown;
-            incidents?: unknown[];
-          } & {
-            [key: string]: unknown;
-          })
-        | null;
-      outcome_stats: {
-        [key: string]: unknown;
-      } | null;
-    };
-    OrgSettings: {
-      settings: {
-        [key: string]: unknown;
-      };
-      repo_count: number;
-    };
-    OrgSettingsSaved: {
-      /** @constant */
-      ok: true;
-    };
-    RepoSessions: {
-      devs: number;
-      last: string | null;
-    };
-    RepoSettingsSaved: {
-      /** @constant */
-      ok: true;
-    };
-    PrStatus: {
-      url: string;
-      number: number;
-      title: string;
-      /** @enum {string} */
-      state: "open" | "closed" | "merged";
-      draft: boolean;
-      mergeable: boolean;
-      /** @enum {string} */
-      checksStatus: "success" | "failure" | "pending" | "none";
-      /** @enum {string} */
-      reviewStatus: "approved" | "changes_requested" | "pending" | "none";
-      /** @enum {string} */
-      computedStatus:
-        | "merged"
-        | "closed"
-        | "draft"
-        | "checks-failing"
-        | "changes-requested"
-        | "approved"
-        | "open";
-    };
-    AssembledContext: {
-      text: string | null;
-      sections?: unknown;
-      trace?: unknown;
-    };
-    ChunkList: {
-      chunks: {
-        id: string;
-        file_path: string | null;
-        content_type: string | null;
-        repo: string | null;
-        metadata: {
-          [key: string]: unknown;
-        } | null;
-        content: string;
-        ingested_at: string | null;
-        rank?: number;
-      }[];
-    };
-    ChunkTypeList: {
-      types: string[];
-    };
-    RepoChunkSummary: {
-      count: number;
-      convention_files: string[];
-    };
-    ChunkByPath: {
-      chunks: {
-        id: string;
-        content_type: string | null;
-        content: string;
-        metadata: {
-          [key: string]: unknown;
-        } | null;
-        repo: string | null;
-      }[];
-    };
-    GraphQuery: {
-      [key: string]: unknown;
-    };
-    TaskDetail: {
-      id: string;
-      description: string;
-      task_type: string;
-      status: string;
-      target_repo: string;
-      target_branch: string | null;
-      agent_id: string | null;
-      pr_url: string | null;
-      pr_number: number | null;
-      review_iteration: number;
-      context_bundle: {
-        [key: string]: unknown;
-      } | null;
-      context_refs: {
-        [key: string]: unknown;
-      } | null;
-      dark_factory_overrides: {
-        [key: string]: unknown;
-      } | null;
-      failure_reason: string | null;
-      created_by: string;
-      /** Format: date-time */
-      created_at: string;
-      /** Format: date-time */
-      updated_at: string;
-      priority: string;
-      log_url: string | null;
-      claimed_by: string | null;
-      claimed_at: string | null;
-      task_group_id: string | null;
-      actor: string | null;
-      issue_number: number | null;
-      issue_url: string | null;
-      events: {
-        id: string;
-        task_id: string;
-        from_status: string | null;
-        to_status: string;
-        metadata: {
-          [key: string]: unknown;
-        } | null;
-        /** Format: date-time */
-        created_at: string;
-      }[];
-    };
-    TaskPage: {
-      tasks: {
+    AdrList: {
+      adrs: {
         [key: string]: unknown;
       }[];
-      total: number;
-      limit: number;
-      offset: number;
-    };
-    TaskTimeline: {
-      task_id: string;
-      branch_name: string | null;
-      repo: string | null;
-      pr_number: number | null;
-      pr_url: string | null;
-      pr_state: string | null;
-      commits: {
-        [key: string]: unknown;
-      }[];
-      current_stage: string | null;
-      lease?: {
-        [key: string]: unknown;
-      } | null;
-    };
-    TaskRunList: {
-      runs: {
-        id: string;
-        /** @enum {string} */
-        status: "queued" | "running" | "finished" | "failed";
-        outcome: string | null;
-        /** Format: date-time */
-        created_at: string;
-      }[];
-    };
-    RepoTaskList: {
-      tasks: {
-        id: string;
-        description: string;
-        task_type: string;
-        status: string;
-        agent_id: string | null;
-        pr_url: string | null;
-        /** Format: date-time */
-        created_at: string;
-      }[];
-    };
-    TaskStats: {
-      total: number;
-      today: number;
     };
     AgentActivity: {
       agents: {
@@ -2260,518 +2139,10 @@ export interface components {
         last_active: string | null;
       }[];
     };
-    TaskRuntime: {
-      events: {
-        id: string;
-        task_id: string;
-        from_status: string | null;
-        to_status: string;
-        metadata: {
-          [key: string]: unknown;
-        } | null;
-        /** Format: date-time */
-        created_at: string;
-      }[];
-      llm_calls: {
-        model: string;
-        input_tokens: number;
-        output_tokens: number;
-        duration_ms: number;
-        /** @enum {string} */
-        status: "success" | "failed";
-        error: string | null;
-        created_at: string | null;
-      }[];
-    };
-    AuditLogPage: {
-      entries: {
-        event_type: string;
-        payload: {
-          [key: string]: unknown;
-        };
-        /** Format: date-time */
-        created_at: string;
-      }[];
-    };
-    AssemblyRunList: {
-      runs: {
-        id: string;
-        blueprint_name: string;
-        definition_name: string;
-        task_id: string | null;
-        repo: string;
-        branch: string | null;
-        subject_key: string | null;
-        graph?: unknown;
-        status: string;
-        outcome: string | null;
-        reason: string | null;
-        created_at: string;
-        started_at: string | null;
-        finished_at: string | null;
-        args_pr_number: number | null;
-        pr_url: string | null;
-        task_pr_number: number | null;
-        created_by: string | null;
-        cost_usd: number | null;
-      }[];
-    };
-    StationRunList: {
-      nodes: {
-        node_id: string;
-        iteration: number;
-        outcome: string | null;
-        agent_cr_name: string | null;
-        station_run_id: string | null;
-        input: {
-          description: string;
-          prompt: string | null;
-          params: {
-            [key: string]: string;
-          } | null;
-          repo: string;
-          ref: string;
-        } | null;
-        commit_sha: string | null;
-        started_at: string;
-        finished_at: string | null;
-      }[];
-    };
-    AssemblyRunTokenUsage: {
-      input_tokens: number;
-      output_tokens: number;
-      cache_creation_tokens: number;
-      cache_read_tokens: number;
-    };
-    AssemblyRunDetail: {
-      id: string;
-      blueprint_name: string;
-      definition_name: string;
-      task_id: string | null;
-      repo: string;
-      branch: string | null;
-      subject_key: string | null;
-      graph?: unknown;
-      status: string;
-      outcome: string | null;
-      reason: string | null;
-      created_at: string;
-      started_at: string | null;
-      finished_at: string | null;
-      args_pr_number: number | null;
-      pr_url: string | null;
-      task_pr_number: number | null;
-      created_by: string | null;
-      cost_usd: number | null;
-    };
-    AssemblyRunStarted: {
-      id: string;
-    };
-    AssemblyRunRead: {
-      line: {
-        [key: string]: unknown;
-      };
-      definitionKnown: boolean;
-      nodes: {
-        [key: string]: unknown;
-      }[];
-    };
-    TaskByPr: {
-      task_id: string;
-      /** @enum {string} */
-      trailer_source: "db" | "pr_body" | "final_commit";
-    };
-    TaskLogSlice: {
-      logs: string;
-      next_offset: number;
-      complete: boolean;
-      cursor?: string;
-    };
-    JobRunLogs: {
-      logs: string;
-      complete: boolean;
-    };
-    TaskWriteResult: {
-      [key: string]: unknown;
-    };
-    TaskGroup: {
-      group_id: string;
-      total: number;
-      completed: number;
-      tasks: {
-        [key: string]: unknown;
-      }[];
-    };
-    SpecTasksSynced: {
-      parsed: number;
-      synced: number;
-      created: number;
-    };
-    SpecTasksReady: {
-      tasks: {
-        [key: string]: unknown;
-      }[];
-    };
-    SpecTaskClaimed: {
-      claimed: boolean;
-      task_id: string;
-      agent_id: string;
-    };
-    SpecTaskCompleted: {
-      [key: string]: unknown;
-    };
-    TaskLogsAccepted: {
+    AgentDefinitionDeleted: {
       /** @constant */
       ok: true;
-    };
-    TurnsRelayed: {
-      forwarded: number;
-      skipped: number;
-    };
-    MemoryOperationResult:
-      | {
-          key: string;
-          version: number;
-          agent_id: string;
-          created_at: string;
-        }
-      | ({
-          key: string;
-          value: string;
-          version: number;
-          created_at: string;
-        } | null)
-      | {
-          version: number;
-          value: string;
-          created_at: string;
-        }[]
-      | {
-          key: string;
-          value: string;
-          score: number;
-          agent_id: string;
-          /** @enum {string} */
-          source: "memory" | "fact" | "episode" | "graph";
-          id?: string;
-          confidence?: string;
-        }[]
-      | {
-          key: string;
-          deleted: boolean;
-        }
-      | {
-          memories: {
-            key: string;
-            agent_id: string;
-            repo: string | null;
-            version: number;
-            ttl_seconds: number | null;
-            created_at: string;
-            has_facts: boolean;
-          }[];
-          total: number;
-          limit: number;
-          offset: number;
-        };
-    GraphBrowse: {
-      stats: {
-        entity_count: number;
-        active_edge_count: number;
-        invalidated_edge_count: number;
-      };
-      entity_types: {
-        entity_type: string;
-        cnt: number;
-      }[];
-      entities: {
-        id: string;
-        name: string;
-        entity_type: string;
-        repo: string | null;
-        updated_at: string;
-        edge_count: number;
-      }[];
-      edges: {
-        source_name: string;
-        source_type: string;
-        relation_type: string;
-        target_name: string;
-        target_type: string;
-        valid_from: string;
-        valid_to: string | null;
-        source_label: string;
-      }[];
-    };
-    SharedPoolList: {
-      pools: {
-        id: string;
-        name: string;
-        created_by: string;
-        /** Format: date-time */
-        created_at: string;
-        entry_count: number;
-        agent_count: number;
-      }[];
-    };
-    SharedPoolDetail: {
-      pool: {
-        id: string;
-        name: string;
-        created_by: string;
-        /** Format: date-time */
-        created_at: string;
-      };
-      entries: {
-        id: string;
-        key: string;
-        value: string;
-        agent_id: string;
-        version: number;
-        /** Format: date-time */
-        created_at: string;
-      }[];
-    };
-    EpisodePage: {
-      episodes: {
-        id: string;
-        agent_id: string;
-        source: string;
-        ref: string | null;
-        /** Format: date-time */
-        created_at: string;
-        content_preview: string;
-        fact_count: number;
-      }[];
-      total: number;
-    };
-    MemorySearchResults: {
-      results: {
-        [key: string]: unknown;
-      }[];
-    };
-    MemoryList: {
-      memories: {
-        [key: string]: unknown;
-      }[];
-    };
-    EpisodeWritten:
-      | {
-          /** @constant */
-          status: "ok";
-          episode_id: string;
-        }
-      | {
-          /** @constant */
-          status: "duplicate";
-        };
-    SessionSummaryResult:
-      | {
-          /** @constant */
-          status: "ok";
-          episode_id: string;
-        }
-      | {
-          /** @constant */
-          status: "skipped";
-          reason: string;
-        }
-      | {
-          /** @constant */
-          status: "duplicate";
-        };
-    IngestResult: {
-      [key: string]: unknown;
-    };
-    IngestTriggered: {
-      triggered: string[];
-    };
-    EventPayload: {
-      [key: string]: unknown;
-    };
-    Embedding: {
-      embedding: number[];
-    };
-    OnboardResult:
-      | {
-          repo_id: string;
-          task_id: string;
-          status: string;
-          webhook:
-            | {
-                /** @constant */
-                ok: true;
-                hookId: number;
-                created: boolean;
-              }
-            | {
-                /** @constant */
-                ok: false;
-                reason: string;
-                detail?: string;
-              };
-        }
-      | {
-          blocked: string;
-          error: string;
-          task_id: string | null;
-        };
-    SlackAck: {
-      response_type?: string;
-      text?: string;
-      blocks?: unknown[];
-    };
-    IncidentRecorded: {
-      /** @constant */
-      ok: true;
-      repo: string;
-    };
-    RepoWebhookStatus: {
-      state: string;
-      canonicalUrl: string;
-      hookId?: number;
-      url?: string | null;
-      events?: string[];
-      active?: boolean;
-      lastCode?: number | null;
-      reason?: string;
-    };
-    RepoWebhookEnsured: {
-      state: string;
-      canonicalUrl: string;
-      hookId?: number;
-      url?: string | null;
-      events?: string[];
-      active?: boolean;
-      lastCode?: number | null;
-      reason?: string;
-    };
-    RepoWebhookSecret: {
-      secret: string;
-      canonicalUrl: string;
-    };
-    TokenList: {
-      tokens: {
-        id: string;
-        name: string;
-        scopes: string[];
-        created_by: string;
-        expires_at: string | null;
-        last_used: string | null;
-        /** Format: date-time */
-        created_at: string;
-      }[];
-      total: number;
-      limit: number;
-      offset: number;
-    };
-    TokenWriteResult:
-      | {
-          /** @constant */
-          ok: true;
-        }
-      | {
-          id: string;
-          name: string;
-          token: string;
-          scopes: string[];
-          expires_at: string | null;
-        };
-    ClusterAgentRegistration: {
-      id: string;
-      name: string;
-      tags: string[];
-      token: string;
-    };
-    ClusterAgentClaim: {
-      station_run_id: string;
-      node_row_id: string;
-      assembly_run_id: string;
-      node_id: string;
-      iteration: number;
-      agent_cr_name: string | null;
-      spec?: unknown;
-    };
-    ClusterAgentInstallInfo: {
-      available: boolean;
-      reason: string | null;
-      api_url: string | null;
-      event_router_url: string | null;
-      registration_token: string | null;
-      repo_url: string;
-    };
-    ClusterAgentPause: {
-      id: string;
-      name: string;
-      paused: boolean;
-    };
-    ClusterAgentHeartbeat: {
-      /** @constant */
-      status: "ok";
-    };
-    ClusterAgentRelease: {
-      /** @enum {string} */
-      status: "requeued" | "settled";
-    };
-    ClusterAgentList: {
-      agents: {
-        id: string;
-        name: string;
-        tags: string[];
-        /** @enum {string} */
-        status: "active" | "offline";
-        paused: boolean;
-        last_seen_at: string;
-        running_claims: number;
-      }[];
-      offline_events: {
-        created_at: string;
-        cluster_agent_id: string | null;
-        station_run_id: string | null;
-        assembly_run_id: string | null;
-        node_id: string | null;
-        elapsed_since_claim_ms: number | null;
-      }[];
-    };
-    DarkFactorySettings: {
-      enabled: boolean;
-      /** @enum {string} */
-      create_issue: "never" | "on_gate" | "always";
-      auto_merge: {
-        paths: string[];
-        /** @enum {string} */
-        min_trust: "docs" | "tests" | "implementation" | "full";
-        require_green_ci: boolean;
-        require_bot_approval: boolean;
-      };
-      /** @enum {string} */
-      review: "trust_based" | "always" | "never";
-      notify: ("escalation" | "watched" | "all")[];
-    };
-    DarkFactorySettingsApplied: {
-      /** @constant */
-      ok: true;
-      applied: {
-        enabled: boolean;
-        /** @enum {string} */
-        create_issue: "never" | "on_gate" | "always";
-        auto_merge: {
-          paths: string[];
-          /** @enum {string} */
-          min_trust: "docs" | "tests" | "implementation" | "full";
-          require_green_ci: boolean;
-          require_bot_approval: boolean;
-        };
-        /** @enum {string} */
-        review: "trust_based" | "always" | "never";
-        notify: ("escalation" | "watched" | "all")[];
-      };
-      ceremony: {
-        /** @enum {string} */
-        tier: "two_key" | "admin";
-        pr_ref?: string;
-        approver?: string;
-      };
+      deleted: string;
     };
     AgentDefinitionRead:
       | {
@@ -2783,6 +2154,35 @@ export interface components {
           execution_mode: string;
           review_required: boolean;
           project_id: string | null;
+          config:
+            | ({
+                skills?: string[];
+                pod_resources?: {
+                  requests?: {
+                    [key: string]: string;
+                  };
+                  limits?: {
+                    [key: string]: string;
+                  };
+                };
+                disallowed_tools?: string[];
+                watch?: {
+                  event: string;
+                  path: string;
+                };
+                repo_workdir?: boolean;
+                command?: string[];
+                env?: {
+                  [key: string]: string;
+                };
+                pod_labels?: {
+                  [key: string]: string;
+                };
+                needs_model?: boolean;
+              } & {
+                [key: string]: unknown;
+              })
+            | null;
         }
       | {
           agents: {
@@ -2794,8 +2194,55 @@ export interface components {
             execution_mode: string;
             review_required: boolean;
             project_id: string | null;
+            config:
+              | ({
+                  skills?: string[];
+                  pod_resources?: {
+                    requests?: {
+                      [key: string]: string;
+                    };
+                    limits?: {
+                      [key: string]: string;
+                    };
+                  };
+                  disallowed_tools?: string[];
+                  watch?: {
+                    event: string;
+                    path: string;
+                  };
+                  repo_workdir?: boolean;
+                  command?: string[];
+                  env?: {
+                    [key: string]: string;
+                  };
+                  pod_labels?: {
+                    [key: string]: string;
+                  };
+                  needs_model?: boolean;
+                } & {
+                  [key: string]: unknown;
+                })
+              | null;
           }[];
         };
+    AgentDefinitionUsage: {
+      usage: {
+        name: string;
+        used_by: {
+          blueprint: string;
+          node_id: string;
+          inherited: boolean;
+        }[];
+      }[];
+      applied: {
+        name: string;
+        project_id: string | null;
+        cluster: string;
+        /** @enum {string} */
+        state: "applied" | "refused" | "skipped" | "deleted";
+        reason: string | null;
+      }[];
+    };
     AgentDefinitionWritten: {
       /** @constant */
       ok: true;
@@ -2808,6 +2255,35 @@ export interface components {
         execution_mode: string;
         review_required: boolean;
         project_id: string | null;
+        config:
+          | ({
+              skills?: string[];
+              pod_resources?: {
+                requests?: {
+                  [key: string]: string;
+                };
+                limits?: {
+                  [key: string]: string;
+                };
+              };
+              disallowed_tools?: string[];
+              watch?: {
+                event: string;
+                path: string;
+              };
+              repo_workdir?: boolean;
+              command?: string[];
+              env?: {
+                [key: string]: string;
+              };
+              pod_labels?: {
+                [key: string]: string;
+              };
+              needs_model?: boolean;
+            } & {
+              [key: string]: unknown;
+            })
+          | null;
       };
       ceremony: {
         /** @enum {string} */
@@ -2815,138 +2291,12 @@ export interface components {
         pr_ref?: string;
         approver?: string;
       };
-      crd_applied: boolean;
     };
-    AgentDefinitionDeleted: {
-      /** @constant */
-      ok: true;
-      deleted: string;
-      crd_deleted: boolean;
+    AgentStats: {
+      [key: string]: unknown;
     };
     AgentUsage: {
       [key: string]: unknown;
-    };
-    PipelineAnalytics: {
-      [key: string]: unknown;
-    };
-    MemoryAuditPage: {
-      entries: {
-        id: string;
-        agent_id: string;
-        operation: string;
-        memory_key: string | null;
-        pool_name: string | null;
-        metadata: {
-          [key: string]: unknown;
-        } | null;
-        /** Format: date-time */
-        created_at: string;
-      }[];
-      total: number;
-    };
-    RepoEventList: {
-      events: {
-        id: string;
-        event_name: string;
-        source: string;
-        params: {
-          [key: string]: unknown;
-        };
-        /** @enum {string} */
-        status: "pending" | "processing" | "done" | "failed" | "dead";
-        /** Format: date-time */
-        captured_at: string;
-      }[];
-    };
-    JobRun: {
-      id: string;
-      job_name: string;
-      /** Format: date-time */
-      started_at: string;
-      completed_at: string | null;
-      status: string;
-      result_summary: string | null;
-      error: string | null;
-      log_path: string | null;
-    };
-    RepoActivityCounts: {
-      tasks: number | null;
-      auto_merged: number | null;
-      escalations: number | null;
-    };
-    Spend: {
-      budget: {
-        ledger_total_usd: number;
-        spent_since_usd: number;
-        remaining_usd: number;
-        anchored_at: string;
-      } | null;
-      org_available: boolean;
-      org_mtd: {
-        billed_usd: number;
-        input_tokens: number;
-        output_tokens: number;
-        as_of: string | null;
-        billed_through: string | null;
-      };
-      org_by_model: {
-        model: string;
-        cost_usd: number;
-        input_tokens: number;
-        output_tokens: number;
-      }[];
-      org_daily: {
-        bucket_date: string;
-        cost_usd: number;
-      }[];
-      lore_unbilled_usd: number;
-      lore_unbilled_days: number;
-      lore_mtd: {
-        computed_usd: number;
-        calls: number;
-        input_tokens: number;
-        output_tokens: number;
-      };
-      lore_by_model: {
-        model: string;
-        calls: number;
-        cost_usd: number;
-        input_tokens: number;
-        output_tokens: number;
-      }[];
-      lore_by_kind: {
-        kind: string;
-        calls: number;
-        cost_usd: number;
-      }[];
-      lore_daily: {
-        bucket_date: string;
-        calls: number;
-        cost_usd: number;
-      }[];
-      lore_by_repo: {
-        target_repo: string;
-        tasks: number;
-        cost_usd: number;
-      }[];
-      lore_by_task_type: {
-        task_type: string;
-        tasks: number;
-        cost_usd: number;
-      }[];
-      lore_by_cluster: {
-        cluster: string | null;
-        calls: number;
-        cost_usd: number;
-      }[];
-    };
-    CreditEntryRecorded: {
-      id: number;
-      effective_at: string;
-      amount_usd: number;
-      kind: string;
-      note: string;
-      actor: string;
     };
     AnalyticsOverview: {
       task_summary: {
@@ -2990,70 +2340,311 @@ export interface components {
         log_path: string | null;
       }[];
     };
-    AgentStats: {
-      [key: string]: unknown;
+    AssembledContext: {
+      text: string | null;
+      sections?: unknown;
+      trace?: unknown;
     };
-    ImpactReport: {
-      [key: string]: unknown;
+    AssemblyRunDetail: {
+      id: string;
+      blueprint_name: string;
+      definition_name: string;
+      task_id: string | null;
+      repo: string;
+      branch: string | null;
+      subject_key: string | null;
+      graph?: unknown;
+      status: string;
+      outcome: string | null;
+      reason: string | null;
+      created_at: string;
+      started_at: string | null;
+      finished_at: string | null;
+      args_pr_number: number | null;
+      pr_url: string | null;
+      task_pr_number: number | null;
+      created_by: string | null;
+      cost_usd: number | null;
     };
-    ImpactBase: {
-      [key: string]: unknown;
-    };
-    TraceRead: {
-      [key: string]: unknown;
-    };
-    RepoChunks: {
-      [key: string]: unknown;
-    };
-    RepoOnboarded: {
-      onboarded: boolean;
-    };
-    RepoIssueList: {
-      issues: {
+    AssemblyRunList: {
+      runs: {
+        id: string;
+        blueprint_name: string;
+        definition_name: string;
+        task_id: string | null;
         repo: string;
-        number: number;
-        title: string;
-        /** @enum {string} */
-        state: "open" | "closed";
-        labels: string[];
-        url?: string;
+        branch: string | null;
+        subject_key: string | null;
+        graph?: unknown;
+        status: string;
+        outcome: string | null;
+        reason: string | null;
+        created_at: string;
+        started_at: string | null;
+        finished_at: string | null;
+        args_pr_number: number | null;
+        pr_url: string | null;
+        task_pr_number: number | null;
+        created_by: string | null;
+        cost_usd: number | null;
       }[];
     };
-    RepoLabelList: {
-      labels: string[];
+    AssemblyRunRead: {
+      line: {
+        [key: string]: unknown;
+      };
+      definitionKnown: boolean;
+      nodes: {
+        [key: string]: unknown;
+      }[];
     };
-    RepoIssueCreated: {
-      repo: string;
-      number: number;
-      title: string;
-      /** @enum {string} */
-      state: "open" | "closed";
-      labels: string[];
-      url?: string;
+    AssemblyRunStarted: {
+      id: string;
+    };
+    AssemblyRunTokenUsage: {
+      input_tokens: number;
+      output_tokens: number;
+      cache_creation_tokens: number;
+      cache_read_tokens: number;
+    };
+    AuditLogPage: {
+      entries: {
+        event_type: string;
+        payload: {
+          [key: string]: unknown;
+        };
+        /** Format: date-time */
+        created_at: string;
+      }[];
     };
     BranchCreated: {
       /** @constant */
       ok: true;
     };
+    ChunkByPath: {
+      chunks: {
+        id: string;
+        content_type: string | null;
+        content: string;
+        metadata: {
+          [key: string]: unknown;
+        } | null;
+        repo: string | null;
+      }[];
+    };
+    ChunkList: {
+      chunks: {
+        id: string;
+        file_path: string | null;
+        content_type: string | null;
+        repo: string | null;
+        metadata: {
+          [key: string]: unknown;
+        } | null;
+        content: string;
+        ingested_at: string | null;
+        rank?: number;
+      }[];
+    };
+    ChunkPruneResult: {
+      schema: string;
+      deleted_paths: string[];
+      deleted_chunks: number;
+    };
+    ChunkTypeList: {
+      types: string[];
+    };
+    ClusterAgentCatalogEvents: {
+      /** @enum {string} */
+      mode: "snapshot" | "tail";
+      cursor: string;
+      entries: {
+        name: string;
+        project_id: string | null;
+        definition: {
+          name: string;
+          model: string | null;
+          timeout_minutes: number | null;
+          prompt: string | null;
+          image: string | null;
+          execution_mode: string;
+          review_required: boolean;
+          project_id: string | null;
+          config:
+            | ({
+                skills?: string[];
+                pod_resources?: {
+                  requests?: {
+                    [key: string]: string;
+                  };
+                  limits?: {
+                    [key: string]: string;
+                  };
+                };
+                disallowed_tools?: string[];
+                watch?: {
+                  event: string;
+                  path: string;
+                };
+                repo_workdir?: boolean;
+                command?: string[];
+                env?: {
+                  [key: string]: string;
+                };
+                pod_labels?: {
+                  [key: string]: string;
+                };
+                needs_model?: boolean;
+              } & {
+                [key: string]: unknown;
+              })
+            | null;
+        } | null;
+      }[];
+    };
+    ClusterAgentCatalogStatus: {
+      /** @constant */
+      ok: true;
+      recorded: number;
+    };
+    ClusterAgentClaim: {
+      station_run_id: string;
+      node_row_id: string;
+      assembly_run_id: string;
+      node_id: string;
+      iteration: number;
+      agent_cr_name: string | null;
+      spec: unknown;
+    };
+    ClusterAgentHeartbeat: {
+      /** @constant */
+      status: "ok";
+    };
+    ClusterAgentInstallInfo: {
+      available: boolean;
+      reason: string | null;
+      api_url: string | null;
+      event_router_url: string | null;
+      registration_token: string | null;
+      repo_url: string;
+    };
+    ClusterAgentList: {
+      agents: {
+        id: string;
+        name: string;
+        tags: string[];
+        /** @enum {string} */
+        status: "active" | "offline";
+        paused: boolean;
+        last_seen_at: string;
+        running_claims: number;
+      }[];
+      offline_events: {
+        created_at: string;
+        cluster_agent_id: string | null;
+        station_run_id: string | null;
+        assembly_run_id: string | null;
+        node_id: string | null;
+        elapsed_since_claim_ms: number | null;
+      }[];
+    };
+    ClusterAgentPause: {
+      id: string;
+      name: string;
+      paused: boolean;
+    };
+    ClusterAgentRegistration: {
+      id: string;
+      name: string;
+      tags: string[];
+      token: string;
+    };
+    ClusterAgentRelease: {
+      /** @enum {string} */
+      status: "requeued" | "settled";
+    };
+    ClusterAgentRestart: {
+      id: string;
+      name: string;
+      restarted: boolean;
+    };
     CommitCreated: {
       /** @constant */
       ok: true;
     };
-    PullOpened: {
-      repo: string;
-      number: number;
-      title: string;
-      branch: string;
-      /** @enum {string} */
-      state: "open" | "closed" | "merged";
-      labels: string[];
-      url: string;
-      author?: string;
-      draft?: boolean;
+    CreditEntryRecorded: {
+      id: number;
+      effective_at: string;
+      amount_usd: number;
+      kind: string;
+      note: string;
+      actor: string;
     };
-    RepoCiConclusion: {
+    DarkFactorySettings: {
+      enabled: boolean;
       /** @enum {string} */
-      conclusion: "success" | "failure" | "pending" | "none";
+      create_issue: "never" | "on_gate" | "always";
+      auto_merge: {
+        paths: string[];
+        /** @enum {string} */
+        min_trust: "docs" | "tests" | "implementation" | "full";
+        require_green_ci: boolean;
+        require_bot_approval: boolean;
+      };
+      /** @enum {string} */
+      review: "trust_based" | "always" | "never";
+      notify: ("escalation" | "watched" | "all")[];
+    };
+    DarkFactorySettingsApplied: {
+      /** @constant */
+      ok: true;
+      applied: {
+        enabled: boolean;
+        /** @enum {string} */
+        create_issue: "never" | "on_gate" | "always";
+        auto_merge: {
+          paths: string[];
+          /** @enum {string} */
+          min_trust: "docs" | "tests" | "implementation" | "full";
+          require_green_ci: boolean;
+          require_bot_approval: boolean;
+        };
+        /** @enum {string} */
+        review: "trust_based" | "always" | "never";
+        notify: ("escalation" | "watched" | "all")[];
+      };
+      ceremony: {
+        /** @enum {string} */
+        tier: "two_key" | "admin";
+        pr_ref?: string;
+        approver?: string;
+      };
+    };
+    DodProgress: {
+      present: boolean;
+      ticketClaim?: string;
+      strategy?: string;
+      why?: string;
+      acceptanceTests?: {
+        path: string;
+        name: string;
+        behaviour: string;
+        /** @enum {string} */
+        status: "pass" | "fail" | "unknown";
+        matchedId: string | null;
+      }[];
+      facets?: {
+        text: string;
+        done: boolean;
+      }[];
+      outOfScope?: string[];
+      passed?: number;
+      total?: number;
+      report?: {
+        commit: string;
+        branch: string;
+        receivedAt: string;
+      } | null;
     };
     DriftTaskList: {
       tasks: {
@@ -3092,58 +2683,82 @@ export interface components {
         issue_url?: string | null;
       }[];
     };
-    OpenLikeTaskList: {
-      tasks: {
-        id?: string;
-        description?: string;
-        task_type?: string;
-        status?: string;
-        target_repo?: string;
-        target_branch?: string | null;
-        agent_id?: string | null;
-        pr_url?: string | null;
-        pr_number?: number | null;
-        review_iteration?: number;
-        context_bundle?: {
-          [key: string]: unknown;
-        } | null;
-        context_refs?: {
-          [key: string]: unknown;
-        } | null;
-        dark_factory_overrides?: {
-          [key: string]: unknown;
-        } | null;
-        failure_reason?: string | null;
-        created_by?: string;
-        /** Format: date-time */
-        created_at?: string;
-        /** Format: date-time */
-        updated_at?: string;
-        priority?: string;
-        log_url?: string | null;
-        claimed_by?: string | null;
-        claimed_at?: string | null;
-        task_group_id?: string | null;
-        actor?: string | null;
-        issue_number?: number | null;
-        issue_url?: string | null;
-      }[];
+    Embedding: {
+      embedding: number[];
     };
-    StationTaskCreated: {
-      task_id: string;
-      task_type: string;
-      status: string;
-      priority: string;
+    EpisodePage: {
+      episodes: {
+        id: string;
+        agent_id: string;
+        source: string;
+        ref: string | null;
+        /** Format: date-time */
+        created_at: string;
+        content_preview: string;
+        fact_count: number;
+      }[];
+      total: number;
+    };
+    EpisodeWritten:
+      | {
+          /** @constant */
+          status: "ok";
+          episode_id: string;
+        }
+      | {
+          /** @constant */
+          status: "duplicate";
+        };
+    Error: {
+      error: string;
+    };
+    EventPayload: {
+      [key: string]: unknown;
+    };
+    Feature: {
+      id: string;
+      repo: string;
+      title: string;
+      slug: string;
+      path: string;
+      original_prompt: string;
+      /** @enum {string} */
+      status:
+        | "draft"
+        | "planning"
+        | "awaiting-input"
+        | "spec-ready"
+        | "pr-open"
+        | "implemented";
+      current_iteration: number;
+      draft_spec_md: string | null;
+      parent_feature_id: string | null;
+      spec_path: string | null;
+      spec_pr_url: string | null;
+      spec_pr_number: number | null;
+      issue_number: number | null;
+      issue_url: string | null;
+      created_by: string;
       created_at: string;
+      updated_at: string;
     };
-    AdrList: {
-      adrs: {
-        [key: string]: unknown;
-      }[];
+    FeatureCreated: {
+      id: string;
+      task_id: string;
     };
-    SpecList: {
-      specs: {
-        [key: string]: unknown;
+    FeatureDecomposition: {
+      tasks: {
+        description: string;
+        status: string;
+        context_bundle:
+          | ({
+              story_issue?: number | null;
+              spec_task_id?: string;
+              phase?: number;
+            } & {
+              [key: string]: unknown;
+            })
+          | null;
       }[];
     };
     FeatureList: {
@@ -3171,120 +2786,6 @@ export interface components {
         issue_number: number | null;
         issue_url: string | null;
         created_by: string;
-        created_at: string;
-        updated_at: string;
-      }[];
-    };
-    FeatureCreated: {
-      id: string;
-      task_id: string;
-    };
-    FeatureWithIterations: {
-      id: string;
-      repo: string;
-      title: string;
-      slug: string;
-      path: string;
-      original_prompt: string;
-      /** @enum {string} */
-      status:
-        | "draft"
-        | "planning"
-        | "awaiting-input"
-        | "spec-ready"
-        | "pr-open"
-        | "implemented";
-      current_iteration: number;
-      draft_spec_md: string | null;
-      parent_feature_id: string | null;
-      spec_path: string | null;
-      spec_pr_url: string | null;
-      spec_pr_number: number | null;
-      issue_number: number | null;
-      issue_url: string | null;
-      created_by: string;
-      created_at: string;
-      updated_at: string;
-      iterations: {
-        id: string;
-        feature_id: string;
-        iteration: number;
-        task_id: string | null;
-        /** @enum {string} */
-        status: "running" | "ready" | "failed";
-        user_answers: {
-          sections?: {
-            [key: string]: {
-              comment?: string;
-              /** @enum {string} */
-              direction?: "keep" | "refine" | "redirect";
-            };
-          };
-          questions?: {
-            [key: string]: string;
-          };
-          free_form?: string;
-        } | null;
-        gap_result: {
-          sections?: {
-            title: string;
-            content?: string;
-            mockups?: {
-              title?: string;
-              /** @enum {string} */
-              format?: "svg" | "mermaid" | "html";
-              markup: string;
-              section?: string;
-              height?: number;
-            }[];
-            questions?: {
-              id: string;
-              question: string;
-              why?: string;
-              /** @enum {string} */
-              kind?: "text" | "choice";
-              options?: string[];
-            }[];
-          }[];
-          mockup_stylesheet?: string;
-          architecture?: {
-            summary: string;
-            components: {
-              name: string;
-              responsibility: string;
-              touchpoints: string[];
-            }[];
-          };
-          user_flows?: {
-            name: string;
-            steps: string[];
-          }[];
-          mockups?: {
-            title?: string;
-            /** @enum {string} */
-            format?: "svg" | "mermaid" | "html";
-            markup: string;
-            section?: string;
-            height?: number;
-          }[];
-          questions?: {
-            id: string;
-            question: string;
-            why?: string;
-            /** @enum {string} */
-            kind?: "text" | "choice";
-            options?: string[];
-          }[];
-          split_suggestion?: {
-            rationale: string;
-            proposed_features: {
-              title: string;
-              scope: string;
-            }[];
-          };
-          draft_spec_markdown?: string;
-        } | null;
-        parent_iteration: number | null;
         created_at: string;
         updated_at: string;
       }[];
@@ -3486,37 +2987,7 @@ export interface components {
       assembly_run_id: string | null;
       assembly_line_id: string | null;
     };
-    FeatureDecomposition: {
-      tasks: {
-        description: string;
-        status: string;
-        context_bundle:
-          | ({
-              story_issue?: number | null;
-              spec_task_id?: string;
-              phase?: number;
-            } & {
-              [key: string]: unknown;
-            })
-          | null;
-      }[];
-    };
-    Ok: {
-      /** @constant */
-      ok: true;
-    };
-    RoundStarted: {
-      iteration: number;
-      task_id?: string | null;
-      assembly_run_id?: string;
-      assembly_line_id?: string;
-    };
-    SpecFileStarted: {
-      task_id?: string;
-      assembly_run_id?: string;
-      assembly_line_id?: string;
-    };
-    Feature: {
+    FeatureWithIterations: {
       id: string;
       repo: string;
       title: string;
@@ -3542,6 +3013,127 @@ export interface components {
       created_by: string;
       created_at: string;
       updated_at: string;
+      iterations: {
+        id: string;
+        feature_id: string;
+        iteration: number;
+        task_id: string | null;
+        /** @enum {string} */
+        status: "running" | "ready" | "failed";
+        user_answers: {
+          sections?: {
+            [key: string]: {
+              comment?: string;
+              /** @enum {string} */
+              direction?: "keep" | "refine" | "redirect";
+            };
+          };
+          questions?: {
+            [key: string]: string;
+          };
+          free_form?: string;
+        } | null;
+        gap_result: {
+          sections?: {
+            title: string;
+            content?: string;
+            mockups?: {
+              title?: string;
+              /** @enum {string} */
+              format?: "svg" | "mermaid" | "html";
+              markup: string;
+              section?: string;
+              height?: number;
+            }[];
+            questions?: {
+              id: string;
+              question: string;
+              why?: string;
+              /** @enum {string} */
+              kind?: "text" | "choice";
+              options?: string[];
+            }[];
+          }[];
+          mockup_stylesheet?: string;
+          architecture?: {
+            summary: string;
+            components: {
+              name: string;
+              responsibility: string;
+              touchpoints: string[];
+            }[];
+          };
+          user_flows?: {
+            name: string;
+            steps: string[];
+          }[];
+          mockups?: {
+            title?: string;
+            /** @enum {string} */
+            format?: "svg" | "mermaid" | "html";
+            markup: string;
+            section?: string;
+            height?: number;
+          }[];
+          questions?: {
+            id: string;
+            question: string;
+            why?: string;
+            /** @enum {string} */
+            kind?: "text" | "choice";
+            options?: string[];
+          }[];
+          split_suggestion?: {
+            rationale: string;
+            proposed_features: {
+              title: string;
+              scope: string;
+            }[];
+          };
+          draft_spec_markdown?: string;
+        } | null;
+        parent_iteration: number | null;
+        created_at: string;
+        updated_at: string;
+      }[];
+    };
+    GraphBrowse: {
+      stats: {
+        entity_count: number;
+        active_edge_count: number;
+        invalidated_edge_count: number;
+      };
+      entity_types: {
+        entity_type: string;
+        cnt: number;
+      }[];
+      entities: {
+        id: string;
+        name: string;
+        entity_type: string;
+        repo: string | null;
+        updated_at: string;
+        edge_count: number;
+      }[];
+      edges: {
+        source_name: string;
+        source_type: string;
+        relation_type: string;
+        target_name: string;
+        target_type: string;
+        valid_from: string;
+        valid_to: string | null;
+        source_label: string;
+      }[];
+    };
+    GraphQuery: {
+      [key: string]: unknown;
+    };
+    ImpactBase: {
+      [key: string]: unknown;
+    };
+    ImpactReport: {
+      [key: string]: unknown;
     };
     ImplementationLoop: {
       enabled: boolean;
@@ -3602,6 +3194,1105 @@ export interface components {
       /** @constant */
       ok: true;
       enabled: boolean;
+    };
+    IncidentRecorded: {
+      /** @constant */
+      ok: true;
+      repo: string;
+    };
+    IngestDeltaResult: {
+      kind: string;
+      commit: string;
+      /** @enum {string} */
+      state: "advanced" | "pending-chunks" | "unrecorded";
+      projected: number;
+      deleted: number;
+      test_chunks: number;
+      pruned_test_files: number;
+    };
+    IngestResult: {
+      [key: string]: unknown;
+    };
+    IngestState: {
+      kind: string;
+      commit: string | null;
+    };
+    IngestTriggered: {
+      triggered: string[];
+    };
+    JobRun: {
+      id: string;
+      job_name: string;
+      /** Format: date-time */
+      started_at: string;
+      completed_at: string | null;
+      status: string;
+      result_summary: string | null;
+      error: string | null;
+      log_path: string | null;
+    };
+    JobRunLogs: {
+      logs: string;
+      complete: boolean;
+    };
+    MemoryAuditPage: {
+      entries: {
+        id: string;
+        agent_id: string;
+        operation: string;
+        memory_key: string | null;
+        pool_name: string | null;
+        metadata: {
+          [key: string]: unknown;
+        } | null;
+        /** Format: date-time */
+        created_at: string;
+      }[];
+      total: number;
+    };
+    MemoryList: {
+      memories: {
+        [key: string]: unknown;
+      }[];
+    };
+    MemoryOperationResult:
+      | {
+          key: string;
+          version: number;
+          agent_id: string;
+          created_at: string;
+        }
+      | ({
+          key: string;
+          value: string;
+          version: number;
+          created_at: string;
+        } | null)
+      | {
+          version: number;
+          value: string;
+          created_at: string;
+        }[]
+      | {
+          key: string;
+          value: string;
+          score: number;
+          agent_id: string;
+          /** @enum {string} */
+          source: "memory" | "fact" | "episode" | "graph";
+          id?: string;
+          confidence?: string;
+        }[]
+      | {
+          key: string;
+          deleted: boolean;
+        }
+      | {
+          memories: {
+            key: string;
+            agent_id: string;
+            repo: string | null;
+            version: number;
+            ttl_seconds: number | null;
+            created_at: string;
+            has_facts: boolean;
+          }[];
+          total: number;
+          limit: number;
+          offset: number;
+        };
+    MemorySearchResults: {
+      results: {
+        [key: string]: unknown;
+      }[];
+    };
+    Ok: {
+      /** @constant */
+      ok: true;
+    };
+    OnboardResult:
+      | {
+          repo_id: string;
+          task_id: string;
+          status: string;
+          webhook:
+            | {
+                /** @constant */
+                ok: true;
+                hookId: number;
+                created: boolean;
+              }
+            | {
+                /** @constant */
+                ok: false;
+                reason: string;
+                detail?: string;
+              };
+        }
+      | {
+          blocked: string;
+          error: string;
+          task_id: string | null;
+        };
+    OpenLikeTaskList: {
+      tasks: {
+        id?: string;
+        description?: string;
+        task_type?: string;
+        status?: string;
+        target_repo?: string;
+        target_branch?: string | null;
+        agent_id?: string | null;
+        pr_url?: string | null;
+        pr_number?: number | null;
+        review_iteration?: number;
+        context_bundle?: {
+          [key: string]: unknown;
+        } | null;
+        context_refs?: {
+          [key: string]: unknown;
+        } | null;
+        dark_factory_overrides?: {
+          [key: string]: unknown;
+        } | null;
+        failure_reason?: string | null;
+        created_by?: string;
+        /** Format: date-time */
+        created_at?: string;
+        /** Format: date-time */
+        updated_at?: string;
+        priority?: string;
+        log_url?: string | null;
+        claimed_by?: string | null;
+        claimed_at?: string | null;
+        task_group_id?: string | null;
+        actor?: string | null;
+        issue_number?: number | null;
+        issue_url?: string | null;
+      }[];
+    };
+    OrgAgentDefinitionWritten: {
+      /** @constant */
+      ok: true;
+      agent: {
+        name: string;
+        model: string | null;
+        timeout_minutes: number | null;
+        prompt: string | null;
+        image: string | null;
+        execution_mode: string;
+        review_required: boolean;
+        project_id: string | null;
+        config:
+          | ({
+              skills?: string[];
+              pod_resources?: {
+                requests?: {
+                  [key: string]: string;
+                };
+                limits?: {
+                  [key: string]: string;
+                };
+              };
+              disallowed_tools?: string[];
+              watch?: {
+                event: string;
+                path: string;
+              };
+              repo_workdir?: boolean;
+              command?: string[];
+              env?: {
+                [key: string]: string;
+              };
+              pod_labels?: {
+                [key: string]: string;
+              };
+              needs_model?: boolean;
+            } & {
+              [key: string]: unknown;
+            })
+          | null;
+      };
+    };
+    OrgAgentDefinitions: {
+      agents: {
+        name: string;
+        model: string | null;
+        timeout_minutes: number | null;
+        prompt: string | null;
+        image: string | null;
+        execution_mode: string;
+        review_required: boolean;
+        project_id: string | null;
+        config:
+          | ({
+              skills?: string[];
+              pod_resources?: {
+                requests?: {
+                  [key: string]: string;
+                };
+                limits?: {
+                  [key: string]: string;
+                };
+              };
+              disallowed_tools?: string[];
+              watch?: {
+                event: string;
+                path: string;
+              };
+              repo_workdir?: boolean;
+              command?: string[];
+              env?: {
+                [key: string]: string;
+              };
+              pod_labels?: {
+                [key: string]: string;
+              };
+              needs_model?: boolean;
+            } & {
+              [key: string]: unknown;
+            })
+          | null;
+      }[];
+    };
+    OrgSettings: {
+      settings: {
+        [key: string]: unknown;
+      };
+      repo_count: number;
+    };
+    OrgSettingsSaved: {
+      /** @constant */
+      ok: true;
+    };
+    PipelineAnalytics: {
+      [key: string]: unknown;
+    };
+    PlatformLlmStatus: {
+      degraded: boolean;
+      failure_class: string | null;
+      detail: string | null;
+      since: string | null;
+      affected_runs: number;
+    };
+    PrStatus: {
+      url: string;
+      number: number;
+      title: string;
+      /** @enum {string} */
+      state: "open" | "closed" | "merged";
+      draft: boolean;
+      mergeable: boolean;
+      /** @enum {string} */
+      checksStatus: "success" | "failure" | "pending" | "none";
+      /** @enum {string} */
+      reviewStatus: "approved" | "changes_requested" | "pending" | "none";
+      /** @enum {string} */
+      computedStatus:
+        | "merged"
+        | "closed"
+        | "draft"
+        | "checks-failing"
+        | "changes-requested"
+        | "approved"
+        | "open";
+    };
+    PullFiles: {
+      files: {
+        filename: string;
+        status: string;
+        additions: number;
+        deletions: number;
+        patch: string | null;
+        previousFilename?: string;
+      }[];
+    };
+    PullOpened: {
+      repo: string;
+      number: number;
+      title: string;
+      branch: string;
+      /** @enum {string} */
+      state: "open" | "closed" | "merged";
+      labels: string[];
+      url: string;
+      author?: string;
+      draft?: boolean;
+    };
+    ReembedResult: {
+      embedded: number;
+      failed: number;
+      remaining: number;
+      stopped: boolean;
+    };
+    Repo: {
+      id: string;
+      owner: string;
+      name: string;
+      full_name: string;
+      team: string | null;
+      /** Format: date-time */
+      onboarded_at: string;
+      last_ingested_at: string | null;
+      onboarding_pr_url: string | null;
+      onboarding_pr_merged: boolean;
+      settings:
+        | ({
+            dark_factory?: {
+              enabled?: boolean;
+              /** @enum {string} */
+              create_issue?: "never" | "on_gate" | "always";
+              auto_merge?: {
+                paths?: string[];
+                /** @enum {string} */
+                min_trust?: "docs" | "tests" | "implementation" | "full";
+                require_green_ci?: boolean;
+                require_bot_approval?: boolean;
+              };
+              /** @enum {string} */
+              review?: "trust_based" | "always" | "never";
+              notify?: ("escalation" | "watched" | "all")[];
+              execution?: {
+                image?: string;
+              };
+            };
+            trust?: {
+              /** @enum {string} */
+              level?: "docs" | "tests" | "implementation" | "full";
+              successful_tasks?: number;
+              auto_promote_threshold?: number;
+            } & {
+              [key: string]: unknown;
+            };
+            task_types?: string[];
+            task_overrides?: {
+              [key: string]: {
+                model?: string;
+                timeout_minutes?: number;
+                system_prompt_suffix?: string;
+                review_required?: boolean;
+                execution?: {
+                  image?: string;
+                };
+              } & {
+                [key: string]: unknown;
+              };
+            };
+            auto_review?: boolean;
+            implementation_loop?: {
+              enabled?: boolean;
+            } & {
+              [key: string]: unknown;
+            };
+            cross_repo?: boolean;
+            cross_repo_repos?: string[];
+            slack_channel_id?: string;
+            dispatch_label?: string;
+            dispatch_default_type?: string;
+            test_commands?: unknown;
+            incidents?: unknown[];
+          } & {
+            [key: string]: unknown;
+          })
+        | null;
+      outcome_stats: {
+        [key: string]: unknown;
+      } | null;
+    };
+    RepoActivityCounts: {
+      tasks: number | null;
+      auto_merged: number | null;
+      escalations: number | null;
+    };
+    RepoChunkSummary: {
+      count: number;
+      convention_files: string[];
+    };
+    RepoChunks: {
+      [key: string]: unknown;
+    };
+    RepoCiConclusion: {
+      /** @enum {string} */
+      conclusion: "success" | "failure" | "pending" | "none";
+    };
+    RepoEventList: {
+      events: {
+        id: string;
+        event_name: string;
+        source: string;
+        params: {
+          [key: string]: unknown;
+        };
+        /** @enum {string} */
+        status: "pending" | "processing" | "done" | "failed" | "dead";
+        /** Format: date-time */
+        captured_at: string;
+      }[];
+    };
+    RepoIssueCreated: {
+      repo: string;
+      number: number;
+      title: string;
+      /** @enum {string} */
+      state: "open" | "closed";
+      labels: string[];
+      url?: string;
+    };
+    RepoIssueList: {
+      issues: {
+        repo: string;
+        number: number;
+        title: string;
+        /** @enum {string} */
+        state: "open" | "closed";
+        labels: string[];
+        url?: string;
+      }[];
+    };
+    RepoLabelList: {
+      labels: string[];
+    };
+    RepoList: {
+      repos: {
+        id: string;
+        owner: string;
+        name: string;
+        full_name: string;
+        team: string | null;
+        /** Format: date-time */
+        onboarded_at: string;
+        last_ingested_at: string | null;
+        onboarding_pr_url: string | null;
+        onboarding_pr_merged: boolean;
+        settings:
+          | ({
+              dark_factory?: {
+                enabled?: boolean;
+                /** @enum {string} */
+                create_issue?: "never" | "on_gate" | "always";
+                auto_merge?: {
+                  paths?: string[];
+                  /** @enum {string} */
+                  min_trust?: "docs" | "tests" | "implementation" | "full";
+                  require_green_ci?: boolean;
+                  require_bot_approval?: boolean;
+                };
+                /** @enum {string} */
+                review?: "trust_based" | "always" | "never";
+                notify?: ("escalation" | "watched" | "all")[];
+                execution?: {
+                  image?: string;
+                };
+              };
+              trust?: {
+                /** @enum {string} */
+                level?: "docs" | "tests" | "implementation" | "full";
+                successful_tasks?: number;
+                auto_promote_threshold?: number;
+              } & {
+                [key: string]: unknown;
+              };
+              task_types?: string[];
+              task_overrides?: {
+                [key: string]: {
+                  model?: string;
+                  timeout_minutes?: number;
+                  system_prompt_suffix?: string;
+                  review_required?: boolean;
+                  execution?: {
+                    image?: string;
+                  };
+                } & {
+                  [key: string]: unknown;
+                };
+              };
+              auto_review?: boolean;
+              implementation_loop?: {
+                enabled?: boolean;
+              } & {
+                [key: string]: unknown;
+              };
+              cross_repo?: boolean;
+              cross_repo_repos?: string[];
+              slack_channel_id?: string;
+              dispatch_label?: string;
+              dispatch_default_type?: string;
+              test_commands?: unknown;
+              incidents?: unknown[];
+            } & {
+              [key: string]: unknown;
+            })
+          | null;
+        outcome_stats: {
+          [key: string]: unknown;
+        } | null;
+        task_count: number;
+        active_agents: number;
+      }[];
+      total: number;
+      limit: number;
+      offset: number;
+    };
+    RepoOnboarded: {
+      onboarded: boolean;
+    };
+    RepoSessions: {
+      devs: number;
+      last: string | null;
+    };
+    RepoSettingsSaved: {
+      /** @constant */
+      ok: true;
+    };
+    RepoStatus: {
+      onboarded: boolean;
+      repo?: string;
+      running?: number;
+      pr_ready?: number;
+      memories?: number;
+      auto_review?: boolean;
+      last_ingested_at?: string | null;
+      stale?: boolean;
+      error?: string;
+    };
+    RepoTaskList: {
+      tasks: {
+        id: string;
+        description: string;
+        task_type: string;
+        status: string;
+        agent_id: string | null;
+        pr_url: string | null;
+        /** Format: date-time */
+        created_at: string;
+      }[];
+    };
+    RepoWebhookEnsured: {
+      state: string;
+      canonicalUrl: string;
+      hookId?: number;
+      url?: string | null;
+      events?: string[];
+      active?: boolean;
+      lastCode?: number | null;
+      reason?: string;
+    };
+    RepoWebhookSecret: {
+      secret: string;
+      canonicalUrl: string;
+    };
+    RepoWebhookStatus: {
+      state: string;
+      canonicalUrl: string;
+      hookId?: number;
+      url?: string | null;
+      events?: string[];
+      active?: boolean;
+      lastCode?: number | null;
+      reason?: string;
+    };
+    RoundStarted: {
+      iteration: number;
+      task_id?: string | null;
+      assembly_run_id?: string;
+      assembly_line_id?: string;
+    };
+    RunStreamFrame:
+      | {
+          /** @constant */
+          type: "agent_event";
+          event: {
+            id: string;
+            taskId: string;
+            agentCrName: string | null;
+            assemblyLineId: string | null;
+            stationRunId: string | null;
+            nodeId: string | null;
+            iteration: number | null;
+            /** @enum {string} */
+            eventType:
+              | "init"
+              | "message"
+              | "thinking"
+              | "tool_call"
+              | "tool_result"
+              | "result"
+              | "hook";
+            toolName: string | null;
+            toolUseId: string | null;
+            isError: boolean;
+            filePaths: string[];
+            summary: string | null;
+            payload: {
+              [key: string]: unknown;
+            };
+            /** Format: date-time */
+            createdAt: string;
+          };
+        }
+      | {
+          /** @constant */
+          type: "node_status";
+          node: {
+            node_id: string;
+            iteration: number;
+            outcome: string | null;
+            agent_cr_name: string | null;
+            station_run_id: string | null;
+            input: {
+              description: string;
+              prompt: string | null;
+              params: {
+                [key: string]: string;
+              } | null;
+              repo: string;
+              ref: string;
+            } | null;
+            commit_sha: string | null;
+            started_at: string;
+            finished_at: string | null;
+            status: string;
+            claimed_at: string | null;
+          };
+        }
+      | {
+          /** @constant */
+          type: "run_status";
+          run: {
+            id: string;
+            status: string;
+            outcome: string | null;
+            reason: string | null;
+            started_at: string | null;
+            finished_at: string | null;
+          };
+        }
+      | {
+          /** @constant */
+          type: "task_event";
+          event: {
+            id: string;
+            task_id: string;
+            from_status: string | null;
+            to_status: string;
+            metadata: {
+              [key: string]: unknown;
+            } | null;
+            /** Format: date-time */
+            created_at: string;
+          };
+        }
+      | {
+          /** @constant */
+          type: "ci_check";
+          check: {
+            repo: string;
+            pr_number: number;
+            /** Format: date-time */
+            observed_at: string;
+            status: {
+              [key: string]: unknown;
+            };
+          };
+        }
+      | {
+          /** @constant */
+          type: "catchup_complete";
+          last_id: string;
+        };
+    SessionSummaryResult:
+      | {
+          /** @constant */
+          status: "ok";
+          episode_id: string;
+        }
+      | {
+          /** @constant */
+          status: "skipped";
+          reason: string;
+        }
+      | {
+          /** @constant */
+          status: "duplicate";
+        };
+    SharedPoolDetail: {
+      pool: {
+        id: string;
+        name: string;
+        created_by: string;
+        /** Format: date-time */
+        created_at: string;
+      };
+      entries: {
+        id: string;
+        key: string;
+        value: string;
+        agent_id: string;
+        version: number;
+        /** Format: date-time */
+        created_at: string;
+      }[];
+    };
+    SharedPoolList: {
+      pools: {
+        id: string;
+        name: string;
+        created_by: string;
+        /** Format: date-time */
+        created_at: string;
+        entry_count: number;
+        agent_count: number;
+      }[];
+    };
+    SlackAck: {
+      response_type?: string;
+      text?: string;
+      blocks?: unknown[];
+    };
+    SpecFileStarted: {
+      task_id?: string;
+      assembly_run_id?: string;
+      assembly_line_id?: string;
+    };
+    SpecList: {
+      specs: {
+        [key: string]: unknown;
+      }[];
+    };
+    SpecTaskClaimed: {
+      claimed: boolean;
+      task_id: string;
+      agent_id: string;
+    };
+    SpecTaskCompleted: {
+      [key: string]: unknown;
+    };
+    SpecTasksReady: {
+      tasks: {
+        [key: string]: unknown;
+      }[];
+    };
+    SpecTasksSynced: {
+      parsed: number;
+      synced: number;
+      created: number;
+    };
+    SpendWindow: {
+      interval: {
+        from: string;
+        to: string;
+      };
+      llm: {
+        total_usd: number;
+        calls: number;
+        input_tokens: number;
+        output_tokens: number;
+        by_blueprint: {
+          blueprint: string;
+          runs: number;
+          usd: number;
+        }[];
+        by_repo: {
+          repo: string;
+          usd: number;
+        }[];
+        by_model: {
+          model: string;
+          calls: number;
+          cost_usd: number;
+          input_tokens: number;
+          output_tokens: number;
+        }[];
+        by_vendor: {
+          vendor: string;
+          calls: number;
+          cost_usd: number;
+        }[];
+        by_kind: {
+          kind: string;
+          calls: number;
+          cost_usd: number;
+        }[];
+        daily: {
+          bucket_date: string;
+          calls: number;
+          cost_usd: number;
+        }[];
+        by_task_type: {
+          task_type: string;
+          tasks: number;
+          cost_usd: number;
+        }[];
+        by_cluster: {
+          cluster: string | null;
+          calls: number;
+          cost_usd: number;
+        }[];
+      };
+      billed: {
+        available: boolean;
+        total_usd: number;
+        input_tokens: number;
+        output_tokens: number;
+        as_of: string | null;
+        billed_through: string | null;
+        by_model: {
+          model: string;
+          cost_usd: number;
+          input_tokens: number;
+          output_tokens: number;
+        }[];
+        daily: {
+          bucket_date: string;
+          cost_usd: number;
+        }[];
+        unbilled_usd: number;
+        unbilled_days: number;
+      };
+      budget: {
+        ledger_total_usd: number;
+        spent_since_usd: number;
+        remaining_usd: number;
+        anchored_at: string;
+      } | null;
+      gcp: {
+        available: boolean;
+        total_usd: number;
+        as_of: string | null;
+        billed_through: string | null;
+        by_service: {
+          service: string;
+          cost_usd: number;
+        }[];
+        daily: {
+          bucket_date: string;
+          cost_usd: number;
+        }[];
+      };
+      compute: {
+        rates: {
+          cpu_hour_usd: number;
+          mem_gib_hour_usd: number;
+        };
+        assumed_profile: {
+          [key: string]: string;
+        };
+        pod_hours: {
+          blueprint: string;
+          pods: number;
+          hours: number;
+          est_usd: number;
+        }[];
+        est_total_usd: number;
+        live_pods: {
+          name: string;
+          phase: string;
+          started_at: string | null;
+          requests: {
+            [key: string]: string;
+          };
+          usd_per_hour: number;
+          usd_so_far: number;
+          station_run_id: string | null;
+        }[];
+        live_usd_per_hour: number;
+      };
+    };
+    StationRunList: {
+      nodes: {
+        node_id: string;
+        iteration: number;
+        outcome: string | null;
+        agent_cr_name: string | null;
+        station_run_id: string | null;
+        input: {
+          description: string;
+          prompt: string | null;
+          params: {
+            [key: string]: string;
+          } | null;
+          repo: string;
+          ref: string;
+        } | null;
+        commit_sha: string | null;
+        started_at: string;
+        finished_at: string | null;
+        status: string;
+        claimed_at: string | null;
+      }[];
+    };
+    StationTaskCreated: {
+      task_id: string;
+      task_type: string;
+      status: string;
+      priority: string;
+      created_at: string;
+    };
+    TaskByPr: {
+      task_id: string;
+      /** @enum {string} */
+      trailer_source: "db" | "pr_body" | "final_commit";
+    };
+    TaskDetail: {
+      id: string;
+      description: string;
+      task_type: string;
+      status: string;
+      target_repo: string;
+      target_branch: string | null;
+      agent_id: string | null;
+      pr_url: string | null;
+      pr_number: number | null;
+      review_iteration: number;
+      context_bundle: {
+        [key: string]: unknown;
+      } | null;
+      context_refs: {
+        [key: string]: unknown;
+      } | null;
+      dark_factory_overrides: {
+        [key: string]: unknown;
+      } | null;
+      failure_reason: string | null;
+      created_by: string;
+      /** Format: date-time */
+      created_at: string;
+      /** Format: date-time */
+      updated_at: string;
+      priority: string;
+      log_url: string | null;
+      claimed_by: string | null;
+      claimed_at: string | null;
+      task_group_id: string | null;
+      actor: string | null;
+      issue_number: number | null;
+      issue_url: string | null;
+      events: {
+        id: string;
+        task_id: string;
+        from_status: string | null;
+        to_status: string;
+        metadata: {
+          [key: string]: unknown;
+        } | null;
+        /** Format: date-time */
+        created_at: string;
+      }[];
+    };
+    TaskGroup: {
+      group_id: string;
+      total: number;
+      completed: number;
+      tasks: {
+        [key: string]: unknown;
+      }[];
+    };
+    TaskLogSlice: {
+      logs: string;
+      next_offset: number;
+      complete: boolean;
+      cursor?: string;
+    };
+    TaskLogsAccepted: {
+      /** @constant */
+      ok: true;
+    };
+    TaskPage: {
+      tasks: {
+        [key: string]: unknown;
+      }[];
+      total: number;
+      limit: number;
+      offset: number;
+    };
+    TaskRunList: {
+      runs: {
+        id: string;
+        /** @enum {string} */
+        status: "queued" | "running" | "finished" | "failed";
+        outcome: string | null;
+        /** Format: date-time */
+        created_at: string;
+      }[];
+    };
+    TaskRuntime: {
+      events: {
+        id: string;
+        task_id: string;
+        from_status: string | null;
+        to_status: string;
+        metadata: {
+          [key: string]: unknown;
+        } | null;
+        /** Format: date-time */
+        created_at: string;
+      }[];
+      llm_calls: {
+        model: string;
+        input_tokens: number;
+        output_tokens: number;
+        duration_ms: number;
+        /** @enum {string} */
+        status: "success" | "failed";
+        error: string | null;
+        created_at: string | null;
+      }[];
+    };
+    TaskStats: {
+      total: number;
+      today: number;
+    };
+    TaskTimeline: {
+      task_id: string;
+      branch_name: string | null;
+      repo: string | null;
+      pr_number: number | null;
+      pr_url: string | null;
+      pr_state: string | null;
+      commits: {
+        [key: string]: unknown;
+      }[];
+      current_stage: string | null;
+      lease?: {
+        [key: string]: unknown;
+      } | null;
+    };
+    TaskWriteResult: {
+      [key: string]: unknown;
+    };
+    TokenList: {
+      tokens: {
+        id: string;
+        name: string;
+        scopes: string[];
+        created_by: string;
+        expires_at: string | null;
+        last_used: string | null;
+        /** Format: date-time */
+        created_at: string;
+      }[];
+      total: number;
+      limit: number;
+      offset: number;
+    };
+    TokenWriteResult:
+      | {
+          /** @constant */
+          ok: true;
+        }
+      | {
+          id: string;
+          name: string;
+          token: string;
+          scopes: string[];
+          expires_at: string | null;
+        };
+    TraceRead: {
+      [key: string]: unknown;
+    };
+    TurnsRelayed: {
+      forwarded: number;
+      skipped: number;
     };
   };
   responses: {
@@ -3685,6 +4376,1483 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+  "get_api_agent-activity": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Per-agent activity roll-up */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentActivity"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_agent-definitions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Every org-default agent definition — org rows overlaid on the task-types.yaml fallback, no per-repo layer */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OrgAgentDefinitions"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_agent-definitions_usage": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Every station name a builtin blueprint node dispatches, with the nodes that reference it */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentDefinitionUsage"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "put_api_agent-definitions_name": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          name: string;
+          model?: string | null;
+          timeout_minutes?: number | null;
+          prompt?: string | null;
+          image?: string | null;
+          /**
+           * @default claude-code
+           * @enum {string}
+           */
+          execution_mode?: "claude-code" | "graph-ingest" | "station";
+          /** @default false */
+          review_required?: boolean;
+          pod_resources?: {
+            requests?: {
+              [key: string]: string;
+            };
+            limits?: {
+              [key: string]: string;
+            };
+          } | null;
+        };
+      };
+    };
+    responses: {
+      /** @description The updated org-default definition */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OrgAgentDefinitionWritten"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_agent-stats": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Health and activity counters for an agent */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentStats"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  get_api_analytics: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Org-wide pipeline analytics */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PipelineAnalytics"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_analytics-overview": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Pipeline and usage roll-ups */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AnalyticsOverview"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_analytics_spend-window": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The spend screen in one interval-scoped call: metered and billed LLM spend, their breakdowns, the recorded balance, and the estimated Kubernetes compute cost */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SpendWindow"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_assembly-lines": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of runs, newest first */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AssemblyRunList"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_assembly-lines_id": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description One run, carrying the blueprint clone it walked */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AssemblyRunDetail"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_assembly-lines_id_nodes": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The run's station visits, in visit order */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["StationRunList"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_assembly-lines_id_token-usage": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Tokens spent so far on the run */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AssemblyRunTokenUsage"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_assembly-runs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of runs, newest first */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AssemblyRunList"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "post_api_assembly-runs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          definition: string;
+          repo: string;
+          branch?: string;
+          args?: {
+            [key: string]: unknown;
+          };
+          resume_from?: {
+            run_id: string;
+            node_id: string;
+            iteration?: number;
+          };
+        };
+      };
+    };
+    responses: {
+      /** @description Run started */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AssemblyRunStarted"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_assembly-runs_id": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A run joined to the graph it walked */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AssemblyRunRead"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_assembly-runs_id_dod": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The run's Definition of Done with each acceptance test matched against the branch's latest CI report */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["DodProgress"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_assembly-runs_id_nodes": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The run's station visits, in visit order */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["StationRunList"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_assembly-runs_id_stream": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Server-Sent Events: one `event:` per frame type, `data:` the frame; only agent_event frames carry an `id:` (the Last-Event-ID cursor) */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "text/event-stream": components["schemas"]["RunStreamFrame"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_assembly-runs_id_token-usage": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Tokens spent so far on the run */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AssemblyRunTokenUsage"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_audit-log": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Recent audit entries for a repo */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AuditLogPage"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_chunk-types": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The content types in scope */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChunkTypeList"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  get_api_chunks: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of ranked context chunks */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChunkList"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_chunks_by-path": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Every chunk ingested from one file */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChunkByPath"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_cluster-agents": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Every registered cluster-agent with its open-claim count, plus recent offline events */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ClusterAgentList"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_cluster-agents_install-info": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description What this deployment can hand a satellite installer — URLs and the registration token, or why not */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ClusterAgentInstallInfo"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_cluster-agents_install.sh": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "post_api_cluster-agents_register": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          name: string;
+          /** @default [] */
+          tags?: string[];
+          /** @default null */
+          cluster_info?: {
+            [key: string]: unknown;
+          } | null;
+          current_token?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description The registered identity with its per-agent token — served once and never again */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ClusterAgentRegistration"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+    };
+  };
+  "get_api_cluster-agents_id_catalog-events": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The catalog changes this cluster-agent has not applied yet — a full snapshot on first contact, an event tail after — each entry carrying the resolved definition to render, or null to delete */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ClusterAgentCatalogEvents"];
+        };
+      };
+      429: components["responses"]["RateLimited"];
+    };
+  };
+  "post_api_cluster-agents_id_catalog-status": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          reports: {
+            name: string;
+            project_id: string | null;
+            /** @enum {string} */
+            state: "applied" | "refused" | "skipped" | "deleted";
+            reason: string | null;
+          }[];
+        };
+      };
+    };
+    responses: {
+      /** @description Record what this cluster did with each catalog entry it read — applied, refused (with the reason), skipped or deleted */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ClusterAgentCatalogStatus"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+    };
+  };
+  "post_api_cluster-agents_id_claim": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The claimed station run's identity plus the dispatch spec it was enqueued with; 204 when nothing is claimable */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ClusterAgentClaim"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+    };
+  };
+  "post_api_cluster-agents_id_heartbeat": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Liveness acknowledgement; last_seen_at was bumped */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ClusterAgentHeartbeat"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+    };
+  };
+  "put_api_cluster-agents_id_paused": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          paused: boolean;
+        };
+      };
+    };
+    responses: {
+      /** @description The cluster-agent's new paused state — paused agents are passed over when work is handed out, but stay alive and finish what they hold */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ClusterAgentPause"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "post_api_cluster-agents_id_release": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          node_row_id: string;
+          reason: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Whether the unlaunched visit went back on the queue or had already settled */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ClusterAgentRelease"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+    };
+  };
+  "post_api_cluster-agents_id_restart": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Bounces the central cluster-agent so it re-pulls the latest image on restart. Refused for a satellite — lore-api has no inbound path to it. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ClusterAgentRestart"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  get_api_context: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The assembled context block */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AssembledContext"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  get_api_docs: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_embed: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          text: string;
+        };
+      };
+    };
+    responses: {
+      /** @description The embedding for a piece of text */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Embedding"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_episode: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          content: string;
+          source?: string;
+          ref?: string;
+          agent_id?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Whether the episode was new */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["EpisodeWritten"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  get_api_episodes: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of ingested episodes */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["EpisodePage"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  get_api_events: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A repo's recent events */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RepoEventList"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  get_api_graph: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Entities and relationships matching a query */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["GraphQuery"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_graph-browse": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Entities and edges of the knowledge graph */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["GraphBrowse"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_ingest: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          files: (
+            | string
+            | {
+                path: string;
+                content: string;
+              }
+          )[];
+          repo: string;
+          commit?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description What the ingest stored */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IngestResult"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_ingest_reembed: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          schema?: string;
+          /** @default 100 */
+          limit?: number;
+          /**
+           * @default missing
+           * @enum {string}
+           */
+          where?: "missing" | "stale_links";
+        };
+      };
+    };
+    responses: {
+      /** @description One batch of the embedding backfill: rows embedded, the first failure if the embedder returned nothing, and how many rows still wait */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ReembedResult"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_job-run-logs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A job run's captured output */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["JobRunLogs"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_job-runs_id": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description One scheduled-job run */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["JobRun"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  get_api_memories: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description An agent's memories with versions and facts */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MemoryList"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_memory: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json":
+          | {
+              /** @constant */
+              action: "write";
+              key: string;
+              value: string;
+              agent_id?: string;
+              ttl?: number;
+              repo?: string;
+              /** @default false */
+              extract_facts?: boolean;
+            }
+          | {
+              /** @constant */
+              action: "read";
+              key: string;
+              agent_id?: string;
+              version?: string | number;
+            }
+          | {
+              /** @constant */
+              action: "search";
+              query: string;
+              agent_id?: string;
+              pool_name?: string;
+              limit?: number;
+              /** @default false */
+              include_invalidated?: boolean;
+              /** @default false */
+              graph_augment?: boolean;
+            }
+          | {
+              /** @constant */
+              action: "delete";
+              key: string;
+              agent_id?: string;
+            }
+          | {
+              /** @constant */
+              action: "list";
+              agent_id?: string;
+              limit?: number;
+              /** @default 0 */
+              offset?: number;
+            };
+      };
+    };
+    responses: {
+      /** @description The result of the requested memory action */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MemoryOperationResult"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_memory-audit": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of memory-audit entries */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MemoryAuditPage"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_memory-search": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Ranked memories and facts */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MemorySearchResults"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_onboard: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          repo: string;
+          reonboard?: boolean;
+        };
+      };
+    };
+    responses: {
+      /** @description The queued onboarding, or the block that refused it */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OnboardResult"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_openapi.json": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
   "get_api_platform_llm-status": {
     parameters: {
       query?: never;
@@ -3709,6 +5877,81 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
+  get_api_pools: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Every shared pool, with how much it holds */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SharedPoolList"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  get_api_pools_name: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description One pool and the live entries in it */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SharedPoolDetail"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_pr-status": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Checks, reviews and the computed state of a PR */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PrStatus"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
   "get_api_repo-status": {
     parameters: {
       query?: never;
@@ -3725,6 +5968,30 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["RepoStatus"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_repo-tasks": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A repo's recent tasks */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RepoTaskList"];
         };
       };
       401: components["responses"]["Unauthorized"];
@@ -3785,66 +6052,7 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
-  get_api_settings: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Org-wide settings and the repo count they cover */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["OrgSettings"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  put_api_settings: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          entries: {
-            key: string;
-            value: string;
-          }[];
-        };
-      };
-    };
-    responses: {
-      /** @description The settings were written */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["OrgSettingsSaved"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  get_api_repos_owner_repo_sessions: {
+  "get_api_repos_owner_repo_activity-counts": {
     parameters: {
       query?: never;
       header?: never;
@@ -3856,13 +6064,13 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Local-session activity against a repo */
+      /** @description Seven-day activity counters for a repo */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["RepoSessions"];
+          "application/json": components["schemas"]["RepoActivityCounts"];
         };
       };
       401: components["responses"]["Unauthorized"];
@@ -3871,7 +6079,7 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
-  put_api_repos_owner_repo_settings: {
+  "post_api_repos_owner_repo_agent-definitions": {
     parameters: {
       query?: never;
       header?: never;
@@ -3879,1970 +6087,47 @@ export interface operations {
         owner: string;
         repo: string;
       };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          team?: string | null;
-          settings?: {
-            [key: string]: unknown;
-          };
-        };
-      };
-    };
-    responses: {
-      /** @description The repo settings were written */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["RepoSettingsSaved"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "get_api_pr-status": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Checks, reviews and the computed state of a PR */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["PrStatus"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  get_api_context: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description The assembled context block */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["AssembledContext"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  get_api_chunks: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description A page of ranked context chunks */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ChunkList"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "get_api_chunk-types": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description The content types in scope */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ChunkTypeList"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "get_api_repos_owner_repo_chunk-summary": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        owner: string;
-        repo: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description How much context a repo has ingested */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["RepoChunkSummary"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "get_api_chunks_by-path": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Every chunk ingested from one file */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ChunkByPath"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  get_api_graph: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Entities and relationships matching a query */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["GraphQuery"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  get_api_task_id: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description One task and the transitions it has recorded */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["TaskDetail"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      404: components["responses"]["NotFound"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  get_api_tasks: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description A page of pipeline tasks */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["TaskPage"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  get_api_tasks_id_timeline: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description A task's stage commits and lease */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["TaskTimeline"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      404: components["responses"]["NotFound"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  get_api_tasks_id_runs: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description The task's per-attempt runs, newest first */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["TaskRunList"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      404: components["responses"]["NotFound"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "get_api_repo-tasks": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description A repo's recent tasks */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["RepoTaskList"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "get_api_task-stats": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Pipeline task counts */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["TaskStats"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "get_api_agent-activity": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Per-agent activity roll-up */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["AgentActivity"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  get_api_tasks_id_runtime: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description A task's transitions and LLM calls */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["TaskRuntime"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "get_api_audit-log": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Recent audit entries for a repo */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["AuditLogPage"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "get_api_assembly-runs": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description A page of runs, newest first */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["AssemblyRunList"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "post_api_assembly-runs": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          definition: string;
-          repo: string;
-          branch?: string;
-          args?: {
-            [key: string]: unknown;
-          };
-        };
-      };
-    };
-    responses: {
-      /** @description Run started */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["AssemblyRunStarted"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "get_api_assembly-lines": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description A page of runs, newest first */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["AssemblyRunList"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "get_api_assembly-runs_id_nodes": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description The run's station visits, in visit order */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["StationRunList"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "get_api_assembly-lines_id_nodes": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description The run's station visits, in visit order */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["StationRunList"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "get_api_assembly-runs_id_token-usage": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Tokens spent so far on the run */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["AssemblyRunTokenUsage"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "get_api_assembly-lines_id_token-usage": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Tokens spent so far on the run */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["AssemblyRunTokenUsage"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "get_api_assembly-lines_id": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description One run, carrying the blueprint clone it walked */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["AssemblyRunDetail"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      404: components["responses"]["NotFound"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "get_api_assembly-runs_id": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description A run joined to the graph it walked */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["AssemblyRunRead"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      404: components["responses"]["NotFound"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "get_api_tasks_by-pr_owner_repo_number": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        owner: string;
-        repo: string;
-        number: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description The task a pull request belongs to */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["TaskByPr"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      404: components["responses"]["NotFound"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "get_api_task-logs": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description A slice of a task's transcript */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["TaskLogSlice"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      404: components["responses"]["NotFound"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "post_api_task-logs": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          task_id: string;
-          repo: string;
-          logs: string;
-        };
-      };
-    };
-    responses: {
-      /** @description The log buffer was stored */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["TaskLogsAccepted"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "get_api_job-run-logs": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description A job run's captured output */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["JobRunLogs"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  post_api_task: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          action?: string;
-          task_id?: string;
-          status?: string;
-          priority?: string;
-          pr_url?: string;
-          error?: string;
-          description?: string;
-          created_by?: string;
-          feedback?: string;
-          task_type?: string;
-          target_repo?: string;
-          group_id?: string;
-          context?: unknown;
-        };
-      };
-    };
-    responses: {
-      /** @description The created task, or the transition's acknowledgement */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["TaskWriteResult"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      404: components["responses"]["NotFound"];
-      409: components["responses"]["Conflict"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "get_api_task-groups_id": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Every task in a group, with completion */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["TaskGroup"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "post_api_spec-tasks_sync": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          repo: string;
-          spec_slug: string;
-          tasks_markdown: string;
-        };
-      };
-    };
-    responses: {
-      /** @description How many spec tasks the sync parsed and created */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["SpecTasksSynced"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "get_api_spec-tasks_ready": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Spec tasks whose dependencies have merged */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["SpecTasksReady"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "post_api_spec-tasks_claim": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          task_id: string;
-          agent_id: string;
-        };
-      };
-    };
-    responses: {
-      /** @description Whether the claim succeeded */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["SpecTaskClaimed"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "post_api_spec-tasks_complete": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          task_id: string;
-        };
-      };
-    };
-    responses: {
-      /** @description The completed task's new state */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["SpecTaskCompleted"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "post_api_task-turns_taskId": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        taskId: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/x-ndjson": string;
-      };
-    };
-    responses: {
-      /** @description Turns accepted from a local runner */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["TurnsRelayed"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  post_api_memory: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json":
-          | {
-              /** @constant */
-              action: "write";
-              key: string;
-              value: string;
-              agent_id?: string;
-              ttl?: number;
-              repo?: string;
-              /** @default false */
-              extract_facts?: boolean;
-            }
-          | {
-              /** @constant */
-              action: "read";
-              key: string;
-              agent_id?: string;
-              version?: string | number;
-            }
-          | {
-              /** @constant */
-              action: "search";
-              query: string;
-              agent_id?: string;
-              pool_name?: string;
-              limit?: number;
-              /** @default false */
-              include_invalidated?: boolean;
-              /** @default false */
-              graph_augment?: boolean;
-            }
-          | {
-              /** @constant */
-              action: "delete";
-              key: string;
-              agent_id?: string;
-            }
-          | {
-              /** @constant */
-              action: "list";
-              agent_id?: string;
-              /** @default 50 */
-              limit?: number;
-              /** @default 0 */
-              offset?: number;
-            };
-      };
-    };
-    responses: {
-      /** @description The result of the requested memory action */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["MemoryOperationResult"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      404: components["responses"]["NotFound"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "get_api_graph-browse": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Entities and edges of the knowledge graph */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["GraphBrowse"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  get_api_pools: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Every shared pool, with how much it holds */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["SharedPoolList"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  get_api_pools_name: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        name: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description One pool and the live entries in it */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["SharedPoolDetail"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      404: components["responses"]["NotFound"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  get_api_episodes: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description A page of ingested episodes */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["EpisodePage"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "get_api_memory-search": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Ranked memories and facts */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["MemorySearchResults"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  get_api_memories: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description An agent's memories with versions and facts */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["MemoryList"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  post_api_episode: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          content: string;
-          source?: string;
-          ref?: string;
-          agent_id?: string;
-        };
-      };
-    };
-    responses: {
-      /** @description Whether the episode was new */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["EpisodeWritten"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "post_api_session-summary": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          session_log:
-            | string
-            | ({
-                summary?: string;
-              } & {
-                [key: string]: unknown;
-              });
-          repo?: string;
-          agent_id?: string;
-        };
-      };
-    };
-    responses: {
-      /** @description What became of the posted session */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["SessionSummaryResult"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  post_api_ingest: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          files: (
-            | string
-            | {
-                path: string;
-                content: string;
-              }
-          )[];
-          repo: string;
-          commit?: string;
-        };
-      };
-    };
-    responses: {
-      /** @description What the ingest stored */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["IngestResult"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "post_api_repos_owner_repo_ingest-graph": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        owner: string;
-        repo: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          kinds?: string[];
-          commit?: string;
-          force?: boolean;
-          glob?: string;
-        };
-      };
-    };
-    responses: {
-      /** @description The projections this push started */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["IngestTriggered"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  get_api_repos_owner_repo_events_id_payload: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        owner: string;
-        repo: string;
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description One event's stored params */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["EventPayload"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      404: components["responses"]["NotFound"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  post_api_embed: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          text: string;
-        };
-      };
-    };
-    responses: {
-      /** @description The embedding for a piece of text */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["Embedding"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  post_api_onboard: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          repo: string;
-          reonboard?: boolean;
-        };
-      };
-    };
-    responses: {
-      /** @description The queued onboarding, or the block that refused it */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["OnboardResult"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      409: components["responses"]["Conflict"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  post_api_webhook_slack: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description The message Slack renders back in the channel */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["SlackAck"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-    };
-  };
-  post_api_webhook_incident: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description The incident was attached to a repo */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["IncidentRecorded"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-    };
-  };
-  get_api_repos_owner_repo_webhook: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        owner: string;
-        repo: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Whether the repo's webhook points at this platform */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["RepoWebhookStatus"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  post_api_repos_owner_repo_webhook_ensure: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        owner: string;
-        repo: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description The webhook's state after ensuring it */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["RepoWebhookEnsured"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  get_api_repos_owner_repo_webhook_secret: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        owner: string;
-        repo: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description The HMAC secret a repo's webhook must sign with */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["RepoWebhookSecret"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  get_api_tokens: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description A page of active tokens; the hash is never served */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["TokenList"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  post_api_tokens: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          [key: string]: unknown;
-        };
-      };
-    };
-    responses: {
-      /** @description The revoke acknowledgement, or the created token — served once and never again */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["TokenWriteResult"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "post_api_cluster-agents_register": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
       cookie?: never;
     };
     requestBody: {
       content: {
         "application/json": {
           name: string;
-          /** @default [] */
-          tags?: string[];
-          /** @default null */
-          cluster_info?: {
-            [key: string]: unknown;
+          model?: string | null;
+          timeout_minutes?: number | null;
+          prompt?: string | null;
+          image?: string | null;
+          /**
+           * @default claude-code
+           * @enum {string}
+           */
+          execution_mode?: "claude-code" | "graph-ingest" | "station";
+          /** @default false */
+          review_required?: boolean;
+          pod_resources?: {
+            requests?: {
+              [key: string]: string;
+            };
+            limits?: {
+              [key: string]: string;
+            };
           } | null;
-          current_token?: string;
         };
       };
     };
     responses: {
-      /** @description The registered identity with its per-agent token — served once and never again */
+      /** @description The created definition, its ceremony, and the CRD outcome */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ClusterAgentRegistration"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      409: components["responses"]["Conflict"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-    };
-  };
-  "post_api_cluster-agents_id_claim": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description The claimed station run's identity plus the dispatch spec it was enqueued with; 204 when nothing is claimable */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ClusterAgentClaim"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-    };
-  };
-  "get_api_cluster-agents_install-info": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description What this deployment can hand a satellite installer — URLs and the registration token, or why not */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ClusterAgentInstallInfo"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "get_api_cluster-agents_install.sh": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "put_api_cluster-agents_id_paused": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          paused: boolean;
-        };
-      };
-    };
-    responses: {
-      /** @description The cluster-agent's new paused state — paused agents are passed over when work is handed out, but stay alive and finish what they hold */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ClusterAgentPause"];
+          "application/json": components["schemas"]["AgentDefinitionWritten"];
         };
       };
       400: components["responses"]["BadRequest"];
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
-      404: components["responses"]["NotFound"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "post_api_cluster-agents_id_heartbeat": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Liveness acknowledgement; last_seen_at was bumped */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ClusterAgentHeartbeat"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-    };
-  };
-  "post_api_cluster-agents_id_release": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          node_row_id: string;
-          reason: string;
-        };
-      };
-    };
-    responses: {
-      /** @description Whether the unlaunched visit went back on the queue or had already settled */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ClusterAgentRelease"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-    };
-  };
-  "get_api_cluster-agents": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Every registered cluster-agent with its open-claim count, plus recent offline events */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ClusterAgentList"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "get_api_repos_owner_repo_settings_dark-factory": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        owner: string;
-        repo: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Every dark-factory knob, resolved */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["DarkFactorySettings"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "put_api_repos_owner_repo_settings_dark-factory": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        owner: string;
-        repo: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          enabled?: boolean;
-          /** @enum {string} */
-          create_issue?: "never" | "on_gate" | "always";
-          auto_merge?: {
-            paths?: string[];
-            /** @enum {string} */
-            min_trust?: "docs" | "tests" | "implementation" | "full";
-            require_green_ci?: boolean;
-            require_bot_approval?: boolean;
-          };
-          /** @enum {string} */
-          review?: "trust_based" | "always" | "never";
-          notify?: ("escalation" | "watched" | "all")[];
-          execution?: {
-            image?: string;
-          };
-        };
-      };
-    };
-    responses: {
-      /** @description What the write applied, and under whose authority */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["DarkFactorySettingsApplied"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      409: components["responses"]["Conflict"];
       413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
@@ -5903,6 +6188,14 @@ export interface operations {
           execution_mode?: "claude-code" | "graph-ingest" | "station";
           /** @default false */
           review_required?: boolean;
+          pod_resources?: {
+            requests?: {
+              [key: string]: string;
+            };
+            limits?: {
+              [key: string]: string;
+            };
+          } | null;
         };
       };
     };
@@ -5952,7 +6245,7 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
-  "post_api_repos_owner_repo_agent-definitions": {
+  post_api_repos_owner_repo_branches: {
     parameters: {
       query?: never;
       header?: never;
@@ -5965,334 +6258,19 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          name: string;
-          model?: string | null;
-          timeout_minutes?: number | null;
-          prompt?: string | null;
-          image?: string | null;
-          /**
-           * @default claude-code
-           * @enum {string}
-           */
-          execution_mode?: "claude-code" | "graph-ingest" | "station";
-          /** @default false */
-          review_required?: boolean;
-        };
-      };
-    };
-    responses: {
-      /** @description The created definition, its ceremony, and the CRD outcome */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["AgentDefinitionWritten"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  get_api_usage: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Token and cost usage for an agent */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["AgentUsage"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  get_api_analytics: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Org-wide pipeline analytics */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["PipelineAnalytics"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "get_api_memory-audit": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description A page of memory-audit entries */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["MemoryAuditPage"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  get_api_events: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description A repo's recent events */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["RepoEventList"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "get_api_job-runs_id": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description One scheduled-job run */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["JobRun"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      404: components["responses"]["NotFound"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "get_api_repos_owner_repo_activity-counts": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        owner: string;
-        repo: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Seven-day activity counters for a repo */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["RepoActivityCounts"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  get_api_spend: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Billed and attributed spend, side by side */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["Spend"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  post_api_spend_credits: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          amount_usd: number;
-          effective_date?: string;
-          effective_time?: string;
-          /**
-           * @default topup
-           * @enum {string}
-           */
-          kind?: "opening" | "topup" | "correction";
-          /** @default  */
-          note?: string;
-          /** @default  */
-          recorded_by?: string;
-        };
-      };
-    };
-    responses: {
-      /** @description The balance entry that was recorded */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["CreditEntryRecorded"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "get_api_analytics-overview": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Pipeline and usage roll-ups */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["AnalyticsOverview"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "get_api_agent-stats": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Health and activity counters for an agent */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["AgentStats"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  post_api_repos_owner_repo_impact: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        owner: string;
-        repo: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          commit?: string;
+          branch: string;
           base?: string;
-          graphCommit?: string | null;
-          protocol?: number;
-          files?: unknown;
-          docs?: unknown;
         };
       };
     };
     responses: {
-      /** @description Coupled spec statements and orphans for a diff */
+      /** @description The branch was created */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ImpactReport"];
+          "application/json": components["schemas"]["BranchCreated"];
         };
       };
       400: components["responses"]["BadRequest"];
@@ -6303,7 +6281,7 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
-  get_api_repos_owner_repo_impact_base: {
+  "get_api_repos_owner_repo_chunk-summary": {
     parameters: {
       query?: never;
       header?: never;
@@ -6315,13 +6293,13 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The stamped base commit, or unstamped */
+      /** @description How much context a repo has ingested */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ImpactBase"];
+          "application/json": components["schemas"]["RepoChunkSummary"];
         };
       };
       401: components["responses"]["Unauthorized"];
@@ -6330,32 +6308,37 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
-  get_api_repos_owner_repo_trace_kind: {
+  post_api_repos_owner_repo_chunks_prune: {
     parameters: {
       query?: never;
       header?: never;
       path: {
         owner: string;
         repo: string;
-        kind: string;
       };
       cookie?: never;
     };
-    requestBody?: never;
+    requestBody: {
+      content: {
+        "application/json": {
+          present_paths: string[];
+        };
+      };
+    };
     responses: {
-      /** @description A traceability read, shaped by {kind} */
+      /** @description The chunk schema swept, the indexed paths that were absent from the posted tree or refused by the classifier, and how many chunks went with them */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["TraceRead"];
+          "application/json": components["schemas"]["ChunkPruneResult"];
         };
       };
       400: components["responses"]["BadRequest"];
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
-      404: components["responses"]["NotFound"];
+      413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };
@@ -6389,7 +6372,7 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
-  get_api_repos_owner_repo_onboarded: {
+  "get_api_repos_owner_repo_ci-conclusion": {
     parameters: {
       query?: never;
       header?: never;
@@ -6401,144 +6384,17 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Whether the repo has completed onboarding */
+      /** @description CI's verdict for a ref */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["RepoOnboarded"];
+          "application/json": components["schemas"]["RepoCiConclusion"];
         };
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  get_api_repos_owner_repo_issues: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        owner: string;
-        repo: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description The repo's issues */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["RepoIssueList"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  post_api_repos_owner_repo_issues: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        owner: string;
-        repo: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          title: string;
-          body: string;
-          labels?: string[];
-        };
-      };
-    };
-    responses: {
-      /** @description The issue that was opened */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["RepoIssueCreated"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  get_api_repos_owner_repo_labels: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        owner: string;
-        repo: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description The repo's labels */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["RepoLabelList"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  post_api_repos_owner_repo_branches: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        owner: string;
-        repo: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          branch: string;
-          base?: string;
-        };
-      };
-    };
-    responses: {
-      /** @description The branch was created */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["BranchCreated"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };
@@ -6581,254 +6437,31 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
-  post_api_repos_owner_repo_pulls: {
+  get_api_repos_owner_repo_events_id_payload: {
     parameters: {
       query?: never;
       header?: never;
       path: {
         owner: string;
         repo: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          branch: string;
-          title: string;
-          body: string;
-          base?: string;
-          labels?: string[];
-        };
-      };
-    };
-    responses: {
-      /** @description The pull request that was opened */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["PullOpened"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "get_api_repos_owner_repo_ci-conclusion": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        owner: string;
-        repo: string;
+        id: string;
       };
       cookie?: never;
     };
     requestBody?: never;
     responses: {
-      /** @description CI's verdict for a ref */
+      /** @description One event's stored params */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["RepoCiConclusion"];
+          "application/json": components["schemas"]["EventPayload"];
         };
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  get_api_repos_owner_repo_tasks_drift: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        owner: string;
-        repo: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Tasks already open for a spec */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["DriftTaskList"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "get_api_repos_owner_repo_tasks_open-like": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        owner: string;
-        repo: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Open tasks matching a prefix */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["OpenLikeTaskList"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  post_api_repos_owner_repo_tasks: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        owner: string;
-        repo: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          description: string;
-          taskType: string;
-          createdBy?: string;
-          contextBundle?: {
-            [key: string]: unknown;
-          };
-        };
-      };
-    };
-    responses: {
-      /** @description The task that was queued */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["StationTaskCreated"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  get_api_trace_adrs: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Every ADR in the traceability graph */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["AdrList"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  get_api_trace_specs: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Every spec in the traceability graph */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["SpecList"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "get_api_openapi.json": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  get_api_docs: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };
@@ -6953,7 +6586,7 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
-  get_api_repos_owner_repo_features_id_status: {
+  "post_api_repos_owner_repo_features_id_create-spec-file": {
     parameters: {
       query?: never;
       header?: never;
@@ -6964,20 +6597,29 @@ export interface operations {
       };
       cookie?: never;
     };
-    requestBody?: never;
+    requestBody: {
+      content: {
+        "application/json": {
+          [key: string]: unknown;
+        };
+      };
+    };
     responses: {
       /** @description Successful response */
-      200: {
+      202: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["FeaturePoll"];
+          "application/json": components["schemas"]["SpecFileStarted"];
         };
       };
+      400: components["responses"]["BadRequest"];
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
       404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };
@@ -7007,6 +6649,44 @@ export interface operations {
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
       404: components["responses"]["NotFound"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_repos_owner_repo_features_id_finalize: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          [key: string]: unknown;
+        };
+      };
+    };
+    responses: {
+      /** @description Successful response */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SpecFileStarted"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };
@@ -7087,82 +6767,6 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
-  "post_api_repos_owner_repo_features_id_create-spec-file": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        owner: string;
-        repo: string;
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          [key: string]: unknown;
-        };
-      };
-    };
-    responses: {
-      /** @description Successful response */
-      202: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["SpecFileStarted"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      404: components["responses"]["NotFound"];
-      409: components["responses"]["Conflict"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  post_api_repos_owner_repo_features_id_finalize: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        owner: string;
-        repo: string;
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          [key: string]: unknown;
-        };
-      };
-    };
-    responses: {
-      /** @description Successful response */
-      202: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["SpecFileStarted"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      404: components["responses"]["NotFound"];
-      409: components["responses"]["Conflict"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
   post_api_repos_owner_repo_features_id_split: {
     parameters: {
       query?: never;
@@ -7197,6 +6801,102 @@ export interface operations {
       404: components["responses"]["NotFound"];
       409: components["responses"]["Conflict"];
       413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  get_api_repos_owner_repo_features_id_status: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["FeaturePoll"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_repos_owner_repo_impact: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          commit?: string;
+          base?: string;
+          graphCommit?: string | null;
+          protocol?: number;
+          files?: unknown;
+          docs?: unknown;
+        };
+      };
+    };
+    responses: {
+      /** @description Coupled spec statements and orphans for a diff */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ImpactReport"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  get_api_repos_owner_repo_impact_base: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The stamped base commit, or unstamped */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ImpactBase"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };
@@ -7261,6 +6961,1441 @@ export interface operations {
       413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_repos_owner_repo_ingest: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          kind: string;
+          commit: string;
+          base_commit: string | null;
+          seq?: number;
+          total?: number;
+          files?: {
+            path: string;
+            content: string;
+          }[];
+          deleted?: string[];
+          report?: unknown;
+        };
+      };
+    };
+    responses: {
+      /** @description What one incremental ingest delta changed in the graph */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IngestDeltaResult"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "post_api_repos_owner_repo_ingest-graph": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          kinds?: string[];
+          commit?: string;
+          force?: boolean;
+          glob?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description The projections this push started */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IngestTriggered"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_repos_owner_repo_ingest-state": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The last commit ingested for a repo and kind */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IngestState"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  get_api_repos_owner_repo_issues: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The repo's issues */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RepoIssueList"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_repos_owner_repo_issues: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          title: string;
+          body: string;
+          labels?: string[];
+        };
+      };
+    };
+    responses: {
+      /** @description The issue that was opened */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RepoIssueCreated"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  get_api_repos_owner_repo_labels: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The repo's labels */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RepoLabelList"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  get_api_repos_owner_repo_onboarded: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Whether the repo has completed onboarding */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RepoOnboarded"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_repos_owner_repo_pulls: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          branch: string;
+          title: string;
+          body: string;
+          base?: string;
+          labels?: string[];
+        };
+      };
+    };
+    responses: {
+      /** @description The pull request that was opened */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PullOpened"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  get_api_repos_owner_repo_pulls_number_files: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+        number: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Every changed file on a PR with its unified patch */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PullFiles"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  get_api_repos_owner_repo_sessions: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Local-session activity against a repo */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RepoSessions"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  put_api_repos_owner_repo_settings: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          team?: string | null;
+          settings?: {
+            [key: string]: unknown;
+          };
+        };
+      };
+    };
+    responses: {
+      /** @description The repo settings were written */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RepoSettingsSaved"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_repos_owner_repo_settings_dark-factory": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Every dark-factory knob, resolved */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["DarkFactorySettings"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "put_api_repos_owner_repo_settings_dark-factory": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          enabled?: boolean;
+          /** @enum {string} */
+          create_issue?: "never" | "on_gate" | "always";
+          auto_merge?: {
+            paths?: string[];
+            /** @enum {string} */
+            min_trust?: "docs" | "tests" | "implementation" | "full";
+            require_green_ci?: boolean;
+            require_bot_approval?: boolean;
+          };
+          /** @enum {string} */
+          review?: "trust_based" | "always" | "never";
+          notify?: ("escalation" | "watched" | "all")[];
+          execution?: {
+            image?: string;
+          };
+        };
+      };
+    };
+    responses: {
+      /** @description What the write applied, and under whose authority */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["DarkFactorySettingsApplied"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_repos_owner_repo_tasks: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          description: string;
+          taskType: string;
+          createdBy?: string;
+          contextBundle?: {
+            [key: string]: unknown;
+          };
+        };
+      };
+    };
+    responses: {
+      /** @description The task that was queued */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["StationTaskCreated"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  get_api_repos_owner_repo_tasks_drift: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Tasks already open for a spec */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["DriftTaskList"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_repos_owner_repo_tasks_open-like": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Open tasks matching a prefix */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OpenLikeTaskList"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  get_api_repos_owner_repo_trace_kind: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+        kind: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A traceability read, shaped by {kind} */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TraceRead"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  get_api_repos_owner_repo_webhook: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Whether the repo's webhook points at this platform */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RepoWebhookStatus"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_repos_owner_repo_webhook_ensure: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The webhook's state after ensuring it */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RepoWebhookEnsured"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  get_api_repos_owner_repo_webhook_secret: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The HMAC secret a repo's webhook must sign with */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RepoWebhookSecret"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "post_api_session-summary": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          session_log:
+            | string
+            | ({
+                summary?: string;
+              } & {
+                [key: string]: unknown;
+              });
+          repo?: string;
+          agent_id?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description What became of the posted session */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionSummaryResult"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  get_api_settings: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Org-wide settings and the repo count they cover */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OrgSettings"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  put_api_settings: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          entries: {
+            key: string;
+            value: string;
+          }[];
+        };
+      };
+    };
+    responses: {
+      /** @description The settings were written */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OrgSettingsSaved"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "post_api_spec-tasks_claim": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          task_id: string;
+          agent_id: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Whether the claim succeeded */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SpecTaskClaimed"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "post_api_spec-tasks_complete": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          task_id: string;
+        };
+      };
+    };
+    responses: {
+      /** @description The completed task's new state */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SpecTaskCompleted"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_spec-tasks_ready": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Spec tasks whose dependencies have merged */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SpecTasksReady"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "post_api_spec-tasks_sync": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          repo: string;
+          spec_slug: string;
+          tasks_markdown: string;
+        };
+      };
+    };
+    responses: {
+      /** @description How many spec tasks the sync parsed and created */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SpecTasksSynced"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_spend_credits: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          amount_usd: number;
+          effective_date?: string;
+          effective_time?: string;
+          /**
+           * @default topup
+           * @enum {string}
+           */
+          kind?: "opening" | "topup" | "correction";
+          /** @default  */
+          note?: string;
+          /** @default  */
+          recorded_by?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description The balance entry that was recorded */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CreditEntryRecorded"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_task: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          action?: string;
+          task_id?: string;
+          status?: string;
+          priority?: string;
+          pr_url?: string;
+          error?: string;
+          description?: string;
+          created_by?: string;
+          feedback?: string;
+          task_type?: string;
+          target_repo?: string;
+          group_id?: string;
+          context?: unknown;
+        };
+      };
+    };
+    responses: {
+      /** @description The created task, or the transition's acknowledgement */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TaskWriteResult"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_task-groups_id": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Every task in a group, with completion */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TaskGroup"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_task-logs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A slice of a task's transcript */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TaskLogSlice"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "post_api_task-logs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          task_id: string;
+          repo: string;
+          logs: string;
+        };
+      };
+    };
+    responses: {
+      /** @description The log buffer was stored */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TaskLogsAccepted"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_task-stats": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Pipeline task counts */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TaskStats"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "post_api_task-turns_taskId": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        taskId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/x-ndjson": string;
+      };
+    };
+    responses: {
+      /** @description Turns accepted from a local runner */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TurnsRelayed"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  get_api_task_id: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description One task and the transitions it has recorded */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TaskDetail"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  get_api_tasks: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of pipeline tasks */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TaskPage"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_tasks_by-pr_owner_repo_number": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+        number: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The task a pull request belongs to */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TaskByPr"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  get_api_tasks_id_runs: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The task's per-attempt runs, newest first */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TaskRunList"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  get_api_tasks_id_runtime: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A task's transitions and LLM calls */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TaskRuntime"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  get_api_tasks_id_timeline: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A task's stage commits and lease */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TaskTimeline"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  get_api_tokens: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of active tokens; the hash is never served */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TokenList"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_tokens: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          [key: string]: unknown;
+        };
+      };
+    };
+    responses: {
+      /** @description The revoke acknowledgement, or the created token — served once and never again */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TokenWriteResult"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  get_api_trace_adrs: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Every ADR in the traceability graph */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AdrList"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  get_api_trace_specs: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Every spec in the traceability graph */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SpecList"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  get_api_usage: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Token and cost usage for an agent */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentUsage"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_webhook_incident: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The incident was attached to a repo */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IncidentRecorded"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+    };
+  };
+  post_api_webhook_slack: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The message Slack renders back in the channel */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SlackAck"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
     };
   };
 }

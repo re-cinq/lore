@@ -6,7 +6,9 @@ import ConnectClusterPanel, {
 } from "./ConnectClusterPanel";
 import type { ClusterInstallInfo } from "@/lib/api/cluster-agents";
 
-const info = (over: Partial<ClusterInstallInfo> = {}): ClusterInstallInfo => ({
+const install = (
+  over: Partial<ClusterInstallInfo> = {},
+): ClusterInstallInfo => ({
   available: true,
   reason: null,
   api_url: "https://lore-api.example.com",
@@ -18,7 +20,7 @@ const info = (over: Partial<ClusterInstallInfo> = {}): ClusterInstallInfo => ({
 
 describe("buildConnectCommand", () => {
   it("exports both urls and the token, then runs the installer with name and tags", () => {
-    expect(buildConnectCommand(info(), "gpu-box-1", "node:agent")).toBe(
+    expect(buildConnectCommand(install(), "gpu-box-1", "node:agent")).toBe(
       [
         "export LORE_API_URL='https://lore-api.example.com'",
         "export EVENT_ROUTER_URL='https://lore-events.example.com'",
@@ -31,7 +33,7 @@ describe("buildConnectCommand", () => {
 
 describe("ConnectClusterPanel", () => {
   it("renders the command with lcar_secret and updates it when the name changes", () => {
-    render(<ConnectClusterPanel info={info()} />);
+    render(<ConnectClusterPanel install={install()} />);
 
     expect(screen.getByText(/lcar_secret/)).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Name"), {
@@ -44,7 +46,7 @@ describe("ConnectClusterPanel", () => {
   it("explains what is missing when the hand-out is unavailable", () => {
     render(
       <ConnectClusterPanel
-        info={info({
+        install={install({
           available: false,
           reason: "not configured on the lore-api deployment: LORE_API_URL",
           api_url: null,
