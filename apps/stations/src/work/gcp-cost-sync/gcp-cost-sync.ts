@@ -13,17 +13,6 @@ const METADATA_TOKEN_URL =
 const SYNC_WINDOW_DAYS = 31;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-// Today's UTC midnight minus 30 days — 31 whole candidate days, aligned to what `bucket_date` means downstream.
-export function billingWindowStart(now: Date): string {
-  const today = Date.UTC(
-    now.getUTCFullYear(),
-    now.getUTCMonth(),
-    now.getUTCDate(),
-  );
-
-  return new Date(today - (SYNC_WINDOW_DAYS - 1) * DAY_MS).toISOString();
-}
-
 // The daily pull: finds the export table, rolls it up per day/service over the trailing window, upserts. Skips (never fails) on states only a person can change (env not configured, or console-side export not yet producing a table) — /spend degrades to the estimate either way.
 export async function gcpCostSyncJob(
   costs: GcpCostPort,
@@ -113,6 +102,17 @@ async function queryBillingRows(
   );
 
   return parseBillingQueryResponse(response);
+}
+
+// Today's UTC midnight minus 30 days — 31 whole candidate days, aligned to what `bucket_date` means downstream.
+export function billingWindowStart(now: Date): string {
+  const today = Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate(),
+  );
+
+  return new Date(today - (SYNC_WINDOW_DAYS - 1) * DAY_MS).toISOString();
 }
 
 async function bigQueryCall<T>(

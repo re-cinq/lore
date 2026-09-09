@@ -76,20 +76,6 @@ async function syncSpecTasks(repo: string, specSlug: string): Promise<void> {
   );
 }
 
-/** Extracts owner/repo and PR number from a github.com pull URL, or null when the URL is not one. */
-export function parseOnboardingPrUrl(
-  url: string,
-): { owner: string; repoName: string; number: number } | null {
-  const match = url.match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
-
-  if (!match) {
-    return null;
-  }
-  const [, owner, repoName, prNumber] = match;
-
-  return { owner, repoName, number: parseInt(prNumber, 10) };
-}
-
 type OnboardingOutcome = "merged" | "closed" | "invalid" | "unchanged";
 
 type MergeableOutcome = "merged" | "closed" | "unchanged";
@@ -158,6 +144,20 @@ async function checkOnboardingRepo(
   }
 
   return "unchanged";
+}
+
+/** Extracts owner/repo and PR number from a github.com pull URL, or null when the URL is not one. */
+export function parseOnboardingPrUrl(
+  url: string,
+): { owner: string; repoName: string; number: number } | null {
+  const match = url.match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
+
+  if (!match) {
+    return null;
+  }
+  const [, owner, repoName, prNumber] = match;
+
+  return { owner, repoName, number: parseInt(prNumber, 10) };
 }
 
 // A stored onboarding URL this job cannot read. Logged rather than cleared: the row is someone's record of an onboarding attempt, and losing it would hide the fact that the URL was ever wrong.

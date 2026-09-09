@@ -12,19 +12,21 @@ const ANTHROPIC_VERSION = "2023-06-01";
 const SYNC_WINDOW_DAYS = 31;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-// Reporting window: today's UTC midnight minus 30 days, no `ending_at` (its strictly-before semantics would exclude today's bucket) — leaves exactly 31 candidates so `limit: 31` never truncates; aligned to UTC midnight to match `bucket_date` downstream.
-export function reportWindow(now: Date): { starting_at: string } {
-  const today = Date.UTC(
-    now.getUTCFullYear(),
-    now.getUTCMonth(),
-    now.getUTCDate(),
-  );
+export async function anthropicCostSyncJob(
+  costs: CostPort,
+  adminKey = process.env.ANTHROPIC_ADMIN_KEY,
+): Promise<string> {
+  if (!adminKey) {
+    return "ANTHROPIC_ADMIN_KEY not set; skipping Anthropic org cost sync";
+  }
 
-  return {
-    starting_at: new Date(
-      today - (SYNC_WINDOW_DAYS - 1) * DAY_MS,
-    ).toISOString(),
-  };
+  const merged = await fetchAnthropicCostRows(adminKey);
+
+  await Promise.all(merged.map((row) => costs.upsertDaily(row)));
+
+  const total = merged.reduce((sum, row) => sum + row.costUsd, 0);
+
+  return `Synced ${merged.length} day/model rows over ${SYNC_WINDOW_DAYS}d ($${total.toFixed(2)} billed)`;
 }
 
 // The 31-day cost+usage pull behind the daily sync, extracted so window/bucket/merge mechanics are testable without a database.
@@ -48,21 +50,19 @@ export async function fetchAnthropicCostRows(
   );
 }
 
-export async function anthropicCostSyncJob(
-  costs: CostPort,
-  adminKey = process.env.ANTHROPIC_ADMIN_KEY,
-): Promise<string> {
-  if (!adminKey) {
-    return "ANTHROPIC_ADMIN_KEY not set; skipping Anthropic org cost sync";
-  }
+// Reporting window: today's UTC midnight minus 30 days, no `ending_at` (its strictly-before semantics would exclude today's bucket) — leaves exactly 31 candidates so `limit: 31` never truncates; aligned to UTC midnight to match `bucket_date` downstream.
+export function reportWindow(now: Date): { starting_at: string } {
+  const today = Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate(),
+  );
 
-  const merged = await fetchAnthropicCostRows(adminKey);
-
-  await Promise.all(merged.map((row) => costs.upsertDaily(row)));
-
-  const total = merged.reduce((sum, row) => sum + row.costUsd, 0);
-
-  return `Synced ${merged.length} day/model rows over ${SYNC_WINDOW_DAYS}d ($${total.toFixed(2)} billed)`;
+  return {
+    starting_at: new Date(
+      today - (SYNC_WINDOW_DAYS - 1) * DAY_MS,
+    ).toISOString(),
+  };
 }
 
 async function fetchAllBuckets(

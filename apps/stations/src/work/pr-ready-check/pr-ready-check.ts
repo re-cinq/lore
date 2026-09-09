@@ -49,121 +49,6 @@ interface SweepTally {
   errors: number;
 }
 
-/** Resume implementation-loop await-pr nodes whose PR has settled: green CI or unresolved threads with no review run open (specs/implementation-loop FR4). */
-export async function prReadyCheckSweep(
-  deps: PrReadyCheckDeps,
-): Promise<string> {
-  const runs = await deps.listOpenLoopRuns();
-  const tally: SweepTally = { resumed: 0, blocked: 0, waiting: 0, errors: 0 };
-
-  for (const run of runs) {
-    try {
-      await reportParkedVerdict(run, deps, tally);
-    } catch (err) {
-      tally.errors++;
-      console.error(
-        `[pr-ready-check] run ${run.id}: ${(err as Error).message}`,
-      );
-    }
-  }
-
-  return summarizeSweep(runs.length, tally);
-}
-
-/** Reports one run's verdict (if it has one) and bumps the matching tally. */
-async function reportParkedVerdict(
-  run: LoopRunSlice,
-  deps: PrReadyCheckDeps,
-  tally: SweepTally,
-): Promise<void> {
-  const evaluated = await evaluateParkedRun(run, deps);
-
-  if (!evaluated) {
-    return;
-  }
-  await applyVerdict(evaluated, deps, tally);
-}
-
-/** Locates the parked node and pairs it with its report, or null to skip this run untallied. */
-async function evaluateParkedRun(
-  run: LoopRunSlice,
-  deps: PrReadyCheckDeps,
-): Promise<ParkedVerdict | null> {
-  const at = await parkedAt(run, deps);
-
-  if (!at) {
-    return null;
-  }
-
-  return {
-    target: targetOf(run, at.parked),
-    report: await at.read(run, deps),
-  };
-}
-
-/** The park this run is sitting at, with the reader that judges it. */
-async function parkedAt(
-  run: LoopRunSlice,
-  deps: PrReadyCheckDeps,
-): Promise<{
-  parked: { nodeId: string; iteration: number };
-  read: (typeof PARK_KINDS)[number]["read"];
-} | null> {
-  const rows = await deps.listStationRuns(run.id);
-
-  for (const kind of PARK_KINDS) {
-    const parked = parkedHumanNode(run.status, rows, run.graph, kind);
-
-    if (parked) {
-      return { parked, read: kind.read };
-    }
-  }
-
-  return null;
-}
-
-// Which node of which run the verdict is reported against. The iteration is part of it: a run that has been round the loop before has several attempts at the same node, and the report has to name the one that is parked.
-function targetOf(
-  run: LoopRunSlice,
-  parked: { nodeId: string; iteration: number },
-) {
-  return {
-    lineId: run.id,
-    nodeId: parked.nodeId,
-    iteration: parked.iteration,
-  };
-}
-
-// Reports the verdict and counts it. Only ready and blocked are reported — waiting is the absence of news, and telling the parked node about it every tick would wake a run that has nothing to act on.
-async function applyVerdict(
-  evaluated: ParkedVerdict,
-  deps: PrReadyCheckDeps,
-  tally: SweepTally,
-): Promise<void> {
-  const { target, report } = evaluated;
-
-  if (!report) {
-    tally.waiting++;
-
-    return;
-  }
-  await deps.report(target, report.outcome, report.args);
-
-  if (report.outcome === "success") {
-    tally.resumed++;
-
-    return;
-  }
-  tally.blocked++;
-}
-
-/** The sweep's one-line summary, with the error count appended only when there was one. */
-function summarizeSweep(totalRuns: number, tally: SweepTally): string {
-  const base = `checked ${totalRuns}, resumed ${tally.resumed}, blocked ${tally.blocked}, waiting ${tally.waiting}`;
-
-  return tally.errors > 0 ? `${base}, errors ${tally.errors}` : base;
-}
-
 const OPEN_RUN_STATUS = ["queued", "running"] as const;
 
 /** Production entry — the manifest's run. Deps bound to the stations kernel. */
@@ -288,4 +173,119 @@ function prReads(
     listReviewThreads: async (repo, number) =>
       (await projectOf(repo)).pulls.listReviewThreads(number),
   };
+}
+
+/** Resume implementation-loop await-pr nodes whose PR has settled: green CI or unresolved threads with no review run open (specs/implementation-loop FR4). */
+export async function prReadyCheckSweep(
+  deps: PrReadyCheckDeps,
+): Promise<string> {
+  const runs = await deps.listOpenLoopRuns();
+  const tally: SweepTally = { resumed: 0, blocked: 0, waiting: 0, errors: 0 };
+
+  for (const run of runs) {
+    try {
+      await reportParkedVerdict(run, deps, tally);
+    } catch (err) {
+      tally.errors++;
+      console.error(
+        `[pr-ready-check] run ${run.id}: ${(err as Error).message}`,
+      );
+    }
+  }
+
+  return summarizeSweep(runs.length, tally);
+}
+
+/** Reports one run's verdict (if it has one) and bumps the matching tally. */
+async function reportParkedVerdict(
+  run: LoopRunSlice,
+  deps: PrReadyCheckDeps,
+  tally: SweepTally,
+): Promise<void> {
+  const evaluated = await evaluateParkedRun(run, deps);
+
+  if (!evaluated) {
+    return;
+  }
+  await applyVerdict(evaluated, deps, tally);
+}
+
+/** Locates the parked node and pairs it with its report, or null to skip this run untallied. */
+async function evaluateParkedRun(
+  run: LoopRunSlice,
+  deps: PrReadyCheckDeps,
+): Promise<ParkedVerdict | null> {
+  const at = await parkedAt(run, deps);
+
+  if (!at) {
+    return null;
+  }
+
+  return {
+    target: targetOf(run, at.parked),
+    report: await at.read(run, deps),
+  };
+}
+
+/** The park this run is sitting at, with the reader that judges it. */
+async function parkedAt(
+  run: LoopRunSlice,
+  deps: PrReadyCheckDeps,
+): Promise<{
+  parked: { nodeId: string; iteration: number };
+  read: (typeof PARK_KINDS)[number]["read"];
+} | null> {
+  const rows = await deps.listStationRuns(run.id);
+
+  for (const kind of PARK_KINDS) {
+    const parked = parkedHumanNode(run.status, rows, run.graph, kind);
+
+    if (parked) {
+      return { parked, read: kind.read };
+    }
+  }
+
+  return null;
+}
+
+// Which node of which run the verdict is reported against. The iteration is part of it: a run that has been round the loop before has several attempts at the same node, and the report has to name the one that is parked.
+function targetOf(
+  run: LoopRunSlice,
+  parked: { nodeId: string; iteration: number },
+) {
+  return {
+    lineId: run.id,
+    nodeId: parked.nodeId,
+    iteration: parked.iteration,
+  };
+}
+
+// Reports the verdict and counts it. Only ready and blocked are reported — waiting is the absence of news, and telling the parked node about it every tick would wake a run that has nothing to act on.
+async function applyVerdict(
+  evaluated: ParkedVerdict,
+  deps: PrReadyCheckDeps,
+  tally: SweepTally,
+): Promise<void> {
+  const { target, report } = evaluated;
+
+  if (!report) {
+    tally.waiting++;
+
+    return;
+  }
+  await deps.report(target, report.outcome, report.args);
+
+  if (report.outcome === "success") {
+    tally.resumed++;
+
+    return;
+  }
+  tally.blocked++;
+}
+
+/** The sweep's one-line summary, with the error count appended only when there was one. */
+function summarizeSweep(totalRuns: number, tally: SweepTally): string {
+  const base = `checked ${totalRuns}, resumed ${tally.resumed}, blocked ${tally.blocked}, waiting ${tally.waiting}`;
+
+  return tally.errors > 0 ? `${base}, errors ${tally.errors}` : base;
 }
