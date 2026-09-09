@@ -2249,6 +2249,78 @@
         }
       }
     },
+    "/api/ingest/reembed": {
+      "post": {
+        "operationId": "post_api_ingest_reembed",
+        "summary": "POST /api/ingest/reembed",
+        "tags": ["Ingestion"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "One batch of the embedding backfill: rows embedded, the first failure if the embedder returned nothing, and how many rows still wait",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReembedResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "write",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "schema": {
+                    "type": "string",
+                    "pattern": "^[a-z_][a-z0-9_]*$"
+                  },
+                  "limit": {
+                    "default": 100,
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 500
+                  },
+                  "where": {
+                    "default": "missing",
+                    "type": "string",
+                    "enum": ["missing", "stale_links"]
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/job-run-logs": {
       "get": {
         "operationId": "get_api_job-run-logs",
@@ -13317,6 +13389,25 @@
           "labels",
           "url"
         ],
+        "additionalProperties": false
+      },
+      "ReembedResult": {
+        "type": "object",
+        "properties": {
+          "embedded": {
+            "type": "number"
+          },
+          "failed": {
+            "type": "number"
+          },
+          "remaining": {
+            "type": "number"
+          },
+          "stopped": {
+            "type": "boolean"
+          }
+        },
+        "required": ["embedded", "failed", "remaining", "stopped"],
         "additionalProperties": false
       },
       "Repo": {

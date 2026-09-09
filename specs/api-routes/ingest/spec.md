@@ -152,6 +152,21 @@ The route (`write` scope, body `{ present_paths }`) resolves the repo's chunk sc
 The body cap is 10MB, above hapi's 1MB default: a large tree truncated at the default would have posted a partial list and deleted the rest. ([validated by `accepts a 3MB present_paths body, above the 1MB server default, so a large tree is not truncated into a mass delete`](apps/lore-api/src/transport/routes/repos/chunks-prune.test.ts#L61))
 
 An empty `present_paths` is refused with 400 before the store is touched: "nothing is present" would otherwise read as "delete everything". ([validated by `refuses an empty present_paths with 400 before touching the store, so an empty tree can never wipe a repo`](apps/lore-api/src/transport/routes/repos/chunks-prune.test.ts#L74))
+### POST /api/ingest/reembed — the embedding backfill
+
+Four weeks of a 403-ing embedder (2026-08-13 → 09-09, the lore-api pod running
+as an unbound service account) left every chunk, memory and fact written in
+that window with `embedding IS NULL`, invisible to the vector leg even after the
+identity was fixed. The backfill is a `write`-scoped route rather than a job:
+it runs under the pod's own Workload Identity, and one request-sized batch
+cannot hang past the proxy timeout — `scripts/infra/reembed.sh` loops it until
+`remaining` is 0.
+
+A body with no fields runs one batch of 100 rows whose `embedding IS NULL` across every chunk schema, then `memory.memories` and `memory.facts`, and answers `{embedded, failed, remaining, stopped}`. ([validated by `runs one batch of 100 missing embeddings by default and returns the counts`](apps/lore-api/src/transport/routes/ingest/reembed.test.ts#L42), [`backfill.test.ts:36`](apps/lore-api/src/work/embeddings/backfill.test.ts#L36), [`backfill.test.ts:130`](apps/lore-api/src/work/embeddings/backfill.test.ts#L130))
+
+`schema` narrows the walk to one chunk schema, `limit` (1–500) bounds the batch, and `where: "stale_links"` selects chunks that still carry a `([validated by …])` group and have not been re-embedded over the stripped text, marking each one it embeds (`metadata.embedded_stripped`) so the next batch moves on; a limit past 500 is refused with 400 before the store is touched. ([validated by `passes schema platform, limit 500 and where stale_links through`](apps/lore-api/src/transport/routes/ingest/reembed.test.ts#L56), [`rejects a limit of 501 with 400 before touching the store`](apps/lore-api/src/transport/routes/ingest/reembed.test.ts#L66), [`backfill.test.ts:92`](apps/lore-api/src/work/embeddings/backfill.test.ts#L92))
+
+The first row the embedder answers with no vector stops the batch (`stopped: true`, `failed: 1`, the untouched rows still counted in `remaining`): a dead embedder is the outage this route exists to recover from, not a row to skip. ([validated by `stops after the first null embedding and reports the 2 untouched rows as remaining`](apps/lore-api/src/work/embeddings/backfill.test.ts#L63))
 
 ## Out of Scope
 
