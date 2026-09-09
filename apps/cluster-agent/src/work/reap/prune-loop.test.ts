@@ -31,6 +31,7 @@ function cluster(seed: {
     deleteAgent: remove,
     deleteStation: remove,
     deleteDefinition: remove,
+    deleteSecretKey: async () => {},
   };
 
   return { api, deleted };
@@ -95,6 +96,7 @@ describe("pruneOnce", () => {
       deleteAgent: async () => {},
       deleteStation: async () => {},
       deleteDefinition: async () => {},
+      deleteSecretKey: async () => {},
     };
 
     expect(

@@ -11,9 +11,9 @@
 
 ## Facets
 
-- [ ] Add `deleteSecretKey(key: string): Promise<void>` to the `PruneCluster` interface in `prune-loop.ts`
-- [ ] In `pruneOnce`, after deleting each definition whose name starts with `pt-`, derive the corresponding key (`"GH_TOKEN_" + name.slice(3)`) and call `cluster.deleteSecretKey(key)` — skipping on failure, the same way `deleteEach` skips a wedged object
-- [ ] Wire `KubeSecretKeyWriter.deleteKey` into the real `PruneCluster` adapter in `start-prune-loop.ts` so the live path reaches `agent-secrets`
+- [x] Add `deleteSecretKey(key: string): Promise<void>` to the `PruneCluster` interface in `prune-loop.ts`
+- [x] In `pruneOnce`, after deleting each definition whose name starts with `pt-`, derive the corresponding key (`"GH_TOKEN_" + name.slice(3)`) and call `cluster.deleteSecretKey(key)` — skipping on failure, the same way `deleteEach` skips a wedged object
+- [x] Wire `KubeSecretKeyWriter.deleteKey` into the real `PruneCluster` adapter (`KubePruner`) so the live path reaches `agent-secrets` (wired via new constructor param with default `KubeSecretKeyWriter`; `start-prune-loop.ts` needs no change)
 
 ## Out of scope
 

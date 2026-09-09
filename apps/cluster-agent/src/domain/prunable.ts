@@ -21,4 +21,5 @@ export interface PruneCluster {
   deleteAgent(name: string): Promise<void>;
   deleteStation(name: string): Promise<void>;
   deleteDefinition(name: string): Promise<void>;
+  deleteSecretKey(key: string): Promise<void>;
 }
