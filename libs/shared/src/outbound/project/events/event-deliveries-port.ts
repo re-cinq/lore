@@ -54,7 +54,6 @@ export interface EventDeliveriesPort {
     subscriber: string,
     limit: number,
     excludeEventNames?: string[],
-    // eslint-disable-next-line re-lint/no-duplicate-code -- the fan-out half of pipeline.events; its claim/mark/reap vocabulary matches the queue port because they describe two halves of one table, and a merged interface would hand every subscriber-less caller a subscriber argument
   ): Promise<EventDeliveryRow[]>;
   markDone(id: string): Promise<void>;
   markFailed(id: string, error: string, backoffSeconds: number): Promise<void>;
