@@ -1,6 +1,6 @@
 // Reports a station outcome to the wait node a line is parked on. A wait node's worker is a person (author, reviewer); both report the same way (an assembly_line.resume event naming the node), so the pause is a graph step, not a gap between runs. Lives here (not feature-planning) since a parked node is an assembly-line fact — merge-check used to mint a fresh task instead, on a predicate that silently stopped matching (specs/6-dark-factory FR6.32).
 
-import type { EventReporter } from "../events/event-queue-port.js";
+import type { EventReporter } from "../events/event-reporter-port.js";
 import { RUN_RESUME_EVENT } from "./run-events.js";
 import type { RunGraph } from "../../../domain/run-graph.js";
 

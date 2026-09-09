@@ -6,7 +6,7 @@ import {
   DeadBody,
   FailBody,
   PruneBody,
-} from "@re-cinq/lore-shared/project/events/event-queue-wire.js";
+} from "@re-cinq/lore-shared/project/events/event-deliveries-wire.js";
 import {
   DeliveryClaimBody,
   OrphanBody,
