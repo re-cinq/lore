@@ -122,12 +122,19 @@ available to agents — the authoritative interface.
     an exact quote of the question — with the vector leg down it returned
     nothing for every task while the store held hundreds of memories. ([validated by `searches memories and facts for 'split OR port OR lore-api' with websearch_to_tsquery ranked by ts_rank, not ILIKE by created_at`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L32), [`key-terms.test.ts:30`](libs/shared/src/domain/key-terms.test.ts#L30), [`key-terms.test.ts:36`](libs/shared/src/domain/key-terms.test.ts#L36))
   - `include_invalidated=true` enables historical queries (facts
-    superseded by later contradictions are included). ([validated by `memory-search.test.ts:90`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L90), [`memory-search.test.ts:101`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L101))
-  - `graph_augment=true` enriches results with related graph entities. ([validated by `memory-search.test.ts:112`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L112), [`memory-search.test.ts:157`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L157))
+    superseded by later contradictions are included). ([validated by `memory-search.test.ts:114`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L114), [`memory-search.test.ts:125`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L125))
+  - `graph_augment=true` enriches results with related graph entities. ([validated by `memory-search.test.ts:136`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L136), [`memory-search.test.ts:181`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L181))
+  - `actorId` (internal option, not an MCP parameter) records WHO searched in
+    `memory.audit_log`, separately from `agent_id`, which narrows WHAT is
+    searched. An org-wide search still has an author: recording the scope
+    instead logged every one of them as the literal `anonymous`, so
+    `lore_agent_stats.total_searches` counted only searches an agent had
+    explicitly narrowed to itself and otherwise read zero forever. Supplying it
+    changes attribution only, never the result set. ([validated by `memory-search.test.ts:90`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L90), [`memory-search.test.ts:102`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L102))
   - `sources` (internal option, not an MCP parameter) narrows the merged hits
     to the named kinds BEFORE the limit and the per-source cap, so a caller
     asking for 5 episodes gets the 5 best episodes rather than whatever
-    episodes happened to survive a mixed top-5. ([validated by `memory-search.test.ts:90`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L90))
+    episodes happened to survive a mixed top-5. ([validated by `memory-search.test.ts:114`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L114))
   - Results are capped at 3 per (agent_id + source) combo to prevent
     verbose sessions from dominating (session diversification); sources already under the cap are returned intact. ([validated by `memory-ranking.test.ts:53`](libs/shared/src/domain/memory-ranking.test.ts#L53), [validated by `keeps all items when each source is under the cap`](libs/shared/src/domain/memory-ranking.test.ts#L99))
   - Every search call asynchronously increments `retrieval_count`,
@@ -247,7 +254,7 @@ Mirrors each write to `memories`, preserving full history queryable via
 - `inferred` — for memory-sourced extractions. ([validated by `facts-extraction.test.ts:111`](libs/server-core/src/work/memory/facts-extraction.test.ts#L111))
 - Decision: `verified` is the human-confirmed tier, set manually (no automated code path).
 - `stale` — automatically applied after 30 days of zero retrieval.
-  Stale facts revive to `observed` on next retrieval. ([validated by `memory-lifecycle.test.ts:188`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L197), [`memory-search.test.ts:180`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L180))
+  Stale facts revive to `observed` on next retrieval. ([validated by `memory-lifecycle.test.ts:188`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L197), [`memory-search.test.ts:204`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L204))
 
 ### episodes
 
@@ -278,7 +285,7 @@ exist in the implementation but are not exposed as MCP tools; the shipped
 surface is the `pool` field on `lore_write_memory` and the `pool` parameter on
 `lore_search_memory` for scoped search. A scoped search resolves the pool by
 name first, and a name that matches no pool returns no results rather than
-falling back to an unscoped search. ([validated by `memory-search.test.ts:235`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L235), [`memory-search.test.ts:225`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L225))
+falling back to an unscoped search. ([validated by `memory-search.test.ts:259`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L259), [`memory-search.test.ts:249`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L249))
 
 ### audit_log
 

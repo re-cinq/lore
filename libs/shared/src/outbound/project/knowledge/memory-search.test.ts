@@ -87,6 +87,30 @@ describe("searchMemories", () => {
     });
   });
 
+  it("audits an org-wide search against actorId agent-7 rather than the literal anonymous", async () => {
+    const pool = scriptedPool();
+
+    await searchMemories(pool, "deploy", { actorId: "agent-7" });
+
+    const audit = pool.calls.find((c) =>
+      /INSERT INTO memory\.audit_log/.test(c.sql),
+    );
+
+    expect(audit?.params[0]).toBe("agent-7");
+  });
+
+  it("keeps the search org-wide when actorId is given, so attribution does not narrow the scope", async () => {
+    const pool = scriptedPool();
+
+    await searchMemories(pool, "deploy", { actorId: "agent-7" });
+
+    const memoriesCall = pool.calls.find((c) =>
+      /FROM memory\.memories m/.test(c.sql),
+    );
+
+    expect(memoriesCall?.params[1]).toBeNull();
+  });
+
   it("passes $3 = true and the ($3::boolean OR f.valid_to IS NULL) gate when include_invalidated is true", async () => {
     const pool = scriptedPool();
 

@@ -34,6 +34,8 @@ export interface MemorySearchOptions {
   limit?: number;
   includeInvalidated?: boolean;
   graphAugment?: boolean;
+  /** Who is searching, for the audit trail. Distinct from `agentId`, which narrows WHAT is searched: an org-wide search still has an author, and recording the scope instead left every one of them logged as "anonymous". */
+  actorId?: string;
   /** Keep only these kinds of hit. The legs that cannot produce a requested kind are not run, and the fact legs filter in SQL under their LIMIT, so asking for 5 episodes yields the 5 best episodes rather than whatever episodes survived a mixed top-20. */
   sources?: MemorySearchResult["source"][];
 }
@@ -113,6 +115,7 @@ function poolNotFound(
 
 interface ResolvedSearchOptions {
   agentId?: string;
+  actorId?: string;
   poolName?: string;
   limit: number;
   includeInvalidated: boolean;
@@ -125,6 +128,7 @@ function resolveSearchOptions(
 ): ResolvedSearchOptions {
   return {
     agentId: options.agentId,
+    actorId: options.actorId,
     poolName: options.poolName,
     limit: options.limit ?? 10,
     includeInvalidated: options.includeInvalidated ?? false,
@@ -205,18 +209,20 @@ export async function searchMemories(
   // Captures the clock BEFORE the work it times; moving it down would shorten the reported latency.
   const searchStartTime = Date.now();
   const agent = resolved.agentId ? resolveAgentId(resolved.agentId) : null;
+  // The audit records the author; the scope stays whatever was asked for.
+  const actor = resolved.actorId ?? agent;
   const scope = await resolveScope(pool, agent, resolved);
 
   if (!scope) {
     // Pool does not exist — return empty
-    await auditLog(pool, { agentId: agent, query, resultCount: 0 });
+    await auditLog(pool, { agentId: actor, query, resultCount: 0 });
 
     return [];
   }
   const results = await scopedResults(pool, query, scope, resolved);
 
   return finishSearch(pool, results, {
-    agentId: agent,
+    agentId: actor,
     query,
     latencyMs: Date.now() - searchStartTime,
   });

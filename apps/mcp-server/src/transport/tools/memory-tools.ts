@@ -266,6 +266,8 @@ function searchProxyArgs(args: SearchMemoryArgs) {
   return {
     query: args.query,
     agent_id: args.agent_id || undefined,
+    // Always sent, even when the search is org-wide: `agent_id` says what to search, this says who asked.
+    actor_id: resolveAgentId(),
     pool_name: args.pool,
     limit: args.limit,
     include_invalidated: args.include_invalidated,
