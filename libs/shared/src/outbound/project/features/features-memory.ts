@@ -92,6 +92,7 @@ export class InMemoryFeatures implements FeaturesPort {
     return this.insertFeature(repo, input, input.parentFeatureId ?? null);
   }
 
+  // eslint-disable-next-line re-lint/no-duplicate-code -- the in-memory features adapter; createSplitChild and its neighbours match the pg adapter because the port declares them, while the bodies store Maps rather than rows
   async createSplitChild(
     repo: string,
     parentId: string,

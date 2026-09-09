@@ -9,15 +9,11 @@ import { PgTestReports } from "@re-cinq/lore-shared/project/test-reports/test-re
 import { ClusterAgentClient } from "@re-cinq/lore-shared";
 import {
   selectEventDeliveries,
-  selectEventQueue,
   selectEventProxy,
 } from "@re-cinq/lore-shared/project/events/select-event-reporter.js";
 import type { EventDeliveriesPort } from "@re-cinq/lore-shared/project/events/event-deliveries-port.js";
 import { PgEventDeliveries } from "@re-cinq/lore-shared/project/events/event-deliveries-pg.js";
-import type {
-  EventQueueRepository,
-  EventReporter,
-} from "@re-cinq/lore-shared/project/events/event-queue-port.js";
+import type { EventReporter } from "@re-cinq/lore-shared/project/events/event-reporter-port.js";
 import type { EventProxy } from "@re-cinq/lore-shared/project/events/event-proxy.js";
 import { PgTaskStore } from "@re-cinq/lore-shared/project/tasks/task-store-pg.js";
 import { PgUsage } from "@re-cinq/lore-shared/project/usage/usage-pg.js";
@@ -83,19 +79,11 @@ let eventProxySingleton: EventProxy | undefined;
 /** The hub this Floor reports through (ADR-044): over HTTP to the event-router in a cluster, or the pool with no `EVENT_ROUTER_URL`; memoized to ONE per process since a second instance would be a second, undrained queue. */
 export const eventProxy = (): EventProxy =>
   (eventProxySingleton ??= selectEventProxy({
-    local: () => pipeline().eventQueue,
+    local: () => pipeline().eventReporter,
   }));
 
 /** The reporting half of that hub: `insert`, synchronous and throwing so ingress routes can 500 to make the sender redeliver; a producer with no status to return uses `eventProxy().emit` instead. */
 export const eventReporter = (): EventReporter => eventProxy();
-
-let eventQueueSingleton: EventQueueRepository | undefined;
-
-/** The queue this Floor DRAINS (ADR-044): over HTTP to the router in a cluster, or the pool locally; `FOR UPDATE SKIP LOCKED` keeps the claim atomic either way. */
-export const eventQueue = (): EventQueueRepository =>
-  (eventQueueSingleton ??= selectEventQueue({
-    local: () => pipeline().eventQueue,
-  }));
 
 let deliveriesSingleton: EventDeliveriesPort | undefined;
 

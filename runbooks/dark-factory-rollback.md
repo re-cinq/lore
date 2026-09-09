@@ -74,10 +74,10 @@ psql "$LORE_DB_URL" -c "
 
 # Event-loop health: anything dead-lettered during the incident window?
 psql "$LORE_DB_URL" -c "
-  SELECT event_name, status, count(*)
-    FROM pipeline.events
+  SELECT event_name, subscriber, status, count(*)
+    FROM pipeline.event_deliveries
    WHERE status IN ('failed', 'dead')
-   GROUP BY 1, 2 ORDER BY 3 DESC;
+   GROUP BY 1, 2, 3 ORDER BY 4 DESC;
 "
 ```
 

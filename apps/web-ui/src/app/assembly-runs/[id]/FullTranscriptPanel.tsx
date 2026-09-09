@@ -25,7 +25,6 @@ import {
   TranscriptEmpty,
   TranscriptError,
   TranscriptLoading,
-  TranscriptToggleRow,
   TranscriptTurnsList,
 } from "./TranscriptView";
 
@@ -68,7 +67,7 @@ function transcriptMessageFlags({
   };
 }
 
-/** Whether the format toggle + conversation apply — no error, and something to draw for this node. */
+/** Whether the conversation applies — no error, and something to draw for this node. */
 function transcriptListVisible({
   error,
   entryCount,
@@ -157,10 +156,9 @@ function useTranscriptData(runId: string, { open }: { open: boolean }) {
 
 function useTranscriptWalk(runId: string) {
   const [open, setOpen] = useState(true);
-  const [showRaw, setShowRaw] = useState(false);
   const { turns, capped, error } = useTranscriptData(runId, { open });
 
-  return { open, setOpen, turns, capped, error, showRaw, setShowRaw };
+  return { open, setOpen, turns, capped, error };
 }
 
 /** What the conversation is folded from: the node's turns, and the task events inside its window. */
@@ -245,39 +243,26 @@ interface TranscriptBodyProps {
 
 interface TranscriptListProps {
   show: boolean;
-  showRaw: boolean;
   segments: ReturnType<typeof useNodeSegments>;
 }
 
-function TranscriptList({ show, showRaw, segments }: TranscriptListProps) {
-  return (
-    <TranscriptTurnsList
-      show={show}
-      showRaw={showRaw}
-      turns={segments.nodeTurns}
-      entries={segments.entries}
-    />
-  );
+function TranscriptList({ show, segments }: TranscriptListProps) {
+  return <TranscriptTurnsList show={show} entries={segments.entries} />;
 }
 
 function TranscriptBody({ walk, segments, nodeId }: TranscriptBodyProps) {
-  const { turns, error, showRaw } = walk;
+  const { turns, error } = walk;
   const { showList, ...flags } = bodyFlags(walk, segments);
 
   return (
     <>
-      <TranscriptToggleRow
-        show={showList}
-        showRaw={showRaw}
-        setShowRaw={walk.setShowRaw}
-      />
       <TranscriptNotices
         error={error}
         flags={flags}
         turnsLoaded={(turns ?? []).length}
         nodeId={nodeId}
       />
-      <TranscriptList show={showList} showRaw={showRaw} segments={segments} />
+      <TranscriptList show={showList} segments={segments} />
     </>
   );
 }

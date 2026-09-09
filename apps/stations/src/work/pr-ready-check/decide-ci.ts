@@ -26,6 +26,13 @@ export type CiCheckVerdict =
       outcome: "changes_requested";
       feedback: CiFeedbackArgs;
     }
+  // The same guard `ci_red_unchanged` gives a red build: a round that cleared nothing would otherwise be sent back twelve times to learn one fact.
+  | {
+      kind: "blocked";
+      reason: "pr_conflicting_unchanged";
+      outcome: "failed";
+      feedback: CiFeedbackArgs;
+    }
   // As on the await-pr wait, the two blocked reasons carry DIFFERENT outcomes, because only `outcome` routes: a build the line can repair goes back to a round, one it demonstrably cannot goes to a human.
   | {
       kind: "blocked";
@@ -51,7 +58,7 @@ export function decideCiReady(input: {
   mergeable: boolean | null;
 }): CiCheckVerdict {
   if (input.mergeable === false) {
-    return conflictVerdict(input.judgedSha);
+    return conflictVerdict(input.judgedSha, input.lastReportedSha);
   }
 
   if (!input.judgedSha) {
@@ -59,21 +66,23 @@ export function decideCiReady(input: {
   }
 
   return (
-    unsettledVerdict(ciConclusionOf(input.checks), input.hasCiHistory) ??
-    settledVerdict(input)
+    unsettledVerdict({
+      conclusion: ciConclusionOf(input.checks),
+      hasCiHistory: input.hasCiHistory,
+    }) ?? settledVerdict(input)
   );
 }
 
 /** A build still in flight, or one whose checks have not appeared yet — null once there is something to judge. */
-function unsettledVerdict(
-  conclusion: CiConclusion,
-  hasCiHistory: boolean,
-): CiCheckVerdict | null {
-  if (conclusion === "pending") {
+function unsettledVerdict(input: {
+  conclusion: CiConclusion;
+  hasCiHistory: boolean;
+}): CiCheckVerdict | null {
+  if (input.conclusion === "pending") {
     return { kind: "wait", reason: "ci_pending" };
   }
 
-  return conclusion === "none" && hasCiHistory
+  return input.conclusion === "none" && input.hasCiHistory
     ? { kind: "wait", reason: "ci_not_started" }
     : null;
 }
@@ -89,18 +98,34 @@ function settledVerdict(input: {
     : { kind: "ready" };
 }
 
-/** A pull request GitHub will not build. The round is told plainly, because "no checks" would otherwise read as "not started" forever. */
-function conflictVerdict(judgedSha: string | null): CiCheckVerdict {
+/** Stands in for the sha when every commit skipped CI, so the unchanged-guard can still compare one look to the next. */
+const NO_JUDGEABLE_COMMIT = "no-judgeable-commit";
+
+/** What the round is told about a branch GitHub will not build. */
+const CONFLICT_SUMMARY =
+  "GitHub runs no workflow on a conflicted pull request, so this branch has no build and never will until it merges its base cleanly. Bring it up to date with the base branch and push.";
+
+/** A pull request GitHub will not build, told to the round while the branch is still moving. An unchanged sha means the round it was handed to cleared nothing, and twelve more would clear nothing either — the same guard `ci_red_unchanged` gives a red build. */
+function conflictVerdict(
+  judgedSha: string | null,
+  lastReportedSha: string | null,
+): CiCheckVerdict {
+  // Not "": park-readers reads that back as null, so it could never compare equal and the guard would never close.
+  const current = judgedSha ?? NO_JUDGEABLE_COMMIT;
+  const routing =
+    current !== lastReportedSha
+      ? ({ reason: "pr_conflicting", outcome: "changes_requested" } as const)
+      : ({ reason: "pr_conflicting_unchanged", outcome: "failed" } as const);
+
+  return { kind: "blocked", ...routing, feedback: conflictFeedback(current) };
+}
+
+/** What the round is handed about a branch with no build: no check names, because there are none. */
+function conflictFeedback(sha: string): CiFeedbackArgs {
   return {
-    kind: "blocked",
-    reason: "pr_conflicting",
-    outcome: "changes_requested",
-    feedback: {
-      ci_feedback_sha: judgedSha ?? "",
-      ci_failed_checks: "none — the pull request conflicts with its base",
-      ci_failure_summary:
-        "GitHub runs no workflow on a conflicted pull request, so this branch has no build and never will until it merges its base cleanly. Bring it up to date with the base branch and push.",
-    },
+    ci_feedback_sha: sha,
+    ci_failed_checks: "none — the pull request conflicts with its base",
+    ci_failure_summary: CONFLICT_SUMMARY,
   };
 }
 

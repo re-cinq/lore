@@ -105,9 +105,6 @@ const BASE_ROWS: unknown[][] = [
   [{ service: "Kubernetes Engine", cost_usd: 180.2 }],
   [{ bucket_date: "2026-09-01", cost_usd: 30.5 }],
   [{ blueprint: "implementation-loop", pods: 9, hours: 6.5 }],
-  [{ ledger_total_usd: 500, anchored_at: "2026-08-01T00:00:00Z" }],
-  [{ billed_usd: 300, billed_through: "2026-09-01" }],
-  [{ cost_usd: 12.5 }],
 ];
 
 const get = (server: Hapi.Server, url = "/api/analytics/spend-window") =>
@@ -245,7 +242,7 @@ describe("GET /api/analytics/spend-window", () => {
     expect(body.llm.total_usd).toBe(82.5);
   });
 
-  it("scopes every metered and billed read to the interval, except the ledger and the budget", async () => {
+  it("scopes every metered and billed read to the interval", async () => {
     const issued: Issued[] = [];
     const server = await serverWith(BASE_ROWS, {}, issued);
 
@@ -254,16 +251,20 @@ describe("GET /api/analytics/spend-window", () => {
       "/api/analytics/spend-window?from=2026-09-01&to=2026-09-02",
     );
 
-    const windowed = issued.filter(
-      ({ sql, params }) =>
-        !sql.includes("pipeline.credit_ledger") &&
-        !params.includes("2026-08-01T00:00:00Z"),
-    );
-
-    for (const { params } of windowed) {
+    for (const { params } of issued) {
       expect(params[0]).toMatch(/^2026-09-01/);
       expect(String(params[1])).toMatch(/^2026-09-0[23]/);
     }
+  });
+
+  it("carries no budget block and never reads a credit ledger", async () => {
+    const issued: Issued[] = [];
+    const body = JSON.parse(
+      (await get(await serverWith(BASE_ROWS, {}, issued))).payload,
+    );
+
+    expect(body).not.toHaveProperty("budget");
+    expect(issued.some(({ sql }) => sql.includes("credit_ledger"))).toBe(false);
   });
 
   it("prices each live pod from its ACTUAL requests and sums the burn rate", async () => {
@@ -394,85 +395,19 @@ describe("GET /api/analytics/spend-window", () => {
     ).toBe(null);
   });
 
-  it("reports no budget (not a confident $0.00) when no balance has ever been recorded", async () => {
-    const rows = [...BASE_ROWS];
-
-    rows[16] = [];
-    const body = JSON.parse((await get(await serverWith(rows))).payload);
-
-    expect(body.budget).toBe(null);
-  });
-
-  it("reports no budget when the credit-ledger table has not been migrated yet", async () => {
-    const server = await serverWith(BASE_ROWS, {}, [], (sql) =>
-      sql.includes("pipeline.credit_ledger"),
-    );
-    const res = await get(server);
-
-    expect(res.statusCode).toBe(200);
-    expect(JSON.parse(res.payload).budget).toBe(null);
-  });
-
-  it("reports remaining as the ledger total minus billed and unbilled spend since the anchor", async () => {
-    const body = JSON.parse((await get(await serverWith(BASE_ROWS))).payload);
-
-    expect(body.budget).toEqual({
-      ledger_total_usd: 500,
-      spent_since_usd: 312.5,
-      remaining_usd: 187.5,
-      anchored_at: "2026-08-01T00:00:00Z",
-    });
-  });
-
-  it("anchors both budget halves to the ledger entry and excludes satellite spend from the computed side", async () => {
-    const issued: Issued[] = [];
-
-    await get(await serverWith(BASE_ROWS, {}, issued));
-
-    const anchored = issued.filter(({ params }) =>
-      params.includes("2026-08-01T00:00:00Z"),
-    );
-
-    expect(anchored).toHaveLength(2);
-    expect(anchored[0].sql).toContain("pipeline.anthropic_cost_daily");
-    expect(anchored[1].sql).toContain("pipeline.llm_calls");
-    expect(anchored[1].sql).toContain("cluster_agent_id IS NULL");
-    expect(anchored[1].params.slice(0, 2)).toEqual([
-      "2026-08-01T00:00:00Z",
-      "2026-09-01",
-    ]);
-  });
-
-  it("keeps Gemini spend out of the Anthropic balance and the unbilled remainder", async () => {
+  it("keeps Gemini spend out of the unbilled remainder", async () => {
     const issued: Issued[] = [];
 
     await get(await serverWith(BASE_ROWS, {}, issued));
 
     const excluding = issued.filter(({ sql }) => sql.includes("NOT LIKE ALL"));
 
-    expect(excluding).toHaveLength(2);
+    expect(excluding).toHaveLength(1);
 
     for (const { sql, params } of excluding) {
       expect(sql).toContain("pipeline.llm_calls");
       expect(params.at(-1)).toContain("gemini%");
     }
-  });
-
-  it("excludes corrections from the budget anchor but not from the total", async () => {
-    const issued: Issued[] = [];
-
-    await get(await serverWith(BASE_ROWS, {}, issued));
-
-    const sql =
-      issued.find(({ sql: s }) => s.includes("pipeline.credit_ledger"))?.sql ??
-      "";
-
-    expect(sql).toContain("MIN(effective_at) FILTER (WHERE kind = 'opening')");
-    expect(sql).toContain(
-      "MIN(effective_at) FILTER (WHERE kind <> 'correction')",
-    );
-    expect(sql).toContain("COALESCE(SUM(amount_usd), 0)");
-    expect(sql).not.toContain("SUM(amount_usd) FILTER");
   });
 
   it("groups cluster spend through station_runs (LEFT JOINs) so unclaimed rows land in the null bucket, not vanish", async () => {
@@ -510,19 +445,5 @@ describe("GET /api/analytics/spend-window", () => {
     expect(issued.some(({ sql }) => sql.includes("l.assembly_run_id"))).toBe(
       false,
     );
-  });
-
-  it("falls back to billed-only spend when the computed llm_calls query's table is absent", async () => {
-    const server = await serverWith(BASE_ROWS, {}, [], (sql) =>
-      sql.includes("sr.cluster_agent_id IS NULL"),
-    );
-    const body = JSON.parse((await get(server)).payload);
-
-    expect(body.budget).toEqual({
-      ledger_total_usd: 500,
-      spent_since_usd: 300,
-      remaining_usd: 200,
-      anchored_at: "2026-08-01T00:00:00Z",
-    });
   });
 });

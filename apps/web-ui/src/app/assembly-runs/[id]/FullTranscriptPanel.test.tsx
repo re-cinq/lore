@@ -112,7 +112,7 @@ describe("FullTranscriptPanel", () => {
     expect(await screen.findByText(/full text of turn 1/)).toBeTruthy();
   });
 
-  it("keeps the untruncated envelope one Raw click away", async () => {
+  it("offers no raw view, showing the formatted conversation alone", async () => {
     stubFetch(turnsResponse([wireTurn("1", "implement")]));
     const { container } = render(
       <FullTranscriptPanel runId="run-1" nodeId="implement" />,
@@ -120,9 +120,8 @@ describe("FullTranscriptPanel", () => {
 
     await openPanel(container);
     await screen.findByText(/full text of turn 1/);
-    fireEvent.click(screen.getByRole("button", { name: "Raw" }));
 
-    expect(await screen.findByText(/"source"/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Raw" })).toBeNull();
   });
 
   it("pages with the cursor until a short page", async () => {

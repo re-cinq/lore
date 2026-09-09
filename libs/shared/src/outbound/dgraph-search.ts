@@ -20,8 +20,8 @@ const VMEM_BLOCK = `vmem(func: similar_to(Memory.embedding, 20, $vec)) @filter(e
           Memory.key Memory.value Memory.agent_id
         }`;
 
-function buildSearchQuery(hasEmbedding: boolean): string {
-  if (!hasEmbedding) {
+function buildSearchQuery(embedding: number[] | undefined): string {
+  if (!embedding) {
     return `query search($q: string) {\n${KMEM_BLOCK}\n}`;
   }
 
@@ -50,12 +50,12 @@ function extractRows(
 
 function mergedSearchLists(
   res: DgraphQueryResult,
-  hasEmbedding: boolean,
+  embedding: number[] | undefined,
   toItems: (rows: Record<string, unknown>[]) => RankedItem[],
 ): RankedItem[][] {
   const kmemItems = toItems(extractRows(res, "kmem"));
 
-  if (!hasEmbedding) {
+  if (!embedding) {
     return [kmemItems];
   }
 
@@ -86,13 +86,12 @@ export async function searchMemories(
   opts: { agentId?: string; limit?: number; embedding?: number[] },
 ): Promise<MemorySearchResult[]> {
   return withTxn(client, async (txn) => {
-    const hasEmbedding = Boolean(opts.embedding);
     const res = await txn.queryWithVars(
-      buildSearchQuery(hasEmbedding),
+      buildSearchQuery(opts.embedding),
       searchVars(query, opts.embedding),
     );
     const fused = rrfMerge(
-      mergedSearchLists(res, hasEmbedding, toRankedMemory),
+      mergedSearchLists(res, opts.embedding, toRankedMemory),
     );
 
     return limitResults(fused, opts.limit);

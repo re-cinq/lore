@@ -1,15 +1,9 @@
-// The transcript as a terminal session (run-viz FR4.17): one monospace block, a clock gutter, assistant prose in the open, tool calls folded to one line with their result behind it, thinking folded, task transitions as system lines, and a dim rule per visit. Pure render; the panel above owns the walk.
+// The transcript as a terminal session (run-viz FR4.17): one monospace block, each entry headed by its clock, assistant prose in the open, tool calls folded to one line with their result behind it, thinking folded, task transitions as system lines, and a dim rule per visit. Pure render; the panel above owns the walk.
 import type { ReactNode } from "react";
-import type { AgentRunTurn } from "@/lib/run-turn-types";
 import { clip } from "@/lib/agent-log-entries";
-import type { TranscriptEntry } from "@/lib/transcript-entries";
-import {
-  clockTime,
-  envelopePretty,
-  turnHeading,
-} from "./turn-transcript-presenter";
+import { clockShown, type TranscriptEntry } from "@/lib/transcript-entries";
+import { clockTime } from "./turn-transcript-presenter";
 import { EntryLine } from "@/components/LogEntriesView";
-import LogFormatToggle from "@/components/LogFormatToggle";
 import styles from "./TranscriptView.module.css";
 
 const SUMMARY_MAX = 120;
@@ -65,61 +59,6 @@ export function TranscriptEmpty({
       No stored turns for {nodeId}. Turns older than the retention horizon are
       pruned.
     </p>
-  );
-}
-
-interface TranscriptToggleRowProps {
-  show: boolean;
-  showRaw: boolean;
-  setShowRaw: (raw: boolean) => void;
-}
-
-export function TranscriptToggleRow({
-  show,
-  showRaw,
-  setShowRaw,
-}: TranscriptToggleRowProps) {
-  if (!show) {
-    return null;
-  }
-
-  return (
-    <div className={styles.toggleRow}>
-      <LogFormatToggle
-        raw={showRaw}
-        onFormatted={() => setShowRaw(false)}
-        onRaw={() => setShowRaw(true)}
-      />
-    </div>
-  );
-}
-
-function RawTurnItem({ turn }: { turn: AgentRunTurn }) {
-  return (
-    <li className={styles.turn}>
-      <details>
-        <summary className={styles.turnSummary}>
-          <span className={styles.kind}>{turnHeading(turn)}</span>
-          {turn.iteration !== null && (
-            <span className={styles.iteration}>iteration {turn.iteration}</span>
-          )}
-          <time dateTime={turn.createdAt}>
-            {new Date(turn.createdAt).toLocaleString()}
-          </time>
-        </summary>
-        <pre className={styles.envelope}>{envelopePretty(turn)}</pre>
-      </details>
-    </li>
-  );
-}
-
-function RawTurnsList({ turns }: { turns: AgentRunTurn[] }) {
-  return (
-    <ol className={styles.turns}>
-      {turns.map((turn) => (
-        <RawTurnItem key={turn.id} turn={turn} />
-      ))}
-    </ol>
   );
 }
 
@@ -215,14 +154,22 @@ function rowBody(entry: TranscriptEntry): ReactNode {
   return (ROW[entry.kind] as (entry: TranscriptEntry) => ReactNode)(entry);
 }
 
-function TranscriptRow({ entry }: { entry: TranscriptEntry }) {
+function TranscriptRow({
+  entry,
+  showClock,
+}: {
+  entry: TranscriptEntry;
+  showClock: boolean;
+}) {
   const rowClass = entry.kind === "segment" ? styles.segmentRow : styles.row;
 
   return (
     <li className={rowClass} data-entry={entry.kind}>
-      <time className={styles.time} dateTime={entry.at}>
-        {clockTime(entry.at)}
-      </time>
+      {showClock && (
+        <time className={styles.time} dateTime={entry.at}>
+          {clockTime(entry.at)}
+        </time>
+      )}
       <div className={styles.body}>{rowBody(entry)}</div>
     </li>
   );
@@ -233,10 +180,12 @@ function ConversationList({
 }: {
   entries: readonly TranscriptEntry[];
 }) {
+  const shown = clockShown(entries);
+
   return (
     <ol className={styles.terminal} data-transcript>
       {entries.map((entry, index) => (
-        <TranscriptRow key={index} entry={entry} />
+        <TranscriptRow key={index} entry={entry} showClock={shown[index]} />
       ))}
     </ol>
   );
@@ -244,22 +193,14 @@ function ConversationList({
 
 export function TranscriptTurnsList({
   show,
-  showRaw,
-  turns,
   entries,
 }: {
   show: boolean;
-  showRaw: boolean;
-  turns: AgentRunTurn[];
   entries: readonly TranscriptEntry[];
 }) {
   if (!show) {
     return null;
   }
 
-  return showRaw ? (
-    <RawTurnsList turns={turns} />
-  ) : (
-    <ConversationList entries={entries} />
-  );
+  return <ConversationList entries={entries} />;
 }

@@ -5,19 +5,20 @@ import type { CatalogApplyReport } from "@re-cinq/lore-shared/project/agents/cat
 import type { CatalogSyncTickDeps } from "./catalog-batch-apply.js";
 import type {
   CatalogEventsResponse,
+  CatalogSyncMode,
   CatalogSyncOutcome,
 } from "./catalog-sync-loop.js";
 
 const SYNC_TIMEOUT_MS = 30_000;
 
-/** One poll: fetch the unapplied batch, land every entry, remember the cursor to ack next call. Never throws. `snapshot` forces a full boot resync, repairing a lost or differently-rendered apply (#1727). */
+/** One poll: fetch the unapplied batch, land every entry, remember the cursor to ack next call. Never throws. Mode `snapshot` forces a full boot resync, repairing a lost or differently-rendered apply (#1727). */
 export type FetchOutcome =
   | { kind: "batch"; body: CatalogEventsResponse }
   | { kind: "refused"; outcome: CatalogSyncOutcome };
 
 function catalogEventsQuery(
   ack: string | undefined,
-  snapshot: boolean,
+  mode: CatalogSyncMode,
 ): string {
   const params = new URLSearchParams();
 
@@ -25,7 +26,7 @@ function catalogEventsQuery(
     params.set("ack", ack);
   }
 
-  if (snapshot) {
+  if (mode === "snapshot") {
     params.set("snapshot", "1");
   }
 
@@ -82,10 +83,10 @@ function fetchRefusal(res: Response): FetchOutcome | null {
 export async function fetchCatalogBatch(
   deps: CatalogSyncTickDeps,
   ack: string | undefined,
-  snapshot: boolean,
+  mode: CatalogSyncMode,
 ): Promise<FetchOutcome> {
   const { id, token } = deps.identity();
-  const url = `${deps.apiUrl}/api/cluster-agents/${id}/catalog-events${catalogEventsQuery(ack, snapshot)}`;
+  const url = `${deps.apiUrl}/api/cluster-agents/${id}/catalog-events${catalogEventsQuery(ack, mode)}`;
   const res = await requestCatalogEvents(deps.fetchFn, url, token);
 
   if (isFetchOutcome(res)) {

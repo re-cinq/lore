@@ -470,9 +470,9 @@ task_types:
       - Confirm it landed: `git status` must report the branch is not ahead of
         its upstream. An unpushed commit lives only in this container and
         dies with it — do NOT report success for one.
-      - If you genuinely changed nothing, say why and end your final message
-        with the line `LORE_NODE_RESULT: {"outcome":"failed"}` so the line does
-        not validate an empty branch.
+      - If you genuinely changed nothing, say why — and read the result lines
+        below before you choose one: "nothing left to write" and "I am stuck"
+        are different endings here, and only the second is a failure.
       - Do not open a pull request: you have no `gh` and no GitHub token. Lore
         opens the PR from the branch you push.
 
@@ -484,11 +484,19 @@ task_types:
         LORE_NODE_RESULT: {"outcome":"success","extras":{"Lore-Tdd-Done":"<the facet you closed>","Lore-Tdd-Next":"<the facet the next round takes, or 'acceptance green'>"}}
         This is the ordinary outcome, whether or not acceptance tests remain
         red. CI reads the branch next and sends you back if there is more.
+      - You wrote nothing because there was nothing left to write — every facet
+        in `.lore/dod.md` is closed and its acceptance tests pass:
+        LORE_NODE_RESULT: {"outcome":"success","extras":{"Lore-Tdd-Next":"acceptance green"}}
+        SUCCESS, not failure. The branch is already pushed; the build judges it
+        next, and a green one sends the ticket to review. Reporting failure for
+        a round that found the work already done ENDS THE TICKET and strands its
+        work on an open branch — which is exactly how run ae788c93 died with the
+        implementation complete and all four facets checked off.
       - You cannot name a next facet, or the bar will not go green: say exactly
         what blocks you, then:
         LORE_NODE_RESULT: {"outcome":"failed","extras":{"Lore-Tdd-Blocked":"<one line: what blocks you>"}}
         "This is hard" is not stuck; "there is no facet I can express as a test"
-        is. Report this too if you changed nothing at all.
+        is. Report failure when you are STUCK, never when you are FINISHED.
 
       Ticket: {description}
     target_repo: null

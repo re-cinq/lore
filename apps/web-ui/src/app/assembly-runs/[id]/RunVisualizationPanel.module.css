@@ -43,26 +43,16 @@
   border-color: var(--warning);
 }
 
-/* Graph left, inspector right and always in view; one column on a narrow screen. */
+/* The graph, then the inspector for the selected node directly beneath it. */
 .workbench {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(20rem, 28rem);
+  display: flex;
+  flex-direction: column;
   gap: 1.5rem;
-  align-items: start;
 }
-@media (max-width: 64rem) {
-  .workbench {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-.graphColumn {
+.workbench > * {
   min-width: 0;
 }
-.sidebar {
-  position: sticky;
-  top: 1rem;
-  max-height: calc(100vh - 2rem);
-  overflow: auto;
+.inspectorRegion {
   min-width: 0;
 }
 

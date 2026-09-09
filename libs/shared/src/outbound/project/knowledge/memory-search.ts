@@ -133,20 +133,6 @@ function resolveSearchOptions(
   };
 }
 
-/** Graph augmentation: enrich results with 1-hop graph neighbors, when enabled and there's anything to augment. */
-async function applyGraphAugment(
-  pool: PgPool,
-  results: MemorySearchResult[],
-  limit: number,
-  enabled: boolean,
-): Promise<MemorySearchResult[]> {
-  if (!enabled || results.length === 0) {
-    return results;
-  }
-
-  return augmentWithGraphNeighbors(pool, results, limit);
-}
-
 /** The four search legs merged into one ranked list. Reciprocal rank fusion is what lets a vector hit and a keyword hit be compared at all — the legs score on incompatible scales, but their RANKS are commensurable. Diversification then caps how much of the result one session can occupy, so a single chatty run cannot crowd out everything else. */
 async function rankedHits(
   pool: PgPool,
@@ -191,12 +177,10 @@ async function scopedResults(
 ): Promise<MemorySearchResult[]> {
   const ranked = await rankedHits(pool, query, scope, options);
 
-  return applyGraphAugment(
-    pool,
-    ranked,
-    options.limit,
-    options.graphAugmentEnabled,
-  );
+  // Graph augmentation widens the list with 1-hop neighbours; nothing ranked means nothing to widen.
+  return options.graphAugmentEnabled && ranked.length > 0
+    ? augmentWithGraphNeighbors(pool, ranked, options.limit)
+    : ranked;
 }
 
 /** Strengthen what was retrieved, audit the search, and hand the results back unchanged. */

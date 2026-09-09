@@ -64,7 +64,7 @@ day-old data.
    `pipeline.anthropic_cost_daily`; everything current-day comes from
    `pipeline.llm_calls`, which is the only source that can cover today at
    all — and the only one with kind attribution (Anthropic reports by model
-   only). ([validated by `SpendView.test.tsx:270`](apps/web-ui/src/app/spend/SpendView.test.tsx#L334), [`SpendView.test.tsx:353`](apps/web-ui/src/app/spend/SpendView.test.tsx#L353))
+   only). ([validated by `SpendView.test.tsx:270`](apps/web-ui/src/app/spend/SpendView.test.tsx#L340), [`SpendView.test.tsx:354`](apps/web-ui/src/app/spend/SpendView.test.tsx#L354))
 3. **Everything Anthropic has not billed yet is shown as a labeled computed
    line on the billed card** ("billed through 8/18 — + $47.74 over 2 days
    since (Lore-computed)"), never silently summed into the authoritative
@@ -72,7 +72,7 @@ day-old data.
    day: the consequence below makes a cron outage surface as staleness, and
    a line hardcoded to "yesterday — + today" reported a one-day gap through
    an outage of any length, quietly stranding whole days of spend between
-   the two figures. ([validated by `SpendView.test.tsx:329`](apps/web-ui/src/app/spend/SpendView.test.tsx#L380), [`SpendView.test.tsx:389`](apps/web-ui/src/app/spend/SpendView.test.tsx#L389), [`SpendView.test.tsx:395`](apps/web-ui/src/app/spend/SpendView.test.tsx#L395))
+   the two figures. ([validated by `SpendView.test.tsx:329`](apps/web-ui/src/app/spend/SpendView.test.tsx#L381), [`SpendView.test.tsx:390`](apps/web-ui/src/app/spend/SpendView.test.tsx#L390), [`SpendView.test.tsx:396`](apps/web-ui/src/app/spend/SpendView.test.tsx#L396))
 
 ## Consequences
 
@@ -168,9 +168,9 @@ same export the sync reads.
   the Anthropic `billed` block: interval-scoped net-of-credits totals,
   whole-table `as_of`/`billed_through` stamps, `available` decided by the
   stamp (a synced zero is not "never synced"), and `optionalTableRows`
-  degradation when the table has not been migrated. ([validated by [`spend-window.test.ts:202`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L202), [`spend-window.test.ts:218`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L218), [`spend-window.test.ts:231`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L231))
+  degradation when the table has not been migrated. ([validated by [`spend-window.test.ts:199`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L199), [`spend-window.test.ts:215`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L215), [`spend-window.test.ts:228`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L228))
 - The view renders a "Google Cloud (billed)" card (net total plus the day the
   export has closed through) and by-service/daily tables only when available,
   hiding them entirely until the export has synced; the estimate card stays
   regardless, because the export lags a day or more and the estimate is the
-  only figure that covers "now". ([validated by [`SpendView.test.tsx:239`](apps/web-ui/src/app/spend/SpendView.test.tsx#L239), [`SpendView.test.tsx:248`](apps/web-ui/src/app/spend/SpendView.test.tsx#L248), [`SpendView.test.tsx:273`](apps/web-ui/src/app/spend/SpendView.test.tsx#L273))
+  only figure that covers "now". ([validated by [`SpendView.test.tsx:245`](apps/web-ui/src/app/spend/SpendView.test.tsx#L245), [`SpendView.test.tsx:254`](apps/web-ui/src/app/spend/SpendView.test.tsx#L254), [`SpendView.test.tsx:279`](apps/web-ui/src/app/spend/SpendView.test.tsx#L279))

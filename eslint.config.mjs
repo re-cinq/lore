@@ -6,6 +6,8 @@ import stylistic from "@stylistic/eslint-plugin";
 import markdown from "@eslint/markdown";
 import importX from "eslint-plugin-import-x";
 import reLint from "@re-cinq/eslint-plugin-re-lint";
+import { MAX_EXPECTS_BASELINE } from "./eslint.baseline.max-expects.mjs";
+import { CALLEE_BELOW_CALLER_BASELINE } from "./eslint.baseline.callee-below-caller.mjs";
 
 /**
  * Repo-wide ESLint (flat config). One common linter across every package plus the
@@ -212,7 +214,11 @@ export default tseslint.config(
       // 2026-09-08. Each is a warn until its queue drains, then an error in
       // the PR that empties it, like every queue above. Sizes at introduction
       // are recorded in the cutover PR.
-      "re-lint/no-flag-params": "warn",
+      // Error since 2026-09-09, drained across #1915, #1921 and this PR. The
+      // rule needed three fixes of its own first: an assertion's boolean, a
+      // stored value like useState(false), and a mock stub's answer are none
+      // of them a behaviour the callee selects.
+      "re-lint/no-flag-params": "error",
       // Error since 2026-09-08: the queue was one comment — a SQL fragment
       // quoted in an in-memory double — and it is reworded as prose.
       "re-lint/no-commented-out-code": "error",
@@ -236,7 +242,11 @@ export default tseslint.config(
       // duplication rather than just satisfying the rule. Off in tests below,
       // where an assertion reaching into captured data is navigation.
       "re-lint/max-member-chain": "error",
-      "re-lint/callee-below-caller": "warn",
+      // A file reads downward: the caller first, the helpers it calls below it.
+      // Error outside the files listed in eslint.baseline.callee-below-caller.mjs,
+      // which were written before the rule and whose reordering moves the line
+      // numbers 182 spec links point at.
+      "re-lint/callee-below-caller": "error",
       // Error since 2026-09-08: 20 declarations moved down to their first use.
       // The other 19 carry an inline disable, because moving them would change
       // what they capture (a spy installed before the call it records, a clock
@@ -300,7 +310,7 @@ export default tseslint.config(
     files: ["{apps,libs}/*/src/**/*.{ts,tsx}"],
     rules: {
       "re-lint/no-duplicate-code": [
-        "warn",
+        "error",
         {
           roots: ["apps", "libs"],
           formats: ["typescript", "tsx"],
@@ -489,7 +499,12 @@ export default tseslint.config(
       // A recording double IS half data and half behaviour: the code under
       // test writes the field and the test reads it. That is the point.
       "re-lint/no-hybrid-class": "off",
-      "re-lint/max-expects": "warn",
+      // Three, not one: across 2949 findings the median test asserted two
+      // things and p90 was four, so one was the rule being wrong rather than
+      // the tests. A returned value and the side effect it caused are two
+      // assertions about one behaviour. Error everywhere except the files
+      // listed in eslint.baseline.max-expects.mjs, which predate the rule.
+      "re-lint/max-expects": ["error", { max: 3 }],
       // Error since 2026-09-08: a test that reads the wall clock is one the
       // calendar can fail. Filler timestamps are fixed literals now, and the
       // tests that measure an age pin the clock with fake timers over Date
@@ -546,5 +561,20 @@ export default tseslint.config(
     language: "markdown/gfm",
     plugins: { markdown, "re-lint": reLint },
     rules: { "re-lint/no-dead-md-links": "error" },
+  },
+
+  // The pre-existing half of the max-expects queue: still reported, so the
+  // list is visible and shrinking, but not red while nobody has cleaned it.
+  {
+    files: MAX_EXPECTS_BASELINE,
+    rules: { "re-lint/max-expects": ["warn", { max: 3 }] },
+  },
+
+  // The pre-existing half of the callee-below-caller queue: still reported, so
+  // the list stays visible and shrinking, but not red while nobody has moved
+  // a declaration and re-anchored the specs that point into the file.
+  {
+    files: CALLEE_BELOW_CALLER_BASELINE,
+    rules: { "re-lint/callee-below-caller": "warn" },
   },
 );

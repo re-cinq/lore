@@ -8,7 +8,7 @@ export function previewBlock(content: string, contentType: string): string {
     return "";
   }
 
-  if (contentType === "code") {
+  if (contentType === "code" || contentType === "test") {
     return trimmed.split("\n").slice(0, MAX_CODE_LINES).join("\n");
   }
   const blocks = trimmed.split(/\n[ \t]*\n/);

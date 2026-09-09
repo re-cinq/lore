@@ -59,50 +59,50 @@ function resolveEnabled(
   return partial?.enabled ?? false;
 }
 
-function resolveCreateIssue(
-  partial: DarkFactorySettings | null | undefined,
-  enabled: boolean,
-): CreateIssueMode {
-  return partial?.create_issue ?? (enabled ? "on_gate" : "always");
-}
-
 function resolveAutoMerge(
-  autoMerge: DarkFactoryAutoMerge | undefined,
+  autoMerge: DarkFactoryAutoMerge = {},
 ): ResolvedDarkFactorySettings["auto_merge"] {
   return {
-    paths: orDefault(autoMerge?.paths, DEFAULT_AUTO_MERGE_PATHS),
-    min_trust: orDefault(autoMerge?.min_trust, "docs"),
-    require_green_ci: orDefault(autoMerge?.require_green_ci, true),
-    require_bot_approval: orDefault(autoMerge?.require_bot_approval, true),
+    paths: orDefault(autoMerge.paths, DEFAULT_AUTO_MERGE_PATHS),
+    min_trust: orDefault(autoMerge.min_trust, "docs"),
+    require_green_ci: autoMerge.require_green_ci ?? true,
+    require_bot_approval: autoMerge.require_bot_approval ?? true,
   };
 }
 
-function resolveReview(
-  partial: DarkFactorySettings | null | undefined,
-  enabled: boolean,
-): ReviewMode {
-  return partial?.review ?? (enabled ? "trust_based" : "always");
+interface ModeDefaults {
+  create_issue: CreateIssueMode;
+  review: ReviewMode;
+  notify: NotifyChannel[];
 }
 
-function resolveNotify(
-  partial: DarkFactorySettings | null | undefined,
-  enabled: boolean,
-): NotifyChannel[] {
-  return partial?.notify ?? (enabled ? [] : ["all"]);
-}
+/** Dark mode narrows Issues to the gate, trusts the bot review, and stays quiet; the conservative opt-out keeps all three wide open. */
+const DARK_DEFAULTS: ModeDefaults = {
+  create_issue: "on_gate",
+  review: "trust_based",
+  notify: [],
+};
+
+const SUPERVISED_DEFAULTS: ModeDefaults = {
+  create_issue: "always",
+  review: "always",
+  notify: ["all"],
+};
 
 /** Applies defaults to a partial settings doc (dark-mode-on vs. conservative opt-out); an empty notify list in dark mode is correct since decideNotify always fires escalation regardless. */
 export function resolveDarkFactorySettings(
   partial: DarkFactorySettings | null | undefined,
 ): ResolvedDarkFactorySettings {
-  const enabled = resolveEnabled(partial);
+  const settings = partial ?? {};
+  const enabled = resolveEnabled(settings);
+  const defaults = enabled ? DARK_DEFAULTS : SUPERVISED_DEFAULTS;
 
   return {
     enabled,
-    create_issue: resolveCreateIssue(partial, enabled),
-    auto_merge: resolveAutoMerge(partial?.auto_merge),
-    review: resolveReview(partial, enabled),
-    notify: resolveNotify(partial, enabled),
+    create_issue: settings.create_issue ?? defaults.create_issue,
+    auto_merge: resolveAutoMerge(settings.auto_merge),
+    review: settings.review ?? defaults.review,
+    notify: settings.notify ?? [...defaults.notify],
   };
 }
 

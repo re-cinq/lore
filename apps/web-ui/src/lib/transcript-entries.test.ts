@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { AssemblyRunNode } from "./assembly-run-rows";
 import type { TaskRuntimeEvent } from "./task-runtime";
 import {
+  clockShown,
   mergeTranscript,
   nodeWindow,
   pairToolCalls,
@@ -169,6 +170,35 @@ describe("mergeTranscript", () => {
       ["turn", at(5)],
       ["task-event", at(7)],
       ["turn", at(9)],
+    ]);
+  });
+});
+
+describe("clockShown", () => {
+  const turnAt = (iso: string): TranscriptEntry => ({
+    kind: "turn",
+    at: iso,
+    entry: { kind: "assistant-text", text: "hi" },
+  });
+
+  it("shows the clock once for a run of entries sharing one second", () => {
+    expect(
+      clockShown([turnAt(at(1)), turnAt(at(1)), turnAt(at(2)), turnAt(at(2))]),
+    ).toEqual([true, false, true, false]);
+  });
+
+  it("shows the clock again when a later entry returns to an earlier second", () => {
+    expect(clockShown([turnAt(at(3)), turnAt(at(4)), turnAt(at(3))])).toEqual([
+      true,
+      true,
+      true,
+    ]);
+  });
+
+  it("shows the clock for every entry whose time cannot be read", () => {
+    expect(clockShown([turnAt("not-a-time"), turnAt("not-a-time")])).toEqual([
+      true,
+      true,
     ]);
   });
 });

@@ -32,10 +32,58 @@ describe("dedupeItems", () => {
     expect(result.find((i) => i.source_path === "adrs/A.md")?.score).toBe(0.9);
   });
 
+  it("collapses trace-impact-workflow.ts and its twin sharing content_hash abc123 to one item", () => {
+    const twin = { text: "same body", tokens: 3, content_hash: "abc123" };
+    const deduped = dedupeItems([
+      {
+        ...twin,
+        source_path: "apps/web-ui/src/lib/trace-impact-workflow.ts",
+        score: 0.85,
+      },
+      {
+        ...twin,
+        source_path: "libs/shared/src/work/trace-impact-workflow.ts",
+        score: 0.85,
+      },
+      {
+        text: "other",
+        tokens: 1,
+        source_path: "other.ts",
+        content_hash: "def456",
+      },
+    ]);
+
+    expect(deduped.map((i) => i.source_path)).toEqual([
+      "apps/web-ui/src/lib/trace-impact-workflow.ts",
+      "other.ts",
+    ]);
+  });
+
   it("keeps items without a source_path untouched", () => {
     const sources = [source({ text: "x" }), source({ text: "y" })];
 
     expect(dedupeItems(sources)).toHaveLength(2);
+  });
+
+  it("keeps a path-less item at rank 2 between two keyed survivors instead of moving it last", () => {
+    const keyed = (path: string, score: number) => ({
+      text: path,
+      tokens: 1,
+      source_path: path,
+      score,
+    });
+    const ranked = [
+      keyed("a.ts", 0.9),
+      { text: "memory", tokens: 1, score: 0.8 },
+      keyed("b.ts", 0.7),
+      keyed("a.ts", 0.1),
+    ];
+
+    expect(dedupeItems(ranked).map((it) => it.text)).toEqual([
+      "a.ts",
+      "memory",
+      "b.ts",
+    ]);
   });
 });
 

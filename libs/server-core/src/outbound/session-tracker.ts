@@ -21,20 +21,15 @@ const sessionStartTime = new Date().toISOString();
 
 // ── Public API ──────────────────────────────────────────────────────
 
-export function trackToolCall(
-  tool: string,
-  durationMs: number,
-  success: boolean,
-): void {
+export function trackToolCall(call: {
+  tool: string;
+  durationMs: number;
+  success: boolean;
+}): void {
   if (sessionLog.length >= MAX_ENTRIES) {
     sessionLog.shift(); // ring buffer behavior
   }
-  sessionLog.push({
-    tool,
-    timestamp: new Date().toISOString(),
-    durationMs,
-    success,
-  });
+  sessionLog.push({ ...call, timestamp: new Date().toISOString() });
 }
 
 export function getSessionLog(): ToolCallEntry[] {

@@ -91,6 +91,23 @@ describe("activity reads", () => {
       expect(pool.query.mock.calls[0][1]).toEqual(["re-cinq/lore", 10, 0]);
     });
 
+    it("reads status from the floor's delivery, reporting 'undelivered' when it has none", async () => {
+      const pool = makePool();
+
+      pool.query.mockResolvedValue({ rows: [] });
+      await get("/api/events?repo=re-cinq/lore", pool);
+
+      expect(pool.query.mock.calls[0][0]).toContain(
+        "LEFT JOIN pipeline.event_deliveries delivery",
+      );
+      expect(pool.query.mock.calls[0][0]).toContain(
+        "delivery.subscriber = 'floor'",
+      );
+      expect(pool.query.mock.calls[0][0]).toContain(
+        "COALESCE(delivery.status, 'undelivered') AS status",
+      );
+    });
+
     it("requires a repo", async () => {
       expect((await get("/api/events")).statusCode).toBe(400);
     });

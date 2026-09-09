@@ -69,11 +69,11 @@ export const SEARCH_MEMORY_INPUT = {
   limit: z.number().default(10),
   include_invalidated: z
     .boolean()
-    .default(false)
+    .default(false) // eslint-disable-line re-lint/no-flag-params -- schema default value, not a behaviour the callee selects
     .describe("When true, also return superseded/historical facts."),
   graph_augment: z
     .boolean()
-    .default(false)
+    .default(false) // eslint-disable-line re-lint/no-flag-params -- schema default value, not a behaviour the callee selects
     .describe(
       "When true, enrich results with 1-hop knowledge-graph neighbors.",
     ),
@@ -121,7 +121,7 @@ export const QUERY_GRAPH_INPUT = {
     ),
   include_invalidated: z
     .boolean()
-    .default(false)
+    .default(false) // eslint-disable-line re-lint/no-flag-params -- schema default value, not a behaviour the callee selects
     .describe("When true, also include historically-invalidated edges."),
 };
 

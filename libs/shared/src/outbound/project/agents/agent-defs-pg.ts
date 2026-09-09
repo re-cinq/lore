@@ -73,7 +73,7 @@ function patchDefaults(patch: Partial<AgentDefinitionInput>): unknown[] {
     withDefault(patch.prompt, null),
     withDefault(patch.image, null),
     withDefault(patch.execution_mode, "claude-code"),
-    withDefault(patch.review_required, false),
+    patch.review_required ?? false,
     withDefault(patch.config, null),
   ];
 }

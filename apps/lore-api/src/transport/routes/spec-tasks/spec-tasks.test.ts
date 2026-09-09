@@ -125,7 +125,7 @@ describe("spec-task DAG routes", () => {
 
   describe("POST /api/spec-tasks/claim", () => {
     it("reports claimed:true and the claiming agent", async () => {
-      vi.mocked(claimTask).mockResolvedValue(true); // eslint-disable-line re-lint/no-flag-params -- a stubbed return value, not a flag argument
+      vi.mocked(claimTask).mockResolvedValue(true);
       const res = await post("/api/spec-tasks/claim", {
         task_id: "t1",
         agent_id: "agent-7",
@@ -139,7 +139,7 @@ describe("spec-task DAG routes", () => {
     });
 
     it("reports claimed:false when the task is already taken", async () => {
-      vi.mocked(claimTask).mockResolvedValue(false); // eslint-disable-line re-lint/no-flag-params -- a stubbed return value, not a flag argument
+      vi.mocked(claimTask).mockResolvedValue(false);
       const res = await post("/api/spec-tasks/claim", {
         task_id: "t1",
         agent_id: "agent-7",
