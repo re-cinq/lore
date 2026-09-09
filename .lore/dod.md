@@ -22,19 +22,22 @@ review judges the DELETEs (which no environment reachable from here can execute)
 
 ## Done when these pass
 
-- [x] **EventDeliveriesPort contract (in-memory)** — 24 assertions; the added
+- [x] **EventDeliveriesPort contract (in-memory)** — 28 assertions; the added
   `afterAll` lives inside the `if (pg.ok)` Postgres arm, so it does not touch this
   arm, which is the one runnable here. Stays green.
-  `libs/shared/src/project/events/event-deliveries.contract.test.ts`
+  `libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts`
 - [x] **the Postgres implementation is actually exercised** — the skip-guard test;
   still passes (no `LORE_REQUIRE_PG_CONTRACT`), confirming the file loads with the
   new hook present.
-  `libs/shared/src/project/events/event-deliveries.contract.test.ts`
+  `libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts`
 
 ## Facets
 
 - [x] Add an `afterAll` in the `if (pg.ok)` block deleting `internal.test.%` events
   (deliveries cascade) then `sub-%` subscriptions, on its own short-lived pool.
+- [x] Merge `origin/main` (it relocated the file to `src/outbound/...`) and bump the
+  one shifted spec anchor — the bottom dead-letter `it` — in `adrs/ADR-044` from
+  `#L454` to `#L469`.
 - [ ] (Unverifiable here) Against a live Postgres the suite leaves no net-new
   `sub-*`/`internal.test.*` rows — proven only by running the Postgres arm on a
   machine that has the DB.
