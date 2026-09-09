@@ -87,14 +87,17 @@ function runnableDeliveries(
     .slice(0, window.limit);
 }
 
-/** Deliveries permanently given up on since `since`; a dead row always carries handled_at, so a missing one simply falls outside the window. */
+const handledAtMs = (d: EventDeliveryRow): number =>
+  Date.parse(d.handled_at ?? "");
+
+/** Deliveries permanently given up on since `since`, OLDEST FIRST so a caller folding them keeps the newest error last — the Pg adapter picks it with `ORDER BY handled_at DESC`, and array order is not that. A dead row always carries handled_at, so a missing one simply falls outside the window. */
 function deadSince(
   deliveries: readonly EventDeliveryRow[],
   since: number,
 ): EventDeliveryRow[] {
-  return deliveries.filter(
-    (d) => d.status === "dead" && Date.parse(d.handled_at ?? "") >= since,
-  );
+  return deliveries
+    .filter((d) => d.status === "dead" && handledAtMs(d) >= since)
+    .sort((a, b) => handledAtMs(a) - handledAtMs(b));
 }
 
 /** In-memory EventDeliveriesPort — behavioural spec of the Pg adapter over two arrays; now is injectable for deterministic backoff/visibility windows. Fan-out happens inside insert, same as the SQL clause. */

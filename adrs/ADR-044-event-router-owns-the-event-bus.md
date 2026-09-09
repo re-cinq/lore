@@ -178,7 +178,10 @@ captured; whether it was handled is a question for its deliveries.)*
   exactly the ones whose absence nobody notices: the Agent-CR reconcile tick
   dead-lettered 84 deliveries across a three-hour cluster-agent outage
   (2026-09-08) and the rows were the only record it had happened. The Floor's
-  hourly prune sweep names them where it already names orphans. ([validated by reports a dead-lettered delivery with the error that ended it](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L361), [`event-deliveries.contract.test.ts:383`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L383), [`cron.test.ts:164`](apps/floor/src/events/handlers/cron.test.ts#L164), [`cron.test.ts:182`](apps/floor/src/events/handlers/cron.test.ts#L182))
+  hourly prune sweep names them where it already names orphans, over the same
+  window. When a group gave up more than once the NEWEST error is the one
+  reported — by `handled_at`, which is not the same as storage order, so the
+  in-memory double sorts rather than trusting its array. ([validated by reports a dead-lettered delivery with the error that ended it](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L361), [`event-deliveries.contract.test.ts:383`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L383), [`event-deliveries.contract.test.ts:405`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L405), [`event-deliveries.contract.test.ts:454`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L454), [`cron.test.ts:164`](apps/floor/src/events/handlers/cron.test.ts#L164), [`cron.test.ts:182`](apps/floor/src/events/handlers/cron.test.ts#L182), [`cron.test.ts:200`](apps/floor/src/events/handlers/cron.test.ts#L200))
 - The client and the routes are two halves of one contract written apart, so
   they are exercised against each other rather than each against its own idea
   of the other. ([validated by carries the declared timeout across the wire onto the delivery](apps/event-router/src/transport/routes/event-deliveries-roundtrip.test.ts#L59), [`event-deliveries-roundtrip.test.ts:118`](apps/event-router/src/transport/routes/event-deliveries-roundtrip.test.ts#L118))

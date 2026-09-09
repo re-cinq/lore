@@ -201,5 +201,6 @@ describe("eventsPrune orphan report", () => {
     await eventsPrune({}, { eventId: "1" });
 
     expect(orphanedEvents).toHaveBeenCalledWith(60);
+    expect(deadLettered).toHaveBeenCalledWith(60);
   });
 });
