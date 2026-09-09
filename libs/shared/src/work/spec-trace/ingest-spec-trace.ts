@@ -63,13 +63,53 @@ interface CoveragePayload extends ScopedPayload {
   coverage?: { test: string; covered: CoveredChunk[] }[];
 }
 
-/** Projects bulk coverage payload to ingestCoverageReport record shape; testFile = testName = group.test. */
-function coverageRecordsFromGroups(payload: CoveragePayload) {
-  return (payload.coverage ?? []).map((group) => ({
-    testFile: group.test,
-    testName: group.test,
-    covered: group.covered,
-  }));
+/** What a kind that writes no chunks reports: the graph did not gain nodes, so every count is zero rather than absent. */
+const NO_GRAPH_COUNTS = {
+  testChunks: 0,
+  validatedBy: 0,
+  violated: 0,
+  coverageNodes: 0,
+  coversEdges: 0,
+};
+
+export async function ingestSpecTrace(
+  dgraph: DgraphClientPort,
+  repo: string,
+  kind: string,
+  payload: unknown,
+): Promise<SpecTraceOutcome> {
+  const scoped = (payload ?? {}) as ScopedPayload;
+  const scope = scopeFor(repo, kind, scoped);
+
+  if (kind !== "overlay-drop") {
+    await anchorOverlay(dgraph, scope, scoped);
+  }
+
+  const outcome = await ingestByKind(dgraph, scope, kind, payload);
+
+  return scope.assemblyRunId
+    ? { ...outcome, assemblyRunId: scope.assemblyRunId }
+    : outcome;
+}
+
+async function ingestByKind(
+  dgraph: DgraphClientPort,
+  scope: TraceScope,
+  kind: string,
+  payload: unknown,
+): Promise<SpecTraceOutcome> {
+  switch (kind) {
+    case "test-report":
+      return ingestTestReportKind(dgraph, scope, payload);
+    case "coverage":
+      return ingestCoverageKind(dgraph, scope, payload as CoveragePayload);
+    case "overlay-drop":
+      return dropOverlayKind(dgraph, scope.repo, payload as ScopedPayload);
+    case "failure":
+      return failureKind(dgraph, scope.repo, payload as FailurePayload);
+    default:
+      throw new Error(`ingestSpecTrace: unrecognized kind "${kind}"`);
+  }
 }
 
 /** A coverage-only payload. The test counts are zero rather than absent: this kind carries no descriptors, and reporting it as having validated nothing is what distinguishes it from a test report whose tests all failed. */
@@ -94,6 +134,15 @@ async function ingestCoverageKind(
   };
 }
 
+/** Projects bulk coverage payload to ingestCoverageReport record shape; testFile = testName = group.test. */
+function coverageRecordsFromGroups(payload: CoveragePayload) {
+  return (payload.coverage ?? []).map((group) => ({
+    testFile: group.test,
+    testName: group.test,
+    covered: group.covered,
+  }));
+}
+
 /** A test-report payload: the descriptors, their results, and the spec links they carry. */
 async function ingestTestReportKind(
   dgraph: DgraphClientPort,
@@ -104,41 +153,6 @@ async function ingestTestReportKind(
 
   return { kind: "test-report", ...result };
 }
-
-/** Where this payload writes: its own run overlay when it is a branch snapshot naming a run, else the repo's `main` graph. */
-function scopeFor(
-  repo: string,
-  kind: string,
-  payload: ScopedPayload,
-): TraceScope {
-  return payload.assemblyRunId && OVERLAY_SCOPED_KINDS.has(kind)
-    ? overlayScope(repo, payload.assemblyRunId)
-    : mainScope(repo);
-}
-
-/** Stamps the run's overlay anchor with the branch head its ranges are expressed in, BEFORE the chunks land, so a crashed ingest still leaves an anchor the sweep can find and drop. */
-async function anchorOverlay(
-  dgraph: DgraphClientPort,
-  scope: TraceScope,
-  payload: ScopedPayload,
-): Promise<void> {
-  if (!isOverlay(scope)) {
-    return;
-  }
-  await upsertOverlay(dgraph, scope, {
-    branch: payload.branch ?? "",
-    headCommit: payload.commit ?? "",
-  });
-}
-
-/** What a kind that writes no chunks reports: the graph did not gain nodes, so every count is zero rather than absent. */
-const NO_GRAPH_COUNTS = {
-  testChunks: 0,
-  validatedBy: 0,
-  violated: 0,
-  coverageNodes: 0,
-  coversEdges: 0,
-};
 
 /** The run is over: its overlay and everything it anchored go. No counts to report — the graph shrank, it did not gain. */
 async function dropOverlayKind(
@@ -181,42 +195,28 @@ async function failureKind(
   return settled;
 }
 
-async function ingestByKind(
+/** Stamps the run's overlay anchor with the branch head its ranges are expressed in, BEFORE the chunks land, so a crashed ingest still leaves an anchor the sweep can find and drop. */
+async function anchorOverlay(
   dgraph: DgraphClientPort,
   scope: TraceScope,
-  kind: string,
-  payload: unknown,
-): Promise<SpecTraceOutcome> {
-  switch (kind) {
-    case "test-report":
-      return ingestTestReportKind(dgraph, scope, payload);
-    case "coverage":
-      return ingestCoverageKind(dgraph, scope, payload as CoveragePayload);
-    case "overlay-drop":
-      return dropOverlayKind(dgraph, scope.repo, payload as ScopedPayload);
-    case "failure":
-      return failureKind(dgraph, scope.repo, payload as FailurePayload);
-    default:
-      throw new Error(`ingestSpecTrace: unrecognized kind "${kind}"`);
+  payload: ScopedPayload,
+): Promise<void> {
+  if (!isOverlay(scope)) {
+    return;
   }
+  await upsertOverlay(dgraph, scope, {
+    branch: payload.branch ?? "",
+    headCommit: payload.commit ?? "",
+  });
 }
 
-export async function ingestSpecTrace(
-  dgraph: DgraphClientPort,
+/** Where this payload writes: its own run overlay when it is a branch snapshot naming a run, else the repo's `main` graph. */
+function scopeFor(
   repo: string,
   kind: string,
-  payload: unknown,
-): Promise<SpecTraceOutcome> {
-  const scoped = (payload ?? {}) as ScopedPayload;
-  const scope = scopeFor(repo, kind, scoped);
-
-  if (kind !== "overlay-drop") {
-    await anchorOverlay(dgraph, scope, scoped);
-  }
-
-  const outcome = await ingestByKind(dgraph, scope, kind, payload);
-
-  return scope.assemblyRunId
-    ? { ...outcome, assemblyRunId: scope.assemblyRunId }
-    : outcome;
+  payload: ScopedPayload,
+): TraceScope {
+  return payload.assemblyRunId && OVERLAY_SCOPED_KINDS.has(kind)
+    ? overlayScope(repo, payload.assemblyRunId)
+    : mainScope(repo);
 }
