@@ -19,9 +19,10 @@ import { describe, it, expect } from "vitest";
 import { selectReporterToken } from "./select-reporter-token.js";
 
 describe("selectReporterToken — one credential, chosen at boot", () => {
-  it("uses LORE_INGEST_TOKEN captured at boot on a central cluster, not read per call", () => {
+  it("falls back to LORE_INGEST_TOKEN during the boot window before the per-agent token is available", () => {
     const env = { LORE_INGEST_TOKEN: "ingest-tok" } as NodeJS.ProcessEnv;
-    const fn = selectReporterToken(env, () => "agent-tok");
+    // agentToken is undefined: registration has not yet completed (boot window).
+    const fn = selectReporterToken(env, () => undefined);
 
     // Remove from env after selection to prove the value was captured, not read live.
     delete env.LORE_INGEST_TOKEN;

@@ -1,8 +1,10 @@
 /**
- * Selects the reporter credential once at boot, not per call.
+ * Selects the reporter credential, always preferring the per-agent token once
+ * registration has completed.
  *
- * Central cluster (LORE_INGEST_TOKEN present): captures the value and returns
- * a static closure so the credential is stable even if the env is mutated.
+ * Central cluster (LORE_INGEST_TOKEN present): captures the value at boot as
+ * the boot-window fallback. After registration the per-agent token takes over;
+ * LORE_INGEST_TOKEN is returned only while getAgentToken() is still undefined.
  *
  * Satellite cluster (LORE_INGEST_TOKEN absent): returns the per-agent token
  * thunk directly, so re-registration rotations are picked up per call.
@@ -15,7 +17,7 @@ export function selectReporterToken(
   const ingestToken = env.LORE_INGEST_TOKEN;
 
   if (ingestToken !== undefined) {
-    return () => ingestToken;
+    return () => getAgentToken() ?? ingestToken;
   }
 
   return getAgentToken;

@@ -11,9 +11,9 @@
 
 ## Facets
 
-- [ ] Change `selectReporterToken`: when `LORE_INGEST_TOKEN` is present, return a thunk that resolves `getAgentToken()` first and falls back to `LORE_INGEST_TOKEN` only when it is `undefined` — mirroring the satellite branch but with the fallback.
-- [ ] Update the existing test "uses LORE_INGEST_TOKEN captured at boot on a central cluster" to reflect the new semantics (LORE_INGEST_TOKEN is the boot-window fallback, not a permanent override).
-- [ ] Confirm the other three existing tests still pass after the change.
+- [x] Change `selectReporterToken`: when `LORE_INGEST_TOKEN` is present, return a thunk that resolves `getAgentToken()` first and falls back to `LORE_INGEST_TOKEN` only when it is `undefined` — mirroring the satellite branch but with the fallback.
+- [x] Update the existing test "uses LORE_INGEST_TOKEN captured at boot on a central cluster" to reflect the new semantics (LORE_INGEST_TOKEN is the boot-window fallback, not a permanent override).
+- [x] Confirm the other three existing tests still pass after the change.
 
 ## Out of scope
 
