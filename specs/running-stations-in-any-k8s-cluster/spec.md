@@ -399,6 +399,12 @@ pull, so recovery splits by who holds the claim:
   central cluster-agent only and never reaches the satellite, so the prune loop
   is the sole reclaim path — without it the key accumulates indefinitely.
   ([validated by [deletes the per-task token key from agent-secrets when pruning an orphaned definition](apps/cluster-agent/src/work/reap/prune-loop.test.ts#L107)])
+- The sweep runs hourly and keeps three days, both overridable by the
+  environment; a retention of zero or one that does not parse is ignored in
+  favour of the default, because reading it literally would delete every
+  record of every run the moment the variable is fat-fingered — the opposite
+  of what a retention window is for.
+  ([validated by [sweeps hourly unless the environment says otherwise](apps/cluster-agent/src/work/reap/prune-loop.test.ts#L157), [`prune-loop.test.ts:169`](apps/cluster-agent/src/work/reap/prune-loop.test.ts#L164), [`prune-loop.test.ts:176`](apps/cluster-agent/src/work/reap/prune-loop.test.ts#L171))
 - The sweep never throws: a cluster it cannot reach, or one object wedged by a
   finalizer, is an outcome it logs and carries on from — a single stuck object
   must not keep the rest of a 40MiB backlog in the cache. It runs in the

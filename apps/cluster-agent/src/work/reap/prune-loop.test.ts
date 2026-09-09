@@ -105,11 +105,6 @@ describe("pruneOnce", () => {
   });
 
   it("deletes the per-task token key from agent-secrets when pruning an orphaned definition", async () => {
-    // On a satellite the Floor's DELETE /api/cluster/per-task-tokens/{taskId}
-    // never arrives — the Floor cannot reach inbound satellite routes. The prune
-    // loop is the only path that runs cluster-local and can reclaim these keys.
-    // A pt-XXXX definition pruned here corresponds to GH_TOKEN_XXXX in agent-secrets;
-    // if the sweep skips the key the credential accumulates forever.
     const secretKeysDeleted: string[] = [];
     const { api } = cluster({
       agents: [old("agent-abc12345", "pt-abc12345")],
