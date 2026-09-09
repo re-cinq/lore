@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import Hapi from "@hapi/hapi";
+import Boom from "@hapi/boom";
 import { stationsRoute } from "./stations.js";
 import type { StationRegistry } from "../../domain/station.js";
 
@@ -95,14 +96,32 @@ describe("POST /api/stations/{name}", () => {
   });
 
   it("includes the station name as 'job' in the 200 body, so a courier or operator can confirm which station ran", async () => {
-    // FR9.1: the courier posts POST /api/stations/{name} and the response carries
-    // { job, summary } — job mirrors the path param so callers get a self-describing
-    // confirmation without parsing the URL they already sent.
     const res = await run("approval-check");
 
     expect({ status: res.statusCode, body: res.result }).toMatchObject({
       status: 200,
       body: { job: "approval-check", summary: "Checked 3 tasks, 1 approved" },
     });
+  });
+
+  it("does not expose the job's failure reason in the response body — a Boom error from a station must not reach the courier", async () => {
+    registry = new Map([
+      [
+        "db-job",
+        async () => {
+          throw new Boom.Boom(
+            "postgresql://user:secret@db.internal:5432/lore",
+            { statusCode: 503 },
+          );
+        },
+      ],
+    ]);
+
+    const res = await run("db-job");
+
+    expect({
+      status: res.statusCode,
+      bodyContainsSecret: JSON.stringify(res.result ?? {}).includes("secret"),
+    }).toEqual({ status: 500, bodyContainsSecret: false });
   });
 });

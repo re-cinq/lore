@@ -7,10 +7,10 @@ Strategy: direct
 Why: The `stationsRoute` handler is the real entry point for simple scheduled jobs (`POST /api/stations/{name}`); Hapi's `server.inject()` calls it without any stub, so a failing assertion on the response body is a genuine red bar against live behaviour.
 
 Acceptance tests:
-  - apps/stations/src/transport/routes/stations.test.ts::POST /api/stations/{name} > includes the station name as 'job' in the 200 body, so a courier or operator can confirm which station ran — pins FR9.1: the endpoint must return `{ job, summary }` not just `{ summary }`. The `job` field is currently absent; the test fails with "expected 'job' to be 'approval-check', received undefined".
+  - apps/stations/src/transport/routes/stations.test.ts::POST /api/stations/{name} > does not expose the job's failure reason in the response body — a Boom error from a station must not reach the courier — pins FR9.2: a Boom 503 thrown by a station propagates verbatim through Hapi, leaking the error message (which can contain DB connection strings) to the courier. The test fails: `expected { status: 503, bodyContainsSecret: true } to deeply equal { status: 500, bodyContainsSecret: false }`.
 
 Facets (red-green-refactor steps, smallest first):
-  - Change `h.response({ summary: await station() })` in `apps/stations/src/transport/routes/stations.ts` to `h.response({ job: name, summary: await station() })` — one line.
-  - Update the existing `toEqual({ summary: "..." })` assertion in `stations.test.ts` to `toEqual({ job: "approval-check", summary: "..." })` so the strict equality check stays honest.
+  - Add a try/catch inside `runStationHandler` that catches any error thrown by `station()`, logs it internally, and re-throws a bare `Boom.internal()` (no message), so sensitive details stay in server logs rather than the wire response.
+  - The `finally` block already releases the in-flight latch — the catch must sit between the await and the finally so the latch is still freed on all paths.
 
-Out of scope: The POST /api/assembly-runs route (FR8) is already fully implemented and all its statements are linked in start-run.test.ts. The courier CronJob manifest (courier-cronjob.yaml) already exists in stations-helm. The per-job conversion tickets (#1351, #1350, #1348, #1353) are separate.
+Out of scope: The POST /api/assembly-runs route (FR8) is already fully implemented and all its statements are linked in start-run.test.ts. The courier CronJob manifest (courier-cronjob.yaml) already exists in stations-helm. The per-job conversion tickets (#1351, #1350, #1348, #1353) are separate. FR9.1 ({job, summary}) is implemented and linked (stations.test.ts:98).

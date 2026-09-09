@@ -246,11 +246,11 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
 - **FR9.1 — The endpoint runs the job named in the path and returns its
   summary.** `200` with `{ job, summary }`, the summary being the one-line
   string that was `pipeline.job_runs.result_summary`. An unknown job name is
-  `404` — a courier typo must not read as success. ([validated by `stations.test.ts:97`](apps/stations/src/transport/routes/stations.test.ts#L97))
+  `404` — a courier typo must not read as success. ([validated by `stations.test.ts:98`](apps/stations/src/transport/routes/stations.test.ts#L98))
 - **FR9.2 — A failing job answers with a status and nothing else.** The
   courier's only channel is an HTTP status, and a job's error can carry
   connection strings and hostnames; the detail is logged where operators look
-  and never returned.
+  and never returned. ([validated by `stations.test.ts:107`](apps/stations/src/transport/routes/stations.test.ts#L107))
 - **FR9.4 — Importance decay follows the same route.** Scoring memories against
   the half-life model and evicting past the per-agent cap is scoring plus
   database writes, so it runs in lore-api. Behaviour is carried over unchanged:
