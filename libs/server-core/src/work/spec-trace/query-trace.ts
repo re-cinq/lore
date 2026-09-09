@@ -155,7 +155,8 @@ export function formatTraceQuery(
 
 export interface QueryTraceArgs {
   repo?: string;
-  spec: string;
+  /** Optional: a call-graph query names a SYMBOL, not a spec, and never reads this. */
+  spec?: string;
   statement?: string;
   callers_of?: string;
   callees_of?: string;
@@ -191,22 +192,37 @@ export async function runQueryTrace(
     return "Could not detect the current repo — run inside a git repo or pass `repo` (owner/repo).";
   }
 
-  if (args.callers_of || args.callees_of) {
-    const symbol = encodeURIComponent(
-      (args.callers_of ?? args.callees_of) as string,
-    );
-    const direction = args.callers_of ? "callers" : "callees";
-    const depth = args.depth ?? 1;
-    const result = await deps.proxyGet(
-      `/api/repos/${repo}/trace/callers?symbol=${symbol}&direction=${direction}&depth=${depth}`,
-    );
+  return args.callers_of || args.callees_of
+    ? callGraphQuery(repo, args, deps)
+    : documentQuery(repo, args, deps);
+}
 
-    if (!result.ok) {
-      return formatProxyFailure(result);
-    }
-    return result.body;
+/** Walks the call graph outward from one symbol. It names no spec, which is why `spec` is optional. */
+async function callGraphQuery(
+  repo: string,
+  args: QueryTraceArgs,
+  deps: QueryTraceDeps,
+): Promise<string> {
+  const symbol = encodeURIComponent(
+    (args.callers_of ?? args.callees_of) as string,
+  );
+  const direction = args.callers_of ? "callers" : "callees";
+  const result = await deps.proxyGet(
+    `/api/repos/${repo}/trace/callers?symbol=${symbol}&direction=${direction}&depth=${args.depth ?? 1}`,
+  );
+
+  return result.ok ? result.body : formatProxyFailure(result);
+}
+
+/** Reads one spec's traceability document. */
+async function documentQuery(
+  repo: string,
+  args: QueryTraceArgs,
+  deps: QueryTraceDeps,
+): Promise<string> {
+  if (!args.spec) {
+    return "Pass `spec` (a path under specs/) or a symbol via `callers_of`/`callees_of`.";
   }
-
   const result = await deps.proxyGet(
     `/api/repos/${repo}/trace/document?path=${encodeURIComponent(args.spec)}`,
   );

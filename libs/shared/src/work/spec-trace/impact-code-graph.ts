@@ -49,6 +49,19 @@ export interface ImplResult {
   touchedChunkXids: string[];
 }
 
+/** Every CodeChunk the graph holds for one file. */
+async function chunksInFile(
+  dgraph: DgraphClientPort,
+  repo: string,
+  file: string,
+): Promise<GraphImplChunk[]> {
+  return withTxn(dgraph, async (txn) => {
+    const res = await txn.queryWithVars(IMPL_QUERY, { $repo: repo, $fp: file });
+
+    return (res.data.chunks ?? []) as GraphImplChunk[];
+  });
+}
+
 /** CodeChunks in `file` whose line range overlaps any changed range → their statements + xids. */
 export async function implementedByImpactAndXids(
   dgraph: DgraphClientPort,
@@ -56,12 +69,7 @@ export async function implementedByImpactAndXids(
   file: string,
   ranges: [number, number][],
 ): Promise<ImplResult> {
-  const chunks = await withTxn(dgraph, async (txn) => {
-    const res = await txn.queryWithVars(IMPL_QUERY, { $repo: repo, $fp: file });
-
-    return (res.data.chunks ?? []) as GraphImplChunk[];
-  });
-
+  const chunks = await chunksInFile(dgraph, repo, file);
   const inScope = chunks.filter((chunk) => implChunkInScope(chunk, ranges));
 
   return {
@@ -91,56 +99,6 @@ export async function implementedByImpact(
   );
 
   return statements;
-}
-
-const CALLERS_QUERY = `query q($repo: string, $xid: string) {
-  callee(func: eq(CodeChunk.xid, $xid)) {
-    callers: ~CodeChunk.references @filter(eq(CodeChunk.repo, $repo)) {
-      CodeChunk.file_path
-      stmts: ~Statement.implemented_by {
-        ${STATEMENT_PROJECTION}
-      }
-    }
-  }
-}`;
-
-interface GraphCaller {
-  "CodeChunk.file_path"?: string;
-  stmts?: GraphStatement[];
-}
-
-/** For each callee chunk xid, finds all caller chunks (via reverse CodeChunk.references) and returns their statements marked indirect. */
-export async function callerHopImpact(
-  dgraph: DgraphClientPort,
-  repo: string,
-  calleeXids: string[],
-  calleeFile: string,
-): Promise<Array<ImpactStatement & { xid: string }>> {
-  const results: Array<ImpactStatement & { xid: string }> = [];
-
-  for (const xid of calleeXids) {
-    const callees = await withTxn(dgraph, async (txn) => {
-      const res = await txn.queryWithVars(CALLERS_QUERY, {
-        $repo: repo,
-        $xid: xid,
-      });
-
-      return (res.data.callee ?? []) as { callers?: GraphCaller[] }[];
-    });
-
-    for (const callee of callees) {
-      for (const caller of callee.callers ?? []) {
-        for (const stmt of caller.stmts ?? []) {
-          results.push({
-            ...toImpactStatement(stmt, calleeFile, [], "file-link"),
-            indirect: true,
-          });
-        }
-      }
-    }
-  }
-
-  return results;
 }
 
 interface GraphTestChunk {

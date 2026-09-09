@@ -237,13 +237,13 @@ ADR.supersedes:         [uid] @reverse @count .        # reverse = superseded_by
 
 ## Call graph (cross-file symbol references)
 
-The schema declares `CodeChunk.references` and `CodeChunk.imports` as reversible uid list predicates (`[uid] @reverse @count`). ([validated by declares-references-and-imports](libs/shared/src/outbound/setup-spec-trace-schema.test.ts#L168))
+The schema declares `CodeChunk.references` and `CodeChunk.imports` as reversible uid list predicates (`[uid] @reverse @count`). ([validated by declares CodeChunk.references and CodeChunk.imports as uid list predicates for the call graph](libs/shared/src/outbound/setup-spec-trace-schema.test.ts#L168))
 
-`lore-query-trace` routes a `callers_of` query to a callers endpoint rather than the trace/document endpoint. ([validated by routes-callers-of-to-callers-endpoint](libs/server-core/src/work/spec-trace/query-trace.test.ts#L287))
+`lore-query-trace` routes a `callers_of` query to a callers endpoint rather than the trace/document endpoint. ([validated by routes a callers_of query to a callers endpoint rather than the document endpoint](libs/server-core/src/work/spec-trace/query-trace.test.ts#L286))
 
-Statements reached via `~CodeChunk.references` are annotated `indirect` and rendered at `notice` annotation level rather than `warning` in the PR diff comment. ([validated by indirect-notice-level](libs/shared/src/work/spec-trace/trace-impact.test.ts#L126))
+Statements reached via `~CodeChunk.references` are annotated `indirect` and rendered at `notice` annotation level rather than `warning` in the PR diff comment. ([validated by renders indirect statements as notice-level rather than warning so they appear in a quieter PR section](libs/shared/src/work/spec-trace/trace-impact.test.ts#L126), [validated by surfaces a caller statement as indirect when only the callee chunk is changed](libs/shared/src/work/spec-trace/trace-impact.test.ts#L474))
 
-The reference extractor identifies imported symbols that are actually called in a TypeScript/JavaScript source file and returns their names paired with the module path they were imported from. ([validated by call-graph-extractor](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L6))
+The reference extractor identifies imported symbols that are actually called in a TypeScript/JavaScript source file and returns their names paired with the module path they were imported from. ([validated by returns imported symbol names and their source paths when those symbols are called in a TypeScript source file](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L5), [validated by omits imported symbols that are never called in the file](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L28), [validated by returns an empty array for a file with no import declarations](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L44))
 
 ### `xid` keys (deterministic, idempotent)
 

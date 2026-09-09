@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import { extractImportedCallSites } from "./reference-extractor.js";
 
 describe("extractImportedCallSites", () => {
-  // specs/spec-traceability-graph/data-model.md#call-graph-extractor
   it("returns imported symbol names and their source paths when those symbols are called in a TypeScript source file", async () => {
     const source = [
       'import { nextTransition } from "./transition.js";',

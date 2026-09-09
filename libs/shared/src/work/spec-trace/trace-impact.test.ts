@@ -122,7 +122,6 @@ describe("buildImpactAnnotations", () => {
     expect(annotations[0].message).toContain("only coverage");
   });
 
-  // specs/spec-traceability-graph/data-model.md#call-graph-indirect
   it("renders indirect statements as notice-level rather than warning so they appear in a quieter PR section", () => {
     const annotations = buildImpactAnnotations(
       {
@@ -472,7 +471,6 @@ describe.skipIf(!reachable)("computeImpact coupling (live Dgraph)", () => {
     ]);
   });
 
-  // specs/spec-traceability-graph/data-model.md#call-graph-hop
   it("surfaces a caller statement as indirect when only the callee chunk is changed (one-hop reference expansion)", async () => {
     const repo = `test-impact/${randomUUID()}`;
 

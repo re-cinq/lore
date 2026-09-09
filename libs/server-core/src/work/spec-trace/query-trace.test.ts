@@ -283,14 +283,15 @@ describe("runQueryTrace", () => {
     );
   });
 
-  // specs/spec-traceability-graph/data-model.md#call-graph-callers-of
   it("routes a callers_of query to a callers endpoint rather than the document endpoint", async () => {
     let calledPath = "";
+
     await runQueryTrace(
-      { callers_of: "nextTransition" } as unknown as QueryTraceArgs,
+      { callers_of: "nextTransition" },
       {
         proxyGet: async (p) => {
           calledPath = p;
+
           return { ok: true, body: JSON.stringify(doc()) };
         },
         detectRepo: () => "o/r",

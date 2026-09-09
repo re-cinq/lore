@@ -164,7 +164,6 @@ describe.skipIf(!reachable)(
       expect(fields).toContain("AcceptanceCriterion.violation_reason");
     });
 
-    // specs/spec-traceability-graph/data-model.md#call-graph-schema
     it("declares CodeChunk.references and CodeChunk.imports as uid list predicates for the call graph", async () => {
       const { schema } = await querySchema(
         "schema(pred: [CodeChunk.references, CodeChunk.imports]) {type list reverse}",
