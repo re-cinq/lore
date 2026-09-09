@@ -19,6 +19,8 @@ const run = (over: Partial<AssemblyRun> = {}): AssemblyRun => ({
   durationSeconds: 120,
   prUrl: "https://github.com/re-cinq/lore/pull/7",
   prNumber: 7,
+  issueUrl: "https://github.com/re-cinq/lore/issues/5",
+  issueNumber: 5,
   createdBy: null,
   costUsd: null,
   ...over,
@@ -88,6 +90,29 @@ describe("AssemblyRunView", () => {
 
     expect(screen.queryByRole("link", { name: "#7" })).not.toBeInTheDocument();
   });
+  it("renders the run facts inside a spec-card", () => {
+    const { container } = render(<AssemblyRunView run={run()} />);
+
+    expect(container.querySelector(".spec-card > dl")).toBeInTheDocument();
+  });
+
+  it("links the backing task's GitHub issue under the PR", () => {
+    render(<AssemblyRunView run={run()} />);
+
+    expect(screen.getByRole("link", { name: "#5" })).toHaveAttribute(
+      "href",
+      "https://github.com/re-cinq/lore/issues/5",
+    );
+  });
+
+  it("omits the issue link when the run carries no issue", () => {
+    render(
+      <AssemblyRunView run={run({ issueUrl: null, issueNumber: null })} />,
+    );
+
+    expect(screen.queryByRole("link", { name: "#5" })).not.toBeInTheDocument();
+  });
+
   it("trails the run back to the runs list and its repo above the title", () => {
     const { container } = render(<AssemblyRunView run={run()} />);
     const trail = container.querySelector(".breadcrumb");

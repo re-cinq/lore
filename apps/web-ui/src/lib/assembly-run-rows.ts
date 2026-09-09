@@ -26,6 +26,8 @@ export interface AssemblyRun {
   durationSeconds: number | null;
   prUrl: string | null;
   prNumber: number | null;
+  issueUrl: string | null;
+  issueNumber: number | null;
   createdBy: string | null;
   costUsd: number | null;
 }
@@ -84,8 +86,16 @@ export function toAssemblyRun(row: AssemblyRunRow): AssemblyRun {
     durationSeconds: durationSeconds(row.started_at, row.finished_at),
     createdBy: row.created_by,
     costUsd: row.cost_usd,
+    ...issueRef(row),
     ...pullRequestRef(row),
   };
+}
+
+/** The backing task's Issue, straight off the run-row enrichment's task join. */
+function issueRef(
+  row: AssemblyRunRow,
+): Pick<AssemblyRun, "issueUrl" | "issueNumber"> {
+  return { issueUrl: row.issue_url, issueNumber: row.issue_number };
 }
 
 /** PR link precedence: the backing task's PR, else a code-review run's args.pr_number reconstructed against the repo. */

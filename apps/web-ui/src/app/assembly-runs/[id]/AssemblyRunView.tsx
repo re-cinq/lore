@@ -59,19 +59,44 @@ function PrFact({ prUrl, prNumber }: PrFactProps) {
   );
 }
 
+interface IssueFactProps {
+  issueUrl: string | null;
+  issueNumber: number | null;
+}
+
+function IssueFact({ issueUrl, issueNumber }: IssueFactProps) {
+  if (!issueUrl || !issueNumber) {
+    return null;
+  }
+
+  return (
+    <>
+      <dt>Issue</dt>
+      <dd>
+        <a href={issueUrl} target="_blank" rel="noreferrer">
+          #{issueNumber}
+        </a>
+      </dd>
+    </>
+  );
+}
+
 function RunFacts({ run }: AssemblyRunViewProps) {
   return (
-    <dl className={styles.facts}>
-      <dt>Branch</dt>
-      <dd className={styles.mono}>{run.branch ?? EM_DASH}</dd>
-      <dt>Outcome</dt>
-      <dd>{run.outcome ?? EM_DASH}</dd>
-      <ReasonFact reason={run.reason} />
-      <dt>Duration</dt>
-      <dd>{formatDuration(run.durationSeconds)}</dd>
-      <TaskFact taskId={run.taskId} />
-      <PrFact prUrl={run.prUrl} prNumber={run.prNumber} />
-    </dl>
+    <div className="spec-card">
+      <dl className={styles.facts}>
+        <dt>Branch</dt>
+        <dd className={styles.mono}>{run.branch ?? EM_DASH}</dd>
+        <dt>Outcome</dt>
+        <dd>{run.outcome ?? EM_DASH}</dd>
+        <ReasonFact reason={run.reason} />
+        <dt>Duration</dt>
+        <dd>{formatDuration(run.durationSeconds)}</dd>
+        <TaskFact taskId={run.taskId} />
+        <PrFact prUrl={run.prUrl} prNumber={run.prNumber} />
+        <IssueFact issueUrl={run.issueUrl} issueNumber={run.issueNumber} />
+      </dl>
+    </div>
   );
 }
 

@@ -296,6 +296,8 @@ describe("assembly-line reads", () => {
             id,
             pr_url: "https://github.com/re-cinq/lore/pull/42",
             task_pr_number: 42,
+            issue_url: "https://github.com/re-cinq/lore/issues/41",
+            issue_number: 41,
             created_by: "gedaiu",
             cost_usd: 1.25,
           },
@@ -308,6 +310,8 @@ describe("assembly-line reads", () => {
         id,
         pr_url: "https://github.com/re-cinq/lore/pull/42",
         task_pr_number: 42,
+        issue_url: "https://github.com/re-cinq/lore/issues/41",
+        issue_number: 41,
         created_by: "gedaiu",
         cost_usd: 1.25,
         args_pr_number: 42,
@@ -331,6 +335,8 @@ describe("assembly-line reads", () => {
         created_by: "lore-agent",
         cost_usd: null,
         pr_url: null,
+        issue_url: null,
+        issue_number: null,
       });
     });
 

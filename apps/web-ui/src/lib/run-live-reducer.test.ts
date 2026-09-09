@@ -23,6 +23,8 @@ const run: AssemblyRun = {
   durationSeconds: null,
   prUrl: null,
   prNumber: 12,
+  issueUrl: null,
+  issueNumber: null,
   createdBy: null,
   costUsd: null,
 };

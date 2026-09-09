@@ -14,10 +14,11 @@ const UNDEFINED_TABLE = "42P01";
 export const missingTable = (err: unknown) =>
   (err as { code?: string }).code === UNDEFINED_TABLE;
 
-// Cross-table half of a run read (task PR + summed cost), joined onto the port-selected (id, task_id) pairs; cost_usd falls back to the task's calls for runs predating per-line attribution (llm_calls.assembly_line_id keeps its pre-rename spelling — 0040 telemetry carve-out).
+// Cross-table half of a run read (task PR + task Issue + summed cost), joined onto the port-selected (id, task_id) pairs; cost_usd falls back to the task's calls for runs predating per-line attribution (llm_calls.assembly_line_id keeps its pre-rename spelling — 0040 telemetry carve-out).
 const ENRICH_SELECT = `
   SELECT r.id,
          t.pr_url, t.pr_number AS task_pr_number, t.created_by,
+         t.issue_url, t.issue_number,
          cost.cost_usd
     FROM unnest($1::uuid[], $2::uuid[]) AS r(id, task_id)
     LEFT JOIN pipeline.tasks t ON t.id = r.task_id
@@ -30,7 +31,7 @@ const ENRICH_SELECT = `
               AND lc.task_id = r.task_id)
     ) cost ON true`;
 
-// A CROSS-TABLE read model (task PR + summed cost + args pr_number), not a projection of pipeline.assembly_runs; snake_case keys since that's what deployed web-ui reads, deliberately apart from the AssemblyRun model.
+// A CROSS-TABLE read model (task PR + task Issue + summed cost + args pr_number), not a projection of pipeline.assembly_runs; snake_case keys since that's what deployed web-ui reads, deliberately apart from the AssemblyRun model.
 export const RunRowSchema = z.object({
   id: z.string(),
   blueprint_name: z.string(),
@@ -49,6 +50,8 @@ export const RunRowSchema = z.object({
   args_pr_number: z.number().nullable(),
   pr_url: z.string().nullable(),
   task_pr_number: z.number().nullable(),
+  issue_url: z.string().nullable(),
+  issue_number: z.number().nullable(),
   created_by: z.string().nullable(),
   cost_usd: z.number().nullable(),
 });
@@ -68,10 +71,15 @@ export const TokenUsageSchema = z.object({
   cache_read_tokens: z.number(),
 });
 
-// The four ENRICH_SELECT columns, picked from the RunRowSchema wire contract declared above.
+// The six ENRICH_SELECT columns, picked from the RunRowSchema wire contract declared above.
 type RunEnrichment = Pick<
   z.infer<typeof RunRowSchema>,
-  "pr_url" | "task_pr_number" | "created_by" | "cost_usd"
+  | "pr_url"
+  | "task_pr_number"
+  | "issue_url"
+  | "issue_number"
+  | "created_by"
+  | "cost_usd"
 >;
 
 export async function enrichmentById(
@@ -107,27 +115,27 @@ function isoOrNull(at: Date | null): string | null {
   return at ? at.toISOString() : null;
 }
 
-// enrichment is a same-shaped fallback away from its own fields once it's known to exist — only created_by falls further, to the run's own recorded actor.
+/** What a run with no task (or no matching enrichment row) carries. */
+const NO_ENRICHMENT: RunEnrichment = {
+  pr_url: null,
+  task_pr_number: null,
+  issue_url: null,
+  issue_number: null,
+  created_by: null,
+  cost_usd: null,
+};
+
+// Only created_by falls further than its own column, to the actor the run itself recorded.
 function enrichedFields(
   enrichment: RunEnrichment | undefined,
   argsActor: unknown,
 ): RunEnrichment {
   const actorFallback = (argsActor as string | null) ?? null;
 
-  if (!enrichment) {
-    return {
-      pr_url: null,
-      task_pr_number: null,
-      created_by: actorFallback,
-      cost_usd: null,
-    };
-  }
-
   return {
-    pr_url: enrichment.pr_url,
-    task_pr_number: enrichment.task_pr_number,
-    created_by: enrichment.created_by ?? actorFallback,
-    cost_usd: enrichment.cost_usd,
+    ...NO_ENRICHMENT,
+    ...enrichment,
+    created_by: enrichment?.created_by ?? actorFallback,
   };
 }
 
@@ -179,19 +187,11 @@ function runRow(
   enrichment: RunEnrichment | undefined,
   graphField: Record<string, unknown>,
 ) {
-  const { pr_url, task_pr_number, created_by, cost_usd } = enrichedFields(
-    enrichment,
-    run.args["actor"],
-  );
-
   return {
     ...identity(run),
     ...graphField,
     ...lifecycle(run),
     args_pr_number: argsPrNumber(run.args["pr_number"]),
-    pr_url,
-    task_pr_number,
-    created_by,
-    cost_usd,
+    ...enrichedFields(enrichment, run.args["actor"]),
   };
 }

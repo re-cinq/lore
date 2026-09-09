@@ -20,6 +20,8 @@ function buildRun(overrides: Partial<AssemblyRun>): AssemblyRun {
     durationSeconds: 120,
     prUrl: "https://github.com/re-cinq/lore/pull/42",
     prNumber: 42,
+    issueUrl: null,
+    issueNumber: null,
     createdBy: null,
     costUsd: null,
     ...overrides,

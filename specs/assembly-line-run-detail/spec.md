@@ -28,6 +28,8 @@ The three imported components from `apps/web-ui/src/app/tasks/[id]/` (`EventTime
 ## FR1 — The static step list is deleted
 
 - `AssemblyRunView` renders only the metadata facts table (definition name, status, repo, branch, outcome, reason, duration, task link, PR link). The `<ol>` step list produced by `stepViews()` is removed.
+- _(Amended 2026-09-09)_ The facts table is framed as a `spec-card`, the same surface every other detail page gives its summary block — the header facts were the one card-shaped block on this page still rendering as bare markup. ([validated by](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunView.test.tsx#L93))
+- _(Amended 2026-09-09)_ The backing task's GitHub Issue is the last fact in the card, under the PR link: a run with an issue links it as `#<number>`, a run without one omits the row entirely, the same shape the PR fact already has. The issue rides the run-row enrichment's existing task join (`issue_url`/`issue_number`), not a second read. ([validated by](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunView.test.tsx#L99), [omitted when absent](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunView.test.tsx#L108), [carried by the row mapper](apps/web-ui/src/lib/assembly-runs.test.ts#L49), [and by the enrichment query](apps/lore-api/src/integration-tests/assembly-run-enrichment.test.ts#L106))
 - The interactive `RunGraphView` is the sole visual answer to "what did this run do and in what order." The two are not duplicated.
 - Any tests that cover only the step list rendering are deleted with it.
 
@@ -56,9 +58,9 @@ The three imported components from `apps/web-ui/src/app/tasks/[id]/` (`EventTime
 - `NodePodLogs.tsx` prop signature changes (FR2) but its rendering logic is unchanged.
 - `AssemblyRunView.tsx` loses the step list and `stepViews()` helper. The component is not deleted — its header rendering is still server-rendered above the visualization panel.
 - `TriggerReviewButton` placement is unchanged (below the header, gated on `code-review` definition and PR number). _Amended 2026-09-02:_ the gate moved out of `page.tsx` into `AssemblyRunOptions`, the component that decides which actions a run offers from the run itself.
-  - A `code-review` run with a PR number renders the trigger-review button. ([validated by](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunOptions.test.tsx#L30))
-  - A run of another definition renders no options. ([validated by](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunOptions.test.tsx#L38))
-  - A `code-review` run without a PR number renders no options. ([validated by](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunOptions.test.tsx#L48))
+  - A `code-review` run with a PR number renders the trigger-review button. ([validated by](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunOptions.test.tsx#L32))
+  - A run of another definition renders no options. ([validated by](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunOptions.test.tsx#L40))
+  - A `code-review` run without a PR number renders no options. ([validated by](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunOptions.test.tsx#L50))
 
 ## Alternatives Rejected
 
