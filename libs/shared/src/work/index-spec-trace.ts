@@ -22,6 +22,12 @@ export {
   type SpecTraceOutcome,
 } from "./spec-trace/ingest-spec-trace.js";
 export {
+  pruneGraphRetention,
+  retentionCutoff,
+  GRAPH_RETENTION_DAYS,
+  type GraphRetentionResult,
+} from "./spec-trace/graph-retention.js";
+export {
   upsertOverlay,
   readOverlay,
   dropOverlay,
@@ -36,6 +42,10 @@ export {
   type CoveringTest,
   type CoverageTarget,
 } from "../outbound/spec-trace/tests-covering.js";
+export {
+  failuresTouching,
+  type FailureHit,
+} from "./spec-trace/failure-nodes.js";
 export {
   mainScope,
   overlayScope,

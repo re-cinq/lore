@@ -8,7 +8,12 @@ import type {
   ServerRoute,
 } from "@hapi/hapi";
 import { z } from "zod";
-import { mergePersistentFeatures, parseRanges } from "@re-cinq/lore-shared";
+import {
+  mergePersistentFeatures,
+  parseRanges,
+  createDgraphClient,
+  failuresTouching,
+} from "@re-cinq/lore-shared";
 import { projectFor } from "../../../outbound/project-boot.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
@@ -33,6 +38,7 @@ const TRACE_KINDS = new Set([
   "graph",
   "ring",
   "tests-covering",
+  "failures-touching",
 ]);
 
 // Union of all /trace/{kind} responses; one route, many contract shapes.
@@ -112,9 +118,12 @@ async function traceResult(
   kind: string,
   query: TraceQuery,
 ): Promise<object> {
-  const project = await projectFor(
-    `${request.params.owner}/${request.params.repo}`,
-  );
+  const repo = `${request.params.owner}/${request.params.repo}`;
+
+  if (kind === "failures-touching") {
+    return failuresResult(repo, query);
+  }
+  const project = await projectFor(repo);
   const trace = project.trace;
   const noPathHandler = NO_PATH_KINDS[kind];
 
@@ -126,6 +135,23 @@ async function traceResult(
   enforceTrue(filePath, apiError(400), "path query param required");
 
   return PATH_KINDS[kind](trace, filePath, query);
+}
+
+/** Failures recorded against a source file. This kind reads the graph directly rather than through the Project facade: `failuresTouching` is a work-layer module, which `outbound` may not import. A deployment with no graph answers with an empty list rather than an error. */
+async function failuresResult(
+  repo: string,
+  query: TraceQuery,
+): Promise<object> {
+  const filePath = query.path ?? "";
+
+  enforceTrue(filePath, apiError(400), "path query param required");
+  const dgraph = createDgraphClient(process.env);
+
+  if (!dgraph) {
+    return { failures: [] };
+  }
+
+  return { failures: await failuresTouching(dgraph, repo, filePath) };
 }
 
 /** A traceability read, shaped by {kind}: the spec-to-test graph the coverage view and the VS Code extension both read. */

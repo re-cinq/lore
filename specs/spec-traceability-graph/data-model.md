@@ -455,6 +455,23 @@ history that outlives the run, not a branch snapshot. ([validated by writes no o
 
 A later success on the same node stamps the resolving sha. ([validated by stamps the resolving sha when a later attempt on the same node succeeds](libs/shared/src/work/spec-trace/ingest-failure-kind.test.ts#L67))
 
+### Retention
+
+Overlays and failures are both run-scoped, so they age out on the same window
+the run's telemetry keeps: fourteen days. ([validated by defaults to the same fourteen days the run telemetry keeps](libs/shared/src/work/spec-trace/graph-retention.test.ts#L34))
+
+The cutoff is that window before the instant the reap runs. ([validated by is the retention window before the given instant](libs/shared/src/work/spec-trace/graph-retention.test.ts#L28))
+
+One pass reaps both kinds for a repo. ([validated by reaps an expired overlay and an expired failure in one pass](libs/shared/src/work/spec-trace/graph-retention.test.ts#L51))
+
+Anything inside the window is left alone — an overlay there may belong to a run
+still pushing. ([validated by leaves an overlay and a failure inside the window alone](libs/shared/src/work/spec-trace/graph-retention.test.ts#L77))
+
+The reap rides the ingest that already holds a graph client for the repo rather
+than a cron nobody wires. That is deliberate: `agent_run_events.pruneOld` shipped
+with no caller and pruned nothing for a release, and a prune whose only caller is
+a future commit is a prune that does not exist.
+
 ### `xid` keys (deterministic, idempotent)
 
 | Node | `xid` |

@@ -11,6 +11,7 @@ import {
   type DgraphClientPort,
   type IngestGraphSummary,
   PAYLOAD_INGEST_KINDS,
+  pruneGraphRetention,
 } from "@re-cinq/lore-shared";
 import { eventLine, type NodeResult } from "@re-cinq/lore-assembly-lines";
 import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
@@ -108,8 +109,31 @@ async function runPayloadIngest(
   );
 
   console.log(eventLine(`ingest ${kind} complete: ${summaryLine}`));
+  await reapExpiredGraphData(dgraph, input.repo);
 
   return { outcome: "success", extras: { "Lore-Ingest-Summary": summaryLine } };
+}
+
+/** Housekeeping rides the ingest that already holds a graph client for this repo, rather than a cron nobody wires — the reason `agent_run_events.pruneOld` sat callerless for a release. Skip-not-fail: a reap must never fail the ingest it rode in on. */
+async function reapExpiredGraphData(
+  dgraph: DgraphClientPort,
+  repo: string,
+): Promise<void> {
+  try {
+    const reaped = await pruneGraphRetention(dgraph, repo);
+
+    if (reaped.overlays || reaped.failures) {
+      console.log(
+        eventLine(
+          `graph retention ${repo}: dropped ${reaped.overlays} overlay(s), ${reaped.failures} failure(s)`,
+        ),
+      );
+    }
+  } catch (err) {
+    console.warn(
+      `[stations] graph retention skipped for ${repo}: ${(err as Error).message}`,
+    );
+  }
 }
 
 async function runDocsIngest(

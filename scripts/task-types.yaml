@@ -429,6 +429,19 @@ task_types:
         that spec's `| Status |` header row in the same branch (Draft ->
         Implemented/Shipped) so the status never lags the code.
 
+      BEFORE YOU EDIT A SYMBOL, ask the graph which tests already cover it:
+      `lore-query-trace` with `tests_covering` set to the file you are about to
+      change, and `ranges` as `start-end` when you know the span. The rows name
+      test FILES, because coverage is recorded per file, and they describe the
+      repository as main last projected it.
+
+      Main is the right coordinate for this question: a REGRESSION is by
+      definition a test that existed before your branch. That list is what tells
+      a red test apart from one. After your round's suite run, every red test
+      you did not write this round is a regression YOU caused — stop, fix the
+      code, and never "fix" the test. Say in your final message how many red
+      tests were yours and how many were regressions.
+
       RULES:
       - Do not fix unrelated smells you notice. Name them in your final message;
         act on none of them.
@@ -524,6 +537,17 @@ task_types:
       publishes it in `.github/workflows/`, find the command that job runs, and
       run ONLY that. Reproducing the whole build to rediscover what you have
       already been told costs the ticket a pod and tells you nothing new.
+
+      BEFORE YOU READ ANY FILE, ask the graph what has failed here before.
+      For every path the red output names, call `lore-query-trace` with
+      `failures_touching` set to that path. Each row is a previous failed
+      attempt on that file: what failed, on which commit, and — when a later
+      attempt fixed it — the sha that did. `git show` that sha. This repo has
+      very likely hit this exact error before, and the diff that ended it last
+      time is the cheapest thing you will read today.
+
+      A row that says `still open` was never fixed; treat it as a warning that
+      the obvious fix did not work before, not as a solution to copy.
 
       RULES:
       - The FIRST failure is the one to fix. Fix it, re-run, repeat. Do not

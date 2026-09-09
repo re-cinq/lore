@@ -15,9 +15,13 @@ function queryTrace(args: QueryTraceArgs): Promise<string> {
   });
 }
 
-// A spec read is stable between CI reprojections; a run's overlay changes under it mid-run, so that read goes uncached.
+// A spec read is stable between CI reprojections; an overlay and a failure list both change under the caller mid-run, so those reads go uncached.
 function traceGet(args: QueryTraceArgs) {
-  return args.tests_covering ? proxyGetApi : cachedTraceGet(args.repo);
+  return isLiveRead(args) ? proxyGetApi : cachedTraceGet(args.repo);
+}
+
+function isLiveRead(args: QueryTraceArgs): boolean {
+  return Boolean(args.tests_covering || args.failures_touching);
 }
 
 const QUERY_TRACE_INPUT = {
@@ -32,6 +36,12 @@ const QUERY_TRACE_INPUT = {
     .optional()
     .describe(
       "Source file path whose covering tests you want, e.g. 'src/auth/token.ts'. Answers 'which tests exercise this code', the mirror of the spec read.",
+    ),
+  failures_touching: z
+    .string()
+    .optional()
+    .describe(
+      "Source file path whose past failures you want, e.g. 'src/auth/token.ts'. Answers 'what has already broken here, and what fixed it' — ask before diagnosing a red run cold.",
     ),
   ranges: z
     .string()
