@@ -35,6 +35,8 @@ export interface PullRef {
   draft?: boolean;
   /** Head commit sha — the PR-check publisher attaches the check to it. Absent on legacy doubles. */
   headSha?: string;
+  /** GitHub's mergeability: false when the PR conflicts with its base, null while GitHub is still computing it, absent from list reads (only `get` returns it). A conflicting PR gets no workflow run at all. */
+  mergeable?: boolean | null;
 }
 
 export interface PullReview {

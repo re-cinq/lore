@@ -19,6 +19,7 @@ interface OctokitPull {
   labels?: Array<{ name: string }>;
   user?: { login?: string } | null;
   draft?: boolean;
+  mergeable?: boolean | null;
 }
 
 export function toPullRef(repo: string, pr: OctokitPull): PullRef {
@@ -33,6 +34,8 @@ export function toPullRef(repo: string, pr: OctokitPull): PullRef {
     author: pr.user?.login ?? "",
     draft: pr.draft ?? false,
     headSha: pr.head.sha,
+    // Only `pulls.get` returns this; a list read leaves it undefined, which is not the same as null (GitHub still computing).
+    mergeable: pr.mergeable,
   };
 }
 
