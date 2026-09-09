@@ -16,7 +16,9 @@ describe("PgEventReporter.insert", () => {
     });
 
     expect(calls[0].text).toContain("INSERT INTO pipeline.events");
-    expect(calls[0].text).toContain("ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING");
+    expect(calls[0].text).toContain(
+      "ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING",
+    );
   });
 });
 
