@@ -53,6 +53,13 @@ task_types:
         `gofmt -w <files>`, whichever this repo uses). Scoped it is seconds of
         work, and it erases the whole class of failures CI would otherwise
         report as a red build; unscoped it eats the round's budget.
+      - Then TYPECHECK the packages you touched (`npx tsc --noEmit -p <pkg>`,
+        `go build ./...`, whichever this repo uses). Your tests passing does NOT
+        mean the code compiles: vitest transpiles each file without checking
+        types, so a missing import or a wrong signature runs green here and
+        fails the build on CI. That is not hypothetical — it is how a branch
+        reached five rounds and a red build with its whole acceptance suite
+        passing.
       - When the work is done, `git add` what you changed and commit it with a
         short, factual message. Then `git push origin HEAD`. The clone carries
         its own credentials, so a plain push authenticates; you need no token
@@ -124,6 +131,13 @@ task_types:
         `gofmt -w <files>`, whichever this repo uses). Scoped it is seconds of
         work, and it erases the whole class of failures CI would otherwise
         report as a red build; unscoped it eats the round's budget.
+      - Then TYPECHECK the packages you touched (`npx tsc --noEmit -p <pkg>`,
+        `go build ./...`, whichever this repo uses). Your tests passing does NOT
+        mean the code compiles: vitest transpiles each file without checking
+        types, so a missing import or a wrong signature runs green here and
+        fails the build on CI. That is not hypothetical — it is how a branch
+        reached five rounds and a red build with its whole acceptance suite
+        passing.
       - When the work is done, `git add` what you changed and commit it with a
         short, factual message. Then `git push origin HEAD`. The clone carries
         its own credentials, so a plain push authenticates; you need no token
@@ -301,6 +315,13 @@ task_types:
         `gofmt -w <files>`, whichever this repo uses). Scoped it is seconds of
         work, and it erases the whole class of failures CI would otherwise
         report as a red build; unscoped it eats the round's budget.
+      - Then TYPECHECK the packages you touched (`npx tsc --noEmit -p <pkg>`,
+        `go build ./...`, whichever this repo uses). Your tests passing does NOT
+        mean the code compiles: vitest transpiles each file without checking
+        types, so a missing import or a wrong signature runs green here and
+        fails the build on CI. That is not hypothetical — it is how a branch
+        reached five rounds and a red build with its whole acceptance suite
+        passing.
       - When the work is done, `git add` what you changed and commit it with a
         short, factual message. Then `git push origin HEAD`. The clone carries
         its own credentials, so a plain push authenticates; you need no token
@@ -427,6 +448,13 @@ task_types:
         `gofmt -w <files>`, whichever this repo uses). Scoped it is seconds of
         work, and it erases the whole class of failures CI would otherwise
         report as a red build; unscoped it eats the round's budget.
+      - Then TYPECHECK the packages you touched (`npx tsc --noEmit -p <pkg>`,
+        `go build ./...`, whichever this repo uses). Your tests passing does NOT
+        mean the code compiles: vitest transpiles each file without checking
+        types, so a missing import or a wrong signature runs green here and
+        fails the build on CI. That is not hypothetical — it is how a branch
+        reached five rounds and a red build with its whole acceptance suite
+        passing.
       - When the work is done, `git add` what you changed and commit it with a
         short, factual message. Then `git push origin HEAD`. The clone carries
         its own credentials, so a plain push authenticates; you need no token
@@ -506,6 +534,13 @@ task_types:
         `gofmt -w <files>`, whichever this repo uses). Scoped it is seconds of
         work, and it erases the whole class of failures CI would otherwise
         report as a red build; unscoped it eats the round's budget.
+      - Then TYPECHECK the packages you touched (`npx tsc --noEmit -p <pkg>`,
+        `go build ./...`, whichever this repo uses). Your tests passing does NOT
+        mean the code compiles: vitest transpiles each file without checking
+        types, so a missing import or a wrong signature runs green here and
+        fails the build on CI. That is not hypothetical — it is how a branch
+        reached five rounds and a red build with its whole acceptance suite
+        passing.
       - When the work is done, `git add` what you changed and commit it with a
         short, factual message. Then `git push origin HEAD`. The clone carries
         its own credentials, so a plain push authenticates; you need no token
@@ -611,6 +646,13 @@ task_types:
         `gofmt -w <files>`, whichever this repo uses). Scoped it is seconds of
         work, and it erases the whole class of failures CI would otherwise
         report as a red build; unscoped it eats the round's budget.
+      - Then TYPECHECK the packages you touched (`npx tsc --noEmit -p <pkg>`,
+        `go build ./...`, whichever this repo uses). Your tests passing does NOT
+        mean the code compiles: vitest transpiles each file without checking
+        types, so a missing import or a wrong signature runs green here and
+        fails the build on CI. That is not hypothetical — it is how a branch
+        reached five rounds and a red build with its whole acceptance suite
+        passing.
       - When the work is done, `git add` what you changed and commit it with a
         short, factual message. Then `git push origin HEAD`. The clone carries
         its own credentials, so a plain push authenticates; you need no token
@@ -681,6 +723,13 @@ task_types:
         `gofmt -w <files>`, whichever this repo uses). Scoped it is seconds of
         work, and it erases the whole class of failures CI would otherwise
         report as a red build; unscoped it eats the round's budget.
+      - Then TYPECHECK the packages you touched (`npx tsc --noEmit -p <pkg>`,
+        `go build ./...`, whichever this repo uses). Your tests passing does NOT
+        mean the code compiles: vitest transpiles each file without checking
+        types, so a missing import or a wrong signature runs green here and
+        fails the build on CI. That is not hypothetical — it is how a branch
+        reached five rounds and a red build with its whole acceptance suite
+        passing.
       - When the work is done, `git add` what you changed and commit it with a
         short, factual message. Then `git push origin HEAD`. The clone carries
         its own credentials, so a plain push authenticates; you need no token

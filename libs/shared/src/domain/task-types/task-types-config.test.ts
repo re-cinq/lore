@@ -175,6 +175,17 @@ describe("the implementation-tdd recipe", () => {
     ).toContain("run ONLY that");
   });
 
+  it("tells every delivering recipe to typecheck what it touched, since passing tests do not mean it compiles", () => {
+    const parsed = parseTaskTypesFile(COMMITTED);
+
+    for (const name of DELIVERING_PROMPT_REFS) {
+      const prompt = parsed.taskTypes[name]?.prompt_template ?? "";
+
+      expect(prompt, name).toContain("TYPECHECK the packages you touched");
+      expect(prompt, name).toContain("does NOT\n  mean the code compiles");
+    }
+  });
+
   it("tells every delivering recipe to bring its branch up to date with the base before it stops", () => {
     const parsed = parseTaskTypesFile(COMMITTED);
 
