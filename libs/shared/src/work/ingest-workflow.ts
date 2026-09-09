@@ -2,10 +2,10 @@
 
 export const LORE_INGEST_WORKFLOW_PATH = ".github/workflows/lore-ingest.yml";
 
-export const LORE_INGEST_WORKFLOW_VERSION = 4;
+export const LORE_INGEST_WORKFLOW_VERSION = 5;
 
-// v4 hardening (#1545, ported from re-cinq/bowman-ui PR #37): v3's curl steps ended in `|| echo ::warning`, silently masking a permanently-401ing unset token; v4 fails loudly on misconfiguration/4xx and warns only on transient 5xx/network trouble.
-export const LORE_INGEST_WORKFLOW_CONTENT = `# lore-ingest-version: 4
+// v4 (#1545): fail loudly on misconfiguration/4xx, warn only on transient 5xx; v5: `--no-renames`, because rename detection lists only a moved file's destination, so its old path was never posted, never deleted, and (since #1880) never swept — as a delete + add it takes /api/ingest's existing 404→delete branch.
+export const LORE_INGEST_WORKFLOW_CONTENT = `# lore-ingest-version: 5
 name: Lore Context Ingest
 
 on:
@@ -31,7 +31,9 @@ jobs:
       - name: Get changed files
         id: changes
         run: |
-          FILES=$(git diff --name-only HEAD~1 HEAD | jq -R -s -c 'split("\\n") | map(select(. != ""))')
+          # --no-renames: a moved file must arrive as its old path (a delete)
+          # plus its new path, or the old path's chunks outlive the file.
+          FILES=$(git diff --name-only --no-renames HEAD~1 HEAD | jq -R -s -c 'split("\\n") | map(select(. != ""))')
           echo "files=\${FILES}" >> "$GITHUB_OUTPUT"
 
       - name: Notify Lore to ingest
