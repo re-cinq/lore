@@ -47,4 +47,19 @@ describe("selectReporterToken — one credential, chosen at boot", () => {
 
     expect(fn()).toBe("agent-tok");
   });
+
+  // specs/running-stations-in-any-k8s-cluster#FR5
+  it("switches to the per-agent token on a central cluster once registration completes, using LORE_INGEST_TOKEN only as a boot-window fallback", () => {
+    let agentToken: string | undefined = undefined;
+    const env = { LORE_INGEST_TOKEN: "ingest-tok" } as NodeJS.ProcessEnv;
+    const fn = selectReporterToken(env, () => agentToken);
+
+    // Boot window: registration has not completed yet — fall back to LORE_INGEST_TOKEN.
+    expect(fn()).toBe("ingest-tok");
+
+    // Registration complete: the per-agent token is now the credential that
+    // authenticates against pipeline.cluster_agents, and must be preferred.
+    agentToken = "per-agent-tok";
+    expect(fn()).toBe("per-agent-tok");
+  });
 });
