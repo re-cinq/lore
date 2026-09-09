@@ -58,6 +58,25 @@ Repo.test_suites: [uid] @reverse @count .
 Repo.coverage: [uid] @reverse @count .
 Repo.files: [uid] @reverse @count .
 
+# Overlay: one node per assembly run, holding the branch-scoped chunks that run
+# wrote (issue #1769). Its xid IS the scope key `${repo}|run:${assembly_run_id}`,
+# which is also the `.repo` scalar every chunk under it carries — so a bare-repo
+# query cannot see an overlay and `main`'s answers are unchanged. `Overlay.repo`
+# is the REAL repo, which is what makes "every overlay of this repo" a lookup.
+# Specs/ACs/ADRs are never overlaid: the spec is what the branch is measured
+# against, so an overlay holds only test/code/coverage/file nodes.
+Overlay.xid: string @index(hash) @upsert .
+Overlay.repo: string @index(hash) .
+Overlay.assembly_run_id: string @index(hash) .
+Overlay.branch: string @index(hash) .
+Overlay.head_commit: string @index(hash) .
+Overlay.written_at: dateTime @index(hour) .
+Overlay.code_chunks: [uid] @reverse @count .
+Overlay.test_chunks: [uid] @reverse @count .
+Overlay.test_suites: [uid] @reverse @count .
+Overlay.coverage: [uid] @reverse @count .
+Overlay.files: [uid] @reverse @count .
+
 Spec.repo: string @index(hash) .
 Spec.file_path: string @index(hash) .
 Spec.content_hash: string .
@@ -184,6 +203,19 @@ type Repo {
   Repo.test_suites
   Repo.coverage
   Repo.files
+}
+type Overlay {
+  Overlay.xid
+  Overlay.repo
+  Overlay.assembly_run_id
+  Overlay.branch
+  Overlay.head_commit
+  Overlay.written_at
+  Overlay.code_chunks
+  Overlay.test_chunks
+  Overlay.test_suites
+  Overlay.coverage
+  Overlay.files
 }
 type Spec {
   Spec.xid

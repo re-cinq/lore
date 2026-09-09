@@ -201,5 +201,38 @@ describe.skipIf(!reachable)(
 
       expect(byPred["Memory.xid"]).toMatchObject({ index: true, upsert: true });
     });
+
+    it("declares Overlay.xid as a hash upsert index so a run's overlay upserts independently of main", async () => {
+      const { schema } = await querySchema(
+        "schema(pred: [Overlay.xid, Overlay.assembly_run_id, Overlay.head_commit]) {index upsert tokenizer}",
+      );
+      const byPred = Object.fromEntries(schema.map((s) => [s.predicate, s]));
+
+      expect(byPred["Overlay.xid"]).toMatchObject({
+        index: true,
+        upsert: true,
+      });
+      expect(byPred["Overlay.assembly_run_id"]).toMatchObject({ index: true });
+      expect(byPred["Overlay.head_commit"]).toMatchObject({ index: true });
+    });
+
+    it("declares the Overlay chunk edges as uid lists so a run's nodes hang off it instead of the Repo root", async () => {
+      const { schema } = await querySchema(
+        "schema(pred: [Overlay.test_chunks, Overlay.code_chunks, Overlay.coverage, Overlay.files]) {type list}",
+      );
+      const byPred = Object.fromEntries(schema.map((s) => [s.predicate, s]));
+
+      for (const pred of [
+        "Overlay.test_chunks",
+        "Overlay.code_chunks",
+        "Overlay.coverage",
+        "Overlay.files",
+      ]) {
+        expect(byPred[pred], `${pred} should be a uid list`).toMatchObject({
+          type: "uid",
+          list: true,
+        });
+      }
+    });
   },
 );

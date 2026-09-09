@@ -18,7 +18,8 @@ export type SpecTraceNodeType =
   | "Coverage"
   | "File"
   | "Feature"
-  | "TraceLink";
+  | "TraceLink"
+  | "Overlay";
 
 /** Removes a predicate entirely via `<uid> <pred> * .` — the clean way to clear a scalar, since a JSON `set` of `""` would corrupt it to `"[]"` (see {@link splitEmptyStringFields}). */
 export async function deletePredicate(
