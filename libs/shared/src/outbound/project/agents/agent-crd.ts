@@ -251,38 +251,37 @@ function templateLabels(def: ResolvedAgentDefinition) {
     : {};
 }
 
+/** A row that runs the exec vendor on the station image, rather than an LLM on the base one. */
+function isStationDef(def: ResolvedAgentDefinition): boolean {
+  return def.execution_mode === "station";
+}
+
 function containerImage(
   def: ResolvedAgentDefinition,
   opts: CatalogCrdOptions,
-  isStation: boolean,
 ): string {
   if (def.image) {
     return def.image;
   }
 
-  return isStation ? (opts.stationImage ?? BASE_IMAGE) : BASE_IMAGE;
+  return isStationDef(def) ? (opts.stationImage ?? BASE_IMAGE) : BASE_IMAGE;
 }
 
-function containerWorkingDir(
-  def: ResolvedAgentDefinition,
-  isStation: boolean,
-): { workingDir?: string } {
-  if (isStation || def.config?.repo_workdir === false) {
+function containerWorkingDir(def: ResolvedAgentDefinition): {
+  workingDir?: string;
+} {
+  if (isStationDef(def) || def.config?.repo_workdir === false) {
     return {};
   }
 
   return { workingDir: REPO_WORKDIR };
 }
 
-function agentContainer(
-  def: ResolvedAgentDefinition,
-  opts: CatalogCrdOptions,
-  isStation: boolean,
-) {
+function agentContainer(def: ResolvedAgentDefinition, opts: CatalogCrdOptions) {
   return {
     name: "agent",
-    image: containerImage(def, opts, isStation),
-    ...containerWorkingDir(def, isStation),
+    image: containerImage(def, opts),
+    ...containerWorkingDir(def),
     resources: mergePodResources(def.config?.pod_resources),
   };
 }
@@ -290,12 +289,11 @@ function agentContainer(
 function stationTemplate(
   def: ResolvedAgentDefinition,
   opts: CatalogCrdOptions,
-  isStation: boolean,
 ) {
   return {
     ...templateLabels(def),
     spec: {
-      containers: [agentContainer(def, opts, isStation)],
+      containers: [agentContainer(def, opts)],
     },
   };
 }
@@ -304,7 +302,6 @@ function stationCrd(
   def: ResolvedAgentDefinition,
   opts: CatalogCrdOptions,
   name: string,
-  isStation: boolean,
 ): Station {
   return {
     apiVersion: API_VERSION,
@@ -312,8 +309,8 @@ function stationCrd(
     metadata: { name, labels: { ...SYNC_LABELS } },
     spec: {
       agentDefRef: name,
-      deadlineMinutes: def.timeout_minutes ?? (isStation ? 15 : 30),
-      template: stationTemplate(def, opts, isStation),
+      deadlineMinutes: def.timeout_minutes ?? (isStationDef(def) ? 15 : 30),
+      template: stationTemplate(def, opts),
     },
   };
 }
@@ -323,7 +320,6 @@ export function agentDefToCrds(
   def: ResolvedAgentDefinition,
   opts: CatalogCrdOptions = {},
 ): CrdPair {
-  const isStation = def.execution_mode === "station";
   const name = catalogCrdName(def.name, def.project_id);
 
   return {
@@ -331,8 +327,8 @@ export function agentDefToCrds(
       apiVersion: API_VERSION,
       kind: "AgentDefinition",
       metadata: { name, labels: { ...SYNC_LABELS } },
-      spec: isStation ? stationSpec(def, opts) : llmSpec(def, opts),
+      spec: isStationDef(def) ? stationSpec(def, opts) : llmSpec(def, opts),
     },
-    station: stationCrd(def, opts, name, isStation),
+    station: stationCrd(def, opts, name),
   };
 }

@@ -195,13 +195,13 @@ describe("InMemoryClusterAgents", () => {
     });
 
     expect(created.paused).toBe(false);
-    expect(await repo.setPaused(created.id, true)).toMatchObject({
+    expect(await repo.setPaused(created.id, "paused")).toMatchObject({
       id: created.id,
       paused: true,
       status: "active",
     });
     expect((await repo.findById(created.id))?.paused).toBe(true);
-    expect(await repo.setPaused(created.id, false)).toMatchObject({
+    expect(await repo.setPaused(created.id, "running")).toMatchObject({
       paused: false,
     });
   });
@@ -210,7 +210,7 @@ describe("InMemoryClusterAgents", () => {
     expect(
       await new InMemoryClusterAgents().setPaused(
         "11111111-1111-1111-1111-111111111111",
-        true,
+        "paused",
       ),
     ).toBeNull();
   });
@@ -349,7 +349,7 @@ describe("PgClusterAgents adapter", () => {
   it("setPaused updates only the paused column, returning the row", async () => {
     const { pool, calls } = fakePool([[{ id: "a-1" }]]);
 
-    await new PgClusterAgents(pool).setPaused("a-1", true);
+    await new PgClusterAgents(pool).setPaused("a-1", "paused");
 
     expect(calls[0]?.text).toContain("SET paused = $2");
     expect(calls[0]?.text).toContain("WHERE id = $1");

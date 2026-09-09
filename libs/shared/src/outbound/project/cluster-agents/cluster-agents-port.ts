@@ -3,6 +3,9 @@ import type { ClusterAgent } from "../../../domain/models/cluster-agent.js";
 
 /** The registry of execution clusters (FR1 specs/running-stations-in-any-k8s-cluster): who exists, what they can run, liveness. */
 
+/** Which way the operator switch is thrown. */
+export type PauseState = "paused" | "running";
+
 export interface RegisterClusterAgentInput {
   name: string;
   tags: string[];
@@ -19,8 +22,8 @@ export interface ClusterAgentsRepository {
   /** Update tags, cluster info, token hash; re-registration keeps its credential. */
   refresh(id: string, input: RegisterClusterAgentInput): Promise<ClusterAgent>;
   heartbeat(id: string, at: Date): Promise<void>;
-  /** The operator's stop switch: paused agent passed over but stays alive, finishes existing work. */
-  setPaused(id: string, paused: boolean): Promise<ClusterAgent | null>;
+  /** The operator's stop switch: a paused agent is passed over but stays alive, finishing existing work. */
+  setPaused(id: string, state: PauseState): Promise<ClusterAgent | null>;
   /** Mark agents silent since `cutoff` offline; returns the newly offline. */
   markOffline(cutoff: Date): Promise<ClusterAgent[]>;
   list(): Promise<ClusterAgent[]>;

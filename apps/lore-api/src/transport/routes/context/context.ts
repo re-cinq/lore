@@ -10,7 +10,7 @@ import type {
 import { createDgraphClient } from "@re-cinq/lore-shared";
 import { resolveChunkSchemaForRepo } from "@re-cinq/lore-shared/project/chunks/chunk-schema.js";
 import { assembleContext } from "@re-cinq/lore-server-core/features/context/context-assembly.js";
-import { resolveCrossRepo } from "@re-cinq/lore-server-core/features/context/cross-repo.js";
+import { repoWantsCrossRepo } from "@re-cinq/lore-server-core/features/context/cross-repo.js";
 import { z } from "zod";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
@@ -120,7 +120,8 @@ async function assembleForQuery(
     maxTokens: opts.maxTokens,
     repo,
     agentId: opts.agentId,
-    crossRepo: await resolveCrossRepo(pool, repo, opts.crossRepoRequested),
+    crossRepo:
+      opts.crossRepoRequested || (await repoWantsCrossRepo(pool, repo)),
     debug: opts.debug,
     dgraph: createDgraphClient(process.env),
   });

@@ -140,5 +140,5 @@ describe("handleClaim", () => {
   });
 });
 
-const PAUSED = true;
-const RESUMED = false;
+const PAUSED = "paused";
+const RESUMED = "running";

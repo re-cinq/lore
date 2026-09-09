@@ -10,7 +10,7 @@ import {
 import { parseNodeResult } from "./node-outcome.js";
 
 const logLine = (message: string) => JSON.stringify({ type: "log", message });
-const bareResultLine = (result: string, isError = false) =>
+const bareResultLine = (result: string, { isError = false } = {}) =>
   JSON.stringify({ type: "result", is_error: isError, result });
 const attributedLine = (event: unknown) =>
   JSON.stringify({
@@ -59,9 +59,9 @@ describe("resultTextFromOutput", () => {
   });
 
   it("returns the error text of an is_error result line", () => {
-    expect(resultTextFromOutput(bareResultLine("station failed", true))).toBe(
-      "station failed",
-    );
+    expect(
+      resultTextFromOutput(bareResultLine("station failed", { isError: true })),
+    ).toBe("station failed");
   });
 
   it("returns plain non-NDJSON output unchanged", () => {
@@ -144,8 +144,8 @@ describe("terminalErrorText", () => {
   it("returns the last is_error result line's text", () => {
     const output = [
       logLine("starting"),
-      bareResultLine("first error", true),
-      bareResultLine("Credit balance is too low", true),
+      bareResultLine("first error", { isError: true }),
+      bareResultLine("Credit balance is too low", { isError: true }),
     ].join("\n");
 
     expect(terminalErrorText(output)).toBe("Credit balance is too low");
@@ -170,7 +170,7 @@ describe("terminalErrorText", () => {
   });
 
   it("caps the text at 300 chars so a stack dump never floods a notification", () => {
-    const output = bareResultLine("x".repeat(500), true);
+    const output = bareResultLine("x".repeat(500), { isError: true });
 
     expect(terminalErrorText(output)?.length).toBe(300);
   });

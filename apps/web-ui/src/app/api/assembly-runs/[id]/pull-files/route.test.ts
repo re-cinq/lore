@@ -22,7 +22,7 @@ function authorized(prNumber: number | null = 42) {
     repo: "re-cinq/lore",
     prNumber,
   });
-  userCanAccessRepo.mockResolvedValue(true);
+  userCanAccessRepo.mockResolvedValue(true); // eslint-disable-line re-lint/no-flag-params -- the value a mock resolves with, not a behaviour the callee selects
 }
 
 const upstreamBody = JSON.stringify({
@@ -67,7 +67,7 @@ describe("auth ladder", () => {
   it("returns 403 when the user cannot access the run repo", async () => {
     getServerSession.mockResolvedValue({ accessToken: "gho_x" });
     fetchAssemblyRun.mockResolvedValue({ id: "run-1", repo: "other/repo" });
-    userCanAccessRepo.mockResolvedValue(false);
+    userCanAccessRepo.mockResolvedValue(false); // eslint-disable-line re-lint/no-flag-params -- the value a mock resolves with, not a behaviour the callee selects
 
     const res = await GET(new Request("http://ui/x"), { params });
 

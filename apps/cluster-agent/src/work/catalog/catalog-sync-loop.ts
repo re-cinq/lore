@@ -135,9 +135,12 @@ export function enforceCatalogProfile(env: NodeJS.ProcessEnv): void {
   enforceFullProfileCredential(env);
 }
 
+/** Which slice of the catalog a poll asks for: the whole thing, or everything since the ack. */
+export type CatalogSyncMode = "snapshot" | "tail";
+
 /** The catalog-events response body (200). */
 export interface CatalogEventsResponse {
-  mode: "snapshot" | "tail";
+  mode: CatalogSyncMode;
   cursor: string;
   entries: Array<{
     name: string;
@@ -205,9 +208,9 @@ async function applyBatch(
 export async function catalogSyncOnce(
   deps: CatalogSyncTickDeps,
   ack: string | undefined,
-  snapshot = false,
+  mode: CatalogSyncMode = "tail",
 ): Promise<{ outcome: CatalogSyncOutcome; ack: string | undefined }> {
-  const fetched = await fetchCatalogBatch(deps, ack, snapshot);
+  const fetched = await fetchCatalogBatch(deps, ack, mode);
 
   if (fetched.kind === "refused") {
     return { outcome: fetched.outcome, ack };
@@ -225,7 +228,7 @@ export async function catalogSyncOnce(
 export interface CatalogSyncLoopDeps {
   sync: (
     ack: string | undefined,
-    snapshot: boolean,
+    mode: CatalogSyncMode,
   ) => Promise<{ outcome: CatalogSyncOutcome; ack: string | undefined }>;
   /** The single-flight re-registration a 401/403 rotates through. */
   reRegister: () => Promise<unknown>;
@@ -281,7 +284,7 @@ function syncCursor(deps: CatalogSyncLoopDeps) {
 
   return {
     tick: async (): Promise<CatalogSyncOutcome> => {
-      const result = await deps.sync(ack, landing.resync);
+      const result = await deps.sync(ack, landing.resync ? "snapshot" : "tail");
 
       ack = result.ack;
 

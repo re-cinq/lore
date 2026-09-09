@@ -162,10 +162,13 @@ function PlainNodeBody({ title, node, isTerminal }: NodeBodyProps) {
 }
 
 /** The node's tone class plus the selection ring. */
-function nodeClassName(
-  badge: NodeBodyProps["badge"],
-  selected: boolean,
-): string {
+function nodeClassName({
+  badge,
+  selected,
+}: {
+  badge: NodeBodyProps["badge"];
+  selected: boolean;
+}): string {
   return classes(
     styles.node,
     badge ? styles[badge.tone] : undefined,
@@ -174,10 +177,13 @@ function nodeClassName(
 }
 
 /** How the group answers a click or a key, and whether it is the pressed one; a non-interactive node claims neither. */
-function interactionAttrs(
-  interaction: ReturnType<typeof nodeInteraction>,
-  selected: boolean,
-) {
+function interactionAttrs({
+  interaction,
+  selected,
+}: {
+  interaction: ReturnType<typeof nodeInteraction>;
+  selected: boolean;
+}) {
   return {
     role: interaction.role,
     "aria-pressed": interaction.role === "button" ? selected : undefined,
@@ -188,20 +194,25 @@ function interactionAttrs(
 }
 
 /** The group's own attributes. The tone lands on `data-tone` as well as in the class so a test can assert what a node is SAYING without going through the stylesheet, and the aria-label carries the outcome in words for a reader who cannot see the colour. */
-function groupProps(
-  body: Pick<NodeBodyProps, "node" | "badge" | "outcomes" | "isTerminal">,
-  interaction: ReturnType<typeof nodeInteraction>,
-  selected: boolean,
-) {
+function groupProps({
+  body,
+  interaction,
+  selected,
+}: {
+  body: Pick<NodeBodyProps, "node" | "badge" | "outcomes" | "isTerminal">;
+  interaction: ReturnType<typeof nodeInteraction>;
+  selected: boolean | undefined;
+}) {
   const { node, badge } = body;
+  const isSelected = selected === true;
 
   return {
-    className: nodeClassName(badge, selected),
+    className: nodeClassName({ badge, selected: isSelected }),
     "data-node": node.id,
     "data-tone": badge?.tone ?? "idle",
-    "data-selected": selected || undefined,
+    "data-selected": isSelected || undefined,
     "aria-label": nodeAriaLabel(body),
-    ...interactionAttrs(interaction, selected),
+    ...interactionAttrs({ interaction, selected: isSelected }),
   };
 }
 
@@ -238,7 +249,7 @@ export default function GraphNode(props: GraphNodeProps) {
   const body = { node, badge, outcomes, isTerminal, top, leftEdge };
 
   return (
-    <g {...groupProps(body, interaction, props.selected === true)}>
+    <g {...groupProps({ body, interaction, selected: props.selected })}>
       <NodeBox leftEdge={leftEdge} top={top} height={height} />
       <NodeBody {...body} title={titleCase(node.id)} />
       <NodeMetaLine

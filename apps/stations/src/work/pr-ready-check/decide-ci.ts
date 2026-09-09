@@ -66,21 +66,23 @@ export function decideCiReady(input: {
   }
 
   return (
-    unsettledVerdict(ciConclusionOf(input.checks), input.hasCiHistory) ??
-    settledVerdict(input)
+    unsettledVerdict({
+      conclusion: ciConclusionOf(input.checks),
+      hasCiHistory: input.hasCiHistory,
+    }) ?? settledVerdict(input)
   );
 }
 
 /** A build still in flight, or one whose checks have not appeared yet — null once there is something to judge. */
-function unsettledVerdict(
-  conclusion: CiConclusion,
-  hasCiHistory: boolean,
-): CiCheckVerdict | null {
-  if (conclusion === "pending") {
+function unsettledVerdict(input: {
+  conclusion: CiConclusion;
+  hasCiHistory: boolean;
+}): CiCheckVerdict | null {
+  if (input.conclusion === "pending") {
     return { kind: "wait", reason: "ci_pending" };
   }
 
-  return conclusion === "none" && hasCiHistory
+  return input.conclusion === "none" && input.hasCiHistory
     ? { kind: "wait", reason: "ci_not_started" }
     : null;
 }

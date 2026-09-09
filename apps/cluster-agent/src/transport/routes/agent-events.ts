@@ -19,9 +19,8 @@ export interface AgentEventsDeps {
 
 // Whether the presented token is one of ours. Every comparison runs even after a match — the same reason `secretEquals` exists: bailing early leaks, through timing, which credential matched.
 function matchesAny(presented: string, configured: string[]): boolean {
-  return configured.reduce(
-    (found, token) => secretEquals(presented, token) || found,
-    false,
+  return (
+    configured.filter((token) => secretEquals(presented, token)).length > 0
   );
 }
 
