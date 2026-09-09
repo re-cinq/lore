@@ -13,21 +13,27 @@ func chunkReport(r TestReport, maxBytes int) []TestReport {
 	}
 
 	var chunks []TestReport
-	cur := TestReport{Commit: r.Commit, Branch: r.Branch}
+	cur := TestReport{Commit: r.Commit, Branch: r.Branch, AssemblyRunID: r.AssemblyRunID}
 	for _, d := range r.Tests {
 		res, hasRes := resultByID[d.ID]
 		cand := TestReport{
-			Commit:  r.Commit,
-			Branch:  r.Branch,
-			Tests:   append(append([]TestDescriptor{}, cur.Tests...), d),
-			Results: append([]TaggedRunResult{}, cur.Results...),
+			Commit:        r.Commit,
+			Branch:        r.Branch,
+			AssemblyRunID: r.AssemblyRunID,
+			Tests:         append(append([]TestDescriptor{}, cur.Tests...), d),
+			Results:       append([]TaggedRunResult{}, cur.Results...),
 		}
 		if hasRes {
 			cand.Results = append(cand.Results, res)
 		}
 		if jsonLen(cand) > maxBytes && len(cur.Tests) > 0 {
 			chunks = append(chunks, cur)
-			cur = TestReport{Commit: r.Commit, Branch: r.Branch, Tests: []TestDescriptor{d}}
+			cur = TestReport{
+				Commit:        r.Commit,
+				Branch:        r.Branch,
+				AssemblyRunID: r.AssemblyRunID,
+				Tests:         []TestDescriptor{d},
+			}
 			if hasRes {
 				cur.Results = []TaggedRunResult{res}
 			}

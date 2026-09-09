@@ -46,15 +46,19 @@ type TaggedRunResult struct {
 }
 
 type TestReport struct {
-	Commit  string            `json:"commit"`
-	Branch  string            `json:"branch"`
-	Tests   []TestDescriptor  `json:"tests"`
-	Results []TaggedRunResult `json:"results"`
+	Commit string `json:"commit"`
+	Branch string `json:"branch"`
+	// AssemblyRunID routes the ingest into that run's branch overlay instead of
+	// the repo's main graph (issue #1769). Absent — never empty — on a CI run.
+	AssemblyRunID string            `json:"assemblyRunId,omitempty"`
+	Tests         []TestDescriptor  `json:"tests"`
+	Results       []TaggedRunResult `json:"results"`
 }
 
 type reportMeta struct {
-	Commit string
-	Branch string
+	Commit        string
+	Branch        string
+	AssemblyRunID string
 }
 
 // buildReport runs the manifest's list, then runs the run command once per file
@@ -122,7 +126,13 @@ func buildReport(ctx context.Context, m Manifest, cwd string, meta reportMeta, c
 		}
 	}
 
-	return TestReport{Commit: meta.Commit, Branch: meta.Branch, Tests: tests, Results: results}, nil
+	return TestReport{
+		Commit:        meta.Commit,
+		Branch:        meta.Branch,
+		AssemblyRunID: meta.AssemblyRunID,
+		Tests:         tests,
+		Results:       results,
+	}, nil
 }
 
 // runOneFile runs the manifest's run command for one file and parses its output
