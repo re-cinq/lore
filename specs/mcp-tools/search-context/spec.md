@@ -47,7 +47,7 @@ Use this when you want chunk-level evidence or the exact wording of a convention
    log `"[lore] lore_search_context: auto-detected repo {repo}"` to stderr (advisory).
 2. **DB path** — if `isDbAvailable()`:
    1. `schema = team || "org_shared"`; `results = hybridSearch(query, schema, limit)`
-      ([hybridSearch](../../../libs/server-core/src/outbound/db.ts#L109) — HNSW vector +
+      ([hybridSearch](../../../libs/server-core/src/outbound/db.ts#L82) — HNSW vector +
       BM25, fused by RRF). `hybridSearch` resolves the schema dynamically via the
       shared `chunkSchemaOrOrgShared`: a provisioned team schema is searched
       directly; an unknown, unprovisioned, or injection-shaped name falls back to

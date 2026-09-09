@@ -7,6 +7,14 @@ interface ScriptedRow {
   rows: Record<string, unknown>[];
 }
 
+function bindPool(scripts: ScriptedRow[]) {
+  const pool = scriptedPool(scripts);
+
+  setPipelinePool(pool as unknown as Pool);
+
+  return pool;
+}
+
 function scriptedPool(scripts: ScriptedRow[]) {
   const calls: { sql: string; params: unknown[] }[] = [];
   const pool = {
@@ -18,14 +26,6 @@ function scriptedPool(scripts: ScriptedRow[]) {
     }),
     calls,
   };
-
-  return pool;
-}
-
-function bindPool(scripts: ScriptedRow[]) {
-  const pool = scriptedPool(scripts);
-
-  setPipelinePool(pool as unknown as Pool);
 
   return pool;
 }

@@ -75,7 +75,7 @@ A retriable status (408/429/5xx) retries with backoff and succeeds on a later at
    unavailable); the GKE server read path never caches. ([implemented by `isMemoryDbAvailable`](apps/mcp-server/src/transport/tools/context-tools.ts#L109), [`withReadCache`](apps/mcp-server/src/transport/tools/deps.ts#L17))
 
 2. **AC2** `LORE_CACHE_ENABLED=false` disables all cache reads and writes;
-   `=true` and `config.json`'s `enabled` are respected otherwise. ([validated by `is a no-op when LORE_CACHE_ENABLED=false`](libs/server-core/src/outbound/proxy-cache.test.ts#L148), [`isCacheEnabled`](libs/server-core/src/outbound/proxy-cache.ts#L117))
+   `=true` and `config.json`'s `enabled` are respected otherwise. ([validated by `is a no-op when LORE_CACHE_ENABLED=false`](libs/server-core/src/outbound/proxy-cache.test.ts#L148), [`isCacheEnabled`](libs/server-core/src/outbound/proxy-cache.ts#L43))
 
 3. **AC3** A fresh entry (`age < ttl`) is returned without a network call,
    prefixed with a `lore-cache: HIT` marker (for labeled callers). ([validated by `returns a fresh hit within ttl`](libs/server-core/src/outbound/proxy-cache.test.ts#L71), [`proxy-cache.test.ts:158`](libs/server-core/src/outbound/proxy-cache.test.ts#L158))
@@ -94,10 +94,10 @@ A retriable status (408/429/5xx) retries with backoff and succeeds on a later at
    is served — fresh or stale — and the denial is surfaced to the caller. ([validated by `context-tools.test.ts:165`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L165))
 
 8. **AC8** Per-tool TTLs apply; `ttl_overrides[tool]` in `config.json`
-   overrides the policy TTL, including an override of `0`. ([implemented by `effectiveTtl`](libs/server-core/src/outbound/proxy-cache.ts#L165))
+   overrides the policy TTL, including an override of `0`. ([implemented by `effectiveTtl`](libs/server-core/src/outbound/proxy-cache.ts#L190))
 
 9. **AC9** When entry count exceeds `max_entries` (default 2000), the oldest
-   entries are evicted. ([validated by `evicts the oldest entries past max_entries`](libs/server-core/src/outbound/proxy-cache.test.ts#L128), [`evictIfNeeded`](libs/server-core/src/outbound/proxy-cache.ts#L260))
+   entries are evicted. ([validated by `evicts the oldest entries past max_entries`](libs/server-core/src/outbound/proxy-cache.test.ts#L128), [`evictIfNeeded`](libs/server-core/src/outbound/proxy-cache.ts#L212))
 
 10. **AC10** Mutations are never cached and invalidate the reads they affect:
     memory write/delete → memory reads + `assemble_context`; episode write →
@@ -115,4 +115,4 @@ A retriable status (408/429/5xx) retries with backoff and succeeds on a later at
 
 12. **AC12** The cache is derived, never authority: a missing or corrupt entry
     degrades to a network re-fetch (never an error or wrong answer), and cache
-    files are owner-only (`0600`) under an owner-only (`0700`) directory. ([validated by `proxy-cache.test.ts:82`](libs/server-core/src/outbound/proxy-cache.test.ts#L79), [`writeJson`](libs/server-core/src/outbound/proxy-cache.ts#L94))
+    files are owner-only (`0600`) under an owner-only (`0700`) directory. ([validated by `proxy-cache.test.ts:82`](libs/server-core/src/outbound/proxy-cache.test.ts#L79), [`writeJson`](libs/server-core/src/outbound/proxy-cache.ts#L197))

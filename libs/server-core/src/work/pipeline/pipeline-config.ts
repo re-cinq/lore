@@ -16,6 +16,15 @@ let config: Record<string, TaskTypeRecipe> = {};
 
 // ── Public API ───────────────────────────────────────────────────────
 
+export function loadTaskTypes(): void {
+  for (const path of candidatePaths()) {
+    if (tryLoad(path)) {
+      return;
+    }
+  }
+  console.warn("[pipeline] No task-types.yaml found, using empty config");
+}
+
 // Where task-types.yaml might be, most specific first: an explicit override, the working tree, the mounted context, then a developer's install.
 function candidatePaths(): string[] {
   return [
@@ -51,15 +60,6 @@ function tryLoad(path: string): boolean {
   }
 }
 
-export function loadTaskTypes(): void {
-  for (const path of candidatePaths()) {
-    if (tryLoad(path)) {
-      return;
-    }
-  }
-  console.warn("[pipeline] No task-types.yaml found, using empty config");
-}
-
 export function getTaskTypeConfig(type: string): TaskTypeRecipe | null {
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- config is a Record keyed by whatever task-types.yaml declared; an unknown `type` genuinely has no entry
   return config[type] || null;
@@ -87,17 +87,6 @@ const DEFAULT_BASE_RECIPE: TaskTypeRecipe = {
   review_required: false,
 };
 
-function resolvePromptTemplate(
-  overridePromptTemplate: unknown,
-  baseRecipe: TaskTypeRecipe,
-): string {
-  if (typeof overridePromptTemplate === "string" && overridePromptTemplate) {
-    return overridePromptTemplate;
-  }
-
-  return baseRecipe.prompt_template || DEFAULT_PROMPT;
-}
-
 /** Merge global task type config with per-repo overrides; repo overrides win. */
 export function getTaskTypeConfigForRepo(
   type: string,
@@ -115,4 +104,15 @@ export function getTaskTypeConfigForRepo(
     ...overrides,
     prompt_template: resolvePromptTemplate(overrides.prompt_template, base),
   };
+}
+
+function resolvePromptTemplate(
+  overridePromptTemplate: unknown,
+  baseRecipe: TaskTypeRecipe,
+): string {
+  if (typeof overridePromptTemplate === "string" && overridePromptTemplate) {
+    return overridePromptTemplate;
+  }
+
+  return baseRecipe.prompt_template || DEFAULT_PROMPT;
 }
