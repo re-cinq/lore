@@ -58,7 +58,19 @@ Use this when you want chunk-level evidence or the exact wording of a convention
    4. Empty ⇒ return `No results for "{query}".`
    5. Else join each result as `**Score:** {rrf_score.toFixed(3)}\n\n{content}`
       with the separator `\n\n---\n\n`.
-3. **File fallback** (no DB):
+3. **API path** (no pool, `LORE_API_URL` set) — the adapter holds no database
+   (ADR-032), so this is the path a developer laptop actually takes.
+   `GET /api/search-context?query&team&limit` runs the same hybrid retrieval
+   server-side, including the org_shared retry, and its passages render exactly
+   as the DB path's do. Before this existed the tool skipped straight to the file
+   scan, so a natural-language question — the only kind an agent asks — answered
+   `No results found` from a grep over one local checkout while never consulting
+   the corpus at all. ([validated by `answers a natural-language query with scored passages carrying their source path`](apps/lore-api/src/transport/routes/context/search-context.test.ts#L40), [`sends 0.0163 as a number when pg hands back the numeric as a string`](apps/lore-api/src/transport/routes/context/search-context.test.ts#L67), [`retries a provisioned team schema's miss against org_shared`](apps/lore-api/src/transport/routes/context/search-context.test.ts#L83), [`refuses an empty query with 400 before searching`](apps/lore-api/src/transport/routes/context/search-context.test.ts#L105))
+
+4. **File fallback** (no pool and no API) — the offline path, and it says so: the
+   no-results message names the substring scan and points at `LORE_API_URL`,
+   because a bare miss from a local grep is otherwise indistinguishable from a
+   genuine miss against the corpus. ([validated by `says the offline scan is not the corpus when the local files match nothing`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L84))
    1. `searchRoot = team ? {CONTEXT_PATH}/teams/{team} : {CONTEXT_PATH}`
       (`CONTEXT_PATH` env, default `process.cwd()`).
    2. If `searchRoot` does not exist ⇒ return `Error: search path not found at {searchRoot}.`

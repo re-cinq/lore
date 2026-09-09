@@ -4,7 +4,11 @@ import { specTaskExecutorJob } from "../../work/task/spec-task-executor.js";
 import { staleTaskCheckJob } from "../../work/task/stale-task-check.js";
 import { featurePlanningReaperJob } from "../../work/task/feature-planning-reaper.js";
 import { leaseReaperJob } from "../../work/lease/lease-reaper.js";
-import { pruneHandled, orphanedEvents } from "../../outbound/event-store.js";
+import {
+  pruneHandled,
+  orphanedEvents,
+  deadLettered,
+} from "../../outbound/event-store.js";
 import { pipeline, stationClient } from "../../outbound/queues.js";
 import { reconcileAgents } from "../../work/watcher/agent-reconcile.js";
 import type { EventHandler } from "../../domain/event-types.js";
@@ -157,6 +161,7 @@ export const llmCreditProbe: EventHandler = async () => {
 
 /** Orphan report lookback window (matches hourly tick); no skip or re-report. */
 const ORPHAN_WINDOW_MINUTES = 60;
+const DEAD_LETTER_WINDOW_MINUTES = 60;
 
 // Report unclaimed event names to prevent silent producer failures.
 async function reportOrphanedEvents(): Promise<void> {
@@ -169,6 +174,22 @@ async function reportOrphanedEvents(): Promise<void> {
 
   console.error(
     `[events] ${orphaned.length} event name(s) reached nobody in the last ${ORPHAN_WINDOW_MINUTES}m — no subscriber is registered for: ${detail}`,
+  );
+}
+
+/** Report handlers that gave up, so a failing safety net is not discovered by its silence. The reconcile tick dead-lettered 84 deliveries across a 3-hour cluster-agent outage (2026-09-08) and said nothing an operator would see; the rows were the only record. Grouped and periodic rather than per-row, because an outage produces one identical failure a minute. */
+async function reportDeadLetters(): Promise<void> {
+  const dead = await deadLettered(DEAD_LETTER_WINDOW_MINUTES);
+
+  if (dead.length === 0) {
+    return;
+  }
+  const detail = dead
+    .map((d) => `${d.event_name} x${d.count} (${d.last_error ?? "no error"})`)
+    .join(", ");
+
+  console.error(
+    `[events] ${dead.length} handler(s) gave up in the last ${DEAD_LETTER_WINDOW_MINUTES}m — dead-lettered: ${detail}`,
   );
 }
 
@@ -198,6 +219,7 @@ export const eventsPrune: EventHandler = async () => {
   }
 
   await reportOrphanedEvents();
+  await reportDeadLetters();
   await pruneAgentRunRetention();
 };
 

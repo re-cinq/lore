@@ -9,6 +9,10 @@ import {
   VERSION,
 } from "../domain/crd.js";
 import { customObjectsApi } from "./kube-clients.js";
+import {
+  KubeSecretKeyWriter,
+  type SecretKeyWriter,
+} from "./kube-token-provisioner.js";
 import type {
   PrunableAgent,
   PrunableRecipe,
@@ -22,7 +26,12 @@ interface CustomObjectItem {
 }
 
 export class KubePruner implements PruneCluster {
-  constructor(private readonly customObjects = customObjectsApi) {}
+  constructor(
+    private readonly customObjects = customObjectsApi,
+    private readonly secretKeyWriter: SecretKeyWriter = new KubeSecretKeyWriter(),
+    private readonly agentSecretsName = process.env.LORE_AGENT_SECRETS_NAME ??
+      "agent-secrets",
+  ) {}
 
   private async list(plural: string): Promise<CustomObjectItem[]> {
     const res = (await this.customObjects().listNamespacedCustomObject({
@@ -75,6 +84,10 @@ export class KubePruner implements PruneCluster {
 
   async deleteDefinition(name: string): Promise<void> {
     await this.remove(AGENT_DEFINITION_PLURAL, name);
+  }
+
+  async deleteSecretKey(key: string): Promise<void> {
+    await this.secretKeyWriter.deleteKey(this.agentSecretsName, key);
   }
 }
 

@@ -84,13 +84,13 @@ import { usageRoute } from "./routes/analytics/usage.js";
 import { analyticsRoute } from "./routes/analytics/analytics.js";
 import { activityRoutes } from "./routes/analytics/activity.js";
 import { analyticsOverviewRoute } from "./routes/analytics/spend.js";
-import { creditLedgerRoute } from "./routes/analytics/credit-ledger.js";
 import { spendWindowRoute } from "./routes/analytics/spend-window.js";
 import { agentStatsRoute } from "./routes/analytics/agent-stats.js";
 import { impactRoute } from "./routes/impact/impact.js";
 import { impactBaseRoute } from "./routes/impact/impact-base.js";
 import { traceRoute } from "./routes/trace/trace.js";
 import { chunksRoute } from "./routes/repos/chunks.js";
+import { searchContextRoute } from "./routes/context/search-context.js";
 import { chunksPruneRoute } from "./routes/repos/chunks-prune.js";
 import { stationDataRoutes } from "./routes/repos/station-data.js";
 import { traceAdrsRoute } from "./routes/trace/trace-adrs.js";
@@ -243,7 +243,6 @@ function analyticsRoutes(getPool: PoolGetter): ServerRoute[] {
     analyticsRoute(getPool),
     ...activityRoutes(getPool),
     spendWindowRoute(getPool),
-    creditLedgerRoute(getPool),
     analyticsOverviewRoute(getPool),
     agentStatsRoute(getPool),
   ];
@@ -256,6 +255,8 @@ function traceRoutes(): ServerRoute[] {
     impactBaseRoute(),
     traceRoute(),
     chunksRoute(),
+    // The corpus search the MCP adapter proxies; without it lore_search_context can only grep the caller's checkout.
+    searchContextRoute(),
     ...stationDataRoutes(),
     traceAdrsRoute(),
     traceSpecsRoute(),

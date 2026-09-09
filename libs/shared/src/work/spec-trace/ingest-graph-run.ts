@@ -285,15 +285,16 @@ function chooseCandidates(
   files: string[],
 ): ReturnType<typeof selectPruneCandidates> {
   const { params, registry, patterns } = scope;
+  const scopeOpts = { glob: params.glob, patterns };
   const isInScope = (path: string) =>
-    selectIngestFiles(
-      [path],
-      params.kind,
-      { glob: params.glob, patterns },
-      registry,
-    ).length === 1;
+    selectIngestFiles([path], params.kind, scopeOpts, registry).length === 1;
 
-  return selectPruneCandidates(graphDocPaths, files, isInScope, params.force);
+  return selectPruneCandidates(
+    graphDocPaths,
+    files,
+    isInScope,
+    params.force ? "forced" : "guarded",
+  );
 }
 
 /** A tree read that lost most of its in-scope docs is a FAILED read, not a mass deletion — a shallow clone or a bad ref looks exactly like every spec disappearing at once. Refused rather than pruned, with the counts, so the operator can override deliberately. */

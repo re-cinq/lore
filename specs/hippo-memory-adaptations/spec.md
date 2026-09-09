@@ -59,7 +59,7 @@ outcomes feed back into the memories that contributed to the task.
   hit (both facts and memories).
 - `half_life_days` increased by +2 per retrieval (capped at 365).
 - Importance scoring in `memory-lifecycle.ts` uses `half_life_days`
-  and `last_retrieved_at` instead of raw `created_at` for recency. ([validated by `memory-ranking.test.ts:168`](libs/shared/src/domain/memory-ranking.test.ts#L168))
+  and `last_retrieved_at` instead of raw `created_at` for recency. ([validated by `memory-ranking.test.ts:231`](libs/shared/src/domain/memory-ranking.test.ts#L231))
 
 ### Scenario 2: Confidence Tiers on Facts
 
@@ -220,11 +220,11 @@ repo B
 ### FR-7: Updated Importance Scoring
 
 - FR-7.1: Replace raw `created_at` recency with
-  `effective_age = days_since(COALESCE(last_retrieved_at, created_at))`. ([validated by `memory-ranking.test.ts:168`](libs/shared/src/domain/memory-ranking.test.ts#L168))
-- FR-7.2: Apply half-life decay: `strength = 0.5^(effective_age / half_life_days)`, mapping strength to a 0–10 score and honoring a custom `half_life_days`. ([validated by `memory-ranking.test.ts:143`](libs/shared/src/domain/memory-ranking.test.ts#L143), [`memory-ranking.test.ts:113`](libs/shared/src/domain/memory-ranking.test.ts#L113), [`memory-ranking.test.ts:206`](libs/shared/src/domain/memory-ranking.test.ts#L206))
+  `effective_age = days_since(COALESCE(last_retrieved_at, created_at))`. ([validated by `memory-ranking.test.ts:231`](libs/shared/src/domain/memory-ranking.test.ts#L231))
+- FR-7.2: Apply half-life decay: `strength = 0.5^(effective_age / half_life_days)`, mapping strength to a 0–10 score and honoring a custom `half_life_days`. ([validated by `memory-ranking.test.ts:206`](libs/shared/src/domain/memory-ranking.test.ts#L206), [`memory-ranking.test.ts:176`](libs/shared/src/domain/memory-ranking.test.ts#L176), [`memory-ranking.test.ts:269`](libs/shared/src/domain/memory-ranking.test.ts#L269))
 - FR-7.3: Incorporate `retrieval_count` as a minor boost: `+1` if
-  `retrieval_count >= 5`, `+2` if `>= 20`. ([validated by `memory-ranking.test.ts:212`](libs/shared/src/domain/memory-ranking.test.ts#L212))
-- FR-7.4: Stale-confidence facts get `-1` penalty. ([validated by `memory-ranking.test.ts:162`](libs/shared/src/domain/memory-ranking.test.ts#L162))
+  `retrieval_count >= 5`, `+2` if `>= 20`. ([validated by `memory-ranking.test.ts:275`](libs/shared/src/domain/memory-ranking.test.ts#L275))
+- FR-7.4: Stale-confidence facts get `-1` penalty. ([validated by `memory-ranking.test.ts:225`](libs/shared/src/domain/memory-ranking.test.ts#L225))
 
 ## Non-Functional Requirements
 

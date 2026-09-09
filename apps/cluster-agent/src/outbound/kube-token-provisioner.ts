@@ -45,6 +45,28 @@ export interface TokenCleanup {
   cleanup(taskId: string): Promise<void>;
 }
 
+/** Reclaims the same triple `cleanup(taskId)` does, but WARNS per failure — unlike cleanup's silent allSettled, a token stranded here is a live credential nobody will ever use. */
+interface ReclaimPorts {
+  secretName: string;
+  secrets: { deleteKey: (secret: string, key: string) => Promise<void> };
+  catalog: {
+    deleteStation: (name: string) => Promise<void>;
+    deleteAgentDefinition: (name: string) => Promise<void>;
+  };
+}
+
+async function reclaimProvision(
+  ports: ReclaimPorts,
+  ref: { key: string; name: string },
+): Promise<void> {
+  const reclaim = reclaimTriple(ports, ref);
+
+  warnUnreclaimed(
+    reclaim.map(([label]) => label),
+    await Promise.allSettled(reclaim.map(([, p]) => p)),
+  );
+}
+
 // The three things a provision creates, each paired with its label. Attempted together rather than in sequence: one failing must not stop the other two being reclaimed.
 function reclaimTriple(
   ports: ReclaimPorts,
@@ -69,28 +91,6 @@ function warnUnreclaimed(
       );
     }
   });
-}
-
-/** Reclaims the same triple `cleanup(taskId)` does, but WARNS per failure — unlike cleanup's silent allSettled, a token stranded here is a live credential nobody will ever use. */
-interface ReclaimPorts {
-  secretName: string;
-  secrets: { deleteKey: (secret: string, key: string) => Promise<void> };
-  catalog: {
-    deleteStation: (name: string) => Promise<void>;
-    deleteAgentDefinition: (name: string) => Promise<void>;
-  };
-}
-
-async function reclaimProvision(
-  ports: ReclaimPorts,
-  ref: { key: string; name: string },
-): Promise<void> {
-  const reclaim = reclaimTriple(ports, ref);
-
-  warnUnreclaimed(
-    reclaim.map(([label]) => label),
-    await Promise.allSettled(reclaim.map(([, p]) => p)),
-  );
 }
 
 export class KubeTokenProvisioner implements TokenProvisioner, TokenCleanup {

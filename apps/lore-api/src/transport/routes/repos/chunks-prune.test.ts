@@ -11,7 +11,12 @@ vi.mock("../../../work/chunks/prune-orphans.js", () => ({
   pruneOrphanChunks: vi.fn(),
 }));
 
+vi.mock("../../../work/chunks/reconcile-orphans.js", () => ({
+  reconcileOrphanChunks: vi.fn(),
+}));
+
 import { pruneOrphanChunks } from "../../../work/chunks/prune-orphans.js";
+import { reconcileOrphanChunks } from "../../../work/chunks/reconcile-orphans.js";
 
 const originalEnv = { ...process.env };
 
@@ -69,6 +74,41 @@ describe("POST /api/repos/{owner}/{repo}/chunks/prune", () => {
       status: res.statusCode,
       bodyBytes: JSON.stringify({ present_paths: wideTree }).length > 3_000_000,
     }).toEqual({ status: 200, bodyBytes: true });
+  });
+
+  it("reads the tree itself when the body omits present_paths, so a scheduler with no checkout can reconcile", async () => {
+    vi.mocked(reconcileOrphanChunks).mockResolvedValue({
+      schema: "platform",
+      deleted_paths: ["apps/floor/src/jobs/merge/auto-merge.ts"],
+      deleted_chunks: 4,
+    });
+
+    const res = await post({});
+
+    expect({
+      status: res.statusCode,
+      pruneCalls: vi.mocked(pruneOrphanChunks).mock.calls.length,
+      body: res.result,
+    }).toEqual({
+      status: 200,
+      pruneCalls: 0,
+      body: {
+        schema: "platform",
+        deleted_paths: ["apps/floor/src/jobs/merge/auto-merge.ts"],
+        deleted_chunks: 4,
+      },
+    });
+  });
+
+  it("answers 502 rather than deleting anything when the tree cannot be read", async () => {
+    vi.mocked(reconcileOrphanChunks).mockResolvedValue(null);
+
+    const res = await post({});
+
+    expect({
+      status: res.statusCode,
+      pruneCalls: vi.mocked(pruneOrphanChunks).mock.calls.length,
+    }).toEqual({ status: 502, pruneCalls: 0 });
   });
 
   it("refuses an empty present_paths with 400 before touching the store, so an empty tree can never wipe a repo", async () => {

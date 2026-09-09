@@ -17,12 +17,26 @@ export interface AgentEventsDeps {
   acceptedTokens: () => Array<string | undefined>;
 }
 
-// Whether the presented token is one of ours. Every comparison runs even after a match — the same reason `secretEquals` exists: bailing early leaks, through timing, which credential matched.
-function matchesAny(presented: string, configured: string[]): boolean {
-  return configured.reduce(
-    (found, token) => secretEquals(presented, token) || found,
-    false,
-  );
+export function agentEventsRoutes(deps: AgentEventsDeps): ServerRoute[] {
+  return [
+    {
+      method: "POST",
+      path: "/api/cluster/agent-events",
+      options: {
+        auth: false,
+        // Unparsed NDJSON forwarded verbatim; maxBytes turns an oversized batch into a visible 413 instead of a buffered undeliverable body.
+        payload: { parse: false, maxBytes: MAX_BODY_BYTES },
+      },
+      handler: async (request, h) => {
+        enforceAnyBearer(request.headers, deps.acceptedTokens());
+
+        // Awaited so a full queue applies backpressure to the pod rather than accumulating unsent batches in memory.
+        await deps.emit({ kind: "telemetry", body: rawBody(request) });
+
+        return h.response().code(202);
+      },
+    },
+  ];
 }
 
 /** Accept the request only if it presents one of this cluster's credentials; every comparison runs even after a match (same reason `secretEquals` exists). */
@@ -49,24 +63,13 @@ function enforceAnyBearer(
   );
 }
 
-export function agentEventsRoutes(deps: AgentEventsDeps): ServerRoute[] {
-  return [
-    {
-      method: "POST",
-      path: "/api/cluster/agent-events",
-      options: {
-        auth: false,
-        // Unparsed NDJSON forwarded verbatim; maxBytes turns an oversized batch into a visible 413 instead of a buffered undeliverable body.
-        payload: { parse: false, maxBytes: MAX_BODY_BYTES },
-      },
-      handler: async (request, h) => {
-        enforceAnyBearer(request.headers, deps.acceptedTokens());
+// Whether the presented token is one of ours. Every comparison runs even after a match — the same reason `secretEquals` exists: bailing early leaks, through timing, which credential matched.
+function matchesAny(presented: string, configured: string[]): boolean {
+  let found = false;
 
-        // Awaited so a full queue applies backpressure to the pod rather than accumulating unsent batches in memory.
-        await deps.emit({ kind: "telemetry", body: rawBody(request) });
+  for (const token of configured) {
+    found = secretEquals(presented, token) || found;
+  }
 
-        return h.response().code(202);
-      },
-    },
-  ];
+  return found;
 }

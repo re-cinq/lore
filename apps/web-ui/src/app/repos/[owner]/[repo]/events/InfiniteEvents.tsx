@@ -54,7 +54,7 @@ function useInfiniteEvents(props: InfiniteEventsProps) {
   useEffect(() => {
     const node = sentinel.current;
 
-    if (!node || !canStartObserving(state)) {
+    if (!node || !canStartObserving({ more, loading, failed })) {
       return;
     }
 

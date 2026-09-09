@@ -26,6 +26,37 @@ import {
 import { registrationConfig } from "./registration.js";
 import type { RegistrationConfig } from "./registration.js";
 
+export interface StartClaimLoopOpts {
+  /** Called with the identity after EVERY successful registration (including rotation) so the event reporter's credential stays current. */
+  onIdentity?: (identity: ClusterAgentIdentity) => void;
+}
+
+export interface ClaimLoopHandle {
+  /** Stop claiming — a shutdown flips this before waiting for anything else, since a claim landing mid-drain would be recorded but never launched. */
+  stop: () => void;
+  /** Rotates the per-agent token via single-flight re-registration; resolves null until this agent has registered once. */
+  reRegister: () => Promise<unknown>;
+}
+
+export function startClaimLoop(
+  env: NodeJS.ProcessEnv,
+  opts: StartClaimLoopOpts = {},
+): ClaimLoopHandle {
+  const rotation = rotationSlot();
+  const latch = stopLatch();
+  const { config, storeConfig } = assertBootable(env);
+
+  launchRegistrant(
+    storeConfig,
+    registrantOpts(env, opts, config, {
+      running: latch.running,
+      onReRegister: rotation.fill,
+    }),
+  );
+
+  return { stop: latch.stop, reRegister: rotation.call };
+}
+
 /** Everything that must hold before this process is worth starting, decided SYNCHRONOUSLY so a failure is a refusal rather than a log line under a Ready pod. A cluster-agent IS its cluster's Kubernetes client — without one it can neither launch nor watch. The catalog profile is checked here because two unset render values once produced pods that died at boot cluster-wide (2026-09-01), and the identity store's namespace because a missing one used to land in the async catch: one log line, pod Ready, nothing ever registered. */
 function assertBootable(env: NodeJS.ProcessEnv): {
   config: RegistrationConfig;
@@ -44,16 +75,19 @@ function assertBootable(env: NodeJS.ProcessEnv): {
   };
 }
 
-export interface StartClaimLoopOpts {
-  /** Called with the identity after EVERY successful registration (including rotation) so the event reporter's credential stays current. */
-  onIdentity?: (identity: ClusterAgentIdentity) => void;
-}
+// The rotation hook, which does not exist until the registrant has registered once. Calling before then resolves to null — a caller asking early gets "nothing to rotate", not a crash.
+function rotationSlot(): {
+  fill: (fn: () => Promise<unknown>) => void;
+  call: () => Promise<unknown>;
+} {
+  let reRegister: (() => Promise<unknown>) | null = null;
 
-export interface ClaimLoopHandle {
-  /** Stop claiming — a shutdown flips this before waiting for anything else, since a claim landing mid-drain would be recorded but never launched. */
-  stop: () => void;
-  /** Rotates the per-agent token via single-flight re-registration; resolves null until this agent has registered once. */
-  reRegister: () => Promise<unknown>;
+  return {
+    fill: (fn) => {
+      reRegister = fn;
+    },
+    call: () => reRegister?.() ?? Promise.resolve(null),
+  };
 }
 
 /** Detached on purpose: `startClaimLoop` returns a handle immediately so a caller can stop the agent before it has finished registering. The catch is unreachable by design — register and claim never throw — but a defect here must surface as a log rather than an unhandled rejection that kills the process. */
@@ -69,19 +103,6 @@ function launchRegistrant(
         err,
       );
     });
-}
-
-// Republishes the identity wherever a run pod will read it. Writes through the SAME Secret writer the per-task GitHub provisioner uses — a merge into `agent-secrets`, not a replace, since both write to it.
-function publishCredential(
-  env: NodeJS.ProcessEnv,
-  opts: StartClaimLoopOpts,
-): (id: ClusterAgentIdentity) => Promise<void> {
-  const secrets = new KubeSecretKeyWriter();
-
-  return async (id) => {
-    opts.onIdentity?.(id);
-    await writeAgentEventsAuth(secrets, id, env);
-  };
 }
 
 // Everything the registrant needs to run this cluster: where it launches work, how it republishes its credential, and how it reports the rotation hook back.
@@ -104,38 +125,17 @@ function registrantOpts(
   };
 }
 
-// The rotation hook, which does not exist until the registrant has registered once. Calling before then resolves to null — a caller asking early gets "nothing to rotate", not a crash.
-function rotationSlot(): {
-  fill: (fn: () => Promise<unknown>) => void;
-  call: () => Promise<unknown>;
-} {
-  let reRegister: (() => Promise<unknown>) | null = null;
-
-  return {
-    fill: (fn) => {
-      reRegister = fn;
-    },
-    call: () => reRegister?.() ?? Promise.resolve(null),
-  };
-}
-
-export function startClaimLoop(
+// Republishes the identity wherever a run pod will read it. Writes through the SAME Secret writer the per-task GitHub provisioner uses — a merge into `agent-secrets`, not a replace, since both write to it.
+function publishCredential(
   env: NodeJS.ProcessEnv,
-  opts: StartClaimLoopOpts = {},
-): ClaimLoopHandle {
-  const rotation = rotationSlot();
-  const latch = stopLatch();
-  const { config, storeConfig } = assertBootable(env);
+  opts: StartClaimLoopOpts,
+): (id: ClusterAgentIdentity) => Promise<void> {
+  const secrets = new KubeSecretKeyWriter();
 
-  launchRegistrant(
-    storeConfig,
-    registrantOpts(env, opts, config, {
-      running: latch.running,
-      onReRegister: rotation.fill,
-    }),
-  );
-
-  return { stop: latch.stop, reRegister: rotation.call };
+  return async (id) => {
+    opts.onIdentity?.(id);
+    await writeAgentEventsAuth(secrets, id, env);
+  };
 }
 
 /** In a cluster the identity persists through the Kubernetes Secret API — the chart mounts the container read-only, so a file write would EROFS and strand the identity. File store only for local runs. */

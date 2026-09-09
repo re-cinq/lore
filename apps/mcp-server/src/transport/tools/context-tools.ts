@@ -9,10 +9,14 @@ import {
 } from "@re-cinq/lore-server-core/platform/db.js";
 import { detectCurrentRepo } from "@re-cinq/lore-server-core/features/repo/repo-detect.js";
 import { traceRetrieval } from "@re-cinq/lore-server-core/platform/otel.js";
-import { textResult } from "./deps.js";
+import { textResult, proxyGetApi } from "./deps.js";
 import { registerAssembleContextTool } from "./context-tools-assemble.js";
 
 const CONTEXT_PATH = process.env.CONTEXT_PATH || process.cwd();
+
+// A bare "no results" from a grep over one checkout reads exactly like a genuine miss against the corpus, so the offline path names itself.
+const OFFLINE_SCAN_NOTE =
+  "This was a substring scan of local .md files under CONTEXT_PATH, not the ingested corpus — set LORE_API_URL to search it.";
 
 function readFileSafe(path: string): string | null {
   try {
@@ -158,9 +162,10 @@ function resolveSearchRoot(team: string | undefined): string {
 function renderSourcedParagraphs(
   query: string,
   results: { source: string; paragraph: string }[],
+  offline: string,
 ): { content: Array<{ type: "text"; text: string }> } {
   if (results.length === 0) {
-    return textResult(`No results found for "${query}".`);
+    return textResult(`No results found for "${query}". ${offline}`);
   }
   const text = results
     .map((r) => `**Source:** ${r.source}\n\n${r.paragraph}`)
@@ -169,7 +174,61 @@ function renderSourcedParagraphs(
   return textResult(text);
 }
 
-/** Case-insensitive substring scan of local .md files, used when no DB is available. */
+/** The API's passages in the shape the renderer takes, or null when the proxy could not answer at all — a reachable API that matched nothing returns an empty list, which is a real answer. */
+async function fetchCorpusPassages(
+  params: URLSearchParams,
+): Promise<{ rrf_score: number; content: string }[] | null> {
+  const proxied = await proxyGetApi(`/api/search-context?${params.toString()}`);
+
+  if (!proxied.ok) {
+    return null;
+  }
+  const body = JSON.parse(proxied.body) as {
+    results?: { content: string; score: number }[];
+  };
+
+  return (body.results ?? []).map((r) => ({
+    rrf_score: r.score,
+    content: r.content,
+  }));
+}
+
+function corpusParams(
+  query: string,
+  team: string | undefined,
+  limit: number,
+): URLSearchParams {
+  return new URLSearchParams({
+    query,
+    limit: String(limit),
+    ...(team ? { team } : {}),
+  });
+}
+
+/** The corpus search as the API answers it. The adapter holds no pool (ADR-032), so this — not the local scan — is what a laptop gets. */
+async function searchApiContext(
+  query: string,
+  team: string | undefined,
+  limit: number,
+): Promise<{ content: Array<{ type: "text"; text: string }> } | null> {
+  const results = await fetchCorpusPassages(corpusParams(query, team, limit));
+
+  if (!results) {
+    return null;
+  }
+  const namespace = team || "org_shared";
+
+  traceRetrieval({
+    query,
+    namespace,
+    topScore: topRrfScore(results),
+    resultCount: results.length,
+  });
+
+  return renderScoredPassages(query, results);
+}
+
+/** Case-insensitive substring scan of local .md files. The last resort: reached only with no pool AND no API, and it says so, because a bare "no results" from a grep over one checkout is indistinguishable from a genuine miss against the corpus. */
 function fileFallbackSearch(
   query: string,
   team: string | undefined,
@@ -190,13 +249,13 @@ function fileFallbackSearch(
     resultCount: results.length,
   });
 
-  return renderSourcedParagraphs(query, results);
+  return renderSourcedParagraphs(query, results, OFFLINE_SCAN_NOTE);
 }
 
 function registerSearchContextTool(server: McpServer) {
   server.tool(
     "lore_search_context",
-    `Searches the repo/org ingested-document corpus (CLAUDE.md, ADRs, team docs, specs) and returns raw matching passages as source-scored snippets. Uses hybrid vector+BM25 retrieval when a DB is available; falls back to case-insensitive substring scan of local .md files otherwise.
+    `Searches the repo/org ingested-document corpus (CLAUDE.md, ADRs, team docs, specs) and returns raw matching passages as source-scored snippets. Uses hybrid vector+BM25 retrieval over the ingested corpus, through the API when the adapter holds no pool of its own; only with neither does it fall back to a substring scan of local .md files, and it says so when it does.
 Use this when you want chunk-level evidence or the exact wording of a convention/ADR. For a ONE token-budgeted bundle combining all sources (conventions, ADRs, memories, facts, graph) call lore_assemble_context — that is the mandatory first call. For past learnings, decisions, and extracted facts from prior sessions call lore_search_memory. For entity relationships call lore_query_graph.`,
     SEARCH_CONTEXT_INPUT,
     async ({ query, team, limit }) => {
@@ -206,7 +265,10 @@ Use this when you want chunk-level evidence or the exact wording of a convention
         return searchDbContext(query, team, limit);
       }
 
-      return fileFallbackSearch(query, team, limit);
+      return (
+        (await searchApiContext(query, team, limit)) ??
+        fileFallbackSearch(query, team, limit)
+      );
     },
   );
 }

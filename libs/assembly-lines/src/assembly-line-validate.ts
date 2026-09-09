@@ -12,6 +12,30 @@ import {
 
 type LoadErrorFactory = (message: string) => AssemblyLineLoadError;
 
+// The thread a `continues` reference belongs to: this run (`line`), this task across attempts (`task`), or `args.<name>` — the args form keeps the engine domain-free (e.g. planning threads key on args.feature_id).
+export function isThreadKey(key: string): boolean {
+  return (
+    key === "line" || key === "task" || /^args\.[a-z][a-z0-9_]*$/.test(key)
+  );
+}
+
+export function validateAssemblyLine(wf: AssemblyLine, source: string): void {
+  const nodeIds = new Set(wf.nodes.map((n) => n.id));
+  const loadError = (message: string): AssemblyLineLoadError =>
+    new AssemblyLineLoadError(message, source);
+
+  validateEntryAndExit(wf, nodeIds, loadError);
+  validateEdgeEndpoints(wf, nodeIds, loadError);
+  validateReachability(wf, nodeIds, loadError);
+  validateTerminalNodes(wf, loadError);
+  validateParameterisedNodes(wf);
+  validateHumanStations(wf);
+  validateContinuesReferences(wf, nodeIds, loadError);
+  validateOutcomesCovered(wf, loadError);
+  // Cycles must carry iteration_max on the back-edge (DFS coloring).
+  detectCycles(wf, source);
+}
+
 function validateEntryAndExit(
   wf: AssemblyLine,
   nodeIds: Set<string>,
@@ -44,17 +68,19 @@ function validateEdgeEndpoints(
   }
 }
 
-function enqueueUnreachedSuccessors(
+function validateReachability(
   wf: AssemblyLine,
-  cur: string,
-  reachable: Set<string>,
-  queue: string[],
+  nodeIds: Set<string>,
+  loadError: LoadErrorFactory,
 ): void {
-  for (const e of wf.edges) {
-    if (e.from === cur && !reachable.has(e.to)) {
-      reachable.add(e.to);
-      queue.push(e.to);
-    }
+  const reachable = reachableNodeIds(wf);
+
+  for (const id of nodeIds) {
+    enforceTrue(
+      reachable.has(id),
+      loadError,
+      `node "${id}" is not reachable from entry`,
+    );
   }
 }
 
@@ -70,19 +96,17 @@ function reachableNodeIds(wf: AssemblyLine): Set<string> {
   return reachable;
 }
 
-function validateReachability(
+function enqueueUnreachedSuccessors(
   wf: AssemblyLine,
-  nodeIds: Set<string>,
-  loadError: LoadErrorFactory,
+  cur: string,
+  reachable: Set<string>,
+  queue: string[],
 ): void {
-  const reachable = reachableNodeIds(wf);
-
-  for (const id of nodeIds) {
-    enforceTrue(
-      reachable.has(id),
-      loadError,
-      `node "${id}" is not reachable from entry`,
-    );
+  for (const e of wf.edges) {
+    if (e.from === cur && !reachable.has(e.to)) {
+      reachable.add(e.to);
+      queue.push(e.to);
+    }
   }
 }
 
@@ -135,11 +159,17 @@ function validateHumanStations(wf: AssemblyLine): void {
   }
 }
 
-// The thread a `continues` reference belongs to: this run (`line`), this task across attempts (`task`), or `args.<name>` — the args form keeps the engine domain-free (e.g. planning threads key on args.feature_id).
-export function isThreadKey(key: string): boolean {
-  return (
-    key === "line" || key === "task" || /^args\.[a-z][a-z0-9_]*$/.test(key)
-  );
+// A `continues` reference must name a real node and a resolvable thread key — fail at LOAD, since an unresolvable reference would otherwise silently start a fresh conversation indistinguishable from one that remembers nothing.
+function validateContinuesReferences(
+  wf: AssemblyLine,
+  nodeIds: Set<string>,
+  loadError: LoadErrorFactory,
+): void {
+  for (const n of wf.nodes) {
+    if (n.continues) {
+      validateContinues(wf, n, nodeIds, loadError);
+    }
+  }
 }
 
 // One node's `continues`: the node it names must exist and the thread key must resolve.
@@ -164,19 +194,6 @@ function validateContinues(
   );
 }
 
-// A `continues` reference must name a real node and a resolvable thread key — fail at LOAD, since an unresolvable reference would otherwise silently start a fresh conversation indistinguishable from one that remembers nothing.
-function validateContinuesReferences(
-  wf: AssemblyLine,
-  nodeIds: Set<string>,
-  loadError: LoadErrorFactory,
-): void {
-  for (const n of wf.nodes) {
-    if (n.continues) {
-      validateContinues(wf, n, nodeIds, loadError);
-    }
-  }
-}
-
 // Every outcome a node can produce must route somewhere, or it crashes the walk at runtime (getNextTransition's no-edge failure) instead of failing here at load.
 function validateOutcomesCovered(
   wf: AssemblyLine,
@@ -198,6 +215,25 @@ function validateOutcomesCovered(
 const WHITE = 0;
 const GRAY = 1;
 const BLACK = 2;
+
+function detectCycles(wf: AssemblyLine, source: string): void {
+  const adj = outgoingEdges(wf);
+  const assertBackEdgeBounded = backEdgeBoundedGuard(wf, source);
+  const color = new Map<string, number>();
+
+  for (const n of wf.nodes) {
+    color.set(n.id, WHITE);
+  }
+
+  const walkDfsFrom = dfsWalker(adj, color, assertBackEdgeBounded);
+
+  for (const start of wf.nodes) {
+    if (color.get(start.id) !== WHITE) {
+      continue;
+    }
+    walkDfsFrom(start.id);
+  }
+}
 
 function outgoingEdges(wf: AssemblyLine): Map<string, AssemblyLineEdge[]> {
   const adj = new Map<string, AssemblyLineEdge[]>();
@@ -271,40 +307,4 @@ function dfsWalker(
       }
     }
   };
-}
-
-function detectCycles(wf: AssemblyLine, source: string): void {
-  const adj = outgoingEdges(wf);
-  const assertBackEdgeBounded = backEdgeBoundedGuard(wf, source);
-  const color = new Map<string, number>();
-
-  for (const n of wf.nodes) {
-    color.set(n.id, WHITE);
-  }
-
-  const walkDfsFrom = dfsWalker(adj, color, assertBackEdgeBounded);
-
-  for (const start of wf.nodes) {
-    if (color.get(start.id) !== WHITE) {
-      continue;
-    }
-    walkDfsFrom(start.id);
-  }
-}
-
-export function validateAssemblyLine(wf: AssemblyLine, source: string): void {
-  const nodeIds = new Set(wf.nodes.map((n) => n.id));
-  const loadError = (message: string): AssemblyLineLoadError =>
-    new AssemblyLineLoadError(message, source);
-
-  validateEntryAndExit(wf, nodeIds, loadError);
-  validateEdgeEndpoints(wf, nodeIds, loadError);
-  validateReachability(wf, nodeIds, loadError);
-  validateTerminalNodes(wf, loadError);
-  validateParameterisedNodes(wf);
-  validateHumanStations(wf);
-  validateContinuesReferences(wf, nodeIds, loadError);
-  validateOutcomesCovered(wf, loadError);
-  // Cycles must carry iteration_max on the back-edge (DFS coloring).
-  detectCycles(wf, source);
 }

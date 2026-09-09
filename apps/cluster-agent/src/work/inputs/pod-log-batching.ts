@@ -31,13 +31,6 @@ export function emptyBatch(): PendingBatch {
   return { lines: [], bytes: 0 };
 }
 
-/** The wire form: newline-terminated, so chunks concatenate back into a log. */
-function render(batch: PendingBatch): string {
-  const { lines } = batch;
-
-  return lines.map((line) => `${line}\n`).join("");
-}
-
 /** Take one line, say whether that completes a chunk. The line is always ADDED before limits are checked, so an oversized line flushes on its own rather than wedging the batch. */
 export function addLine(
   batch: PendingBatch,
@@ -54,6 +47,13 @@ export function addLine(
   }
 
   return { batch: grown, flushed: null };
+}
+
+/** The wire form: newline-terminated, so chunks concatenate back into a log. */
+function render(batch: PendingBatch): string {
+  const { lines } = batch;
+
+  return lines.map((line) => `${line}\n`).join("");
 }
 
 /** Flush whatever is held — the idle timer and end-of-stream both land here, so a quiet pod does not strand its last lines. */
@@ -110,10 +110,6 @@ export function followTargets(
 }
 
 /** Which agents this tick should open a log stream for — skips terminal ones, ones with no Job yet, and already-followed ones (else each stream reassigns seqs and dedupe cannot collapse the duplicates). */
-function orEmpty(value: string | undefined): string {
-  return value ?? "";
-}
-
 export function followableAgents(
   agents: readonly FollowableAgent[],
   following: ReadonlySet<string>,
@@ -134,11 +130,32 @@ export function followableAgents(
     .map(({ agentCrName, jobName }) => ({ agentCrName, jobName }));
 }
 
+function orEmpty(value: string | undefined): string {
+  return value ?? "";
+}
+
 /** The slice of a Pod this decision reads. */
 export interface FollowablePod {
   /** `creationTimestamp` is a Date on the real `V1Pod`, a string on the wire — both accepted since both turn up. */
   metadata?: { name?: string; creationTimestamp?: string | Date };
   spec?: { containers?: Array<{ name?: string }> };
+}
+
+/** Which pod to stream, and WHICH CONTAINER — the container is not optional (`Log.log(ns, pod, "", …)` 400s); the FIRST container is the workload, anything after it a sidecar. */
+export function pickPodToFollow(
+  pods: readonly FollowablePod[],
+): { podName: string; containerName: string } | null {
+  const newest = [...pods].sort((a, b) =>
+    createdAt(b).localeCompare(createdAt(a)),
+  )[0];
+  const podName = newestPodName(newest);
+  const containerName = firstContainerName(newest);
+
+  if (!podName || !containerName) {
+    return null;
+  }
+
+  return { podName, containerName };
 }
 
 /** Sortable form of a creation timestamp, whichever shape it arrived in. */
@@ -158,21 +175,4 @@ function firstContainerName(
   const containers = pod?.spec?.containers;
 
   return containers?.[0]?.name;
-}
-
-/** Which pod to stream, and WHICH CONTAINER — the container is not optional (`Log.log(ns, pod, "", …)` 400s); the FIRST container is the workload, anything after it a sidecar. */
-export function pickPodToFollow(
-  pods: readonly FollowablePod[],
-): { podName: string; containerName: string } | null {
-  const newest = [...pods].sort((a, b) =>
-    createdAt(b).localeCompare(createdAt(a)),
-  )[0];
-  const podName = newestPodName(newest);
-  const containerName = firstContainerName(newest);
-
-  if (!podName || !containerName) {
-    return null;
-  }
-
-  return { podName, containerName };
 }

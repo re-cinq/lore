@@ -1,15 +1,13 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render } from "@testing-library/react";
 import { TranscriptTurnsList } from "./TranscriptView";
 import type { TranscriptEntry } from "@/lib/transcript-entries";
 
 const AT = "2026-09-09T10:00:05.000Z";
 
 function renderEntries(entries: TranscriptEntry[]) {
-  return render(
-    <TranscriptTurnsList show showRaw={false} turns={[]} entries={entries} />,
-  );
+  return render(<TranscriptTurnsList show entries={entries} />);
 }
 
 describe("TranscriptTurnsList", () => {
@@ -74,7 +72,7 @@ describe("TranscriptTurnsList", () => {
     expect(lines[1].querySelector("pre")).toHaveTextContent('"pr": 12');
   });
 
-  it("heads a visit with its segment label and gives every row a clock", () => {
+  it("heads a visit with its segment label and clocks the first entry of a second", () => {
     const { container } = renderEntries([
       { kind: "segment", at: AT, label: "implement · iteration 2" },
       {
@@ -87,7 +85,28 @@ describe("TranscriptTurnsList", () => {
     expect(container.querySelector('[data-entry="segment"]')).toHaveTextContent(
       "implement · iteration 2",
     );
+    expect(container.querySelectorAll("time")).toHaveLength(1);
+  });
+
+  it("clocks an entry again once the second changes", () => {
+    const { container } = renderEntries([
+      { kind: "turn", at: AT, entry: { kind: "assistant-text", text: "one" } },
+      {
+        kind: "turn",
+        at: "2026-09-09T10:00:06.000Z",
+        entry: { kind: "assistant-text", text: "two" },
+      },
+    ]);
+
     expect(container.querySelectorAll("time")).toHaveLength(2);
-    expect(screen.getByText("Done.")).toBeInTheDocument();
+  });
+
+  it("puts the clock above the entry it heads rather than beside it", () => {
+    const { container } = renderEntries([
+      { kind: "turn", at: AT, entry: { kind: "assistant-text", text: "one" } },
+    ]);
+    const row = container.querySelector('[data-entry="turn"]');
+
+    expect(row?.firstElementChild?.tagName).toBe("TIME");
   });
 });

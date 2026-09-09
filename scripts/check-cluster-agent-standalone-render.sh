@@ -135,6 +135,32 @@ for needle in "agent-events-auth" "https://lore-agent-events.example.com/api/age
 	fi
 done
 
+# The MCP opt-in: with loreMcpUrl set, every seeded Claude-agent recipe MUST
+# carry an mcp_servers block and the lore-mcp-auth credential reference.
+# This guards against the regression where the block was guarded but never
+# opened for satellites (ticket #1629).
+echo "[lore] helm template (MCP opted in)"
+with_mcp="$(helm template lore-satellite "$chart" \
+	--namespace lore-cluster-agent --include-crds \
+	--set loreApiUrl=https://lore-api.example.com \
+	--set eventRouterUrl=https://lore-events.example.com \
+	--set registrationToken=dummy-registration-token \
+	--set name=render-check \
+	--set 'tags={node:agent}' \
+	--set ghcr.username=dummy \
+	--set ghcr.token=dummy \
+	--set llm.credential=dummy \
+	--set ai-agents.loreMcpUrl=https://lore-mcp.example.com/mcp)"
+
+for needle in "mcp_servers" "lore-mcp-auth"; do
+	if grep -q -- "$needle" <<<"$with_mcp"; then
+		echo "  ok: present when MCP opted in — $needle"
+	else
+		echo "  MISSING when MCP opted in: $needle" >&2
+		fail=1
+	fi
+done
+
 if [ "$fail" -ne 0 ]; then
 	echo "[lore] cluster-agent-standalone chart render check FAILED" >&2
 	exit 1

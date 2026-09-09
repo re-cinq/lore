@@ -8,6 +8,7 @@ import {
   PruneBody,
 } from "@re-cinq/lore-shared/project/events/event-deliveries-wire.js";
 import {
+  DeadLetterBody,
   DeliveryClaimBody,
   OrphanBody,
   ReconcileBody,
@@ -16,14 +17,6 @@ import {
 import { rawBody } from "@re-cinq/lore-shared/http/raw-body.js";
 import { parseBody } from "@re-cinq/lore-shared/http/json-body.js";
 import { enforceBearer } from "@re-cinq/lore-shared/http/bearer.js";
-
-/** Every route is bearer-guarded with the router's own token; the check is the first line of each handler so an unauthenticated call never reaches a query. */
-function guard(
-  deps: EventDeliveryRoutesDeps,
-  headers: Record<string, unknown>,
-): void {
-  enforceBearer(headers, deps.bearerToken);
-}
 
 export interface EventDeliveryRoutesDeps {
   /** Thunk: routes built before pool exists, resolving here would couple buildServer to DB. */
@@ -46,6 +39,7 @@ export function eventDeliveryRoutes(
     pruneRoute(deps),
     reconcileRoute(deps),
     orphanedRoute(deps),
+    deadLetteredRoute(deps),
   ];
 }
 
@@ -69,6 +63,15 @@ function subscribeRoute(deps: EventDeliveryRoutesDeps): ServerRoute {
   };
 }
 
+function claimRoute(deps: EventDeliveryRoutesDeps): ServerRoute {
+  return {
+    method: "POST",
+    path: "/api/deliveries/claim",
+    options: NO_BODY,
+    handler: claimHandler(deps),
+  };
+}
+
 // Hands a subscriber its next batch. The exclusion list is READ at claim time and holds a busy serial family back, so rows for a family already in flight stay pending rather than being handed out twice.
 function claimHandler(deps: EventDeliveryRoutesDeps): Lifecycle.Method {
   return async (request, h) => {
@@ -83,15 +86,6 @@ function claimHandler(deps: EventDeliveryRoutesDeps): Lifecycle.Method {
       .claim(subscriber, limit, excludeEventNames ?? []);
 
     return h.response({ deliveries }).code(200);
-  };
-}
-
-function claimRoute(deps: EventDeliveryRoutesDeps): ServerRoute {
-  return {
-    method: "POST",
-    path: "/api/deliveries/claim",
-    options: NO_BODY,
-    handler: claimHandler(deps),
   };
 }
 
@@ -182,6 +176,15 @@ function pruneRoute(deps: EventDeliveryRoutesDeps): ServerRoute {
   };
 }
 
+function reconcileRoute(deps: EventDeliveryRoutesDeps): ServerRoute {
+  return {
+    method: "POST",
+    path: "/api/deliveries/reconcile",
+    options: NO_BODY,
+    handler: reconcileHandler(deps),
+  };
+}
+
 // The safety net for deliveries whose subscriber never acked. Bounded by a window rather than sweeping everything: a delivery still inside its window may simply be slow.
 function reconcileHandler(deps: EventDeliveryRoutesDeps): Lifecycle.Method {
   return async (request, h) => {
@@ -196,15 +199,6 @@ function reconcileHandler(deps: EventDeliveryRoutesDeps): Lifecycle.Method {
       .reconcileDeliveries(withinMinutes);
 
     return h.response({ reconciled }).code(200);
-  };
-}
-
-function reconcileRoute(deps: EventDeliveryRoutesDeps): ServerRoute {
-  return {
-    method: "POST",
-    path: "/api/deliveries/reconcile",
-    options: NO_BODY,
-    handler: reconcileHandler(deps),
   };
 }
 
@@ -228,4 +222,33 @@ function orphanedRoute(deps: EventDeliveryRoutesDeps): ServerRoute {
         .code(200);
     },
   };
+}
+
+/** The sibling of `orphaned` for the other silent failure: deliveries a handler ran out of retries on. */
+function deadLetteredRoute(deps: EventDeliveryRoutesDeps): ServerRoute {
+  return {
+    method: "POST",
+    path: "/api/deliveries/dead-lettered",
+    options: NO_BODY,
+    handler: async (request, h) => {
+      guard(deps, request.headers);
+      const { withinMinutes } = parseBody(
+        rawBody(request),
+        DeadLetterBody,
+        "dead-lettered",
+      );
+
+      return h
+        .response({ dead: await deps.deliveries().deadLettered(withinMinutes) })
+        .code(200);
+    },
+  };
+}
+
+/** Every route is bearer-guarded with the router's own token; the check is the first line of each handler so an unauthenticated call never reaches a query. */
+function guard(
+  deps: EventDeliveryRoutesDeps,
+  headers: Record<string, unknown>,
+): void {
+  enforceBearer(headers, deps.bearerToken);
 }

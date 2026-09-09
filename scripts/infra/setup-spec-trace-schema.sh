@@ -128,6 +128,8 @@ CodeChunk.start_line: int .
 CodeChunk.end_line: int .
 CodeChunk.content_hash: string @index(hash) .
 CodeChunk.embedding: float32vector @index(hnsw(metric:"cosine")) .
+CodeChunk.references: [uid] @reverse @count .
+CodeChunk.imports: [uid] @reverse @count .
 
 # File: one node per (repo, path) — the coverage-source aggregation target.
 # Coverage --covers--> File carries the covered line intervals as a `ranges`
@@ -278,6 +280,8 @@ type CodeChunk {
   CodeChunk.end_line
   CodeChunk.content_hash
   CodeChunk.embedding
+  CodeChunk.references
+  CodeChunk.imports
 }
 type TestChunk {
   TestChunk.xid

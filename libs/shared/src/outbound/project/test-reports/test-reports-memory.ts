@@ -6,6 +6,7 @@ import type {
 
 /** In-memory {@link TestReportsRepository} with the Pg contract: one row per (repo, commit), newest receivedAt wins per branch. Inject `now` for deterministic ordering. */
 export class InMemoryTestReports implements TestReportsRepository {
+  // eslint-disable-next-line re-lint/no-duplicate-code -- the double's deterministic-clock preamble, shared by shape with the agent-run-events double and by nothing else; see that file for why the two are not folded together
   readonly rows: TestReportRow[] = [];
   private readonly now: () => Date;
   private nextId = 1;

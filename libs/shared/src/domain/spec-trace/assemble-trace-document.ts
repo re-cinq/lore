@@ -159,13 +159,13 @@ function linksOf(stmt: LinkableRow): TraceLinkRef[] {
 
 function stateOf(
   testability: string | undefined,
-  hasValidatingLink: boolean,
+  links: TraceLinkRef[],
 ): StatementState {
   if (testability === "untestable") {
     return "narrative";
   }
 
-  return hasValidatingLink ? "tested" : "untested";
+  return links.some((link) => link.kind === "test") ? "tested" : "untested";
 }
 
 /** The list-page card summary: first section heading as title, first statement as description. */
@@ -218,10 +218,7 @@ function traceStatementOf(
     kind: st["Statement.kind"],
     testability: st["Statement.testability"],
     sectionUid: st.sec?.uid,
-    state: stateOf(
-      st["Statement.testability"],
-      links.some((l) => l.kind === "test"),
-    ),
+    state: stateOf(st["Statement.testability"], links),
     drifted: st["Statement.drifted"],
     violated: st["Statement.violated"],
     links,
@@ -245,10 +242,7 @@ function statementsFromAcceptanceCriteria(
       ordinal: ac["AcceptanceCriterion.ordinal"] ?? 0,
       text: (ac["AcceptanceCriterion.text"] ?? "").trim(),
       kind: "acceptance-criterion",
-      state: stateOf(
-        undefined,
-        links.some((l) => l.kind === "test"),
-      ),
+      state: stateOf(undefined, links),
       links,
     };
   });

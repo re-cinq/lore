@@ -22,6 +22,66 @@ interface AttributedLine {
   event: unknown;
 }
 
+// Attribution envelope peeled off a subsystem line (event + source, null source when bare/non-object) — unwrap side for both the status.output read path and the NDJSON telemetry sink (POST /api/agent-events).
+export function unwrapAttribution(value: unknown): {
+  source: Record<string, unknown> | null;
+  event: unknown;
+} {
+  if (!isAttributedLine(value)) {
+    return { source: null, event: value };
+  }
+
+  const source = attributionSource(value.source);
+  const event = value.event;
+
+  // TRANSITIONAL, second peel only: prod double-wraps sink-lane lines ({source, event:{source, event}}), dropping the cost row without this (#875); remove once subsystem enforces single-wrap at source (subsystem#171 unverified) — bounded at two, a third layer is left intact.
+  if (isAttributedLine(event)) {
+    const inner = attributionSource(event.source);
+
+    return {
+      source: source || inner ? { ...inner, ...source } : null,
+      event: event.event,
+    };
+  }
+
+  return { source, event };
+}
+
+function isAttributedLine(value: unknown): value is AttributedLine {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "source" in value &&
+    "event" in value
+  );
+}
+
+function attributionSource(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+// Agent text from the last terminal result line of an NDJSON stream; falls back to raw input when not a stream, no result line, or no string payload — legacy/already-unwrapped output passes through untouched.
+export function resultTextFromOutput(output: string): string {
+  const lines = output.split("\n");
+
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const parsed = parseLine(lines[i].trim());
+
+    if (parsed && typeof parsed.result === "string") {
+      return parsed.result;
+    }
+
+    // A result line with no text payload is the gemini shape (stats-only terminal line, text arrives as preceding delta chunks) — reassemble those or the fallback hands parsers raw escaped NDJSON (run 6cb4b352, 2026-09-02: verdict seen, findings lost).
+    if (parsed) {
+      return trailingAssistantText(lines, i) ?? output;
+    }
+  }
+
+  return output;
+}
+
 function parseLine(line: string): ResultLine | null {
   try {
     const value: unknown = JSON.parse(line);
@@ -48,33 +108,6 @@ function isResultLine(value: unknown): value is ResultLine {
   );
 }
 
-function isAssistantChunk(value: unknown): value is MessageLine {
-  if (typeof value !== "object" || value === null) {
-    return false;
-  }
-  const msg = value as MessageLine;
-
-  return msg.type === "message" && msg.role === "assistant";
-}
-
-function parseAssistantLine(line: string): string | null {
-  try {
-    let value: unknown = JSON.parse(line);
-
-    if (isAttributedLine(value)) {
-      value = value.event;
-    }
-
-    if (!isAssistantChunk(value)) {
-      return null;
-    }
-
-    return typeof value.content === "string" ? value.content : null;
-  } catch {
-    return null;
-  }
-}
-
 // Final assistant message, reassembled from delta chunks immediately preceding the result line; stops at the first non-chunk line so a marker mentioned mid-run can't shadow the block actually written, and chunks concatenate with no separator (fragments of one text).
 function trailingAssistantText(
   lines: readonly string[],
@@ -99,64 +132,31 @@ function trailingAssistantText(
   return chunks.length > 0 ? chunks.join("") : null;
 }
 
-function isAttributedLine(value: unknown): value is AttributedLine {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "source" in value &&
-    "event" in value
-  );
-}
+function parseAssistantLine(line: string): string | null {
+  try {
+    let value: unknown = JSON.parse(line);
 
-function attributionSource(value: unknown): Record<string, unknown> | null {
-  return typeof value === "object" && value !== null
-    ? (value as Record<string, unknown>)
-    : null;
-}
-
-// Attribution envelope peeled off a subsystem line (event + source, null source when bare/non-object) — unwrap side for both the status.output read path and the NDJSON telemetry sink (POST /api/agent-events).
-export function unwrapAttribution(value: unknown): {
-  source: Record<string, unknown> | null;
-  event: unknown;
-} {
-  if (!isAttributedLine(value)) {
-    return { source: null, event: value };
-  }
-
-  const source = attributionSource(value.source);
-  const event = value.event;
-
-  // TRANSITIONAL, second peel only: prod double-wraps sink-lane lines ({source, event:{source, event}}), dropping the cost row without this (#875); remove once subsystem enforces single-wrap at source (subsystem#171 unverified) — bounded at two, a third layer is left intact.
-  if (isAttributedLine(event)) {
-    const inner = attributionSource(event.source);
-
-    return {
-      source: source || inner ? { ...inner, ...source } : null,
-      event: event.event,
-    };
-  }
-
-  return { source, event };
-}
-
-// Agent text from the last terminal result line of an NDJSON stream; falls back to raw input when not a stream, no result line, or no string payload — legacy/already-unwrapped output passes through untouched.
-export function resultTextFromOutput(output: string): string {
-  const lines = output.split("\n");
-
-  for (let i = lines.length - 1; i >= 0; i--) {
-    const parsed = parseLine(lines[i].trim());
-
-    if (parsed && typeof parsed.result === "string") {
-      return parsed.result;
+    if (isAttributedLine(value)) {
+      value = value.event;
     }
 
-    // A result line with no text payload is the gemini shape (stats-only terminal line, text arrives as preceding delta chunks) — reassemble those or the fallback hands parsers raw escaped NDJSON (run 6cb4b352, 2026-09-02: verdict seen, findings lost).
-    if (parsed) {
-      return trailingAssistantText(lines, i) ?? output;
+    if (!isAssistantChunk(value)) {
+      return null;
     }
-  }
 
-  return output;
+    return typeof value.content === "string" ? value.content : null;
+  } catch {
+    return null;
+  }
+}
+
+function isAssistantChunk(value: unknown): value is MessageLine {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const msg = value as MessageLine;
+
+  return msg.type === "message" && msg.role === "assistant";
 }
 
 // Error text of the last `is_error` result line (same envelope as resultTextFromOutput), capped at 300 chars, null when not an error/no result line/not a stream — how the Floor surfaces WHY a CR's Job failed, since the infra-failure branch only sees the CR phase.
@@ -186,6 +186,22 @@ const AGENT_STDERR_PREFIX = "[agent] ";
 
 // The lifecycle phase the relayed stderr belongs to.
 const AGENT_PHASE = "agent";
+
+// The agent's own last words when it never reached a result line (engine died at BOOT, before terminalErrorText's is_error line exists) — the runner relays engine stderr as `[agent] …`; run 129235d4 (2026-08-28) showed an unread boot error misclassified as retryable `infra`, burning a 25min retry. Gated on the runner's own prefix + a lifecycle envelope reporting agent phase FAILED, so ordinary chatter never reads as a cause.
+export function agentStderrError(output?: string): string | null {
+  if (!output) {
+    return null;
+  }
+  const lines = output.split("\n").map((line) => line.trim());
+  // Scan is bounded by the failure, not stream end — a shutdown log line is not what killed the engine.
+  const failedAt = lines.findIndex(isFailedLifecycle);
+
+  if (failedAt === -1) {
+    return null;
+  }
+
+  return lastAgentStderrLine(lines, failedAt);
+}
 
 // True for a lifecycle envelope reporting the AGENT phase failed; parsed separately from `parseLine` (RESULT-only) — a marker naming no phase (phase is optional) still counts, or a phase-less variant would escape detection.
 function isFailedLifecycle(line: string): boolean {
@@ -232,33 +248,6 @@ function lastAgentStderrLine(lines: string[], failedAt: number): string | null {
   return null;
 }
 
-// The agent's own last words when it never reached a result line (engine died at BOOT, before terminalErrorText's is_error line exists) — the runner relays engine stderr as `[agent] …`; run 129235d4 (2026-08-28) showed an unread boot error misclassified as retryable `infra`, burning a 25min retry. Gated on the runner's own prefix + a lifecycle envelope reporting agent phase FAILED, so ordinary chatter never reads as a cause.
-export function agentStderrError(output?: string): string | null {
-  if (!output) {
-    return null;
-  }
-  const lines = output.split("\n").map((line) => line.trim());
-  // Scan is bounded by the failure, not stream end — a shutdown log line is not what killed the engine.
-  const failedAt = lines.findIndex(isFailedLifecycle);
-
-  if (failedAt === -1) {
-    return null;
-  }
-
-  return lastAgentStderrLine(lines, failedAt);
-}
-
-// True when `text` is already a serialized result line or attribution envelope.
-function isWrappedAgentOutput(text: string): boolean {
-  try {
-    const value: unknown = JSON.parse(text);
-
-    return isResultLine(value) || isAttributedLine(value);
-  } catch {
-    return false;
-  }
-}
-
 // Terminal NDJSON line a station emits: a NodeResult (incl. outcome "failed", a routable edge) emits is_error:false; pass null + message for infra failures, which fail the CR. `usage` wins over `result.usage` and rides error lines too, so partial spend is still recorded.
 export function resultLine(
   result: NodeResult | null,
@@ -281,6 +270,17 @@ export function resultLine(
     result: payload,
     ...usageFields(usage ?? result?.usage),
   });
+}
+
+// True when `text` is already a serialized result line or attribution envelope.
+function isWrappedAgentOutput(text: string): boolean {
+  try {
+    const value: unknown = JSON.parse(text);
+
+    return isResultLine(value) || isAttributedLine(value);
+  } catch {
+    return false;
+  }
 }
 
 // Progress lines for the log sinks (anything non-terminal).

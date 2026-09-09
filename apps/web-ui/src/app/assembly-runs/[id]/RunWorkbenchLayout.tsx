@@ -1,4 +1,4 @@
-// The run workbench (run-viz FR4.14): the graph on the left, the inspector beside it and always in view, everything run-wide below. Pure layout — it owns no state and reads nothing.
+// The run workbench (run-viz FR4.14): the graph, the inspector for the selected node directly under it, then everything run-wide. Pure layout — it owns no state and reads nothing.
 import type { ReactNode } from "react";
 import styles from "./RunVisualizationPanel.module.css";
 
@@ -16,10 +16,10 @@ export function RunWorkbenchLayout({
   return (
     <>
       <div className={styles.workbench}>
-        <div className={styles.graphColumn}>{graph}</div>
-        <aside className={styles.sidebar} aria-label="Selected node">
+        {graph}
+        <section className={styles.inspectorRegion} aria-label="Selected node">
           {inspector}
-        </aside>
+        </section>
       </div>
       {below}
     </>

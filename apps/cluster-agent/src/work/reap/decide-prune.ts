@@ -27,6 +27,25 @@ export interface PrunePlan {
 const isTerminal = (phase?: string): boolean =>
   phase === "Succeeded" || phase === "Failed";
 
+export function decidePrune(input: PruneInput): PrunePlan {
+  const expired = (createdAt: Date): boolean =>
+    input.now.getTime() - createdAt.getTime() > input.ttlMs;
+
+  const terminal = input.agents.filter(
+    (candidate) => isTerminal(candidate.phase) && expired(candidate.createdAt),
+  );
+  const agents = terminal
+    .slice(0, input.maxPerTick)
+    .map((candidate) => candidate.name);
+  const orphaned = orphanTest(input, agents, expired);
+
+  return {
+    agents,
+    stations: prunableNames(input.stations, orphaned, input.maxPerTick),
+    definitions: prunableNames(input.definitions, orphaned, input.maxPerTick),
+  };
+}
+
 /** Whether a per-task recipe can go. Keyed on what SURVIVES this tick, not on what is being deleted — #1613 was the reverse, and a run whose recipe went missing died in one second. The age gate closes a second window: a clone is written BEFORE the CR that names it, so "nothing references it" is briefly true mid-dispatch. */
 function orphanTest(
   input: PruneInput,
@@ -59,23 +78,4 @@ function prunableNames(
     .filter(orphaned)
     .slice(0, maxPerTick)
     .map((recipe) => recipe.name);
-}
-
-export function decidePrune(input: PruneInput): PrunePlan {
-  const expired = (createdAt: Date): boolean =>
-    input.now.getTime() - createdAt.getTime() > input.ttlMs;
-
-  const terminal = input.agents.filter(
-    (candidate) => isTerminal(candidate.phase) && expired(candidate.createdAt),
-  );
-  const agents = terminal
-    .slice(0, input.maxPerTick)
-    .map((candidate) => candidate.name);
-  const orphaned = orphanTest(input, agents, expired);
-
-  return {
-    agents,
-    stations: prunableNames(input.stations, orphaned, input.maxPerTick),
-    definitions: prunableNames(input.definitions, orphaned, input.maxPerTick),
-  };
 }

@@ -43,7 +43,7 @@ describe("GET /healthz", () => {
     delete process.env.LORE_DB_HOST;
     vi.mocked(getHealthStatus).mockResolvedValue({ connected: true } as any);
     vi.mocked(embeddingHealth).mockReturnValue(HEALTHY_EMBEDDER);
-    vi.mocked(embedderDegraded).mockReturnValue(false); // eslint-disable-line re-lint/no-flag-params -- a stubbed return value, not a flag argument
+    vi.mocked(embedderDegraded).mockReturnValue(false);
   });
   afterEach(() => {
     process.env = { ...originalEnv };
@@ -97,7 +97,7 @@ describe("GET /healthz", () => {
 
     pool.query.mockResolvedValue({ rows: [{ today: 0, pending: 0 }] });
     vi.mocked(embeddingHealth).mockReturnValue(failing);
-    vi.mocked(embedderDegraded).mockReturnValue(true); // eslint-disable-line re-lint/no-flag-params -- a stubbed return value, not a flag argument
+    vi.mocked(embedderDegraded).mockReturnValue(true);
     const res = await inject(pool, AUTH);
 
     expect({ code: res.statusCode, body: res.result }).toEqual({

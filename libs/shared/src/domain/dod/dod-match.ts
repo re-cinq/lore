@@ -95,10 +95,15 @@ function outcomeOf(
     return { status: "unknown", matchedId: null };
   }
 
-  return { status: statusOf(report?.outcomes[match.id]), matchedId: match.id };
+  return { status: statusOf(report, match.id), matchedId: match.id };
 }
 
-function statusOf(passed: boolean | undefined): AcceptanceTestOutcome {
+function statusOf(
+  report: MatchableReport | null,
+  testId: string,
+): AcceptanceTestOutcome {
+  const passed = report?.outcomes[testId];
+
   if (passed === undefined) {
     return "unknown";
   }

@@ -36,6 +36,12 @@
 #   unconditionally, every Claude-agent node on this satellite then dies at
 #   startup with "Settings file not found". Set it unless this satellite
 #   only ever claims non-agent stations (validate, gate, detect).
+# Optional: LORE_MCP_URL (--mcp-url) — the central lore-mcp gateway's MCP
+#   endpoint (e.g. https://lore-mcp.example.com/mcp). Set it and every seeded
+#   Claude-agent recipe carries a live resources.mcp_servers entry, giving agent
+#   pods access to lore_assemble_context and the full org context path. Unset,
+#   the recipes omit the mcp_servers block and pods have no context path at all.
+#   Typically the same host as LORE_SKILLS_URL with /mcp instead of /skills.
 # Installs into the CURRENT kubectl context; pass --context to assert which
 # one that must be (the install refuses on a mismatch instead of landing a
 # satellite in whatever context happened to be active).
@@ -58,6 +64,7 @@ while [ $# -gt 0 ]; do
 	--tags) LORE_CLUSTER_AGENT_TAGS="$2" && shift 2 ;;
 	--telemetry-url) LORE_AGENT_EVENTS_URL="$2" && shift 2 ;;
 	--skills-url) LORE_SKILLS_URL="$2" && shift 2 ;;
+	--mcp-url) LORE_MCP_URL="$2" && shift 2 ;;
 	--context) expected_context="$2" && shift 2 ;;
 	# Local single-node clusters (minikube) have no CNI enforcing policies;
 	# the flag keeps the rendered objects out of the way there.
@@ -156,7 +163,13 @@ if [ -n "${LORE_SKILLS_URL:-}" ]; then
 	skills_args=(--set-string "ai-agents.loreSkillsUrl=$LORE_SKILLS_URL")
 fi
 
-say "installing release lore-satellite into context '$context' (name=$name tags=$tags llm=$llm_key github=${GITHUB_TOKEN:+set} telemetry=${LORE_AGENT_EVENTS_URL:-off} skills=${LORE_SKILLS_URL:-off})"
+# MCP live context path for agent pods — same gateway as skills, different path.
+mcp_args=()
+if [ -n "${LORE_MCP_URL:-}" ]; then
+	mcp_args=(--set-string "ai-agents.loreMcpUrl=$LORE_MCP_URL")
+fi
+
+say "installing release lore-satellite into context '$context' (name=$name tags=$tags llm=$llm_key github=${GITHUB_TOKEN:+set} telemetry=${LORE_AGENT_EVENTS_URL:-off} skills=${LORE_SKILLS_URL:-off} mcp=${LORE_MCP_URL:-off})"
 helm upgrade --install lore-satellite "$chart" \
 	--namespace lore-cluster-agent \
 	--set createNamespaces=false \
@@ -174,7 +187,8 @@ helm upgrade --install lore-satellite "$chart" \
 	--set-string ai-agents.loreApiUrl="$LORE_API_URL" \
 	"${github_args[@]}" \
 	"${telemetry_args[@]}" \
-	"${skills_args[@]}"
+	"${skills_args[@]}" \
+	"${mcp_args[@]}"
 
 rm -rf "$chart/charts" "$chart/Chart.lock"
 

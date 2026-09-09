@@ -46,11 +46,12 @@ const episodeCounter = meter.createCounter("lore.episodes.written", {
   description: "Episodes written",
 });
 
-export function traceTool(
-  tool: string,
-  durationMs: number,
-  success: boolean,
-): void {
+export function traceTool(call: {
+  tool: string;
+  durationMs: number;
+  success: boolean;
+}): void {
+  const { tool, durationMs, success } = call;
   const span = tracer.startSpan(`tool/${tool}`);
 
   span.setAttributes({

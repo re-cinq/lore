@@ -52,7 +52,7 @@ const UNCATEGORIZED = "Other";
 /** Path→category rules, first match wins; ordered specific → general. */
 const TAG_RULES: Array<[RegExp, string]> = [
   [/^\/api\/(openapi\.json|docs)$/, "Meta"],
-  [/^\/api\/(context|graph|chunks|chunk-types)\b/, "Context"],
+  [/^\/api\/(context|search-context|graph|chunks|chunk-types)\b/, "Context"],
   [
     /^\/api\/(memory|memories|memory-search|memory-audit|episode|episodes|pools|graph-browse|session-summary)\b/,
     "Memory",

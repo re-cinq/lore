@@ -142,14 +142,15 @@ interface CacheObservation {
   now: number;
 }
 
-function changedParts(systemChanged: boolean, toolsChanged: boolean): string[] {
+/** Which halves of the cached prefix moved since the last call for this job. */
+function changedParts(prev: CacheState, newHash: PrefixHash): string[] {
   const parts: string[] = [];
 
-  if (systemChanged) {
+  if (prev.systemHash !== newHash.system) {
     parts.push("system");
   }
 
-  if (toolsChanged) {
+  if (prev.toolsHash !== newHash.tools) {
     parts.push("tools");
   }
 
@@ -199,10 +200,7 @@ function classifyPromptChange(
   prev: CacheState,
   newHash: PrefixHash,
 ): CacheBreakAnalysis | null {
-  const parts = changedParts(
-    prev.systemHash !== newHash.system,
-    prev.toolsHash !== newHash.tools,
-  );
+  const parts = changedParts(prev, newHash);
 
   if (parts.length === 0) {
     return null;

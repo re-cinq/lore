@@ -100,6 +100,15 @@ export function catalogProfile(env: NodeJS.ProcessEnv): "full" | "bare" {
   return raw === "full" ? "full" : "bare";
 }
 
+export function enforceCatalogProfile(env: NodeJS.ProcessEnv): void {
+  if (catalogProfile(env) !== "full") {
+    return;
+  }
+
+  enforceFullProfileUrls(env);
+  enforceFullProfileCredential(env);
+}
+
 // The URLs a full cluster renders into every recipe. Unset, it produces pods that die at boot — the 2026-09-01 settings.json incident.
 function enforceFullProfileUrls(env: NodeJS.ProcessEnv): void {
   for (const name of [
@@ -126,18 +135,12 @@ function enforceFullProfileCredential(env: NodeJS.ProcessEnv): void {
   );
 }
 
-export function enforceCatalogProfile(env: NodeJS.ProcessEnv): void {
-  if (catalogProfile(env) !== "full") {
-    return;
-  }
-
-  enforceFullProfileUrls(env);
-  enforceFullProfileCredential(env);
-}
+/** Which slice of the catalog a poll asks for: the whole thing, or everything since the ack. */
+export type CatalogSyncMode = "snapshot" | "tail";
 
 /** The catalog-events response body (200). */
 export interface CatalogEventsResponse {
-  mode: "snapshot" | "tail";
+  mode: CatalogSyncMode;
   cursor: string;
   entries: Array<{
     name: string;
@@ -174,15 +177,24 @@ export function nextSyncDelay(
   return backoffDelay(baseMs, idleTicks, maxIdleMs);
 }
 
-// What landed, as the loop reports it. Skipped and refused carry their details rather than counts — the log line is where an operator learns WHICH entries this cluster would not take.
-function syncedOutcome(tally: BatchTally): CatalogSyncOutcome {
-  return {
-    kind: "synced",
-    applied: tally.applied,
-    deleted: tally.deleted,
-    skipped: tally.skipped,
-    refused: tally.refused,
-  };
+export async function catalogSyncOnce(
+  deps: CatalogSyncTickDeps,
+  ack: string | undefined,
+  mode: CatalogSyncMode = "tail",
+): Promise<{ outcome: CatalogSyncOutcome; ack: string | undefined }> {
+  const fetched = await fetchCatalogBatch(deps, ack, mode);
+
+  if (fetched.kind === "refused") {
+    return { outcome: fetched.outcome, ack };
+  }
+  const body = fetched.body;
+
+  if (body.entries.length === 0) {
+    // Ack still advances — a snapshot of an empty catalog must still land the agent in tail mode.
+    return { outcome: { kind: "empty" }, ack: body.cursor };
+  }
+
+  return applyBatch(deps, body, ack);
 }
 
 // Applies one batch and reports its verdicts. A transient failure keeps the OLD ack so the batch is re-served; anything landed advances to the body's cursor. Reporting is best effort and happens after the applies — a cluster that cannot report must keep syncing, because a failed report costs visibility, never delivery.
@@ -202,30 +214,21 @@ async function applyBatch(
   return { outcome: syncedOutcome(result.tally), ack: body.cursor };
 }
 
-export async function catalogSyncOnce(
-  deps: CatalogSyncTickDeps,
-  ack: string | undefined,
-  snapshot = false,
-): Promise<{ outcome: CatalogSyncOutcome; ack: string | undefined }> {
-  const fetched = await fetchCatalogBatch(deps, ack, snapshot);
-
-  if (fetched.kind === "refused") {
-    return { outcome: fetched.outcome, ack };
-  }
-  const body = fetched.body;
-
-  if (body.entries.length === 0) {
-    // Ack still advances — a snapshot of an empty catalog must still land the agent in tail mode.
-    return { outcome: { kind: "empty" }, ack: body.cursor };
-  }
-
-  return applyBatch(deps, body, ack);
+// What landed, as the loop reports it. Skipped and refused carry their details rather than counts — the log line is where an operator learns WHICH entries this cluster would not take.
+function syncedOutcome(tally: BatchTally): CatalogSyncOutcome {
+  return {
+    kind: "synced",
+    applied: tally.applied,
+    deleted: tally.deleted,
+    skipped: tally.skipped,
+    refused: tally.refused,
+  };
 }
 
 export interface CatalogSyncLoopDeps {
   sync: (
     ack: string | undefined,
-    snapshot: boolean,
+    mode: CatalogSyncMode,
   ) => Promise<{ outcome: CatalogSyncOutcome; ack: string | undefined }>;
   /** The single-flight re-registration a 401/403 rotates through. */
   reRegister: () => Promise<unknown>;
@@ -236,22 +239,42 @@ export interface CatalogSyncLoopDeps {
   onFirstSync?: () => void;
 }
 
-function logSyncedOutcome(
-  outcome: Extract<CatalogSyncOutcome, { kind: "synced" }>,
-): void {
-  console.log(
-    `[cluster-agent] catalog sync landed ${outcome.applied} applied, ${outcome.deleted} deleted, ${outcome.skipped.length} not-owned skipped, ${outcome.refused.length} refused`,
-  );
+export async function runCatalogSyncLoop(
+  deps: CatalogSyncLoopDeps,
+): Promise<void> {
+  const cursor = syncCursor(deps);
 
-  for (const name of outcome.skipped) {
-    console.log(
-      `[cluster-agent] catalog sync skipped ${name} — not this loop's to write`,
-    );
-  }
+  await runPollLoop<CatalogSyncOutcome>({
+    tick: () => cursor.tick(),
+    onOutcome: (outcome) => cursor.absorb(outcome),
+    delayFor: (outcome, idleTicks) =>
+      nextSyncDelay(deps.baseDelayMs, idleTicks, outcome.kind),
+    isIdle: (outcome) => outcome.kind === "empty",
+    sleep: deps.sleep,
+    running: deps.running,
+  });
+}
 
-  for (const refusal of outcome.refused) {
-    console.warn(`[cluster-agent] catalog sync REFUSED ${refusal}`);
-  }
+/** The loop's position in the catalog stream. `resync` stays true until one sync actually LANDS — synced or empty — so a failed first poll does not eat the boot resync, and later polls tail from the acked cursor. An unauthorized outcome re-registers without advancing anything. */
+function syncCursor(deps: CatalogSyncLoopDeps) {
+  let ack: string | undefined;
+  const landing = { first: true, resync: true };
+
+  return {
+    tick: async (): Promise<CatalogSyncOutcome> => {
+      const result = await deps.sync(ack, landing.resync ? "snapshot" : "tail");
+
+      ack = result.ack;
+
+      return result.outcome;
+    },
+    absorb: async (outcome: CatalogSyncOutcome): Promise<void> => {
+      if (await handledWithoutLanding(outcome, deps)) {
+        return;
+      }
+      noteLanded(outcome, landing, deps);
+    },
+  };
 }
 
 // The outcomes that do NOT count as a landed sync, handled. An unauthorized outcome re-registers and an error is warned; neither clears `resync`, so the boot snapshot is not consumed by a poll that never delivered one.
@@ -274,28 +297,6 @@ async function handledWithoutLanding(
   return false;
 }
 
-/** The loop's position in the catalog stream. `resync` stays true until one sync actually LANDS — synced or empty — so a failed first poll does not eat the boot resync, and later polls tail from the acked cursor. An unauthorized outcome re-registers without advancing anything. */
-function syncCursor(deps: CatalogSyncLoopDeps) {
-  let ack: string | undefined;
-  const landing = { first: true, resync: true };
-
-  return {
-    tick: async (): Promise<CatalogSyncOutcome> => {
-      const result = await deps.sync(ack, landing.resync);
-
-      ack = result.ack;
-
-      return result.outcome;
-    },
-    absorb: async (outcome: CatalogSyncOutcome): Promise<void> => {
-      if (await handledWithoutLanding(outcome, deps)) {
-        return;
-      }
-      noteLanded(outcome, landing, deps);
-    },
-  };
-}
-
 // Records that a sync actually LANDED. `resync` clears here and nowhere else, so a failed first poll does not eat the boot resync; `first` fires the gate the claim loop is waiting on, once.
 function noteLanded(
   outcome: CatalogSyncOutcome,
@@ -313,18 +314,20 @@ function noteLanded(
   }
 }
 
-export async function runCatalogSyncLoop(
-  deps: CatalogSyncLoopDeps,
-): Promise<void> {
-  const cursor = syncCursor(deps);
+function logSyncedOutcome(
+  outcome: Extract<CatalogSyncOutcome, { kind: "synced" }>,
+): void {
+  console.log(
+    `[cluster-agent] catalog sync landed ${outcome.applied} applied, ${outcome.deleted} deleted, ${outcome.skipped.length} not-owned skipped, ${outcome.refused.length} refused`,
+  );
 
-  await runPollLoop<CatalogSyncOutcome>({
-    tick: () => cursor.tick(),
-    onOutcome: (outcome) => cursor.absorb(outcome),
-    delayFor: (outcome, idleTicks) =>
-      nextSyncDelay(deps.baseDelayMs, idleTicks, outcome.kind),
-    isIdle: (outcome) => outcome.kind === "empty",
-    sleep: deps.sleep,
-    running: deps.running,
-  });
+  for (const name of outcome.skipped) {
+    console.log(
+      `[cluster-agent] catalog sync skipped ${name} — not this loop's to write`,
+    );
+  }
+
+  for (const refusal of outcome.refused) {
+    console.warn(`[cluster-agent] catalog sync REFUSED ${refusal}`);
+  }
 }

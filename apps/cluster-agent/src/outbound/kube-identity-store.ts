@@ -58,6 +58,27 @@ export class KubeIdentityStore implements IdentityStore {
 }
 
 /** The CoreV1Api shell — the only part that touches the cluster. */
+export function kubeIdentitySecretsApi(namespace: string): IdentitySecretsApi {
+  const core = coreApi();
+
+  return {
+    read: (name) => readSecret(core, namespace, name),
+    async create(name, stringData) {
+      await core.createNamespacedSecret({
+        namespace,
+        body: { metadata: { name }, stringData },
+      });
+    },
+    async patch(name, stringData) {
+      // Read-replace (kube-token-provisioner idiom) — single writer, so no optimistic-concurrency retry needed.
+      const current = await core.readNamespacedSecret({ name, namespace });
+
+      current.stringData = stringData;
+      await core.replaceNamespacedSecret({ name, namespace, body: current });
+    },
+  };
+}
+
 /** The Secret's data, base64-decoded. A missing Secret is null rather than a throw: an agent that has never registered has none yet, which is the ordinary first-boot state. */
 async function readSecret(
   core: ReturnType<typeof coreApi>,
@@ -79,25 +100,4 @@ async function readSecret(
     }
     throw err;
   }
-}
-
-export function kubeIdentitySecretsApi(namespace: string): IdentitySecretsApi {
-  const core = coreApi();
-
-  return {
-    read: (name) => readSecret(core, namespace, name),
-    async create(name, stringData) {
-      await core.createNamespacedSecret({
-        namespace,
-        body: { metadata: { name }, stringData },
-      });
-    },
-    async patch(name, stringData) {
-      // Read-replace (kube-token-provisioner idiom) — single writer, so no optimistic-concurrency retry needed.
-      const current = await core.readNamespacedSecret({ name, namespace });
-
-      current.stringData = stringData;
-      await core.replaceNamespacedSecret({ name, namespace, body: current });
-    },
-  };
 }

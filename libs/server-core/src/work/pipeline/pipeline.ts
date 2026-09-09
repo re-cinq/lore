@@ -131,7 +131,7 @@ async function recordApproval(taskId: string, comments: string): Promise<void> {
 
 export async function handleReviewResult(
   taskId: string,
-  approved: boolean,
+  verdict: "approved" | "changes_requested",
   comments: string,
 ): Promise<void> {
   const task = await getTask(taskId);
@@ -140,7 +140,7 @@ export async function handleReviewResult(
     return;
   }
 
-  if (approved) {
+  if (verdict === "approved") {
     await recordApproval(taskId, comments);
 
     return;

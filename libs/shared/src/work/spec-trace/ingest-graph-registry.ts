@@ -192,11 +192,13 @@ export interface IngestCounts {
   pruned?: number;
 }
 
-function ingestStatus(
-  attempted: number,
-  allAttemptedFailed: boolean,
-): IngestGraphSummary["status"] {
-  return attempted > 0 && allAttemptedFailed ? "failed" : "completed";
+function ingestStatus(counts: IngestCounts): IngestGraphSummary["status"] {
+  const allAttemptedFailed =
+    counts.projected === 0 &&
+    counts.skipped === 0 &&
+    counts.failedFiles.length > 0;
+
+  return counts.attempted > 0 && allAttemptedFailed ? "failed" : "completed";
 }
 
 function ingestMessage(
@@ -217,10 +219,9 @@ export function summarizeIngest(
   kind: IngestKind,
   counts: IngestCounts,
 ): IngestGraphSummary {
-  const { attempted, projected, skipped, failedFiles, pruned } = counts;
+  const { projected, skipped, failedFiles, pruned } = counts;
   const failed = failedFiles.length;
-  const allAttemptedFailed = projected === 0 && skipped === 0 && failed > 0;
-  const status = ingestStatus(attempted, allAttemptedFailed);
+  const status = ingestStatus(counts);
   const message = ingestMessage(kind, status, { ...counts, failed });
 
   return {

@@ -497,7 +497,7 @@ live knowledge graph. ([validated by `graph.test.ts:47`](libs/server-core/src/wo
 - FR-11.4: Facts carry temporal validity (`valid_from`/`valid_to`),
   confidence tiers (`verified` / `observed` / `inferred` / `stale`),
   and retrieval metadata (`retrieval_count`, `last_retrieved_at`,
-  `half_life_days`). ([validated by `facts.test.ts:96`](libs/server-core/src/work/memory/facts.test.ts#L71), [`memory-ranking.test.ts:162`](libs/shared/src/domain/memory-ranking.test.ts#L162))
+  `half_life_days`). ([validated by `facts.test.ts:96`](libs/server-core/src/work/memory/facts.test.ts#L71), [`memory-ranking.test.ts:225`](libs/shared/src/domain/memory-ranking.test.ts#L225))
 - FR-11.5: Contradiction detection: when a new fact has cosine
   similarity ≥ 0.92 to an existing one, the old fact is invalidated
   and a conflict record written to `memory.fact_conflicts`. Context
@@ -516,7 +516,7 @@ cooperation. ([validated by `session-tracker.test.ts:193`](libs/server-core/src/
 - FR-12.2: Daily job at 5 AM scores memories 0-10 using half-life
   decay (`strength = 0.5^(age / half_life_days)`). Evicts
   lowest-scoring memories when agent exceeds 500 entries. Cleans
-  invalidated facts older than 30 days beyond the 2000 cap. ([validated by `memory-ranking.test.ts:143`](libs/shared/src/domain/memory-ranking.test.ts#L143))
+  invalidated facts older than 30 days beyond the 2000 cap. ([validated by `memory-ranking.test.ts:206`](libs/shared/src/domain/memory-ranking.test.ts#L206))
 - FR-12.3: Daily job at 5:30 AM groups recent facts (7-day lookback)
   by repo and calls Haiku to extract 1-3 higher-level patterns per
   repo. Stored as `consolidated/{repo}/{timestamp}` memories.
@@ -706,7 +706,7 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
 - FR-19.5: When a failed task carries a failed-event with metadata, the
   view renders a "Failure" panel surfacing the error; absent that
   metadata no panel is shown. ([validated by `TaskDetailView.test.tsx:254`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L252), [`TaskDetailView.test.tsx:268`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L268))
-- FR-19.6: _(Restated 2026-09-09.)_ The run detail page renders the task's status transitions inside the selected node's transcript rather than as a separate Event Timeline card: each transition that fell inside that node's visits reads as a `· task From → To` system line in the conversation, with its metadata folded behind the line and the from-status omitted on the first transition; a run with no backing task shows the note that no status history is available. ([validated by `transcript-entries.test.ts:116`](apps/web-ui/src/lib/transcript-entries.test.ts#L116), [`transcript-entries.test.ts:141`](apps/web-ui/src/lib/transcript-entries.test.ts#L141), [`TranscriptView.test.tsx:56`](apps/web-ui/src/app/assembly-runs/[id]/TranscriptView.test.tsx#L56), [`RunLiveShell.test.tsx:146`](apps/web-ui/src/app/assembly-runs/[id]/RunLiveShell.test.tsx#L146))
+- FR-19.6: _(Restated 2026-09-09.)_ The run detail page renders the task's status transitions inside the selected node's transcript rather than as a separate Event Timeline card: each transition that fell inside that node's visits reads as a `· task From → To` system line in the conversation, with its metadata folded behind the line and the from-status omitted on the first transition; a run with no backing task shows the note that no status history is available. ([validated by `transcript-entries.test.ts:116`](apps/web-ui/src/lib/transcript-entries.test.ts#L117), [`transcript-entries.test.ts:141`](apps/web-ui/src/lib/transcript-entries.test.ts#L142), [`TranscriptView.test.tsx:56`](apps/web-ui/src/app/assembly-runs/[id]/TranscriptView.test.tsx#L56), [`RunLiveShell.test.tsx:146`](apps/web-ui/src/app/assembly-runs/[id]/RunLiveShell.test.tsx#L148))
 - FR-19.7: The run detail page renders the task's LLM-call table: one
   row per call with the model, `input / output` token counts, duration,
   and a status badge (red with the error text on failure), and an
@@ -817,7 +817,7 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   not go down over an unmigrated cluster. Token usage reads
   `pipeline.agent_run_turns`, not `llm_calls`: the cost table is
   authoritative but a row lands only when a run ENDS, which is the
-  moment the card showing the number disappears. ([validated by `assembly-lines.test.ts:86`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L86), [`assembly-lines.test.ts:90`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L90), [`assembly-lines.test.ts:106`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L106), [`assembly-lines.test.ts:153`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L153), [`assembly-lines.test.ts:169`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L169), [`assembly-lines.test.ts:223`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L223), [`assembly-lines.test.ts:397`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L397), [`assembly-lines.test.ts:410`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L410), [`assembly-lines.test.ts:418`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L418), [`assembly-lines.test.ts:430`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L430), [`assembly-lines.test.ts:223`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L223), [`assembly-lines.test.ts:490`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L490), [`assembly-lines.test.ts:508`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L508), [`assembly-lines.test.ts:518`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L518))
+  moment the card showing the number disappears. ([validated by `assembly-lines.test.ts:86`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L86), [`assembly-lines.test.ts:90`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L90), [`assembly-lines.test.ts:106`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L106), [`assembly-lines.test.ts:153`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L153), [`assembly-lines.test.ts:169`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L169), [`assembly-lines.test.ts:223`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L223), [`assembly-lines.test.ts:397`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L403), [`assembly-lines.test.ts:410`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L416), [`assembly-lines.test.ts:418`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L424), [`assembly-lines.test.ts:430`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L436), [`assembly-lines.test.ts:223`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L223), [`assembly-lines.test.ts:490`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L496), [`assembly-lines.test.ts:508`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L514), [`assembly-lines.test.ts:518`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L524))
 
 - FR-19.20: lore-api serves the activity reads the audit, gaps, events,
   job-run and repo-overview views need, all under the `read` scope:
@@ -880,7 +880,7 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   availability is decided by the `as_of` STAMP rather than a row count:
   only the stamp separates "synced, nothing owed" from "never synced",
   and the view hides the section for the second instead of showing a
-  confident zero. ([validated by [`spend.test.ts:30`](apps/lore-api/src/transport/routes/analytics/spend.test.ts#L30), [`spend.test.ts:34`](apps/lore-api/src/transport/routes/analytics/spend.test.ts#L34), [`spend.test.ts:46`](apps/lore-api/src/transport/routes/analytics/spend.test.ts#L46), [`spend-window.test.ts:148`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L148), [`spend-window.test.ts:338`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L338), [`spend-window.test.ts:359`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L359), [`spend-window.test.ts:377`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L377))
+  confident zero. ([validated by [`spend.test.ts:30`](apps/lore-api/src/transport/routes/analytics/spend.test.ts#L30), [`spend.test.ts:34`](apps/lore-api/src/transport/routes/analytics/spend.test.ts#L34), [`spend.test.ts:46`](apps/lore-api/src/transport/routes/analytics/spend.test.ts#L46), [`spend-window.test.ts:145`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L145), [`spend-window.test.ts:339`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L339), [`spend-window.test.ts:360`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L360), [`spend-window.test.ts:378`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L378))
 
 - FR-19.24: `reviseTask` is the human feedback loop as ONE seam: it
   queues a follow-up task on the parent's branch and PR at immediate
@@ -920,66 +920,20 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   builder with it, is what let web-ui stop holding a Postgres pool at all.
   ([validated by [`chunks-browse.test.ts:55`](apps/lore-api/src/transport/routes/context/chunks-browse.test.ts#L55), [`chunks-browse.test.ts:59`](apps/lore-api/src/transport/routes/context/chunks-browse.test.ts#L59), [`chunks-browse.test.ts:76`](apps/lore-api/src/transport/routes/context/chunks-browse.test.ts#L76), [`chunks-browse.test.ts:88`](apps/lore-api/src/transport/routes/context/chunks-browse.test.ts#L88), [`chunks-browse.test.ts:101`](apps/lore-api/src/transport/routes/context/chunks-browse.test.ts#L101), [`chunks-browse.test.ts:115`](apps/lore-api/src/transport/routes/context/chunks-browse.test.ts#L115), [`chunks-browse.test.ts:129`](apps/lore-api/src/transport/routes/context/chunks-browse.test.ts#L129), [`chunks-browse.test.ts:153`](apps/lore-api/src/transport/routes/context/chunks-browse.test.ts#L153), [`chunks-browse.test.ts:181`](apps/lore-api/src/transport/routes/context/chunks-browse.test.ts#L181), [`chunks-browse.test.ts:203`](apps/lore-api/src/transport/routes/context/chunks-browse.test.ts#L203), [`chunks-browse.test.ts:234`](apps/lore-api/src/transport/routes/context/chunks-browse.test.ts#L234), [`chunks-browse.test.ts:234`](apps/lore-api/src/transport/routes/context/chunks-browse.test.ts#L234))
 
-- FR-19.27: Anthropic's Admin API reports usage and cost and exposes NO
-  credit balance, so what is LEFT cannot be fetched and is instead
-  accumulated in `pipeline.credit_ledger` — an append-only record of money
-  added, written through `POST /api/spend/credits` under the `write` scope
-  and read back on `GET /api/analytics/spend-window` as a `budget` block. The ledger is
-  append-only rather than a single mutable balance row: a wrong entry is
-  compensated with a negative `correction`, never updated, so every write
-  is one atomic INSERT and two people recording a top-up at the same moment
-  cannot lose each other's entry. `remaining` is the recorded total minus
-  spend since the EARLIEST entry, and that window is deliberately not
-  interval-scoped like every other figure on the screen — a balance added in
-  June is still money in August, and clipping it to the current month would
-  silently forgive every dollar spent before the 1st. Spend within the
-  window is the same two sources the rest of the page reports side by side,
-  meeting exactly at `billed_through`: billed covers up to and including
-  it, Lore-computed starts strictly after, because an off-by-one there
-  either double-counts a day or drops one and both yield a plausible
-  balance that is wrong. An empty ledger and a missing table both yield a
-  NULL budget rather than a zero one, on the same reasoning that makes
-  `org_available` a stamp rather than a row count — nobody having recorded
-  the balance is a different fact from the balance being nothing.
-  ([`credit-ledger.test.ts:51`](apps/lore-api/src/transport/routes/analytics/credit-ledger.test.ts#L51), [`credit-ledger.test.ts:61`](apps/lore-api/src/transport/routes/analytics/credit-ledger.test.ts#L61), [`credit-ledger.test.ts:65`](apps/lore-api/src/transport/routes/analytics/credit-ledger.test.ts#L65), [`credit-ledger.test.ts:72`](apps/lore-api/src/transport/routes/analytics/credit-ledger.test.ts#L72), [`credit-ledger.test.ts:85`](apps/lore-api/src/transport/routes/analytics/credit-ledger.test.ts#L85), [`credit-ledger.test.ts:134`](apps/lore-api/src/transport/routes/analytics/credit-ledger.test.ts#L134), [`credit-ledger.test.ts:149`](apps/lore-api/src/transport/routes/analytics/credit-ledger.test.ts#L149), [`credit-ledger.test.ts:155`](apps/lore-api/src/transport/routes/analytics/credit-ledger.test.ts#L155), [`credit-ledger.test.ts:161`](apps/lore-api/src/transport/routes/analytics/credit-ledger.test.ts#L161), [`credit-ledger.test.ts:167`](apps/lore-api/src/transport/routes/analytics/credit-ledger.test.ts#L167), [`spend-window.test.ts:397`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L397), [`spend-window.test.ts:406`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L406), [`spend-window.test.ts:416`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L416), [`SpendView.test.tsx:474`](apps/web-ui/src/app/spend/SpendView.test.tsx#L474), [`spend-window.test.ts:427`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L427), [`spend-window.test.ts:427`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L427), [`credit-ledger.test.ts:167`](apps/lore-api/src/transport/routes/analytics/credit-ledger.test.ts#L167), [`credit-ledger.test.ts:190`](apps/lore-api/src/transport/routes/analytics/credit-ledger.test.ts#L190), [`credit-ledger.test.ts:100`](apps/lore-api/src/transport/routes/analytics/credit-ledger.test.ts#L100), [`credit-ledger.test.ts:122`](apps/lore-api/src/transport/routes/analytics/credit-ledger.test.ts#L122), [`credit-ledger.test.ts:128`](apps/lore-api/src/transport/routes/analytics/credit-ledger.test.ts#L128), [`credit-ledger.test.ts:175`](apps/lore-api/src/transport/routes/analytics/credit-ledger.test.ts#L175), [`spend-window.test.ts:461`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L461))
+- FR-19.27: Retired 2026-09-09. The operator-recorded Anthropic credit
+  balance is gone: `POST /api/spend/credits` no longer exists and
+  `GET /api/analytics/spend-window` carries no `budget` block, so the spend
+  screen reads nothing a person typed in. Anthropic's Admin API still exposes
+  no credit balance, so what is LEFT stays unfetchable by construction — the
+  page reports what was spent, not what remains. The `pipeline.credit_ledger`
+  table (migration 0045) is left in place: it is in no baseline schema script,
+  so a later forward-only migration can drop it once its entries are confirmed
+  unneeded. ([validated by carries no budget block and never reads a credit ledger](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L260))
 
-- FR-19.28: `/spend` renders the remaining balance BELOW the
-  interval figures, so the spend it is derived from is read first —
-  the balance is that spend subtracted from what someone recorded, and it
-  lands better after those figures than before them. The card is sized to
-  its content rather than stretched: it is the only card in its row, and
-  the flex rule every other card wants spread one figure across the whole
-  page. Dates render day-month-year in a fixed order rather than the
-  viewer's locale, formatted from the ISO string's own parts and never via
-  `new Date`, which resolves a bare `YYYY-MM-DD` to UTC midnight and so
-  prints the previous day for every viewer west of Greenwich.
-  A null budget renders an em dash and a prompt to record the balance, never
-  a confident `$0.00` — the one placeholder on a page that otherwise degrades
-  to nothing, and it is unfillable by design since no data source publishes a
-  credit balance. A negative remaining is shown as a negative number in the
-  danger colour rather than clamped at zero, because an overrun is the state
-  most worth seeing. Alongside it the view projects an average daily burn
-  since the anchor and how many days the balance covers at that rate,
-  declining to project at all when the projection would be a guess dressed
-  as a number — an anchor in the future, or no spend yet to average — and
-  rounding day differences rather than flooring them, since a
-  daylight-saving boundary makes a calendar day 23 or 25 hours long and
-  flooring that loses a day from the divisor; a single remaining day reads
-  "about a day left" rather than "about 1 days left", which is the line
-  someone reads on the day it matters most. Recording a top-up is a
-  server action that revalidates `/spend` on success, rejecting a blank or
-  non-numeric amount before the request is made — `Number("")` is 0, not
-  NaN, so a blank field would otherwise post a zero entry. The form opens expanded while the ledger is empty and
-  collapses once there is a figure to read: recording the balance is the
-  only useful act on an empty ledger, and hiding it behind a disclosure
-  triangle made the feature look undeployed to its first user. It carries a
-  legend stating what each field does to the arithmetic, because two of the
-  rules are counter-intuitive enough to have been got wrong during this
-  feature’s own review: a blank date anchors to the start of today rather
-  than to now — the label says so instead of saying "defaults to today",
-  which reads either way — and a top-up recorded days late still yields the
-  right figure, since only the opening entry moves the counting window.
-  ([`SpendView.test.tsx:419`](apps/web-ui/src/app/spend/SpendView.test.tsx#L419), [`SpendView.test.tsx:454`](apps/web-ui/src/app/spend/SpendView.test.tsx#L454), [`SpendView.test.tsx:464`](apps/web-ui/src/app/spend/SpendView.test.tsx#L464), [`SpendView.test.tsx:474`](apps/web-ui/src/app/spend/SpendView.test.tsx#L474), [`SpendView.test.tsx:499`](apps/web-ui/src/app/spend/SpendView.test.tsx#L499), [`SpendView.test.tsx:506`](apps/web-ui/src/app/spend/SpendView.test.tsx#L506), [`SpendView.test.tsx:512`](apps/web-ui/src/app/spend/SpendView.test.tsx#L512), [`SpendView.test.tsx:518`](apps/web-ui/src/app/spend/SpendView.test.tsx#L518), [`SpendView.test.tsx:522`](apps/web-ui/src/app/spend/SpendView.test.tsx#L522), [`actions.test.ts:33`](apps/web-ui/src/app/spend/actions.test.ts#L33), [`actions.test.ts:46`](apps/web-ui/src/app/spend/actions.test.ts#L46), [`actions.test.ts:57`](apps/web-ui/src/app/spend/actions.test.ts#L57), [`actions.test.ts:71`](apps/web-ui/src/app/spend/actions.test.ts#L71), [`actions.test.ts:82`](apps/web-ui/src/app/spend/actions.test.ts#L82), [`actions.test.ts:89`](apps/web-ui/src/app/spend/actions.test.ts#L89), [`actions.test.ts:96`](apps/web-ui/src/app/spend/actions.test.ts#L96), [`actions.test.ts:103`](apps/web-ui/src/app/spend/actions.test.ts#L103), [`actions.test.ts:115`](apps/web-ui/src/app/spend/actions.test.ts#L115), [`actions.test.ts:127`](apps/web-ui/src/app/spend/actions.test.ts#L127), [`SpendView.test.tsx:535`](apps/web-ui/src/app/spend/SpendView.test.tsx#L535), [`SpendView.test.tsx:544`](apps/web-ui/src/app/spend/SpendView.test.tsx#L544), [`SpendView.test.tsx:565`](apps/web-ui/src/app/spend/SpendView.test.tsx#L565), [`SpendView.test.tsx:593`](apps/web-ui/src/app/spend/SpendView.test.tsx#L593), [`SpendView.test.tsx:600`](apps/web-ui/src/app/spend/SpendView.test.tsx#L600), [`SpendView.test.tsx:618`](apps/web-ui/src/app/spend/SpendView.test.tsx#L618), [`SpendView.test.tsx:674`](apps/web-ui/src/app/spend/SpendView.test.tsx#L674), [`SpendView.test.tsx:693`](apps/web-ui/src/app/spend/SpendView.test.tsx#L693), [`SpendView.test.tsx:645`](apps/web-ui/src/app/spend/SpendView.test.tsx#L645), [`SpendView.test.tsx:654`](apps/web-ui/src/app/spend/SpendView.test.tsx#L654), [`SpendView.test.tsx:664`](apps/web-ui/src/app/spend/SpendView.test.tsx#L664), [`SpendView.test.tsx:627`](apps/web-ui/src/app/spend/SpendView.test.tsx#L627), [`SpendView.test.tsx:175`](apps/web-ui/src/app/spend/SpendView.test.tsx#L175), [`SpendView.test.tsx:197`](apps/web-ui/src/app/spend/SpendView.test.tsx#L197), [`SpendView.test.tsx:448`](apps/web-ui/src/app/spend/SpendView.test.tsx#L448), [`RecordTopUp.test.tsx:9`](apps/web-ui/src/app/spend/RecordTopUp.test.tsx#L9), [`RecordTopUp.test.tsx:21`](apps/web-ui/src/app/spend/RecordTopUp.test.tsx#L21), [`RecordTopUp.test.tsx:31`](apps/web-ui/src/app/spend/RecordTopUp.test.tsx#L31), [`RecordTopUp.test.tsx:47`](apps/web-ui/src/app/spend/RecordTopUp.test.tsx#L47), [`RecordTopUp.test.tsx:63`](apps/web-ui/src/app/spend/RecordTopUp.test.tsx#L63))
+- FR-19.28: Retired 2026-09-09 with FR-19.27. `/spend` renders no balance
+  section, credits card, or top-up form, and with them went the page's one
+  em dash placeholder: every figure left is Lore-computed or vendor-billed, so
+  the page is complete on Lore data alone. ([validated by carries no balance section, credits card or top-up form](apps/web-ui/src/app/spend/SpendView.test.tsx#L195), [`SpendView.test.tsx:340`](apps/web-ui/src/app/spend/SpendView.test.tsx#L340))
 
 - FR-19.29: `/spend` attributes Lore-computed spend to the execution
   cluster that ran each call, so a satellite cluster's burn is legible
@@ -993,16 +947,8 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   read through the same degrade-to-empty guard the billed figures use so
   a deployment predating the station and cluster-agent tables renders
   nothing instead of 500-ing the whole page. The table always renders — an empty
-  window shows an empty-state row rather than a blank table — and the
-  satellite note by the balance appears only when a registered cluster
-  actually shows up in the window.
-  The same attribution keeps a satellite cluster's spend OUT of the
-  recorded-credit balance: a call claimed by a registered cluster ran on
-  that cluster's own credential (a colleague's subscription) and never
-  drew these credits, so the balance's computed half counts only calls
-  with no cluster-agent claim — home, central, and direct — and does not
-  drag the balance negative on money the account never spent.
-  ([validated by [`spend-window.test.ts:148`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L148), [`spend-window.test.ts:478`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L478), [`spend-window.test.ts:492`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L492), [`spend-window.test.ts:427`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L427), [`SpendView.test.tsx:633`](apps/web-ui/src/app/spend/SpendView.test.tsx#L633), [`SpendView.test.tsx:703`](apps/web-ui/src/app/spend/SpendView.test.tsx#L703), [`SpendView.test.tsx:708`](apps/web-ui/src/app/spend/SpendView.test.tsx#L708), [`spend-window.test.ts:519`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L519)])
+  window shows an empty-state row rather than a blank table.
+  ([validated by [`spend-window.test.ts:145`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L145), [`spend-window.test.ts:413`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L413), [`SpendView.test.tsx:461`](apps/web-ui/src/app/spend/SpendView.test.tsx#L461), [`SpendView.test.tsx:451`](apps/web-ui/src/app/spend/SpendView.test.tsx#L451), [`spend-window.test.ts:427`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L427)])
 
 - **FR-19f — Interval-scoped spend, with the Kubernetes half** _(added
   2026-09-02)_. The spend page carries a date-interval selector — presets
@@ -1014,8 +960,7 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   sink writes cost rows within seconds of each model call) with its
   by-assembly-line, by-repo, by-model, by-kind, daily, by-task-type and
   by-cluster breakdowns, the interval-scoped Anthropic billed figures with
-  their unbilled remainder, the recorded balance (the one
-  interval-independent block), plus the Kubernetes compute ESTIMATE. That estimate has two halves, and both
+  their unbilled remainder, plus the Kubernetes compute ESTIMATE. That estimate has two halves, and both
   say what they assumed: interval pod-hours from `station_runs` (rows that
   named an Agent CR were pods; a run's size is not recorded, so hours are
   priced at a named default profile), and the pods running RIGHT NOW, each
@@ -1030,24 +975,24 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   are env-overridable and echoed in the response so the UI labels the
   number as the estimate it is — Google's invoice lags a day and stays the
   truth.
-  ([validated by windows the metered llm spend and prices pod-hours at the assumed profile](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L117), [prices each live pod from its ACTUAL requests](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L269), [`spend-window.test.ts:293`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L293), [caps a never-finished station-run row at 2 hours](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L313), [`spend-window.test.ts:326`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L326), [carries every interval-scoped breakdown the merged spend page renders](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L148), [`spend-window.test.ts:248`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L248), [`SpendView.test.tsx:211`](apps/web-ui/src/app/spend/SpendView.test.tsx#L211), [`SpendView.test.tsx:219`](apps/web-ui/src/app/spend/SpendView.test.tsx#L219), [`SpendView.test.tsx:284`](apps/web-ui/src/app/spend/SpendView.test.tsx#L284), [`compute-cost.test.ts:12`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L12), [`compute-cost.test.ts:25`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L25), [`compute-cost.test.ts:34`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L34), [`compute-cost.test.ts:40`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L40), [`compute-cost.test.ts:47`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L47), [`compute-cost.test.ts:56`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L56), [`compute-cost.test.ts:65`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L65), [`compute-cost.test.ts:75`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L75), [`compute-cost.test.ts:82`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L82), [`compute-cost.test.ts:89`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L89), [lists the running pods with their requests](apps/cluster-agent/src/transport/routes/cluster.test.ts#L154), [fetches the default 7-day window and renders the whole spend view from it](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L99), [`SpendWindowPanel.test.tsx:129`](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L129), [`SpendWindowPanel.test.tsx:144`](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L144), [`SpendWindowPanel.test.tsx:155`](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L155), [`SpendWindowPanel.test.tsx:171`](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L171), [`SpendWindowPanel.test.tsx:192`](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L192), [`spend-window-presets.test.ts:7`](apps/web-ui/src/app/spend/spend-window-presets.test.ts#L7), [`spend-window-presets.test.ts:14`](apps/web-ui/src/app/spend/spend-window-presets.test.ts#L14), [`spend-window-presets.test.ts:25`](apps/web-ui/src/app/spend/spend-window-presets.test.ts#L25), [`spend-window-presets.test.ts:34`](apps/web-ui/src/app/spend/spend-window-presets.test.ts#L34), [`SpendWindowPanel.test.tsx:208`](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L208)])
+  ([validated by windows the metered llm spend and prices pod-hours at the assumed profile](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L114), [prices each live pod from its ACTUAL requests](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L270), [`spend-window.test.ts:294`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L294), [caps a never-finished station-run row at 2 hours](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L314), [`spend-window.test.ts:327`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L327), [carries every interval-scoped breakdown the merged spend page renders](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L145), [`spend-window.test.ts:245`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L245), [`SpendView.test.tsx:217`](apps/web-ui/src/app/spend/SpendView.test.tsx#L217), [`SpendView.test.tsx:225`](apps/web-ui/src/app/spend/SpendView.test.tsx#L225), [`SpendView.test.tsx:290`](apps/web-ui/src/app/spend/SpendView.test.tsx#L290), [`compute-cost.test.ts:12`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L12), [`compute-cost.test.ts:25`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L25), [`compute-cost.test.ts:34`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L34), [`compute-cost.test.ts:40`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L40), [`compute-cost.test.ts:47`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L47), [`compute-cost.test.ts:56`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L56), [`compute-cost.test.ts:65`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L65), [`compute-cost.test.ts:75`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L75), [`compute-cost.test.ts:82`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L82), [`compute-cost.test.ts:89`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L89), [lists the running pods with their requests](apps/cluster-agent/src/transport/routes/cluster.test.ts#L154), [fetches the default 7-day window and renders the whole spend view from it](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L98), [`SpendWindowPanel.test.tsx:125`](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L125), [`SpendWindowPanel.test.tsx:140`](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L140), [`SpendWindowPanel.test.tsx:156`](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L156), [`SpendWindowPanel.test.tsx:177`](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L177), [`spend-window-presets.test.ts:7`](apps/web-ui/src/app/spend/spend-window-presets.test.ts#L7), [`spend-window-presets.test.ts:14`](apps/web-ui/src/app/spend/spend-window-presets.test.ts#L14), [`spend-window-presets.test.ts:25`](apps/web-ui/src/app/spend/spend-window-presets.test.ts#L25), [`spend-window-presets.test.ts:34`](apps/web-ui/src/app/spend/spend-window-presets.test.ts#L34), [`SpendWindowPanel.test.tsx:193`](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L193)])
 
 - **FR-19g — Whose invoice, and what a run costs** _(added 2026-09-03)_.
   `pipeline.llm_calls` prices every model call Lore sees, whoever bills it, so
   the page separates them. Metered spend is reported per VENDOR (folded from
   the by-model rollup through the shared `modelVendor` classifier, dearest
-  first), and only the Anthropic slice draws the recorded balance: the review
-  family moved to Gemini on 2026-09-02, and counting that against the Anthropic
-  credits drew the balance down on money Anthropic never charged — the same
-  exclusion bounds the unbilled remainder under the billed card, since it is
-  compared against an Anthropic figure. The classification is one declaration:
-  the balance query passes the shared `NON_ANTHROPIC_LIKE_PATTERNS` straight to
-  `NOT LIKE ALL`, and an unrecognized model reads as Anthropic, which
-  understates what is left rather than reporting money already gone. The
+  first), and only the Anthropic slice is measured against Anthropic's invoice:
+  the review family moved to Gemini on 2026-09-02, and counting that as unbilled
+  Anthropic spend under the billed card reported money Anthropic never charged,
+  since that remainder is compared against an Anthropic figure. The
+  classification is one declaration: the unbilled-remainder query passes the
+  shared `NON_ANTHROPIC_LIKE_PATTERNS` straight to `NOT LIKE ALL`, and an
+  unrecognized model reads as Anthropic, which over-counts the remainder rather
+  than hiding spend already made. The
   by-assembly-line table also carries cost PER RUN, the figure that says whether
   a model or prompt change paid off — a total hides it behind however many runs
   the interval happened to contain.
-  ([validated by [`spend-window.test.ts:446`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L446), [`vendor-split.test.ts:5`](apps/lore-api/src/work/analytics/vendor-split.test.ts#L5), [`vendor-split.test.ts:19`](apps/lore-api/src/work/analytics/vendor-split.test.ts#L19), [`vendor-split.test.ts:25`](apps/lore-api/src/work/analytics/vendor-split.test.ts#L25), [`model-vendor.test.ts:5`](libs/shared/src/outbound/llm/model-vendor.test.ts#L5), [`model-vendor.test.ts:17`](libs/shared/src/outbound/llm/model-vendor.test.ts#L17), [`model-vendor.test.ts:21`](libs/shared/src/outbound/llm/model-vendor.test.ts#L21), [`model-vendor.test.ts:11`](libs/shared/src/outbound/llm/model-vendor.test.ts#L11), [`model-vendor.test.ts:25`](libs/shared/src/outbound/llm/model-vendor.test.ts#L25), [`model-vendor.test.ts:31`](libs/shared/src/outbound/llm/model-vendor.test.ts#L31), [`SpendView.test.tsx:721`](apps/web-ui/src/app/spend/SpendView.test.tsx#L721), [`SpendView.test.tsx:728`](apps/web-ui/src/app/spend/SpendView.test.tsx#L728), [`SpendView.test.tsx:741`](apps/web-ui/src/app/spend/SpendView.test.tsx#L741))
+  ([validated by [`spend-window.test.ts:398`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L398), [`vendor-split.test.ts:5`](apps/lore-api/src/work/analytics/vendor-split.test.ts#L5), [`vendor-split.test.ts:19`](apps/lore-api/src/work/analytics/vendor-split.test.ts#L19), [`vendor-split.test.ts:25`](apps/lore-api/src/work/analytics/vendor-split.test.ts#L25), [`model-vendor.test.ts:5`](libs/shared/src/outbound/llm/model-vendor.test.ts#L5), [`model-vendor.test.ts:17`](libs/shared/src/outbound/llm/model-vendor.test.ts#L17), [`model-vendor.test.ts:21`](libs/shared/src/outbound/llm/model-vendor.test.ts#L21), [`model-vendor.test.ts:11`](libs/shared/src/outbound/llm/model-vendor.test.ts#L11), [`model-vendor.test.ts:25`](libs/shared/src/outbound/llm/model-vendor.test.ts#L25), [`model-vendor.test.ts:31`](libs/shared/src/outbound/llm/model-vendor.test.ts#L31), [`SpendView.test.tsx:473`](apps/web-ui/src/app/spend/SpendView.test.tsx#L473), [`SpendView.test.tsx:480`](apps/web-ui/src/app/spend/SpendView.test.tsx#L480), [`SpendView.test.tsx:493`](apps/web-ui/src/app/spend/SpendView.test.tsx#L493))
 
 ### FR-20: Project Facade Ports (Phase 1)
 

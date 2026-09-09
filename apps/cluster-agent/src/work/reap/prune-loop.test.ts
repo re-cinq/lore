@@ -31,6 +31,7 @@ function cluster(seed: {
     deleteAgent: remove,
     deleteStation: remove,
     deleteDefinition: remove,
+    deleteSecretKey: async () => {},
   };
 
   return { api, deleted };
@@ -95,11 +96,35 @@ describe("pruneOnce", () => {
       deleteAgent: async () => {},
       deleteStation: async () => {},
       deleteDefinition: async () => {},
+      deleteSecretKey: async () => {},
     };
 
     expect(
       await pruneOnce({ cluster: api, ttlMs: 72 * HOUR, now: () => NOW }),
     ).toMatchObject({ kind: "error", message: "apiserver unreachable" });
+  });
+
+  it("deletes the per-task token key from agent-secrets when pruning an orphaned definition", async () => {
+    const secretKeysDeleted: string[] = [];
+    const { api } = cluster({
+      agents: [old("agent-abc12345", "pt-abc12345")],
+      stations: [
+        { name: "pt-abc12345", createdAt: new Date(NOW.getTime() - 96 * HOUR) },
+      ],
+      definitions: [
+        { name: "pt-abc12345", createdAt: new Date(NOW.getTime() - 96 * HOUR) },
+      ],
+    });
+    const extended = {
+      ...api,
+      deleteSecretKey: async (key: string): Promise<void> => {
+        secretKeysDeleted.push(key);
+      },
+    };
+
+    await pruneOnce({ cluster: extended, ttlMs: 72 * HOUR, now: () => NOW });
+
+    expect(secretKeysDeleted).toContain("GH_TOKEN_abc12345");
   });
 });
 

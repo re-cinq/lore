@@ -267,7 +267,7 @@ describe("parseAgentLog", () => {
     ]);
   });
 
-  it("drops a thinking block whose text is blank and a text block whose text is blank", () => {
+  it("shows nothing for a turn whose thinking and text blocks are both blank", () => {
     const blankBlocks = JSON.stringify({
       type: "assistant",
       message: {
@@ -278,8 +278,39 @@ describe("parseAgentLog", () => {
       },
     });
 
-    expect(parseAgentLog(blankBlocks)).toEqual([
-      { kind: "raw", text: blankBlocks },
+    expect(parseAgentLog(blankBlocks)).toEqual([]);
+  });
+
+  it("shows nothing for a turn carrying only an empty redacted thinking block", () => {
+    const redacted = JSON.stringify({
+      type: "assistant",
+      message: {
+        content: [{ type: "thinking", thinking: "", signature: "abc" }],
+      },
+    });
+
+    expect(parseAgentLog(redacted)).toEqual([]);
+  });
+
+  it("keeps a turn whose block type names an Object prototype member as a raw entry", () => {
+    const prototypeName = JSON.stringify({
+      type: "assistant",
+      message: { content: [{ type: "constructor", text: "hi" }] },
+    });
+
+    expect(parseAgentLog(prototypeName)).toEqual([
+      { kind: "raw", text: prototypeName },
+    ]);
+  });
+
+  it("keeps a turn whose content block is of an unknown type as a raw entry", () => {
+    const unknownBlock = JSON.stringify({
+      type: "assistant",
+      message: { content: [{ type: "hologram", pixels: 4 }] },
+    });
+
+    expect(parseAgentLog(unknownBlock)).toEqual([
+      { kind: "raw", text: unknownBlock },
     ]);
   });
 

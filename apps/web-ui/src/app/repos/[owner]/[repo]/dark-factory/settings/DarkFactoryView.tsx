@@ -1,11 +1,9 @@
 "use client";
-import { useActionState } from "react";
 import type { ResolvedDarkFactorySettings } from "@/lib/dark-factory-resolve";
 import HelpPopover from "@/components/HelpPopover";
-import SaveResultBanner, {
-  INITIAL_SAVE_STATE,
-  type SaveState,
-} from "../../settings/SaveResultBanner";
+import SettingsFormShell, {
+  type SaveAction,
+} from "../../settings/SettingsFormShell";
 import styles from "../../settings/page.module.css";
 
 const NOTIFY_CHANNELS = ["escalation", "watched", "all"] as const;
@@ -16,23 +14,24 @@ export interface DarkFactoryViewProps {
   resolved: ResolvedDarkFactorySettings;
   rawImage?: string;
   defaultExecutionImage: string;
-  saveAction: (prev: SaveState, formData: FormData) => Promise<SaveState>;
+  saveAction: SaveAction;
 }
 
-/** Names the page and its cost in the same breath: the "security-gated" tag and the approval-PR requirement are the two things a reader needs before touching anything below. */
-function SettingsHeader() {
+/** The "security-gated" tag rides in the title itself: it is the first thing a reader needs before touching anything below. */
+function DarkFactoryTitle() {
   return (
     <>
-      <div className={styles.titleRow}>
-        <h2 className={styles.title}>
-          Dark Factory <span className={styles.gated}>security-gated</span>
-        </h2>
-        <DarkFactoryHelp />
-      </div>
-      <p className={`meta ${styles.lede}`}>
-        Per-repo autonomy. Reference an approved{" "}
-        <code>dark-factory-approval</code> PR when changing a gated field.
-      </p>
+      Dark Factory <span className={styles.gated}>security-gated</span>
+    </>
+  );
+}
+
+/** The approval-PR requirement, stated before the fields it applies to rather than in the refusal a save would otherwise return. */
+function DarkFactoryLede() {
+  return (
+    <>
+      Per-repo autonomy. Reference an approved{" "}
+      <code>dark-factory-approval</code> PR when changing a gated field.
     </>
   );
 }
@@ -55,25 +54,22 @@ function ExecutionImageField(props: DarkFactoryViewProps) {
 
 export default function DarkFactoryView(props: DarkFactoryViewProps) {
   const { fullName, resolved, saveAction } = props;
-  const [state, formAction] = useActionState(saveAction, INITIAL_SAVE_STATE);
 
   return (
-    <div>
-      <SettingsHeader />
+    <SettingsFormShell
+      fullName={fullName}
+      saveAction={saveAction}
+      title={<DarkFactoryTitle />}
+      help={<DarkFactoryHelp />}
+      lede={<DarkFactoryLede />}
+    >
+      <ModeFields resolved={resolved} />
+      <AutoMergeFields resolved={resolved} />
+      <ExecutionImageField {...props} />
 
-      <SaveResultBanner state={state} />
-
-      <form action={formAction} className={`task-form ${styles.form}`}>
-        <input type="hidden" name="full_name" value={fullName} />
-
-        <ModeFields resolved={resolved} />
-        <AutoMergeFields resolved={resolved} />
-        <ExecutionImageField {...props} />
-
-        <ApprovalPrField />
-        <button type="submit">Save Dark Factory</button>
-      </form>
-    </div>
+      <ApprovalPrField />
+      <button type="submit">Save Dark Factory</button>
+    </SettingsFormShell>
   );
 }
 

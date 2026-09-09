@@ -661,7 +661,9 @@ spec:
       states. Say precisely what you would need, then:
       LORE_NODE_RESULT: {"outcome":"changes_requested","extras":{"Lore-Dod-Blocked":"<one line: what is missing>"}}
       This parks the ticket for a human. It is the right answer for a bad
-      ticket and the wrong answer for a hard one.
+      ticket and the wrong answer for a hard one. The Lore-Dod-Blocked line is
+      posted verbatim on the issue as the request for a rewrite, so write it
+      for the ticket's author: what is missing, not what you tried.
 
     Ticket: {description}
 

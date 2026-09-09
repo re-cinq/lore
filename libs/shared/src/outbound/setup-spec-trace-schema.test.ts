@@ -164,6 +164,22 @@ describe.skipIf(!reachable)(
       expect(fields).toContain("AcceptanceCriterion.violation_reason");
     });
 
+    it("declares CodeChunk.references and CodeChunk.imports as uid list predicates for the call graph", async () => {
+      const { schema } = await querySchema(
+        "schema(pred: [CodeChunk.references, CodeChunk.imports]) {type list reverse}",
+      );
+      const byPred = Object.fromEntries(schema.map((s) => [s.predicate, s]));
+
+      expect(
+        byPred["CodeChunk.references"],
+        "CodeChunk.references should be declared as a uid list",
+      ).toMatchObject({ type: "uid", list: true });
+      expect(
+        byPred["CodeChunk.imports"],
+        "CodeChunk.imports should be declared as a uid list",
+      ).toMatchObject({ type: "uid", list: true });
+    });
+
     it("is idempotent — a second apply leaves the predicate schema unchanged", async () => {
       const sortByPred = (s: Array<Record<string, unknown>>) =>
         [...s].sort((a, b) =>

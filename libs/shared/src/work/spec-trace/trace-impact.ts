@@ -6,10 +6,11 @@ import { testFileImpact } from "./impact-test-link.js";
 import { readGraphBaseline } from "./graph-baseline.js";
 import { specFileImpact } from "./impact-statement-delta.js";
 import {
-  implementedByImpact,
+  implementedByImpactAndXids,
   validatedByImpact,
   orphanImpact,
 } from "./impact-code-graph.js";
+import { callerHopImpact } from "./impact-caller-hop.js";
 import type {
   ChangedRange,
   ImpactOptions,
@@ -49,21 +50,33 @@ async function fileImpact(
   dgraph: DgraphClientPort,
   repo: string,
   file: ChangedRange,
-  aligned: boolean,
+  { aligned }: { aligned: boolean },
 ): Promise<Array<ImpactStatement & { xid: string }>> {
   const ranges = file.baseRanges ?? file.ranges;
+  const direct = await implementedByImpactAndXids(
+    dgraph,
+    repo,
+    file.path,
+    ranges,
+  );
+  const rest = await Promise.all([
+    callerHopImpact(dgraph, repo, direct.touchedChunkXids, file.path),
+    testFileImpact(dgraph, repo, file.path, { ranges, fileLevel: !aligned }),
+    linePreciseImpact(dgraph, repo, { path: file.path, ranges, aligned }),
+  ]);
 
-  return [
-    ...(await implementedByImpact(dgraph, repo, file.path, ranges)),
-    ...(await testFileImpact(dgraph, repo, file.path, {
-      ranges,
-      fileLevel: !aligned,
-    })),
-    // Coverage facets and orphan footprints are line-precise with no file-level fallback, so an unaligned file cannot use them.
-    ...(aligned
-      ? await validatedByImpact(dgraph, repo, file.path, ranges)
-      : []),
-  ];
+  return [...direct.statements, ...rest.flat()];
+}
+
+/** Coverage facets and orphan footprints are line-precise with no file-level fallback, so an unaligned file cannot use them at all. */
+async function linePreciseImpact(
+  dgraph: DgraphClientPort,
+  repo: string,
+  file: { path: string; ranges: [number, number][]; aligned: boolean },
+): Promise<Array<ImpactStatement & { xid: string }>> {
+  return file.aligned
+    ? validatedByImpact(dgraph, repo, file.path, file.ranges)
+    : [];
 }
 
 interface CodeImpactContext {
@@ -80,7 +93,7 @@ function skipReason(baselineCommit: string | null): SkipReason {
 async function orphansForFile(
   ctx: CodeImpactContext,
   file: ChangedRange,
-  aligned: boolean,
+  { aligned }: { aligned: boolean },
 ): Promise<OrphanStatement[]> {
   const deleted = file.deleted ?? [];
 
@@ -99,7 +112,7 @@ async function accumulateFileImpact(
 ): Promise<void> {
   const { dgraph, repo, baselineCommit } = ctx;
   const aligned = file.aligned === true && Boolean(baselineCommit);
-  const found = await fileImpact(dgraph, repo, file, aligned);
+  const found = await fileImpact(dgraph, repo, file, { aligned });
 
   if (!aligned) {
     result.skipped.push({
@@ -112,7 +125,7 @@ async function accumulateFileImpact(
     result.withGraphData += 1;
   }
   result.raw.push(...found);
-  result.orphaned.push(...(await orphansForFile(ctx, file, aligned)));
+  result.orphaned.push(...(await orphansForFile(ctx, file, { aligned })));
 }
 
 async function codeImpact(

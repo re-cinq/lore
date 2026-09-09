@@ -25,8 +25,11 @@ export function fitNodeLabel(text: string, max = NODE_LABEL_CHARS): string {
 }
 
 const BASE_NODE_HEIGHT = 48;
-// One more text line under the verdict for the model · duration · visits facts.
-const META_LINE_HEIGHT = 16;
+// The band a third text line needs: the line itself plus the padding that keeps the stack off both edges.
+const META_LINE_HEIGHT = 22;
+// Pitch between the text lines inside a node box, and how far a baseline sits below the visual middle of its own line.
+const TEXT_LINE_GAP = 16;
+const BASELINE_DROP = 4;
 const OUTCOME_TOP = 14;
 const PADDING = 28;
 const MIN_VIEW_WIDTH = 480;
@@ -49,8 +52,21 @@ export function fitView(box: Box): FittedView {
   };
 }
 
+/** Baselines for a run-mode node's text lines, as offsets from the box centre, so the stack is centred as a block. Node height is uniform across a graph, so a node showing only its name and verdict must sit in the middle of the same box a three-line node makes tall, rather than hugging its top edge. */
+export function nodeTextRows(lines: number): number[] {
+  const first = -((lines - 1) * TEXT_LINE_GAP) / 2;
+
+  return Array.from(
+    { length: lines },
+    (_unused, index) => first + index * TEXT_LINE_GAP + BASELINE_DROP,
+  );
+}
+
 // Uniform node height: taller in definition mode so a source node's outcome list fits, and in run mode when the nodes carry a facts line; bare nodes stay the base height.
-export function nodeHeightFor(graph: VisibleGraph, withMeta = false): number {
+export function nodeHeightFor(
+  graph: VisibleGraph,
+  { withMeta = false }: { withMeta?: boolean } = {},
+): number {
   if (graph.mode !== "definition") {
     return withMeta ? BASE_NODE_HEIGHT + META_LINE_HEIGHT : BASE_NODE_HEIGHT;
   }

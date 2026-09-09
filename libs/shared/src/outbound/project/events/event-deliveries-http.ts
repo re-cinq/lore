@@ -6,9 +6,11 @@ import type {
   EventDeliveryRow,
   EventSubscription,
   OrphanedEvents,
+  DeadLetteredDeliveries,
 } from "./event-deliveries-port.js";
 import type { FailBody, DeadBody } from "./event-deliveries-wire.js";
 import type {
+  DeadLetterBody,
   DeliveryClaimBody,
   OrphanBody,
   ReconcileBody,
@@ -97,5 +99,15 @@ export class HttpEventDeliveries
     );
 
     return orphaned;
+  }
+
+  async deadLettered(withinMinutes: number): Promise<DeadLetteredDeliveries[]> {
+    const body: DeadLetterBody = { withinMinutes };
+    const { dead } = await this.call<{ dead: DeadLetteredDeliveries[] }>(
+      "/api/deliveries/dead-lettered",
+      body,
+    );
+
+    return dead;
   }
 }

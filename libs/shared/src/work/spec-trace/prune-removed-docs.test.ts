@@ -635,13 +635,13 @@ describe("selectPruneCandidates proportional fuse", () => {
         graphDocPaths,
         graphDocPaths.slice(0, 3),
         inScope,
-        true,
+        "forced",
       ),
     ).toEqual({ outcome: "ok", candidates: graphDocPaths.slice(3) });
   });
 
   it("a forced run with an empty tree selection still prunes nothing", () => {
-    expect(selectPruneCandidates(specPaths(3), [], inScope, true)).toEqual({
+    expect(selectPruneCandidates(specPaths(3), [], inScope, "forced")).toEqual({
       outcome: "ok",
       candidates: [],
     });

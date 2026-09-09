@@ -44,7 +44,7 @@ describe("formatCouplingItems", () => {
   };
 
   it("formats each statement with its signal, ADRs, and tests; violated outscores untested", () => {
-    const sources = formatCouplingItems(block) as Array<{
+    const sources = formatCouplingItems(block, "specs/a") as Array<{
       text: string;
       source_path?: string;
       score?: number;
@@ -59,14 +59,55 @@ describe("formatCouplingItems", () => {
     expect(sources[0].score ?? 0).toBeGreaterThan(sources[1].score ?? 0);
   });
 
+  it("keeps the auto-merge statement and drops the station one for 'auto-merge squash policy'", () => {
+    const twoTopics: GraphContextBlock = {
+      statements: [
+        {
+          xid: "m#1",
+          specPath: "specs/dark-factory/spec.md",
+          specTitle: "Dark Factory",
+          section: "FR3",
+          statementText: "auto-merge squashes when every changed path matches",
+          signal: "normal",
+          adrs: [],
+          testSelectors: [],
+        },
+        {
+          xid: "s#1",
+          specPath: "specs/stations/spec.md",
+          specTitle: "Stations",
+          section: "FR1",
+          statementText: "a station pod exceeding its deadline is reaped",
+          signal: "violated",
+          adrs: [],
+          testSelectors: [],
+        },
+      ],
+      adrRefs: [],
+      testSelectors: [],
+      truncated: false,
+    };
+
+    const paths = formatCouplingItems(
+      twoTopics,
+      "auto-merge squash policy",
+    ).map((hit) => hit.source_path);
+
+    expect(paths).toEqual(["specs/dark-factory/spec.md"]);
+  });
+
+  it("returns nothing when no statement shares a term with the query", () => {
+    expect(
+      formatCouplingItems(block, "kubernetes ingress certificate"),
+    ).toEqual([]);
+  });
+
   it("returns an empty list for an empty block", () => {
     expect(
-      formatCouplingItems({
-        statements: [],
-        adrRefs: [],
-        testSelectors: [],
-        truncated: false,
-      }),
+      formatCouplingItems(
+        { statements: [], adrRefs: [], testSelectors: [], truncated: false },
+        "anything",
+      ),
     ).toEqual([]);
   });
 });

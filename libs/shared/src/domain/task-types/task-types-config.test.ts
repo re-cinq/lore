@@ -249,6 +249,13 @@ describe("the implementation-tdd recipe", () => {
     ).toContain("> <the ticket's central claim, quoted verbatim>");
   });
 
+  it("tells the definition-of-done step its verdict is posted on the issue", () => {
+    expect(
+      parseTaskTypesFile(COMMITTED).taskTypes["acceptance-dod"]
+        ?.prompt_template,
+    ).toContain("posted verbatim on the issue");
+  });
+
   it("asks the definition of done for task-list checkboxes, so a round's progress renders", () => {
     const dod =
       parseTaskTypesFile(COMMITTED).taskTypes["acceptance-dod"]

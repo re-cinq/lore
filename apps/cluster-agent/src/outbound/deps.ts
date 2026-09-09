@@ -93,6 +93,22 @@ const agentsFacade: AgentsApi = {
   remove: removeAgentCr,
 };
 
+export function clusterDeps(): ClusterDeps {
+  if (singleton) {
+    return singleton;
+  }
+  const tokens = kubeTokenProvisioner();
+
+  singleton = {
+    agents: agentsFacade,
+    pods: podsFacade(new KubePodLogs()),
+    tokens: { cleanup: (taskId) => tokens.cleanup(taskId) },
+    catalog: catalogFacade(new KubeCatalogApi()),
+  };
+
+  return singleton;
+}
+
 // The pod reads, as the rest of the process asks for them.
 function podsFacade(pods: KubePodLogs): ClusterDeps["pods"] {
   return {
@@ -113,20 +129,4 @@ function catalogFacade(catalog: KubeCatalogApi): ClusterDeps["catalog"] {
       await catalog.deleteAgentDefinition(name);
     },
   };
-}
-
-export function clusterDeps(): ClusterDeps {
-  if (singleton) {
-    return singleton;
-  }
-  const tokens = kubeTokenProvisioner();
-
-  singleton = {
-    agents: agentsFacade,
-    pods: podsFacade(new KubePodLogs()),
-    tokens: { cleanup: (taskId) => tokens.cleanup(taskId) },
-    catalog: catalogFacade(new KubeCatalogApi()),
-  };
-
-  return singleton;
 }
