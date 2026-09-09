@@ -6,27 +6,21 @@ import {
 } from "@re-cinq/lore-shared/project/events/drain-loop.js";
 import {
   RECONCILE_WINDOW_MINUTES,
-  type EventDeliveryRow,
-  type EventSubscription,
+  type EventDeliveriesPort,
 } from "@re-cinq/lore-shared/project/events/event-deliveries-port.js";
 import { buildStationHandlers } from "./handlers.js";
 import { stationSubscriptions, STATIONS_SUBSCRIBER } from "./subscriptions.js";
 
-export interface StationDrainDeps {
-  subscribe(
-    subscriber: string,
-    subscriptions: EventSubscription[],
-  ): Promise<void>;
-  claim(
-    subscriber: string,
-    limit: number,
-    excludeEventNames?: string[],
-  ): Promise<EventDeliveryRow[]>;
-  markDone(id: string): Promise<void>;
-  markFailed(id: string, error: string, backoffSeconds: number): Promise<void>;
-  markDead(id: string, error: string): Promise<void>;
-  reconcileDeliveries(withinMinutes: number): Promise<number>;
-}
+/** The half of the deliveries port a drainer uses, derived so it cannot drift from what it narrows. */
+export type StationDrainDeps = Pick<
+  EventDeliveriesPort,
+  | "subscribe"
+  | "claim"
+  | "markDone"
+  | "markFailed"
+  | "markDead"
+  | "reconcileDeliveries"
+>;
 
 /** How hard boot tries to register before giving up. */
 export interface SubscribeRetry {
