@@ -6293,7 +6293,8 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          present_paths: string[];
+          present_paths?: string[];
+          ref?: string;
         };
       };
     };
