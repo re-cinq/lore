@@ -34,6 +34,8 @@ export interface MemorySearchOptions {
   limit?: number;
   includeInvalidated?: boolean;
   graphAugment?: boolean;
+  /** Keep only these kinds of hit. Applied BEFORE the limit, so asking for 5 episodes yields the 5 best episodes rather than whatever episodes survived a mixed top-5. */
+  sources?: MemorySearchResult["source"][];
 }
 
 /** Resolves pool name to pool_id when provided. */
@@ -102,6 +104,7 @@ interface ResolvedSearchOptions {
   limit: number;
   includeInvalidated: boolean;
   graphAugmentEnabled: boolean;
+  sources?: MemorySearchResult["source"][];
 }
 
 function resolveSearchOptions(
@@ -113,7 +116,16 @@ function resolveSearchOptions(
     limit: options.limit ?? 10,
     includeInvalidated: options.includeInvalidated ?? false,
     graphAugmentEnabled: options.graphAugment ?? false,
+    sources: options.sources,
   };
+}
+
+/** The merged hits narrowed to the requested kinds; every kind when none was named. */
+function ofSources(
+  hits: MemorySearchResult[],
+  sources: MemorySearchResult["source"][] | undefined,
+): MemorySearchResult[] {
+  return sources ? hits.filter((hit) => sources.includes(hit.source)) : hits;
 }
 
 /** Graph augmentation: enrich results with 1-hop graph neighbors, when enabled and there's anything to augment. */
@@ -135,18 +147,21 @@ async function rankedHits(
   pool: PgPool,
   query: string,
   scope: SearchScope,
-  limit: number,
+  { limit, sources }: ResolvedSearchOptions,
 ): Promise<MemorySearchResult[]> {
   const [[vectorMemories, vectorFacts], [keywordMemories, keywordFacts]] =
     await Promise.all([
       vectorSearchBoth(pool, query, scope),
       keywordSearchBoth(pool, query, scope),
     ]);
+  const merged = rrfMerge([
+    vectorMemories,
+    vectorFacts,
+    keywordMemories,
+    keywordFacts,
+  ]);
 
-  return diversify(
-    rrfMerge([vectorMemories, vectorFacts, keywordMemories, keywordFacts]),
-    limit,
-  );
+  return diversify(ofSources(merged, sources), limit);
 }
 
 /** The search scope, or null when a named pool was requested that does not exist. */
@@ -167,11 +182,16 @@ async function scopedResults(
   pool: PgPool,
   query: string,
   scope: SearchScope,
-  { limit, graphAugmentEnabled }: ResolvedSearchOptions,
+  options: ResolvedSearchOptions,
 ): Promise<MemorySearchResult[]> {
-  const ranked = await rankedHits(pool, query, scope, limit);
+  const ranked = await rankedHits(pool, query, scope, options);
 
-  return applyGraphAugment(pool, ranked, limit, graphAugmentEnabled);
+  return applyGraphAugment(
+    pool,
+    ranked,
+    options.limit,
+    options.graphAugmentEnabled,
+  );
 }
 
 /** Strengthen what was retrieved, audit the search, and hand the results back unchanged. */

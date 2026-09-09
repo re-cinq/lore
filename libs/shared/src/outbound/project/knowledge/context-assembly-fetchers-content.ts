@@ -98,8 +98,12 @@ async function fetchEpisodes(
   agentId: string | undefined,
 ): Promise<FetchResult> {
   try {
-    const results = await searchMemories(pool, query, { agentId, limit: 5 });
-    const episodes = results.filter((r) => r.source === "episode");
+    // Asked for as episodes, not filtered out of a mixed top-5 — memories and facts outrank episodes often enough that the post-filter left this section empty on every call.
+    const episodes = await searchMemories(pool, query, {
+      agentId,
+      limit: 5,
+      sources: ["episode"],
+    });
 
     if (episodes.length === 0) {
       return { sources: [], status: "empty" };

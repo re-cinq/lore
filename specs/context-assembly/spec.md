@@ -142,7 +142,13 @@ The tool retrieves from all available sources:
 - FR-2.4: **Facts** — including episode-derived facts
   (from `lore_search_memory` fact search).
 - FR-2.5: **Graph** — related entities and relationships
-  (from `lore_query_graph` logic, 1-hop).
+  (from `lore_query_graph` logic, 1-hop). The entities looked up are the
+  query's three most distinctive terms, not its first three long words —
+  "catalog sync bug: saving" is four long words and no entity. ([validated by `queries the graph for 'settings' and 'lore-api' from 'Add the new settings update for lore-api', not for 'update'`](libs/shared/src/outbound/project/knowledge/context-assembly-fetchers.test.ts#L64))
+- FR-2.5a: **Episodes** — the Recent Episodes section asks memory search for
+  episodes as such (`sources: ["episode"]`) rather than filtering them out of
+  a mixed top-5, which memories and facts outranked often enough that the
+  section came back empty on every call. ([validated by `returns the 2 episode rows when 5 memories and 5 facts outrank them`](libs/shared/src/outbound/project/knowledge/context-assembly-fetchers.test.ts#L37))
 - FR-2.6: Each source is retrieved in parallel.
 - FR-2.7: **Hybrid relevance ranking.** The local `repo`, `code`, and `adrs`
   sources rank by a Reciprocal-Rank-Fusion of a pgvector cosine leg and a BM25
