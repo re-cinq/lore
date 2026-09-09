@@ -64,6 +64,22 @@ describe("GET /api/search-context", () => {
     });
   });
 
+  it("sends 0.0163 as a number when pg hands back the numeric as a string", async () => {
+    vi.mocked(hybridSearch).mockResolvedValue([
+      {
+        id: "c1",
+        content: "auto-merge squashes",
+        metadata: {},
+        rrf_score: "0.01639344262295081967" as unknown as number,
+      },
+    ]);
+
+    const res = await get("/api/search-context?query=auto-merge");
+    const [first] = (res.result as { results: { score: number }[] }).results;
+
+    expect(typeof first.score).toBe("number");
+  });
+
   it("retries a provisioned team schema's miss against org_shared", async () => {
     vi.mocked(hybridSearch)
       .mockResolvedValueOnce([])

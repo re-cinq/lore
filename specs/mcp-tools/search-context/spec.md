@@ -65,7 +65,7 @@ Use this when you want chunk-level evidence or the exact wording of a convention
    as the DB path's do. Before this existed the tool skipped straight to the file
    scan, so a natural-language question — the only kind an agent asks — answered
    `No results found` from a grep over one local checkout while never consulting
-   the corpus at all. ([validated by `answers a natural-language query with scored passages carrying their source path`](apps/lore-api/src/transport/routes/context/search-context.test.ts#L40), [`retries a provisioned team schema's miss against org_shared`](apps/lore-api/src/transport/routes/context/search-context.test.ts#L67), [`refuses an empty query with 400 before searching`](apps/lore-api/src/transport/routes/context/search-context.test.ts#L89))
+   the corpus at all. ([validated by `answers a natural-language query with scored passages carrying their source path`](apps/lore-api/src/transport/routes/context/search-context.test.ts#L40), [`sends 0.0163 as a number when pg hands back the numeric as a string`](apps/lore-api/src/transport/routes/context/search-context.test.ts#L67), [`retries a provisioned team schema's miss against org_shared`](apps/lore-api/src/transport/routes/context/search-context.test.ts#L83), [`refuses an empty query with 400 before searching`](apps/lore-api/src/transport/routes/context/search-context.test.ts#L105))
 
 4. **File fallback** (no pool and no API) — the offline path, and it says so: the
    no-results message names the substring scan and points at `LORE_API_URL`,
