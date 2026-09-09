@@ -52,9 +52,9 @@ describe("scopedXid", () => {
   });
 
   it("joins several parts in order", () => {
-    expect(
-      scopedXid(mainScope("re-cinq/lore"), "a.test.ts", "renders"),
-    ).toBe("re-cinq/lore|a.test.ts|renders");
+    expect(scopedXid(mainScope("re-cinq/lore"), "a.test.ts", "renders")).toBe(
+      "re-cinq/lore|a.test.ts|renders",
+    );
   });
 });
 
@@ -82,9 +82,9 @@ describe("rootEdge", () => {
   });
 
   it("names the Overlay predicate for an overlay scope", () => {
-    expect(rootEdge(overlayScope("re-cinq/lore", "run-42"), "test_chunks")).toBe(
-      "Overlay.test_chunks",
-    );
+    expect(
+      rootEdge(overlayScope("re-cinq/lore", "run-42"), "test_chunks"),
+    ).toBe("Overlay.test_chunks");
   });
 });
 

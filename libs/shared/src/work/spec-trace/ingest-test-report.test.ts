@@ -10,6 +10,9 @@ import { makeDeleteRepoNodes } from "../../outbound/spec-trace/test-helpers/dele
 import { dgraphReachable } from "../../lib/dgraph-test-gate.js";
 
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
+
+import { mainScope } from "../../domain/spec-trace/trace-scope.js";
+
 const APPLIER = join(
   findRepoRoot(),
   "scripts",
@@ -117,7 +120,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       results: [],
     };
 
-    await ingestTestReport(dgraphClient, repo, report);
+    await ingestTestReport(dgraphClient, mainScope(repo), report);
 
     const graph = (await readGraph(
       `query q($repo: string){
@@ -168,7 +171,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       results: [],
     };
 
-    await ingestTestReport(dgraphClient, repo, report);
+    await ingestTestReport(dgraphClient, mainScope(repo), report);
 
     const graph = (await readGraph(
       `query q($sx: string) {
@@ -214,7 +217,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       results: [],
     };
 
-    await ingestTestReport(dgraphClient, repo, report);
+    await ingestTestReport(dgraphClient, mainScope(repo), report);
 
     const graph = (await readGraph(
       `query q($sx: string) {
@@ -245,7 +248,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       results: [],
     };
 
-    await ingestTestReport(dgraphClient, repo, report);
+    await ingestTestReport(dgraphClient, mainScope(repo), report);
 
     const graph = (await readGraph(
       `query q($xid: string) {
@@ -285,7 +288,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       results: [],
     };
 
-    await ingestTestReport(dgraphClient, repo, report);
+    await ingestTestReport(dgraphClient, mainScope(repo), report);
 
     const graph = (await readGraph(
       `query q($sx: string) {
@@ -320,7 +323,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       results: [{ id: "t1", passed: false, covered: [] }],
     };
 
-    await ingestTestReport(dgraphClient, repo, report);
+    await ingestTestReport(dgraphClient, mainScope(repo), report);
 
     const graph = (await readGraph(
       `query q($sx: string) {
@@ -365,7 +368,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       ],
     };
 
-    await ingestTestReport(dgraphClient, repo, report);
+    await ingestTestReport(dgraphClient, mainScope(repo), report);
 
     const graph = (await readGraph(
       `query q($sx: string) {
@@ -393,11 +396,11 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       spec: "specs/foo/spec.md#7",
     };
 
-    await ingestTestReport(dgraphClient, repo, {
+    await ingestTestReport(dgraphClient, mainScope(repo), {
       tests: [descriptor],
       results: [{ id: "t1", passed: false, covered: [] }],
     });
-    await ingestTestReport(dgraphClient, repo, {
+    await ingestTestReport(dgraphClient, mainScope(repo), {
       tests: [descriptor],
       results: [{ id: "t1", passed: true, covered: [] }],
     });
@@ -428,11 +431,11 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       spec: "specs/foo/spec.md#7",
     };
 
-    await ingestTestReport(dgraphClient, repo, {
+    await ingestTestReport(dgraphClient, mainScope(repo), {
       tests: [descriptor],
       results: [{ id: "t1", passed: false, covered: [] }],
     });
-    await ingestTestReport(dgraphClient, repo, {
+    await ingestTestReport(dgraphClient, mainScope(repo), {
       tests: [descriptor],
       results: [{ id: "t1", passed: true, covered: [] }],
     });
@@ -465,7 +468,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       dgraphClient,
       { embed: async () => null },
     );
-    await ingestTestReport(dgraphClient, repo, {
+    await ingestTestReport(dgraphClient, mainScope(repo), {
       tests: [
         {
           id: "a.test.ts::Widget Service > Onboarding > x",
@@ -521,7 +524,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       ],
     };
 
-    await ingestTestReport(dgraphClient, repo, report);
+    await ingestTestReport(dgraphClient, mainScope(repo), report);
 
     const graph = (await readGraph(
       `query q($xid: string) {
@@ -560,7 +563,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       ],
     };
 
-    await ingestTestReport(dgraphClient, repo, report);
+    await ingestTestReport(dgraphClient, mainScope(repo), report);
 
     const graph = (await readGraph(
       `query q($r: string) {
@@ -590,7 +593,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       results: [],
     };
 
-    await ingestTestReport(dgraphClient, repo, report);
+    await ingestTestReport(dgraphClient, mainScope(repo), report);
 
     const graph = (await readGraph(
       `query q($xid: string) {
@@ -624,7 +627,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       results: [],
     };
 
-    await ingestTestReport(dgraphClient, repo, report);
+    await ingestTestReport(dgraphClient, mainScope(repo), report);
 
     const graph = (await readGraph(
       `query q($xid: string) {
@@ -676,7 +679,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       results: [],
     };
 
-    await ingestTestReport(dgraphClient, repo, report);
+    await ingestTestReport(dgraphClient, mainScope(repo), report);
 
     const graph = (await readGraph(
       `query q($xid: string) {
@@ -722,7 +725,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       results: [{ id: "shared/x.test.ts", passed: false, covered: [] }],
     };
 
-    await ingestTestReport(dgraphClient, repo, report);
+    await ingestTestReport(dgraphClient, mainScope(repo), report);
 
     const graph = (await readGraph(
       `query q($xid: string) {

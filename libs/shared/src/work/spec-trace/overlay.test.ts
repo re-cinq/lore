@@ -97,10 +97,12 @@ describe.skipIf(!reachable)("overlay lifecycle (live Dgraph)", () => {
 
     const deleted = await dropOverlay(client, repo, runId);
 
-    expect(deleted).toBe(2);
-    expect(await readOverlay(client, repo, runId)).toBeNull();
-    expect(await readNode(client, overlayUid)).toBeNull();
-    expect(await readNode(client, chunkUid)).toBeNull();
+    expect({
+      deleted,
+      overlay: await readOverlay(client, repo, runId),
+      anchor: await readNode(client, overlayUid),
+      chunk: await readNode(client, chunkUid),
+    }).toEqual({ deleted: 2, overlay: null, anchor: null, chunk: null });
   });
 
   it("drops nothing and reports zero for a run with no overlay", async () => {
@@ -131,7 +133,6 @@ describe.skipIf(!reachable)("overlay lifecycle (live Dgraph)", () => {
   });
 });
 
-/** The node at `uid` if anything is still stored under it, else null. */
 async function readNode(
   client: dgraph.DgraphClient,
   uid: string,
@@ -143,7 +144,8 @@ async function readNode(
       `query q($uid: string) { n(func: uid($uid)) { uid expand(_all_) } }`,
       { $uid: uid },
     );
-    const rows = (res.data.n ?? []) as Record<string, unknown>[];
+    const found = res.data as { n?: Record<string, unknown>[] };
+    const rows = found.n ?? [];
 
     return rows.length && Object.keys(rows[0]).length > 1 ? rows[0] : null;
   } finally {

@@ -10,6 +10,9 @@ import { pruneTestFiles } from "./prune-test-files.js";
 import { dgraphReachable } from "../../lib/dgraph-test-gate.js";
 
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
+
+import { mainScope } from "../../domain/spec-trace/trace-scope.js";
+
 const APPLIER = join(
   findRepoRoot(),
   "scripts",
@@ -108,7 +111,7 @@ describe.skipIf(!reachable)(
       const repo = `prune-tests/${randomUUID()}`;
 
       createdRepo = repo;
-      await ingestTestReport(dgraphClient, repo, seedReport());
+      await ingestTestReport(dgraphClient, mainScope(repo), seedReport());
 
       await pruneTestFiles(dgraphClient, repo, ["src/a.test.ts"]);
 
@@ -143,7 +146,7 @@ describe.skipIf(!reachable)(
       const repo = `prune-tests/${randomUUID()}`;
 
       createdRepo = repo;
-      await ingestTestReport(dgraphClient, repo, seedReport());
+      await ingestTestReport(dgraphClient, mainScope(repo), seedReport());
 
       await pruneTestFiles(dgraphClient, repo, ["src/a.test.ts"]);
 
@@ -172,7 +175,7 @@ describe.skipIf(!reachable)(
       const repo = `prune-tests/${randomUUID()}`;
 
       createdRepo = repo;
-      await ingestTestReport(dgraphClient, repo, seedReport());
+      await ingestTestReport(dgraphClient, mainScope(repo), seedReport());
 
       await pruneTestFiles(dgraphClient, repo, ["src/a.test.ts"]);
 
@@ -204,7 +207,7 @@ describe.skipIf(!reachable)(
         dgraphClient,
         { embed: async () => null },
       );
-      await ingestTestReport(dgraphClient, repo, seedReport());
+      await ingestTestReport(dgraphClient, mainScope(repo), seedReport());
 
       await pruneTestFiles(dgraphClient, repo, ["src/a.test.ts"]);
 
@@ -231,7 +234,7 @@ describe.skipIf(!reachable)(
       const repo = `prune-tests/${randomUUID()}`;
 
       createdRepo = repo;
-      await ingestTestReport(dgraphClient, repo, seedReport());
+      await ingestTestReport(dgraphClient, mainScope(repo), seedReport());
 
       await pruneTestFiles(dgraphClient, repo, ["src/never-existed.test.ts"]);
 
