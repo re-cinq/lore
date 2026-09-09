@@ -67,11 +67,11 @@ function HeaderRow({ columns }: { columns: string[] }) {
 }
 
 /** One data row. Split from the body so the body states only the row-or-empty decision, not how a single row is built. */
-function DataRow<T>(props: DataTableProps<T> & { row: T; index: number }) {
-  const { row, index, columns, rowKey, cells, rowClass } = props;
+function DataRow<T>(props: DataTableProps<T> & { row: T }) {
+  const { row, columns, cells, rowClass } = props;
 
   return (
-    <tr key={rowKey(row, index)} className={rowClass?.(row)}>
+    <tr className={rowClass?.(row)}>
       <Cells
         cells={cells(row)}
         columns={columns}
@@ -89,7 +89,7 @@ function BodyRows<T>(props: DataTableProps<T>) {
   return (
     <tbody>
       {rows.map((row, index) => (
-        <DataRow key={rowKey(row, index)} {...props} row={row} index={index} />
+        <DataRow key={rowKey(row, index)} {...props} row={row} />
       ))}
       {rows.length === 0 ? (
         <EmptyRow span={columns.length}>{empty}</EmptyRow>
