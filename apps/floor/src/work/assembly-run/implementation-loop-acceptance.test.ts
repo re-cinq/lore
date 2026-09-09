@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { handleLoopRunClosed } from "../backlog/loop-run-closed.js";
-import { createLineHarness } from "./line-acceptance-harness.js";
+import {
+  createLineHarness,
+  resultEnvelope,
+} from "./line-acceptance-harness.js";
 
 const short = (id: string) => id.substring(0, 12);
 
@@ -180,6 +183,29 @@ describe("implementation-loop acceptance: one ticket, cluster-free, walked throu
     expect(h.labeled).toEqual([{ issue: 77, label: "lore:blocked" }]);
     expect(h.comments).toEqual([
       { issue: 77, body: expect.stringContaining("parking this ticket") },
+    ]);
+    expect(h.ticks).toEqual(["re-cinq/lore"]);
+  });
+
+  it("parks a ticket the definition of done declines, quoting its one-line verdict on the issue (run a3e80a26)", async () => {
+    const h = loopHarness();
+    const id = await h.start("implementation-loop", { taskId: "task-1" });
+
+    await h.completeAgentNode(id, "dod", {
+      output: resultEnvelope(
+        'LORE_NODE_RESULT: {"outcome":"changes_requested","extras":{"Lore-Dod-Blocked":"the ticket asks for a decision, not a behaviour"}}',
+      ),
+    });
+    await retrospectiveReported(h, id);
+
+    expect(h.labeled).toEqual([{ issue: 77, label: "lore:blocked" }]);
+    expect(h.comments).toEqual([
+      {
+        issue: 77,
+        body: expect.stringContaining(
+          "the ticket asks for a decision, not a behaviour",
+        ),
+      },
     ]);
     expect(h.ticks).toEqual(["re-cinq/lore"]);
   });
