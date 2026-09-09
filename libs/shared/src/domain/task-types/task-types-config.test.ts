@@ -148,6 +148,32 @@ describe("the implementation-tdd recipe", () => {
     }
   });
 
+  it("tells no delivering recipe to run the repository's format step, because CI runs it on the pull request", () => {
+    const parsed = parseTaskTypesFile(COMMITTED);
+
+    for (const name of DELIVERING_PROMPT_REFS) {
+      const prompt = parsed.taskTypes[name]?.prompt_template ?? "";
+
+      expect(prompt, name).not.toContain("OWN format/fix step");
+    }
+  });
+
+  it("tells the loop's own recipes that CI judges the branch, so none re-runs the suite in a pod", () => {
+    const parsed = parseTaskTypesFile(COMMITTED);
+
+    for (const name of ["acceptance-dod", "tdd-round", "fix-ci", "pr-ready"]) {
+      const prompt = parsed.taskTypes[name]?.prompt_template ?? "";
+
+      expect(prompt, name).toContain("CI is the judge of this branch");
+    }
+  });
+
+  it("tells fix-ci to run only the checks the CI report named", () => {
+    expect(
+      parseTaskTypesFile(COMMITTED).taskTypes["fix-ci"]?.prompt_template,
+    ).toContain("run ONLY that");
+  });
+
   it("tells every implementing recipe to report failure when it delivered nothing", () => {
     const parsed = parseTaskTypesFile(COMMITTED);
 

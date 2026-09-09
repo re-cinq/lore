@@ -34,6 +34,7 @@ async function parkedOnPr(h: ReturnType<typeof loopHarness>) {
   await h.completeAgentNode(id, "dod", { outcome: "success" });
   await h.completeAgentNode(id, "open-pr", { outcome: "success" });
   await h.completeAgentNode(id, "tdd-round", { outcome: "success" });
+  await h.resume(id, "await-ci", "success");
   await h.completeAgentNode(id, "ready-for-review", { outcome: "success" });
 
   return id;
@@ -65,6 +66,7 @@ describe("implementation-loop acceptance: one ticket, cluster-free, walked throu
       ["dod", "success"],
       ["open-pr", "success"],
       ["tdd-round", "success"],
+      ["await-ci", "success"],
       ["ready-for-review", "success"],
       ["await-pr", null],
     ]);
@@ -76,17 +78,18 @@ describe("implementation-loop acceptance: one ticket, cluster-free, walked throu
 
     await h.completeAgentNode(id, "dod", { outcome: "success" });
     await h.completeAgentNode(id, "open-pr", { outcome: "success" });
+    await h.completeAgentNode(id, "tdd-round", { outcome: "success" });
+    await h.resume(id, "await-ci", "changes_requested");
     await h.completeAgentNode(id, "tdd-round", {
-      outcome: "changes_requested",
-    });
-    await h.completeAgentNode(id, "tdd-round", {
-      outcome: "changes_requested",
+      outcome: "success",
       iteration: 2,
     });
+    await h.resume(id, "await-ci", "changes_requested", { iteration: 2 });
     await h.completeAgentNode(id, "tdd-round", {
       outcome: "success",
       iteration: 3,
     });
+    await h.resume(id, "await-ci", "success", { iteration: 3 });
 
     expect(h.enqueued.map((s) => s.name)).toEqual([
       `${short(id)}-dod`,
@@ -96,6 +99,27 @@ describe("implementation-loop acceptance: one ticket, cluster-free, walked throu
       `${short(id)}-tdd-round-3`,
       `${short(id)}-ready-for-review-3`,
     ]);
+  });
+
+  it("hands the next round the checks CI named, so it repairs the build instead of rediscovering it", async () => {
+    const h = loopHarness();
+    const id = await h.start("implementation-loop", { taskId: "task-1" });
+
+    await h.completeAgentNode(id, "dod", { outcome: "success" });
+    await h.completeAgentNode(id, "open-pr", { outcome: "success" });
+    await h.completeAgentNode(id, "tdd-round", { outcome: "success" });
+    await h.resume(id, "await-ci", "changes_requested", {
+      args: {
+        reason: "ci_red",
+        ci_feedback_sha: "deadbeef",
+        ci_failed_checks: "lint, test:shared",
+        ci_failure_summary: "### lint (failure)\n\nno-unused-vars",
+      },
+    });
+
+    expect(h.enqueued.at(-1)?.prompt).toContain(
+      "These checks failed: lint, test:shared",
+    );
   });
 
   it("sends a red build to fix-ci and back to the wait, without blocking the ticket", async () => {
