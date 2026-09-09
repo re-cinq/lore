@@ -173,7 +173,9 @@ function addDescriptorToSentenceGroups(
 }
 
 /** The write for one group: the tests that validate the statement, and whether any of them failed. The reason is included ONLY on failure — an empty reason beside `violated: false` reads as a violation nobody could name. */
-function groupMutation(group: SentenceGroup, failed: boolean) {
+function groupMutation(group: SentenceGroup) {
+  const failed = group.failingTestNames.length > 0;
+
   return {
     uid: group.uid,
     [`${group.nodeType}.validated_by`]: group.validatingChunkUids.map(
@@ -198,7 +200,7 @@ export async function writeSentenceGroup(
   const failed = group.failingTestNames.length > 0;
 
   await withTxn(dgraph, (txn) =>
-    txn.mutate({ setJson: groupMutation(group, failed), commitNow: true }),
+    txn.mutate({ setJson: groupMutation(group), commitNow: true }),
   );
 
   // Setting `violated: false` does not remove a reason written by an earlier run — the predicate has to be deleted, or a statement that went green keeps explaining why it was red.

@@ -17,9 +17,9 @@ describe("enforceTrue", () => {
   });
 
   it("throws new Error with the message when errorType is Error and the condition is false", () => {
-    expect(() => enforceTrue(false, Error, "must be positive")).toThrow(
-      new Error("must be positive"),
-    );
+    const check = () => enforceTrue(false, Error, "must be positive"); // eslint-disable-line re-lint/no-flag-params -- the literal is the condition under test, not a switch
+
+    expect(check).toThrow(new Error("must be positive"));
   });
 
   it("constructs an Error subclass with the message when given a class", () => {
@@ -44,11 +44,11 @@ describe("enforceTrue", () => {
       return new Error(message);
     };
 
-    enforceTrue(true, counting, "lazy");
+    enforceTrue(true, counting, "lazy"); // eslint-disable-line re-lint/no-flag-params -- the literal is the condition under test, not a switch
     expect(built).toBe(0);
-    expect(() => enforceTrue(false, counting, "lazy")).toThrow(
-      new Error("lazy"),
-    );
+    const failing = () => enforceTrue(false, counting, "lazy"); // eslint-disable-line re-lint/no-flag-params -- the literal is the condition under test, not a switch
+
+    expect(failing).toThrow(new Error("lazy"));
     expect(built).toBe(1);
   });
 

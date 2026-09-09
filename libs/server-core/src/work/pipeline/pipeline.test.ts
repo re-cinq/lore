@@ -55,7 +55,7 @@ describe("handleReviewResult", () => {
       { match: /FROM pipeline\.tasks WHERE id/, rows: [] },
     ]);
 
-    await handleReviewResult("missing", true, "lgtm");
+    await handleReviewResult("missing", "approved", "lgtm");
 
     expect(pool.calls).toHaveLength(1);
     expect(pool.calls[0].sql).toMatch(/FROM pipeline\.tasks WHERE id/);
@@ -64,7 +64,7 @@ describe("handleReviewResult", () => {
   it("marks the task review with review_result approved when the review approves", async () => {
     const pool = bindPool(baseScripts(0));
 
-    await handleReviewResult("t1", true, "lgtm");
+    await handleReviewResult("t1", "approved", "lgtm");
 
     const statusUpdate = pool.calls.find((c) =>
       /UPDATE pipeline\.tasks SET status/.test(c.sql),
@@ -85,7 +85,7 @@ describe("handleReviewResult", () => {
   it("bumps review_iteration to 2 and escalates to needs-human-review on the second rejection", async () => {
     const pool = bindPool(baseScripts(1));
 
-    await handleReviewResult("t1", false, "still broken");
+    await handleReviewResult("t1", "changes_requested", "still broken");
 
     const iterationUpdate = pool.calls.find((c) =>
       /SET review_iteration/.test(c.sql),
@@ -127,7 +127,7 @@ describe("handleReviewResult", () => {
       },
     ]);
 
-    await handleReviewResult("t1", false, "needs a guard clause");
+    await handleReviewResult("t1", "changes_requested", "needs a guard clause");
 
     const iterationUpdate = pool.calls.find((c) =>
       /SET review_iteration/.test(c.sql),

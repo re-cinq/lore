@@ -213,7 +213,11 @@ export default tseslint.config(
       // 2026-09-08. Each is a warn until its queue drains, then an error in
       // the PR that empties it, like every queue above. Sizes at introduction
       // are recorded in the cutover PR.
-      "re-lint/no-flag-params": "warn",
+      // Error since 2026-09-09, drained across #1915, #1921 and this PR. The
+      // rule needed three fixes of its own first: an assertion's boolean, a
+      // stored value like useState(false), and a mock stub's answer are none
+      // of them a behaviour the callee selects.
+      "re-lint/no-flag-params": "error",
       // Error since 2026-09-08: the queue was one comment — a SQL fragment
       // quoted in an in-memory double — and it is reworded as prose.
       "re-lint/no-commented-out-code": "error",

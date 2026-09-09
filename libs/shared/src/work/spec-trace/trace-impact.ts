@@ -49,7 +49,7 @@ async function fileImpact(
   dgraph: DgraphClientPort,
   repo: string,
   file: ChangedRange,
-  aligned: boolean,
+  { aligned }: { aligned: boolean },
 ): Promise<Array<ImpactStatement & { xid: string }>> {
   const ranges = file.baseRanges ?? file.ranges;
 
@@ -80,7 +80,7 @@ function skipReason(baselineCommit: string | null): SkipReason {
 async function orphansForFile(
   ctx: CodeImpactContext,
   file: ChangedRange,
-  aligned: boolean,
+  { aligned }: { aligned: boolean },
 ): Promise<OrphanStatement[]> {
   const deleted = file.deleted ?? [];
 
@@ -99,7 +99,7 @@ async function accumulateFileImpact(
 ): Promise<void> {
   const { dgraph, repo, baselineCommit } = ctx;
   const aligned = file.aligned === true && Boolean(baselineCommit);
-  const found = await fileImpact(dgraph, repo, file, aligned);
+  const found = await fileImpact(dgraph, repo, file, { aligned });
 
   if (!aligned) {
     result.skipped.push({
@@ -112,7 +112,7 @@ async function accumulateFileImpact(
     result.withGraphData += 1;
   }
   result.raw.push(...found);
-  result.orphaned.push(...(await orphansForFile(ctx, file, aligned)));
+  result.orphaned.push(...(await orphansForFile(ctx, file, { aligned })));
 }
 
 async function codeImpact(

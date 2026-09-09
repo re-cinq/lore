@@ -102,23 +102,29 @@ function storeWhenCacheable(
   store(policy, body);
 }
 
-function serveFresh(
-  fresh: { body: string; ageSeconds: number },
-  label: boolean,
-): ProxyResult {
+function serveFresh({
+  fresh,
+  label,
+}: {
+  fresh: { body: string; ageSeconds: number };
+  label: boolean;
+}): ProxyResult {
   return {
     ok: true,
     body: label ? markFresh(fresh.body, fresh.ageSeconds) : fresh.body,
   };
 }
 
-function readFreshHit(
-  policy: ReadCachePolicy,
-  label: boolean,
-): ProxyResult | null {
+function readFreshHit({
+  policy,
+  label,
+}: {
+  policy: ReadCachePolicy;
+  label: boolean;
+}): ProxyResult | null {
   const fresh = readFresh(policy);
 
-  return fresh ? serveFresh(fresh, label) : null;
+  return fresh ? serveFresh({ fresh, label }) : null;
 }
 
 type ReadCacheOpts = { label?: boolean; cacheIf?: (body: string) => boolean };
@@ -129,12 +135,18 @@ function resolveReadCacheOpts(
   return { label: opts?.label !== false, cacheIf: opts?.cacheIf };
 }
 
+interface StaleFallbackInput {
+  policy: ReadCachePolicy;
+  result: Extract<ProxyResult, { ok: false }>;
+  label: boolean;
+}
+
 // Falls back to a stale cached copy only for a genuine "unreachable" outcome; denials pass through.
-function serveStaleFallback(
-  policy: ReadCachePolicy,
-  result: Extract<ProxyResult, { ok: false }>,
-  label: boolean,
-): ProxyResult {
+function serveStaleFallback({
+  policy,
+  result,
+  label,
+}: StaleFallbackInput): ProxyResult {
   if (result.reason !== "unreachable") {
     return result;
   }
@@ -160,7 +172,7 @@ export async function withReadCache(
     return doProxy();
   }
   const { label, cacheIf } = resolveReadCacheOpts(opts);
-  const hit = readFreshHit(policy, label);
+  const hit = readFreshHit({ policy, label });
 
   if (hit) {
     return hit;
@@ -174,7 +186,7 @@ export async function withReadCache(
     return result;
   }
 
-  return serveStaleFallback(policy, result, label);
+  return serveStaleFallback({ policy, result, label });
 }
 
 // GET sibling of proxyToApi for read-only routes; same gate/budget/shape, no body.

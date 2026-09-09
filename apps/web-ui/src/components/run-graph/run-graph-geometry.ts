@@ -63,7 +63,10 @@ export function nodeTextRows(lines: number): number[] {
 }
 
 // Uniform node height: taller in definition mode so a source node's outcome list fits, and in run mode when the nodes carry a facts line; bare nodes stay the base height.
-export function nodeHeightFor(graph: VisibleGraph, withMeta = false): number {
+export function nodeHeightFor(
+  graph: VisibleGraph,
+  { withMeta = false }: { withMeta?: boolean } = {},
+): number {
   if (graph.mode !== "definition") {
     return withMeta ? BASE_NODE_HEIGHT + META_LINE_HEIGHT : BASE_NODE_HEIGHT;
   }

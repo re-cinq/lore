@@ -142,8 +142,8 @@ describe("catalogSyncOnce", () => {
     }) as unknown as typeof fetch;
     const { catalog } = recordingCatalog();
 
-    await catalogSyncOnce(tickDeps(catalog, fetchFn), undefined, true);
-    await catalogSyncOnce(tickDeps(catalog, fetchFn), "9", false);
+    await catalogSyncOnce(tickDeps(catalog, fetchFn), undefined, "snapshot");
+    await catalogSyncOnce(tickDeps(catalog, fetchFn), "9", "tail");
 
     expect(urls).toEqual([
       "https://api.example/api/cluster-agents/agent-1/catalog-events?snapshot=1",
@@ -554,12 +554,12 @@ describe("runCatalogSyncLoop", () => {
     let firstSyncs = 0;
     let ticks = 0;
 
-    const snapshots: boolean[] = [];
+    const modes: Array<"snapshot" | "tail"> = [];
 
     await runCatalogSyncLoop({
-      sync: async (ack, snapshot) => {
+      sync: async (ack, mode) => {
         acks.push(ack);
-        snapshots.push(snapshot);
+        modes.push(mode);
 
         return outcomes[ticks++] ?? { outcome: { kind: "empty" }, ack };
       },
@@ -575,7 +575,7 @@ describe("runCatalogSyncLoop", () => {
     });
 
     expect(acks).toEqual([undefined, undefined, "4"]);
-    expect(snapshots).toEqual([true, true, false]);
+    expect(modes).toEqual(["snapshot", "snapshot", "tail"]);
     expect(reRegistered).toEqual(1);
     expect(firstSyncs).toEqual(1);
   });

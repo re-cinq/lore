@@ -46,9 +46,9 @@ function graphLookups(graph: RunGraphViewProps["graph"]) {
 function layoutRunGraph(
   graph: RunGraphViewProps["graph"],
   definition: RunGraphViewProps["definition"],
-  withMeta: boolean,
+  { withMeta }: { withMeta: boolean },
 ) {
-  const nodeHeight = nodeHeightFor(graph, withMeta);
+  const nodeHeight = nodeHeightFor(graph, { withMeta });
   const layout = layoutAssemblyLine(toLayoutDefinition(graph, definition), {
     nodeWidth: NODE_WIDTH,
     nodeHeight,
@@ -169,7 +169,9 @@ export default function RunGraphView(props: RunGraphViewProps) {
     <section className={styles.panel}>
       {heading !== null && <h2 className={styles.heading}>{heading}</h2>}
       <GraphSvg
-        laid={layoutRunGraph(graph, definition, hasMetaLine(graph, nodeMeta))}
+        laid={layoutRunGraph(graph, definition, {
+          withMeta: hasMetaLine(graph, nodeMeta),
+        })}
         mode={graph.mode}
         onSelectNode={props.onSelectNode}
         selectedNodeId={props.selectedNodeId}

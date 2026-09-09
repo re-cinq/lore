@@ -56,7 +56,7 @@ const ASSEMBLE_CONTEXT_INPUT = {
     .describe("Overrides the ambient agent id used to scope memories/facts."),
   cross_repo: z
     .boolean()
-    .default(false)
+    .default(false) // eslint-disable-line re-lint/no-flag-params -- schema default value, not a behaviour the callee selects
     .describe(
       "When true, also pulls context from linked repos in the org. Falls back to the repo's settings.cross_repo when false.",
     ),
