@@ -25,6 +25,31 @@ async function upstreamJson(upstream: Response) {
   });
 }
 
+/** The authorized half: the session's lore-api credentials, then the same `/api/context` call a task runner makes. */
+async function previewResponse(
+  fullName: string,
+  query: string,
+  template: string,
+  debug: string,
+) {
+  // Deliberately no per-repo GitHub check: this preview shows the same org-wide context every repo tab already shows.
+  const gate = await authorizeSessionLoreApi();
+
+  if (gate instanceof NextResponse) {
+    return gate;
+  }
+  const { apiUrl, token } = gate;
+  const upstream = await fetch(
+    `${apiUrl}/api/context?repo=${encodeURIComponent(fullName)}&query=${encodeURIComponent(query)}&template=${encodeURIComponent(template)}${debug}`,
+    {
+      signal: AbortSignal.timeout(30_000),
+      headers: { Authorization: `Bearer ${token}` },
+    },
+  );
+
+  return upstreamJson(upstream);
+}
+
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ owner: string; repo: string }> },
@@ -38,22 +63,7 @@ export async function GET(
   }
 
   try {
-    // Deliberately no per-repo GitHub check: this preview shows the same org-wide context every repo tab already shows.
-    const gate = await authorizeSessionLoreApi();
-
-    if (gate instanceof NextResponse) {
-      return gate;
-    }
-    const { apiUrl, token } = gate;
-    const upstream = await fetch(
-      `${apiUrl}/api/context?repo=${encodeURIComponent(fullName)}&query=${encodeURIComponent(query)}&template=${encodeURIComponent(template)}${debug}`,
-      {
-        signal: AbortSignal.timeout(30_000),
-        headers: { Authorization: `Bearer ${token}` },
-      },
-    );
-
-    return upstreamJson(upstream);
+    return await previewResponse(fullName, query, template, debug);
   } catch (err) {
     return serverError("context-preview", err);
   }

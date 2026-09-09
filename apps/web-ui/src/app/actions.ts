@@ -13,10 +13,16 @@ import { clearIngestStatusCache } from "@/lib/ingest-status-cache";
 import type { FixWorkflowResult } from "@/lib/fix-workflow-result";
 import { revalidatePath } from "next/cache";
 
+type OpenPr = (repo: string) => Promise<{ url: string; number: number } | null>;
+
+type FixOutcome =
+  { repo: string; url: string } | { repo: string; error: string };
+
+const NO_PR_REASON =
+  "no PR was opened (GitHub App not configured, or no open fix PR found for the existing fix branch)";
+
 /** Splits the per-repo outcomes into what opened and what did not. Failures keep their repo AND their reason: a run that opened three PRs out of five is not a success, and the two that failed are only actionable with the reason attached. */
-function partitionResults(
-  results: ({ repo: string; url: string } | { repo: string; error: string })[],
-): FixWorkflowResult {
+function partitionResults(results: FixOutcome[]): FixWorkflowResult {
   const prs = results
     .map((r) => ("url" in r ? r.url : null))
     .filter((url): url is string => url !== null);
@@ -27,30 +33,24 @@ function partitionResults(
   return { opened: prs.length, prs, failed };
 }
 
+/** One repo's attempt, an outcome either way — a thrown error is a reported failure, never a lost run. */
+async function attemptFix(repo: string, open: OpenPr): Promise<FixOutcome> {
+  try {
+    const pr = await open(repo);
+
+    return pr ? { repo, url: pr.url } : { repo, error: NO_PR_REASON };
+  } catch (err) {
+    return { repo, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 // Fail-soft per repo, every failure reported with its reason — a silent App-permission gap once opened zero PRs org-wide.
 async function openFixPRs(
   repos: string[],
-  open: (repo: string) => Promise<{ url: string; number: number } | null>,
+  open: OpenPr,
 ): Promise<FixWorkflowResult> {
   const results = await Promise.all(
-    repos.map(async (repo) => {
-      try {
-        const pr = await open(repo);
-
-        return pr
-          ? { repo, url: pr.url }
-          : {
-              repo,
-              error:
-                "no PR was opened (GitHub App not configured, or no open fix PR found for the existing fix branch)",
-            };
-      } catch (err) {
-        return {
-          repo,
-          error: err instanceof Error ? err.message : String(err),
-        };
-      }
-    }),
+    repos.map((repo) => attemptFix(repo, open)),
   );
 
   clearIngestStatusCache();

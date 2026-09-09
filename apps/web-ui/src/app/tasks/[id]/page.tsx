@@ -41,30 +41,46 @@ async function readTaskRuns(id: string): Promise<TaskRunRow[]> {
     : []) as unknown as TaskRunRow[];
 }
 
-export default async function TaskDetailPage({
-  params,
-}: {
+function TaskNotFound() {
+  return (
+    <div>
+      <h1>Task not found</h1>
+    </div>
+  );
+}
+
+/** A lone attempt has nothing the run page does not show better, so the task shell is skipped entirely. */
+function redirectToSoleRun(runs: TaskRunRow[]) {
+  const href = soleRunHref(runs);
+
+  if (href) {
+    redirect(href);
+  }
+}
+
+async function readFailedEvent(id: string) {
+  const events = await fetchTaskEvents(id);
+
+  return events.find((e) => e.to_status === "failed");
+}
+
+interface TaskDetailPageProps {
   params: Promise<{ id: string }>;
-}) {
+}
+
+export default async function TaskDetailPage({ params }: TaskDetailPageProps) {
   const { id } = await params;
   const task = await readTask(id);
 
   if (!task) {
-    return (
-      <div>
-        <h1>Task not found</h1>
-      </div>
-    );
+    return <TaskNotFound />;
   }
+
   const runs = await readTaskRuns(id);
-  const runHref = soleRunHref(runs);
 
-  if (runHref) {
-    redirect(runHref);
-  }
+  redirectToSoleRun(runs);
 
-  const events = await fetchTaskEvents(id);
-  const failedEvent = events.find((e) => e.to_status === "failed");
+  const failedEvent = await readFailedEvent(id);
 
   return (
     <TaskDetailView

@@ -38,12 +38,12 @@ async function readAuditPage(
     : { entries: [] as AuditEntryRow[], totalCount: 0 };
 }
 
-export default async function AuditPage({
-  searchParams,
-}: {
+interface AuditPageProps {
   searchParams: Promise<{ agent?: string; op?: string; offset?: string }>;
-}) {
-  const { agent, op, offset: offsetStr } = await searchParams;
+}
+
+export default async function AuditPage(props: AuditPageProps) {
+  const { agent, op, offset: offsetStr } = await props.searchParams;
   const offset = Math.max(0, parseInt(offsetStr || "0", 10) || 0);
 
   const { entries, totalCount } = await readAuditPage(agent, op, offset);

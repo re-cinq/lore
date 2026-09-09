@@ -15,6 +15,26 @@ function lineWindow(url: URL): { start: number; end: number } {
   return { start, end: Math.min(start + MAX_LINES - 1, requestedEnd) };
 }
 
+/** The requested lines of one repo file, or the 404 that says the file could not be read. */
+async function fileSlice(
+  fullName: string,
+  path: string,
+  start: number,
+  end: number,
+) {
+  const content = await getRepoFileContent(fullName, path);
+
+  if (content === null) {
+    return NextResponse.json({ error: "file unavailable" }, { status: 404 });
+  }
+  const text = content
+    .split("\n")
+    .slice(start - 1, end)
+    .join("\n");
+
+  return NextResponse.json({ path, start, end, text });
+}
+
 /** Returns a line slice of a repo file as plain text — powers the TestChunk code preview. */
 export async function GET(
   req: Request,
@@ -33,17 +53,7 @@ export async function GET(
   const { start, end } = lineWindow(url);
 
   try {
-    const content = await getRepoFileContent(`${owner}/${repo}`, path);
-
-    if (content === null) {
-      return NextResponse.json({ error: "file unavailable" }, { status: 404 });
-    }
-    const slice = content
-      .split("\n")
-      .slice(start - 1, end)
-      .join("\n");
-
-    return NextResponse.json({ path, start, end, text: slice });
+    return await fileSlice(`${owner}/${repo}`, path, start, end);
   } catch (err) {
     return serverError("file", err);
   }

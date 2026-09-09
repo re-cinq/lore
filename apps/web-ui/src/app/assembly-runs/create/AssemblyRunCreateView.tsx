@@ -7,21 +7,24 @@ export interface AssemblyRunCreateViewProps {
   createTaskAction: (formData: FormData) => void | Promise<void>;
 }
 
-// Pure render — page.tsx resolves the repo list; the only mutation (Create Task) is passed in as createTaskAction and fired via the form.
-/** A picker once repos are onboarded, a free-text field before that — the first task on a fresh install has nothing to pick from, and typing the repo is how it gets created. */
-function TargetRepoField({
-  repos,
-}: {
+interface TargetRepoFieldProps {
   repos: AssemblyRunCreateViewProps["onboardedRepos"];
-}) {
+}
+
+function TargetRepoInput() {
+  return (
+    <input
+      name="target_repo"
+      defaultValue="re-cinq/lore"
+      placeholder="owner/repo"
+    />
+  );
+}
+
+/** A picker once repos are onboarded, a free-text field before that — the first task on a fresh install has nothing to pick from, and typing the repo is how it gets created. */
+function TargetRepoField({ repos }: TargetRepoFieldProps) {
   if (repos.length === 0) {
-    return (
-      <input
-        name="target_repo"
-        defaultValue="re-cinq/lore"
-        placeholder="owner/repo"
-      />
-    );
+    return <TargetRepoInput />;
   }
 
   return (
@@ -56,6 +59,21 @@ function PriorityField() {
   );
 }
 
+function DescriptionField() {
+  return (
+    <>
+      <label>Description</label>
+      <textarea
+        name="description"
+        rows={4}
+        required
+        placeholder="What should the agent do? Be specific..."
+      />
+    </>
+  );
+}
+
+// Pure render — page.tsx resolves the repo list; the only mutation (Create Task) is passed in as createTaskAction and fired via the form.
 export default function AssemblyRunCreateView({
   onboardedRepos,
   createTaskAction,
@@ -64,13 +82,7 @@ export default function AssemblyRunCreateView({
     <div>
       <h1>Create Task</h1>
       <form action={createTaskAction} className="task-form">
-        <label>Description</label>
-        <textarea
-          name="description"
-          rows={4}
-          required
-          placeholder="What should the agent do? Be specific..."
-        />
+        <DescriptionField />
 
         <label>Task Type</label>
         <TaskTypeSelect options={TASK_TYPE_OPTIONS} />

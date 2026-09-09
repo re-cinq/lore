@@ -4,20 +4,23 @@ import { useState, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import Icon from "@/components/Icon";
 
-/** The mobile drawer's behaviour: it closes on navigation, takes focus when it opens and hands it back to the hamburger when it closes, and closes on Escape. Together these are what make it usable without a mouse. */
-function useSidebarDrawer() {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+type ButtonRef = React.RefObject<HTMLButtonElement | null>;
+
+/** A route change is a dismissal: the drawer covers the page it just navigated to. */
+function useCloseOnNavigate(setSidebarOpen: (open: boolean) => void) {
   const pathname = usePathname();
-  const closeButtonRef = useRef<HTMLButtonElement>(null);
-  const hamburgerRef = useRef<HTMLButtonElement>(null);
 
-  // Close sidebar on navigation
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: collapse the sidebar in response to a route change
     setSidebarOpen(false);
-  }, [pathname]);
+  }, [pathname, setSidebarOpen]);
+}
 
-  // Move focus into sidebar when it opens, return focus when it closes
+/** Focus follows the drawer: into its close button on open, back to the hamburger on close, so a keyboard reader is never stranded. */
+function useFocusHandoff(
+  sidebarOpen: boolean,
+  closeButtonRef: ButtonRef,
+  hamburgerRef: ButtonRef,
+) {
   useEffect(() => {
     if (sidebarOpen) {
       closeButtonRef.current?.focus();
@@ -25,9 +28,14 @@ function useSidebarDrawer() {
       return;
     }
     hamburgerRef.current?.focus();
-  }, [sidebarOpen]);
+  }, [sidebarOpen, closeButtonRef, hamburgerRef]);
+}
 
-  // Close sidebar on Escape key
+/** Escape closes the drawer — the escape hatch every overlay owes its reader. */
+function useEscapeToClose(
+  sidebarOpen: boolean,
+  setSidebarOpen: (open: boolean) => void,
+) {
   useEffect(() => {
     if (!sidebarOpen) {
       return;
@@ -41,7 +49,25 @@ function useSidebarDrawer() {
     document.addEventListener("keydown", handleKeyDown);
 
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [sidebarOpen]);
+  }, [sidebarOpen, setSidebarOpen]);
+}
+
+interface DrawerState {
+  sidebarOpen: boolean;
+  setSidebarOpen: (open: boolean) => void;
+  closeButtonRef: ButtonRef;
+  hamburgerRef: ButtonRef;
+}
+
+/** The mobile drawer's behaviour: it closes on navigation, takes focus when it opens and hands it back to the hamburger when it closes, and closes on Escape. Together these are what make it usable without a mouse. */
+function useSidebarDrawer(): DrawerState {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const hamburgerRef = useRef<HTMLButtonElement>(null);
+
+  useCloseOnNavigate(setSidebarOpen);
+  useFocusHandoff(sidebarOpen, closeButtonRef, hamburgerRef);
+  useEscapeToClose(sidebarOpen, setSidebarOpen);
 
   return { sidebarOpen, setSidebarOpen, closeButtonRef, hamburgerRef };
 }
@@ -51,7 +77,7 @@ function CloseButton({
   buttonRef,
   onClose,
 }: {
-  buttonRef: React.RefObject<HTMLButtonElement | null>;
+  buttonRef: ButtonRef;
   onClose: () => void;
 }) {
   return (
@@ -66,16 +92,36 @@ function CloseButton({
   );
 }
 
-/** The narrow-screen bar: the only way to reach the nav once the sidebar is a drawer. `aria-expanded` tracks the drawer so the control reports its own state rather than just its label. */
-function MobileHeader({
-  buttonRef,
-  sidebarOpen,
-  onOpen,
-}: {
-  buttonRef: React.RefObject<HTMLButtonElement | null>;
+interface SidebarDrawerProps {
+  drawer: DrawerState;
+  sidebar: React.ReactNode;
+}
+
+/** The nav in its narrow-screen form: an overlay that exists only while open, plus the panel itself. */
+function SidebarDrawer({ drawer, sidebar }: SidebarDrawerProps) {
+  const close = () => drawer.setSidebarOpen(false);
+
+  return (
+    <>
+      {drawer.sidebarOpen && (
+        <div className="sidebar-overlay" onClick={close} aria-hidden="true" />
+      )}
+      <aside className="sidebar">
+        <CloseButton buttonRef={drawer.closeButtonRef} onClose={close} />
+        {sidebar}
+      </aside>
+    </>
+  );
+}
+
+interface MobileHeaderProps {
+  buttonRef: ButtonRef;
   sidebarOpen: boolean;
   onOpen: () => void;
-}) {
+}
+
+/** The narrow-screen bar: the only way to reach the nav once the sidebar is a drawer. `aria-expanded` tracks the drawer so the control reports its own state rather than just its label. */
+function MobileHeader({ buttonRef, sidebarOpen, onOpen }: MobileHeaderProps) {
   return (
     <header className="mobile-header">
       <button
@@ -94,6 +140,25 @@ function MobileHeader({
   );
 }
 
+interface MainAreaProps {
+  drawer: DrawerState;
+  children: React.ReactNode;
+}
+
+/** Everything that is not the nav: the mobile bar above the page, and the page. */
+function MainArea({ drawer, children }: MainAreaProps) {
+  return (
+    <div className="main-wrapper">
+      <MobileHeader
+        buttonRef={drawer.hamburgerRef}
+        sidebarOpen={drawer.sidebarOpen}
+        onOpen={() => drawer.setSidebarOpen(true)}
+      />
+      <main className="main-content">{children}</main>
+    </div>
+  );
+}
+
 interface AppShellProps {
   /** The nav itself — passed in rather than imported, so the shell stays a layout. */
   sidebar: React.ReactNode;
@@ -101,33 +166,13 @@ interface AppShellProps {
 }
 
 export default function AppShell({ sidebar, children }: AppShellProps) {
-  const { sidebarOpen, setSidebarOpen, closeButtonRef, hamburgerRef } =
-    useSidebarDrawer();
+  const drawer = useSidebarDrawer();
+  const openClass = drawer.sidebarOpen ? " sidebar-open" : "";
 
   return (
-    <div className={`app-layout${sidebarOpen ? " sidebar-open" : ""}`}>
-      {sidebarOpen && (
-        <div
-          className="sidebar-overlay"
-          onClick={() => setSidebarOpen(false)}
-          aria-hidden="true"
-        />
-      )}
-      <aside className="sidebar">
-        <CloseButton
-          buttonRef={closeButtonRef}
-          onClose={() => setSidebarOpen(false)}
-        />
-        {sidebar}
-      </aside>
-      <div className="main-wrapper">
-        <MobileHeader
-          buttonRef={hamburgerRef}
-          sidebarOpen={sidebarOpen}
-          onOpen={() => setSidebarOpen(true)}
-        />
-        <main className="main-content">{children}</main>
-      </div>
+    <div className={`app-layout${openClass}`}>
+      <SidebarDrawer drawer={drawer} sidebar={sidebar} />
+      <MainArea drawer={drawer}>{children}</MainArea>
     </div>
   );
 }

@@ -92,12 +92,13 @@ function rosterCells(
   ];
 }
 
+type ClusterRosterProps = Pick<
+  ClusterAgentsViewProps,
+  "agents" | "togglePaused" | "restart"
+>;
+
 /** What each registered cluster can run and whether it is alive. Restart is offered only for the platform's own cluster — a satellite is not ours to bounce. */
-function ClusterRoster({
-  agents,
-  togglePaused,
-  restart,
-}: Pick<ClusterAgentsViewProps, "agents" | "togglePaused" | "restart">) {
+function ClusterRoster({ agents, togglePaused, restart }: ClusterRosterProps) {
   if (agents.length === 0) {
     return (
       <EmptyState
@@ -138,14 +139,13 @@ function RunLink({ runId }: { runId: string | null }) {
   return <Link href={`/assembly-runs/${runId}`}>{runId.slice(0, 8)}</Link>;
 }
 
-/** A row appears when the reaper marks a cluster offline and requeues a station run it held, so a flapping cluster is visible as repetition here. */
-function OfflineEventsTable({
-  events,
-  nameById,
-}: {
+interface OfflineEventsTableProps {
   events: ClusterAgentsViewProps["offlineEvents"];
   nameById: Map<string, string>;
-}) {
+}
+
+/** A row appears when the reaper marks a cluster offline and requeues a station run it held, so a flapping cluster is visible as repetition here. */
+function OfflineEventsTable({ events, nameById }: OfflineEventsTableProps) {
   return events.length === 0 ? (
     <Alert variant="secondary">No offline events recorded.</Alert>
   ) : (
@@ -155,49 +155,68 @@ function OfflineEventsTable({
       rowKey={(event, index) =>
         `${event.created_at}-${event.station_run_id ?? index}`
       }
-      cells={(event) => [
-        <TimeAgo date={event.created_at} key="time" />,
-        clusterLabel(event.cluster_agent_id, nameById),
-        event.node_id ?? "—",
-        <RunLink runId={event.assembly_run_id} key="run" />,
-        event.elapsed_since_claim_ms === null
-          ? "—"
-          : formatElapsed(event.elapsed_since_claim_ms),
-      ]}
+      cells={(event) => offlineEventCells(event, nameById)}
     />
   );
 }
 
+/** One offline event as a row of cells, in the table's column order. */
+function offlineEventCells(
+  event: ClusterOfflineEvent,
+  nameById: Map<string, string>,
+) {
+  return [
+    <TimeAgo date={event.created_at} key="time" />,
+    clusterLabel(event.cluster_agent_id, nameById),
+    event.node_id ?? "—",
+    <RunLink runId={event.assembly_run_id} key="run" />,
+    event.elapsed_since_claim_ms === null
+      ? "—"
+      : formatElapsed(event.elapsed_since_claim_ms),
+  ];
+}
+
 /** Clusters view: pure render with offline audit fallback to raw id (FR7). */
-export default function ClusterAgentsView({
-  agents,
-  offlineEvents,
-  installInfo,
-  togglePaused,
-  restart,
-}: ClusterAgentsViewProps) {
+export default function ClusterAgentsView(props: ClusterAgentsViewProps) {
+  const { agents, offlineEvents, installInfo, togglePaused, restart } = props;
   const nameById = new Map(agents.map((agent) => [agent.id, agent.name]));
 
   return (
     <div>
-      <h1>Clusters</h1>
-      <p className="meta page-lede">
-        Every registered execution cluster: what it can run, whether it is
-        alive, and how many station runs it currently holds.
-      </p>
+      <ClustersHeading />
       {installInfo && <ConnectClusterPanel install={installInfo} />}
       <ClusterRoster
         agents={agents}
         togglePaused={togglePaused}
         restart={restart}
       />
+      <OfflineEventsSection events={offlineEvents} nameById={nameById} />
+    </div>
+  );
+}
+
+function ClustersHeading() {
+  return (
+    <>
+      <h1>Clusters</h1>
+      <p className="meta page-lede">
+        Every registered execution cluster: what it can run, whether it is
+        alive, and how many station runs it currently holds.
+      </p>
+    </>
+  );
+}
+
+function OfflineEventsSection({ events, nameById }: OfflineEventsTableProps) {
+  return (
+    <>
       <h2>Recent offline events</h2>
       <p className="meta">
         A row appears when the reaper marks a cluster offline and requeues a
         station run it held — a flapping cluster shows up here.
       </p>
-      <OfflineEventsTable events={offlineEvents} nameById={nameById} />
-    </div>
+      <OfflineEventsTable events={events} nameById={nameById} />
+    </>
   );
 }
 

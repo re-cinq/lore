@@ -121,6 +121,24 @@ function CancelAction({ taskId, status }: { taskId: string; status: string }) {
   return <CancelTaskButton taskId={taskId} />;
 }
 
+function StatusFact({ status }: { status: string }) {
+  return (
+    <p>
+      <strong>Status:</strong>{" "}
+      <span className={`op-badge op-${status}`}>{formatEnumLabel(status)}</span>
+    </p>
+  );
+}
+
+function DescriptionFact({ task }: { task: TaskDetailTask }) {
+  return (
+    <p>
+      <strong>Description:</strong>{" "}
+      <Linkified text={task.description} repo={task.target_repo} />
+    </p>
+  );
+}
+
 /** The task as it was asked for: what kind of work, where it landed, what it says. Everything here comes from the request itself, so none of it changes while the task runs. */
 function TaskFacts({ task }: { task: TaskDetailTask }) {
   return (
@@ -128,22 +146,14 @@ function TaskFacts({ task }: { task: TaskDetailTask }) {
       <p>
         <strong>Type:</strong> <span className="badge">{task.task_type}</span>
       </p>
-      <p>
-        <strong>Status:</strong>{" "}
-        <span className={`op-badge op-${task.status}`}>
-          {formatEnumLabel(task.status)}
-        </span>
-      </p>
+      <StatusFact status={task.status} />
       <p>
         <strong>Priority:</strong> <PriorityBadge priority={task.priority} />
       </p>
       <p>
         <strong>Repo:</strong> {task.target_repo}
       </p>
-      <p>
-        <strong>Description:</strong>{" "}
-        <Linkified text={task.description} repo={task.target_repo} />
-      </p>
+      <DescriptionFact task={task} />
     </>
   );
 }
@@ -162,6 +172,21 @@ function TaskActions({ task }: { task: TaskDetailTask }) {
   );
 }
 
+/** Who asked and when. The two timestamps sit together because the pair is the reading: an update long after creation is the interesting case. */
+function CreationFacts({ task }: { task: TaskDetailTask }) {
+  return (
+    <>
+      <p>
+        <strong>Created by:</strong> {task.created_by}
+      </p>
+      <p className="meta">
+        Created: <TimeAgo date={task.created_at} inline /> · Updated:{" "}
+        <TimeAgo date={task.updated_at} inline />
+      </p>
+    </>
+  );
+}
+
 /** Everything true of the task itself, above the panels that report on its run. */
 export default function TaskSummaryCard({ task }: { task: TaskDetailTask }) {
   return (
@@ -176,13 +201,7 @@ export default function TaskSummaryCard({ task }: { task: TaskDetailTask }) {
       />
       <FailureRow failureReason={task.failure_reason} repo={task.target_repo} />
       <ReviewIterationsRow reviewIteration={task.review_iteration} />
-      <p>
-        <strong>Created by:</strong> {task.created_by}
-      </p>
-      <p className="meta">
-        Created: <TimeAgo date={task.created_at} inline /> · Updated:{" "}
-        <TimeAgo date={task.updated_at} inline />
-      </p>
+      <CreationFacts task={task} />
       <TaskActions task={task} />
     </div>
   );

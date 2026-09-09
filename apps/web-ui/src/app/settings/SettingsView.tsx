@@ -1,4 +1,5 @@
 import ThemeSwitcher from "@/components/ThemeSwitcher";
+import ApprovalGatesForm from "./ApprovalGatesForm";
 import styles from "./SettingsView.module.css";
 
 export interface SettingsApprovalConfig {
@@ -23,32 +24,16 @@ export interface SettingsViewProps {
   regenerateToken: (formData: FormData) => void | Promise<void>;
 }
 
+/** Each section declares the slice of the settings it consumes in its own props type, so the whole bag is handed down and narrowed there rather than re-listed here. */
 export default function SettingsView(props: SettingsViewProps) {
-  const { apiUrl, ingestToken, repoCount, totalTasks, tasksToday } = props;
-  const { approvalConfig, repoLines } = props;
-  const { saveSettings, saveApprovalConfig, regenerateToken } = props;
-
   return (
     <div>
       <h1>Settings</h1>
       <AppearanceSection />
-      <PlatformStats
-        repoCount={repoCount}
-        totalTasks={totalTasks}
-        tasksToday={tasksToday}
-      />
-      <PlatformConfigForm
-        apiUrl={apiUrl}
-        ingestToken={ingestToken}
-        saveSettings={saveSettings}
-        regenerateToken={regenerateToken}
-      />
-      <ApprovalGatesForm
-        approvalConfig={approvalConfig}
-        repoLines={repoLines}
-        saveApprovalConfig={saveApprovalConfig}
-      />
-      <InstallCommand apiUrl={apiUrl} ingestToken={ingestToken} />
+      <PlatformStats {...props} />
+      <PlatformConfigForm {...props} />
+      <ApprovalGatesForm {...props} />
+      <InstallCommand {...props} />
     </div>
   );
 }
@@ -69,25 +54,28 @@ function AppearanceSection() {
   );
 }
 
-function PlatformStats({
-  repoCount,
-  totalTasks,
-  tasksToday,
-}: Pick<SettingsViewProps, "repoCount" | "totalTasks" | "tasksToday">) {
+type PlatformStatsProps = Pick<
+  SettingsViewProps,
+  "repoCount" | "totalTasks" | "tasksToday"
+>;
+
+function PlatformStats(stats: PlatformStatsProps) {
+  const { repoCount, totalTasks, tasksToday } = stats;
+
   return (
     <div className={styles.statsRow}>
-      <div className={`spec-card ${styles.statCard}`}>
-        <div className="meta">Onboarded Repos</div>
-        <div className={styles.statValue}>{repoCount}</div>
-      </div>
-      <div className={`spec-card ${styles.statCard}`}>
-        <div className="meta">Total Tasks</div>
-        <div className={styles.statValue}>{totalTasks}</div>
-      </div>
-      <div className={`spec-card ${styles.statCard}`}>
-        <div className="meta">Tasks Today</div>
-        <div className={styles.statValue}>{tasksToday}</div>
-      </div>
+      <StatCard label="Onboarded Repos" value={repoCount} />
+      <StatCard label="Total Tasks" value={totalTasks} />
+      <StatCard label="Tasks Today" value={tasksToday} />
+    </div>
+  );
+}
+
+function StatCard({ label, value }: { label: string; value: number }) {
+  return (
+    <div className={`spec-card ${styles.statCard}`}>
+      <div className="meta">{label}</div>
+      <div className={styles.statValue}>{value}</div>
     </div>
   );
 }
@@ -154,15 +142,14 @@ function PlatformFields({
   );
 }
 
-function PlatformConfigForm({
-  apiUrl,
-  ingestToken,
-  saveSettings,
-  regenerateToken,
-}: Pick<
+type PlatformConfigFormProps = Pick<
   SettingsViewProps,
   "apiUrl" | "ingestToken" | "saveSettings" | "regenerateToken"
->) {
+>;
+
+function PlatformConfigForm(props: PlatformConfigFormProps) {
+  const { apiUrl, ingestToken, saveSettings, regenerateToken } = props;
+
   return (
     <>
       <h2>Platform Configuration</h2>
@@ -175,130 +162,6 @@ function PlatformConfigForm({
       </form>
 
       <RegenerateTokenForm regenerateToken={regenerateToken} />
-    </>
-  );
-}
-
-/** Task types that skip the gate. The looser of the two exemptions: these run immediately even where approval is required globally. */
-function AutoApproveField({ autoApprove }: { autoApprove: string[] }) {
-  return (
-    <>
-      <label className={styles.labelSpaced}>
-        Auto-approve Task Types (comma-separated)
-      </label>
-      <input
-        name="auto_approve"
-        defaultValue={autoApprove.join(", ")}
-        placeholder="general, gap-fill"
-      />
-      <p className={`meta ${styles.fieldNote}`}>
-        These task types skip the approval gate and are processed immediately,
-        even when approval is required globally.
-      </p>
-    </>
-  );
-}
-
-/** Repos that always need approval. The tighter exemption, pulling the opposite way: these require it even when the global toggle is off. */
-function ApprovalReposField({
-  repoLines,
-}: {
-  repoLines: SettingsViewProps["repoLines"];
-}) {
-  return (
-    <>
-      <label className={styles.labelSpaced}>
-        Repos Requiring Approval (one per line, owner/repo)
-      </label>
-      <textarea
-        name="approval_repos"
-        defaultValue={repoLines}
-        rows={4}
-        placeholder={"re-cinq/production-app\nre-cinq/billing-service"}
-        className={styles.reposTextarea}
-      />
-      <p className={`meta ${styles.fieldNote}`}>
-        Per-repo overrides. Tasks targeting these repos always require approval,
-        regardless of the global setting. Leave empty to use only the global
-        toggle.
-      </p>
-    </>
-  );
-}
-
-/** The two ways around the gate, and they pull in OPPOSITE directions: auto-approved task types skip it even when approval is required globally, while the listed repos always require it even when approval is off. */
-function GateExemptions({
-  autoApprove,
-  repoLines,
-}: {
-  autoApprove: string[];
-  repoLines: SettingsViewProps["repoLines"];
-}) {
-  return (
-    <>
-      <AutoApproveField autoApprove={autoApprove} />
-      <ApprovalReposField repoLines={repoLines} />
-    </>
-  );
-}
-
-/** The gate itself: whether it applies, and which label opens it. Both belong together — the toggle is meaningless without knowing what a human is expected to add. */
-function GateToggle({
-  approvalConfig,
-}: Pick<SettingsViewProps, "approvalConfig">) {
-  return (
-    <>
-      <label className={styles.checkboxLabel}>
-        <input
-          type="checkbox"
-          name="approval_required"
-          defaultChecked={approvalConfig.required}
-        />
-        Require approval for new tasks
-      </label>
-      <p className={`meta ${styles.fieldNote}`}>
-        When enabled, new pipeline tasks will wait for a human to add the
-        approval label on the GitHub Issue before the agent processes them.
-      </p>
-
-      <label className={styles.labelSpaced}>Approval Label</label>
-      <input
-        name="approval_label"
-        defaultValue={approvalConfig.label}
-        placeholder="approved"
-      />
-      <p className={`meta ${styles.fieldNote}`}>
-        The GitHub Issue label that approves a task. The agent checks for this
-        label every minute.
-      </p>
-    </>
-  );
-}
-
-/** The gate that makes a human add a label before an agent picks a task up, plus the two ways around it: per-task-type and per-repo. */
-function ApprovalGatesForm({
-  approvalConfig,
-  repoLines,
-  saveApprovalConfig,
-}: Pick<
-  SettingsViewProps,
-  "approvalConfig" | "repoLines" | "saveApprovalConfig"
->) {
-  return (
-    <>
-      <h2 className={styles.sectionHeading}>Approval Gates</h2>
-      <form action={saveApprovalConfig} className={`task-form ${styles.form}`}>
-        <GateToggle approvalConfig={approvalConfig} />
-
-        <GateExemptions
-          autoApprove={approvalConfig.auto_approve}
-          repoLines={repoLines}
-        />
-
-        <div className={styles.actions}>
-          <button type="submit">Save Approval Config</button>
-        </div>
-      </form>
     </>
   );
 }

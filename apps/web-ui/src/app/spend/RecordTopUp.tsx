@@ -70,8 +70,7 @@ function LandedFields() {
   );
 }
 
-/** What was added and, optionally, why. The note is free text on purpose: a top-up is reconciled against an invoice or a person, and neither fits a field this page could validate. */
-function AmountAndNote() {
+function AmountField() {
   return (
     <>
       <label htmlFor="amount_usd">Amount (USD)</label>
@@ -84,9 +83,14 @@ function AmountAndNote() {
         required
         autoComplete="off"
       />
+    </>
+  );
+}
 
-      <LandedFields />
-
+/** The note is free text on purpose: a top-up is reconciled against an invoice or a person, and neither fits a field this page could validate. */
+function NoteField() {
+  return (
+    <>
       <label htmlFor="note">
         Note <span className="meta">— optional</span>
       </label>
@@ -97,6 +101,17 @@ function AmountAndNote() {
         placeholder="who added it, invoice reference…"
         autoComplete="off"
       />
+    </>
+  );
+}
+
+/** What was added, when it landed and, optionally, why. */
+function AmountAndNote() {
+  return (
+    <>
+      <AmountField />
+      <LandedFields />
+      <NoteField />
     </>
   );
 }
@@ -117,14 +132,23 @@ export default function RecordTopUp({ first, recordAction }: RecordTopUpProps) {
         {first && <input type="hidden" name="kind" value="opening" />}
 
         <LedgerRules />
-        <div className={styles.recordActions}>
-          <SubmitButton pendingLabel="Recording…">
-            {copy.submitLabel}
-          </SubmitButton>
-          <TopUpStatus state={state} />
-        </div>
+        <TopUpActions submitLabel={copy.submitLabel} state={state} />
       </form>
     </details>
+  );
+}
+
+interface TopUpActionsProps {
+  submitLabel: string;
+  state: RecordTopUpState | null;
+}
+
+function TopUpActions({ submitLabel, state }: TopUpActionsProps) {
+  return (
+    <div className={styles.recordActions}>
+      <SubmitButton pendingLabel="Recording…">{submitLabel}</SubmitButton>
+      <TopUpStatus state={state} />
+    </div>
   );
 }
 
@@ -134,27 +158,49 @@ function LedgerRules() {
     <>
       {/* Rules stated on form: blank date ≠ "now"; late-recorded top-up needs no accurate timestamp */}
       <dl className={styles.legend}>
-        <dt>Amount</dt>
-        <dd>
-          Dollars added. A negative amount is recorded as a correction, which is
-          how a mistyped entry is undone — nothing is ever overwritten.
-        </dd>
-
-        <dt>Date and time</dt>
-        <dd>
-          When the money <em>landed</em>, not when you typed it in. Blank counts
-          from the start of today; a date counts from the start of that day;
-          adding a time counts from that exact moment. Leaving the time out can
-          only ever count more spend against the balance, never less.
-        </dd>
-
-        <dt>Which entry moves the window</dt>
-        <dd>
-          Only the opening entry decides where counting starts. Later top-ups
-          add to the total and nothing else, so recording one days late still
-          gives the right figure — the amount is the part that must be correct.
-        </dd>
+        <AmountRule />
+        <LandedTimeRule />
+        <OpeningEntryRule />
       </dl>
+    </>
+  );
+}
+
+function AmountRule() {
+  return (
+    <>
+      <dt>Amount</dt>
+      <dd>
+        Dollars added. A negative amount is recorded as a correction, which is
+        how a mistyped entry is undone — nothing is ever overwritten.
+      </dd>
+    </>
+  );
+}
+
+function LandedTimeRule() {
+  return (
+    <>
+      <dt>Date and time</dt>
+      <dd>
+        When the money <em>landed</em>, not when you typed it in. Blank counts
+        from the start of today; a date counts from the start of that day;
+        adding a time counts from that exact moment. Leaving the time out can
+        only ever count more spend against the balance, never less.
+      </dd>
+    </>
+  );
+}
+
+function OpeningEntryRule() {
+  return (
+    <>
+      <dt>Which entry moves the window</dt>
+      <dd>
+        Only the opening entry decides where counting starts. Later top-ups add
+        to the total and nothing else, so recording one days late still gives
+        the right figure — the amount is the part that must be correct.
+      </dd>
     </>
   );
 }

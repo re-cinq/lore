@@ -7,6 +7,14 @@ import { fetchRepoChunks } from "@/app/repos/[owner]/[repo]/context/context-data
 import { serverError } from "@/lib/api-error";
 import type { RepoContextChunk } from "@/app/repos/[owner]/[repo]/context/RepoContextView";
 
+/** Each chunk reduced to its preview block — the list shows excerpts, and shipping whole files to render an excerpt is the expensive half of this endpoint. */
+function previewChunks(chunks: RepoContextChunk[]) {
+  return chunks.map((c) => ({
+    ...c,
+    content: previewBlock(c.content, contentTypeOf(c.content_type)),
+  }));
+}
+
 // Load-more endpoint for the per-repo context list; session enforced upstream by withAuth (middleware.ts).
 export async function GET(
   req: Request,
@@ -21,10 +29,7 @@ export async function GET(
 
   try {
     const page = await fetchRepoChunks(fullName, type, q, offset);
-    const chunks = (page.chunks as unknown as RepoContextChunk[]).map((c) => ({
-      ...c,
-      content: previewBlock(c.content, contentTypeOf(c.content_type)),
-    }));
+    const chunks = previewChunks(page.chunks as unknown as RepoContextChunk[]);
 
     return NextResponse.json({ chunks, hasMore: page.hasMore });
   } catch (err) {

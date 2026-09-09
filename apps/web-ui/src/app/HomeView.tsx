@@ -116,14 +116,13 @@ function IngestBadge({
   );
 }
 
-/** One repo's card. The freshness dot and the ingest badge are the two things a reader scans for — everything else on the card is context for them. */
-function RepoCard({
-  repo: r,
-  ingest,
-}: {
+interface RepoCardProps {
   repo: HomeViewProps["repos"][number];
   ingest: ReturnType<HomeViewProps["ingestStatus"]["get"]>;
-}) {
+}
+
+/** One repo's card. The freshness dot and the ingest badge are the two things a reader scans for — everything else on the card is context for them. */
+function RepoCard({ repo: r, ingest }: RepoCardProps) {
   return (
     <Link href={`/repos/${r.owner}/${r.name}`} className="repo-card">
       <h3 className={styles.cardTitle}>
@@ -143,27 +142,27 @@ function RepoCard({
   );
 }
 
-/** The title and the three things a reader can do from the dashboard. The two fix buttons hide themselves when nothing is misaligned, so this row is usually just "Add Repo". */
-function DashboardHeader({
-  misaligned,
-  fixIngestWorkflows,
-  impactMisaligned,
-  fixTraceImpactWorkflows,
-}: Pick<
+type DashboardHeaderProps = Pick<
   HomeViewProps,
   | "misaligned"
   | "fixIngestWorkflows"
   | "impactMisaligned"
   | "fixTraceImpactWorkflows"
->) {
+>;
+
+/** The title and the three things a reader can do from the dashboard. The two fix buttons hide themselves when nothing is misaligned, so this row is usually just "Add Repo". */
+function DashboardHeader(props: DashboardHeaderProps) {
   return (
     <div className={styles.header}>
       <h1>Repositories</h1>
       <div className={styles.headerActions}>
-        <FixIngestButton repos={misaligned} action={fixIngestWorkflows} />
+        <FixIngestButton
+          repos={props.misaligned}
+          action={props.fixIngestWorkflows}
+        />
         <FixImpactButton
-          repos={impactMisaligned}
-          action={fixTraceImpactWorkflows}
+          repos={props.impactMisaligned}
+          action={props.fixTraceImpactWorkflows}
         />
         <Link href="/onboard">
           <button>+ Add Repo</button>
@@ -203,33 +202,38 @@ function EmptyRepos() {
   );
 }
 
-// Pure render — repo list/status come from page.tsx; fixIngestWorkflows is the only mutation, fired via the client button.
-export default function HomeView({
+/** The grid itself, and the one place that knows an empty list is an onboarding prompt rather than a card. */
+function RepoGrid({
   repos,
   ingestStatus,
-  misaligned,
-  fixIngestWorkflows,
-  impactMisaligned,
-  fixTraceImpactWorkflows,
-}: HomeViewProps) {
+}: Pick<HomeViewProps, "repos" | "ingestStatus">) {
+  return (
+    <div className="repo-grid">
+      {repos.map((r) => (
+        <RepoCard
+          key={r.full_name}
+          repo={r}
+          ingest={ingestStatus.get(r.full_name)}
+        />
+      ))}
+      {repos.length === 0 && <EmptyRepos />}
+    </div>
+  );
+}
+
+// Pure render — repo list/status come from page.tsx; fixIngestWorkflows is the only mutation, fired via the client button.
+export default function HomeView(props: HomeViewProps) {
+  const { repos, ingestStatus } = props;
+
   return (
     <div>
       <DashboardHeader
-        misaligned={misaligned}
-        fixIngestWorkflows={fixIngestWorkflows}
-        impactMisaligned={impactMisaligned}
-        fixTraceImpactWorkflows={fixTraceImpactWorkflows}
+        misaligned={props.misaligned}
+        fixIngestWorkflows={props.fixIngestWorkflows}
+        impactMisaligned={props.impactMisaligned}
+        fixTraceImpactWorkflows={props.fixTraceImpactWorkflows}
       />
-      <div className="repo-grid">
-        {repos.map((r) => (
-          <RepoCard
-            key={r.full_name}
-            repo={r}
-            ingest={ingestStatus.get(r.full_name)}
-          />
-        ))}
-        {repos.length === 0 && <EmptyRepos />}
-      </div>
+      <RepoGrid repos={repos} ingestStatus={ingestStatus} />
     </div>
   );
 }

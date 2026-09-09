@@ -51,16 +51,14 @@ function navLinks(group: NavGroup, pathname: string) {
   ));
 }
 
-/** The group's own toggle. A button rather than a heading because it does something, and `aria-expanded` reports which way it is currently pointing. */
-function GroupHeader({
-  label,
-  collapsed,
-  onToggle,
-}: {
+interface GroupHeaderProps {
   label: string;
   collapsed: boolean;
   onToggle: (label: string) => void;
-}) {
+}
+
+/** The group's own toggle. A button rather than a heading because it does something, and `aria-expanded` reports which way it is currently pointing. */
+function GroupHeader({ label, collapsed, onToggle }: GroupHeaderProps) {
   return (
     <button
       type="button"
@@ -78,18 +76,42 @@ function GroupHeader({
   );
 }
 
+interface CollapsibleGroupProps {
+  label: string;
+  links: React.ReactNode;
+  collapsed: boolean;
+  onToggle: (label: string) => void;
+}
+
+/** A labelled group: its toggle always shows, its links only while open. */
+function CollapsibleGroup({
+  label,
+  links,
+  collapsed,
+  onToggle,
+}: CollapsibleGroupProps) {
+  return (
+    <div className={styles.group}>
+      <GroupHeader label={label} collapsed={collapsed} onToggle={onToggle} />
+      {!collapsed && links}
+    </div>
+  );
+}
+
+interface NavGroupSectionProps {
+  group: NavGroup;
+  pathname: string;
+  collapsed: boolean;
+  onToggle: (label: string) => void;
+}
+
 /** A labelled group collapses; an unlabelled one is always open, which is how the top-level links render without a header. */
 function NavGroupSection({
   group,
   pathname,
   collapsed,
   onToggle,
-}: {
-  group: NavGroup;
-  pathname: string;
-  collapsed: boolean;
-  onToggle: (label: string) => void;
-}) {
+}: NavGroupSectionProps) {
   const links = navLinks(group, pathname);
 
   if (!group.label) {
@@ -97,14 +119,12 @@ function NavGroupSection({
   }
 
   return (
-    <div className={styles.group}>
-      <GroupHeader
-        label={group.label}
-        collapsed={collapsed}
-        onToggle={onToggle}
-      />
-      {!collapsed && links}
-    </div>
+    <CollapsibleGroup
+      label={group.label}
+      links={links}
+      collapsed={collapsed}
+      onToggle={onToggle}
+    />
   );
 }
 
@@ -128,6 +148,29 @@ function NavFooter({ pathname }: { pathname: string }) {
   );
 }
 
+interface NavGroupsProps {
+  pathname: string;
+  collapsed: Record<string, boolean>;
+  onToggle: (label: string) => void;
+}
+
+/** Every group in nav order. A group with no label has no collapsed state to look up, so it is asked for none. */
+function NavGroups({ pathname, collapsed, onToggle }: NavGroupsProps) {
+  return (
+    <nav>
+      {groups.map((group, i) => (
+        <NavGroupSection
+          key={group.label ?? `group-${i}`}
+          group={group}
+          pathname={pathname}
+          collapsed={group.label ? (collapsed[group.label] ?? false) : false}
+          onToggle={onToggle}
+        />
+      ))}
+    </nav>
+  );
+}
+
 export default function SidebarNav() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -137,17 +180,7 @@ export default function SidebarNav() {
 
   return (
     <>
-      <nav>
-        {groups.map((group, i) => (
-          <NavGroupSection
-            key={group.label ?? `group-${i}`}
-            group={group}
-            pathname={pathname}
-            collapsed={group.label ? (collapsed[group.label] ?? false) : false}
-            onToggle={toggle}
-          />
-        ))}
-      </nav>
+      <NavGroups pathname={pathname} collapsed={collapsed} onToggle={toggle} />
       <NavFooter pathname={pathname} />
     </>
   );

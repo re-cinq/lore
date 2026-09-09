@@ -47,21 +47,9 @@ function EmptyPools() {
 export default function PoolsView({ pools }: PoolsViewProps) {
   return (
     <div>
-      <h1>Shared Memory Pools</h1>
-      <p className="meta page-lede">
-        Namespaces where multiple agents contribute shared facts. Created
-        programmatically via the shared-memory MCP tools.
-      </p>
+      <PoolsHeading />
       <table>
-        <thead>
-          <tr>
-            <th>Pool Name</th>
-            <th>Entries</th>
-            <th>Contributing Agents</th>
-            <th>Created By</th>
-            <th>Created</th>
-          </tr>
-        </thead>
+        <PoolsTableHead />
         <tbody>
           {pools.map((pool) => (
             <PoolRowCells key={pool.id} pool={pool} />
@@ -70,5 +58,31 @@ export default function PoolsView({ pools }: PoolsViewProps) {
         </tbody>
       </table>
     </div>
+  );
+}
+
+function PoolsHeading() {
+  return (
+    <>
+      <h1>Shared Memory Pools</h1>
+      <p className="meta page-lede">
+        Namespaces where multiple agents contribute shared facts. Created
+        programmatically via the shared-memory MCP tools.
+      </p>
+    </>
+  );
+}
+
+function PoolsTableHead() {
+  return (
+    <thead>
+      <tr>
+        <th>Pool Name</th>
+        <th>Entries</th>
+        <th>Contributing Agents</th>
+        <th>Created By</th>
+        <th>Created</th>
+      </tr>
+    </thead>
   );
 }

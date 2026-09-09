@@ -127,13 +127,12 @@ function AgentCrFact({ agentCrName }: { agentCrName: string | null }) {
   );
 }
 
-function CommitFact({
-  commitSha,
-  repo,
-}: {
+interface CommitFactProps {
   commitSha: string | null;
   repo: string;
-}) {
+}
+
+function CommitFact({ commitSha, repo }: CommitFactProps) {
   if (!commitSha) {
     return null;
   }
@@ -185,14 +184,13 @@ function CommitLink({ sha, repo }: { sha: string | null; repo: string }) {
   );
 }
 
-/** What an attempt left behind: the pod that ran it, the commit it made, the edge it took, and why. Each is omitted when absent rather than rendered blank — an attempt that never reached a pod has no CR name, and an empty slot would read as one that failed to load. */
-function AttemptRefs({
-  step,
-  repo,
-}: {
+interface AttemptStepProps {
   step: RunNodeDetailProps["attempts"][number];
   repo: string;
-}) {
+}
+
+/** What an attempt left behind: the pod that ran it, the commit it made, the edge it took, and why. Each is omitted when absent rather than rendered blank — an attempt that never reached a pod has no CR name, and an empty slot would read as one that failed to load. */
+function AttemptRefs({ step, repo }: AttemptStepProps) {
   return (
     <>
       {step.agentCrName ? (
@@ -212,13 +210,7 @@ function AttemptRefs({
 }
 
 /** One attempt. Every field past the status pill is optional and omitted when absent rather than rendered blank — an attempt that never reached a pod has no CR name, and an empty slot would read as a name that failed to load. */
-function AttemptRow({
-  step,
-  repo,
-}: {
-  step: RunNodeDetailProps["attempts"][number];
-  repo: string;
-}) {
+function AttemptRow({ step, repo }: AttemptStepProps) {
   return (
     <li className={styles.attemptItem}>
       <span className={styles.attemptMeta}>attempt {step.iteration}</span>
@@ -232,13 +224,12 @@ function AttemptRow({
 }
 
 /** Only shown once a node has been visited more than once — a single attempt is already the card above. */
-function AttemptHistory({
-  attempts,
-  repo,
-}: {
+interface AttemptHistoryProps {
   attempts: RunNodeDetailProps["attempts"];
   repo: string;
-}) {
+}
+
+function AttemptHistory({ attempts, repo }: AttemptHistoryProps) {
   if (attempts.length <= 1) {
     return null;
   }

@@ -33,6 +33,27 @@ function buildSettingsPatch(body: {
   };
 }
 
+/** The write, then the read-back that answers with what is now stored. Either upstream refusal is passed on as-is. */
+async function writeSettings(
+  fullName: string,
+  patch: ReturnType<typeof buildSettingsPatch>,
+) {
+  const written = await putRepoSettings(fullName, patch);
+
+  if (written.status !== "ok") {
+    return upstreamError("Settings", written);
+  }
+
+  const updated = await getRepo(fullName);
+
+  if (updated.status !== "ok") {
+    return upstreamError("Settings", updated);
+  }
+  const { full_name, team, settings } = updated.data;
+
+  return NextResponse.json({ full_name, team, settings });
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ owner: string; repo: string }> },
@@ -43,23 +64,7 @@ export async function POST(
     const body = await request.json();
 
     // lore-api owns the write incl. the privileged-field refusal; a 403 means the caller hit a dark-factory field needing the CODEOWNER approval PR.
-    const written = await putRepoSettings(fullName, buildSettingsPatch(body));
-
-    if (written.status !== "ok") {
-      return upstreamError("Settings", written);
-    }
-
-    const updated = await getRepo(fullName);
-
-    if (updated.status !== "ok") {
-      return upstreamError("Settings", updated);
-    }
-
-    return NextResponse.json({
-      full_name: updated.data.full_name,
-      team: updated.data.team,
-      settings: updated.data.settings,
-    });
+    return await writeSettings(fullName, buildSettingsPatch(body));
   } catch (err) {
     return serverError("settings.POST", err);
   }

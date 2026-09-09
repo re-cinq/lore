@@ -95,18 +95,18 @@ interface Interval {
 
 type IntervalChange = (update: (current: Interval) => Interval) => void;
 
-/** One end of the range. Edits the named field and leaves the other alone, so moving `from` past `to` is the reader's business rather than something this control silently corrects. */
-function DateField({
-  label,
-  field,
-  interval,
-  onChange,
-}: {
-  label: string;
-  field: keyof Interval;
+interface IntervalPickerProps {
   interval: Interval;
   onChange: IntervalChange;
-}) {
+}
+
+interface DateFieldProps extends IntervalPickerProps {
+  label: string;
+  field: keyof Interval;
+}
+
+/** One end of the range. Edits the named field and leaves the other alone, so moving `from` past `to` is the reader's business rather than something this control silently corrects. */
+function DateField({ label, field, interval, onChange }: DateFieldProps) {
   return (
     <label className="meta">
       {label}{" "}
@@ -139,13 +139,7 @@ function PresetButtons({ onChange }: { onChange: IntervalChange }) {
   );
 }
 
-function IntervalPicker({
-  interval,
-  onChange,
-}: {
-  interval: Interval;
-  onChange: IntervalChange;
-}) {
+function IntervalPicker({ interval, onChange }: IntervalPickerProps) {
   return (
     <div className={styles.presetRow}>
       <PresetButtons onChange={onChange} />

@@ -37,20 +37,24 @@ export default function GraphView({
 }: GraphViewProps) {
   return (
     <div>
+      <GraphHeading />
+      <GraphStats stats={stats} />
+      <TypeFilters entityTypes={entityTypes} type={type} />
+      <EntityTable entities={entities} entity={entity} type={type} />
+      <EdgeTable entity={entity} edges={edges} showInvalid={showInvalid} />
+    </div>
+  );
+}
+
+function GraphHeading() {
+  return (
+    <>
       <h1>Knowledge Graph</h1>
       <p className={`meta ${styles.intro}`}>
         Live knowledge graph built from episodes and memories. Entities and
         relationships are extracted automatically.
       </p>
-      <GraphStats stats={stats} />
-      {entityTypes.length > 0 && (
-        <TypeFilters entityTypes={entityTypes} type={type} />
-      )}
-      <EntityTable entities={entities} entity={entity} type={type} />
-      {entity && (
-        <EdgeTable entity={entity} edges={edges} showInvalid={showInvalid} />
-      )}
-    </div>
+    </>
   );
 }
 
@@ -73,28 +77,47 @@ function GraphStats({ stats }: Pick<GraphViewProps, "stats">) {
   );
 }
 
-function TypeFilters({
-  entityTypes,
-  type,
-}: Pick<GraphViewProps, "entityTypes" | "type">) {
-  const badge = (active: boolean) =>
-    active ? "op-badge op-search" : "op-badge";
+type TypeFiltersProps = Pick<GraphViewProps, "entityTypes" | "type">;
+
+/** Nothing to filter by until the graph holds at least one entity type. */
+function TypeFilters({ entityTypes, type }: TypeFiltersProps) {
+  if (entityTypes.length === 0) {
+    return null;
+  }
 
   return (
     <div className={styles.filterRow}>
-      <a href="/graph" className={badge(!type)}>
+      <a href="/graph" className={typeBadgeClass(!type)}>
         all
       </a>
       {entityTypes.map((t) => (
-        <a
+        <TypeFilterLink
           key={t.entity_type}
-          href={`/graph?type=${t.entity_type}`}
-          className={badge(type === t.entity_type)}
-        >
-          {t.entity_type} ({t.cnt})
-        </a>
+          entityType={t}
+          active={type === t.entity_type}
+        />
       ))}
     </div>
+  );
+}
+
+function typeBadgeClass(active: boolean): string {
+  return active ? "op-badge op-search" : "op-badge";
+}
+
+interface TypeFilterLinkProps {
+  entityType: EntityTypeCount;
+  active: boolean;
+}
+
+function TypeFilterLink({ entityType, active }: TypeFilterLinkProps) {
+  return (
+    <a
+      href={`/graph?type=${entityType.entity_type}`}
+      className={typeBadgeClass(active)}
+    >
+      {entityType.entity_type} ({entityType.cnt})
+    </a>
   );
 }
 
@@ -119,11 +142,9 @@ function entityCells(
   ];
 }
 
-function EntityTable({
-  entities,
-  entity,
-  type,
-}: Pick<GraphViewProps, "entities" | "entity" | "type">) {
+type EntityTableProps = Pick<GraphViewProps, "entities" | "entity" | "type">;
+
+function EntityTable({ entities, entity, type }: EntityTableProps) {
   return (
     <DataTable
       title="Entities"
@@ -144,50 +165,56 @@ function EntityTable({
 /** One relationship row. An invalidated edge keeps its dates and is styled rather than hidden — that a relationship USED to hold is part of what the graph records. */
 function edgeCells(e: GraphViewProps["edges"][number]): ReactNode[] {
   return [
-    <span key="source">
-      <strong>{e.source_name}</strong>{" "}
-      <span className="meta">({e.source_type})</span>
-    </span>,
+    edgeEndpointCell(e.source_name, e.source_type, "source"),
     <span className="op-badge" key="rel">
       {e.relation_type}
     </span>,
-    <span key="target">
-      <strong>{e.target_name}</strong>{" "}
-      <span className="meta">({e.target_type})</span>
-    </span>,
+    edgeEndpointCell(e.target_name, e.target_type, "target"),
     new Date(e.valid_from).toLocaleDateString(),
-    e.valid_to ? (
-      <span className="op-badge op-delete" key="status">
-        invalidated {new Date(e.valid_to).toLocaleDateString()}
-      </span>
-    ) : (
-      <span className="op-badge op-write" key="status">
-        active
-      </span>
-    ),
+    edgeStatusCell(e.valid_to),
     <span className="meta" key="from">
       {e.source_label}
     </span>,
   ];
 }
 
-/** An invalidated edge is history, not noise — it stays available behind the toggle so a contradiction can be read after the fact. */
-function EdgeTable({
-  entity,
-  edges,
-  showInvalid,
-}: Pick<GraphViewProps, "entity" | "edges" | "showInvalid">) {
+/** One end of a relationship: the entity's name, with its type alongside. */
+function edgeEndpointCell(
+  name: Edge["source_name"],
+  entityType: Edge["source_type"],
+  key: string,
+): ReactNode {
+  return (
+    <span key={key}>
+      <strong>{name}</strong> <span className="meta">({entityType})</span>
+    </span>
+  );
+}
+
+function edgeStatusCell(validTo: Edge["valid_to"]): ReactNode {
+  return validTo ? (
+    <span className="op-badge op-delete" key="status">
+      invalidated {new Date(validTo).toLocaleDateString()}
+    </span>
+  ) : (
+    <span className="op-badge op-write" key="status">
+      active
+    </span>
+  );
+}
+
+type EdgeTableProps = Pick<GraphViewProps, "entity" | "edges" | "showInvalid">;
+
+/** An invalidated edge is history, not noise — it stays available behind the toggle so a contradiction can be read after the fact. Relationships need an entity to hang off, so with none selected there is nothing to show. */
+function EdgeTable({ entity, edges, showInvalid }: EdgeTableProps) {
+  if (!entity) {
+    return null;
+  }
+
   return (
     <>
       <h2>Relationships for &quot;{entity}&quot;</h2>
-      <div className={styles.invalidToggle}>
-        <a
-          href={`/graph?entity=${encodeURIComponent(entity ?? "")}${showInvalid ? "" : "&show_invalid=1"}`}
-          className={styles.invalidToggleLink}
-        >
-          {showInvalid ? "Hide invalidated" : "Show invalidated edges"}
-        </a>
-      </div>
+      <InvalidEdgesToggle entity={entity} showInvalid={showInvalid} />
       <DataTable
         columns={["Source", "Relation", "Target", "Since", "Status", "From"]}
         rows={edges}
@@ -197,5 +224,22 @@ function EdgeTable({
         cells={edgeCells}
       />
     </>
+  );
+}
+
+type InvalidEdgesToggleProps = Pick<GraphViewProps, "showInvalid"> & {
+  entity: string;
+};
+
+function InvalidEdgesToggle({ entity, showInvalid }: InvalidEdgesToggleProps) {
+  return (
+    <div className={styles.invalidToggle}>
+      <a
+        href={`/graph?entity=${encodeURIComponent(entity)}${showInvalid ? "" : "&show_invalid=1"}`}
+        className={styles.invalidToggleLink}
+      >
+        {showInvalid ? "Hide invalidated" : "Show invalidated edges"}
+      </a>
+    </div>
   );
 }

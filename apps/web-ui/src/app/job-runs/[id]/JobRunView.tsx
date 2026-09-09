@@ -33,17 +33,21 @@ function RunOutcome({ run }: { run: JobRunRow }) {
           <span className="meta">Summary:</span> {run.result_summary}
         </div>
       )}
-      {run.error && (
-        <div className={styles.error}>
-          <span className="meta">Error:</span> {run.error}
-        </div>
-      )}
+      {run.error && <RunError error={run.error} />}
       {run.log_path && (
         <div>
           <span className="meta">Log path:</span> <code>{run.log_path}</code>
         </div>
       )}
     </>
+  );
+}
+
+function RunError({ error }: { error: string }) {
+  return (
+    <div className={styles.error}>
+      <span className="meta">Error:</span> {error}
+    </div>
   );
 }
 

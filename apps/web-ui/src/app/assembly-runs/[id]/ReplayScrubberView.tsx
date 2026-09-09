@@ -54,32 +54,61 @@ function keyboardSeek({
   };
 }
 
-export default function ReplayScrubberView({
+interface ScrubberSliderProps {
+  eventCount: number;
+  cursor: number;
+  onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void;
+  onSeek: (value: number) => void;
+}
+
+function ScrubberSlider({
   eventCount,
   cursor,
-  label,
-  timestamp,
-  onCursorChange,
-}: ReplayScrubberViewProps) {
+  onKeyDown,
+  onSeek,
+}: ScrubberSliderProps) {
+  return (
+    <input
+      className={styles.slider}
+      type="range"
+      min={0}
+      max={eventCount}
+      value={cursor}
+      aria-label="Replay position"
+      onKeyDown={onKeyDown}
+      onChange={(event) => onSeek(Number(event.target.value))}
+    />
+  );
+}
+
+interface ScrubberPositionProps {
+  label: string;
+  timestamp: string | null;
+}
+
+function ScrubberPosition({ label, timestamp }: ScrubberPositionProps) {
+  return (
+    <output className={styles.position}>
+      <span>{label}</span>
+      {timestamp ? <time dateTime={timestamp}>{timestamp}</time> : null}
+    </output>
+  );
+}
+
+export default function ReplayScrubberView(props: ReplayScrubberViewProps) {
+  const { eventCount, cursor, label, timestamp, onCursorChange } = props;
   const clamp = (value: number) => Math.max(0, Math.min(value, eventCount));
   const onKeyDown = keyboardSeek({ cursor, eventCount, clamp, onCursorChange });
 
   return (
     <div className={styles.scrubber}>
-      <input
-        className={styles.slider}
-        type="range"
-        min={0}
-        max={eventCount}
-        value={cursor}
-        aria-label="Replay position"
+      <ScrubberSlider
+        eventCount={eventCount}
+        cursor={cursor}
         onKeyDown={onKeyDown}
-        onChange={(event) => onCursorChange(clamp(Number(event.target.value)))}
+        onSeek={(value) => onCursorChange(clamp(value))}
       />
-      <output className={styles.position}>
-        <span>{label}</span>
-        {timestamp ? <time dateTime={timestamp}>{timestamp}</time> : null}
-      </output>
+      <ScrubberPosition label={label} timestamp={timestamp} />
     </div>
   );
 }

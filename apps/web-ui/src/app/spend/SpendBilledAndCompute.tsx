@@ -3,12 +3,30 @@ import type { SpendWindow } from "./SpendView";
 import { usd, num, day } from "./spend-format";
 import { CostTable } from "./CostTable";
 
-/** The invoice split by model. A row with no model name is billing that is not per-token — it is labelled rather than hidden, because it still comes out of the same balance. */
-function BilledByModel({
-  byModel,
-}: {
+interface BilledByModelProps {
   byModel: SpendWindow["billed"]["by_model"];
-}) {
+}
+
+interface DailyBilledProps {
+  title: string;
+  rows: SpendWindow["billed"]["daily"];
+}
+
+/** A vendor's invoice by day. Anthropic's rows and GCP's have the same shape, so the two tables are one component with a different title. */
+function DailyBilledTable({ title, rows }: DailyBilledProps) {
+  return (
+    <CostTable
+      title={title}
+      columns={["Date", "Billed Cost"]}
+      rows={rows}
+      rowKey={(r) => r.bucket_date}
+      cells={(r) => [day(r.bucket_date), usd(r.cost_usd)]}
+    />
+  );
+}
+
+/** The invoice split by model. A row with no model name is billing that is not per-token — it is labelled rather than hidden, because it still comes out of the same balance. */
+function BilledByModel({ byModel }: BilledByModelProps) {
   return (
     <CostTable
       title="Anthropic Billed by Model"
@@ -38,13 +56,7 @@ function AnthropicBilled({ billed }: { billed: SpendWindow["billed"] }) {
     <>
       <BilledByModel byModel={billed.by_model} />
 
-      <CostTable
-        title="Anthropic Daily Billed"
-        columns={["Date", "Billed Cost"]}
-        rows={billed.daily}
-        rowKey={(r) => r.bucket_date}
-        cells={(r) => [day(r.bucket_date), usd(r.cost_usd)]}
-      />
+      <DailyBilledTable title="Anthropic Daily Billed" rows={billed.daily} />
     </>
   );
 }
@@ -65,13 +77,7 @@ function GcpBilled({ gcp }: { gcp: SpendWindow["gcp"] }) {
         cells={(r) => [r.service, usd(r.cost_usd)]}
       />
 
-      <CostTable
-        title="GCP Daily Billed"
-        columns={["Date", "Billed Cost"]}
-        rows={gcp.daily}
-        rowKey={(r) => r.bucket_date}
-        cells={(r) => [day(r.bucket_date), usd(r.cost_usd)]}
-      />
+      <DailyBilledTable title="GCP Daily Billed" rows={gcp.daily} />
     </>
   );
 }
@@ -92,8 +98,6 @@ export function BilledBreakdowns({
   );
 }
 
-/** Pods burning money right now, and the hours already spent in the interval. */
-/** What is burning money right now, as opposed to the interval totals below it. */
 /** One running pod and what it has cost so far. */
 function LivePodRow({
   pod,
@@ -114,40 +118,53 @@ function LivePodRow({
   );
 }
 
-function LivePods({ pods }: { pods: SpendWindow["compute"]["live_pods"] }) {
+function LivePodTable({ pods }: LivePodsProps) {
+  return (
+    <table>
+      <thead>
+        <tr>
+          <th>Pod</th>
+          <th>Requests</th>
+          <th>$/hour</th>
+          <th>So far</th>
+        </tr>
+      </thead>
+      <tbody>
+        {pods.map((pod) => (
+          <LivePodRow key={pod.name} pod={pod} />
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+interface LivePodsProps {
+  pods: SpendWindow["compute"]["live_pods"];
+}
+
+/** What is burning money right now, as opposed to the interval totals below it. */
+function LivePods({ pods }: LivePodsProps) {
   return (
     <>
       <h2>Pods Running Now</h2>
       {pods.length === 0 ? (
         <p className="meta">No run pods are live right now.</p>
       ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>Pod</th>
-              <th>Requests</th>
-              <th>$/hour</th>
-              <th>So far</th>
-            </tr>
-          </thead>
-          <tbody>
-            {pods.map((pod) => (
-              <LivePodRow key={pod.name} pod={pod} />
-            ))}
-          </tbody>
-        </table>
+        <LivePodTable pods={pods} />
       )}
     </>
   );
 }
 
-export function ComputeBreakdowns({
-  compute,
-  gcpAvailable,
-}: {
+interface ComputeBreakdownsProps {
   compute: SpendWindow["compute"];
   gcpAvailable: boolean;
-}) {
+}
+
+/** Pods burning money right now, and the hours already spent in the interval. */
+export function ComputeBreakdowns(props: ComputeBreakdownsProps) {
+  const { compute, gcpAvailable } = props;
+
   return (
     <>
       <LivePods pods={compute.live_pods} />
@@ -159,16 +176,25 @@ export function ComputeBreakdowns({
         rowKey={(r) => r.blueprint}
         cells={(r) => [r.blueprint, num(r.pods), num(r.hours), usd(r.est_usd)]}
       />
-      <p className={`meta ${styles.subnote}`}>
-        Compute is an estimate from resource requests × on-demand rates ($
-        {compute.rates.cpu_hour_usd}/cpu-h, ${compute.rates.mem_gib_hour_usd}
-        /GiB-h); interval pod-hours assume a {compute.assumed_profile.cpu} cpu /{" "}
-        {compute.assumed_profile.memory} pod. Google&apos;s invoice lags a day
-        and is the truth
-        {gcpAvailable
-          ? " — the Google Cloud (billed) figures above are that invoice."
-          : "."}
-      </p>
+      <ComputeEstimateNote compute={compute} gcpAvailable={gcpAvailable} />
     </>
+  );
+}
+
+/** Google's invoice lags a day and is the truth; this is the estimate standing in for it. */
+function ComputeEstimateNote(props: ComputeBreakdownsProps) {
+  const { compute, gcpAvailable } = props;
+
+  return (
+    <p className={`meta ${styles.subnote}`}>
+      Compute is an estimate from resource requests × on-demand rates ($
+      {compute.rates.cpu_hour_usd}/cpu-h, ${compute.rates.mem_gib_hour_usd}
+      /GiB-h); interval pod-hours assume a {compute.assumed_profile.cpu} cpu /{" "}
+      {compute.assumed_profile.memory} pod. Google&apos;s invoice lags a day and
+      is the truth
+      {gcpAvailable
+        ? " — the Google Cloud (billed) figures above are that invoice."
+        : "."}
+    </p>
   );
 }

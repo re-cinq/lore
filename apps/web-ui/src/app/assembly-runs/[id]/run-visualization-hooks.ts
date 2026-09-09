@@ -98,32 +98,33 @@ type RunDataInput = Pick<
   | "runStatus"
 > & { latestRows: ReturnType<typeof latestRowByNode> };
 
-/** What the graph draws. While scrubbing, this is rebuilt from the REPLAYED state rather than the live rows: the two disagree by design, and the cursor's answer is the one on screen. */
-function useRunData(input: RunDataInput): RunData {
-  const { replayActive, definition, nodes, nodeStates } = input;
-  const { latestRows, takenEdges, runStatus } = input;
+/** The graph as the live rows describe it. */
+function useLiveRunData(input: RunDataInput): RunData {
+  const { nodes, nodeStates, latestRows, takenEdges, runStatus } = input;
 
   return useMemo<RunData>(
     () =>
-      replayActive
-        ? replayRunData(definition, nodes, nodeStates)
-        : buildRunData({
-            nodes,
-            nodeStates,
-            latestRows,
-            takenEdges,
-            runStatus,
-          }),
-    [
-      replayActive,
-      definition,
-      nodes,
-      latestRows,
-      nodeStates,
-      takenEdges,
-      runStatus,
-    ],
+      buildRunData({ nodes, nodeStates, latestRows, takenEdges, runStatus }),
+    [nodes, nodeStates, latestRows, takenEdges, runStatus],
   );
+}
+
+/** The graph as the replay cursor describes it. */
+function useReplayedRunData(input: RunDataInput): RunData {
+  const { definition, nodes, nodeStates } = input;
+
+  return useMemo<RunData>(
+    () => replayRunData(definition, nodes, nodeStates),
+    [definition, nodes, nodeStates],
+  );
+}
+
+/** What the graph draws. While scrubbing, this is read from the REPLAYED state rather than the live rows: the two disagree by design, and the cursor's answer is the one on screen. */
+function useRunData(input: RunDataInput): RunData {
+  const live = useLiveRunData(input);
+  const replayed = useReplayedRunData(input);
+
+  return input.replayActive ? replayed : live;
 }
 
 export function useRunGraph(input: RunGraphInput) {
@@ -136,18 +137,14 @@ export function useRunGraph(input: RunGraphInput) {
     input.selectedNodeId,
   );
   const runData = useRunData({ ...input, latestRows });
-
-  return {
+  const visibleGraph = useVisibleGraph(
+    definition,
     hasRunData,
-    visibleGraph: useVisibleGraph(
-      definition,
-      hasRunData,
-      runData,
-      showOutcomes,
-    ),
-    retrySource,
-    latestRows,
-  };
+    runData,
+    showOutcomes,
+  );
+
+  return { hasRunData, visibleGraph, retrySource, latestRows };
 }
 
 /** Scrubbing a finished run. A terminal run renders state AS OF the cursor by folding history through the SAME reducer live mode uses, based on the all-idle state — never the visit-row seed, which would show verdicts the cursor has not reached. */
@@ -199,16 +196,11 @@ function scrubberView(
   };
 }
 
-export function useReplay({
-  runIsLive,
-  runStatus,
-  definition,
-  historyEvents,
-  liveState,
-  replayCursor,
-  setReplayCursor,
-}: ReplayInput) {
-  const replayState = useMemo(
+/** The run's state as of the cursor, folded from the all-idle state rather than the visit-row seed. */
+function useReplayState(input: ReplayInput) {
+  const { definition, historyEvents, replayCursor } = input;
+
+  return useMemo(
     () =>
       replayTo(
         initialRunState(definition, []),
@@ -217,6 +209,12 @@ export function useReplay({
       ),
     [definition, historyEvents, replayCursor],
   );
+}
+
+export function useReplay(input: ReplayInput) {
+  const { runIsLive, runStatus, historyEvents } = input;
+  const { liveState, replayCursor, setReplayCursor } = input;
+  const replayState = useReplayState(input);
 
   return {
     displayState: pickDisplayState(runIsLive, liveState, replayState),
@@ -247,13 +245,8 @@ function useNodeInputs(selectedRows: readonly AssemblyRunNode[]) {
 }
 
 /** Everything the inspector needs about the selected node. Its walk rows are the source for the attempt history and the per-attempt pod logs; what each visit was GIVEN is per-visit state like its outcome, and rides those rows rather than the event stream, since no pod echoes its own prompt. */
-export function useSelectedNode({
-  nodes,
-  definition,
-  reason,
-  selectedNodeId,
-  nodeStates,
-}: SelectedNodeInput) {
+export function useSelectedNode(input: SelectedNodeInput) {
+  const { nodes, definition, reason, selectedNodeId, nodeStates } = input;
   const selected = pickSelectedState(nodeStates, selectedNodeId);
   const selectedRows = useMemo(
     () => nodes.filter((node) => node.nodeId === selectedNodeId),
@@ -269,11 +262,5 @@ export function useSelectedNode({
     [definition, nodes],
   );
 
-  return {
-    selected,
-    selectedRows,
-    nodeInputs,
-    selectedAttempts,
-    takenEdges,
-  };
+  return { selected, selectedRows, nodeInputs, selectedAttempts, takenEdges };
 }

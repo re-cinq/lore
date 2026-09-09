@@ -68,22 +68,15 @@ function ExtractedFacts({ facts }: { facts: Memory["facts"] }) {
   );
 }
 
-/** One memory, collapsed. Its version history and extracted facts appear only when there are any — a heading over an empty list reads as data that failed to load. */
-function MemoryCard({
-  memory: m,
-}: {
+interface MemoryCardProps {
   memory: AgentDetailViewProps["memories"][number];
-}) {
+}
+
+/** One memory, collapsed. Its version history and extracted facts appear only when there are any — a heading over an empty list reads as data that failed to load. */
+function MemoryCard({ memory: m }: MemoryCardProps) {
   return (
     <details key={m.id} className="memory-card">
-      <summary>
-        <strong>{m.key}</strong>
-        <span className="meta">
-          v{m.version} · {new Date(m.created_at).toLocaleString()}
-        </span>
-        {m.has_facts && <span className="badge">facts</span>}
-        {m.ttl_seconds && <span className="badge">TTL: {m.ttl_seconds}s</span>}
-      </summary>
+      <MemoryCardSummary memory={m} />
       <div className="memory-detail">
         <h4>Current Value</h4>
         <pre>{m.value}</pre>
@@ -91,6 +84,19 @@ function MemoryCard({
         <ExtractedFacts facts={m.facts} />
       </div>
     </details>
+  );
+}
+
+function MemoryCardSummary({ memory: m }: MemoryCardProps) {
+  return (
+    <summary>
+      <strong>{m.key}</strong>
+      <span className="meta">
+        v{m.version} · {new Date(m.created_at).toLocaleString()}
+      </span>
+      {m.has_facts && <span className="badge">facts</span>}
+      {m.ttl_seconds && <span className="badge">TTL: {m.ttl_seconds}s</span>}
+    </summary>
   );
 }
 

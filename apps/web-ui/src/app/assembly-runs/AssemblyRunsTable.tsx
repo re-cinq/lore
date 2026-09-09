@@ -14,13 +14,27 @@ import styles from "./AssemblyRunsTable.module.css";
 
 const EM_DASH = "—";
 const TABLE_COLUMNS = 9;
+const BY_COLUMN_TITLE =
+  "Who triggered the run — the task creator, or the commenter/reviewer/PR author for webhook-driven lines";
+const COST_COLUMN_TITLE =
+  "LLM cost — the backing task's total (shared across its run attempts), or the run's own cost for task-less lines";
+const SKIP_TOGGLE_TITLE =
+  "Runs that deferred to another run already holding the same branch and did no work (lease_held).";
 
 // A `lease_held` skip found the repo+branch already held and did no work — a pure coordination artifact, folded away by default.
 const isCoordinationSkip = (run: AssemblyRun): boolean =>
   run.status === "finished" && run.outcome === "lease_held";
 
+// A coordination skip did no work — it deferred to a run already holding the branch — so it stays hidden unless asked for.
+const visibleRunsIn = (runs: AssemblyRun[], showSkips: boolean) =>
+  showSkips ? runs : runs.filter((r) => !isCoordinationSkip(r));
+
 export interface AssemblyRunsTableProps {
   runs: AssemblyRun[];
+}
+
+interface RunRowProps {
+  run: AssemblyRun;
 }
 
 // The one assembly-line table, shared by the global list and per-repo tab. PR/creator/cost come from the backing task; task-less runs fall back to args.pr_number/args.actor/llm_calls, else em-dash.
@@ -31,15 +45,11 @@ export default function AssemblyRunsTable({ runs }: AssemblyRunsTableProps) {
     return <p className={styles.empty}>No assembly line runs.</p>;
   }
   const skipCount = runs.filter(isCoordinationSkip).length;
-  // A coordination skip did no work — it deferred to a run already holding the branch — so it stays hidden unless asked for.
-  const visibleRuns = showSkips
-    ? runs
-    : runs.filter((r) => !isCoordinationSkip(r));
 
   return (
     <table className={styles.table}>
       <RunsTableHead />
-      <TableBody visibleRuns={visibleRuns} />
+      <TableBody visibleRuns={visibleRunsIn(runs, showSkips)} />
       <SkipToggleFooter
         skipCount={skipCount}
         showSkips={showSkips}
@@ -49,18 +59,21 @@ export default function AssemblyRunsTable({ runs }: AssemblyRunsTableProps) {
   );
 }
 
+function AllSkippedBody() {
+  return (
+    <tbody>
+      <tr>
+        <td colSpan={TABLE_COLUMNS} className={styles.empty}>
+          All runs are coordination skips — use the toggle below to reveal them.
+        </td>
+      </tr>
+    </tbody>
+  );
+}
+
 function TableBody({ visibleRuns }: { visibleRuns: AssemblyRun[] }) {
   if (visibleRuns.length === 0) {
-    return (
-      <tbody>
-        <tr>
-          <td colSpan={TABLE_COLUMNS} className={styles.empty}>
-            All runs are coordination skips — use the toggle below to reveal
-            them.
-          </td>
-        </tr>
-      </tbody>
-    );
+    return <AllSkippedBody />;
   }
 
   return (
@@ -72,36 +85,43 @@ function TableBody({ visibleRuns }: { visibleRuns: AssemblyRun[] }) {
   );
 }
 
-/** The row that reveals runs which did nothing. Hidden entirely when there were none — an empty "show 0 skips" control is a control that never has anything to say. */
 interface SkipToggleFooterProps {
   skipCount: number;
   showSkips: boolean;
   onToggle: () => void;
 }
 
-function SkipToggleFooter({
+function SkipToggleButton({
   skipCount,
   showSkips,
   onToggle,
 }: SkipToggleFooterProps) {
-  if (skipCount === 0) {
+  const skipLabel = `${skipCount} coordination skip${skipCount === 1 ? "" : "s"}`;
+
+  return (
+    <button
+      type="button"
+      className={styles.skipToggle}
+      aria-expanded={showSkips}
+      onClick={onToggle}
+      title={SKIP_TOGGLE_TITLE}
+    >
+      {showSkips ? `Hide ${skipLabel}` : `Show ${skipLabel}`}
+    </button>
+  );
+}
+
+/** The row that reveals runs which did nothing. Hidden entirely when there were none — an empty "show 0 skips" control is a control that never has anything to say. */
+function SkipToggleFooter(props: SkipToggleFooterProps) {
+  if (props.skipCount === 0) {
     return null;
   }
-  const skipLabel = `${skipCount} coordination skip${skipCount === 1 ? "" : "s"}`;
 
   return (
     <tfoot>
       <tr>
         <td colSpan={TABLE_COLUMNS}>
-          <button
-            type="button"
-            className={styles.skipToggle}
-            aria-expanded={showSkips}
-            onClick={onToggle}
-            title="Runs that deferred to another run already holding the same branch and did no work (lease_held)."
-          >
-            {showSkips ? `Hide ${skipLabel}` : `Show ${skipLabel}`}
-          </button>
+          <SkipToggleButton {...props} />
         </td>
       </tr>
     </tfoot>
@@ -119,12 +139,8 @@ function RunsTableHead() {
         <th>PR</th>
         <th>Duration</th>
         <th>Started</th>
-        <th title="Who triggered the run — the task creator, or the commenter/reviewer/PR author for webhook-driven lines">
-          By
-        </th>
-        <th title="LLM cost — the backing task's total (shared across its run attempts), or the run's own cost for task-less lines">
-          Cost
-        </th>
+        <th title={BY_COLUMN_TITLE}>By</th>
+        <th title={COST_COLUMN_TITLE}>Cost</th>
       </tr>
     </thead>
   );
@@ -142,7 +158,7 @@ function BranchCell({ branch }: { branch: string | null }) {
   );
 }
 
-function StatusCell({ run }: { run: AssemblyRunsTableProps["runs"][number] }) {
+function StatusCell({ run }: RunRowProps) {
   const visual = runStatusVisual(run.status, run.outcome);
   const showReason = run.status === "failed" && run.reason;
 
@@ -158,13 +174,30 @@ function StatusCell({ run }: { run: AssemblyRunsTableProps["runs"][number] }) {
   );
 }
 
-function RunRow({ run }: { run: AssemblyRunsTableProps["runs"][number] }) {
+function DefinitionCell({ run }: RunRowProps) {
+  return (
+    <td>
+      <Link href={`/assembly-runs/${run.id}`}>{run.blueprintName}</Link>
+      <span className={styles.subId}>#{run.id.substring(0, 8)}</span>
+    </td>
+  );
+}
+
+function RunSummaryCells({ run }: RunRowProps) {
+  return (
+    <>
+      <td>{formatDuration(run.durationSeconds)}</td>
+      <td>{formatRelativeTime(run.startedAt ?? run.createdAt)}</td>
+      <td>{run.createdBy ? shortAgentId(run.createdBy) : EM_DASH}</td>
+      <td>{run.costUsd !== null ? formatCost(run.costUsd) : EM_DASH}</td>
+    </>
+  );
+}
+
+function RunRow({ run }: RunRowProps) {
   return (
     <tr>
-      <td>
-        <Link href={`/assembly-runs/${run.id}`}>{run.blueprintName}</Link>
-        <span className={styles.subId}>#{run.id.substring(0, 8)}</span>
-      </td>
+      <DefinitionCell run={run} />
       <td>
         <Link href={`/repos/${run.repo}`}>{run.repo}</Link>
       </td>
@@ -177,16 +210,13 @@ function RunRow({ run }: { run: AssemblyRunsTableProps["runs"][number] }) {
       <td>
         <RunPrCell run={run} />
       </td>
-      <td>{formatDuration(run.durationSeconds)}</td>
-      <td>{formatRelativeTime(run.startedAt ?? run.createdAt)}</td>
-      <td>{run.createdBy ? shortAgentId(run.createdBy) : EM_DASH}</td>
-      <td>{run.costUsd !== null ? formatCost(run.costUsd) : EM_DASH}</td>
+      <RunSummaryCells run={run} />
     </tr>
   );
 }
 
 /** The PR badge is task-scoped, so a task-less line shows its PR link without one. */
-function RunPrCell({ run }: { run: AssemblyRunsTableProps["runs"][number] }) {
+function RunPrCell({ run }: RunRowProps) {
   if (!run.prUrl || !run.prNumber) {
     return <>{EM_DASH}</>;
   }

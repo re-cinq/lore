@@ -95,11 +95,39 @@ async function fetchTurnsPage(runId: string, cursor: string) {
   return { rows, hasMoreFlag: parseHasMore(body) };
 }
 
+/** Parses one page's rows onto the running collection; an unparseable row is skipped, never fatal. */
+function collectTurns(rows: unknown[], into: AgentRunTurn[]): void {
+  rows.forEach((row) => {
+    const parsed = parseAgentRunTurn(row);
+
+    if (parsed !== null) {
+      into.push(parsed);
+    }
+  });
+}
+
+/** Where the walk goes after a page: the next cursor, or the `hitCap` value that ends it. */
+function walkStep(
+  rows: unknown[],
+  hasMoreFlag: boolean | undefined,
+  collectedCount: number,
+  pages: number,
+): { cursor: string } | { hitCap: boolean } {
+  const next = nextTurnsCursor(rows, hasMoreFlag);
+
+  if (next === null) {
+    return { hitCap: serverReportsMore(rows, hasMoreFlag) };
+  }
+
+  if (exceededWalkBudget(collectedCount, pages)) {
+    return { hitCap: true };
+  }
+
+  return { cursor: next };
+}
+
 /** One full walk of the turns endpoint, honoring the page/turn caps; throws on transport failure. */
-async function walkAllTurns(
-  runId: string,
-  isDisposed: () => boolean,
-): Promise<{ turns: AgentRunTurn[]; hitCap: boolean }> {
+async function walkAllTurns(runId: string, isDisposed: () => boolean) {
   const collected: AgentRunTurn[] = [];
   let cursor = "0";
   let pages = 0;
@@ -111,36 +139,41 @@ async function walkAllTurns(
       return { turns: collected, hitCap: false };
     }
     pages += 1;
-    rows.forEach((row) => {
-      const parsed = parseAgentRunTurn(row);
+    collectTurns(rows, collected);
+    const step = walkStep(rows, hasMoreFlag, collected.length, pages);
 
-      if (parsed !== null) {
-        collected.push(parsed);
-      }
-    });
-
-    const next = nextTurnsCursor(rows, hasMoreFlag);
-
-    if (next === null) {
-      return { turns: collected, hitCap: serverReportsMore(rows, hasMoreFlag) };
+    if ("hitCap" in step) {
+      return { turns: collected, hitCap: step.hitCap };
     }
-
-    if (exceededWalkBudget(collected.length, pages)) {
-      return { turns: collected, hitCap: true };
-    }
-    cursor = next;
+    cursor = step.cursor;
   }
 }
 
-/** Walks the transcript once. A failure RE-ARMS the started gate, so closing and reopening retries instead of pinning the error until a page reload; the stale error is cleared up front so a retry reads as Loading rather than as the previous failure. */
+interface WalkRefs {
+  disposedRef: { current: boolean };
+  startedRef: { current: boolean };
+}
+
+interface TranscriptSetters {
+  setTurns: (turns: AgentRunTurn[]) => void;
+  setCapped: (capped: boolean) => void;
+  setError: (error: string | null) => void;
+}
+
+/** A failed walk RE-ARMS the started gate, so closing and reopening retries instead of pinning the error until a page reload. A disposed panel is told nothing. */
+function failTranscript(e: unknown, refs: WalkRefs, set: TranscriptSetters) {
+  if (refs.disposedRef.current) {
+    return;
+  }
+  set.setError(walkErrorMessage(e));
+  refs.startedRef.current = false;
+}
+
+/** Walks the transcript once. The stale error is cleared up front so a retry reads as Loading rather than as the previous failure. */
 async function loadTranscript(
   runId: string,
-  refs: { disposedRef: { current: boolean }; startedRef: { current: boolean } },
-  set: {
-    setTurns: (turns: AgentRunTurn[]) => void;
-    setCapped: (capped: boolean) => void;
-    setError: (error: string | null) => void;
-  },
+  refs: WalkRefs,
+  set: TranscriptSetters,
 ): Promise<void> {
   try {
     set.setError(null);
@@ -153,22 +186,12 @@ async function loadTranscript(
     set.setCapped(result.hitCap);
     set.setError(null);
   } catch (e) {
-    if (!refs.disposedRef.current) {
-      set.setError(walkErrorMessage(e));
-      refs.startedRef.current = false;
-    }
+    failTranscript(e, refs, set);
   }
 }
 
-/** Walks the transcript ONCE per open. A failure re-arms the gate, so closing and reopening retries instead of pinning the error until a page reload; unmount is the only cancellation, because a re-closed panel still wants the data it asked for. */
-function useTranscriptWalk(runId: string) {
-  const [open, setOpen] = useState(false);
-  const [turns, setTurns] = useState<AgentRunTurn[] | null>(null);
-  const [capped, setCapped] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [showRaw, setShowRaw] = useState(false);
-  const startedRef = useRef(false);
-  // Unmount is the only cancellation — a re-closed panel still wants its data, but a dead component must not receive it.
+// Unmount is the only cancellation — a re-closed panel still wants its data, but a dead component must not receive it.
+function useDisposedRef() {
   const disposedRef = useRef(false);
 
   useEffect(
@@ -177,6 +200,17 @@ function useTranscriptWalk(runId: string) {
     },
     [],
   );
+
+  return disposedRef;
+}
+
+/** Walks the transcript ONCE per open. A failure re-arms the gate, so closing and reopening retries instead of pinning the error until a page reload. */
+function useTranscriptData(runId: string, open: boolean) {
+  const [turns, setTurns] = useState<AgentRunTurn[] | null>(null);
+  const [capped, setCapped] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const startedRef = useRef(false);
+  const disposedRef = useDisposedRef();
 
   useEffect(() => {
     if (!open || startedRef.current) {
@@ -189,7 +223,15 @@ function useTranscriptWalk(runId: string) {
       { disposedRef, startedRef },
       { setTurns, setCapped, setError },
     );
-  }, [open, runId]);
+  }, [open, runId, disposedRef]);
+
+  return { turns, capped, error };
+}
+
+function useTranscriptWalk(runId: string) {
+  const [open, setOpen] = useState(false);
+  const [showRaw, setShowRaw] = useState(false);
+  const { turns, capped, error } = useTranscriptData(runId, open);
 
   return { open, setOpen, turns, capped, error, showRaw, setShowRaw };
 }
@@ -260,6 +302,23 @@ interface TranscriptBodyProps {
   nodeId: string;
 }
 
+interface TranscriptListProps {
+  show: boolean;
+  showRaw: boolean;
+  segments: ReturnType<typeof useNodeSegments>;
+}
+
+function TranscriptList({ show, showRaw, segments }: TranscriptListProps) {
+  return (
+    <TranscriptTurnsList
+      show={show}
+      showRaw={showRaw}
+      turns={segments.nodeTurns}
+      segments={segments.nodeSegments}
+    />
+  );
+}
+
 function TranscriptBody({ walk, segments, nodeId }: TranscriptBodyProps) {
   const { turns, error, showRaw } = walk;
   const { showList, ...flags } = bodyFlags(walk, segments);
@@ -277,12 +336,7 @@ function TranscriptBody({ walk, segments, nodeId }: TranscriptBodyProps) {
         turnsLoaded={(turns ?? []).length}
         nodeId={nodeId}
       />
-      <TranscriptTurnsList
-        show={showList}
-        showRaw={showRaw}
-        turns={segments.nodeTurns}
-        segments={segments.nodeSegments}
-      />
+      <TranscriptList show={showList} showRaw={showRaw} segments={segments} />
     </>
   );
 }

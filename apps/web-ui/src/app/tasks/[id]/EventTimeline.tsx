@@ -26,12 +26,12 @@ function EventRow({ event }: { event: TaskRuntimeEvent }) {
   );
 }
 
-/** Status-transition timeline (pipeline.task_events). Pure render. */
-export default function EventTimeline({
-  events,
-}: {
+export interface EventTimelineProps {
   events: TaskRuntimeEvent[];
-}) {
+}
+
+/** Status-transition timeline (pipeline.task_events). Pure render. */
+export default function EventTimeline({ events }: EventTimelineProps) {
   return (
     <CollapsibleCard
       title="Event Timeline"

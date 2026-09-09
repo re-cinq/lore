@@ -38,11 +38,11 @@ function Sidebar() {
   );
 }
 
-export default function RootLayout({
-  children,
-}: {
+interface RootLayoutProps {
   children: React.ReactNode;
-}) {
+}
+
+export default function RootLayout({ children }: RootLayoutProps) {
   return (
     // THEME_SCRIPT hydrates before React; suppressHydrationWarning suppresses expected mismatch.
     <html

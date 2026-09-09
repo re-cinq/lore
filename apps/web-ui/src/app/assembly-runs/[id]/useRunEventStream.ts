@@ -110,29 +110,34 @@ function connectStream(
       stream.attempt = 0;
       handlers.onConnectionChange("live");
     },
-    onError: () => {
-      stream.source?.close();
-      stream.attempt += 1;
-      stream.retryTimer = scheduleReconnect(
-        stream.attempt,
-        () => connectStream(stream, runId, handlers),
-        handlers.onConnectionChange,
-      );
-    },
+    onError: streamErrorHandler(stream, runId, handlers),
   });
 }
 
-export function useRunEventStream({
-  runId,
-  afterId,
-  enabled,
-  onEvent,
-  onConnectionChange,
-}: RunEventStreamOptions): void {
+/** Closes the dead socket and arms the next attempt, keeping the retry chain in one place. */
+function streamErrorHandler(
+  stream: StreamState,
+  runId: string,
+  handlers: StreamHandlers,
+): () => void {
+  return () => {
+    stream.source?.close();
+    stream.attempt += 1;
+    stream.retryTimer = scheduleReconnect(
+      stream.attempt,
+      () => connectStream(stream, runId, handlers),
+      handlers.onConnectionChange,
+    );
+  };
+}
+
+/** The latest callbacks, held in refs so an inline-closure caller does not rebuild the socket on every render. */
+function useCallbackRefs(
+  onEvent: RunEventStreamOptions["onEvent"],
+  onConnectionChange: RunEventStreamOptions["onConnectionChange"],
+) {
   const onEventRef = useRef(onEvent);
   const onConnectionChangeRef = useRef(onConnectionChange);
-  // afterId changes on EVERY live event, so it must stay OUT of the socket effect's deps or each event would tear down and rebuild the EventSource.
-  const afterIdRef = useRef(afterId);
 
   // Declared before the socket effect so it has already run when that effect fires (refs may not be written during render).
   useEffect(() => {
@@ -140,9 +145,27 @@ export function useRunEventStream({
     onConnectionChangeRef.current = onConnectionChange;
   });
 
+  return { onEventRef, onConnectionChangeRef };
+}
+
+// afterId changes on EVERY live event, so it must stay OUT of the socket effect's deps or each event would tear down and rebuild the EventSource.
+function useAfterIdRef(afterId: string) {
+  const afterIdRef = useRef(afterId);
+
   useEffect(() => {
     afterIdRef.current = afterId;
   }, [afterId]);
+
+  return afterIdRef;
+}
+
+export function useRunEventStream(options: RunEventStreamOptions): void {
+  const { runId, enabled, onEvent, onConnectionChange } = options;
+  const { onEventRef, onConnectionChangeRef } = useCallbackRefs(
+    onEvent,
+    onConnectionChange,
+  );
+  const afterIdRef = useAfterIdRef(options.afterId);
 
   useEffect(() => {
     if (!enabled || typeof EventSource === "undefined") {
@@ -154,5 +177,5 @@ export function useRunEventStream({
       onEvent: (event) => onEventRef.current(event),
       onConnectionChange: (status) => onConnectionChangeRef.current(status),
     });
-  }, [runId, enabled]);
+  }, [runId, enabled, afterIdRef, onEventRef, onConnectionChangeRef]);
 }

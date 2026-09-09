@@ -7,16 +7,18 @@ import RunGraphView from "@/components/RunGraphView";
 import styles from "./RunVisualizationPanel.module.css";
 import { connectionLabel } from "@/lib/run-stream-presenter";
 
+interface OutcomesToggleProps {
+  show: boolean;
+  showOutcomes: boolean;
+  onToggle: () => void;
+}
+
 /** "Show possible outcomes" only makes sense once there is an executed path to toggle away from. */
 export function OutcomesToggle({
   show,
   showOutcomes,
   onToggle,
-}: {
-  show: boolean;
-  showOutcomes: boolean;
-  onToggle: () => void;
-}) {
+}: OutcomesToggleProps) {
   if (!show) {
     return null;
   }
@@ -41,14 +43,18 @@ interface ReplayControlsProps {
   onBackToLive: () => void;
 }
 
+function BackToLiveButton({ onBackToLive }: { onBackToLive: () => void }) {
+  return (
+    <button type="button" className={styles.backToLive} onClick={onBackToLive}>
+      Back to live
+    </button>
+  );
+}
+
 /** Scrub back through a finished run's events, and the way back to its end. */
-function ReplayControls({
-  eventCount,
-  cursor,
-  position,
-  onCursorChange,
-  onBackToLive,
-}: ReplayControlsProps) {
+function ReplayControls(props: ReplayControlsProps) {
+  const { eventCount, cursor, position, onBackToLive } = props;
+
   return (
     <div className={styles.replayControls}>
       <ReplayScrubberView
@@ -56,35 +62,26 @@ function ReplayControls({
         cursor={cursor}
         label={position.label}
         timestamp={position.timestamp}
-        onCursorChange={onCursorChange}
+        onCursorChange={props.onCursorChange}
       />
-      <button
-        type="button"
-        className={styles.backToLive}
-        onClick={onBackToLive}
-      >
-        Back to live
-      </button>
+      <BackToLiveButton onBackToLive={onBackToLive} />
     </div>
   );
 }
 
-/** The replay scrubber, shown only once a finished run has history to scrub through. */
-export function ReplayControlsSlot({
-  show,
-  historyEventCount,
-  replayCursor,
-  position,
-  onCursorChange,
-  onBackToLive,
-}: {
+export interface ReplaySlotProps {
   show: boolean;
   historyEventCount: number;
-  replayCursor: number | null;
+  cursor: number | null;
   position: { label: string; timestamp: string | null };
   onCursorChange: (cursor: number) => void;
   onBackToLive: () => void;
-}) {
+}
+
+/** The replay scrubber, shown only once a finished run has history to scrub through. */
+export function ReplayControlsSlot(props: ReplaySlotProps) {
+  const { show, historyEventCount, cursor } = props;
+
   if (!show) {
     return null;
   }
@@ -92,10 +89,10 @@ export function ReplayControlsSlot({
   return (
     <ReplayControls
       eventCount={historyEventCount}
-      cursor={replayCursor ?? historyEventCount}
-      position={position}
-      onCursorChange={onCursorChange}
-      onBackToLive={onBackToLive}
+      cursor={cursor ?? historyEventCount}
+      position={props.position}
+      onCursorChange={props.onCursorChange}
+      onBackToLive={props.onBackToLive}
     />
   );
 }
@@ -109,22 +106,15 @@ interface RunGraphSectionProps {
   hasRunData: boolean;
   showOutcomes: boolean;
   onToggleOutcomes: () => void;
-  replay: {
-    show: boolean;
-    historyEventCount: number;
-    cursor: number | null;
-    position: { label: string; timestamp: string | null };
-    onCursorChange: (cursor: number) => void;
-    onBackToLive: () => void;
-  };
+  replay: ReplaySlotProps;
+}
+
+interface ConnectionChipProps {
+  state: RunGraphSectionProps["chipState"];
 }
 
 /** How the page is currently receiving events. A live region rather than plain text: the transport can change under the reader — a dropped stream falls back to polling — and that is worth announcing rather than silently swapping. */
-function ConnectionChip({
-  state,
-}: {
-  state: RunGraphSectionProps["chipState"];
-}) {
+function ConnectionChip({ state }: ConnectionChipProps) {
   return (
     <div className={styles.header}>
       <span
@@ -154,14 +144,7 @@ export function RunGraphSection(props: RunGraphSectionProps) {
         showOutcomes={props.showOutcomes}
         onToggle={props.onToggleOutcomes}
       />
-      <ReplayControlsSlot
-        show={replay.show}
-        historyEventCount={replay.historyEventCount}
-        replayCursor={replay.cursor}
-        position={replay.position}
-        onCursorChange={replay.onCursorChange}
-        onBackToLive={replay.onBackToLive}
-      />
+      <ReplayControlsSlot {...replay} />
     </>
   );
 }

@@ -23,14 +23,18 @@ async function fetchPrStatus(
   }
 }
 
-/** Container: fetch on mount, re-fetch on coordinator ticks, thread details to Card. */
-export default function PRStatusPanel({
-  taskId,
-  prUrl,
-}: {
+/** Merged/closed is terminal: a settled PR will never change again, so polling it is pure load. */
+function isTerminalPr(details: PRDetails | null): boolean {
+  return details ? TERMINAL_STATES.has(details.computed_status) : false;
+}
+
+export interface PRStatusPanelProps {
   taskId: string;
   prUrl: string;
-}) {
+}
+
+/** Container: fetch on mount, re-fetch on coordinator ticks, thread details to Card. */
+export default function PRStatusPanel({ taskId, prUrl }: PRStatusPanelProps) {
   const [details, setDetails] = useState<PRDetails | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -50,9 +54,7 @@ export default function PRStatusPanel({
   }, [fetchStatus]);
 
   // Merged/closed and error are both terminal; prevent eternal re-fetch of deleted/rate-limited PRs
-  const isTerminal = details
-    ? TERMINAL_STATES.has(details.computed_status)
-    : false;
+  const isTerminal = isTerminalPr(details);
 
   useCoordinatedRefresh(fetchStatus, !isTerminal && !error);
 

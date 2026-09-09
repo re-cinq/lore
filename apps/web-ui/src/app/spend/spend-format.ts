@@ -42,22 +42,28 @@ export const anchorTime = (anchoredAt: string) => {
   return !clock || clock === "00:00" ? null : clock;
 };
 
-/** Daily burn rate and projected runway from anchor; null if anchor is future or no spend yet. */
-export function budgetOutlook(
-  budget: NonNullable<BudgetRow>,
-  today: Date,
-): { burnPerDay: number; daysLeft: number } | null {
+/** Whole days from the anchor day through today, counting today itself. */
+function elapsedDaysSince(anchoredAt: string, today: Date): number {
   const startOfToday = new Date(
     today.getFullYear(),
     today.getMonth(),
     today.getDate(),
   );
-  const elapsedDays =
+
+  return (
     Math.round(
-      (startOfToday.getTime() -
-        midnight(anchorDay(budget.anchored_at)).getTime()) /
+      (startOfToday.getTime() - midnight(anchorDay(anchoredAt)).getTime()) /
         MS_PER_DAY,
-    ) + 1;
+    ) + 1
+  );
+}
+
+/** Daily burn rate and projected runway from anchor; null if anchor is future or no spend yet. */
+export function budgetOutlook(
+  budget: NonNullable<BudgetRow>,
+  today: Date,
+): { burnPerDay: number; daysLeft: number } | null {
+  const elapsedDays = elapsedDaysSince(budget.anchored_at, today);
 
   if (elapsedDays < 1 || budget.spent_since_usd <= 0) {
     return null;

@@ -22,6 +22,30 @@ export interface FileHeatmapViewProps {
   onToggleShowAll: () => void;
 }
 
+interface HeatmapBarsProps extends FileHeatmapViewProps {
+  ranked: FileTouch[];
+  hidden: number;
+}
+
+function BarFill({ touch }: { touch: FileTouch }) {
+  return (
+    <span
+      className={styles.fill}
+      data-fill
+      style={{ ["--fill-width" as string]: `${touch.weight * 100}%` }}
+    >
+      <span
+        className={styles.read}
+        style={{ ["--read-share" as string]: touch.reads }}
+      />
+      <span
+        className={styles.write}
+        style={{ ["--write-share" as string]: touch.writes }}
+      />
+    </span>
+  );
+}
+
 function Bar({ touch }: { touch: FileTouch }) {
   return (
     <li className={styles.row} data-path={touch.path}>
@@ -29,20 +53,7 @@ function Bar({ touch }: { touch: FileTouch }) {
         {truncateMiddle(stripWorkspacePrefix(touch.path), PATH_MAX)}
       </span>
       <span className={styles.bar} aria-hidden="true">
-        <span
-          className={styles.fill}
-          data-fill
-          style={{ ["--fill-width" as string]: `${touch.weight * 100}%` }}
-        >
-          <span
-            className={styles.read}
-            style={{ ["--read-share" as string]: touch.reads }}
-          />
-          <span
-            className={styles.write}
-            style={{ ["--write-share" as string]: touch.writes }}
-          />
-        </span>
+        <BarFill touch={touch} />
       </span>
       <span className={styles.counts}>
         <span className={styles.readCount}>{touch.reads} read</span>
@@ -52,17 +63,21 @@ function Bar({ touch }: { touch: FileTouch }) {
   );
 }
 
-function HeatmapBars({
-  ranked,
-  hidden,
+function ShowMoreToggle({
   showAll,
+  hidden,
   onToggleShowAll,
-}: {
-  ranked: FileTouch[];
-  hidden: number;
-  showAll: boolean;
-  onToggleShowAll: () => void;
-}) {
+}: HeatmapBarsProps) {
+  return (
+    <button type="button" className={styles.toggle} onClick={onToggleShowAll}>
+      {showAll ? "Show fewer" : `Show ${hidden} more`}
+    </button>
+  );
+}
+
+function HeatmapBars(props: HeatmapBarsProps) {
+  const { ranked, showAll, hidden } = props;
+
   return (
     <div className={styles.heatmap}>
       <ol className={styles.rows}>
@@ -70,24 +85,13 @@ function HeatmapBars({
           <Bar key={touch.path} touch={touch} />
         ))}
       </ol>
-      {showAll || hidden > 0 ? (
-        <button
-          type="button"
-          className={styles.toggle}
-          onClick={onToggleShowAll}
-        >
-          {showAll ? "Show fewer" : `Show ${hidden} more`}
-        </button>
-      ) : null}
+      {showAll || hidden > 0 ? <ShowMoreToggle {...props} /> : null}
     </div>
   );
 }
 
-export default function FileHeatmapView({
-  touches,
-  showAll,
-  onToggleShowAll,
-}: FileHeatmapViewProps) {
+export default function FileHeatmapView(props: FileHeatmapViewProps) {
+  const { touches, showAll } = props;
   const ranked = aggregateFileTouches(touches, showAll ? undefined : TOP_N);
   const hidden = remainderTouchCount(touches, TOP_N);
 
@@ -98,12 +102,7 @@ export default function FileHeatmapView({
       emptyState="No files touched yet."
     >
       {ranked.length === 0 ? null : (
-        <HeatmapBars
-          ranked={ranked}
-          hidden={hidden}
-          showAll={showAll}
-          onToggleShowAll={onToggleShowAll}
-        />
+        <HeatmapBars {...props} ranked={ranked} hidden={hidden} />
       )}
     </CollapsibleCard>
   );

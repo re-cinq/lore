@@ -50,13 +50,12 @@ function FailureHint({ hint, repo }: { hint?: string; repo: string }) {
   );
 }
 
-function FailureDetailRow({
-  detail,
-  repo,
-}: {
+interface FailureDetailRowProps {
   detail: FailureDetail;
   repo: string;
-}) {
+}
+
+function FailureDetailRow({ detail, repo }: FailureDetailRowProps) {
   return (
     <div className={`version ${styles.detail}`}>
       <code className={styles.detailStep}>{detail.step}</code>
@@ -96,14 +95,21 @@ function FailureDetails({
   );
 }
 
-/** Renders structured failure metadata for diagnosis: category, hint, per-step breakdown. */
-export default function FailurePanel({
-  metadata,
-  repo,
-}: {
+function FailureSummary({ error, repo }: { error: string; repo: string }) {
+  return (
+    <p className={styles.error}>
+      <Linkified text={error} repo={repo} />
+    </p>
+  );
+}
+
+export interface FailurePanelProps {
   metadata: FailureMetadata | undefined;
   repo: string;
-}) {
+}
+
+/** Renders structured failure metadata for diagnosis: category, hint, per-step breakdown. */
+export default function FailurePanel({ metadata, repo }: FailurePanelProps) {
   if (!hasFailureContent(metadata)) {
     return null;
   }
@@ -117,11 +123,7 @@ export default function FailurePanel({
         <FailureCategoryBadge category={safe.category} />
       </h3>
 
-      {safe.error && (
-        <p className={styles.error}>
-          <Linkified text={safe.error} repo={repo} />
-        </p>
-      )}
+      {safe.error && <FailureSummary error={safe.error} repo={repo} />}
 
       <FailureHint hint={safe.hint} repo={repo} />
       <FailureDetails details={safe.details ?? []} repo={repo} />

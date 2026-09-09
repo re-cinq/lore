@@ -17,14 +17,13 @@ export interface OnboardViewProps {
   ) => Promise<OnboardState>;
 }
 
-/** The one thing this form asks for. Refills itself from the rejected value so a typo is corrected rather than retyped, and lists what is already onboarded — the commonest reason an attempt is refused. */
-function RepoField({
-  defaultValue,
-  onboarded,
-}: {
+interface RepoFieldProps {
   defaultValue: string;
   onboarded: OnboardViewProps["onboarded"];
-}) {
+}
+
+/** The one thing this form asks for. Refills itself from the rejected value so a typo is corrected rather than retyped, and lists what is already onboarded — the commonest reason an attempt is refused. */
+function RepoField({ defaultValue, onboarded }: RepoFieldProps) {
   return (
     <>
       <label>Repository (owner/name)</label>
@@ -37,13 +36,19 @@ function RepoField({
         title="Format: owner/repo"
         defaultValue={defaultValue}
       />
-      <p className={`meta ${styles.hint}`}>
-        Format: <code>owner/name</code>. The GitHub App must have access to this
-        repo.
-        {onboarded.length > 0 &&
-          ` Already onboarded: ${onboarded.map((r) => r.full_name).join(", ")}`}
-      </p>
+      <RepoFieldHint onboarded={onboarded} />
     </>
+  );
+}
+
+function RepoFieldHint({ onboarded }: Pick<RepoFieldProps, "onboarded">) {
+  return (
+    <p className={`meta ${styles.hint}`}>
+      Format: <code>owner/name</code>. The GitHub App must have access to this
+      repo.
+      {onboarded.length > 0 &&
+        ` Already onboarded: ${onboarded.map((r) => r.full_name).join(", ")}`}
+    </p>
   );
 }
 
@@ -56,11 +61,7 @@ export default function OnboardView({
 
   return (
     <div>
-      <h1>Add Repository</h1>
-      <p className="meta">
-        Onboard a repository to Lore. This will create a PR on the target repo
-        with CLAUDE.md, AGENTS.md, PR template, and CI workflows.
-      </p>
+      <OnboardHeading />
 
       <form action={formAction} className={`task-form ${styles.form}`}>
         <RepoField defaultValue={state?.fullName ?? ""} onboarded={onboarded} />
@@ -70,5 +71,17 @@ export default function OnboardView({
         </SubmitButton>
       </form>
     </div>
+  );
+}
+
+function OnboardHeading() {
+  return (
+    <>
+      <h1>Add Repository</h1>
+      <p className="meta">
+        Onboard a repository to Lore. This will create a PR on the target repo
+        with CLAUDE.md, AGENTS.md, PR template, and CI workflows.
+      </p>
+    </>
   );
 }

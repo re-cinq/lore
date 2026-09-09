@@ -51,24 +51,30 @@ async function resolveTaskContext(taskId: string | null) {
   return { events, llmCalls };
 }
 
+function TaskLessRunAlert() {
+  return (
+    <Alert variant="secondary">
+      This run has no backing task — cost and status-transition history are not
+      available.
+    </Alert>
+  );
+}
+
+interface TaskContextSectionProps {
+  taskId: string | null;
+  events: Awaited<ReturnType<typeof fetchTaskEvents>>;
+  llmCalls: Awaited<ReturnType<typeof fetchLlmCalls>>;
+  repo: string;
+}
+
 function TaskContextSection({
   taskId,
   events,
   llmCalls,
   repo,
-}: {
-  taskId: string | null;
-  events: Awaited<ReturnType<typeof fetchTaskEvents>>;
-  llmCalls: Awaited<ReturnType<typeof fetchLlmCalls>>;
-  repo: string;
-}) {
+}: TaskContextSectionProps) {
   if (!taskId) {
-    return (
-      <Alert variant="secondary">
-        This run has no backing task — cost and status-transition history are
-        not available.
-      </Alert>
-    );
+    return <TaskLessRunAlert />;
   }
 
   return (
@@ -103,22 +109,28 @@ interface RunPageProps {
   view: Awaited<ReturnType<typeof resolveRunView>>;
 }
 
+function RunVisualization({ run, view }: RunPageProps) {
+  return (
+    <RunVisualizationPanel
+      runId={run.id}
+      runStatus={run.status}
+      startedAt={run.startedAt}
+      definition={view.definition}
+      nodes={view.nodes}
+      repo={run.repo}
+      reason={run.reason}
+      agentEditHrefs={view.editHrefs}
+    />
+  );
+}
+
 function RunPage({ run, view }: RunPageProps) {
   return (
     <>
       <RunAutoRefresh runStatus={run.status} />
       <AssemblyRunView run={run} />
       <AssemblyRunOptions run={run} />
-      <RunVisualizationPanel
-        runId={run.id}
-        runStatus={run.status}
-        startedAt={run.startedAt}
-        definition={view.definition}
-        nodes={view.nodes}
-        repo={run.repo}
-        reason={run.reason}
-        agentEditHrefs={view.editHrefs}
-      />
+      <RunVisualization run={run} view={view} />
 
       <TaskContextSection
         taskId={run.taskId}

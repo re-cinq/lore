@@ -1,4 +1,5 @@
 import Icon from "@/components/Icon";
+import type { IconName } from "@/lib/icon-map";
 import styles from "./PRStatusCard.module.css";
 
 export type PRStatus =
@@ -44,6 +45,8 @@ function showUnavailable(
   return Boolean(error) && !details;
 }
 
+type ChecksTally = ReturnType<typeof tallyChecks>;
+
 /** How many checks passed, failed, and are still running. A skipped check counts as passing: it is not a reason to hold the PR, and counting it separately would leave the reader adding up three numbers that never reach the total. */
 function tallyChecks(checks: PRDetails["checks"]) {
   return {
@@ -57,35 +60,57 @@ function tallyChecks(checks: PRDetails["checks"]) {
   };
 }
 
+const CHECK_KINDS = {
+  passing: { className: styles.passing, icon: "check" as IconName },
+  failing: { className: styles.failing, icon: "error" as IconName },
+  pending: { className: styles.pending, icon: "pending" as IconName },
+};
+
+/** One count of checks, absent when it is zero — "0 failing" would read as a finding rather than as silence. */
+function CheckTally({
+  count,
+  kind,
+}: {
+  count: number;
+  kind: keyof typeof CHECK_KINDS;
+}) {
+  if (count === 0) {
+    return null;
+  }
+
+  const { className, icon } = CHECK_KINDS[kind];
+
+  return (
+    <span className={className}>
+      <Icon name={icon} size={13} /> {count} {kind}
+    </span>
+  );
+}
+
+function ChecksSummary({ tally }: { tally: ChecksTally }) {
+  const { passingChecks, failingChecks, pendingChecks } = tally;
+
+  return (
+    <div className={styles.checksRow}>
+      <strong>Checks:</strong>{" "}
+      <CheckTally count={passingChecks} kind="passing" />
+      <CheckTally count={failingChecks} kind="failing" />
+      <CheckTally count={pendingChecks} kind="pending" />
+    </div>
+  );
+}
+
 function ChecksRow({ details }: { details: PRDetails }) {
   if (details.checks.length === 0) {
     return null;
   }
 
-  const { passingChecks, failingChecks, pendingChecks } = tallyChecks(
-    details.checks,
-  );
+  return <ChecksSummary tally={tallyChecks(details.checks)} />;
+}
 
-  return (
-    <div className={styles.checksRow}>
-      <strong>Checks:</strong>{" "}
-      {passingChecks > 0 && (
-        <span className={styles.passing}>
-          <Icon name="check" size={13} /> {passingChecks} passing
-        </span>
-      )}
-      {failingChecks > 0 && (
-        <span className={styles.failing}>
-          <Icon name="error" size={13} /> {failingChecks} failing
-        </span>
-      )}
-      {pendingChecks > 0 && (
-        <span className={styles.pending}>
-          <Icon name="pending" size={13} /> {pendingChecks} pending
-        </span>
-      )}
-    </div>
-  );
+interface ReviewsSummaryProps {
+  approvals: PRDetails["reviews"];
+  changesRequested: PRDetails["reviews"];
 }
 
 function ReviewsRow({ details }: { details: PRDetails }) {
@@ -98,6 +123,12 @@ function ReviewsRow({ details }: { details: PRDetails }) {
     return null;
   }
 
+  return (
+    <ReviewsSummary approvals={approvals} changesRequested={changesRequested} />
+  );
+}
+
+function ReviewsSummary({ approvals, changesRequested }: ReviewsSummaryProps) {
   return (
     <div className={styles.reviewsRow}>
       <strong>Reviews:</strong>{" "}
@@ -149,27 +180,33 @@ function StatusRow({ details }: { details: PRDetails }) {
   );
 }
 
+function StatusLoading() {
+  return (
+    <div className={`spec-card ${styles.card}`}>
+      <strong>PR Status:</strong> <span className="meta">Loading…</span>
+    </div>
+  );
+}
+
+export interface PRStatusCardProps {
+  details: PRDetails | null;
+  error: string | null;
+  prUrl: string;
+}
+
 /** Pure PR-status card; Panel owns poll, threads details/error down. */
 export default function PRStatusCard({
   details,
   error,
   prUrl,
-}: {
-  details: PRDetails | null;
-  error: string | null;
-  prUrl: string;
-}) {
+}: PRStatusCardProps) {
   // A failed poll must not wipe already-loaded details off the screen.
   if (showUnavailable(error, details)) {
     return <StatusUnavailable prUrl={prUrl} />;
   }
 
   if (!details) {
-    return (
-      <div className={`spec-card ${styles.card}`}>
-        <strong>PR Status:</strong> <span className="meta">Loading…</span>
-      </div>
-    );
+    return <StatusLoading />;
   }
 
   return (

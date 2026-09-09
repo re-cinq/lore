@@ -22,17 +22,11 @@ export interface SpendViewProps {
 }
 
 export default function SpendView({ spend, recordAction }: SpendViewProps) {
-  const { interval, llm, billed, budget, gcp, compute } = spend;
+  const { llm, billed, budget, gcp, compute } = spend;
 
   return (
     <div>
-      <SummaryCards
-        interval={interval}
-        llm={llm}
-        billed={billed}
-        gcp={gcp}
-        compute={compute}
-      />
+      <SummaryCards {...spend} />
       <BalanceSection
         budget={budget}
         hasClusterSpend={llm.by_cluster.some((r) => r.cluster !== null)}

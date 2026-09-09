@@ -41,10 +41,50 @@ interface NodeInspectorProps {
   agentEditHref?: string;
 }
 
+type RetrySource = { nodeId: string; iteration: number };
+
+/** The link to this node's agent definition, absent when the node has no editable agent. */
+function EditAgentSlot({ href }: { href: string | undefined }) {
+  if (href === undefined) {
+    return null;
+  }
+
+  return (
+    <Link
+      className="btn-secondary"
+      href={href}
+      onClick={(event) => event.stopPropagation()}
+    >
+      Edit agent
+    </Link>
+  );
+}
+
+/** The retry control, absent when no attempt of this node can be resumed from. */
+function RerunSlot({
+  runId,
+  retrySource,
+}: {
+  runId: string;
+  retrySource: RetrySource | null;
+}) {
+  if (retrySource === null) {
+    return null;
+  }
+
+  return (
+    <RerunNodeButton
+      runId={runId}
+      resumeNodeId={retrySource.nodeId}
+      resumeIteration={retrySource.iteration}
+    />
+  );
+}
+
 /** What a viewer can DO to this node. Both controls sit inside a <summary>, so each stops propagation — without it the card toggles shut behind the click. Returns undefined when there is nothing to offer, so the detail card renders no empty action row. */
 function nodeActions(
   runId: string,
-  retrySource: { nodeId: string; iteration: number } | null,
+  retrySource: RetrySource | null,
   agentEditHref: string | undefined,
 ): React.ReactNode {
   if (retrySource === null && agentEditHref === undefined) {
@@ -53,22 +93,8 @@ function nodeActions(
 
   return (
     <>
-      {agentEditHref !== undefined ? (
-        <Link
-          className="btn-secondary"
-          href={agentEditHref}
-          onClick={(event) => event.stopPropagation()}
-        >
-          Edit agent
-        </Link>
-      ) : null}
-      {retrySource !== null ? (
-        <RerunNodeButton
-          runId={runId}
-          resumeNodeId={retrySource.nodeId}
-          resumeIteration={retrySource.iteration}
-        />
-      ) : null}
+      <EditAgentSlot href={agentEditHref} />
+      <RerunSlot runId={runId} retrySource={retrySource} />
     </>
   );
 }
@@ -131,6 +157,27 @@ interface SelectedNodeSectionProps {
   visibleNodeCount: number;
 }
 
+/** Narrows the section's props down to the one selected node the inspector renders. */
+function inspectorPropsFor(
+  props: SelectedNodeSectionProps,
+  nodeId: string,
+): NodeInspectorProps {
+  return {
+    nodeId,
+    runId: props.runId,
+    repo: props.repo,
+    reason: props.reason,
+    definition: props.definition,
+    state: props.selectedState ?? undefined,
+    row: props.latestRows.get(nodeId),
+    rows: props.selectedRows,
+    attempts: props.selectedAttempts,
+    inputs: props.nodeInputs,
+    retrySource: props.retrySource,
+    agentEditHref: props.agentEditHrefs?.[nodeId],
+  };
+}
+
 export function SelectedNodeSection(props: SelectedNodeSectionProps) {
   const { selectedNodeId, runId } = props;
 
@@ -140,20 +187,7 @@ export function SelectedNodeSection(props: SelectedNodeSectionProps) {
 
   return (
     <>
-      <NodeInspector
-        nodeId={selectedNodeId}
-        runId={runId}
-        repo={props.repo}
-        reason={props.reason}
-        definition={props.definition}
-        state={props.selectedState ?? undefined}
-        row={props.latestRows.get(selectedNodeId)}
-        rows={props.selectedRows}
-        attempts={props.selectedAttempts}
-        inputs={props.nodeInputs}
-        retrySource={props.retrySource}
-        agentEditHref={props.agentEditHrefs?.[selectedNodeId]}
-      />
+      <NodeInspector {...inspectorPropsFor(props, selectedNodeId)} />
       {/* Keyed on the run so a run change resets the loaded transcript by construction, not by a flag someone has to remember to clear. */}
       <FullTranscriptPanel key={runId} runId={runId} nodeId={selectedNodeId} />
     </>
@@ -171,16 +205,10 @@ type RunDetailSectionProps = SelectedNodeSectionProps & {
 };
 
 /** Everything below the graph: the selected node's inspector, the timeline, and the file heatmap. */
-export function RunDetailSection({
-  timeline,
-  fileTouches,
-  startedAt,
-  now,
-  onSeek,
-  showAllFiles,
-  toggleShowAllFiles,
-  ...inspector
-}: RunDetailSectionProps) {
+export function RunDetailSection(props: RunDetailSectionProps) {
+  const { timeline, startedAt, now, onSeek, ...rest } = props;
+  const { fileTouches, showAllFiles, toggleShowAllFiles, ...inspector } = rest;
+
   return (
     <>
       <SelectedNodeSection {...inspector} />

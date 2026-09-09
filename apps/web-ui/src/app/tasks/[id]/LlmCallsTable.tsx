@@ -4,13 +4,12 @@ import { TimeAgo } from "@/components/TimeAgo";
 import type { TaskRuntimeLlmCall } from "@/lib/task-runtime";
 import styles from "./TaskDetailView.module.css";
 
-function CallStatusCell({
-  call,
-  repo,
-}: {
+interface LlmCallProps {
   call: TaskRuntimeLlmCall;
   repo: string;
-}) {
+}
+
+function CallStatusCell({ call, repo }: LlmCallProps) {
   if (call.status !== "failed") {
     return <span className="op-badge op-pr-created">success</span>;
   }
@@ -35,13 +34,7 @@ function formatCallDuration(
   return durationMs ? `${(Number(durationMs) / 1000).toFixed(1)}s` : "—";
 }
 
-function LlmCallRow({
-  call,
-  repo,
-}: {
-  call: TaskRuntimeLlmCall;
-  repo: string;
-}) {
+function LlmCallRow({ call, repo }: LlmCallProps) {
   return (
     <tr>
       <td className={styles.mono}>{call.model}</td>
@@ -61,25 +54,30 @@ function LlmCallRow({
   );
 }
 
-/** The calls as rows. Keyed by timestamp AND index because a run can make several calls within the same second, and a duplicate key would drop all but one of them. */
-function CallsTable({
-  llmCalls,
-  repo,
-}: {
+function CallsTableHead() {
+  return (
+    <thead>
+      <tr>
+        <th>Model</th>
+        <th>Status</th>
+        <th>Tokens (in/out)</th>
+        <th>Duration</th>
+        <th>Time</th>
+      </tr>
+    </thead>
+  );
+}
+
+export interface LlmCallsTableProps {
   llmCalls: TaskRuntimeLlmCall[];
   repo: string;
-}) {
+}
+
+/** The calls as rows. Keyed by timestamp AND index because a run can make several calls within the same second, and a duplicate key would drop all but one of them. */
+function CallsTable({ llmCalls, repo }: LlmCallsTableProps) {
   return (
     <table>
-      <thead>
-        <tr>
-          <th>Model</th>
-          <th>Status</th>
-          <th>Tokens (in/out)</th>
-          <th>Duration</th>
-          <th>Time</th>
-        </tr>
-      </thead>
+      <CallsTableHead />
       <tbody>
         {llmCalls.map((c, i) => (
           <LlmCallRow key={`${c.created_at}-${i}`} call={c} repo={repo} />
@@ -90,13 +88,7 @@ function CallsTable({
 }
 
 /** Per-run LLM cost/token rows (pipeline.llm_calls). Pure render. */
-export default function LlmCallsTable({
-  llmCalls,
-  repo,
-}: {
-  llmCalls: TaskRuntimeLlmCall[];
-  repo: string;
-}) {
+export default function LlmCallsTable({ llmCalls, repo }: LlmCallsTableProps) {
   return (
     <CollapsibleCard
       title="LLM Calls"

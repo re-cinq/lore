@@ -126,6 +126,18 @@ function forkBody(
   });
 }
 
+/** lore-api's refusal, its reason passed through verbatim; only a reasonless answer degrades to 502. */
+async function forkRefusal(upstream: Response): Promise<NextResponse> {
+  const detail = (await upstream.json().catch(() => null)) as {
+    error?: string;
+  } | null;
+
+  return NextResponse.json(
+    { error: detail?.error ?? `lore-api returned ${upstream.status}` },
+    { status: upstream.status < 500 ? upstream.status : 502 },
+  );
+}
+
 /** Start the fork. A refusal comes back as 4xx with a reason in `error`, passed through verbatim; only a reasonless answer degrades to 502. */
 async function startFork(
   apiUrl: string,
@@ -141,14 +153,7 @@ async function startFork(
   });
 
   if (!upstream.ok) {
-    const detail = (await upstream.json().catch(() => null)) as {
-      error?: string;
-    } | null;
-
-    return NextResponse.json(
-      { error: detail?.error ?? `lore-api returned ${upstream.status}` },
-      { status: upstream.status < 500 ? upstream.status : 502 },
-    );
+    return forkRefusal(upstream);
   }
   const { id } = (await upstream.json()) as { id: string };
 
@@ -164,6 +169,29 @@ function unconfigured() {
   );
 }
 
+/** The fork itself, once the caller is known and their form has been read: resolve the deployment's lore-api credentials, authorize against the source run's repo, then start the run. */
+async function forkRun(accessToken: string, rerun: RerunRequest) {
+  const apiConfig = resolveLoreApiConfig();
+
+  if (!apiConfig) {
+    return unconfigured();
+  }
+  const { apiUrl, token } = apiConfig;
+  const headers = { Authorization: `Bearer ${token}` };
+  const line = await readAuthorizedSourceRun(
+    apiUrl,
+    headers,
+    accessToken,
+    rerun.runId,
+  );
+
+  if (line instanceof Response) {
+    return line;
+  }
+
+  return startFork(apiUrl, headers, line, rerun);
+}
+
 export async function POST(req: Request) {
   try {
     const accessToken = await resolveSessionAccessToken();
@@ -176,25 +204,8 @@ export async function POST(req: Request) {
     if (rerun instanceof Response) {
       return rerun;
     }
-    const apiConfig = resolveLoreApiConfig();
 
-    if (!apiConfig) {
-      return unconfigured();
-    }
-    const { apiUrl, token } = apiConfig;
-    const headers = { Authorization: `Bearer ${token}` };
-    const line = await readAuthorizedSourceRun(
-      apiUrl,
-      headers,
-      accessToken,
-      rerun.runId,
-    );
-
-    if (line instanceof Response) {
-      return line;
-    }
-
-    return startFork(apiUrl, headers, line, rerun);
+    return await forkRun(accessToken, rerun);
   } catch (err) {
     return serverError("assembly-run-rerun", err);
   }

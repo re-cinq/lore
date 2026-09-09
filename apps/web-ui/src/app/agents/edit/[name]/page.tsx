@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { listOrgAgents, saveOrgAgent } from "@/lib/agents-api";
+import { type AgentDefinition } from "@/lib/agents-mirror";
 import {
   parseAgentForm,
   saveResultToState,
@@ -49,12 +50,18 @@ export default async function EditOrgAgent({
   const agents = await listOrgAgents();
   const agent = agents.find((a) => a.name === agentName) ?? null;
 
+  return <EditOrgAgentPanel agentName={agentName} agent={agent} />;
+}
+
+interface EditOrgAgentPanelProps {
+  agentName: string;
+  agent: AgentDefinition | null;
+}
+
+function EditOrgAgentPanel({ agentName, agent }: EditOrgAgentPanelProps) {
   return (
     <div>
-      <div className="breadcrumb">
-        <Link href="/agents">Agents</Link> / <strong>{agentName}</strong>
-      </div>
-      <h1>Edit org-default definition: {agentName}</h1>
+      <EditOrgAgentHeader agentName={agentName} />
       {agent ? (
         <AgentForm
           repo=""
@@ -67,5 +74,16 @@ export default async function EditOrgAgent({
         <MissingAgent agentName={agentName} />
       )}
     </div>
+  );
+}
+
+function EditOrgAgentHeader({ agentName }: { agentName: string }) {
+  return (
+    <>
+      <div className="breadcrumb">
+        <Link href="/agents">Agents</Link> / <strong>{agentName}</strong>
+      </div>
+      <h1>Edit org-default definition: {agentName}</h1>
+    </>
   );
 }

@@ -13,6 +13,25 @@ export interface AssemblyRunListViewProps {
 /** The run status vocabulary — one status per run, so filtering is SQL-side. */
 const FILTERS = ["queued", "running", "finished", "failed"] as const;
 
+function StatusFilterBar({ activeStatus }: { activeStatus?: string }) {
+  return (
+    <div className="filter-form">
+      <a href="/assembly-runs" className={!activeStatus ? "active" : ""}>
+        All
+      </a>
+      {FILTERS.map((s) => (
+        <a
+          key={s}
+          href={`/assembly-runs?status=${s}`}
+          className={activeStatus === s ? "active" : ""}
+        >
+          {runStatusVisual(s, null).label}
+        </a>
+      ))}
+    </div>
+  );
+}
+
 // Global assembly-runs list, keyed on per-attempt run records. Pure render — page.tsx fetches the status-filtered runs and passes them down.
 export default function AssemblyRunListView({
   activeStatus,
@@ -27,20 +46,7 @@ export default function AssemblyRunListView({
         </Link>
       </div>
 
-      <div className="filter-form">
-        <a href="/assembly-runs" className={!activeStatus ? "active" : ""}>
-          All
-        </a>
-        {FILTERS.map((s) => (
-          <a
-            key={s}
-            href={`/assembly-runs?status=${s}`}
-            className={activeStatus === s ? "active" : ""}
-          >
-            {runStatusVisual(s, null).label}
-          </a>
-        ))}
-      </div>
+      <StatusFilterBar activeStatus={activeStatus} />
 
       <AssemblyRunsTable runs={runs} />
     </div>

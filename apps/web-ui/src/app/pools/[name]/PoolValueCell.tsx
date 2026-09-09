@@ -33,29 +33,31 @@ function ValueButton({
   );
 }
 
+type TimerRef = { current: ReturnType<typeof setTimeout> | null };
+
+function clearPendingTimer(timer: TimerRef) {
+  if (timer.current) {
+    clearTimeout(timer.current);
+  }
+}
+
+function useClearTimeoutOnUnmount(timer: TimerRef) {
+  useEffect(() => () => clearPendingTimer(timer), [timer]);
+}
+
 /** "Copied", for a second and a half. The timer is cleared on unmount and before each restart, so a cell copied twice in quick succession does not have the first timer switch the label off under the second. */
 function useCopyFlash(value: string) {
   const [copied, setCopied] = useState(false);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(
-    () => () => {
-      if (copiedTimer.current) {
-        clearTimeout(copiedTimer.current);
-      }
-    },
-    [],
-  );
+  useClearTimeoutOnUnmount(copiedTimer);
 
   const copy = async () => {
     if (!(await copyToClipboard(value))) {
       return;
     }
     setCopied(true);
-
-    if (copiedTimer.current) {
-      clearTimeout(copiedTimer.current);
-    }
+    clearPendingTimer(copiedTimer);
     copiedTimer.current = setTimeout(() => setCopied(false), 1500);
   };
 
@@ -71,18 +73,37 @@ export function PoolValueCell({ value }: { value: string }) {
   return (
     <td className={styles.valueCell}>
       <pre className={styles.valuePre}>{shown}</pre>
-      <div className={styles.valueActions}>
-        {long && (
-          <ValueButton
-            label={expanded ? "Show less" : "Show more"}
-            onClick={() => setExpanded((v) => !v)}
-          />
-        )}
-        <ValueButton
-          label={copied ? "Copied" : "Copy"}
-          onClick={() => void copy()}
-        />
-      </div>
+      <ValueActions
+        long={long}
+        expanded={expanded}
+        copied={copied}
+        onToggle={() => setExpanded((v) => !v)}
+        onCopy={() => void copy()}
+      />
     </td>
+  );
+}
+
+interface ValueActionsProps {
+  long: boolean;
+  expanded: boolean;
+  copied: boolean;
+  onToggle: () => void;
+  onCopy: () => void;
+}
+
+function ValueActions(props: ValueActionsProps) {
+  const { long, expanded, copied, onToggle, onCopy } = props;
+
+  return (
+    <div className={styles.valueActions}>
+      {long && (
+        <ValueButton
+          label={expanded ? "Show less" : "Show more"}
+          onClick={onToggle}
+        />
+      )}
+      <ValueButton label={copied ? "Copied" : "Copy"} onClick={onCopy} />
+    </div>
   );
 }
