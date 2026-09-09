@@ -67,7 +67,8 @@ enable_gemini = false
 # Alerts only, never a spend cap. Applying needs Billing Account Costs Manager.
 enable_gcp_budget       = false
 gcp_billing_account     = "012345-6789AB-CDEF01"
-gcp_budget_weekly_usd   = 1000
+# In the billing account's own currency (DKK on this account; ~7000 DKK = ~USD 1000).
+gcp_budget_weekly       = 7000
 gcp_budget_alert_emails = []
 
 # --- Misc ---

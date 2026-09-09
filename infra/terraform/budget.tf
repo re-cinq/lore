@@ -14,6 +14,12 @@
 # The budget is scoped to this project only: the billing account it hangs off
 # is shared with other workloads, and an unscoped budget would count them too.
 #
+# The amount carries NO currency: the Budgets API bills a budget in its billing
+# account's own currency and rejects any other with a bare "Request contains an
+# invalid argument" naming no field (account 0132C7-8857EC-2D094D bills in DKK,
+# so an explicit "USD" 400s). Omitting it is also the only way to keep this
+# correct if the account's currency ever changes.
+#
 # Applying needs Billing Account Costs Manager on the billing account, a role
 # that project-level Owner/Editor does NOT include.
 
@@ -23,10 +29,10 @@ variable "enable_gcp_budget" {
   default     = false
 }
 
-variable "gcp_budget_weekly_usd" {
-  description = "Weekly spend budget in USD. Converted to its monthly equivalent (x52/12) because Cloud Billing budgets reset monthly."
+variable "gcp_budget_weekly" {
+  description = "Weekly spend budget, in the BILLING ACCOUNT's own currency — the Budgets API rejects any other. Account 0132C7-8857EC-2D094D bills in DKK, where 7000 DKK is about USD 1000 (DKK is pegged to the euro, so the rate moves only with EUR/USD). Converted to its monthly equivalent (x52/12) because Cloud Billing budgets reset monthly."
   type        = number
-  default     = 1000
+  default     = 7000
 }
 
 variable "gcp_billing_account" {
@@ -46,7 +52,7 @@ data "google_project" "current" {
 }
 
 locals {
-  gcp_budget_monthly_usd = floor(var.gcp_budget_weekly_usd * 52 / 12)
+  gcp_budget_monthly = floor(var.gcp_budget_weekly * 52 / 12)
 }
 
 resource "google_monitoring_notification_channel" "budget_email" {
@@ -65,7 +71,7 @@ resource "google_billing_budget" "lore" {
   count = var.enable_gcp_budget ? 1 : 0
 
   billing_account = var.gcp_billing_account
-  display_name    = "lore ${var.project_id}: USD ${var.gcp_budget_weekly_usd}/week"
+  display_name    = "lore ${var.project_id}: ${var.gcp_budget_weekly}/week"
 
   budget_filter {
     projects               = ["projects/${data.google_project.current.number}"]
@@ -75,8 +81,8 @@ resource "google_billing_budget" "lore" {
 
   amount {
     specified_amount {
-      currency_code = "USD"
-      units         = tostring(local.gcp_budget_monthly_usd)
+      # No currency_code on purpose — see the header.
+      units = tostring(local.gcp_budget_monthly)
     }
   }
 
