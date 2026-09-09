@@ -96,6 +96,9 @@ function settledVerdict(input: {
     : { kind: "ready" };
 }
 
+/** Stands in for the sha when every commit skipped CI, so the unchanged-guard can still compare one look to the next. */
+const NO_JUDGEABLE_COMMIT = "no-judgeable-commit";
+
 /** What the round is told about a branch GitHub will not build. */
 const CONFLICT_SUMMARY =
   "GitHub runs no workflow on a conflicted pull request, so this branch has no build and never will until it merges its base cleanly. Bring it up to date with the base branch and push.";
@@ -105,18 +108,20 @@ function conflictVerdict(
   judgedSha: string | null,
   lastReportedSha: string | null,
 ): CiCheckVerdict {
+  // Not "": park-readers reads that back as null, so it could never compare equal and the guard would never close.
+  const current = judgedSha ?? NO_JUDGEABLE_COMMIT;
   const routing =
-    !judgedSha || judgedSha !== lastReportedSha
+    current !== lastReportedSha
       ? ({ reason: "pr_conflicting", outcome: "changes_requested" } as const)
       : ({ reason: "pr_conflicting_unchanged", outcome: "failed" } as const);
 
-  return { kind: "blocked", ...routing, feedback: conflictFeedback(judgedSha) };
+  return { kind: "blocked", ...routing, feedback: conflictFeedback(current) };
 }
 
 /** What the round is handed about a branch with no build: no check names, because there are none. */
-function conflictFeedback(judgedSha: string | null): CiFeedbackArgs {
+function conflictFeedback(sha: string): CiFeedbackArgs {
   return {
-    ci_feedback_sha: judgedSha ?? "",
+    ci_feedback_sha: sha,
     ci_failed_checks: "none — the pull request conflicts with its base",
     ci_failure_summary: CONFLICT_SUMMARY,
   };

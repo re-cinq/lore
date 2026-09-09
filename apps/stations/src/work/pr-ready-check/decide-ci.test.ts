@@ -74,6 +74,31 @@ describe("decideCiReady", () => {
     });
   });
 
+  it("ends a conflict with no judgeable commit on the second look, rather than routing forever", () => {
+    const first = decideCiReady(
+      input({ mergeable: false, checks: [], judgedSha: null }),
+    );
+
+    expect(first).toMatchObject({
+      reason: "pr_conflicting",
+      outcome: "changes_requested",
+    });
+    expect(
+      decideCiReady(
+        input({
+          mergeable: false,
+          checks: [],
+          judgedSha: null,
+          lastReportedSha: (first as { feedback: { ci_feedback_sha: string } })
+            .feedback.ci_feedback_sha,
+        }),
+      ),
+    ).toMatchObject({
+      reason: "pr_conflicting_unchanged",
+      outcome: "failed",
+    });
+  });
+
   it("waits rather than guessing while GitHub has not computed mergeability yet", () => {
     expect(decideCiReady(input({ mergeable: null, checks: [] }))).toEqual({
       kind: "wait",
