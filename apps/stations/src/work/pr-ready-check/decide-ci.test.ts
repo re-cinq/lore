@@ -58,9 +58,10 @@ describe("decideCiReady", () => {
   });
 
   it("waits rather than guessing while GitHub has not computed mergeability yet", () => {
-    expect(
-      decideCiReady(input({ mergeable: null, checks: [] })),
-    ).toEqual({ kind: "wait", reason: "ci_not_started" });
+    expect(decideCiReady(input({ mergeable: null, checks: [] }))).toEqual({
+      kind: "wait",
+      reason: "ci_not_started",
+    });
   });
 
   it("is ready when every check on the judged sha passed", () => {
