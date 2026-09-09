@@ -27,11 +27,12 @@ function useActiveIds() {
   return { activeIds, activeIdsRef, setActive };
 }
 
-/** Which panels exist and which are currently worth refreshing. A panel deregisters by calling what `register` returned, so an unmounted panel cannot be ticked. */
-export function usePanelRegistry() {
-  const registryRef = useRef(new Map<string, Refresh>());
-  const { activeIds, activeIdsRef, setActive } = useActiveIds();
-  const register = useCallback(
+/** Registering hands back the deregistration, so an unmounted panel cannot be ticked. */
+function useRegister(
+  registryRef: { current: Map<string, Refresh> },
+  setActive: (id: string, active: boolean) => void,
+) {
+  return useCallback(
     (id: string, refresh: Refresh) => {
       registryRef.current.set(id, refresh);
 
@@ -40,8 +41,15 @@ export function usePanelRegistry() {
         setActive(id, false);
       };
     },
-    [setActive],
+    [registryRef, setActive],
   );
+}
+
+/** Which panels exist and which are currently worth refreshing. A panel deregisters by calling what `register` returned, so an unmounted panel cannot be ticked. */
+export function usePanelRegistry() {
+  const registryRef = useRef(new Map<string, Refresh>());
+  const { activeIds, activeIdsRef, setActive } = useActiveIds();
+  const register = useRegister(registryRef, setActive);
   const refreshAll = useCallback(() => {
     for (const id of activeIdsRef.current) {
       void registryRef.current.get(id)?.();
@@ -100,14 +108,11 @@ function scheduleBurst(
   }
 }
 
-/** Coalesces an event burst: refresh immediately when past the throttle, otherwise once at the boundary. Seeded at mount so stream catch-up does not fire a duplicate wave. */
-export function useCoalescedRefresh(
-  refreshAll: () => void,
-  setAfterId: (update: (prev: string) => string) => void,
+/** Seeds the throttle window at mount so stream catch-up does not fire a duplicate wave, and drops any refresh still owed when the page goes away. */
+function useBurstWindow(
+  lastRefreshAtRef: { current: number },
+  trailingTimerRef: { current: ReturnType<typeof setTimeout> | null },
 ) {
-  const lastRefreshAtRef = useRef(0);
-  const trailingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   useEffect(() => {
     lastRefreshAtRef.current = Date.now();
 
@@ -116,7 +121,18 @@ export function useCoalescedRefresh(
         clearTimeout(trailingTimerRef.current);
       }
     };
-  }, []);
+  }, [lastRefreshAtRef, trailingTimerRef]);
+}
+
+/** Coalesces an event burst: refresh immediately when past the throttle, otherwise once at the boundary. Seeded at mount so stream catch-up does not fire a duplicate wave. */
+export function useCoalescedRefresh(
+  refreshAll: () => void,
+  setAfterId: (update: (prev: string) => string) => void,
+) {
+  const lastRefreshAtRef = useRef(0);
+  const trailingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useBurstWindow(lastRefreshAtRef, trailingTimerRef);
 
   return useCallback(
     (event: RunStreamEvent) => {
@@ -133,38 +149,67 @@ export function useCoalescedRefresh(
   );
 }
 
-/** Single-flight run discovery. A poll slower than its interval must NOT stack requests behind itself, so an in-flight lookup skips the next tick rather than queueing; a cancelled discovery drops its result instead of reporting a run the page has navigated away from. A failed lookup is silent — the next tick retries. */
+/** A poll slower than its interval must NOT stack requests behind itself, so a call made while one is in flight is skipped rather than queued. */
+function singleFlight(task: () => Promise<void>) {
+  let inFlight = false;
+
+  return async () => {
+    if (inFlight) {
+      return;
+    }
+    inFlight = true;
+
+    try {
+      await task();
+    } finally {
+      inFlight = false;
+    }
+  };
+}
+
+/** A cancelled discovery drops its result instead of reporting a run the page has navigated away from. A failed lookup is silent — the next tick retries. */
+async function reportLiveRun(
+  taskId: string,
+  liveRunIdRef: { current: string | null },
+  onLiveRunFound: (runId: string | null) => void,
+  isCancelled: () => boolean,
+) {
+  try {
+    const found = await fetchLiveRun(taskId);
+
+    if (!isCancelled() && found !== liveRunIdRef.current) {
+      onLiveRunFound(found);
+    }
+  } catch {
+    // The next tick retries.
+  }
+}
+
+/** Single-flight run discovery: one lookup at a time, and none at all once cancelled. */
 export function runDiscovery(
   taskId: string,
   liveRunIdRef: { current: string | null },
   onLiveRunFound: (runId: string | null) => void,
 ) {
-  let inFlight = false;
   let cancelled = false;
 
   return {
     cancel: () => {
       cancelled = true;
     },
-    run: async () => {
-      if (inFlight) {
-        return;
-      }
-      inFlight = true;
-
-      try {
-        const found = await fetchLiveRun(taskId);
-
-        if (!cancelled && found !== liveRunIdRef.current) {
-          onLiveRunFound(found);
-        }
-      } catch {
-        // The next tick retries.
-      } finally {
-        inFlight = false;
-      }
-    },
+    run: singleFlight(() =>
+      reportLiveRun(taskId, liveRunIdRef, onLiveRunFound, () => cancelled),
+    ),
   };
+}
+
+interface TickerOptions {
+  intervalMs: number;
+  taskId: string;
+  refreshAll: () => void;
+  discoveryActiveRef: { current: boolean };
+  liveRunIdRef: { current: string | null };
+  onLiveRunFound: (runId: string | null) => void;
 }
 
 /** The interval itself, and how to stop it. Discovery is read from a ref rather than taken as a value so that turning it on or off does not tear down and restart the interval mid-cycle. */
@@ -175,14 +220,7 @@ function startTicker({
   discoveryActiveRef,
   liveRunIdRef,
   onLiveRunFound,
-}: {
-  intervalMs: number;
-  taskId: string;
-  refreshAll: () => void;
-  discoveryActiveRef: { current: boolean };
-  liveRunIdRef: { current: string | null };
-  onLiveRunFound: (runId: string | null) => void;
-}) {
+}: TickerOptions) {
   const discovery = runDiscovery(taskId, liveRunIdRef, onLiveRunFound);
   const handle = setInterval(() => {
     refreshAll();
@@ -210,14 +248,8 @@ interface RefreshTickerOptions {
   onLiveRunFound: (runId: string | null) => void;
 }
 
-export function useRefreshTicker({
-  intervalMs,
-  taskId,
-  refreshAll,
-  discoveryActive,
-  liveRunId,
-  onLiveRunFound,
-}: RefreshTickerOptions): void {
+/** Discovery inputs held as refs, so toggling either one does not tear down and restart the interval mid-cycle. */
+function useDiscoveryRefs(discoveryActive: boolean, liveRunId: string | null) {
   const discoveryActiveRef = useRef(discoveryActive);
   const liveRunIdRef = useRef(liveRunId);
 
@@ -225,6 +257,16 @@ export function useRefreshTicker({
     discoveryActiveRef.current = discoveryActive;
     liveRunIdRef.current = liveRunId;
   }, [discoveryActive, liveRunId]);
+
+  return { discoveryActiveRef, liveRunIdRef };
+}
+
+export function useRefreshTicker(options: RefreshTickerOptions): void {
+  const { intervalMs, taskId, refreshAll, onLiveRunFound } = options;
+  const { discoveryActiveRef, liveRunIdRef } = useDiscoveryRefs(
+    options.discoveryActive,
+    options.liveRunId,
+  );
 
   useEffect(() => {
     if (intervalMs === null) {

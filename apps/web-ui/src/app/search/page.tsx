@@ -7,37 +7,38 @@ import SearchView, {
   type SearchRepoOption,
 } from "./SearchView";
 
-export default async function SearchPage({
-  searchParams,
-}: {
+interface SearchPageProps {
   searchParams: Promise<{ q?: string; repo?: string }>;
-}) {
+}
+
+export default async function SearchPage({ searchParams }: SearchPageProps) {
   const { q, repo } = await searchParams;
-  let results: SearchResult[] = [];
-
-  // Populate repo filter dropdown
-  const { repos: onboarded } = reposOrThrow(await listAllRepos());
-  const repos: SearchRepoOption[] = onboarded
-    .map((repo) => ({ full_name: repo.full_name }))
-    .sort((a, b) => a.full_name.localeCompare(b.full_name));
-
-  if (q) {
-    // One call for both memory and facts: lore-api runs both ranked searches and returns them as one list
-    const memoryHits = await searchMemory(q);
-    const memoryResults = (memoryHits.status === "ok"
-      ? memoryHits.data.results
-      : []) as unknown as SearchResult[];
-
-    // Chunk hits come from lore-api, which owns the schema union.
-    const chunkHits = await getChunks({ repo, q, limit: 20 });
-    const chunkResults = (chunkHits.status === "ok"
-      ? chunkHits.data.chunks
-      : []) as unknown as SearchResult[];
-
-    const allResults = [...memoryResults, ...chunkResults];
-
-    results = allResults.sort((a, b) => b.score - a.score).slice(0, 30);
-  }
+  const repos = await repoFilterOptions();
+  const results = q ? await runSearch(q, repo) : [];
 
   return <SearchView q={q} repo={repo} repos={repos} results={results} />;
+}
+
+/** The options behind the repo filter dropdown, in name order. */
+async function repoFilterOptions(): Promise<SearchRepoOption[]> {
+  const { repos: onboarded } = reposOrThrow(await listAllRepos());
+
+  return onboarded
+    .map((repo) => ({ full_name: repo.full_name }))
+    .sort((a, b) => a.full_name.localeCompare(b.full_name));
+}
+
+/** One memory call covers memories and facts alike — lore-api runs both ranked searches and returns them as one list — and the chunk hits come from lore-api too, which owns the schema union. */
+async function runSearch(q: string, repo?: string): Promise<SearchResult[]> {
+  const memoryHits = await searchMemory(q);
+  const memoryResults = (memoryHits.status === "ok"
+    ? memoryHits.data.results
+    : []) as unknown as SearchResult[];
+  const chunkHits = await getChunks({ repo, q, limit: 20 });
+  const chunkResults = (chunkHits.status === "ok"
+    ? chunkHits.data.chunks
+    : []) as unknown as SearchResult[];
+  const allResults = [...memoryResults, ...chunkResults];
+
+  return allResults.sort((a, b) => b.score - a.score).slice(0, 30);
 }

@@ -88,28 +88,64 @@ export function TranscriptToggleRow({
   );
 }
 
+function RawTurnItem({ turn }: { turn: AgentRunTurn }) {
+  return (
+    <li className={styles.turn}>
+      <details>
+        <summary className={styles.turnSummary}>
+          <span className={styles.kind}>{turnHeading(turn)}</span>
+          {turn.iteration !== null && (
+            <span className={styles.iteration}>iteration {turn.iteration}</span>
+          )}
+          <time dateTime={turn.createdAt}>
+            {new Date(turn.createdAt).toLocaleString()}
+          </time>
+        </summary>
+        <pre className={styles.envelope}>{envelopePretty(turn)}</pre>
+      </details>
+    </li>
+  );
+}
+
 function RawTurnsList({ turns }: { turns: AgentRunTurn[] }) {
   return (
     <ol className={styles.turns}>
       {turns.map((turn) => (
-        <li key={turn.id} className={styles.turn}>
-          <details>
-            <summary className={styles.turnSummary}>
-              <span className={styles.kind}>{turnHeading(turn)}</span>
-              {turn.iteration !== null && (
-                <span className={styles.iteration}>
-                  iteration {turn.iteration}
-                </span>
-              )}
-              <time dateTime={turn.createdAt}>
-                {new Date(turn.createdAt).toLocaleString()}
-              </time>
-            </summary>
-            <pre className={styles.envelope}>{envelopePretty(turn)}</pre>
-          </details>
-        </li>
+        <RawTurnItem key={turn.id} turn={turn} />
       ))}
     </ol>
+  );
+}
+
+function SegmentEntry({
+  timed,
+}: {
+  timed: NodeSegmentView["entries"][number];
+}) {
+  return (
+    <li className={styles.entryRow}>
+      <time className={styles.entryTime} dateTime={timed.at}>
+        {clockTime(timed.at)}
+      </time>
+      <div className={styles.entryBody}>
+        <EntryLine entry={timed.entry} />
+      </div>
+    </li>
+  );
+}
+
+function SegmentItem({ segment }: { segment: NodeSegmentView }) {
+  return (
+    <li className={styles.segment}>
+      {segment.label !== null && (
+        <div className={styles.segmentHeader}>{segment.label}</div>
+      )}
+      <ol className={styles.entries}>
+        {segment.entries.map((timed, i) => (
+          <SegmentEntry key={i} timed={timed} />
+        ))}
+      </ol>
+    </li>
   );
 }
 
@@ -117,23 +153,7 @@ function SegmentedTurnsList({ segments }: { segments: NodeSegmentView[] }) {
   return (
     <ol className={styles.segments}>
       {segments.map((segment, index) => (
-        <li key={index} className={styles.segment}>
-          {segment.label !== null && (
-            <div className={styles.segmentHeader}>{segment.label}</div>
-          )}
-          <ol className={styles.entries}>
-            {segment.entries.map((timed, i) => (
-              <li key={i} className={styles.entryRow}>
-                <time className={styles.entryTime} dateTime={timed.at}>
-                  {clockTime(timed.at)}
-                </time>
-                <div className={styles.entryBody}>
-                  <EntryLine entry={timed.entry} />
-                </div>
-              </li>
-            ))}
-          </ol>
-        </li>
+        <SegmentItem key={index} segment={segment} />
       ))}
     </ol>
   );

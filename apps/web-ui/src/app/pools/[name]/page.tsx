@@ -19,26 +19,18 @@ async function readPool(poolName: string) {
   };
 }
 
-export default async function PoolDetailPage({
-  params,
-}: {
+interface PoolDetailPageProps {
   params: Promise<{ name: string }>;
-}) {
+}
+
+export default async function PoolDetailPage({ params }: PoolDetailPageProps) {
   const { name } = await params;
   const poolName = decodeURIComponent(name);
 
   const found = await readPool(poolName);
 
   if (!found) {
-    return (
-      <PoolDetailView
-        poolName={poolName}
-        found={false}
-        createdBy=""
-        createdAt=""
-        entries={[]}
-      />
-    );
+    return <MissingPool poolName={poolName} />;
   }
 
   return (
@@ -48,6 +40,18 @@ export default async function PoolDetailPage({
       createdBy={found.pool.created_by}
       createdAt={found.pool.created_at}
       entries={found.entries}
+    />
+  );
+}
+
+function MissingPool({ poolName }: { poolName: string }) {
+  return (
+    <PoolDetailView
+      poolName={poolName}
+      found={false}
+      createdBy=""
+      createdAt=""
+      entries={[]}
     />
   );
 }

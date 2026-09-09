@@ -65,6 +65,29 @@ function buildTriggerRedirect(req: Request): NextResponse {
   );
 }
 
+/** Asks the Floor to start the review, and answers with the 502 if it would not — null means it did. */
+async function startReview(auth: TriggerAuth): Promise<NextResponse | null> {
+  const { repo, prNumber, floorUrl, token } = auth;
+  const upstream = await fetch(`${floorUrl}/api/review/start`, {
+    signal: AbortSignal.timeout(30_000),
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ repo, pr_number: prNumber }),
+  });
+
+  if (upstream.ok) {
+    return null;
+  }
+
+  return NextResponse.json(
+    { error: `Floor returned ${upstream.status}` },
+    { status: 502 },
+  );
+}
+
 // "Trigger review" backend: authorizes against the target repo, then proxies to the Floor's /api/review/start (UI has no cluster/DB write path for assembly lines).
 export async function POST(req: Request) {
   try {
@@ -74,22 +97,10 @@ export async function POST(req: Request) {
       return auth;
     }
 
-    const { repo, prNumber, floorUrl, token } = auth;
-    const upstream = await fetch(`${floorUrl}/api/review/start`, {
-      signal: AbortSignal.timeout(30_000),
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ repo, pr_number: prNumber }),
-    });
+    const refusal = await startReview(auth);
 
-    if (!upstream.ok) {
-      return NextResponse.json(
-        { error: `Floor returned ${upstream.status}` },
-        { status: 502 },
-      );
+    if (refusal) {
+      return refusal;
     }
 
     return buildTriggerRedirect(req);

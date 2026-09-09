@@ -20,15 +20,15 @@ async function readGraph(query: {
     : { stats: {}, entity_types: [], entities: [], edges: [] };
 }
 
-export default async function GraphPage({
-  searchParams,
-}: {
+interface GraphPageProps {
   searchParams: Promise<{
     entity?: string;
     type?: string;
     show_invalid?: string;
   }>;
-}) {
+}
+
+export default async function GraphPage({ searchParams }: GraphPageProps) {
   const { entity, type, show_invalid } = await searchParams;
   const showInvalid = show_invalid === "1";
 

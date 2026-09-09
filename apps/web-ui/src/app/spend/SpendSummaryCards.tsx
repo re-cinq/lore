@@ -3,18 +3,20 @@ import styles from "./SpendView.module.css";
 import type { SpendWindow } from "./SpendView";
 import { usd, num, day, stamp } from "./spend-format";
 
+interface StatCardProps {
+  label: ReactNode;
+  figure: string;
+  estimate?: boolean;
+  children?: ReactNode;
+}
+
 /** One headline figure. `estimate` marks a number Lore computed rather than one a vendor billed, which is the distinction the whole page turns on. */
 function StatCard({
   label,
   figure,
   estimate = false,
   children,
-}: {
-  label: ReactNode;
-  figure: string;
-  estimate?: boolean;
-  children?: ReactNode;
-}) {
+}: StatCardProps) {
   return (
     <div className={`spec-card ${styles.card}`}>
       <div className="meta">{label}</div>
@@ -60,13 +62,9 @@ function LoreComputedCards({
 }
 
 /** The headline figures: what Lore computed from token counts, what each vendor actually billed, and what the pods cost. A billed card appears only once that vendor has synced. */
-export function SummaryCards({
-  interval,
-  llm,
-  billed,
-  gcp,
-  compute,
-}: SummaryCardsProps) {
+export function SummaryCards(props: SummaryCardsProps) {
+  const { interval, llm, billed, gcp, compute } = props;
+
   return (
     <div className={styles.cards}>
       <LoreComputedCards interval={interval} llm={llm} />

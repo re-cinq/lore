@@ -72,17 +72,21 @@ function AgentFindings({ gapMemories }: Pick<GapsViewProps, "gapMemories">) {
           No findings from the gap detection agent yet.
         </Alert>
       ) : (
-        gapMemories.map((mem, i) => (
-          <div key={i} className="spec-card">
-            <h3>{mem.key}</h3>
-            <span className="meta">
-              <TimeAgo date={mem.created_at} />
-            </span>
-            <pre className={styles.findingValue}>{mem.value}</pre>
-          </div>
-        ))
+        gapMemories.map((mem, i) => <GapFindingCard key={i} memory={mem} />)
       )}
     </section>
+  );
+}
+
+function GapFindingCard({ memory }: { memory: GapMemoryRow }) {
+  return (
+    <div className="spec-card">
+      <h3>{memory.key}</h3>
+      <span className="meta">
+        <TimeAgo date={memory.created_at} />
+      </span>
+      <pre className={styles.findingValue}>{memory.value}</pre>
+    </div>
   );
 }
 
@@ -92,27 +96,39 @@ function SearchesTable({
 }: Pick<GapsViewProps, "zeroResultSearches">) {
   return (
     <table className={styles.table}>
-      <thead>
-        <tr>
-          <th className={styles.th}>Query</th>
-          <th className={styles.th}>Details</th>
-          <th className={styles.th}>Time</th>
-        </tr>
-      </thead>
+      <SearchesTableHead />
       <tbody>
         {zeroResultSearches.map((entry, i) => (
-          <tr key={i}>
-            <td className={styles.td}>{entry.memory_key}</td>
-            <td className={styles.td}>
-              <code>{JSON.stringify(entry.metadata)}</code>
-            </td>
-            <td className={`meta ${styles.td}`}>
-              <TimeAgo date={entry.created_at} />
-            </td>
-          </tr>
+          <ZeroResultRow key={i} entry={entry} />
         ))}
       </tbody>
     </table>
+  );
+}
+
+function SearchesTableHead() {
+  return (
+    <thead>
+      <tr>
+        <th className={styles.th}>Query</th>
+        <th className={styles.th}>Details</th>
+        <th className={styles.th}>Time</th>
+      </tr>
+    </thead>
+  );
+}
+
+function ZeroResultRow({ entry }: { entry: ZeroResultSearchRow }) {
+  return (
+    <tr>
+      <td className={styles.td}>{entry.memory_key}</td>
+      <td className={styles.td}>
+        <code>{JSON.stringify(entry.metadata)}</code>
+      </td>
+      <td className={`meta ${styles.td}`}>
+        <TimeAgo date={entry.created_at} />
+      </td>
+    </tr>
   );
 }
 

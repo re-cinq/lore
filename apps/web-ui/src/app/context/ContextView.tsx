@@ -16,19 +16,22 @@ export interface ContextViewProps {
   chunks: ContextChunk[];
 }
 
-/** Global cross-repo context list; pure render with repo labels and detail links. */
 /** Two different nothings: a filter that matched nothing offers a way back, while a repo with no ingested context explains when context arrives. Telling them apart is the whole point — the first is the reader's doing, the second is not. */
 function ContextEmptyState({ filtered }: { filtered: boolean }) {
-  if (filtered) {
-    return (
-      <EmptyState
-        title="No matches for this filter"
-        description="No ingested context matches the current search or type filter."
-        action={{ href: "/context", label: "Clear filters" }}
-      />
-    );
+  if (!filtered) {
+    return <NothingIngestedState />;
   }
 
+  return (
+    <EmptyState
+      title="No matches for this filter"
+      description="No ingested context matches the current search or type filter."
+      action={{ href: "/context", label: "Clear filters" }}
+    />
+  );
+}
+
+function NothingIngestedState() {
   return (
     <EmptyState
       title="Nothing ingested yet"
@@ -74,12 +77,10 @@ function GlobalChunkCard({
   );
 }
 
-export default function ContextView({
-  type,
-  q,
-  types,
-  chunks,
-}: ContextViewProps) {
+/** Global cross-repo context list; pure render with repo labels and detail links. */
+export default function ContextView(props: ContextViewProps) {
+  const { type, q, types, chunks } = props;
+
   return (
     <div>
       <h1>Context</h1>
@@ -92,11 +93,24 @@ export default function ContextView({
         q={q}
       />
 
-      {chunks.length === 0 ? (
-        <ContextEmptyState filtered={Boolean(q || type)} />
-      ) : (
-        chunks.map((chunk) => <GlobalChunkCard key={chunk.id} chunk={chunk} />)
-      )}
+      <ContextChunkList chunks={chunks} filtered={Boolean(q || type)} />
     </div>
+  );
+}
+
+interface ContextChunkListProps {
+  chunks: ContextChunk[];
+  filtered: boolean;
+}
+
+function ContextChunkList({ chunks, filtered }: ContextChunkListProps) {
+  return chunks.length === 0 ? (
+    <ContextEmptyState filtered={filtered} />
+  ) : (
+    <>
+      {chunks.map((chunk) => (
+        <GlobalChunkCard key={chunk.id} chunk={chunk} />
+      ))}
+    </>
   );
 }

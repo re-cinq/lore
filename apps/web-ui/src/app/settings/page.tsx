@@ -121,25 +121,35 @@ function resolveApprovalConfig(
 }
 
 export default async function SettingsPage() {
-  const org = await getOrgSettings();
-  const settingsMap = settingsMapFrom(org);
-  const stats = await getTaskStats();
-  const taskStats = taskStatsFrom(stats);
-  const approvalConfig = resolveApprovalConfig(settingsMap);
-  const repoLines = Object.keys(approvalConfig.repos).join("\n");
+  const { settingsMap, repoCount, taskStats, approvalConfig } =
+    await loadSettingsPageData();
 
   return (
     <SettingsView
       apiUrl={settingsMap.api_url || ""}
       ingestToken={settingsMap.ingest_token || ""}
-      repoCount={repoCountFrom(org)}
+      repoCount={repoCount}
       totalTasks={taskStats.total}
       tasksToday={taskStats.today}
       approvalConfig={approvalConfig}
-      repoLines={repoLines}
+      repoLines={Object.keys(approvalConfig.repos).join("\n")}
       saveSettings={saveSettings}
       saveApprovalConfig={saveApprovalConfig}
       regenerateToken={regenerateToken}
     />
   );
+}
+
+/** Everything the settings page renders from, read in one place so the page itself is the wiring. */
+async function loadSettingsPageData() {
+  const org = await getOrgSettings();
+  const settingsMap = settingsMapFrom(org);
+  const stats = await getTaskStats();
+
+  return {
+    settingsMap,
+    repoCount: repoCountFrom(org),
+    taskStats: taskStatsFrom(stats),
+    approvalConfig: resolveApprovalConfig(settingsMap),
+  };
 }

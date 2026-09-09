@@ -20,6 +20,8 @@ interface HistoryPage {
 
 const HISTORY_TIMEOUT_MS = 15_000;
 
+type HistoryDispatch = (event: RunStreamEvent) => void;
+
 async function fetchPage(
   runId: string,
   cursor: string,
@@ -74,38 +76,6 @@ export interface RunHistory {
   setStreamUnavailable: (next: boolean) => void;
 }
 
-/** Reads every page of the run's history, dispatching each row as it arrives so the reducer folds them in order. `isCancelled` is checked between pages: a run change must not let the previous run's later pages land in the new run's state. */
-async function loadAllPages(
-  runId: string,
-  dispatch: (event: RunStreamEvent) => void,
-  isCancelled: () => boolean,
-): Promise<{ ok: boolean; collected: RunStreamEvent[] }> {
-  let cursor = "0";
-  const collected: RunStreamEvent[] = [];
-
-  for (;;) {
-    const page = await fetchPage(runId, cursor);
-
-    if (isCancelled()) {
-      return { ok: true, collected };
-    }
-
-    if (!page.ok) {
-      return { ok: false, collected };
-    }
-    collected.push(...dispatchParsedRows(page.rows, dispatch));
-    const next = nextPageCursor(identifiedRows(page.rows));
-
-    if (next === null) {
-      break;
-    }
-    cursor = next;
-  }
-
-  return { ok: true, collected };
-}
-
-/** Folds the run's persisted history in, page by page. A partial read is reported as offline rather than shown: half a run's events look like a run that did less than it did, which is worse than saying the history could not be loaded. */
 interface HistoryLoad {
   runId: string;
   dispatch: (event: RunStreamEvent) => void;
@@ -119,20 +89,61 @@ interface HistorySetters {
   setStreamUnavailable: (unavailable: boolean) => void;
 }
 
-async function foldHistory(
-  { runId, dispatch, cancelled }: HistoryLoad,
-  set: HistorySetters,
-): Promise<void> {
+/** Folds one page into the collection and reports the cursor the next page starts from, or null when this was the last one. */
+function foldPage(
+  page: { rows: unknown[] },
+  dispatch: (event: RunStreamEvent) => void,
+  collected: RunStreamEvent[],
+): string | null {
+  collected.push(...dispatchParsedRows(page.rows, dispatch));
+
+  return nextPageCursor(identifiedRows(page.rows));
+}
+
+/** Reads every page of the run's history, dispatching each row as it arrives so the reducer folds them in order. `cancelled` is checked between pages: a run change must not let the previous run's later pages land in the new run's state. */
+async function loadAllPages(load: HistoryLoad) {
+  const { runId, dispatch, cancelled } = load;
+  let cursor = "0";
+  const collected: RunStreamEvent[] = [];
+
+  for (;;) {
+    const page = await fetchPage(runId, cursor);
+
+    if (cancelled()) {
+      return { ok: true, collected };
+    }
+
+    if (!page.ok) {
+      return { ok: false, collected };
+    }
+    const next = foldPage(page, dispatch, collected);
+
+    if (next === null) {
+      return { ok: true, collected };
+    }
+    cursor = next;
+  }
+}
+
+/** A partial read is reported as offline rather than shown: half a run's events look like a run that did less than it did, which is worse than saying the history could not be loaded. */
+function reportHistoryUnavailable(set: HistorySetters): void {
+  set.setStreamUnavailable(true);
+  set.setConnection("offline");
+}
+
+/** Folds the run's persisted history in, page by page. */
+async function foldHistory(load: HistoryLoad, set: HistorySetters) {
+  const { runId, cancelled } = load;
+
   try {
-    const { ok, collected } = await loadAllPages(runId, dispatch, cancelled);
+    const { ok, collected } = await loadAllPages(load);
 
     if (cancelled()) {
       return;
     }
 
     if (!ok) {
-      set.setStreamUnavailable(true);
-      set.setConnection("offline");
+      reportHistoryUnavailable(set);
 
       return;
     }
@@ -146,21 +157,11 @@ async function foldHistory(
 }
 
 /** Runs once per run; a rejection degrades to the seeded graph plus an Offline chip rather than an unhandled rejection or a blank page. */
-export function useRunHistory(
+function useHistoryFold(
   runId: string,
-  dispatch: (event: RunStreamEvent) => void,
-): RunHistory {
-  const [historyEvents, setHistoryEvents] = useState<RunStreamEvent[]>([]);
-  const [historyLoadedFor, setHistoryLoadedFor] = useState<string | null>(null);
-  const [streamUnavailable, setStreamUnavailable] = useState(false);
-  const [connection, setConnection] = useState<ConnectionState>("connecting");
-  const set = {
-    setHistoryEvents,
-    setHistoryLoadedFor,
-    setConnection,
-    setStreamUnavailable,
-  };
-
+  dispatch: HistoryDispatch,
+  set: HistorySetters,
+): void {
   useEffect(() => {
     let cancelled = false;
 
@@ -172,6 +173,20 @@ export function useRunHistory(
     // `set` is rebuilt each render but holds only useState setters, which React guarantees stable — including it would re-fold the history on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runId, dispatch]);
+}
+
+export function useRunHistory(runId: string, dispatch: HistoryDispatch) {
+  const [historyEvents, setHistoryEvents] = useState<RunStreamEvent[]>([]);
+  const [historyLoadedFor, setHistoryLoadedFor] = useState<string | null>(null);
+  const [streamUnavailable, setStreamUnavailable] = useState(false);
+  const [connection, setConnection] = useState<ConnectionState>("connecting");
+
+  useHistoryFold(runId, dispatch, {
+    setHistoryEvents,
+    setHistoryLoadedFor,
+    setConnection,
+    setStreamUnavailable,
+  });
 
   return {
     historyEvents,
@@ -276,20 +291,20 @@ function useStreamHandoff(
   );
 }
 
+interface TransportTarget {
+  runId: string;
+  lastEventId: string;
+  dispatch: RunStreamInput["dispatch"];
+}
+
 /** Arms both transports; each is inert unless its own flag says otherwise. Both are always CALLED — hooks cannot be conditional — so the choice is expressed as an `enabled` flag rather than as a branch. */
 function useTransports(
-  {
-    runId,
-    lastEventId,
-    dispatch,
-  }: {
-    runId: string;
-    lastEventId: string;
-    dispatch: RunStreamInput["dispatch"];
-  },
+  target: TransportTarget,
   enabled: { live: boolean; poll: boolean },
   history: RunHistory,
 ): void {
+  const { runId, lastEventId, dispatch } = target;
+
   useRunEventStream({
     runId,
     afterId: lastEventId,
@@ -312,13 +327,24 @@ export interface RunStreamInput {
   dispatch: (event: RunStreamEvent) => void;
 }
 
-export function useRunStream({
-  runId,
-  runStatus,
-  runIsLive,
-  lastEventId,
-  dispatch,
-}: RunStreamInput): RunStreamWiring {
+/** What the panel reads: the persisted events, and the chip that says how they are arriving. */
+function runStreamWiring(
+  history: RunHistory,
+  mode: ReturnType<typeof resolveStreamMode>,
+  fallbackPollActive: boolean,
+): RunStreamWiring {
+  return {
+    historyEvents: history.historyEvents,
+    chipState: resolveChipState({
+      mode,
+      connection: history.connection,
+      fallbackPollActive,
+    }),
+  };
+}
+
+export function useRunStream(input: RunStreamInput): RunStreamWiring {
+  const { runId, runStatus, runIsLive, lastEventId, dispatch } = input;
   const history = useRunHistory(runId, dispatch);
   const mode = resolveStreamMode({
     runStatus,
@@ -336,12 +362,5 @@ export function useRunStream({
     history,
   );
 
-  return {
-    historyEvents: history.historyEvents,
-    chipState: resolveChipState({
-      mode,
-      connection: history.connection,
-      fallbackPollActive,
-    }),
-  };
+  return runStreamWiring(history, mode, fallbackPollActive);
 }

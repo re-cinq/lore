@@ -11,16 +11,14 @@ export interface RunTimelineViewProps {
   onSeek?: (id: string) => void;
 }
 
-/** One event on the rail. A seekable timeline renders buttons and an unseekable one renders spans — the same mark either way, but only one of them claims to be clickable, which is what a keyboard user goes by. */
-function Tick({
-  tick,
-  bounds,
-  onSeek,
-}: {
+interface TickProps {
   tick: RunTimelineViewProps["ticks"][number];
   bounds: ReturnType<typeof timelineBounds>;
   onSeek: RunTimelineViewProps["onSeek"];
-}) {
+}
+
+/** One event on the rail. A seekable timeline renders buttons and an unseekable one renders spans — the same mark either way, but only one of them claims to be clickable, which is what a keyboard user goes by. */
+function Tick({ tick, bounds, onSeek }: TickProps) {
   const attrs = {
     className: `${styles.tick} ${styles[eventTone(tick.eventType)]}`,
     "data-tone": eventTone(tick.eventType),

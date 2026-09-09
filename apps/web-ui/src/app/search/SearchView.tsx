@@ -38,13 +38,12 @@ function sourceBadgeClass(source: SearchResult["source"]): string {
   return "op-read";
 }
 
-function RepoFilterSelect({
-  repo,
-  repos,
-}: {
+interface RepoFilterSelectProps {
   repo?: string;
   repos: SearchRepoOption[];
-}) {
+}
+
+function RepoFilterSelect({ repo, repos }: RepoFilterSelectProps) {
   return (
     <div className={styles.repoFilter}>
       <select
@@ -63,15 +62,13 @@ function RepoFilterSelect({
   );
 }
 
-function ResultCountLine({
-  q,
-  repo,
-  count,
-}: {
+interface ResultCountLineProps {
   q?: string;
   repo?: string;
   count: number;
-}) {
+}
+
+function ResultCountLine({ q, repo, count }: ResultCountLineProps) {
   if (!q) {
     return null;
   }
@@ -92,28 +89,38 @@ function ResultCountLine({
 function SearchResultCard({ result: r }: { result: SearchResult }) {
   return (
     <div className="search-result">
-      <div className="result-header">
-        <strong>{r.key}</strong>
-        <span className="meta">
-          agent: {displayAgentId(r.agent_id)} · score: {r.score.toFixed(3)}
-          {r.repo && (
-            <>
-              {" "}
-              · repo: <strong>{r.repo}</strong>
-            </>
-          )}
-        </span>
-      </div>
+      <ResultHeader result={r} />
       <pre>{r.value}</pre>
-      <div className="result-source">
-        source:{" "}
-        <span className={`op-badge ${sourceBadgeClass(r.source)}`}>
-          {formatEnumLabel(r.source)}
-        </span>
+      <ResultSource result={r} />
+    </div>
+  );
+}
+
+function ResultHeader({ result: r }: { result: SearchResult }) {
+  return (
+    <div className="result-header">
+      <strong>{r.key}</strong>
+      <span className="meta">
+        agent: {displayAgentId(r.agent_id)} · score: {r.score.toFixed(3)}
         {r.repo && (
-          <span className={`badge ${styles.repoBadge}`}>{r.repo}</span>
+          <>
+            {" "}
+            · repo: <strong>{r.repo}</strong>
+          </>
         )}
-      </div>
+      </span>
+    </div>
+  );
+}
+
+function ResultSource({ result: r }: { result: SearchResult }) {
+  return (
+    <div className="result-source">
+      source:{" "}
+      <span className={`op-badge ${sourceBadgeClass(r.source)}`}>
+        {formatEnumLabel(r.source)}
+      </span>
+      {r.repo && <span className={`badge ${styles.repoBadge}`}>{r.repo}</span>}
     </div>
   );
 }
@@ -139,12 +146,9 @@ function SearchForm({
 }
 
 /** Cross-source search page: pure render of merged/scored memory/fact/chunk results. */
-export default function SearchView({
-  q,
-  repo,
-  repos,
-  results,
-}: SearchViewProps) {
+export default function SearchView(props: SearchViewProps) {
+  const { q, repo, repos, results } = props;
+
   return (
     <div>
       <h1>Search Memories</h1>

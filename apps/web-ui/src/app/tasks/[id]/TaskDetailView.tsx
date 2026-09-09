@@ -46,31 +46,30 @@ export interface TaskDetailViewProps {
 }
 
 function TaskFailurePanel({
-  status,
+  task,
   failedEvent,
-  repo,
 }: {
-  status: string;
+  task: TaskDetailTask;
   failedEvent: TaskDetailEvent | undefined;
-  repo: string;
 }) {
-  if (status !== "failed" || !failedEvent?.metadata) {
+  if (task.status !== "failed" || !failedEvent?.metadata) {
     return null;
   }
 
-  return <FailurePanel metadata={failedEvent.metadata} repo={repo} />;
+  return (
+    <FailurePanel metadata={failedEvent.metadata} repo={task.target_repo} />
+  );
 }
 
 const TERMINAL_TASK_STATUSES = ["merged", "cancelled"];
 
 /** What the reader tells the agent to change. The placeholder is a worked example rather than a prompt: feedback that names the approach produces a revision, feedback that says "fix it" produces another guess. */
-function FeedbackForm({
-  taskId,
-  submitFeedback,
-}: {
+interface FeedbackFormProps {
   taskId: string;
   submitFeedback: (formData: FormData) => void | Promise<void>;
-}) {
+}
+
+function FeedbackForm({ taskId, submitFeedback }: FeedbackFormProps) {
   return (
     <form action={submitFeedback}>
       <input type="hidden" name="task_id" value={taskId} />
@@ -88,18 +87,15 @@ function FeedbackForm({
   );
 }
 
-/** Visible when the task has a PR and isn't in a terminal state. */
-function FeedbackSection({
-  taskId,
-  prUrl,
-  status,
-  submitFeedback,
-}: {
-  taskId: string;
-  prUrl: string | null;
-  status: string;
+interface FeedbackSectionProps {
+  task: TaskDetailTask;
   submitFeedback: (formData: FormData) => void | Promise<void>;
-}) {
+}
+
+/** Visible when the task has a PR and isn't in a terminal state. */
+function FeedbackSection({ task, submitFeedback }: FeedbackSectionProps) {
+  const { id: taskId, pr_url: prUrl, status } = task;
+
   if (!prUrl || TERMINAL_TASK_STATUSES.includes(status)) {
     return null;
   }
@@ -113,6 +109,18 @@ function FeedbackSection({
       </p>
       <FeedbackForm taskId={taskId} submitFeedback={submitFeedback} />
     </div>
+  );
+}
+
+function RunListItem({ run }: { run: TaskRunRow }) {
+  return (
+    <li>
+      <Link href={`/assembly-runs/${run.id}`}>#{run.id.substring(0, 8)}</Link> —{" "}
+      <span className={`op-badge op-${run.status}`}>
+        {formatEnumLabel(run.outcome ?? run.status)}
+      </span>{" "}
+      · started <TimeAgo date={run.created_at} inline />
+    </li>
   );
 }
 
@@ -130,16 +138,7 @@ function RunsSection({ runs }: { runs: TaskRunRow[] }) {
       </p>
       <ul>
         {runs.map((run) => (
-          <li key={run.id}>
-            <Link href={`/assembly-runs/${run.id}`}>
-              #{run.id.substring(0, 8)}
-            </Link>{" "}
-            —{" "}
-            <span className={`op-badge op-${run.status}`}>
-              {formatEnumLabel(run.outcome ?? run.status)}
-            </span>{" "}
-            · started <TimeAgo date={run.created_at} inline />
-          </li>
+          <RunListItem key={run.id} run={run} />
         ))}
       </ul>
     </section>
@@ -158,18 +157,9 @@ export default function TaskDetailView({
         <h1>Task: {task.description.substring(0, 80)}</h1>
         <TaskSummaryCard task={task} />
 
-        <TaskFailurePanel
-          status={task.status}
-          failedEvent={failedEvent}
-          repo={task.target_repo}
-        />
+        <TaskFailurePanel task={task} failedEvent={failedEvent} />
 
-        <FeedbackSection
-          taskId={task.id}
-          prUrl={task.pr_url}
-          status={task.status}
-          submitFeedback={submitFeedback}
-        />
+        <FeedbackSection task={task} submitFeedback={submitFeedback} />
 
         <RunsSection runs={runs} />
       </div>

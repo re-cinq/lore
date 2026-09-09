@@ -87,16 +87,19 @@ function NamedInput({
 }
 
 /** Cluster connect panel: renders copy-paste install command with token embedded (#1572). */
-export default function ConnectClusterPanel({
-  install,
-}: ConnectClusterPanelProps) {
-  const [name, setName] = useState("my-cluster");
-  const [tags, setTags] = useState("node:agent,node:validate");
+export default function ConnectClusterPanel(props: ConnectClusterPanelProps) {
+  const { install } = props;
 
   if (!install.available) {
     return <InstallUnavailable reason={install.reason} />;
   }
 
+  return <ConnectClusterAvailable install={install} />;
+}
+
+function ConnectClusterAvailable({ install }: ConnectClusterPanelProps) {
+  const [name, setName] = useState("my-cluster");
+  const [tags, setTags] = useState("node:agent,node:validate");
   const command = buildConnectCommand(install, name, tags);
 
   return (

@@ -19,13 +19,18 @@ import HomeView, { type Repo } from "./HomeView";
 
 const HOME_REPO_LIMIT = 100;
 
-/** Both workflow checks, or empty maps. Skipped entirely when the GitHub App is unconfigured — that path made zero GitHub calls (#1027), and an empty map reads downstream as "nothing to fix" rather than as an error. */
+/** What an unconfigured GitHub App answers with: empty maps, which read downstream as "nothing to fix" rather than as an error. */
+function noWorkflowStatuses() {
+  return {
+    ingestStatus: new Map<string, IngestWorkflowStatus>(),
+    impactStatus: new Map<string, IngestWorkflowStatus>(),
+  };
+}
+
+/** Both workflow checks, or empty maps. Skipped entirely when the GitHub App is unconfigured — that path made zero GitHub calls (#1027). */
 async function readWorkflowStatuses(repos: Repo[]) {
   if (!isGitHubConfigured()) {
-    return {
-      ingestStatus: new Map<string, IngestWorkflowStatus>(),
-      impactStatus: new Map<string, IngestWorkflowStatus>(),
-    };
+    return noWorkflowStatuses();
   }
   const names = repos.map((r) => r.full_name);
   const [ingestStatus, impactStatus] = await Promise.all([

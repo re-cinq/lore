@@ -137,17 +137,16 @@ export default tseslint.config(
       "max-params": ["error", { max: 4 }],
       "re-lint/max-comment-lines": ["error", { max: 1 }],
       "re-lint/no-vague-names": "error",
-      // 20 by default, with the packages still draining held at 30 in the
-      // override below. This is the same RATCHET that took 100 → 50 → 30 (the
-      // last of those closed 2026-09-08): a package is removed from that
-      // override in the PR that empties its queue, so no bound is ever
-      // unenforced, and 30 → 20 is 1,486 functions — a single global step could
-      // only move when every package was ready at once. A rule carries ONE
-      // severity, so nothing under the applicable bound is reported; to see what
-      // a lower target would cost, set `max` here and run eslint, then put it
-      // back. Inline disables carry the reason they are not split (an iterative
-      // graph walk, a d3 canvas renderer, a test harness whose closures share
-      // state, and a composition root).
+      // 20 everywhere, no override: the RATCHET that took 100 → 50 → 30 → 20
+      // closed on 2026-09-09, the last 1,486 functions with it. Each step ran
+      // per package — a package left the draining override in the same PR that
+      // emptied its queue, so no bound was ever unenforced — and the override
+      // block is gone because nothing is left in it. A rule carries ONE
+      // severity, so nothing under the bound is reported; to see what a lower
+      // target would cost, set `max` here and run eslint, then put it back.
+      // Inline disables carry the reason they are not split (an iterative graph
+      // walk, a d3 canvas renderer, a test harness whose closures share state,
+      // and a composition root).
       "max-lines-per-function": [
         "error",
         { max: 20, skipBlankLines: true, skipComments: true },
@@ -453,23 +452,6 @@ export default tseslint.config(
       "@typescript-eslint/no-misused-promises": "off",
       "@typescript-eslint/await-thenable": "off",
       "@typescript-eslint/no-unnecessary-condition": "off",
-    },
-  },
-
-  {
-    // Draining toward 20, one package per PR (30 landed 2026-09-08). These stay
-    // at 30 meanwhile: a package leaves this list in the same PR that empties
-    // its queue, so no bound is ever unenforced. Queue at introduction:
-    // web-ui 505, shared 326, floor 220, lore-api 213, mcp-server 73,
-    // server-core 50, cluster-agent 43, stations 41, assembly-lines 7,
-    // event-router 6, vscode-extension 2 — 1,486 in total. apps/web-ui is the
-    // last one left; every other package is at 20.
-    files: ["apps/web-ui/**/*.{ts,tsx}"],
-    rules: {
-      "max-lines-per-function": [
-        "error",
-        { max: 30, skipBlankLines: true, skipComments: true },
-      ],
     },
   },
 

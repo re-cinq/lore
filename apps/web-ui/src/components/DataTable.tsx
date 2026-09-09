@@ -66,23 +66,30 @@ function HeaderRow({ columns }: { columns: string[] }) {
   );
 }
 
+/** One data row. Split from the body so the body states only the row-or-empty decision, not how a single row is built. */
+function DataRow<T>(props: DataTableProps<T> & { row: T; index: number }) {
+  const { row, index, columns, rowKey, cells, rowClass } = props;
+
+  return (
+    <tr key={rowKey(row, index)} className={rowClass?.(row)}>
+      <Cells
+        cells={cells(row)}
+        columns={columns}
+        mono={props.monoColumns ?? []}
+        monoClass={props.monoClass ?? styles.mono}
+      />
+    </tr>
+  );
+}
+
 /** Every row, or the empty state — one place decides which, so a table can never render both or neither. */
 function BodyRows<T>(props: DataTableProps<T>) {
-  const { columns, rows, rowKey, cells } = props;
-  const { monoColumns = [], rowClass, empty = "No data" } = props;
-  const monoClass = props.monoClass ?? styles.mono;
+  const { columns, rows, rowKey, empty = "No data" } = props;
 
   return (
     <tbody>
       {rows.map((row, index) => (
-        <tr key={rowKey(row, index)} className={rowClass?.(row)}>
-          <Cells
-            cells={cells(row)}
-            columns={columns}
-            mono={monoColumns}
-            monoClass={monoClass}
-          />
-        </tr>
+        <DataRow key={rowKey(row, index)} {...props} row={row} index={index} />
       ))}
       {rows.length === 0 ? (
         <EmptyRow span={columns.length}>{empty}</EmptyRow>

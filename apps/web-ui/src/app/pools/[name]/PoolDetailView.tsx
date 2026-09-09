@@ -67,11 +67,11 @@ function EntryRow({
   );
 }
 
-function PoolEntriesTable({
-  entries,
-}: {
+interface PoolEntriesTableProps {
   entries: PoolDetailViewProps["entries"];
-}) {
+}
+
+function PoolEntriesTable({ entries }: PoolEntriesTableProps) {
   return (
     <table>
       <EntriesHead />
@@ -91,13 +91,9 @@ function PoolEntriesTable({
   );
 }
 
-export default function PoolDetailView({
-  poolName,
-  found,
-  createdBy,
-  createdAt,
-  entries,
-}: PoolDetailViewProps) {
+export default function PoolDetailView(props: PoolDetailViewProps) {
+  const { poolName, found, createdBy, createdAt, entries } = props;
+
   if (!found) {
     return <PoolNotFound poolName={poolName} />;
   }
@@ -108,12 +104,28 @@ export default function PoolDetailView({
         <Link href="/pools">Pools</Link> / <strong>{poolName}</strong>
       </div>
       <h1>{poolName}</h1>
-      <p className={`meta ${styles.summary}`}>
-        Created by {displayAgentId(createdBy)} on{" "}
-        <TimeAgo date={createdAt} inline /> · {entries.length} entr
-        {entries.length !== 1 ? "ies" : "y"}
-      </p>
+      <PoolSummary
+        createdBy={createdBy}
+        createdAt={createdAt}
+        entryCount={entries.length}
+      />
       <PoolEntriesTable entries={entries} />
     </div>
+  );
+}
+
+interface PoolSummaryProps {
+  createdBy: string;
+  createdAt: string;
+  entryCount: number;
+}
+
+function PoolSummary({ createdBy, createdAt, entryCount }: PoolSummaryProps) {
+  return (
+    <p className={`meta ${styles.summary}`}>
+      Created by {displayAgentId(createdBy)} on{" "}
+      <TimeAgo date={createdAt} inline /> · {entryCount} entr
+      {entryCount !== 1 ? "ies" : "y"}
+    </p>
   );
 }

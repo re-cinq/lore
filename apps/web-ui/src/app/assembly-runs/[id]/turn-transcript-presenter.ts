@@ -90,6 +90,30 @@ export interface TimedLogEntry {
   entry: LogEntry;
 }
 
+// Appends one classified entry, folding it into the previous when it continues or supersedes it.
+function appendTimedEntry(
+  timed: TimedLogEntry[],
+  entry: LogEntry,
+  at: string,
+): void {
+  const last = timed.at(-1);
+  const merged = mergedDelta(last?.entry, entry);
+
+  // A gemini delta chunk keeps the FIRST chunk's clock — the merged entry is one utterance, started when its first fragment did.
+  if (merged !== null && last !== undefined) {
+    timed[timed.length - 1] = { at: last.at, entry: merged };
+
+    return;
+  }
+
+  if (supersedesPrevious(last?.entry, entry)) {
+    timed[timed.length - 1] = { at, entry };
+
+    return;
+  }
+  timed.push({ at, entry });
+}
+
 // Each turn's envelope classified via the pod-log-viewer rules, tagged with its own createdAt; an unclassifiable envelope still yields one raw entry.
 export function conversationEntries(
   turns: readonly AgentRunTurn[],
@@ -102,24 +126,7 @@ export function conversationEntries(
       JSON.stringify(turn.envelope),
     );
 
-    entries.forEach((entry) => {
-      const last = timed.at(-1);
-      const merged = mergedDelta(last?.entry, entry);
-
-      // A gemini delta chunk keeps the FIRST chunk's clock — the merged entry is one utterance, started when its first fragment did.
-      if (merged !== null && last !== undefined) {
-        timed[timed.length - 1] = { at: last.at, entry: merged };
-
-        return;
-      }
-
-      if (supersedesPrevious(last?.entry, entry)) {
-        timed[timed.length - 1] = { at: turn.createdAt, entry };
-
-        return;
-      }
-      timed.push({ at: turn.createdAt, entry });
-    });
+    entries.forEach((entry) => appendTimedEntry(timed, entry, turn.createdAt));
   }
 
   return timed;

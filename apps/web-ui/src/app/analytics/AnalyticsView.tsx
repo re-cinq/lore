@@ -95,19 +95,32 @@ function TaskSummaryCards({
       <h2>Task Summary</h2>
       <div className={styles.statsRow}>
         {cards.map(([label, value, tone]) => (
-          <div className={`spec-card ${styles.statCard}`} key={label}>
-            <div className="meta">{label}</div>
-            <div
-              className={
-                tone ? `${styles.statValue} ${tone}` : styles.statValue
-              }
-            >
-              {Number(value).toLocaleString()}
-            </div>
-          </div>
+          <SummaryStatCard
+            key={label}
+            label={label}
+            value={value}
+            tone={tone}
+          />
         ))}
       </div>
     </>
+  );
+}
+
+interface SummaryStatCardProps {
+  label: string;
+  value: number;
+  tone: string | undefined;
+}
+
+function SummaryStatCard({ label, value, tone }: SummaryStatCardProps) {
+  return (
+    <div className={`spec-card ${styles.statCard}`}>
+      <div className="meta">{label}</div>
+      <div className={tone ? `${styles.statValue} ${tone}` : styles.statValue}>
+        {Number(value).toLocaleString()}
+      </div>
+    </div>
   );
 }
 
@@ -150,6 +163,19 @@ function RetrievalLatency({
   );
 }
 
+function usageByTaskTypeCells(
+  row: AnalyticsViewProps["usageByTaskType"][number],
+) {
+  return [
+    <span className="badge" key="type">
+      {row.task_type}
+    </span>,
+    Number(row.task_count).toLocaleString(),
+    Number(row.total_input_tokens).toLocaleString(),
+    Number(row.total_output_tokens).toLocaleString(),
+  ];
+}
+
 function UsageByTaskType({
   usageByTaskType,
 }: Pick<AnalyticsViewProps, "usageByTaskType">) {
@@ -160,14 +186,7 @@ function UsageByTaskType({
       rows={usageByTaskType}
       rowKey={(r) => r.task_type}
       monoColumns={[2, 3]}
-      cells={(r) => [
-        <span className="badge" key="type">
-          {r.task_type}
-        </span>,
-        Number(r.task_count).toLocaleString(),
-        Number(r.total_input_tokens).toLocaleString(),
-        Number(r.total_output_tokens).toLocaleString(),
-      ]}
+      cells={usageByTaskTypeCells}
     />
   );
 }
@@ -203,7 +222,7 @@ function DailyUsage({ dailyUsage }: Pick<AnalyticsViewProps, "dailyUsage">) {
   );
 }
 
-/** One job run as a row. The error REPLACES the summary rather than sitting beside it: a run that failed has no result worth reading, and the reason is what the reader came for. */
+/** One job run as a row. */
 function jobRunCells(run: AnalyticsViewProps["jobRuns"][number]) {
   return [
     <span className="badge" key="job">
@@ -216,15 +235,18 @@ function jobRunCells(run: AnalyticsViewProps["jobRuns"][number]) {
     <span className={`op-badge op-${run.status}`} key="status">
       {run.status}
     </span>,
-    run.error ? (
-      <span className={styles.error} key="result">
-        {run.error}
-      </span>
-    ) : (
-      (run.result_summary ?? "—")
-    ),
+    <RunResult run={run} key="result" />,
     <LogsLink run={run} key="logs" />,
   ];
+}
+
+/** The error REPLACES the summary rather than sitting beside it: a run that failed has no result worth reading, and the reason is what the reader came for. */
+function RunResult({ run }: { run: AnalyticsViewProps["jobRuns"][number] }) {
+  if (run.error) {
+    return <span className={styles.error}>{run.error}</span>;
+  }
+
+  return <>{run.result_summary ?? "—"}</>;
 }
 
 /** The run's logs, when it kept any. A run with no log path has nothing to open, so the cell says so rather than linking to an empty page. */

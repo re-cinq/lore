@@ -10,38 +10,36 @@ import SpecDocument from "@/app/repos/[owner]/[repo]/specs/[...path]/SpecDocumen
 import styles from "./page.module.scss";
 import { decodeCatchAllPath } from "@/lib/catch-all-path";
 
+interface RepoSpecDoc {
+  repo: string;
+  source: string;
+  statements: ReturnType<typeof toStatementInfo>;
+}
+
 /** Every repo that holds this path, with its own text and statements. The same spec path can exist in several repos, and a repo whose source will not load is DROPPED rather than rendered empty — an empty frame reads as a spec with no content. */
-async function fetchSpecAcrossRepos(filePath: string) {
-  // Query graph: repos holding this spec path, render each as framed document
+async function fetchSpecAcrossRepos(filePath: string): Promise<RepoSpecDoc[]> {
   const repos = (await fetchAllSpecs())
     .filter((s) => s.filePath === filePath)
     .map((s) => s.repo);
-  const docs = (
-    await Promise.all(
-      repos.map(async (repo) => {
-        const [source, doc] = await Promise.all([
-          fetchTraceSource(repo, filePath),
-          fetchTraceDocument(repo, filePath),
-        ]);
-
-        return {
-          repo,
-          source,
-          statements: doc ? toStatementInfo(doc.statements) : [],
-        };
-      }),
-    )
-  ).filter(
-    (
-      entry,
-    ): entry is {
-      repo: string;
-      source: string;
-      statements: ReturnType<typeof toStatementInfo>;
-    } => !!entry.source,
+  const docs = await Promise.all(
+    repos.map((repo) => fetchRepoSpec(repo, filePath)),
   );
 
-  return docs;
+  return docs.filter((entry): entry is RepoSpecDoc => !!entry.source);
+}
+
+/** Query graph: one repo's copy of this spec path, with its statement overlay. */
+async function fetchRepoSpec(repo: string, filePath: string) {
+  const [source, doc] = await Promise.all([
+    fetchTraceSource(repo, filePath),
+    fetchTraceDocument(repo, filePath),
+  ]);
+
+  return {
+    repo,
+    source,
+    statements: doc ? toStatementInfo(doc.statements) : [],
+  };
 }
 
 /** Why this spec is blank, and when it will not be. Nothing here is for the reader to do: the projection runs on the next push to `main`, so the note says to come back rather than offering an action. */
@@ -57,13 +55,12 @@ function EmptyGraphData({ filePath }: { filePath: string }) {
 }
 
 /** One repo's copy of the path. Usually there is exactly one — this page spans every repo holding the path, and the "view in repo" link is what takes the reader to that repo's canonical page. */
-function RepoSpecBlock({
-  doc,
-  filePath,
-}: {
-  doc: Awaited<ReturnType<typeof fetchSpecAcrossRepos>>[number];
+interface RepoSpecBlockProps {
+  doc: RepoSpecDoc;
   filePath: string;
-}) {
+}
+
+function RepoSpecBlock({ doc, filePath }: RepoSpecBlockProps) {
   return (
     <div className={styles.repoBlock}>
       <p className="meta">
@@ -81,11 +78,11 @@ function RepoSpecBlock({
   );
 }
 
-export default async function SpecDetailPage({
-  params,
-}: {
+interface SpecDetailPageProps {
   params: Promise<{ path: string[] }>;
-}) {
+}
+
+export default async function SpecDetailPage({ params }: SpecDetailPageProps) {
   const { path } = await params;
   const filePath = decodeCatchAllPath(path);
 

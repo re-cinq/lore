@@ -44,6 +44,10 @@ interface NodeLogBodyProps {
   bottomRef: React.RefObject<HTMLDivElement | null>;
 }
 
+function LogPlaceholder({ children }: { children: ReactNode }) {
+  return <p className={`meta ${styles.placeholder}`}>{children}</p>;
+}
+
 /** What to show INSTEAD of logs, or null when there are logs to show. A closed card renders nothing at all — not even a placeholder — because the fetch has not been asked for yet, and "Loading…" under a collapsed header would claim work nobody started. */
 function logNotice(
   open: boolean,
@@ -55,32 +59,45 @@ function logNotice(
   }
 
   if (resp === null) {
-    return open ? (
-      <p className={`meta ${styles.placeholder}`}>Loading…</p>
-    ) : null;
+    return open ? <LogPlaceholder>Loading…</LogPlaceholder> : null;
   }
 
   if (!resp.available) {
-    return (
-      <p className={`meta ${styles.placeholder}`}>
-        {unavailableMessage(resp.reason)}
-      </p>
-    );
+    return <LogPlaceholder>{unavailableMessage(resp.reason)}</LogPlaceholder>;
   }
 
   return null;
 }
 
-/** Everything below the collapsible header: error, unavailable notice, format toggle, and the log body itself. */
-function NodeLogBody({
-  open,
-  error,
-  resp,
+function LogToggleRow({
   showRaw,
   onShowRawChange,
+}: Pick<NodeLogBodyProps, "showRaw" | "onShowRawChange">) {
+  return (
+    <div className={styles.toggleRow}>
+      <LogFormatToggle raw={showRaw} onChange={onShowRawChange} />
+    </div>
+  );
+}
+
+function LogTerminal({
+  resp,
+  showRaw,
   entries,
   bottomRef,
-}: NodeLogBodyProps) {
+}: Omit<NodeLogBodyProps, "open" | "error" | "onShowRawChange">) {
+  return (
+    <div className={styles.terminal}>
+      {logContent(resp, showRaw, entries)}
+      <div ref={bottomRef} />
+    </div>
+  );
+}
+
+/** Everything below the collapsible header: error, unavailable notice, format toggle, and the log body itself. */
+function NodeLogBody(props: NodeLogBodyProps) {
+  const { open, error, resp } = props;
+
   // Null from logNotice means "a closed card shows nothing", NOT "show the logs" — so the fall-through is keyed on the response being available, not on the notice being absent.
   if (error !== null || resp === null || !resp.available) {
     return logNotice(open, error, resp);
@@ -88,15 +105,8 @@ function NodeLogBody({
 
   return (
     <>
-      {resp.logs && (
-        <div className={styles.toggleRow}>
-          <LogFormatToggle raw={showRaw} onChange={onShowRawChange} />
-        </div>
-      )}
-      <div className={styles.terminal}>
-        {logContent(resp, showRaw, entries)}
-        <div ref={bottomRef} />
-      </div>
+      {resp.logs && <LogToggleRow {...props} />}
+      <LogTerminal {...props} />
     </>
   );
 }
@@ -126,18 +136,20 @@ async function readNodeLogs(
   }
 }
 
+interface LogFetchingOptions {
+  open: boolean;
+  resp: NodeLogsResponse | null;
+  error: string | null;
+  fetchLogs: () => Promise<void>;
+}
+
 /** Fetches once on first open, then polls only while the pod is still running. A finished pod's logs never change, so the poll stops rather than asking the same question forever. */
 function useLogFetching({
   open,
   resp,
   error,
   fetchLogs,
-}: {
-  open: boolean;
-  resp: NodeLogsResponse | null;
-  error: string | null;
-  fetchLogs: () => Promise<void>;
-}): void {
+}: LogFetchingOptions): void {
   useEffect(() => {
     if (open && resp === null && error === null) {
       void fetchLogs();
@@ -154,16 +166,18 @@ function useLogFetching({
   }, [open, resp, fetchLogs]);
 }
 
-/** Keeps this node's logs current while the card is open: fetch on first open, poll while the pod is still running, and scroll to the newest line on every arrival. A 403 is stored as a MESSAGE rather than thrown — the reader lacks access to the repo, which is an answer, not a failure. */
-function useNodeLogs(assemblyLineId: string, agentCrName: string) {
-  const [open, setOpen] = useState(false); // eslint-disable-line re-lint/declare-near-use -- moving it down only pushes the sibling state past the same threshold
-  const [resp, setResp] = useState<NodeLogsResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [showRaw, setShowRaw] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const entries = useMemo(() => parseAgentLog(resp?.logs ?? ""), [resp?.logs]);
+interface LogReaderOptions {
+  assemblyLineId: string;
+  agentCrName: string;
+  setResp: (resp: NodeLogsResponse) => void;
+  setError: (error: string | null) => void;
+}
 
-  const fetchLogs = useCallback(async () => {
+/** The one call that refreshes this node's logs, stable across renders so the poll interval is not torn down every tick. */
+function useLogReader(options: LogReaderOptions) {
+  const { assemblyLineId, agentCrName, setResp, setError } = options;
+
+  return useCallback(async () => {
     const result = await readNodeLogs(assemblyLineId, agentCrName);
 
     // A string IS the answer here — readNodeLogs turns a 403 into a message rather than throwing.
@@ -172,48 +186,66 @@ function useNodeLogs(assemblyLineId: string, agentCrName: string) {
     if (typeof result !== "string") {
       setResp(result);
     }
-  }, [assemblyLineId, agentCrName]);
+  }, [assemblyLineId, agentCrName, setResp, setError]);
+}
+
+/** Follows the newest line as it arrives, the way a terminal does. */
+function useScrollToTail(
+  tailRef: React.RefObject<HTMLDivElement | null>,
+  resp: NodeLogsResponse | null,
+) {
+  useEffect(() => {
+    tailRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [tailRef, resp]);
+}
+
+/** Keeps this node's logs current while the card is open: fetch on first open, poll while the pod is still running, and scroll to the newest line on every arrival. A 403 is stored as a MESSAGE rather than thrown — the reader lacks access to the repo, which is an answer, not a failure. */
+function useNodeLogs(assemblyLineId: string, agentCrName: string) {
+  const [open, setOpen] = useState(false); // eslint-disable-line re-lint/declare-near-use -- moving it down only pushes the sibling state past the same threshold
+  const [resp, setResp] = useState<NodeLogsResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [showRaw, setShowRaw] = useState(false);
+  const tailRef = useRef<HTMLDivElement>(null);
+  const entries = useMemo(() => parseAgentLog(resp?.logs ?? ""), [resp?.logs]);
+  const fetchLogs = useLogReader({
+    assemblyLineId,
+    agentCrName,
+    setResp,
+    setError,
+  });
 
   useLogFetching({ open, resp, error, fetchLogs });
+  useScrollToTail(tailRef, resp);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [resp]);
+  return { open, setOpen, resp, error, showRaw, setShowRaw, entries, tailRef };
+}
 
+function nodeLogBodyProps(
+  logs: ReturnType<typeof useNodeLogs>,
+): NodeLogBodyProps {
   return {
-    open,
-    setOpen,
-    resp,
-    error,
-    showRaw,
-    setShowRaw,
-    entries,
-    bottomRef,
+    open: logs.open,
+    error: logs.error,
+    resp: logs.resp,
+    showRaw: logs.showRaw,
+    onShowRawChange: logs.setShowRaw,
+    entries: logs.entries,
+    bottomRef: logs.tailRef,
   };
 }
 
-export default function NodeLogPanel({
-  assemblyLineId,
-  agentCrName,
-  label,
-}: NodeLogPanelProps) {
+export default function NodeLogPanel(props: NodeLogPanelProps) {
+  const { assemblyLineId, agentCrName, label } = props;
   const logs = useNodeLogs(assemblyLineId, agentCrName);
+  const { resp } = logs;
 
   return (
     <CollapsibleCard
       title={label}
-      labels={[logs.resp?.phase, logs.resp?.archived ? "retained" : null]}
+      labels={[resp?.phase, resp?.archived ? "retained" : null]}
       onToggle={logs.setOpen}
     >
-      <NodeLogBody
-        open={logs.open}
-        error={logs.error}
-        resp={logs.resp}
-        showRaw={logs.showRaw}
-        onShowRawChange={logs.setShowRaw}
-        entries={logs.entries}
-        bottomRef={logs.bottomRef}
-      />
+      <NodeLogBody {...nodeLogBodyProps(logs)} />
     </CollapsibleCard>
   );
 }

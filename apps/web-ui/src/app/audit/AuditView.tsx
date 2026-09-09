@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { TimeAgo } from "@/components/TimeAgo";
 import { formatEnumLabel } from "@/lib/enum-label";
 import { displayAgentId } from "@/lib/agent-id";
@@ -11,19 +12,22 @@ import type { components } from "@/lib/api/schema";
 export type AuditEntryRow =
   components["schemas"]["MemoryAuditPage"]["entries"][number];
 
-export interface AuditViewProps {
-  entries: AuditEntryRow[];
-  totalCount: number;
-  operations: string[];
-  /** Current filter values, used as form defaults and to preserve filters in pagination URLs. */
-  agent?: string;
-  op?: string;
+export interface AuditPagination {
   /** Zero-based offset of the first row on this page. */
   offset: number;
   /** Page size, used to compute the previous/next offsets and the displayed range. */
   pageSize: number;
+  totalCount: number;
   hasPrev: boolean;
   hasNext: boolean;
+}
+
+export interface AuditViewProps extends AuditPagination {
+  entries: AuditEntryRow[];
+  operations: string[];
+  /** Current filter values, used as form defaults and to preserve filters in pagination URLs. */
+  agent?: string;
+  op?: string;
 }
 
 /** One audit entry as a row. The agent's full id is in the title attribute — the displayed form is shortened, and the full id is what someone needs when tracing an operation back. */
@@ -46,18 +50,15 @@ function auditCells(entry: AuditViewProps["entries"][number]) {
   ];
 }
 
-/** The empty state distinguishes "nothing matches these filters" from "nothing recorded yet", so a filter that hides everything does not read as an empty audit trail. */
-function AuditTable({
-  entries,
-  agent,
-  op,
-  total,
-}: {
+interface AuditTableProps {
   entries: AuditViewProps["entries"];
   agent: AuditViewProps["agent"];
   op: AuditViewProps["op"];
   total: number;
-}) {
+}
+
+/** The empty state distinguishes "nothing matches these filters" from "nothing recorded yet", so a filter that hides everything does not read as an empty audit trail. */
+function AuditTable({ entries, agent, op, total }: AuditTableProps) {
   return (
     <DataTable
       columns={["Time", "Agent", "Operation", "Key", "Pool", "Details"]}
@@ -69,48 +70,49 @@ function AuditTable({
   );
 }
 
-/** Both arrows stay LINKS and are styled disabled rather than removed, so the control keeps its position between the first page and the rest. */
 interface AuditPagerProps {
   pageUrl: (offset: number) => string;
-  offset: number;
-  pageSize: number;
-  totalCount: number;
-  hasPrev: boolean;
-  hasNext: boolean;
+  pagination: AuditPagination;
 }
 
-function AuditPager(props: AuditPagerProps) {
-  const { pageUrl, offset, pageSize, totalCount, hasPrev, hasNext } = props;
+function AuditPager({ pageUrl, pagination }: AuditPagerProps) {
+  const { offset, pageSize, totalCount, hasPrev, hasNext } = pagination;
 
   return (
     <div className="pagination">
-      <Link
-        href={pageUrl(offset - pageSize)}
-        className={hasPrev ? "" : "disabled"}
-      >
+      <PagerLink href={pageUrl(offset - pageSize)} enabled={hasPrev}>
         &larr; Previous
-      </Link>
+      </PagerLink>
       <span className="page-info">
         {offset + 1}&ndash;{Math.min(offset + pageSize, totalCount)} of{" "}
         {totalCount}
       </span>
-      <Link
-        href={pageUrl(offset + pageSize)}
-        className={hasNext ? "" : "disabled"}
-      >
+      <PagerLink href={pageUrl(offset + pageSize)} enabled={hasNext}>
         Next &rarr;
-      </Link>
+      </PagerLink>
     </div>
+  );
+}
+
+interface PagerLinkProps {
+  href: string;
+  enabled: boolean;
+  children: ReactNode;
+}
+
+/** Both arrows stay LINKS and are styled disabled rather than removed, so the control keeps its position between the first page and the rest. */
+function PagerLink({ href, enabled, children }: PagerLinkProps) {
+  return (
+    <Link href={href} className={enabled ? "" : "disabled"}>
+      {children}
+    </Link>
   );
 }
 
 /** Audit log view: pure render; rebuilds pagination URLs from props. */
 export default function AuditView(props: AuditViewProps) {
   const { entries, totalCount, operations, agent, op } = props;
-  const { offset, pageSize, hasPrev, hasNext } = props;
-
-  const pageUrl = (newOffset: number) =>
-    auditUrl({ agent, op, offset: newOffset });
+  const pageUrl = (to: number) => auditUrl({ agent, op, offset: to });
 
   return (
     <div>
@@ -122,28 +124,19 @@ export default function AuditView(props: AuditViewProps) {
       <AuditFilters agent={agent} op={op} operations={operations} />
       <p className={`meta ${styles.count}`}>{totalCount} total entries</p>
       <AuditTable entries={entries} agent={agent} op={op} total={totalCount} />
-      <AuditPager
-        pageUrl={pageUrl}
-        offset={offset}
-        pageSize={pageSize}
-        totalCount={totalCount}
-        hasPrev={hasPrev}
-        hasNext={hasNext}
-      />
+      <AuditPager pageUrl={pageUrl} pagination={props} />
     </div>
   );
 }
 
-/** The current filters carried into a page link, so paging never silently widens the view. */
-function auditUrl({
-  agent,
-  op,
-  offset,
-}: {
+interface AuditUrlParams {
   agent?: string | null;
   op?: string | null;
   offset: number;
-}): string {
+}
+
+/** The current filters carried into a page link, so paging never silently widens the view. */
+function auditUrl({ agent, op, offset }: AuditUrlParams): string {
   const p = new URLSearchParams();
 
   if (agent) {
@@ -162,15 +155,13 @@ function auditUrl({
   return `/audit${qs ? `?${qs}` : ""}`;
 }
 
-function AuditFilters({
-  agent,
-  op,
-  operations,
-}: {
+interface AuditFiltersProps {
   agent?: string | null;
   op?: string | null;
   operations: string[];
-}) {
+}
+
+function AuditFilters({ agent, op, operations }: AuditFiltersProps) {
   return (
     <form method="get" className="filter-form">
       <input
@@ -179,16 +170,22 @@ function AuditFilters({
         defaultValue={agent || ""}
         placeholder="Filter by agent ID..."
       />
-      <select name="op" defaultValue={op || ""}>
-        <option value="">All operations</option>
-        {operations.map((o) => (
-          <option key={o} value={o}>
-            {formatEnumLabel(o)}
-          </option>
-        ))}
-      </select>
+      <OperationSelect op={op} operations={operations} />
       <button type="submit">Filter</button>
     </form>
+  );
+}
+
+function OperationSelect({ op, operations }: Omit<AuditFiltersProps, "agent">) {
+  return (
+    <select name="op" defaultValue={op || ""}>
+      <option value="">All operations</option>
+      {operations.map((o) => (
+        <option key={o} value={o}>
+          {formatEnumLabel(o)}
+        </option>
+      ))}
+    </select>
   );
 }
 

@@ -26,30 +26,35 @@ async function onboardRepo(
   const fullName = String(formData.get("full_name") ?? "").trim();
 
   if (!REPO_SLUG.test(fullName)) {
-    return {
-      error: `"${fullName}" is not a valid repository — use the owner/name format.`,
-      fullName,
-    };
+    return invalidSlugState(fullName);
   }
 
-  try {
-    const refusal = await startOnboarding(fullName);
+  const refusal = await attemptOnboarding(fullName);
 
-    if (refusal) {
-      return { error: refusal, fullName };
-    }
-  } catch (err) {
-    // PG errors carry infrastructure detail; log real error, return generic message.
-    console.error(`[onboard] onboarding ${fullName} failed:`, err);
-
-    return {
-      error: `Onboarding ${fullName} failed — check the server logs for details.`,
-      fullName,
-    };
+  if (refusal) {
+    return { error: refusal, fullName };
   }
 
   revalidatePath("/");
   redirect("/");
+}
+
+function invalidSlugState(fullName: string): OnboardState {
+  return {
+    error: `"${fullName}" is not a valid repository — use the owner/name format.`,
+    fullName,
+  };
+}
+
+/** PG errors carry infrastructure detail; the real error is logged and the caller gets a generic message. */
+async function attemptOnboarding(fullName: string): Promise<string | null> {
+  try {
+    return await startOnboarding(fullName);
+  } catch (err) {
+    console.error(`[onboard] onboarding ${fullName} failed:`, err);
+
+    return `Onboarding ${fullName} failed — check the server logs for details.`;
+  }
 }
 
 export default async function OnboardPage() {

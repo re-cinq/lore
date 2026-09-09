@@ -35,11 +35,11 @@ function truncated(input: NodeInputView): boolean {
   );
 }
 
-export default function NodeInputCard({
-  inputs,
-}: {
+interface NodeInputCardProps {
   inputs: readonly NodeInputView[];
-}) {
+}
+
+export default function NodeInputCard({ inputs }: NodeInputCardProps) {
   return (
     <>
       {inputs.map((input) => (

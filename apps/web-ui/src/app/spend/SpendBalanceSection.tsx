@@ -62,29 +62,35 @@ function BalanceCard({ budget }: { budget: SpendWindow["budget"] }) {
       >
         {usd(budget.remaining_usd)}
       </div>
-      {/* Clock only if the anchor carries one; a day-recorded entry does not show 00:00. */}
-      <div className={`meta ${styles.subnote}`}>
-        {usd(budget.ledger_total_usd)} recorded − {usd(budget.spent_since_usd)}{" "}
-        spent since {day(anchorDay(budget.anchored_at))}
-        {anchorTime(budget.anchored_at)
-          ? `, ${anchorTime(budget.anchored_at)} UTC`
-          : ""}
-      </div>
+      <BalanceAnchorNote budget={budget} />
       <BudgetOutlookNote budget={budget} />
     </div>
   );
 }
 
-/** What is left of the recorded credits. Not interval-scoped: money persists, so this subtracts spend since the anchor from the amount on record. */
-export function BalanceSection({
-  budget,
-  hasClusterSpend,
-  recordAction,
-}: {
+/** Clock only if the anchor carries one; a day-recorded entry does not show 00:00. */
+function BalanceAnchorNote({ budget }: { budget: NonNullable<BudgetRow> }) {
+  return (
+    <div className={`meta ${styles.subnote}`}>
+      {usd(budget.ledger_total_usd)} recorded − {usd(budget.spent_since_usd)}{" "}
+      spent since {day(anchorDay(budget.anchored_at))}
+      {anchorTime(budget.anchored_at)
+        ? `, ${anchorTime(budget.anchored_at)} UTC`
+        : ""}
+    </div>
+  );
+}
+
+interface BalanceSectionProps {
   budget: SpendWindow["budget"];
   hasClusterSpend: boolean;
   recordAction?: SpendViewProps["recordAction"];
-}) {
+}
+
+/** What is left of the recorded credits. Not interval-scoped: money persists, so this subtracts spend since the anchor from the amount on record. */
+export function BalanceSection(props: BalanceSectionProps) {
+  const { budget, hasClusterSpend, recordAction } = props;
+
   return (
     <>
       {/* Balance: not scoped to interval (money persists); subtract spend from recorded amount */}
@@ -92,15 +98,20 @@ export function BalanceSection({
       <div className={styles.cards}>
         <BalanceCard budget={budget} />
       </div>
-      {hasClusterSpend && (
-        <p className={`meta ${styles.subnote}`}>
-          Cluster spend shown below is excluded from this balance: a satellite
-          runs on its own credential and does not draw these credits.
-        </p>
-      )}
+      {hasClusterSpend && <ClusterSpendNote />}
       {recordAction && (
         <RecordTopUp first={!budget} recordAction={recordAction} />
       )}
     </>
+  );
+}
+
+/** A satellite runs on its own credential, so its spend never draws these credits. */
+function ClusterSpendNote() {
+  return (
+    <p className={`meta ${styles.subnote}`}>
+      Cluster spend shown below is excluded from this balance: a satellite runs
+      on its own credential and does not draw these credits.
+    </p>
   );
 }

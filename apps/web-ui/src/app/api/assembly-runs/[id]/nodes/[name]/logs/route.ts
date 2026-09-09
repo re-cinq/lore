@@ -26,6 +26,29 @@ function fetchNodeLogs(
   );
 }
 
+/** Authorize, then resolve the CR name against this run's nodes, then proxy. Order matters: the node lookup only ever happens for a caller already allowed to see the run. */
+async function nodeLogsResponse(req: Request, id: string, name: string) {
+  // Authorize before probing the node table so an unauthorized user can't distinguish a valid agentCrName from an invalid one.
+  const auth = await authorizeAssemblyRunAccess(id);
+
+  if (isAssemblyRunAuthError(auth)) {
+    return auth;
+  }
+
+  const { floorUrl, token } = auth;
+  const nodes = await fetchAssemblyRunNodes(id);
+
+  if (!nodes.some((n) => n.agentCrName === name)) {
+    return NextResponse.json(
+      { error: "Node not found for this run" },
+      { status: 404 },
+    );
+  }
+  const tail = new URL(req.url).searchParams.get("tail");
+
+  return proxyJson(await fetchNodeLogs(floorUrl, token, name, tail));
+}
+
 // Proxy for one node's live pod logs via the Floor's /api/agent-logs/{name} (UI SA has no cluster access); Floor 401/403 surface as 502.
 export async function GET(
   req: Request,
@@ -34,26 +57,7 @@ export async function GET(
   const { id, name } = await params;
 
   try {
-    // Authorize before probing the node table so an unauthorized user can't distinguish a valid agentCrName from an invalid one.
-    const auth = await authorizeAssemblyRunAccess(id);
-
-    if (isAssemblyRunAuthError(auth)) {
-      return auth;
-    }
-
-    const { floorUrl, token } = auth;
-    const nodes = await fetchAssemblyRunNodes(id);
-    const node = nodes.find((n) => n.agentCrName === name);
-
-    if (!node) {
-      return NextResponse.json(
-        { error: "Node not found for this run" },
-        { status: 404 },
-      );
-    }
-    const tail = new URL(req.url).searchParams.get("tail");
-
-    return proxyJson(await fetchNodeLogs(floorUrl, token, name, tail));
+    return await nodeLogsResponse(req, id, name);
   } catch (err) {
     return serverError("assembly-line-node-logs", err);
   }

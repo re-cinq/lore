@@ -81,20 +81,17 @@ export function resolveOnSeek(
   return scrubberVisible ? onSeek : undefined;
 }
 
-/** The graph's view of a live or finished run: which nodes ran, what each was told, and whether the run as a whole succeeded. */
-export function buildRunData({
-  nodes,
-  nodeStates,
-  latestRows,
-  takenEdges,
-  runStatus,
-}: {
+export interface BuildRunDataInput {
   nodes: readonly AssemblyRunNode[];
   nodeStates: Readonly<Record<string, NodeRunState>>;
   latestRows: Map<string, AssemblyRunNode>;
   takenEdges: RunData["taken"];
   runStatus: string;
-}): RunData {
+}
+
+/** The graph's view of a live or finished run: which nodes ran, what each was told, and whether the run as a whole succeeded. */
+export function buildRunData(input: BuildRunDataInput): RunData {
+  const { nodes, nodeStates, latestRows, takenEdges, runStatus } = input;
   const entries = Object.entries(nodeStates);
   // Verdict is the walk row's recorded outcome (must come from rows, not reducer state — replayed events never carry the verdict).
   const rows = [...latestRows.values()];

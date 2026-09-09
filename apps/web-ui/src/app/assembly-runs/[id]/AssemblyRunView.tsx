@@ -37,13 +37,12 @@ function TaskFact({ taskId }: { taskId: string | null }) {
   );
 }
 
-function PrFact({
-  prUrl,
-  prNumber,
-}: {
+interface PrFactProps {
   prUrl: string | null;
   prNumber: number | null;
-}) {
+}
+
+function PrFact({ prUrl, prNumber }: PrFactProps) {
   if (!prUrl || !prNumber) {
     return null;
   }
@@ -60,6 +59,26 @@ function PrFact({
   );
 }
 
+function RunFacts({ run }: AssemblyRunViewProps) {
+  return (
+    <dl className={styles.facts}>
+      <dt>Repo</dt>
+      <dd>
+        <Link href={`/repos/${run.repo}`}>{run.repo}</Link>
+      </dd>
+      <dt>Branch</dt>
+      <dd className={styles.mono}>{run.branch ?? EM_DASH}</dd>
+      <dt>Outcome</dt>
+      <dd>{run.outcome ?? EM_DASH}</dd>
+      <ReasonFact reason={run.reason} />
+      <dt>Duration</dt>
+      <dd>{formatDuration(run.durationSeconds)}</dd>
+      <TaskFact taskId={run.taskId} />
+      <PrFact prUrl={run.prUrl} prNumber={run.prNumber} />
+    </dl>
+  );
+}
+
 // Run header — line-level facts only; per-node state lives in the visualization panel below.
 export default function AssemblyRunView({ run }: AssemblyRunViewProps) {
   const visual = runStatusVisual(run.status, run.outcome);
@@ -73,21 +92,7 @@ export default function AssemblyRunView({ run }: AssemblyRunViewProps) {
         </span>
       </div>
 
-      <dl className={styles.facts}>
-        <dt>Repo</dt>
-        <dd>
-          <Link href={`/repos/${run.repo}`}>{run.repo}</Link>
-        </dd>
-        <dt>Branch</dt>
-        <dd className={styles.mono}>{run.branch ?? EM_DASH}</dd>
-        <dt>Outcome</dt>
-        <dd>{run.outcome ?? EM_DASH}</dd>
-        <ReasonFact reason={run.reason} />
-        <dt>Duration</dt>
-        <dd>{formatDuration(run.durationSeconds)}</dd>
-        <TaskFact taskId={run.taskId} />
-        <PrFact prUrl={run.prUrl} prNumber={run.prNumber} />
-      </dl>
+      <RunFacts run={run} />
     </div>
   );
 }
