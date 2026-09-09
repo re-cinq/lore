@@ -200,6 +200,16 @@ async function finishSearch(
   return results;
 }
 
+/** Two ids, told apart: `agent` is whose memories are searched and decides the scope, `actor` is who ran the search and is what the audit records. They differ whenever one agent reads another's pool. */
+function searchIdentities(resolved: ResolvedSearchOptions): {
+  agent: string | null;
+  actor: string | null;
+} {
+  const agent = resolved.agentId ? resolveAgentId(resolved.agentId) : null;
+
+  return { agent, actor: resolved.actorId ?? agent };
+}
+
 export async function searchMemories(
   pool: PgPool,
   query: string,
@@ -208,9 +218,7 @@ export async function searchMemories(
   const resolved = resolveSearchOptions(options);
   // Captures the clock BEFORE the work it times; moving it down would shorten the reported latency.
   const searchStartTime = Date.now();
-  const agent = resolved.agentId ? resolveAgentId(resolved.agentId) : null;
-  // The audit records the author; the scope stays whatever was asked for.
-  const actor = resolved.actorId ?? agent;
+  const { agent, actor } = searchIdentities(resolved);
   const scope = await resolveScope(pool, agent, resolved);
 
   if (!scope) {
