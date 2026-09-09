@@ -49,23 +49,6 @@ export const SUMMARY_COLUMNS = `id, ${SUMMARY_TAIL}`;
 /** Every column `toRecord` maps, single-sourced so the four read sites cannot drift. */
 export const LINE_COLUMNS = `id, graph, ${SUMMARY_TAIL}`;
 
-/** The claim's own columns. A row read before the lifecycle migration has none of them, so `status` falls back to the push-era meaning "running" — the same default the InMemory double uses, or the two would disagree about a pre-migration row. */
-function claimFields(row: {
-  status?: string | null;
-  cluster_agent_id?: string | null;
-  required_tags?: string[] | null;
-  claimed_at?: Date | null;
-}) {
-  return {
-    status: StationRunStatusSchema.catch("running").parse(
-      row.status ?? "running",
-    ),
-    clusterAgentId: row.cluster_agent_id ?? null,
-    requiredTags: row.required_tags ?? [],
-    claimedAt: row.claimed_at ?? null,
-  };
-}
-
 // eslint-disable-next-line max-lines-per-function -- almost all of this is the PARAMETER: one row of pipeline.station_runs spelled out in its stored column names. Splitting it would put half a table's shape in one place and half in another, and the mapping below is one statement per column
 export function toNodeRecord(row: {
   id: number | string;
@@ -104,6 +87,23 @@ export function toNodeRecord(row: {
     commitSha: row.commit_sha,
     startedAt: row.started_at,
     finishedAt: row.finished_at,
+  };
+}
+
+/** The claim's own columns. A row read before the lifecycle migration has none of them, so `status` falls back to the push-era meaning "running" — the same default the InMemory double uses, or the two would disagree about a pre-migration row. */
+function claimFields(row: {
+  status?: string | null;
+  cluster_agent_id?: string | null;
+  required_tags?: string[] | null;
+  claimed_at?: Date | null;
+}) {
+  return {
+    status: StationRunStatusSchema.catch("running").parse(
+      row.status ?? "running",
+    ),
+    clusterAgentId: row.cluster_agent_id ?? null,
+    requiredTags: row.required_tags ?? [],
+    claimedAt: row.claimed_at ?? null,
   };
 }
 

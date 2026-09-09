@@ -37,12 +37,128 @@ export type {
 export { buildImpactComment, IMPACT_COMMENT_MARKER } from "./impact-comment.js";
 export { buildImpactAnnotations } from "./impact-annotations.js";
 
+/** A report that found nothing, for the two cases where nothing COULD be found: no graph to read, and a client whose diff is too coarse to trust. Both report `ok`-shaped emptiness rather than an error — the caller annotates a PR with it, and an empty annotation is the honest answer. */
+const EMPTY_IMPACT = {
+  status: "ok",
+  statements: [],
+  orphaned: [],
+  testSelectors: [],
+} satisfies Partial<ImpactReport>;
+
+export async function computeImpact(
+  dgraph: DgraphClientPort | null,
+  repo: string,
+  changed: ChangedRange[],
+  options: ImpactOptions = {},
+): Promise<ImpactReport> {
+  if (!dgraph) {
+    return { ...EMPTY_IMPACT, status: "unavailable" };
+  }
+
+  if ((options.protocol ?? 1) < 2) {
+    return legacyClientImpact();
+  }
+
+  return assembleImpactReport(
+    await gatherImpact(dgraph, repo, changed, options),
+  );
+}
+
+/** A protocol-1 client diffed against the base-branch tip, so its file list carries everything merged to base since branch point; suppress rather than publish. */
+function legacyClientImpact(): ImpactReport {
+  return {
+    ...EMPTY_IMPACT,
+    protocol: 1,
+    skipped: [{ path: "*", reason: "legacy-client" }],
+  };
+}
+
+interface ImpactAssembly {
+  options: ImpactOptions;
+  changed: ChangedRange[];
+  baseline: { commit: string | null; at: string | null };
+  code: CodeImpact;
+  doc: {
+    raw: Array<ImpactStatement & { xid: string }>;
+    newStatements: number;
+    changedWithoutTests: number;
+  };
+  docsCount: number;
+}
+
+/** Everything the report is assembled from, read code-side first and then doc-side. */
+async function gatherImpact(
+  dgraph: DgraphClientPort,
+  repo: string,
+  changed: ChangedRange[],
+  options: ImpactOptions,
+): Promise<ImpactAssembly> {
+  const baseline = await readGraphBaseline(dgraph, repo);
+  const code = await codeImpact(dgraph, repo, changed, baseline.commit);
+  const docs = options.docs ?? [];
+  const doc = await docImpact(dgraph, repo, docs);
+
+  return { options, changed, baseline, code, doc, docsCount: docs.length };
+}
+
 /** Everything the code-side sweep learned: coupled statements, statements orphaned by deleted lines, and the files whose coordinates could not be trusted. */
 interface CodeImpact {
   raw: Array<ImpactStatement & { xid: string }>;
   orphaned: OrphanStatement[];
   skipped: { path: string; reason: SkipReason }[];
   withGraphData: number;
+}
+
+async function codeImpact(
+  dgraph: DgraphClientPort,
+  repo: string,
+  changed: ChangedRange[],
+  baselineCommit: string | null,
+): Promise<CodeImpact> {
+  const result: CodeImpact = {
+    raw: [],
+    orphaned: [],
+    skipped: [],
+    withGraphData: 0,
+  };
+
+  const ctx: CodeImpactContext = { dgraph, repo, baselineCommit };
+
+  for (const file of changed) {
+    await accumulateFileImpact(ctx, file, result);
+  }
+
+  return result;
+}
+
+interface CodeImpactContext {
+  dgraph: DgraphClientPort;
+  repo: string;
+  baselineCommit: string | null;
+}
+
+/** Runs one changed file against the graph and folds its findings into `result` in place. */
+async function accumulateFileImpact(
+  ctx: CodeImpactContext,
+  file: ChangedRange,
+  result: CodeImpact,
+): Promise<void> {
+  const { dgraph, repo, baselineCommit } = ctx;
+  const aligned = file.aligned === true && Boolean(baselineCommit);
+  const found = await fileImpact(dgraph, repo, file, { aligned });
+
+  if (!aligned) {
+    result.skipped.push({
+      path: file.path,
+      reason: skipReason(baselineCommit),
+    });
+  }
+
+  if (found.length) {
+    result.withGraphData += 1;
+  }
+  result.raw.push(...found);
+  result.orphaned.push(...(await orphansForFile(ctx, file, { aligned })));
 }
 
 /** One changed source file against the graph. `baseRanges` (diff old-side) matches graph coordinates only when the file is byte-identical at both commits — what `aligned` records. */
@@ -79,12 +195,6 @@ async function linePreciseImpact(
     : [];
 }
 
-interface CodeImpactContext {
-  dgraph: DgraphClientPort;
-  repo: string;
-  baselineCommit: string | null;
-}
-
 function skipReason(baselineCommit: string | null): SkipReason {
   return baselineCommit ? "unaligned" : "no-baseline";
 }
@@ -102,52 +212,6 @@ async function orphansForFile(
   }
 
   return orphanImpact(ctx.dgraph, ctx.repo, file.path, deleted);
-}
-
-/** Runs one changed file against the graph and folds its findings into `result` in place. */
-async function accumulateFileImpact(
-  ctx: CodeImpactContext,
-  file: ChangedRange,
-  result: CodeImpact,
-): Promise<void> {
-  const { dgraph, repo, baselineCommit } = ctx;
-  const aligned = file.aligned === true && Boolean(baselineCommit);
-  const found = await fileImpact(dgraph, repo, file, { aligned });
-
-  if (!aligned) {
-    result.skipped.push({
-      path: file.path,
-      reason: skipReason(baselineCommit),
-    });
-  }
-
-  if (found.length) {
-    result.withGraphData += 1;
-  }
-  result.raw.push(...found);
-  result.orphaned.push(...(await orphansForFile(ctx, file, { aligned })));
-}
-
-async function codeImpact(
-  dgraph: DgraphClientPort,
-  repo: string,
-  changed: ChangedRange[],
-  baselineCommit: string | null,
-): Promise<CodeImpact> {
-  const result: CodeImpact = {
-    raw: [],
-    orphaned: [],
-    skipped: [],
-    withGraphData: 0,
-  };
-
-  const ctx: CodeImpactContext = { dgraph, repo, baselineCommit };
-
-  for (const file of changed) {
-    await accumulateFileImpact(ctx, file, result);
-  }
-
-  return result;
 }
 
 /** Doc-side: a changed spec couples through statement identity, not lines, so this runs regardless of the diff's coordinates. */
@@ -171,55 +235,6 @@ async function docImpact(
   return { raw, newStatements, changedWithoutTests };
 }
 
-/** The signal a reviewer acts on: did this PR touch the tests that hold the statement up, or only the thing they were holding? */
-function withTestsTouched(
-  statements: Array<ImpactStatement & { xid: string }>,
-  changed: ChangedRange[],
-): ImpactStatement[] {
-  const changedPaths = new Set(changed.map((file) => file.path));
-
-  return mergeStatements(statements).map((stmt) => ({
-    ...stmt,
-    testsTouched: stmt.tests.some((test) => changedPaths.has(test.file)),
-  }));
-}
-
-interface ImpactAssembly {
-  options: ImpactOptions;
-  changed: ChangedRange[];
-  baseline: { commit: string | null; at: string | null };
-  code: CodeImpact;
-  doc: {
-    raw: Array<ImpactStatement & { xid: string }>;
-    newStatements: number;
-    changedWithoutTests: number;
-  };
-  docsCount: number;
-}
-
-/** Which commit the graph was last projected at, when it is known. A report against an unprojected graph says so by omission rather than by naming a commit it did not read. */
-function graphCommitOf(baseline: ImpactAssembly["baseline"]) {
-  return baseline.commit
-    ? { graphCommit: baseline.commit, graphCommitAt: baseline.at ?? undefined }
-    : {};
-}
-
-/** The distinct test files a run would have to execute to re-check every coupled statement. */
-function testSelectorsOf(statements: ImpactStatement[]): string[] {
-  return [...new Set(statements.flatMap((s) => s.tests.map((t) => t.file)))];
-}
-
-/** What the sweep actually looked at, so an empty report can say so instead of reading as a clean bill of health. */
-function examinedOf({ changed, code, doc, docsCount }: ImpactAssembly) {
-  return {
-    files: changed.length,
-    withGraphData: code.withGraphData,
-    docs: docsCount,
-    newStatements: doc.newStatements,
-    changedWithoutTests: doc.changedWithoutTests,
-  };
-}
-
 function assembleImpactReport(assembly: ImpactAssembly): ImpactReport {
   const { options, changed, baseline, code, doc } = assembly;
   const statements = withTestsTouched([...code.raw, ...doc.raw], changed);
@@ -237,53 +252,38 @@ function assembleImpactReport(assembly: ImpactAssembly): ImpactReport {
   };
 }
 
-/** A report that found nothing, for the two cases where nothing COULD be found: no graph to read, and a client whose diff is too coarse to trust. Both report `ok`-shaped emptiness rather than an error — the caller annotates a PR with it, and an empty annotation is the honest answer. */
-const EMPTY_IMPACT = {
-  status: "ok",
-  statements: [],
-  orphaned: [],
-  testSelectors: [],
-} satisfies Partial<ImpactReport>;
+/** The signal a reviewer acts on: did this PR touch the tests that hold the statement up, or only the thing they were holding? */
+function withTestsTouched(
+  statements: Array<ImpactStatement & { xid: string }>,
+  changed: ChangedRange[],
+): ImpactStatement[] {
+  const changedPaths = new Set(changed.map((file) => file.path));
 
-/** A protocol-1 client diffed against the base-branch tip, so its file list carries everything merged to base since branch point; suppress rather than publish. */
-function legacyClientImpact(): ImpactReport {
+  return mergeStatements(statements).map((stmt) => ({
+    ...stmt,
+    testsTouched: stmt.tests.some((test) => changedPaths.has(test.file)),
+  }));
+}
+
+/** The distinct test files a run would have to execute to re-check every coupled statement. */
+function testSelectorsOf(statements: ImpactStatement[]): string[] {
+  return [...new Set(statements.flatMap((s) => s.tests.map((t) => t.file)))];
+}
+
+/** Which commit the graph was last projected at, when it is known. A report against an unprojected graph says so by omission rather than by naming a commit it did not read. */
+function graphCommitOf(baseline: ImpactAssembly["baseline"]) {
+  return baseline.commit
+    ? { graphCommit: baseline.commit, graphCommitAt: baseline.at ?? undefined }
+    : {};
+}
+
+/** What the sweep actually looked at, so an empty report can say so instead of reading as a clean bill of health. */
+function examinedOf({ changed, code, doc, docsCount }: ImpactAssembly) {
   return {
-    ...EMPTY_IMPACT,
-    protocol: 1,
-    skipped: [{ path: "*", reason: "legacy-client" }],
+    files: changed.length,
+    withGraphData: code.withGraphData,
+    docs: docsCount,
+    newStatements: doc.newStatements,
+    changedWithoutTests: doc.changedWithoutTests,
   };
-}
-
-/** Everything the report is assembled from, read code-side first and then doc-side. */
-async function gatherImpact(
-  dgraph: DgraphClientPort,
-  repo: string,
-  changed: ChangedRange[],
-  options: ImpactOptions,
-): Promise<ImpactAssembly> {
-  const baseline = await readGraphBaseline(dgraph, repo);
-  const code = await codeImpact(dgraph, repo, changed, baseline.commit);
-  const docs = options.docs ?? [];
-  const doc = await docImpact(dgraph, repo, docs);
-
-  return { options, changed, baseline, code, doc, docsCount: docs.length };
-}
-
-export async function computeImpact(
-  dgraph: DgraphClientPort | null,
-  repo: string,
-  changed: ChangedRange[],
-  options: ImpactOptions = {},
-): Promise<ImpactReport> {
-  if (!dgraph) {
-    return { ...EMPTY_IMPACT, status: "unavailable" };
-  }
-
-  if ((options.protocol ?? 1) < 2) {
-    return legacyClientImpact();
-  }
-
-  return assembleImpactReport(
-    await gatherImpact(dgraph, repo, changed, options),
-  );
 }

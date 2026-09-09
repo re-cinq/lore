@@ -92,42 +92,6 @@ interface ReviewThreadsResponse {
   };
 }
 
-function pushThreadPage(
-  threads: ReviewThread[],
-  repo: string,
-  number: number,
-  page: NonNullable<
-    NonNullable<ReviewThreadsResponse["repository"]>["pullRequest"]
-  >["reviewThreads"],
-): void {
-  page.nodes.forEach((node) => {
-    warnIfThreadTruncated(node, repo, number);
-    const { id, isResolved, isOutdated, comments } = node;
-
-    threads.push({
-      id,
-      isResolved,
-      isOutdated,
-      comments: comments.nodes.map((c) => ({ databaseId: c.databaseId })),
-    });
-  });
-}
-
-/** 100+-comment threads are out of scope; warn so a failed databaseId join reads as "past the cap", not "no thread". */
-function warnIfThreadTruncated(
-  node: { id: string; comments: { pageInfo?: { hasNextPage: boolean } } },
-  repo: string,
-  number: number,
-): void {
-  const { comments } = node;
-
-  if (comments.pageInfo?.hasNextPage) {
-    console.warn(
-      `[github] review thread ${node.id} on ${repo}#${number} has >100 comments — late comments will not join by databaseId`,
-    );
-  }
-}
-
 /** Review threads with their comment ids. GraphQL rather than REST because resolution state (`isResolved`, `isOutdated`) is a thread-level fact the REST review-comments endpoint does not report at all. */
 const REVIEW_THREADS_QUERY = `query ($owner: String!, $name: String!, $number: Int!, $cursor: String) {
         repository(owner: $owner, name: $name) {
@@ -188,6 +152,42 @@ async function reviewThreadsPage(
   const { repository } = response;
 
   return repository?.pullRequest?.reviewThreads;
+}
+
+function pushThreadPage(
+  threads: ReviewThread[],
+  repo: string,
+  number: number,
+  page: NonNullable<
+    NonNullable<ReviewThreadsResponse["repository"]>["pullRequest"]
+  >["reviewThreads"],
+): void {
+  page.nodes.forEach((node) => {
+    warnIfThreadTruncated(node, repo, number);
+    const { id, isResolved, isOutdated, comments } = node;
+
+    threads.push({
+      id,
+      isResolved,
+      isOutdated,
+      comments: comments.nodes.map((c) => ({ databaseId: c.databaseId })),
+    });
+  });
+}
+
+/** 100+-comment threads are out of scope; warn so a failed databaseId join reads as "past the cap", not "no thread". */
+function warnIfThreadTruncated(
+  node: { id: string; comments: { pageInfo?: { hasNextPage: boolean } } },
+  repo: string,
+  number: number,
+): void {
+  const { comments } = node;
+
+  if (comments.pageInfo?.hasNextPage) {
+    console.warn(
+      `[github] review thread ${node.id} on ${repo}#${number} has >100 comments — late comments will not join by databaseId`,
+    );
+  }
 }
 
 export async function listIssueComments(

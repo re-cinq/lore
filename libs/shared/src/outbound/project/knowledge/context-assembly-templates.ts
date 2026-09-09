@@ -29,19 +29,6 @@ export interface Template {
 
 const templates = new Map<string, Template>();
 
-function loadTemplateFile(templateDir: string, file: string): void {
-  try {
-    const raw = readFileSync(join(templateDir, file), "utf-8");
-    const template = parseYaml(raw) as Partial<Template>;
-
-    if (template.name && template.sections) {
-      templates.set(template.name, template as Template);
-    }
-  } catch (err) {
-    console.warn(`[context-assembly] Failed to load template ${file}:`, err);
-  }
-}
-
 // The caller names the directory: templates ship with `libs/server-core`, not with this package, so there is no default to fall back to.
 export function loadTemplates(templateDir: string): void {
   if (!existsSync(templateDir)) {
@@ -62,6 +49,19 @@ export function loadTemplates(templateDir: string): void {
   console.log(
     `[context-assembly] Loaded ${templates.size} templates: ${[...templates.keys()].join(", ")}`,
   );
+}
+
+function loadTemplateFile(templateDir: string, file: string): void {
+  try {
+    const raw = readFileSync(join(templateDir, file), "utf-8");
+    const template = parseYaml(raw) as Partial<Template>;
+
+    if (template.name && template.sections) {
+      templates.set(template.name, template as Template);
+    }
+  } catch (err) {
+    console.warn(`[context-assembly] Failed to load template ${file}:`, err);
+  }
 }
 
 export function getTemplate(name: string): Template {

@@ -29,71 +29,12 @@ const ABBREVIATIONS = new Set([
 /** Trailing markdown link parenthetical belongs to previous sentence (spec-link-parser.ts). */
 const TRAILING_LINK_PARENTHETICAL = /^\(\[[^\]]*\]\(/;
 
-function indexOfNextNonSpace(text: string, from: number): number {
-  let index = from;
-
-  while (index < text.length && text[index] === " ") {
-    index++;
-  }
-
-  return index;
-}
-
-function pushTrimmedNonEmpty(out: string[], text: string): void {
-  const trimmed = text.trim();
-
-  if (trimmed) {
-    out.push(trimmed);
-  }
-}
-
-function endsInAbbreviationOrInitial(buf: string): boolean {
-  const trimmed = buf.trimEnd().replace(/[.?!]+$/, "");
-  const lastWord = trimmed.split(/\s+/).pop() || "";
-
-  if (ABBREVIATIONS.has(lastWord)) {
-    return true;
-  }
-
-  return /^[A-Z]$/.test(lastWord);
-}
-
 const SENTENCE_ENDERS = new Set([".", "?", "!"]);
 
-/** True when the punctuation at `ch` (with next non-space char at `j`) actually ends a sentence, vs. an abbreviation, initial, or trailing link parenthetical. */
-function isSentenceBreak(
-  flat: string,
-  buf: string,
-  ch: string,
-  j: number,
-): boolean {
-  const nextCh = flat[j];
+export function splitSentences(text: string): string[] {
+  const flat = text.replace(/\s+/g, " ").trim();
 
-  if (!/[A-Z([0-9]/.test(nextCh)) {
-    return false;
-  }
-
-  if (TRAILING_LINK_PARENTHETICAL.test(flat.slice(j))) {
-    return false;
-  }
-
-  return !(ch === "." && endsInAbbreviationOrInitial(buf));
-}
-
-/** Where the next sentence resumes when the char at `i` closes `buf`, `flat.length` when it closes the text, or -1 when it is no break at all. */
-function breakPointAt(flat: string, buf: string, i: number): number {
-  const ch = flat[i];
-
-  if (!SENTENCE_ENDERS.has(ch)) {
-    return -1;
-  }
-  const j = indexOfNextNonSpace(flat, i + 1);
-
-  if (j >= flat.length) {
-    return flat.length;
-  }
-
-  return isSentenceBreak(flat, buf, ch, j) ? j : -1;
+  return flat ? collectSentences(flat) : [];
 }
 
 function collectSentences(flat: string): string[] {
@@ -120,8 +61,67 @@ function collectSentences(flat: string): string[] {
   return out;
 }
 
-export function splitSentences(text: string): string[] {
-  const flat = text.replace(/\s+/g, " ").trim();
+/** Where the next sentence resumes when the char at `i` closes `buf`, `flat.length` when it closes the text, or -1 when it is no break at all. */
+function breakPointAt(flat: string, buf: string, i: number): number {
+  const ch = flat[i];
 
-  return flat ? collectSentences(flat) : [];
+  if (!SENTENCE_ENDERS.has(ch)) {
+    return -1;
+  }
+  const j = indexOfNextNonSpace(flat, i + 1);
+
+  if (j >= flat.length) {
+    return flat.length;
+  }
+
+  return isSentenceBreak(flat, buf, ch, j) ? j : -1;
+}
+
+function indexOfNextNonSpace(text: string, from: number): number {
+  let index = from;
+
+  while (index < text.length && text[index] === " ") {
+    index++;
+  }
+
+  return index;
+}
+
+/** True when the punctuation at `ch` (with next non-space char at `j`) actually ends a sentence, vs. an abbreviation, initial, or trailing link parenthetical. */
+function isSentenceBreak(
+  flat: string,
+  buf: string,
+  ch: string,
+  j: number,
+): boolean {
+  const nextCh = flat[j];
+
+  if (!/[A-Z([0-9]/.test(nextCh)) {
+    return false;
+  }
+
+  if (TRAILING_LINK_PARENTHETICAL.test(flat.slice(j))) {
+    return false;
+  }
+
+  return !(ch === "." && endsInAbbreviationOrInitial(buf));
+}
+
+function endsInAbbreviationOrInitial(buf: string): boolean {
+  const trimmed = buf.trimEnd().replace(/[.?!]+$/, "");
+  const lastWord = trimmed.split(/\s+/).pop() || "";
+
+  if (ABBREVIATIONS.has(lastWord)) {
+    return true;
+  }
+
+  return /^[A-Z]$/.test(lastWord);
+}
+
+function pushTrimmedNonEmpty(out: string[], text: string): void {
+  const trimmed = text.trim();
+
+  if (trimmed) {
+    out.push(trimmed);
+  }
 }

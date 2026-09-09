@@ -53,6 +53,29 @@ export function formatTrailers(t: Trailers): string {
   return lines.join("\n");
 }
 
+// Parses the trailer block (last paragraph, contiguous `Key: value` lines); returns null on no trailer paragraph, mixed lines, a missing required key, or a non-integer Lore-Iteration.
+export function parseTrailers(message: string): Trailers | null {
+  const lines = lastTrailerParagraphLines(message);
+
+  if (lines.length === 0) {
+    return null;
+  }
+
+  const map = trailerMap(lines);
+
+  if (!map || !hasRequiredKeys(map)) {
+    return null;
+  }
+
+  const iteration = Number.parseInt(map.get(ITERATION_KEY)!, 10);
+
+  if (!Number.isFinite(iteration)) {
+    return null;
+  }
+
+  return buildTrailers(map, iteration);
+}
+
 function lastTrailerParagraphLines(message: string): string[] {
   const normalized = message.replace(/\r\n/g, "\n").trimEnd();
 
@@ -88,18 +111,6 @@ function hasRequiredKeys(map: Map<string, string>): boolean {
   return REQUIRED_KEYS.every((k) => map.has(k));
 }
 
-function extractExtras(map: Map<string, string>): Record<string, string> {
-  const extras: Record<string, string> = {};
-
-  for (const [k, v] of map.entries()) {
-    if (!(FIRST_CLASS_KEYS as readonly string[]).includes(k)) {
-      extras[k] = v;
-    }
-  }
-
-  return extras;
-}
-
 function buildTrailers(map: Map<string, string>, iteration: number): Trailers {
   const extras = extractExtras(map);
   const assemblyLineId =
@@ -114,27 +125,16 @@ function buildTrailers(map: Map<string, string>, iteration: number): Trailers {
   };
 }
 
-// Parses the trailer block (last paragraph, contiguous `Key: value` lines); returns null on no trailer paragraph, mixed lines, a missing required key, or a non-integer Lore-Iteration.
-export function parseTrailers(message: string): Trailers | null {
-  const lines = lastTrailerParagraphLines(message);
+function extractExtras(map: Map<string, string>): Record<string, string> {
+  const extras: Record<string, string> = {};
 
-  if (lines.length === 0) {
-    return null;
+  for (const [k, v] of map.entries()) {
+    if (!(FIRST_CLASS_KEYS as readonly string[]).includes(k)) {
+      extras[k] = v;
+    }
   }
 
-  const map = trailerMap(lines);
-
-  if (!map || !hasRequiredKeys(map)) {
-    return null;
-  }
-
-  const iteration = Number.parseInt(map.get(ITERATION_KEY)!, 10);
-
-  if (!Number.isFinite(iteration)) {
-    return null;
-  }
-
-  return buildTrailers(map, iteration);
+  return extras;
 }
 
 /** A generation-time provenance link declaring that a test target validates one numbered spec statement. */

@@ -34,29 +34,44 @@ export {
 } from "./project-spec-file-context.js";
 import { firstOf } from "./uid-refs.js";
 
-/** The spec's first H1 heading text (the title a sentence-link's `<spec>` segment matches), or null. */
-function extractTitle(content: string): string | null {
-  const match = content.match(/^#\s+(.+?)\s*$/m);
-
-  return match ? match[1] : null;
+/** Knobs on one projection: the embedder to use and whether to bypass the content-hash freshness gate. */
+export interface ProjectionOptions {
+  embed?: EmbedFn;
+  force?: boolean;
 }
 
-/** True for any heading-variant title used across specs for acceptance/success/independent-test criteria — those segments project as AcceptanceCriterion, not Statement. */
-export function isAcceptanceCriteriaHeading(heading: string | null): boolean {
-  if (!heading) {
-    return false;
-  }
-  const norm = heading
-    .toLowerCase()
-    .replace(/\*/g, "")
-    .replace(/[:\s]+$/g, "")
-    .trim();
+export async function projectSpecFile(
+  { repo, filePath, content }: SourceDocument,
+  dgraph: DgraphClientPort,
+  { embed = getQueryEmbedding, force = false }: ProjectionOptions = {},
+): Promise<{ projected: boolean }> {
+  const contentHash = sha256(content);
 
-  return (
-    /acceptance criteria/.test(norm) ||
-    norm === "success criteria" ||
-    norm === "independent test criteria"
-  );
+  const specXid = `${repo}|${filePath}`;
+
+  if (!force && (await isSpecUnchanged(dgraph, specXid, contentHash))) {
+    return { projected: false };
+  }
+
+  const specUid = await projectSpecNode(dgraph, { repo, filePath, content });
+  const context: ProjectionContext = { dgraph, repo, filePath, specUid, embed };
+
+  await projectSpecChildren(context, content);
+
+  await upsertByXid(dgraph, "Spec", `${repo}|${filePath}`, {
+    "Spec.content_hash": contentHash,
+  });
+
+  return { projected: true };
+}
+
+/** True when the persisted Spec.content_hash already matches, so re-projection can be skipped. */
+async function isSpecUnchanged(
+  dgraph: DgraphClientPort,
+  specXid: string,
+  contentHash: string,
+): Promise<boolean> {
+  return (await readSpecContentHash(dgraph, specXid)) === contentHash;
 }
 
 /** Reads the persisted Spec.content_hash for an xid, or undefined when no Spec exists yet. */
@@ -74,19 +89,27 @@ async function readSpecContentHash(
   });
 }
 
-/** Knobs on one projection: the embedder to use and whether to bypass the content-hash freshness gate. */
-export interface ProjectionOptions {
-  embed?: EmbedFn;
-  force?: boolean;
+/** The Spec node itself, hung off its feature and its repo, with the content hash CLEARED. The hash is written back only after every child write succeeds — a projection that dies mid-file must look unprojected next run, or the file stays permanently skipped with half its statements missing. */
+async function projectSpecNode(
+  dgraph: DgraphClientPort,
+  { repo, filePath, content }: SourceDocument,
+): Promise<string> {
+  const specUid = await upsertSpecNode(dgraph, repo, filePath, {
+    title: extractTitle(content),
+    featureUid: await projectFeature(dgraph, repo, filePath),
+  });
+
+  await deletePredicate(dgraph, specUid, "Spec.content_hash");
+  await upsertByXid(dgraph, "Repo", repo, { "Repo.specs": [{ uid: specUid }] });
+
+  return specUid;
 }
 
-/** True when the persisted Spec.content_hash already matches, so re-projection can be skipped. */
-async function isSpecUnchanged(
-  dgraph: DgraphClientPort,
-  specXid: string,
-  contentHash: string,
-): Promise<boolean> {
-  return (await readSpecContentHash(dgraph, specXid)) === contentHash;
+/** The spec's first H1 heading text (the title a sentence-link's `<spec>` segment matches), or null. */
+function extractTitle(content: string): string | null {
+  const match = content.match(/^#\s+(.+?)\s*$/m);
+
+  return match ? match[1] : null;
 }
 
 /** The Spec node's optional own fields — title and feature link, both absent for a bare/root-level spec. */
@@ -108,6 +131,64 @@ async function upsertSpecNode(
     ...(title !== null ? { "Spec.title": title } : {}),
     ...(featureUid ? { "Spec.feature": { uid: featureUid } } : {}),
   });
+}
+
+/** Everything that hangs off a spec: its sections, statements, acceptance criteria and code blocks — each followed by a prune, so a statement deleted from the markdown does not linger in the graph as a validated claim. */
+async function projectSpecChildren(
+  context: ProjectionContext,
+  content: string,
+): Promise<void> {
+  const segments = segmentStatements(content);
+  const introOrdinals = buildIntroOrdinals(segments);
+  const acSegments = segments.filter((segment) =>
+    isAcceptanceCriteriaHeading(segment.enclosingHeading),
+  );
+  const statementSegments = segments.filter(
+    (segment) => !isAcceptanceCriteriaHeading(segment.enclosingHeading),
+  );
+
+  await projectStatementLayer(context, statementSegments, introOrdinals);
+  await projectAcceptanceCriteriaLayer(context, acSegments);
+  await projectBlocks(context, content);
+}
+
+/** True for any heading-variant title used across specs for acceptance/success/independent-test criteria — those segments project as AcceptanceCriterion, not Statement. */
+export function isAcceptanceCriteriaHeading(heading: string | null): boolean {
+  if (!heading) {
+    return false;
+  }
+  const norm = heading
+    .toLowerCase()
+    .replace(/\*/g, "")
+    .replace(/[:\s]+$/g, "")
+    .trim();
+
+  return (
+    /acceptance criteria/.test(norm) ||
+    norm === "success criteria" ||
+    norm === "independent test criteria"
+  );
+}
+
+/** Sections and statements, then the orphans neither of them claimed. */
+async function projectStatementLayer(
+  context: ProjectionContext,
+  statementSegments: ReturnType<typeof segmentStatements>,
+  introOrdinals: ReturnType<typeof buildIntroOrdinals>,
+): Promise<void> {
+  const sectionUidByHeading = await projectSections(context, statementSegments);
+
+  await projectStatements(
+    context,
+    statementSegments,
+    introOrdinals,
+    sectionUidByHeading,
+  );
+  await pruneStatementOrphans(
+    context,
+    statementSegments.map((segment) => segment.ordinal),
+  );
+  await pruneSectionOrphans(context, sectionUidByHeading.size);
 }
 
 /** Removes statements this projection did not produce. The prune matches by XID and runs AFTER the upserts, so a statement that only moved ordinal is re-anchored rather than deleted — deleting it would take the test links pointing at it with it. */
@@ -137,27 +218,6 @@ async function pruneSectionOrphans(
   await pruneOrphans(context, "Section", new Set(validXids), "Spec.sections");
 }
 
-/** Sections and statements, then the orphans neither of them claimed. */
-async function projectStatementLayer(
-  context: ProjectionContext,
-  statementSegments: ReturnType<typeof segmentStatements>,
-  introOrdinals: ReturnType<typeof buildIntroOrdinals>,
-): Promise<void> {
-  const sectionUidByHeading = await projectSections(context, statementSegments);
-
-  await projectStatements(
-    context,
-    statementSegments,
-    introOrdinals,
-    sectionUidByHeading,
-  );
-  await pruneStatementOrphans(
-    context,
-    statementSegments.map((segment) => segment.ordinal),
-  );
-  await pruneSectionOrphans(context, sectionUidByHeading.size);
-}
-
 /** The acceptance criteria, followed by the prune of the ones this run did not produce. */
 async function projectAcceptanceCriteriaLayer(
   context: ProjectionContext,
@@ -177,64 +237,4 @@ async function projectAcceptanceCriteriaLayer(
     validAcXids,
     "Spec.acceptance_criteria",
   );
-}
-
-/** Everything that hangs off a spec: its sections, statements, acceptance criteria and code blocks — each followed by a prune, so a statement deleted from the markdown does not linger in the graph as a validated claim. */
-async function projectSpecChildren(
-  context: ProjectionContext,
-  content: string,
-): Promise<void> {
-  const segments = segmentStatements(content);
-  const introOrdinals = buildIntroOrdinals(segments);
-  const acSegments = segments.filter((segment) =>
-    isAcceptanceCriteriaHeading(segment.enclosingHeading),
-  );
-  const statementSegments = segments.filter(
-    (segment) => !isAcceptanceCriteriaHeading(segment.enclosingHeading),
-  );
-
-  await projectStatementLayer(context, statementSegments, introOrdinals);
-  await projectAcceptanceCriteriaLayer(context, acSegments);
-  await projectBlocks(context, content);
-}
-
-/** The Spec node itself, hung off its feature and its repo, with the content hash CLEARED. The hash is written back only after every child write succeeds — a projection that dies mid-file must look unprojected next run, or the file stays permanently skipped with half its statements missing. */
-async function projectSpecNode(
-  dgraph: DgraphClientPort,
-  { repo, filePath, content }: SourceDocument,
-): Promise<string> {
-  const specUid = await upsertSpecNode(dgraph, repo, filePath, {
-    title: extractTitle(content),
-    featureUid: await projectFeature(dgraph, repo, filePath),
-  });
-
-  await deletePredicate(dgraph, specUid, "Spec.content_hash");
-  await upsertByXid(dgraph, "Repo", repo, { "Repo.specs": [{ uid: specUid }] });
-
-  return specUid;
-}
-
-export async function projectSpecFile(
-  { repo, filePath, content }: SourceDocument,
-  dgraph: DgraphClientPort,
-  { embed = getQueryEmbedding, force = false }: ProjectionOptions = {},
-): Promise<{ projected: boolean }> {
-  const contentHash = sha256(content);
-
-  const specXid = `${repo}|${filePath}`;
-
-  if (!force && (await isSpecUnchanged(dgraph, specXid, contentHash))) {
-    return { projected: false };
-  }
-
-  const specUid = await projectSpecNode(dgraph, { repo, filePath, content });
-  const context: ProjectionContext = { dgraph, repo, filePath, specUid, embed };
-
-  await projectSpecChildren(context, content);
-
-  await upsertByXid(dgraph, "Spec", `${repo}|${filePath}`, {
-    "Spec.content_hash": contentHash,
-  });
-
-  return { projected: true };
 }

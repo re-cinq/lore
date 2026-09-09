@@ -10,6 +10,20 @@ const WEEKDAY_ISO: Record<string, number> = {
   Sun: 7,
 };
 
+export function isBusinessHours(now: Date = new Date()): boolean {
+  const tz = process.env.LORE_BUSINESS_HOURS_TZ || "Europe/Berlin";
+  const start = parseHour(process.env.LORE_BUSINESS_HOURS_START, 9);
+  const end = parseHour(process.env.LORE_BUSINESS_HOURS_END, 18);
+  const days = parseDays(process.env.LORE_BUSINESS_DAYS);
+  const { hour, weekday } = currentHourAndWeekday(now, tz);
+
+  if (!days.has(weekday)) {
+    return false;
+  }
+
+  return hour >= start && hour < end;
+}
+
 function parseHour(raw: string | undefined, fallback: number): number {
   const n = raw ? parseInt(raw, 10) : NaN;
 
@@ -20,10 +34,6 @@ function parseHour(raw: string | undefined, fallback: number): number {
   return n;
 }
 
-function isValidDay(n: number): boolean {
-  return !Number.isNaN(n) && n >= 1 && n <= 7;
-}
-
 function parseDays(raw: string | undefined): Set<number> {
   const src = raw && raw.trim() ? raw : "1,2,3,4,5";
   const parsed = src.split(",").map((token) => parseInt(token.trim(), 10));
@@ -32,14 +42,8 @@ function parseDays(raw: string | undefined): Set<number> {
   return out.size > 0 ? out : new Set([1, 2, 3, 4, 5]);
 }
 
-function partValue(
-  parts: Intl.DateTimeFormatPart[],
-  type: string,
-  fallback: string,
-): string {
-  const match = parts.find((p) => p.type === type);
-
-  return match ? match.value : fallback;
+function isValidDay(n: number): boolean {
+  return !Number.isNaN(n) && n >= 1 && n <= 7;
 }
 
 function currentHourAndWeekday(
@@ -59,18 +63,14 @@ function currentHourAndWeekday(
   return { hour, weekday };
 }
 
-export function isBusinessHours(now: Date = new Date()): boolean {
-  const tz = process.env.LORE_BUSINESS_HOURS_TZ || "Europe/Berlin";
-  const start = parseHour(process.env.LORE_BUSINESS_HOURS_START, 9);
-  const end = parseHour(process.env.LORE_BUSINESS_HOURS_END, 18);
-  const days = parseDays(process.env.LORE_BUSINESS_DAYS);
-  const { hour, weekday } = currentHourAndWeekday(now, tz);
+function partValue(
+  parts: Intl.DateTimeFormatPart[],
+  type: string,
+  fallback: string,
+): string {
+  const match = parts.find((p) => p.type === type);
 
-  if (!days.has(weekday)) {
-    return false;
-  }
-
-  return hour >= start && hour < end;
+  return match ? match.value : fallback;
 }
 
 function weekdayToIso(short: string): number {

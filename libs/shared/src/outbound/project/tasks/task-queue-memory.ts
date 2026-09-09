@@ -64,16 +64,6 @@ function isMergeable(t: SeedTask): boolean {
   );
 }
 
-function mergeableBundle(t: SeedTask) {
-  return orNull(
-    t.context_bundle as {
-      feature_id?: string;
-      slug?: string;
-      spec_slug?: string;
-    } | null,
-  );
-}
-
 function toMergeableTask(t: SeedTask): MergeableTask {
   return {
     id: t.id,
@@ -88,6 +78,16 @@ function toMergeableTask(t: SeedTask): MergeableTask {
     task_group_id: orNull(t.task_group_id),
     context_bundle: mergeableBundle(t),
   };
+}
+
+function mergeableBundle(t: SeedTask) {
+  return orNull(
+    t.context_bundle as {
+      feature_id?: string;
+      slug?: string;
+      spec_slug?: string;
+    } | null,
+  );
 }
 
 export class InMemoryTaskQueue implements TaskQueueRepository {

@@ -39,20 +39,6 @@ function strandNode(node: SeedAssemblyLineNode, now: Date): void {
     "the run finished while this visit was still open — the visit never reported an outcome";
 }
 
-/** The columns a fresh node row starts empty: it has been created, not run. */
-function emptyNodeOutcome(startedAt: Date) {
-  return {
-    clusterAgentId: null,
-    claimedAt: null,
-    outcome: null,
-    failureClass: null,
-    failureDetail: null,
-    commitSha: null,
-    startedAt,
-    finishedAt: null,
-  };
-}
-
 function newNodeRow(
   id: string,
   input: StationRunStartInput,
@@ -69,6 +55,20 @@ function newNodeRow(
     status: input.status ?? "running",
     requiredTags: input.requiredTags ?? [],
     ...emptyNodeOutcome(startedAt),
+  };
+}
+
+/** The columns a fresh node row starts empty: it has been created, not run. */
+function emptyNodeOutcome(startedAt: Date) {
+  return {
+    clusterAgentId: null,
+    claimedAt: null,
+    outcome: null,
+    failureClass: null,
+    failureDetail: null,
+    commitSha: null,
+    startedAt,
+    finishedAt: null,
   };
 }
 

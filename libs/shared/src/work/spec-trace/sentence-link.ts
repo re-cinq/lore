@@ -2,14 +2,14 @@
 
 import type { TestDescriptor } from "../../domain/test-report.js";
 
-/** Drops inline `([label](target))` / `[label](target)` link parentheticals so prose matches a test name that never carried them. */
-function stripLinkParens(text: string): string {
-  return text.replace(/\(?\[[^\]]*\]\([^)]*\)\)?/g, "");
-}
-
 /** Shallow match key: link-parens stripped, lowercased, all whitespace removed. */
 export function normalizeForMatch(text: string): string {
   return stripLinkParens(text).toLowerCase().replace(/\s+/g, "");
+}
+
+/** Drops inline `([label](target))` / `[label](target)` link parentheticals so prose matches a test name that never carried them. */
+function stripLinkParens(text: string): string {
+  return text.replace(/\(?\[[^\]]*\]\([^)]*\)\)?/g, "");
 }
 
 /** True when `needle` appears in `haystack` under {@link normalizeForMatch}. */

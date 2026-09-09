@@ -14,16 +14,6 @@ export function logRequestErrors(server: Server): void {
   });
 }
 
-// EADDRINUSE gets its own line because it has a cause a person can act on — another instance is already running — while anything else is reported with the error itself.
-function bootFailure(label: string, port: number, err: unknown): unknown[] {
-  return (err as NodeJS.ErrnoException | null | undefined)?.code ===
-    "EADDRINUSE"
-    ? [
-        `[${label}] port ${port} already in use — another instance is running. Exiting.`,
-      ]
-    : [`[${label}] server error:`, err];
-}
-
 export interface ServerBoot {
   /** Prefixes every line this boot writes, so a pod's logs name the service that failed. */
   label: string;
@@ -45,4 +35,14 @@ export async function startHapiServer(
     console.error(...bootFailure(boot.label, boot.port, err));
     process.exit(1);
   }
+}
+
+// EADDRINUSE gets its own line because it has a cause a person can act on — another instance is already running — while anything else is reported with the error itself.
+function bootFailure(label: string, port: number, err: unknown): unknown[] {
+  return (err as NodeJS.ErrnoException | null | undefined)?.code ===
+    "EADDRINUSE"
+    ? [
+        `[${label}] port ${port} already in use — another instance is running. Exiting.`,
+      ]
+    : [`[${label}] server error:`, err];
 }

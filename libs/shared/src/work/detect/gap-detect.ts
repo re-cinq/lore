@@ -60,6 +60,21 @@ const MISSING_CONTENT_CHECKS: Array<{
   },
 ];
 
+async function detectGaps(
+  repo: string,
+  project: Project,
+): Promise<GapReport[]> {
+  const gaps: GapReport[] = [];
+
+  try {
+    gaps.push(...(await missingContent(repo, project)));
+  } catch (err) {
+    console.error(`[job] gap-detect: error checking ${repo}:`, err);
+  }
+
+  return gaps;
+}
+
 /** Checked against the INGESTED chunks rather than the repo's files: a CLAUDE.md that exists but was never ingested is invisible to every agent, which is the gap this reports. */
 async function missingContent(
   repo: string,
@@ -77,35 +92,23 @@ async function missingContent(
   return gaps;
 }
 
-async function detectGaps(
-  repo: string,
-  project: Project,
-): Promise<GapReport[]> {
-  const gaps: GapReport[] = [];
+/** Files every detected gap; one failing gap must not cost the run the rest of them, so the catch is per gap. */
+async function fileGaps(gaps: GapReport[], project: Project): Promise<number> {
+  let created = 0;
+  const dedupStatuses = [...OPEN_TASK_STATES, "failed"];
 
-  try {
-    gaps.push(...(await missingContent(repo, project)));
-  } catch (err) {
-    console.error(`[job] gap-detect: error checking ${repo}:`, err);
+  for (const gap of gaps) {
+    try {
+      created += await fileGap(gap, project, dedupStatuses);
+    } catch (err) {
+      console.error(
+        `[job] gap-detect: error creating task for ${gap.repo}:`,
+        err,
+      );
+    }
   }
 
-  return gaps;
-}
-
-/** One gap-fill task via project.tasks.create (trust-level gate + created_by provenance apply); findOpenLike dedups against an in-flight or failed matching task. Answers how many tasks were created — 1, or 0 when one already tracks this gap. */
-async function gapAlreadyFiled(
-  gap: GapReport,
-  project: Project,
-  dedupStatuses: string[],
-): Promise<boolean> {
-  const existing = await project.tasks.findOpenLike({
-    repo: gap.repo,
-    taskType: "gap-fill",
-    descriptionPrefix: `Gap: ${gap.type}`,
-    statuses: dedupStatuses,
-  });
-
-  return existing.length > 0;
+  return created;
 }
 
 async function fileGap(
@@ -127,21 +130,18 @@ async function fileGap(
   return 1;
 }
 
-/** Files every detected gap; one failing gap must not cost the run the rest of them, so the catch is per gap. */
-async function fileGaps(gaps: GapReport[], project: Project): Promise<number> {
-  let created = 0;
-  const dedupStatuses = [...OPEN_TASK_STATES, "failed"];
+/** One gap-fill task via project.tasks.create (trust-level gate + created_by provenance apply); findOpenLike dedups against an in-flight or failed matching task. Answers how many tasks were created — 1, or 0 when one already tracks this gap. */
+async function gapAlreadyFiled(
+  gap: GapReport,
+  project: Project,
+  dedupStatuses: string[],
+): Promise<boolean> {
+  const existing = await project.tasks.findOpenLike({
+    repo: gap.repo,
+    taskType: "gap-fill",
+    descriptionPrefix: `Gap: ${gap.type}`,
+    statuses: dedupStatuses,
+  });
 
-  for (const gap of gaps) {
-    try {
-      created += await fileGap(gap, project, dedupStatuses);
-    } catch (err) {
-      console.error(
-        `[job] gap-detect: error creating task for ${gap.repo}:`,
-        err,
-      );
-    }
-  }
-
-  return created;
+  return existing.length > 0;
 }

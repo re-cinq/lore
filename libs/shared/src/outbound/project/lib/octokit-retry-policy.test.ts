@@ -2,6 +2,16 @@ import { describe, it, expect } from "vitest";
 import { Octokit } from "octokit";
 import { withoutBlindRetryOnCreates } from "./octokit-retry-policy.js";
 
+type ClientKind = "guarded" | "plain";
+
+async function attemptsFor(route: string, kind: ClientKind): Promise<string[]> {
+  const { fetch, attempts } = failingFetch();
+
+  await expect(client(fetch, kind).request(route)).rejects.toThrow();
+
+  return attempts;
+}
+
 function failingFetch(): {
   fetch: (url: string, init?: { method?: string }) => Promise<Response>;
   attempts: string[];
@@ -19,8 +29,6 @@ function failingFetch(): {
   return { fetch, attempts };
 }
 
-type ClientKind = "guarded" | "plain";
-
 function client(fetch: unknown, kind: ClientKind): Octokit {
   const ok = new Octokit({
     auth: "t",
@@ -30,14 +38,6 @@ function client(fetch: unknown, kind: ClientKind): Octokit {
   });
 
   return kind === "guarded" ? withoutBlindRetryOnCreates(ok) : ok;
-}
-
-async function attemptsFor(route: string, kind: ClientKind): Promise<string[]> {
-  const { fetch, attempts } = failingFetch();
-
-  await expect(client(fetch, kind).request(route)).rejects.toThrow();
-
-  return attempts;
 }
 
 describe("withoutBlindRetryOnCreates", () => {

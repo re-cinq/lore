@@ -6,6 +6,15 @@ import { highestTier, type EvidenceTier } from "./trace-link.js";
 
 export type StatementStatus = "verified-implemented" | "claimed" | "untested";
 
+export async function deriveStatementStatus(
+  dgraph: DgraphClientPort,
+  statementXid: string,
+): Promise<StatementStatus> {
+  const tiers = await fetchEvidenceTiers(dgraph, statementXid);
+
+  return classifyTier(highestTier(tiers));
+}
+
 async function fetchEvidenceTiers(
   dgraph: DgraphClientPort,
   statementXid: string,
@@ -38,13 +47,4 @@ function classifyTier(top: EvidenceTier | undefined): StatementStatus {
   }
 
   return "untested";
-}
-
-export async function deriveStatementStatus(
-  dgraph: DgraphClientPort,
-  statementXid: string,
-): Promise<StatementStatus> {
-  const tiers = await fetchEvidenceTiers(dgraph, statementXid);
-
-  return classifyTier(highestTier(tiers));
 }

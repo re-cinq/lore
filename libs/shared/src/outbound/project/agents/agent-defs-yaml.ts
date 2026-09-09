@@ -15,6 +15,24 @@ import { DECOMPOSITION_INSTRUCTIONS } from "../../../domain/feature-planning/dec
 
 const READ_ONLY = "agent definitions are read-only without a database";
 
+/** Union of candidate task-types.yaml paths from both loaders, in precedence order. */
+function candidatePaths(
+  configPath: string | undefined,
+  env: NodeJS.ProcessEnv,
+): string[] {
+  const paths: string[] = [];
+
+  if (configPath) {
+    paths.push(resolve(configPath));
+  }
+
+  if (env.TASK_TYPES_PATH) {
+    paths.push(resolve(env.TASK_TYPES_PATH));
+  }
+
+  return [...paths, ...wellKnownPaths(), ...envPaths(env)];
+}
+
 /** The fixed well-known locations, tried after any explicitly configured path; <cwd>/scripts is the mcp-server path. */
 function wellKnownPaths(): string[] {
   return [
@@ -40,36 +58,20 @@ function envPaths(env: NodeJS.ProcessEnv): string[] {
   return paths;
 }
 
-/** Union of candidate task-types.yaml paths from both loaders, in precedence order. */
-function candidatePaths(
-  configPath: string | undefined,
-  env: NodeJS.ProcessEnv,
-): string[] {
-  const paths: string[] = [];
-
-  if (configPath) {
-    paths.push(resolve(configPath));
-  }
-
-  if (env.TASK_TYPES_PATH) {
-    paths.push(resolve(env.TASK_TYPES_PATH));
-  }
-
-  return [...paths, ...wellKnownPaths(), ...envPaths(env)];
-}
-
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- one raw task-types.yaml entry; shape owned by task-types-config.js
 type TaskTypeConfig = any;
 
-/** Recipe extras (skills, disallowed_tools, watch, repo_workdir) ride config so CRD builder sees same shape from fallback/DB. */
-function recipeExtras(cfg: TaskTypeConfig): Record<string, unknown> {
+function definitionFromConfig(
+  name: string,
+  cfg: TaskTypeConfig,
+): AgentDefinition {
   return {
-    ...(cfg.skills ? { skills: cfg.skills } : {}),
-    ...(cfg.disallowed_tools ? { disallowed_tools: cfg.disallowed_tools } : {}),
-    ...(cfg.watch ? { watch: cfg.watch } : {}),
-    ...(cfg.repo_workdir !== undefined
-      ? { repo_workdir: cfg.repo_workdir }
-      : {}),
+    name,
+    ...definitionCore(cfg),
+    prompt: promptFor(cfg),
+    image: null,
+    project_id: null,
+    config: configOrNull(recipeExtras(cfg)),
   };
 }
 
@@ -91,24 +93,22 @@ function promptFor(cfg: TaskTypeConfig): string | null {
   return cfg.prompt_template ? cfg.prompt_template : null;
 }
 
+/** Recipe extras (skills, disallowed_tools, watch, repo_workdir) ride config so CRD builder sees same shape from fallback/DB. */
+function recipeExtras(cfg: TaskTypeConfig): Record<string, unknown> {
+  return {
+    ...(cfg.skills ? { skills: cfg.skills } : {}),
+    ...(cfg.disallowed_tools ? { disallowed_tools: cfg.disallowed_tools } : {}),
+    ...(cfg.watch ? { watch: cfg.watch } : {}),
+    ...(cfg.repo_workdir !== undefined
+      ? { repo_workdir: cfg.repo_workdir }
+      : {}),
+  };
+}
+
 function configOrNull(
   config: Record<string, unknown>,
 ): Record<string, unknown> | null {
   return Object.keys(config).length > 0 ? config : null;
-}
-
-function definitionFromConfig(
-  name: string,
-  cfg: TaskTypeConfig,
-): AgentDefinition {
-  return {
-    name,
-    ...definitionCore(cfg),
-    prompt: promptFor(cfg),
-    image: null,
-    project_id: null,
-    config: configOrNull(recipeExtras(cfg)),
-  };
 }
 
 /** feature-planning uses canonical prompt_template; feature-decompose overridden to DECOMPOSITION_INSTRUCTIONS. */

@@ -16,13 +16,30 @@ import type { MemorySearchResult } from "./memory-search.js";
 const RECENT_CONFLICTS_SQL = `SELECT new_fact_id FROM memory.fact_conflicts
        WHERE new_fact_id = ANY($1) AND created_at > now() - interval '7 days'`;
 
-async function conflictIdRows(pool: PgPool, factIds: string[]) {
-  const { rows } = await pool.query<{ new_fact_id: string }>(
-    RECENT_CONFLICTS_SQL,
-    [factIds],
-  );
+async function fetchMemories(
+  pool: PgPool,
+  query: string,
+  agentId: string | undefined,
+): Promise<FetchResult> {
+  try {
+    const results = await searchMemories(pool, query, { agentId, limit: 10 });
 
-  return rows;
+    if (results.length === 0) {
+      return { sources: [], status: "empty" };
+    }
+    const conflictSet = await memoriesConflictSet(pool, factIdsOf(results));
+    const sources = results.map((r) => toMemoryItem(r, conflictSet));
+
+    return { sources, status: "ok" };
+  } catch {
+    return { sources: [], status: "error" };
+  }
+}
+
+function factIdsOf(results: MemorySearchResult[]): string[] {
+  return results
+    .filter((r) => r.id && (r.source === "fact" || r.source === "episode"))
+    .map((r) => r.id!);
 }
 
 async function memoriesConflictSet(
@@ -46,10 +63,13 @@ async function memoriesConflictSet(
   return conflictSet;
 }
 
-function factIdsOf(results: MemorySearchResult[]): string[] {
-  return results
-    .filter((r) => r.id && (r.source === "fact" || r.source === "episode"))
-    .map((r) => r.id!);
+async function conflictIdRows(pool: PgPool, factIds: string[]) {
+  const { rows } = await pool.query<{ new_fact_id: string }>(
+    RECENT_CONFLICTS_SQL,
+    [factIds],
+  );
+
+  return rows;
 }
 
 function toMemoryItem(
@@ -63,33 +83,6 @@ function toMemoryItem(
     `**${result.key}** (${result.source})${tag}${conflict}: ${result.value}`,
     { source_path: result.key, content_type: result.source },
   );
-}
-
-async function fetchMemories(
-  pool: PgPool,
-  query: string,
-  agentId: string | undefined,
-): Promise<FetchResult> {
-  try {
-    const results = await searchMemories(pool, query, { agentId, limit: 10 });
-
-    if (results.length === 0) {
-      return { sources: [], status: "empty" };
-    }
-    const conflictSet = await memoriesConflictSet(pool, factIdsOf(results));
-    const sources = results.map((r) => toMemoryItem(r, conflictSet));
-
-    return { sources, status: "ok" };
-  } catch {
-    return { sources: [], status: "error" };
-  }
-}
-
-function toEpisodeItem(result: MemorySearchResult): SourceItem {
-  return mkItem(`**${result.key}**: ${result.value}`, {
-    source_path: result.key,
-    content_type: "episode",
-  });
 }
 
 async function fetchEpisodes(
@@ -115,41 +108,10 @@ async function fetchEpisodes(
   }
 }
 
-function matchRules(rows: ChunkSearchHit[], query: string): ChunkSearchHit[] {
-  const queryWords = query
-    .toLowerCase()
-    .split(/\s+/)
-    .filter((w: string) => w.length > 2);
-
-  return rows.filter((r) => {
-    const fileName = r.file_path.replace(/.*\//, "");
-    const ruleName = fileName.replace(/\.md$/, "").toLowerCase();
-
-    return queryWords.some(
-      (w: string) => ruleName.includes(w) || w.includes(ruleName),
-    );
-  });
-}
-
-async function ruleChunks(
-  pool: PgPool,
-  repo: string,
-): Promise<ChunkSearchHit[]> {
-  const schema = await resolveChunkSchemaForRepo(pool, repo);
-  const { rows } = await pool.query<ChunkSearchHit>(
-    `SELECT content, file_path FROM ${schema}.chunks
-       WHERE repo = $1 AND content_type = 'rule'
-       ORDER BY file_path`,
-    [repo],
-  );
-
-  return rows;
-}
-
-function toRuleItem(row: ChunkSearchHit): SourceItem {
-  return mkItem(row.content, {
-    source_path: row.file_path,
-    content_type: "rule",
+function toEpisodeItem(result: MemorySearchResult): SourceItem {
+  return mkItem(`**${result.key}**: ${result.value}`, {
+    source_path: result.key,
+    content_type: "episode",
   });
 }
 
@@ -175,6 +137,44 @@ async function fetchRules(
   } catch {
     return { sources: [], status: "error" };
   }
+}
+
+async function ruleChunks(
+  pool: PgPool,
+  repo: string,
+): Promise<ChunkSearchHit[]> {
+  const schema = await resolveChunkSchemaForRepo(pool, repo);
+  const { rows } = await pool.query<ChunkSearchHit>(
+    `SELECT content, file_path FROM ${schema}.chunks
+       WHERE repo = $1 AND content_type = 'rule'
+       ORDER BY file_path`,
+    [repo],
+  );
+
+  return rows;
+}
+
+function matchRules(rows: ChunkSearchHit[], query: string): ChunkSearchHit[] {
+  const queryWords = query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((w: string) => w.length > 2);
+
+  return rows.filter((r) => {
+    const fileName = r.file_path.replace(/.*\//, "");
+    const ruleName = fileName.replace(/\.md$/, "").toLowerCase();
+
+    return queryWords.some(
+      (w: string) => ruleName.includes(w) || w.includes(ruleName),
+    );
+  });
+}
+
+function toRuleItem(row: ChunkSearchHit): SourceItem {
+  return mkItem(row.content, {
+    source_path: row.file_path,
+    content_type: "rule",
+  });
 }
 
 async function hybridSource(

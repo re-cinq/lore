@@ -7,6 +7,30 @@ let entityNameCache: Set<string> = new Set();
 let entityCacheUpdatedAt = 0;
 const ENTITY_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
+/** Append 1-hop graph neighbors below the worst direct result's score. */
+export async function augmentWithGraphNeighbors(
+  pool: PgPool,
+  results: MemorySearchResult[],
+  limit: number,
+): Promise<MemorySearchResult[]> {
+  await refreshEntityCache(pool);
+  const entities = detectEntities(results);
+
+  if (entities.length === 0) {
+    return results;
+  }
+  const graphResults = await graphAugment(pool, entities);
+  // Give graph results a lower score than the worst direct result
+  const minScore =
+    results.length > 0 ? results[results.length - 1].score * 0.5 : 0.001;
+  const graphWithScores = graphResults.map((r, i) => ({
+    ...r,
+    score: minScore * (1 - i * 0.05), // Decreasing scores
+  }));
+
+  return [...results, ...graphWithScores].slice(0, limit);
+}
+
 async function refreshEntityCache(pool: PgPool): Promise<void> {
   if (
     Date.now() - entityCacheUpdatedAt < ENTITY_CACHE_TTL_MS &&
@@ -41,40 +65,27 @@ function detectEntities(results: MemorySearchResult[]): string[] {
   return [...found].slice(0, 5); // Max 5 entities to augment
 }
 
-/** Exactly what {@link neighborEdges} returns — derived from it rather than restated, so the query and its reader cannot drift apart. */
-type EdgeRows = Awaited<ReturnType<typeof neighborEdges>>;
-
-/** How one edge reads in the results: source, relation, target, each with its entity type. */
-function edgeDescription(row: EdgeRows[number]): string {
-  return `${row.source_name} (${row.source_type}) --${row.relation_type}--> ${row.target_name} (${row.target_type})`;
-}
-
-function graphResult(entity: string, desc: string): MemorySearchResult {
-  return {
-    key: entity,
-    value: desc,
-    score: 0, // Will be set by caller
-    agent_id: "graph",
-    source: "graph",
-  };
-}
-
-/** Append one graph result per edge description not already in `seen`. */
-function addUniqueEdgeResults(
-  entity: string,
-  rows: EdgeRows,
-  seen: Set<string>,
-  results: MemorySearchResult[],
-): void {
-  for (const row of rows) {
-    const desc = edgeDescription(row);
-
-    if (seen.has(desc)) {
-      continue;
-    }
-    seen.add(desc);
-    results.push(graphResult(entity, desc));
+async function graphAugment(
+  pool: PgPool,
+  entities: string[],
+): Promise<MemorySearchResult[]> {
+  if (entities.length === 0) {
+    return [];
   }
+
+  const results: MemorySearchResult[] = [];
+  const seen = new Set<string>();
+
+  for (const entity of entities) {
+    addUniqueEdgeResults(
+      entity,
+      await neighborEdges(pool, entity),
+      seen,
+      results,
+    );
+  }
+
+  return results.slice(0, 10);
 }
 
 const NEIGHBOR_EDGES_SQL = `SELECT s.name as source_name, s.entity_type as source_type,
@@ -103,49 +114,38 @@ async function neighborEdges(pool: PgPool, entity: string) {
   }
 }
 
-async function graphAugment(
-  pool: PgPool,
-  entities: string[],
-): Promise<MemorySearchResult[]> {
-  if (entities.length === 0) {
-    return [];
+/** Exactly what {@link neighborEdges} returns — derived from it rather than restated, so the query and its reader cannot drift apart. */
+type EdgeRows = Awaited<ReturnType<typeof neighborEdges>>;
+
+/** Append one graph result per edge description not already in `seen`. */
+function addUniqueEdgeResults(
+  entity: string,
+  rows: EdgeRows,
+  seen: Set<string>,
+  results: MemorySearchResult[],
+): void {
+  for (const row of rows) {
+    const desc = edgeDescription(row);
+
+    if (seen.has(desc)) {
+      continue;
+    }
+    seen.add(desc);
+    results.push(graphResult(entity, desc));
   }
-
-  const results: MemorySearchResult[] = [];
-  const seen = new Set<string>();
-
-  for (const entity of entities) {
-    addUniqueEdgeResults(
-      entity,
-      await neighborEdges(pool, entity),
-      seen,
-      results,
-    );
-  }
-
-  return results.slice(0, 10);
 }
 
-/** Append 1-hop graph neighbors below the worst direct result's score. */
-export async function augmentWithGraphNeighbors(
-  pool: PgPool,
-  results: MemorySearchResult[],
-  limit: number,
-): Promise<MemorySearchResult[]> {
-  await refreshEntityCache(pool);
-  const entities = detectEntities(results);
+/** How one edge reads in the results: source, relation, target, each with its entity type. */
+function edgeDescription(row: EdgeRows[number]): string {
+  return `${row.source_name} (${row.source_type}) --${row.relation_type}--> ${row.target_name} (${row.target_type})`;
+}
 
-  if (entities.length === 0) {
-    return results;
-  }
-  const graphResults = await graphAugment(pool, entities);
-  // Give graph results a lower score than the worst direct result
-  const minScore =
-    results.length > 0 ? results[results.length - 1].score * 0.5 : 0.001;
-  const graphWithScores = graphResults.map((r, i) => ({
-    ...r,
-    score: minScore * (1 - i * 0.05), // Decreasing scores
-  }));
-
-  return [...results, ...graphWithScores].slice(0, limit);
+function graphResult(entity: string, desc: string): MemorySearchResult {
+  return {
+    key: entity,
+    value: desc,
+    score: 0, // Will be set by caller
+    agent_id: "graph",
+    source: "graph",
+  };
 }

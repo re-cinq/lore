@@ -27,17 +27,17 @@ export interface RunResult {
 // A `tests.run` result tagged with the descriptor `id` it belongs to (the join key for `test-report`).
 export type TaggedRunResult = RunResult & { id: string };
 
-/** A string array, or undefined when `value` isn't one made entirely of strings. */
-function stringArrayOrUndefined(value: unknown): string[] | undefined {
-  return Array.isArray(value) &&
-    value.every((entry) => typeof entry === "string")
-    ? (value as string[])
-    : undefined;
+export function parseTestDescriptors(raw: unknown): TestDescriptor[] {
+  return asArray(raw, "test descriptors").map(buildTestDescriptor);
 }
 
-/** The `spec` field: a single anchor string, a string array of them, or undefined for anything else. */
-function normalizeSpecField(spec: unknown): string | string[] | undefined {
-  return typeof spec === "string" ? spec : stringArrayOrUndefined(spec);
+export function parseRunResult(raw: unknown): RunResult {
+  const entry = (raw ?? {}) as Record<string, unknown>;
+
+  return {
+    passed: entry.passed === true,
+    covered: parseCoveredChunks(entry.covered),
+  };
 }
 
 function buildTestDescriptor(entry: Record<string, unknown>): TestDescriptor {
@@ -65,25 +65,25 @@ function buildTestDescriptor(entry: Record<string, unknown>): TestDescriptor {
   return descriptor;
 }
 
-export function parseTestDescriptors(raw: unknown): TestDescriptor[] {
-  return asArray(raw, "test descriptors").map(buildTestDescriptor);
-}
-
-export function parseRunResult(raw: unknown): RunResult {
-  const entry = (raw ?? {}) as Record<string, unknown>;
-
-  return {
-    passed: entry.passed === true,
-    covered: parseCoveredChunks(entry.covered),
-  };
-}
-
 function parseCoveredChunks(raw: unknown): CoveredChunk[] {
   return asArray(raw, "covered chunks").map((entry) => ({
     file: requireString(entry, "file", "covered chunk"),
     startLine: requireNumber(entry, "startLine", "covered chunk"),
     endLine: requireNumber(entry, "endLine", "covered chunk"),
   }));
+}
+
+/** The `spec` field: a single anchor string, a string array of them, or undefined for anything else. */
+function normalizeSpecField(spec: unknown): string | string[] | undefined {
+  return typeof spec === "string" ? spec : stringArrayOrUndefined(spec);
+}
+
+/** A string array, or undefined when `value` isn't one made entirely of strings. */
+function stringArrayOrUndefined(value: unknown): string[] | undefined {
+  return Array.isArray(value) &&
+    value.every((entry) => typeof entry === "string")
+    ? (value as string[])
+    : undefined;
 }
 
 function asArray(raw: unknown, what: string): Record<string, unknown>[] {

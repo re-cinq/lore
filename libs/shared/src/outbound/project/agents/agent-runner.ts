@@ -9,23 +9,6 @@ import type { StationBackend } from "./station-port.js";
 import { runClaudeCli } from "./claude-cli.js";
 
 // Agent execution routing to injected providers: local (claude --print), cluster (Station via StationBackend), direct (LlmPort).
-/** Every option the router has no opinion about, forwarded verbatim: the backend, not this router, decides what a missing one means. */
-function passthroughOpts(runOpts: AgentRunOpts) {
-  return {
-    model: runOpts.model,
-    timeoutMinutes: runOpts.timeoutMinutes,
-    prNumber: runOpts.prNumber,
-    name: runOpts.name,
-    extraLabels: runOpts.extraLabels,
-    darkFactory: runOpts.darkFactory,
-    image: runOpts.image,
-    featureId: runOpts.featureId,
-    roundFeedback: runOpts.roundFeedback,
-    resumeFromTask: runOpts.resumeFromTask,
-    lineArgs: runOpts.lineArgs,
-  };
-}
-
 /** The cluster mode's one precondition: without a backend there is nothing to launch on. */
 function requireStation(station: StationBackend | undefined): StationBackend {
   enforceTrue(
@@ -50,6 +33,23 @@ function launchSpec(
     targetRepo: repo,
     branch: runOpts.branch ?? `lore/task-${taskId}`,
     ...passthroughOpts(runOpts),
+  };
+}
+
+/** Every option the router has no opinion about, forwarded verbatim: the backend, not this router, decides what a missing one means. */
+function passthroughOpts(runOpts: AgentRunOpts) {
+  return {
+    model: runOpts.model,
+    timeoutMinutes: runOpts.timeoutMinutes,
+    prNumber: runOpts.prNumber,
+    name: runOpts.name,
+    extraLabels: runOpts.extraLabels,
+    darkFactory: runOpts.darkFactory,
+    image: runOpts.image,
+    featureId: runOpts.featureId,
+    roundFeedback: runOpts.roundFeedback,
+    resumeFromTask: runOpts.resumeFromTask,
+    lineArgs: runOpts.lineArgs,
   };
 }
 

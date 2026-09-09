@@ -26,6 +26,25 @@ export type IssueWork =
   | { outcome: "proceed"; issues: PlannedIssue[]; tasks: PlannedTask[] }
   | { outcome: "changes_requested"; objection: string };
 
+/** The issues and spec-tasks a decomposition calls for, or the objection that sends it back; rejects invented labels because GitHub's create-issue silently adds unknown ones to the repo's real taxonomy. */
+export function decideIssueWork(
+  decomposition: DecompositionResult,
+  repoLabels: readonly string[],
+): IssueWork {
+  const objection = firstObjection(decomposition, repoLabels);
+
+  if (objection) {
+    return { outcome: "changes_requested", objection };
+  }
+  const { stories } = decomposition;
+
+  return {
+    outcome: "proceed",
+    issues: plannedIssues(stories),
+    tasks: plannedTasks(stories),
+  };
+}
+
 /** Why this decomposition cannot be filed, if it cannot. Each objection is written to be ACTED ON by the model that produced it — this text goes back as the rework prompt, so "no user stories" and a list of the exact unknown labels are instructions, not diagnostics. Labels are checked against the repo because inventing one silently files an Issue nobody's filters will ever show. */
 function firstObjection(
   decomposition: DecompositionResult,
@@ -67,6 +86,14 @@ function unknownLabelObjection(
   return `these labels do not exist in this repository: ${named}. Use only labels the repo already has.`;
 }
 
+/** Every label the decomposition proposes for a story and its tasks. */
+function proposedLabels(story: UserStory): string[] {
+  return [
+    ...(story.labels ?? []),
+    ...story.tasks.flatMap((t) => t.labels ?? []),
+  ];
+}
+
 function plannedIssues(
   stories: DecompositionResult["stories"],
 ): PlannedIssue[] {
@@ -86,31 +113,4 @@ function plannedTasks(stories: DecompositionResult["stories"]): PlannedTask[] {
       task,
     })),
   );
-}
-
-/** The issues and spec-tasks a decomposition calls for, or the objection that sends it back; rejects invented labels because GitHub's create-issue silently adds unknown ones to the repo's real taxonomy. */
-export function decideIssueWork(
-  decomposition: DecompositionResult,
-  repoLabels: readonly string[],
-): IssueWork {
-  const objection = firstObjection(decomposition, repoLabels);
-
-  if (objection) {
-    return { outcome: "changes_requested", objection };
-  }
-  const { stories } = decomposition;
-
-  return {
-    outcome: "proceed",
-    issues: plannedIssues(stories),
-    tasks: plannedTasks(stories),
-  };
-}
-
-/** Every label the decomposition proposes for a story and its tasks. */
-function proposedLabels(story: UserStory): string[] {
-  return [
-    ...(story.labels ?? []),
-    ...story.tasks.flatMap((t) => t.labels ?? []),
-  ];
 }

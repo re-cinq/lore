@@ -49,27 +49,6 @@ export const DEFAULT_AUTO_MERGE_PATHS = [
   ".claude/**",
 ];
 
-function orDefault<T>(value: T | undefined | null, fallback: T): T {
-  return value ?? fallback;
-}
-
-function resolveEnabled(
-  partial: DarkFactorySettings | null | undefined,
-): boolean {
-  return partial?.enabled ?? false;
-}
-
-function resolveAutoMerge(
-  autoMerge: DarkFactoryAutoMerge = {},
-): ResolvedDarkFactorySettings["auto_merge"] {
-  return {
-    paths: orDefault(autoMerge.paths, DEFAULT_AUTO_MERGE_PATHS),
-    min_trust: orDefault(autoMerge.min_trust, "docs"),
-    require_green_ci: autoMerge.require_green_ci ?? true,
-    require_bot_approval: autoMerge.require_bot_approval ?? true,
-  };
-}
-
 interface ModeDefaults {
   create_issue: CreateIssueMode;
   review: ReviewMode;
@@ -106,6 +85,27 @@ export function resolveDarkFactorySettings(
   };
 }
 
+function resolveEnabled(
+  partial: DarkFactorySettings | null | undefined,
+): boolean {
+  return partial?.enabled ?? false;
+}
+
+function resolveAutoMerge(
+  autoMerge: DarkFactoryAutoMerge = {},
+): ResolvedDarkFactorySettings["auto_merge"] {
+  return {
+    paths: orDefault(autoMerge.paths, DEFAULT_AUTO_MERGE_PATHS),
+    min_trust: orDefault(autoMerge.min_trust, "docs"),
+    require_green_ci: autoMerge.require_green_ci ?? true,
+    require_bot_approval: autoMerge.require_bot_approval ?? true,
+  };
+}
+
+function orDefault<T>(value: T | undefined | null, fallback: T): T {
+  return value ?? fallback;
+}
+
 /** docs(1) < tests(2) < implementation(3) < full(4) */
 const TRUST_ORDER: Record<TrustLevel, number> = {
   docs: 1,
@@ -138,6 +138,18 @@ export interface ExecutionImageSettings {
   > | null;
 }
 
+/** Resolves a task's Station image, newest-wins: per-task-type override → per-repo dark_factory.execution.image → platform default (ADR-025). */
+export function resolveExecutionImage(
+  settings: ExecutionImageSettings | null | undefined,
+  taskType: string,
+): string {
+  return (
+    taskOverrideImage(settings, taskType) ??
+    darkFactoryImage(settings) ??
+    DEFAULT_EXECUTION_IMAGE
+  );
+}
+
 function taskOverrideImage(
   settings: ExecutionImageSettings | null | undefined,
   taskType: string,
@@ -159,16 +171,4 @@ function darkFactoryImage(
   const darkFactory = settings?.dark_factory;
 
   return darkFactory?.execution?.image;
-}
-
-/** Resolves a task's Station image, newest-wins: per-task-type override → per-repo dark_factory.execution.image → platform default (ADR-025). */
-export function resolveExecutionImage(
-  settings: ExecutionImageSettings | null | undefined,
-  taskType: string,
-): string {
-  return (
-    taskOverrideImage(settings, taskType) ??
-    darkFactoryImage(settings) ??
-    DEFAULT_EXECUTION_IMAGE
-  );
 }

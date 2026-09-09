@@ -16,21 +16,6 @@ export interface PodLogArchiveLike {
   ): Promise<string | null>;
 }
 
-/** Keep the last `tailLines` lines, matching `kubectl logs --tail` and the Cloud Logging fallback. */
-function tail(text: string, tailLines: number | undefined): string {
-  if (!tailLines) {
-    return text;
-  }
-  const lines = text.split("\n");
-
-  // Drop ONLY the trailing empty element a trailing newline leaves; filtering every falsy line would strip meaningful blank lines inside the log.
-  if (lines[lines.length - 1] === "") {
-    lines.pop();
-  }
-
-  return lines.slice(-tailLines).join("\n");
-}
-
 export function storedPodLogArchive(
   store: PodLogsRepository,
 ): Required<PodLogArchiveLike> {
@@ -53,6 +38,21 @@ async function assemble(
   }
 
   return tail(chunks.map((chunk) => chunk.lines).join(""), opts?.tailLines);
+}
+
+/** Keep the last `tailLines` lines, matching `kubectl logs --tail` and the Cloud Logging fallback. */
+function tail(text: string, tailLines: number | undefined): string {
+  if (!tailLines) {
+    return text;
+  }
+  const lines = text.split("\n");
+
+  // Drop ONLY the trailing empty element a trailing newline leaves; filtering every falsy line would strip meaningful blank lines inside the log.
+  if (lines[lines.length - 1] === "") {
+    lines.pop();
+  }
+
+  return lines.slice(-tailLines).join("\n");
 }
 
 /** Try each archive in order, first non-null wins — stored chunks first (work for any cluster), Cloud Logging behind (holds pre-table history). */

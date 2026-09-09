@@ -4,6 +4,43 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { RepoTooling, ValidationStep } from "./repo-validation.js";
 
+/** Detects available validation tooling by scanning for config files (package.json, go.mod, pyproject.toml, Cargo.toml). */
+export function detectTooling(repoRoot: string): RepoTooling {
+  // Try detectors in order of likelihood (Node is most common in Lore repos)
+  const result =
+    detectNode(repoRoot) ??
+    detectGo(repoRoot) ??
+    detectPython(repoRoot) ??
+    detectRust(repoRoot);
+
+  return result || { language: "unknown", quickChecks: [], fullChecks: [] };
+}
+
+function detectNode(repoRoot: string): RepoTooling | null {
+  const pkgPath = join(repoRoot, "package.json");
+  const pkg = readJsonFile(pkgPath);
+
+  if (!pkg) {
+    return null;
+  }
+
+  const scripts = (pkg.scripts || {}) as Record<string, string>;
+  const quick: ValidationStep[] = [];
+  const full: ValidationStep[] = [];
+
+  addLintStep(quick, scripts, repoRoot);
+  addTypecheckStep(quick, scripts, repoRoot);
+  addBuildStep(quick, scripts);
+  addTestStep(full, scripts);
+  addInstallStepIfNeeded(quick, full, pkg, repoRoot);
+
+  return {
+    language: "node",
+    quickChecks: quick,
+    fullChecks: [...quick, ...full],
+  };
+}
+
 function readJsonFile(filePath: string): Record<string, unknown> | null {
   try {
     return JSON.parse(readFileSync(filePath, "utf-8"));
@@ -12,51 +49,38 @@ function readJsonFile(filePath: string): Record<string, unknown> | null {
   }
 }
 
-// Vitest and Jest support --run/--bail for fast failure
-function fastFailTestCommand(testScript: string): string {
-  if (testScript.includes("vitest")) {
-    return "npm run test --silent -- --run";
-  }
-
-  if (testScript.includes("jest")) {
-    return "npm run test --silent -- --bail";
-  }
-
-  return "npm run test --silent";
-}
-
-// A WORKSPACES repo must COMPILE before it lints — a sibling's `dist/` is what others import and install doesn't produce it (run b219a4f1, 2026-08-30, died on exactly that). Gated on `workspaces`: a single-package repo's lint reads source.
-function promoteWorkspaceBuildFirst(
+function addLintStep(
   quick: ValidationStep[],
-  pkg: Record<string, unknown>,
+  scripts: Record<string, string>,
+  repoRoot: string,
 ): void {
-  const buildAt = declaresWorkspaces(pkg)
-    ? quick.findIndex((step) => step.name === "build")
-    : -1;
+  const lintScript = scripts.lint;
 
-  if (buildAt < 0) {
+  if (lintScript) {
+    quick.push(lintScriptStep(lintScript));
+
     return;
   }
-  // Read before removing: a splice-result destructure would spread `undefined` if the index guard ever stopped holding.
-  const build = quick[buildAt];
 
-  quick.splice(buildAt, 1);
-  quick.unshift({ ...build, timeoutMs: 300_000 });
+  if (hasEslintConfig(repoRoot)) {
+    quick.push({
+      name: "eslint",
+      command: "npx eslint --quiet .",
+      timeoutMs: 120_000,
+    });
+  }
 }
 
-/** Whether the manifest declares a workspaces monorepo — npm's array of globs, or Yarn's `{ packages: [...] }` object. */
-function declaresWorkspaces(pkg: Record<string, unknown>): boolean {
-  const workspaces = pkg.workspaces;
+// Lint: 120s not 30 — scoping is best-effort and unscoped `eslint .` on a monorepo measures ~37s warm, minutes cold in a one-CPU pod.
+function lintScriptStep(lintScript: string): ValidationStep {
+  const scopedCommand = scopedLintCommand(lintScript);
 
-  if (Array.isArray(workspaces)) {
-    return true;
-  }
-
-  if (typeof workspaces !== "object" || workspaces === null) {
-    return false;
-  }
-
-  return Array.isArray((workspaces as { packages?: unknown }).packages);
+  return {
+    name: "lint",
+    command: "npm run lint --silent",
+    ...(scopedCommand ? { scopedCommand } : {}),
+    timeoutMs: 120_000,
+  };
 }
 
 /** The scoped form of a repo's lint script, or null if unscopeable. Only eslint is understood: its "." tree-root token is replaced, keeping other flags intact; run via `npx`. */
@@ -80,40 +104,6 @@ function hasEslintConfig(repoRoot: string): boolean {
     existsSync(join(repoRoot, ".eslintrc.js"));
 
   return isFlatConfig || isLegacyConfig;
-}
-
-// Lint: 120s not 30 — scoping is best-effort and unscoped `eslint .` on a monorepo measures ~37s warm, minutes cold in a one-CPU pod.
-function lintScriptStep(lintScript: string): ValidationStep {
-  const scopedCommand = scopedLintCommand(lintScript);
-
-  return {
-    name: "lint",
-    command: "npm run lint --silent",
-    ...(scopedCommand ? { scopedCommand } : {}),
-    timeoutMs: 120_000,
-  };
-}
-
-function addLintStep(
-  quick: ValidationStep[],
-  scripts: Record<string, string>,
-  repoRoot: string,
-): void {
-  const lintScript = scripts.lint;
-
-  if (lintScript) {
-    quick.push(lintScriptStep(lintScript));
-
-    return;
-  }
-
-  if (hasEslintConfig(repoRoot)) {
-    quick.push({
-      name: "eslint",
-      command: "npx eslint --quiet .",
-      timeoutMs: 120_000,
-    });
-  }
 }
 
 function addTypecheckStep(
@@ -164,10 +154,17 @@ function addTestStep(
   }
 }
 
-function installCommand(repoRoot: string): string {
-  return existsSync(join(repoRoot, "package-lock.json"))
-    ? "npm ci --no-audit --no-fund"
-    : "npm install --no-audit --no-fund";
+// Vitest and Jest support --run/--bail for fast failure
+function fastFailTestCommand(testScript: string): string {
+  if (testScript.includes("vitest")) {
+    return "npm run test --silent -- --run";
+  }
+
+  if (testScript.includes("jest")) {
+    return "npm run test --silent -- --bail";
+  }
+
+  return "npm run test --silent";
 }
 
 // A validate station clones fresh (no node_modules) — install first, but only when there's something to check afterwards.
@@ -191,29 +188,44 @@ function addInstallStepIfNeeded(
   });
 }
 
-function detectNode(repoRoot: string): RepoTooling | null {
-  const pkgPath = join(repoRoot, "package.json");
-  const pkg = readJsonFile(pkgPath);
+// A WORKSPACES repo must COMPILE before it lints — a sibling's `dist/` is what others import and install doesn't produce it (run b219a4f1, 2026-08-30, died on exactly that). Gated on `workspaces`: a single-package repo's lint reads source.
+function promoteWorkspaceBuildFirst(
+  quick: ValidationStep[],
+  pkg: Record<string, unknown>,
+): void {
+  const buildAt = declaresWorkspaces(pkg)
+    ? quick.findIndex((step) => step.name === "build")
+    : -1;
 
-  if (!pkg) {
-    return null;
+  if (buildAt < 0) {
+    return;
+  }
+  // Read before removing: a splice-result destructure would spread `undefined` if the index guard ever stopped holding.
+  const build = quick[buildAt];
+
+  quick.splice(buildAt, 1);
+  quick.unshift({ ...build, timeoutMs: 300_000 });
+}
+
+/** Whether the manifest declares a workspaces monorepo — npm's array of globs, or Yarn's `{ packages: [...] }` object. */
+function declaresWorkspaces(pkg: Record<string, unknown>): boolean {
+  const workspaces = pkg.workspaces;
+
+  if (Array.isArray(workspaces)) {
+    return true;
   }
 
-  const scripts = (pkg.scripts || {}) as Record<string, string>;
-  const quick: ValidationStep[] = [];
-  const full: ValidationStep[] = [];
+  if (typeof workspaces !== "object" || workspaces === null) {
+    return false;
+  }
 
-  addLintStep(quick, scripts, repoRoot);
-  addTypecheckStep(quick, scripts, repoRoot);
-  addBuildStep(quick, scripts);
-  addTestStep(full, scripts);
-  addInstallStepIfNeeded(quick, full, pkg, repoRoot);
+  return Array.isArray((workspaces as { packages?: unknown }).packages);
+}
 
-  return {
-    language: "node",
-    quickChecks: quick,
-    fullChecks: [...quick, ...full],
-  };
+function installCommand(repoRoot: string): string {
+  return existsSync(join(repoRoot, "package-lock.json"))
+    ? "npm ci --no-audit --no-fund"
+    : "npm install --no-audit --no-fund";
 }
 
 function detectGo(repoRoot: string): RepoTooling | null {
@@ -233,6 +245,38 @@ function detectGo(repoRoot: string): RepoTooling | null {
       { name: "go-test", command: "go test ./...", timeoutMs: 120_000 },
     ],
   };
+}
+
+function detectPython(repoRoot: string): RepoTooling | null {
+  if (!isPythonRepo(repoRoot)) {
+    return null;
+  }
+
+  const quick: ValidationStep[] = [];
+  const full: ValidationStep[] = [];
+  const pyproject = readPyprojectText(repoRoot);
+
+  addRuffStep(quick, pyproject, repoRoot);
+  addMypyStep(quick, pyproject, repoRoot);
+  addPytestStep(full, pyproject, repoRoot);
+
+  if (quick.length === 0 && full.length === 0) {
+    return null;
+  }
+
+  return {
+    language: "python",
+    quickChecks: quick,
+    fullChecks: [...quick, ...full],
+  };
+}
+
+function isPythonRepo(repoRoot: string): boolean {
+  return (
+    existsSync(join(repoRoot, "pyproject.toml")) ||
+    existsSync(join(repoRoot, "setup.cfg")) ||
+    existsSync(join(repoRoot, "requirements.txt"))
+  );
 }
 
 // Read pyproject.toml as text to check for tool presence; a missing/unreadable file just means no declared tools.
@@ -289,49 +333,6 @@ function addPytestStep(
   }
 }
 
-function isPythonRepo(repoRoot: string): boolean {
-  return (
-    existsSync(join(repoRoot, "pyproject.toml")) ||
-    existsSync(join(repoRoot, "setup.cfg")) ||
-    existsSync(join(repoRoot, "requirements.txt"))
-  );
-}
-
-function detectPython(repoRoot: string): RepoTooling | null {
-  if (!isPythonRepo(repoRoot)) {
-    return null;
-  }
-
-  const quick: ValidationStep[] = [];
-  const full: ValidationStep[] = [];
-  const pyproject = readPyprojectText(repoRoot);
-
-  addRuffStep(quick, pyproject, repoRoot);
-  addMypyStep(quick, pyproject, repoRoot);
-  addPytestStep(full, pyproject, repoRoot);
-
-  if (quick.length === 0 && full.length === 0) {
-    return null;
-  }
-
-  return {
-    language: "python",
-    quickChecks: quick,
-    fullChecks: [...quick, ...full],
-  };
-}
-
-function rustQuickChecks(): ValidationStep[] {
-  return [
-    { name: "cargo-check", command: "cargo check", timeoutMs: 60_000 },
-    {
-      name: "cargo-clippy",
-      command: "cargo clippy -- -D warnings",
-      timeoutMs: 60_000,
-    },
-  ];
-}
-
 function detectRust(repoRoot: string): RepoTooling | null {
   if (!existsSync(join(repoRoot, "Cargo.toml"))) {
     return null;
@@ -347,14 +348,13 @@ function detectRust(repoRoot: string): RepoTooling | null {
   };
 }
 
-/** Detects available validation tooling by scanning for config files (package.json, go.mod, pyproject.toml, Cargo.toml). */
-export function detectTooling(repoRoot: string): RepoTooling {
-  // Try detectors in order of likelihood (Node is most common in Lore repos)
-  const result =
-    detectNode(repoRoot) ??
-    detectGo(repoRoot) ??
-    detectPython(repoRoot) ??
-    detectRust(repoRoot);
-
-  return result || { language: "unknown", quickChecks: [], fullChecks: [] };
+function rustQuickChecks(): ValidationStep[] {
+  return [
+    { name: "cargo-check", command: "cargo check", timeoutMs: 60_000 },
+    {
+      name: "cargo-clippy",
+      command: "cargo clippy -- -D warnings",
+      timeoutMs: 60_000,
+    },
+  ];
 }

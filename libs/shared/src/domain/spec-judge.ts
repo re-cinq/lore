@@ -115,23 +115,66 @@ export function deriveTestName(
   return normalizeTestName(describe, it);
 }
 
-function candidateKey(link: { test_file: string; test_name: string }): string {
-  return `${link.test_file} ${link.test_name}`;
+// Pre-filters test chunks by three signals (assertion/directory/embedding), dedupes by (test_file, test_name) keeping the strongest, caps at maxCandidates, and flags `truncated` so the caller can log drops instead of silently under-reporting coverage.
+export function selectCandidates(
+  spec: SpecInput,
+  assertions: Assertion[],
+  codeChunks: TestChunk[],
+  options: { maxCandidates?: number; embeddingThreshold?: number } = {},
+): CandidateSelection {
+  const maxCandidates = options.maxCandidates ?? MAX_CANDIDATES_PER_SPEC;
+  const threshold = options.embeddingThreshold ?? EMBEDDING_THRESHOLD;
+  const byKey = strongestByTest(codeChunks, assertions, spec, threshold);
+  const ranked = [...byKey.values()].sort(
+    (a, b) => KIND_RANK[b.match_kind] - KIND_RANK[a.match_kind],
+  );
+
+  return {
+    candidates: ranked.slice(0, maxCandidates),
+    truncated: ranked.length > maxCandidates,
+    total: ranked.length,
+  };
 }
 
-/** True when both sides carry an embedding and their cosine similarity clears `threshold`. */
-function embeddingMatches(
+/** One strongest candidate per (test_file, test_name), keyed for dedupe. */
+function strongestByTest(
+  codeChunks: TestChunk[],
+  assertions: Assertion[],
   spec: SpecInput,
-  chunk: TestChunk,
   threshold: number,
-): boolean {
-  const { embedding } = spec;
+): Map<string, JudgeCandidate> {
+  const byKey = new Map<string, JudgeCandidate>();
 
-  return Boolean(
-    embedding &&
-    chunk.embedding &&
-    cosineSimilarity(embedding, chunk.embedding) >= threshold,
-  );
+  for (const chunk of codeChunks) {
+    const candidate = buildCandidate(chunk, assertions, spec, threshold);
+
+    if (candidate) {
+      upsertStrongestCandidate(byKey, candidate);
+    }
+  }
+
+  return byKey;
+}
+
+/** The candidate for one test chunk, or null when it isn't a test or matches none of the three signals. */
+function buildCandidate(
+  chunk: TestChunk,
+  assertions: Assertion[],
+  spec: SpecInput,
+  threshold: number,
+): JudgeCandidate | null {
+  if (!isTestFile(chunk.file_path) || chunk.test_name.length === 0) {
+    return null;
+  }
+
+  const symbol = matchedAssertion(chunk.content, assertions);
+  const kind = matchKindFor(symbol, spec, chunk, threshold);
+
+  if (!kind) {
+    return null;
+  }
+
+  return candidateFrom(chunk, kind, symbol);
 }
 
 /** The strongest pre-filter signal linking a test chunk to the spec, or null. */
@@ -156,6 +199,21 @@ function matchKindFor(
   return null;
 }
 
+/** True when both sides carry an embedding and their cosine similarity clears `threshold`. */
+function embeddingMatches(
+  spec: SpecInput,
+  chunk: TestChunk,
+  threshold: number,
+): boolean {
+  const { embedding } = spec;
+
+  return Boolean(
+    embedding &&
+    chunk.embedding &&
+    cosineSimilarity(embedding, chunk.embedding) >= threshold,
+  );
+}
+
 /** The candidate row for a matched chunk; the symbol is kept only for an assertion match. */
 function candidateFrom(
   chunk: TestChunk,
@@ -172,27 +230,6 @@ function candidateFrom(
   };
 }
 
-/** The candidate for one test chunk, or null when it isn't a test or matches none of the three signals. */
-function buildCandidate(
-  chunk: TestChunk,
-  assertions: Assertion[],
-  spec: SpecInput,
-  threshold: number,
-): JudgeCandidate | null {
-  if (!isTestFile(chunk.file_path) || chunk.test_name.length === 0) {
-    return null;
-  }
-
-  const symbol = matchedAssertion(chunk.content, assertions);
-  const kind = matchKindFor(symbol, spec, chunk, threshold);
-
-  if (!kind) {
-    return null;
-  }
-
-  return candidateFrom(chunk, kind, symbol);
-}
-
 /** Keeps `candidate` in `byKey` only if it beats (or there is no) existing entry for the same test. */
 function upsertStrongestCandidate(
   byKey: Map<string, JudgeCandidate>,
@@ -207,47 +244,6 @@ function upsertStrongestCandidate(
   ) {
     byKey.set(key, candidate);
   }
-}
-
-/** One strongest candidate per (test_file, test_name), keyed for dedupe. */
-function strongestByTest(
-  codeChunks: TestChunk[],
-  assertions: Assertion[],
-  spec: SpecInput,
-  threshold: number,
-): Map<string, JudgeCandidate> {
-  const byKey = new Map<string, JudgeCandidate>();
-
-  for (const chunk of codeChunks) {
-    const candidate = buildCandidate(chunk, assertions, spec, threshold);
-
-    if (candidate) {
-      upsertStrongestCandidate(byKey, candidate);
-    }
-  }
-
-  return byKey;
-}
-
-// Pre-filters test chunks by three signals (assertion/directory/embedding), dedupes by (test_file, test_name) keeping the strongest, caps at maxCandidates, and flags `truncated` so the caller can log drops instead of silently under-reporting coverage.
-export function selectCandidates(
-  spec: SpecInput,
-  assertions: Assertion[],
-  codeChunks: TestChunk[],
-  options: { maxCandidates?: number; embeddingThreshold?: number } = {},
-): CandidateSelection {
-  const maxCandidates = options.maxCandidates ?? MAX_CANDIDATES_PER_SPEC;
-  const threshold = options.embeddingThreshold ?? EMBEDDING_THRESHOLD;
-  const byKey = strongestByTest(codeChunks, assertions, spec, threshold);
-  const ranked = [...byKey.values()].sort(
-    (a, b) => KIND_RANK[b.match_kind] - KIND_RANK[a.match_kind],
-  );
-
-  return {
-    candidates: ranked.slice(0, maxCandidates),
-    truncated: ranked.length > maxCandidates,
-    total: ranked.length,
-  };
 }
 
 /** Existing links no longer confirmed this run — the rows to prune. */
@@ -269,19 +265,6 @@ export function staleStatementOrdinals(
   return existingOrdinals.filter((o) => !keep.has(o));
 }
 
-function isEligibleJudgment(j: Judgment, threshold: number): boolean {
-  return j.matches && j.match_score >= threshold;
-}
-
-function keepIfHigherScore(best: Map<string, Judgment>, j: Judgment): void {
-  const key = candidateKey(j);
-  const existing = best.get(key);
-
-  if (!existing || j.match_score > existing.match_score) {
-    best.set(key, j);
-  }
-}
-
 // Best-match-per-test reducer: keeps the highest `match_score` per (test_file, test_name), drops rows below `threshold` — a statement may win several tests, but a test only ever keeps one.
 export function argmaxByTest(
   judgments: Judgment[],
@@ -296,6 +279,23 @@ export function argmaxByTest(
   }
 
   return [...best.values()];
+}
+
+function isEligibleJudgment(j: Judgment, threshold: number): boolean {
+  return j.matches && j.match_score >= threshold;
+}
+
+function keepIfHigherScore(best: Map<string, Judgment>, j: Judgment): void {
+  const key = candidateKey(j);
+  const existing = best.get(key);
+
+  if (!existing || j.match_score > existing.match_score) {
+    best.set(key, j);
+  }
+}
+
+function candidateKey(link: { test_file: string; test_name: string }): string {
+  return `${link.test_file} ${link.test_name}`;
 }
 
 /** sha-256 hex digest of the spec content; used by the freshness gate. */

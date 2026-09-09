@@ -24,38 +24,6 @@ import type {
 } from "./cluster-ports.js";
 import { CONTEXT_BOOTSTRAP } from "../../domain/agents/recipe-prompt.js";
 
-/** Deterministic per-task Agent name, so a re-launch is idempotent (409). */
-export function agentCrName(taskId: string): string {
-  return `agent-${taskId.substring(0, 8)}`;
-}
-
-/** Provisions a per-task GitHub token (ADR-031 D6, #697) and materializes the per-task AgentDefinition+Station pair; returns the per-task Station name, or undefined to fall back to the catalog Station. */
-
-function agentParameters(spec: LoreTaskSpec): Record<string, string> {
-  const parameters: Record<string, string> = {
-    description: spec.description,
-    prompt: spec.prompt,
-    // Always present: renderPrompt leaves an unmatched placeholder intact (so typos surface), so omitting this would ship the literal `{context}` token to the model.
-    context: CONTEXT_BOOTSTRAP,
-    ...spec.parameters,
-  };
-
-  if (spec.prNumber !== undefined) {
-    parameters.pr_number = String(spec.prNumber);
-  }
-
-  return parameters;
-}
-
-/** Per-task token Station override (#697) wins; then the spec's explicit Station; else the task type's catalog Station. */
-function resolveStationRef(spec: LoreTaskSpec, stationRef?: string): string {
-  if (stationRef) {
-    return stationRef;
-  }
-
-  return spec.stationRef || spec.taskType;
-}
-
 /** Maps a LoreTaskSpec to an `Agent` CR body; the recipe (model/prompt/tools) lives on the resolved Station, per-run carries only parameters (incl. the `{context}` fetch-instruction slot). */
 export function specToAgent(spec: LoreTaskSpec, stationRef?: string): AgentCr {
   return {
@@ -75,6 +43,38 @@ export function specToAgent(spec: LoreTaskSpec, stationRef?: string): AgentCr {
       parameters: agentParameters(spec),
     },
   };
+}
+
+/** Deterministic per-task Agent name, so a re-launch is idempotent (409). */
+export function agentCrName(taskId: string): string {
+  return `agent-${taskId.substring(0, 8)}`;
+}
+
+/** Per-task token Station override (#697) wins; then the spec's explicit Station; else the task type's catalog Station. */
+function resolveStationRef(spec: LoreTaskSpec, stationRef?: string): string {
+  if (stationRef) {
+    return stationRef;
+  }
+
+  return spec.stationRef || spec.taskType;
+}
+
+/** Provisions a per-task GitHub token (ADR-031 D6, #697) and materializes the per-task AgentDefinition+Station pair; returns the per-task Station name, or undefined to fall back to the catalog Station. */
+
+function agentParameters(spec: LoreTaskSpec): Record<string, string> {
+  const parameters: Record<string, string> = {
+    description: spec.description,
+    prompt: spec.prompt,
+    // Always present: renderPrompt leaves an unmatched placeholder intact (so typos surface), so omitting this would ship the literal `{context}` token to the model.
+    context: CONTEXT_BOOTSTRAP,
+    ...spec.parameters,
+  };
+
+  if (spec.prNumber !== undefined) {
+    parameters.pr_number = String(spec.prNumber);
+  }
+
+  return parameters;
 }
 
 export class AgentCrBackend implements StationBackend {

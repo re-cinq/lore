@@ -14,6 +14,24 @@ export interface RegistryOrSharedTokenDeps {
   sharedTokenEnvName?: string;
 }
 
+/** Refuse request without shared or registered per-agent token; pure, test-friendly; service names deployment in refusal. */
+export async function enforceRegistryOrSharedToken(
+  headers: Record<string, unknown>,
+  deps: RegistryOrSharedTokenDeps,
+  service: string,
+): Promise<void> {
+  const token = extractBearer(headers["authorization"]);
+
+  if (
+    matchesSharedToken(token, deps) ||
+    (await matchesRegisteredAgent(token, deps))
+  ) {
+    return;
+  }
+
+  enforceBearer(headers, deps.sharedToken, service, deps.sharedTokenEnvName);
+}
+
 function matchesSharedToken(
   token: string | undefined,
   deps: RegistryOrSharedTokenDeps,
@@ -34,22 +52,4 @@ async function matchesRegisteredAgent(
   }
 
   return Boolean(await deps.findByTokenHash(hashAgentToken(token)));
-}
-
-/** Refuse request without shared or registered per-agent token; pure, test-friendly; service names deployment in refusal. */
-export async function enforceRegistryOrSharedToken(
-  headers: Record<string, unknown>,
-  deps: RegistryOrSharedTokenDeps,
-  service: string,
-): Promise<void> {
-  const token = extractBearer(headers["authorization"]);
-
-  if (
-    matchesSharedToken(token, deps) ||
-    (await matchesRegisteredAgent(token, deps))
-  ) {
-    return;
-  }
-
-  enforceBearer(headers, deps.sharedToken, service, deps.sharedTokenEnvName);
 }

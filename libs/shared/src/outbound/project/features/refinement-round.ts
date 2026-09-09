@@ -48,57 +48,21 @@ export interface RefinementRoundResult {
 /** The resolved (`ok: true`) shape of {@link RoundBasis} — what's left once `enforceTrue(basis.ok, ...)` has thrown on a rejected basis. */
 type ResolvedRoundBasis = Extract<RoundBasis, { ok: true }>;
 
-/** The prior round's iteration number, when the basis names one round. */
-function basisIteration(basis: ResolvedRoundBasis): number | null {
-  return basis.basis?.iteration ?? null;
-}
-
-/** Sent on EVERY round (null when no rewind): the resume MERGES into the line's args, so an omitted key would leave an earlier rewind still steering. */
-function resumeFromIteration(
-  rewoundTo: number | undefined,
-  basis: ResolvedRoundBasis,
-): number | null {
-  return rewoundTo === undefined ? null : basisIteration(basis);
-}
-
-/** The node this refinement answers. A refinement is a REPLY, not a fresh start: it only makes sense while the line is parked at its author node waiting for exactly this, so a feature that has moved on is refused rather than silently starting a round nobody is listening for. */
-async function awaitingNode(deps: RefinementRoundDeps, featureId: string) {
-  const { runId, parked } = await deps.parkedNode(featureId);
-
-  enforceTrue(
-    parked,
-    deps.unparked(runId),
-    "no planning round is waiting on you — a refinement reports to the author node, and this feature's line is not parked there",
+export async function startRefinementRound(
+  feature: RefinementFeature,
+  input: RefinementInput,
+  deps: RefinementRoundDeps,
+): Promise<RefinementRoundResult> {
+  const prepared = await prepareRound(feature, input, deps);
+  const row = await deps.appendIteration(
+    feature.id,
+    input.answers,
+    basisIteration(prepared.basis),
   );
 
-  return parked;
-}
+  await reportRound(deps, prepared, row.iteration, input);
 
-/** The prompt for this round. It carries the ORIGINAL ask alongside the prior round's gaps and the answers to them — a refinement that saw only the answers would drift further from what was asked with every round. */
-function planningPrompt(
-  feature: RefinementFeature,
-  priorGap: Parameters<typeof composePlanningPrompt>[0]["priorGap"],
-  answers: RefinementInput["answers"],
-): string {
-  return composePlanningPrompt({
-    title: feature.title,
-    originalPrompt: feature.original_prompt,
-    priorGap,
-    answers,
-  });
-}
-
-/** The basis this round builds on. A rejected basis is the CALLER's error, thrown before anything is appended. */
-function requireBasis(
-  feature: RefinementFeature,
-  rewoundTo: number | undefined,
-  invalidBasis: ErrorType,
-): ResolvedRoundBasis {
-  const basis = resolveRoundBasis(feature.iterations as never, rewoundTo);
-
-  enforceTrue(basis.ok, invalidBasis, basis.ok ? "" : basis.error);
-
-  return basis;
+  return { iteration: row.iteration, runId: prepared.parked.lineId };
 }
 
 /** Everything decided BEFORE the round is appended, so a rejected basis or an unparked line leaves no orphan round behind. */
@@ -116,6 +80,46 @@ async function prepareRound(
     description: planningPrompt(feature, priorGap, input.answers),
     parked: await awaitingNode(deps, feature.id),
   };
+}
+
+/** The basis this round builds on. A rejected basis is the CALLER's error, thrown before anything is appended. */
+function requireBasis(
+  feature: RefinementFeature,
+  rewoundTo: number | undefined,
+  invalidBasis: ErrorType,
+): ResolvedRoundBasis {
+  const basis = resolveRoundBasis(feature.iterations as never, rewoundTo);
+
+  enforceTrue(basis.ok, invalidBasis, basis.ok ? "" : basis.error);
+
+  return basis;
+}
+
+/** The prompt for this round. It carries the ORIGINAL ask alongside the prior round's gaps and the answers to them — a refinement that saw only the answers would drift further from what was asked with every round. */
+function planningPrompt(
+  feature: RefinementFeature,
+  priorGap: Parameters<typeof composePlanningPrompt>[0]["priorGap"],
+  answers: RefinementInput["answers"],
+): string {
+  return composePlanningPrompt({
+    title: feature.title,
+    originalPrompt: feature.original_prompt,
+    priorGap,
+    answers,
+  });
+}
+
+/** The node this refinement answers. A refinement is a REPLY, not a fresh start: it only makes sense while the line is parked at its author node waiting for exactly this, so a feature that has moved on is refused rather than silently starting a round nobody is listening for. */
+async function awaitingNode(deps: RefinementRoundDeps, featureId: string) {
+  const { runId, parked } = await deps.parkedNode(featureId);
+
+  enforceTrue(
+    parked,
+    deps.unparked(runId),
+    "no planning round is waiting on you — a refinement reports to the author node, and this feature's line is not parked there",
+  );
+
+  return parked;
 }
 
 type PreparedRound = Awaited<ReturnType<typeof prepareRound>>;
@@ -139,19 +143,15 @@ async function reportRound(
   });
 }
 
-export async function startRefinementRound(
-  feature: RefinementFeature,
-  input: RefinementInput,
-  deps: RefinementRoundDeps,
-): Promise<RefinementRoundResult> {
-  const prepared = await prepareRound(feature, input, deps);
-  const row = await deps.appendIteration(
-    feature.id,
-    input.answers,
-    basisIteration(prepared.basis),
-  );
+/** Sent on EVERY round (null when no rewind): the resume MERGES into the line's args, so an omitted key would leave an earlier rewind still steering. */
+function resumeFromIteration(
+  rewoundTo: number | undefined,
+  basis: ResolvedRoundBasis,
+): number | null {
+  return rewoundTo === undefined ? null : basisIteration(basis);
+}
 
-  await reportRound(deps, prepared, row.iteration, input);
-
-  return { iteration: row.iteration, runId: prepared.parked.lineId };
+/** The prior round's iteration number, when the basis names one round. */
+function basisIteration(basis: ResolvedRoundBasis): number | null {
+  return basis.basis?.iteration ?? null;
 }

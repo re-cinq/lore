@@ -25,14 +25,6 @@ export interface ContextMeta {
   budget: number;
 }
 
-export function escapeXmlAttr(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
 /** Collapse items sharing source_path to one (highest-scoring, then most recently ingested), then items sharing a content_hash — a file and its copied twin at another path are one document. Every survivor keeps its rank: the list arrives score-ordered and leaves that way. */
 export function dedupeItems(sources: SourceItem[]): SourceItem[] {
   return collapseBy(
@@ -79,29 +71,14 @@ function isBetter(candidate: SourceItem, current: SourceItem): boolean {
   return ai > bi;
 }
 
-function documentAttrs(
-  source: SourceItem,
-  opts: { truncated?: boolean },
-): string[] {
-  return [
-    source.source_path ? `source="${escapeXmlAttr(source.source_path)}"` : "",
-    source.content_type ? `type="${escapeXmlAttr(source.content_type)}"` : "",
-    source.repo ? `repo="${escapeXmlAttr(source.repo)}"` : "",
-    typeof source.score === "number"
-      ? `relevance="${source.score.toFixed(2)}"`
-      : "",
-    `tokens="${source.tokens}"`,
-    opts.truncated ? 'truncated="true"' : "",
-  ];
-}
-
-export function serializeDocument(
-  source: SourceItem,
-  opts: { truncated?: boolean } = {},
+export function serializeContext(
+  meta: ContextMeta,
+  sections: SerializedSection[],
 ): string {
-  const attrs = documentAttrs(source, opts).filter(Boolean).join(" ");
+  const inner = sections.map(serializeSection).join("\n");
+  const open = `<context query="${escapeXmlAttr(meta.query)}" template="${escapeXmlAttr(meta.template)}" budget="${meta.budget}">`;
 
-  return `<document ${attrs}>\n${source.text}\n</document>`;
+  return `${open}\n${inner}\n</context>`;
 }
 
 export function serializeSection(section: SerializedSection): string {
@@ -119,12 +96,35 @@ export function serializeSection(section: SerializedSection): string {
   return `${open}\n${inner}\n</section>`;
 }
 
-export function serializeContext(
-  meta: ContextMeta,
-  sections: SerializedSection[],
+export function serializeDocument(
+  source: SourceItem,
+  opts: { truncated?: boolean } = {},
 ): string {
-  const inner = sections.map(serializeSection).join("\n");
-  const open = `<context query="${escapeXmlAttr(meta.query)}" template="${escapeXmlAttr(meta.template)}" budget="${meta.budget}">`;
+  const attrs = documentAttrs(source, opts).filter(Boolean).join(" ");
 
-  return `${open}\n${inner}\n</context>`;
+  return `<document ${attrs}>\n${source.text}\n</document>`;
+}
+
+function documentAttrs(
+  source: SourceItem,
+  opts: { truncated?: boolean },
+): string[] {
+  return [
+    source.source_path ? `source="${escapeXmlAttr(source.source_path)}"` : "",
+    source.content_type ? `type="${escapeXmlAttr(source.content_type)}"` : "",
+    source.repo ? `repo="${escapeXmlAttr(source.repo)}"` : "",
+    typeof source.score === "number"
+      ? `relevance="${source.score.toFixed(2)}"`
+      : "",
+    `tokens="${source.tokens}"`,
+    opts.truncated ? 'truncated="true"' : "",
+  ];
+}
+
+export function escapeXmlAttr(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }

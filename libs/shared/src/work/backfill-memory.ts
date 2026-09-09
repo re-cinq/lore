@@ -7,84 +7,20 @@ export interface BackfillReport {
   facts: number;
 }
 
-// Postgres's pgvector bracket literal `[v1,v2,...]` is byte-for-byte Dgraph's `float32vector` string shape, so it passes through verbatim — no parse, no re-encode (re-encoding via `toVectorLiteral` would double-wrap it).
-function embeddingField(embedding: unknown): Record<string, unknown> {
-  return embedding ? { "Memory.embedding": embedding } : {};
-}
-
-// The "which xids already live in Dgraph" probe, parameterized by which predicate names the xid — both passes route through here.
-async function fetchPresentXids(
-  dgraph: DgraphClientPort,
-  xidPredicate: string,
-): Promise<Set<string>> {
-  return runInTxn(dgraph, async (probe) => {
-    const res = await probe.queryWithVars(
-      `query existing { existing(func: has(${xidPredicate})) { ${xidPredicate} } }`,
-      {},
-    );
-    const existing =
-      (res.data as { existing?: Record<string, string>[] }).existing ?? [];
-
-    return new Set(existing.map((node) => node[xidPredicate]));
-  });
-}
-
-// One migration pass: skips rows already in Dgraph, else builds the node via async `buildNode` (so it can resolve FKs first) and creates it. Returns the full row count seen, even on an idempotent re-run.
-async function migratePass<Row extends { id: string }>(
-  dgraph: DgraphClientPort,
-  rows: Row[],
-  xidPredicate: string,
-  buildNode: (row: Row) => Promise<Record<string, unknown>>,
-): Promise<number> {
-  const present = await fetchPresentXids(dgraph, xidPredicate);
-
-  for (const row of rows) {
-    if (present.has(row.id)) {
-      continue;
-    }
-    const setJson = await buildNode(row);
-
-    await runInTxn(dgraph, (txn) => txn.mutate({ setJson, commitNow: true }));
-    present.add(row.id);
-  }
-
-  return rows.length;
-}
-
-async function resolveMemoryUid(
-  dgraph: DgraphClientPort,
-  memoryXid: string,
-): Promise<string | undefined> {
-  return runInTxn(dgraph, async (probe) => {
-    const res = await probe.queryWithVars(
-      `query m($x: string) { m(func: eq(Memory.xid, $x)) { uid } }`,
-      { $x: memoryXid },
-    );
-
-    const rows = (res.data as { m?: { uid: string }[] }).m;
-
-    return rows?.[0]?.uid;
-  });
-}
-
 interface BackfillDeps {
   pgPool: PgPool;
   dgraph: DgraphClientPort;
 }
 
-async function fetchMemoryRows(pgPool: PgPool) {
-  const { rows } = await pgPool.query<{
-    id: string;
-    agent_id: string;
-    key: string;
-    value: string;
-    version: number;
-    embedding: unknown;
-  }>(
-    "SELECT id, agent_id, key, value, version, embedding FROM memory.memories",
-  );
+export async function backfillMemoryToDgraph(deps: {
+  pgPool: PgPool;
+  dgraph: DgraphClientPort;
+}): Promise<BackfillReport> {
+  // Memories FIRST: a fact resolves its owning memory's uid, so the reverse order attaches every fact to nothing.
+  const memoryCount = await migrateMemories(deps);
+  const factCount = await migrateFacts(deps);
 
-  return rows;
+  return { memories: memoryCount, facts: factCount };
 }
 
 async function migrateMemories(deps: BackfillDeps): Promise<number> {
@@ -129,13 +65,77 @@ async function migrateFacts(deps: BackfillDeps): Promise<number> {
   });
 }
 
-export async function backfillMemoryToDgraph(deps: {
-  pgPool: PgPool;
-  dgraph: DgraphClientPort;
-}): Promise<BackfillReport> {
-  // Memories FIRST: a fact resolves its owning memory's uid, so the reverse order attaches every fact to nothing.
-  const memoryCount = await migrateMemories(deps);
-  const factCount = await migrateFacts(deps);
+async function fetchMemoryRows(pgPool: PgPool) {
+  const { rows } = await pgPool.query<{
+    id: string;
+    agent_id: string;
+    key: string;
+    value: string;
+    version: number;
+    embedding: unknown;
+  }>(
+    "SELECT id, agent_id, key, value, version, embedding FROM memory.memories",
+  );
 
-  return { memories: memoryCount, facts: factCount };
+  return rows;
+}
+
+async function resolveMemoryUid(
+  dgraph: DgraphClientPort,
+  memoryXid: string,
+): Promise<string | undefined> {
+  return runInTxn(dgraph, async (probe) => {
+    const res = await probe.queryWithVars(
+      `query m($x: string) { m(func: eq(Memory.xid, $x)) { uid } }`,
+      { $x: memoryXid },
+    );
+
+    const rows = (res.data as { m?: { uid: string }[] }).m;
+
+    return rows?.[0]?.uid;
+  });
+}
+
+// One migration pass: skips rows already in Dgraph, else builds the node via async `buildNode` (so it can resolve FKs first) and creates it. Returns the full row count seen, even on an idempotent re-run.
+async function migratePass<Row extends { id: string }>(
+  dgraph: DgraphClientPort,
+  rows: Row[],
+  xidPredicate: string,
+  buildNode: (row: Row) => Promise<Record<string, unknown>>,
+): Promise<number> {
+  const present = await fetchPresentXids(dgraph, xidPredicate);
+
+  for (const row of rows) {
+    if (present.has(row.id)) {
+      continue;
+    }
+    const setJson = await buildNode(row);
+
+    await runInTxn(dgraph, (txn) => txn.mutate({ setJson, commitNow: true }));
+    present.add(row.id);
+  }
+
+  return rows.length;
+}
+
+// The "which xids already live in Dgraph" probe, parameterized by which predicate names the xid — both passes route through here.
+async function fetchPresentXids(
+  dgraph: DgraphClientPort,
+  xidPredicate: string,
+): Promise<Set<string>> {
+  return runInTxn(dgraph, async (probe) => {
+    const res = await probe.queryWithVars(
+      `query existing { existing(func: has(${xidPredicate})) { ${xidPredicate} } }`,
+      {},
+    );
+    const existing =
+      (res.data as { existing?: Record<string, string>[] }).existing ?? [];
+
+    return new Set(existing.map((node) => node[xidPredicate]));
+  });
+}
+
+// Postgres's pgvector bracket literal `[v1,v2,...]` is byte-for-byte Dgraph's `float32vector` string shape, so it passes through verbatim — no parse, no re-encode (re-encoding via `toVectorLiteral` would double-wrap it).
+function embeddingField(embedding: unknown): Record<string, unknown> {
+  return embedding ? { "Memory.embedding": embedding } : {};
 }

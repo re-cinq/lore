@@ -34,101 +34,6 @@ interface TerminalAgentPhase {
   labels: Record<string, string>;
 }
 
-function agentLabels(agent: AgentLike): Record<string, string> {
-  return agent.metadata?.labels ?? {};
-}
-
-function terminalAgentPhase(agent: AgentLike): TerminalAgentPhase | null {
-  const phase = agent.status?.phase;
-
-  if (phase !== "Succeeded" && phase !== "Failed") {
-    return null;
-  }
-  const labels = agentLabels(agent);
-  const taskId = labels[TASK_ID_LABEL];
-
-  if (!taskId) {
-    return null;
-  }
-
-  return { phase, taskId, labels };
-}
-
-/** Full status the watch holds: passthrough so consumer never re-fetches. */
-function agentStatus(agent: AgentLike, phase: TerminalPhase) {
-  return {
-    phase,
-    output: agent.status?.output,
-    failureReason: agent.status?.failureReason,
-  };
-}
-
-function assemblyNodeIdentity(labels: Record<string, string>) {
-  return {
-    assemblyLineId:
-      labels[ASSEMBLY_RUN_ID_LABEL] ?? labels[LEGACY_ASSEMBLY_LINE_ID_LABEL],
-    nodeId: labels[NODE_ID_LABEL],
-    iteration: Number(labels[NODE_ITERATION_LABEL] ?? "1"),
-  };
-}
-
-function isAssemblyNodeEvent(
-  assemblyLineId: string | undefined,
-  nodeId: string | undefined,
-  agentName: string | null,
-): agentName is string {
-  return Boolean(assemblyLineId && nodeId && agentName);
-}
-
-function nodeParams(
-  node: {
-    assemblyLineId: string | null;
-    nodeId: string | null;
-    iteration: number | null;
-    agentName: string | null;
-  },
-  run: { taskId: string | null; phase: string; status: unknown },
-): Record<string, unknown> {
-  return { ...node, ...run };
-}
-
-/** Assembly-line NODE CR: own event family, deduped per CR NAME — a task-keyed dedupe would swallow every node after the first, since one line's nodes all share a task. */
-function agentNodeEvent(
-  action: string,
-  node: {
-    assemblyLineId: string;
-    nodeId: string;
-    iteration: number;
-    agentName: string;
-  },
-  run: { taskId: string; phase: TerminalPhase; status: unknown },
-): EventInsert {
-  return {
-    eventName: `kubernetes.agent_node.${action}`,
-    source: "kubernetes",
-    params: nodeParams(node, run),
-    dedupeKey: k8sAgentNodeDedupeKey(node.agentName, run.phase),
-  };
-}
-
-function agentEvent(
-  action: string,
-  agentName: string | null,
-  run: { taskId: string; phase: TerminalPhase; status: unknown },
-): EventInsert {
-  return {
-    eventName: `kubernetes.agent.${action}`,
-    source: "kubernetes",
-    params: {
-      taskId: run.taskId,
-      agentName,
-      phase: run.phase,
-      status: run.status,
-    },
-    dedupeKey: k8sDedupeKey(run.taskId, run.phase),
-  };
-}
-
 export function mapAgentToEvent(agent: AgentLike): EventInsert | null {
   const terminal = terminalAgentPhase(agent);
 
@@ -150,4 +55,99 @@ export function mapAgentToEvent(agent: AgentLike): EventInsert | null {
   }
 
   return agentEvent(action, agentName, run);
+}
+
+function terminalAgentPhase(agent: AgentLike): TerminalAgentPhase | null {
+  const phase = agent.status?.phase;
+
+  if (phase !== "Succeeded" && phase !== "Failed") {
+    return null;
+  }
+  const labels = agentLabels(agent);
+  const taskId = labels[TASK_ID_LABEL];
+
+  if (!taskId) {
+    return null;
+  }
+
+  return { phase, taskId, labels };
+}
+
+function agentLabels(agent: AgentLike): Record<string, string> {
+  return agent.metadata?.labels ?? {};
+}
+
+function assemblyNodeIdentity(labels: Record<string, string>) {
+  return {
+    assemblyLineId:
+      labels[ASSEMBLY_RUN_ID_LABEL] ?? labels[LEGACY_ASSEMBLY_LINE_ID_LABEL],
+    nodeId: labels[NODE_ID_LABEL],
+    iteration: Number(labels[NODE_ITERATION_LABEL] ?? "1"),
+  };
+}
+
+/** Full status the watch holds: passthrough so consumer never re-fetches. */
+function agentStatus(agent: AgentLike, phase: TerminalPhase) {
+  return {
+    phase,
+    output: agent.status?.output,
+    failureReason: agent.status?.failureReason,
+  };
+}
+
+function isAssemblyNodeEvent(
+  assemblyLineId: string | undefined,
+  nodeId: string | undefined,
+  agentName: string | null,
+): agentName is string {
+  return Boolean(assemblyLineId && nodeId && agentName);
+}
+
+/** Assembly-line NODE CR: own event family, deduped per CR NAME — a task-keyed dedupe would swallow every node after the first, since one line's nodes all share a task. */
+function agentNodeEvent(
+  action: string,
+  node: {
+    assemblyLineId: string;
+    nodeId: string;
+    iteration: number;
+    agentName: string;
+  },
+  run: { taskId: string; phase: TerminalPhase; status: unknown },
+): EventInsert {
+  return {
+    eventName: `kubernetes.agent_node.${action}`,
+    source: "kubernetes",
+    params: nodeParams(node, run),
+    dedupeKey: k8sAgentNodeDedupeKey(node.agentName, run.phase),
+  };
+}
+
+function nodeParams(
+  node: {
+    assemblyLineId: string | null;
+    nodeId: string | null;
+    iteration: number | null;
+    agentName: string | null;
+  },
+  run: { taskId: string | null; phase: string; status: unknown },
+): Record<string, unknown> {
+  return { ...node, ...run };
+}
+
+function agentEvent(
+  action: string,
+  agentName: string | null,
+  run: { taskId: string; phase: TerminalPhase; status: unknown },
+): EventInsert {
+  return {
+    eventName: `kubernetes.agent.${action}`,
+    source: "kubernetes",
+    params: {
+      taskId: run.taskId,
+      agentName,
+      phase: run.phase,
+      status: run.status,
+    },
+    dedupeKey: k8sDedupeKey(run.taskId, run.phase),
+  };
 }

@@ -14,6 +14,24 @@ type StatementVerification = {
   implemented?: Array<{ "CodeChunk.file_path"?: string }>;
 };
 
+export async function verifyCoverageLink(
+  dgraph: DgraphClientPort,
+  statementXid: string,
+): Promise<"execution-verified" | "link-unproven" | "untested"> {
+  const statement = await readVerification(dgraph, statementXid);
+  const validatingTests = statement.validated_by ?? [];
+
+  if (validatingTests.length === 0) {
+    return "untested";
+  }
+
+  if (implementsCoveredFile(statement, coveredFilePaths(validatingTests))) {
+    return "execution-verified";
+  }
+
+  return "link-unproven";
+}
+
 /** The statement's tests and implementation, one hop each. Reads both sides in one query because the verdict is about their OVERLAP — whether a test that claims the statement actually executes the code implementing it. */
 async function readVerification(
   dgraph: DgraphClientPort,
@@ -55,22 +73,4 @@ function implementsCoveredFile(
       chunk["CodeChunk.file_path"] !== undefined &&
       coveredFiles.has(chunk["CodeChunk.file_path"]),
   );
-}
-
-export async function verifyCoverageLink(
-  dgraph: DgraphClientPort,
-  statementXid: string,
-): Promise<"execution-verified" | "link-unproven" | "untested"> {
-  const statement = await readVerification(dgraph, statementXid);
-  const validatingTests = statement.validated_by ?? [];
-
-  if (validatingTests.length === 0) {
-    return "untested";
-  }
-
-  if (implementsCoveredFile(statement, coveredFilePaths(validatingTests))) {
-    return "execution-verified";
-  }
-
-  return "link-unproven";
 }

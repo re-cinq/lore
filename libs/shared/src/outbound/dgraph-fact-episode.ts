@@ -5,25 +5,65 @@ import { withTxn } from "./dgraph-txn.js";
 import { contradictionNodes } from "./dgraph-fact-contradictions.js";
 import { firstOf } from "../lib/row.js";
 
-/** The 40 nearest ACTIVE facts by ANN. Over-fetching is deliberate: the index gives an approximate neighborhood, and the exact cosine that decides contradiction is recomputed in TS over this candidate set. */
-async function nearbyActiveFacts(
-  client: DgraphClientPort,
-  agentId: string,
-  embedding: number[],
-): Promise<Record<string, unknown>[]> {
-  return withTxn(client, async (txn) => {
-    const res = await txn.queryWithVars(
-      `query cand($vec: string, $agent: string) {
-        cand(func: similar_to(Fact.embedding, 40, $vec))
-          @filter(eq(Fact.active, true) AND eq(Fact.agent_id, $agent)) {
-          uid Fact.xid Fact.embedding
-        }
-      }`,
-      { $vec: toVectorLiteral(embedding), $agent: agentId },
-    );
+interface FactInput {
+  text: string;
+  agentId: string;
+  embedding?: number[];
+  confidence?: string;
+}
 
-    return (res.data.cand ?? []) as Record<string, unknown>[];
+export async function persistFact(
+  client: DgraphClientPort,
+  input: FactInput,
+): Promise<{ id: string }> {
+  const now = new Date().toISOString();
+  const xid = randomUUID();
+
+  return withTxn(client, async (txn) => {
+    const factUid = await insertFact(txn, input, { xid, now });
+
+    // Contradiction detection is vector work, so a fact stored without an embedding simply cannot invalidate anything.
+    if (input.embedding) {
+      await invalidateContradictions(client, input.agentId, input.embedding, {
+        xid,
+        uid: factUid,
+        now,
+      });
+    }
+
+    return { id: xid };
   });
+}
+
+/** Writes the fact and hands back the uid dgraph assigned its blank node, which contradiction detection needs to point its FactConflict edges at. */
+async function insertFact(
+  txn: DgraphTxn,
+  input: FactInput,
+  seed: { xid: string; now: string },
+): Promise<string | undefined> {
+  const created = await txn.mutate({
+    setJson: {
+      uid: "_:newfact",
+      "dgraph.type": "Fact",
+      "Fact.xid": seed.xid,
+      ...factFields(input, seed.now),
+    },
+    commitNow: true,
+  });
+
+  return newUid(created, "newfact");
+}
+
+function factFields(input: FactInput, now: string): Record<string, unknown> {
+  return {
+    "Fact.agent_id": input.agentId,
+    "Fact.text": input.text,
+    "Fact.active": true,
+    "Fact.valid_from": now,
+    "Fact.created_at": now,
+    "Fact.confidence": input.confidence ?? "observed",
+    ...embeddingField(input.embedding, "Fact.embedding"),
+  };
 }
 
 /** Postgres-parity contradiction detection: over-fetches active facts by vector ANN, recomputes cosine in TS, and marks every prior fact at/above threshold inactive with a FactConflict edge. */
@@ -50,64 +90,24 @@ async function invalidateContradictions(
   );
 }
 
-interface FactInput {
-  text: string;
-  agentId: string;
-  embedding?: number[];
-  confidence?: string;
-}
-
-function factFields(input: FactInput, now: string): Record<string, unknown> {
-  return {
-    "Fact.agent_id": input.agentId,
-    "Fact.text": input.text,
-    "Fact.active": true,
-    "Fact.valid_from": now,
-    "Fact.created_at": now,
-    "Fact.confidence": input.confidence ?? "observed",
-    ...embeddingField(input.embedding, "Fact.embedding"),
-  };
-}
-
-/** Writes the fact and hands back the uid dgraph assigned its blank node, which contradiction detection needs to point its FactConflict edges at. */
-async function insertFact(
-  txn: DgraphTxn,
-  input: FactInput,
-  seed: { xid: string; now: string },
-): Promise<string | undefined> {
-  const created = await txn.mutate({
-    setJson: {
-      uid: "_:newfact",
-      "dgraph.type": "Fact",
-      "Fact.xid": seed.xid,
-      ...factFields(input, seed.now),
-    },
-    commitNow: true,
-  });
-
-  return newUid(created, "newfact");
-}
-
-export async function persistFact(
+/** The 40 nearest ACTIVE facts by ANN. Over-fetching is deliberate: the index gives an approximate neighborhood, and the exact cosine that decides contradiction is recomputed in TS over this candidate set. */
+async function nearbyActiveFacts(
   client: DgraphClientPort,
-  input: FactInput,
-): Promise<{ id: string }> {
-  const now = new Date().toISOString();
-  const xid = randomUUID();
-
+  agentId: string,
+  embedding: number[],
+): Promise<Record<string, unknown>[]> {
   return withTxn(client, async (txn) => {
-    const factUid = await insertFact(txn, input, { xid, now });
+    const res = await txn.queryWithVars(
+      `query cand($vec: string, $agent: string) {
+        cand(func: similar_to(Fact.embedding, 40, $vec))
+          @filter(eq(Fact.active, true) AND eq(Fact.agent_id, $agent)) {
+          uid Fact.xid Fact.embedding
+        }
+      }`,
+      { $vec: toVectorLiteral(embedding), $agent: agentId },
+    );
 
-    // Contradiction detection is vector work, so a fact stored without an embedding simply cannot invalidate anything.
-    if (input.embedding) {
-      await invalidateContradictions(client, input.agentId, input.embedding, {
-        xid,
-        uid: factUid,
-        now,
-      });
-    }
-
-    return { id: xid };
+    return (res.data.cand ?? []) as Record<string, unknown>[];
   });
 }
 
@@ -120,19 +120,21 @@ interface EpisodeInput {
   embedding?: number[];
 }
 
-function episodeFields(
+export async function writeEpisode(
+  client: DgraphClientPort,
   input: EpisodeInput,
-  contentHash: string,
-): Record<string, unknown> {
-  return {
-    "Episode.agent_id": input.agentId,
-    "Episode.content": input.content,
-    "Episode.content_hash": contentHash,
-    "Episode.created_at": new Date().toISOString(),
-    ...(input.source ? { "Episode.source": input.source } : {}),
-    ...(input.ref ? { "Episode.ref": input.ref } : {}),
-    ...embeddingField(input.embedding, "Episode.embedding"),
-  };
+): Promise<{ id: string }> {
+  const contentHash = createHash("sha256").update(input.content).digest("hex");
+
+  return withTxn(client, async (txn) => {
+    const existing = await findEpisodeXid(txn, contentHash);
+
+    if (existing) {
+      return { id: existing };
+    }
+
+    return { id: await insertEpisode(txn, input, contentHash) };
+  });
 }
 
 const FIND_EPISODE_QUERY = `query find($h: string) {
@@ -167,19 +169,17 @@ async function insertEpisode(
   return xid;
 }
 
-export async function writeEpisode(
-  client: DgraphClientPort,
+function episodeFields(
   input: EpisodeInput,
-): Promise<{ id: string }> {
-  const contentHash = createHash("sha256").update(input.content).digest("hex");
-
-  return withTxn(client, async (txn) => {
-    const existing = await findEpisodeXid(txn, contentHash);
-
-    if (existing) {
-      return { id: existing };
-    }
-
-    return { id: await insertEpisode(txn, input, contentHash) };
-  });
+  contentHash: string,
+): Record<string, unknown> {
+  return {
+    "Episode.agent_id": input.agentId,
+    "Episode.content": input.content,
+    "Episode.content_hash": contentHash,
+    "Episode.created_at": new Date().toISOString(),
+    ...(input.source ? { "Episode.source": input.source } : {}),
+    ...(input.ref ? { "Episode.ref": input.ref } : {}),
+    ...embeddingField(input.embedding, "Episode.embedding"),
+  };
 }

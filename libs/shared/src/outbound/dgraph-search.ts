@@ -20,6 +20,25 @@ const VMEM_BLOCK = `vmem(func: similar_to(Memory.embedding, 20, $vec)) @filter(e
           Memory.key Memory.value Memory.agent_id
         }`;
 
+/** Hybrid keyword (anyoftext) + vector (similar_to) Memory search, fused via reciprocal rank fusion; the vector leg is omitted entirely when the caller has no embedding. */
+export async function searchMemories(
+  client: DgraphClientPort,
+  query: string,
+  opts: { agentId?: string; limit?: number; embedding?: number[] },
+): Promise<MemorySearchResult[]> {
+  return withTxn(client, async (txn) => {
+    const res = await txn.queryWithVars(
+      buildSearchQuery(opts.embedding),
+      searchVars(query, opts.embedding),
+    );
+    const fused = rrfMerge(
+      mergedSearchLists(res, opts.embedding, toRankedMemory),
+    );
+
+    return limitResults(fused, opts.limit);
+  });
+}
+
 function buildSearchQuery(embedding: number[] | undefined): string {
   if (!embedding) {
     return `query search($q: string) {\n${KMEM_BLOCK}\n}`;
@@ -41,13 +60,6 @@ function searchVars(
   return vars;
 }
 
-function extractRows(
-  res: DgraphQueryResult,
-  key: string,
-): Record<string, unknown>[] {
-  return res.data[key] ?? [];
-}
-
 function mergedSearchLists(
   res: DgraphQueryResult,
   embedding: number[] | undefined,
@@ -60,6 +72,13 @@ function mergedSearchLists(
   }
 
   return [toItems(extractRows(res, "vmem")), kmemItems];
+}
+
+function extractRows(
+  res: DgraphQueryResult,
+  key: string,
+): Record<string, unknown>[] {
+  return res.data[key] ?? [];
 }
 
 function limitResults<T>(results: T[], limit: number | undefined): T[] {
@@ -76,24 +95,5 @@ function toRankedMemory(rows: Record<string, unknown>[]): RankedItem[] {
       agent_id: agent_id as string,
       source: "memory" as const,
     };
-  });
-}
-
-/** Hybrid keyword (anyoftext) + vector (similar_to) Memory search, fused via reciprocal rank fusion; the vector leg is omitted entirely when the caller has no embedding. */
-export async function searchMemories(
-  client: DgraphClientPort,
-  query: string,
-  opts: { agentId?: string; limit?: number; embedding?: number[] },
-): Promise<MemorySearchResult[]> {
-  return withTxn(client, async (txn) => {
-    const res = await txn.queryWithVars(
-      buildSearchQuery(opts.embedding),
-      searchVars(query, opts.embedding),
-    );
-    const fused = rrfMerge(
-      mergedSearchLists(res, opts.embedding, toRankedMemory),
-    );
-
-    return limitResults(fused, opts.limit);
   });
 }

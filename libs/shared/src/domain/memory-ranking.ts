@@ -21,10 +21,6 @@ export interface RankedItem {
 
 export const RRF_K = 60;
 
-function fusionKey(ranked: RankedItem): string {
-  return `${ranked.agent_id}::${ranked.source}::${ranked.key}::${ranked.value}`;
-}
-
 export function rrfMerge(lists: RankedItem[][]): MemorySearchResult[] {
   const fused = new Map<string, MemorySearchResult>();
 
@@ -65,6 +61,10 @@ function fusedEntry(ranked: RankedItem, score: number): MemorySearchResult {
     confidence: ranked.confidence,
     score,
   };
+}
+
+function fusionKey(ranked: RankedItem): string {
+  return `${ranked.agent_id}::${ranked.source}::${ranked.key}::${ranked.value}`;
 }
 
 // ── Transfer scoring for cross-repo facts ───────────────────────────
@@ -185,6 +185,24 @@ function takeUnderCap(
   return true;
 }
 
+export function scoreImportance(
+  memory: {
+    key: string;
+    value: string;
+    created_at: string;
+    last_retrieved_at?: string | null;
+    half_life_days?: number | null;
+    retrieval_count?: number | null;
+    confidence?: string | null;
+  },
+  now: number,
+): number {
+  const strength = decayStrength(memory, now);
+  const score = Math.round(strength * 10) + importanceAdjustments(memory);
+
+  return Math.max(0, Math.min(10, score));
+}
+
 function decayStrength(
   memory: {
     created_at: string;
@@ -198,6 +216,22 @@ function decayStrength(
   const effectiveAgeDays = (now - new Date(effectiveDate).getTime()) / 86400000;
 
   return Math.pow(0.5, effectiveAgeDays / halfLife);
+}
+
+/** The additive corrections layered on top of the decayed strength: value length, key prefix, key topic, retrieval count and confidence tier. */
+function importanceAdjustments(memory: {
+  key: string;
+  value: string;
+  retrieval_count?: number | null;
+  confidence?: string | null;
+}): number {
+  return (
+    valueLengthAdjustment(memory.value) +
+    keyPrefixAdjustment(memory.key) +
+    keyTopicAdjustment(memory.key) +
+    retrievalAdjustment(memory.retrieval_count || 0) +
+    confidenceAdjustment(memory.confidence)
+  );
 }
 
 function valueLengthAdjustment(value: string): number {
@@ -246,38 +280,4 @@ function retrievalAdjustment(retrievals: number): number {
 
 function confidenceAdjustment(confidence: string | null | undefined): number {
   return confidence === "stale" ? -1 : 0;
-}
-
-export function scoreImportance(
-  memory: {
-    key: string;
-    value: string;
-    created_at: string;
-    last_retrieved_at?: string | null;
-    half_life_days?: number | null;
-    retrieval_count?: number | null;
-    confidence?: string | null;
-  },
-  now: number,
-): number {
-  const strength = decayStrength(memory, now);
-  const score = Math.round(strength * 10) + importanceAdjustments(memory);
-
-  return Math.max(0, Math.min(10, score));
-}
-
-/** The additive corrections layered on top of the decayed strength: value length, key prefix, key topic, retrieval count and confidence tier. */
-function importanceAdjustments(memory: {
-  key: string;
-  value: string;
-  retrieval_count?: number | null;
-  confidence?: string | null;
-}): number {
-  return (
-    valueLengthAdjustment(memory.value) +
-    keyPrefixAdjustment(memory.key) +
-    keyTopicAdjustment(memory.key) +
-    retrievalAdjustment(memory.retrieval_count || 0) +
-    confidenceAdjustment(memory.confidence)
-  );
 }

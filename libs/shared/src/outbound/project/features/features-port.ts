@@ -174,6 +174,43 @@ export const PLANNING_RECOVERY_STALE_MS = 30 * 60_000;
 /** Startup grace before the runtime probe is trusted to mean "dead" (a round becomes a task row, then a line, then a CR, then a pod) — round 10 was force-failed 32s in and only survived because the result overrode the reaper (2026-08-10). */
 export const PLANNING_STARTUP_GRACE_MS = 2 * 60_000;
 
+/** What the feature-planning reaper should do for one mid-planning feature. */
+export type PlanningRecovery =
+  | { kind: "none" }
+  | { kind: "orphan"; iteration: number }
+  | { kind: "transition"; iteration: number };
+
+interface PlanningRecoveryInput {
+  iterations: FeatureIteration[];
+  featureStatus: FeatureStatus;
+  isActive: boolean;
+  nowMs: number;
+  windowMs?: number;
+  /** True when the round's task has an OPEN assembly run — then the run reaper owns liveness and this never orphans (fixes #1297, 2026-08-18: a transient k8s probe failed an already-succeeded round). */
+  runOpen?: boolean;
+}
+
+/** Pure: reconciles a mid-planning feature whose latest round looks stuck. Running+dead-runtime -> orphan (mark failed, revert feature); ready+still-planning -> transition (re-apply a missed status write); else none. */
+export function decidePlanningRecovery(
+  args: PlanningRecoveryInput,
+): PlanningRecovery {
+  const latest = args.iterations.at(-1);
+
+  if (!latest) {
+    return { kind: "none" };
+  }
+
+  if (latest.status === "running") {
+    return runningRecovery(latest, recoveryProbe(args));
+  }
+
+  if (missedReadyTransition(latest, args.featureStatus)) {
+    return { kind: "transition", iteration: latest.iteration };
+  }
+
+  return { kind: "none" };
+}
+
 /** The `running`-status half of {@link decidePlanningRecovery}: orphans a round whose runtime died past startup grace or outlived the window. */
 function runningRecovery(
   latest: { created_at: string; iteration: number },
@@ -197,22 +234,6 @@ function runningRecovery(
     : { kind: "none" };
 }
 
-/** What the feature-planning reaper should do for one mid-planning feature. */
-export type PlanningRecovery =
-  | { kind: "none" }
-  | { kind: "orphan"; iteration: number }
-  | { kind: "transition"; iteration: number };
-
-interface PlanningRecoveryInput {
-  iterations: FeatureIteration[];
-  featureStatus: FeatureStatus;
-  isActive: boolean;
-  nowMs: number;
-  windowMs?: number;
-  /** True when the round's task has an OPEN assembly run — then the run reaper owns liveness and this never orphans (fixes #1297, 2026-08-18: a transient k8s probe failed an already-succeeded round). */
-  runOpen?: boolean;
-}
-
 /** The liveness inputs {@link runningRecovery} reads, with the stale window defaulted. */
 function recoveryProbe(args: PlanningRecoveryInput) {
   return {
@@ -221,27 +242,6 @@ function recoveryProbe(args: PlanningRecoveryInput) {
     nowMs: args.nowMs,
     windowMs: args.windowMs ?? PLANNING_RECOVERY_STALE_MS,
   };
-}
-
-/** Pure: reconciles a mid-planning feature whose latest round looks stuck. Running+dead-runtime -> orphan (mark failed, revert feature); ready+still-planning -> transition (re-apply a missed status write); else none. */
-export function decidePlanningRecovery(
-  args: PlanningRecoveryInput,
-): PlanningRecovery {
-  const latest = args.iterations.at(-1);
-
-  if (!latest) {
-    return { kind: "none" };
-  }
-
-  if (latest.status === "running") {
-    return runningRecovery(latest, recoveryProbe(args));
-  }
-
-  if (missedReadyTransition(latest, args.featureStatus)) {
-    return { kind: "transition", iteration: latest.iteration };
-  }
-
-  return { kind: "none" };
 }
 
 /** True when a round finished but the feature status write it should have triggered never landed. */

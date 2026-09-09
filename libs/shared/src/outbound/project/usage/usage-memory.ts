@@ -78,38 +78,11 @@ function resolveStationRunId(
     : (node?.stationRunId ?? null);
 }
 
-interface NormalizedLlmCallDefaults {
-  jobName: string | null;
-  costUsd: number;
-  status: "success" | "failed";
-  error: string | null;
-}
-
-function normalizeLlmCallDefaults(
-  record: LlmCallRecord,
-): NormalizedLlmCallDefaults {
-  return {
-    jobName: record.jobName ?? null,
-    costUsd: record.costUsd ?? 0,
-    status: record.status ?? "success",
-    error: record.error ?? null,
-  };
-}
-
 /** The three foreign keys the Pg insert derives through joins. */
 interface LlmCallCorrelation {
   taskId: string | null;
   assemblyLineId: string | null;
   stationRunId: string | null;
-}
-
-/** The three correlation keys under the column names the row stores them as. */
-function correlationColumns(correlation: LlmCallCorrelation) {
-  return {
-    task_id: correlation.taskId,
-    assembly_line_id: correlation.assemblyLineId,
-    station_run_id: correlation.stationRunId,
-  };
 }
 
 /** The stored row, with the defaults the Pg insert applies through COALESCE. */
@@ -131,6 +104,33 @@ function toStoredCall(
     status: defaults.status,
     error: defaults.error,
     created_at: createdAt,
+  };
+}
+
+interface NormalizedLlmCallDefaults {
+  jobName: string | null;
+  costUsd: number;
+  status: "success" | "failed";
+  error: string | null;
+}
+
+function normalizeLlmCallDefaults(
+  record: LlmCallRecord,
+): NormalizedLlmCallDefaults {
+  return {
+    jobName: record.jobName ?? null,
+    costUsd: record.costUsd ?? 0,
+    status: record.status ?? "success",
+    error: record.error ?? null,
+  };
+}
+
+/** The three correlation keys under the column names the row stores them as. */
+function correlationColumns(correlation: LlmCallCorrelation) {
+  return {
+    task_id: correlation.taskId,
+    assembly_line_id: correlation.assemblyLineId,
+    station_run_id: correlation.stationRunId,
   };
 }
 

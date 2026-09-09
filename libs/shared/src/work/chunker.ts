@@ -19,8 +19,6 @@ export {
 /** Bumped whenever chunking output shape changes; stamped on every chunk as `metadata.chunker_version` so a reader can tell which shape it holds. */
 export const CHUNKER_VERSION = 2;
 
-// ── Lazy parser + grammar cache ──────────────────────────────────────
-
 let parserReady: Promise<void> | null = null;
 let parser: Parser | null = null;
 const grammarCache = new Map<string, Parser.Language>();
@@ -37,10 +35,154 @@ const EXT_TO_GRAMMAR: Record<string, string> = {
   ".go": "tree-sitter-go.wasm",
 };
 
-async function initParser(): Promise<void> {
-  await Parser.init();
-  parser = new Parser();
+// ── Public API ──────────────────────────────────────────────────────
+
+export async function chunkFile(
+  content: string,
+  filePath: string,
+  contentType: string,
+): Promise<Chunk[]> {
+  return stampContentHash(await chunkFileRaw(content, filePath, contentType));
 }
+
+/** Builds the JSONB `metadata` payload persisted with a chunk at ingest, so both ingest paths persist the same shape. `commit` is included only when supplied. */
+export function buildIngestedChunkMetadata(
+  chunk: Chunk,
+  opts: { filePath: string; ingestedBy: string; commit?: string },
+): Record<string, unknown> {
+  return {
+    ...chunk.metadata,
+    file_path: opts.filePath,
+    ingested_by: opts.ingestedBy,
+    chunker_version: CHUNKER_VERSION,
+    ...(opts.commit !== undefined ? { commit: opts.commit } : {}),
+  };
+}
+
+// ── Content hashing ─────────────────────────────────────────────────
+
+/** Stamps each chunk with the sha256 of its own content, applied at the single `chunkFile` chokepoint so every chunking path yields hashed chunks. */
+function stampContentHash(chunks: Chunk[]): Chunk[] {
+  for (const chunk of chunks) {
+    chunk.metadata.content_hash = createHash("sha256")
+      .update(chunk.content)
+      .digest("hex");
+  }
+
+  return chunks;
+}
+
+// Doc / spec / ADR files split on ## headings; code files go down the AST path.
+async function chunkFileRaw(
+  content: string,
+  filePath: string,
+  contentType: string,
+): Promise<Chunk[]> {
+  return contentType === "code" || contentType === "test"
+    ? chunkCodeFile(content, filePath)
+    : chunkMarkdown(content);
+}
+
+/** AST chunking for a code file, sliding-window for an unsupported language or a parse failure. */
+async function chunkCodeFile(
+  content: string,
+  filePath: string,
+): Promise<Chunk[]> {
+  const ext = extname(filePath).toLowerCase();
+
+  if (!EXT_TO_GRAMMAR[ext]) {
+    // Unsupported language -- sliding window
+    return chunkSlidingWindow(content);
+  }
+
+  try {
+    return await chunkByAst(content, ext);
+  } catch (err) {
+    console.error(
+      `[chunker] AST parse failed for ${filePath}, falling back to sliding window:`,
+      err,
+    );
+
+    return chunkSlidingWindow(content);
+  }
+}
+
+// ── Markdown heading-based chunking ─────────────────────────────────
+
+interface HeadingMatch {
+  title: string;
+  index: number;
+}
+
+function chunkMarkdown(content: string): Chunk[] {
+  const matches = findMarkdownHeadings(content);
+
+  if (matches.length === 0) {
+    return wholeFileChunk(content);
+  }
+
+  // Content before the first ## heading
+  const preamble =
+    matches[0].index > 0 ? content.slice(0, matches[0].index).trimEnd() : "";
+  const chunks: Chunk[] =
+    preamble.length > 0
+      ? [{ content: preamble, metadata: { chunk_index: 0 } }]
+      : [];
+  let chunkIndex = chunks.length;
+
+  for (let i = 0; i < matches.length; i++) {
+    chunks.push(markdownSectionChunk(content, matches, i, chunkIndex++));
+  }
+
+  return chunks;
+}
+
+/** Chunks along the file's own syntax tree, falling back to the whole file when the grammar is missing or parses to nothing useful. A file that yields zero AST chunks is still indexable as one unit — dropping it would make the code invisible to search. */
+async function chunkByAst(content: string, ext: string): Promise<Chunk[]> {
+  const parser = await ensureParser();
+  const lang = await loadGrammar(ext);
+
+  if (!lang) {
+    return chunkSlidingWindow(content);
+  }
+
+  parser.setLanguage(lang);
+  const chunks = chunkCodeAST(parser.parse(content), content, ext);
+
+  return chunks.length > 0
+    ? chunks
+    : wholeFileChunk(content, { start_line: 1, end_line: lineCount(content) });
+}
+
+// ── Sliding-window fallback ─────────────────────────────────────────
+
+const WINDOW_LINES = 400;
+const WINDOW_OVERLAP_LINES = 50;
+
+function chunkSlidingWindow(content: string): Chunk[] {
+  const lines = content.split("\n");
+
+  if (lines.length <= WINDOW_LINES) {
+    return wholeFileChunk(content, { start_line: 1, end_line: lines.length });
+  }
+  const chunks: Chunk[] = [];
+  let start = 0;
+
+  while (start < lines.length) {
+    const end = Math.min(start + WINDOW_LINES, lines.length);
+
+    chunks.push(windowChunk(lines, { start, end }, chunks.length));
+
+    if (end >= lines.length) {
+      break;
+    }
+    start += WINDOW_LINES - WINDOW_OVERLAP_LINES;
+  }
+
+  return chunks;
+}
+
+// ── Lazy parser + grammar cache ──────────────────────────────────────
 
 async function ensureParser(): Promise<Parser> {
   if (!parserReady) {
@@ -49,6 +191,22 @@ async function ensureParser(): Promise<Parser> {
   await parserReady;
 
   return parser!;
+}
+
+async function loadGrammar(ext: string): Promise<Parser.Language | null> {
+  const cached = grammarCache.get(ext);
+
+  if (cached) {
+    return cached;
+  }
+  const wasmFile = EXT_TO_GRAMMAR[ext];
+
+  return wasmFile ? loadGrammarWasm(ext, wasmFile) : null;
+}
+
+async function initParser(): Promise<void> {
+  await Parser.init();
+  parser = new Parser();
 }
 
 /** Reads one grammar wasm off disk and caches it under `ext`; null (logged) when it cannot be loaded. */
@@ -74,24 +232,6 @@ async function loadGrammarWasm(
 
     return null;
   }
-}
-
-async function loadGrammar(ext: string): Promise<Parser.Language | null> {
-  const cached = grammarCache.get(ext);
-
-  if (cached) {
-    return cached;
-  }
-  const wasmFile = EXT_TO_GRAMMAR[ext];
-
-  return wasmFile ? loadGrammarWasm(ext, wasmFile) : null;
-}
-
-// ── Markdown heading-based chunking ─────────────────────────────────
-
-interface HeadingMatch {
-  title: string;
-  index: number;
 }
 
 function findMarkdownHeadings(content: string): HeadingMatch[] {
@@ -124,34 +264,6 @@ function markdownSectionChunk(
   };
 }
 
-function chunkMarkdown(content: string): Chunk[] {
-  const matches = findMarkdownHeadings(content);
-
-  if (matches.length === 0) {
-    return wholeFileChunk(content);
-  }
-
-  // Content before the first ## heading
-  const preamble =
-    matches[0].index > 0 ? content.slice(0, matches[0].index).trimEnd() : "";
-  const chunks: Chunk[] =
-    preamble.length > 0
-      ? [{ content: preamble, metadata: { chunk_index: 0 } }]
-      : [];
-  let chunkIndex = chunks.length;
-
-  for (let i = 0; i < matches.length; i++) {
-    chunks.push(markdownSectionChunk(content, matches, i, chunkIndex++));
-  }
-
-  return chunks;
-}
-
-// ── Sliding-window fallback ─────────────────────────────────────────
-
-const WINDOW_LINES = 400;
-const WINDOW_OVERLAP_LINES = 50;
-
 /** One `[start, end)` line window as a chunk. */
 function windowChunk(
   lines: string[],
@@ -168,116 +280,4 @@ function windowChunk(
       end_line: end,
     },
   };
-}
-
-function chunkSlidingWindow(content: string): Chunk[] {
-  const lines = content.split("\n");
-
-  if (lines.length <= WINDOW_LINES) {
-    return wholeFileChunk(content, { start_line: 1, end_line: lines.length });
-  }
-  const chunks: Chunk[] = [];
-  let start = 0;
-
-  while (start < lines.length) {
-    const end = Math.min(start + WINDOW_LINES, lines.length);
-
-    chunks.push(windowChunk(lines, { start, end }, chunks.length));
-
-    if (end >= lines.length) {
-      break;
-    }
-    start += WINDOW_LINES - WINDOW_OVERLAP_LINES;
-  }
-
-  return chunks;
-}
-
-// ── Content hashing ─────────────────────────────────────────────────
-
-/** Stamps each chunk with the sha256 of its own content, applied at the single `chunkFile` chokepoint so every chunking path yields hashed chunks. */
-function stampContentHash(chunks: Chunk[]): Chunk[] {
-  for (const chunk of chunks) {
-    chunk.metadata.content_hash = createHash("sha256")
-      .update(chunk.content)
-      .digest("hex");
-  }
-
-  return chunks;
-}
-
-// ── Public API ──────────────────────────────────────────────────────
-
-export async function chunkFile(
-  content: string,
-  filePath: string,
-  contentType: string,
-): Promise<Chunk[]> {
-  return stampContentHash(await chunkFileRaw(content, filePath, contentType));
-}
-
-/** Builds the JSONB `metadata` payload persisted with a chunk at ingest, so both ingest paths persist the same shape. `commit` is included only when supplied. */
-export function buildIngestedChunkMetadata(
-  chunk: Chunk,
-  opts: { filePath: string; ingestedBy: string; commit?: string },
-): Record<string, unknown> {
-  return {
-    ...chunk.metadata,
-    file_path: opts.filePath,
-    ingested_by: opts.ingestedBy,
-    chunker_version: CHUNKER_VERSION,
-    ...(opts.commit !== undefined ? { commit: opts.commit } : {}),
-  };
-}
-
-/** Chunks along the file's own syntax tree, falling back to the whole file when the grammar is missing or parses to nothing useful. A file that yields zero AST chunks is still indexable as one unit — dropping it would make the code invisible to search. */
-async function chunkByAst(content: string, ext: string): Promise<Chunk[]> {
-  const parser = await ensureParser();
-  const lang = await loadGrammar(ext);
-
-  if (!lang) {
-    return chunkSlidingWindow(content);
-  }
-
-  parser.setLanguage(lang);
-  const chunks = chunkCodeAST(parser.parse(content), content, ext);
-
-  return chunks.length > 0
-    ? chunks
-    : wholeFileChunk(content, { start_line: 1, end_line: lineCount(content) });
-}
-
-/** AST chunking for a code file, sliding-window for an unsupported language or a parse failure. */
-async function chunkCodeFile(
-  content: string,
-  filePath: string,
-): Promise<Chunk[]> {
-  const ext = extname(filePath).toLowerCase();
-
-  if (!EXT_TO_GRAMMAR[ext]) {
-    // Unsupported language -- sliding window
-    return chunkSlidingWindow(content);
-  }
-
-  try {
-    return await chunkByAst(content, ext);
-  } catch (err) {
-    console.error(
-      `[chunker] AST parse failed for ${filePath}, falling back to sliding window:`,
-      err,
-    );
-
-    return chunkSlidingWindow(content);
-  }
-}
-
-// Doc / spec / ADR files split on ## headings; code files go down the AST path.
-async function chunkFileRaw(
-  content: string,
-  filePath: string,
-  contentType: string,
-): Promise<Chunk[]> {
-  return contentType === "code" || contentType === "test"
-    ? chunkCodeFile(content, filePath)
-    : chunkMarkdown(content);
 }

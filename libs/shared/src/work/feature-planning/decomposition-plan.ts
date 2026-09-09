@@ -24,6 +24,17 @@ export interface SpecTaskContext {
   storyIssue?: number;
 }
 
+/** Build the spec-task rows for one story's tasks, linked to the story Issue (when created) and the owning feature. */
+export function specTaskRows(
+  story: UserStory,
+  ctx: SpecTaskContext,
+): SpecTaskRow[] {
+  return story.tasks.map((task) => ({
+    title: `${task.id}: ${task.description}`,
+    metadata: taskMetadata(task, ctx),
+  }));
+}
+
 function taskMetadata(
   task: UserStory["tasks"][number],
   ctx: SpecTaskContext,
@@ -38,22 +49,6 @@ function taskMetadata(
     ...(task.file_path ? { file_path: task.file_path } : {}),
     ...(ctx.storyIssue !== undefined ? { story_issue: ctx.storyIssue } : {}),
   };
-}
-
-/** Build the spec-task rows for one story's tasks, linked to the story Issue (when created) and the owning feature. */
-export function specTaskRows(
-  story: UserStory,
-  ctx: SpecTaskContext,
-): SpecTaskRow[] {
-  return story.tasks.map((task) => ({
-    title: `${task.id}: ${task.description}`,
-    metadata: taskMetadata(task, ctx),
-  }));
-}
-
-/** A heading followed by its bullets and a trailing blank, or nothing at all when there are no bullets. */
-function bulletSection(heading: string, bullets: string[]): string[] {
-  return bullets.length ? [heading, ...bullets, ""] : [];
 }
 
 /** Build the GitHub Issue body for a user story. */
@@ -77,4 +72,9 @@ export function storyIssueBody(
   ];
 
   return parts.join("\n");
+}
+
+/** A heading followed by its bullets and a trailing blank, or nothing at all when there are no bullets. */
+function bulletSection(heading: string, bullets: string[]): string[] {
+  return bullets.length ? [heading, ...bullets, ""] : [];
 }

@@ -10,6 +10,15 @@ const NOT_READY_REASON = "database connection failed";
 /** Ready returns the detail that rides alongside `status` in the 200 body; not ready returns null. */
 export type ReadinessProbe = () => Promise<Record<string, unknown> | null>;
 
+export function healthRoute(probe: ReadinessProbe): ServerRoute {
+  return {
+    method: "GET",
+    path: "/healthz",
+    options: { auth: false },
+    handler: healthHandler(probe),
+  };
+}
+
 function healthHandler(probe: ReadinessProbe): Lifecycle.Method {
   return async (_request, h) => {
     const detail = await probe();
@@ -27,14 +36,5 @@ function healthHandler(probe: ReadinessProbe): Lifecycle.Method {
         ...detail,
       })
       .code(200);
-  };
-}
-
-export function healthRoute(probe: ReadinessProbe): ServerRoute {
-  return {
-    method: "GET",
-    path: "/healthz",
-    options: { auth: false },
-    handler: healthHandler(probe),
   };
 }

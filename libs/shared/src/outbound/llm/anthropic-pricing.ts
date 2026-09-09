@@ -34,10 +34,6 @@ const MODEL_PRICING: Record<string, ModelPricing> = {
 // Unrecognized model (new tier or dated snapshot) uses cheapest tier for logging (least-wrong default cost).
 const FALLBACK_PRICING = MODEL_PRICING["claude-haiku-4-5-20251001"];
 
-function pricingFor(model: string): ModelPricing {
-  return MODEL_PRICING[model] ?? FALLBACK_PRICING;
-}
-
 export interface TokenUsage {
   inputTokens: number;
   outputTokens: number;
@@ -71,4 +67,8 @@ export function computeCost(
     cacheCreationTokens * pricing.inputPerToken * 1.25 +
     cacheReadTokens * pricing.inputPerToken * 0.1
   );
+}
+
+function pricingFor(model: string): ModelPricing {
+  return MODEL_PRICING[model] ?? FALLBACK_PRICING;
 }

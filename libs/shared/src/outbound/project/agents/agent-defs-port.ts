@@ -50,10 +50,6 @@ const pick = <T>(...layers: (T | null | undefined)[]): T | null => {
   return null;
 };
 
-function projectIdOf(project: AgentDefinition | null): string | null {
-  return project?.project_id ?? null;
-}
-
 /** Field-merges the precedence layers (project beats org beats yaml default); a null nullable field means "inherit the next layer down". Returns null only when every layer is absent. */
 export function resolveAgentConfig(
   project: AgentDefinition | null,
@@ -70,6 +66,10 @@ export function resolveAgentConfig(
     pick(project?.[field], org?.[field], yamlDefault?.[field]);
 
   return mergedFields(top.name, projectIdOf(project), layered);
+}
+
+function projectIdOf(project: AgentDefinition | null): string | null {
+  return project?.project_id ?? null;
 }
 
 type LayeredField = <K extends keyof AgentDefinition>(

@@ -25,6 +25,14 @@ export interface RequestTracing {
   observe?: RequestObserver;
 }
 
+export function registerRequestTracing(
+  server: Server,
+  tracing: RequestTracing,
+): void {
+  openRequestSpan(server, tracing.tracerName);
+  closeRequestSpan(server, tracing.observe);
+}
+
 /** Opens the span. Named `http.request` here and RENAMED to the matched route on the way out — the route is not known yet at onRequest, and a span named after the raw path would make one span per id. */
 function openRequestSpan(server: Server, tracerName: string): void {
   const tracer = trace.getTracer(tracerName);
@@ -36,6 +44,28 @@ function openRequestSpan(server: Server, tracerName: string): void {
         "http.target": request.path,
       },
     });
+
+    return h.continue;
+  });
+}
+
+/** Closes the span. Runs on onPreResponse rather than the response event so it still fires for a request that never reached a handler — a 404 or an auth refusal is exactly the kind a dashboard needs to show. */
+function closeRequestSpan(server: Server, observe?: RequestObserver): void {
+  server.ext("onPreResponse", (request, h) => {
+    const statusCode = statusOf(request);
+
+    observe?.(
+      request.method.toUpperCase(),
+      request.path,
+      statusCode,
+      Date.now() - request.info.received,
+    );
+
+    const span = request.app.span;
+
+    if (span) {
+      finishSpan(span, request, statusCode);
+    }
 
     return h.continue;
   });
@@ -62,34 +92,4 @@ function finishSpan(span: Span, request: Request, statusCode: number): void {
   }
 
   span.end();
-}
-
-/** Closes the span. Runs on onPreResponse rather than the response event so it still fires for a request that never reached a handler — a 404 or an auth refusal is exactly the kind a dashboard needs to show. */
-function closeRequestSpan(server: Server, observe?: RequestObserver): void {
-  server.ext("onPreResponse", (request, h) => {
-    const statusCode = statusOf(request);
-
-    observe?.(
-      request.method.toUpperCase(),
-      request.path,
-      statusCode,
-      Date.now() - request.info.received,
-    );
-
-    const span = request.app.span;
-
-    if (span) {
-      finishSpan(span, request, statusCode);
-    }
-
-    return h.continue;
-  });
-}
-
-export function registerRequestTracing(
-  server: Server,
-  tracing: RequestTracing,
-): void {
-  openRequestSpan(server, tracing.tracerName);
-  closeRequestSpan(server, tracing.observe);
 }

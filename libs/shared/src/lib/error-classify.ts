@@ -87,6 +87,15 @@ const CATEGORY_MATCHERS: ((
       : undefined,
 ];
 
+export function classifyError(
+  message: string,
+  step?: string,
+): { category: FailureCategory; hint: string } {
+  const category = categorize(message, step);
+
+  return { category, hint: HINTS[category] };
+}
+
 function categorize(message: string, step?: string): FailureCategory {
   for (const matcher of CATEGORY_MATCHERS) {
     const category = matcher(message, step);
@@ -97,15 +106,6 @@ function categorize(message: string, step?: string): FailureCategory {
   }
 
   return "unknown";
-}
-
-export function classifyError(
-  message: string,
-  step?: string,
-): { category: FailureCategory; hint: string } {
-  const category = categorize(message, step);
-
-  return { category, hint: HINTS[category] };
 }
 
 const CATEGORY_LABELS: Record<FailureCategory, string> = {

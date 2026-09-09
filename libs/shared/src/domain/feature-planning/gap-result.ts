@@ -61,57 +61,28 @@ export {
   type GapUserFlow,
 } from "./gap-result-legacy.js";
 
-function parseProposedFeature(
-  raw: unknown,
-  index: number,
-): GapSplitSuggestion["proposed_features"][number] {
-  const path = `split_suggestion.proposed_features[${index}]`;
-  const po = asObject(raw, path);
-
-  return {
-    title: asString(po.title, `${path}.title`),
-    scope: asString(po.scope, `${path}.scope`),
+/** Validates an untrusted LLM-produced payload into a typed {@link GapResult} (new `sections[]` or legacy shape), throwing on violation. Does NOT sanitize markup — callers run {@link sanitizeSvg} first. */
+export function parseGapResult(raw: unknown): GapResult {
+  const o = asObject(raw, "root");
+  const sections =
+    o.sections !== undefined && o.sections !== null
+      ? asArray(o.sections, "sections").map(parseSection)
+      : deriveSectionsFromLegacy(o);
+  const result: GapResult = {
+    sections,
+    draft_spec_markdown: asString(o.draft_spec_markdown, "draft_spec_markdown"),
   };
-}
 
-function parseSplit(raw: unknown): GapSplitSuggestion {
-  const o = asObject(raw, "split_suggestion");
+  if (o.split_suggestion !== undefined && o.split_suggestion !== null) {
+    result.split_suggestion = parseSplit(o.split_suggestion);
+  }
+  const stylesheet = firstString(o.mockup_stylesheet);
 
-  return {
-    rationale: asString(o.rationale, "split_suggestion.rationale"),
-    proposed_features: asArray(
-      o.proposed_features,
-      "split_suggestion.proposed_features",
-    ).map(parseProposedFeature),
-  };
-}
-
-function isPresent(value: unknown): boolean {
-  return value !== undefined && value !== null;
-}
-
-function parseSectionMockups(
-  o: Record<string, unknown>,
-  i: number,
-): GapMockup[] {
-  if (!isPresent(o.mockups)) {
-    return [];
+  if (stylesheet) {
+    result.mockup_stylesheet = stylesheet;
   }
 
-  return asArray(o.mockups, `sections[${i}].mockups`)
-    .map(parseMockup)
-    .filter((m): m is GapMockup => m !== null);
-}
-
-function parseSectionQuestions(
-  o: Record<string, unknown>,
-  i: number,
-): GapQuestion[] {
-  if (!isPresent(o.questions)) {
-    return [];
-  }
-
-  return asArray(o.questions, `sections[${i}].questions`).map(parseQuestion);
+  return result;
 }
 
 /** Parse one adaptive section — title + optional content/mockups/questions. */
@@ -139,28 +110,57 @@ function parseSection(raw: unknown, i: number): GapSection {
   return section;
 }
 
-/** Validates an untrusted LLM-produced payload into a typed {@link GapResult} (new `sections[]` or legacy shape), throwing on violation. Does NOT sanitize markup — callers run {@link sanitizeSvg} first. */
-export function parseGapResult(raw: unknown): GapResult {
-  const o = asObject(raw, "root");
-  const sections =
-    o.sections !== undefined && o.sections !== null
-      ? asArray(o.sections, "sections").map(parseSection)
-      : deriveSectionsFromLegacy(o);
-  const result: GapResult = {
-    sections,
-    draft_spec_markdown: asString(o.draft_spec_markdown, "draft_spec_markdown"),
+function parseSectionMockups(
+  o: Record<string, unknown>,
+  i: number,
+): GapMockup[] {
+  if (!isPresent(o.mockups)) {
+    return [];
+  }
+
+  return asArray(o.mockups, `sections[${i}].mockups`)
+    .map(parseMockup)
+    .filter((m): m is GapMockup => m !== null);
+}
+
+function parseSectionQuestions(
+  o: Record<string, unknown>,
+  i: number,
+): GapQuestion[] {
+  if (!isPresent(o.questions)) {
+    return [];
+  }
+
+  return asArray(o.questions, `sections[${i}].questions`).map(parseQuestion);
+}
+
+function isPresent(value: unknown): boolean {
+  return value !== undefined && value !== null;
+}
+
+function parseSplit(raw: unknown): GapSplitSuggestion {
+  const o = asObject(raw, "split_suggestion");
+
+  return {
+    rationale: asString(o.rationale, "split_suggestion.rationale"),
+    proposed_features: asArray(
+      o.proposed_features,
+      "split_suggestion.proposed_features",
+    ).map(parseProposedFeature),
   };
+}
 
-  if (o.split_suggestion !== undefined && o.split_suggestion !== null) {
-    result.split_suggestion = parseSplit(o.split_suggestion);
-  }
-  const stylesheet = firstString(o.mockup_stylesheet);
+function parseProposedFeature(
+  raw: unknown,
+  index: number,
+): GapSplitSuggestion["proposed_features"][number] {
+  const path = `split_suggestion.proposed_features[${index}]`;
+  const po = asObject(raw, path);
 
-  if (stylesheet) {
-    result.mockup_stylesheet = stylesheet;
-  }
-
-  return result;
+  return {
+    title: asString(po.title, `${path}.title`),
+    scope: asString(po.scope, `${path}.scope`),
+  };
 }
 
 // Sanitizers for untrusted mockup markup/CSS live in gap-result-sanitize.ts, re-exported for import-path back-compat.

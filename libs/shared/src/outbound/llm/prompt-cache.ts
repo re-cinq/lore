@@ -142,19 +142,24 @@ interface CacheObservation {
   now: number;
 }
 
-/** Which halves of the cached prefix moved since the last call for this job. */
-function changedParts(prev: CacheState, newHash: PrefixHash): string[] {
-  const parts: string[] = [];
+export function analyzeCacheBreak(
+  jobName: string | undefined,
+  newHash: PrefixHash,
+  cacheCreationTokens: number,
+  cacheReadTokens: number,
+): CacheBreakAnalysis {
+  const key = jobName || "_unnamed";
+  const prev = cacheStateByJob.get(key);
+  const now = Date.now();
+  const analysis = classifyCacheBreak(prev, newHash, {
+    isHit: cacheReadTokens > 0,
+    cacheCreationTokens,
+    now,
+  });
 
-  if (prev.systemHash !== newHash.system) {
-    parts.push("system");
-  }
+  rememberPrefix(key, newHash, now);
 
-  if (prev.toolsHash !== newHash.tools) {
-    parts.push("tools");
-  }
-
-  return parts;
+  return analysis;
 }
 
 /** Classifies a cache miss; call AFTER the LLM call returns so cache_read_tokens is visible. */
@@ -209,24 +214,19 @@ function classifyPromptChange(
   return { status: "prompt-changed", reason: parts.join("+") };
 }
 
-export function analyzeCacheBreak(
-  jobName: string | undefined,
-  newHash: PrefixHash,
-  cacheCreationTokens: number,
-  cacheReadTokens: number,
-): CacheBreakAnalysis {
-  const key = jobName || "_unnamed";
-  const prev = cacheStateByJob.get(key);
-  const now = Date.now();
-  const analysis = classifyCacheBreak(prev, newHash, {
-    isHit: cacheReadTokens > 0,
-    cacheCreationTokens,
-    now,
-  });
+/** Which halves of the cached prefix moved since the last call for this job. */
+function changedParts(prev: CacheState, newHash: PrefixHash): string[] {
+  const parts: string[] = [];
 
-  rememberPrefix(key, newHash, now);
+  if (prev.systemHash !== newHash.system) {
+    parts.push("system");
+  }
 
-  return analysis;
+  if (prev.toolsHash !== newHash.tools) {
+    parts.push("tools");
+  }
+
+  return parts;
 }
 
 function rememberPrefix(key: string, newHash: PrefixHash, now: number): void {

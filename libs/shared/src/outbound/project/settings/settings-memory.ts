@@ -24,10 +24,13 @@ export interface SeedRepo {
   onboarded_at?: Date | null;
 }
 
-function repoNameParts(fullName: string): [string, string] {
-  const [owner = "", name = ""] = fullName.split("/");
-
-  return [owner, name];
+function toRepoRecord(row: SeedRepo): RepoRecord {
+  return {
+    ...repoIdentity(row),
+    ...repoMeta(row),
+    ...repoOnboarding(row),
+    ...repoExtras(row),
+  };
 }
 
 function repoIdentity(
@@ -36,6 +39,12 @@ function repoIdentity(
   const [owner, name] = repoNameParts(row.full_name);
 
   return { id: row.id ?? randomUUID(), owner, name, fullName: row.full_name };
+}
+
+function repoNameParts(fullName: string): [string, string] {
+  const [owner = "", name = ""] = fullName.split("/");
+
+  return [owner, name];
 }
 
 function repoMeta(
@@ -63,15 +72,6 @@ function repoExtras(
   return {
     settings: row.settings ?? null,
     outcomeStats: row.outcome_stats ?? null,
-  };
-}
-
-function toRepoRecord(row: SeedRepo): RepoRecord {
-  return {
-    ...repoIdentity(row),
-    ...repoMeta(row),
-    ...repoOnboarding(row),
-    ...repoExtras(row),
   };
 }
 

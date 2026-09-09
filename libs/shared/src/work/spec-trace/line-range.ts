@@ -10,21 +10,6 @@ export function intervalsOverlap(
   return aStart <= bEnd && bStart <= aEnd;
 }
 
-/** Parses one "5-10" part into a range, or `undefined` when it isn't exactly two finite numbers. */
-function parseRangePart(part: string): [number, number] | undefined {
-  const [rawStart, rawEnd, ...rest] = part.split("-");
-
-  if (rest.length || !rawStart || !rawEnd) {
-    return undefined;
-  }
-  const start = Number(rawStart);
-  const end = Number(rawEnd);
-
-  return Number.isFinite(start) && Number.isFinite(end)
-    ? [start, end]
-    : undefined;
-}
-
 /** Inverse of ingest-coverage's `serializeRanges`: "5-10,20-25" → [[5,10],[20,25]]. */
 export function parseRanges(facet: string): [number, number][] {
   const ranges: [number, number][] = [];
@@ -38,4 +23,19 @@ export function parseRanges(facet: string): [number, number][] {
   }
 
   return ranges;
+}
+
+/** Parses one "5-10" part into a range, or `undefined` when it isn't exactly two finite numbers. */
+function parseRangePart(part: string): [number, number] | undefined {
+  const [rawStart, rawEnd, ...rest] = part.split("-");
+
+  if (rest.length || !rawStart || !rawEnd) {
+    return undefined;
+  }
+  const start = Number(rawStart);
+  const end = Number(rawEnd);
+
+  return Number.isFinite(start) && Number.isFinite(end)
+    ? [start, end]
+    : undefined;
 }

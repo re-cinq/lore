@@ -8,12 +8,22 @@ export interface VitestListEntry {
   file: string;
 }
 
-/** Repo-relative POSIX path: the substring from the last `/<pkg>/` marker onward. */
-function repoRelative(absolutePath: string, pkg: string): string {
-  const marker = `/${pkg}/`;
-  const at = absolutePath.indexOf(marker);
+/** Maps `vitest list` entries to per-`it` descriptors: ` > `-joined name splits into `suite` + leaf `it`, `id` is `${file}::${name}`; entries outside `${pkg}/src/` (e.g. stale `dist/`) are dropped. */
+export function descriptorsFromVitestList(
+  entries: VitestListEntry[],
+  options: { pkg: string },
+): TestDescriptor[] {
+  const descriptors: TestDescriptor[] = [];
 
-  return at === -1 ? absolutePath : absolutePath.slice(at + 1);
+  for (const entry of entries) {
+    const descriptor = descriptorForEntry(entry, options.pkg);
+
+    if (descriptor) {
+      descriptors.push(descriptor);
+    }
+  }
+
+  return descriptors;
 }
 
 /** One descriptor for a `vitest list` entry, or null when it lives outside `${pkg}/src/` (e.g. stale `dist/`). */
@@ -37,22 +47,12 @@ function descriptorForEntry(
   };
 }
 
-/** Maps `vitest list` entries to per-`it` descriptors: ` > `-joined name splits into `suite` + leaf `it`, `id` is `${file}::${name}`; entries outside `${pkg}/src/` (e.g. stale `dist/`) are dropped. */
-export function descriptorsFromVitestList(
-  entries: VitestListEntry[],
-  options: { pkg: string },
-): TestDescriptor[] {
-  const descriptors: TestDescriptor[] = [];
+/** Repo-relative POSIX path: the substring from the last `/<pkg>/` marker onward. */
+function repoRelative(absolutePath: string, pkg: string): string {
+  const marker = `/${pkg}/`;
+  const at = absolutePath.indexOf(marker);
 
-  for (const entry of entries) {
-    const descriptor = descriptorForEntry(entry, options.pkg);
-
-    if (descriptor) {
-      descriptors.push(descriptor);
-    }
-  }
-
-  return descriptors;
+  return at === -1 ? absolutePath : absolutePath.slice(at + 1);
 }
 
 /** Groups descriptor ids by `file`, first-appearance order, so orchestrators run `run` once per file (coverage is file-level) and fan the result back to every descriptor sharing it. */

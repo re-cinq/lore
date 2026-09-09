@@ -9,46 +9,9 @@ const asRec = (v: unknown): Rec | undefined =>
 
 const str = (v: unknown): string => String(v ?? "");
 
-function metadataOf(doc: unknown): Rec | undefined {
-  return asRec(asRec(doc)?.metadata);
-}
-
-function nameOf(doc: unknown): string {
-  return str(metadataOf(doc)?.name);
-}
-
-function kindOf(doc: unknown): string {
-  return str(asRec(doc)?.kind);
-}
-
-function annotationsOf(doc: unknown): Rec | undefined {
-  return asRec(metadataOf(doc)?.annotations);
-}
-
-function isBootstrapJob(doc: unknown): boolean {
-  if (kindOf(doc) !== "Job") {
-    return false;
-  }
-  const hook = str(annotationsOf(doc)?.["helm.sh/hook"]);
-
-  return /pre-install/.test(hook) || /bootstrap/i.test(nameOf(doc));
-}
-
 function* flatMapEnvEntries(nodes: unknown[]): Generator<Rec> {
   for (const child of nodes) {
     yield* findEnvEntries(child);
-  }
-}
-
-function* ownEnvEntries(rec: Rec): Generator<Rec> {
-  const envEntries = Array.isArray(rec.env) ? rec.env : [];
-
-  for (const envEntry of envEntries) {
-    const entry = asRec(envEntry);
-
-    if (entry) {
-      yield entry;
-    }
   }
 }
 
@@ -73,14 +36,22 @@ function* findEnvEntries(node: unknown): Generator<Rec> {
   yield* nestedEnvEntries(rec);
 }
 
+function* ownEnvEntries(rec: Rec): Generator<Rec> {
+  const envEntries = Array.isArray(rec.env) ? rec.env : [];
+
+  for (const envEntry of envEntries) {
+    const entry = asRec(envEntry);
+
+    if (entry) {
+      yield entry;
+    }
+  }
+}
+
 function* flatMapContainers(nodes: unknown[]): Generator<Rec> {
   for (const child of nodes) {
     yield* findContainers(child);
   }
-}
-
-function isContainerLike(rec: Rec): boolean {
-  return Array.isArray(rec.command) || Array.isArray(rec.args);
 }
 
 function* nestedContainers(rec: Rec): Generator<Rec> {
@@ -107,17 +78,8 @@ function* findContainers(node: unknown): Generator<Rec> {
   yield* nestedContainers(rec);
 }
 
-function containerArgv(container: Rec): string[] {
-  return [
-    ...((container.command as unknown[] | undefined) ?? []),
-    ...((container.args as unknown[] | undefined) ?? []),
-  ].map(String);
-}
-
-function isAlphaMissingAcl(container: Rec): boolean {
-  const argv = containerArgv(container);
-
-  return argv.includes("alpha") && !argv.some((arg) => arg.includes("--acl"));
+function isContainerLike(rec: Rec): boolean {
+  return Array.isArray(rec.command) || Array.isArray(rec.args);
 }
 
 function checkAclEnabled(doc: unknown): string[] {
@@ -135,12 +97,17 @@ function checkAclEnabled(doc: unknown): string[] {
   return violations;
 }
 
-function isHardcodedCredEntry(envEntry: Rec): boolean {
-  return (
-    CRED_NAME.test(str(envEntry.name)) &&
-    typeof envEntry.value === "string" &&
-    envEntry.value.length > 0
-  );
+function isAlphaMissingAcl(container: Rec): boolean {
+  const argv = containerArgv(container);
+
+  return argv.includes("alpha") && !argv.some((arg) => arg.includes("--acl"));
+}
+
+function containerArgv(container: Rec): string[] {
+  return [
+    ...((container.command as unknown[] | undefined) ?? []),
+    ...((container.args as unknown[] | undefined) ?? []),
+  ].map(String);
 }
 
 function checkNoHardcodedCreds(doc: unknown): string[] {
@@ -158,8 +125,12 @@ function checkNoHardcodedCreds(doc: unknown): string[] {
   return violations;
 }
 
-function workloadIdentityGsa(doc: unknown): unknown {
-  return annotationsOf(doc)?.["iam.gke.io/gcp-service-account"];
+function isHardcodedCredEntry(envEntry: Rec): boolean {
+  return (
+    CRED_NAME.test(str(envEntry.name)) &&
+    typeof envEntry.value === "string" &&
+    envEntry.value.length > 0
+  );
 }
 
 function checkWorkloadIdentity(doc: unknown): string[] {
@@ -176,10 +147,8 @@ function checkWorkloadIdentity(doc: unknown): string[] {
   ];
 }
 
-function isGuardianEntry(envEntry: Rec): boolean {
-  const secretName = asRec(asRec(envEntry.valueFrom)?.secretKeyRef)?.name;
-
-  return GUARDIAN.test(str(envEntry.name)) || GUARDIAN.test(str(secretName));
+function workloadIdentityGsa(doc: unknown): unknown {
+  return annotationsOf(doc)?.["iam.gke.io/gcp-service-account"];
 }
 
 function checkGuardianIsolation(doc: unknown): string[] {
@@ -198,6 +167,37 @@ function checkGuardianIsolation(doc: unknown): string[] {
   }
 
   return violations;
+}
+
+function isBootstrapJob(doc: unknown): boolean {
+  if (kindOf(doc) !== "Job") {
+    return false;
+  }
+  const hook = str(annotationsOf(doc)?.["helm.sh/hook"]);
+
+  return /pre-install/.test(hook) || /bootstrap/i.test(nameOf(doc));
+}
+
+function isGuardianEntry(envEntry: Rec): boolean {
+  const secretName = asRec(asRec(envEntry.valueFrom)?.secretKeyRef)?.name;
+
+  return GUARDIAN.test(str(envEntry.name)) || GUARDIAN.test(str(secretName));
+}
+
+function kindOf(doc: unknown): string {
+  return str(asRec(doc)?.kind);
+}
+
+function annotationsOf(doc: unknown): Rec | undefined {
+  return asRec(metadataOf(doc)?.annotations);
+}
+
+function nameOf(doc: unknown): string {
+  return str(metadataOf(doc)?.name);
+}
+
+function metadataOf(doc: unknown): Rec | undefined {
+  return asRec(asRec(doc)?.metadata);
 }
 
 const CHECKS = [

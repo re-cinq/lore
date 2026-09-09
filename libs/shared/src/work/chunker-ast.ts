@@ -12,33 +12,25 @@ import { symbolInfo } from "./chunker-symbols.js";
 /** Prefixes marking a comment or docstring line, across the slash-comment and Python-docstring styles this chunker sees. */
 const COMMENT_LINE_PREFIXES = ["//", "/*", "*", "#", '"""', "'''"];
 
-function isCommentOrBlankLine(line: string): boolean {
-  return (
-    line === "" ||
-    COMMENT_LINE_PREFIXES.some((prefix) => line.startsWith(prefix))
-  );
-}
+export function chunkCodeAST(
+  tree: Parser.Tree,
+  content: string,
+  ext: string,
+): Chunk[] {
+  const lines = content.split("\n");
+  const declTypes = DECLARATION_TYPES[ext] ?? new Set<string>();
+  const decls = collectTopLevelDecls(tree.rootNode, declTypes);
 
-/** First line of the comment/docstring block leading a declaration, trimmed of leading blanks; the declaration's own start row when none. */
-function leadingCommentStart(
-  lines: string[],
-  declStartRow: number,
-  prevEnd: number,
-): number {
-  let startLine = declStartRow;
-
-  for (let row = declStartRow - 1; row >= prevEnd; row--) {
-    if (!isCommentOrBlankLine(lines[row].trim())) {
-      break;
-    }
-    startLine = row;
+  if (decls.length === 0) {
+    return wholeFileChunk(content, {
+      start_line: 1,
+      end_line: lineCount(content),
+    });
   }
+  const preamble = preambleChunk(lines, decls[0].startRow);
+  const chunks: Chunk[] = preamble ? [preamble] : [];
 
-  while (startLine < declStartRow && lines[startLine].trim() === "") {
-    startLine++;
-  }
-
-  return startLine;
+  return [...chunks, ...declChunks(lines, decls, chunks.length)];
 }
 
 interface DeclInfo {
@@ -84,6 +76,24 @@ function preambleChunk(lines: string[], firstDeclStart: number): Chunk | null {
   };
 }
 
+/** One chunk per declaration in source order, numbered from `startIndex`; each starts after the previous declaration ends. */
+function declChunks(
+  lines: string[],
+  decls: DeclInfo[],
+  startIndex: number,
+): Chunk[] {
+  const firstDeclStart = decls[0].startRow;
+  const chunks: Chunk[] = [];
+
+  for (let i = 0; i < decls.length; i++) {
+    const prevEnd = i > 0 ? decls[i - 1].endRow + 1 : firstDeclStart;
+
+    chunks.push(declChunk(lines, decls[i], prevEnd, startIndex + i));
+  }
+
+  return chunks;
+}
+
 /** Chunk for one declaration, including its leading comments. */
 function declChunk(
   lines: string[],
@@ -107,41 +117,31 @@ function declChunk(
   };
 }
 
-/** One chunk per declaration in source order, numbered from `startIndex`; each starts after the previous declaration ends. */
-function declChunks(
+/** First line of the comment/docstring block leading a declaration, trimmed of leading blanks; the declaration's own start row when none. */
+function leadingCommentStart(
   lines: string[],
-  decls: DeclInfo[],
-  startIndex: number,
-): Chunk[] {
-  const firstDeclStart = decls[0].startRow;
-  const chunks: Chunk[] = [];
+  declStartRow: number,
+  prevEnd: number,
+): number {
+  let startLine = declStartRow;
 
-  for (let i = 0; i < decls.length; i++) {
-    const prevEnd = i > 0 ? decls[i - 1].endRow + 1 : firstDeclStart;
-
-    chunks.push(declChunk(lines, decls[i], prevEnd, startIndex + i));
+  for (let row = declStartRow - 1; row >= prevEnd; row--) {
+    if (!isCommentOrBlankLine(lines[row].trim())) {
+      break;
+    }
+    startLine = row;
   }
 
-  return chunks;
+  while (startLine < declStartRow && lines[startLine].trim() === "") {
+    startLine++;
+  }
+
+  return startLine;
 }
 
-export function chunkCodeAST(
-  tree: Parser.Tree,
-  content: string,
-  ext: string,
-): Chunk[] {
-  const lines = content.split("\n");
-  const declTypes = DECLARATION_TYPES[ext] ?? new Set<string>();
-  const decls = collectTopLevelDecls(tree.rootNode, declTypes);
-
-  if (decls.length === 0) {
-    return wholeFileChunk(content, {
-      start_line: 1,
-      end_line: lineCount(content),
-    });
-  }
-  const preamble = preambleChunk(lines, decls[0].startRow);
-  const chunks: Chunk[] = preamble ? [preamble] : [];
-
-  return [...chunks, ...declChunks(lines, decls, chunks.length)];
+function isCommentOrBlankLine(line: string): boolean {
+  return (
+    line === "" ||
+    COMMENT_LINE_PREFIXES.some((prefix) => line.startsWith(prefix))
+  );
 }

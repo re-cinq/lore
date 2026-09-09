@@ -28,18 +28,26 @@ type MemoryWriteInput = {
   repo?: string;
 };
 
-/** The caller-facing acknowledgement of a write, identical whichever version it was. */
-function writeResult(
+export async function writeMemory(
+  client: DgraphClientPort,
   input: MemoryWriteInput,
-  version: number,
-  createdAt: string,
-): WriteResult {
-  return {
-    key: input.key,
-    version,
-    agent_id: input.agentId,
-    created_at: createdAt,
-  };
+): Promise<WriteResult> {
+  const createdAt = new Date().toISOString();
+
+  return withTxn(client, async (txn) => {
+    const existing = await findLatestLive(
+      txn,
+      EXISTENCE_PROJECTION,
+      input.agentId,
+      input.key,
+    );
+
+    if (existing) {
+      return await bumpMemoryVersion(txn, existing, input, createdAt);
+    }
+
+    return await insertFirstMemoryVersion(txn, input, createdAt);
+  });
 }
 
 /** An update touches only what changes — value, version, embedding. The identity fields written on the first version are never rewritten, so a later write cannot move a memory to another agent or key. */
@@ -64,6 +72,19 @@ async function bumpMemoryVersion(
   return writeResult(input, nextVersion, createdAt);
 }
 
+async function insertFirstMemoryVersion(
+  txn: DgraphTxn,
+  input: MemoryWriteInput,
+  createdAt: string,
+): Promise<WriteResult> {
+  await txn.mutate({
+    setJson: newMemoryFields(input, createdAt),
+    commitNow: true,
+  });
+
+  return writeResult(input, 1, createdAt);
+}
+
 function newMemoryFields(
   input: MemoryWriteInput,
   createdAt: string,
@@ -81,39 +102,18 @@ function newMemoryFields(
   };
 }
 
-async function insertFirstMemoryVersion(
-  txn: DgraphTxn,
+/** The caller-facing acknowledgement of a write, identical whichever version it was. */
+function writeResult(
   input: MemoryWriteInput,
+  version: number,
   createdAt: string,
-): Promise<WriteResult> {
-  await txn.mutate({
-    setJson: newMemoryFields(input, createdAt),
-    commitNow: true,
-  });
-
-  return writeResult(input, 1, createdAt);
-}
-
-export async function writeMemory(
-  client: DgraphClientPort,
-  input: MemoryWriteInput,
-): Promise<WriteResult> {
-  const createdAt = new Date().toISOString();
-
-  return withTxn(client, async (txn) => {
-    const existing = await findLatestLive(
-      txn,
-      EXISTENCE_PROJECTION,
-      input.agentId,
-      input.key,
-    );
-
-    if (existing) {
-      return await bumpMemoryVersion(txn, existing, input, createdAt);
-    }
-
-    return await insertFirstMemoryVersion(txn, input, createdAt);
-  });
+): WriteResult {
+  return {
+    key: input.key,
+    version,
+    agent_id: input.agentId,
+    created_at: createdAt,
+  };
 }
 
 export async function readMemory(
@@ -129,14 +129,6 @@ export async function readMemory(
     }
 
     return { key: row.key, value: row.value, version: row.version };
-  });
-}
-
-/** A delete is a flag, not a removal: the version history stays readable, and a later write picks up where it left off. */
-async function markDeleted(txn: DgraphTxn, uid: unknown): Promise<void> {
-  await txn.mutate({
-    setJson: { uid, "Memory.is_deleted": true },
-    commitNow: true,
   });
 }
 
@@ -158,6 +150,14 @@ export async function deleteMemory(
     }
 
     return { key, deleted: true };
+  });
+}
+
+/** A delete is a flag, not a removal: the version history stays readable, and a later write picks up where it left off. */
+async function markDeleted(txn: DgraphTxn, uid: unknown): Promise<void> {
+  await txn.mutate({
+    setJson: { uid, "Memory.is_deleted": true },
+    commitNow: true,
   });
 }
 

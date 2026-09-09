@@ -57,17 +57,47 @@ interface DriftFiling {
   activeIssues: Set<number> | null;
 }
 
-/** True when one of the spec's existing drift tasks points at an Issue that is still open. */
-function tracksAnOpenIssue(
-  existing: Awaited<ReturnType<Project["tasks"]["driftTasksForSpec"]>>,
-  activeIssues: DriftFiling["activeIssues"],
-): boolean {
-  return (
-    !!activeIssues &&
-    existing.some(
-      (e) => e.issue_number !== null && activeIssues.has(e.issue_number),
-    )
+export async function createDriftTask(
+  project: Project,
+  { repo, path: specPath }: { repo: string; path: string },
+  copy: DriftTaskCopy,
+  { atCap, activeIssues }: DriftFiling,
+): Promise<FileOutcome> {
+  const gate = await driftFilingGate(
+    project,
+    { repo, specPath },
+    { atCap, activeIssues },
   );
+
+  if (gate) {
+    return gate;
+  }
+
+  await fileGapFillTask(project, { repo, specPath }, copy);
+
+  return "filed";
+}
+
+async function driftFilingGate(
+  project: Project,
+  { repo, specPath }: { repo: string; specPath: string },
+  { atCap, activeIssues }: DriftFiling,
+): Promise<FileOutcome | null> {
+  const existing = await project.tasks.driftTasksForSpec("gap-fill", specPath);
+
+  if (alreadyTracked(existing, activeIssues, { repo, specPath })) {
+    return "skipped";
+  }
+
+  if (atCap) {
+    console.log(
+      `[job] spec-drift: deferring ${repo}:${specPath} — ${MAX_DRIFT_TASKS_PER_REPO_RUN}/run cap reached`,
+    );
+
+    return "deferred";
+  }
+
+  return null;
 }
 
 /** Whether this drift is already being handled — by a task in flight or within cooldown, or by an Issue somebody has open. Both count: a task that finished and an Issue still open mean the same thing to a human, and filing again would produce a second ticket for one problem. */
@@ -95,26 +125,17 @@ function alreadyTracked(
   return false;
 }
 
-async function driftFilingGate(
-  project: Project,
-  { repo, specPath }: { repo: string; specPath: string },
-  { atCap, activeIssues }: DriftFiling,
-): Promise<FileOutcome | null> {
-  const existing = await project.tasks.driftTasksForSpec("gap-fill", specPath);
-
-  if (alreadyTracked(existing, activeIssues, { repo, specPath })) {
-    return "skipped";
-  }
-
-  if (atCap) {
-    console.log(
-      `[job] spec-drift: deferring ${repo}:${specPath} — ${MAX_DRIFT_TASKS_PER_REPO_RUN}/run cap reached`,
-    );
-
-    return "deferred";
-  }
-
-  return null;
+/** True when one of the spec's existing drift tasks points at an Issue that is still open. */
+function tracksAnOpenIssue(
+  existing: Awaited<ReturnType<Project["tasks"]["driftTasksForSpec"]>>,
+  activeIssues: DriftFiling["activeIssues"],
+): boolean {
+  return (
+    !!activeIssues &&
+    existing.some(
+      (e) => e.issue_number !== null && activeIssues.has(e.issue_number),
+    )
+  );
 }
 
 /** The write itself, once every gate has passed: a gap-fill task carrying the drift bundle. */
@@ -134,25 +155,4 @@ async function fileGapFillTask(
   console.log(
     `[job] spec-drift: created gap-fill task for ${repo}:${specPath} (${copy.bundle.source})`,
   );
-}
-
-export async function createDriftTask(
-  project: Project,
-  { repo, path: specPath }: { repo: string; path: string },
-  copy: DriftTaskCopy,
-  { atCap, activeIssues }: DriftFiling,
-): Promise<FileOutcome> {
-  const gate = await driftFilingGate(
-    project,
-    { repo, specPath },
-    { atCap, activeIssues },
-  );
-
-  if (gate) {
-    return gate;
-  }
-
-  await fileGapFillTask(project, { repo, specPath }, copy);
-
-  return "filed";
 }

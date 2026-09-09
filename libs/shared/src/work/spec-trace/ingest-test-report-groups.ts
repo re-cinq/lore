@@ -116,17 +116,6 @@ export async function groupStatementsBySentence(
   return [...groups.values()];
 }
 
-/** The sentence link an anchorless descriptor carries: the structural (describe-nesting) link is primary, a hand-written name is the backward-compatible fallback; an anchored descriptor has none, since its anchors already resolved it. */
-function anchorlessSentenceLink(descriptor: TestDescriptor) {
-  if (parseSpecAnchors(descriptor.spec).length > 0) {
-    return undefined;
-  }
-
-  return (
-    sentenceLinkFromSuite(descriptor) ?? parseSentenceLink(descriptor.name)
-  );
-}
-
 /** Resolves one descriptor's sentence link against the live graph and folds its TestChunk into every node the link matched. */
 async function addResolvedDescriptor(
   dgraph: DgraphClientPort,
@@ -146,9 +135,15 @@ async function addResolvedDescriptor(
   });
 }
 
-/** A group with no contributions yet, for the first descriptor that resolves to this node. */
-function emptySentenceGroup(match: SentenceMatch): SentenceGroup {
-  return { ...match, validatingChunkUids: [], failingTestNames: [] };
+/** The sentence link an anchorless descriptor carries: the structural (describe-nesting) link is primary, a hand-written name is the backward-compatible fallback; an anchored descriptor has none, since its anchors already resolved it. */
+function anchorlessSentenceLink(descriptor: TestDescriptor) {
+  if (parseSpecAnchors(descriptor.spec).length > 0) {
+    return undefined;
+  }
+
+  return (
+    sentenceLinkFromSuite(descriptor) ?? parseSentenceLink(descriptor.name)
+  );
 }
 
 function addDescriptorToSentenceGroups(
@@ -172,24 +167,9 @@ function addDescriptorToSentenceGroups(
   }
 }
 
-/** The write for one group: the tests that validate the statement, and whether any of them failed. The reason is included ONLY on failure — an empty reason beside `violated: false` reads as a violation nobody could name. */
-function groupMutation(group: SentenceGroup) {
-  const failed = group.failingTestNames.length > 0;
-
-  return {
-    uid: group.uid,
-    [`${group.nodeType}.validated_by`]: group.validatingChunkUids.map(
-      (uid) => ({
-        uid,
-      }),
-    ),
-    [`${group.nodeType}.violated`]: failed,
-    ...(failed
-      ? {
-          [`${group.nodeType}.violation_reason`]: `validating test failed: ${group.failingTestNames.join(", ")}`,
-        }
-      : {}),
-  };
+/** A group with no contributions yet, for the first descriptor that resolves to this node. */
+function emptySentenceGroup(match: SentenceMatch): SentenceGroup {
+  return { ...match, validatingChunkUids: [], failingTestNames: [] };
 }
 
 /** Writes a sentence-resolved group onto its existing node by uid, same violated/violation_reason handling as {@link writeStatementGroup}. */
@@ -213,4 +193,24 @@ export async function writeSentenceGroup(
   }
 
   return failed;
+}
+
+/** The write for one group: the tests that validate the statement, and whether any of them failed. The reason is included ONLY on failure — an empty reason beside `violated: false` reads as a violation nobody could name. */
+function groupMutation(group: SentenceGroup) {
+  const failed = group.failingTestNames.length > 0;
+
+  return {
+    uid: group.uid,
+    [`${group.nodeType}.validated_by`]: group.validatingChunkUids.map(
+      (uid) => ({
+        uid,
+      }),
+    ),
+    [`${group.nodeType}.violated`]: failed,
+    ...(failed
+      ? {
+          [`${group.nodeType}.violation_reason`]: `validating test failed: ${group.failingTestNames.join(", ")}`,
+        }
+      : {}),
+  };
 }

@@ -107,14 +107,6 @@ const DIFF_LINE_HANDLERS: DiffLineHandler[] = [
   handleContextLine,
 ];
 
-function applyDiffLine(state: DiffScanState, line: string): void {
-  for (const handler of DIFF_LINE_HANDLERS) {
-    if (handler(state, line)) {
-      return;
-    }
-  }
-}
-
 export function commentablePositions(diff: string): CommentablePositions {
   const state: DiffScanState = {
     right: new Map(),
@@ -129,6 +121,14 @@ export function commentablePositions(diff: string): CommentablePositions {
   }
 
   return { right: state.right, left: state.left };
+}
+
+function applyDiffLine(state: DiffScanState, line: string): void {
+  for (const handler of DIFF_LINE_HANDLERS) {
+    if (handler(state, line)) {
+      return;
+    }
+  }
 }
 
 export function isCommentable(

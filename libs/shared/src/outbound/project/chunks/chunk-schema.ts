@@ -24,6 +24,25 @@ interface CacheEntry {
 
 const cacheByPool = new WeakMap<PgPool, Map<string, CacheEntry>>();
 
+/** The schema reindex wrote this repo's chunks to (team schema or org_shared, mirroring resolveSchema); memoized per pool for 60s since context assembly resolves the same repo from several sources in parallel. Failed lookups are never cached. */
+export function resolveChunkSchemaForRepo(
+  pool: PgPool,
+  repo: string,
+): Promise<string> {
+  const cache = cacheFor(pool);
+  const cached = cache.get(repo);
+
+  if (cached && cached.expires > Date.now()) {
+    return cached.promise;
+  }
+  const promise = lookupSchemaForRepo(pool, repo);
+
+  cache.set(repo, { promise, expires: Date.now() + CACHE_TTL_MS });
+  promise.catch(() => cache.delete(repo));
+
+  return promise;
+}
+
 function cacheFor(pool: PgPool): Map<string, CacheEntry> {
   const existing = cacheByPool.get(pool);
 
@@ -35,6 +54,18 @@ function cacheFor(pool: PgPool): Map<string, CacheEntry> {
   cacheByPool.set(pool, created);
 
   return created;
+}
+
+async function lookupSchemaForRepo(
+  pool: PgPool,
+  repo: string,
+): Promise<string> {
+  const { rows } = await pool.query(
+    "SELECT team FROM lore.repos WHERE full_name = $1",
+    [repo],
+  );
+
+  return chunkSchemaOrOrgShared(pool, rows[0]?.team as string | undefined);
 }
 
 /** candidate when it's a regex-safe name for a schema that actually holds a chunks table, else org_shared — schema existence alone isn't enough (public/lore/pipeline exist but have no chunks table). */
@@ -55,37 +86,6 @@ export async function chunkSchemaOrOrgShared(
   );
 
   return rows.length > 0 ? candidate : ORG_SHARED_SCHEMA;
-}
-
-async function lookupSchemaForRepo(
-  pool: PgPool,
-  repo: string,
-): Promise<string> {
-  const { rows } = await pool.query(
-    "SELECT team FROM lore.repos WHERE full_name = $1",
-    [repo],
-  );
-
-  return chunkSchemaOrOrgShared(pool, rows[0]?.team as string | undefined);
-}
-
-/** The schema reindex wrote this repo's chunks to (team schema or org_shared, mirroring resolveSchema); memoized per pool for 60s since context assembly resolves the same repo from several sources in parallel. Failed lookups are never cached. */
-export function resolveChunkSchemaForRepo(
-  pool: PgPool,
-  repo: string,
-): Promise<string> {
-  const cache = cacheFor(pool);
-  const cached = cache.get(repo);
-
-  if (cached && cached.expires > Date.now()) {
-    return cached.promise;
-  }
-  const promise = lookupSchemaForRepo(pool, repo);
-
-  cache.set(repo, { promise, expires: Date.now() + CACHE_TTL_MS });
-  promise.catch(() => cache.delete(repo));
-
-  return promise;
 }
 
 /** Every provisioned schema holding a chunks table (regex-gated), always including org_shared — the enumeration cross-repo readers UNION over. */

@@ -26,11 +26,6 @@ export function parseValidatesAnnotations(
   return refs;
 }
 
-/** Pair-identity key for conflict detection: two refs target the same statement when their `(specPath, ordinal)` matches, regardless of target. */
-function pairKey(ref: ProvenanceRef): string {
-  return `${ref.specPath}|${ref.ordinal}`;
-}
-
 /** The three provenance forms a generated file can carry, pre-parsed into refs: inline spec links, code annotations, and commit trailers. */
 export interface ProvenanceSources {
   inline?: ProvenanceRef[];
@@ -48,13 +43,6 @@ type SourceName = "inline" | "annotation" | "trailer";
 
 /** The single canonical read order for provenance sources, shared by `resolveProvenance` and `detectProvenanceConflicts`. */
 const READ_ORDER: readonly SourceName[] = ["inline", "annotation", "trailer"];
-
-/** Flattens `sources` into one ref stream in canonical read order, each ref tagged with its source form. */
-function refsInReadOrder(sources: ProvenanceSources): TaggedRef[] {
-  return READ_ORDER.flatMap((source) =>
-    (sources[source] ?? []).map((ref) => ({ ref, source })),
-  );
-}
 
 /** Source precedence, most specific first: code annotation beats commit trailer beats inline spec link. Higher rank wins a conflict on the same pair. */
 const SOURCE_RANK: Record<SourceName, number> = {
@@ -87,6 +75,15 @@ export interface ProvenanceConflict {
   targets: string[];
 }
 
+/** Finds every pair that drew two or more DISTINCT targets across sources (read in canonical order); pairs with a single target are not conflicts. */
+export function detectProvenanceConflicts(
+  sources: ProvenanceSources,
+): ProvenanceConflict[] {
+  return [...targetsByPair(sources).values()].filter(
+    (pair) => pair.targets.length >= 2,
+  );
+}
+
 /** Groups every ref by its `(specPath, ordinal)` pair, accumulating the DISTINCT targets each pair drew in canonical read order. */
 function targetsByPair(
   sources: ProvenanceSources,
@@ -113,11 +110,14 @@ function targetsByPair(
   return pairs;
 }
 
-/** Finds every pair that drew two or more DISTINCT targets across sources (read in canonical order); pairs with a single target are not conflicts. */
-export function detectProvenanceConflicts(
-  sources: ProvenanceSources,
-): ProvenanceConflict[] {
-  return [...targetsByPair(sources).values()].filter(
-    (pair) => pair.targets.length >= 2,
+/** Flattens `sources` into one ref stream in canonical read order, each ref tagged with its source form. */
+function refsInReadOrder(sources: ProvenanceSources): TaggedRef[] {
+  return READ_ORDER.flatMap((source) =>
+    (sources[source] ?? []).map((ref) => ({ ref, source })),
   );
+}
+
+/** Pair-identity key for conflict detection: two refs target the same statement when their `(specPath, ordinal)` matches, regardless of target. */
+function pairKey(ref: ProvenanceRef): string {
+  return `${ref.specPath}|${ref.ordinal}`;
 }

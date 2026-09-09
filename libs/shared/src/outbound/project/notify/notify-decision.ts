@@ -6,10 +6,6 @@ export interface NotifySettings {
   channels: NotifyChannel[];
 }
 
-function isWatchedLevel(level: NotifyLevel): boolean {
-  return level === "watched" || level === "completion";
-}
-
 export function decideNotify(
   level: NotifyLevel,
   settings: NotifySettings,
@@ -30,4 +26,8 @@ export function decideNotify(
 
   // pr_open, or watched/completion without the channel: only `all` lets these through
   return { fire: false, matchedChannels: [] };
+}
+
+function isWatchedLevel(level: NotifyLevel): boolean {
+  return level === "watched" || level === "completion";
 }

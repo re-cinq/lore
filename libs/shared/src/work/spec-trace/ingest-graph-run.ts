@@ -17,38 +17,6 @@ import {
 /** Per-repo override of which files become specs/adrs; sibling of `.lore/test-commands.yml`. */
 const INGEST_MANIFEST_PATH = ".lore/ingest.yml";
 
-/** Reads `.lore/ingest.yml` and returns the kind's glob patterns, or undefined when absent/unreadable/undeclared (caller falls back to built-in prefix defaults). */
-async function loadKindPatterns(
-  ports: IngestGraphPorts,
-  kind: IngestKind,
-  ref?: string,
-): Promise<string[] | undefined> {
-  try {
-    const raw = await ports.readFile(INGEST_MANIFEST_PATH, ref);
-
-    return parseIngestPatterns(parseYaml(raw))[kind];
-  } catch {
-    return undefined;
-  }
-}
-
-/** A tests-kind summary. `failed` and `failedFiles` are always empty here on purpose: a test report is ingested whole or not at all, so there is no per-file failure to report the way a doc projection has. */
-function testsSummary(
-  projected: number,
-  status: IngestGraphSummary["status"],
-  message: string,
-): IngestGraphSummary {
-  return {
-    kind: "tests",
-    projected,
-    skipped: 0,
-    failed: 0,
-    failedFiles: [],
-    status,
-    message,
-  };
-}
-
 export async function ingestTestsKind(
   repo: string,
   dgraph: NonNullable<IngestGraphPorts["dgraph"]>,
@@ -72,6 +40,83 @@ export async function ingestTestsKind(
   return testsSummary(count, "completed", `tests: ingested ${count} test(s)`);
 }
 
+/** A tests-kind summary. `failed` and `failedFiles` are always empty here on purpose: a test report is ingested whole or not at all, so there is no per-file failure to report the way a doc projection has. */
+function testsSummary(
+  projected: number,
+  status: IngestGraphSummary["status"],
+  message: string,
+): IngestGraphSummary {
+  return {
+    kind: "tests",
+    projected,
+    skipped: 0,
+    failed: 0,
+    failedFiles: [],
+    status,
+    message,
+  };
+}
+
+interface RunKindIngestContext extends ProjectFilesContext {
+  registry: Record<string, IngestKindDef>;
+}
+
+/** The known-kind path: select files, project them, prune disappeared docs, summarize. */
+export async function runKindIngest(
+  ctx: RunKindIngestContext,
+): Promise<IngestGraphSummary> {
+  const { params, ports, dgraph, def, registry } = ctx;
+  const selected = await selectFiles(params, ports, registry);
+  const result = await projectFiles(
+    { params, ports, dgraph, def },
+    selected.files,
+  );
+  const pruned = await pruneAfterProjection(ctx, selected, result);
+
+  return summarizeIngest(params.kind, {
+    attempted: selected.files.length,
+    ...result,
+    pruned,
+  });
+}
+
+/** The files this kind ingests at this ref, and the patterns that chose them. The patterns are returned alongside because the prune needs the SAME scope test — a doc is only a prune candidate if it would have been ingested. */
+async function selectFiles(
+  params: IngestGraphParams,
+  ports: IngestGraphPorts,
+  registry: Record<string, IngestKindDef>,
+): Promise<{
+  files: string[];
+  patterns: Awaited<ReturnType<typeof loadKindPatterns>>;
+}> {
+  const patterns = await loadKindPatterns(ports, params.kind, params.ref);
+
+  return {
+    patterns,
+    files: selectIngestFiles(
+      await ports.listTree(params.ref),
+      params.kind,
+      { glob: params.glob, patterns },
+      registry,
+    ),
+  };
+}
+
+/** Reads `.lore/ingest.yml` and returns the kind's glob patterns, or undefined when absent/unreadable/undeclared (caller falls back to built-in prefix defaults). */
+async function loadKindPatterns(
+  ports: IngestGraphPorts,
+  kind: IngestKind,
+  ref?: string,
+): Promise<string[] | undefined> {
+  try {
+    const raw = await ports.readFile(INGEST_MANIFEST_PATH, ref);
+
+    return parseIngestPatterns(parseYaml(raw))[kind];
+  } catch {
+    return undefined;
+  }
+}
+
 interface ProjectFilesResult {
   projected: number;
   skipped: number;
@@ -85,25 +130,22 @@ interface ProjectFilesContext {
   def: IngestKindDef;
 }
 
-/** An error's stack when it carries one, so a swallowed per-file failure is still debuggable from pod/runner logs. */
-function errorReason(err: unknown): string {
-  return err instanceof Error ? (err.stack ?? err.message) : String(err);
-}
-
-/** Reads and projects one file; true when the graph actually changed, false when the projection found it unchanged. */
-async function projectFileContent(
+/** SEQUENTIAL on purpose: every file's projection upserts the shared Repo node, so an unbounded Promise.all causes Dgraph transaction conflicts at scale (a 100+-spec repo failed most files on the first pass). */
+async function projectFiles(
   ctx: ProjectFilesContext,
-  filePath: string,
-): Promise<boolean> {
-  const { params, ports, dgraph, def } = ctx;
-  const content = await ports.readFile(filePath, params.ref);
-  const outcome = await def.project(
-    { repo: params.repo, filePath, content },
-    dgraph,
-    { embed: ports.embed, force: params.force },
-  );
+  files: string[],
+): Promise<ProjectFilesResult> {
+  const result: ProjectFilesResult = {
+    projected: 0,
+    skipped: 0,
+    failedFiles: [],
+  };
 
-  return outcome.projected;
+  for (const filePath of files) {
+    await projectOneFile(ctx, filePath, result);
+  }
+
+  return result;
 }
 
 /** Projects one file, folding the outcome into `result` in place. */
@@ -130,48 +172,20 @@ async function projectOneFile(
   }
 }
 
-/** SEQUENTIAL on purpose: every file's projection upserts the shared Repo node, so an unbounded Promise.all causes Dgraph transaction conflicts at scale (a 100+-spec repo failed most files on the first pass). */
-async function projectFiles(
+/** Reads and projects one file; true when the graph actually changed, false when the projection found it unchanged. */
+async function projectFileContent(
   ctx: ProjectFilesContext,
-  files: string[],
-): Promise<ProjectFilesResult> {
-  const result: ProjectFilesResult = {
-    projected: 0,
-    skipped: 0,
-    failedFiles: [],
-  };
+  filePath: string,
+): Promise<boolean> {
+  const { params, ports, dgraph, def } = ctx;
+  const content = await ports.readFile(filePath, params.ref);
+  const outcome = await def.project(
+    { repo: params.repo, filePath, content },
+    dgraph,
+    { embed: ports.embed, force: params.force },
+  );
 
-  for (const filePath of files) {
-    await projectOneFile(ctx, filePath, result);
-  }
-
-  return result;
-}
-
-interface RunKindIngestContext extends ProjectFilesContext {
-  registry: Record<string, IngestKindDef>;
-}
-
-/** The files this kind ingests at this ref, and the patterns that chose them. The patterns are returned alongside because the prune needs the SAME scope test — a doc is only a prune candidate if it would have been ingested. */
-async function selectFiles(
-  params: IngestGraphParams,
-  ports: IngestGraphPorts,
-  registry: Record<string, IngestKindDef>,
-): Promise<{
-  files: string[];
-  patterns: Awaited<ReturnType<typeof loadKindPatterns>>;
-}> {
-  const patterns = await loadKindPatterns(ports, params.kind, params.ref);
-
-  return {
-    patterns,
-    files: selectIngestFiles(
-      await ports.listTree(params.ref),
-      params.kind,
-      { glob: params.glob, patterns },
-      registry,
-    ),
-  };
+  return outcome.projected;
 }
 
 /** `allAttemptedFailed` is the prune's safety catch: if EVERY projection failed, the tree read is suspect, and pruning against it would delete docs that are still there. */
@@ -192,52 +206,27 @@ async function pruneAfterProjection(
   });
 }
 
-/** The known-kind path: select files, project them, prune disappeared docs, summarize. */
-export async function runKindIngest(
-  ctx: RunKindIngestContext,
-): Promise<IngestGraphSummary> {
-  const { params, ports, dgraph, def, registry } = ctx;
-  const selected = await selectFiles(params, ports, registry);
-  const result = await projectFiles(
-    { params, ports, dgraph, def },
-    selected.files,
-  );
-  const pruned = await pruneAfterProjection(ctx, selected, result);
+/** Deletes subtrees of graph docs whose files left the tree; skips on no prune seam/empty/suspicious selection/all-failed run/doc-list read error. INVARIANT: must run at the repo's default-branch HEAD (graph is branch-agnostic) — `lore-ingest.yml` enforces `branches: [main]`. */
+async function pruneDisappearedDocs(
+  params: IngestGraphParams,
+  ports: IngestGraphPorts,
+  registry: Record<string, IngestKindDef>,
+  run: PruneRun,
+): Promise<number | undefined> {
+  if (prunePreflightSkipped(run.def, ports.dgraph, run)) {
+    return undefined;
+  }
+  const dgraph = ports.dgraph!;
+  const candidates = await selectPruneTargets(params, dgraph, registry, run);
 
-  return summarizeIngest(params.kind, {
-    attempted: selected.files.length,
-    ...result,
-    pruned,
-  });
-}
-
-interface DeletePruneCandidatesContext {
-  def: IngestKindDef;
-  dgraph: NonNullable<IngestGraphPorts["dgraph"]>;
-  repo: string;
-  kind: IngestKind;
-}
-
-/** Deletes each candidate's subtree, logging (not throwing) on a per-file failure. Returns the count actually deleted. */
-async function deletePruneCandidates(
-  ctx: DeletePruneCandidatesContext,
-  candidates: string[],
-): Promise<number> {
-  const { def, dgraph, repo, kind } = ctx;
-  let pruned = 0;
-
-  for (const filePath of candidates) {
-    try {
-      await def.prune!.deleteSubtree(dgraph, repo, filePath);
-      pruned += 1;
-    } catch (err) {
-      console.error(
-        `[ingest-graph] ${kind} ${repo} :: failed to prune ${filePath}: ${errorReason(err)}`,
-      );
-    }
+  if (candidates === undefined) {
+    return undefined;
   }
 
-  return pruned;
+  return deletePruneCandidates(
+    { def: run.def, dgraph, repo: params.repo, kind: params.kind },
+    candidates,
+  );
 }
 
 interface PruneRun {
@@ -255,6 +244,30 @@ function prunePreflightSkipped(
   return (
     !def.prune || !dgraph || run.files.length === 0 || run.allAttemptedFailed
   );
+}
+
+/** The doc paths this run may delete, or undefined when the prune could not safely decide — a failed doc listing or a tree read too suspicious to act on. */
+async function selectPruneTargets(
+  params: IngestGraphParams,
+  dgraph: NonNullable<IngestGraphPorts["dgraph"]>,
+  registry: Record<string, IngestKindDef>,
+  run: PruneRun,
+): Promise<string[] | undefined> {
+  const { def, files, patterns } = run;
+  const graphDocPaths = await listGraphDocs(def, dgraph, params);
+
+  if (graphDocPaths === undefined) {
+    return undefined;
+  }
+  const selection = chooseCandidates(
+    { params, registry, patterns },
+    graphDocPaths,
+    files,
+  );
+
+  return refusedSuspiciousTree(selection, params)
+    ? undefined
+    : selection.candidates;
 }
 
 /** The docs the graph currently holds, or undefined when the listing itself failed. That distinction matters: a failed read means the prune NEVER RAN, and reporting "pruned 0" instead would look like a clean pass over a graph nobody checked. */
@@ -315,49 +328,36 @@ function refusedSuspiciousTree(
   return true;
 }
 
-/** The doc paths this run may delete, or undefined when the prune could not safely decide — a failed doc listing or a tree read too suspicious to act on. */
-async function selectPruneTargets(
-  params: IngestGraphParams,
-  dgraph: NonNullable<IngestGraphPorts["dgraph"]>,
-  registry: Record<string, IngestKindDef>,
-  run: PruneRun,
-): Promise<string[] | undefined> {
-  const { def, files, patterns } = run;
-  const graphDocPaths = await listGraphDocs(def, dgraph, params);
-
-  if (graphDocPaths === undefined) {
-    return undefined;
-  }
-  const selection = chooseCandidates(
-    { params, registry, patterns },
-    graphDocPaths,
-    files,
-  );
-
-  return refusedSuspiciousTree(selection, params)
-    ? undefined
-    : selection.candidates;
+interface DeletePruneCandidatesContext {
+  def: IngestKindDef;
+  dgraph: NonNullable<IngestGraphPorts["dgraph"]>;
+  repo: string;
+  kind: IngestKind;
 }
 
-/** Deletes subtrees of graph docs whose files left the tree; skips on no prune seam/empty/suspicious selection/all-failed run/doc-list read error. INVARIANT: must run at the repo's default-branch HEAD (graph is branch-agnostic) — `lore-ingest.yml` enforces `branches: [main]`. */
-async function pruneDisappearedDocs(
-  params: IngestGraphParams,
-  ports: IngestGraphPorts,
-  registry: Record<string, IngestKindDef>,
-  run: PruneRun,
-): Promise<number | undefined> {
-  if (prunePreflightSkipped(run.def, ports.dgraph, run)) {
-    return undefined;
-  }
-  const dgraph = ports.dgraph!;
-  const candidates = await selectPruneTargets(params, dgraph, registry, run);
+/** Deletes each candidate's subtree, logging (not throwing) on a per-file failure. Returns the count actually deleted. */
+async function deletePruneCandidates(
+  ctx: DeletePruneCandidatesContext,
+  candidates: string[],
+): Promise<number> {
+  const { def, dgraph, repo, kind } = ctx;
+  let pruned = 0;
 
-  if (candidates === undefined) {
-    return undefined;
+  for (const filePath of candidates) {
+    try {
+      await def.prune!.deleteSubtree(dgraph, repo, filePath);
+      pruned += 1;
+    } catch (err) {
+      console.error(
+        `[ingest-graph] ${kind} ${repo} :: failed to prune ${filePath}: ${errorReason(err)}`,
+      );
+    }
   }
 
-  return deletePruneCandidates(
-    { def: run.def, dgraph, repo: params.repo, kind: params.kind },
-    candidates,
-  );
+  return pruned;
+}
+
+/** An error's stack when it carries one, so a swallowed per-file failure is still debuggable from pod/runner logs. */
+function errorReason(err: unknown): string {
+  return err instanceof Error ? (err.stack ?? err.message) : String(err);
 }

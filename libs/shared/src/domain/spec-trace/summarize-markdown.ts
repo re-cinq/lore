@@ -9,6 +9,21 @@ interface MarkdownSummary {
   description: string;
 }
 
+/** First ATX heading text as title, first non-blank non-heading line as description (both trimmed, or ""). */
+export function summarizeMarkdown(source: string): MarkdownSummary {
+  let summary: MarkdownSummary = { title: "", description: "" };
+
+  for (const line of source.replace(LEADING_FRONTMATTER, "").split("\n")) {
+    summary = foldSummaryLine(summary, line);
+
+    if (summary.title !== "" && summary.description !== "") {
+      break;
+    }
+  }
+
+  return summary;
+}
+
 /** Folds one source line into the in-progress summary: the first heading becomes the title, the first non-blank non-heading line becomes the description. Already-filled fields are left untouched. */
 function foldSummaryLine(
   summary: MarkdownSummary,
@@ -27,19 +42,4 @@ function foldSummaryLine(
   }
 
   return { ...summary, description: line.trim() };
-}
-
-/** First ATX heading text as title, first non-blank non-heading line as description (both trimmed, or ""). */
-export function summarizeMarkdown(source: string): MarkdownSummary {
-  let summary: MarkdownSummary = { title: "", description: "" };
-
-  for (const line of source.replace(LEADING_FRONTMATTER, "").split("\n")) {
-    summary = foldSummaryLine(summary, line);
-
-    if (summary.title !== "" && summary.description !== "") {
-      break;
-    }
-  }
-
-  return summary;
 }

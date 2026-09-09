@@ -53,10 +53,6 @@ export type PipelineTaskRow = Pick<
   | "created_at"
 > & { [column: string]: unknown };
 
-function resolvePriority(priority: string | undefined): string {
-  return priority === "immediate" ? "immediate" : "normal";
-}
-
 const INSERT_GROUPED_TASK_SQL = `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, context_bundle, priority, task_group_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING id, status, priority, created_at`;
@@ -64,43 +60,6 @@ const INSERT_GROUPED_TASK_SQL = `INSERT INTO pipeline.tasks (description, task_t
 const INSERT_TASK_SQL = `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, context_bundle, priority)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id, status, priority, created_at`;
-
-function buildInsertTaskParams(
-  input: CreateTaskInput,
-  resolved: ResolvedTaskFields,
-): unknown[] {
-  return [
-    input.description,
-    resolved.taskType,
-    input.targetRepo,
-    resolved.createdBy,
-    input.contextBundle ? JSON.stringify(input.contextBundle) : null,
-    resolved.priority,
-    ...(input.taskGroupId ? [input.taskGroupId] : []),
-  ];
-}
-
-function hasContextRefs(refs: CreateTaskInput["contextRefs"]): boolean {
-  return Boolean(
-    refs && (refs.fact_ids.length > 0 || refs.memory_ids.length > 0),
-  );
-}
-
-async function saveContextRefs(
-  pool: PgPool,
-  taskId: string,
-  refs: CreateTaskInput["contextRefs"],
-): Promise<void> {
-  if (!hasContextRefs(refs)) {
-    return;
-  }
-  await pool
-    .query(`UPDATE pipeline.tasks SET context_refs = $1 WHERE id = $2`, [
-      JSON.stringify(refs),
-      taskId,
-    ])
-    .catch(() => {});
-}
 
 interface ResolvedTaskFields {
   taskType: string;
@@ -114,37 +73,6 @@ interface InsertedTaskRow {
   status: string;
   priority: string;
   created_at: string;
-}
-
-/** The insert itself. The statement differs by whether a task group was named, so the SQL and its params are built together — a mismatched pair would bind the group id into the wrong column. */
-async function insertTaskRow(
-  pool: PgPool,
-  input: CreateTaskInput,
-  resolved: ResolvedTaskFields,
-): Promise<InsertedTaskRow> {
-  const result = await pool.query<InsertedTaskRow>(
-    input.taskGroupId ? INSERT_GROUPED_TASK_SQL : INSERT_TASK_SQL,
-    buildInsertTaskParams(input, resolved),
-  );
-
-  return result.rows[0];
-}
-
-/** Both gates a task must pass before a row exists: a description the model can actually read, and a task type this repo's trust level permits. A repo-less task skips the trust check because there is no repo whose ladder would apply. */
-async function enforceCreatable(
-  pool: PgPool,
-  input: CreateTaskInput,
-  taskType: string,
-): Promise<void> {
-  enforceTrue(
-    input.description.length <= 10000,
-    Error,
-    "Description too long (max 10000 chars)",
-  );
-
-  if (input.targetRepo) {
-    await enforceRepoTrustForTaskType(pool, input.targetRepo, taskType);
-  }
 }
 
 export async function createTask(
@@ -164,6 +92,56 @@ export async function createTask(
   return createdTaskResponse(task, taskType);
 }
 
+function resolvePriority(priority: string | undefined): string {
+  return priority === "immediate" ? "immediate" : "normal";
+}
+
+/** Both gates a task must pass before a row exists: a description the model can actually read, and a task type this repo's trust level permits. A repo-less task skips the trust check because there is no repo whose ladder would apply. */
+async function enforceCreatable(
+  pool: PgPool,
+  input: CreateTaskInput,
+  taskType: string,
+): Promise<void> {
+  enforceTrue(
+    input.description.length <= 10000,
+    Error,
+    "Description too long (max 10000 chars)",
+  );
+
+  if (input.targetRepo) {
+    await enforceRepoTrustForTaskType(pool, input.targetRepo, taskType);
+  }
+}
+
+/** The insert itself. The statement differs by whether a task group was named, so the SQL and its params are built together — a mismatched pair would bind the group id into the wrong column. */
+async function insertTaskRow(
+  pool: PgPool,
+  input: CreateTaskInput,
+  resolved: ResolvedTaskFields,
+): Promise<InsertedTaskRow> {
+  const result = await pool.query<InsertedTaskRow>(
+    input.taskGroupId ? INSERT_GROUPED_TASK_SQL : INSERT_TASK_SQL,
+    buildInsertTaskParams(input, resolved),
+  );
+
+  return result.rows[0];
+}
+
+function buildInsertTaskParams(
+  input: CreateTaskInput,
+  resolved: ResolvedTaskFields,
+): unknown[] {
+  return [
+    input.description,
+    resolved.taskType,
+    input.targetRepo,
+    resolved.createdBy,
+    input.contextBundle ? JSON.stringify(input.contextBundle) : null,
+    resolved.priority,
+    ...(input.taskGroupId ? [input.taskGroupId] : []),
+  ];
+}
+
 /** Post-insert bookkeeping: the optional context_refs write, then the null → pending transition event. */
 async function recordTaskCreated(
   pool: PgPool,
@@ -178,6 +156,28 @@ async function recordTaskCreated(
     taskId,
     { from: null, to: "pending" },
     { created_by: resolved.createdBy, priority: resolved.priority },
+  );
+}
+
+async function saveContextRefs(
+  pool: PgPool,
+  taskId: string,
+  refs: CreateTaskInput["contextRefs"],
+): Promise<void> {
+  if (!hasContextRefs(refs)) {
+    return;
+  }
+  await pool
+    .query(`UPDATE pipeline.tasks SET context_refs = $1 WHERE id = $2`, [
+      JSON.stringify(refs),
+      taskId,
+    ])
+    .catch(() => {});
+}
+
+function hasContextRefs(refs: CreateTaskInput["contextRefs"]): boolean {
+  return Boolean(
+    refs && (refs.fact_ids.length > 0 || refs.memory_ids.length > 0),
   );
 }
 
@@ -222,23 +222,6 @@ export interface StatusTransition {
   to: string | null;
 }
 
-export async function recordEvent(
-  pool: PgPool,
-  taskId: string,
-  { from: fromStatus, to: toStatus }: StatusTransition,
-  meta?: Record<string, unknown>,
-): Promise<void> {
-  try {
-    await pool.query(
-      `INSERT INTO pipeline.task_events (task_id, from_status, to_status, metadata)
-       VALUES ($1, $2, $3, $4)`,
-      [taskId, fromStatus, toStatus, meta ? JSON.stringify(meta) : null],
-    );
-  } catch {
-    // Event recording failures must never block pipeline operations
-  }
-}
-
 /** Combined: read the old status, set the new one, and record the transition event. */
 export async function updateTaskStatus(
   pool: PgPool,
@@ -258,4 +241,21 @@ export async function updateTaskStatus(
 
   await setTaskStatus(pool, taskId, newStatus);
   await recordEvent(pool, taskId, { from: oldStatus, to: newStatus }, meta);
+}
+
+export async function recordEvent(
+  pool: PgPool,
+  taskId: string,
+  { from: fromStatus, to: toStatus }: StatusTransition,
+  meta?: Record<string, unknown>,
+): Promise<void> {
+  try {
+    await pool.query(
+      `INSERT INTO pipeline.task_events (task_id, from_status, to_status, metadata)
+       VALUES ($1, $2, $3, $4)`,
+      [taskId, fromStatus, toStatus, meta ? JSON.stringify(meta) : null],
+    );
+  } catch {
+    // Event recording failures must never block pipeline operations
+  }
 }

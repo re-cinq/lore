@@ -43,13 +43,16 @@ export interface PersistentFeatureNode {
   status: string;
 }
 
-/** What a persistent Feature row contributes to a graph node — the same three fields whether it enriches a computed node or stands alone. */
-function enrichment(feature: PersistentFeatureNode) {
-  return {
-    label: feature.title,
-    status: feature.status,
-    featureId: feature.id,
-  };
+// Persistent Feature rows win (ADR-027): enrich a matching computed node, or inject a standalone node for a draft with no spec yet. Pure.
+export function mergePersistentFeatures(
+  graph: SpecGraph,
+  features: PersistentFeatureNode[],
+): SpecGraph {
+  const byPath = new Map(features.map((f) => [f.path, f]));
+  const { nodes, matched } = enrichFeatureNodes(graph.nodes, byPath);
+  const standalone = standaloneFeatureNodes(features, matched);
+
+  return { nodes: [...nodes, ...standalone], links: graph.links };
 }
 
 /** Enriches every computed Feature node from the persistent row at the same path, reporting which paths were consumed. */
@@ -88,16 +91,13 @@ function standaloneFeatureNodes(
     }));
 }
 
-// Persistent Feature rows win (ADR-027): enrich a matching computed node, or inject a standalone node for a draft with no spec yet. Pure.
-export function mergePersistentFeatures(
-  graph: SpecGraph,
-  features: PersistentFeatureNode[],
-): SpecGraph {
-  const byPath = new Map(features.map((f) => [f.path, f]));
-  const { nodes, matched } = enrichFeatureNodes(graph.nodes, byPath);
-  const standalone = standaloneFeatureNodes(features, matched);
-
-  return { nodes: [...nodes, ...standalone], links: graph.links };
+/** What a persistent Feature row contributes to a graph node — the same three fields whether it enriches a computed node or stands alone. */
+function enrichment(feature: PersistentFeatureNode) {
+  return {
+    label: feature.title,
+    status: feature.status,
+    featureId: feature.id,
+  };
 }
 export interface SpecGraphLink {
   source: string;
@@ -191,62 +191,29 @@ interface RingResult {
   }>;
 }
 
-function indexRingSections(
-  sections: NonNullable<RingResult["q"]>[number]["sections"],
-): {
-  byUid: Map<string, RingSection>;
-  order: string[];
-} {
-  const byUid = new Map<string, RingSection>();
-  const order: string[] = [];
+const RING_DQL = `query ring($xid: string) {
+  q(func: eq(Spec.xid, $xid)) {
+    uid
+    sections: Spec.sections { uid Section.heading }
+    stmts: ~Statement.spec { uid v: count(Statement.validated_by) Statement.text sec: Statement.section { uid } }
+  }
+}`;
 
-  for (const sec of sections ?? []) {
-    byUid.set(sec.uid, {
-      uid: sec.uid,
-      heading: sec["Section.heading"] ?? "(section)",
-      total: 0,
-      tested: 0,
+/** Reads one spec's two-ring structure (sections + per-statement coverage) for graph expansion. */
+export async function fetchSpecRing(
+  repo: string,
+  specPath: string,
+  dgraph: DgraphClientPort,
+): Promise<SpecRing> {
+  const graph = await withTxn(dgraph, async (txn) => {
+    const res = await txn.queryWithVars(RING_DQL, {
+      $xid: `${repo}|${specPath}`,
     });
-    order.push(sec.uid);
-  }
 
-  return { byUid, order };
-}
-
-function resolveRingOwner(
-  secUid: string | undefined,
-  byUid: Map<string, RingSection>,
-  ungrouped: RingSection,
-): RingSection {
-  return (secUid && byUid.get(secUid)) || ungrouped;
-}
-
-function tallyRingOwner(owner: RingSection, validatingLinks: number): void {
-  owner.total += 1;
-
-  if (validatingLinks > 0) {
-    owner.tested += 1;
-  }
-}
-
-function flattenRingStatements(
-  stmts: NonNullable<RingResult["q"]>[number]["stmts"],
-  byUid: Map<string, RingSection>,
-  ungrouped: RingSection,
-): RingStatement[] {
-  return (stmts ?? []).map((st) => {
-    const owner = resolveRingOwner(st.sec?.uid, byUid, ungrouped);
-    const tested = (st.v ?? 0) > 0;
-
-    tallyRingOwner(owner, st.v ?? 0);
-
-    return {
-      uid: st.uid,
-      sectionUid: owner.uid,
-      tested,
-      text: (st["Statement.text"] ?? "").trim(),
-    };
+    return res.data as RingResult;
   });
+
+  return flattenSpecRing(graph);
 }
 
 /** Pure: a spec's two-ring structure — sections (inner) + per-statement coverage (outer). */
@@ -273,27 +240,60 @@ export function flattenSpecRing(graph: RingResult): SpecRing {
   return { sections, statements };
 }
 
-const RING_DQL = `query ring($xid: string) {
-  q(func: eq(Spec.xid, $xid)) {
-    uid
-    sections: Spec.sections { uid Section.heading }
-    stmts: ~Statement.spec { uid v: count(Statement.validated_by) Statement.text sec: Statement.section { uid } }
-  }
-}`;
+function indexRingSections(
+  sections: NonNullable<RingResult["q"]>[number]["sections"],
+): {
+  byUid: Map<string, RingSection>;
+  order: string[];
+} {
+  const byUid = new Map<string, RingSection>();
+  const order: string[] = [];
 
-/** Reads one spec's two-ring structure (sections + per-statement coverage) for graph expansion. */
-export async function fetchSpecRing(
-  repo: string,
-  specPath: string,
-  dgraph: DgraphClientPort,
-): Promise<SpecRing> {
-  const graph = await withTxn(dgraph, async (txn) => {
-    const res = await txn.queryWithVars(RING_DQL, {
-      $xid: `${repo}|${specPath}`,
+  for (const sec of sections ?? []) {
+    byUid.set(sec.uid, {
+      uid: sec.uid,
+      heading: sec["Section.heading"] ?? "(section)",
+      total: 0,
+      tested: 0,
     });
+    order.push(sec.uid);
+  }
 
-    return res.data as RingResult;
+  return { byUid, order };
+}
+
+function flattenRingStatements(
+  stmts: NonNullable<RingResult["q"]>[number]["stmts"],
+  byUid: Map<string, RingSection>,
+  ungrouped: RingSection,
+): RingStatement[] {
+  return (stmts ?? []).map((st) => {
+    const owner = resolveRingOwner(st.sec?.uid, byUid, ungrouped);
+    const tested = (st.v ?? 0) > 0;
+
+    tallyRingOwner(owner, st.v ?? 0);
+
+    return {
+      uid: st.uid,
+      sectionUid: owner.uid,
+      tested,
+      text: (st["Statement.text"] ?? "").trim(),
+    };
   });
+}
 
-  return flattenSpecRing(graph);
+function resolveRingOwner(
+  secUid: string | undefined,
+  byUid: Map<string, RingSection>,
+  ungrouped: RingSection,
+): RingSection {
+  return (secUid && byUid.get(secUid)) || ungrouped;
+}
+
+function tallyRingOwner(owner: RingSection, validatingLinks: number): void {
+  owner.total += 1;
+
+  if (validatingLinks > 0) {
+    owner.tested += 1;
+  }
 }

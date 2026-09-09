@@ -23,6 +23,25 @@ import type {
 import { PostgresMemoryStore } from "./postgres-memory-store.js";
 import { DgraphMemoryStore } from "./dgraph-memory-store.js";
 
+export function selectMemoryStore(clients: {
+  pgPool?: unknown;
+  dgraph?: unknown;
+}): MemoryStore {
+  const backend = process.env.LORE_MEMORY_BACKEND ?? "postgres";
+
+  if (backend === "dgraph") {
+    return dgraphStore(clients.dgraph);
+  }
+
+  if (backend !== "postgres") {
+    throw new Error(
+      `Unknown LORE_MEMORY_BACKEND="${backend}" (valid: postgres, dgraph)`,
+    );
+  }
+
+  return postgresStore(clients.pgPool);
+}
+
 function dgraphStore(dgraph: unknown): MemoryStore {
   enforceTrue(
     dgraph,
@@ -41,25 +60,6 @@ function postgresStore(pgPool: unknown): MemoryStore {
   );
 
   return new PostgresMemoryStore(pgPool as PgPool);
-}
-
-export function selectMemoryStore(clients: {
-  pgPool?: unknown;
-  dgraph?: unknown;
-}): MemoryStore {
-  const backend = process.env.LORE_MEMORY_BACKEND ?? "postgres";
-
-  if (backend === "dgraph") {
-    return dgraphStore(clients.dgraph);
-  }
-
-  if (backend !== "postgres") {
-    throw new Error(
-      `Unknown LORE_MEMORY_BACKEND="${backend}" (valid: postgres, dgraph)`,
-    );
-  }
-
-  return postgresStore(clients.pgPool);
 }
 
 // ── Singleton ────────────────────────────────────────────────────────
