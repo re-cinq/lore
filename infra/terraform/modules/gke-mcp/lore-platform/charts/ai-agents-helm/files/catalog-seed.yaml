@@ -212,6 +212,11 @@ spec:
 
 
     DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
+    - Before you commit, run the repository's own fix/format step OVER THE
+      FILES YOU CHANGED — not the whole repo (`npx eslint --fix <files>`,
+      `gofmt -w <files>`, whichever this repo uses). Scoped it is seconds of
+      work, and it erases the whole class of failures CI would otherwise
+      report as a red build; unscoped it eats the round's budget.
     - When the work is done, `git add` what you changed and commit it with a
       short, factual message. Then `git push origin HEAD`. The clone carries
       its own credentials, so a plain push authenticates; you need no token
@@ -343,6 +348,11 @@ spec:
 
 
     DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
+    - Before you commit, run the repository's own fix/format step OVER THE
+      FILES YOU CHANGED — not the whole repo (`npx eslint --fix <files>`,
+      `gofmt -w <files>`, whichever this repo uses). Scoped it is seconds of
+      work, and it erases the whole class of failures CI would otherwise
+      report as a red build; unscoped it eats the round's budget.
     - When the work is done, `git add` what you changed and commit it with a
       short, factual message. Then `git push origin HEAD`. The clone carries
       its own credentials, so a plain push authenticates; you need no token
@@ -559,6 +569,11 @@ spec:
     - Do not edit `| Status |` on any spec. Nothing is implemented yet.
 
     DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
+    - Before you commit, run the repository's own fix/format step OVER THE
+      FILES YOU CHANGED — not the whole repo (`npx eslint --fix <files>`,
+      `gofmt -w <files>`, whichever this repo uses). Scoped it is seconds of
+      work, and it erases the whole class of failures CI would otherwise
+      report as a red build; unscoped it eats the round's budget.
     - When the work is done, `git add` what you changed and commit it with a
       short, factual message. Then `git push origin HEAD`. The clone carries
       its own credentials, so a plain push authenticates; you need no token
@@ -738,6 +753,11 @@ spec:
       re-run the whole build to find it; the section names the checks.
 
     DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
+    - Before you commit, run the repository's own fix/format step OVER THE
+      FILES YOU CHANGED — not the whole repo (`npx eslint --fix <files>`,
+      `gofmt -w <files>`, whichever this repo uses). Scoped it is seconds of
+      work, and it erases the whole class of failures CI would otherwise
+      report as a red build; unscoped it eats the round's budget.
     - When the work is done, `git add` what you changed and commit it with a
       short, factual message. Then `git push origin HEAD`. The clone carries
       its own credentials, so a plain push authenticates; you need no token
@@ -874,6 +894,11 @@ spec:
       finding, not a fix.
 
     DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
+    - Before you commit, run the repository's own fix/format step OVER THE
+      FILES YOU CHANGED — not the whole repo (`npx eslint --fix <files>`,
+      `gofmt -w <files>`, whichever this repo uses). Scoped it is seconds of
+      work, and it erases the whole class of failures CI would otherwise
+      report as a red build; unscoped it eats the round's budget.
     - When the work is done, `git add` what you changed and commit it with a
       short, factual message. Then `git push origin HEAD`. The clone carries
       its own credentials, so a plain push authenticates; you need no token
@@ -1034,6 +1059,11 @@ spec:
       missed it.
 
     DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
+    - Before you commit, run the repository's own fix/format step OVER THE
+      FILES YOU CHANGED — not the whole repo (`npx eslint --fix <files>`,
+      `gofmt -w <files>`, whichever this repo uses). Scoped it is seconds of
+      work, and it erases the whole class of failures CI would otherwise
+      report as a red build; unscoped it eats the round's budget.
     - When the work is done, `git add` what you changed and commit it with a
       short, factual message. Then `git push origin HEAD`. The clone carries
       its own credentials, so a plain push authenticates; you need no token
@@ -1161,6 +1191,11 @@ spec:
       change, or leave the code as it is and say plainly why, so the
       reviewer reads a reason rather than silence.
     DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
+    - Before you commit, run the repository's own fix/format step OVER THE
+      FILES YOU CHANGED — not the whole repo (`npx eslint --fix <files>`,
+      `gofmt -w <files>`, whichever this repo uses). Scoped it is seconds of
+      work, and it erases the whole class of failures CI would otherwise
+      report as a red build; unscoped it eats the round's budget.
     - When the work is done, `git add` what you changed and commit it with a
       short, factual message. Then `git push origin HEAD`. The clone carries
       its own credentials, so a plain push authenticates; you need no token
