@@ -88,6 +88,7 @@ const normalizeEventDefaults = (
 /** In-memory {@link AgentRunEventsRepository} with Pg-equivalent contract: write-time correlation (last node wins), ascending id capped reads, horizon pruning. Seed with registerNode; inject now for deterministic pruneOld. */
 export class InMemoryAgentRunEvents implements AgentRunEventsRepository {
   readonly rows: AgentRunEventRow[] = [];
+  // eslint-disable-next-line re-lint/no-duplicate-code -- the double's deterministic-clock preamble, which every in-memory port double declares the same way; the test-reports double repeats it because it is a different table with a different contract, and a shared base class would tie two unrelated ports together to save six lines
   private readonly nodes: AgentRunEventNodeRef[] = [];
   private readonly now: () => Date;
   private nextId = 1;
