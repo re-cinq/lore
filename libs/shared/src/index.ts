@@ -141,6 +141,7 @@ export {
   type CreateIssueMode,
   type NotifyChannel,
 } from "./domain/dark-factory-settings.js";
+export * from "./domain/dod/index.js";
 export type {
   PipelineTask,
   TaskStatus,

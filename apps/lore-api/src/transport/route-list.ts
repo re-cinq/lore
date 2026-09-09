@@ -11,6 +11,7 @@ import { repoRecordRoute } from "./routes/repos/repo-record.js";
 import { orgSettingsRoutes } from "./routes/repos/org-settings.js";
 import { repoSettingsRoute } from "./routes/repos/repo-settings.js";
 import { prStatusRoute } from "./routes/repos/pr-status.js";
+import { pullFilesRoute } from "./routes/repos/pull-files.js";
 import { contextRoute } from "./routes/context/context.js";
 import { chunkBrowseRoutes } from "./routes/context/chunks-browse.js";
 import { graphRoute } from "./routes/graph/graph.js";
@@ -22,6 +23,8 @@ import { taskViewRoutes } from "./routes/tasks/task-views.js";
 import { assemblyLineRoutes } from "./routes/assembly-lines/assembly-lines.js";
 import { startRunRoute } from "./routes/assembly-lines/start-run.js";
 import { runReadRoute } from "./routes/assembly-lines/run-read.js";
+import { runDodRoute } from "./routes/assembly-lines/run-dod.js";
+import { runStreamRoute } from "./routes/assembly-lines/run-stream.js";
 import { taskByPrRoute } from "./routes/tasks/task-by-pr.js";
 import {
   taskLogsGetRoute,
@@ -116,6 +119,7 @@ function repoRoutes(getPool: PoolGetter): ServerRoute[] {
     ...orgSettingsRoutes(getPool),
     repoSettingsRoute(getPool),
     prStatusRoute(),
+    pullFilesRoute(),
     contextRoute(getPool),
     ...chunkBrowseRoutes(getPool),
     graphRoute(getPool),
@@ -140,6 +144,8 @@ function taskRunRoutes(getPool: PoolGetter): ServerRoute[] {
     ...assemblyLineRoutes(getPool),
     startRunRoute(),
     runReadRoute(getPool),
+    runDodRoute(getPool),
+    runStreamRoute(getPool),
     taskByPrRoute(getPool),
     taskLogsGetRoute(getPool),
     jobRunLogsRoute(),

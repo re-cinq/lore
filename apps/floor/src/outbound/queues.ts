@@ -5,6 +5,7 @@ import type { PipelineRepositories } from "@re-cinq/lore-shared";
 import { internalToken } from "@re-cinq/lore-shared/http/internal-token.js";
 import { StationClient } from "@re-cinq/lore-shared/project/stations/station-client.js";
 import { PgClusterAgents } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-pg.js";
+import { PgTestReports } from "@re-cinq/lore-shared/project/test-reports/test-reports-pg.js";
 import { ClusterAgentClient } from "@re-cinq/lore-shared";
 import {
   selectEventDeliveries,
@@ -118,6 +119,12 @@ let clusterAgentsSingleton: PgClusterAgents | undefined;
 /** The execution-cluster registry (specs/running-stations-in-any-k8s-cluster): registration, the reaper's offline sweep, and central-id resolution. */
 export const clusterAgents = (): PgClusterAgents =>
   (clusterAgentsSingleton ??= new PgClusterAgents(getPool()));
+
+let testReportsSingleton: PgTestReports | undefined;
+
+/** The latest CI test report per (repo, commit) (pipeline.test_reports): the ci-tests ingress writes it, the Definition-of-Done read matches acceptance tests against it. */
+export const testReports = (): PgTestReports =>
+  (testReportsSingleton ??= new PgTestReports(getPool()));
 
 let clusterAgentSingleton: ClusterAgentClient | undefined;
 
