@@ -14,6 +14,7 @@ const input = (over: Partial<Parameters<typeof decideCiReady>[0]> = {}) => ({
   hasCiHistory: true,
   judgedSha: "abc123",
   lastReportedSha: null,
+  mergeable: true,
   ...over,
 });
 
@@ -44,6 +45,22 @@ describe("decideCiReady", () => {
       kind: "wait",
       reason: "no_judgeable_sha",
     });
+  });
+
+  it("sends a conflicting pull request back to a round, because GitHub runs no workflow on one", () => {
+    expect(
+      decideCiReady(input({ mergeable: false, checks: [] })),
+    ).toMatchObject({
+      kind: "blocked",
+      reason: "pr_conflicting",
+      outcome: "changes_requested",
+    });
+  });
+
+  it("waits rather than guessing while GitHub has not computed mergeability yet", () => {
+    expect(
+      decideCiReady(input({ mergeable: null, checks: [] })),
+    ).toEqual({ kind: "wait", reason: "ci_not_started" });
   });
 
   it("is ready when every check on the judged sha passed", () => {

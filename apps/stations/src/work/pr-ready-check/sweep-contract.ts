@@ -31,6 +31,8 @@ export interface PrReadyCheckDeps {
   listPrCommits(repo: string, number: number): Promise<PullCommit[]>;
   /** Every check run for a ref. Read raw, because a red verdict has to NAME what failed. */
   listChecks(repo: string, ref: string): Promise<CheckRun[]>;
+  /** GitHub's mergeability for the PR: false when it conflicts (and so gets no workflow run at all), null while GitHub computes it. */
+  prMergeable(repo: string, number: number): Promise<boolean | null>;
   /** Does this repo run checks at all? A repo fact, not a clock. */
   hasCiHistory(repo: string): Promise<boolean>;
   listReviewThreads(repo: string, number: number): Promise<ReviewThread[]>;
