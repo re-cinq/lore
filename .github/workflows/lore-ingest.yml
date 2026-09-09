@@ -1,4 +1,4 @@
-# lore-ingest-version: 4
+# lore-ingest-version: 5
 # Lore's own ingest workflow — a deliberate superset of the canonical
 # template (extra paths, manual dispatch, LORE_API_URL/LORE_WEBHOOK_URL vars,
 # the Floor ci-ingest graph job) carrying the v4 hardened error handling in
@@ -61,7 +61,9 @@ jobs:
                 | jq -R -s -c 'split("\n") | map(select(. != ""))')
             fi
           else
-            FILES=$(git diff --name-only HEAD~1 HEAD | jq -R -s -c 'split("\n") | map(select(. != ""))')
+            # --no-renames: a moved file must arrive as its old path (a delete)
+            # plus its new path, or the old path's chunks outlive the file.
+            FILES=$(git diff --name-only --no-renames HEAD~1 HEAD | jq -R -s -c 'split("\n") | map(select(. != ""))')
           fi
           echo "files=$FILES" >> "$GITHUB_OUTPUT"
 
