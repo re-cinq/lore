@@ -17,6 +17,16 @@ function chunkIndexOf(row: ChunkRow): number | null {
   return (row.metadata.chunk_index as number | undefined) ?? null;
 }
 
+function toSpecChunk(row: ChunkRow): SpecChunkWithIngest {
+  return {
+    repo: row.repo,
+    filePath: row.filePath,
+    content: row.content,
+    ingestedAt: row.ingestedAt,
+    chunkIndex: chunkIndexOf(row),
+  };
+}
+
 /** Mirrors the Pg adapter's spec-read ordering: file_path, chunk_index NULLS LAST, ingested_at. */
 function specDocumentOrder(a: ChunkRow, b: ChunkRow): number {
   const pathDelta = a.filePath.localeCompare(b.filePath);
@@ -175,17 +185,14 @@ export class InMemoryChunks implements ChunksPort {
     return this.rows.filter((row) => row.repo === repo);
   }
 
-  async specChunksWithIngest(repo: string): Promise<SpecChunkWithIngest[]> {
+  private specRows(repo: string): ChunkRow[] {
     return this.forRepo(repo)
       .filter((row) => row.contentType === "spec")
-      .sort(specDocumentOrder)
-      .map((row) => ({
-        repo: row.repo,
-        filePath: row.filePath,
-        content: row.content,
-        ingestedAt: row.ingestedAt,
-        chunkIndex: chunkIndexOf(row),
-      }));
+      .sort(specDocumentOrder);
+  }
+
+  async specChunksWithIngest(repo: string): Promise<SpecChunkWithIngest[]> {
+    return this.specRows(repo).map(toSpecChunk);
   }
 
   async testChunkRanges(repo: string): Promise<TestChunkRange[]> {
@@ -200,17 +207,10 @@ export class InMemoryChunks implements ChunksPort {
   }
 
   async specChunksForBackfill(repo: string): Promise<SpecChunkWithEmbedding[]> {
-    return this.forRepo(repo)
-      .filter((row) => row.contentType === "spec")
-      .sort(specDocumentOrder)
-      .map((row) => ({
-        repo: row.repo,
-        filePath: row.filePath,
-        content: row.content,
-        ingestedAt: row.ingestedAt,
-        chunkIndex: chunkIndexOf(row),
-        embedding: row.embedding,
-      }));
+    return this.specRows(repo).map((row) => ({
+      ...toSpecChunk(row),
+      embedding: row.embedding,
+    }));
   }
 
   async codeChunksForBackfill(repo: string): Promise<CodeChunkFull[]> {
