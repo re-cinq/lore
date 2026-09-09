@@ -56,8 +56,8 @@ export function decideCiReady(input: {
     : { kind: "ready" };
 }
 
-/** What a red build tells the next step, whichever way it routes. */
-function redFeedback(
+/** What a red build tells the next step, whichever way it routes. Exported because the end-of-line wait reports the same shape from the same checks, and two constructions of one payload drift. */
+export function redFeedback(
   checks: readonly CheckRun[],
   judgedSha: string,
 ): CiFeedbackArgs {

@@ -1,13 +1,12 @@
-import type { CheckRun } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import {
   ciConclusionOf,
   ciJudgedSha,
   externalCheckRuns,
-  summarizeFailedChecks,
 } from "@re-cinq/lore-shared";
 import { decidePrReady, type PrReadyVerdict } from "./decide-ready.js";
 import {
   decideCiReady,
+  redFeedback,
   type CiCheckVerdict,
   type CiFeedbackArgs,
 } from "./decide-ci.js";
@@ -34,20 +33,6 @@ async function judgeable(
   const headSha = ciJudgedSha(await deps.listPrCommits(run.repo, prNumber));
 
   return headSha ? { prNumber, headSha } : null;
-}
-
-/** The CI feedback a red build hands forward, built from the SAME checks the verdict was read from so the names cannot disagree with it. */
-function ciFeedbackFrom(
-  checks: readonly CheckRun[],
-  judgedSha: string,
-): CiFeedbackArgs {
-  const failed = summarizeFailedChecks(checks);
-
-  return {
-    ci_feedback_sha: judgedSha,
-    ci_failed_checks: failed.names.join(", "),
-    ci_failure_summary: failed.summary,
-  };
 }
 
 /** A red build reaches `fix-ci` naming the checks that failed; every other blocked reason carries only its reason. */
@@ -91,7 +76,7 @@ export async function prReportForRun(
       openReviewRunCount: evidence.openReviewRunCount,
       hasCiHistory: evidence.hasCiHistory,
     }),
-    () => ciFeedbackFrom(evidence.checks, judged.headSha),
+    () => redFeedback(evidence.checks, judged.headSha),
   );
 }
 

@@ -42,10 +42,6 @@ export function withCiFeedback(
   if (!feedback) {
     return prompt;
   }
-  const summary =
-    feedback.summary.length > MAX_FEEDBACK_CHARS
-      ? `${feedback.summary.substring(0, MAX_FEEDBACK_CHARS)}\n...(truncated)`
-      : feedback.summary;
 
   return `${prompt}
 
@@ -54,9 +50,23 @@ export function withCiFeedback(
 The build for your last push is red. These checks failed: ${feedback.failedChecks}
 
 Map each name to the job that publishes it and run only that job's command.
+${reportedDetail(feedback.summary)}`;
+}
 
+/** What the jobs said, fenced — or nothing at all. An Actions job usually reports no output, and an empty fence reads as "CI said nothing about this" when the truth is that it said nothing HERE. */
+function reportedDetail(summary: string): string {
+  if (summary === "") {
+    return "";
+  }
+
+  const capped =
+    summary.length > MAX_FEEDBACK_CHARS
+      ? `${summary.substring(0, MAX_FEEDBACK_CHARS)}\n...(truncated)`
+      : summary;
+
+  return `
 \`\`\`
-${summary}
+${capped}
 \`\`\`
 `;
 }
