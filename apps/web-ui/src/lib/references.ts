@@ -1,11 +1,4 @@
-// Parse references (source file paths, issue numbers, task UUIDs) out of plain
-// text so the dashboard can render them as links. Behaviour mirrors
-// shared/src/references.ts — duplicated here because web-ui does not depend on
-// the shared package; `references.parity.test.ts` holds the two in lockstep.
-// Intentional delta: task UUIDs always link to the relative internal
-// /assembly-runs page (shared needs an absolute `uiUrl` and omits the href
-// without one), and web-ui renders segments itself so `linkifyMarkdown` has no
-// mirror here.
+// Parse refs (file paths, issues, UUIDs) from plain text; mirrors shared/src/references.ts (web-ui duplication); task UUIDs link to /assembly-runs.
 
 export interface RefContext {
   repo: string;
@@ -22,9 +15,7 @@ const FILE_SRC =
 const ISSUE_SRC = "#(\\d+)";
 const UUID_SRC = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 
-// Spans to leave verbatim: inline code, existing markdown links, bare URLs.
-// Link targets may contain one balanced paren pair (wiki-style urls, paths);
-// the disjoint alternatives keep the pattern backtracking-safe.
+// Protect from linkification: inline code, markdown links, bare URLs; link targets support one balanced paren pair.
 const PROTECT_SRC =
   "`[^`]+`|\\[[^\\]]*\\]\\((?:[^()]|\\([^()]*\\))*\\)|https?:\\/\\/[^\\s)]+";
 
@@ -48,6 +39,18 @@ function hrefFor(
   return `/assembly-runs/${match}`;
 }
 
+function matchGroup(m: RegExpExecArray): "file" | "issue" | "uuid" {
+  if (m.groups?.file) {
+    return "file";
+  }
+
+  if (m.groups?.issue) {
+    return "issue";
+  }
+
+  return "uuid";
+}
+
 function scanPlain(text: string, ctx: RefContext): Segment[] {
   const out: Segment[] = [];
   const re = new RegExp(SCAN_SRC, "gi");
@@ -58,13 +61,7 @@ function scanPlain(text: string, ctx: RefContext): Segment[] {
     if (m.index > last) {
       out.push({ text: text.slice(last, m.index) });
     }
-    const group: "file" | "issue" | "uuid" = m.groups?.file
-      ? "file"
-      : m.groups?.issue
-        ? "issue"
-        : "uuid";
-
-    out.push({ text: m[0], href: hrefFor(m[0], group, ctx) });
+    out.push({ text: m[0], href: hrefFor(m[0], matchGroup(m), ctx) });
     last = m.index + m[0].length;
   }
 

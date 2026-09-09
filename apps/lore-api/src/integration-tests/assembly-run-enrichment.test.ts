@@ -1,18 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { Server } from "@hapi/hapi";
 import pg from "pg";
-import { buildServer } from "../server/build-server.js";
+import { buildServer } from "../app/build-server.js";
+import { restoreEnv } from "./restore-env.js";
 
-/**
- * `ENRICH_SELECT` is the one query the run reads WRITE rather than move: the
- * `unnest` join onto the ids the port selected, the LATERAL cost fallback for
- * calls that predate per-line attribution, and the `created_by` COALESCE.
- *
- * The route's own tests answer the pool from a mock, so every enriched field is
- * whatever the mock says — which proves the mapping and nothing about the SQL.
- * This runs it against a migrated Postgres, with real rows in the three tables
- * it joins.
- */
 const TOKEN = "test-enrichment-token";
 const REPO = "test/enrichment-repo";
 const CREATED_BY = "integration-test-enrichment";
@@ -22,6 +13,8 @@ interface RunRow {
   cost_usd: number | null;
   pr_url: string | null;
   task_pr_number: number | null;
+  issue_url: string | null;
+  issue_number: number | null;
   created_by: string | null;
   args_pr_number: number | null;
 }
@@ -46,8 +39,9 @@ describe("the run reads' enrichment query", () => {
     server = buildServer(() => pool);
 
     const task = await pool.query<{ id: string }>(
-      `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, pr_url, pr_number)
-       VALUES ('enrichment fixture', 'general', $1, $2, 'https://github.com/test/enrichment-repo/pull/7', 7)
+      `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, pr_url, pr_number, issue_url, issue_number)
+       VALUES ('enrichment fixture', 'general', $1, $2, 'https://github.com/test/enrichment-repo/pull/7', 7,
+               'https://github.com/test/enrichment-repo/issues/6', 6)
        RETURNING id`,
       [REPO, CREATED_BY],
     );
@@ -63,9 +57,6 @@ describe("the run reads' enrichment query", () => {
 
     runId = run.rows[0].id;
 
-    // One call attributed to the run, one attributed only to its task — the
-    // LATERAL fallback is what keeps the second from silently zeroing a run
-    // started before `llm_calls.assembly_line_id` existed.
     await pool.query(
       `INSERT INTO pipeline.llm_calls
          (task_id, assembly_line_id, model, input_tokens, output_tokens, cost_usd, duration_ms)
@@ -88,11 +79,7 @@ describe("the run reads' enrichment query", () => {
     await server.stop();
     await pool.end();
 
-    if (prevToken === undefined) {
-      delete process.env.LORE_INGEST_TOKEN;
-    } else {
-      process.env.LORE_INGEST_TOKEN = prevToken;
-    }
+    restoreEnv("LORE_INGEST_TOKEN", prevToken);
   });
 
   const listed = async (): Promise<RunRow> => {
@@ -113,6 +100,14 @@ describe("the run reads' enrichment query", () => {
       pr_url: "https://github.com/test/enrichment-repo/pull/7",
       task_pr_number: 7,
       args_pr_number: 7,
+    });
+  });
+
+  it("carries the task's Issue onto the run that produced it", async () => {
+    expect(await listed()).toMatchObject({
+      id: runId,
+      issue_url: "https://github.com/test/enrichment-repo/issues/6",
+      issue_number: 6,
     });
   });
 

@@ -1,0 +1,195 @@
+import { describe, it, expect, beforeAll, afterEach } from "vitest";
+import { execFileSync } from "node:child_process";
+import { join } from "node:path";
+import { findRepoRoot } from "../../lib/repo-root.js";
+import { randomUUID } from "node:crypto";
+import * as dgraph from "dgraph-js-http";
+import { verifyCoverageLink } from "./verify-coverage.js";
+import { makeDeleteRepoNodes } from "../../outbound/spec-trace/test-helpers/delete-repo-nodes.js";
+import { dgraphReachable } from "../../lib/dgraph-test-gate.js";
+
+const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
+const APPLIER = join(
+  findRepoRoot(),
+  "scripts",
+  "infra",
+  "setup-spec-trace-schema.sh",
+);
+
+const reachable = await dgraphReachable();
+
+describe.skipIf(!reachable)("verifyCoverageLink (live Dgraph)", () => {
+  const dgraphClient = new dgraph.DgraphClient(
+    new dgraph.DgraphClientStub(DGRAPH_HTTP),
+  );
+
+  beforeAll(() => {
+    execFileSync("bash", [APPLIER], {
+      env: { ...process.env, DGRAPH_HTTP },
+      stdio: "pipe",
+    });
+  });
+
+  async function mutate(
+    setJson: Record<string, unknown>,
+  ): Promise<Record<string, string>> {
+    const txn = dgraphClient.newTxn();
+
+    try {
+      const res = (await txn.mutate({ setJson, commitNow: true })) as {
+        data?: { uids?: Record<string, string> };
+      };
+
+      return res.data?.uids ?? {};
+    } finally {
+      await txn.discard().catch(() => {});
+    }
+  }
+
+  const deleteRepoNodes = makeDeleteRepoNodes(dgraphClient, [
+    { alias: "coverage", type: "Coverage" },
+    { alias: "codechunks", type: "CodeChunk" },
+    { alias: "testchunks", type: "TestChunk" },
+    { alias: "statements", type: "Statement", field: "xid", varName: "sx" },
+  ]);
+
+  let createdRepo = "";
+  let createdStatementXid = "";
+
+  afterEach(async () => {
+    if (createdRepo) {
+      await deleteRepoNodes(createdRepo, { sx: createdStatementXid });
+    }
+  });
+
+  it("returns execution-verified when the validating test covers code the statement implements", async () => {
+    const repo = `test-verify/${randomUUID()}`;
+
+    createdRepo = repo;
+    const statementXid = `${repo}|specs/x/spec.md|0`;
+
+    createdStatementXid = statementXid;
+
+    const ccUids = await mutate({
+      uid: "_:cc",
+      "dgraph.type": "CodeChunk",
+      "CodeChunk.xid": `${repo}|ccX`,
+      "CodeChunk.repo": repo,
+      "CodeChunk.file_path": "src/widget.ts",
+      "CodeChunk.start_line": 1,
+      "CodeChunk.end_line": 20,
+    });
+    // eslint-disable-next-line re-lint/declare-near-use -- kept paired with the mutation that produced it, like every other uid capture here
+    const ccXuid = ccUids.cc;
+
+    const tcUids = await mutate({
+      uid: "_:tc",
+      "dgraph.type": "TestChunk",
+      "TestChunk.xid": `${repo}|tc1`,
+      "TestChunk.repo": repo,
+      "TestChunk.file_path": "t.test.ts",
+      "TestChunk.test_name": "renders",
+    });
+    const tc1uid = tcUids.tc;
+
+    const fileUids = await mutate({
+      uid: "_:f",
+      "dgraph.type": "File",
+      "File.xid": `${repo}|src/widget.ts`,
+      "File.repo": repo,
+      "File.path": "src/widget.ts",
+    });
+    const covUids = await mutate({
+      uid: "_:cov",
+      "dgraph.type": "Coverage",
+      "Coverage.xid": `${repo}|t.test.ts|renders`,
+      "Coverage.repo": repo,
+      "Coverage.covers": [{ uid: fileUids.f }],
+    });
+    const cov1uid = covUids.cov;
+
+    await mutate({ uid: tc1uid, "TestChunk.coverage": { uid: cov1uid } });
+
+    await mutate({
+      uid: "_:stmt",
+      "dgraph.type": "Statement",
+      "Statement.xid": statementXid,
+      "Statement.validated_by": [{ uid: tc1uid }],
+      "Statement.implemented_by": [{ uid: ccXuid }],
+    });
+
+    const verdict = await verifyCoverageLink(dgraphClient, statementXid);
+
+    expect(verdict).toBe("execution-verified");
+  });
+
+  it("returns untested when the statement has no validated_by test", async () => {
+    const repo = `test-verify/${randomUUID()}`;
+
+    createdRepo = repo;
+    const statementXid = `${repo}|specs/x/spec.md|0`;
+
+    createdStatementXid = statementXid;
+
+    const ccUids = await mutate({
+      uid: "_:cc",
+      "dgraph.type": "CodeChunk",
+      "CodeChunk.xid": `${repo}|ccX`,
+      "CodeChunk.repo": repo,
+      "CodeChunk.file_path": "src/widget.ts",
+      "CodeChunk.start_line": 1,
+      "CodeChunk.end_line": 20,
+    });
+    const ccXuid = ccUids.cc;
+
+    await mutate({
+      "dgraph.type": "Statement",
+      "Statement.xid": statementXid,
+      "Statement.implemented_by": [{ uid: ccXuid }],
+    });
+
+    const verdict = await verifyCoverageLink(dgraphClient, statementXid);
+
+    expect(verdict).toBe("untested");
+  });
+
+  it("returns link-unproven when a validating test exists but covers nothing the statement implements", async () => {
+    const repo = `test-verify/${randomUUID()}`;
+
+    createdRepo = repo;
+    const statementXid = `${repo}|specs/x/spec.md|0`;
+
+    createdStatementXid = statementXid;
+
+    const ccUids = await mutate({
+      uid: "_:cc",
+      "dgraph.type": "CodeChunk",
+      "CodeChunk.xid": `${repo}|ccX`,
+      "CodeChunk.repo": repo,
+      "CodeChunk.file_path": "src/widget.ts",
+      "CodeChunk.start_line": 1,
+      "CodeChunk.end_line": 20,
+    });
+    const ccXuid = ccUids.cc;
+
+    const tcUids = await mutate({
+      uid: "_:tc",
+      "dgraph.type": "TestChunk",
+      "TestChunk.xid": `${repo}|tc1`,
+      "TestChunk.repo": repo,
+      "TestChunk.file_path": "t.test.ts",
+      "TestChunk.test_name": "renders",
+    });
+
+    await mutate({
+      "dgraph.type": "Statement",
+      "Statement.xid": statementXid,
+      "Statement.validated_by": [{ uid: tcUids.tc }],
+      "Statement.implemented_by": [{ uid: ccXuid }],
+    });
+
+    const verdict = await verifyCoverageLink(dgraphClient, statementXid);
+
+    expect(verdict).toBe("link-unproven");
+  });
+});

@@ -1,7 +1,7 @@
 # Future improvements backlog
 
 A running list of known, deliberately-deferred refactors and tech-debt in the
-spec-traceability / Dgraph projection subsystem (`libs/shared/src/spec-trace/`
+spec-traceability / Dgraph projection subsystem (`libs/shared/src/work/spec-trace/`
 and neighbours). These are out of scope for the change that logged them; each
 line is a candidate cleanup, not a committed task. Entries name the file and the
 smell, then the intended fix — usually "extract a shared primitive once a second

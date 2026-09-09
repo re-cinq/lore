@@ -1,0 +1,489 @@
+import { enforceTrue } from "../../../lib/enforce.js";
+
+import { describe, it, expect, afterAll } from "vitest";
+import { randomUUID } from "node:crypto";
+import { Pool } from "pg";
+import { InMemoryEventDeliveries } from "./event-deliveries-memory.js";
+import { PgEventDeliveries } from "./event-deliveries-pg.js";
+import type { EventDeliveriesPort } from "./event-deliveries-port.js";
+
+const PG_CONFIG = {
+  host: process.env.PGHOST ?? "localhost",
+  port: Number(process.env.PGPORT ?? 5432),
+  database: process.env.PGDATABASE ?? "lore",
+  user: process.env.PGUSER ?? "lore",
+  password: process.env.PGPASSWORD ?? "lore",
+};
+
+async function pgAvailable(): Promise<{ ok: boolean; why: string }> {
+  let probe: Pool | undefined;
+
+  try {
+    probe = new Pool({ ...PG_CONFIG, connectionTimeoutMillis: 1000 });
+
+    const { rows } = await probe.query<{ present: boolean }>(
+      `SELECT to_regclass('pipeline.event_deliveries') IS NOT NULL AS present`,
+    );
+
+    return rows[0]?.present
+      ? { ok: true, why: "" }
+      : {
+          ok: false,
+          why: "pipeline.event_deliveries is absent — migrations not applied",
+        };
+  } catch (err) {
+    return { ok: false, why: `unreachable: ${(err as Error).message}` };
+  } finally {
+    await probe?.end();
+  }
+}
+
+const pg = await pgAvailable();
+const pools: Pool[] = [];
+
+afterAll(async () => {
+  await Promise.all(pools.map((p) => p.end()));
+});
+
+describe("the Postgres implementation is actually exercised", () => {
+  it("runs the Postgres contract, or explains why it is skipped", () => {
+    enforceTrue(
+      !(!pg.ok && process.env.LORE_REQUIRE_PG_CONTRACT === "1"),
+      Error,
+      `Postgres contract required but ${pg.why}`,
+    );
+
+    expect(pg.ok || pg.why.length > 0).toBe(true);
+  });
+});
+
+function contract(name: string, make: () => EventDeliveriesPort): void {
+  describe(`EventDeliveriesPort contract (${name})`, () => {
+    const sub = () => `sub-${randomUUID().slice(0, 8)}`;
+    const evt = () => `internal.test.${randomUUID().slice(0, 8)}`;
+
+    it("delivers one event to every subscriber that asked for it", async () => {
+      const port = make();
+      const [a, b, eventName] = [sub(), sub(), evt()];
+
+      await port.subscribe(a, [{ eventName }]);
+      await port.subscribe(b, [{ eventName }]);
+      await port.insert({ eventName, source: "internal" });
+
+      expect(await port.claim(a, 10)).toHaveLength(1);
+      expect(await port.claim(b, 10)).toHaveLength(1);
+    });
+
+    it("hands a subscriber only its own deliveries, never another's", async () => {
+      const port = make();
+      const [mine, other, eventName] = [sub(), sub(), evt()];
+
+      await port.subscribe(mine, [{ eventName }]);
+      await port.subscribe(other, [{ eventName }]);
+      await port.insert({ eventName, source: "internal" });
+
+      const claimed = await port.claim(mine, 10);
+
+      expect(claimed.map((d) => d.subscriber)).toEqual([mine]);
+    });
+
+    it("carries the event's name and params onto the claimed delivery", async () => {
+      const port = make();
+      const [s, eventName] = [sub(), evt()];
+
+      await port.subscribe(s, [{ eventName }]);
+      await port.insert({
+        eventName,
+        source: "internal",
+        params: { repo: "re-cinq/lore" },
+      });
+
+      expect(await port.claim(s, 10)).toMatchObject([
+        { event_name: eventName, params: { repo: "re-cinq/lore" } },
+      ]);
+    });
+
+    it("delivers nothing for an event nobody subscribed to", async () => {
+      const port = make();
+      const [s, eventName] = [sub(), evt()];
+
+      await port.subscribe(s, [{ eventName: evt() }]);
+      await port.insert({ eventName, source: "internal" });
+
+      expect(await port.claim(s, 10)).toEqual([]);
+    });
+
+    it("hands out a delivery once, then not again while it is in flight", async () => {
+      const port = make();
+      const [s, eventName] = [sub(), evt()];
+
+      await port.subscribe(s, [{ eventName }]);
+      await port.insert({ eventName, source: "internal" });
+      await port.claim(s, 10);
+
+      expect(await port.claim(s, 10)).toEqual([]);
+    });
+
+    it("counts the attempt at claim, so a crash-looping handler still reaches its cap", async () => {
+      const port = make();
+      const [s, eventName] = [sub(), evt()];
+
+      await port.subscribe(s, [{ eventName }]);
+      await port.insert({ eventName, source: "internal" });
+
+      expect((await port.claim(s, 10))[0].attempts).toBe(1);
+    });
+
+    it("never hands out an acked delivery again", async () => {
+      const port = make();
+      const [s, eventName] = [sub(), evt()];
+
+      await port.subscribe(s, [{ eventName }]);
+      await port.insert({ eventName, source: "internal" });
+
+      const [d] = await port.claim(s, 10);
+
+      await port.markDone(d.id);
+      await port.reapStuck();
+
+      expect(await port.claim(s, 10)).toEqual([]);
+    });
+
+    it("hands a failed delivery back once its backoff has passed", async () => {
+      const port = make();
+      const [s, eventName] = [sub(), evt()];
+
+      await port.subscribe(s, [{ eventName }]);
+      await port.insert({ eventName, source: "internal" });
+
+      const [d] = await port.claim(s, 10);
+
+      await port.markFailed(d.id, "boom", 0);
+
+      expect(await port.claim(s, 10)).toHaveLength(1);
+    });
+
+    it("never hands out a dead-lettered delivery again", async () => {
+      const port = make();
+      const [s, eventName] = [sub(), evt()];
+
+      await port.subscribe(s, [{ eventName }]);
+      await port.insert({ eventName, source: "internal" });
+
+      const [d] = await port.claim(s, 10);
+
+      await port.markDead(d.id, "out of attempts");
+
+      expect(await port.claim(s, 10)).toEqual([]);
+    });
+
+    it("re-subscribing an already-subscribed name leaves one subscription, not two", async () => {
+      const port = make();
+      const [s, eventName] = [sub(), evt()];
+
+      await port.subscribe(s, [{ eventName }]);
+      await port.subscribe(s, [{ eventName }]);
+      await port.insert({ eventName, source: "internal" });
+
+      expect(await port.claim(s, 10)).toHaveLength(1);
+    });
+
+    it("stamps the subscriber's declared timeout on the delivery, not the global default", async () => {
+      const port = make();
+      const [s, eventName] = [sub(), evt()];
+
+      await port.subscribe(s, [{ eventName, visibilityTimeoutSeconds: 1800 }]);
+      await port.insert({ eventName, source: "internal" });
+
+      expect((await port.claim(s, 10))[0].visibility_timeout_seconds).toBe(
+        1800,
+      );
+    });
+
+    it("reaps a delivery past its own budget while one still inside its budget stays in flight", async () => {
+      const port = make();
+      const [s, fast, slow] = [sub(), evt(), evt()];
+
+      await port.subscribe(s, [
+        { eventName: fast, visibilityTimeoutSeconds: 0 },
+        { eventName: slow, visibilityTimeoutSeconds: 600 },
+      ]);
+      await port.insert({ eventName: fast, source: "internal" });
+      await port.insert({ eventName: slow, source: "internal" });
+      await port.claim(s, 10);
+      await port.reapStuck();
+
+      expect((await port.claim(s, 10)).map((d) => d.event_name)).toEqual([
+        fast,
+      ]);
+    });
+
+    it("drops a name the subscriber no longer handles, so a removed handler stops being delivered", async () => {
+      const port = make();
+      const [s, kept, removed] = [sub(), evt(), evt()];
+
+      await port.subscribe(s, [{ eventName: kept }, { eventName: removed }]);
+      await port.subscribe(s, [{ eventName: kept }]);
+      await port.insert({ eventName: kept, source: "internal" });
+      await port.insert({ eventName: removed, source: "internal" });
+
+      expect((await port.claim(s, 10)).map((d) => d.event_name)).toEqual([
+        kept,
+      ]);
+    });
+
+    it("leaves another subscriber's names alone when one re-registers", async () => {
+      const port = make();
+      const [mine, theirs, eventName] = [sub(), sub(), evt()];
+
+      await port.subscribe(mine, [{ eventName }]);
+      await port.subscribe(theirs, [{ eventName }]);
+      await port.subscribe(mine, [{ eventName }]);
+      await port.insert({ eventName, source: "internal" });
+
+      expect(await port.claim(theirs, 10)).toHaveLength(1);
+    });
+
+    it("reconciles an event captured BEFORE the subscription existed, which ordering alone loses", async () => {
+      const port = make();
+      const [s, eventName] = [sub(), evt()];
+
+      await port.insert({ eventName, source: "internal" });
+      await port.subscribe(s, [{ eventName }]);
+
+      expect(await port.claim(s, 10)).toHaveLength(0);
+      expect(await port.reconcileDeliveries(60)).toBeGreaterThanOrEqual(1);
+      expect((await port.claim(s, 10)).map((d) => d.event_name)).toEqual([
+        eventName,
+      ]);
+    });
+
+    it("creates no second delivery for an event already delivered", async () => {
+      const port = make();
+      const [s, eventName] = [sub(), evt()];
+
+      await port.subscribe(s, [{ eventName }]);
+      await port.insert({ eventName, source: "internal" });
+
+      expect(await port.reconcileDeliveries(60)).toBe(0);
+      expect(await port.claim(s, 10)).toHaveLength(1);
+    });
+
+    it("leaves an event no one subscribes to alone, so it stays visible as an orphan", async () => {
+      const port = make();
+      const eventName = evt();
+
+      await port.insert({ eventName, source: "internal" });
+
+      expect(await port.reconcileDeliveries(60)).toBe(0);
+      expect(
+        (await port.orphanedEvents(60)).map((o) => o.event_name),
+      ).toContain(eventName);
+    });
+
+    it("never collects an event a subscriber is still owed a delivery of", async () => {
+      const port = make();
+      const [s, eventName] = [sub(), evt()];
+
+      await port.subscribe(s, [{ eventName }]);
+      await port.insert({ eventName, source: "internal" });
+      await port.pruneHandled(0);
+
+      expect(await port.claim(s, 10)).toHaveLength(1);
+    });
+
+    it("returns the deliveries pruned, so a sweep that collected no event still reports its work", async () => {
+      const port = make();
+      const [s, eventName] = [sub(), evt()];
+
+      await port.subscribe(s, [{ eventName }]);
+      await port.insert({ eventName, source: "internal" });
+
+      const [delivery] = await port.claim(s, 10);
+
+      await port.markDone(delivery.id);
+
+      expect(await port.pruneHandled(0)).toBe(1);
+    });
+
+    it("collects the event in the same sweep that prunes its last delivery", async () => {
+      const port = make();
+      const [s, eventName] = [sub(), evt()];
+
+      await port.subscribe(s, [{ eventName }]);
+      await port.insert({ eventName, source: "internal" });
+
+      const [delivery] = await port.claim(s, 10);
+
+      await port.markDone(delivery.id);
+      await port.pruneHandled(0);
+
+      expect(await port.orphanedEvents(60)).toEqual([]);
+    });
+
+    it("collects an old event owed nothing even when no delivery was pruned", async () => {
+      const port = make();
+      const eventName = evt();
+
+      await port.insert({ eventName, source: "internal" });
+      await port.pruneHandled(0);
+
+      expect(await port.orphanedEvents(60)).toEqual([]);
+    });
+
+    it("holds back an excluded name so a busy serial family's rows stay pending", async () => {
+      const port = make();
+      const [s, busy, free] = [sub(), evt(), evt()];
+
+      await port.subscribe(s, [{ eventName: busy }, { eventName: free }]);
+      await port.insert({ eventName: busy, source: "internal" });
+      await port.insert({ eventName: free, source: "internal" });
+
+      expect(
+        (await port.claim(s, 10, [busy])).map((d) => d.event_name),
+      ).toEqual([free]);
+      expect((await port.claim(s, 10)).map((d) => d.event_name)).toEqual([
+        busy,
+      ]);
+    });
+
+    it("reports an event no subscriber claimed, so the silent case is visible", async () => {
+      const port = make();
+      const eventName = evt();
+
+      await port.insert({ eventName, source: "internal" });
+
+      expect(await port.orphanedEvents(60)).toEqual(
+        expect.arrayContaining([{ event_name: eventName, count: 1 }]),
+      );
+    });
+
+    it("reports a dead-lettered delivery with the error that ended it", async () => {
+      const port = make();
+      const [s, eventName] = [sub(), evt()];
+
+      await port.subscribe(s, [{ eventName }]);
+      await port.insert({ eventName, source: "internal" });
+      const [delivery] = await port.claim(s, 10);
+
+      await port.markDead(delivery.id, "fetch failed");
+
+      expect(await port.deadLettered(60)).toEqual(
+        expect.arrayContaining([
+          {
+            event_name: eventName,
+            subscriber: s,
+            count: 1,
+            last_error: "fetch failed",
+          },
+        ]),
+      );
+    });
+
+    it("reports the newest error when a group dead-lettered more than once", async () => {
+      const port = make();
+      const [s, eventName] = [sub(), evt()];
+
+      await port.subscribe(s, [{ eventName }]);
+      await port.insert({ eventName, source: "internal" });
+      await port.insert({ eventName, source: "internal" });
+      const claimed = await port.claim(s, 10);
+
+      await port.markDead(claimed[0].id, "older failure");
+      await port.markDead(claimed[1].id, "newest failure");
+
+      expect(
+        (await port.deadLettered(60)).find((d) => d.event_name === eventName),
+      ).toEqual({
+        event_name: eventName,
+        subscriber: s,
+        count: 2,
+        last_error: "newest failure",
+      });
+    });
+
+    it("leaves a delivery still being retried out of the dead-letter report", async () => {
+      const port = make();
+      const [s, eventName] = [sub(), evt()];
+
+      await port.subscribe(s, [{ eventName }]);
+      await port.insert({ eventName, source: "internal" });
+      const [delivery] = await port.claim(s, 10);
+
+      await port.markFailed(delivery.id, "fetch failed", 30);
+
+      expect(
+        (await port.deadLettered(60)).filter((d) => d.event_name === eventName),
+      ).toEqual([]);
+    });
+  });
+}
+
+contract("in-memory", () => new InMemoryEventDeliveries());
+
+if (pg.ok) {
+  contract("postgres", () => {
+    const pool = new Pool(PG_CONFIG);
+
+    pools.push(pool);
+
+    return new PgEventDeliveries(pool);
+  });
+
+  afterAll(async () => {
+    const pool = new Pool(PG_CONFIG);
+
+    try {
+      await pool.query(
+        `DELETE FROM pipeline.events WHERE event_name LIKE 'internal.test.%'`,
+      );
+      await pool.query(
+        `DELETE FROM pipeline.event_subscriptions WHERE subscriber LIKE 'sub-%'`,
+      );
+    } finally {
+      await pool.end();
+    }
+  });
+}
+
+function deadRow(id: string, handledAt: string, error: string) {
+  return {
+    id,
+    event_id: id,
+    subscriber: "floor",
+    event_name: "cron.agent_watcher_reconcile.tick",
+    source: "cron",
+    params: {},
+    repo: null,
+    status: "dead",
+    attempts: 5,
+    error,
+    claimed_at: handledAt,
+    next_attempt_at: handledAt,
+    handled_at: handledAt,
+    visibility_timeout_seconds: 600,
+  };
+}
+
+describe("InMemoryEventDeliveries dead-letter ordering", () => {
+  it("reports the newest error even when the older row was stored last", async () => {
+    const port = new InMemoryEventDeliveries(
+      [],
+      [
+        deadRow("1", "2026-09-08T15:00:00.000Z", "newest failure"),
+        deadRow("2", "2026-09-08T14:50:00.000Z", "older failure"),
+      ],
+      new Map(),
+      () => Date.parse("2026-09-08T15:30:00.000Z"),
+    );
+
+    expect(await port.deadLettered(60)).toEqual([
+      {
+        event_name: "cron.agent_watcher_reconcile.tick",
+        subscriber: "floor",
+        count: 2,
+        last_error: "newest failure",
+      },
+    ]);
+  });
+});

@@ -1,10 +1,4 @@
-/**
- * Locates the monorepo root from any test's cwd by walking up until the
- * `scripts/infra` directory appears. The live-Dgraph suites shell out to the
- * schema appliers there; a hardcoded `join(process.cwd(), "..")` broke for
- * every one of them when the package moved from `shared/` to `libs/shared/`
- * (unnoticed because the suites skip without a reachable Dgraph).
- */
+/** Locates the monorepo root from any test's cwd by walking up until `scripts/infra` appears; a hardcoded `join(process.cwd(), "..")` broke silently when the package moved to `libs/shared/`. */
 
 import { existsSync } from "node:fs";
 import { join, dirname } from "node:path";

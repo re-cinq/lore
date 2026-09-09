@@ -1,0 +1,121 @@
+import { spawn } from "node:child_process";
+import { readFile, stat } from "node:fs/promises";
+import { join, resolve, sep } from "node:path";
+import type { IncomingMessage, ServerResponse } from "node:http";
+
+/** A skill dir name: no path separators, no leading dot, no traversal. */
+const SKILL_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+
+// The `/skills/<name>` suffix, GET-only; null when this request doesn't own a skills path at all.
+function skillsSubpath(req: IncomingMessage): string | null {
+  const url = req.url ?? "";
+
+  if (req.method !== "GET" || !url.startsWith("/skills/")) {
+    return null;
+  }
+
+  const suffix = url.slice("/skills/".length);
+
+  return suffix.split("?")[0];
+}
+
+// A safe skill dir name out of `<name>.tar.gz`; null on anything else (no suffix, or an unsafe/traversing name).
+function tarballSkillName(path: string): string | null {
+  const tarball = /^([^/]+)\.tar\.gz$/.exec(path);
+
+  if (!tarball || !SKILL_NAME.test(tarball[1])) {
+    return null;
+  }
+
+  return tarball[1];
+}
+
+// The skills registry the ai-agent-subsystem init fetches from; unauthenticated since skills are org conventions, not secrets. Returns true when it owns a `/skills/` path, else false so the caller falls through to MCP.
+export async function handleSkillsRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  skillsRoot: string,
+): Promise<boolean> {
+  const path = skillsSubpath(req);
+
+  if (path === null) {
+    return false;
+  }
+
+  if (path === "settings.json") {
+    await serveSettings(res, skillsRoot);
+
+    return true;
+  }
+
+  await serveNamedTarball(res, skillsRoot, path);
+
+  return true;
+}
+
+async function serveNamedTarball(
+  res: ServerResponse,
+  skillsRoot: string,
+  path: string,
+): Promise<void> {
+  const name = tarballSkillName(path);
+
+  if (!name) {
+    res.writeHead(404).end();
+
+    return;
+  }
+  await serveSkillTarball(res, skillsRoot, name);
+}
+
+async function serveSettings(
+  res: ServerResponse,
+  skillsRoot: string,
+): Promise<void> {
+  try {
+    const body = await readFile(join(skillsRoot, "settings.json"));
+
+    res.writeHead(200, { "Content-Type": "application/json" }).end(body);
+  } catch {
+    res.writeHead(404).end();
+  }
+}
+
+// Belt-and-suspenders against traversal: the resolved dir must stay under skills/, whatever the name matched upstream.
+async function isServableSkillDir(
+  skillsDir: string,
+  name: string,
+): Promise<boolean> {
+  const dir = resolve(skillsDir, name);
+
+  if (dir !== skillsDir && !dir.startsWith(skillsDir + sep)) {
+    return false;
+  }
+
+  try {
+    return (await stat(dir)).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+async function serveSkillTarball(
+  res: ServerResponse,
+  skillsRoot: string,
+  name: string,
+): Promise<void> {
+  const skillsDir = resolve(skillsRoot, "skills");
+
+  if (!(await isServableSkillDir(skillsDir, name))) {
+    res.writeHead(404).end();
+
+    return;
+  }
+  res.writeHead(200, { "Content-Type": "application/gzip" });
+  const tar = spawn("tar", ["-czf", "-", "-C", skillsDir, name]);
+
+  tar.stdout.pipe(res);
+  tar.on("error", () => {
+    res.end();
+  });
+}

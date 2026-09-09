@@ -1,12 +1,18 @@
-/**
- * Resolve the coordinates the extension needs from the developer's machine —
- * the same places install.sh / the MCP server read them, so no extra setup:
- *   - owner/repo from `git remote get-url origin` (mirrors mcp-server's
- *     repo-detect regex)
- *   - API url + token from `git config --global lore.{api-url,ingest-token}`
- */
+// Reads owner/repo from git remote origin and API url/token from git config lore.{api-url,ingest-token}, same as install.sh.
 
 import { execFileSync } from "node:child_process";
+
+/** "owner/repo" from the origin remote, or null when not a GitHub-style repo. */
+export function detectRepo(cwd: string): string | null {
+  const remote = git(["remote", "get-url", "origin"], cwd);
+
+  if (!remote) {
+    return null;
+  }
+  const match = remote.match(/[:/]([^/]+\/[^/]+?)(?:\.git)?$/);
+
+  return match ? match[1] : null;
+}
 
 function git(args: string[], cwd?: string): string | null {
   try {
@@ -20,18 +26,6 @@ function git(args: string[], cwd?: string): string | null {
   } catch {
     return null;
   }
-}
-
-/** "owner/repo" from the origin remote, or null when not a GitHub-style repo. */
-export function detectRepo(cwd: string): string | null {
-  const remote = git(["remote", "get-url", "origin"], cwd);
-
-  if (!remote) {
-    return null;
-  }
-  const match = remote.match(/[:/]([^/]+\/[^/]+?)(?:\.git)?$/);
-
-  return match ? match[1] : null;
 }
 
 /** Read a global git config value (e.g. `lore.api-url`), or null. */

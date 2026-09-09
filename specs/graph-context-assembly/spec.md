@@ -40,66 +40,73 @@ the spec `Statement`s coupled to a task into a `GraphContextBlock`: the
 statements ranked by signal, plus the distinct ADR refs and test
 selectors to hydrate alongside them. The I/O wrapper that runs the DQL is
 a thin seam over the injected `DgraphClientPort`, mirroring
-[`fetchTraceDocument`](../../libs/shared/src/spec-trace/assemble-trace-document.ts).
+[`fetchTraceDocument`](../../libs/shared/src/domain/spec-trace/assemble-trace-document.ts).
 The projection and its wrapper live in
-([`graph-context.ts`](libs/shared/src/spec-trace/graph-context.ts)).
+([`graph-context.ts`](libs/shared/src/outbound/spec-trace/graph-context.ts)).
 
 ## Acceptance Criteria
 
 A statement's signal is the highest-priority condition it meets, in the
 order `violated` > `drifted` > `untested` > `normal`.
-([validated by `ranks ... and dedups by xid`](libs/shared/src/spec-trace/graph-context.test.ts#L5))
+([validated by `ranks ... and dedups by xid`](libs/shared/src/outbound/spec-trace/graph-context.test.ts#L5))
 
 Statements are ranked by signal descending, so a `violated` statement
 precedes a `drifted` one and both precede an `untested` or `normal`
 statement.
-([validated by `ranks ... and dedups by xid`](libs/shared/src/spec-trace/graph-context.test.ts#L5))
+([validated by `ranks ... and dedups by xid`](libs/shared/src/outbound/spec-trace/graph-context.test.ts#L5))
 
 A `Statement` reachable through more than one seed appears once in the
 block, deduplicated by its `Statement.xid`.
-([validated by `ranks ... and dedups by xid`](libs/shared/src/spec-trace/graph-context.test.ts#L5))
+([validated by `ranks ... and dedups by xid`](libs/shared/src/outbound/spec-trace/graph-context.test.ts#L5))
 
 A testable statement carrying no `validated_by` test link has signal
 `untested`; an `untestable` statement is `normal` regardless of its
 links.
-([validated by `classifies an untestable statement as normal`](libs/shared/src/spec-trace/graph-context.test.ts#L95))
+([validated by `classifies an untestable statement as normal`](libs/shared/src/outbound/spec-trace/graph-context.test.ts#L95))
 
 The block exposes the distinct ADR file paths across all ranked
 statements as `adrRefs`, in first-appearance order after ranking.
-([validated by `collects per-statement links and distinct block-level adrRefs and testSelectors`](libs/shared/src/spec-trace/graph-context.test.ts#L114))
+([validated by `collects per-statement links and distinct block-level adrRefs and testSelectors`](libs/shared/src/outbound/spec-trace/graph-context.test.ts#L114))
 
 The block exposes the distinct test file paths across all ranked
 statements as `testSelectors`.
-([validated by `collects per-statement links and distinct block-level adrRefs and testSelectors`](libs/shared/src/spec-trace/graph-context.test.ts#L114))
+([validated by `collects per-statement links and distinct block-level adrRefs and testSelectors`](libs/shared/src/outbound/spec-trace/graph-context.test.ts#L114))
 
 When the ranked statements exceed the budget limit, the block keeps the
 highest-signal `limit` statements and reports `truncated: true`.
-([validated by `keeps the highest-signal limit statements and reports truncated`](libs/shared/src/spec-trace/graph-context.test.ts#L167))
+([validated by `keeps the highest-signal limit statements and reports truncated`](libs/shared/src/outbound/spec-trace/graph-context.test.ts#L167))
 
 An empty query result projects to an empty block with no statements, no
 refs, and `truncated: false`.
-([validated by `projects an empty result to an empty block`](libs/shared/src/spec-trace/graph-context.test.ts#L200))
+([validated by `projects an empty result to an empty block`](libs/shared/src/outbound/spec-trace/graph-context.test.ts#L200))
 
 ### Wiring into `lore_assemble_context`
 
 The block projects into context items — one per statement, prefixed with its
 `[signal]`, the spec path/section, the statement text, its governing ADR
 labels, and its coupling tests — scored by signal so `violated` outranks
-`untested`.
-([validated by `formats each statement with its signal, ADRs, and tests; violated outscores untested`](libs/shared/src/project/knowledge/context-assembly.test.ts#L47))
+`untested` — but only among the statements the query actually names. Severity
+orders what survives; it does not decide what survives. Ranking on signal alone
+made the source query-blind: it took the repo, never the question, so the same
+most-violated statements rode along in every bundle at score 1.0 and spent the
+section's budget on whatever was worst rather than on whatever was asked about.
+A statement now scores `signal x share-of-query-terms-it-mentions` and is
+dropped at zero, so an unrelated question gets an empty section rather than
+somebody else's violations.
+([validated by `formats each statement with its signal, ADRs, and tests; violated outscores untested`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L46), [`keeps the auto-merge statement and drops the station one for 'auto-merge squash policy'`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L62), [`returns nothing when no statement shares a term with the query`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L99))
 
 The `coupling` source is **fail-soft**: it returns `disabled` (no items) when no
 graph client is wired (`LORE_DGRAPH_HTTP` unset), so the rest of assembly is
 unaffected.
-([validated by `returns disabled when no graph client is wired`](libs/shared/src/project/knowledge/context-assembly.test.ts#L76))
+([validated by `returns disabled when no graph client is wired`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L116))
 
 When a graph client is present, the source reads the repo's coupled statements
 and projects them into items.
-([validated by `projects coupled statements from the graph into items`](libs/shared/src/project/knowledge/context-assembly.test.ts#L83))
+([validated by `projects coupled statements from the graph into sources`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L123))
 
 An empty `GraphContextBlock` projects to an empty item list, contributing nothing
 to the assembly.
-([validated by `returns an empty list for an empty block`](libs/shared/src/project/knowledge/context-assembly.test.ts#L63))
+([validated by `returns an empty list for an empty block`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L105))
 
 The `coupling` source is wired into the `implementation` and `review` templates;
 the `/api/context` handler constructs the (possibly-null) Dgraph client via
@@ -110,6 +117,6 @@ the `/api/context` handler constructs the (possibly-null) Dgraph client via
 - The vector seeding step that picks *which* statements to expand from
   (this feature ranks an already-resolved coupled set).
 - The code-seeded path — covered by
-  [`trace-impact`](../../libs/shared/src/spec-trace/trace-impact.ts).
+  [`trace-impact`](../../libs/shared/src/work/spec-trace/trace-impact.ts).
 - The live A/B measurement gate (rejection-rate / review-comment count) before
   the `coupling` section is promoted in template ordering (ADR-021 §4).

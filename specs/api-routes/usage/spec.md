@@ -71,19 +71,19 @@ route is that home: three windowed aggregates over `pipeline.tasks` joined to
 ## Dependencies & side effects
 
 - Read-only: `pipeline.tasks`, `pipeline.llm_calls`. No writes, no fan-out.
-- `agentUsage` ([queries](../../../apps/lore-api/src/features/analytics/usage-queries.ts#L29)).
+- `agentUsage` ([queries](../../../apps/lore-api/src/work/analytics/usage-queries.ts#L29)).
 
 ## Acceptance Criteria
 
-Per-period task counts and token totals come back as a JSON usage object keyed by today / 7_day / 30_day. ([validated by `returns per-period task and token totals for the agent`](apps/lore-api/src/api/routes/analytics/usage.test.ts#L28))
+Per-period task counts and token totals come back as a JSON usage object keyed by today / 7_day / 30_day. ([validated by `returns per-period task and token totals for the agent`](apps/lore-api/src/transport/routes/analytics/usage.test.ts#L28))
 
-One query is issued per window, parameterized with the agent id and its 8-char LIKE prefix, with the correct interval filters. ([validated by `queries each period with the agent id and its 8-char LIKE prefix`](apps/lore-api/src/api/routes/analytics/usage.test.ts#L54))
+One query is issued per window, parameterized with the agent id and its 8-char LIKE prefix, with the correct interval filters. ([validated by `queries each period with the agent id and its 8-char LIKE prefix`](apps/lore-api/src/transport/routes/analytics/usage.test.ts#L53))
 
-A missing `agent_id` is rejected with 400. ([validated by `returns 400 when agent_id is missing`](apps/lore-api/src/api/routes/analytics/usage.test.ts#L73))
+A missing `agent_id` is rejected with 400. ([validated by `returns 400 when agent_id is missing`](apps/lore-api/src/transport/routes/analytics/usage.test.ts#L73))
 
-A null pool returns 503 `database unavailable`. ([validated by `returns 503 when the pool is null`](apps/lore-api/src/api/routes/analytics/usage.test.ts#L79))
+A null pool returns 503 `database unavailable`. ([validated by `returns 503 when the pool is null`](apps/lore-api/src/transport/routes/analytics/usage.test.ts#L79))
 
-The route is registered as `GET /api/usage`. ([implemented by](../../../apps/lore-api/src/server/build-server.ts#L129), [implemented by](../../../apps/lore-api/src/api/routes/analytics/usage.ts#L17))
+The route is registered as `GET /api/usage`. ([implemented by](../../../apps/lore-api/src/app/build-server.ts#L129), [implemented by](../../../apps/lore-api/src/transport/routes/analytics/usage.ts#L17))
 
 ## Out of Scope
 

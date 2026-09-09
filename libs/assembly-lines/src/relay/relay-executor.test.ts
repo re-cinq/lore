@@ -6,12 +6,6 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { RelayExecutor } from "./relay-executor.js";
 import { RELAY_SCRIPT } from "./relay-script.js";
 
-/**
- * The BYO sidecar relay: the kernel container drives toolchain commands in the
- * repo's container over a shared volume. These tests run the REAL POSIX-sh relay
- * (the exact script the BYO container runs) against the real executor — no mocks,
- * real files, real `sh`.
- */
 describe("RelayExecutor round-trip against the real sh relay", () => {
   let proc: ChildProcess | undefined;
   let root: string | undefined;

@@ -1,4 +1,4 @@
-# Feature Specification: POST /api/webhook/github
+# Feature Specification: GitHub webhook ingress (POST /api/events)
 
 | Field   | Value                                                                 |
 |---------|-----------------------------------------------------------------------|
@@ -6,11 +6,11 @@
 | Status  | In Progress                                                          |
 | Created | 2026-06-10                                                           |
 | Owner   | Platform Engineering                                                 |
-| Route   | `POST /api/webhook/github`                                           |
+| Route   | `POST /api/events` on the event-router (GitHub branch); legacy `POST /api/webhook/github` on the Floor host, rewritten to it by the ingress |
 | Auth    | HMAC SHA-256 (`X-Hub-Signature-256: sha256=…`, secret `LORE_WEBHOOK_SECRET`) |
-| Module  | `mcp-server/src/api/routes/webhooks.ts` (`handleGitHubWebhook`)      |
+| Module  | `apps/event-router/src/transport/routes/events.ts` (`eventsRoute`, `fromGitHub`) |
 
-POST /api/webhook/github receives HMAC-signed GitHub events and dispatches on the event type to drive the Lore pipeline — fanning spec-PR merges into tasks, waking the review reactor, re-evaluating auto-merge, and creating tasks from labeled issues.
+GitHub delivers every subscribed event to the event-router's one front door (ADR-044). The GitHub branch of `POST /api/events` verifies the HMAC over the raw body, maps the delivery to `github.*` events with `mapGitHubEvent`, and queues them on `pipeline.events` — fanning spec-PR merges into tasks, waking the review reactor, re-evaluating auto-merge, and creating tasks from labeled issues happen downstream, in the Floor's event handlers.
 
 ## Problem Statement
 
@@ -18,174 +18,119 @@ GitHub events (PR lifecycle, reviews, CI checks, issue comments, issue labels)
 must drive the Lore pipeline: a merged spec PR fans out into spec-tasks, new
 commits / reviews / comments wake the review reactor, completed CI checks
 re-evaluate auto-merge, and a `lore`-labeled issue creates a pipeline task. The
-endpoint authenticates each delivery by HMAC signature (not a bearer token —
-the router exempts `/api/webhook/*` from scoped-token auth), then dispatches on
-the `X-GitHub-Event` header. Most fan-out is fire-and-forget to the agent; the
-HTTP response only reports what was dispatched or skipped.
+ingress authenticates each delivery by HMAC signature (not a bearer token —
+the presence of `X-Hub-Signature-256` is what selects the GitHub branch over
+the bearer-authenticated reporter branch on the same path), maps it by the
+`X-GitHub-Event` header, and answers 202 as soon as the rows are queued. The
+reaction is the event loop's job; the HTTP response only reports what was
+captured.
 
 ## Interface
 
-Registered in the route table ([registration](../../../apps/floor/src/delivery/http/routes/github-webhook.ts#L30)).
+Registered on the event-router ([registration](../../../apps/event-router/src/transport/routes/events.ts#L36)).
 
-- **Method + path**: `POST /api/webhook/github`
-- **Auth**: HMAC SHA-256. Handler reads `LORE_WEBHOOK_SECRET` and the
+- **Method + path**: `POST /api/events`. The pre-ADR-044 hook URL,
+  `https://<lore_webhook_hostname>/api/webhook/github`, is still served: an
+  Exact-match Ingress on the Floor host rewrites it to `/api/events` on the
+  router (`infra/terraform/lore-floor.tf`), so a repo onboarded before the
+  cutover keeps delivering until `ensureLoreWebhook` repoints it.
+- **Auth**: HMAC SHA-256. The branch reads `LORE_WEBHOOK_SECRET` and the
   `X-Hub-Signature-256` header; `verifyGitHubSignature(secret, sig, rawBody)`
   recomputes `sha256=hex(hmac(secret, rawBody))` and constant-time compares.
-  The router does **not** apply bearer-scope auth to `/api/webhook/*`
-  ([auth exemption](../../../apps/floor/src/delivery/http/routes/github-webhook.ts#L33)). The
-  Floor ingress applies no rate-limit bucket; it bounds deliveries at GitHub's
-  25 MB payload cap instead ([body cap](../../../apps/floor/src/delivery/http/server.ts#L30)).
-- **Request body** (raw, signed): a GitHub webhook JSON payload. Dispatched by
-  `X-GitHub-Event`:
-  - `pull_request` — `{action, repository.full_name, pull_request:{number, merged, merge_commit_sha, head.ref, labels[]}}`.
-  - `pull_request_review` — `{action, repository.full_name, pull_request.number}`.
-  - `check_run` / `check_suite` — `{action, repository.full_name, check_run|check_suite:{pull_requests:[{number}]}}`.
-  - `issue_comment` — `{action, repository.full_name, issue:{number, pull_request}}`.
-  - `issues` — `{action, repository.full_name, label.name, issue:{number, title, body, html_url, labels[]}}`.
-- **Response**: always JSON. `200` on dispatch/skip, `400` invalid JSON / missing
-  fields, `401` missing/invalid signature, `500` task creation failure, `503`
-  secret unset / pool unavailable.
+  No hapi auth strategy runs on the path (the two branches authenticate
+  differently). The router bounds bodies at GitHub's 25 MB delivery cap
+  ([body cap](../../../apps/event-router/src/transport/server.ts#L21)), and
+  both ingresses carry the matching `proxy-body-size`.
+- **Request body** (raw, signed): a GitHub webhook JSON payload. Mapped by
+  `X-GitHub-Event` (`libs/shared/src/outbound/project/events/github-map.ts`):
+  `pull_request`, `pull_request_review`, `pull_request_review_comment`,
+  `check_run` / `check_suite`, `issue_comment`, `issues`. Anything else maps to
+  no event.
+- **Response**: always JSON. `202 {captured, events[]}` for a verified
+  delivery (including one that maps to nothing), `400` missing
+  `x-github-event` or unparseable JSON, `401` bad signature (a delivery with no
+  signature header falls to the bearer branch and is refused there, also 401),
+  `500` secret unset.
 
 ## Behavior
 
-1. **Read** `LORE_WEBHOOK_SECRET`, the `X-Hub-Signature-256` and `X-GitHub-Event`
-   headers, and the raw request body.
-2. **Secret gate** — if `LORE_WEBHOOK_SECRET` is unset, `503 {error:"webhook secret not configured"}`.
-3. **Signature gate** — missing header → `401 {error:"missing signature"}`;
-   `verifyGitHubSignature` false → `401 {error:"invalid signature"}`.
-4. **Dispatch on `X-GitHub-Event`** (each branch re-parses the raw body and
-   returns `400 {error:"invalid JSON"}` on a parse failure):
-   - **`pull_request`**: if `action === "closed" && pull_request.merged`, run the
-     spec-PR-merge path (step 5). Otherwise try the review trigger (step 6); if
-     neither fires, `200 {skipped:true, reason:"no handler for pull_request action"}`.
-   - **`pull_request_review`**: `action !== "submitted"` →
-     `200 {skipped:true, reason:"not a submitted review"}`; missing repo/pr →
-     `400`. Else fire `triggerAgentReviewReactor` **and** `triggerAgentAutoMerge`
-     (a submitted APPROVED review can flip the auto-merge gate),
-     `200 {triggered:"review-reactor", via:"pull_request_review"}`.
-   - **`check_run` / `check_suite`**: `action !== "completed"` →
-     `200 {skipped, reason:"not a completed action"}`; no `pull_requests[]` →
-     `200 {skipped, reason:"no pull_requests in payload"}`. Else fan
-     `triggerAgentAutoMerge(repo, pr.number)` over every PR,
-     `200 {triggered:"auto-merge", pr_numbers, via}`.
-   - **`issue_comment`**: `action === "created" && issue.pull_request` with
-     repo+number → `triggerAgentReviewReactor`,
-     `200 {triggered:"review-reactor", via:"issue_comment"}`; else
-     `200 {skipped, reason:"not a PR issue_comment created event"}`.
-   - any other event → `200 {skipped:true, reason:"not an issues event"}` unless
-     the event is `issues` (step 7).
-5. **Spec-PR merge** (`handleSpecPRMerge`): pool-null → `503`. Skip unless
-   `head.ref` starts `lore/feature-request/` and labels include `spec`. Extract
-   the slug (`branchSuffix.replace(/-[a-f0-9]{8}$/,"")`); empty → skip. Idempotency:
-   if a `spec-task` row already exists for `(repo, spec_slug)` → skip. Read
-   `specs/{slug}/tasks.md` from the merge commit via `readFileFromGitHub`; absent
-   → skip. Else `parseTasks` → `inferPhaseDependencies` → `syncTasksToDb` under a
-   new `task_group_id`, mark the parent `feature-request` task `merged`
-   (failure swallowed), `200 {ok:true, spec_slug, task_group_id, tasks_synced, tasks_created}`.
-6. **Review trigger** (`handlePullRequestReviewTrigger`): only for
-   `synchronize|opened|reopened|ready_for_review` with repo+pr; fires
-   `triggerAgentReviewReactor`, `200 {triggered:"review-reactor", via:"pull_request"}`.
-7. **Issues dispatch**: `action !== "labeled"` → skip. Missing
-   `repository.full_name`/`issue`/`label.name` → `400 {error:"missing required fields"}`.
-   Load `dispatch_label` (default `lore`) and `dispatch_default_type` (default
-   `general`) from `lore.repos.settings` (string or object; query error → defaults).
-   Added label ≠ `dispatch_label` → skip. Pool-null → `503`. Pick `taskType` from
-   issue labels (`lore:implementation|review|runbook`, else default). Duplicate
-   guard: an existing non-failed/cancelled task on `(issue_number, repo)` →
-   comment + `200 {skipped, reason:"duplicate"}` (query error logged, continues).
-   Else `createTask(description, taskType, repo, "github-webhook", contextBundle)`
-   (failure → `500`), persist `issue_number`/`issue_url`, then `ghIssueComment` +
-   `ghAddLabel("lore-managed")` via `Promise.allSettled`,
-   `200 {task_id, status}`.
+1. **Branch select** — `X-Hub-Signature-256` present → the GitHub branch;
+   absent → the bearer-token reporter branch (a different spec).
+2. **Secret gate** — `LORE_WEBHOOK_SECRET` unset → `500`, naming the env var
+   and the deployment to set it on. Not `503`: a 503 tells GitHub to
+   redeliver, and no number of redeliveries supplies a missing env var.
+3. **Signature gate** — `verifyGitHubSignature` false → `401`, naming the two
+   secrets that disagree.
+4. **Event gate** — no `X-GitHub-Event` → `400`.
+5. **Map + queue** — `mapGitHubEvent(eventType, body, deliveryId)` yields zero
+   or more `EventInsert`s, each keyed `github:<delivery id>` (`:<pr>` for a
+   check fan-out) so a redelivery is a no-op at the store. Inserted
+   sequentially so a partial failure surfaces as a 5xx and GitHub retries the
+   whole delivery. `202 {captured, events: [eventName…]}`.
 
-**Env vars**: `LORE_WEBHOOK_SECRET` (required); `LORE_AGENT_URL` +
-`LORE_AGENT_INTERNAL_TOKEN` (agent fan-out — when unset the trigger logs a
-warning and is skipped, the webhook still returns success).
+**Env vars**: `LORE_WEBHOOK_SECRET` (required for the GitHub branch).
 
 ## Output
 
 | Branch | Status | Body |
 |--------|--------|------|
-| Secret unset | 503 | `{"error":"webhook secret not configured"}` |
-| Missing signature | 401 | `{"error":"missing signature"}` |
-| Invalid signature | 401 | `{"error":"invalid signature"}` |
-| Invalid JSON (any event branch) | 400 | `{"error":"invalid JSON"}` |
-| Spec PR merged | 200 | `{"ok":true,"spec_slug":…,"task_group_id":…,"tasks_synced":…,"tasks_created":…}` |
-| Not a spec PR | 200 | `{"skipped":true,"reason":"not a spec PR"}` |
-| Spec-tasks already synced | 200 | `{"skipped":true,"reason":"spec-tasks already synced","spec_slug":…}` |
-| No tasks.md | 200 | `{"skipped":true,"reason":"no tasks.md found","path":…}` |
-| Review triggered (pull_request) | 200 | `{"triggered":"review-reactor","repo":…,"pr_number":…,"via":"pull_request"}` |
-| Unhandled pull_request action | 200 | `{"skipped":true,"reason":"no handler for pull_request action","action":…}` |
-| Review submitted | 200 | `{"triggered":"review-reactor",…,"via":"pull_request_review"}` |
-| Non-submitted review | 200 | `{"skipped":true,"reason":"not a submitted review"}` |
-| Review missing repo/pr | 400 | `{"error":"missing repo or pr_number"}` |
-| Check completed | 200 | `{"triggered":"auto-merge","repo":…,"pr_numbers":[…],"via":"check_run"\|"check_suite"}` |
-| Non-completed check | 200 | `{"skipped":true,"reason":"not a completed action","action":…}` |
-| No PRs in check | 200 | `{"skipped":true,"reason":"no pull_requests in payload"}` |
-| issue_comment on PR | 200 | `{"triggered":"review-reactor",…,"via":"issue_comment"}` |
-| issue_comment non-PR/non-created | 200 | `{"skipped":true,"reason":"not a PR issue_comment created event"}` |
-| Non-issues event | 200 | `{"skipped":true,"reason":"not an issues event"}` |
-| Non-labeled issues action | 200 | `{"skipped":true,"reason":"not a labeled action"}` |
-| Missing issue fields | 400 | `{"error":"missing required fields"}` |
-| Label ≠ dispatch_label | 200 | `{"skipped":true,"reason":"label does not match dispatch_label"}` |
-| Pool null after label match | 503 | `{"error":"database not available"}` |
-| Duplicate task | 200 | `{"skipped":true,"reason":"duplicate","task_id":…}` |
-| createTask failed | 500 | `{"error":…}` |
-| Task created | 200 | `{"task_id":…,"status":…}` |
+| Secret unset | 500 | `{"error":"webhook secret not configured — set LORE_WEBHOOK_SECRET on the event-router deployment"}` |
+| No signature header | 401 | the bearer branch's refusal |
+| Invalid signature | 401 | `{"error":"signature verification failed — …"}` |
+| No `x-github-event` | 400 | `{"error":"missing x-github-event header"}` |
+| Invalid JSON | 400 | `{"error":"invalid JSON in webhook body …"}` |
+| Verified delivery | 202 | `{"captured":N,"events":["github.pull_request.opened",…]}` |
 
 ## Dependencies & side effects
 
-- `verifyGitHubSignature` (pure HMAC compare).
-- `readFileFromGitHub` (GitHub raw fetch via App/token); `ghIssueComment` /
-  `ghAddLabel` (GitHub API).
-- `triggerAgentReviewReactor` / `triggerAgentAutoMerge` — fire-and-forget
-  `POST {LORE_AGENT_URL}/api/trigger/{review-reactor|auto-merge}` with
-  `Authorization: Bearer {LORE_AGENT_INTERNAL_TOKEN}`.
-- DB: `lore.repos.settings` read (dispatch label, spec idempotency check);
-  `pipeline.tasks` inserts/updates (`createTask`, `syncTasksToDb`, parent merge).
-- `parseTasks` / `inferPhaseDependencies` from `@re-cinq/lore-shared`.
-- Env: `LORE_WEBHOOK_SECRET`, `LORE_AGENT_URL`, `LORE_AGENT_INTERNAL_TOKEN`.
+- `verifyGitHubSignature` (pure HMAC compare) and `mapGitHubEvent` (pure),
+  both from `@re-cinq/lore-shared`.
+- `pipeline.events` insert via the router's own `eventQueue` — the router is
+  the table's one writer (ADR-044).
+- Env: `LORE_WEBHOOK_SECRET`.
 
 ## Acceptance Criteria
 
 A valid `sha256=` signature over the raw body verifies; a tampered body or a
-length-mismatched signature is rejected without throwing. ([validated by accepts a signature computed with the same secret and body](libs/shared/src/http/github-signature.test.ts#L13), [`github-signature.test.ts:17`](libs/shared/src/http/github-signature.test.ts#L17), [`github-signature.test.ts:23`](libs/shared/src/http/github-signature.test.ts#L23), [`github-signature.test.ts:29`](libs/shared/src/http/github-signature.test.ts#L29))
+length-mismatched signature is rejected without throwing. ([validated by accepts a signature computed with the same secret and body](libs/shared/src/transport/http/github-signature.test.ts#L13), [`github-signature.test.ts:17`](libs/shared/src/transport/http/github-signature.test.ts#L17), [`github-signature.test.ts:23`](libs/shared/src/transport/http/github-signature.test.ts#L23), [`github-signature.test.ts:29`](libs/shared/src/transport/http/github-signature.test.ts#L29))
 
-An unset secret returns 500 — 503 would tell GitHub to redeliver, and no number of redeliveries supplies a missing env var; a missing signature header returns 401; an invalid signature returns 401. Each refusal names what to go and change — the secret to set, the header GitHub must send, or the two secrets that disagree — because these are read in a delivery log, not with the source open. A delivery carrying no `x-github-event` header is a 400. ([validated by returns 400 when the delivery carries no x-github-event header](apps/floor/src/delivery/http/routes/github-webhook.test.ts#L61), [`github-webhook.test.ts:77`](apps/floor/src/delivery/http/routes/github-webhook.test.ts#L77), [`github-webhook.test.ts:92`](apps/floor/src/delivery/http/routes/github-webhook.test.ts#L92))
+An unset secret returns 500 — 503 would tell GitHub to redeliver, and no number of redeliveries supplies a missing env var; a missing signature header returns 401; an invalid signature returns 401. Each refusal names what to go and change — the secret to set, the header GitHub must send, or the two secrets that disagree — because these are read in a delivery log, not with the source open. A delivery carrying no `x-github-event` header is a 400. ([validated by returns 400 when a signed delivery carries no x-github-event header](apps/event-router/src/transport/routes/events.test.ts#L67), [`events.test.ts:84`](apps/event-router/src/transport/routes/events.test.ts#L84), [`events.test.ts:118`](apps/event-router/src/transport/routes/events.test.ts#L118), [`events.test.ts:156`](apps/event-router/src/transport/routes/events.test.ts#L156))
 
-A validly-signed delivery answers 202 and QUEUES the mapped events, each carrying the delivery id as its dedupe key — GitHub redelivers on any non-2xx, and without that key a retried delivery would run the whole reaction a second time. ([validated by returns 202 and queues a github.pull_request.opened event for a signed delivery](apps/floor/src/delivery/http/routes/github-webhook.test.ts#L26), [`github-webhook.test.ts:108`](apps/floor/src/delivery/http/routes/github-webhook.test.ts#L108))
+A validly-signed delivery answers 202 and QUEUES the mapped events, each carrying the delivery id as its dedupe key — GitHub redelivers on any non-2xx, and without that key a retried delivery would run the whole reaction a second time. ([validated by captures a signed webhook without any bearer token](apps/event-router/src/transport/routes/events.test.ts#L39), [`events.test.ts:99`](apps/event-router/src/transport/routes/events.test.ts#L99), [`events.test.ts:194`](apps/event-router/src/transport/routes/events.test.ts#L194))
 
 A merged spec PR parses tasks.md and syncs spec-tasks; a non-spec branch, an already-synced spec, and a missing tasks.md each skip with the matching reason; a null pool returns 503.
 
-A `synchronize` pull_request triggers the review reactor; an unhandled action skips. ([validated by `github-map.test.ts:7`](libs/shared/src/project/events/github-map.test.ts#L7), [`github-map.test.ts:83`](libs/shared/src/project/events/github-map.test.ts#L83))
+A `synchronize` pull_request triggers the review reactor; an unhandled action skips. ([validated by `github-map.test.ts:7`](libs/shared/src/outbound/project/events/github-map.test.ts#L7), [`github-map.test.ts:83`](libs/shared/src/outbound/project/events/github-map.test.ts#L83))
 
-A submitted review triggers both the review reactor and auto-merge; a non-submitted review skips; missing repo/pr returns 400. ([validated by `github-map.test.ts:95`](libs/shared/src/project/events/github-map.test.ts#L95), [`github-map.test.ts:129`](libs/shared/src/project/events/github-map.test.ts#L129))
+A submitted review triggers both the review reactor and auto-merge; a non-submitted review skips; missing repo/pr returns 400. ([validated by `github-map.test.ts:95`](libs/shared/src/outbound/project/events/github-map.test.ts#L95), [`github-map.test.ts:129`](libs/shared/src/outbound/project/events/github-map.test.ts#L129))
 
-A completed `check_run` / `check_suite` fans out auto-merge to every PR; a non-completed check and an empty PR list each skip. ([validated by `github-map.test.ts:263`](libs/shared/src/project/events/github-map.test.ts#L263), [`github-map.test.ts:286`](libs/shared/src/project/events/github-map.test.ts#L286))
+A completed `check_run` / `check_suite` fans out auto-merge to every PR; a non-completed check and an empty PR list each skip. ([validated by `github-map.test.ts:263`](libs/shared/src/outbound/project/events/github-map.test.ts#L263), [`github-map.test.ts:286`](libs/shared/src/outbound/project/events/github-map.test.ts#L286))
 
-A created PR comment triggers the review reactor; an edited comment and a non-PR comment skip. ([validated by `github-map.test.ts:153`](libs/shared/src/project/events/github-map.test.ts#L153), [`github-map.test.ts:177`](libs/shared/src/project/events/github-map.test.ts#L177))
+A created PR comment triggers the review reactor; an edited comment and a non-PR comment skip. ([validated by `github-map.test.ts:153`](libs/shared/src/outbound/project/events/github-map.test.ts#L153), [`github-map.test.ts:177`](libs/shared/src/outbound/project/events/github-map.test.ts#L177))
 
-A `lore`-labeled issue creates a task (type from issue labels) and labels the issue; a mismatched label, a duplicate, missing fields, a null pool, and a createTask failure each return their documented status. The duplicate guard excludes `failed`/`cancelled` tasks (a new task is allowed after the previous one failed), the dispatch decision reads `dispatch_label`/`auto_review` from `lore.repos.settings`, and the created task is linked to its issue via `issue_number`/`issue_url`. ([validated by `webhook.test.ts:61`](apps/lore-api/src/integration-tests/webhook.test.ts#L61), [`webhook.test.ts:79`](apps/lore-api/src/integration-tests/webhook.test.ts#L79), [`webhook.test.ts:91`](apps/lore-api/src/integration-tests/webhook.test.ts#L91))
+A `lore`-labeled issue creates a task (type from issue labels) and labels the issue; a mismatched label, a duplicate, missing fields, a null pool, and a createTask failure each return their documented status. The duplicate guard excludes `failed`/`cancelled` tasks (a new task is allowed after the previous one failed), the dispatch decision reads `dispatch_label`/`auto_review` from `lore.repos.settings`, and the created task is linked to its issue via `issue_number`/`issue_url`. ([validated by `webhook.test.ts:61`](apps/lore-api/src/integration-tests/webhook.test.ts#L58), [`webhook.test.ts:74`](apps/lore-api/src/integration-tests/webhook.test.ts#L74), [`webhook.test.ts:86`](apps/lore-api/src/integration-tests/webhook.test.ts#L86))
 
 Invalid JSON on any dispatched event returns 400.
 
 ### Webhook configuration (classify / ensure / management routes)
 
-The repo-webhook classifier (`classifyWebhook`) reports `configured` when a canonical-URL hook is active, covers the required events (or `['*']`), and last delivered 2xx or has never delivered; `missing` when no hook targets the Floor webhook path; `wrong_url` when a Floor-path hook still points at the old host; `inactive` when the hook is disabled; `narrow_events` when it subscribes to only a subset (e.g. `issues`); `delivery_failing` when the last delivery was non-2xx (e.g. a 401 secret mismatch); and `unknown` when the canonical URL is unset. ([validated by `webhook-status.test.ts:22`](apps/lore-api/src/features/webhook/webhook-status.test.ts#L22), [`webhook-status.test.ts:29`](apps/lore-api/src/features/webhook/webhook-status.test.ts#L29), [`webhook-status.test.ts:35`](apps/lore-api/src/features/webhook/webhook-status.test.ts#L35), [`webhook-status.test.ts:47`](apps/lore-api/src/features/webhook/webhook-status.test.ts#L47), [`webhook-status.test.ts:55`](apps/lore-api/src/features/webhook/webhook-status.test.ts#L55), [`webhook-status.test.ts:61`](apps/lore-api/src/features/webhook/webhook-status.test.ts#L61), [`webhook-status.test.ts:67`](apps/lore-api/src/features/webhook/webhook-status.test.ts#L67), [`webhook-status.test.ts:79`](apps/lore-api/src/features/webhook/webhook-status.test.ts#L79), [`webhook-status.test.ts:88`](apps/lore-api/src/features/webhook/webhook-status.test.ts#L88))
+A repo hook is Lore's when its URL ends in one of `LORE_HOOK_PATHS` — the event-router's `/api/events` or the legacy Floor `/api/webhook/github` (`isLoreHook`). Both stay listed for as long as any repo may still carry the legacy URL: a legacy hook must classify as repointable and be updated in place, never mistaken for absent and duplicated. ([validated by lists /api/events and the legacy /api/webhook/github as Lore hook paths](apps/lore-api/src/work/webhook/webhook-status.test.ts#L119), [`webhook-status.test.ts:126`](apps/lore-api/src/work/webhook/webhook-status.test.ts#L126), [`webhook-status.test.ts:130`](apps/lore-api/src/work/webhook/webhook-status.test.ts#L130), [`webhook-status.test.ts:134`](apps/lore-api/src/work/webhook/webhook-status.test.ts#L134))
 
-`ensureFloorWebhook` skips without touching GitHub when `LORE_WEBHOOK_URL` or `LORE_WEBHOOK_SECRET` is unset (`webhook_host_not_configured` / `secret_not_configured`); otherwise it ensures the repo hook with the secret and the required events, reporting `app_no_webhook_permission` on a 403 and `ensure_failed` (with a detail) on any other error. ([validated by `webhook-ensure.test.ts:17`](apps/lore-api/src/features/webhook/webhook-ensure.test.ts#L17), [`webhook-ensure.test.ts:27`](apps/lore-api/src/features/webhook/webhook-ensure.test.ts#L27), [`webhook-ensure.test.ts:37`](apps/lore-api/src/features/webhook/webhook-ensure.test.ts#L37), [`webhook-ensure.test.ts:62`](apps/lore-api/src/features/webhook/webhook-ensure.test.ts#L62), [`webhook-ensure.test.ts:74`](apps/lore-api/src/features/webhook/webhook-ensure.test.ts#L74))
+The repo-webhook classifier (`classifyWebhook`) reports `configured` when a canonical-URL hook is active, covers the required events (or `['*']`), and last delivered 2xx or has never delivered; `missing` when no hook is at either Lore hook path; `wrong_url` when a hook at a Lore hook path differs from the canonical URL — which is how a pre-ADR-044 Floor hook, or one on another host, is reported until it is repointed — preferring the canonical hook when both are installed; `inactive` when the hook is disabled; `narrow_events` when it subscribes to only a subset (e.g. `issues`); `delivery_failing` when the last delivery was non-2xx (e.g. a 401 secret mismatch); and `unknown` when the canonical URL is unset. ([validated by `webhook-status.test.ts:25`](apps/lore-api/src/work/webhook/webhook-status.test.ts#L25), [`webhook-status.test.ts:32`](apps/lore-api/src/work/webhook/webhook-status.test.ts#L32), [`webhook-status.test.ts:38`](apps/lore-api/src/work/webhook/webhook-status.test.ts#L38), [`webhook-status.test.ts:50`](apps/lore-api/src/work/webhook/webhook-status.test.ts#L50), [`webhook-status.test.ts:56`](apps/lore-api/src/work/webhook/webhook-status.test.ts#L56), [`webhook-status.test.ts:64`](apps/lore-api/src/work/webhook/webhook-status.test.ts#L64), [`webhook-status.test.ts:73`](apps/lore-api/src/work/webhook/webhook-status.test.ts#L73), [`webhook-status.test.ts:79`](apps/lore-api/src/work/webhook/webhook-status.test.ts#L79), [`webhook-status.test.ts:85`](apps/lore-api/src/work/webhook/webhook-status.test.ts#L85), [`webhook-status.test.ts:97`](apps/lore-api/src/work/webhook/webhook-status.test.ts#L97), [`webhook-status.test.ts:106`](apps/lore-api/src/work/webhook/webhook-status.test.ts#L106), [`webhook-status.test.ts:113`](apps/lore-api/src/work/webhook/webhook-status.test.ts#L113))
 
-`GET /api/repos/:o/:r/webhook` returns the classified webhook state: `unknown` when the canonical URL is unset or the App lacks the webhook permission (403), and the `configured` classification otherwise. ([validated by `webhook-route.test.ts:52`](apps/lore-api/src/api/routes/webhooks/webhook-route.test.ts#L52), [`webhook-route.test.ts:63`](apps/lore-api/src/api/routes/webhooks/webhook-route.test.ts#L63), [`webhook-route.test.ts:76`](apps/lore-api/src/api/routes/webhooks/webhook-route.test.ts#L76))
+`ensureRepoWebhook` finds the repo's existing Lore hook by `isLoreHook` and PATCHes it in place — the whole config replaced, secret included, so a legacy or rotated hook comes out pointing at the canonical URL with the current secret — rather than creating a second hook; only when no Lore hook exists does it create one, active from the start. It pings the hook either way and returns it even when the ping rejects. ([validated by repoints a legacy hook at lore-webhook.gcp.re-cinq.com/api/webhook/github in place, replacing url, secret and events](apps/lore-api/src/work/webhook/webhook-manage.test.ts#L37), [`webhook-manage.test.ts:55`](apps/lore-api/src/work/webhook/webhook-manage.test.ts#L55), [`webhook-manage.test.ts:65`](apps/lore-api/src/work/webhook/webhook-manage.test.ts#L65), [`webhook-manage.test.ts:89`](apps/lore-api/src/work/webhook/webhook-manage.test.ts#L89))
 
-`POST /api/repos/:o/:r/webhook/ensure` ensures the hook and then returns the fresh status, mapping a `secret_not_configured` skip to 503 and an `app_no_webhook_permission` skip to 403. ([validated by `webhook-route.test.ts:100`](apps/lore-api/src/api/routes/webhooks/webhook-route.test.ts#L100), [`webhook-route.test.ts:111`](apps/lore-api/src/api/routes/webhooks/webhook-route.test.ts#L111), [`webhook-route.test.ts:122`](apps/lore-api/src/api/routes/webhooks/webhook-route.test.ts#L122))
+`ensureLoreWebhook` skips without touching GitHub when `LORE_WEBHOOK_URL` or `LORE_WEBHOOK_SECRET` is unset (`webhook_host_not_configured` / `secret_not_configured`); otherwise it ensures the repo hook with the secret and the required events, reporting `app_no_webhook_permission` on a 403 and `ensure_failed` (with a detail) on any other error. ([validated by `webhook-ensure.test.ts:17`](apps/lore-api/src/work/webhook/webhook-ensure.test.ts#L17), [`webhook-ensure.test.ts:27`](apps/lore-api/src/work/webhook/webhook-ensure.test.ts#L27), [`webhook-ensure.test.ts:37`](apps/lore-api/src/work/webhook/webhook-ensure.test.ts#L37), [`webhook-ensure.test.ts:62`](apps/lore-api/src/work/webhook/webhook-ensure.test.ts#L62), [`webhook-ensure.test.ts:74`](apps/lore-api/src/work/webhook/webhook-ensure.test.ts#L74), [`webhook-ensure.test.ts:85`](apps/lore-api/src/work/webhook/webhook-ensure.test.ts#L85))
 
-`GET /api/repos/:o/:r/webhook/secret` returns the HMAC secret + canonical URL for an admin caller, or 503 when the secret is not configured. ([validated by `webhook-route.test.ts:147`](apps/lore-api/src/api/routes/webhooks/webhook-route.test.ts#L147), [`webhook-route.test.ts:156`](apps/lore-api/src/api/routes/webhooks/webhook-route.test.ts#L156))
+`GET /api/repos/:o/:r/webhook` returns the classified webhook state: `unknown` when the canonical URL is unset or the App lacks the webhook permission (403), and the `configured` classification otherwise. ([validated by `webhook-route.test.ts:52`](apps/lore-api/src/transport/routes/webhooks/webhook-route.test.ts#L52), [`webhook-route.test.ts:63`](apps/lore-api/src/transport/routes/webhooks/webhook-route.test.ts#L63), [`webhook-route.test.ts:76`](apps/lore-api/src/transport/routes/webhooks/webhook-route.test.ts#L76))
 
-The actual network delivery to the agent's `/api/trigger/*` endpoints is fire-and-forget; the webhook returns success even when `LORE_AGENT_URL` is unset or the fetch rejects. *(untested: live agent HTTP — the suite asserts the warn-and-continue / swallow-failure behavior but not real delivery; see `warns and continues when the agent env is unset` L157 / `swallows a failing reactor-trigger fetch` L162.)*
+`POST /api/repos/:o/:r/webhook/ensure` ensures the hook and then returns the fresh status, mapping a `secret_not_configured` skip to 503, a `webhook_host_not_configured` skip to 503, an `app_no_webhook_permission` skip to 403, and any other skip reason to 500 (the skip's `detail`, or a generic message when absent); a post-ensure listing failure also returns 500, using `String(err)` when the thrown `Error` carries an empty message. ([validated by `webhook-route.test.ts:100`](apps/lore-api/src/transport/routes/webhooks/webhook-route.test.ts#L100), [`webhook-route.test.ts:111`](apps/lore-api/src/transport/routes/webhooks/webhook-route.test.ts#L111), [`webhook-route.test.ts:122`](apps/lore-api/src/transport/routes/webhooks/webhook-route.test.ts#L122), [`maps a webhook_host_not_configured skip to 503`](apps/lore-api/src/transport/routes/webhooks/webhook-route.test.ts#L136), [`maps an unmapped skip reason to 500 with its detail`](apps/lore-api/src/transport/routes/webhooks/webhook-route.test.ts#L148), [`maps an unmapped skip reason with no detail to a generic 500 message`](apps/lore-api/src/transport/routes/webhooks/webhook-route.test.ts#L161), [`returns 500 when the post-ensure webhook listing throws`](apps/lore-api/src/transport/routes/webhooks/webhook-route.test.ts#L173), [`falls back to String(err) when the post-ensure listing throws an empty-message Error`](apps/lore-api/src/transport/routes/webhooks/webhook-route.test.ts#L187))
+
+`GET /api/repos/:o/:r/webhook/secret` returns the HMAC secret + canonical URL for an admin caller, or 503 when the secret is not configured. ([validated by `webhook-route.test.ts:147`](apps/lore-api/src/transport/routes/webhooks/webhook-route.test.ts#L212), [`webhook-route.test.ts:156`](apps/lore-api/src/transport/routes/webhooks/webhook-route.test.ts#L221))
 
 ## Out of Scope
 
 - The agent-side review-reactor / auto-merge engines (separate specs).
 - `createTask` / `syncTasksToDb` pipeline internals.
-- GitHub webhook delivery configuration and App installation.
-- The bearer-scope auth path (webhooks are HMAC-only and auth-exempt at the router).
+- GitHub App installation.
+- The bearer-token reporter branch of `POST /api/events` (ADR-044).

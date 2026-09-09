@@ -33,7 +33,10 @@
   display: grid;
   grid-template-columns: max-content 1fr;
   gap: 0.35rem 1rem;
-  margin-bottom: 1.5rem;
+  /* The surrounding .spec-card owns the border and the 12px gap to the next
+     block; the grid only pads itself off that card's 4px edge. */
+  margin: 0;
+  padding: 0.6rem 0.75rem;
 }
 .facts dt {
   color: var(--text-muted);

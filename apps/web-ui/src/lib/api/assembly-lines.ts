@@ -1,15 +1,9 @@
 import "server-only";
 import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
 
-// Read an assembly-line definition from the Floor, which owns the YAMLs.
-//
-// web-ui also carries a GENERATED copy (builtin-definitions.ts) for the run-detail
-// view, but a copy only changes when web-ui is rebuilt. Fetching means a YAML edit
-// shows up after a Floor deploy alone — which is the actual requirement: the
-// planning pages must describe the machine that will really run.
+// Reads a definition from the Floor, which owns the YAMLs, so a YAML edit shows up after a Floor deploy alone and web-ui carries no copy to rot.
 
-/** Never throws. A preview is worth less than the page it sits on, so an
- *  unreachable or unconfigured Floor yields null and the caller renders nothing. */
+/** Never throws — an unreachable or unconfigured Floor yields null and the caller renders nothing. */
 export async function getAssemblyLineDefinition(
   name: string,
   revalidateSeconds = 300,
@@ -21,6 +15,18 @@ export async function getAssemblyLineDefinition(
     return null;
   }
 
+  const body = await fetchDefinition(floorUrl, token, name, revalidateSeconds);
+
+  // The cast is a claim, not a check — confirm the fields the layout actually dereferences before trusting it.
+  return isDrawable(body) ? body : null;
+}
+
+async function fetchDefinition(
+  floorUrl: string,
+  token: string,
+  name: string,
+  revalidateSeconds: number,
+): Promise<AssemblyLineDefinition | null> {
   try {
     const res = await fetch(
       `${floorUrl}/api/assembly-line-definitions/${encodeURIComponent(name)}`,
@@ -31,16 +37,7 @@ export async function getAssemblyLineDefinition(
       },
     );
 
-    if (!res.ok) {
-      return null;
-    }
-    const body = (await res.json()) as AssemblyLineDefinition;
-
-    // The cast is a claim, not a check. An error envelope or a truncated payload
-    // would otherwise reach the layout code as a shape it does not expect, so
-    // confirm the fields it actually dereferences: the graph, and the entry the
-    // layout roots on.
-    return isDrawable(body) ? body : null;
+    return res.ok ? ((await res.json()) as AssemblyLineDefinition) : null;
   } catch {
     return null;
   }

@@ -1,16 +1,8 @@
 "use client";
 
-// Presentational (data-down) list of a repo's specs, sourced from the
-// spec-traceability graph via the /trace API. The per-file summaries are grouped
-// into one card per spec folder (groupSpecSummaries): the card is titled from
-// spec.md and links to every file in the folder. Lifecycle statuses are parsed
-// from the graph's byte-exact spec.md sources (fetchDocStatusesFromGraph;
-// statuses prop, keyed by file path) and drive the filter chips — the graph is
-// the source of truth for list and statuses alike.
-import { useState } from "react";
+// Spec list from /trace API: cards grouped by folder, statuses from graph (source of truth).
 import SpecCard from "./SpecCard";
-import DocListControls from "@/components/DocListControls";
-import SpecStatusChips from "@/components/SpecStatusChips";
+import DocListToolbar, { useDocListView } from "@/components/DocListToolbar";
 import {
   filterDocCards,
   sortDocCards,
@@ -19,74 +11,137 @@ import {
 import { groupSpecSummaries, type SpecSummaryInput } from "@/lib/spec-grouping";
 import { type SpecStatusFilter, type SpecStatusInfo } from "@/lib/spec-status";
 
-export default function SpecListView({
-  owner,
-  repo,
-  specs,
-  statuses = {},
-}: {
+/** A spec's status is read from its `spec.md` where there is one, falling back to whatever file the group leads with — a folder of fragments still has a status, it just is not on a file with that name. */
+function groupStatusOf(statuses: Record<string, SpecStatusInfo>) {
+  return (group: { key: string; files: { filePath: string }[] }) => {
+    const { files } = group;
+
+    return statuses[`${group.key}/spec.md`] ?? statuses[files[0]?.filePath];
+  };
+}
+
+function visibleSpecs(
+  specs: SpecSummaryInput[],
+  statuses: Record<string, SpecStatusInfo>,
+  view: { filter: SpecStatusFilter; query: string; order: DocSortOrder },
+) {
+  const groups = groupSpecSummaries(specs);
+  const statusOf = groupStatusOf(statuses);
+  const { counts, visible } = filterDocCards(groups, statusOf, view.filter, {
+    query: view.query,
+    textOf: (group) => `${group.title} ${group.description} ${group.key}`,
+  });
+
+  return {
+    counts,
+    ordered: sortDocCards(visible, view.order, statusOf),
+    statusOf,
+    groupCount: groups.length,
+  };
+}
+
+interface SpecGroupCardProps {
+  group: ReturnType<typeof groupSpecSummaries>[number];
+  status: SpecStatusInfo | undefined;
+  /** Repo route the file links hang off, e.g. `/repos/owner/repo`. */
+  base: string;
+}
+
+/** One spec folder. Each file's label drops the folder prefix, so a group of fragments reads as its parts rather than repeating the path. */
+function SpecGroupCard({ group, status, base }: SpecGroupCardProps) {
+  return (
+    <SpecCard
+      title={group.title}
+      description={group.description}
+      status={status}
+      coverage={group.coverage}
+      files={group.files.map((file) => ({
+        label: file.filePath.startsWith(`${group.key}/`)
+          ? file.filePath.slice(group.key.length + 1)
+          : file.filePath,
+        href: `${base}/specs/${encodeURIComponent(file.filePath)}`,
+      }))}
+    />
+  );
+}
+
+/** Not an error state: specs reach the graph through CI, so an empty list means nothing has been pushed since the workflow was installed. */
+function EmptySpecs() {
+  return (
+    <p className="muted">
+      No specs in the graph yet. Specs are projected automatically by CI on
+      every push to <code>main</code> — push a<code>specs/</code> change (or
+      re-run the <strong>lore-ingest</strong> workflow), then refresh.
+    </p>
+  );
+}
+
+/** The status filter narrowed the list to nothing, which is a different answer from the repo having no specs at all. */
+function EmptySpecFilter() {
+  return <p className="muted">No specs match this status filter.</p>;
+}
+
+interface SpecCardsProps {
+  groups: ReturnType<typeof visibleSpecs>["ordered"];
+  statusOf: ReturnType<typeof visibleSpecs>["statusOf"];
+  base: string;
+}
+
+function SpecCards({ groups, statusOf, base }: SpecCardsProps) {
+  return (
+    <>
+      {groups.map((group) => (
+        <SpecGroupCard
+          key={group.key}
+          group={group}
+          status={statusOf(group)}
+          base={base}
+        />
+      ))}
+    </>
+  );
+}
+
+interface SpecListBodyProps {
+  view: ReturnType<typeof useDocListView>;
+  base: string;
+  model: ReturnType<typeof visibleSpecs>;
+}
+
+/** The filtered, ordered list. Counts come from the FULL set, so picking a status does not make the other statuses look empty. */
+function SpecListBody({ view, base, model }: SpecListBodyProps) {
+  const { counts, ordered, statusOf, groupCount } = model;
+
+  return (
+    <div>
+      <DocListToolbar view={view} counts={counts} total={groupCount} />
+      <SpecCards groups={ordered} statusOf={statusOf} base={base} />
+      {ordered.length === 0 && <EmptySpecFilter />}
+    </div>
+  );
+}
+
+interface SpecListViewProps {
   owner: string;
   repo: string;
   specs: SpecSummaryInput[];
   statuses?: Record<string, SpecStatusInfo>;
-}) {
-  const [filter, setFilter] = useState<SpecStatusFilter>("all");
-  const [query, setQuery] = useState("");
-  const [order, setOrder] = useState<DocSortOrder>("path");
+}
 
+export default function SpecListView(props: SpecListViewProps) {
+  const { owner, repo, specs, statuses = {} } = props;
+  const view = useDocListView();
+
+  // No specs at all and none MATCHING are different answers: the first says the repo has none, the second that this filter is too narrow.
   if (specs.length === 0) {
-    return (
-      <p className="muted">
-        No specs in the graph yet. Specs are projected automatically by CI on
-        every push to <code>main</code> — push a<code>specs/</code> change (or
-        re-run the <strong>lore-ingest</strong> workflow), then refresh.
-      </p>
-    );
+    return <EmptySpecs />;
   }
-  const groups = groupSpecSummaries(specs);
-  const statusOf = (group: { key: string; files: { filePath: string }[] }) =>
-    statuses[`${group.key}/spec.md`] ?? statuses[group.files[0]?.filePath];
-  const { counts, visible } = filterDocCards(
-    groups,
-    statusOf,
-    filter,
-    query,
-    (group) => `${group.title} ${group.description} ${group.key}`,
-  );
-  const ordered = sortDocCards(visible, order, statusOf);
 
   return (
-    <div>
-      <DocListControls
-        query={query}
-        onQueryChange={setQuery}
-        sort={order}
-        onSortChange={setOrder}
-      />
-      <SpecStatusChips
-        counts={counts}
-        total={groups.length}
-        active={filter}
-        onChange={setFilter}
-      />
-      {ordered.map((group) => (
-        <SpecCard
-          key={group.key}
-          title={group.title}
-          description={group.description}
-          status={statusOf(group)}
-          coverage={group.coverage}
-          files={group.files.map((file) => ({
-            label: file.filePath.startsWith(`${group.key}/`)
-              ? file.filePath.slice(group.key.length + 1)
-              : file.filePath,
-            href: `/repos/${owner}/${repo}/specs/${encodeURIComponent(file.filePath)}`,
-          }))}
-        />
-      ))}
-      {visible.length === 0 && (
-        <p className="muted">No specs match this status filter.</p>
-      )}
-    </div>
+    <SpecListBody
+      view={view}
+      base={`/repos/${owner}/${repo}`}
+      model={visibleSpecs(specs, statuses, view)}
+    />
   );
 }

@@ -1,0 +1,178 @@
+/** The four raw vector/keyword SQL search queries behind {@link searchMemories} — memories and facts, each by vector distance and by full-text (`tsquery`) match. */
+
+import type { PgPool } from "../../memory-store.js";
+
+export interface RankedRow {
+  key: string;
+  value: string;
+  agent_id: string;
+  source: "memory" | "fact" | "episode" | "graph";
+  rank: number;
+  id?: string;
+  confidence?: string;
+}
+
+/** Raw row shape shared by the four memory/fact search SQL queries. */
+interface SearchSqlRow {
+  id: string;
+  key: string;
+  value: string;
+  agent_id: string;
+  source: string;
+  confidence?: string;
+  vec_rank?: string;
+  kw_rank?: string;
+}
+
+/** The rank column is named for how the row was found — `vec_rank` by embedding distance, `kw_rank` by text match — and exactly one of them is present on any given row. */
+function rankOf(row: SearchSqlRow): number {
+  return Number(row.vec_rank ?? row.kw_rank);
+}
+
+function toRankedRow(r: SearchSqlRow): RankedRow {
+  return {
+    id: r.id,
+    key: r.key,
+    value: r.value,
+    agent_id: r.agent_id,
+    source: r.source as RankedRow["source"],
+    rank: rankOf(r),
+  };
+}
+
+/** Facts additionally carry their confidence tier, which the caller uses to annotate results and to penalize stale entries. */
+function toFactRow(r: SearchSqlRow): RankedRow {
+  return { ...toRankedRow(r), confidence: r.confidence };
+}
+
+const VECTOR_MEMORIES_SQL = `
+    SELECT m.id, m.key, m.value, m.agent_id, 'memory' as source,
+           ROW_NUMBER() OVER (ORDER BY m.embedding <=> $1::vector) as vec_rank
+    FROM memory.memories m
+    WHERE m.is_deleted = FALSE
+      AND (m.expires_at IS NULL OR m.expires_at > now())
+      AND ($2::text IS NULL OR m.agent_id = $2)
+      AND ($3::uuid IS NULL OR m.pool_id = $3)
+    LIMIT 20`;
+
+// A memory's key is part of its text for search — `session-summary/2026-09-09-ci-judged-implementation-loop` is often the most distinctive thing about it.
+const MEMORY_TSV = `to_tsvector('english', m.key || ' ' || m.value)`;
+
+// Ranked by ts_rank, not created_at: the ILIKE this replaced took the WHOLE query sentence as its pattern, so only an exact quote of the question ever matched — the memory sections came back empty for every task while the store held hundreds of memories.
+const KEYWORD_MEMORIES_SQL = `
+    SELECT m.id, m.key, m.value, m.agent_id, 'memory' as source,
+           ROW_NUMBER() OVER (ORDER BY ts_rank(${MEMORY_TSV}, websearch_to_tsquery('english', $1)) DESC) as kw_rank
+    FROM memory.memories m
+    WHERE m.is_deleted = FALSE
+      AND (m.expires_at IS NULL OR m.expires_at > now())
+      AND ${MEMORY_TSV} @@ websearch_to_tsquery('english', $1)
+      AND ($2::text IS NULL OR m.agent_id = $2)
+      AND ($3::uuid IS NULL OR m.pool_id = $3)
+    LIMIT 20`;
+
+/** A fact extracted from an episode is reported as that episode; one written against a memory is a plain fact. */
+const FACT_SOURCE = `CASE WHEN f.episode_id IS NOT NULL THEN 'episode' ELSE 'fact' END`;
+
+/** A fact's key is borrowed from whatever produced it — the owning memory, or the episode it was extracted from — because a fact has no key of its own to search or display by. */
+const FACT_SELECT = `
+    SELECT f.id, COALESCE(m.key, e.source || ':' || COALESCE(e.ref, e.id::text)) as key,
+           f.fact_text as value,
+           COALESCE(m.agent_id, e.agent_id) as agent_id,
+           ${FACT_SOURCE} as source,
+           f.confidence,`;
+
+// The kind filter lives in SQL, under the LIMIT: filtered in memory, a request for episodes would return only the episodes that survived a top-20 shared with every fact.
+const FACT_SOURCE_GATE = `AND ($4::text[] IS NULL OR ${FACT_SOURCE} = ANY($4::text[]))`;
+
+const FACT_JOINS = `
+    FROM memory.facts f
+    LEFT JOIN memory.memories m ON m.id = f.memory_id
+    LEFT JOIN memory.episodes e ON e.id = f.episode_id
+    WHERE (m.id IS NULL OR (m.is_deleted = FALSE AND (m.expires_at IS NULL OR m.expires_at > now())))`;
+
+const VECTOR_FACTS_SQL = `${FACT_SELECT}
+           ROW_NUMBER() OVER (ORDER BY f.embedding <=> $1::vector) as vec_rank
+${FACT_JOINS}
+      AND ($2::text IS NULL OR COALESCE(m.agent_id, e.agent_id) = $2)
+      AND ($3::boolean OR f.valid_to IS NULL)
+      ${FACT_SOURCE_GATE}
+    LIMIT 20`;
+
+const FACT_TSV = `to_tsvector('english', f.fact_text)`;
+
+const KEYWORD_FACTS_SQL = `${FACT_SELECT}
+           ROW_NUMBER() OVER (ORDER BY ts_rank(${FACT_TSV}, websearch_to_tsquery('english', $1)) DESC) as kw_rank
+${FACT_JOINS}
+      AND ${FACT_TSV} @@ websearch_to_tsquery('english', $1)
+      AND ($2::text IS NULL OR COALESCE(m.agent_id, e.agent_id) = $2)
+      AND ($3::boolean OR f.valid_to IS NULL)
+      ${FACT_SOURCE_GATE}
+    LIMIT 20`;
+
+export async function vectorSearchMemories(
+  pool: PgPool,
+  embeddingStr: string,
+  agentId: string | null,
+  poolId: string | null,
+): Promise<RankedRow[]> {
+  const { rows } = await pool.query<SearchSqlRow>(VECTOR_MEMORIES_SQL, [
+    embeddingStr,
+    agentId,
+    poolId,
+  ]);
+
+  return rows.map(toRankedRow);
+}
+
+/** What narrows a fact search: whose facts, whether superseded ones count, and which kinds (`fact` / `episode`) the caller wants — null for both. */
+export interface FactScope {
+  agent: string | null;
+  includeInvalidated: boolean;
+  sources: string[] | null;
+}
+
+export async function vectorSearchFacts(
+  pool: PgPool,
+  embeddingStr: string,
+  { agent, includeInvalidated, sources }: FactScope,
+): Promise<RankedRow[]> {
+  const { rows } = await pool.query<SearchSqlRow>(VECTOR_FACTS_SQL, [
+    embeddingStr,
+    agent,
+    includeInvalidated,
+    sources,
+  ]);
+
+  return rows.map(toFactRow);
+}
+
+/** `termsQuery` is a `websearch_to_tsquery` input — the query's distinctive terms OR-joined, see `keyTermsQuery`. */
+export async function keywordSearchMemories(
+  pool: PgPool,
+  termsQuery: string,
+  agentId: string | null,
+  poolId: string | null,
+): Promise<RankedRow[]> {
+  const { rows } = await pool.query<SearchSqlRow>(KEYWORD_MEMORIES_SQL, [
+    termsQuery,
+    agentId,
+    poolId,
+  ]);
+
+  return rows.map(toRankedRow);
+}
+
+export async function keywordSearchFacts(
+  pool: PgPool,
+  termsQuery: string,
+  { agent, includeInvalidated, sources }: FactScope,
+): Promise<RankedRow[]> {
+  const { rows } = await pool.query<SearchSqlRow>(KEYWORD_FACTS_SQL, [
+    termsQuery,
+    agent,
+    includeInvalidated,
+    sources,
+  ]);
+
+  return rows.map(toFactRow);
+}

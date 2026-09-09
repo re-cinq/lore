@@ -1,25 +1,11 @@
 "use client";
 
-import { useTransition } from "react";
-import styles from "./ReonboardButton.module.css";
+import PendingActionButton from "@/components/PendingActionButton";
 
-export default function ReonboardButton({
-  action,
-  text,
-}: {
+/** The re-onboarding instance, kept as its own component for existing callers. */
+export default function ReonboardButton(props: {
   action: () => Promise<void>;
   text: string;
 }) {
-  const [pending, startTransition] = useTransition();
-
-  return (
-    <button
-      type="button"
-      disabled={pending}
-      onClick={() => startTransition(() => action())}
-      className={styles.button}
-    >
-      {pending ? "opening PR…" : text}
-    </button>
-  );
+  return <PendingActionButton {...props} pendingText="opening PR…" />;
 }

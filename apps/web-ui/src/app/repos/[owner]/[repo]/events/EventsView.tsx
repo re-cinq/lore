@@ -1,4 +1,5 @@
-import EventRow from "./EventRow";
+import { Alert } from "@/components/Alert";
+import EventRow, { EventsTableHead } from "./EventRow";
 import InfiniteEvents from "./InfiniteEvents";
 import { EVENTS_PAGE_SIZE, type RepoEvent } from "./pagination";
 
@@ -11,17 +12,30 @@ export interface EventsViewProps {
   hasMore: boolean;
 }
 
-/**
- * Presentational view for a repo's full event stream. Pure render — the
- * container (`page.tsx`) runs the query and hands the first page down;
- * InfiniteEvents appends the rest as the sentinel row scrolls into view.
- */
-export default function EventsView({
-  owner,
-  repo,
-  events,
-  hasMore,
-}: EventsViewProps) {
+/** The first page as rows, with the pager as the last of them. `InfiniteEvents` renders inside this `tbody` rather than after the table so its appended rows and its sentinel are part of the same row sequence. */
+function EventsTable({ owner, repo, events, hasMore }: EventsViewProps) {
+  return (
+    <table>
+      <EventsTableHead />
+      <tbody>
+        {events.map((e) => (
+          <EventRow key={e.id} event={e} />
+        ))}
+        <InfiniteEvents
+          owner={owner}
+          repo={repo}
+          initialOffset={EVENTS_PAGE_SIZE}
+          hasMore={hasMore}
+        />
+      </tbody>
+    </table>
+  );
+}
+
+/** Presentational view for repo's event stream; container runs query, InfiniteEvents appends rest on scroll. */
+export default function EventsView(props: EventsViewProps) {
+  const { owner, repo, events } = props;
+
   return (
     <div>
       <h2>Events</h2>
@@ -29,29 +43,9 @@ export default function EventsView({
         Event-bus activity for {owner}/{repo}, newest first.
       </p>
       {events.length === 0 ? (
-        <p className="meta">No events yet.</p>
+        <Alert variant="secondary">No events yet.</Alert>
       ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>When</th>
-              <th>Event</th>
-              <th>Source</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {events.map((e) => (
-              <EventRow key={e.id} event={e} />
-            ))}
-            <InfiniteEvents
-              owner={owner}
-              repo={repo}
-              initialOffset={EVENTS_PAGE_SIZE}
-              hasMore={hasMore}
-            />
-          </tbody>
-        </table>
+        <EventsTable {...props} />
       )}
     </div>
   );

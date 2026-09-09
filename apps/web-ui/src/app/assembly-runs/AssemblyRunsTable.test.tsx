@@ -4,7 +4,6 @@ import { render, screen, within, fireEvent } from "@testing-library/react";
 import AssemblyRunsTable from "./AssemblyRunsTable";
 import type { AssemblyRun } from "@/lib/assembly-runs";
 
-// PRStatusBadgePanel fetches on mount; stub it so the badge case doesn't hit network.
 beforeEach(() => {
   vi.stubGlobal(
     "fetch",
@@ -27,6 +26,8 @@ const run = (over: Partial<AssemblyRun> = {}): AssemblyRun => ({
   durationSeconds: 715,
   prUrl: "https://github.com/re-cinq/lore/pull/42",
   prNumber: 42,
+  issueUrl: null,
+  issueNumber: null,
   createdBy: "gedaiu",
   costUsd: 0.5,
   ...over,
@@ -68,6 +69,8 @@ describe("AssemblyRunsTable", () => {
             taskId: null,
             prUrl: null,
             prNumber: null,
+            issueUrl: null,
+            issueNumber: null,
             createdBy: null,
             costUsd: null,
             durationSeconds: null,
@@ -78,7 +81,6 @@ describe("AssemblyRunsTable", () => {
 
     const row = screen.getByRole("row", { name: /implementation/ });
 
-    // creator, cost, PR, duration all render as em dashes.
     expect(within(row).getAllByText("—").length).toBeGreaterThanOrEqual(4);
   });
 
@@ -189,6 +191,8 @@ describe("AssemblyRunsTable", () => {
             costUsd: null,
             prUrl: "https://github.com/re-cinq/lore/pull/7",
             prNumber: 7,
+            issueUrl: null,
+            issueNumber: null,
           }),
         ]}
       />,
@@ -198,7 +202,6 @@ describe("AssemblyRunsTable", () => {
       "href",
       "https://github.com/re-cinq/lore/pull/7",
     );
-    // No backing task → PRStatusBadgePanel is not rendered, so no fetch fires.
     expect(fetch).not.toHaveBeenCalled();
   });
 

@@ -26,8 +26,8 @@ diff's changed ranges and returns the `ImpactReport` plus pre-shaped Checks-API
 
 - **Method + path**: `POST /api/repos/:owner/:repo/impact`
   (regex `^/api/repos/[^/]+/[^/]+/impact(\?|$)`).
-  Implemented by the [route registration](../../../apps/lore-api/src/server/build-server.ts#L116)
-  dispatching to the [`handleImpactRoute` handler](../../../apps/lore-api/src/api/routes/impact/impact.ts#L48).
+  Implemented by the [route registration](../../../apps/lore-api/src/app/build-server.ts#L116)
+  dispatching to the [`handleImpactRoute` handler](../../../apps/lore-api/src/transport/routes/impact/impact.ts#L48).
 - **Auth scope**: `write`. Matched by `SCOPE_OVERRIDES`
   (`/api/repos/[^/]+/[^/]+/impact(\?|$|/)` → `write`). The write scope reflects
   the privileged ingest surface, **not** test execution — a graph read is not
@@ -77,7 +77,7 @@ so the client can decide per file whether its diff is comparable. Scope `read`.
 Returns `200 { graphCommit, graphCommitAt, source }`, with
 `{ graphCommit: null, source: "none" }` both for a repo that has never been
 stamped and for a Dgraph outage — a missing baseline degrades the check, it does
-not fail it. Implemented by [`impactBaseRoute`](../../../apps/lore-api/src/api/routes/impact/impact-base.ts#L21).
+not fail it. Implemented by [`impactBaseRoute`](../../../apps/lore-api/src/transport/routes/impact/impact-base.ts#L21).
 
 ## Behavior
 
@@ -144,21 +144,21 @@ The handler never touches `_pool` — the graph lives in Dgraph, not Postgres.
 
 With Dgraph unconfigured, the route fails soft to `200` with
 `status:"unavailable"` and empty statements/orphaned/annotations — never a 500.
-([validated by `returns 200 status unavailable with empty annotations when Dgraph is not configured`](apps/lore-api/src/api/routes/impact/impact-route.test.ts#L36))
+([validated by `returns 200 status unavailable with empty annotations when Dgraph is not configured`](apps/lore-api/src/transport/routes/impact/impact-route.test.ts#L31))
 
-A request without a `write`-scoped token is rejected with 403. ([validated by `rejects a request without a write-scoped token`](apps/lore-api/src/api/routes/impact/impact-route.test.ts#L51))
+A request without a `write`-scoped token is rejected with 403. ([validated by `rejects a request without a write-scoped token`](apps/lore-api/src/transport/routes/impact/impact-route.test.ts#L46))
 
-An unparseable request body is rejected with a native 400 (ADR-034 hapi payload parse). ([validated by `impact-route.test.ts:75`](apps/lore-api/src/api/routes/impact/impact-route.test.ts#L75))
+An unparseable request body is rejected with a native 400 (ADR-034 hapi payload parse). ([validated by `impact-route.test.ts:75`](apps/lore-api/src/transport/routes/impact/impact-route.test.ts#L70))
 
-The body accepts a `docs[]` array carrying the head text of changed spec/ADR files, forwarded to `computeImpact` as `ImpactOptions.docs` for the statement-identity coupling. Like `files`, it is validated as `unknown` and degrades to `[]` rather than 400ing, so a client sending a shape this server does not understand still gets an advisory answer. ([validated by `impact-route.test.ts:61`](apps/lore-api/src/api/routes/impact/impact-route.test.ts#L61))
+The body accepts a `docs[]` array carrying the head text of changed spec/ADR files, forwarded to `computeImpact` as `ImpactOptions.docs` for the statement-identity coupling. Like `files`, it is validated as `unknown` and degrades to `[]` rather than 400ing, so a client sending a shape this server does not understand still gets an advisory answer. ([validated by `impact-route.test.ts:61`](apps/lore-api/src/transport/routes/impact/impact-route.test.ts#L56))
 
-`GET …/impact/base` serves the graph baseline and answers `{ graphCommit: null, source: "none" }` rather than erroring when Dgraph is unconfigured, so a missing baseline degrades the check instead of failing it; a request without a token is rejected. ([validated by `impact-base-route:35`](apps/lore-api/src/api/routes/impact/impact-base-route.test.ts#L35), [validated by `impact-base-route:42`](apps/lore-api/src/api/routes/impact/impact-base-route.test.ts#L42))
+`GET …/impact/base` serves the graph baseline and answers `{ graphCommit: null, source: "none" }` rather than erroring when Dgraph is unconfigured, so a missing baseline degrades the check instead of failing it; a request without a token is rejected. ([validated by `impact-base-route:35`](apps/lore-api/src/transport/routes/impact/impact-base-route.test.ts#L30), [validated by `impact-base-route:42`](apps/lore-api/src/transport/routes/impact/impact-base-route.test.ts#L37))
 
-A client that does not declare `protocol: 2` has its findings suppressed and is told why, because a diff taken against the base-branch tip carries every commit merged to the base since the branch point. ([validated by `trace-impact:716`](libs/shared/src/spec-trace/trace-impact.test.ts#L716), [validated by `trace-impact:729`](libs/shared/src/spec-trace/trace-impact.test.ts#L729))
+A client that does not declare `protocol: 2` has its findings suppressed and is told why, because a diff taken against the base-branch tip carries every commit merged to the base since the branch point. ([validated by `trace-impact:716`](libs/shared/src/work/spec-trace/trace-impact.test.ts#L758), [validated by `trace-impact:729`](libs/shared/src/work/spec-trace/trace-impact.test.ts#L771))
 
 The `status:"ok"` branch (coupled statements + orphans + non-empty annotations
 from a live graph walk) is exercised against a live Dgraph, which PR Checks now
-provides. ([validated by `trace-impact:254`](libs/shared/src/spec-trace/trace-impact.test.ts#L254), [validated by `trace-impact:325`](libs/shared/src/spec-trace/trace-impact.test.ts#L325), [validated by `trace-impact:404`](libs/shared/src/spec-trace/trace-impact.test.ts#L404), [validated by `trace-impact:539`](libs/shared/src/spec-trace/trace-impact.test.ts#L539))
+provides. ([validated by `trace-impact:254`](libs/shared/src/work/spec-trace/trace-impact.test.ts#L240), [validated by `trace-impact:325`](libs/shared/src/work/spec-trace/trace-impact.test.ts#L311), [validated by `trace-impact:404`](libs/shared/src/work/spec-trace/trace-impact.test.ts#L390), [validated by `trace-impact:539`](libs/shared/src/work/spec-trace/trace-impact.test.ts#L589))
 
 A 400 for a URL that does not resolve to `owner/repo` cannot be reached through
 the dispatcher (the route regex already requires two path segments before

@@ -1,9 +1,6 @@
 import type { ReactNode } from "react";
 
-// Controls stay `children` because confirmation flows differ — a two-step confirm
-// here, a typed name elsewhere — and baking one in would make the second caller
-// fight it. `description` is a string, not ReactNode: it renders inside a <p>, and
-// block-level children there are invalid HTML.
+// Controls stay `children` since confirmation flows differ per caller; `description` is a string, not ReactNode, since it renders inside a <p>.
 export function DangerZone({
   title = "Danger zone",
   description,

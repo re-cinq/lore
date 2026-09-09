@@ -1,0 +1,103 @@
+// Reports a station outcome to the wait node a line is parked on. A wait node's worker is a person (author, reviewer); both report the same way (an assembly_line.resume event naming the node), so the pause is a graph step, not a gap between runs. Lives here (not feature-planning) since a parked node is an assembly-line fact — merge-check used to mint a fresh task instead, on a predicate that silently stopped matching (specs/6-dark-factory FR6.32).
+
+import type { EventReporter } from "../events/event-reporter-port.js";
+import { RUN_RESUME_EVENT } from "./run-events.js";
+import type { RunGraph } from "../../../domain/run-graph.js";
+
+/** The parked-node facts a caller needs — an `assembly_line_nodes` row. */
+export interface ParkedNode {
+  nodeId: string;
+  iteration: number;
+  outcome: string | null;
+}
+
+/** A line that can still be resumed. A terminal line's node rows are history. */
+const OPEN_STATUSES = new Set(["running", "queued"]);
+
+/** The newest row still open (no outcome) that `matches`, or null. A revisit mints a new row, so an older open one has already been passed by the walk. */
+function newestOpen(
+  nodes: readonly ParkedNode[],
+  matches: (node: ParkedNode) => boolean,
+): ParkedNode | null {
+  return (
+    [...nodes].reverse().find((n) => matches(n) && n.outcome === null) ?? null
+  );
+}
+
+function nodeIdsOfType(graph: RunGraph, type: string): Set<string> {
+  const { nodes } = graph;
+
+  return new Set(nodes.filter((n) => n.type === type).map((n) => n.id));
+}
+
+/** The row nodeId is currently parked on, or null. "Parked" = a row for that node with no outcome yet; the newest such row wins, since a revisit mints a new row and an older open one has already been passed by the walk. */
+export function parkedNode(
+  status: string | null,
+  nodes: readonly ParkedNode[],
+  nodeId: string,
+): ParkedNode | null {
+  if (!status || !OPEN_STATUSES.has(status)) {
+    return null;
+  }
+
+  return newestOpen(nodes, (n) => n.nodeId === nodeId);
+}
+
+/** The row parked on a human station of the given type, or null. Joins on TYPE from the run's own graph, not a hardcoded node id — an id constant is the fragile key that killed the pr_merged join (FR6.32). fallbackNodeId serves pre-clone runs (graph null); delete it with the other pre-clone fallbacks. */
+/** Which human station to look for: by TYPE in the run's graph, by node id only for a pre-clone run with no graph. */
+export interface HumanStation {
+  type: string;
+  fallbackNodeId: string;
+}
+
+export function parkedHumanNode(
+  status: string | null,
+  nodes: readonly ParkedNode[],
+  graph: RunGraph | null,
+  { type: humanType, fallbackNodeId }: HumanStation,
+): ParkedNode | null {
+  if (!graph) {
+    return parkedNode(status, nodes, fallbackNodeId);
+  }
+
+  if (!status || !OPEN_STATUSES.has(status)) {
+    return null;
+  }
+  const typedIds = nodeIdsOfType(graph, humanType);
+
+  return newestOpen(nodes, (n) => typedIds.has(n.nodeId));
+}
+
+/** Where to report, and what the walk should do next. */
+export interface ParkedTarget {
+  lineId: string;
+  nodeId: string;
+  iteration: number;
+}
+
+/** Reports a station outcome to a parked node; deliberately not swallowed like fire-and-forget triggers — a lost event would lose the work while the caller's 202 claimed it started. */
+export interface StationReport {
+  outcome: "success" | "changes_requested" | "failed";
+  args?: Record<string, unknown>;
+  /** What the worker produced beyond a decision; optional since a human station reports only an outcome. `unknown`, not NodeResult, since assembly-lines depends on this package — the Floor validates it on receipt (NodeResultSchema). */
+  result?: unknown;
+}
+
+export async function reportToParkedNode(
+  reporter: EventReporter,
+  target: ParkedTarget,
+  { outcome, args = {}, result }: StationReport,
+): Promise<void> {
+  await reporter.insert({
+    eventName: RUN_RESUME_EVENT,
+    source: "internal",
+    params: {
+      assemblyLineId: target.lineId,
+      nodeId: target.nodeId,
+      iteration: target.iteration,
+      outcome,
+      args,
+      ...(result ? { result } : {}),
+    },
+  });
+}

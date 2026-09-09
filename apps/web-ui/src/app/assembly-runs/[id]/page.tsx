@@ -1,25 +1,92 @@
 export const dynamic = "force-dynamic";
 import { getTask } from "@/lib/api/tasks";
 import { redirect } from "next/navigation";
-import { fetchAssemblyRun, fetchAssemblyRunNodes } from "@/lib/assembly-runs";
+import {
+  fetchAssemblyRun,
+  fetchAssemblyRunNodes,
+  type AssemblyRun,
+} from "@/lib/assembly-runs";
 import { fetchTaskEvents, fetchLlmCalls } from "@/lib/task-runtime";
 import { definitionForRun } from "@/lib/run-graph-definition";
-import AssemblyRunView from "./AssemblyRunView";
-import RunVisualizationPanel from "./RunVisualizationPanel";
-import { TriggerReviewButton } from "./TriggerReviewButton";
-import EventTimeline from "@/app/tasks/[id]/EventTimeline";
-import LlmCallsTable from "@/app/tasks/[id]/LlmCallsTable";
+import { agentEditHrefs } from "@/lib/agent-edit-href";
+import { resolveNodeModels } from "@/lib/node-models";
+import { listAgents } from "@/lib/agents-api";
+import RunLiveShell from "./RunLiveShell";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/**
- * Resolver for `/assembly-runs/[id]`. The id disambiguates itself: a
- * `pipeline.assembly_runs` run renders the run detail; otherwise a
- * `pipeline.tasks` row redirects to the task detail at `/tasks/[id]` (so every
- * legacy task-UUID link — UUID linkification, repo overview, GitHub comments —
- * keeps working). A non-UUID or unknown id renders "Not found".
- */
+// The id may be a TASK id rather than a run id — old links pointed here; redirects there and returns null.
+async function resolveRun(id: string): Promise<AssemblyRun | null> {
+  const run = await fetchAssemblyRun(id);
+
+  if (run) {
+    return run;
+  }
+
+  const taskResult = await getTask(id);
+
+  if (taskResult.status === "ok") {
+    redirect(`/tasks/${id}`);
+  }
+
+  return null;
+}
+
+async function resolveTaskContext(taskId: string | null) {
+  if (!taskId) {
+    return { events: [], llmCalls: [] };
+  }
+
+  const [events, llmCalls] = await Promise.all([
+    fetchTaskEvents(taskId),
+    fetchLlmCalls(taskId),
+  ]);
+
+  return { events, llmCalls };
+}
+
+/** Everything the page renders from, resolved in one place. `agentEditHrefs` is built from RESOLVED definitions because those carry the `project_id` the "Edit agent" link routes on; `listAgents` degrades to an empty list when the API is unreachable, which costs the links and nothing else. */
+async function resolveRunView(
+  run: NonNullable<Awaited<ReturnType<typeof resolveRun>>>,
+  id: string,
+) {
+  const nodes = await fetchAssemblyRunNodes(id);
+  const { events, llmCalls } = await resolveTaskContext(run.taskId);
+  const { definition } = definitionForRun(run.blueprintName, nodes, run.graph);
+  const agents = await listAgents(run.repo);
+
+  return {
+    nodes,
+    events,
+    llmCalls,
+    definition,
+    editHrefs: agentEditHrefs(definition, agents, run.repo),
+    nodeModels: resolveNodeModels(definition, agents),
+  };
+}
+
+/** The run page proper, once the id has resolved to a run. */
+interface RunPageProps {
+  run: NonNullable<Awaited<ReturnType<typeof resolveRun>>>;
+  view: Awaited<ReturnType<typeof resolveRunView>>;
+}
+
+function RunPage({ run, view }: RunPageProps) {
+  return (
+    <RunLiveShell
+      run={run}
+      nodes={view.nodes}
+      definition={view.definition}
+      taskEvents={view.events}
+      llmCalls={view.llmCalls}
+      agentEditHrefs={view.editHrefs}
+      nodeModels={view.nodeModels}
+    />
+  );
+}
+
+// Resolver for `/assembly-runs/[id]`: a run renders detail; a task id redirects to `/tasks/[id]` (legacy links keep working); unknown → "Not found".
 export default async function AssemblyLineResolverPage({
   params,
 }: {
@@ -31,58 +98,11 @@ export default async function AssemblyLineResolverPage({
     return <p>Not found.</p>;
   }
 
-  const run = await fetchAssemblyRun(id);
+  const run = await resolveRun(id);
 
-  if (run) {
-    const nodes = await fetchAssemblyRunNodes(id);
-    const [events, llmCalls] = run.taskId
-      ? await Promise.all([
-          fetchTaskEvents(run.taskId),
-          fetchLlmCalls(run.taskId),
-        ])
-      : [[], []];
-    const { definition } = definitionForRun(
-      run.blueprintName,
-      nodes,
-      run.graph,
-    );
-
-    return (
-      <>
-        <AssemblyRunView run={run} />
-        {run.blueprintName === "code-review" && run.prNumber ? (
-          <TriggerReviewButton repo={run.repo} prNumber={run.prNumber} />
-        ) : null}
-        <RunVisualizationPanel
-          runId={run.id}
-          runStatus={run.status}
-          startedAt={run.startedAt}
-          definition={definition}
-          nodes={nodes}
-          repo={run.repo}
-          reason={run.reason}
-        />
-        {run.taskId ? (
-          <>
-            <EventTimeline events={events} />
-            <LlmCallsTable llmCalls={llmCalls} repo={run.repo} />
-          </>
-        ) : (
-          <p className="meta">
-            This run has no backing task — cost and status-transition history
-            are not available.
-          </p>
-        )}
-      </>
-    );
+  if (!run) {
+    return <p>Not found.</p>;
   }
 
-  // The id may be a TASK id rather than a run id — the old links pointed here.
-  const taskResult = await getTask(id);
-
-  if (taskResult.status === "ok") {
-    redirect(`/tasks/${id}`);
-  }
-
-  return <p>Not found.</p>;
+  return <RunPage run={run} view={await resolveRunView(run, id)} />;
 }

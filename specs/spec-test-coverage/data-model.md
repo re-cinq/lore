@@ -98,7 +98,7 @@ CREATE TABLE IF NOT EXISTS {schema}.spec_coverage_runs (
 |--------|-------|
 | `repo` | `owner/name`. Redundant with schema but kept for cross-schema `queryAllChunks`-style scans and analytics. |
 | `spec_path` | Joins to `{schema}.chunks.file_path` where `content_type = 'spec'`. A spec split into multiple chunks shares one `spec_path`. |
-| `test_file` | Joins to `{schema}.chunks.file_path` where `content_type = 'code'` and `isTestFile(file_path)`. |
+| `test_file` | Joins to `{schema}.chunks.file_path` where `content_type = 'test'` (the classifier stamps test paths; rows from before the type existed were reclassified by migration 0071). |
 | `test_name` | Normalized `describe > it` join (lowercased, whitespace-collapsed). Stable key for a single test case. |
 | `test_line` | From `chunks.metadata->>'start_line'` when AST chunking captured it; nullable. When null, the source link points at the file, not the line. |
 | `statement_ordinal` | The validated statement's `spec_statements.ordinal`. Joins link → statement; null on legacy whole-spec rows until re-linked. |
@@ -163,7 +163,7 @@ CREATE TABLE IF NOT EXISTS {schema}.spec_coverage_runs (
 ```
 
 - `title` / `summary` are derived server-side from the reassembled spec
-  content via the pure helpers in `libs/shared/src/spec-summary.ts`.
+  content via the pure helpers in `libs/shared/src/work/spec-summary.ts`.
 - `coverage` drives the `CoverageBar`: segment widths are over
   `testable + untestable` (all statements); the headline KPI is
   `covered / testable`.
@@ -177,7 +177,7 @@ CREATE TABLE IF NOT EXISTS {schema}.spec_coverage_runs (
 ## Relationship to existing tables
 
 - **`{schema}.chunks`** — source of both specs (`content_type='spec'`) and
-  tests (`content_type='code'` filtered by `isTestFile`). `spec_statements`
+  tests (`content_type='test'`). `spec_statements`
   and `spec_test_links` reference these by `file_path`; no FK (chunks churn on
   re-ingest).
 - **`pipeline.tasks`** — unchanged. The per-statement `spec_statements` table

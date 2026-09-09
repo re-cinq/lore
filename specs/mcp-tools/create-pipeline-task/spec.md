@@ -26,7 +26,7 @@ the task will be picked up.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L25)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/pipeline-tools-lifecycle.ts#L125)).
 
 - **name**: `lore_create_pipeline_task`
 - **description** (verbatim):
@@ -66,15 +66,15 @@ Enqueues a new server-side pipeline task and returns its UUID and a pickup hint.
    - **DB mode (`LORE_DB_HOST` set)** — `validTypes = getTaskTypes()`;
      `resolvedType = validTypes.includes(task_type) ? task_type : "general"`.
      Call `createTask(desc, resolvedType, resolvedRepo, "mcp", context || undefined, priority, group_id)`
-     ([handler wrapper](../../../libs/server-core/src/features/pipeline/pipeline.ts#L71)).
-4. **Shared CRUD** ([`createTask`](../../../libs/shared/src/pipeline-tasks.ts#L35)) — rejects descriptions
+     ([handler wrapper](../../../libs/server-core/src/work/pipeline/pipeline.ts#L71)).
+4. **Shared CRUD** ([`createTask`](../../../libs/shared/src/domain/pipeline-task-core.ts#L114)) — rejects descriptions
    over 10000 chars; when a repo is set, `SELECT settings FROM lore.repos WHERE full_name = $1`
    and enforce the trust gate (`settings.trust.level` → allowed task types; a
    disallowed type throws `Task type "{t}" not allowed at trust level "{level}" for {repo}. Allowed: …`,
    non-trust query errors are swallowed). Then `INSERT INTO pipeline.tasks
    (description, task_type, target_repo, created_by, context_bundle, priority[, task_group_id])
    … RETURNING id, status, priority, created_at`, optional `UPDATE … SET context_refs`,
-   then `recordEvent(pool, id, null, "pending", {created_by, priority})`.
+   then `recordEvent(pool, id, null, "pending", {created_by, priority})`. ([validated by `inserts task_group_id grp-1 as the seventh insert parameter`](../../../libs/shared/src/domain/pipeline-tasks.trust.test.ts#L88), [validated by `inserts six parameters and no task_group_id column without a group id`](../../../libs/shared/src/domain/pipeline-tasks.trust.test.ts#L106))
 5. **Success message** — both transports return:
    `"Task created: {task_id}\nType: {type}\nPriority: {priority}\nRepo: {repo|'default'}\n\n{pickupMsg}"`
    where `pickupMsg` is *"The GKE agent will pick this up within 30 seconds."*
@@ -102,11 +102,11 @@ message, or the `"Error creating pipeline task: …"` message. **Never throws.**
 A valid create inserts a `pipeline.tasks` row, records the `pending` transition
 event, and returns the new id with `pending` status — exercised end-to-end via the
 retry path, which calls the same shared `createTask`.
-([validated by `creates a linked task when the original is failed`](apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L113))
+([validated by `creates a linked task when the original is failed`](apps/mcp-server/src/work/pipeline/pipeline-crud.test.ts#L105))
 
 An empty or whitespace-only description is rejected by the input schema before
 any insert; a normal description is accepted.
-([validated by `rejects an empty task description`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L114), [validated by `rejects a whitespace-only task description`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L122), [validated by `accepts an in-range task description`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L130))
+([validated by `rejects an empty task description`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L164), [validated by `rejects a whitespace-only task description`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L172), [validated by `accepts an in-range task description`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L180))
 
 The target repo defaults to the git remote when `target_repo` is omitted; an
 explicit value wins.
@@ -117,16 +117,34 @@ A task type outside the known catalogue falls back to `general`.
 
 A description over 10000 chars is rejected by the input schema (and, on the DB
 path, by the shared CRUD).
-([validated by `rejects a task description over 10000 chars`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L106))
+([validated by `rejects a task description over 10000 chars`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L156))
 
 `task_type: "onboard"` is refused before the local/remote split and the caller is
 pointed at `lore_onboard_repo`, whose transaction holds the duplicate-onboard
-guard. ([validated by `refuses task_type onboard and names lore_onboard_repo instead`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L213))
+guard. ([validated by `refuses task_type onboard and names lore_onboard_repo instead`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L263))
+
+With no `LORE_API_URL`/`LORE_INGEST_TOKEN` configured, the tool returns a
+not-configured message; on success the response names the immediate-priority
+pickup hint; a 401 is reported as a denied error. ([validated by `returns the
+not-configured message when the env is
+unset`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L283), [`reports
+the immediate pickup hint on
+success`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L298), [`reports
+a denied error on a
+401`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L318))
 
 The shared trust gate allows `onboard` at every trust tier — it produces a
 docs-only scaffolding PR and is guarded against duplicates by its own route, so
 restricting it to `full` would only break the reonboard repair path on
-auto-promoted repos — while a genuinely disallowed type is still refused. ([validated by `allows an onboard task at trust level %s`](libs/shared/src/pipeline-tasks.trust.test.ts#L37), [`still refuses an implementation task at trust level docs`](libs/shared/src/pipeline-tasks.trust.test.ts#L52))
+auto-promoted repos — while a genuinely disallowed type is still refused. ([validated by `allows an onboard task at trust level %s`](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L33), [`still refuses an implementation task at trust level docs`](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L48))
+
+`buildContextBundle` (`apps/lore-api/src/work/pipeline/context-bundle.ts`) assembles this same `context` shape (`pipeline_task_id`, `spec_file`, `seed_query`, `branch`) into the markdown sections handed to an agent: an absent or empty `context` renders an empty string. ([validated by `returns an empty string for no context`](apps/lore-api/src/work/pipeline/context-bundle.test.ts#L14), [`returns an empty string for an empty context object`](apps/lore-api/src/work/pipeline/context-bundle.test.ts#L18))
+
+Each present field renders its own `## <heading>` section — pipeline task, seed query, or branch — when that field is set alone. ([validated by `renders only the pipeline task section when only pipeline_task_id is set`](apps/lore-api/src/work/pipeline/context-bundle.test.ts#L22), [`renders only the seed query section when only seed_query is set`](apps/lore-api/src/work/pipeline/context-bundle.test.ts#L28), [`renders only the branch section when only branch is set`](apps/lore-api/src/work/pipeline/context-bundle.test.ts#L34))
+
+Multiple sections join on `\n\n---\n\n` in field order. ([validated by `joins multiple sections with the triple-dash separator in field order`](apps/lore-api/src/work/pipeline/context-bundle.test.ts#L40))
+
+`spec_file: true` reads `.specify/spec.md` and `.specify/constitution.md` from the process cwd when present, adding no section when neither exists, and labels both files Spec because the ".specify" directory name itself contains "spec". ([validated by `adds no spec section when spec_file is true but no .specify files exist`](apps/lore-api/src/work/pipeline/context-bundle.test.ts#L52), [`labels both files Spec because the .specify directory name itself contains 'spec'`](apps/lore-api/src/work/pipeline/context-bundle.test.ts#L63))
 
 ## Out of Scope
 

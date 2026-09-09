@@ -30,8 +30,8 @@ taking a registry, and fails on any model whose schema will not resolve.
 
 The unified per-repo API ([ADR-024](../../adrs/ADR-024-ubiquitous-language-execution-model.md)):
 one `Project` object over ~11 ports, each with a **Pg adapter** and an
-**in-memory double** — tasks queue (`tasks/task-queue-*`), events queue
-(`events/event-queue-*`), leases (`leases/lease-backends.ts` —
+**in-memory double** — tasks queue (`tasks/task-queue-*`), event reporting
+(`events/event-reporter-*`) and deliveries (`events/event-deliveries-*`), leases (`leases/lease-backends.ts` —
 `DbLeaseBackend` atomic CTE acquire + `FileLeaseBackend` for worktree mode),
 agent-run-events, issues, pulls, settings, memory, chunks, and more. The
 barrel (`project/index.ts`) is **pure surface only**: adapters are reached by
@@ -47,7 +47,7 @@ ever rides in a pod.
 The `Llm` singleton (`llm.ts`) over vendor providers — `anthropic-provider.ts`
 (with the two-breakpoint **prompt caching** from `prompt-cache.ts`:
 `getCacheControl(jobName)`, prefix hashing, cache-break classification),
-openai, ollama, a CLI fallback, `fake-llm.ts` for tests, and the `NoLlm`
+gemini, ollama, a CLI fallback, `fake-llm.ts` for tests, and the `NoLlm`
 guard that fails loudly when no credential is configured.
 
 ### `src/detect/` — the detector cores

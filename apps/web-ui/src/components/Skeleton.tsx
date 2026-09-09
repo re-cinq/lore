@@ -1,19 +1,17 @@
 import type { CSSProperties } from "react";
 
-/**
- * A shimmering placeholder bar. Size is per-instance data, so it is handed to the
- * stylesheet as custom properties rather than as a style object; spacing is the
- * caller's layout decision and arrives as a class from their own module.
- */
+interface SkeletonProps {
+  width?: CSSProperties["width"];
+  height?: CSSProperties["height"];
+  className?: string;
+}
+
+/** Size is per-instance data handed to the stylesheet as custom properties; spacing stays the caller's layout decision, via their own class. */
 export default function Skeleton({
   width = "100%",
   height = 14,
   className,
-}: {
-  width?: CSSProperties["width"];
-  height?: CSSProperties["height"];
-  className?: string;
-}) {
+}: SkeletonProps) {
   return (
     <div
       className={className ? `skeleton ${className}` : "skeleton"}

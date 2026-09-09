@@ -1,15 +1,15 @@
-// Blueprint graphs as TEST FIXTURES.
-//
-// This was `builtin-definitions.ts`, a hand-transcribed copy of the builtin YAMLs
-// that the run views READ. That role is gone: a run carries its own graph
-// (FR6.38), so nothing in production consults a transcription any more — it could
-// only ever describe the CURRENT blueprint, never the one a given run walked.
-//
-// The graphs remain useful as fixtures, so they live on under a name that says so.
-// They are NOT a source of truth and nothing outside a test may import them; when
-// they drift from the YAML it costs a test edit, not a wrong picture in the UI.
+// Blueprint graphs as TEST FIXTURES. Runs carry their own graph (FR6.38), so these pin shapes for tests rather than describing what ships.
 
 import type { AssemblyLineDefinition } from "./assembly-line-definition";
+import {
+  gapDetectDefinition,
+  ingestDefinition,
+  specCoverageBackfillDefinition,
+  specCoverageValidateDefinition,
+  specDriftDefinition,
+} from "./definition-fixtures-internal-events";
+
+export * from "./definition-fixtures-internal-events";
 
 export const codeReviewDefinition: AssemblyLineDefinition = {
   name: "code-review",
@@ -86,6 +86,7 @@ export const featurePlanningDefinition: AssemblyLineDefinition = {
   name: "feature-planning",
   description:
     "One interactive planning round: analyze the feature request against the project (with the prior feature timeline in context) and emit a structured GapResult. No commit, no PR — the run declares result.json as a produced artifact (`output.watch`), the subsystem raises it as a `planning.result` event, and the Floor persists it as the round's result.",
+  // eslint-disable-next-line re-lint/no-duplicate-code -- a blueprint fixture whose literal shape is what feature-run.test.ts asserts against; the test restating it is the assertion, not a copy to be removed
   version: 1,
   entry: "analyze",
   exit: "done",
@@ -140,23 +141,6 @@ export const featurePlanningDefinition: AssemblyLineDefinition = {
   ],
 };
 
-export const gapDetectDefinition: AssemblyLineDefinition = {
-  name: "gap-detect",
-  description:
-    "Per-repo documentation gap detection; files gap-fill tasks for missing context.",
-  version: 1,
-  entry: "detect",
-  exit: "done",
-  nodes: [
-    { id: "detect", type: "detect" },
-    { id: "done", type: "retrospective" },
-  ],
-  edges: [
-    { from: "detect", to: "done", on: "success" },
-    { from: "detect", to: "done", on: "failed" },
-  ],
-};
-
 export const gapFillDefinition: AssemblyLineDefinition = {
   name: "gap-fill",
   description:
@@ -185,6 +169,7 @@ export const gapFillDefinition: AssemblyLineDefinition = {
 export const generalDefinition: AssemblyLineDefinition = {
   name: "general",
   description:
+    // eslint-disable-next-line re-lint/no-duplicate-code -- the general line's own description and graph; it must stay changeable without touching the implementation line's, which is why both are written out
     "Linear flow for general tasks — implement, validate, push, review, retrospective. Used when no more specific assembly line applies.",
   version: 1,
   entry: "implement",
@@ -193,6 +178,7 @@ export const generalDefinition: AssemblyLineDefinition = {
     { id: "implement", type: "agent" },
     { id: "validate", type: "validate" },
     { id: "push", type: "agent" },
+    // eslint-disable-next-line re-lint/no-duplicate-code -- the general line's node list, pinned literally: a shared node table would let a change to one line silently edit the other line's expected graph
     { id: "review", type: "agent" },
     { id: "retrospective", type: "retrospective" },
     { id: "done", type: "retrospective" },
@@ -200,6 +186,7 @@ export const generalDefinition: AssemblyLineDefinition = {
   edges: [
     { from: "implement", to: "validate", on: "success" },
     { from: "implement", to: "retrospective", on: "changes_requested" },
+    // eslint-disable-next-line re-lint/no-duplicate-code -- the general line's edges, self-loop included; the implementation line's edges fork from these downstream and each set is asserted verbatim
     { from: "implement", to: "implement", on: "failed", iteration_max: 1 },
     { from: "validate", to: "push", on: "success" },
     { from: "validate", to: "implement", on: "failed", iteration_max: 1 },
@@ -214,6 +201,7 @@ export const generalDefinition: AssemblyLineDefinition = {
 export const implementationDefinition: AssemblyLineDefinition = {
   name: "implementation",
   description:
+    // eslint-disable-next-line re-lint/no-duplicate-code -- the implementation line's description and nodes, deliberately its own literal even where it currently reads like the general line's
     "Implement a spec, validate, push, review. On changes_requested, address feedback up to 2 iterations.",
   version: 1,
   entry: "implement",
@@ -223,6 +211,7 @@ export const implementationDefinition: AssemblyLineDefinition = {
     { id: "validate", type: "validate" },
     { id: "push", type: "agent" },
     { id: "review", type: "agent" },
+    // eslint-disable-next-line re-lint/no-duplicate-code -- the implementation line's node list, kept separate so adding a node here cannot move the general line's expected graph
     { id: "address", type: "agent" },
     { id: "retrospective", type: "retrospective" },
     { id: "done", type: "retrospective" },
@@ -230,6 +219,7 @@ export const implementationDefinition: AssemblyLineDefinition = {
   edges: [
     { from: "implement", to: "validate", on: "success" },
     { from: "implement", to: "implement", on: "failed", iteration_max: 1 },
+    // eslint-disable-next-line re-lint/no-duplicate-code -- the implementation line's edges, which fork from the general line's at changes_requested; each fixture states its whole graph rather than a diff
     { from: "implement", to: "retrospective", on: "changes_requested" },
     { from: "validate", to: "push", on: "success" },
     { from: "validate", to: "implement", on: "failed", iteration_max: 1 },
@@ -244,74 +234,6 @@ export const implementationDefinition: AssemblyLineDefinition = {
     { from: "address", to: "validate", on: "always", iteration_max: 2 },
     { from: "review", to: "retrospective", on: "failed" },
     { from: "retrospective", to: "done", on: "always" },
-  ],
-};
-
-export const ingestDefinition: AssemblyLineDefinition = {
-  name: "ingest",
-  description:
-    "One internal.ingest.* payload projected into the spec-traceability graph by an ingest station pod (specs/ingest-station FR2).",
-  version: 1,
-  entry: "ingest",
-  exit: "done",
-  nodes: [
-    { id: "ingest", type: "ingest" },
-    { id: "done", type: "retrospective" },
-  ],
-  edges: [
-    { from: "ingest", to: "done", on: "success" },
-    { from: "ingest", to: "done", on: "failed" },
-  ],
-};
-
-export const specCoverageBackfillDefinition: AssemblyLineDefinition = {
-  name: "spec-coverage-backfill",
-  description:
-    "Per-repo spec-coverage backfill; judges un-linked testable statements and opens link-suggestion PRs.",
-  version: 1,
-  entry: "detect",
-  exit: "done",
-  nodes: [
-    { id: "detect", type: "detect" },
-    { id: "done", type: "retrospective" },
-  ],
-  edges: [
-    { from: "detect", to: "done", on: "success" },
-    { from: "detect", to: "done", on: "failed" },
-  ],
-};
-
-export const specCoverageValidateDefinition: AssemblyLineDefinition = {
-  name: "spec-coverage-validate",
-  description:
-    "Per-repo validation of inline spec→test links; files spec-link-rot issues for broken links.",
-  version: 1,
-  entry: "detect",
-  exit: "done",
-  nodes: [
-    { id: "detect", type: "detect" },
-    { id: "done", type: "retrospective" },
-  ],
-  edges: [
-    { from: "detect", to: "done", on: "success" },
-    { from: "detect", to: "done", on: "failed" },
-  ],
-};
-
-export const specDriftDefinition: AssemblyLineDefinition = {
-  name: "spec-drift",
-  description:
-    "Per-repo spec drift detection (graph-primary, heuristic fallback); files gap-fill tasks for drifted specs.",
-  version: 1,
-  entry: "detect",
-  exit: "done",
-  nodes: [
-    { id: "detect", type: "detect" },
-    { id: "done", type: "retrospective" },
-  ],
-  edges: [
-    { from: "detect", to: "done", on: "success" },
-    { from: "detect", to: "done", on: "failed" },
   ],
 };
 

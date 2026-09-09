@@ -1,15 +1,13 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-export function EmptyState({
-  title,
-  description,
-  action,
-}: {
+interface EmptyStateProps {
   title: string;
   description?: ReactNode;
   action?: { href: string; label: string };
-}) {
+}
+
+export function EmptyState({ title, description, action }: EmptyStateProps) {
   return (
     <div className="empty-state">
       <p>{title}</p>

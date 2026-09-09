@@ -1,10 +1,6 @@
 import type { AgentDefinition } from "./agents-mirror";
 
-// Server-to-server client for the mcp-server agents API. Reads (resolved
-// definitions) and writes (create/update/delete) all route through the gated
-// endpoint — image changes need the CODEOWNERS approval-PR header. The admin
-// token never reaches the browser (these run only in Server Actions / RSC).
-
+// Server-to-server client for the mcp-server agents API — image changes need the CODEOWNERS approval-PR header; admin token never reaches the browser.
 export type AgentSaveResult =
   | { status: "ok"; agent: AgentDefinition }
   | { status: "two_key_required"; detail: string }
@@ -14,15 +10,14 @@ export type AgentSaveResult =
 
 function cfg(): { apiUrl: string; token: string } | null {
   const apiUrl = process.env.LORE_API_URL;
-  // Prefer the admin token; fall back to the legacy full-access ingest token,
-  // which is what local dev (and the web-ui→mcp proxy) configures. The mcp route
-  // enforces admin scope on writes — the legacy token satisfies it.
+  // Prefer the admin token; the legacy full-access ingest token (local dev default) also satisfies the mcp route's admin-scope check.
   const token = process.env.LORE_ADMIN_TOKEN || process.env.LORE_INGEST_TOKEN;
 
   return apiUrl && token ? { apiUrl, token } : null;
 }
 
-export async function listAgents(repo: string): Promise<AgentDefinition[]> {
+/** A catalog read: an unreachable or unhappy endpoint reads as an empty catalog, never as a thrown render. */
+async function fetchAgentList(path: string): Promise<AgentDefinition[]> {
   const c = cfg();
 
   if (!c) {
@@ -30,7 +25,7 @@ export async function listAgents(repo: string): Promise<AgentDefinition[]> {
   }
 
   try {
-    const res = await fetch(`${c.apiUrl}/api/repos/${repo}/agent-definitions`, {
+    const res = await fetch(`${c.apiUrl}${path}`, {
       signal: AbortSignal.timeout(15_000),
       headers: { authorization: `Bearer ${c.token}` },
       cache: "no-store",
@@ -39,39 +34,21 @@ export async function listAgents(repo: string): Promise<AgentDefinition[]> {
     if (!res.ok) {
       return [];
     }
-    const data = (await res.json()) as { agents?: AgentDefinition[] };
+    const body = (await res.json()) as { agents?: AgentDefinition[] };
 
-    return data.agents ?? [];
+    return body.agents ?? [];
   } catch {
     return [];
   }
 }
 
-/** The org-default catalog — org rows overlaid on the yaml fallback, no
- *  per-repo layer. Feeds the global /agents page. */
+export async function listAgents(repo: string): Promise<AgentDefinition[]> {
+  return await fetchAgentList(`/api/repos/${repo}/agent-definitions`);
+}
+
+/** The org-default catalog — org rows overlaid on the yaml fallback, no per-repo layer. Feeds the global /agents page. */
 export async function listOrgAgents(): Promise<AgentDefinition[]> {
-  const c = cfg();
-
-  if (!c) {
-    return [];
-  }
-
-  try {
-    const res = await fetch(`${c.apiUrl}/api/agent-definitions`, {
-      signal: AbortSignal.timeout(15_000),
-      headers: { authorization: `Bearer ${c.token}` },
-      cache: "no-store",
-    });
-
-    if (!res.ok) {
-      return [];
-    }
-    const data = (await res.json()) as { agents?: AgentDefinition[] };
-
-    return data.agents ?? [];
-  } catch {
-    return [];
-  }
+  return await fetchAgentList("/api/agent-definitions");
 }
 
 /** One cluster's verdict on one definition, from the sync loop's report. */
@@ -89,23 +66,17 @@ export interface AgentUsageRef {
   inherited: boolean;
 }
 
-/**
- * Where each catalog entry is dispatched from — every builtin blueprint node
- * that resolves to it, keyed by definition name. A name absent from the map is
- * either a blueprint-less task type (runs as a single Agent CR) or dormant;
- * the list view tells the two apart by the definition's execution_mode.
- *
- * NULL, not `{}`, when the endpoint is unreachable or refuses: an empty map
- * asserts "nothing references anything", and the list would then claim every
- * definition runs outside any assembly line — a wrong statement dressed as a
- * fact (a stale lore-api 404'd exactly this way). Unknown must render as
- * unknown.
- */
+/** Where each catalog entry is dispatched from, keyed by name; null (not `{}`) when the endpoint is unreachable, so "unknown" never renders as "nothing references anything". */
 export interface AgentUsage {
   refs: Record<string, AgentUsageRef[]>;
-  /** Verdicts keyed by definition name. An empty list for a name means no
-   *  cluster has reported on it — unknown, not "applied everywhere". */
+  /** Verdicts keyed by definition name — an empty list means no cluster has reported, not "applied everywhere". */
   applied: Record<string, AgentApplyStatus[]>;
+}
+
+/** The usage endpoint's wire shape, before it is keyed by name. */
+interface AgentUsageBody {
+  usage?: Array<{ name: string; used_by: AgentUsageRef[] }>;
+  applied?: AgentApplyStatus[];
 }
 
 export async function fetchAgentUsage(): Promise<AgentUsage | null> {
@@ -125,60 +96,70 @@ export async function fetchAgentUsage(): Promise<AgentUsage | null> {
     if (!res.ok) {
       return null;
     }
-    const data = (await res.json()) as {
-      usage?: Array<{ name: string; used_by: AgentUsageRef[] }>;
-      applied?: AgentApplyStatus[];
-    };
-    const applied: Record<string, AgentApplyStatus[]> = {};
 
-    for (const status of data.applied ?? []) {
-      (applied[status.name] ??= []).push(status);
-    }
-
-    return {
-      refs: Object.fromEntries(
-        (data.usage ?? []).map((entry) => [entry.name, entry.used_by]),
-      ),
-      applied,
-    };
+    return buildAgentUsage((await res.json()) as AgentUsageBody);
   } catch {
     return null;
   }
 }
 
-export async function saveAgent(
-  repo: string,
-  def: Partial<AgentDefinition> & { name: string },
-  isUpdate: boolean,
-  approvalPr?: string,
-): Promise<AgentSaveResult> {
-  const c = cfg();
-
-  if (!c) {
-    return { status: "unconfigured" };
-  }
-
-  const headers: Record<string, string> = {
-    "content-type": "application/json",
-    authorization: `Bearer ${c.token}`,
+function buildAgentUsage(body: AgentUsageBody): AgentUsage {
+  return {
+    refs: Object.fromEntries(
+      (body.usage ?? []).map((entry) => [entry.name, entry.used_by]),
+    ),
+    applied: groupAppliedByName(body.applied ?? []),
   };
+}
 
-  if (approvalPr) {
-    headers["x-lore-approval-pr"] = approvalPr;
+function groupAppliedByName(
+  statuses: AgentApplyStatus[],
+): Record<string, AgentApplyStatus[]> {
+  const applied: Record<string, AgentApplyStatus[]> = {};
+
+  for (const status of statuses) {
+    (applied[status.name] ??= []).push(status);
   }
 
-  const url = isUpdate
-    ? `${c.apiUrl}/api/repos/${repo}/agent-definitions/${encodeURIComponent(def.name)}`
-    : `${c.apiUrl}/api/repos/${repo}/agent-definitions`;
+  return applied;
+}
 
+/** Headers for a definition write. The approval-PR header rides along only when there is one — the two-key gate on privileged fields reads it, and sending an empty value would be a claim of approval nobody made. */
+function writeHeaders(
+  token: string,
+  approvalPr?: string,
+): Record<string, string> {
+  return {
+    "content-type": "application/json",
+    authorization: `Bearer ${token}`,
+    ...(approvalPr ? { "x-lore-approval-pr": approvalPr } : {}),
+  };
+}
+
+/** The repo-scoped collection, or one definition inside it when named. */
+function agentUrl(apiUrl: string, repo: string, name?: string): string {
+  const base = `${apiUrl}/api/repos/${repo}/agent-definitions`;
+
+  return name ? `${base}/${encodeURIComponent(name)}` : base;
+}
+
+interface WriteRequest {
+  url: string;
+  method: string;
+  headers: Record<string, string>;
+  body: string;
+}
+
+/** One definition write; a transport failure becomes a result rather than a throw. */
+async function writeDefinition(req: WriteRequest): Promise<AgentSaveResult> {
   let res: Response;
 
   try {
-    res = await fetch(url, {
+    res = await fetch(req.url, {
       signal: AbortSignal.timeout(15_000),
-      method: isUpdate ? "PUT" : "POST",
-      headers,
-      body: JSON.stringify(def),
+      method: req.method,
+      headers: req.headers,
+      body: req.body,
       cache: "no-store",
     });
   } catch (err) {
@@ -188,9 +169,45 @@ export async function saveAgent(
   return mapWriteResponse(res);
 }
 
-/** Update an ORG-DEFAULT definition — the global /agents editor's write. The
- *  API refuses a non-empty image here (repo-scoped two-key ceremony), which
- *  surfaces as a plain error result. */
+async function writeAgent(
+  repo: string,
+  def: Partial<AgentDefinition> & { name: string },
+  target: { name: string | undefined; method: "POST" | "PUT" },
+  approvalPr?: string,
+): Promise<AgentSaveResult> {
+  const c = cfg();
+
+  if (!c) {
+    return { status: "unconfigured" };
+  }
+
+  return writeDefinition({
+    url: agentUrl(c.apiUrl, repo, target.name),
+    method: target.method,
+    headers: writeHeaders(c.token, approvalPr),
+    body: JSON.stringify(def),
+  });
+}
+
+/** POSTs to the collection, so a name that already has a repo row is rejected by the API rather than silently overwritten. */
+export function createAgent(
+  repo: string,
+  def: Partial<AgentDefinition> & { name: string },
+  approvalPr?: string,
+): Promise<AgentSaveResult> {
+  return writeAgent(repo, def, { name: undefined, method: "POST" }, approvalPr);
+}
+
+/** PUTs to the named resource, which upserts the repo's PROJECT row — an org definition forks into a repo-owned one on its first edit. */
+export function updateAgent(
+  repo: string,
+  def: Partial<AgentDefinition> & { name: string },
+  approvalPr?: string,
+): Promise<AgentSaveResult> {
+  return writeAgent(repo, def, { name: def.name, method: "PUT" }, approvalPr);
+}
+
+/** Global /agents editor's write — API refuses a non-empty image here (repo-scoped two-key ceremony), surfacing as a plain error. */
 export async function saveOrgAgent(
   def: Partial<AgentDefinition> & { name: string },
 ): Promise<AgentSaveResult> {
@@ -199,52 +216,93 @@ export async function saveOrgAgent(
   if (!c) {
     return { status: "unconfigured" };
   }
+
+  return writeDefinition({
+    url: `${c.apiUrl}/api/agent-definitions/${encodeURIComponent(def.name)}`,
+    method: "PUT",
+    headers: writeHeaders(c.token),
+    body: JSON.stringify(def),
+  });
+}
+
+async function mapWriteResponse(res: Response): Promise<AgentSaveResult> {
+  const body = await res.json().catch(() => ({}) as Record<string, unknown>);
+
+  if (res.ok) {
+    return { status: "ok", agent: body.agent as AgentDefinition };
+  }
+
+  return mapErrorBody(res.status, body);
+}
+
+function mapErrorBody(
+  status: number,
+  body: Record<string, unknown>,
+): AgentSaveResult {
+  if (status !== 403) {
+    return genericSaveError(status, body);
+  }
+
+  if (body.error === "two_key_required") {
+    return { status: "two_key_required", detail: stringField(body.detail) };
+  }
+
+  if (body.error === "codeowners_check_failed") {
+    return {
+      status: "codeowners_failed",
+      code: stringField(body.code, "unknown"),
+      detail: stringField(body.detail),
+    };
+  }
+
+  return genericSaveError(status, body);
+}
+
+function stringField(value: unknown, fallback = ""): string {
+  return String(value ?? fallback);
+}
+
+function genericSaveError(
+  status: number,
+  body: Record<string, unknown>,
+): AgentSaveResult {
+  return { status: "error", message: String(body.error ?? `HTTP ${status}`) };
+}
+
+/** The failure the API reported, falling back to the status code. The body is parsed defensively because an error response is exactly the case where it may not be JSON at all — a gateway timeout answers in HTML. */
+async function readErrorBody(res: Response): Promise<AgentSaveResult> {
+  const body = await res.json().catch(() => ({}) as Record<string, unknown>);
+
+  return {
+    status: "error",
+    message: String(body.error ?? `HTTP ${res.status}`),
+  };
+}
+
+/** A delete answers with no body, so the name is all the caller gets back. */
+function deletedResult(name: string): AgentSaveResult {
+  return { status: "ok", agent: { name } as AgentDefinition };
+}
+
+async function deleteDefinition(
+  url: string,
+  token: string,
+  name: string,
+): Promise<AgentSaveResult> {
   let res: Response;
 
   try {
-    res = await fetch(
-      `${c.apiUrl}/api/agent-definitions/${encodeURIComponent(def.name)}`,
-      {
-        signal: AbortSignal.timeout(15_000),
-        method: "PUT",
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${c.token}`,
-        },
-        body: JSON.stringify(def),
-        cache: "no-store",
-      },
-    );
+    res = await fetch(url, {
+      signal: AbortSignal.timeout(15_000),
+      method: "DELETE",
+      headers: { authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
   } catch (err) {
     return { status: "error", message: (err as Error).message };
   }
 
-  return mapWriteResponse(res);
-}
-
-async function mapWriteResponse(res: Response): Promise<AgentSaveResult> {
-  const data = await res.json().catch(() => ({}) as Record<string, unknown>);
-
-  if (res.ok) {
-    return { status: "ok", agent: data.agent as AgentDefinition };
-  }
-
-  if (res.status === 403 && data.error === "two_key_required") {
-    return { status: "two_key_required", detail: String(data.detail ?? "") };
-  }
-
-  if (res.status === 403 && data.error === "codeowners_check_failed") {
-    return {
-      status: "codeowners_failed",
-      code: String(data.code ?? "unknown"),
-      detail: String(data.detail ?? ""),
-    };
-  }
-
-  return {
-    status: "error",
-    message: String(data.error ?? `HTTP ${res.status}`),
-  };
+  return res.ok ? deletedResult(name) : await readErrorBody(res);
 }
 
 export async function deleteAgent(
@@ -256,29 +314,6 @@ export async function deleteAgent(
   if (!c) {
     return { status: "unconfigured" };
   }
-  let res: Response;
 
-  try {
-    res = await fetch(
-      `${c.apiUrl}/api/repos/${repo}/agent-definitions/${encodeURIComponent(name)}`,
-      {
-        signal: AbortSignal.timeout(15_000),
-        method: "DELETE",
-        headers: { authorization: `Bearer ${c.token}` },
-        cache: "no-store",
-      },
-    );
-  } catch (err) {
-    return { status: "error", message: (err as Error).message };
-  }
-
-  if (res.ok) {
-    return { status: "ok", agent: { name } as AgentDefinition };
-  }
-  const data = await res.json().catch(() => ({}) as Record<string, unknown>);
-
-  return {
-    status: "error",
-    message: String(data.error ?? `HTTP ${res.status}`),
-  };
+  return deleteDefinition(agentUrl(c.apiUrl, repo, name), c.token, name);
 }

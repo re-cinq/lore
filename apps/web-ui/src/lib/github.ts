@@ -1,12 +1,8 @@
-/**
- * GitHub API client for the web-ui.
- * Uses GitHub App authentication (same credentials as MCP server).
- * Only implements getPRDetails needed for PR state visibility.
- */
+/** GitHub API client for web-ui (GitHub App auth, PR state visibility). */
 
-import { Octokit } from "octokit";
-import { withoutBlindRetryOnCreates } from "./octokit-retry-policy";
-import { createAppAuth } from "@octokit/auth-app";
+import { split, octokit, isGitHubConfigured } from "./github-client";
+
+export { split, octokit, isGitHubConfigured } from "./github-client";
 
 export type PRStatus =
   | "draft"
@@ -30,67 +26,17 @@ export interface PRDetails {
   computed_status: PRStatus;
 }
 
-function split(repo: string): [string, string] {
-  const [owner, name] = repo.split("/");
-
-  return [owner, name];
-}
-
-async function octokit(): Promise<Octokit> {
-  const appId = process.env.GITHUB_APP_ID || "";
-  const privateKey = process.env.GITHUB_APP_PRIVATE_KEY || "";
-  const installationId = process.env.GITHUB_APP_INSTALLATION_ID || "";
-
-  if (!appId || !privateKey || !installationId) {
-    throw new Error("GitHub App credentials not configured");
-  }
-
-  return withoutBlindRetryOnCreates(
-    new Octokit({
-      authStrategy: createAppAuth,
-      auth: { appId, privateKey, installationId },
-    }),
+function hasFailingChecks(checks: Array<{ conclusion: string | null }>) {
+  return checks.some(
+    (c) => c.conclusion === "failure" || c.conclusion === "timed_out",
   );
 }
 
-export function isGitHubConfigured(): boolean {
-  return !!(
-    process.env.GITHUB_APP_ID &&
-    process.env.GITHUB_APP_PRIVATE_KEY &&
-    process.env.GITHUB_APP_INSTALLATION_ID
-  );
-}
-
-export function computeStatus(
-  pr: { merged: boolean; state: string; draft?: boolean },
-  checks: Array<{ conclusion: string | null }>,
+function isApprovedAndPassing(
   reviews: Array<{ state: string }>,
-): PRStatus {
-  if (pr.merged) {
-    return "merged";
-  }
-
-  if (pr.state === "closed") {
-    return "closed";
-  }
-
-  if (pr.draft) {
-    return "draft";
-  }
-
-  if (
-    checks.some(
-      (c) => c.conclusion === "failure" || c.conclusion === "timed_out",
-    )
-  ) {
-    return "checks-failing";
-  }
-
-  if (reviews.some((r) => r.state === "CHANGES_REQUESTED")) {
-    return "changes-requested";
-  }
-
-  if (
+  checks: Array<{ conclusion: string | null }>,
+) {
+  return (
     reviews.some((r) => r.state === "APPROVED") &&
     checks.every(
       (c) =>
@@ -98,30 +44,49 @@ export function computeStatus(
         c.conclusion === "skipped" ||
         c.conclusion === null,
     )
-  ) {
-    return "approved";
-  }
+  );
+}
 
-  return "open";
+/** First matching rule wins — same order as the old if-chain, expressed as data instead of branches. */
+function statusRules(
+  pr: { merged: boolean; state: string; draft?: boolean },
+  checks: Array<{ conclusion: string | null }>,
+  reviews: Array<{ state: string }>,
+): Array<[boolean, PRStatus]> {
+  return [
+    [pr.merged, "merged"],
+    [pr.state === "closed", "closed"],
+    [!!pr.draft, "draft"],
+    [hasFailingChecks(checks), "checks-failing"],
+    [reviews.some((r) => r.state === "CHANGES_REQUESTED"), "changes-requested"],
+    [isApprovedAndPassing(reviews, checks), "approved"],
+  ];
+}
+
+export function computeStatus(
+  pr: { merged: boolean; state: string; draft?: boolean },
+  checks: Array<{ conclusion: string | null }>,
+  reviews: Array<{ state: string }>,
+): PRStatus {
+  const match = statusRules(pr, checks, reviews).find(([cond]) => cond);
+
+  return match ? match[1] : "open";
 }
 
 export type RepoAccess = "ok" | "not-found" | "unknown";
 
-/**
- * Pre-flight probe: can the GitHub App see this repo? 404 is definitive
- * (wrong owner/name, or the App is not installed there — installation-scoped
- * auth surfaces both as 404); an unconfigured App or a transient error is
- * "unknown" so callers can fail soft — mirrors {@link checkRepoFiles}.
- */
+type RestApi = Awaited<ReturnType<typeof octokit>>["rest"];
+
+/** Probe: can App see this repo? Definitive 404 or unknown. */
 export async function checkRepoAccess(repo: string): Promise<RepoAccess> {
   if (!isGitHubConfigured()) {
     return "unknown";
   }
-  const ok = await octokit();
+  const { repos } = (await octokit()).rest;
   const [owner, name] = split(repo);
 
   try {
-    await ok.rest.repos.get({ owner, repo: name });
+    await repos.get({ owner, repo: name });
 
     return "ok";
   } catch (e) {
@@ -129,56 +94,102 @@ export async function checkRepoAccess(repo: string): Promise<RepoAccess> {
   }
 }
 
+// GitHub's own repo-response shape (description/default_branch/html_url), not a Lore table row.
+// eslint-disable-next-line re-lint/no-row-types-outside-models
 export interface RepoMeta {
   description: string | null;
   default_branch: string;
   html_url: string;
 }
 
-/**
- * Check whether each path exists on the repo's default branch.
- * Returns a map of path -> true (exists) / false (404) / null (unknown:
- * App not configured, no repo access, or transient error). Fail-soft.
- */
+interface FileAt {
+  owner: string;
+  name: string;
+  path: string;
+}
+
+function allUnknown(paths: string[]): Record<string, boolean | null> {
+  const result: Record<string, boolean | null> = {};
+
+  for (const p of paths) {
+    result[p] = null;
+  }
+
+  return result;
+}
+
+/** true, false on a definitive 404, null when GitHub answered anything else. */
+async function fileExists(
+  repos: RestApi["repos"],
+  at: FileAt,
+): Promise<boolean | null> {
+  try {
+    await repos.getContent({ owner: at.owner, repo: at.name, path: at.path });
+
+    return true;
+  } catch (e) {
+    return (e as { status?: number }).status === 404 ? false : null;
+  }
+}
+
+/** Check if paths exist on repo's default branch; fail-soft. */
 export async function checkRepoFiles(
   repo: string,
   paths: string[],
 ): Promise<Record<string, boolean | null>> {
-  const result: Record<string, boolean | null> = {};
-
   if (!isGitHubConfigured()) {
-    for (const p of paths) {
-      result[p] = null;
-    }
-
-    return result;
+    return allUnknown(paths);
   }
-  const ok = await octokit();
+  const { repos } = (await octokit()).rest;
   const [owner, name] = split(repo);
+  const result: Record<string, boolean | null> = {};
 
   await Promise.all(
     paths.map(async (path) => {
-      try {
-        await ok.rest.repos.getContent({ owner, repo: name, path });
-        result[path] = true;
-      } catch (e) {
-        result[path] = (e as { status?: number }).status === 404 ? false : null;
-      }
+      result[path] = await fileExists(repos, { owner, name, path });
     }),
   );
 
   return result;
 }
 
-/**
- * Fetch the decoded UTF-8 content of a file on the repo's default branch.
- * Returns null only when the file is genuinely absent (404) or the App
- * isn't configured. Transient/permission failures (rate limits, 403, 5xx)
- * are rethrown so callers can fail soft rather than mistake a hiccup for an
- * absent file — mirrors {@link checkRepoFiles} (404 = absent, other =
- * unknown). Returning null for, say, a secondary rate limit would falsely
- * flag every repo's lore-ingest workflow as missing.
- */
+function isFileWithStringContent(
+  content: unknown,
+): content is { content: string } {
+  if (Array.isArray(content)) {
+    return false;
+  }
+  const c = content as { type?: string; content?: unknown };
+
+  return c.type === "file" && typeof c.content === "string";
+}
+
+function nullOnNotFound(e: unknown): null {
+  if ((e as { status?: number }).status === 404) {
+    return null;
+  }
+  throw e;
+}
+
+/** Decoded UTF-8 body, or null when the path is a directory or a non-string blob. */
+async function decodedContent(
+  repos: RestApi["repos"],
+  at: FileAt,
+): Promise<string | null> {
+  const { data: content } = await repos.getContent({
+    owner: at.owner,
+    repo: at.name,
+    path: at.path,
+  });
+
+  if (!isFileWithStringContent(content)) {
+    return null;
+  }
+
+  return Buffer.from(content.content, "base64").toString("utf-8");
+}
+
+/** Fetch decoded UTF-8 file content from repo's default branch; null on 404 or unconfigured. */
 export async function getRepoFileContent(
   repo: string,
   path: string,
@@ -186,182 +197,33 @@ export async function getRepoFileContent(
   if (!isGitHubConfigured()) {
     return null;
   }
-  const ok = await octokit();
+  const { repos } = (await octokit()).rest;
   const [owner, name] = split(repo);
 
   try {
-    const { data } = await ok.rest.repos.getContent({
-      owner,
-      repo: name,
-      path,
-    });
-
-    if (
-      Array.isArray(data) ||
-      data.type !== "file" ||
-      typeof data.content !== "string"
-    ) {
-      return null;
-    }
-
-    return Buffer.from(data.content, "base64").toString("utf-8");
+    return await decodedContent(repos, { owner, name, path });
   } catch (e) {
-    if ((e as { status?: number }).status === 404) {
-      return null;
-    }
-    throw e;
+    return nullOnNotFound(e);
   }
 }
 
-const isAlreadyExists = (e: unknown): boolean =>
-  (e as { status?: number }).status === 422;
-
-/**
- * Open (or reuse) a PR that installs one canonical workflow file on `repo`.
- * Idempotent: re-uses a stable branch and the existing open PR if a prior run
- * already opened one. Returns the PR url+number, or null if the App isn't
- * configured.
- */
-async function openWorkflowPR(
-  repo: string,
-  {
-    path,
-    content,
-    branch,
-    title,
-    body,
-  }: {
-    path: string;
-    content: string;
-    branch: string;
-    title: string;
-    body: string;
-  },
-): Promise<{ url: string; number: number } | null> {
-  if (!isGitHubConfigured()) {
-    return null;
-  }
-  const ok = await octokit();
-  const [owner, name] = split(repo);
-
-  const { data: repoData } = await ok.rest.repos.get({ owner, repo: name });
-  const base = repoData.default_branch;
-
-  const { data: baseRef } = await ok.rest.git.getRef({
-    owner,
-    repo: name,
-    ref: `heads/${base}`,
-  });
-
-  try {
-    await ok.rest.git.createRef({
-      owner,
-      repo: name,
-      ref: `refs/heads/${branch}`,
-      sha: baseRef.object.sha,
-    });
-  } catch (e) {
-    if (!isAlreadyExists(e)) {
-      throw e;
-    } // branch already exists — commit onto it
-  }
-
-  let sha: string | undefined;
-
-  try {
-    const { data } = await ok.rest.repos.getContent({
-      owner,
-      repo: name,
-      path,
-      ref: branch,
-    });
-
-    if (!Array.isArray(data) && "sha" in data) {
-      sha = data.sha;
-    }
-  } catch {
-    // file not on the branch yet — create it fresh
-  }
-
-  await ok.rest.repos.createOrUpdateFileContents({
-    owner,
-    repo: name,
-    path,
-    branch,
-    message: `lore: install ${path}`,
-    content: Buffer.from(content).toString("base64"),
-    ...(sha ? { sha } : {}),
-  });
-
-  try {
-    const { data: pr } = await ok.rest.pulls.create({
-      owner,
-      repo: name,
-      head: branch,
-      base,
-      title,
-      body,
-    });
-
-    return { url: pr.html_url, number: pr.number };
-  } catch (e) {
-    if (!isAlreadyExists(e)) {
-      throw e;
-    }
-    const { data: existing } = await ok.rest.pulls.list({
-      owner,
-      repo: name,
-      head: `${owner}:${branch}`,
-      state: "open",
-    });
-    const pr = existing[0];
-
-    return pr ? { url: pr.html_url, number: pr.number } : null;
-  }
-}
-
-/** Install (or repair) the context-ingest workflow. */
-export async function openIngestWorkflowPR(
-  repo: string,
-  path: string,
-  content: string,
-): Promise<{ url: string; number: number } | null> {
-  return openWorkflowPR(repo, {
-    path,
-    content,
-    branch: "lore/fix-ingest-workflow",
-    title: "lore: install context ingest workflow",
-    body: "This PR installs (or repairs) `.github/workflows/lore-ingest.yml` so pushes to context files trigger Lore re-ingestion.\n\nOpened from the Lore dashboard.",
-  });
-}
-
-/** Install (or repair) the advisory pre-merge spec-impact workflow. */
-export async function openTraceImpactWorkflowPR(
-  repo: string,
-  path: string,
-  content: string,
-): Promise<{ url: string; number: number } | null> {
-  return openWorkflowPR(repo, {
-    path,
-    content,
-    branch: "lore/fix-trace-impact-workflow",
-    title: "lore: update spec-impact workflow",
-    body: "This PR installs (or repairs) `.github/workflows/lore-trace-impact.yml`. The previous version computed its diff against the base-branch tip instead of the merge base, so it attributed unrelated changes to the PR; findings from it are suppressed until this lands.\n\nOpened from the Lore dashboard.",
-  });
-}
+export {
+  openIngestWorkflowPR,
+  openTraceImpactWorkflowPR,
+} from "./github-workflow-pr";
 
 export async function getRepoMeta(repo: string): Promise<RepoMeta | null> {
   if (!isGitHubConfigured()) {
     return null;
   }
-  const ok = await octokit();
+  const { repos } = (await octokit()).rest;
   const [owner, name] = split(repo);
-  const { data } = await ok.rest.repos.get({ owner, repo: name });
+  const { data: repository } = await repos.get({ owner, repo: name });
 
   return {
-    description: data.description ?? null,
-    default_branch: data.default_branch,
-    html_url: data.html_url,
+    description: repository.description ?? null,
+    default_branch: repository.default_branch,
+    html_url: repository.html_url,
   };
 }
 
@@ -375,53 +237,89 @@ export async function getReadme(repo: string): Promise<RepoReadme | null> {
   if (!isGitHubConfigured()) {
     return null;
   }
-  const ok = await octokit();
+  const { repos } = (await octokit()).rest;
   const [owner, name] = split(repo);
 
   try {
-    const { data } = await ok.rest.repos.getReadme({ owner, repo: name });
-    const markdown = Buffer.from(data.content, "base64").toString("utf-8");
-    const rawBaseUrl = (data.download_url ?? "").replace(/[^/]+$/, "");
+    const { data: readme } = await repos.getReadme({
+      owner,
+      repo: name,
+    });
+    const markdown = Buffer.from(readme.content, "base64").toString("utf-8");
+    const rawBaseUrl = (readme.download_url ?? "").replace(/[^/]+$/, "");
 
-    return { markdown, rawBaseUrl, htmlUrl: data.html_url ?? "" };
+    return { markdown, rawBaseUrl, htmlUrl: readme.html_url ?? "" };
   } catch {
     return null;
   }
 }
 
-export async function getPRDetails(
-  repo: string,
-  prNumber: number,
-): Promise<PRDetails> {
-  const ok = await octokit();
-  const [owner, repoName] = split(repo);
+interface PrAt {
+  owner: string;
+  repoName: string;
+  prNumber: number;
+  headSha: string;
+}
 
-  const { data: pr } = await ok.rest.pulls.get({
-    owner,
-    repo: repoName,
-    pull_number: prNumber,
-  });
+/** Degrades to an empty list rather than failing the read: a card that renders without its check list beats one that does not render at all. */
+async function fetchChecks(checks: RestApi["checks"], at: PrAt) {
+  const result = await checks
+    .listForRef({ owner: at.owner, repo: at.repoName, ref: at.headSha })
+    .catch(() => ({ data: { check_runs: [] } }));
+  const { check_runs: checkRuns } = result.data;
 
-  const [checksResult, reviewsResult] = await Promise.all([
-    ok.rest.checks
-      .listForRef({ owner, repo: repoName, ref: pr.head.sha })
-      .catch(() => ({ data: { check_runs: [] } })),
-    ok.rest.pulls
-      .listReviews({ owner, repo: repoName, pull_number: prNumber })
-      .catch(() => ({ data: [] })),
-  ]);
-
-  const checks = checksResult.data.check_runs.map((c) => ({
+  return checkRuns.map((c) => ({
     name: c.name,
     status: c.status,
     conclusion: c.conclusion ?? null,
   }));
+}
 
-  const reviews = reviewsResult.data.map((r) => ({
+/** Degrades to an empty list for the same reason `fetchChecks` does. */
+async function fetchReviews(pulls: RestApi["pulls"], at: PrAt) {
+  const result = await pulls
+    .listReviews({
+      owner: at.owner,
+      repo: at.repoName,
+      pull_number: at.prNumber,
+    })
+    .catch(() => ({ data: [] }));
+
+  return result.data.map((r) => ({
     user: r.user?.login || "unknown",
     state: r.state,
     submitted_at: r.submitted_at || "",
   }));
+}
+
+/** Checks and reviews for a PR, fetched together. */
+async function prSignals(api: Pick<RestApi, "checks" | "pulls">, at: PrAt) {
+  const [checks, reviews] = await Promise.all([
+    fetchChecks(api.checks, at),
+    fetchReviews(api.pulls, at),
+  ]);
+
+  return { checks, reviews };
+}
+
+async function fetchPr(
+  pulls: RestApi["pulls"],
+  at: { owner: string; repoName: string; prNumber: number },
+) {
+  const { data: pr } = await pulls.get({
+    owner: at.owner,
+    repo: at.repoName,
+    pull_number: at.prNumber,
+  });
+
+  return pr;
+}
+
+type PrPayload = Awaited<ReturnType<typeof fetchPr>>;
+type PrSignals = Awaited<ReturnType<typeof prSignals>>;
+
+function toPrDetails(pr: PrPayload, signals: PrSignals): PRDetails {
+  const { checks, reviews } = signals;
 
   return {
     number: pr.number,
@@ -435,4 +333,21 @@ export async function getPRDetails(
     reviews,
     computed_status: computeStatus(pr, checks, reviews),
   };
+}
+
+export async function getPRDetails(
+  repo: string,
+  prNumber: number,
+): Promise<PRDetails> {
+  const rest = (await octokit()).rest;
+  const [owner, repoName] = split(repo);
+  const pr = await fetchPr(rest.pulls, { owner, repoName, prNumber });
+  const signals = await prSignals(rest, {
+    owner,
+    repoName,
+    prNumber,
+    headSha: pr.head.sha,
+  });
+
+  return toPrDetails(pr, signals);
 }

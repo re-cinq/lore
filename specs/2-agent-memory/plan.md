@@ -539,6 +539,6 @@ performance.
 
 ## Generated Artifacts
 
-- [contracts/mcp-tools.md](contracts/mcp-tools.md) — memory tool interface contracts
+- [docs/mcp-tools.md](docs/mcp-tools.md) — memory tool interface contracts
 - [data-model.md](data-model.md) — DB schema for all memory tables
 - [checklists/requirements.md](checklists/requirements.md) — requirement verification

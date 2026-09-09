@@ -1,19 +1,55 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-options";
-import { fetchAssemblyRun, fetchAssemblyRunNodes } from "@/lib/assembly-runs";
-import { userCanAccessRepo } from "@/lib/user-repo-access";
-import { proxyUpstreamStatus, serverError } from "@/lib/api-error";
+import { fetchAssemblyRunNodes } from "@/lib/assembly-runs";
+import {
+  authorizeAssemblyRunAccess,
+  isAssemblyRunAuthError,
+} from "@/lib/assembly-run-auth";
+import { serverError } from "@/lib/api-error";
+import { proxyJson } from "@/lib/floor-proxy";
 
-/**
- * GET /api/assembly-runs/[id]/nodes/[name]/logs — proxy for one node's live pod
- * logs. Resolves the run, confirms `name` is actually a node of it, checks the
- * user can see the repo, then proxies to the Floor's /api/agent-logs/{name}
- * (the UI SA has no cluster access; the Floor brokers the read). Passes `?tail`
- * through. Returns the Floor's `{ available, logs, phase, podName }` verbatim,
- * except the Floor's own 401/403 (ingest-token drift), which surface as 502.
- */
+/** One node's logs from the Floor. The 30s ceiling is deliberate: reading a pod's logs is a cluster round trip, and a reader waiting on a spinner is better served by an error than by a request that never returns. */
+function fetchNodeLogs(
+  upstreamUrl: string,
+  token: string,
+  name: string,
+  tail: string | null,
+) {
+  const query = tail ? `?tail=${encodeURIComponent(tail)}` : "";
+
+  return fetch(
+    `${upstreamUrl}/api/agent-logs/${encodeURIComponent(name)}${query}`,
+    {
+      signal: AbortSignal.timeout(30_000),
+      headers: { Authorization: `Bearer ${token}` },
+    },
+  );
+}
+
+/** Authorize, then resolve the CR name against this run's nodes, then proxy. Order matters: the node lookup only ever happens for a caller already allowed to see the run. */
+async function nodeLogsResponse(req: Request, id: string, name: string) {
+  // Authorize before probing the node table so an unauthorized user can't distinguish a valid agentCrName from an invalid one.
+  const auth = await authorizeAssemblyRunAccess(id);
+
+  if (isAssemblyRunAuthError(auth)) {
+    return auth;
+  }
+
+  const { upstreamUrl, token } = auth;
+  const nodes = await fetchAssemblyRunNodes(id);
+
+  if (!nodes.some((n) => n.agentCrName === name)) {
+    return NextResponse.json(
+      { error: "Node not found for this run" },
+      { status: 404 },
+    );
+  }
+  const tail = new URL(req.url).searchParams.get("tail");
+
+  return proxyJson(await fetchNodeLogs(upstreamUrl, token, name, tail));
+}
+
+// Proxy for one node's live pod logs via the Floor's /api/agent-logs/{name} (UI SA has no cluster access); Floor 401/403 surface as 502.
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string; name: string }> },
@@ -21,64 +57,7 @@ export async function GET(
   const { id, name } = await params;
 
   try {
-    const session = (await getServerSession(authOptions)) as {
-      accessToken?: string;
-    } | null;
-
-    if (!session?.accessToken) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const run = await fetchAssemblyRun(id);
-
-    if (!run) {
-      return NextResponse.json({ error: "Run not found" }, { status: 404 });
-    }
-
-    // Authorize before probing the node table, so an unauthorized user can't
-    // distinguish a valid agentCrName (404 "not found") from an invalid one.
-    if (!(await userCanAccessRepo(session.accessToken, run.repo))) {
-      return NextResponse.json(
-        { error: "Access denied — you do not have access to this repo" },
-        { status: 403 },
-      );
-    }
-
-    const nodes = await fetchAssemblyRunNodes(id);
-    const node = nodes.find((n) => n.agentCrName === name);
-
-    if (!node) {
-      return NextResponse.json(
-        { error: "Node not found for this run" },
-        { status: 404 },
-      );
-    }
-
-    const floorUrl = process.env.LORE_FLOOR_URL;
-    const token = process.env.LORE_INGEST_TOKEN;
-
-    if (!floorUrl || !token) {
-      return NextResponse.json(
-        { error: "LORE_FLOOR_URL/LORE_INGEST_TOKEN not configured" },
-        { status: 500 },
-      );
-    }
-
-    const tail = new URL(req.url).searchParams.get("tail");
-    const query = tail ? `?tail=${encodeURIComponent(tail)}` : "";
-    const upstream = await fetch(
-      `${floorUrl}/api/agent-logs/${encodeURIComponent(name)}${query}`,
-      {
-        signal: AbortSignal.timeout(30_000),
-        headers: { Authorization: `Bearer ${token}` },
-      },
-    );
-    const body = await upstream.text();
-
-    return new NextResponse(body, {
-      status: proxyUpstreamStatus(upstream.status),
-      headers: { "Content-Type": "application/json" },
-    });
+    return await nodeLogsResponse(req, id, name);
   } catch (err) {
     return serverError("assembly-line-node-logs", err);
   }

@@ -21,7 +21,7 @@ one caller wins; everyone else is told the task is already taken.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L292)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/pipeline-tools-spec-tasks.ts#L88)).
 
 - **name**: `lore_claim_task`
 - **description** (verbatim):
@@ -45,7 +45,7 @@ Atomically locks one 'pending' spec-task (flips it to 'running') so exactly one 
    MCP adapter holds no pool (ADR-032), so the atomic claim runs in lore-api
    ([`POST /api/spec-tasks/claim`](../../api-routes/spec-tasks/spec.md)).
 3. The route delegates to `claimTask(pool, task_id, agent_id)`
-   ([handler](../../../libs/server-core/src/features/pipeline/tasks.ts#L29)). It:
+   ([handler](../../../libs/server-core/src/work/pipeline/tasks.ts#L29)). It:
    1. `pool.connect()` → `BEGIN`.
    2. `SELECT id FROM pipeline.tasks WHERE id = $1 AND status = 'pending' FOR UPDATE SKIP LOCKED`.
    3. If no row → `ROLLBACK`, release, return `false`.
@@ -75,21 +75,21 @@ Never throws.
 ## Acceptance Criteria
 
 A pending task is locked, flipped to `running` with the claiming agent, and the
-transaction commits returning true. ([validated by `returns true and records the claim event when a pending task is claimed`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L148))
+transaction commits returning true. ([validated by `returns true and records the claim event when a pending task is claimed`](apps/mcp-server/src/work/pipeline/tasks-db.test.ts#L146))
 
 When the row is already locked or absent the handler rolls back and returns
-false. ([validated by `returns false and records no event when the row is already claimed`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L164))
+false. ([validated by `returns false and records no event when the row is already claimed`](apps/mcp-server/src/work/pipeline/tasks-db.test.ts#L162))
 
 A failure recording the claim event does not abort the claim; the transaction
-still commits. ([validated by `still returns true when the event-recording insert throws`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L175))
+still commits. ([validated by `still returns true when the event-recording insert throws`](apps/mcp-server/src/work/pipeline/tasks-db.test.ts#L173))
 
 The resolved agent id is posted with the task id and a successful claim is
-confirmed by name. ([validated by `lore_claim_task posts the resolved agent id and confirms the claim`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L394))
+confirmed by name. ([validated by `lore_claim_task posts the resolved agent id and confirms the claim`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L529))
 
-A refused claim renders the already-claimed/not-found message. ([validated by `lore_claim_task reports a task that could not be claimed`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L406))
+A refused claim renders the already-claimed/not-found message. ([validated by `lore_claim_task reports a task that could not be claimed`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L541))
 
 An unconfigured API yields the not-configured message rather than a PostgreSQL
-message. ([validated by `every proxied pipeline tool reports a missing API configuration`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L440))
+message. ([validated by `every proxied pipeline tool reports a missing API configuration`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L575))
 
 ## Out of Scope
 

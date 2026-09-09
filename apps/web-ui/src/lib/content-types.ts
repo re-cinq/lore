@@ -1,6 +1,4 @@
-/** Canonical display order for the context content-type filter chips.
- * The chip SET is data-driven (only types actually present get a chip); this
- * just orders them. Unknown types sort after these, alphabetically. */
+/** Canonical display order for content-type filter chips; the chip SET is data-driven, this only orders them (unknown types sort last, alphabetically). */
 export const TYPE_ORDER = [
   "doc",
   "spec",
@@ -19,9 +17,7 @@ const BADGE_MOD: Record<string, string> = {
   code: "badge-gray",
 };
 
-/** The `content_type` column is nullable, and both the badge and the preview
- * decision need a string. Resolving the null here — once, at the boundary —
- * keeps the two from disagreeing about what an untyped chunk is. */
+/** Resolves the nullable `content_type` column once at the boundary, so the badge and preview decisions can't disagree about an untyped chunk. */
 export function contentTypeOf(type: string | null | undefined): string {
   return type ?? "unknown";
 }

@@ -23,9 +23,11 @@ describe("toggleClusterPausedAction", () => {
   it("pauses the bound agent and refreshes the page", async () => {
     setClusterAgentPaused.mockResolvedValue({ status: "ok", data: {} });
 
-    await toggleClusterPausedAction("agent-1", true);
+    await toggleClusterPausedAction("agent-1", { paused: true });
 
-    expect(setClusterAgentPaused).toHaveBeenCalledWith("agent-1", true);
+    expect(setClusterAgentPaused).toHaveBeenCalledWith("agent-1", {
+      paused: true,
+    });
     expect(revalidatePath).toHaveBeenCalledWith("/cluster-agents");
   });
 
@@ -35,7 +37,9 @@ describe("toggleClusterPausedAction", () => {
       error: "cluster agent not found",
     });
 
-    await expect(toggleClusterPausedAction("gone", true)).rejects.toThrow();
+    await expect(
+      toggleClusterPausedAction("gone", { paused: true }),
+    ).rejects.toThrow();
     expect(revalidatePath).not.toHaveBeenCalled();
   });
 });

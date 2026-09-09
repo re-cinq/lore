@@ -97,13 +97,13 @@ resource "helm_release" "lore_platform" {
       }
       ingestTokenSecret   = { name = "lore-ingest-token", key = "token" }
       internalTokenSecret = { name = "lore-agent-internal-token", key = "token" }
-      webhookSecret       = { name = "lore-floor-webhook-secret", key = "secret" }
     }
 
     # ---- Lore API (lore-api namespace) ----
     "lore-api" = {
       taskTypesConfig = file("${path.module}/../../scripts/task-types.yaml")
       replicaCount    = 1
+      gcpProject      = var.project_id
       env = {
         PORT             = "3000"
         CONTEXT_PATH     = "/context"
@@ -130,11 +130,23 @@ resource "helm_release" "lore_platform" {
         # LORE_AGENT_EVENTS_URL was read by the code and set NOWHERE, so the http sink
         # never materialised on a UI-authored recipe.
         LORE_AGENT_EVENTS_URL = "http://lore-floor.lore-floor.svc.cluster.local:8080/api/agent-events"
-        LORE_WEBHOOK_URL      = var.lore_webhook_hostname != "" ? "https://${var.lore_webhook_hostname}/api/webhook/github" : ""
+        # The canonical repo-hook URL lore-api installs and classifies against
+        # (ADR-044 step 2): the event-router front door. lore_webhook_hostname
+        # still serves /api/webhook/ci-ingest|ci-tests and the legacy hook alias.
+        LORE_WEBHOOK_URL = var.lore_event_router_hostname != "" ? "https://${var.lore_event_router_hostname}/api/events" : ""
         # The connect-a-cluster hand-out (#1572): lore-api serves its own
         # public URL + the event-router front door to satellite installers.
         LORE_API_URL                 = var.lore_api_url
         LORE_EVENT_ROUTER_PUBLIC_URL = var.lore_event_router_hostname != "" ? "https://${var.lore_event_router_hostname}" : ""
+        # /spend's compute ESTIMATE prices pod-hours at these rates. The code
+        # defaults to an e2 on-demand ballpark ($0.022/cpu-h), but this platform
+        # runs on GKE AUTOPILOT, which bills the pod's own requests at roughly
+        # twice that — so the unset default understated every pod figure on the
+        # page by ~2x. Autopilot general-purpose, europe-west1. The real invoice
+        # arrives separately through the billing export (ADR-043); this only has
+        # to be honest about "now".
+        LORE_GKE_CPU_HOUR_USD     = "0.0489"
+        LORE_GKE_MEM_GIB_HOUR_USD = "0.0054"
       }
       dbPasswordSecret  = { name = "lore-api-db-password", key = "password" }
       ingestTokenSecret = { name = "lore-ingest-token", key = "token" }
@@ -276,7 +288,14 @@ resource "helm_release" "lore_platform" {
     # that is the point of the service form: a station beside the data asks the
     # data instead of paying for an HTTP seam per method.
     "lore-stations" = {
-      env = {
+      # Workload Identity for the gcp-cost-sync station's BigQuery read; the
+      # KSA annotation is what makes the metadata server answer as the GSA.
+      serviceAccount = {
+        annotations = var.enable_gcp_billing_export ? {
+          "iam.gke.io/gcp-service-account" = google_service_account.lore_stations[0].email
+        } : {}
+      }
+      env = merge({
         LORE_DB_HOST = "lore-db-rw.lore-db.svc.cluster.local"
         LORE_DB_PORT = "5432"
         LORE_DB_NAME = "lore"
@@ -294,7 +313,13 @@ resource "helm_release" "lore_platform" {
         # external URL would leave the cluster and come back through the
         # ingress for a call between two pods in it.
         LORE_API_URL = local.lore_api_in_cluster
-      }
+        }, var.enable_gcp_billing_export ? {
+        # Where the gcp-cost-sync station finds the Cloud Billing export.
+        # Unset (flag off) → the sync reports a skip and /spend keeps showing
+        # the estimate only.
+        LORE_GCP_BILLING_PROJECT = var.project_id
+        LORE_GCP_BILLING_DATASET = google_bigquery_dataset.billing_export[0].dataset_id
+      } : {})
       # The anthropic-cost-sync station's org admin key (moved here from lore-api
       # in #1522). Its OWN namespace secret — secrets are namespace-scoped, so
       # the lore-api `lore-anthropic-key` is out of reach here. es_stations_anthropic_key

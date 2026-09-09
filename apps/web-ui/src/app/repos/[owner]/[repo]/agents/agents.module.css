@@ -68,6 +68,33 @@
   font-family: var(--font-mono);
 }
 
+/* Both recolour a .detail cell, so they must stay below it to win on order. */
+.detailDormant {
+  color: var(--warning);
+}
+
+.detailBad {
+  color: var(--danger);
+}
+
+.actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+/* The confirm step replaces the Remove button inside its table cell; nowrap keeps the two buttons on one line while the sentence wraps. */
+.confirmRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.confirmRow button {
+  white-space: nowrap;
+}
+
 .resourceGrid {
   display: grid;
   grid-template-columns: auto repeat(3, minmax(6rem, 10rem));

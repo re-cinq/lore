@@ -1,10 +1,6 @@
 const MAX_CODE_LINES = 12;
 
-/**
- * Extracts the lead of an ingested chunk for list-card previews so the list view
- * never parses thousands of full chunk bodies. Prose returns the first paragraph,
- * keeping a leading markdown heading attached; code returns its first lines.
- */
+/** Extract lead of chunk for list-card previews: first paragraph (with heading) for prose, first lines for code. */
 export function previewBlock(content: string, contentType: string): string {
   const trimmed = content.trim();
 
@@ -12,7 +8,7 @@ export function previewBlock(content: string, contentType: string): string {
     return "";
   }
 
-  if (contentType === "code") {
+  if (contentType === "code" || contentType === "test") {
     return trimmed.split("\n").slice(0, MAX_CODE_LINES).join("\n");
   }
   const blocks = trimmed.split(/\n[ \t]*\n/);

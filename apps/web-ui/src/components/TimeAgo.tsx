@@ -1,17 +1,28 @@
 import styles from "./TimeAgo.module.scss";
 import { formatRelativeTime } from "@/lib/assembly-run-presenter";
 
+interface TimeAgoProps {
+  date: string | Date;
+  nowMs?: number;
+  /** Render absolute + relative on one line, for use mid-sentence. */
+  inline?: boolean;
+}
+
+/** The "(3 minutes ago)" half, muted beside the absolute timestamp. */
+function RelativeTime({ iso, nowMs }: { iso: string; nowMs: number }) {
+  return (
+    <span className={`meta ${styles.relative}`}>
+      ({formatRelativeTime(iso, nowMs)})
+    </span>
+  );
+}
+
 export function TimeAgo({
   date,
   // eslint-disable-next-line react-hooks/purity -- rendered once per request by server components; tests inject nowMs
   nowMs = Date.now(),
   inline = false,
-}: {
-  date: string | Date;
-  nowMs?: number;
-  /** Render absolute + relative on one line, for use mid-sentence. */
-  inline?: boolean;
-}) {
+}: TimeAgoProps) {
   const parsed = date instanceof Date ? date : new Date(date);
 
   if (Number.isNaN(parsed.getTime())) {
@@ -23,9 +34,7 @@ export function TimeAgo({
     <time dateTime={iso} suppressHydrationWarning>
       {parsed.toLocaleString()}
       {inline ? " " : <br />}
-      <span className={`meta ${styles.relative}`}>
-        ({formatRelativeTime(iso, nowMs)})
-      </span>
+      <RelativeTime iso={iso} nowMs={nowMs} />
     </time>
   );
 }

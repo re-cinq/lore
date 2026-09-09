@@ -1,8 +1,4 @@
 // @vitest-environment node
-//
-// The module now reaches lore-api for its reads, so it pulls the server-only
-// client. These cases still exercise only the pure row mappers.
-
 import { describe, it, expect, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
@@ -14,9 +10,6 @@ import type { AssemblyRunRow, AssemblyRunNodeRow } from "./assembly-runs";
 const baseRow: AssemblyRunRow = {
   id: "al-1",
   blueprint_name: "implementation",
-  // Served alongside blueprint_name for the rollout window; the generated type
-  // carries it, so a fixture that omitted it was describing a body lore-api
-  // never sends.
   definition_name: "implementation",
   subject_key: null,
   graph: null,
@@ -32,6 +25,8 @@ const baseRow: AssemblyRunRow = {
   args_pr_number: null,
   pr_url: "https://github.com/re-cinq/lore/pull/42",
   task_pr_number: 42,
+  issue_url: null,
+  issue_number: null,
   created_by: "gedaiu",
   cost_usd: 0.1234,
 };
@@ -51,12 +46,27 @@ describe("toAssemblyRun", () => {
     });
   });
 
+  it("carries the backing task's issue onto the run", () => {
+    const run = toAssemblyRun({
+      ...baseRow,
+      issue_url: "https://github.com/re-cinq/lore/issues/41",
+      issue_number: 41,
+    });
+
+    expect(run).toMatchObject({
+      issueUrl: "https://github.com/re-cinq/lore/issues/41",
+      issueNumber: 41,
+    });
+  });
+
   it("builds a github pull link from args.pr_number for a code-review run without a task PR", () => {
     const run = toAssemblyRun({
       ...baseRow,
       task_id: null,
       pr_url: null,
       task_pr_number: null,
+      issue_url: null,
+      issue_number: null,
       created_by: null,
       cost_usd: null,
       args_pr_number: 7,
@@ -77,6 +87,8 @@ describe("toAssemblyRun", () => {
       task_id: null,
       pr_url: null,
       task_pr_number: null,
+      issue_url: null,
+      issue_number: null,
       created_by: null,
       cost_usd: null,
       args_pr_number: null,
@@ -108,6 +120,8 @@ describe("toAssemblyRunNode", () => {
       commit_sha: "deadbeef",
       started_at: "2026-07-14T10:00:05Z",
       finished_at: "2026-07-14T10:01:05Z",
+      status: "running",
+      claimed_at: null,
     };
 
     expect(toAssemblyRunNode(row)).toEqual({
@@ -134,6 +148,8 @@ describe("toAssemblyRunNode", () => {
         commit_sha: null,
         started_at: "2026-07-14T10:00:05Z",
         finished_at: null,
+        status: "running",
+        claimed_at: null,
       }).durationSeconds,
     ).toBeNull();
   });

@@ -58,7 +58,7 @@ JSON body:
 4. Destructure `{ files, repo, commit }`. If `files` is not an array **or**
    `repo` is falsy → 400 with the verbatim required-fields error; return.
 5. `await ingestFiles(pool, files, repo, commit || "HEAD")`
-   ([engine](../../../apps/mcp-server/src/features/spec-trace/ingest.js)).
+   ([engine](../../../apps/lore-api/src/work/spec-trace/ingest.ts)).
 6. Write 200 with the `result` object.
 7. **Landed gate** — compute `landed`: true iff `result.results` is an array and
    at least one entry has `status === "ingested"` or `status === "deleted"`.
@@ -94,29 +94,83 @@ JSON body:
 
 ## Acceptance Criteria
 
-A null pool returns 503 before any parsing. ([validated by `returns 503 when pool is null`](apps/lore-api/src/api/routes/ingest/ingest.test.ts#L42))
+A null pool returns 503 before any parsing. ([validated by `returns 503 when pool is null`](apps/lore-api/src/transport/routes/ingest/ingest.test.ts#L42))
 
-A body whose `files` is not an array returns 400. ([validated by `returns 400 when files is not an array`](apps/lore-api/src/api/routes/ingest/ingest.test.ts#L49))
+A body whose `files` is not an array returns 400. ([validated by `returns 400 when files is not an array`](apps/lore-api/src/transport/routes/ingest/ingest.test.ts#L48))
 
-A body missing `repo` returns 400 with the verbatim required-fields error. ([validated by `returns 400 when repo is missing`](apps/lore-api/src/api/routes/ingest/ingest.test.ts#L68))
+A body missing `repo` returns 400 with the verbatim required-fields error. ([validated by `returns 400 when repo is missing`](apps/lore-api/src/transport/routes/ingest/ingest.test.ts#L67))
 
-A batch with an ingested file returns 200 and fires the spec-coverage-validate trigger. ([validated by `returns 200 and inserts a spec-coverage-validate event when a file lands`](apps/lore-api/src/api/routes/ingest/ingest.test.ts#L55))
+A batch with an ingested file returns 200 and fires the spec-coverage-validate trigger. ([validated by `returns 200 and inserts a spec-coverage-validate event when a file lands`](apps/lore-api/src/transport/routes/ingest/ingest.test.ts#L54))
 
-A `deleted` status counts as a landed file and fires the trigger. ([validated by `treats a deleted status as a landed file and inserts the event`](apps/lore-api/src/api/routes/ingest/ingest.test.ts#L74))
+A `deleted` status counts as a landed file and fires the trigger. ([validated by `treats a deleted status as a landed file and inserts the event`](apps/lore-api/src/transport/routes/ingest/ingest.test.ts#L73))
 
-An all-skipped batch fires no trigger. ([validated by `does not insert an event when nothing landed`](apps/lore-api/src/api/routes/ingest/ingest.test.ts#L87))
+An all-skipped batch fires no trigger. ([validated by `does not insert an event when nothing landed`](apps/lore-api/src/transport/routes/ingest/ingest.test.ts#L86))
 
-A result with no `results` array fires no trigger. ([validated by `does not fire the trigger when the result has no results array`](apps/lore-api/src/api/routes/ingest/ingest.test.ts#L97))
+A result with no `results` array fires no trigger. ([validated by `does not fire the trigger when the result has no results array`](apps/lore-api/src/transport/routes/ingest/ingest.test.ts#L96))
 
-A throwing `ingestFiles` returns 500 with the error message. ([validated by `returns 500 when ingestFiles throws`](apps/lore-api/src/api/routes/ingest/ingest.test.ts#L108))
+A throwing `ingestFiles` returns 500 with the error message. ([validated by `returns 500 when ingestFiles throws`](apps/lore-api/src/transport/routes/ingest/ingest.test.ts#L107))
 
-The post-200 spec-coverage-validate fan-out is resilient: it is a no-op when there is no pool and swallows insert errors so a flaky DB never breaks the already-written ingest response. ([validated by `spec-coverage-validate-trigger.test.ts:32`](apps/lore-api/src/api/routes/spec-coverage-validate-trigger.test.ts#L32), [validated by `spec-coverage-validate-trigger.test.ts:38`](apps/lore-api/src/api/routes/spec-coverage-validate-trigger.test.ts#L38))
+The post-200 spec-coverage-validate fan-out is resilient: it is a no-op when there is no pool and swallows insert errors so a flaky DB never breaks the already-written ingest response. ([validated by `spec-coverage-validate-trigger.test.ts:32`](apps/lore-api/src/transport/routes/spec-coverage-validate-trigger.test.ts#L32), [validated by `spec-coverage-validate-trigger.test.ts:38`](apps/lore-api/src/transport/routes/spec-coverage-validate-trigger.test.ts#L38))
 
-The route is registered as an exact `POST /api/ingest` match. ([implemented by](../../../apps/lore-api/src/server/build-server.ts#L100), [implemented by](../../../apps/lore-api/src/api/routes/ingest/ingest.ts#L21))
+The route is registered as an exact `POST /api/ingest` match. ([implemented by](../../../apps/lore-api/src/app/build-server.ts#L100), [implemented by](../../../apps/lore-api/src/transport/routes/ingest/ingest.ts#L21))
 
-A `files` entry may be a bare path string or a `{path, content}` object; the two are distinguished by type and the path is extracted from either form. ([validated by IngestFile distinguishes path strings from content objects](apps/lore-api/src/features/spec-trace/ingest.test.ts#L53), [`ingest.test.ts:62`](apps/lore-api/src/features/spec-trace/ingest.test.ts#L62))
+A `files` entry may be a bare path string or a `{path, content}` object; the two are distinguished by type and the path is extracted from either form. ([validated by IngestFile distinguishes path strings from content objects](apps/lore-api/src/work/spec-trace/ingest.test.ts#L62), [`ingest.test.ts:57`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L71))
 
-When the supplied `commit` belongs to a different repo than the one being fetched, content resolution falls back to `HEAD`; a matching repo keeps the specific commit, and the fetch retries refs in order (specific commit, then `HEAD`) without duplicating `HEAD` when the commit is already `HEAD`. ([validated by commit SHA fallback uses HEAD when commit is from a different repo](apps/lore-api/src/features/spec-trace/ingest.test.ts#L81), [`ingest.test.ts:91`](apps/lore-api/src/features/spec-trace/ingest.test.ts#L91), [`ingest.test.ts:101`](apps/lore-api/src/features/spec-trace/ingest.test.ts#L101), [`ingest.test.ts:108`](apps/lore-api/src/features/spec-trace/ingest.test.ts#L108))
+When the supplied `commit` belongs to a different repo than the one being fetched, content resolution falls back to `HEAD`; a matching repo keeps the specific commit, and the fetch retries refs in order (specific commit, then `HEAD`) without duplicating `HEAD` when the commit is already `HEAD`. ([validated by commit SHA fallback uses HEAD when commit is from a different repo](apps/lore-api/src/work/spec-trace/ingest.test.ts#L84), [`ingest.test.ts:80`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L94), [`ingest.test.ts:90`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L104), [`ingest.test.ts:97`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L111))
+
+### ingestFiles content resolution and per-file outcomes
+
+A file resolved at the exact given commit is ingested with a single GitHub call — no HEAD retry. ([validated by `ingests a file resolved at the given commit without retrying HEAD`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L178))
+
+A 404 at the given commit (when it differs from `HEAD`) retries the fetch at `HEAD` and ingests the file found there. ([validated by `falls back to HEAD when the commit is unknown to the repo`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L223))
+
+When the commit is already `HEAD` and the file 404s, the file is reported `deleted` (its chunks removed) without a second fetch attempt. ([validated by `marks a file deleted (no HEAD retry) when the commit is already HEAD and the file 404s`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L253))
+
+A path that resolves to a directory (no file content) is reported `skipped` with `"not a file (directory?)"`, not deleted. ([validated by `skips a not-a-file result (directory) without deleting or throwing`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L277))
+
+Inline `{path, content}` files never call GitHub; an unclassifiable extension is reported `skipped` with `"unsupported file type"`. ([validated by `skips an unsupported file type without a GitHub call for inline content`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L296))
+
+An inline entry whose `content` is the empty string is content the caller supplied, not an absent one: it resolves to `""` without a GitHub call, so a payload-only ingest with no GitHub client does not fault. ([validated by `returns the empty content of an inline entry without reaching GitHub`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L361))
+
+A non-404 GitHub failure is caught per-file and reported as an `error` result rather than throwing out of `ingestFiles`. ([validated by `records an error result (not a thrown error) for a non-404 GitHub failure`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L311))
+
+The returned `ingested`/`deleted`/`errors` counts tally the per-file outcomes of a mixed batch. ([validated by `tallies ingested, deleted, and error counts across a mixed batch`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L331))
+
+### POST /api/repos/{owner}/{repo}/chunks/prune — the orphan sweep
+
+The nightly reindex that reconciled the store against the tree retired in
+#1880, and until v5 of the ingest workflow a rename posted only its new path,
+so a moved file's old chunks stayed searchable beside the live ones (two of the
+"Relevant Code" hits measured on 2026-09-09 were #1817's pre-rename paths).
+The sweep is on demand and the tree is posted, so the store never guesses:
+`scripts/infra/prune-orphan-chunks.sh` sends `git ls-files`.
+
+A chunk path is pruned when the posted tree does not contain it, or when today's classifier refuses it — a generated file indexed before the exclusion existed. ([validated by `plans deletion of apps/lore-api/src/api/routes/features/features.test.ts when it is indexed but absent from the tree`](libs/shared/src/domain/chunk-prune.test.ts#L6), [`chunk-prune.test.ts:19`](libs/shared/src/domain/chunk-prune.test.ts#L19), [`chunk-prune.test.ts:25`](libs/shared/src/domain/chunk-prune.test.ts#L25))
+
+The route (`write` scope, body `{ present_paths }`) resolves the repo's chunk schema, deletes the planned paths there in one statement, and answers `{ schema, deleted_paths, deleted_chunks }`; a tree that plans nothing issues no DELETE. ([validated by `prunes re-cinq/lore against the 2 posted present paths and returns what was deleted`](apps/lore-api/src/transport/routes/repos/chunks-prune.test.ts#L46), [`prune-orphans.test.ts:35`](apps/lore-api/src/work/chunks/prune-orphans.test.ts#L35), [`prune-orphans.test.ts:75`](apps/lore-api/src/work/chunks/prune-orphans.test.ts#L75))
+
+The body cap is 10MB, above hapi's 1MB default: a large tree truncated at the default would have posted a partial list and deleted the rest. ([validated by `accepts a 3MB present_paths body, above the 1MB server default, so a large tree is not truncated into a mass delete`](apps/lore-api/src/transport/routes/repos/chunks-prune.test.ts#L66))
+
+`present_paths` is optional. Omitted, the server reads the repo's tree over the GitHub API and reconciles against that, so a caller with no checkout can sweep — which is what makes the sweep automatic rather than a script somebody remembers to run. A tree that reads empty — or that could not be read at all, since a refused or truncated GitHub read throws — is treated as a failed read and deletes nothing, answering 502: an empty tree is never an empty repo. ([validated by `reads the tree itself when the body omits present_paths, so a scheduler with no checkout can reconcile`](apps/lore-api/src/transport/routes/repos/chunks-prune.test.ts#L79), [`answers 502 rather than deleting anything when the tree cannot be read`](apps/lore-api/src/transport/routes/repos/chunks-prune.test.ts#L103), [`prunes re-cinq/lore against the tree it read, with no paths from the caller`](apps/lore-api/src/work/chunks/reconcile-orphans.test.ts#L21), [`deletes nothing when the tree reads empty, because that is a failed read and not an empty repo`](apps/lore-api/src/work/chunks/reconcile-orphans.test.ts#L61), [`deletes nothing when the tree read throws, so the route can answer 502 instead of crashing`](apps/lore-api/src/work/chunks/reconcile-orphans.test.ts#L44))
+
+A landed ingest reconciles the repo afterwards, fire-and-forget: merge-time CI ingest has been the only ingestion path since the nightly reindex retired (#1880), so the merge that changes the tree is the moment the store can converge, and a rename's old path never outlives the commit that moved it.
+
+An empty `present_paths` is refused with 400 before the store is touched: "nothing is present" would otherwise read as "delete everything". ([validated by `refuses an empty present_paths with 400 before touching the store, so an empty tree can never wipe a repo`](apps/lore-api/src/transport/routes/repos/chunks-prune.test.ts#L114))
+### POST /api/ingest/reembed — the embedding backfill
+
+Four weeks of a 403-ing embedder (2026-08-13 → 09-09, the lore-api pod running
+as an unbound service account) left every chunk, memory and fact written in
+that window with `embedding IS NULL`, invisible to the vector leg even after the
+identity was fixed. The backfill is a `write`-scoped route rather than a job:
+it runs under the pod's own Workload Identity, and one request-sized batch
+cannot hang past the proxy timeout — `scripts/infra/reembed.sh` loops it until
+`remaining` is 0.
+
+A body with no fields runs one batch of 100 rows whose `embedding IS NULL` across every chunk schema, then `memory.memories` and `memory.facts`, and answers `{embedded, failed, remaining, stopped}`. ([validated by `runs one batch of 100 missing embeddings by default and returns the counts`](apps/lore-api/src/transport/routes/ingest/reembed.test.ts#L42), [`backfill.test.ts:36`](apps/lore-api/src/work/embeddings/backfill.test.ts#L36), [`backfill.test.ts:130`](apps/lore-api/src/work/embeddings/backfill.test.ts#L130))
+
+`schema` narrows the walk to one chunk schema, `limit` (1–500) bounds the batch, and `where: "stale_links"` selects chunks that still carry a `([validated by …])` group and have not been re-embedded over the stripped text, marking each one it embeds (`metadata.embedded_stripped`) so the next batch moves on; a limit past 500 is refused with 400 before the store is touched. ([validated by `passes schema platform, limit 500 and where stale_links through`](apps/lore-api/src/transport/routes/ingest/reembed.test.ts#L56), [`rejects a limit of 501 with 400 before touching the store`](apps/lore-api/src/transport/routes/ingest/reembed.test.ts#L66), [`backfill.test.ts:92`](apps/lore-api/src/work/embeddings/backfill.test.ts#L92))
+
+The first row the embedder answers with no vector stops the batch (`stopped: true`, `failed: 1`, the untouched rows still counted in `remaining`): a dead embedder is the outage this route exists to recover from, not a row to skip. ([validated by `stops after the first null embedding and reports the 2 untouched rows as remaining`](apps/lore-api/src/work/embeddings/backfill.test.ts#L63))
 
 ## Out of Scope
 

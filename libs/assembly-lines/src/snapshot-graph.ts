@@ -1,42 +1,17 @@
-// Converting a blueprint into the graph one run carries a copy of
-// (specs/6-dark-factory FR6.38).
-//
-// The clone exists so a run stops depending on a FILE that can change under it:
-// `advanceLine` used to re-read the YAML off the Floor's image at every step, so
-// editing a definition changed the graph mid-walk, and a renamed or deleted one
-// left its own history undrawable.
-//
-// Two things happen here that do not happen anywhere downstream:
-//
-//   * the Station is RESOLVED, once. An agent node with no `station_ref` runs the
-//     recipe named after its LINE, and re-deriving that at every call site is how
-//     three nodes on the planning line silently ran the planning prompt and
-//     reported success. `station_inherited` keeps the fact that it was inherited,
-//     because that is the case that becomes wrong when a node is reused.
-//   * the result is a FAITHFUL copy — the blueprint's own field names, plus the
-//     resolved station. Renaming them into another convention would buy nothing
-//     and cost a translation layer on every read; keeping them means the walk
-//     (`getNextTransition`) consumes a stored graph and a freshly loaded one through
-//     the same structural type. The shape itself is `RunGraph`, owned by
-//     `@re-cinq/lore-shared` (the persisted wire format lives with the port that
-//     stores it); this package depends on shared, so it imports the type instead
-//     of keeping a hand-mirror that can drift.
+// Converts a blueprint into the graph one run carries a copy of (specs/6-dark-factory FR6.38), so a run stops depending on a FILE that can change under it (advanceLine used to re-read the YAML at every step). Resolves the Station once here (station_inherited flags when re-deriving it per-call would let a reused node silently run the wrong recipe, as happened on the planning line) and produces a FAITHFUL copy — the blueprint's own field names plus the resolved station — using the shared `RunGraph` type rather than a hand-mirror that can drift.
 
-import type { AssemblyLine } from "./loader.js";
+import type { AssemblyLine, AssemblyLineNode } from "./loader.js";
 import { resolveNodeStation } from "./node-station.js";
-import type { RunGraph } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
+import type {
+  RunGraph,
+  RunGraphNode,
+} from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 
-/**
- * The blueprint as a run will record it.
- *
- * `lineTaskType` is what an inherited Station is named after — the run's blueprint
- * name in every current caller, passed explicitly because the resolution rule is
- * the caller's context, not a property of the graph.
- *
- * Optional fields are OMITTED rather than set to null: the result is stored as
- * jsonb and read back structurally, and `{}` for an absent field survives a JSON
- * round-trip identically while keeping the stored rows small.
- */
+type OptionalNodeFields = Partial<
+  Omit<RunGraphNode, "id" | "type" | "station" | "station_inherited">
+>;
+
+// The blueprint as a run will record it. `lineTaskType` (what an inherited Station names after) is passed explicitly since the resolution rule is the caller's context, not a graph property.
 export function snapshotGraph(
   definition: AssemblyLine,
   lineTaskType: string,
@@ -45,29 +20,7 @@ export function snapshotGraph(
     name: definition.name,
     entry: definition.entry,
     exit: definition.exit,
-    nodes: definition.nodes.map((node) => {
-      const { station, inherited } = resolveNodeStation(node, lineTaskType);
-
-      return {
-        id: node.id,
-        type: node.type,
-        station,
-        station_inherited: inherited,
-        ...(node.prompt_ref ? { prompt_ref: node.prompt_ref } : {}),
-        ...(node.model ? { model: node.model } : {}),
-        ...(node.timeout_minutes
-          ? { timeout_minutes: node.timeout_minutes }
-          : {}),
-        ...(node.required_tags
-          ? { required_tags: [...node.required_tags] }
-          : {}),
-        ...(node.condition_ref ? { condition_ref: node.condition_ref } : {}),
-        ...(node.job_ref ? { job_ref: node.job_ref } : {}),
-        ...(node.route ? { route: node.route } : {}),
-        ...(node.continues ? { continues: { ...node.continues } } : {}),
-        ...(node.description ? { description: node.description } : {}),
-      };
-    }),
+    nodes: definition.nodes.map((node) => snapshotNode(node, lineTaskType)),
     edges: definition.edges.map((edge) => ({
       from: edge.from,
       to: edge.to,
@@ -75,4 +28,48 @@ export function snapshotGraph(
       ...(edge.iteration_max ? { iteration_max: edge.iteration_max } : {}),
     })),
   };
+}
+
+function snapshotNode(
+  node: AssemblyLineNode,
+  lineTaskType: string,
+): RunGraphNode {
+  const { station, inherited } = resolveNodeStation(node, lineTaskType);
+
+  return {
+    id: node.id,
+    type: node.type,
+    station,
+    station_inherited: inherited,
+    ...optionalNodeFields(node),
+  };
+}
+
+// Optional fields are OMITTED (not null) since `{}` survives a jsonb round-trip identically while keeping stored rows small.
+function optionalNodeFields(node: AssemblyLineNode): OptionalNodeFields {
+  const candidates: Array<[keyof OptionalNodeFields, unknown]> = [
+    ["prompt_ref", node.prompt_ref],
+    ["model", node.model],
+    ["timeout_minutes", node.timeout_minutes],
+    ["required_tags", copiedRequiredTags(node)],
+    ["condition_ref", node.condition_ref],
+    ["job_ref", node.job_ref],
+    ["route", node.route],
+    ["continues", copiedContinues(node)],
+    ["description", node.description],
+  ];
+
+  return Object.fromEntries(
+    candidates.filter(([, value]) => value),
+  ) as OptionalNodeFields;
+}
+
+function copiedRequiredTags(node: AssemblyLineNode): string[] | undefined {
+  return node.required_tags ? [...node.required_tags] : undefined;
+}
+
+function copiedContinues(
+  node: AssemblyLineNode,
+): { node: string; key: string } | undefined {
+  return node.continues ? { ...node.continues } : undefined;
 }

@@ -8,44 +8,85 @@ import {
 import { toStatementInfo } from "@/lib/trace-statement-info";
 import SpecDocument from "@/app/repos/[owner]/[repo]/specs/[...path]/SpecDocument";
 import styles from "./page.module.scss";
+import { decodeCatchAllPath } from "@/lib/catch-all-path";
 
-export default async function SpecDetailPage({
-  params,
-}: {
-  params: Promise<{ path: string[] }>;
-}) {
-  const { path } = await params;
-  const filePath = path.map(decodeURIComponent).join("/");
+interface RepoSpecDoc {
+  repo: string;
+  source: string;
+  statements: ReturnType<typeof toStatementInfo>;
+}
 
-  // Which repos hold this spec path in the graph, then render each as a framed
-  // document (markdown source + graph-sourced statement overlay).
+/** Every repo that holds this path, with its own text and statements. The same spec path can exist in several repos, and a repo whose source will not load is DROPPED rather than rendered empty — an empty frame reads as a spec with no content. */
+async function fetchSpecAcrossRepos(filePath: string): Promise<RepoSpecDoc[]> {
   const repos = (await fetchAllSpecs())
     .filter((s) => s.filePath === filePath)
     .map((s) => s.repo);
-  const docs = (
-    await Promise.all(
-      repos.map(async (repo) => {
-        const [source, doc] = await Promise.all([
-          fetchTraceSource(repo, filePath),
-          fetchTraceDocument(repo, filePath),
-        ]);
-
-        return {
-          repo,
-          source,
-          statements: doc ? toStatementInfo(doc.statements) : [],
-        };
-      }),
-    )
-  ).filter(
-    (
-      entry,
-    ): entry is {
-      repo: string;
-      source: string;
-      statements: ReturnType<typeof toStatementInfo>;
-    } => !!entry.source,
+  const docs = await Promise.all(
+    repos.map((repo) => fetchRepoSpec(repo, filePath)),
   );
+
+  return docs.filter((entry): entry is RepoSpecDoc => !!entry.source);
+}
+
+/** Query graph: one repo's copy of this spec path, with its statement overlay. */
+async function fetchRepoSpec(repo: string, filePath: string) {
+  const [source, doc] = await Promise.all([
+    fetchTraceSource(repo, filePath),
+    fetchTraceDocument(repo, filePath),
+  ]);
+
+  return {
+    repo,
+    source,
+    statements: doc ? toStatementInfo(doc.statements) : [],
+  };
+}
+
+/** Why this spec is blank, and when it will not be. Nothing here is for the reader to do: the projection runs on the next push to `main`, so the note says to come back rather than offering an action. */
+function EmptyGraphData({ filePath }: { filePath: string }) {
+  return (
+    <div className="empty-state">
+      <p>
+        No graph data for &quot;{filePath}&quot;. Specs are projected
+        automatically by CI on push to <code>main</code>.
+      </p>
+    </div>
+  );
+}
+
+/** One repo's copy of the path. Usually there is exactly one — this page spans every repo holding the path, and the "view in repo" link is what takes the reader to that repo's canonical page. */
+interface RepoSpecBlockProps {
+  doc: RepoSpecDoc;
+  filePath: string;
+}
+
+function RepoSpecBlock({ doc, filePath }: RepoSpecBlockProps) {
+  return (
+    <div className={styles.repoBlock}>
+      <p className="meta">
+        repo: {doc.repo} ·{" "}
+        <Link href={`/repos/${doc.repo}/specs/${encodeURIComponent(filePath)}`}>
+          view in repo →
+        </Link>
+      </p>
+      <SpecDocument
+        repo={doc.repo}
+        content={doc.source}
+        statements={doc.statements}
+      />
+    </div>
+  );
+}
+
+interface SpecDetailPageProps {
+  params: Promise<{ path: string[] }>;
+}
+
+export default async function SpecDetailPage({ params }: SpecDetailPageProps) {
+  const { path } = await params;
+  const filePath = decodeCatchAllPath(path);
+
+  const docs = await fetchSpecAcrossRepos(filePath);
 
   return (
     <div>
@@ -53,29 +94,10 @@ export default async function SpecDetailPage({
         <Link href="/specs">Specs</Link> / {filePath}
       </div>
       {docs.length === 0 ? (
-        <div className="empty-state">
-          <p>
-            No graph data for &quot;{filePath}&quot;. Specs are projected
-            automatically by CI on push to <code>main</code>.
-          </p>
-        </div>
+        <EmptyGraphData filePath={filePath} />
       ) : (
-        docs.map(({ repo, source, statements }) => (
-          <div key={repo} className={styles.repoBlock}>
-            <p className="meta">
-              repo: {repo} ·{" "}
-              <Link
-                href={`/repos/${repo}/specs/${encodeURIComponent(filePath)}`}
-              >
-                view in repo →
-              </Link>
-            </p>
-            <SpecDocument
-              repo={repo}
-              content={source}
-              statements={statements}
-            />
-          </div>
+        docs.map((doc) => (
+          <RepoSpecBlock key={doc.repo} doc={doc} filePath={filePath} />
         ))
       )}
     </div>

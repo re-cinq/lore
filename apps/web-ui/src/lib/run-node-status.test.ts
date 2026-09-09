@@ -80,10 +80,6 @@ describe("nodeRunVisual", () => {
 
 describe("a parked human station", () => {
   it("reads as waiting for you, not Running, while the author holds the round", () => {
-    // A wait node's row seeds `running` like any other open node, because nothing
-    // distinguishes them at that layer. But a wait node never dispatches a pod, so
-    // the spinner would be promising work that is not happening — and the person it
-    // is waiting for is the one reading the screen.
     expect(nodeRunVisual(null, "running", "feature_review")).toEqual({
       tone: "waiting",
       label: "Waiting for you",
@@ -98,8 +94,6 @@ describe("a parked human station", () => {
   });
 
   it("stays Pending before the walk reaches it", () => {
-    // Not yet parked — the round it belongs to has not happened. Announcing
-    // "waiting for you" here would ask for input the line cannot accept.
     expect(nodeRunVisual(null, "idle", "feature_review")).toEqual({
       tone: "idle",
       label: "Pending",

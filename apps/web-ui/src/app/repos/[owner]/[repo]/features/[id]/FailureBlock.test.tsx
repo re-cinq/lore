@@ -55,17 +55,11 @@ describe("FailureBlock", () => {
       />,
     );
 
-    // The old copy asserted "usually the agent couldn't reach the model. Set
-    // ANTHROPIC_API_KEY" whenever no reason was recorded — a guess presented as a
-    // diagnosis, which sent the author after a credential while the real error (a
-    // rejected CLI flag) sat in the transcript.
     expect(screen.getByText(/recorded no reason/)).toBeTruthy();
     expect(screen.getByText(/one cause among several/)).toBeTruthy();
   });
 
   it("shows what the author submitted, so a failed round does not swallow it", () => {
-    // The words are persisted before the pod starts, but the wizard clears the form
-    // on submit — without this they are unreachable from the screen.
     render(
       <FailureBlock
         iteration={2}

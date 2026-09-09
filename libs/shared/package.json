@@ -11,130 +11,161 @@
       "default": "./dist/index.js"
     },
     "./project/*.js": {
-      "types": "./dist/project/*.d.ts",
-      "default": "./dist/project/*.js"
+      "types": "./dist/outbound/project/*.d.ts",
+      "default": "./dist/outbound/project/*.js"
+    },
+    "./http/internal-token.js": {
+      "types": "./dist/lib/internal-token.d.ts",
+      "default": "./dist/lib/internal-token.js"
+    },
+    "./project/assembly-runs/run-graph.js": {
+      "types": "./dist/domain/run-graph.d.ts",
+      "default": "./dist/domain/run-graph.js"
     },
     "./http/*.js": {
-      "types": "./dist/http/*.d.ts",
-      "default": "./dist/http/*.js"
+      "types": "./dist/transport/http/*.d.ts",
+      "default": "./dist/transport/http/*.js"
     },
     "./cluster/*.js": {
-      "types": "./dist/cluster/*.d.ts",
-      "default": "./dist/cluster/*.js"
+      "types": "./dist/outbound/cluster/*.d.ts",
+      "default": "./dist/outbound/cluster/*.js"
     },
     "./db/*.js": {
-      "types": "./dist/db/*.d.ts",
-      "default": "./dist/db/*.js"
+      "types": "./dist/outbound/db/*.d.ts",
+      "default": "./dist/outbound/db/*.js"
     },
     "./detect/*.js": {
-      "types": "./dist/detect/*.d.ts",
-      "default": "./dist/detect/*.js"
+      "types": "./dist/work/detect/*.d.ts",
+      "default": "./dist/work/detect/*.js"
     },
     "./project/leases/lease-backends.js": {
-      "types": "./dist/project/leases/lease-backends.d.ts",
-      "default": "./dist/project/leases/lease-backends.js"
+      "types": "./dist/outbound/project/leases/lease-backends.d.ts",
+      "default": "./dist/outbound/project/leases/lease-backends.js"
     },
     "./station-input.js": {
-      "types": "./dist/station-input.d.ts",
-      "default": "./dist/station-input.js"
+      "types": "./dist/domain/station-input.d.ts",
+      "default": "./dist/domain/station-input.js"
     },
     "./commit-trailers.js": {
-      "types": "./dist/commit-trailers.d.ts",
-      "default": "./dist/commit-trailers.js"
+      "types": "./dist/domain/commit-trailers.d.ts",
+      "default": "./dist/domain/commit-trailers.js"
     },
     "./error-classify.js": {
-      "types": "./dist/error-classify.d.ts",
-      "default": "./dist/error-classify.js"
+      "types": "./dist/lib/error-classify.d.ts",
+      "default": "./dist/lib/error-classify.js"
     },
     "./k8s-pod-failure.js": {
-      "types": "./dist/k8s-pod-failure.d.ts",
-      "default": "./dist/k8s-pod-failure.js"
+      "types": "./dist/outbound/k8s-pod-failure.d.ts",
+      "default": "./dist/outbound/k8s-pod-failure.js"
     },
     "./escalation/*.js": {
-      "types": "./dist/escalation/*.d.ts",
-      "default": "./dist/escalation/*.js"
+      "types": "./dist/work/escalation/*.d.ts",
+      "default": "./dist/work/escalation/*.js"
+    },
+    "./feature-planning/decomposition-result.js": {
+      "types": "./dist/domain/feature-planning/decomposition-result.d.ts",
+      "default": "./dist/domain/feature-planning/decomposition-result.js"
+    },
+    "./feature-planning/gap-result.js": {
+      "types": "./dist/domain/feature-planning/gap-result.d.ts",
+      "default": "./dist/domain/feature-planning/gap-result.js"
+    },
+    "./feature-planning/planning-prompt.js": {
+      "types": "./dist/domain/feature-planning/planning-prompt.d.ts",
+      "default": "./dist/domain/feature-planning/planning-prompt.js"
+    },
+    "./feature-planning/decomposition-instructions.js": {
+      "types": "./dist/domain/feature-planning/decomposition-instructions.d.ts",
+      "default": "./dist/domain/feature-planning/decomposition-instructions.js"
     },
     "./feature-planning/*.js": {
-      "types": "./dist/feature-planning/*.d.ts",
-      "default": "./dist/feature-planning/*.js"
+      "types": "./dist/work/feature-planning/*.d.ts",
+      "default": "./dist/work/feature-planning/*.js"
     },
     "./llm/*.js": {
-      "types": "./dist/llm/*.d.ts",
-      "default": "./dist/llm/*.js"
+      "types": "./dist/outbound/llm/*.d.ts",
+      "default": "./dist/outbound/llm/*.js"
     },
     "./review/*.js": {
-      "types": "./dist/review/*.d.ts",
-      "default": "./dist/review/*.js"
+      "types": "./dist/work/review/*.d.ts",
+      "default": "./dist/work/review/*.js"
     },
     "./lib/*.js": {
       "types": "./dist/lib/*.d.ts",
       "default": "./dist/lib/*.js"
     },
     "./models/*.js": {
-      "types": "./dist/models/*.d.ts",
-      "default": "./dist/models/*.js"
+      "types": "./dist/domain/models/*.d.ts",
+      "default": "./dist/domain/models/*.js"
     },
     "./task-types/*.js": {
-      "types": "./dist/task-types/*.d.ts",
-      "default": "./dist/task-types/*.js"
+      "types": "./dist/domain/task-types/*.d.ts",
+      "default": "./dist/domain/task-types/*.js"
     },
     "./spec-link-parser.js": {
-      "types": "./dist/spec-link-parser.d.ts",
-      "default": "./dist/spec-link-parser.js"
+      "types": "./dist/domain/spec-link-parser.d.ts",
+      "default": "./dist/domain/spec-link-parser.js"
     },
     "./spec-segment.js": {
-      "types": "./dist/spec-segment.d.ts",
-      "default": "./dist/spec-segment.js"
+      "types": "./dist/domain/spec-segment.d.ts",
+      "default": "./dist/domain/spec-segment.js"
     },
     "./spec-status.js": {
-      "types": "./dist/spec-status.d.ts",
-      "default": "./dist/spec-status.js"
+      "types": "./dist/domain/spec-status.d.ts",
+      "default": "./dist/domain/spec-status.js"
     },
     "./spec-status-coverage.js": {
-      "types": "./dist/spec-status-coverage.d.ts",
-      "default": "./dist/spec-status-coverage.js"
+      "types": "./dist/work/spec-status-coverage.d.ts",
+      "default": "./dist/work/spec-status-coverage.js"
     },
     "./spec-judge-llm.js": {
-      "types": "./dist/spec-judge-llm.d.ts",
-      "default": "./dist/spec-judge-llm.js"
+      "types": "./dist/work/spec-judge-llm.d.ts",
+      "default": "./dist/work/spec-judge-llm.js"
     },
     "./test-paths.js": {
-      "types": "./dist/test-paths.d.ts",
-      "default": "./dist/test-paths.js"
+      "types": "./dist/domain/test-paths.d.ts",
+      "default": "./dist/domain/test-paths.js"
     },
     "./repo-validation/repo-validation.js": {
-      "types": "./dist/repo-validation/repo-validation.d.ts",
-      "default": "./dist/repo-validation/repo-validation.js"
+      "types": "./dist/work/repo-validation/repo-validation.d.ts",
+      "default": "./dist/work/repo-validation/repo-validation.js"
+    },
+    "./repo-context.js": {
+      "types": "./dist/domain/repo-context.d.ts",
+      "default": "./dist/domain/repo-context.js"
     }
   },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "test": "vitest run",
+    "test": "LORE_SKIP_DGRAPH_TESTS=1 vitest run",
+    "test:dgraph": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.39.0",
-    "@google-cloud/storage": "^7.19.0",
+    "@anthropic-ai/sdk": "^0.124.0",
+    "@google-cloud/storage": "^8.0.1",
     "@hapi/boom": "^10.0.1",
     "@opentelemetry/api": "^1.9.0",
     "dgraph-js-http": "^23.0.0-rc1",
     "libsodium-wrappers": "^0.8.2",
-    "minimatch": "^10.0.1",
+    "minimatch": "^10.2.6",
     "tree-sitter-wasms": "^0.1.11",
     "web-tree-sitter": "^0.24.7",
     "yaml": "^2.7.0",
-    "zod": "^3.24.1"
+    "zod": "^4.5.4"
   },
   "devDependencies": {
-    "@octokit/auth-app": "^7.1.0",
-    "@re-cinq/agent-contracts": "^0.10.0",
-    "@types/node": "^22.13.10",
-    "@types/pg": "^8.20.0",
-    "@vitest/coverage-v8": "^4.1.10",
-    "octokit": "^4.1.0",
-    "pg": "^8.21.0",
+    "@hapi/hapi": "21.4.10",
+    "@octokit/auth-app": "^8.3.1",
+    "@opentelemetry/sdk-trace-base": "^2.11.0",
+    "@re-cinq/agent-contracts": "^0.10.11",
+    "@types/node": "^22.20.1",
+    "@types/pg": "^8.23.1",
+    "@vitest/coverage-v8": "^5.0.0",
+    "octokit": "^5.0.5",
+    "pg": "^8.23.0",
     "typescript": "^7.0.2",
-    "vitest": "^4.1.10"
+    "vitest": "^5.0.0"
   }
 }

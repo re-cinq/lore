@@ -210,6 +210,27 @@ describe("SpecDetails v3 (markdown-driven)", () => {
     expect(link?.getAttribute("rel")).toEqual("noopener noreferrer");
   });
 
+  it("closes the popover when the pointer moves off the mark", () => {
+    const md =
+      "## Acceptance Criteria\n\n- Claims a pending task. ([t](src/x.test.ts#L1))\n";
+    const statements = [
+      stmt({
+        ordinal: 0,
+        text: "Claims a pending task. ([t](src/x.test.ts#L1))",
+        kind: "list-item",
+        state: "tested",
+        testLinks: [{ label: "t", path: "src/x.test.ts", line: 1 }],
+      }),
+    ];
+    const { container } = renderSpec(md, statements);
+
+    fireEvent.mouseOver(container.querySelector('mark[data-ordinal="0"]')!);
+    expect(screen.getByRole("tooltip")).toBeTruthy();
+
+    fireEvent.mouseOver(container.querySelector("li")!);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
   it("surfaces a drift notice in the popover for a drifted statement", () => {
     const md =
       "## Acceptance Criteria\n\n- Claims a pending task. ([t](src/x.test.ts#L1))\n";

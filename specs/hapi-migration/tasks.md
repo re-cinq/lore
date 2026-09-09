@@ -40,7 +40,7 @@ migrate the group's contract tests — all together.
 
 - [x] T003 Add deps to `apps/lore-api/package.json`: `@hapi/hapi ^21.4.9`,
   `@hapi/boom ^10.0.1`, `@types/hapi__hapi ^20.0.13` — pinned to floor's versions.
-- [x] T004 `apps/lore-api/src/server/build-server.ts`: `buildServer(getPool, port)`
+- [x] T004 `apps/lore-api/src/app/build-server.ts`: `buildServer(getPool, port)`
   → hapi `Server`. Server-level `payload.maxBytes = 1 MB` is the native-route
   body-cap default (former T008, inlined). **One** construction site, shared by
   prod boot and the tests.

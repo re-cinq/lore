@@ -113,7 +113,7 @@ accumulation period required.
 - FR-1.3: Entity deduplication by `(name, entity_type, repo)`.
   Upserting an entity with the same key updates properties.
 - FR-1.4: Edge deduplication by
-  `(source_id, target_id, relation_type)` where `valid_to IS NULL`. ([validated by `graph.test.ts:198`](libs/server-core/src/features/memory/graph.test.ts#L198))
+  `(source_id, target_id, relation_type)` where `valid_to IS NULL`. ([validated by `graph.test.ts:192`](libs/server-core/src/work/memory/graph.test.ts#L150))
 
 ### FR-2: Entity Extraction Pipeline
 
@@ -123,17 +123,17 @@ accumulation period required.
 - FR-2.2: Output format: list of `{name, type}` entities and
   `{source, target, relation}` edges. The parser unwraps ```` ```json ````
   code fences, filters entities/edges with missing fields, and caps the
-  result at 10 entities and 10 edges. ([validated by `graph.test.ts:49`](libs/server-core/src/features/memory/graph.test.ts#L49), [`graph.test.ts:83`](libs/server-core/src/features/memory/graph.test.ts#L83), [`graph.test.ts:117`](libs/server-core/src/features/memory/graph.test.ts#L117), [`graph.test.ts:98`](libs/server-core/src/features/memory/graph.test.ts#L98))
+  result at 10 entities and 10 edges. ([validated by `graph.test.ts:47`](libs/server-core/src/work/memory/graph.test.ts#L5), [`graph.test.ts:39`](libs/server-core/src/work/memory/graph.test.ts#L39), [`graph.test.ts:73`](libs/server-core/src/work/memory/graph.test.ts#L73), [`graph.test.ts:54`](libs/server-core/src/work/memory/graph.test.ts#L54))
 - FR-2.3: Entity names are normalized (lowercase, trimmed) for
-  deduplication. ([validated by `graph.test.ts:71`](libs/server-core/src/features/memory/graph.test.ts#L71))
+  deduplication. ([validated by `graph.test.ts:69`](libs/server-core/src/work/memory/graph.test.ts#L27))
 - FR-2.4: If entity extraction fails, facts are still stored.
-  Graph update is best-effort. ([validated by `graph.test.ts:91`](libs/server-core/src/features/memory/graph.test.ts#L91))
+  Graph update is best-effort. ([validated by `graph.test.ts:89`](libs/server-core/src/work/memory/graph.test.ts#L47))
 
 ### FR-3: Temporal Edge Invalidation
 
 - FR-3.1: When a new edge contradicts an existing one (same
   source + relation type but different target), the old edge
-  gets `valid_to = now()`. ([validated by `graph.test.ts:137`](libs/server-core/src/features/memory/graph.test.ts#L137))
+  gets `valid_to = now()`. ([validated by `graph.test.ts:133`](libs/server-core/src/work/memory/graph.test.ts#L91))
 - FR-3.2: Example: `auth-service --uses--> Express` is
   invalidated when `auth-service --uses--> Hono` is added.
 - FR-3.3: Non-contradictory edges (different relation types, or
@@ -146,11 +146,11 @@ accumulation period required.
 - FR-4.2: `depth` controls traversal hops (default 1, max 3).
 - FR-4.3: Results filtered to `valid_to IS NULL` by default.
 - FR-4.4: Optional `repo` scope parameter. The live-graph read binds the queried
-  repo and maps each row to a `GraphEdge`. ([validated by `queries the live graph bound to the repo and maps to GraphEdge`](libs/shared/src/project/knowledge/knowledge-pg.test.ts#L36))
-- FR-4.5: The `/api/graph` HTTP route backs the graph query: it passes `entity`/`relation_type`/`repo` and an `include_invalidated` flag through to the live-graph read, requires Postgres (503 when the pool is unavailable), rejects a `repo` that is not `owner/name` (400), and surfaces a read failure as 500. ([validated by GET /api/graph parses include_invalidated=true](apps/lore-api/src/api/routes/graph/graph.test.ts#L53), [`graph.test.ts:67`](apps/lore-api/src/api/routes/graph/graph.test.ts#L67), [`graph.test.ts:80`](apps/lore-api/src/api/routes/graph/graph.test.ts#L80), [`graph.test.ts:73`](apps/lore-api/src/api/routes/graph/graph.test.ts#L73))
-- FR-4.6: The same repo-bound knowledge facade lists a repo's specs and ADRs, resolving the team schema from `lore.repos` before reading that team's `chunks` and falling back to `org_shared` when the team is not a valid schema or its schema is not provisioned. ([validated by `lists the repo's specs`](libs/shared/src/project/knowledge/knowledge.test.ts#L40), [validated by `resolves the provisioned team schema then lists specs from its chunks`](libs/shared/src/project/knowledge/knowledge-pg.test.ts#L71), [validated by `falls back to org_shared when the team is not a valid schema`](libs/shared/src/project/knowledge/knowledge-pg.test.ts#L91), [validated by `falls back to org_shared when the team schema is not provisioned`](libs/shared/src/project/knowledge/knowledge-pg.test.ts#L100))
+  repo and maps each row to a `GraphEdge`. ([validated by `queries the live graph bound to the repo and maps to GraphEdge`](libs/shared/src/outbound/project/knowledge/knowledge-pg.test.ts#L36))
+- FR-4.5: The `/api/graph` HTTP route backs the graph query: it passes `entity`/`relation_type`/`repo` and an `include_invalidated` flag through to the live-graph read, requires Postgres (503 when the pool is unavailable), rejects a `repo` that is not `owner/name` (400), and surfaces a read failure as 500. ([validated by GET /api/graph parses include_invalidated=true](apps/lore-api/src/transport/routes/graph/graph.test.ts#L55), [`graph.test.ts:71`](apps/lore-api/src/transport/routes/graph/graph.test.ts#L71), [`graph.test.ts:84`](apps/lore-api/src/transport/routes/graph/graph.test.ts#L84), [`graph.test.ts:77`](apps/lore-api/src/transport/routes/graph/graph.test.ts#L77))
+- FR-4.6: The same repo-bound knowledge facade lists a repo's specs and ADRs, resolving the team schema from `lore.repos` before reading that team's `chunks` and falling back to `org_shared` when the team is not a valid schema or its schema is not provisioned. ([validated by `lists the repo's specs`](libs/shared/src/outbound/project/knowledge/knowledge.test.ts#L35), [validated by `resolves the provisioned team schema then lists specs from its chunks`](libs/shared/src/outbound/project/knowledge/knowledge-pg.test.ts#L70), [validated by `falls back to org_shared when the team is not a valid schema`](libs/shared/src/outbound/project/knowledge/knowledge-pg.test.ts#L90), [validated by `falls back to org_shared when the team schema is not provisioned`](libs/shared/src/outbound/project/knowledge/knowledge-pg.test.ts#L99))
 
-- FR-4.7: The in-memory knowledge double mirrors the Pg adapter's own logic as its behavioral spec: the spec/ADR listings return the repo's distinct, sorted `.md` chunk paths for the matching content type with `title = path`; the graph read returns all seeded rows without a term and matches the entity case-insensitively with one; `queryTrace` returns the same not-deployed sentence as the Pg stub; and `assembleContext` returns the seeded canned text (the Pg adapter only delegates to the heavy retrieval modules there). ([validated by `knowledge-memory.test.ts:21`](libs/shared/src/project/knowledge/knowledge-memory.test.ts#L21), [`knowledge-memory.test.ts:39`](libs/shared/src/project/knowledge/knowledge-memory.test.ts#L39), [`knowledge-memory.test.ts:54`](libs/shared/src/project/knowledge/knowledge-memory.test.ts#L54), [`knowledge-memory.test.ts:63`](libs/shared/src/project/knowledge/knowledge-memory.test.ts#L63), [`knowledge-memory.test.ts:69`](libs/shared/src/project/knowledge/knowledge-memory.test.ts#L69))
+- FR-4.7: The in-memory knowledge double mirrors the Pg adapter's own logic as its behavioral spec: the spec/ADR listings return the repo's distinct, sorted `.md` chunk paths for the matching content type with `title = path`; the graph read returns all seeded rows without a term and matches the entity case-insensitively with one; `queryTrace` returns the same not-deployed sentence as the Pg stub; and `assembleContext` returns the seeded canned text (the Pg adapter only delegates to the heavy retrieval modules there). ([validated by `knowledge-memory.test.ts:21`](libs/shared/src/outbound/project/knowledge/knowledge-memory.test.ts#L21), [`knowledge-memory.test.ts:39`](libs/shared/src/outbound/project/knowledge/knowledge-memory.test.ts#L39), [`knowledge-memory.test.ts:54`](libs/shared/src/outbound/project/knowledge/knowledge-memory.test.ts#L54), [`knowledge-memory.test.ts:63`](libs/shared/src/outbound/project/knowledge/knowledge-memory.test.ts#L63), [`knowledge-memory.test.ts:69`](libs/shared/src/outbound/project/knowledge/knowledge-memory.test.ts#L69))
 
 ### FR-5: Graph-Augmented Search
 

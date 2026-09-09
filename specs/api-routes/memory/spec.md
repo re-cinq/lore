@@ -27,12 +27,12 @@ object on every validation or runtime failure.
 ## Interface
 
 Registered in the route table as `exact("/api/memory", "POST")`
-([registration](../../../apps/lore-api/src/server/build-server.ts#L97)), dispatched by
+([registration](../../../apps/lore-api/src/app/build-server.ts#L97)), dispatched by
 `handleApiRoute` after the cross-cutting rate-limit + bearer-scope gates.
 
 - **Method + path**: `POST /api/memory`
 - **Auth scope**: `write` — `ROUTE_SCOPES["/api/memory"] = "write"`
-  ([scope map](../../../apps/lore-api/src/api/routes/memory/memory.ts#L77)). No
+  ([scope map](../../../apps/lore-api/src/transport/routes/memory/memory.ts#L77)). No
   `SCOPE_OVERRIDES` entry applies. A bearer token is mandatory (the route is not
   auth-exempt); `admin` scope satisfies it, `read`-only does not.
 - **Rate bucket**: `default` (200/min) — the URL is neither `/api/webhook/*` nor
@@ -133,52 +133,52 @@ no per-request flag. `searchMemories` receives the live `pool` (non-null asserti
 ## Acceptance Criteria
 
 A `write` with a `value` present computes the embedding for `value` and persists
-via the DB writer, returning its result. ([validated by `memory.test.ts:82`](apps/lore-api/src/api/routes/memory/memory.test.ts#L82))
+via the DB writer, returning its result. ([validated by `memory.test.ts:82`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L82))
 
 When the memory DB is unavailable, `write` routes to the file fallback writer.
-([validated by `memory.test.ts:120`](apps/lore-api/src/api/routes/memory/memory.test.ts#L120))
+([validated by `memory.test.ts:120`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L120))
 
-The body is JSON-parsed regardless of the client's `Content-Type` (ADR-034 payload override), so a JSON body sent as `application/x-www-form-urlencoded` still dispatches on `action`. ([validated by `memory.test.ts:128`](apps/lore-api/src/api/routes/memory/memory.test.ts#L128))
+The body is JSON-parsed regardless of the client's `Content-Type` (ADR-034 payload override), so a JSON body sent as `application/x-www-form-urlencoded` still dispatches on `action`. ([validated by `memory.test.ts:128`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L128))
 
-A `write` missing `value` returns 400 without calling a store. ([validated by `memory.test.ts:143`](apps/lore-api/src/api/routes/memory/memory.test.ts#L143))
+A `write` missing `value` returns 400 without calling a store. ([validated by `memory.test.ts:139`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L139))
 
 A `read` with a numeric `version` string is coerced to a number before the DB
-read, and identically on the file-fallback path. ([validated by `memory.test.ts:149`](apps/lore-api/src/api/routes/memory/memory.test.ts#L149), [validated by `memory.test.ts:172`](apps/lore-api/src/api/routes/memory/memory.test.ts#L172))
+read, and identically on the file-fallback path. ([validated by `memory.test.ts:145`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L145), [validated by `memory.test.ts:168`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L168))
 
-A `read` with `version=all` passes `"all"` through unchanged on both DB and file paths. ([validated by `memory.test.ts:158`](apps/lore-api/src/api/routes/memory/memory.test.ts#L158), [validated by `memory.test.ts:179`](apps/lore-api/src/api/routes/memory/memory.test.ts#L179))
+A `read` with `version=all` passes `"all"` through unchanged on both DB and file paths. ([validated by `memory.test.ts:154`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L154), [validated by `memory.test.ts:175`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L175))
 
-A `read` with no version passes `undefined` (latest) on both DB and file paths. ([validated by `memory.test.ts:165`](apps/lore-api/src/api/routes/memory/memory.test.ts#L165), [validated by `memory.test.ts:186`](apps/lore-api/src/api/routes/memory/memory.test.ts#L186))
+A `read` with no version passes `undefined` (latest) on both DB and file paths. ([validated by `memory.test.ts:161`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L161), [validated by `memory.test.ts:182`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L182))
 
 A falsy embedding result is passed to the writer as `undefined`, not the falsy
-value. ([validated by `memory.test.ts:193`](apps/lore-api/src/api/routes/memory/memory.test.ts#L193))
+value. ([validated by `memory.test.ts:189`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L189))
 
-A `read` missing `key` returns 400. ([validated by `memory.test.ts:208`](apps/lore-api/src/api/routes/memory/memory.test.ts#L208))
+A `read` missing `key` returns 400. ([validated by `memory.test.ts:204`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L204))
 
 A `search` computes the embedding for `query` and returns the DB search result.
-([validated by `memory.test.ts:214`](apps/lore-api/src/api/routes/memory/memory.test.ts#L214))
+([validated by `memory.test.ts:210`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L210))
 
 A `search` falls back to the file searcher with `limit` defaulting to 10.
-([validated by `memory.test.ts:255`](apps/lore-api/src/api/routes/memory/memory.test.ts#L255))
+([validated by `memory.test.ts:253`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L253))
 
-A `search` missing `query` returns 400. ([validated by `memory.test.ts:262`](apps/lore-api/src/api/routes/memory/memory.test.ts#L262))
+A `search` missing `query` returns 400. ([validated by `memory.test.ts:260`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L260))
 
-A `delete` removes the memory via the DB deleter, or the file-fallback deleter when the memory DB is unavailable. ([validated by `memory.test.ts:268`](apps/lore-api/src/api/routes/memory/memory.test.ts#L268), [validated by `memory.test.ts:276`](apps/lore-api/src/api/routes/memory/memory.test.ts#L276))
+A `delete` removes the memory via the DB deleter, or the file-fallback deleter when the memory DB is unavailable. ([validated by `memory.test.ts:266`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L266), [validated by `memory.test.ts:274`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L274))
 
-A `delete` missing `key` returns 400. ([validated by `memory.test.ts:283`](apps/lore-api/src/api/routes/memory/memory.test.ts#L283))
+A `delete` missing `key` returns 400. ([validated by `memory.test.ts:281`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L281))
 
-A `list` defaults `limit` to 50 and offset to 0, and falls back to the file lister when the memory DB is unavailable. ([validated by `memory.test.ts:289`](apps/lore-api/src/api/routes/memory/memory.test.ts#L289), [validated by `memory.test.ts:326`](apps/lore-api/src/api/routes/memory/memory.test.ts#L326))
+A `list` defaults `limit` to 50 and offset to 0, and falls back to the file lister when the memory DB is unavailable. ([validated by `memory.test.ts:287`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L287), [validated by `memory.test.ts:324`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L324))
 
-A `list` threads `offset` through to the lister and echoes `limit`/`offset` paging metadata alongside the rows. ([validated by `memory.test.ts:299`](apps/lore-api/src/api/routes/memory/memory.test.ts#L299))
+A `list` threads `offset` through to the lister and echoes `limit`/`offset` paging metadata alongside the rows. ([validated by `memory.test.ts:297`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L297))
 
-A `list` caps the requested `limit` at 100. ([validated by `memory.test.ts:316`](apps/lore-api/src/api/routes/memory/memory.test.ts#L316))
+A `list` caps the requested `limit` at 100. ([validated by `memory.test.ts:314`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L314))
 
-An unrecognized action returns 400 with the action-list message. ([validated by `memory.test.ts:336`](apps/lore-api/src/api/routes/memory/memory.test.ts#L336))
+An unrecognized action returns 400 with the action-list message. ([validated by `memory.test.ts:334`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L334))
 
-A malformed JSON body returns 500. ([validated by `memory.test.ts:342`](apps/lore-api/src/api/routes/memory/memory.test.ts#L342))
+A malformed JSON body returns 500. ([validated by `memory.test.ts:340`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L340))
 
-A request with no bearer token is rejected 401 before dispatch. ([validated by `memory.test.ts:350`](apps/lore-api/src/api/routes/memory/memory.test.ts#L350))
+A request with no bearer token is rejected 401 before dispatch. ([validated by `memory.test.ts:346`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L346))
 
-A token whose scopes lack `write` is rejected 403 before dispatch. ([validated by `memory.test.ts:357`](apps/lore-api/src/api/routes/memory/memory.test.ts#L357))
+A token whose scopes lack `write` is rejected 403 before dispatch. ([validated by `memory.test.ts:353`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L353))
 
 The embedding-vector contents and the live semantic-ranking output of
 `searchMemories`/`getQueryEmbedding` are exercised only against live Postgres +
@@ -186,19 +186,19 @@ Vertex. *(untested: embedding generation and RRF ranking are live-IO; the route
 seam mocks the embedder and store and asserts only the dispatch/argument
 contract.)*
 
-A search carries `include_invalidated` and `graph_augment` through to the searcher. ([validated by `forwards include_invalidated and graph_augment to the searcher`](apps/lore-api/src/api/routes/memory/memory.test.ts#L223))
+A search carries `include_invalidated` and `graph_augment` through to the searcher. ([validated by `forwards include_invalidated and graph_augment to the searcher`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L219))
 
-Both search flags default to false when the caller omits them. ([validated by `defaults include_invalidated and graph_augment to false`](apps/lore-api/src/api/routes/memory/memory.test.ts#L244))
+Both search flags default to false when the caller omits them. ([validated by `defaults include_invalidated and graph_augment to false`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L242))
 
-A write with `extract_facts` fires fact extraction for the written memory without blocking the response. ([validated by `extracts facts after a DB write when extract_facts is set`](apps/lore-api/src/api/routes/memory/memory.test.ts#L91))
+A write with `extract_facts` fires fact extraction for the written memory without blocking the response. ([validated by `extracts facts after a DB write when extract_facts is set`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L91))
 
-A write without `extract_facts` fires no extraction. ([validated by `skips fact extraction when extract_facts is absent`](apps/lore-api/src/api/routes/memory/memory.test.ts#L112))
+A write without `extract_facts` fires no extraction. ([validated by `skips fact extraction when extract_facts is absent`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L112))
 
-The extraction resolves the newest version of the written key before extracting. ([validated by `extracts from the newest version of the written memory`](apps/lore-api/src/features/memory/fact-extraction.test.ts#L14))
+The extraction resolves the newest version of the written key before extracting. ([validated by `extracts from the newest version of the written memory`](apps/lore-api/src/work/memory/fact-extraction.test.ts#L14))
 
-An unresolvable memory extracts nothing. ([validated by `does nothing when the written memory cannot be resolved`](apps/lore-api/src/features/memory/fact-extraction.test.ts#L32))
+An unresolvable memory extracts nothing. ([validated by `does nothing when the written memory cannot be resolved`](apps/lore-api/src/work/memory/fact-extraction.test.ts#L32))
 
-A failed lookup is swallowed so the write still succeeds. ([validated by `swallows a lookup failure so the write still succeeds`](apps/lore-api/src/features/memory/fact-extraction.test.ts#L45))
+A failed lookup is swallowed so the write still succeeds. ([validated by `swallows a lookup failure so the write still succeeds`](apps/lore-api/src/work/memory/fact-extraction.test.ts#L45))
 
 ## Out of Scope
 
@@ -209,5 +209,5 @@ A failed lookup is swallowed so the write still succeeds. ([validated by `swallo
 - The file-store layout under `~/.lore/memory/`.
 - Token issuance and the scope schema (`/api/tokens`).
 
-Code: handler [`handleMemory`](../../../apps/lore-api/src/api/routes/memory/memory.ts#L72)
-(IMPLEMENTED_BY); route [registration](../../../apps/lore-api/src/server/build-server.ts#L97).
+Code: handler [`handleMemory`](../../../apps/lore-api/src/transport/routes/memory/memory.ts#L72)
+(IMPLEMENTED_BY); route [registration](../../../apps/lore-api/src/app/build-server.ts#L97).

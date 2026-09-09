@@ -1,23 +1,11 @@
-/**
- * In-sync mirror of `shared/src/ingest-workflow.ts`. web-ui is not a
- * workspace member, so it can't import from `@re-cinq/lore-shared`
- * directly. Keep both copies in step — the byte content here is what the
- * "fix" button commits to repos and must match what the agent installs —
- * `ingest-workflow.parity.test.ts` holds the two byte-identical. See
- * web-ui/CLAUDE.md and `lib/onboard-guard.ts` for the mirror pattern.
- */
+// In-sync mirror of shared/src/ingest-workflow.ts; byte-content-identical mirror pattern.
 
 export const LORE_INGEST_WORKFLOW_PATH = ".github/workflows/lore-ingest.yml";
 
-export const LORE_INGEST_WORKFLOW_VERSION = 4;
+export const LORE_INGEST_WORKFLOW_VERSION = 5;
 
-// v4 hardening (issue #1545, pattern ported from re-cinq/bowman-ui PR #37):
-// the v3 curl steps ended in `|| echo ::warning`, which kept every run green
-// while an unset LORE_INGEST_TOKEN 401-rejected every POST for a repo's
-// entire history. v4 fails loudly on misconfiguration and 4xx, warns only on
-// plausibly-transient 5xx/network trouble, and never puts the token on the
-// curl command line.
-export const LORE_INGEST_WORKFLOW_CONTENT = `# lore-ingest-version: 4
+// v4 (#1545): fail loudly on misconfig/4xx, warn on 5xx/network; v5: `--no-renames`, so a moved file's old path is posted as a delete and its chunks do not outlive it.
+export const LORE_INGEST_WORKFLOW_CONTENT = `# lore-ingest-version: 5
 name: Lore Context Ingest
 
 on:
@@ -43,7 +31,9 @@ jobs:
       - name: Get changed files
         id: changes
         run: |
-          FILES=$(git diff --name-only HEAD~1 HEAD | jq -R -s -c 'split("\\n") | map(select(. != ""))')
+          # --no-renames: a moved file must arrive as its old path (a delete)
+          # plus its new path, or the old path's chunks outlive the file.
+          FILES=$(git diff --name-only --no-renames HEAD~1 HEAD | jq -R -s -c 'split("\\n") | map(select(. != ""))')
           echo "files=\${FILES}" >> "$GITHUB_OUTPUT"
 
       - name: Notify Lore to ingest
@@ -205,11 +195,7 @@ export function parseIngestWorkflowVersion(content: string): number | null {
   return match ? parseInt(match[1], 10) : null;
 }
 
-/**
- * Classify a repo's installed workflow against the canonical version.
- * `null` content means the file is absent. A missing or older marker is
- * `stale` (legacy installs predate the marker and carry the broken body).
- */
+/** Classify installed workflow status: missing/stale/aligned. */
 export function ingestWorkflowStatus(
   content: string | null,
 ): IngestWorkflowStatus {

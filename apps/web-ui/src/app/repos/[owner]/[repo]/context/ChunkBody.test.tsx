@@ -56,6 +56,29 @@ describe("ChunkBody", () => {
     expect(gh?.getAttribute("target")).toEqual("_blank");
   });
 
+  it("highlights a test chunk as typescript code with its L5–9 header", () => {
+    const { container } = render(
+      <ChunkBody
+        content={'it("returns 1", () => {\n  expect(foo()).toBe(1);\n});'}
+        contentType="test"
+        filePath="agent/src/foo.test.ts"
+        repo="re-cinq/lore"
+        metadata={{
+          symbol_type: "call",
+          symbol_name: "it",
+          start_line: 5,
+          end_line: 9,
+        }}
+      />,
+    );
+    const code = container.querySelector("code.hljs");
+
+    expect({
+      language: code?.className.includes("language-typescript"),
+      header: container.textContent?.includes("L5–9"),
+    }).toEqual({ language: true, header: true });
+  });
+
   it("shows the section title and a plain blob link (no line range) for a doc chunk", () => {
     const { container } = render(
       <ChunkBody
@@ -106,6 +129,7 @@ describe("ChunkBody", () => {
 
     expect(link).not.toBeNull();
     expect(link?.getAttribute("target")).toBeNull();
+    expect(container.textContent).not.toContain("View on GitHub");
   });
 
   it("strips an injected script element from a doc chunk instead of rendering it", () => {

@@ -1,9 +1,4 @@
-/**
- * Pure spec-side projection: per spec.md line that carries inline coverage
- * links, the test + code targets to surface as a CodeLens. Drives the
- * bidirectional half of the extension (statement → tests/code), and stays in
- * lock-step with the web-UI by reusing the same shared link parsers.
- */
+// Projects each spec.md line's inline coverage links into CodeLens test/code targets, sharing the web-UI's link parsers.
 
 import {
   parseCodeLinksInStatement,
@@ -19,10 +14,6 @@ export interface SpecLens {
   code: LinkTarget[];
 }
 
-function toTarget(ref: SpecLinkRef): LinkTarget {
-  return { label: ref.label, path: ref.path, line: ref.line };
-}
-
 export function specLenses(content: string): SpecLens[] {
   const lenses: SpecLens[] = [];
 
@@ -36,4 +27,8 @@ export function specLenses(content: string): SpecLens[] {
   });
 
   return lenses;
+}
+
+function toTarget(ref: SpecLinkRef): LinkTarget {
+  return { label: ref.label, path: ref.path, line: ref.line };
 }

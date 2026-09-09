@@ -1,0 +1,38 @@
+// Per-repo override of WHICH files become specs/adrs, authored as `.lore/ingest.yml` (sibling of `.lore/test-commands.yml`); a declared kind REPLACES the built-in prefix defaults (see {@link selectIngestFiles}).
+
+import { minimatch } from "minimatch";
+
+/** Filters `value` down to its string entries, or `undefined` when it isn't an array or has none. */
+function stringGlobsOf(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  const globs = value.filter(
+    (entry): entry is string => typeof entry === "string",
+  );
+
+  return globs.length ? globs : undefined;
+}
+
+/** Parses the manifest object into `kind → glob[]`, dropping non-array values and non-string entries. */
+export function parseIngestPatterns(raw: unknown): Record<string, string[]> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return {};
+  }
+  const out: Record<string, string[]> = {};
+
+  for (const [kind, value] of Object.entries(raw as Record<string, unknown>)) {
+    const globs = stringGlobsOf(value);
+
+    if (globs) {
+      out[kind] = globs;
+    }
+  }
+
+  return out;
+}
+
+/** True when `path` matches at least one of the glob `patterns` (minimatch semantics: `**`, `*`, `?`). */
+export function matchesAnyGlob(path: string, patterns: string[]): boolean {
+  return patterns.some((pattern) => minimatch(path, pattern));
+}

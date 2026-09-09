@@ -1,8 +1,6 @@
 import { FAMILY_KEY, SCHEME_KEY } from "./theme-core";
 
-// Runs synchronously before first paint to set theme attributes from
-// localStorage, so there is no flash of the wrong theme and no icon swap on
-// hydration. Keep it dependency-free — it is injected as a raw <script>.
+// Synchronous pre-paint theme script (dependency-free, injected as raw <script>).
 export const THEME_SCRIPT = `
 (function(){
   try {

@@ -114,7 +114,14 @@ controller:
   replicas: 1
   image:
     repository: ghcr.io/re-cinq/ai-agent-controller
-    # Pinned by digest (never a floating tag) — v0.10.10: the GeminiAgent now
+    # Pinned by digest (never a floating tag) — v0.10.11: the persisted clone
+    # credential helper falls back to a 0600 token FILE inside .git/ when the
+    # env var is scrubbed — gemini's run_shell_command spawns children with a
+    # scrubbed environment, so every gemini push died on "terminal prompts
+    # disabled" with the round complete and the branch undeliverable
+    # (re-cinq/lore#1732, ai-agent-subsystem#215); a model-less gemini recipe
+    # also stops falling back to the retired gemini-2.5 family.
+    # Carries v0.10.10: the GeminiAgent
     # passes --skip-trust — workspace trust gates STARTUP separately from
     # approvals, and a run pod's fresh clone is always "untrusted", so every
     # headless gemini run died at exit 55 even with --yolo. Carries v0.10.9's
@@ -128,16 +135,17 @@ controller:
     # line: informer watch + cache reconcile, /healthz from bind, conversation
     # continuity, tar-free conversation archiving.
     # Digests come from the release's install.yaml
-    # (https://github.com/re-cinq/ai-agent-subsystem/releases/tag/v0.10.10), or:
-    #   skopeo inspect docker://ghcr.io/re-cinq/ai-agent-controller:v0.10.10
-    digest: "sha256:1635384fc9d25991c76747a94dba2f55d949ad4d1bd9d986b2cf3fc3b156426d"
+    # (https://github.com/re-cinq/ai-agent-subsystem/releases/tag/v0.10.11), or:
+    #   skopeo inspect docker://ghcr.io/re-cinq/ai-agent-controller:v0.10.11
+    digest: "sha256:0248c6c1e1736bee13694943a6740a043b7d3a975b38215f8a85d673838dad4c"
   # The image whose init container injects the agent runtime + supervisor into each run
-  # pod. Controller + agent ship as a PAIR from the v-tag matrix — pinned to the v0.10.10
+  # pod. Controller + agent ship as a PAIR from the v-tag matrix — pinned to the v0.10.11
   # digest, paired with the controller above. The GeminiSetup installer lives in THIS
   # image (the init container is what installs the vendor CLI), so the pair must move
-  # together or a gemini run still boots a pod with no gemini binary in it.
-  #   skopeo inspect --no-tags docker://ghcr.io/re-cinq/ai-agent:v0.10.10
-  agentImage: "ghcr.io/re-cinq/ai-agent@sha256:1dcbe9d7f0fb1ed65e038739aa159cd521ea5779de2b372995697eb98494c01f"
+  # together or a gemini run still boots a pod with no gemini binary in it. The
+  # v0.10.11 push-token file fix lives in this image too — the init writes the file.
+  #   skopeo inspect --no-tags docker://ghcr.io/re-cinq/ai-agent:v0.10.11
+  agentImage: "ghcr.io/re-cinq/ai-agent@sha256:32768657e5f8065850766cccded6b41975e0fa59f456c9d4b1d0c1ea3ac4bebd"
   # Tail of run-pod log kept in Agent.status.output (bounds the object under etcd's limit).
   maxOutputBytes: "262144"
   resources:

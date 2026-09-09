@@ -1,13 +1,10 @@
-/** Pure markdown helpers for ReadmeBox, extracted so they are unit-testable
- *  without importing the JSX component. */
-
+/** Pure markdown helpers for ReadmeBox; extracted for unit-testability without JSX. */
 export function resolveUrl(url: string, base: string): string {
   if (/^(https?:|mailto:|#)/i.test(url)) {
     return url;
   }
 
-  // Any other absolute scheme (javascript:, data:, vbscript:, …) is blanked —
-  // `new URL` would pass it through unchanged, defeating the allowlist above.
+  // Other absolute schemes (javascript:, data:, vbscript:, …) blanked to defeat `new URL` pass-through.
   if (/^[a-z][a-z0-9+.-]*:/i.test(url)) {
     return "";
   }

@@ -22,8 +22,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
   && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/libs/shared/dist ./libs/shared/dist
-COPY --from=builder /app/libs/shared/package.json ./libs/shared/
+# The whole lib, not just dist + package.json: npm nests some of shared's runtime
+# deps under libs/shared/node_modules instead of hoisting them (web-tree-sitter
+# since #1862), and a copy of the root node_modules alone boots into
+# ERR_MODULE_NOT_FOUND. The floor/lore-api images copy /app/libs for the same reason.
+COPY --from=builder /app/libs/shared ./libs/shared
 COPY --from=builder /app/apps/event-router/dist ./apps/event-router/dist
 COPY --from=builder /app/apps/event-router/package.json ./apps/event-router/
 

@@ -33,42 +33,50 @@ const row = (over: Partial<AssemblyRunNode> = {}): AssemblyRunNode => ({
 
 describe("walkRunData", () => {
   it("reads a closed row as its outcome and an open one as running", () => {
-    const data = walkRunData(
+    const walk = walkRunData(
       definition,
       [row({ outcome: "success" }), row({ nodeId: "write" })],
-      false,
+      { finished: false },
     );
 
-    expect(data.statuses).toEqual({ analyze: "succeeded", write: "running" });
-    expect(data.verdicts).toEqual({ analyze: "success", write: null });
+    expect(walk.statuses).toEqual({ analyze: "succeeded", write: "running" });
+    expect(walk.verdicts).toEqual({ analyze: "success", write: null });
   });
 
   it("takes the newest iteration of a node the walk came back to", () => {
-    const data = walkRunData(
+    const walk = walkRunData(
       definition,
       [
         row({ outcome: "changes_requested", iteration: 1 }),
         row({ outcome: "success", iteration: 2 }),
       ],
-      false,
+      { finished: false },
     );
 
-    expect(data.verdicts.analyze).toBe("success");
+    expect(walk.verdicts.analyze).toBe("success");
   });
 
   it("marks the edge a closed row's outcome routed along as taken", () => {
-    const data = walkRunData(definition, [row({ outcome: "success" })], false);
+    const walk = walkRunData(definition, [row({ outcome: "success" })], {
+      finished: false,
+    });
 
-    expect([...data.taken]).toEqual(["analyze-write-success"]);
+    expect([...walk.taken]).toEqual(["analyze-write-success"]);
   });
 
   it("results completed on a finished run and failed on any failed outcome", () => {
     const rows = [row({ outcome: "success" })];
 
-    expect(walkRunData(definition, rows, true).result).toBe("completed");
-    expect(walkRunData(definition, rows, false).result).toBeNull();
+    expect(walkRunData(definition, rows, { finished: true }).result).toBe(
+      "completed",
+    );
     expect(
-      walkRunData(definition, [row({ outcome: "write-failed" })], true).result,
+      walkRunData(definition, rows, { finished: false }).result,
+    ).toBeNull();
+    expect(
+      walkRunData(definition, [row({ outcome: "write-failed" })], {
+        finished: true,
+      }).result,
     ).toBe("failed");
   });
 });

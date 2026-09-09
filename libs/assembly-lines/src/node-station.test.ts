@@ -14,11 +14,7 @@ describe("resolveNodeStation", () => {
     ).toEqual({ station: "spec-analysis", inherited: false });
   });
 
-  it("falls back to the LINE's task type for an agent node that declares none", () => {
-    // The rule that cost an evening: an agent node without station_ref runs the
-    // recipe named after the line, so on a merged line every node ran the planning
-    // prompt and reported success for it. Reporting `inherited` makes that visible
-    // instead of leaving it to be inferred from YAML.
+  it("falls back to the LINE's task type for an agent node that declares none (the rule that cost an evening: every node on a merged line ran the planning prompt and reported success for it)", () => {
     expect(resolveNodeStation(node(), "feature-planning")).toEqual({
       station: "feature-planning",
       inherited: true,
@@ -31,12 +27,7 @@ describe("resolveNodeStation", () => {
     ).toEqual({ station: "def-validate", inherited: true });
   });
 
-  // Asserted on `builtinStationName` directly rather than through a node: every
-  // surviving underscored node type is a HUMAN station, which dispatches nothing,
-  // so there is no node left to reach this through. The rule still holds and
-  // still matters — a CR name is RFC-1123 — so it keeps its own test rather than
-  // riding on a type that happens to exist.
-  it("dashes an underscored node type, as an RFC-1123 name requires", () => {
+  it("dashes an underscored node type, as an RFC-1123 name requires (asserted directly on builtinStationName since every surviving underscored type is a HUMAN station, which dispatches nothing)", () => {
     expect(builtinStationName("some_underscored_type")).toBe(
       "def-some-underscored-type",
     );

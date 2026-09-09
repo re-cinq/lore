@@ -7,10 +7,8 @@ export default defineConfig({
     exclude: ["dist/**", "node_modules/**"],
     coverage: {
       provider: "v8",
-      // 100% on the routing/latch logic. The pool, the hapi wiring, the boot and
-      // the moved stations themselves are excluded — the stations keep the tests
-      // they arrived with, and the rest cannot run without a database.
-      include: ["src/delivery/routes/stations.ts"],
+      // 100% coverage on routing/latch only; pool/work/boot excluded (need database).
+      include: ["src/transport/routes/stations.ts"],
       thresholds: {
         lines: 100,
         branches: 100,

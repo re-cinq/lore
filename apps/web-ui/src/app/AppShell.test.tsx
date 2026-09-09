@@ -2,16 +2,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 
-// Mutable pathname so we can drive the "close sidebar on navigation" effect
-// ([pathname] dependency) across rerenders.
 const pathname = vi.fn(() => "/some/path");
 
 vi.mock("next/navigation", () => ({
   usePathname: () => pathname(),
 }));
 
-// Icon pulls in @iconify + the theme provider; replace it with a marker stand-in
-// so this test stays focused on AppShell's own layout/interaction logic.
 vi.mock("@/components/Icon", () => ({
   default: ({ name, size }: { name: string; size?: number }) => (
     <span data-testid="icon" data-name={name} data-size={size} />
@@ -136,7 +132,7 @@ describe("AppShell closing paths", () => {
 
     renderShell();
     fireEvent.click(hamburger());
-    fireEvent.keyDown(document, { key: "Escape" }); // close → effect cleanup runs
+    fireEvent.keyDown(document, { key: "Escape" });
     expect(removeSpy).toHaveBeenCalledWith("keydown", expect.any(Function));
     removeSpy.mockRestore();
   });

@@ -1,13 +1,4 @@
-/**
- * Pure viewport math for the canvas spec-graph layer.
- *
- * A canvas has no per-element DOM events, so hit-testing is done by hand: map the
- * pointer's screen coordinates back into world space through the d3.zoom
- * transform (`invertPoint`), then find the node under it (`findNodeAtPoint`).
- * `applyPoint` is the forward map, used to place SVG overlays (badges, labels)
- * over canvas-drawn nodes. Value-in/value-out — mirrors d3.zoomTransform without
- * a DOM dependency so it is unit-testable in the Node environment.
- */
+// Pure viewport math for canvas spec-graph layer; hand-based hit-testing.
 
 export interface ZoomTransform {
   x: number;
@@ -44,11 +35,7 @@ export function applyPoint(transform: ZoomTransform, world: Point): Point {
   };
 }
 
-/**
- * Returns the id of the node whose disc (radius + slop) contains `world`,
- * choosing the nearest centre when discs overlap. Null when the point is clear
- * of every node. Coordinates are in world space (invert the pointer first).
- */
+/** Node id whose disc contains world; nearest center if overlapping. */
 export function findNodeAtPoint(
   world: Point,
   nodes: HitNode[],
