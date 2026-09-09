@@ -55,11 +55,13 @@ export interface AdvanceDeps {
       stationRunId: string;
       nodeId: string;
       iteration: number;
-      failureClass: string | null;
-      failureDetail: string | null;
       commitSha: string | null;
     },
-    outcome: string,
+    verdict: {
+      outcome: string;
+      failureClass?: string | null;
+      failureDetail?: string | null;
+    },
   ) => Promise<void>;
   /** Drop the run's branch graph overlay now the run is over (issue #1769); winning finisher only, best-effort. The Floor never writes Dgraph itself, so this emits the ingest event that the ingest station acts on. Optional seam. */
   dropGraphOverlay?: (run: AssemblyRunRecord) => Promise<void>;

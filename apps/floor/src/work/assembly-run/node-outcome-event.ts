@@ -1,20 +1,25 @@
 /** Telling the graph what one node's terminal outcome was (issue #1771). The Floor never writes Dgraph itself, so this rides the ingest lane the same way a test report does. */
 
-/** The station-run fields the graph needs to record a failure or resolve one. */
+/** WHO the node was. Identity and the commit it ran at — the only things the station-run row can be trusted for here, because the row is read BEFORE the finish writes the verdict onto it. */
 export interface SettledNode {
   stationRunId: string;
   nodeId: string;
   iteration: number;
-  failureClass: string | null;
-  failureDetail: string | null;
   commitSha: string | null;
+}
+
+/** WHAT the node did. Carried by the delivery, never read back off the row. */
+export interface NodeVerdict {
+  outcome: string;
+  failureClass?: string | null;
+  failureDetail?: string | null;
 }
 
 /** The ingest event carrying one node's terminal outcome; the graph decides from `outcome` whether this projects a failure or resolves earlier ones. */
 export function nodeOutcomeEvent(
   run: { id: string; repo: string | null },
   row: SettledNode,
-  outcome: string,
+  verdict: NodeVerdict,
   occurredAt: Date,
 ) {
   return {
@@ -22,9 +27,9 @@ export function nodeOutcomeEvent(
     params: {
       repo: run.repo,
       kind: "failure",
-      payload: outcomePayload(run.id, row, { outcome, occurredAt }),
+      payload: outcomePayload(run.id, row, verdict, occurredAt),
     },
-    dedupeKey: `node-outcome:${row.stationRunId}:${outcome}`,
+    dedupeKey: `node-outcome:${row.stationRunId}:${verdict.outcome}`,
   };
 }
 
@@ -32,18 +37,19 @@ export function nodeOutcomeEvent(
 function outcomePayload(
   assemblyRunId: string,
   row: SettledNode,
-  when: { outcome: string; occurredAt: Date },
+  verdict: NodeVerdict,
+  occurredAt: Date,
 ) {
   return {
-    outcome: when.outcome,
+    outcome: verdict.outcome,
     assemblyRunId,
     stationRunId: row.stationRunId,
     nodeId: row.nodeId,
     iteration: row.iteration,
-    failureClass: row.failureClass,
-    failureDetail: row.failureDetail,
+    failureClass: verdict.failureClass ?? null,
+    failureDetail: verdict.failureDetail ?? null,
     commit: row.commitSha,
-    occurredAt: when.occurredAt.toISOString(),
+    occurredAt: occurredAt.toISOString(),
   };
 }
 

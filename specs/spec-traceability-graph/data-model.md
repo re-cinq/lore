@@ -442,8 +442,19 @@ The Floor never writes Dgraph itself, so a settled node emits an ingest event
 carrying its outcome, and the graph decides from that outcome whether to project
 a failure or resolve earlier ones. ([validated by carries the settled node and its outcome on the ingest lane](apps/floor/src/work/assembly-run/node-outcome-event.test.ts#L28))
 
+The event takes the node's IDENTITY from its station-run row and its VERDICT
+from the delivery. It cannot take the verdict from the row: the row is read
+BEFORE the finish writes the outcome onto it, so its failure fields are still
+empty at that moment. Reading them there would have projected every failure with
+no detail, and a failure with no detail names no file, and a failure that names
+no file is not projected at all — the whole feature would have been silently
+inert. ([validated by takes identity from the row and the failure from the verdict](apps/floor/src/work/assembly-run/node-outcome-event.test.ts#L28), [validated by hands the graph the delivery's failure detail, not the row read before the finish wrote it](apps/floor/src/work/assembly-run/finish-node.test.ts#L787))
+
+A verdict that names no failure carries nulls rather than omitting the fields, so
+a resolve is distinguishable from a malformed record. ([validated by carries nulls for a verdict that names no failure](apps/floor/src/work/assembly-run/node-outcome-event.test.ts#L61))
+
 A success and a failure on the same station run are keyed separately, so
-recording one never suppresses the other. ([validated by keys a success separately from the failure on the same station run](apps/floor/src/work/assembly-run/node-outcome-event.test.ts#L57))
+recording one never suppresses the other. ([validated by keys a success separately from the failure on the same station run](apps/floor/src/work/assembly-run/node-outcome-event.test.ts#L75))
 
 A run with a repo is recorded; a run without one is not, because its files
 belong to nothing. ([validated by records for a run that names a repo](apps/floor/src/work/assembly-run/node-outcome-event.test.ts#L18), [validated by refuses for a run with no repo, whose files belong to nothing](apps/floor/src/work/assembly-run/node-outcome-event.test.ts#L22))

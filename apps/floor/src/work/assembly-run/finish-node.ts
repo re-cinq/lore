@@ -49,7 +49,7 @@ export async function finishNodeAndAdvance(
 }
 
 /** Record one node's terminal outcome (CAS — first writer decides) and advance the line; `iteration` targets the exact revisit whose CR fired so a late duplicate event can't overwrite the current one. */
-/** Closes exactly one open row for this node and returns THE ROW when this delivery is the one that closed it. A missing target or a lost CAS both mean another delivery got there first — its follow-up has already fired, and firing again would re-route a result that was just routed. */
+/** Closes exactly one open row for this node and returns THE ROW when this delivery is the one that closed it. A missing target or a lost CAS both mean another delivery got there first — its follow-up has already fired, and firing again would re-route a result that was just routed. The row is the one READ BEFORE the finish, so it carries the node's identity but NOT its verdict — take that from the result. */
 async function closeNodeRow(
   input: NodeCompletion,
   deps: AdvanceDeps,
@@ -85,7 +85,11 @@ async function recordNodeOutcome(
   }
 
   try {
-    await deps.recordNodeOutcome(assemblyLineId, row, result.outcome);
+    await deps.recordNodeOutcome(assemblyLineId, row, {
+      outcome: result.outcome,
+      failureClass: result.failureClass,
+      failureDetail: result.failureDetail,
+    });
   } catch (err) {
     console.warn("[node-outcome] graph record threw:", (err as Error).message);
   }
