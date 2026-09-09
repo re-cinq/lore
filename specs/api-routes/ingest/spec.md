@@ -149,7 +149,9 @@ A chunk path is pruned when the posted tree does not contain it, or when today's
 
 The route (`write` scope, body `{ present_paths }`) resolves the repo's chunk schema, deletes the planned paths there in one statement, and answers `{ schema, deleted_paths, deleted_chunks }`; a tree that plans nothing issues no DELETE. ([validated by `prunes re-cinq/lore against the 2 posted present paths and returns what was deleted`](apps/lore-api/src/transport/routes/repos/chunks-prune.test.ts#L41), [`prune-orphans.test.ts:35`](apps/lore-api/src/work/chunks/prune-orphans.test.ts#L35), [`prune-orphans.test.ts:75`](apps/lore-api/src/work/chunks/prune-orphans.test.ts#L75))
 
-An empty `present_paths` is refused with 400 before the store is touched: "nothing is present" would otherwise read as "delete everything". ([validated by `refuses an empty present_paths with 400 before touching the store, so an empty tree can never wipe a repo`](apps/lore-api/src/transport/routes/repos/chunks-prune.test.ts#L61))
+The body cap is 10MB, above hapi's 1MB default: a large tree truncated at the default would have posted a partial list and deleted the rest. ([validated by `accepts a 3MB present_paths body, above the 1MB server default, so a large tree is not truncated into a mass delete`](apps/lore-api/src/transport/routes/repos/chunks-prune.test.ts#L61))
+
+An empty `present_paths` is refused with 400 before the store is touched: "nothing is present" would otherwise read as "delete everything". ([validated by `refuses an empty present_paths with 400 before touching the store, so an empty tree can never wipe a repo`](apps/lore-api/src/transport/routes/repos/chunks-prune.test.ts#L74))
 
 ## Out of Scope
 

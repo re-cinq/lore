@@ -37,23 +37,23 @@ async function servePrune(
   return h.response(await pruneOrphanChunks(pool, repo, present_paths));
 }
 
+// A large repo's tracked-path list outgrows the 1MB server default: ~40k paths at 25 bytes each.
+const PRUNE_OPTIONS = {
+  ...bearerScope("write"),
+  payload: { maxBytes: 10 * 1_048_576 },
+  validate: { payload: zodValidate(PruneBody) },
+};
+
 export function chunksPruneRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
     path: "/api/repos/{owner}/{repo}/chunks/prune",
-    options: zodResponse(
-      {
-        ...bearerScope("write"),
-        validate: { payload: zodValidate(PruneBody) },
-      },
-      PruneResultSchema,
-      {
-        name: "ChunkPruneResult",
-        description:
-          "The chunk schema swept, the indexed paths that were absent from the posted tree or refused by the classifier, and how many chunks went with them",
-        errors: [400],
-      },
-    ),
+    options: zodResponse(PRUNE_OPTIONS, PruneResultSchema, {
+      name: "ChunkPruneResult",
+      description:
+        "The chunk schema swept, the indexed paths that were absent from the posted tree or refused by the classifier, and how many chunks went with them",
+      errors: [400],
+    }),
     handler: withPool(getPool, servePrune),
   };
 }

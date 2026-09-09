@@ -58,6 +58,19 @@ describe("POST /api/repos/{owner}/{repo}/chunks/prune", () => {
     });
   });
 
+  it("accepts a 3MB present_paths body, above the 1MB server default, so a large tree is not truncated into a mass delete", async () => {
+    const wideTree = Array.from(
+      { length: 60_000 },
+      (_, index) => `apps/lore-api/src/very/long/path/segment/${index}.ts`,
+    );
+    const res = await post({ present_paths: wideTree });
+
+    expect({
+      status: res.statusCode,
+      bodyBytes: JSON.stringify({ present_paths: wideTree }).length > 3_000_000,
+    }).toEqual({ status: 200, bodyBytes: true });
+  });
+
   it("refuses an empty present_paths with 400 before touching the store, so an empty tree can never wipe a repo", async () => {
     const res = await post({ present_paths: [] });
 

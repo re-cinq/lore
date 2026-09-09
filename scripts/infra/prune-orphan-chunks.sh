@@ -20,7 +20,9 @@ BODY_FILE="$(mktemp)"
 trap 'rm -f "$AUTH_FILE" "$BODY_FILE"' EXIT
 printf 'Authorization: Bearer %s\n' "$LORE_INGEST_TOKEN" > "$AUTH_FILE"
 
-git ls-files | jq -R -s -c 'split("\n") | map(select(. != "")) | {present_paths: .}' > "$BODY_FILE"
+# The whole tree, not the subtree under the shell's cwd: a path the body omits is a path the sweep deletes.
+cd "$(git rev-parse --show-toplevel)"
+git ls-files -z | jq -R -s -c 'split("\u0000") | map(select(. != "")) | {present_paths: .}' > "$BODY_FILE"
 echo "[lore] pruning $REPO against $(jq '.present_paths | length' "$BODY_FILE") tracked paths"
 
 curl -sf -X POST -H @"$AUTH_FILE" -H 'Content-Type: application/json' \
