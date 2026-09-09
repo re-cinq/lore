@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { HttpAgentApi } from "./cluster-agent-client.js";
+import { ClusterAgentClient, HttpAgentApi } from "./cluster-agent-client.js";
 import type { Agent as AgentCr } from "@re-cinq/agent-contracts";
 
 function cr(name: string): AgentCr {
@@ -63,5 +63,29 @@ describe("HttpAgentApi.listByLabel", () => {
     expect(
       await new HttpAgentApi(transport as never).listByLabel("k=v"),
     ).toEqual([]);
+  });
+});
+
+describe("ClusterAgentClient error status", () => {
+  it("carries the upstream status on the thrown error, so a caller can tell absence from failure", async () => {
+    const fetchImpl = vi.fn(
+      async () => new Response("", { status: 404 }),
+    ) as unknown as typeof fetch;
+    const client = new ClusterAgentClient("http://agent", undefined, fetchImpl);
+
+    await expect(client.call("GET", "/pods/gone/log")).rejects.toMatchObject({
+      code: 404,
+    });
+  });
+
+  it("carries a 403 the same way, which the caller must NOT read as absence", async () => {
+    const fetchImpl = vi.fn(
+      async () => new Response("", { status: 403 }),
+    ) as unknown as typeof fetch;
+    const client = new ClusterAgentClient("http://agent", undefined, fetchImpl);
+
+    await expect(client.call("GET", "/pods/x/log")).rejects.toMatchObject({
+      code: 403,
+    });
   });
 });

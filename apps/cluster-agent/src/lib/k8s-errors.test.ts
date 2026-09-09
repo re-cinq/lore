@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   describeK8sError,
   isConflict,
+  isLogUnavailable,
   isMissing,
   statusOf,
 } from "./k8s-errors.js";
@@ -95,5 +96,36 @@ describe("a status carried only in the message, verbatim from the 2026-08-25 pro
       isConflict("HTTP-Code: 409"),
       isConflict(null),
     ]).toEqual([false, false, false]);
+  });
+});
+
+describe("isLogUnavailable", () => {
+  it("returns true for a pod that is already gone", () => {
+    expect(isLogUnavailable({ code: 404 })).toBe(true);
+  });
+
+  it("returns true for a container the kubelet reports terminated", () => {
+    const err = Object.assign(
+      new Error('container "agent" in pod "agent-job-x-h5sj7" is terminated'),
+      { code: 400 },
+    );
+
+    expect(isLogUnavailable(err)).toBe(true);
+  });
+
+  it("returns true when the terminated status is only in the message", () => {
+    const err = new Error(
+      'HTTP-Code: 400\ncontainer "agent" in pod "p" is terminated',
+    );
+
+    expect(isLogUnavailable(err)).toBe(true);
+  });
+
+  it("returns false for a missing Role rule", () => {
+    expect(isLogUnavailable({ code: 403 })).toBe(false);
+  });
+
+  it("returns false for an apiserver failure", () => {
+    expect(isLogUnavailable({ code: 500 })).toBe(false);
   });
 });
