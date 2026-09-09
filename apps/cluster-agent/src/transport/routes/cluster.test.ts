@@ -272,3 +272,64 @@ describe("restart", () => {
     expect(res.statusCode).toBe(401);
   });
 });
+
+describe("pod log availability", () => {
+  it("answers 404 when the kubelet reports the container terminated", async () => {
+    build({
+      pods: {
+        ...fakeDeps().pods,
+        podLog: () =>
+          Promise.reject(
+            Object.assign(
+              new Error(
+                'container "agent" in pod "agent-job-x-h5sj7" is terminated',
+              ),
+              { code: 400 },
+            ),
+          ),
+      },
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/cluster/pods/agent-job-x-h5sj7/log",
+      headers: { authorization: `Bearer ${TOKEN}` },
+    });
+
+    expect(res.statusCode).toBe(404);
+  });
+
+  it("answers 404 when the pod itself is already gone", async () => {
+    build({
+      pods: {
+        ...fakeDeps().pods,
+        podLog: () => Promise.reject({ code: 404 }),
+      },
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/cluster/pods/gone/log",
+      headers: { authorization: `Bearer ${TOKEN}` },
+    });
+
+    expect(res.statusCode).toBe(404);
+  });
+
+  it("answers 500 for a missing Role rule, which the archive cannot substitute for", async () => {
+    build({
+      pods: {
+        ...fakeDeps().pods,
+        podLog: () => Promise.reject({ code: 403 }),
+      },
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/cluster/pods/forbidden/log",
+      headers: { authorization: `Bearer ${TOKEN}` },
+    });
+
+    expect(res.statusCode).toBe(500);
+  });
+});

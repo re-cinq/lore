@@ -58,6 +58,28 @@ export function isConflict(err: unknown): boolean {
   return statusOf(err) === 409;
 }
 
+// A container whose stdout the kubelet will not serve — terminated, or not started yet — is a 400, not a 404, and the reason is prose. Matching the prose is the only way to tell it from a 400 that means the request itself was malformed.
+function isUnreadableContainer(err: unknown): boolean {
+  const message = (err as RawK8sError)?.message;
+
+  if (typeof message !== "string") {
+    return false;
+  }
+
+  return /is terminated|is waiting to start|ContainerCreating/.test(message);
+}
+
+/** The log is gone rather than the read having failed: the pod already reaped (404), or a container the kubelet cannot serve (400 + its own prose). A 403 is a missing Role rule and a 5xx is a fault — both stay failures, because collapsing them would hide exactly what the archive cannot substitute for. */
+export function isLogUnavailable(err: unknown): boolean {
+  const status = statusOf(err);
+
+  if (status === 404) {
+    return true;
+  }
+
+  return status === 400 && isUnreadableContainer(err);
+}
+
 /** Name the verb and the status — "Forbidden" alone does not say which Role is missing which rule. */
 export function describeK8sError(
   verb: string,

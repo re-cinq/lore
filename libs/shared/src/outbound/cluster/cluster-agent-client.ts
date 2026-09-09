@@ -41,7 +41,11 @@ export class ClusterAgentClient {
     });
 
     if (!res.ok) {
-      throw new Error(`cluster ${method} ${path} failed: ${res.status}`);
+      // The status rides on the error structurally, not just in the prose: the Floor's pod-log reader tells "gone, use the archive" (404) from "cannot read" (403 RBAC, 5xx) by reading it back, and a message-only status is one rephrasing away from silently becoming a fault.
+      throw Object.assign(
+        new Error(`cluster ${method} ${path} failed: ${res.status}`),
+        { code: res.status },
+      );
     }
 
     return res.status === 204 ? undefined : ((await res.json()) as T);

@@ -1,10 +1,16 @@
 // The cluster's Kubernetes surface, as HTTP — every route is a DOMAIN operation (never raw get/replace, no resourceVersion crosses the wire); list is ONE apiserver page per call since 180 CRs blew Node's heap on 2026-07-24.
 
-import type { Lifecycle, ServerRoute } from "@hapi/hapi";
+import type {
+  Lifecycle,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import type { ClusterDeps } from "../../domain/cluster-deps.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { enforceBearer } from "@re-cinq/lore-shared/http/bearer.js";
+import { isLogUnavailable } from "../../lib/k8s-errors.js";
 
 /** Page ceiling — a caller asking for more is refused rather than quietly served a smaller page (a silent clamp reads as "read everything"). */
 const MAX_PAGE = 100;
@@ -161,13 +167,28 @@ function podLogHandler(opts: ClusterRoutesDeps): Lifecycle.Method {
     );
     const tail = Number.isInteger(asked) && asked > 0 ? asked : MAX_TAIL;
     const { pods } = opts.deps();
-    const logs = await pods.podLog(
-      request.params.podName,
-      Math.min(tail, MAX_TAIL),
-    );
+
+    return respondWithPodLog(pods, request.params.podName, tail, h);
+  };
+}
+
+// A log the kubelet will not serve is an ordinary absence, and the Floor's reader falls back to the durable archive on a 404 alone. A genuine fault (403 RBAC, 5xx) must NOT become a 404: the archive cannot substitute for a permission the cluster-agent is missing, and hiding it is how the Floor's absent delete verb went unnoticed for 40 days.
+async function respondWithPodLog(
+  pods: ClusterDeps["pods"],
+  podName: string,
+  tail: number,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  try {
+    const logs = await pods.podLog(podName, Math.min(tail, MAX_TAIL));
 
     return h.response({ logs }).code(200);
-  };
+  } catch (err) {
+    if (isLogUnavailable(err)) {
+      return h.response({ error: "pod log unavailable" }).code(404);
+    }
+    throw err;
+  }
 }
 
 function podLogRoute(opts: ClusterRoutesDeps): ServerRoute {
