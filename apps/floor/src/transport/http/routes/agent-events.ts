@@ -199,7 +199,10 @@ function sinkResult(
 async function ingestAgentSink(rawNdjson: string): Promise<AgentSinkResult> {
   const oversized = Buffer.byteLength(rawNdjson, "utf8") > MAX_VIZ_BODY_BYTES;
   // Turns ride the SAME single pass as the cost rows and the projection, reusing the oversized gate — no second parse, no second size rule.
-  const parsed = parseAgentSink(rawNdjson, !oversized, !oversized);
+  const parsed = parseAgentSink(rawNdjson, {
+    projectRunEvents: !oversized,
+    collectTurns: !oversized,
+  });
   const cost = await recordAgentCosts(parsed.costRows);
   const vizRows = oversized ? 0 : await recordRunEvents(parsed.runEvents);
   const projected = await recordSinkProjections(parsed);

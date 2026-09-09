@@ -31,12 +31,19 @@ function findWorkRow(
     );
 }
 
+/** What the decision reads: the run's station-run rows, its cloned graph, and whether the run is still open. */
+export interface ArtifactRecoveryInput {
+  nodes: readonly RecoveryNode[];
+  graph: RunGraph | null;
+  runOpen: boolean;
+}
+
 /** Decide from the run's station-run rows and cloned graph. */
-export function decideArtifactRecovery(
-  nodes: readonly RecoveryNode[],
-  graph: RunGraph | null,
-  runOpen: boolean,
-): ArtifactRecoveryDecision {
+export function decideArtifactRecovery({
+  nodes,
+  graph,
+  runOpen,
+}: ArtifactRecoveryInput): ArtifactRecoveryDecision {
   const workRow = findWorkRow(nodes, graph);
 
   if (!workRow) {

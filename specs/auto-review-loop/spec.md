@@ -274,17 +274,17 @@ and the webhook/verdict plumbing it rides on.
    parses a JSON-string settings blob. ([validated by `should-auto-review.test.ts:5`](apps/floor/src/outbound/should-auto-review.test.ts#L5), [`should-auto-review.test.ts:9`](apps/floor/src/outbound/should-auto-review.test.ts#L9), [`should-auto-review.test.ts:15`](apps/floor/src/outbound/should-auto-review.test.ts#L15))
 
 2. Bot loop guard: `isBotActor` is true only for `[bot]` logins; a bot-authored PR is skipped (Lore
-   never double-reviews its own PRs) and the bot's own comment never starts a reply pass. ([validated by `code-review.test.ts:79`](apps/floor/src/work/review/code-review.test.ts#L88), [`code-review.test.ts:100`](apps/floor/src/work/review/code-review.test.ts#L100), [`code-review.test.ts:246`](apps/floor/src/work/review/code-review.test.ts#L246))
+   never double-reviews its own PRs) and the bot's own comment never starts a reply pass. ([validated by `code-review.test.ts:79`](apps/floor/src/work/review/code-review.test.ts#L87), [`code-review.test.ts:100`](apps/floor/src/work/review/code-review.test.ts#L99), [`code-review.test.ts:246`](apps/floor/src/work/review/code-review.test.ts#L245))
 
 3. On PR open/reopen/ready: `decideReviewOnOpen` starts a `code-review` line in `review` mode only
    for an open, non-draft, human PR with auto-review on, and posts a started-comment linking the
-   assembly line; it does nothing when auto-review is off. ([validated by `code-review.test.ts:91`](apps/floor/src/work/review/code-review.test.ts#L100), [`code-review.test.ts:173`](apps/floor/src/work/review/code-review.test.ts#L173), [`code-review.test.ts:205`](apps/floor/src/work/review/code-review.test.ts#L205))
+   assembly line; it does nothing when auto-review is off. ([validated by `code-review.test.ts:91`](apps/floor/src/work/review/code-review.test.ts#L99), [`code-review.test.ts:173`](apps/floor/src/work/review/code-review.test.ts#L172), [`code-review.test.ts:205`](apps/floor/src/work/review/code-review.test.ts#L204))
 
 4. On a human reply: `decideReviewOnReply` starts a `reply`-mode line carrying the comment id/body
    only for a human comment on an open, non-draft PR with auto-review on; a reply on a closed PR is
-   ignored. ([validated by `code-review.test.ts:113`](apps/floor/src/work/review/code-review.test.ts#L122), [`code-review.test.ts:231`](apps/floor/src/work/review/code-review.test.ts#L231), [`code-review.test.ts:215`](apps/floor/src/work/review/code-review.test.ts#L215))
+   ignored. ([validated by `code-review.test.ts:113`](apps/floor/src/work/review/code-review.test.ts#L121), [`code-review.test.ts:231`](apps/floor/src/work/review/code-review.test.ts#L230), [`code-review.test.ts:215`](apps/floor/src/work/review/code-review.test.ts#L214))
 
-5. On PR close: `onClose` finishes any open code-review line for that PR with outcome `pr_closed`. ([validated by `code-review.test.ts:418`](apps/floor/src/work/review/code-review.test.ts#L422))
+5. On PR close: `onClose` finishes any open code-review line for that PR with outcome `pr_closed`. ([validated by `code-review.test.ts:418`](apps/floor/src/work/review/code-review.test.ts#L423))
 
 6. The GitHub webhook maps `pull_request.closed` to `github.pull_request.closed` carrying
    `merged`/`branch`/`merge_commit_sha`/`labels` — for both a merged and a closed-without-merge PR —
@@ -347,28 +347,28 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 
 ### `apps/floor/src/work/review/code-review.test.ts`
 
-- isBotActor is true only for [bot] logins. ([validated by](apps/floor/src/work/review/code-review.test.ts#L88))
-- isReviewRequest matches an @lore review keyword, not arbitrary chatter. ([validated by](apps/floor/src/work/review/code-review.test.ts#L93))
-- decideReviewOnReply starts only for an open, non-draft PR with a human comment. ([validated by](apps/floor/src/work/review/code-review.test.ts#L122))
-- routes address to a code-review-reply line with the address intent + thread. ([validated by](apps/floor/src/work/review/code-review.test.ts#L148))
-- routes ignore to nothing. ([validated by](apps/floor/src/work/review/code-review.test.ts#L167))
-- starts a code-review-recheck line on a push to an already-reviewed PR (the fast re-check replaces the old first-review-only skip). ([validated by](apps/floor/src/work/review/code-review.test.ts#L193))
-- skips a draft PR. ([validated by](apps/floor/src/work/review/code-review.test.ts#L205))
-- ignores the bot's own comment (loop guard). ([validated by](apps/floor/src/work/review/code-review.test.ts#L246))
-- starts the routed follow-up line for the action. ([validated by](apps/floor/src/work/review/code-review.test.ts#L262))
-- does nothing on an ignore action. ([validated by](apps/floor/src/work/review/code-review.test.ts#L272))
-- routes review to a code-review line. ([validated by](apps/floor/src/work/review/code-review.test.ts#L141))
-- routes answer to a code-review-reply line with the answer intent. ([validated by](apps/floor/src/work/review/code-review.test.ts#L160))
-- composes the review body with inline comments carrying ids and locations. ([validated by](apps/floor/src/work/review/code-review.test.ts#L282))
-- returns an empty string for a review with neither body nor comments. ([validated by](apps/floor/src/work/review/code-review.test.ts#L311))
-- keeps the inline-comments header when the review has no body. ([validated by](apps/floor/src/work/review/code-review.test.ts#L315))
-- starts a code-review-reply line carrying the review body and its inline comments. ([validated by](apps/floor/src/work/review/code-review.test.ts#L344))
-- falls back to a generic description when the review carried no text. ([validated by](apps/floor/src/work/review/code-review.test.ts#L381))
-- ignores an approved review. ([validated by](apps/floor/src/work/review/code-review.test.ts#L398))
-- ignores the bot's own submitted review (loop guard). ([validated by](apps/floor/src/work/review/code-review.test.ts#L409))
-- finishes any open code-review lines for the PR. ([validated by](apps/floor/src/work/review/code-review.test.ts#L422))
-- re-checks with the head sha and recheck mode on a push to an already-reviewed PR, and posts no per-push comment. ([validated by](apps/floor/src/work/review/code-review.test.ts#L451))
-- skips the re-check on a bot-authored PR under the same loop guard as the first review. ([validated by](apps/floor/src/work/review/code-review.test.ts#L467))
+- isBotActor is true only for [bot] logins. ([validated by](apps/floor/src/work/review/code-review.test.ts#L87))
+- isReviewRequest matches an @lore review keyword, not arbitrary chatter. ([validated by](apps/floor/src/work/review/code-review.test.ts#L92))
+- decideReviewOnReply starts only for an open, non-draft PR with a human comment. ([validated by](apps/floor/src/work/review/code-review.test.ts#L121))
+- routes address to a code-review-reply line with the address intent + thread. ([validated by](apps/floor/src/work/review/code-review.test.ts#L147))
+- routes ignore to nothing. ([validated by](apps/floor/src/work/review/code-review.test.ts#L166))
+- starts a code-review-recheck line on a push to an already-reviewed PR (the fast re-check replaces the old first-review-only skip). ([validated by](apps/floor/src/work/review/code-review.test.ts#L192))
+- skips a draft PR. ([validated by](apps/floor/src/work/review/code-review.test.ts#L204))
+- ignores the bot's own comment (loop guard). ([validated by](apps/floor/src/work/review/code-review.test.ts#L245))
+- starts the routed follow-up line for the action. ([validated by](apps/floor/src/work/review/code-review.test.ts#L261))
+- does nothing on an ignore action. ([validated by](apps/floor/src/work/review/code-review.test.ts#L271))
+- routes review to a code-review line. ([validated by](apps/floor/src/work/review/code-review.test.ts#L140))
+- routes answer to a code-review-reply line with the answer intent. ([validated by](apps/floor/src/work/review/code-review.test.ts#L159))
+- composes the review body with inline comments carrying ids and locations. ([validated by](apps/floor/src/work/review/code-review.test.ts#L281))
+- returns an empty string for a review with neither body nor comments. ([validated by](apps/floor/src/work/review/code-review.test.ts#L310))
+- keeps the inline-comments header when the review has no body. ([validated by](apps/floor/src/work/review/code-review.test.ts#L314))
+- starts a code-review-reply line carrying the review body and its inline comments. ([validated by](apps/floor/src/work/review/code-review.test.ts#L343))
+- falls back to a generic description when the review carried no text. ([validated by](apps/floor/src/work/review/code-review.test.ts#L382))
+- ignores an approved review. ([validated by](apps/floor/src/work/review/code-review.test.ts#L399))
+- ignores the bot's own submitted review (loop guard). ([validated by](apps/floor/src/work/review/code-review.test.ts#L410))
+- finishes any open code-review lines for the PR. ([validated by](apps/floor/src/work/review/code-review.test.ts#L423))
+- re-checks with the head sha and recheck mode on a push to an already-reviewed PR, and posts no per-push comment. ([validated by](apps/floor/src/work/review/code-review.test.ts#L452))
+- skips the re-check on a bot-authored PR under the same loop guard as the first review. ([validated by](apps/floor/src/work/review/code-review.test.ts#L468))
 
 ### `apps/floor/src/work/review/post-review.test.ts`
 
@@ -376,7 +376,7 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 - partitions findings by diff hunk — a finding on a commentable line stays inline, one on an uninlineable line folds into overflow. ([validated by](apps/floor/src/work/review/post-review.test.ts#L62))
 - A finding on a line GitHub cannot inline (an unchanged line, or a file outside the diff) is folded into the review body, because one such inline comment 422s the whole atomic review. ([validated by](apps/floor/src/work/review/post-review.test.ts#L120))
 - When the atomic review post is rejected, the whole review is delivered as one top-level comment rather than silently dropped. ([validated by](apps/floor/src/work/review/post-review.test.ts#L142))
-- Starting a review on a subject already in flight is a JOIN, and a join announces nothing: `assemblyRuns.start` answers with the existing run's id and cannot say which happened, so the "Lore is reviewing this PR" comment is posted only when the run was actually started. Announcing unconditionally re-posted it, naming the very same run, on every `@lore review` and every press of the UI trigger while a review was open. ([validated by `code-review.test.ts:509`](apps/floor/src/work/review/code-review.test.ts#L504))
+- Starting a review on a subject already in flight is a JOIN, and a join announces nothing: `assemblyRuns.start` answers with the existing run's id and cannot say which happened, so the "Lore is reviewing this PR" comment is posted only when the run was actually started. Announcing unconditionally re-posted it, naming the very same run, on every `@lore review` and every press of the UI trigger while a review was open. ([validated by `code-review.test.ts:509`](apps/floor/src/work/review/code-review.test.ts#L505))
 - posts when the output carries a REVIEW_FINDINGS block. ([validated by](apps/floor/src/work/review/post-review.test.ts#L165))
 - A bare `REVIEW_RESULT:APPROVED` with no findings block posts a visible formal `APPROVE` review rather than staying silent. ([validated by](apps/floor/src/work/review/post-review.test.ts#L180))
 - does nothing when there is no findings block and no approval verdict. ([validated by](apps/floor/src/work/review/post-review.test.ts#L194))

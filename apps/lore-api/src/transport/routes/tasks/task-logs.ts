@@ -19,6 +19,7 @@ import {
   parseTurnCursor,
   type TurnSlice,
 } from "./task-logs-turn-scan.js";
+import { OkSchema } from "../../http/ok-schema.js";
 
 const TaskLogsBody = z.object({
   task_id: z.string().min(1),
@@ -45,7 +46,7 @@ const TaskLogSliceSchema = z.object({
   cursor: z.string().optional(),
 });
 
-const LogsAcceptedSchema = z.object({ ok: z.literal(true) });
+const LogsAcceptedSchema = OkSchema;
 
 /** The GCS bucket the mcp local runner's log buffers live in; imported lazily so a deployment without GCS never loads the client. */
 async function logBucket() {
@@ -193,7 +194,7 @@ type LogFile = ReturnType<Awaited<ReturnType<typeof logBucket>>["file"]>;
 async function downloadedSlice(
   file: LogFile,
   offset: number,
-  complete: boolean,
+  { complete }: { complete: boolean },
 ): Promise<TranscriptSlice> {
   const [content] = await file.download();
   const full = content.toString("utf-8");
@@ -217,7 +218,7 @@ async function readLogsBucket({
   }
 
   // The local runner re-POSTs the full buffer while running, so a bucket hit doesn't mean the run ended; no pool means no status to check.
-  return downloadedSlice(file, offset, pool ? finished : true);
+  return downloadedSlice(file, offset, { complete: pool ? finished : true });
 }
 
 /** A slice of one task's transcript, from whichever source holds it. The TURN STORE is read first: a cluster run streams into `pipeline.agent_run_turns` while it works, and the log bucket is only ever written by the mcp local runner — so a cluster task has turns and no bucket, and a local one has the reverse. */

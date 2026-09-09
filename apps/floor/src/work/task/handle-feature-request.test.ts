@@ -56,7 +56,7 @@ beforeEach(() => {
   writeEpisode.mockResolvedValue(undefined);
   fakeRepo.createBranch.mockResolvedValue(undefined);
   fakeRepo.commitFile.mockResolvedValue(undefined);
-  fakeRepo.isConfigured.mockReturnValue(true);
+  fakeRepo.isConfigured.mockReturnValue(true); // eslint-disable-line re-lint/no-flag-params -- a stubbed return value, not a flag argument
   fakePulls.open.mockResolvedValue({
     repo: "re-cinq/app",
     number: 7,

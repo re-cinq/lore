@@ -68,7 +68,9 @@ export function artifactsFromTerminalOutput(
   const args: Record<string, string> = {};
   const missing: string[] = [];
 
-  for (const fileEvent of parseAgentSink(rawOutput ?? "", false, false)
+  const projections = { projectRunEvents: false, collectTurns: false };
+
+  for (const fileEvent of parseAgentSink(rawOutput ?? "", projections)
     .fileEvents) {
     if (OWNED_ELSEWHERE.has(fileEvent.event)) {
       continue;

@@ -13,6 +13,7 @@ import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
 import { withPool } from "../with-pool.js";
+import { OkSchema } from "../../http/ok-schema.js";
 
 // Org-wide `lore.settings` (ADR-032); the write is an ALLOWLIST, not a passthrough — an open upsert would let a caller invent settings the platform then reads.
 
@@ -31,8 +32,6 @@ const OrgSettingsSchema = z.object({
   settings: z.record(z.string(), z.unknown()),
   repo_count: z.number(),
 });
-
-const OkSchema = z.object({ ok: z.literal(true) });
 
 /** How many developers have run a local session against a repo, and when last. */
 const RepoSessionsSchema = z.object({

@@ -36,7 +36,7 @@ describe("parseAgentSink", () => {
         line(result({ input_tokens: 10 })),
       ].join("\n") + "\n";
 
-    const sink = parseAgentSink(body, false);
+    const sink = parseAgentSink(body, { projectRunEvents: false });
 
     expect(sink.costRows).toHaveLength(1);
     expect(sink.runEvents).toEqual([]);

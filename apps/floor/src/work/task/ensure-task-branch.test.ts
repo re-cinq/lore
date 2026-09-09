@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { ensureTaskBranch } from "./ensure-task-branch.js";
 
-function repoDouble(exists: boolean | undefined) {
+function repoDouble({ exists }: { exists?: boolean | undefined }) {
   const created: { branch: string; base?: string }[] = [];
 
   return {
@@ -19,7 +19,7 @@ function repoDouble(exists: boolean | undefined) {
 
 describe("ensureTaskBranch", () => {
   it("creates the branch off the default branch when it does not exist", async () => {
-    const { repo, created } = repoDouble(false);
+    const { repo, created } = repoDouble({ exists: false });
 
     await ensureTaskBranch(repo, "lore/feature-planning/live-view-ec914872");
 
@@ -29,7 +29,7 @@ describe("ensureTaskBranch", () => {
   });
 
   it("leaves an existing branch untouched so a revision keeps its commits", async () => {
-    const { repo, created } = repoDouble(true);
+    const { repo, created } = repoDouble({ exists: true });
 
     await ensureTaskBranch(repo, "lore/implementation/resume-me");
 
@@ -37,7 +37,7 @@ describe("ensureTaskBranch", () => {
   });
 
   it("creates nothing when the adapter (e.g. the station HTTP shim) cannot report existence", async () => {
-    const { repo, created } = repoDouble(undefined);
+    const { repo, created } = repoDouble({});
 
     await ensureTaskBranch(repo, "lore/implementation/unknown");
 
@@ -62,7 +62,7 @@ describe("ensureTaskBranch", () => {
 
   it("surfaces a creation failure rather than dispatching a pod that cannot check out", async () => {
     const repo = {
-      branchExists: () => Promise.resolve(false),
+      branchExists: async () => false,
       createBranch: async () => {
         throw new Error("branch protection");
       },

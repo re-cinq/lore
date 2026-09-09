@@ -14,6 +14,7 @@ import { projectFor } from "../../../outbound/project-boot.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
 import type { Request } from "@hapi/hapi";
+import { OkTrue } from "../../http/ok-schema.js";
 
 // Per-repo agent definitions API; `image` is two-key gated like dark_factory.execution.image (ADR-025).
 
@@ -26,13 +27,13 @@ const AgentReadSchema = z.union([
 ]);
 
 const AgentWrittenSchema = z.object({
-  ok: z.literal(true),
+  ok: OkTrue,
   agent: ResolvedAgentDefinitionSchema,
   ceremony: CeremonySchema,
 });
 
 const AgentDeletedSchema = z.object({
-  ok: z.literal(true),
+  ok: OkTrue,
   deleted: z.string(),
 });
 

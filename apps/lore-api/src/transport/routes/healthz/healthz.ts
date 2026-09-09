@@ -20,7 +20,7 @@ function bearerToken(
   return header?.replace("Bearer ", "");
 }
 
-function healthResponseStatus(connected: boolean): {
+function healthResponseStatus({ connected }: { connected: boolean }): {
   status: "ok" | "error";
   code: number;
 } {
@@ -50,7 +50,7 @@ async function serveHealthz(
 ): Promise<ResponseObject> {
   const pool = getPool();
   const health = await getHealthStatus();
-  const { status, code } = healthResponseStatus(health.connected);
+  const { status, code } = healthResponseStatus(health);
   const bearer = bearerToken(request.headers.authorization);
   const isAuthed = bearer
     ? await validateClientToken(pool, bearer, "read")

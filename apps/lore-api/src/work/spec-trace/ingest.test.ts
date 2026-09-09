@@ -171,7 +171,7 @@ const serverErr = () => {
 describe("ingestFiles", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(isAppConfigured).mockReturnValue(true);
+    vi.mocked(isAppConfigured).mockReturnValue(true); // eslint-disable-line re-lint/no-flag-params -- a stubbed return value, not a flag argument
     vi.mocked(getQueryEmbedding).mockResolvedValue(null);
   });
 

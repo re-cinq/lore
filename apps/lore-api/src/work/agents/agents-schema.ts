@@ -25,7 +25,7 @@ export const AgentInputSchema = z.object({
   prompt: z.string().max(20000).nullish(),
   image: z.string().max(512).nullish(),
   execution_mode: ExecutionMode.default("claude-code"),
-  review_required: z.boolean().default(false),
+  review_required: z.boolean().default(false), // eslint-disable-line re-lint/no-flag-params -- a zod default VALUE, not a flag argument
   pod_resources: PodResourcesSchema.nullish(),
 });
 

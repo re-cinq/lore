@@ -34,7 +34,7 @@ describe("zodValidate", () => {
 describe("getZodSchema", () => {
   it("returns undefined for a validator not built by zodValidate", () => {
     expect(getZodSchema(async (v: unknown) => v)).toBeUndefined();
-    expect(getZodSchema(true)).toBeUndefined();
+    expect(getZodSchema(true)).toBeUndefined(); // eslint-disable-line re-lint/no-flag-params -- `true` is the non-schema INPUT under test
     expect(getZodSchema(undefined)).toBeUndefined();
   });
 });

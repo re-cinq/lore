@@ -51,8 +51,7 @@ function ctx(over: Partial<CommentContext> = {}): CommentContext {
 
 function harness(
   pr: PullRef | null,
-  autoReview = true,
-  reviewComments: ReviewComment[] = [],
+  { autoReview = true, reviewComments = [] }: HarnessOptions = {},
 ) {
   const port = new InMemoryAssemblyRuns();
   const comments: Array<{ number: number; body: string }> = [];
@@ -342,26 +341,28 @@ describe("onReviewSubmitted", () => {
   };
 
   it("starts a code-review-reply line carrying the review body and its inline comments", async () => {
-    const { port, handlers } = harness(openPr(), true, [
-      {
-        id: 11,
-        path: "src/a.ts",
-        line: 7,
-        body: "guard the null case",
-        user: "alice",
-        created_at: "2026-07-23",
-        review_id: 900,
-      },
-      {
-        id: 99,
-        path: "src/old.ts",
-        line: 1,
-        body: "from an earlier review",
-        user: "bob",
-        created_at: "2026-07-01",
-        review_id: 111,
-      },
-    ]);
+    const { port, handlers } = harness(openPr(), {
+      reviewComments: [
+        {
+          id: 11,
+          path: "src/a.ts",
+          line: 7,
+          body: "guard the null case",
+          user: "alice",
+          created_at: "2026-07-23",
+          review_id: 900,
+        },
+        {
+          id: 99,
+          path: "src/old.ts",
+          line: 1,
+          body: "from an earlier review",
+          user: "bob",
+          created_at: "2026-07-01",
+          review_id: 111,
+        },
+      ],
+    });
 
     await handlers.onReviewSubmitted(submitted);
 
@@ -525,3 +526,8 @@ describe("a forced review while one is already in flight", () => {
     expect(h.port.rows).toHaveLength(1);
   });
 });
+
+interface HarnessOptions {
+  autoReview?: boolean;
+  reviewComments?: ReviewComment[];
+}

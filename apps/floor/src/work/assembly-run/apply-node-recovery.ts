@@ -301,7 +301,7 @@ async function readNodeState(
 
   return {
     crVisible,
-    status: await readVisibleCrStatus(openNode, crVisible, ctx),
+    status: crVisible ? await readVisibleCrStatus(openNode, ctx) : null,
     budgetMinutes: nodeBudgetMinutes(node),
   };
 }
@@ -309,10 +309,9 @@ async function readNodeState(
 /** Null for a CR this Floor cannot see — reading a satellite's CR back as null would be read as "requeue" and double-launch work that is still running. */
 async function readVisibleCrStatus(
   openNode: StationRunRecord,
-  crVisible: boolean,
   ctx: ReapContext,
 ): Promise<Awaited<ReturnType<ReapContext["deps"]["readAgentStatus"]>> | null> {
-  return crVisible && openNode.agentCrName
+  return openNode.agentCrName
     ? await ctx.deps.readAgentStatus(openNode.agentCrName)
     : null;
 }

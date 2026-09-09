@@ -151,10 +151,13 @@ const PRIVATE_OP_RESPONSES: Record<string, JsonSchema> = {
   "503": { $ref: "#/components/responses/ServiceUnavailable" },
 };
 
-function bodyResponses(
-  hasBody: boolean,
-  declared: Set<number>,
-): Record<string, JsonSchema> {
+function bodyResponses({
+  hasBody,
+  declared,
+}: {
+  hasBody: boolean;
+  declared: Set<number>;
+}): Record<string, JsonSchema> {
   const responses: Record<string, JsonSchema> = {};
 
   if (hasBody || declared.has(400)) {
@@ -168,17 +171,21 @@ function bodyResponses(
   return responses;
 }
 
-export function responsesFor(
-  isPublicOp: boolean,
-  hasBody: boolean,
-  success?: { meta: OpenApiResponseMeta; ref: JsonSchema },
-): Record<string, JsonSchema> {
+export function responsesFor({
+  isPublicOp,
+  hasBody,
+  success,
+}: {
+  isPublicOp: boolean;
+  hasBody: boolean;
+  success?: { meta: OpenApiResponseMeta; ref: JsonSchema };
+}): Record<string, JsonSchema> {
   const declared = new Set<number>(success?.meta.errors ?? []);
 
   return {
     ...successResponse(success),
     ...declaredErrorResponses(declared),
-    ...bodyResponses(hasBody, declared),
+    ...bodyResponses({ hasBody, declared }),
     ...(isPublicOp ? {} : PRIVATE_OP_RESPONSES),
     "429": { $ref: "#/components/responses/RateLimited" },
   };

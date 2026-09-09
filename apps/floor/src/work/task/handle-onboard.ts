@@ -106,11 +106,11 @@ async function configureAndAudit(input: OnboardAuditInput): Promise<string> {
     workflowsPermissionDenied,
   });
 
-  return onboardAttentionSection(
+  return onboardAttentionSection({
     failures,
     configFailures,
     workflowsPermissionDenied,
-  );
+  });
 }
 
 /** The five facts every step of an onboarding needs. Threaded rather than re-listed: each step used to declare the same parameter block, and they drifted. */

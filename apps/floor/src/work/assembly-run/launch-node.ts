@@ -40,17 +40,18 @@ export interface NodeLaunch {
   deps: AdvanceDeps;
 }
 
+/** How the node reaches its executor: the pooled service, a pod, or a human station (neither). */
+interface NodeDispatchKind {
+  runsInService: boolean;
+  dispatchedAsPod: boolean;
+}
+
 /** Claim fields only a POD-dispatched node's row carries (FR3): `queued` parks it for a cluster-agent claim while human/service rows keep `running`, and the repo-settings read behind its required tags is paid only when it matters. */
 async function podClaimFields(
-  dispatchedAsPod: boolean,
   node: RunGraphNode,
   repo: string,
   deps: AdvanceDeps,
-): Promise<{ status?: "queued"; requiredTags?: string[] }> {
-  if (!dispatchedAsPod) {
-    return {};
-  }
-
+): Promise<{ status: "queued"; requiredTags: string[] }> {
   return {
     status: "queued",
     requiredTags: resolveRequiredTags(
@@ -64,8 +65,7 @@ async function podClaimFields(
 // Row before CR: a crash between them leaves an open row the reaper resolves by reading the deterministically named CR; the row also MINTS the station-run id so a converged duplicate reuses it. A service node names no CR (null), so the reaper never mistakes it for the crash-between-row-and-launch case and relaunches it as a duplicate pod.
 async function ensureStationRunFor(
   { node, task, dispatch, assemblyRun, iteration, deps }: NodeLaunch,
-  runsInService: boolean,
-  dispatchedAsPod: boolean,
+  { runsInService, dispatchedAsPod }: NodeDispatchKind,
 ): Promise<{ stationRunId: string; nodeRowId: string }> {
   const assemblyLineId = assemblyRun.id;
 
@@ -77,7 +77,9 @@ async function ensureStationRunFor(
       ? null
       : nodeAgentName(assemblyLineId, node.id, iteration),
     input: stationRunInputFor(node, task, dispatch.content, dispatch.prompt),
-    ...(await podClaimFields(dispatchedAsPod, node, assemblyRun.repo, deps)),
+    ...(dispatchedAsPod
+      ? await podClaimFields(node, assemblyRun.repo, deps)
+      : {}),
   });
 }
 
@@ -133,11 +135,10 @@ export async function launchNode(launch: NodeLaunch): Promise<void> {
   const { node } = launch;
   const runsInService = isServiceNode(node.type);
   const dispatchedAsPod = !isHumanStation(node.type) && !runsInService;
-  const { stationRunId, nodeRowId } = await ensureStationRunFor(
-    launch,
+  const { stationRunId, nodeRowId } = await ensureStationRunFor(launch, {
     runsInService,
     dispatchedAsPod,
-  );
+  });
 
   // A human station's worker is outside the pod system (wizard/PR page); the row parks the walk, nothing dispatches, and the outcome arrives later as a resume.
   if (isHumanStation(node.type)) {

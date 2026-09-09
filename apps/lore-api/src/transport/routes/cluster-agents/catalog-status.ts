@@ -16,6 +16,7 @@ import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { withPool } from "../with-pool.js";
 import { authenticateClusterAgent } from "./cluster-agent-auth.js";
+import { OkTrue } from "../../http/ok-schema.js";
 
 // A cluster-agent reports what it DID with entries it read (applied/refused/skipped/deleted) — previously lived only in pod stdout and died with it (a 2026-09-01 refusal went 2h unrecorded). Reported SEPARATELY from the (GET) ack so a report failure costs visibility, never delivery.
 
@@ -32,7 +33,7 @@ const ReportSchema = z.object({
     .max(2000),
 });
 
-const StatusRecorded = z.object({ ok: z.literal(true), recorded: z.number() });
+const StatusRecorded = z.object({ ok: OkTrue, recorded: z.number() });
 
 export interface CatalogStatusDeps {
   agents: ClusterAgentsRepository;

@@ -14,11 +14,12 @@ import {
   imageFieldTouched,
 } from "../../../work/agents/agents-schema.js";
 import { withPool } from "../with-pool.js";
+import { OkTrue } from "../../http/ok-schema.js";
 
 // Upserts the ORG-DEFAULT row (project_id IS NULL); `image` is refused here since the two-key ceremony is CODEOWNERS-scoped per repo.
 
 const OrgAgentWrittenSchema = z.object({
-  ok: z.literal(true),
+  ok: OkTrue,
   agent: ResolvedAgentDefinitionSchema,
 });
 
@@ -41,7 +42,7 @@ function orgDefinitionFields(
     prompt: orDefault(fields.prompt, null),
     image: orDefault(fields.image, null),
     execution_mode: orDefault(fields.execution_mode, "claude-code" as const),
-    review_required: orDefault(fields.review_required, false),
+    review_required: fields.review_required ?? false,
     config: orDefault(fields.config, null),
   };
 }

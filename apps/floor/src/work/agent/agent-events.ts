@@ -242,16 +242,7 @@ function ingestCostAndFileRows(sink: AgentSink, envelope: unknown): void {
   }
 }
 
-function ingestTurn(
-  sink: AgentSink,
-  envelope: unknown,
-  line: string,
-  collectTurns: boolean,
-): void {
-  if (!collectTurns) {
-    return;
-  }
-
+function ingestTurn(sink: AgentSink, envelope: unknown, line: string): void {
   if (sink.turns.length >= MAX_RUN_TURNS_PER_BATCH) {
     sink.turnsCapped++;
 
@@ -267,12 +258,8 @@ function ingestTurn(
   sink.turns.push(turn);
 }
 
-function ingestRunEvents(
-  sink: AgentSink,
-  envelope: unknown,
-  projectRunEvents: boolean,
-): void {
-  if (!projectRunEvents || sink.runEvents.length >= MAX_RUN_EVENTS_PER_BATCH) {
+function ingestRunEvents(sink: AgentSink, envelope: unknown): void {
+  if (sink.runEvents.length >= MAX_RUN_EVENTS_PER_BATCH) {
     return;
   }
   collectRunEventsUpToCap(sink.runEvents, envelope);
@@ -314,15 +301,23 @@ function ingestLine(
   }
 
   ingestCostAndFileRows(sink, envelope);
-  ingestTurn(sink, envelope, line, projections.collectTurns);
-  ingestRunEvents(sink, envelope, projections.projectRunEvents);
+
+  if (projections.collectTurns) {
+    ingestTurn(sink, envelope, line);
+  }
+
+  if (projections.projectRunEvents) {
+    ingestRunEvents(sink, envelope);
+  }
 }
 
 /** Parse the NDJSON sink body ONCE into cost rows + (optionally) run-visualization rows + (optionally) full-fidelity turns; single-pass parsing bounds peak memory (the regression that OOM-looped the single Floor replica). Blank/unparseable lines are skipped; a task-less line still collects as a turn. Nothing throws. */
 export function parseAgentSink(
   ndjson: string,
-  projectRunEvents = true,
-  collectTurns = true,
+  {
+    projectRunEvents = true,
+    collectTurns = true,
+  }: Partial<SinkProjections> = {},
 ): AgentSink {
   const sink = emptySink();
 
@@ -351,5 +346,8 @@ function collectRunEventsUpToCap(
 
 /** The cost projection alone (skips blank, unparseable, non-`result`, and taskId-less lines). */
 export function parseAgentEvents(ndjson: string): LlmCallRow[] {
-  return parseAgentSink(ndjson, false, false).costRows;
+  return parseAgentSink(ndjson, {
+    projectRunEvents: false,
+    collectTurns: false,
+  }).costRows;
 }

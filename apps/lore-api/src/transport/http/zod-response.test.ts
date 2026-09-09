@@ -3,7 +3,7 @@ import { z } from "zod";
 import { bearerScope } from "./bearer-scope.js";
 import { zodResponse, getResponseMeta } from "./zod-response.js";
 
-const Body = z.object({ ok: z.literal(true) });
+const Body = z.object({ ok: z.literal(true) }); // eslint-disable-line re-lint/no-flag-params -- the literal VALUE the body carries, not a flag argument
 
 describe("zodResponse", () => {
   it("preserves the auth scope it is merged onto", () => {

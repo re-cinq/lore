@@ -5,7 +5,10 @@ import type { projectFor } from "../../outbound/project-boot.js";
 import type { FeatureWithIterations } from "@re-cinq/lore-shared/project/features/features-port.js";
 import { applyGapResult } from "@re-cinq/lore-shared/feature-planning/apply-gap-result.js";
 import { gapResultFromTurns } from "@re-cinq/lore-shared/feature-planning/recover-gap-result.js";
-import { decideArtifactRecovery } from "./planning-artifact-recovery.js";
+import {
+  decideArtifactRecovery,
+  type ArtifactRecoveryInput,
+} from "./planning-artifact-recovery.js";
 import { isPlanningPhase } from "@re-cinq/lore-shared/feature-planning/gap-result.js";
 
 type Project = Awaited<ReturnType<typeof projectFor>>;
@@ -107,12 +110,12 @@ export async function recoverLostRound(
   project: Project,
   featureId: string,
   lostRound: NonNullable<ReturnType<typeof lostArtifactRound>>,
-  run: { graph: Parameters<typeof decideArtifactRecovery>[1]; open: boolean },
+  run: Omit<ArtifactRecoveryInput, "nodes">,
 ): Promise<boolean> {
   const stationRuns = await pipeline().assemblyRuns.listStationRuns(
     lostRound.runId,
   );
-  const decision = decideArtifactRecovery(stationRuns, run.graph, run.open);
+  const decision = decideArtifactRecovery({ nodes: stationRuns, ...run });
 
   if (decision.kind !== "recover") {
     return false;

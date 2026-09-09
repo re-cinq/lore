@@ -24,7 +24,7 @@ async function registered() {
   return { agents, agent, token };
 }
 
-function runs(requeued: string[], answer = true) {
+function runs(requeued: string[], { answer = true }: RunsAnswer = {}) {
   return {
     requeueStationRun: async (nodeRowId: string) => {
       requeued.push(nodeRowId);
@@ -52,10 +52,15 @@ describe("handleRelease", () => {
     const { agents, agent, token } = await registered();
 
     expect(
-      await handleRelease({ agents, runs: runs([], false) }, token, agent.id, {
-        node_row_id: "412",
-        reason: "boom",
-      }),
+      await handleRelease(
+        { agents, runs: runs([], { answer: false }) },
+        token,
+        agent.id,
+        {
+          node_row_id: "412",
+          reason: "boom",
+        },
+      ),
     ).toEqual({ code: 200, body: { status: "settled" } });
   });
 
@@ -94,3 +99,7 @@ describe("handleRelease", () => {
     ).toMatchObject({ code: 403 });
   });
 });
+
+interface RunsAnswer {
+  answer?: boolean;
+}
