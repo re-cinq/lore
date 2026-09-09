@@ -24,12 +24,13 @@ const visit = (nodeId: string, outcome: string, iteration = 1): NodeVisit => ({
 });
 
 describe("the implementation-loop line", () => {
-  it("walks dod, open-pr, tdd-round, ready-for-review, await-pr, retrospective, done", () => {
+  it("walks dod, open-pr, tdd-round, await-ci, ready-for-review, await-pr, retrospective, done", () => {
     expect(line.entry).toBe("dod");
     expect(line.exit).toBe("done");
     expect(successorsOf("dod", "success")).toEqual(["open-pr"]);
     expect(successorsOf("open-pr", "success")).toEqual(["tdd-round"]);
-    expect(successorsOf("tdd-round", "success")).toEqual(["ready-for-review"]);
+    expect(successorsOf("tdd-round", "success")).toEqual(["await-ci"]);
+    expect(successorsOf("await-ci", "success")).toEqual(["ready-for-review"]);
     expect(successorsOf("ready-for-review", "success")).toEqual(["await-pr"]);
     expect(successorsOf("await-pr", "success")).toEqual(["retrospective"]);
     expect(successorsOf("retrospective", "always")).toEqual(["done"]);
@@ -54,21 +55,33 @@ describe("the implementation-loop line", () => {
     });
   });
 
-  it("loops tdd-round on changes_requested and leaves on success", () => {
+  it("sends a pushed round to the CI wait on success and on changes_requested alike", () => {
+    expect(successorsOf("tdd-round", "success")).toEqual(["await-ci"]);
     expect(successorsOf("tdd-round", "changes_requested")).toEqual([
-      "tdd-round",
+      "await-ci",
     ]);
-    expect(edge("tdd-round", "tdd-round")).toMatchObject({
+  });
+
+  it("gives tdd-round no self-edge — the round budget lives on await-ci to tdd-round", () => {
+    expect(
+      line.edges.filter((e) => e.from === "tdd-round" && e.to === "tdd-round"),
+    ).toHaveLength(0);
+    expect(edge("await-ci", "tdd-round")).toMatchObject({
       on: "changes_requested",
       iteration_max: 12,
     });
+    expect(successorsOf("tdd-round", "failed")).toEqual(["retrospective"]);
   });
 
-  it("gives tdd-round exactly one self-edge, because two would share one budget (iteration_max counters key on `${from}->${to}`, not the outcome)", () => {
-    expect(
-      line.edges.filter((e) => e.from === "tdd-round" && e.to === "tdd-round"),
-    ).toHaveLength(1);
-    expect(successorsOf("tdd-round", "failed")).toEqual(["retrospective"]);
+  it("parks the round on a ci_check station routed at the pull request", () => {
+    expect(line.nodes.find((n) => n.id === "await-ci")).toMatchObject({
+      type: "ci_check",
+      route: "{args.pr_url}",
+    });
+  });
+
+  it("ends the run when a red build outlives the round that was sent to fix it", () => {
+    expect(successorsOf("await-ci", "failed")).toEqual(["retrospective"]);
   });
 
   it("sends a red build to fix-ci and back to the wait, not to a blocked ticket", () => {
@@ -92,7 +105,7 @@ describe("the implementation-loop line", () => {
     });
   });
 
-  it("carries no validate node — lint is what CI runs, and fix-ci repairs it (an in-pod pre-check costs a node:validate claim, the resource whose absence starved five tickets on 2026-08-28, and red CI is no longer terminal)", () => {
+  it("carries no validate node — lint is what CI runs, and a later round repairs it (an in-pod pre-check costs a node:validate claim, the resource whose absence starved five tickets on 2026-08-28, and red CI is no longer terminal)", () => {
     expect(line.nodes.map((n) => n.type)).not.toContain("validate");
   });
 
@@ -103,14 +116,16 @@ describe("the implementation-loop line", () => {
     ];
 
     for (let i = 1; i <= 12; i++) {
-      rounds.push(visit("tdd-round", "changes_requested", i));
+      rounds.push(visit("tdd-round", "success", i));
+      rounds.push(visit("await-ci", "changes_requested", i));
     }
     expect(getNextTransition(line, rounds)).toMatchObject({
       kind: "launch",
       nodeId: "tdd-round",
     });
 
-    rounds.push(visit("tdd-round", "changes_requested", 13));
+    rounds.push(visit("tdd-round", "success", 13));
+    rounds.push(visit("await-ci", "changes_requested", 13));
     expect(getNextTransition(line, rounds)).toMatchObject({
       kind: "fail",
       outcome: "iteration_max",
@@ -122,6 +137,7 @@ describe("the implementation-loop line", () => {
       visit("dod", "success"),
       visit("open-pr", "success"),
       visit("tdd-round", "success"),
+      visit("await-ci", "success"),
       visit("ready-for-review", "success"),
       visit("await-pr", "changes_requested"),
     ];
@@ -144,6 +160,7 @@ describe("the implementation-loop line", () => {
         visit("dod", "success"),
         visit("open-pr", "success"),
         visit("tdd-round", "success"),
+        visit("await-ci", "success"),
         visit("ready-for-review", "success"),
         visit("await-pr", "success"),
         visit("retrospective", "success"),
