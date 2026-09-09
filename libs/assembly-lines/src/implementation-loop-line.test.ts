@@ -44,6 +44,7 @@ describe("the implementation-loop line", () => {
       "open-pr",
       "tdd-round",
       "ready-for-review",
+      "repair-build",
       "fix-ci",
     ]);
     expect(agents.every((n) => n.station_ref)).toBe(true);
@@ -80,8 +81,19 @@ describe("the implementation-loop line", () => {
     });
   });
 
-  it("ends the run when a red build outlives the round that was sent to fix it", () => {
-    expect(successorsOf("await-ci", "failed")).toEqual(["retrospective"]);
+  it("hands a build the rounds stopped moving to a repair step, not to another round", () => {
+    expect(successorsOf("await-ci", "failed")).toEqual(["repair-build"]);
+    expect(edge("await-ci", "repair-build")).toMatchObject({
+      iteration_max: 2,
+    });
+  });
+
+  it("returns a repaired build to the CI wait, and an unrepaired one to a human", () => {
+    expect(successorsOf("repair-build", "success")).toEqual(["await-ci"]);
+    expect(successorsOf("repair-build", "failed")).toEqual(["retrospective"]);
+    expect(successorsOf("repair-build", "changes_requested")).toEqual([
+      "retrospective",
+    ]);
   });
 
   it("sends a red build to fix-ci and back to the wait, not to a blocked ticket", () => {
