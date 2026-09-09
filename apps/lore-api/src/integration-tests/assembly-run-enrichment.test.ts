@@ -13,6 +13,8 @@ interface RunRow {
   cost_usd: number | null;
   pr_url: string | null;
   task_pr_number: number | null;
+  issue_url: string | null;
+  issue_number: number | null;
   created_by: string | null;
   args_pr_number: number | null;
 }
@@ -37,8 +39,9 @@ describe("the run reads' enrichment query", () => {
     server = buildServer(() => pool);
 
     const task = await pool.query<{ id: string }>(
-      `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, pr_url, pr_number)
-       VALUES ('enrichment fixture', 'general', $1, $2, 'https://github.com/test/enrichment-repo/pull/7', 7)
+      `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, pr_url, pr_number, issue_url, issue_number)
+       VALUES ('enrichment fixture', 'general', $1, $2, 'https://github.com/test/enrichment-repo/pull/7', 7,
+               'https://github.com/test/enrichment-repo/issues/6', 6)
        RETURNING id`,
       [REPO, CREATED_BY],
     );
@@ -97,6 +100,14 @@ describe("the run reads' enrichment query", () => {
       pr_url: "https://github.com/test/enrichment-repo/pull/7",
       task_pr_number: 7,
       args_pr_number: 7,
+    });
+  });
+
+  it("carries the task's Issue onto the run that produced it", async () => {
+    expect(await listed()).toMatchObject({
+      id: runId,
+      issue_url: "https://github.com/test/enrichment-repo/issues/6",
+      issue_number: 6,
     });
   });
 
