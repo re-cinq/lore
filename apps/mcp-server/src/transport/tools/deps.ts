@@ -30,9 +30,9 @@ export async function trackLatency<T>(
     success = false;
     throw err;
   } finally {
-    const latencyMs = Date.now() - start;
+    const call = { tool, durationMs: Date.now() - start, success };
 
-    trackToolCall(tool, latencyMs, success);
-    traceTool(tool, latencyMs, success);
+    trackToolCall(call);
+    traceTool(call);
   }
 }

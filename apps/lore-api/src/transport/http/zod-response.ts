@@ -13,6 +13,8 @@ export interface OpenApiResponseMeta {
   status: number;
   description: string;
   errors: DeclaredErrorStatus[];
+  /** The response media type; `application/json` unless the route streams (`text/event-stream`). */
+  contentType: string;
 }
 
 export interface ZodResponseOptions {
@@ -20,6 +22,7 @@ export interface ZodResponseOptions {
   status?: number;
   description?: string;
   errors?: DeclaredErrorStatus[];
+  contentType?: string;
 }
 
 /** Merge a success-response contract onto a route's options. */
@@ -34,6 +37,7 @@ export function zodResponse<T extends Pick<RouteOptions, "auth" | "plugins">>(
     status: opts.status ?? 200,
     description: opts.description ?? "Successful response",
     errors: opts.errors ?? [],
+    contentType: opts.contentType ?? "application/json",
   };
 
   return {

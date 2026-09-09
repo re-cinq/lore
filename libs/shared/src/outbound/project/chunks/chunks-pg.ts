@@ -197,7 +197,7 @@ export class PgChunks implements ChunksPort {
               (metadata->>'end_line')::int   AS end_line,
               ingested_at
        FROM ${schema}.chunks
-       WHERE repo = $1 AND content_type = 'code'`,
+       WHERE repo = $1 AND content_type IN ('code', 'test')`,
       [repo],
     );
 
@@ -224,7 +224,7 @@ export class PgChunks implements ChunksPort {
     const { rows } = await this.pool.query(
       `SELECT file_path, content, metadata, embedding
        FROM ${schema}.chunks
-       WHERE repo = $1 AND content_type = 'code'`,
+       WHERE repo = $1 AND content_type IN ('code', 'test')`,
       [repo],
     );
 

@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { ClusterAgent } from "../../../domain/models/cluster-agent.js";
 import type {
   ClusterAgentsRepository,
+  PauseState,
   RegisterClusterAgentInput,
 } from "./cluster-agents-port.js";
 
@@ -84,13 +85,13 @@ export class InMemoryClusterAgents implements ClusterAgentsRepository {
     }
   }
 
-  async setPaused(id: string, paused: boolean): Promise<ClusterAgent | null> {
+  async setPaused(id: string, state: PauseState): Promise<ClusterAgent | null> {
     const existing = this.agents.get(id);
 
     if (!existing) {
       return null;
     }
-    const updated: ClusterAgent = { ...existing, paused };
+    const updated: ClusterAgent = { ...existing, paused: state === "paused" };
 
     this.agents.set(id, updated);
 

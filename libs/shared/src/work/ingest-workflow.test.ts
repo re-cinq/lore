@@ -57,8 +57,14 @@ describe("LORE_INGEST_WORKFLOW_CONTENT", () => {
     );
   });
 
-  it("is version 4 — the hardened error-handling template", () => {
-    expect(LORE_INGEST_WORKFLOW_VERSION).toBe(4);
+  it("is version 5 — the template that reports a rename as a delete plus an add", () => {
+    expect(LORE_INGEST_WORKFLOW_VERSION).toBe(5);
+  });
+
+  it("lists changed files with --no-renames so a renamed file arrives as a delete plus an add", () => {
+    expect(LORE_INGEST_WORKFLOW_CONTENT).toContain(
+      "git diff --name-only --no-renames HEAD~1 HEAD",
+    );
   });
 
   it("keeps the reference copy in scripts/onboarding-templates in sync with the constant", () => {

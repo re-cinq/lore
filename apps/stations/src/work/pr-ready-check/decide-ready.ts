@@ -18,19 +18,19 @@ export type PrReadyVerdict =
     };
 
 /** The CI-only half of the verdict, or null to fall through to the thread check. */
-function ciVerdict(
-  ci: CiConclusion,
-  hasCiHistory: boolean,
-): PrReadyVerdict | null {
-  if (ci === "pending") {
+function ciVerdict(input: {
+  ci: CiConclusion;
+  hasCiHistory: boolean;
+}): PrReadyVerdict | null {
+  if (input.ci === "pending") {
     return { kind: "wait", reason: "ci_pending" };
   }
 
-  if (ci === "none" && hasCiHistory) {
+  if (input.ci === "none" && input.hasCiHistory) {
     return { kind: "wait", reason: "ci_not_started" };
   }
 
-  if (ci === "failure") {
+  if (input.ci === "failure") {
     return { kind: "blocked", reason: "ci_red", outcome: "changes_requested" };
   }
 
@@ -59,7 +59,7 @@ export function decidePrReady(input: {
   /** Does this repo run checks at all? */
   hasCiHistory: boolean;
 }): PrReadyVerdict {
-  const ci = ciVerdict(input.ci, input.hasCiHistory);
+  const ci = ciVerdict({ ci: input.ci, hasCiHistory: input.hasCiHistory });
 
   if (ci) {
     return ci;

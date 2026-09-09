@@ -3,8 +3,8 @@
 // IO shell: the EventSource lifecycle and nothing else — every decision (URL, backoff, whether to connect) is computed and tested in run-stream-presenter.
 import { useEffect, useRef } from "react";
 import {
-  parseRunStreamEvent,
-  type RunStreamEvent,
+  parseRunStreamFrame,
+  type RunStreamFrame,
 } from "@/lib/run-stream-types";
 import type { ConnectionState } from "@/lib/run-stream-presenter";
 import { reconnectAction, streamUrl } from "@/lib/run-stream-presenter";
@@ -13,9 +13,18 @@ export interface RunEventStreamOptions {
   runId: string;
   afterId: string;
   enabled: boolean;
-  onEvent: (event: RunStreamEvent) => void;
+  onFrame: (frame: RunStreamFrame) => void;
   onConnectionChange: (state: ConnectionState) => void;
 }
+
+/** The frame families the stream multiplexes (run-viz FR7.1); `catchup_complete` is the live signal rather than a frame to fold. */
+const FRAME_EVENTS = [
+  "agent_event",
+  "node_status",
+  "run_status",
+  "task_event",
+  "ci_check",
+] as const;
 
 // Subscribes to the SSE proxy while `enabled`; manual backoff covers repeated failures. Callbacks live in refs so inline-closure callers don't rebuild the socket every render.
 /** Schedules the next attempt, or gives up. Giving up returns NO timer: the caller reacts to "offline" by dropping to history-only mode, so there is nothing left to cancel. */
@@ -36,21 +45,25 @@ function scheduleReconnect(
   return setTimeout(connect, action.delayMs);
 }
 
-/** Wires one EventSource's three signals. Both `catchup-complete` and `open` mean the connection is good — the first fires when the server finishes replaying history, the second when there was none to replay — so either one counts as live. An unparseable frame is dropped rather than thrown: one malformed event must not take down a stream that is otherwise healthy. */
+/** Wires one EventSource's signals. Both `catchup_complete` and `open` mean the connection is good — the first fires when the server finishes replaying, the second when there was nothing to replay — so either one counts as live. An unparseable frame is dropped rather than thrown: one malformed frame must not take down a stream that is otherwise healthy. */
 function listenOn(
   source: EventSource,
-  onEvent: (event: RunStreamEvent) => void,
+  onFrame: (frame: RunStreamFrame) => void,
   { onLive, onError }: { onLive: () => void; onError: () => void },
 ): void {
-  source.addEventListener("agent-event", (event: MessageEvent) => {
-    const parsed = parseRunStreamEvent(String(event.data));
+  const deliver = (message: MessageEvent) => {
+    const parsed = parseRunStreamFrame(String(message.data));
 
     if (parsed !== null) {
-      onEvent(parsed);
+      onFrame(parsed);
     }
-  });
+  };
 
-  for (const live of ["catchup-complete", "open"]) {
+  for (const name of FRAME_EVENTS) {
+    source.addEventListener(name, deliver);
+  }
+
+  for (const live of ["catchup_complete", "open"]) {
     source.addEventListener(live, onLive);
   }
   source.onerror = onError;
@@ -79,7 +92,7 @@ function openRunStream(runId: string, handlers: StreamHandlers): () => void {
 
 interface StreamHandlers {
   afterId: () => string;
-  onEvent: (event: RunStreamEvent) => void;
+  onFrame: (frame: RunStreamFrame) => void;
   onConnectionChange: (state: ConnectionState) => void;
 }
 
@@ -105,7 +118,7 @@ function connectStream(
     stream.attempt === 0 ? "connecting" : "reconnecting",
   );
   stream.source = new EventSource(streamUrl(runId, handlers.afterId()));
-  listenOn(stream.source, handlers.onEvent, {
+  listenOn(stream.source, handlers.onFrame, {
     onLive: () => {
       stream.attempt = 0;
       handlers.onConnectionChange("live");
@@ -133,19 +146,19 @@ function streamErrorHandler(
 
 /** The latest callbacks, held in refs so an inline-closure caller does not rebuild the socket on every render. */
 function useCallbackRefs(
-  onEvent: RunEventStreamOptions["onEvent"],
+  onFrame: RunEventStreamOptions["onFrame"],
   onConnectionChange: RunEventStreamOptions["onConnectionChange"],
 ) {
-  const onEventRef = useRef(onEvent);
+  const onFrameRef = useRef(onFrame);
   const onConnectionChangeRef = useRef(onConnectionChange);
 
   // Declared before the socket effect so it has already run when that effect fires (refs may not be written during render).
   useEffect(() => {
-    onEventRef.current = onEvent;
+    onFrameRef.current = onFrame;
     onConnectionChangeRef.current = onConnectionChange;
   });
 
-  return { onEventRef, onConnectionChangeRef };
+  return { onFrameRef, onConnectionChangeRef };
 }
 
 // afterId changes on EVERY live event, so it must stay OUT of the socket effect's deps or each event would tear down and rebuild the EventSource.
@@ -160,9 +173,9 @@ function useAfterIdRef(afterId: string) {
 }
 
 export function useRunEventStream(options: RunEventStreamOptions): void {
-  const { runId, enabled, onEvent, onConnectionChange } = options;
-  const { onEventRef, onConnectionChangeRef } = useCallbackRefs(
-    onEvent,
+  const { runId, enabled, onFrame, onConnectionChange } = options;
+  const { onFrameRef, onConnectionChangeRef } = useCallbackRefs(
+    onFrame,
     onConnectionChange,
   );
   const afterIdRef = useAfterIdRef(options.afterId);
@@ -174,8 +187,8 @@ export function useRunEventStream(options: RunEventStreamOptions): void {
 
     return openRunStream(runId, {
       afterId: () => afterIdRef.current,
-      onEvent: (event) => onEventRef.current(event),
+      onFrame: (frame) => onFrameRef.current(frame),
       onConnectionChange: (status) => onConnectionChangeRef.current(status),
     });
-  }, [runId, enabled, afterIdRef, onEventRef, onConnectionChangeRef]);
+  }, [runId, enabled, afterIdRef, onFrameRef, onConnectionChangeRef]);
 }

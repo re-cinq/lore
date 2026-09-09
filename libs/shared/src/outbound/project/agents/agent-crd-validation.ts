@@ -62,14 +62,18 @@ function invalidCrdName(name: string): string | null {
     : null;
 }
 
+// Empty map = bare cluster rendering no secret refs on purpose; any configured key makes credential coverage checkable.
+function familiesCheckable(keys: Record<string, string>): boolean {
+  return Object.keys(keys).length > 0;
+}
+
 /** needs_model station calls Anthropic (stationSpec renders the key) — guards the silent-drop comment-triage failure. */
 function validateStationEntry(
   def: ResolvedAgentDefinition,
   keys: Record<string, string>,
-  checkFamilies: boolean,
 ): string | null {
   const missingModelCredential =
-    def.config?.needs_model && checkFamilies && !keys.anthropic;
+    def.config?.needs_model && familiesCheckable(keys) && !keys.anthropic;
 
   return missingModelCredential
     ? `station ${def.name} needs a model but this cluster holds no anthropic credential`
@@ -86,7 +90,6 @@ function missingModelCredentialMessage(
 function validateLlmEntry(
   def: ResolvedAgentDefinition,
   keys: Record<string, string>,
-  checkFamilies: boolean,
 ): string | null {
   if (!def.prompt) {
     return `recipe ${def.name} has no prompt — the subsystem rejects a promptless AgentDefinition at admission`;
@@ -99,7 +102,7 @@ function validateLlmEntry(
     return `model "${def.model}" belongs to no known credential family (anthropic/gemini)`;
   }
 
-  return checkFamilies && !keys[family]
+  return familiesCheckable(keys) && !keys[family]
     ? missingModelCredentialMessage(def, family)
     : null;
 }
@@ -111,8 +114,6 @@ export function validateCatalogEntry(
 ): string | null {
   const name = catalogCrdName(def.name, def.project_id);
   const keys = secretKeysOf(opts);
-  // Empty map = bare cluster rendering no secret refs on purpose; any configured key makes credential coverage checkable.
-  const checkFamilies = Object.keys(keys).length > 0;
   const nameError = invalidCrdName(name);
 
   if (nameError) {
@@ -120,6 +121,6 @@ export function validateCatalogEntry(
   }
 
   return def.execution_mode === "station"
-    ? validateStationEntry(def, keys, checkFamilies)
-    : validateLlmEntry(def, keys, checkFamilies);
+    ? validateStationEntry(def, keys)
+    : validateLlmEntry(def, keys);
 }

@@ -39,8 +39,7 @@ export interface TestFileLookup {
 /** Whether `chunk`'s span overlaps `ranges` (or the span is unknown/degraded to file-level, in which case it always matches). */
 function testChunkInScope(
   chunk: GraphTestChunk,
-  ranges: [number, number][],
-  fileLevel: boolean | undefined,
+  { ranges, fileLevel }: TestFileLookup,
 ): boolean {
   const start = chunk["TestChunk.start_line"] ?? 0;
   const end = chunk["TestChunk.end_line"] ?? 0;
@@ -71,7 +70,7 @@ export async function testFileImpact(
   dgraph: DgraphClientPort,
   repo: string,
   file: string,
-  { ranges, fileLevel }: TestFileLookup,
+  lookup: TestFileLookup,
 ): Promise<Array<ImpactStatement & { xid: string }>> {
   const chunks = await withTxn(dgraph, async (txn) => {
     const res = await txn.queryWithVars(TEST_LINK_QUERY, {
@@ -83,6 +82,6 @@ export async function testFileImpact(
   });
 
   return chunks
-    .filter((chunk) => testChunkInScope(chunk, ranges, fileLevel))
+    .filter((chunk) => testChunkInScope(chunk, lookup))
     .flatMap((chunk) => statementsForTestChunk(chunk, file));
 }

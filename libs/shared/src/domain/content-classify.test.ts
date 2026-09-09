@@ -14,6 +14,20 @@ describe("classifyFile", () => {
     expect(classifyFile(".specify/spec.md")).toBe("spec");
   });
 
+  it("classifies libs/shared/src/work/chunker.test.ts and cmd/foo_test.go as test, and chunker.ts as code", () => {
+    expect({
+      vitest: classifyFile("libs/shared/src/work/chunker.test.ts"),
+      go: classifyFile("cmd/foo_test.go"),
+      source: classifyFile("libs/shared/src/work/chunker.ts"),
+      specMarkdown: classifyFile("specs/x/spec.md"),
+    }).toEqual({
+      vitest: "test",
+      go: "test",
+      source: "code",
+      specMarkdown: "spec",
+    });
+  });
+
   it("classifies source files as code by extension", () => {
     expect(classifyFile("src/index.ts")).toBe("code");
     expect(classifyFile("main.go")).toBe("code");
@@ -75,6 +89,21 @@ describe("classifyFile", () => {
 
   it("classifies a non-root graveyard/ directory normally", () => {
     expect(classifyFile("apps/floor/graveyard/notes.md")).toBe("doc");
+  });
+
+  it("returns null for apps/web-ui/src/lib/api/schema.d.ts, openapi.json, a .min.js, a dist/ file and package-lock.json", () => {
+    const paths = [
+      "apps/web-ui/src/lib/api/schema.d.ts",
+      "apps/lore-api/openapi.json",
+      "public/vendor/chart.min.js",
+      "libs/shared/dist/index.js",
+      "package-lock.json",
+      "src/types.generated.ts",
+    ];
+
+    expect(paths.map((path) => [path, classifyFile(path)])).toEqual(
+      paths.map((path) => [path, null]),
+    );
   });
 
   it("classifies other markdown / yaml as doc and skips binaries/unknowns", () => {

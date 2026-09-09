@@ -1,7 +1,6 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import type { AgentRunEventRow } from "@re-cinq/lore-shared";
 import { buildServer } from "../server.js";
-import { agentEventBus } from "../../../work/agent/agent-event-bus.js";
 import { mintAgentToken } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agent-token.js";
 
 const logLlmCall = vi.fn();
@@ -138,29 +137,12 @@ describe("POST /api/agent-events persistence", () => {
     write.mockReset().mockResolvedValue(undefined);
   });
 
-  it("returns 200 with recorded counts and publishes the inserted rows after the insert resolves", async () => {
-    const seen: AgentRunEventRow[][] = [];
-    const unsubscribe = agentEventBus().subscribe("line-a", (rows) =>
-      seen.push(rows),
-    );
+  it("returns 200 with recorded counts once the insert resolves", async () => {
     const res = await post(RESULT_LINE);
-
-    unsubscribe();
 
     expect(res.statusCode).toBe(200);
     expect(res.result).toEqual({ status: "ok", events: 1, recorded: 1 });
     expect(insertBatch).toHaveBeenCalledTimes(1);
-    expect(seen).toEqual([[insertedRow("line-a")]]);
-  });
-
-  it("publishes nothing to a line the inserted rows do not belong to", async () => {
-    const handler = vi.fn();
-    const unsubscribe = agentEventBus().subscribe("line-b", handler);
-
-    await post(RESULT_LINE);
-    unsubscribe();
-
-    expect(handler).not.toHaveBeenCalled();
   });
 
   it("returns the unchanged cost-path response when insertBatch rejects", async () => {
@@ -169,17 +151,6 @@ describe("POST /api/agent-events persistence", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.result).toEqual({ status: "ok", events: 1, recorded: 1 });
-  });
-
-  it("publishes nothing when insertBatch rejects", async () => {
-    insertBatch.mockRejectedValue(new Error("pg down"));
-    const handler = vi.fn();
-    const unsubscribe = agentEventBus().subscribe("line-a", handler);
-
-    await post(RESULT_LINE);
-    unsubscribe();
-
-    expect(handler).not.toHaveBeenCalled();
   });
 
   it("writes a cost-degraded audit row when a cost row is uncorrelated", async () => {

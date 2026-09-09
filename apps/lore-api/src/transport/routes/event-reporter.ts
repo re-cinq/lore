@@ -2,8 +2,8 @@
 
 import { selectEventProxy } from "@re-cinq/lore-shared/project/events/select-event-reporter.js";
 import type { EventProxy } from "@re-cinq/lore-shared/project/events/event-proxy.js";
-import type { EventReporter } from "@re-cinq/lore-shared/project/events/event-queue-port.js";
-import { PgEventQueue } from "@re-cinq/lore-shared/project/events/event-queue-pg.js";
+import type { EventReporter } from "@re-cinq/lore-shared/project/events/event-reporter-port.js";
+import { PgEventReporter } from "@re-cinq/lore-shared/project/events/event-reporter-pg.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { Pool } from "pg";
 
@@ -24,7 +24,7 @@ export function eventProxyFor(pool: Pool | null): EventProxy {
         "no database pool: cannot report the event to its assembly line",
       );
 
-      return new PgEventQueue(pool);
+      return new PgEventReporter(pool);
     },
   });
 

@@ -1,46 +1,40 @@
 "use client";
 
-// On-demand full-fidelity transcript (specs/turn-level-transcript-store #1148), collapsed and fetched only on first open; `startedRef` blocks a second walk while one is in flight, keyed per mounted run.
+// The full-fidelity transcript (specs/turn-level-transcript-store #1148), open by default and walked on mount; `startedRef` blocks a second walk while one is in flight, keyed per mounted run. Since 2026-09-09 it is the ONE transcript surface, drawn as a terminal session with the task's transitions folded in (run-viz FR4.17–FR4.18).
 import { useEffect, useMemo, useRef, useState } from "react";
-import { parseAgentRunTurn, type AgentRunTurn } from "@/lib/run-turn-types";
+import type { AssemblyRunNode } from "@/lib/assembly-runs";
+import type { TaskRuntimeEvent } from "@/lib/task-runtime";
 import {
-  MAX_TURNS_LOADED,
-  MAX_WALK_PAGES,
-  conversationEntries,
-  nextTurnsCursor,
-  parseHasMore,
-  serverReportsMore,
-  turnsForNode,
-  turnsUrl,
-} from "./turn-transcript-presenter";
+  mergeTranscript,
+  nodeWindow,
+  segmentEntries,
+  taskEventEntries,
+} from "@/lib/transcript-entries";
+import type { AgentRunTurn } from "@/lib/run-turn-types";
+import { conversationEntries, turnsForNode } from "./turn-transcript-presenter";
+import { walkAllTurns, walkErrorMessage } from "./transcript-walk";
 import {
   segmentLabel,
   segmentTurns,
   type TurnSegment,
 } from "@/lib/turn-segments";
 import CollapsibleCard from "@/components/CollapsibleCard";
-import styles from "./FullTranscriptPanel.module.css";
+import styles from "./TranscriptView.module.css";
 import {
   TranscriptCapped,
   TranscriptEmpty,
   TranscriptError,
   TranscriptLoading,
-  TranscriptToggleRow,
   TranscriptTurnsList,
-  type NodeSegmentView,
-} from "./TranscriptSections";
+} from "./TranscriptView";
 
 export interface FullTranscriptPanelProps {
   runId: string;
   nodeId: string;
-}
-
-function exceededWalkBudget(turnsLoaded: number, pages: number): boolean {
-  return turnsLoaded >= MAX_TURNS_LOADED || pages >= MAX_WALK_PAGES;
-}
-
-function walkErrorMessage(e: unknown): string {
-  return e instanceof Error ? e.message : String(e);
+  /** The task's status transitions; the ones inside this node's visits render as system lines. */
+  taskEvents?: readonly TaskRuntimeEvent[];
+  /** This node's visit rows, whose span decides which task events belong to it. */
+  rows?: readonly AssemblyRunNode[];
 }
 
 interface TranscriptDisplayInput {
@@ -48,7 +42,8 @@ interface TranscriptDisplayInput {
   open: boolean;
   turns: AgentRunTurn[] | null;
   capped: boolean;
-  nodeTurnsCount: number;
+  /** Everything the conversation would draw: the node's turns plus the task events inside its window. */
+  entryCount: number;
 }
 
 /** Whether the loading / capped / empty notices apply — pulled out so the JSX below is a flat, branch-free layout. */
@@ -57,7 +52,7 @@ function transcriptMessageFlags({
   open,
   turns,
   capped,
-  nodeTurnsCount,
+  entryCount,
 }: TranscriptDisplayInput): {
   showLoading: boolean;
   showCapped: boolean;
@@ -68,85 +63,16 @@ function transcriptMessageFlags({
   return {
     showLoading: noError && open && turns === null,
     showCapped: noError && capped,
-    showEmpty: noError && turns !== null && nodeTurnsCount === 0,
+    showEmpty: noError && turns !== null && entryCount === 0,
   };
 }
 
-/** Whether the format toggle + turns list apply — no error, and at least one turn for this node. */
+/** Whether the conversation applies — no error, and something to draw for this node. */
 function transcriptListVisible({
   error,
-  nodeTurnsCount,
-}: Pick<TranscriptDisplayInput, "error" | "nodeTurnsCount">): boolean {
-  return !error && nodeTurnsCount > 0;
-}
-
-async function fetchTurnsPage(runId: string, cursor: string) {
-  const res = await fetch(turnsUrl(runId, cursor), {
-    signal: AbortSignal.timeout(15_000),
-  });
-
-  if (!res.ok) {
-    throw new Error(`HTTP ${res.status}`);
-  }
-
-  const body = (await res.json()) as { turns?: unknown[]; hasMore?: unknown };
-  const rows = Array.isArray(body.turns) ? body.turns : [];
-
-  return { rows, hasMoreFlag: parseHasMore(body) };
-}
-
-/** Parses one page's rows onto the running collection; an unparseable row is skipped, never fatal. */
-function collectTurns(rows: unknown[], into: AgentRunTurn[]): void {
-  rows.forEach((row) => {
-    const parsed = parseAgentRunTurn(row);
-
-    if (parsed !== null) {
-      into.push(parsed);
-    }
-  });
-}
-
-/** Where the walk goes after a page: the next cursor, or the `hitCap` value that ends it. */
-function walkStep(
-  page: { rows: unknown[]; hasMoreFlag: boolean | undefined },
-  progress: { collectedCount: number; pages: number },
-): { cursor: string } | { hitCap: boolean } {
-  const { rows } = page;
-  const hasMore = page.hasMoreFlag;
-  const next = nextTurnsCursor(rows, { hasMore });
-
-  if (next === null) {
-    return { hitCap: serverReportsMore(rows, { hasMore }) };
-  }
-
-  if (exceededWalkBudget(progress.collectedCount, progress.pages)) {
-    return { hitCap: true };
-  }
-
-  return { cursor: next };
-}
-
-/** One full walk of the turns endpoint, honoring the page/turn caps; throws on transport failure. */
-async function walkAllTurns(runId: string, isDisposed: () => boolean) {
-  const collected: AgentRunTurn[] = [];
-  let cursor = "0";
-  let pages = 0;
-
-  for (;;) {
-    const page = await fetchTurnsPage(runId, cursor);
-
-    if (isDisposed()) {
-      return { turns: collected, hitCap: false };
-    }
-    pages += 1;
-    collectTurns(page.rows, collected);
-    const step = walkStep(page, { collectedCount: collected.length, pages });
-
-    if ("hitCap" in step) {
-      return { turns: collected, hitCap: step.hitCap };
-    }
-    cursor = step.cursor;
-  }
+  entryCount,
+}: Pick<TranscriptDisplayInput, "error" | "entryCount">): boolean {
+  return !error && entryCount > 0;
 }
 
 interface WalkRefs {
@@ -229,29 +155,42 @@ function useTranscriptData(runId: string, { open }: { open: boolean }) {
 }
 
 function useTranscriptWalk(runId: string) {
-  const [open, setOpen] = useState(false);
-  const [showRaw, setShowRaw] = useState(false);
+  const [open, setOpen] = useState(true);
   const { turns, capped, error } = useTranscriptData(runId, { open });
 
-  return { open, setOpen, turns, capped, error, showRaw, setShowRaw };
+  return { open, setOpen, turns, capped, error };
 }
 
-/** This node's turns, grouped into the conversation segments the list renders. */
-function useNodeSegments(turns: AgentRunTurn[] | null, nodeId: string) {
+/** What the conversation is folded from: the node's turns, and the task events inside its window. */
+interface ConversationSources {
+  turns: AgentRunTurn[] | null;
+  nodeId: string;
+  taskEvents: readonly TaskRuntimeEvent[];
+  rows: readonly AssemblyRunNode[];
+}
+
+/** This node's turns as one terminal conversation: segmented per visit, tool calls paired with their results, the task's transitions in that window merged in by clock. */
+function useNodeSegments(sources: ConversationSources) {
+  const { turns, nodeId, taskEvents, rows } = sources;
   const nodeTurns = useMemo(
     () => (turns === null ? [] : turnsForNode(turns, nodeId)),
     [turns, nodeId],
   );
-  const nodeSegments: NodeSegmentView[] = useMemo(
-    () =>
+  const entries = useMemo(() => {
+    const agent = segmentEntries(
       segmentTurns(nodeTurns).map((segment: TurnSegment) => ({
         label: segmentLabel(segment),
         entries: conversationEntries(segment.turns),
       })),
-    [nodeTurns],
-  );
+    );
 
-  return { nodeTurns, nodeSegments };
+    return mergeTranscript(
+      agent,
+      taskEventEntries(taskEvents, nodeWindow(rows)),
+    );
+  }, [nodeTurns, taskEvents, rows]);
+
+  return { nodeTurns, entries };
 }
 
 /** Which of the panel's mutually exclusive states is on screen. One decision, so the four flags are resolved together rather than each child asking separately. */
@@ -264,7 +203,7 @@ function bodyFlags(
     open: walk.open,
     turns: walk.turns,
     capped: walk.capped,
-    nodeTurnsCount: segments.nodeTurns.length,
+    entryCount: segments.entries.length,
   };
 
   return {
@@ -304,55 +243,48 @@ interface TranscriptBodyProps {
 
 interface TranscriptListProps {
   show: boolean;
-  showRaw: boolean;
   segments: ReturnType<typeof useNodeSegments>;
 }
 
-function TranscriptList({ show, showRaw, segments }: TranscriptListProps) {
-  return (
-    <TranscriptTurnsList
-      show={show}
-      showRaw={showRaw}
-      turns={segments.nodeTurns}
-      segments={segments.nodeSegments}
-    />
-  );
+function TranscriptList({ show, segments }: TranscriptListProps) {
+  return <TranscriptTurnsList show={show} entries={segments.entries} />;
 }
 
 function TranscriptBody({ walk, segments, nodeId }: TranscriptBodyProps) {
-  const { turns, error, showRaw } = walk;
+  const { turns, error } = walk;
   const { showList, ...flags } = bodyFlags(walk, segments);
 
   return (
     <>
-      <TranscriptToggleRow
-        show={showList}
-        showRaw={showRaw}
-        setShowRaw={walk.setShowRaw}
-      />
       <TranscriptNotices
         error={error}
         flags={flags}
         turnsLoaded={(turns ?? []).length}
         nodeId={nodeId}
       />
-      <TranscriptList show={showList} showRaw={showRaw} segments={segments} />
+      <TranscriptList show={showList} segments={segments} />
     </>
   );
 }
 
-export default function FullTranscriptPanel({
-  runId,
-  nodeId,
-}: FullTranscriptPanelProps) {
+const NO_EVENTS: readonly TaskRuntimeEvent[] = [];
+const NO_ROWS: readonly AssemblyRunNode[] = [];
+
+export default function FullTranscriptPanel(props: FullTranscriptPanelProps) {
+  const { runId, nodeId, taskEvents = NO_EVENTS, rows = NO_ROWS } = props;
   const walk = useTranscriptWalk(runId);
-  const segments = useNodeSegments(walk.turns, nodeId);
+  const segments = useNodeSegments({
+    turns: walk.turns,
+    nodeId,
+    taskEvents,
+    rows,
+  });
 
   return (
-    <CollapsibleCard title="Full transcript" onToggle={walk.setOpen}>
+    <CollapsibleCard title="Transcript" defaultOpen onToggle={walk.setOpen}>
       <p className={`meta ${styles.hint}`}>
-        Untruncated turns from the transcript store (30-day retention). The live
-        view above stays truncated by design.
+        Untruncated turns from the transcript store (30-day retention), with the
+        task&apos;s status changes in this step folded in.
       </p>
       <TranscriptBody walk={walk} segments={segments} nodeId={nodeId} />
     </CollapsibleCard>

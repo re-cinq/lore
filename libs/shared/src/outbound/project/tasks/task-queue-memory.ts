@@ -139,6 +139,7 @@ export class InMemoryTaskQueue implements TaskQueueRepository {
         created_at: t.created_at ?? "",
         issue_number: t.issue_number ?? null,
         age_hours: (now - ms(t.created_at)) / 3_600_000,
+        // eslint-disable-next-line re-lint/no-duplicate-code -- the in-memory half of TaskQueueRepository; what matches the pg adapter is the method run the port makes both declare, and no-forwarding-class bans the base class TypeScript would share it in
       }));
   }
 

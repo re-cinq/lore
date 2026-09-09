@@ -5,18 +5,15 @@ import type { PipelineRepositories } from "@re-cinq/lore-shared";
 import { internalToken } from "@re-cinq/lore-shared/http/internal-token.js";
 import { StationClient } from "@re-cinq/lore-shared/project/stations/station-client.js";
 import { PgClusterAgents } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-pg.js";
+import { PgTestReports } from "@re-cinq/lore-shared/project/test-reports/test-reports-pg.js";
 import { ClusterAgentClient } from "@re-cinq/lore-shared";
 import {
   selectEventDeliveries,
-  selectEventQueue,
   selectEventProxy,
 } from "@re-cinq/lore-shared/project/events/select-event-reporter.js";
 import type { EventDeliveriesPort } from "@re-cinq/lore-shared/project/events/event-deliveries-port.js";
 import { PgEventDeliveries } from "@re-cinq/lore-shared/project/events/event-deliveries-pg.js";
-import type {
-  EventQueueRepository,
-  EventReporter,
-} from "@re-cinq/lore-shared/project/events/event-queue-port.js";
+import type { EventReporter } from "@re-cinq/lore-shared/project/events/event-reporter-port.js";
 import type { EventProxy } from "@re-cinq/lore-shared/project/events/event-proxy.js";
 import { PgTaskStore } from "@re-cinq/lore-shared/project/tasks/task-store-pg.js";
 import { PgUsage } from "@re-cinq/lore-shared/project/usage/usage-pg.js";
@@ -82,19 +79,11 @@ let eventProxySingleton: EventProxy | undefined;
 /** The hub this Floor reports through (ADR-044): over HTTP to the event-router in a cluster, or the pool with no `EVENT_ROUTER_URL`; memoized to ONE per process since a second instance would be a second, undrained queue. */
 export const eventProxy = (): EventProxy =>
   (eventProxySingleton ??= selectEventProxy({
-    local: () => pipeline().eventQueue,
+    local: () => pipeline().eventReporter,
   }));
 
 /** The reporting half of that hub: `insert`, synchronous and throwing so ingress routes can 500 to make the sender redeliver; a producer with no status to return uses `eventProxy().emit` instead. */
 export const eventReporter = (): EventReporter => eventProxy();
-
-let eventQueueSingleton: EventQueueRepository | undefined;
-
-/** The queue this Floor DRAINS (ADR-044): over HTTP to the router in a cluster, or the pool locally; `FOR UPDATE SKIP LOCKED` keeps the claim atomic either way. */
-export const eventQueue = (): EventQueueRepository =>
-  (eventQueueSingleton ??= selectEventQueue({
-    local: () => pipeline().eventQueue,
-  }));
 
 let deliveriesSingleton: EventDeliveriesPort | undefined;
 
@@ -118,6 +107,12 @@ let clusterAgentsSingleton: PgClusterAgents | undefined;
 /** The execution-cluster registry (specs/running-stations-in-any-k8s-cluster): registration, the reaper's offline sweep, and central-id resolution. */
 export const clusterAgents = (): PgClusterAgents =>
   (clusterAgentsSingleton ??= new PgClusterAgents(getPool()));
+
+let testReportsSingleton: PgTestReports | undefined;
+
+/** The latest CI test report per (repo, commit) (pipeline.test_reports): the ci-tests ingress writes it, the Definition-of-Done read matches acceptance tests against it. */
+export const testReports = (): PgTestReports =>
+  (testReportsSingleton ??= new PgTestReports(getPool()));
 
 let clusterAgentSingleton: ClusterAgentClient | undefined;
 

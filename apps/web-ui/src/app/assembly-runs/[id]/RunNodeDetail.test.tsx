@@ -230,3 +230,39 @@ describe("RunNodeDetail", () => {
     );
   });
 });
+
+describe("RunNodeDetail model fact", () => {
+  it("names the model with its source, and omits the fact for a node without one", () => {
+    const { rerender } = render(
+      <RunNodeDetail
+        nodeId="implement"
+        state={state()}
+        row={row()}
+        definition={implementationDefinition}
+        reason={null}
+        repo="re-cinq/lore"
+        attempts={[]}
+        model={{ model: "claude-sonnet-4-6", source: "recipe" }}
+      />,
+    );
+
+    expect(screen.getByText("Model").nextElementSibling).toHaveTextContent(
+      "Sonnet 4.6 (recipe)",
+    );
+
+    rerender(
+      <RunNodeDetail
+        nodeId="validate"
+        state={state()}
+        row={row({ nodeId: "validate" })}
+        definition={implementationDefinition}
+        reason={null}
+        repo="re-cinq/lore"
+        attempts={[]}
+        model={null}
+      />,
+    );
+
+    expect(screen.queryByText("Model")).not.toBeInTheDocument();
+  });
+});

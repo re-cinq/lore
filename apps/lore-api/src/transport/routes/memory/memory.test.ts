@@ -366,9 +366,9 @@ describe("POST /api/memory", () => {
 });
 
 function memoryDbUp(): void {
-  vi.mocked(isMemoryDbAvailable).mockReturnValue(true); // eslint-disable-line re-lint/no-flag-params -- a stubbed return value, not a flag argument
+  vi.mocked(isMemoryDbAvailable).mockReturnValue(true);
 }
 
 function memoryDbDown(): void {
-  vi.mocked(isMemoryDbAvailable).mockReturnValue(false); // eslint-disable-line re-lint/no-flag-params -- a stubbed return value, not a flag argument
+  vi.mocked(isMemoryDbAvailable).mockReturnValue(false);
 }

@@ -4,7 +4,7 @@ import { enforceTrue } from "../../../lib/enforce.js";
 import type { EventInsert } from "../../events.js";
 import { BoundedQueue } from "./bounded-queue.js";
 import { nextDeliveryStep } from "./delivery-policy.js";
-import type { EventReporter } from "./event-queue-port.js";
+import type { EventReporter } from "./event-reporter-port.js";
 import type { EventInput, ProxyMessage, Sink } from "./event-input-port.js";
 
 export interface EventProxyDeps {

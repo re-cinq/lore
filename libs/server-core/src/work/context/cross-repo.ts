@@ -24,16 +24,11 @@ async function repoAllowsCrossRepo(pool: Pool, repo: string): Promise<boolean> {
   }
 }
 
-// Cross-repo context is enabled by caller cross_repo=true or the repo's settings.cross_repo flag; shared by the MCP tool and /api/context route so both honor the same fallback. Best-effort: a settings lookup failure degrades to disabled rather than throwing.
-export async function resolveCrossRepo(
+// Whether the REPO's own settings.cross_repo flag enables cross-repo context; a caller that was asked for it explicitly never needs to ask. Best-effort: a settings lookup failure degrades to disabled rather than throwing.
+export async function repoWantsCrossRepo(
   pool: Pool | null,
   repo: string | undefined,
-  explicit: boolean,
 ): Promise<boolean> {
-  if (explicit) {
-    return true;
-  }
-
   if (!repo || !pool) {
     return false;
   }

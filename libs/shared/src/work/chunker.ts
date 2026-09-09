@@ -277,7 +277,7 @@ async function chunkFileRaw(
   filePath: string,
   contentType: string,
 ): Promise<Chunk[]> {
-  return contentType === "code"
+  return contentType === "code" || contentType === "test"
     ? chunkCodeFile(content, filePath)
     : chunkMarkdown(content);
 }

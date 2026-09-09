@@ -286,8 +286,8 @@ export function activate(context: vscode.ExtensionContext): void {
   const config = vscode.workspace.getConfiguration("lore");
 
   state.show = {
-    implemented: config.get<boolean>("highlightImplemented", true),
-    covered: config.get<boolean>("highlightCovered", true),
+    implemented: config.get<boolean>("highlightImplemented", true), // eslint-disable-line re-lint/no-flag-params -- VS Code config.get fallback-value signature, not a behaviour switch
+    covered: config.get<boolean>("highlightCovered", true), // eslint-disable-line re-lint/no-flag-params -- VS Code config.get fallback-value signature, not a behaviour switch
   };
 
   void rebuildIndex();

@@ -352,13 +352,13 @@ describe("features routes", () => {
   });
 
   it("returns 200 on delete and 404 when nothing was removed", async () => {
-    useProject(fakeFeatures({ delete: vi.fn().mockResolvedValue(true) })); // eslint-disable-line re-lint/no-flag-params -- a stubbed return value, not a flag argument
+    useProject(fakeFeatures({ delete: vi.fn().mockResolvedValue(true) }));
     const ok = await req("DELETE", `${base}/f1`);
 
     expect(ok.statusCode).toBe(200);
     expect(ok.result).toEqual({ ok: true });
 
-    useProject(fakeFeatures({ delete: vi.fn().mockResolvedValue(false) })); // eslint-disable-line re-lint/no-flag-params -- a stubbed return value, not a flag argument
+    useProject(fakeFeatures({ delete: vi.fn().mockResolvedValue(false) }));
     const missing = await req("DELETE", `${base}/gone`);
 
     expect(missing.statusCode).toBe(404);
@@ -374,7 +374,7 @@ describe("features routes", () => {
   });
 
   it("allows DELETE with a write-scoped token", async () => {
-    useProject(fakeFeatures({ delete: vi.fn().mockResolvedValue(true) })); // eslint-disable-line re-lint/no-flag-params -- a stubbed return value, not a flag argument
+    useProject(fakeFeatures({ delete: vi.fn().mockResolvedValue(true) }));
     const res = await reqAs(["write"], "DELETE", `${base}/f1`);
 
     expect(res.statusCode).toBe(200);

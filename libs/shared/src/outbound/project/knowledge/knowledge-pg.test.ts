@@ -2,6 +2,13 @@ import { describe, it, expect, vi } from "vitest";
 
 vi.mock("../../embeddings/embedding-service.js", () => ({
   getQueryEmbedding: async () => null,
+  embeddingHealth: () => ({
+    lastOkAt: null,
+    lastFailureAt: null,
+    lastStatus: null,
+    consecutiveFailures: 0,
+  }),
+  embedderDegraded: () => false,
 }));
 
 import { PgKnowledge } from "./knowledge-pg.js";

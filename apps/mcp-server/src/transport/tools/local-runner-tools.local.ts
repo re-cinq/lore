@@ -291,6 +291,7 @@ function hasConfigureArgs(args: ConfigureLocalRunnerArgs): boolean {
 
 function applyConfigureUpdate(
   config: LocalRunnerConfig,
+  // eslint-disable-next-line re-lint/no-duplicate-code -- the local runner's configure arguments, restated by runner.local.test.ts; that restatement IS the test, pinning the shape a developer's ~/.lore runner config must keep
   args: ConfigureLocalRunnerArgs,
 ): LocalRunnerConfig {
   const next = { ...config };

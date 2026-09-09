@@ -346,6 +346,6 @@ export function createLineHarness(
 }
 
 /** The operator switch `setPaused` stores, named so a call site says which way it flips. */
-const PAUSED = true;
+const PAUSED = "paused";
 
-const RESUMED = false;
+const RESUMED = "running";

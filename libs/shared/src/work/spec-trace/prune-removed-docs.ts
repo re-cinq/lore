@@ -40,12 +40,15 @@ function badTreeReadRefusal(
   };
 }
 
-/** Graph doc paths in scope but absent from the tree selection, or a refusal per the proportional bad-tree-read fuse (>2 candidates AND >50% of in-scope docs); empty selection always passes with zero candidates; `force` bypasses the fuse but not the empty guard. */
+/** Whether the bad-tree-read fuse is armed for this run, or deliberately overridden. */
+export type PruneMode = "guarded" | "forced";
+
+/** Graph doc paths in scope but absent from the tree selection, or a refusal per the proportional bad-tree-read fuse (>2 candidates AND >50% of in-scope docs); empty selection always passes with zero candidates; a `forced` run bypasses the fuse but not the empty guard. */
 export function selectPruneCandidates(
   graphDocPaths: string[],
   selectedFiles: string[],
   isInScope: (path: string) => boolean,
-  force = false,
+  mode: PruneMode = "guarded",
 ): PruneSelection {
   if (selectedFiles.length === 0) {
     return { outcome: "ok", candidates: [] };
@@ -53,7 +56,8 @@ export function selectPruneCandidates(
   const selected = new Set(selectedFiles);
   const inScopeDocs = graphDocPaths.filter(isInScope);
   const candidates = inScopeDocs.filter((path) => !selected.has(path));
-  const refusal = force ? null : badTreeReadRefusal(candidates, inScopeDocs);
+  const refusal =
+    mode === "forced" ? null : badTreeReadRefusal(candidates, inScopeDocs);
 
   return refusal ?? { outcome: "ok", candidates };
 }

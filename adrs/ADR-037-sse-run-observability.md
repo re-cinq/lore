@@ -67,25 +67,25 @@ introduced for this feature must not collide with that name.
 
 Run observability is delivered over Server-Sent Events at
 `GET /api/agent-events/stream/{assemblyLineId}`, with catch-up-then-live
-semantics keyed on a row-id cursor. ([validated by `agent-events-stream.test.ts:511`](apps/floor/src/transport/http/routes/agent-events-stream.test.ts#L512), [`agent-events-stream.test.ts:168`](apps/floor/src/transport/http/routes/agent-events-stream.test.ts#L168), [`agent-events-stream.test.ts:239`](apps/floor/src/transport/http/routes/agent-events-stream.test.ts#L239))
+semantics keyed on a row-id cursor. ([validated by `run-stream.test.ts:60`](apps/lore-api/src/transport/routes/assembly-lines/run-stream.test.ts#L60), [`run-stream-session.test.ts:150`](apps/lore-api/src/work/run-stream/run-stream-session.test.ts#L150), [`run-stream-session.test.ts:229`](apps/lore-api/src/work/run-stream/run-stream-session.test.ts#L229))
 
-The POST handler and the SSE subscribers are joined by an in-process pub/sub. ([validated by `agent-event-bus.test.ts:28`](apps/floor/src/work/agent/agent-event-bus.test.ts#L29)) A
+The POST handler and the SSE subscribers are joined by an in-process pub/sub. ([validated by `run-notify-hub.test.ts:73`](apps/lore-api/src/work/run-stream/run-notify-hub.test.ts#L74)) A
 subscriber registers against an assembly-line id; the ingest path publishes each
-projected row to matching subscribers after the write commits. ([validated by `agent-event-bus.test.ts:41`](apps/floor/src/work/agent/agent-event-bus.test.ts#L42))
+projected row to matching subscribers after the write commits. ([validated by `run-notify-hub.test.ts:156`](apps/lore-api/src/work/run-stream/run-notify-hub.test.ts#L157))
 
 Reconnection is lossless by construction rather than by buffering: the browser
 resends `Last-Event-ID`, and the server replays from the database before
-attaching to the live tail. ([validated by `agent-events-stream.test.ts:286`](apps/floor/src/transport/http/routes/agent-events-stream.test.ts#L287), [`run-event-reducer.test.ts:223`](apps/web-ui/src/lib/run-event-reducer.test.ts#L223)) The bus is therefore best-effort and holds no
-backlog — durability lives in `pipeline.agent_run_events`, not in memory. ([validated by `agent-event-bus.test.ts:159`](apps/floor/src/work/agent/agent-event-bus.test.ts#L160))
+attaching to the live tail. ([validated by `run-stream-session.test.ts:325`](apps/lore-api/src/work/run-stream/run-stream-session.test.ts#L325), [`run-event-reducer.test.ts:223`](apps/web-ui/src/lib/run-event-reducer.test.ts#L223)) The bus is therefore best-effort and holds no
+backlog — durability lives in `pipeline.agent_run_events`, not in memory. ([validated by `run-stream-session.test.ts:403`](apps/lore-api/src/work/run-stream/run-stream-session.test.ts#L403))
 
 A subscriber that cannot keep up is disconnected rather than allowed to apply
 back-pressure to the ingest path, which shares a process with the cost sink and
-the Floor's job loops. ([validated by `agent-event-bus.test.ts:187`](apps/floor/src/work/agent/agent-event-bus.test.ts#L188), [`agent-events-stream.test.ts:420`](apps/floor/src/transport/http/routes/agent-events-stream.test.ts#L421))
+the Floor's job loops. ([validated by `run-stream-session.test.ts:382`](apps/lore-api/src/work/run-stream/run-stream-session.test.ts#L382))
 
-Both hops set `Cache-Control: no-cache, no-transform` and `X-Accel-Buffering: no`. ([validated by `agent-events-stream.test.ts:511`](apps/floor/src/transport/http/routes/agent-events-stream.test.ts#L512), [`route.test.ts:149`](apps/web-ui/src/app/api/assembly-runs/[id]/events/stream/route.test.ts#L149))
+Both hops set `Cache-Control: no-cache, no-transform` and `X-Accel-Buffering: no`. ([validated by `run-stream.test.ts:60`](apps/lore-api/src/transport/routes/assembly-lines/run-stream.test.ts#L60), [`route.test.ts:149`](apps/web-ui/src/app/api/assembly-runs/[id]/events/stream/route.test.ts#L149))
 
 The `AgentRunEventRow` type is canonical in `libs/shared` and hand-mirrored in
-`apps/web-ui`, with a type-only drift guard under `scripts/type-drift/`. ([validated by `run-stream-types.test.ts:26`](apps/web-ui/src/lib/run-stream-types.test.ts#L27), [`run-stream-types.test.ts:67`](apps/web-ui/src/lib/run-stream-types.test.ts#L67))
+`apps/web-ui`, with a type-only drift guard under `scripts/type-drift/`. ([validated by `run-stream-types.test.ts:26`](apps/web-ui/src/lib/run-stream-types.test.ts#L28), [`run-stream-types.test.ts:67`](apps/web-ui/src/lib/run-stream-types.test.ts#L68))
 
 The definition DAG is laid out and rendered by hand in SVG, with no new
 dependency. ([validated by `dag-layout.test.ts:45`](apps/web-ui/src/lib/dag-layout.test.ts#L45), [`dag-layout.test.ts:147`](apps/web-ui/src/lib/dag-layout.test.ts#L147))
@@ -129,7 +129,7 @@ resource name and stops being an identity. The pod is deliberately NOT required
 to echo the id back: the Floor already knows it at write time, so the correlation
 improves without a change in the external ai-agent-subsystem repo.
 
-**Amendment 2026-08-17 — the producer STATES the identity; the join is the fallback.** Amendment 2 above concluded that the pod need not echo the id back, "because the Floor already knows it at write time". That is the part that does not hold: the Floor does not know it, it *infers* it, from the same `agent_cr_name` lateral whose tie-break Amendment 2 called a guess wearing a join's clothing. Stamping `station_run_id` onto the CR moved which id the guess produces, not whether it is a guess. The concrete cost is an invariant no write path can enforce — nothing may ever copy a node row with its `agent_cr_name` intact, or the copy silently steals the original's late-arriving cost and telemetry rows; fork-and-rerun hit exactly that and had to null the column on copy, and every future feature touching node rows has to remember the same rule unaided. So the event carries the identity: `source.assembly_run` / `node` / `iteration` / `station_run`, declared in ONE place (`libs/shared/.../run-identity/carried-run-identity.ts`) because it crosses a process boundary into an externally-built image. A stated identity is authoritative and is taken WHOLE — a per-column fallback would pair a stated run with an inferred node, a row wrong in a way no reader can detect — and the CR-name join is consulted only for events that state nothing. This half ships READERS-FIRST: every sink accepts the field before any producer emits it, so the ai-agent-subsystem change can land on its own schedule, and until it does every envelope parses to null and the join stays in charge. ([validated by reads the identity a producer stamped into the attribution](libs/shared/src/outbound/project/run-identity/carried-run-identity.test.ts#L12), [`carried-run-identity.test.ts:21`](libs/shared/src/outbound/project/run-identity/carried-run-identity.test.ts#L21), [`carried-run-identity.test.ts:31`](libs/shared/src/outbound/project/run-identity/carried-run-identity.test.ts#L31), [`carried-run-identity.test.ts:35`](libs/shared/src/outbound/project/run-identity/carried-run-identity.test.ts#L35), [`carried-run-identity.test.ts:47`](libs/shared/src/outbound/project/run-identity/carried-run-identity.test.ts#L47), [`carried-run-identity.test.ts:52`](libs/shared/src/outbound/project/run-identity/carried-run-identity.test.ts#L52), [`agent-run-events.test.ts:61`](libs/shared/src/outbound/project/agent-run-events/agent-run-events.test.ts#L61), [`agent-run-events.test.ts:91`](libs/shared/src/outbound/project/agent-run-events/agent-run-events.test.ts#L91), [`agent-run-events.test.ts:392`](libs/shared/src/outbound/project/agent-run-events/agent-run-events.test.ts#L392), [`agent-run-events.test.ts:415`](libs/shared/src/outbound/project/agent-run-events/agent-run-events.test.ts#L415), [`agent-run-turns.test.ts:63`](libs/shared/src/outbound/project/agent-run-turns/agent-run-turns.test.ts#L63), [`agent-run-turns.test.ts:316`](libs/shared/src/outbound/project/agent-run-turns/agent-run-turns.test.ts#L316), [`usage-memory.test.ts:49`](libs/shared/src/outbound/project/usage/usage-memory.test.ts#L49), [`usage-memory.test.ts:71`](libs/shared/src/outbound/project/usage/usage-memory.test.ts#L71), [`usage-pg.test.ts:77`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L86), [`usage-pg.test.ts:100`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L109), [`agent-run-turns.test.ts:29`](apps/floor/src/work/agent/agent-run-turns.test.ts#L29), [`agent-run-turns.test.ts:50`](apps/floor/src/work/agent/agent-run-turns.test.ts#L50); implemented by [`carried-run-identity.ts:51`](libs/shared/src/outbound/project/run-identity/carried-run-identity.ts#L51), [`agent-run-events-pg.ts:93`](libs/shared/src/outbound/project/agent-run-events/agent-run-events-pg.ts#L93), [`usage-pg.ts:33`](libs/shared/src/outbound/project/usage/usage-pg.ts#L33))
+**Amendment 2026-08-17 — the producer STATES the identity; the join is the fallback.** Amendment 2 above concluded that the pod need not echo the id back, "because the Floor already knows it at write time". That is the part that does not hold: the Floor does not know it, it *infers* it, from the same `agent_cr_name` lateral whose tie-break Amendment 2 called a guess wearing a join's clothing. Stamping `station_run_id` onto the CR moved which id the guess produces, not whether it is a guess. The concrete cost is an invariant no write path can enforce — nothing may ever copy a node row with its `agent_cr_name` intact, or the copy silently steals the original's late-arriving cost and telemetry rows; fork-and-rerun hit exactly that and had to null the column on copy, and every future feature touching node rows has to remember the same rule unaided. So the event carries the identity: `source.assembly_run` / `node` / `iteration` / `station_run`, declared in ONE place (`libs/shared/.../run-identity/carried-run-identity.ts`) because it crosses a process boundary into an externally-built image. A stated identity is authoritative and is taken WHOLE — a per-column fallback would pair a stated run with an inferred node, a row wrong in a way no reader can detect — and the CR-name join is consulted only for events that state nothing. This half ships READERS-FIRST: every sink accepts the field before any producer emits it, so the ai-agent-subsystem change can land on its own schedule, and until it does every envelope parses to null and the join stays in charge. ([validated by reads the identity a producer stamped into the attribution](libs/shared/src/outbound/project/run-identity/carried-run-identity.test.ts#L12), [`carried-run-identity.test.ts:21`](libs/shared/src/outbound/project/run-identity/carried-run-identity.test.ts#L21), [`carried-run-identity.test.ts:31`](libs/shared/src/outbound/project/run-identity/carried-run-identity.test.ts#L31), [`carried-run-identity.test.ts:35`](libs/shared/src/outbound/project/run-identity/carried-run-identity.test.ts#L35), [`carried-run-identity.test.ts:47`](libs/shared/src/outbound/project/run-identity/carried-run-identity.test.ts#L47), [`carried-run-identity.test.ts:52`](libs/shared/src/outbound/project/run-identity/carried-run-identity.test.ts#L52), [`agent-run-events.test.ts:61`](libs/shared/src/outbound/project/agent-run-events/agent-run-events.test.ts#L61), [`agent-run-events.test.ts:91`](libs/shared/src/outbound/project/agent-run-events/agent-run-events.test.ts#L91), [`agent-run-events.test.ts:392`](libs/shared/src/outbound/project/agent-run-events/agent-run-events.test.ts#L392), [`agent-run-events.test.ts:415`](libs/shared/src/outbound/project/agent-run-events/agent-run-events.test.ts#L415), [`agent-run-turns.test.ts:63`](libs/shared/src/outbound/project/agent-run-turns/agent-run-turns.test.ts#L63), [`agent-run-turns.test.ts:316`](libs/shared/src/outbound/project/agent-run-turns/agent-run-turns.test.ts#L316), [`usage-memory.test.ts:49`](libs/shared/src/outbound/project/usage/usage-memory.test.ts#L49), [`usage-memory.test.ts:71`](libs/shared/src/outbound/project/usage/usage-memory.test.ts#L71), [`usage-pg.test.ts:77`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L86), [`usage-pg.test.ts:100`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L109), [`agent-run-turns.test.ts:29`](apps/floor/src/work/agent/agent-run-turns.test.ts#L29), [`agent-run-turns.test.ts:50`](apps/floor/src/work/agent/agent-run-turns.test.ts#L50); implemented by [`carried-run-identity.ts:51`](libs/shared/src/outbound/project/run-identity/carried-run-identity.ts#L51), [`agent-run-events-pg.ts:93`](libs/shared/src/outbound/project/agent-run-events/agent-run-events-pg.ts#L94), [`usage-pg.ts:33`](libs/shared/src/outbound/project/usage/usage-pg.ts#L33))
 
 Cross-references: ADR-015 (webhook-driven review reactor) and its event-bus
 amendment own Floor-internal triggering through `pipeline.events`; this ADR owns
@@ -269,6 +269,63 @@ wired and closes the older gap on the way past.
 - The two sweeps settle independently: one failing must not skip the other,
   which is how a table quietly outgrows its window. ([validated by [still prunes the other table when one fails](apps/floor/src/work/station/log-retention.test.ts#L17))
 - The window is overridable, so a deployment can keep less. ([validated by [honours an explicit window](apps/floor/src/work/station/log-retention.test.ts#L30))
+
+## Amendment (2026-09-09): the stream moves to lore-api, and the bus becomes Postgres
+
+### Rationale
+
+The Decision above put the stream on the Floor and joined the ingest handler to
+its subscribers with an in-process bus that was sound only under the chart's
+`replicaCount: 1` pin. Two things changed. The run page grew to need four more
+row families live — node status, run status, task events, CI checks — and got
+them by re-rendering its server half every ten seconds, which is the polling
+this ADR set out to avoid. And lore-api now publishes an OpenAPI document that
+the web-ui generates its types from, so the "hand-mirrored `AgentRunEventRow`
+with a drift guard" objection to serving from lore-api no longer holds: the
+frame contract is a generated type, and the drift guard is deleted.
+
+### Decisions
+
+- The endpoint is `GET /api/assembly-runs/{id}/stream` on lore-api, under the
+  `read` scope; the Floor's `/api/agent-events/stream/{id}` and its in-process
+  bus are gone, and the browser's proxy talks to one backend. ([returns text/event-stream with no-cache no-transform, X-Accel-Buffering no and identity encoding, and reaches catchup_complete](apps/lore-api/src/transport/routes/assembly-lines/run-stream.test.ts#L60))
+- One connection carries every family the page reads, as a discriminated
+  `RunStreamFrame` union published in OpenAPI: `agent_event`, `node_status`,
+  `run_status`, `task_event`, `ci_check`, plus `catchup_complete`. ([writes the run, every node, every task event and the CI check as a snapshot, then the agent replay, then catchup_complete](apps/lore-api/src/work/run-stream/run-stream-session.test.ts#L150))
+- Only `agent_event` frames carry an SSE `id:` line. A frame without one leaves
+  the browser's `Last-Event-ID` untouched, so the cursor stays the
+  `agent_run_events` row id and the existing lossless replay is unchanged; the
+  other families are STATE, re-sent as a snapshot on every connect and after a
+  resync, and applied idempotently. A composite cursor was rejected: it makes
+  `Last-Event-ID` opaque, needs a parser on both ends, and buys nothing because
+  a snapshot is bounded by the run's node count. ([gives a run_status frame no id line, so the browser cursor stays on the agent events](apps/lore-api/src/work/run-stream/run-stream-frame.test.ts#L53), [re-sends the snapshot when the notifier resyncs after a lost connection](apps/lore-api/src/work/run-stream/run-stream-session.test.ts#L340))
+- The fan-out is Postgres `NOTIFY` from AFTER triggers (migration 0070), not an
+  app-level publish in each writer: `pipeline.station_runs` has eight writers in
+  two processes, and a publish every writer must remember is the invariant this
+  ADR's own 2026-08 amendment refused for the pod-log ingest. NOTIFY delivers at
+  commit, so a listener's follow-up read always sees the row; payloads carry ids
+  only and the session re-reads what they name. ([reads a trigger payload into a notification with string ids](apps/lore-api/src/work/run-stream/run-notify-hub.test.ts#L21), [delivers the visit a node_status notification names, with its new outcome](apps/lore-api/src/work/run-stream/run-stream-session.test.ts#L241))
+- lore-api holds one dedicated `LISTEN` client per process, outside the query
+  pool, opened on the first subscriber; a lost connection reconnects with capped
+  backoff and then tells every subscriber to resync, because notifications
+  during the gap are gone by design. ([reconnects after the connection errors and tells every subscriber to resync](apps/lore-api/src/work/run-stream/run-notify-hub.test.ts#L181), [backs off and retries when the connection attempt itself fails](apps/lore-api/src/work/run-stream/run-notify-hub.test.ts#L202))
+- The "no `node_status` event type" rejection under Alternatives is reversed on
+  narrower grounds than it was made: the table is still the only source of node
+  truth, and the frame is that table's row pushed to the page rather than a
+  second account of it. ([delivers the visit a node_status notification names, with its new outcome](apps/lore-api/src/work/run-stream/run-stream-session.test.ts#L241))
+- The `replicaCount: 1` coupling this ADR admitted no longer applies to this
+  feature: each lore-api replica holds its own `LISTEN` and serves its own
+  subscribers from the same table, and polling stays the rule for every other
+  live view. ([opens one LISTEN connection on the first subscriber and dispatches its notifications](apps/lore-api/src/work/run-stream/run-notify-hub.test.ts#L157))
+
+### Consequences
+
+- Held connections now count against lore-api's pod rather than the Floor's;
+  the per-run subscriber cap and the high-water-mark teardown bound them.
+- The nginx ingress in front of web-ui keeps its 60-second default read timeout;
+  the 25-second heartbeat is what keeps a quiet stream alive through it.
+- `scripts/type-drift/run-stream-types.drift.ts` is deleted with the hand
+  mirror it guarded.
 
 ## Alternatives
 

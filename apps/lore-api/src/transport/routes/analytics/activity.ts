@@ -73,9 +73,11 @@ const EVENT_BROWSE_FIELDS = [
   "eventName",
   "source",
   "params",
-  "status",
   "capturedAt",
 ] as const;
+
+/** What the events page calls `status` is the FLOOR's delivery of the event, not a column of the event: `pipeline.events` records only what was captured, and an event no subscriber ever received reads `undelivered`. */
+const FLOOR_DELIVERY_STATUS_SQL = `COALESCE(delivery.status, 'undelivered') AS status`;
 const EVENT_BROWSE_COLUMNS = pickColumns(EVENT_COLUMNS, EVENT_BROWSE_FIELDS);
 
 const MemoryAuditPageSchema = z.object({
@@ -93,11 +95,10 @@ const EventListSchema = z.object({
         eventName: true,
         source: true,
         params: true,
-        status: true,
         capturedAt: true,
       }),
       EVENT_COLUMNS,
-    ),
+    ).extend({ status: z.string() }),
   ),
 });
 
@@ -254,10 +255,12 @@ async function serveRepoEvents(
 
 async function repoEventRows(pool: Pool, { repo, limit, offset }: EventsQuery) {
   const { rows } = await pool.query(
-    `SELECT ${selectList(EVENT_BROWSE_COLUMNS)}
-       FROM pipeline.events
-      WHERE repo = $1
-      ORDER BY captured_at DESC
+    `SELECT ${selectList(EVENT_BROWSE_COLUMNS, "event")}, ${FLOOR_DELIVERY_STATUS_SQL}
+       FROM pipeline.events event
+       LEFT JOIN pipeline.event_deliveries delivery
+         ON delivery.event_id = event.id AND delivery.subscriber = 'floor'
+      WHERE event.repo = $1
+      ORDER BY event.captured_at DESC
       LIMIT $2 OFFSET $3`,
     [repo, limit, offset],
   );

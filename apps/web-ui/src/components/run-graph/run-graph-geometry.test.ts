@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   fitNodeLabel,
   nodeHeightFor,
+  nodeTextRows,
   toLayoutDefinition,
   NODE_LABEL_CHARS,
   NODE_WIDTH,
@@ -74,6 +75,14 @@ describe("nodeHeightFor", () => {
     ).toEqual(48);
   });
 
+  it("adds a taller band than one line of text in run mode when the nodes carry a facts line", () => {
+    expect(
+      nodeHeightFor(graph({ mode: "run", nodes: [node("a")] }), {
+        withMeta: true,
+      }),
+    ).toEqual(70);
+  });
+
   it("grows to fit the widest outcome list in definition mode", () => {
     expect(
       nodeHeightFor(
@@ -83,6 +92,16 @@ describe("nodeHeightFor", () => {
         }),
       ),
     ).toEqual(48 + 14 + 2 * 15);
+  });
+});
+
+describe("nodeTextRows", () => {
+  it("centres a name and a verdict on the box centre", () => {
+    expect(nodeTextRows(2)).toEqual([-4, 12]);
+  });
+
+  it("lifts the name and verdict so a third facts line stays inside the box", () => {
+    expect(nodeTextRows(3)).toEqual([-12, 4, 20]);
   });
 });
 

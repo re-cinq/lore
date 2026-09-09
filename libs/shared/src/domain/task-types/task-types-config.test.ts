@@ -175,14 +175,50 @@ describe("the implementation-tdd recipe", () => {
     ).toContain("run ONLY that");
   });
 
-  it("tells every implementing recipe to report failure when it delivered nothing", () => {
+  it("tells every delivering recipe to typecheck what it touched, since passing tests do not mean it compiles", () => {
     const parsed = parseTaskTypesFile(COMMITTED);
 
     for (const name of DELIVERING_PROMPT_REFS) {
       const prompt = parsed.taskTypes[name]?.prompt_template ?? "";
 
+      expect(prompt, name).toContain("TYPECHECK the packages you touched");
+      expect(prompt, name).toContain("does NOT\n  mean the code compiles");
+    }
+  });
+
+  it("tells every delivering recipe to bring its branch up to date with the base before it stops", () => {
+    const parsed = parseTaskTypesFile(COMMITTED);
+
+    for (const name of DELIVERING_PROMPT_REFS) {
+      const prompt = parsed.taskTypes[name]?.prompt_template ?? "";
+
+      expect(prompt, name).toContain(
+        "bring the branch up to date with its base",
+      );
+      expect(prompt, name).toContain("NO CI AT ALL");
+    }
+  });
+
+  it("tells every implementing recipe but tdd-round to report failure when it delivered nothing", () => {
+    const parsed = parseTaskTypesFile(COMMITTED);
+    const oneShot = DELIVERING_PROMPT_REFS.filter((n) => n !== "tdd-round");
+
+    for (const name of oneShot) {
+      const prompt = parsed.taskTypes[name]?.prompt_template ?? "";
+
       expect(prompt, name).toContain('LORE_NODE_RESULT: {"outcome":"failed"}');
     }
+  });
+
+  it("lets a round that found the work already done report success, since failure would strand the branch", () => {
+    const round = parseTaskTypesFile(COMMITTED).taskTypes["tdd-round"];
+
+    expect(round?.prompt_template).toContain(
+      'LORE_NODE_RESULT: {"outcome":"success","extras":{"Lore-Tdd-Next":"acceptance green"}}',
+    );
+    expect(round?.prompt_template).toContain(
+      "Report failure when you are STUCK, never when you are FINISHED",
+    );
   });
 
   it("holds the DoD to the ticket's own claim — scope fidelity, not reinterpretation (bowman-ui #11, #1745)", () => {

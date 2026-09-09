@@ -16,7 +16,6 @@ import {
   agentConversationSaveRoute,
 } from "./routes/agent-conversations.js";
 import { agentLogsRoute } from "./routes/agent-logs.js";
-import { agentEventsStreamRoute } from "./routes/agent-events-stream.js";
 import { agentEventsHistoryRoute } from "./routes/agent-events-history.js";
 import { agentTurnsHistoryRoute } from "./routes/agent-turns-history.js";
 import { agentTurnsByTaskRoute } from "./routes/agent-turns-by-task.js";
@@ -27,7 +26,7 @@ import {
   assemblyLineCatalogRoute,
 } from "./routes/assembly-line-reads.js";
 import { ciIngestRoute } from "./routes/ci-ingest.js";
-import { ciTestsRoute } from "./routes/ci-tests.js";
+import { ciTestsRoute, type CiTestsRouteDeps } from "./routes/ci-tests.js";
 import { reviewStartRoute } from "./routes/review-start.js";
 import type {
   PodLogSource,
@@ -41,7 +40,6 @@ const MAX_BODY_BYTES = 25 * 1024 * 1024;
 const RUN_READ_ROUTES: Hapi.ServerRoute[] = [
   agentConversationSaveRoute,
   agentConversationFetchRoute,
-  agentEventsStreamRoute(),
   agentEventsHistoryRoute(),
   agentTurnsHistoryRoute(),
   agentTurnsByTaskRoute(),
@@ -52,18 +50,18 @@ const RUN_READ_ROUTES: Hapi.ServerRoute[] = [
 ];
 
 /** The write side: what CI and the review choreography post in. */
-const INGEST_ROUTES: Hapi.ServerRoute[] = [
-  ciIngestRoute,
-  ciTestsRoute,
-  reviewStartRoute,
-];
+function ingestRoutes(deps: CiTestsRouteDeps): Hapi.ServerRoute[] {
+  return [ciIngestRoute, ciTestsRoute(deps), reviewStartRoute];
+}
 
-/** Everything the Floor serves. Cluster-agent tokens open the telemetry sink, which is what lets a satellite report cost and run-viz events without holding the bus secret. */
-function floorRoutes(opts: {
+interface FloorServerOptions extends CiTestsRouteDeps {
   getJobStatus: () => unknown;
   podLogSource?: PodLogSource;
   podLogArchive?: PodLogArchive;
-}): Hapi.ServerRoute[] {
+}
+
+/** Everything the Floor serves. Cluster-agent tokens open the telemetry sink, which is what lets a satellite report cost and run-viz events without holding the bus secret. */
+function floorRoutes(opts: FloorServerOptions): Hapi.ServerRoute[] {
   return [
     healthRoute(opts.getJobStatus),
     agentEventsRoute({
@@ -71,16 +69,13 @@ function floorRoutes(opts: {
     }),
     agentLogsRoute(opts.podLogSource, opts.podLogArchive),
     ...RUN_READ_ROUTES,
-    ...INGEST_ROUTES,
+    ...ingestRoutes({ testReports: opts.testReports }),
   ];
 }
 
-export function buildServer(opts: {
-  getJobStatus: () => unknown;
-  port?: number;
-  podLogSource?: PodLogSource;
-  podLogArchive?: PodLogArchive;
-}): Hapi.Server {
+export function buildServer(
+  opts: FloorServerOptions & { port?: number },
+): Hapi.Server {
   const server = Hapi.server({
     port: opts.port ?? 0,
     host: "0.0.0.0",

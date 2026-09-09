@@ -8,10 +8,11 @@ import {
   resultVisual,
   type NodeStatusVisual,
 } from "@/lib/run-node-status";
+import NodeMetaLine from "./NodeMetaLine";
 import NodeOutcomeList from "./NodeOutcomeList";
 import NodePlainLabel from "./NodePlainLabel";
 import NodeRunBadge from "./NodeRunBadge";
-import { NODE_WIDTH, titleCase } from "./run-graph-geometry";
+import { NODE_WIDTH, nodeTextRows, titleCase } from "./run-graph-geometry";
 import { classes } from "./run-graph-tone-classes";
 import styles from "./run-graph.module.css";
 
@@ -22,6 +23,10 @@ export interface GraphNodeProps {
   mode: GraphMode;
   height: number;
   isTerminal: boolean;
+  /** The node the inspector shows; drawn with a ring so the graph says which one. */
+  selected?: boolean;
+  /** Run mode facts under the verdict (model · duration · visits); empty draws nothing. */
+  meta?: string;
   onSelect?: (nodeId: string) => void;
 }
 
@@ -112,6 +117,8 @@ function nodeInteraction(
 
 interface NodeBodyProps {
   badge: ReturnType<typeof computeBadge>;
+  /** Baselines for this node's text lines, offsets from the box centre. */
+  baselines: readonly number[];
   outcomes: readonly string[];
   title: string;
   node: GraphNodeProps["node"];
@@ -122,7 +129,7 @@ interface NodeBodyProps {
 
 /** What the box says, in precedence order: a run badge when this visit has an outcome, else the outcomes the definition declares, else the plain name. A node cannot show both — the badge IS the run's answer, and listing the possibilities beside it would read as though they were still open. */
 function NodeBody(props: NodeBodyProps) {
-  const { badge, outcomes, title, node, leftEdge } = props;
+  const { badge, outcomes, title, node, leftEdge, baselines } = props;
 
   if (badge) {
     return (
@@ -131,6 +138,7 @@ function NodeBody(props: NodeBodyProps) {
         badge={badge}
         leftEdge={leftEdge}
         centerY={node.y}
+        baselines={baselines}
       />
     );
   }
@@ -156,22 +164,58 @@ function PlainNodeBody({ title, node, isTerminal }: NodeBodyProps) {
   );
 }
 
-/** The group's own attributes. The tone lands on `data-tone` as well as in the class so a test can assert what a node is SAYING without going through the stylesheet, and the aria-label carries the outcome in words for a reader who cannot see the colour. */
-function groupProps(
-  body: Pick<NodeBodyProps, "node" | "badge" | "outcomes" | "isTerminal">,
-  interaction: ReturnType<typeof nodeInteraction>,
-) {
-  const { node, badge } = body;
+/** The node's tone class plus the selection ring. */
+function nodeClassName({
+  badge,
+  selected,
+}: {
+  badge: NodeBodyProps["badge"];
+  selected: boolean;
+}): string {
+  return classes(
+    styles.node,
+    badge ? styles[badge.tone] : undefined,
+    selected ? styles.selected : undefined,
+  );
+}
 
+/** How the group answers a click or a key, and whether it is the pressed one; a non-interactive node claims neither. */
+function interactionAttrs({
+  interaction,
+  selected,
+}: {
+  interaction: ReturnType<typeof nodeInteraction>;
+  selected: boolean;
+}) {
   return {
-    className: classes(styles.node, badge ? styles[badge.tone] : undefined),
-    "data-node": node.id,
-    "data-tone": badge?.tone ?? "idle",
     role: interaction.role,
-    "aria-label": nodeAriaLabel(body),
+    "aria-pressed": interaction.role === "button" ? selected : undefined,
     tabIndex: interaction.tabIndex,
     onClick: interaction.onClick,
     onKeyDown: interaction.onKeyDown,
+  };
+}
+
+/** The group's own attributes. The tone lands on `data-tone` as well as in the class so a test can assert what a node is SAYING without going through the stylesheet, and the aria-label carries the outcome in words for a reader who cannot see the colour. */
+function groupProps({
+  body,
+  interaction,
+  selected,
+}: {
+  body: Pick<NodeBodyProps, "node" | "badge" | "outcomes" | "isTerminal">;
+  interaction: ReturnType<typeof nodeInteraction>;
+  selected: boolean | undefined;
+}) {
+  const { node, badge } = body;
+  const isSelected = selected === true;
+
+  return {
+    className: nodeClassName({ badge, selected: isSelected }),
+    "data-node": node.id,
+    "data-tone": badge?.tone ?? "idle",
+    "data-selected": isSelected || undefined,
+    "aria-label": nodeAriaLabel(body),
+    ...interactionAttrs({ interaction, selected: isSelected }),
   };
 }
 
@@ -199,18 +243,40 @@ function NodeBox({ leftEdge, top, height }: NodeBoxProps) {
   );
 }
 
+/** What the box draws and where: the baselines its lines are centred on, and the facts line ready to render — empty when this visit has nothing to report, which is what makes the stack two lines instead of three. */
+function nodeLines(
+  props: GraphNodeProps,
+  badge: ReturnType<typeof computeBadge>,
+  leftEdge: number,
+) {
+  const meta = badge ? (props.meta ?? "") : "";
+  const baselines = nodeTextRows(meta === "" ? 2 : 3);
+
+  return {
+    baselines,
+    metaLine: {
+      meta,
+      leftEdge,
+      centerY: props.node.y,
+      baseline: baselines[2] ?? 0,
+    },
+  };
+}
+
 export default function GraphNode(props: GraphNodeProps) {
   const { node, model, mode, height, isTerminal, onSelect } = props;
   const badge = computeBadge(mode, model);
   const outcomes = model?.outcomes ?? [];
   const { top, leftEdge } = boxOf(node, height);
   const interaction = nodeInteraction(node.id, onSelect);
-  const body = { node, badge, outcomes, isTerminal, top, leftEdge };
+  const { baselines, metaLine } = nodeLines(props, badge, leftEdge);
+  const body = { node, badge, baselines, outcomes, isTerminal, top, leftEdge };
 
   return (
-    <g {...groupProps(body, interaction)}>
+    <g {...groupProps({ body, interaction, selected: props.selected })}>
       <NodeBox leftEdge={leftEdge} top={top} height={height} />
       <NodeBody {...body} title={titleCase(node.id)} />
+      <NodeMetaLine {...metaLine} />
     </g>
   );
 }

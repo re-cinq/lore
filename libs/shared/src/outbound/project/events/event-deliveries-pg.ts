@@ -5,10 +5,26 @@ import type {
   EventDeliveryRow,
   EventSubscription,
   OrphanedEvents,
+  DeadLetteredDeliveries,
 } from "./event-deliveries-port.js";
 
 /** Errors are truncated before storage to keep the row bounded. */
 const MAX_ERROR_LEN = 2000;
+
+interface DeadLetteredRow {
+  event_name: string;
+  subscriber: string;
+  count: string;
+  last_error: string | null;
+}
+
+/** Grouped by (name, subscriber) rather than listed per row: an outage dead-letters one tick a minute, and 180 identical lines is the same silence in a different costume. */
+const DEAD_LETTERED_SQL = `SELECT event_name, subscriber, count(*)::text AS count,
+          (array_agg(error ORDER BY handled_at DESC))[1] AS last_error
+     FROM pipeline.event_deliveries
+    WHERE status = 'dead'
+      AND handled_at > now() - ($1::int || ' minutes')::interval
+    GROUP BY event_name, subscriber`;
 
 /** One statement via UNNEST (not a loop): registration happens at boot before draining, so a partial apply would silently under-deliver. */
 const UPSERT_SUBSCRIPTIONS_SQL = `INSERT INTO pipeline.event_subscriptions
@@ -168,6 +184,19 @@ export class PgEventDeliveries implements EventDeliveriesPort {
 
     // Deliveries pruned, per the port — event collection is bookkeeping behind it; counting both would conflate two different numbers.
     return deliveries.length;
+  }
+
+  async deadLettered(withinMinutes: number): Promise<DeadLetteredDeliveries[]> {
+    const { rows } = await this.pool.query<DeadLetteredRow>(DEAD_LETTERED_SQL, [
+      withinMinutes,
+    ]);
+
+    return rows.map((r) => ({
+      event_name: r.event_name,
+      subscriber: r.subscriber,
+      count: Number(r.count),
+      last_error: r.last_error,
+    }));
   }
 
   async orphanedEvents(withinMinutes: number): Promise<OrphanedEvents[]> {

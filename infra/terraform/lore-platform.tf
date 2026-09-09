@@ -103,6 +103,7 @@ resource "helm_release" "lore_platform" {
     "lore-api" = {
       taskTypesConfig = file("${path.module}/../../scripts/task-types.yaml")
       replicaCount    = 1
+      gcpProject      = var.project_id
       env = {
         PORT             = "3000"
         CONTEXT_PATH     = "/context"

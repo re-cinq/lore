@@ -98,8 +98,12 @@ async function fetchEpisodes(
   agentId: string | undefined,
 ): Promise<FetchResult> {
   try {
-    const results = await searchMemories(pool, query, { agentId, limit: 5 });
-    const episodes = results.filter((r) => r.source === "episode");
+    // Asked for as episodes, not filtered out of a mixed top-5 — memories and facts outrank episodes often enough that the post-filter left this section empty on every call.
+    const episodes = await searchMemories(pool, query, {
+      agentId,
+      limit: 5,
+      sources: ["episode"],
+    });
 
     if (episodes.length === 0) {
       return { sources: [], status: "empty" };
@@ -195,6 +199,13 @@ async function hybridSource(
   }
 }
 
+const MENTIONS_TESTS_RE =
+  /\b(tests?|testing|spec files?|vitest|jest|coverage|flaky)\b/i;
+
+function codeTypesFor(query: string): string[] {
+  return MENTIONS_TESTS_RE.test(query) ? ["code", "test"] : ["code"];
+}
+
 export const contentFetchers: Record<string, SourceFetcher> = {
   // Repo conventions: docs + specs (ADRs are their own section); hybrid ranking avoids floating unrelated web-ui specs on term overlap alone.
   repo: (pool, query, repo) =>
@@ -203,9 +214,12 @@ export const contentFetchers: Record<string, SourceFetcher> = {
       limit: 5,
     }),
 
-  // Source code the task touches — previously NEVER retrieved, so implementation tasks got zero of the files they edit.
+  // Source code the task touches — previously NEVER retrieved, so implementation tasks got zero of the files they edit. Tests join only when the question is about tests: a test file keyword-matches every symbol it exercises and outranked the source otherwise.
   code: (pool, query, repo) =>
-    hybridSource(pool, query, repo, { contentTypes: ["code"], limit: 6 }),
+    hybridSource(pool, query, repo, {
+      contentTypes: codeTypesFor(query),
+      limit: 6,
+    }),
 
   // ADRs ranked by relevance (hybrid vector+keyword) to the query.
   adrs: (pool, query, repo) =>

@@ -26,7 +26,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.spyOn(console, "log").mockImplementation(() => {});
   vi.spyOn(console, "error").mockImplementation(() => {});
-  isPromptfooAvailable.mockResolvedValue(true); // eslint-disable-line re-lint/no-flag-params -- a stubbed return value, not a flag argument
+  isPromptfooAvailable.mockResolvedValue(true);
   recent.mockResolvedValue([]);
 });
 

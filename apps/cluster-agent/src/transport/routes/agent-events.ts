@@ -19,10 +19,13 @@ export interface AgentEventsDeps {
 
 // Whether the presented token is one of ours. Every comparison runs even after a match — the same reason `secretEquals` exists: bailing early leaks, through timing, which credential matched.
 function matchesAny(presented: string, configured: string[]): boolean {
-  return configured.reduce(
-    (found, token) => secretEquals(presented, token) || found,
-    false,
-  );
+  let found = false;
+
+  for (const token of configured) {
+    found = secretEquals(presented, token) || found;
+  }
+
+  return found;
 }
 
 /** Accept the request only if it presents one of this cluster's credentials; every comparison runs even after a match (same reason `secretEquals` exists). */

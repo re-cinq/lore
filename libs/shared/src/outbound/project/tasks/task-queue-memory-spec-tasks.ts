@@ -124,6 +124,7 @@ export class SpecTaskStore {
     if (!task || task.status !== "running") {
       return { completed: false, unblocked: [] };
     }
+    // eslint-disable-next-line re-lint/no-duplicate-code -- the spec-task DAG claim held in Maps; its pg twin runs the same STEPS because the port defines the steps — the double is the behavioural spec for exactly this sequence
     task.status = "completed";
 
     const specTaskId = specTaskIdOf(task);
