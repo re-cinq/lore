@@ -17,7 +17,8 @@ export interface FailureRecord {
   failureClass: string | null;
   failureDetail: string | null;
   commit: string | null;
-  occurredAt?: Date;
+  /** When the attempt failed. A Date in-process, an ISO STRING once it has crossed the ingest event's JSON — which is how it always arrives in production. */
+  occurredAt?: Date | string;
 }
 
 /** A past failure on a file, as `fix-ci` reads it back. */
@@ -239,8 +240,13 @@ function failureFields(repo: string, record: FailureRecord) {
     "Failure.failure_class": record.failureClass ?? "unknown",
     "Failure.failure_detail": (record.failureDetail ?? "").slice(0, DETAIL_MAX),
     "Failure.commit": record.commit ?? "",
-    "Failure.occurred_at": (record.occurredAt ?? new Date()).toISOString(),
+    "Failure.occurred_at": instantOf(record.occurredAt).toISOString(),
   };
+}
+
+/** The instant a value names, whichever side of the ingest JSON it arrived from. `new Date` both clones a Date and parses an ISO string, so one call covers both. */
+function instantOf(value: Date | string | undefined): Date {
+  return value === undefined ? new Date() : new Date(value);
 }
 
 /** Points the failure at a File node per distinct path it named, minting the node when coverage never has. */

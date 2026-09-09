@@ -79,4 +79,15 @@ describe.skipIf(!reachable)("the failure ingest kind (live Dgraph)", () => {
       [{ resolvedByCommit: "sha-green" }],
     );
   });
+
+  it("records a failure whose occurredAt crossed the ingest JSON as a string", async () => {
+    const repo = `spec-trace/${randomUUID()}`;
+    const overTheWire: unknown = JSON.parse(JSON.stringify(payload()));
+
+    await ingestSpecTrace(client, repo, "failure", overTheWire);
+
+    expect(await failuresTouching(client, repo, "src/widget.ts")).toMatchObject(
+      [{ occurredAt: "2026-01-01T00:00:00Z" }],
+    );
+  });
 });

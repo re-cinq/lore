@@ -461,6 +461,9 @@ belong to nothing. ([validated by records for a run that names a repo](apps/floo
 
 The ingest lane records a failed node against the file its output named. ([validated by records a failed node against the file its output named](libs/shared/src/work/spec-trace/ingest-failure-kind.test.ts#L49))
 
+The instant a failure happened crosses that lane as an ISO string, not a Date,
+because the payload is JSON — so the projection accepts either and normalizes. ([validated by records a failure whose occurredAt crossed the ingest JSON as a string](libs/shared/src/work/spec-trace/ingest-failure-kind.test.ts#L83))
+
 It writes no overlay while doing so: a failure is a fact about the repo's
 history that outlives the run, not a branch snapshot. ([validated by writes no overlay for a failure, which is a fact about the repo and not a branch snapshot](libs/shared/src/work/spec-trace/ingest-failure-kind.test.ts#L59))
 
