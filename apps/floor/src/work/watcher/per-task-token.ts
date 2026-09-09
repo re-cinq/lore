@@ -34,12 +34,14 @@ async function routeTokenCleanup(taskId: string): Promise<void> {
   await new HttpTokenCleanup(clusterAgent()).cleanup(taskId);
 }
 
-/** "central" when any run is visible from here OR the task never had a station run (a legacy single-CR task, launched centrally); "skip" only when every run was claimed elsewhere. */
+/** "central" when any run is visible from here OR the task never had a station run (a legacy single-CR task, launched centrally); "skip" only when every run was PROVABLY claimed elsewhere. */
 export function decideTokenCleanup(
   runsForTask: readonly Pick<StationRunRecord, "clusterAgentId" | "status">[],
   centralId: string | null,
 ): "central" | "skip" {
-  return runsForTask.length === 0 ||
+  // An unresolved central id (central not registered yet, or LORE_CENTRAL_CLUSTER_AGENT_NAME drift) says we do not KNOW who claimed these runs, not that a satellite did — and failing closed on it stops reclaiming every pull-dispatched run's Secret, which is the agent-secrets leak of #1647. The DELETE is best-effort and central holds only what it claimed, so attempting it is the safe direction.
+  return centralId === null ||
+    runsForTask.length === 0 ||
     runsForTask.some((run) => agentCrVisible(run, centralId))
     ? "central"
     : "skip";

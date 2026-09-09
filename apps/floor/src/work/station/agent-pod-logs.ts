@@ -58,8 +58,9 @@ export async function readAgentLogs(
   }
   const agent = await source.agentInfo(agentName);
 
+  // A CR we were allowed to ask for and did not find is pruned (the retention reap, #1673) or was never ours — neither means the agent produced nothing, and the archive is keyed by CR name precisely for this.
   if (!agent) {
-    return unavailable("no-agent", null);
+    return archivedForAgent(agentName, opts, archive, "no-agent");
   }
 
   const jobName = agent.jobName;
@@ -73,15 +74,16 @@ export async function readAgentLogs(
 
 const alwaysLive: LiveReadable = async () => true;
 
-/** A CR this Floor cannot ask has no Job name to key on, so the archive is read by the CR name the pod-log ingest stored beside it; no phase, since the CR was never read. */
+/** A CR this Floor cannot ask (or asked for and did not find) has no Job name to key on, so the archive is read by the CR name the pod-log ingest stored beside it; no phase, since the CR was never read. `emptyReason` is what to report when the archive holds nothing either — the caller knows whether the CR was unreachable or absent, and that distinction is the whole point. */
 async function archivedForAgent(
   agentName: string,
   opts: { tailLines?: number },
   archive: PodLogArchive | undefined,
+  emptyReason: AgentLogsReason = "no-pod",
 ): Promise<AgentLogsResult> {
   const logs = (await archive?.logsForAgent?.(agentName, opts)) ?? null;
 
-  return archivedOrUnavailable(logs, null);
+  return archivedOrUnavailable(logs, null, emptyReason);
 }
 
 interface ReadJobPodLogsParams {
@@ -147,9 +149,10 @@ async function archivedOrNoPod(
 function archivedOrUnavailable(
   logs: string | null,
   phase: string | null,
+  emptyReason: AgentLogsReason = "no-pod",
 ): AgentLogsResult {
   if (logs === null) {
-    return unavailable("no-pod", phase);
+    return unavailable(emptyReason, phase);
   }
 
   return { available: true, logs, phase, podName: null, archived: true };
