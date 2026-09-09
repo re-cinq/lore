@@ -1,6 +1,6 @@
 // When the task page refreshes; the context panels register with lives in TaskRefreshProvider.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RunStreamEvent } from "@/lib/run-stream-types";
 import {
   eventRefreshDelayMs,
@@ -213,24 +213,24 @@ export function runDiscovery(
   };
 }
 
-interface TickerOptions {
+interface TickerSchedule {
   intervalMs: number;
   taskId: string;
   refreshAll: () => void;
-  discoveryActiveRef: { current: boolean };
-  liveRunIdRef: { current: string | null };
   onLiveRunFound: (runId: string | null) => void;
 }
 
+/** Discovery state read through refs, so toggling either one does not restart the interval mid-cycle. */
+interface DiscoveryRefs {
+  discoveryActiveRef: { current: boolean };
+  liveRunIdRef: { current: string | null };
+}
+
 /** The interval itself, and how to stop it. Discovery is read from a ref rather than taken as a value so that turning it on or off does not tear down and restart the interval mid-cycle. */
-function startTicker({
-  intervalMs,
-  taskId,
-  refreshAll,
-  discoveryActiveRef,
-  liveRunIdRef,
-  onLiveRunFound,
-}: TickerOptions) {
+function startTicker(
+  { intervalMs, taskId, refreshAll, onLiveRunFound }: TickerSchedule,
+  { discoveryActiveRef, liveRunIdRef }: DiscoveryRefs,
+) {
   const discovery = runDiscovery(taskId, liveRunIdRef, onLiveRunFound);
   const handle = setInterval(() => {
     refreshAll();
@@ -271,7 +271,11 @@ function useDiscoveryRefs(
     liveRunIdRef.current = liveRunId;
   }, [discoveryActive, liveRunId]);
 
-  return { discoveryActiveRef, liveRunIdRef };
+  // Both refs are stable, so this object is built once and the ticker effect takes it as one dependency.
+  return useMemo(
+    () => ({ discoveryActiveRef, liveRunIdRef }),
+    [discoveryActiveRef, liveRunIdRef],
+  );
 }
 
 export function useRefreshTicker(options: RefreshTickerOptions): void {
@@ -281,28 +285,14 @@ export function useRefreshTicker(options: RefreshTickerOptions): void {
 }
 
 /** A null interval means no ticker at all, so the effect returns before starting one. */
-function useTickerEffect(
-  options: RefreshTickerOptions,
-  refs: ReturnType<typeof useDiscoveryRefs>,
-) {
+function useTickerEffect(options: RefreshTickerOptions, refs: DiscoveryRefs) {
   const { intervalMs, taskId, refreshAll, onLiveRunFound } = options;
-  const { discoveryActiveRef, liveRunIdRef } = refs;
-  const ticker = { taskId, refreshAll, discoveryActiveRef, liveRunIdRef };
 
   useEffect(() => {
     return intervalMs === null
       ? undefined
-      : startTicker({ ...ticker, intervalMs, onLiveRunFound });
-    // ticker is rebuilt each render from the values listed here, so it adds nothing.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    intervalMs,
-    taskId,
-    refreshAll,
-    onLiveRunFound,
-    discoveryActiveRef,
-    liveRunIdRef,
-  ]);
+      : startTicker({ intervalMs, taskId, refreshAll, onLiveRunFound }, refs);
+  }, [intervalMs, taskId, refreshAll, onLiveRunFound, refs]);
 }
 
 /** The task's runs, reduced to the one that is live — or null when none is. */
