@@ -389,4 +389,26 @@ if (pg.ok) {
 
     return new PgEventDeliveries(pool);
   });
+
+  // The contract mints a fresh `sub-*` subscriber and `internal.test.*` event
+  // per case and nothing removes them. Against a long-lived database (local
+  // dev's persisted volume) they accumulate: pipeline.event_subscriptions is
+  // joined on every insert by fan-out, and pipeline.events grows without bound.
+  // Delete what the run created once it is done. The event delete cascades to
+  // its deliveries (0048: event_deliveries.event_id ... ON DELETE CASCADE), and
+  // both names are namespaced precisely so this touches nothing real.
+  afterAll(async () => {
+    const pool = new Pool(PG_CONFIG);
+
+    try {
+      await pool.query(
+        `DELETE FROM pipeline.events WHERE event_name LIKE 'internal.test.%'`,
+      );
+      await pool.query(
+        `DELETE FROM pipeline.event_subscriptions WHERE subscriber LIKE 'sub-%'`,
+      );
+    } finally {
+      await pool.end();
+    }
+  });
 }
