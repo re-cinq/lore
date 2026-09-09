@@ -15,7 +15,7 @@ Facets (smallest first):
   - [DONE] Add `CodeChunk.references` and `CodeChunk.imports` predicate lines to `setup-spec-trace-schema.sh` and their type entries to the `CodeChunk` type block
   - [DONE] Add `indirect?: boolean` to `ImpactStatement` in `impact-statement.ts`; update `buildImpactAnnotations` to use `"notice"` for indirect statements
   - [DONE] Extend `QueryTraceArgs` with `callers_of?` / `callees_of?` / `depth?`; add routing in `runQueryTrace` to `/api/repos/${repo}/trace/callers?symbol=...&direction=callers&depth=N`
-  - Add the reference extractor (tree-sitter second pass for TS/JS and Go) to the projection path; emit `{ from_xid, to_xid }` pairs and resolve in the same upsert transaction
+  - [DONE] Add the reference extractor (tree-sitter second pass for TS/JS and Go): `extractImportedCallSites(ext, source)` in `libs/shared/src/work/spec-trace/reference-extractor.ts` returns `{name, fromPath}[]` for imported symbols that are actually called; tested in `reference-extractor.test.ts`. Resolving to `{from_xid, to_xid}` pairs and wiring into the upsert transaction are the next steps.
   - Extend `fileImpact` in `trace-impact.ts` to expand touched chunks by one hop of `~CodeChunk.references` and mark those results `indirect: true`
 
 Out of scope: external dependency graph (npm/go.mod), branch-aware references (issue #1769), Ruby/Python/Java extractors, `gc-orphan-chunks.ts` edge cleanup (noted as needed but not the red bar).

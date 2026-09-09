@@ -243,6 +243,8 @@ The schema declares `CodeChunk.references` and `CodeChunk.imports` as reversible
 
 Statements reached via `~CodeChunk.references` are annotated `indirect` and rendered at `notice` annotation level rather than `warning` in the PR diff comment. ([validated by indirect-notice-level](libs/shared/src/work/spec-trace/trace-impact.test.ts#L126))
 
+The reference extractor identifies imported symbols that are actually called in a TypeScript/JavaScript source file and returns their names paired with the module path they were imported from. ([validated by call-graph-extractor](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L6))
+
 ### `xid` keys (deterministic, idempotent)
 
 | Node | `xid` |
