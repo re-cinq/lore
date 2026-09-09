@@ -145,6 +145,17 @@ function withValidationFailureDetail(stationResult: NodeResult): NodeResult {
   return failureDetail ? { ...stationResult, failureDetail } : stationResult;
 }
 
+// The definition-of-done step's one-line verdict rides extras too; lift it into failureDetail so the terminal hook can quote it on the issue (implementation-loop FR8) — nothing later reads failureDetail off a changes_requested row, so it cannot leak into a prompt.
+function withDodBlockedDetail(stationResult: NodeResult): NodeResult {
+  const verdict = stationResult.extras?.["Lore-Dod-Blocked"];
+  const lifts =
+    stationResult.outcome === "changes_requested" &&
+    !stationResult.failureDetail &&
+    verdict;
+
+  return lifts ? { ...stationResult, failureDetail: verdict } : stationResult;
+}
+
 // A terminal, classified infrastructure failure — the CR-Failed and unparseable-marker cases share this exact shape.
 function infraFailureResult(
   node: NodeKind,
@@ -179,7 +190,7 @@ function stationOutputOutcome(
   const stationResult = parseNodeResult(output);
 
   if (stationResult) {
-    return withValidationFailureDetail(stationResult);
+    return withDodBlockedDetail(withValidationFailureDetail(stationResult));
   }
 
   const malformed = malformedNodeResultLine(output);
