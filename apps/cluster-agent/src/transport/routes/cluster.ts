@@ -27,14 +27,6 @@ export interface ClusterRoutesDeps {
   restart?: () => void;
 }
 
-/** Every route is bearer-guarded with this agent's own token; the check is the first line of each handler so an unauthenticated call never reaches the cluster. */
-function guard(
-  opts: ClusterRoutesDeps,
-  headers: Record<string, unknown>,
-): void {
-  enforceBearer(headers, opts.bearerToken);
-}
-
 export function clusterRoutes(opts: ClusterRoutesDeps): ServerRoute[] {
   return [
     agentByNameRoute(opts),
@@ -67,6 +59,15 @@ function agentByNameRoute(opts: ClusterRoutesDeps): ServerRoute {
   };
 }
 
+function listAgentsRoute(opts: ClusterRoutesDeps): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/cluster/agents",
+    options: { auth: false },
+    handler: listAgentsHandler(opts),
+  };
+}
+
 // Lists Agent CRs, one bounded page at a time. The ceiling is enforced rather than clamped: a caller asking for more than `MAX_PAGE` is told so, because a larger page is what blew the heap on 2026-07-24 and silently narrowing it would hide the mistake.
 function listAgentsHandler(opts: ClusterRoutesDeps): Lifecycle.Method {
   return async (request, h) => {
@@ -87,15 +88,6 @@ function listAgentsHandler(opts: ClusterRoutesDeps): Lifecycle.Method {
     });
 
     return h.response(page).code(200);
-  };
-}
-
-function listAgentsRoute(opts: ClusterRoutesDeps): ServerRoute {
-  return {
-    method: "GET",
-    path: "/api/cluster/agents",
-    options: { auth: false },
-    handler: listAgentsHandler(opts),
   };
 }
 
@@ -158,6 +150,15 @@ function podsRoute(
   };
 }
 
+function podLogRoute(opts: ClusterRoutesDeps): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/cluster/pods/{podName}/log",
+    options: { auth: false },
+    handler: podLogHandler(opts),
+  };
+}
+
 // One pod's log tail. Unlike the page limit above, a bad `tail` is CLAMPED rather than refused — the reader wants logs, and the exact line count is not what they came for.
 function podLogHandler(opts: ClusterRoutesDeps): Lifecycle.Method {
   return async (request, h) => {
@@ -189,15 +190,6 @@ async function respondWithPodLog(
     }
     throw err;
   }
-}
-
-function podLogRoute(opts: ClusterRoutesDeps): ServerRoute {
-  return {
-    method: "GET",
-    path: "/api/cluster/pods/{podName}/log",
-    options: { auth: false },
-    handler: podLogHandler(opts),
-  };
 }
 
 function deletePerTaskTokenRoute(opts: ClusterRoutesDeps): ServerRoute {
@@ -232,4 +224,12 @@ function restartRoute(opts: ClusterRoutesDeps): ServerRoute {
       return h.response().code(204);
     },
   };
+}
+
+/** Every route is bearer-guarded with this agent's own token; the check is the first line of each handler so an unauthenticated call never reaches the cluster. */
+function guard(
+  opts: ClusterRoutesDeps,
+  headers: Record<string, unknown>,
+): void {
+  enforceBearer(headers, opts.bearerToken);
 }

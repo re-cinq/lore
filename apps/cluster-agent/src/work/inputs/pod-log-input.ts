@@ -148,27 +148,6 @@ function endsWith(sink: Writable, finish: (why: string) => void): void {
   sink.once("error", (err: Error) => finish(`stream errored: ${err.message}`));
 }
 
-// The stream never opened. Logged rather than thrown: discovery runs over every agent, and one unreadable pod must not stop the others being followed.
-function reportOpenFailure(podName: string, err: unknown): void {
-  console.error(
-    `[cluster-agent] pod-log stream failed for ${podName}:`,
-    errorMessage(err),
-  );
-}
-
-// Honours a stop that landed while the request was still opening. The listener alone would never fire for an abort that already happened, leaving the stream running with nobody to stop it.
-function bindAbort(
-  controller: { abort: () => void },
-  abort: AbortController,
-): void {
-  if (abort.signal.aborted) {
-    controller.abort();
-
-    return;
-  }
-  abort.signal.addEventListener("abort", () => controller.abort());
-}
-
 /** Opens the stream and wires the abort. A stop that landed while the request was still opening is honoured explicitly — the listener alone would never fire for an abort that already happened. */
 function attachStream(
   { kc, namespace }: NamespaceHandle,
@@ -189,6 +168,27 @@ function attachStream(
       reportOpenFailure(target.podName, err);
       finish("stream could not be opened");
     });
+}
+
+// The stream never opened. Logged rather than thrown: discovery runs over every agent, and one unreadable pod must not stop the others being followed.
+function reportOpenFailure(podName: string, err: unknown): void {
+  console.error(
+    `[cluster-agent] pod-log stream failed for ${podName}:`,
+    errorMessage(err),
+  );
+}
+
+// Honours a stop that landed while the request was still opening. The listener alone would never fire for an abort that already happened, leaving the stream running with nobody to stop it.
+function bindAbort(
+  controller: { abort: () => void },
+  abort: AbortController,
+): void {
+  if (abort.signal.aborted) {
+    controller.abort();
+
+    return;
+  }
+  abort.signal.addEventListener("abort", () => controller.abort());
 }
 
 export class PodLogInput implements EventInput {

@@ -12,23 +12,6 @@ import { isConflict, isMissing } from "../lib/k8s-errors.js";
 import { customObjectsApi } from "./kube-clients.js";
 import type { CatalogApi } from "./kube-token-provisioner.js";
 
-// The version the API currently holds. A replace without it is rejected — Kubernetes uses it to refuse a write based on a copy someone else has already moved on from.
-async function liveResourceVersion(
-  api: ReturnType<typeof customObjectsApi>,
-  namespace: string,
-  target: { plural: string; name: string },
-): Promise<string | undefined> {
-  const current = (await api.getNamespacedCustomObject({
-    group: GROUP,
-    version: VERSION,
-    namespace,
-    plural: target.plural,
-    name: target.name,
-  })) as { metadata?: { resourceVersion?: string } };
-
-  return current.metadata?.resourceVersion;
-}
-
 /** A conflict means it already exists, so this replaces it — carrying the LIVE resourceVersion, without which the API rejects the write. */
 async function replaceExisting(
   api: ReturnType<typeof customObjectsApi>,
@@ -50,6 +33,23 @@ async function replaceExisting(
     name,
     body: { ...body, metadata: { ...meta, resourceVersion } },
   });
+}
+
+// The version the API currently holds. A replace without it is rejected — Kubernetes uses it to refuse a write based on a copy someone else has already moved on from.
+async function liveResourceVersion(
+  api: ReturnType<typeof customObjectsApi>,
+  namespace: string,
+  target: { plural: string; name: string },
+): Promise<string | undefined> {
+  const current = (await api.getNamespacedCustomObject({
+    group: GROUP,
+    version: VERSION,
+    namespace,
+    plural: target.plural,
+    name: target.name,
+  })) as { metadata?: { resourceVersion?: string } };
+
+  return current.metadata?.resourceVersion;
 }
 
 export class KubeCatalogApi implements CatalogApi {

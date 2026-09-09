@@ -19,25 +19,6 @@ export interface HeartbeatDeps {
   log?: (line: string) => void;
 }
 
-function heartbeatLog(deps: HeartbeatDeps): (line: string) => void {
-  return deps.log ?? console.warn;
-}
-
-async function postHeartbeat(
-  deps: HeartbeatDeps,
-  id: string,
-  token: string,
-): Promise<Response> {
-  return (deps.fetchImpl ?? fetch)(
-    `${deps.apiUrl}/api/cluster-agents/${id}/heartbeat`,
-    {
-      method: "POST",
-      headers: { authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(HEARTBEAT_TIMEOUT_MS),
-    },
-  );
-}
-
 /** One beat. Returns "ok" | "unauthorized" | "error"; never throws. */
 export async function heartbeatOnce(
   deps: HeartbeatDeps,
@@ -63,6 +44,25 @@ export async function heartbeatOnce(
 
     return "error";
   }
+}
+
+function heartbeatLog(deps: HeartbeatDeps): (line: string) => void {
+  return deps.log ?? console.warn;
+}
+
+async function postHeartbeat(
+  deps: HeartbeatDeps,
+  id: string,
+  token: string,
+): Promise<Response> {
+  return (deps.fetchImpl ?? fetch)(
+    `${deps.apiUrl}/api/cluster-agents/${id}/heartbeat`,
+    {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(HEARTBEAT_TIMEOUT_MS),
+    },
+  );
 }
 
 export interface HeartbeatLoopDeps {

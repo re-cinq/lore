@@ -65,6 +65,28 @@ export interface ReleaseDeps {
   fetchFn?: typeof fetch;
 }
 
+// Hand back a visit this cluster claimed and could not launch — left unsaid, it waits out the whole node budget on a satellite. Never throws (runs in the tick's failure path).
+export async function releaseClaim(deps: ReleaseDeps): Promise<void> {
+  const fetchFn = deps.fetchFn ?? fetch;
+  const { id, token } = deps.identity();
+
+  try {
+    const res = await fetchFn(
+      `${deps.apiUrl}/api/cluster-agents/${id}/release`,
+      {
+        ...releaseRequest(token, deps),
+        signal: AbortSignal.timeout(CLAIM_TIMEOUT_MS),
+      },
+    );
+
+    if (!res.ok) {
+      warnReleaseRefused(deps.nodeRowId, `HTTP ${res.status}`);
+    }
+  } catch (err) {
+    warnReleaseRefused(deps.nodeRowId, errorMessage(err));
+  }
+}
+
 // The release, as the API expects it: which row to hand back, and why it could not be launched. The reason is stored, so a run released for a missing image reads differently from one released for a crash.
 function releaseRequest(token: string, deps: ReleaseDeps): RequestInit {
   return {
@@ -92,26 +114,26 @@ function bearerJson(token: string): Record<string, string> {
   };
 }
 
-// Hand back a visit this cluster claimed and could not launch — left unsaid, it waits out the whole node budget on a satellite. Never throws (runs in the tick's failure path).
-export async function releaseClaim(deps: ReleaseDeps): Promise<void> {
-  const fetchFn = deps.fetchFn ?? fetch;
-  const { id, token } = deps.identity();
+/** One poll: claim, and launch what was claimed. Never throws — every failure shape is an outcome. */
+export async function claimOnce(deps: ClaimTickDeps): Promise<ClaimOutcome> {
+  const res = await requestClaim(deps);
 
-  try {
-    const res = await fetchFn(
-      `${deps.apiUrl}/api/cluster-agents/${id}/release`,
-      {
-        ...releaseRequest(token, deps),
-        signal: AbortSignal.timeout(CLAIM_TIMEOUT_MS),
-      },
-    );
-
-    if (!res.ok) {
-      warnReleaseRefused(deps.nodeRowId, `HTTP ${res.status}`);
-    }
-  } catch (err) {
-    warnReleaseRefused(deps.nodeRowId, errorMessage(err));
+  if (isClaimOutcome(res)) {
+    return res;
   }
+  const body = await readClaimBody(res);
+
+  if (!isClaimBody(body)) {
+    return body;
+  }
+  const name = resolveCrName(body);
+
+  if (typeof name !== "string") {
+    return name;
+  }
+  const spec: LoreTaskSpec = { ...body.spec, name };
+
+  return launchClaim(deps, body, spec);
 }
 
 async function requestClaim(
@@ -138,23 +160,6 @@ function isClaimOutcome(value: Response | ClaimOutcome): value is ClaimOutcome {
   return "kind" in value;
 }
 
-// Why this claim yielded no work, if it did not. The three are distinct on purpose: 204 is a quiet queue, 401/403 means this cluster's registration is no longer accepted and the loop must stop rather than hammer, and any other failure is transient.
-function claimRefusal(res: Response): ClaimOutcome | null {
-  if (res.status === 204) {
-    return { kind: "empty" };
-  }
-
-  if (res.status === 401 || res.status === 403) {
-    return { kind: "unauthorized" };
-  }
-
-  if (!res.ok) {
-    return { kind: "error", message: `claim refused (HTTP ${res.status})` };
-  }
-
-  return null;
-}
-
 async function readClaimBody(
   res: Response,
 ): Promise<ClaimResponse | ClaimOutcome> {
@@ -173,6 +178,23 @@ async function readClaimBody(
       message: `claim response parse failed: ${errorMessage(err)}`,
     };
   }
+}
+
+// Why this claim yielded no work, if it did not. The three are distinct on purpose: 204 is a quiet queue, 401/403 means this cluster's registration is no longer accepted and the loop must stop rather than hammer, and any other failure is transient.
+function claimRefusal(res: Response): ClaimOutcome | null {
+  if (res.status === 204) {
+    return { kind: "empty" };
+  }
+
+  if (res.status === 401 || res.status === 403) {
+    return { kind: "unauthorized" };
+  }
+
+  if (!res.ok) {
+    return { kind: "error", message: `claim refused (HTTP ${res.status})` };
+  }
+
+  return null;
 }
 
 function isClaimBody(
@@ -204,6 +226,24 @@ function resolveCrName(claim: ClaimResponse): string | ClaimOutcome {
   return name;
 }
 
+async function launchClaim(
+  deps: ClaimTickDeps,
+  claim: ClaimResponse,
+  spec: LoreTaskSpec,
+): Promise<ClaimOutcome> {
+  try {
+    const { ref, launched } = await deps.launch(spec);
+
+    return {
+      kind: launched === false ? "already-running" : "claimed",
+      stationRunId: claim.station_run_id,
+      crName: ref,
+    };
+  } catch (err) {
+    return handBack(deps, claim, errorMessage(err));
+  }
+}
+
 // A claim this cluster took and could not launch. Handed back before reporting, because a visit left claimed waits out the whole node budget on a satellite the Floor cannot see into.
 async function handBack(
   deps: ClaimTickDeps,
@@ -224,46 +264,6 @@ async function handBack(
   };
 }
 
-async function launchClaim(
-  deps: ClaimTickDeps,
-  claim: ClaimResponse,
-  spec: LoreTaskSpec,
-): Promise<ClaimOutcome> {
-  try {
-    const { ref, launched } = await deps.launch(spec);
-
-    return {
-      kind: launched === false ? "already-running" : "claimed",
-      stationRunId: claim.station_run_id,
-      crName: ref,
-    };
-  } catch (err) {
-    return handBack(deps, claim, errorMessage(err));
-  }
-}
-
-/** One poll: claim, and launch what was claimed. Never throws — every failure shape is an outcome. */
-export async function claimOnce(deps: ClaimTickDeps): Promise<ClaimOutcome> {
-  const res = await requestClaim(deps);
-
-  if (isClaimOutcome(res)) {
-    return res;
-  }
-  const body = await readClaimBody(res);
-
-  if (!isClaimBody(body)) {
-    return body;
-  }
-  const name = resolveCrName(body);
-
-  if (typeof name !== "string") {
-    return name;
-  }
-  const spec: LoreTaskSpec = { ...body.spec, name };
-
-  return launchClaim(deps, body, spec);
-}
-
 // The kill switch a shutdown throws — without it a claim can land and `process.exit` cuts the launch mid-CR-create on every rollout.
 export interface ClaimLoopDeps {
   claim: () => Promise<ClaimOutcome>;
@@ -279,17 +279,23 @@ export interface ClaimLoopDeps {
   onOutcome?: (outcome: ClaimOutcome) => void;
 }
 
-// What this outcome says in the log, or nothing when it is the unauthorized case the caller acts on. `already-running` reads as an explanation rather than a failure: the CR exists, and its terminal event or the reaper settles the visit.
-function outcomeLine(outcome: ClaimOutcome): string | null {
-  if (outcome.kind === "claimed") {
-    return `[cluster-agent] claimed station run ${outcome.stationRunId} → Agent CR ${outcome.crName}`;
-  }
+export async function runClaimLoop(deps: ClaimLoopDeps): Promise<void> {
+  const log = deps.log ?? ((message: string): void => console.log(message));
 
-  if (outcome.kind === "already-running") {
-    return `[cluster-agent] station run ${outcome.stationRunId} claimed, but Agent CR ${outcome.crName} already exists — no new pod launched; the CR's terminal event or the reaper will settle the visit`;
-  }
-
-  return outcome.kind === "error" ? `[cluster-agent] ${outcome.message}` : null;
+  await runPollLoop<ClaimOutcome>({
+    tick: deps.claim,
+    onOutcome: (outcome) => reportOutcome(outcome, log, deps),
+    isIdle: (outcome) => outcome.kind === "empty",
+    delayFor: (outcome, idleTicks) =>
+      nextClaimDelay(
+        deps.baseDelayMs,
+        idleTicks,
+        outcome.kind,
+        deps.maxIdleDelayMs,
+      ),
+    sleep: deps.sleep,
+    running: deps.running,
+  });
 }
 
 /** What each claim outcome means, and the one that needs action: an unauthorized claim means the per-agent token was rotated elsewhere, so this agent re-registers rather than looping on a credential it no longer holds. `already-running` is deliberately not an error — the CR exists, and its terminal event or the reaper settles the visit. */
@@ -313,21 +319,15 @@ async function reportOutcome(
   deps.onOutcome?.(outcome);
 }
 
-export async function runClaimLoop(deps: ClaimLoopDeps): Promise<void> {
-  const log = deps.log ?? ((message: string): void => console.log(message));
+// What this outcome says in the log, or nothing when it is the unauthorized case the caller acts on. `already-running` reads as an explanation rather than a failure: the CR exists, and its terminal event or the reaper settles the visit.
+function outcomeLine(outcome: ClaimOutcome): string | null {
+  if (outcome.kind === "claimed") {
+    return `[cluster-agent] claimed station run ${outcome.stationRunId} → Agent CR ${outcome.crName}`;
+  }
 
-  await runPollLoop<ClaimOutcome>({
-    tick: deps.claim,
-    onOutcome: (outcome) => reportOutcome(outcome, log, deps),
-    isIdle: (outcome) => outcome.kind === "empty",
-    delayFor: (outcome, idleTicks) =>
-      nextClaimDelay(
-        deps.baseDelayMs,
-        idleTicks,
-        outcome.kind,
-        deps.maxIdleDelayMs,
-      ),
-    sleep: deps.sleep,
-    running: deps.running,
-  });
+  if (outcome.kind === "already-running") {
+    return `[cluster-agent] station run ${outcome.stationRunId} claimed, but Agent CR ${outcome.crName} already exists — no new pod launched; the CR's terminal event or the reaper will settle the visit`;
+  }
+
+  return outcome.kind === "error" ? `[cluster-agent] ${outcome.message}` : null;
 }
