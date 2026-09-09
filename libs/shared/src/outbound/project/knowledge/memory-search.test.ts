@@ -50,6 +50,43 @@ describe("searchMemories", () => {
     ]);
   });
 
+  it("runs only the fact legs with $4 = ['episode'] and never the memories table when sources is ['episode'], returning the 2 episode rows", async () => {
+    const row = (id: string, rank: number) => ({
+      id,
+      key: id,
+      value: `about ${id}`,
+      agent_id: "a1",
+      source: "episode",
+      kw_rank: String(rank),
+    });
+    const pool = scriptedPool((sql) =>
+      factKeywordQuery({ sql, params: [] }) ? [row("e1", 1), row("e2", 2)] : [],
+    );
+
+    const results = await searchMemories(pool, "deploy", {
+      limit: 5,
+      sources: ["episode"],
+    });
+
+    expect({
+      memoriesQueried: pool.calls.some((c) =>
+        /FROM memory\.memories m/.test(c.sql),
+      ),
+      factCalls: pool.calls.filter(factKeywordQuery).map((c) => ({
+        gated: /= ANY\(\$4::text\[\]\)/.test(c.sql),
+        sources: c.params[3],
+      })),
+      hits: results.map((r) => [r.key, r.source]),
+    }).toEqual({
+      memoriesQueried: false,
+      factCalls: [{ gated: true, sources: ["episode"] }],
+      hits: [
+        ["e1", "episode"],
+        ["e2", "episode"],
+      ],
+    });
+  });
+
   it("passes $3 = true and the ($3::boolean OR f.valid_to IS NULL) gate when include_invalidated is true", async () => {
     const pool = scriptedPool();
 

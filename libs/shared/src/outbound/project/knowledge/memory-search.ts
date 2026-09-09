@@ -34,6 +34,8 @@ export interface MemorySearchOptions {
   limit?: number;
   includeInvalidated?: boolean;
   graphAugment?: boolean;
+  /** Keep only these kinds of hit. The legs that cannot produce a requested kind are not run, and the fact legs filter in SQL under their LIMIT, so asking for 5 episodes yields the 5 best episodes rather than whatever episodes survived a mixed top-20. */
+  sources?: MemorySearchResult["source"][];
 }
 
 /** Resolves pool name to pool_id when provided. */
@@ -49,6 +51,16 @@ interface SearchScope {
   agent: string | null;
   poolId: string | null;
   includeInvalidated: boolean;
+  sources: MemorySearchResult["source"][] | null;
+}
+
+function wantsKind(
+  scope: SearchScope,
+  ...kinds: MemorySearchResult["source"][]
+): boolean {
+  return (
+    scope.sources === null || kinds.some((k) => scope.sources?.includes(k))
+  );
 }
 
 /** Attempts a query embedding from Vertex AI; unavailable embedding yields no vector hits (keyword search still runs). */
@@ -65,13 +77,12 @@ async function vectorSearchBoth(
   const embeddingStr = `[${embedding.join(",")}]`;
 
   return Promise.all([
-    vectorSearchMemories(pool, embeddingStr, scope.agent, scope.poolId),
-    vectorSearchFacts(
-      pool,
-      embeddingStr,
-      scope.agent,
-      scope.includeInvalidated,
-    ),
+    wantsKind(scope, "memory")
+      ? vectorSearchMemories(pool, embeddingStr, scope.agent, scope.poolId)
+      : [],
+    wantsKind(scope, "fact", "episode")
+      ? vectorSearchFacts(pool, embeddingStr, scope)
+      : [],
   ]);
 }
 
@@ -84,8 +95,12 @@ async function keywordSearchBoth(
   const terms = keyTermsQuery(query);
 
   return Promise.all([
-    keywordSearchMemories(pool, terms, scope.agent, scope.poolId),
-    keywordSearchFacts(pool, terms, scope.agent, scope.includeInvalidated),
+    wantsKind(scope, "memory")
+      ? keywordSearchMemories(pool, terms, scope.agent, scope.poolId)
+      : [],
+    wantsKind(scope, "fact", "episode")
+      ? keywordSearchFacts(pool, terms, scope)
+      : [],
   ]);
 }
 
@@ -102,6 +117,7 @@ interface ResolvedSearchOptions {
   limit: number;
   includeInvalidated: boolean;
   graphAugmentEnabled: boolean;
+  sources?: MemorySearchResult["source"][];
 }
 
 function resolveSearchOptions(
@@ -113,6 +129,7 @@ function resolveSearchOptions(
     limit: options.limit ?? 10,
     includeInvalidated: options.includeInvalidated ?? false,
     graphAugmentEnabled: options.graphAugment ?? false,
+    sources: options.sources,
   };
 }
 
@@ -135,31 +152,34 @@ async function rankedHits(
   pool: PgPool,
   query: string,
   scope: SearchScope,
-  limit: number,
+  { limit }: ResolvedSearchOptions,
 ): Promise<MemorySearchResult[]> {
   const [[vectorMemories, vectorFacts], [keywordMemories, keywordFacts]] =
     await Promise.all([
       vectorSearchBoth(pool, query, scope),
       keywordSearchBoth(pool, query, scope),
     ]);
+  const merged = rrfMerge([
+    vectorMemories,
+    vectorFacts,
+    keywordMemories,
+    keywordFacts,
+  ]);
 
-  return diversify(
-    rrfMerge([vectorMemories, vectorFacts, keywordMemories, keywordFacts]),
-    limit,
-  );
+  return diversify(merged, limit);
 }
 
 /** The search scope, or null when a named pool was requested that does not exist. */
 async function resolveScope(
   pool: PgPool,
   agent: string | null,
-  { poolName, includeInvalidated }: ResolvedSearchOptions,
+  { poolName, includeInvalidated, sources }: ResolvedSearchOptions,
 ): Promise<SearchScope | null> {
   const poolId = await resolvePoolId(pool, poolName);
 
   return poolNotFound(poolName, poolId)
     ? null
-    : { agent, poolId, includeInvalidated };
+    : { agent, poolId, includeInvalidated, sources: sources ?? null };
 }
 
 /** The ranked legs, optionally widened by 1-hop graph neighbors. */
@@ -167,11 +187,16 @@ async function scopedResults(
   pool: PgPool,
   query: string,
   scope: SearchScope,
-  { limit, graphAugmentEnabled }: ResolvedSearchOptions,
+  options: ResolvedSearchOptions,
 ): Promise<MemorySearchResult[]> {
-  const ranked = await rankedHits(pool, query, scope, limit);
+  const ranked = await rankedHits(pool, query, scope, options);
 
-  return applyGraphAugment(pool, ranked, limit, graphAugmentEnabled);
+  return applyGraphAugment(
+    pool,
+    ranked,
+    options.limit,
+    options.graphAugmentEnabled,
+  );
 }
 
 /** Strengthen what was retrieved, audit the search, and hand the results back unchanged. */
