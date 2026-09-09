@@ -77,7 +77,9 @@ describe("nodeHeightFor", () => {
 
   it("adds a taller band than one line of text in run mode when the nodes carry a facts line", () => {
     expect(
-      nodeHeightFor(graph({ mode: "run", nodes: [node("a")] }), true),
+      nodeHeightFor(graph({ mode: "run", nodes: [node("a")] }), {
+        withMeta: true,
+      }),
     ).toEqual(70);
   });
 
