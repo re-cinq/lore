@@ -1,6 +1,6 @@
 // What happens when the PR CANNOT be opened. Separate from agent-watcher-pr-delivery.ts, which is the success path: the two share a trigger, not a job, and only this half reaches a human.
 
-import { cleanupPerTaskToken } from "../../outbound/per-task-token.js";
+import { cleanupPerTaskToken } from "./per-task-token.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import { startEscalationLine } from "@re-cinq/lore-shared/escalation/start-escalation-line.js";
 import { taskStore, pipeline } from "../../outbound/queues.js";

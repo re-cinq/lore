@@ -208,22 +208,42 @@ export async function countOpenClaimsByAgent(
   );
 }
 
+/** Every column `toNodeRecord` maps, single-sourced so the two station-run reads cannot drift. */
+const STATION_RUN_COLUMNS = `id, station_run_id, assembly_run_id, node_id, iteration, outcome,
+            status, cluster_agent_id, required_tags, claimed_at,
+            failure_class, failure_detail,
+            agent_cr_name, input, commit_sha, started_at, finished_at`;
+
 export async function listStationRuns(
   pool: PgPool,
   assemblyRunId: string,
 ): Promise<StationRunRecord[]> {
   const { rows } = await pool.query(
-    `SELECT id, station_run_id, assembly_run_id, node_id, iteration, outcome,
-            status, cluster_agent_id, required_tags, claimed_at,
-            failure_class, failure_detail,
-            agent_cr_name, input, commit_sha, started_at, finished_at
+    `SELECT ${STATION_RUN_COLUMNS}
        FROM pipeline.station_runs
       WHERE assembly_run_id = $1
       ORDER BY id`,
     [assemblyRunId],
   );
 
-  return rows.map((r) =>
-    toNodeRecord(r as unknown as Parameters<typeof toNodeRecord>[0]),
-  );
+  return rows.map(toStationRun);
 }
+
+export async function findStationRunByAgentCrName(
+  pool: PgPool,
+  agentCrName: string,
+): Promise<StationRunRecord | null> {
+  const { rows } = await pool.query(
+    `SELECT ${STATION_RUN_COLUMNS}
+       FROM pipeline.station_runs
+      WHERE agent_cr_name = $1
+      ORDER BY id DESC
+      LIMIT 1`,
+    [agentCrName],
+  );
+
+  return rows[0] ? toStationRun(rows[0]) : null;
+}
+
+const toStationRun = (row: unknown): StationRunRecord =>
+  toNodeRecord(row as Parameters<typeof toNodeRecord>[0]);

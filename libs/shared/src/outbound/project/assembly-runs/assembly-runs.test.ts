@@ -1770,3 +1770,48 @@ describe("findOpenOnBranch", () => {
     });
   });
 });
+
+describe("InMemoryAssemblyRuns findStationRunByAgentCrName", () => {
+  it("returns the visit dispatched under that CR name, newest row first", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const id = await port.start({
+      blueprintName: "implementation",
+      repo: "o/r",
+    });
+
+    await port.ensureStationRun({
+      assemblyRunId: id,
+      nodeId: "implement",
+      iteration: 1,
+      agentCrName: "abcd1234-implement",
+    });
+    await port.ensureStationRun({
+      assemblyRunId: id,
+      nodeId: "implement",
+      iteration: 2,
+      agentCrName: "abcd1234-implement-2",
+    });
+
+    expect(
+      await port.findStationRunByAgentCrName("abcd1234-implement-2"),
+    ).toMatchObject({ assemblyRunId: id, nodeId: "implement", iteration: 2 });
+  });
+
+  it("returns null for a CR name no visit was dispatched under", async () => {
+    const port = new InMemoryAssemblyRuns();
+
+    await port.ensureStationRun({
+      assemblyRunId: await port.start({
+        blueprintName: "implementation",
+        repo: "o/r",
+      }),
+      nodeId: "implement",
+      iteration: 1,
+      agentCrName: "abcd1234-implement",
+    });
+
+    expect(await port.findStationRunByAgentCrName("zzzz9999-review")).toBe(
+      null,
+    );
+  });
+});

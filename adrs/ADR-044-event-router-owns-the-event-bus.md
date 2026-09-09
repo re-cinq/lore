@@ -489,6 +489,58 @@ wrote down, and that is why it could be done in one change.
   and consumer repos' Actions variable `vars.LORE_WEBHOOK_URL` — a different
   variable that happens to share the name — is that host.
 
+## Amendment (2026-09-09): the Floor consumes reported state; a cluster read is routed by claimant
+
+The 2026-08-26 amendment made dispatch pull-only because a satellite is
+unreachable for inbound calls, and left reporting untouched because every
+cluster-agent already reports terminal phases inward. It said nothing about
+the Floor's remaining habit of going to look: `HttpAgentApi`,
+`HttpPodLogSource` and `HttpTokenCleanup` are all built on the one configured
+`CLUSTER_AGENT_URL`, which is the central cluster-agent, and a read there
+answers for a satellite-claimed run with a null that means "not here" and
+reads as "produced nothing" (#1627). Each such site had been guarded case by
+case (`agentCrVisible`, the reaper's visibility arm) rather than closed.
+
+### Decision
+
+Cluster state reaches the Floor as REPORTED state — the terminal event's
+inline status, the `pipeline.station_runs` row, the stored pod-log chunks —
+and a direct read of a cluster is the exception, taken only for a run this
+Floor can see: a row claimed by the central cluster-agent, or a legacy
+`running` row with no claimant. The rule per read site:
+
+| Read | Survives? | Routed how |
+| --- | --- | --- |
+| Terminal status of a node CR (live event door) | Only as the fallback for an event that carries no `status` | Visible rows only; an event for a node with NO open row is dropped without any read — the node was already settled and a fabricated status would re-settle it |
+| Terminal status of a node CR (reaper resolve / requeue arm) | Yes, until #1592 stores the reported terminal phase beside the output | Visible rows only, as before |
+| Live pod logs for a node (`GET /api/agent-logs/{name}`) | Yes, for what a live read is worth | Visible rows only; a satellite run is served from the stored-chunk archive, which is the one source that reaches it |
+| "Is this task's Agent still alive" (`isTaskAgentActive`) | Only for rounds that predate station runs | A round with a station-run row answers from that row's open/closed state; the CR probe is the legacy path and no satellite run can reach it |
+| List + prune CRs (`agent-reconcile`) | Yes | Central-only maintenance by design: it enumerates the namespace the central agent owns, and every cluster-agent prunes its own (the prune loop already runs there, #1651) |
+
+Writes follow the same line. The per-task token reclaim (`DELETE
+/api/cluster/per-task-tokens/{taskId}`) is sent to central only when central
+claimed any of the task's station runs, or when the task has no station run
+at all; a task every run of which a satellite claimed is skipped with one log
+line, since the DELETE would reach a cluster that never provisioned the token.
+Reclaiming a satellite's token is the satellite's job, and under pull-only the
+channel for telling it so is the claim round-trip — recorded as #1988, not
+done here.
+
+### Consequences
+
+- The central cluster is one claimant among others on every per-run path; the
+  only central-specific code left is the visibility test, whose input is the
+  central cluster-agent's registry id — which the live event door now receives
+  from production wiring, where it used to receive nothing and treat even a
+  central-claimed row as unreadable. The pod-log route and the token reclaim
+  take the same test. ([validated by `agent-logs.test.ts:143`](../apps/floor/src/transport/http/routes/agent-logs.test.ts#L143), [`agent-logs.test.ts:154`](../apps/floor/src/transport/http/routes/agent-logs.test.ts#L154), [`per-task-token.test.ts:27`](../apps/floor/src/work/watcher/per-task-token.test.ts#L27))
+- A duplicate terminal delivery for an already-settled node is dropped rather
+  than re-read; the walk advances on the first delivery and the second has
+  nothing to add. ([validated by `node-event-handler.test.ts:417`](../apps/floor/src/work/assembly-run/node-event-handler.test.ts#L417))
+- The remaining central reads are enumerated above, and a new read of a
+  cluster from the Floor is a design change to this table rather than a local
+  decision.
+
 ## Alternatives considered
 
 - **Keep the listeners in the Floor and give it an HTTP write path only.**

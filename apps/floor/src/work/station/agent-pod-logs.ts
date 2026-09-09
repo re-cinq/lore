@@ -5,6 +5,7 @@ export type {
   PodLogSource,
 } from "@re-cinq/lore-shared";
 import { agentsNamespace } from "@re-cinq/lore-shared";
+import type { PodLogArchiveLike } from "@re-cinq/lore-shared/project/pod-logs/stored-pod-log-archive.js";
 import type { PodSummary, PodLogSource } from "@re-cinq/lore-shared";
 
 export type AgentLogsReason = "no-agent" | "no-job" | "no-pod";
@@ -20,12 +21,15 @@ export interface AgentLogsResult {
 }
 
 /** The durable-log seam: a finished node's stdout, read back once the live pod is gone. */
-export interface PodLogArchive {
-  /** Retained stdout for a Job's pod, or null when nothing is retained. */
-  logsForJob(
-    jobName: string,
-    opts?: { tailLines?: number },
-  ): Promise<string | null>;
+export type PodLogArchive = PodLogArchiveLike;
+
+/** Whether the live source may be asked about this CR at all; false for a run claimed by a cluster the source cannot see (#1627). */
+export type LiveReadable = (agentName: string) => Promise<boolean>;
+
+export interface ReadAgentLogsOptions {
+  tailLines?: number;
+  /** Defaults to always live — the pre-satellite behaviour. */
+  liveReadable?: LiveReadable;
 }
 
 export function podSelectorForJob(jobName: string): string {
@@ -46,9 +50,12 @@ export function pickLatestPod(pods: readonly PodSummary[]): PodSummary | null {
 export async function readAgentLogs(
   source: PodLogSource,
   agentName: string,
-  opts: { tailLines?: number } = {},
+  { liveReadable = alwaysLive, ...opts }: ReadAgentLogsOptions = {},
   archive?: PodLogArchive,
 ): Promise<AgentLogsResult> {
+  if (!(await liveReadable(agentName))) {
+    return archivedForAgent(agentName, opts, archive);
+  }
   const agent = await source.agentInfo(agentName);
 
   if (!agent) {
@@ -62,6 +69,19 @@ export async function readAgentLogs(
   }
 
   return readJobPodLogs({ source, jobName, phase: agent.phase, opts, archive });
+}
+
+const alwaysLive: LiveReadable = async () => true;
+
+/** A CR this Floor cannot ask has no Job name to key on, so the archive is read by the CR name the pod-log ingest stored beside it; no phase, since the CR was never read. */
+async function archivedForAgent(
+  agentName: string,
+  opts: { tailLines?: number },
+  archive: PodLogArchive | undefined,
+): Promise<AgentLogsResult> {
+  const logs = (await archive?.logsForAgent?.(agentName, opts)) ?? null;
+
+  return archivedOrUnavailable(logs, null);
 }
 
 interface ReadJobPodLogsParams {
@@ -121,6 +141,13 @@ async function archivedOrNoPod(
 ): Promise<AgentLogsResult> {
   const logs = archive ? await archive.logsForJob(jobName, opts) : null;
 
+  return archivedOrUnavailable(logs, phase);
+}
+
+function archivedOrUnavailable(
+  logs: string | null,
+  phase: string | null,
+): AgentLogsResult {
   if (logs === null) {
     return unavailable("no-pod", phase);
   }

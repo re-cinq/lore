@@ -31,6 +31,7 @@ import { reviewStartRoute } from "./routes/review-start.js";
 import type {
   PodLogSource,
   PodLogArchive,
+  LiveReadable,
 } from "../../work/station/agent-pod-logs.js";
 
 // GitHub caps payloads at 25 MB; bound generously to support large push deliveries.
@@ -58,6 +59,7 @@ interface FloorServerOptions extends CiTestsRouteDeps {
   getJobStatus: () => unknown;
   podLogSource?: PodLogSource;
   podLogArchive?: PodLogArchive;
+  liveReadable?: LiveReadable;
 }
 
 /** Everything the Floor serves. Cluster-agent tokens open the telemetry sink, which is what lets a satellite report cost and run-viz events without holding the bus secret. */
@@ -67,7 +69,7 @@ function floorRoutes(opts: FloorServerOptions): Hapi.ServerRoute[] {
     agentEventsRoute({
       findByTokenHash: (hash) => clusterAgents().findByTokenHash(hash),
     }),
-    agentLogsRoute(opts.podLogSource, opts.podLogArchive),
+    agentLogsRoute(opts.podLogSource, opts.podLogArchive, opts.liveReadable),
     ...RUN_READ_ROUTES,
     ...ingestRoutes({ testReports: opts.testReports }),
   ];

@@ -340,6 +340,26 @@ pull, so recovery splits by who holds the claim:
   it MUST NOT read a satellite-claimed run's CR back, and MUST NOT treat the
   null it would get as an empty output — this is the fallback path, taken
   only when the event carries no status of its own. ([validated by `code-review-acceptance.test.ts:7`](apps/floor/src/work/assembly-run/code-review-acceptance.test.ts#L7), [`code-review-acceptance.test.ts:19`](apps/floor/src/work/assembly-run/code-review-acceptance.test.ts#L19), [`code-review-acceptance.test.ts:34`](apps/floor/src/work/assembly-run/code-review-acceptance.test.ts#L34))
+- A duplicate terminal delivery that carries no status for a node whose first
+  delivery already settled it has no open station-run row, and is dropped
+  without any CR read — reading the central cluster for it would turn a
+  satellite's null into a phantom re-settlement (#1627, ADR-044 amendment
+  2026-09-09). ([validated by `node-event-handler.test.ts:417`](apps/floor/src/work/assembly-run/node-event-handler.test.ts#L417))
+- The same rule routes the live pod-log read (`GET /api/agent-logs/{name}`):
+  the central cluster-agent is asked only for a CR whose station-run row it
+  claimed, or a legacy row with no claim record; a row a satellite claimed is
+  answered from the stored chunk archive by CR name without any central call,
+  and reports `no-pod` when nothing is archived. ([validated by `agent-logs.test.ts:130`](apps/floor/src/transport/http/routes/agent-logs.test.ts#L130), [`agent-logs.test.ts:134`](apps/floor/src/transport/http/routes/agent-logs.test.ts#L134), [`agent-logs.test.ts:143`](apps/floor/src/transport/http/routes/agent-logs.test.ts#L143), [`agent-logs.test.ts:154`](apps/floor/src/transport/http/routes/agent-logs.test.ts#L154), [`agent-pod-logs.test.ts:342`](apps/floor/src/work/station/agent-pod-logs.test.ts#L342), [`agent-pod-logs.test.ts:362`](apps/floor/src/work/station/agent-pod-logs.test.ts#L362))
+- Two reported-state lookups make that routing possible without a cluster: a
+  station run is found by its Agent CR name, newest row first, and a CR's
+  stored pod-log chunks are listed and reassembled by that same name — the key
+  a reader still holds when the Job name is known only to another cluster. ([validated by `assembly-runs.test.ts:1775`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.test.ts#L1775), [`assembly-runs.test.ts:1800`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.test.ts#L1800), [`pod-logs.test.ts:120`](libs/shared/src/outbound/project/pod-logs/pod-logs.test.ts#L120), [`pod-logs.test.ts:134`](libs/shared/src/outbound/project/pod-logs/pod-logs.test.ts#L134))
+- The per-task token reclaim is a write with the same boundary: the DELETE
+  goes to central when any of the task's station runs is visible from here or
+  the task has no station run at all (a legacy single-CR task launched
+  centrally), and is skipped with one log line when every run was claimed by a
+  cluster this Floor cannot reach — reclaiming those is the claimant's job
+  (#1988). ([validated by `per-task-token.test.ts:5`](apps/floor/src/work/watcher/per-task-token.test.ts#L5), [`per-task-token.test.ts:9`](apps/floor/src/work/watcher/per-task-token.test.ts#L9), [`per-task-token.test.ts:21`](apps/floor/src/work/watcher/per-task-token.test.ts#L21), [`per-task-token.test.ts:27`](apps/floor/src/work/watcher/per-task-token.test.ts#L27))
 - The follow-up this restriction always pointed at: the terminal event MAY
   carry the CR's status directly (`params.status`, reported by cluster-agent
   at the source — the same `AgentNodeStatus` `statusFromAgentCr` builds for

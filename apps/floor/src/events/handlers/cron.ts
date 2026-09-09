@@ -86,7 +86,7 @@ function offlineClusterAgentIds(
 function reaperPorts(
   taskStore: typeof import("../../outbound/queues.js").taskStore,
   clusterAgents: typeof import("../../outbound/queues.js").clusterAgents,
-  centralClusterAgentName: () => string,
+  centralClusterAgentId: () => Promise<string | null>,
   writeAuditLog: (entry: AuditEntry) => Promise<void>,
 ) {
   return {
@@ -95,8 +95,7 @@ function reaperPorts(
     offlineClusterAgents: offlineClusterAgentIds(clusterAgents),
     audit: (entry: AuditEntry) => writeAuditLog(entry),
     listClusterAgents: () => clusterAgents().list(),
-    centralClusterAgentId: async () =>
-      (await clusterAgents().findByName(centralClusterAgentName()))?.id ?? null,
+    centralClusterAgentId,
   };
 }
 
@@ -107,6 +106,7 @@ function reaperModules() {
     import("../../work/assembly-run/node-event-handler.js"),
     import("../../outbound/queues.js"),
     import("../../outbound/audit.js"),
+    import("../../outbound/central-cluster-agent.js"),
   ]);
 }
 
@@ -123,13 +123,13 @@ function logReaperSummary(summary: string): void {
 
 /** Liveness bound: resolve dropped node events, requeue orphans, time out stuck nodes. */
 export const assemblyLineReaper: EventHandler = async () => {
-  const [reaper, nodeEvents, queues, audit] = await reaperModules();
+  const [reaper, nodeEvents, queues, audit, central] = await reaperModules();
   const summary = await reaper.assemblyLineReaperJob({
     ...(await nodeEvents.productionNodeEventDeps()),
     ...reaperPorts(
       queues.taskStore,
       queues.clusterAgents,
-      reaper.centralClusterAgentName,
+      central.centralClusterAgentId,
       audit.writeAuditLog,
     ),
   });

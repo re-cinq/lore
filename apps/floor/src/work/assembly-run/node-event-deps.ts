@@ -3,6 +3,7 @@
 import { codeReviewOnCommentTriaged } from "../review/code-review-handlers.js";
 import { HttpAgentApi } from "@re-cinq/lore-shared";
 import { clusterAgent } from "../../outbound/queues.js";
+import { centralClusterAgentId } from "../../outbound/central-cluster-agent.js";
 import { notifyLineFailure } from "./notify-failure.js";
 import { rottenAnchorReport } from "./spec-anchor-check.js";
 import type { RottenAnchorReportInput } from "./spec-anchor-check.js";
@@ -242,6 +243,8 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
       await reportRottenAnchors(number, row.branch, project);
     },
     readAgentStatus: (name) => cluster.getStatus(name),
+    // Without it `agentCrVisible` ran with null on the live door, so even a CENTRAL-claimed row read as unreadable (#1627).
+    centralClusterAgentId,
     // Same compare the watcher uses for a single-CR task: an implement that pushed nothing is not done.
     deliveredChangeCount: async (repo, branch) => {
       const project = await projectFor(repo);

@@ -413,6 +413,33 @@ describe("createNodeEventHandler", () => {
     expect(h.port.nodes).toHaveLength(1);
     expect(await h.port.getById(id)).toMatchObject({ outcome: "completed" });
   });
+
+  it("does not read the central cluster's CR when a duplicate event arrives for a node a satellite already settled while the line is still running", async () => {
+    const h = harness();
+    const { id, crName } = await reviewInFlight(h);
+
+    h.statusByName[crName] = {
+      phase: "Succeeded",
+      output: "notes\nREVIEW_RESULT:CHANGES_REQUESTED: fix the null check",
+    };
+    await h.handler(params(id, crName));
+    expect(await h.port.getById(id)).toMatchObject({ status: "running" });
+    expect(h.port.nodes[0]).toMatchObject({
+      nodeId: "review",
+      outcome: "changes_requested",
+    });
+
+    const crReads: string[] = [];
+
+    h.deps.readAgentStatus = async (name) => {
+      crReads.push(name);
+
+      return null;
+    };
+    await h.handler(params(id, crName));
+
+    expect(crReads).toEqual([]);
+  });
 });
 
 describe("a declared artifact is delivered before the walk advances", () => {
