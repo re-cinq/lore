@@ -4,3 +4,8 @@ node_modules/
 *.log
 .env*
 coverage/
+# Tests never ship, and the parity suites import ../../../../libs/** — outside this build context.
+**/*.test.ts
+**/*.test.tsx
+vitest.config.ts
+vitest.setup.ts

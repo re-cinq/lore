@@ -1,0 +1,70 @@
+/** Canonical content-type classifier (single source for ingest + reindex); source by extension first, dir rules only for non-code. */
+
+import { isTestFile } from "./test-paths.js";
+
+// `test` is code the coverage machinery wants (link resolution, backfill candidates) and the assembled bundle mostly does not: a test file keyword-matches every symbol it exercises, so it outranked the source for questions about the source.
+export type ContentType = "doc" | "adr" | "spec" | "code" | "test";
+
+const BINARY_RE =
+  /\.(png|jpg|jpeg|gif|svg|ico|woff2?|ttf|eot|pdf|zip|tar|gz|lock)$/i;
+// Build output and generated artifacts: thousands of lines nobody authored, which keyword-match everything (a 30k-line openapi typings file ranked first for a graph-schema question on 2026-09-09).
+const GENERATED_RE =
+  /(\.d\.ts|\.min\.(?:js|css)|-lock\.(?:json|ya?ml)|\.generated\.[a-z]+|(?:^|\/)openapi\.json)$|(?:^|\/)(?:dist|build|node_modules|coverage)\//;
+const CODE_RE =
+  /\.(ts|tsx|js|jsx|mjs|cjs|py|go|sh|rs|java|rb|kt|c|cpp|h|hpp|css|scss|sass|less)$/;
+
+function isDocFile(path: string): boolean {
+  return (
+    path.endsWith("CLAUDE.md") ||
+    path.endsWith("AGENTS.md") ||
+    path.endsWith("CODEOWNERS")
+  );
+}
+
+function isSpecPath(path: string): boolean {
+  return /(?:^|\/)specs\//.test(path) || path.startsWith(".specify/");
+}
+
+function isMarkupDoc(path: string): boolean {
+  return (
+    path.endsWith(".md") || path.endsWith(".yaml") || path.endsWith(".yml")
+  );
+}
+
+interface ClassifyRule {
+  test: (path: string) => boolean;
+  type: ContentType | null;
+}
+
+const CLASSIFY_RULES: ClassifyRule[] = [
+  // Retired docs live in the repo-root graveyard/ and must never be indexed.
+  { test: (path) => path.startsWith("graveyard/"), type: null },
+  // Fixtures not content; fake links would be real rot to validator (#1015).
+  {
+    test: (path) => /(?:^|\/)(?:fixtures|__fixtures__)\//.test(path),
+    type: null,
+  },
+  { test: (path) => BINARY_RE.test(path), type: null },
+  { test: (path) => GENERATED_RE.test(path), type: null },
+  { test: isDocFile, type: "doc" },
+  // Extension wins over directory: a source file is code wherever it lives — a test-named one is `test`.
+  { test: (path) => CODE_RE.test(path) && isTestFile(path), type: "test" },
+  { test: (path) => CODE_RE.test(path), type: "code" },
+  { test: (path) => /(?:^|\/)adrs\//.test(path), type: "adr" },
+  { test: isSpecPath, type: "spec" },
+  { test: (path) => /(?:^|\/)runbooks\//.test(path), type: "doc" },
+  { test: isMarkupDoc, type: "doc" },
+];
+
+export function classifyFile(path: string): ContentType | null {
+  const rule = CLASSIFY_RULES.find((r) => r.test(path));
+
+  return rule ? rule.type : null;
+}
+
+/** Read-side twin of classifyFile; drops exclusions (#1018: stale debris resurfacing as findings); auto-inherited. */
+export function dropIngestExcluded<T extends { filePath: string }>(
+  rows: T[],
+): T[] {
+  return rows.filter((r) => classifyFile(r.filePath) !== null);
+}

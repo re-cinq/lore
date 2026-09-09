@@ -175,7 +175,7 @@ that is where the code writing those tables happened to live. Proximity to the
 writer is not a reason to host a reader.
 
 **The rule, restated so it can be enforced:** `/api/*` reads are served by
-`lore-api`, one folder per endpoint under `apps/lore-api/src/api/routes/`. A route
+`lore-api`, one folder per endpoint under `apps/lore-api/src/transport/routes/`. A route
 may live on the Floor only if it needs one of the Floor's three exclusive powers
 ([ADR-024](./ADR-024-ubiquitous-language-execution-model.md), amendment 2026-08).
 Today exactly four qualify:
@@ -210,7 +210,7 @@ code, and the ambiguity between them is what invites a shape being declared in
 both. The line:
 
 - **A persisted data model** — the shape of a table — lives in
-  `libs/shared/src/models/`, one file per entity, carrying a schema, the type
+  `libs/shared/src/domain/models/`, one file per entity, carrying a schema, the type
   inferred from it, and the map binding each field to its column. Adapters build
   their SELECT lists from that map; API contracts derive their stored fields from
   it. One declaration reaches from the column to the generated client.

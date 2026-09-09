@@ -24,69 +24,87 @@ const BTN: React.CSSProperties = {
   fontSize: "var(--fs-sm)",
 };
 
-/**
- * Toolbar + graph container. Holds the search query and a reset signal, wiring
- * the ingest buttons, a live node-search input, and a Reset button into one row
- * above the D3 graph. Reset clears the persisted layout for this repo and bumps
- * `resetSignal`, which re-runs the graph's layout effect from scratch.
- */
-export default function GraphView({
-  owner,
-  repo,
-  data,
-}: {
+const TOOLBAR_ROW = {
+  display: "flex",
+  gap: 12,
+  alignItems: "flex-start",
+  justifyContent: "flex-end",
+  flexWrap: "wrap",
+} as const;
+
+const GRAPH_COLUMN = {
+  display: "flex",
+  flexDirection: "column",
+  flex: 1,
+  minHeight: 0,
+} as const;
+
+interface GraphToolbarProps {
+  query: string;
+  onQueryChange: (value: string) => void;
+  onReset: () => void;
+}
+
+/** Search and reset. Reset clears the SAVED layout as well as the query — a graph someone has dragged into a shape keeps that shape across visits, so resetting the search alone would leave it looking untouched. */
+function GraphToolbar({ query, onQueryChange, onReset }: GraphToolbarProps) {
+  return (
+    <div style={TOOLBAR_ROW}>
+      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <input
+          type="text"
+          placeholder="Search nodes…"
+          value={query}
+          onChange={(e) => onQueryChange(e.target.value)}
+          style={SEARCH_INPUT}
+          aria-label="Search nodes"
+        />
+        <button style={BTN} onClick={onReset}>
+          Reset
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Forgets the dragged-into-place layout for this repo. Storage being unavailable is not a failure worth surfacing — the reset signal alone still re-settles the graph, which is what the reader asked for. */
+function clearSavedLayout(repoId: string): void {
+  try {
+    localStorage.removeItem(`lore.graph:${repoId}`);
+  } catch {
+    // storage unavailable — the signal bump alone still re-settles the layout
+  }
+}
+
+interface GraphViewProps {
   owner: string;
   repo: string;
-  data: SpecGraph;
-}) {
+  graph: SpecGraph;
+}
+
+/** The search query and the reset signal the layout effect watches; resetting bumps the signal AND drops the saved layout. */
+function useGraphViewState(repoId: string) {
   const [query, setQuery] = useState("");
   const [resetSignal, setResetSignal] = useState(0);
-  const repoId = `${owner}/${repo}`;
 
   function reset() {
-    try {
-      localStorage.removeItem(`lore.graph:${repoId}`);
-    } catch {
-      // storage unavailable — the signal bump alone still re-settles the layout
-    }
+    clearSavedLayout(repoId);
     setQuery("");
     setResetSignal((n) => n + 1);
   }
 
+  return { query, setQuery, resetSignal, reset };
+}
+
+/** Toolbar + graph container with search/reset; reset clears persisted layout and re-runs layout effect. */
+export default function GraphView({ owner, repo, graph }: GraphViewProps) {
+  const repoId = `${owner}/${repo}`;
+  const { query, setQuery, resetSignal, reset } = useGraphViewState(repoId);
+
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        flex: 1,
-        minHeight: 0,
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          gap: 12,
-          alignItems: "flex-start",
-          justifyContent: "flex-end",
-          flexWrap: "wrap",
-        }}
-      >
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <input
-            type="text"
-            placeholder="Search nodes…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            style={SEARCH_INPUT}
-            aria-label="Search nodes"
-          />
-          <button style={BTN} onClick={reset}>
-            Reset
-          </button>
-        </div>
-      </div>
+    <div style={GRAPH_COLUMN}>
+      <GraphToolbar query={query} onQueryChange={setQuery} onReset={reset} />
       <SpecGraphD3
-        data={data}
+        graph={graph}
         repo={repoId}
         searchQuery={query}
         resetSignal={resetSignal}

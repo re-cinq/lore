@@ -1,16 +1,4 @@
-/**
- * In-sync mirror of the dark-factory resolver/defaults. Canonical implementation
- * lives in @re-cinq/lore-shared (libs/shared/src/dark-factory-settings.ts); web-ui
- * is not a workspace member, so it keeps this mirror — matching how lib/db.ts,
- * lib/onboard-guard.ts, etc. mirror server libs. Keep both in step;
- * `dark-factory-resolve.parity.test.ts` holds the resolver and defaults in
- * lockstep with the canonical implementation.
- *
- * DECISION (#1419): not a type mirror at all — this mirrors the RESOLVER, and no
- * generated type replaces a function. The parity test is the right guard for
- * behaviour and it stays. Only the type half could ever be generated, and the
- * type half is not what this file is for.
- */
+// Mirror of @re-cinq/lore-shared dark-factory resolver; kept in sync by parity test (#1419)
 
 export type TrustLevel = "docs" | "tests" | "implementation" | "full";
 export type ReviewMode = "trust_based" | "always" | "never";
@@ -55,21 +43,65 @@ export const DEFAULT_AUTO_MERGE_PATHS = [
 export const DEFAULT_EXECUTION_IMAGE =
   "ghcr.io/re-cinq/lore-claude-runner:latest";
 
+function orDefault<T>(value: T | undefined | null, fallback: T): T {
+  return value ?? fallback;
+}
+
+/** What each field falls back to when unset, per mode: dark mode narrows Issues, review, and notifications; light mode keeps the pre-dark behaviour. */
+const MODE_DEFAULTS = {
+  dark: {
+    create_issue: "on_gate",
+    review: "trust_based",
+    notify: [] as NotifyChannel[],
+  },
+  light: {
+    create_issue: "always",
+    review: "always",
+    notify: ["all"] as NotifyChannel[],
+  },
+} as const satisfies Record<
+  string,
+  Pick<ResolvedDarkFactorySettings, "create_issue" | "review" | "notify">
+>;
+
+const DEFAULT_AUTO_MERGE: ResolvedDarkFactorySettings["auto_merge"] = {
+  paths: DEFAULT_AUTO_MERGE_PATHS,
+  min_trust: "docs",
+  require_green_ci: true,
+  require_bot_approval: true,
+};
+
+function resolveAutoMerge(
+  autoMerge: DarkFactorySettings["auto_merge"],
+): ResolvedDarkFactorySettings["auto_merge"] {
+  const given = autoMerge ?? {};
+
+  return {
+    paths: orDefault(given.paths, DEFAULT_AUTO_MERGE.paths),
+    min_trust: orDefault(given.min_trust, DEFAULT_AUTO_MERGE.min_trust),
+    require_green_ci: orDefault(
+      given.require_green_ci,
+      DEFAULT_AUTO_MERGE.require_green_ci,
+    ),
+    require_bot_approval: orDefault(
+      given.require_bot_approval,
+      DEFAULT_AUTO_MERGE.require_bot_approval,
+    ),
+  };
+}
+
 export function resolveDarkFactorySettings(
   partial: DarkFactorySettings | null | undefined,
 ): ResolvedDarkFactorySettings {
-  const enabled = partial?.enabled ?? false;
+  const given = partial ?? {};
+  const enabled = given.enabled ?? false;
+  const fallback = enabled ? MODE_DEFAULTS.dark : MODE_DEFAULTS.light;
 
   return {
     enabled,
-    create_issue: partial?.create_issue ?? (enabled ? "on_gate" : "always"),
-    auto_merge: {
-      paths: partial?.auto_merge?.paths ?? DEFAULT_AUTO_MERGE_PATHS,
-      min_trust: partial?.auto_merge?.min_trust ?? "docs",
-      require_green_ci: partial?.auto_merge?.require_green_ci ?? true,
-      require_bot_approval: partial?.auto_merge?.require_bot_approval ?? true,
-    },
-    review: partial?.review ?? (enabled ? "trust_based" : "always"),
-    notify: partial?.notify ?? (enabled ? [] : ["all"]),
+    create_issue: orDefault(given.create_issue, fallback.create_issue),
+    auto_merge: resolveAutoMerge(given.auto_merge),
+    review: orDefault(given.review, fallback.review),
+    notify: orDefault(given.notify, [...fallback.notify]),
   };
 }

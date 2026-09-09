@@ -19,6 +19,17 @@ export function CancelTaskButton({ taskId }: { taskId: string }) {
   }
 
   return (
+    <CancelConfirmForm taskId={taskId} onKeep={() => setConfirming(false)} />
+  );
+}
+
+interface CancelConfirmFormProps {
+  taskId: string;
+  onKeep: () => void;
+}
+
+function CancelConfirmForm({ taskId, onKeep }: CancelConfirmFormProps) {
+  return (
     <form
       action={`/api/tasks/${taskId}/cancel`}
       method="POST"
@@ -28,7 +39,7 @@ export function CancelTaskButton({ taskId }: { taskId: string }) {
       <button type="submit" className="danger">
         Confirm cancel
       </button>
-      <button type="button" onClick={() => setConfirming(false)}>
+      <button type="button" onClick={onKeep}>
         Keep task
       </button>
     </form>

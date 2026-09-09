@@ -18,8 +18,8 @@
 #   CLAUDE_CODE_OAUTH_TOKEN (bills a subscription) or ANTHROPIC_API_KEY.
 # Optional: GITHUB_TOKEN (a PAT scoped to the repos this satellite may push
 #   to) — without it, claimed runs that need a git push fail "GitHub not
-#   configured" after launch; runs that don't (validate, gate, detect,
-#   comment-triage) are unaffected. Handing a satellite a GitHub credential
+#   configured" after launch; runs that don't (validate, gate, detect)
+#   are unaffected. Handing a satellite a GitHub credential
 #   is a deliberate choice, so this is never required.
 # Optional: LORE_AGENT_EVENTS_URL (--telemetry-url) — the central Floor's
 #   agent-telemetry ingress. Set it and this cluster's runs stream live
@@ -35,8 +35,7 @@
 #   the skills block entirely — and because the adapter passes --settings
 #   unconditionally, every Claude-agent node on this satellite then dies at
 #   startup with "Settings file not found". Set it unless this satellite
-#   only ever claims non-agent stations (validate, gate, detect,
-#   comment-triage).
+#   only ever claims non-agent stations (validate, gate, detect).
 # Installs into the CURRENT kubectl context; pass --context to assert which
 # one that must be (the install refuses on a mismatch instead of landing a
 # satellite in whatever context happened to be active).
@@ -84,7 +83,7 @@ kubectl version >/dev/null 2>&1 || die "cannot reach the cluster behind context 
 
 name="${LORE_CLUSTER_AGENT_NAME:-satellite-$context}"
 # Only the Claude-agent node type by default. Every seeded STATION recipe
-# (def-validate, def-gate, def-detect, def-comment-triage, …) mounts
+# (def-validate, def-gate, def-detect, …) mounts
 # LORE_INGEST_TOKEN, and FR5 keeps that credential on the central cluster —
 # so a satellite that advertises node:validate claims the node and then dies
 # at init with CreateContainerConfigError, wasting the claim and the run

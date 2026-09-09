@@ -1,23 +1,25 @@
 "use client";
 
+import { Alert } from "@/components/Alert";
 import MockupSection from "./MockupSection";
 import styles from "./GapSections.module.scss";
 import Markdown from "@/components/Markdown";
 import { sectionsOf } from "@/lib/gap-sections";
-import type {
-  GapResult,
-  GapQuestion,
-  SectionAnswers,
-  SectionDirection,
-} from "@/lib/feature-types";
+import {
+  SectionFeedback,
+  QuestionInput,
+  type FeedbackState,
+} from "./GapFeedbackInputs";
 
 const FREE_FORM_MAX = 5000;
 
-export interface FeedbackState {
-  sections: Record<string, { comment?: string; direction?: SectionDirection }>;
-  questions: Record<string, string>;
-  free_form: string;
-}
+import type {
+  GapResult,
+  GapSection,
+  SectionAnswers,
+} from "@/lib/feature-types";
+
+export type { FeedbackState };
 
 export function emptyFeedback(): FeedbackState {
   return { sections: {}, questions: {}, free_form: "" };
@@ -29,96 +31,6 @@ export function toUserAnswers(f: FeedbackState): SectionAnswers {
     questions: f.questions,
     free_form: f.free_form,
   };
-}
-
-function SectionFeedback({
-  sectionKey,
-  feedback,
-  onChange,
-}: {
-  sectionKey: string;
-  feedback: FeedbackState;
-  onChange: (next: FeedbackState) => void;
-}) {
-  const current = feedback.sections[sectionKey] ?? {};
-  const set = (patch: { comment?: string; direction?: SectionDirection }) =>
-    onChange({
-      ...feedback,
-      sections: {
-        ...feedback.sections,
-        [sectionKey]: { ...current, ...patch },
-      },
-    });
-
-  return (
-    <div className={styles.feedback}>
-      <div className={styles.directionRow}>
-        <select
-          value={current.direction ?? "keep"}
-          onChange={(e) =>
-            set({ direction: e.target.value as SectionDirection })
-          }
-          aria-label={`${sectionKey} direction`}
-        >
-          <option value="keep">Keep</option>
-          <option value="refine">Refine</option>
-          <option value="redirect">Redirect</option>
-        </select>
-      </div>
-      <textarea
-        className={styles.commentInput}
-        placeholder="Comment / direction for this section"
-        value={current.comment ?? ""}
-        onChange={(e) => set({ comment: e.target.value })}
-      />
-    </div>
-  );
-}
-
-/** One follow-up question for a section — short label, detail in `why`, answer input. */
-function QuestionInput({
-  q,
-  feedback,
-  onChange,
-}: {
-  q: GapQuestion;
-  feedback: FeedbackState;
-  onChange: (next: FeedbackState) => void;
-}) {
-  const set = (value: string) =>
-    onChange({
-      ...feedback,
-      questions: { ...feedback.questions, [q.id]: value },
-    });
-
-  return (
-    <div className={styles.question}>
-      <label htmlFor={q.id} className={styles.questionLabel}>
-        {q.question}
-      </label>
-      {q.why && <p className={`meta ${styles.questionWhy}`}>{q.why}</p>}
-      {q.kind === "choice" && q.options ? (
-        <select
-          id={q.id}
-          value={feedback.questions[q.id] ?? ""}
-          onChange={(e) => set(e.target.value)}
-        >
-          <option value="">—</option>
-          {q.options.map((o) => (
-            <option key={o} value={o}>
-              {o}
-            </option>
-          ))}
-        </select>
-      ) : (
-        <input
-          id={q.id}
-          value={feedback.questions[q.id] ?? ""}
-          onChange={(e) => set(e.target.value)}
-        />
-      )}
-    </div>
-  );
 }
 
 function SectionCard({
@@ -138,103 +50,206 @@ function SectionCard({
   );
 }
 
-export default function GapSections({
-  gap,
-  feedback,
-  onChange,
+function EmptySections({ draft }: { draft: string }) {
+  if (draft) {
+    return (
+      <SectionCard title="Draft specification" highlight>
+        <Alert>
+          This round returned a single draft rather than reviewable sections.
+        </Alert>
+        <Markdown markdown={draft} />
+      </SectionCard>
+    );
+  }
+
+  return (
+    <SectionCard title="No analysis to review">
+      <Alert>
+        This round produced no reviewable analysis. Add direction below and
+        refine again.
+      </Alert>
+    </SectionCard>
+  );
+}
+
+/** The section's mockups, when the round produced any. */
+function SectionMockups({
+  section,
+  stylesheet,
+}: {
+  section: GapSection;
+  stylesheet: GapResult["mockup_stylesheet"];
+}) {
+  if (!section.mockups || section.mockups.length === 0) {
+    return null;
+  }
+
+  return <MockupSection mockups={section.mockups} stylesheet={stylesheet} />;
+}
+
+interface SectionBodyProps {
+  section: GapSection;
+  index: number;
+  gap: GapResult;
+  feedback: FeedbackState;
+  onChange: (next: FeedbackState) => void;
+}
+
+/** The section's follow-up questions, in the order the round asked them. */
+function SectionQuestions(props: Omit<SectionBodyProps, "index" | "gap">) {
+  const { section, feedback, onChange } = props;
+
+  return (
+    <>
+      {(section.questions ?? []).map((q) => (
+        <QuestionInput
+          key={q.id}
+          q={q}
+          feedback={feedback}
+          onChange={onChange}
+        />
+      ))}
+    </>
+  );
+}
+
+function SectionBody(props: SectionBodyProps) {
+  const { section, index, gap, feedback, onChange } = props;
+
+  return (
+    <SectionCard title={section.title} highlight={index === 0}>
+      {section.content && <Markdown markdown={section.content} />}
+      <SectionMockups section={section} stylesheet={gap.mockup_stylesheet} />
+      <SectionQuestions
+        section={section}
+        feedback={feedback}
+        onChange={onChange}
+      />
+      <SectionFeedback
+        sectionKey={section.title}
+        feedback={feedback}
+        onChange={onChange}
+      />
+    </SectionCard>
+  );
+}
+
+interface SplitSuggestionProps {
+  rationale: string;
+  proposedFeatures: { title: string; scope: string }[];
+  onCreateDraft: (title: string, prompt: string) => void;
+}
+
+function SplitSuggestion(props: SplitSuggestionProps) {
+  const { rationale, proposedFeatures, onCreateDraft } = props;
+
+  return (
+    <SectionCard title="This feature looks large — consider splitting">
+      <p>{rationale}</p>
+      {proposedFeatures.map((p, i) => (
+        <div key={i} className={styles.splitRow}>
+          <span>
+            <strong>{p.title}</strong> — <span className="meta">{p.scope}</span>
+          </span>
+          <button type="button" onClick={() => onCreateDraft(p.title, p.scope)}>
+            Create draft
+          </button>
+        </div>
+      ))}
+    </SectionCard>
+  );
+}
+
+/** The round's suggestion to split this feature, when it made one. */
+function SplitSuggestionSlot({
+  split,
   onCreateDraft,
 }: {
+  split: GapResult["split_suggestion"];
+  onCreateDraft: (title: string, prompt: string) => void;
+}) {
+  if (!split) {
+    return null;
+  }
+
+  return (
+    <SplitSuggestion
+      rationale={split.rationale}
+      // openapi marks proposed_features required, but it is an LLM-authored payload that can omit the array.
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+      proposedFeatures={split.proposed_features ?? []}
+      onCreateDraft={onCreateDraft}
+    />
+  );
+}
+
+interface FeedbackProps {
+  feedback: FeedbackState;
+  onChange: (next: FeedbackState) => void;
+}
+
+/** Direction that belongs to no section. Capped and counted because it rides into the next round's prompt: an unbounded field here is an unbounded prompt there. */
+function FreeFormCard(props: FeedbackProps) {
+  const { feedback, onChange } = props;
+
+  return (
+    <SectionCard title="Anything else?">
+      <textarea
+        rows={3}
+        maxLength={FREE_FORM_MAX}
+        placeholder="Free-form direction for the next round"
+        value={feedback.free_form}
+        onChange={(e) => onChange({ ...feedback, free_form: e.target.value })}
+      />
+      <p className={`meta ${styles.freeFormCount}`}>
+        {feedback.free_form.length}/{FREE_FORM_MAX}
+      </p>
+    </SectionCard>
+  );
+}
+
+interface GapSectionsProps {
   gap: GapResult;
   feedback: FeedbackState;
   onChange: (next: FeedbackState) => void;
   onCreateDraft: (title: string, prompt: string) => void;
-}) {
+}
+
+/** Every section the round produced. Keyed on title AND index because two sections can legitimately share a heading, and a duplicate key would let React reuse one section's inputs for the other. */
+function SectionList(
+  props: FeedbackProps & { sections: GapSection[]; gap: GapResult },
+) {
+  const { sections, gap, feedback, onChange } = props;
+
+  return sections.map((section, index) => (
+    <SectionBody
+      key={`${section.title}-${index}`}
+      section={section}
+      index={index}
+      gap={gap}
+      feedback={feedback}
+      onChange={onChange}
+    />
+  ));
+}
+
+export default function GapSections(props: GapSectionsProps) {
+  const { gap, feedback, onChange, onCreateDraft } = props;
   const sections = sectionsOf(gap);
-  // A round can return a valid GapResult with no sections at all (sanitizeGapResult
-  // accepts it) — one produced exactly that beside an 8KB draft. Rendering the
-  // section list alone would show a blank page over a result that exists, so fall
-  // back to the draft, and say so plainly when there is neither.
-  const draft = gap.draft_spec_markdown?.trim() ?? "";
 
   return (
     <div>
-      {sections.length === 0 && draft && (
-        <SectionCard title="Draft specification" highlight>
-          <p className="meta">
-            This round returned a single draft rather than reviewable sections.
-          </p>
-          <Markdown markdown={draft} />
-        </SectionCard>
+      {sections.length === 0 && (
+        <EmptySections draft={gap.draft_spec_markdown?.trim() ?? ""} />
       )}
-      {sections.length === 0 && !draft && (
-        <SectionCard title="No analysis to review">
-          <p className="meta">
-            This round produced no reviewable analysis. Add direction below and
-            refine again.
-          </p>
-        </SectionCard>
-      )}
-      {sections.map((section, i) => (
-        <SectionCard
-          key={`${section.title}-${i}`}
-          title={section.title}
-          highlight={i === 0}
-        >
-          {section.content && <Markdown markdown={section.content} />}
-          {section.mockups && section.mockups.length > 0 && (
-            <MockupSection
-              mockups={section.mockups}
-              stylesheet={gap.mockup_stylesheet}
-            />
-          )}
-          {section.questions?.map((q) => (
-            <QuestionInput
-              key={q.id}
-              q={q}
-              feedback={feedback}
-              onChange={onChange}
-            />
-          ))}
-          <SectionFeedback
-            sectionKey={section.title}
-            feedback={feedback}
-            onChange={onChange}
-          />
-        </SectionCard>
-      ))}
+      <SectionList {...props} sections={sections} />
 
-      {gap.split_suggestion && (
-        <SectionCard title="This feature looks large — consider splitting">
-          <p>{gap.split_suggestion.rationale}</p>
-          {(gap.split_suggestion.proposed_features ?? []).map((p, i) => (
-            <div key={i} className={styles.splitRow}>
-              <span>
-                <strong>{p.title}</strong> —{" "}
-                <span className="meta">{p.scope}</span>
-              </span>
-              <button
-                type="button"
-                onClick={() => onCreateDraft(p.title, p.scope)}
-              >
-                Create draft
-              </button>
-            </div>
-          ))}
-        </SectionCard>
-      )}
+      <SplitSuggestionSlot
+        split={gap.split_suggestion}
+        onCreateDraft={onCreateDraft}
+      />
 
-      <SectionCard title="Anything else?">
-        <textarea
-          rows={3}
-          maxLength={FREE_FORM_MAX}
-          placeholder="Free-form direction for the next round"
-          value={feedback.free_form}
-          onChange={(e) => onChange({ ...feedback, free_form: e.target.value })}
-        />
-        <p className={`meta ${styles.freeFormCount}`}>
-          {feedback.free_form.length}/{FREE_FORM_MAX}
-        </p>
-      </SectionCard>
+      <FreeFormCard feedback={feedback} onChange={onChange} />
     </div>
   );
 }

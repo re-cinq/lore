@@ -1,6 +1,4 @@
-/** Map a file path to a highlight.js language token (or '' when unknown, which
- * renders the code block as plain text). Used to label the synthesized fence a
- * code chunk is rendered through. */
+/** Maps a file path to a highlight.js language token ('' renders as plain text) — labels the fence a code chunk renders through. */
 const EXT_LANG: Record<string, string> = {
   ts: "typescript",
   mts: "typescript",
@@ -63,9 +61,7 @@ export function languageForPath(filePath: string): string {
   return EXT_LANG[base.slice(dot + 1)] ?? "";
 }
 
-/** A backtick fence long enough that the chunk content can't close it early.
- * CommonMark requires the closing fence to be at least as long as the opening
- * one, so we pick one backtick longer than the longest run in the content. */
+/** A backtick fence one longer than the longest run in the content, so CommonMark's closing-fence-length rule can't let the content close it early. */
 export function fenceFor(content: string): string {
   let longest = 0;
 

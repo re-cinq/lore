@@ -1,9 +1,4 @@
 // @vitest-environment jsdom
-// Guards the server->client boundary for the /specs and /adrs pages. Both are
-// server components rendering the "use client" GlobalDocsView, so every prop
-// they pass must be serializable — a function prop throws at render time in
-// production with the message redacted. The component's own tests render it
-// directly in jsdom, where a function prop is legal, so they cannot catch this.
 import { describe, it, expect, vi } from "vitest";
 import { isValidElement, type ReactElement } from "react";
 

@@ -72,4 +72,16 @@ describe("AssemblyRunView", () => {
       "https://github.com/re-cinq/lore/pull/7",
     );
   });
+
+  it("shows an em dash for branch and outcome when both are null", () => {
+    render(<AssemblyRunView run={run({ branch: null, outcome: null })} />);
+
+    expect(screen.getAllByText("—")).toHaveLength(2);
+  });
+
+  it("omits the PR link when the run carries no PR", () => {
+    render(<AssemblyRunView run={run({ prUrl: null, prNumber: null })} />);
+
+    expect(screen.queryByRole("link", { name: "#7" })).not.toBeInTheDocument();
+  });
 });

@@ -19,52 +19,56 @@ import HomeView, { type Repo } from "./HomeView";
 
 const HOME_REPO_LIMIT = 100;
 
+/** What an unconfigured GitHub App answers with: empty maps, which read downstream as "nothing to fix" rather than as an error. */
+function noWorkflowStatuses() {
+  return {
+    ingestStatus: new Map<string, IngestWorkflowStatus>(),
+    impactStatus: new Map<string, IngestWorkflowStatus>(),
+  };
+}
+
+/** Both workflow checks, or empty maps. Skipped entirely when the GitHub App is unconfigured — that path made zero GitHub calls (#1027). */
+async function readWorkflowStatuses(repos: Repo[]) {
+  if (!isGitHubConfigured()) {
+    return noWorkflowStatuses();
+  }
+  const names = repos.map((r) => r.full_name);
+  const [ingestStatus, impactStatus] = await Promise.all([
+    getIngestStatuses(names, (repo) =>
+      getRepoFileContent(repo, LORE_INGEST_WORKFLOW_PATH).then(
+        ingestWorkflowStatus,
+      ),
+    ),
+    getWorkflowStatuses("trace-impact", names, (repo) =>
+      getRepoFileContent(repo, TRACE_IMPACT_WORKFLOW_PATH).then(
+        traceImpactWorkflowStatus,
+      ),
+    ),
+  ]);
+
+  return { ingestStatus, impactStatus };
+}
+
+/** The repos whose workflow is missing or stale. A stale spec-impact workflow suppresses that repo's findings, so it is offered for fixing exactly like a missing one. */
+function needsFix(repos: Repo[], status: Map<string, IngestWorkflowStatus>) {
+  return repos
+    .filter((r) => {
+      const s = status.get(r.full_name);
+
+      return s === "missing" || s === "stale";
+    })
+    .map((r) => r.full_name);
+}
+
 export default async function HomePage() {
   // Query repos with activity summary, bounded to the most recently onboarded.
   const repoList = reposOrThrow(await listRepos());
-  // Deliberately ONE page: this list is sliced to the most recently onboarded
-  // few, so it never needed the whole set (unlike the pickers, which do).
+  // ONE page only: most recently onboarded repos (unlike pickers).
   const repos: Repo[] = repoList.repos.slice(0, HOME_REPO_LIMIT);
 
-  // Per-repo ingest-workflow alignment, TTL-cached so steady-state renders
-  // make zero GitHub calls (#1027). Skipped entirely when the GitHub App
-  // isn't configured so we never false-flag every repo as missing.
-  let ingestStatus = new Map<string, IngestWorkflowStatus>();
-
-  if (isGitHubConfigured()) {
-    ingestStatus = await getIngestStatuses(
-      repos.map((r) => r.full_name),
-      (repo) =>
-        getRepoFileContent(repo, LORE_INGEST_WORKFLOW_PATH).then(
-          ingestWorkflowStatus,
-        ),
-    );
-  }
-  // Same treatment for the spec-impact workflow. A stale one is not cosmetic:
-  // the backend suppresses a v1 client's findings, so the check is off until the
-  // repo updates.
-  let impactStatus = new Map<string, IngestWorkflowStatus>();
-
-  if (isGitHubConfigured()) {
-    impactStatus = await getWorkflowStatuses(
-      "trace-impact",
-      repos.map((r) => r.full_name),
-      (repo) =>
-        getRepoFileContent(repo, TRACE_IMPACT_WORKFLOW_PATH).then(
-          traceImpactWorkflowStatus,
-        ),
-    );
-  }
-  const needsFix = (status: Map<string, IngestWorkflowStatus>) =>
-    repos
-      .filter((r) => {
-        const s = status.get(r.full_name);
-
-        return s === "missing" || s === "stale";
-      })
-      .map((r) => r.full_name);
-  const misaligned = needsFix(ingestStatus);
-  const impactMisaligned = needsFix(impactStatus);
+  const { ingestStatus, impactStatus } = await readWorkflowStatuses(repos);
+  const misaligned = needsFix(repos, ingestStatus);
+  const impactMisaligned = needsFix(repos, impactStatus);
 
   return (
     <HomeView

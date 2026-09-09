@@ -5,14 +5,7 @@ import {
   type RepoEventsPage,
 } from "./pagination";
 
-/**
- * Reads a page of the per-repo event stream, shared by the server page (offset 0)
- * and the infinite-scroll API route. `repo` is a first-class column on
- * `pipeline.events` (migration 0024, denormalized from `params.repo`); only
- * `github.*` / `internal.*` events carry it, so org-wide `cron.*` / task-keyed
- * `kubernetes.*` events (repo NULL) are excluded by design. Asks for one row past
- * the page size so `hasMore` needs no COUNT.
- */
+/** Per-repo event stream reader: repo on pipeline.events (migration 0024), fetches one-past-page for hasMore. */
 export async function fetchRepoEvents(
   repo: string,
   offset: number,

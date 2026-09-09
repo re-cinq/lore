@@ -8,12 +8,7 @@ export interface RelayResult {
   stderr: string;
 }
 
-/**
- * Kernel-side driver for the BYO toolchain relay (ADR-025). Runs in the kernel
- * container and dispatches commands to the relay loop ({@link RELAY_SCRIPT})
- * in the repo's container over the shared control directory. See `relay-script.ts`
- * for the on-disk protocol.
- */
+// Kernel-side driver for the BYO toolchain relay (ADR-025): dispatches commands to the relay loop (RELAY_SCRIPT) in the repo's container over the shared control directory — see relay-script.ts for the on-disk protocol.
 export class RelayExecutor {
   private seq = 0;
 
@@ -22,13 +17,12 @@ export class RelayExecutor {
     private readonly opts: { timeoutMs?: number; pollMs?: number } = {},
   ) {}
 
-  /** Run a command in the BYO container's toolchain; resolves with its result. */
+  // Run a command in the BYO container's toolchain; resolves with its result.
   async run(command: string): Promise<RelayResult> {
     const n = ++this.seq;
 
     await mkdir(this.dir, { recursive: true });
-    // Write the command body first, then the .ready marker, so the relay never
-    // picks up a partially-written request.
+    // Write the command body first, then the .ready marker, so the relay never picks up a partially-written request.
     await writeFile(join(this.dir, `req-${n}.sh`), command);
     await writeFile(join(this.dir, `req-${n}.ready`), "");
 
@@ -43,7 +37,7 @@ export class RelayExecutor {
     return { exitCode: Number.isNaN(code) ? -1 : code, stdout, stderr };
   }
 
-  /** Signal the relay to exit, terminating the BYO sidecar. */
+  // Signal the relay to exit, terminating the BYO sidecar.
   async shutdown(): Promise<void> {
     await mkdir(this.dir, { recursive: true });
     await writeFile(join(this.dir, "shutdown"), "");

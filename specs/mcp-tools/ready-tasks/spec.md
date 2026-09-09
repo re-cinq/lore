@@ -22,7 +22,7 @@ picks the next workable item without scanning the whole backlog.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L262)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/pipeline-tools-spec-tasks.ts#L53)).
 
 - **name**: `lore_ready_tasks`
 - **description** (verbatim):
@@ -45,7 +45,7 @@ Lists spec-tasks that are 'pending' AND whose every dependency has completed —
    adapter holds no pool (ADR-032), so the dependency query runs in lore-api
    ([`GET /api/spec-tasks/ready`](../../api-routes/spec-tasks/spec.md)).
 3. The route delegates to `getReadyTasks(pool, repo)`
-   ([handler](../../../libs/server-core/src/features/pipeline/tasks.ts#L24)). It runs a single query
+   ([handler](../../../libs/server-core/src/work/pipeline/tasks.ts#L24)). It runs a single query
    selecting `id, description, status, context_bundle, agent_id` from
    `pipeline.tasks` where `task_type = 'spec-task'`, `target_repo = $1`,
    `status = 'pending'`, and a correlated `NOT EXISTS` over each
@@ -74,18 +74,18 @@ A single MCP text content block: the `## Ready tasks` markdown list, the
 ## Acceptance Criteria
 
 The dependency query returns the rows it produces, filtered to pending
-spec-tasks with satisfied dependencies. ([validated by `returns the rows the dependency query produces`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L118))
+spec-tasks with satisfied dependencies. ([validated by `returns the rows the dependency query produces`](apps/mcp-server/src/work/pipeline/tasks-db.test.ts#L116))
 
-When nothing qualifies the handler returns an empty list. ([validated by `returns an empty list when no tasks are ready`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L139))
+When nothing qualifies the handler returns an empty list. ([validated by `returns an empty list when no tasks are ready`](apps/mcp-server/src/work/pipeline/tasks-db.test.ts#L137))
 
 Each ready task renders as one `- **{spec_task_id}** ({id}): {description}`
-bullet under a `## Ready tasks` heading. ([validated by `lore_ready_tasks renders one bullet per ready task`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L363))
+bullet under a `## Ready tasks` heading. ([validated by `lore_ready_tasks renders one bullet per ready task`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L498))
 
 An empty ready set renders the "No ready tasks" message rather than an empty
-list. ([validated by `lore_ready_tasks reports an empty ready set`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L384))
+list. ([validated by `lore_ready_tasks reports an empty ready set`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L519))
 
 An unconfigured API yields the not-configured message rather than a PostgreSQL
-message. ([validated by `every proxied pipeline tool reports a missing API configuration`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L440))
+message. ([validated by `every proxied pipeline tool reports a missing API configuration`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L575))
 
 ## Out of Scope
 

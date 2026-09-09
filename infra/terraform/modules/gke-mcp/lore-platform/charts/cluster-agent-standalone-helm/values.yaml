@@ -24,7 +24,7 @@ name: ""
 
 # Capability tags this cluster offers, e.g. ["node:agent"]. Rendered
 # comma-joined into LORE_CLUSTER_AGENT_TAGS. Advertise a STATION type
-# (node:validate, node:gate, node:detect, node:comment-triage) only if this
+# (node:validate, node:gate, node:detect) only if this
 # cluster can serve it: every seeded station recipe mounts LORE_INGEST_TOKEN,
 # which FR5 keeps central, so on a plain satellite such a claim dies at init
 # with CreateContainerConfigError and wastes the run.

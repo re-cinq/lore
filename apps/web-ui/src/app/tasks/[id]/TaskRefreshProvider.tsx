@@ -1,13 +1,6 @@
 "use client";
 
-// The task page's one refresh scheduler. The three data panels (timeline, logs,
-// PR status) used to each own a setInterval against their endpoint; this
-// provider replaces those with a single coordinated cadence, and — when the
-// task has a live assembly-line run — rides the existing run event stream as
-// an activity signal. Stream events only ever trigger refetches of the REST
-// endpoints; no event payload reaches panel state, so recorded outcomes stay
-// the only source badges render from. Every decision here is computed in
-// task-refresh-presenter; this file is the IO shell.
+// Single coordinated refresh cadence for all panels; IO shell for task-refresh-presenter logic.
 
 import {
   createContext,
@@ -20,12 +13,10 @@ import {
   useState,
 } from "react";
 import type { ReactNode } from "react";
-import type { ConnectionState } from "@/app/assembly-runs/[id]/run-stream-presenter";
-import { useRunEventStream } from "@/app/assembly-runs/[id]/useRunEventStream";
+import type { ConnectionState } from "@/lib/run-stream-presenter";
 import type { RunStreamEvent } from "@/lib/run-stream-types";
+import { useRunEventStream } from "@/app/assembly-runs/[id]/useRunEventStream";
 import {
-  eventRefreshDelayMs,
-  maxEventId,
   pickLiveRun,
   refreshIntervalMs,
   resolveRefreshDriver,
@@ -37,30 +28,21 @@ type Refresh = () => void | Promise<void>;
 
 interface TaskRefreshContextValue {
   register: (id: string, refresh: Refresh) => () => void;
-  setActive: (id: string, active: boolean) => void;
+  setActive: (id: string, next: Membership) => void;
   live: boolean;
 }
 
-// The default is deliberately inert: a panel rendered without the provider
-// (isolation tests, storybook-style harnesses) keeps its mount fetch and
-// simply never auto-refreshes.
+// Default context is inert (for tests without the provider).
 const TaskRefreshContext = createContext<TaskRefreshContextValue>({
   register: () => () => {},
   setActive: () => {},
   live: false,
 });
 
-/**
- * Registers a panel's refresh callback with the page coordinator. The callback
- * is held in a ref so the latest closure always runs (fetchers whose
- * useCallback identity shifts with their own state — the log offset fetcher —
- * need no special handling). `active` mirrors the panel's own poll gate; an
- * inactive panel is skipped on ticks and, once every panel is inactive, the
- * coordinator stops scheduling entirely.
- */
+/** Registers a panel's refresh callback; keeps latest closure via ref. */
 export function useCoordinatedRefresh(
   refresh: Refresh,
-  active: boolean,
+  { active }: Membership,
 ): { live: boolean } {
   const { register, setActive, live } = useContext(TaskRefreshContext);
   const id = useId();
@@ -73,10 +55,206 @@ export function useCoordinatedRefresh(
   useEffect(() => register(id, () => refreshRef.current()), [register, id]);
 
   useEffect(() => {
-    setActive(id, active);
+    setActive(id, { active });
   }, [setActive, id, active]);
 
   return { live };
+}
+
+interface StreamCallbackOptions {
+  setConnection: (state: ConnectionState) => void;
+  setStreamUnavailable: (unavailable: boolean) => void;
+  setLiveRunId: (id: string | null) => void;
+}
+
+/** Going offline latches the stream as unavailable, dropping the page to coordinated polling. */
+function useConnectionChange(
+  setConnection: (state: ConnectionState) => void,
+  setStreamUnavailable: (unavailable: boolean) => void,
+) {
+  return useCallback(
+    (next: ConnectionState) => {
+      setConnection(next);
+
+      if (next === "offline") {
+        setStreamUnavailable(true);
+      }
+    },
+    [setConnection, setStreamUnavailable],
+  );
+}
+
+/** Discovering a live run clears that latch and tries the stream again, because a fresh run is a fresh chance for it to work. */
+function useLiveRunFound(options: StreamCallbackOptions) {
+  const { setConnection, setStreamUnavailable, setLiveRunId } = options;
+
+  return useCallback(
+    (found: string | null) => {
+      if (found !== null) {
+        setStreamUnavailable(false);
+        setConnection("connecting");
+      }
+      setLiveRunId(found);
+    },
+    [setConnection, setStreamUnavailable, setLiveRunId],
+  );
+}
+
+/** The two transitions that change HOW the page refreshes. */
+function useStreamCallbacks(options: StreamCallbackOptions) {
+  const { setConnection, setStreamUnavailable } = options;
+
+  return {
+    onConnectionChange: useConnectionChange(
+      setConnection,
+      setStreamUnavailable,
+    ),
+    onLiveRunFound: useLiveRunFound(options),
+  };
+}
+
+/** Stream or poll. `EventSource` is probed rather than assumed: it is absent under SSR and in the test environment, and a page that assumed it would never fall back to polling there. */
+function pickDriver(input: {
+  liveRunId: string | null;
+  streamUnavailable: boolean;
+  anyPanelActive: boolean;
+}) {
+  return resolveRefreshDriver({
+    ...input,
+    eventSourceAvailable: typeof EventSource !== "undefined",
+  });
+}
+
+interface RefreshDriverOptions {
+  taskId: string;
+  taskStatus: string;
+  /** The task's runs at first render — the seed for which one is live. */
+  runs: readonly LiveRunCandidate[];
+}
+
+interface DriverSubscriptionOptions {
+  taskId: string;
+  taskStatus: string;
+  driver: ReturnType<typeof resolveRefreshDriver>;
+  connection: ConnectionState;
+  liveRunId: string | null;
+  afterId: string;
+  anyPanelActive: boolean;
+  refreshAll: () => void;
+  onEvent: (event: RunStreamEvent) => void;
+  onConnectionChange: (state: ConnectionState) => void;
+  onLiveRunFound: (runId: string | null) => void;
+}
+
+function useStreamSubscription(opts: DriverSubscriptionOptions) {
+  const { driver, liveRunId } = opts;
+
+  useRunEventStream({
+    runId: liveRunId ?? "",
+    afterId: opts.afterId,
+    enabled: driver === "stream" && liveRunId !== null,
+    onFrame: (frame) => {
+      if (frame.type === "agent_event") {
+        opts.onEvent(frame.event);
+      }
+    },
+    onConnectionChange: opts.onConnectionChange,
+  });
+}
+
+function useTickerSubscription(opts: DriverSubscriptionOptions) {
+  const { driver, liveRunId, taskStatus, anyPanelActive } = opts;
+
+  useRefreshTicker({
+    intervalMs: refreshIntervalMs(driver, opts.connection),
+    taskId: opts.taskId,
+    refreshAll: opts.refreshAll,
+    discoveryActive: runDiscoveryActive({
+      liveRunId,
+      taskStatus,
+      anyPanelActive,
+    }),
+    liveRunId,
+    onLiveRunFound: opts.onLiveRunFound,
+  });
+}
+
+/** Both ways of staying current, subscribed together. Neither is conditional: the stream hook is disabled rather than unmounted, and the ticker takes a null interval rather than being skipped, because a hook that comes and goes with the driver would break the rules of hooks the moment the fallback fires. */
+function useDriverSubscriptions(opts: DriverSubscriptionOptions) {
+  useStreamSubscription(opts);
+  useTickerSubscription(opts);
+}
+
+/** Everything the driver needs to remember across renders, plus the two callbacks that change it. */
+function useDriverState(runs: readonly LiveRunCandidate[]) {
+  const [liveRunId, setLiveRunId] = useState(() => pickLiveRun(runs));
+  const [streamUnavailable, setStreamUnavailable] = useState(false);
+  const [connection, setConnection] = useState<ConnectionState>("connecting");
+  const [afterId, setAfterId] = useState("0");
+  const { onConnectionChange, onLiveRunFound } = useStreamCallbacks({
+    setConnection,
+    setStreamUnavailable,
+    setLiveRunId,
+  });
+
+  return {
+    liveRunId,
+    streamUnavailable,
+    connection,
+    afterId,
+    setAfterId,
+    onConnectionChange,
+    onLiveRunFound,
+  };
+}
+
+/** Chooses how this page stays current and keeps it that way. The stream is preferred; falling back to POLLING is a one-way move within a mount — once the stream has proved unavailable, retrying it per render would reconnect on every refresh. Discovery keeps looking for a live run while the task is unfinished, because a run can start after the page loaded. */
+function useRefreshDriver({ taskId, taskStatus, runs }: RefreshDriverOptions) {
+  const state = useDriverState(runs);
+  const { liveRunId, streamUnavailable, connection } = state;
+  const { register, setActive, refreshAll, anyPanelActive } =
+    usePanelRegistry();
+  const driver = pickDriver({ liveRunId, streamUnavailable, anyPanelActive });
+  const onEvent = useCoalescedRefresh(refreshAll, state.setAfterId);
+
+  useDriverSubscriptions({
+    ...state,
+    taskId,
+    taskStatus,
+    driver,
+    anyPanelActive,
+    refreshAll,
+    onEvent,
+  });
+
+  return { register, setActive, driver, connection };
+}
+
+import {
+  usePanelRegistry,
+  useCoalescedRefresh,
+  useRefreshTicker,
+  type Membership,
+} from "./refresh-mechanics";
+
+/** The context the panels read: who to call on a tick, and whether the page is genuinely live. */
+function useRefreshContextValue(
+  options: RefreshDriverOptions,
+): TaskRefreshContextValue {
+  const { register, setActive, driver, connection } = useRefreshDriver(options);
+  const live = driver === "stream" && connection === "live";
+
+  return useMemo(
+    () => ({ register, setActive, live }),
+    [register, setActive, live],
+  );
+}
+
+interface TaskRefreshProviderProps {
+  taskId: string;
+  taskStatus: string;
+  runs: readonly LiveRunCandidate[];
+  children: ReactNode;
 }
 
 export default function TaskRefreshProvider({
@@ -84,240 +262,8 @@ export default function TaskRefreshProvider({
   taskStatus,
   runs,
   children,
-}: {
-  taskId: string;
-  taskStatus: string;
-  runs: readonly LiveRunCandidate[];
-  children: ReactNode;
-}) {
-  const registryRef = useRef(new Map<string, Refresh>());
-  const [activeIds, setActiveIds] = useState<ReadonlySet<string>>(new Set());
-  const [liveRunId, setLiveRunId] = useState(() => pickLiveRun(runs));
-  const [streamUnavailable, setStreamUnavailable] = useState(false);
-  const [connection, setConnection] = useState<ConnectionState>("connecting");
-  const [afterId, setAfterId] = useState("0");
-  const lastRefreshAtRef = useRef(0);
-  const trailingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const activeIdsRef = useRef(activeIds);
-  const liveRunIdRef = useRef(liveRunId);
-
-  // Seeded at mount (an effect — Date.now during render is impure): the panels
-  // just fetched on their own mount effects, so the stream's catch-up replay
-  // burst must not trigger an immediate re-fetch wave. This effect runs before
-  // the stream effect can deliver any event.
-  useEffect(() => {
-    lastRefreshAtRef.current = Date.now();
-  }, []);
-
-  useEffect(
-    () => () => {
-      if (trailingTimerRef.current !== null) {
-        clearTimeout(trailingTimerRef.current);
-      }
-    },
-    [],
-  );
-
-  useEffect(() => {
-    activeIdsRef.current = activeIds;
-  }, [activeIds]);
-
-  useEffect(() => {
-    liveRunIdRef.current = liveRunId;
-  }, [liveRunId]);
-
-  const register = useCallback((id: string, refresh: Refresh) => {
-    registryRef.current.set(id, refresh);
-
-    return () => {
-      registryRef.current.delete(id);
-      setActiveIds((prev) => {
-        if (!prev.has(id)) {
-          return prev;
-        }
-        const next = new Set(prev);
-
-        next.delete(id);
-
-        return next;
-      });
-    };
-  }, []);
-
-  const setActive = useCallback((id: string, active: boolean) => {
-    setActiveIds((prev) => {
-      if (prev.has(id) === active) {
-        return prev;
-      }
-      const next = new Set(prev);
-
-      if (active) {
-        next.add(id);
-      } else {
-        next.delete(id);
-      }
-
-      return next;
-    });
-  }, []);
-
-  const refreshAll = useCallback(() => {
-    lastRefreshAtRef.current = Date.now();
-
-    for (const id of activeIdsRef.current) {
-      void registryRef.current.get(id)?.();
-    }
-  }, []);
-
-  const anyPanelActive = activeIds.size > 0;
-  const driver = resolveRefreshDriver({
-    liveRunId,
-    eventSourceAvailable: typeof EventSource !== "undefined",
-    streamUnavailable,
-    anyPanelActive,
-  });
-
-  // Immediate refresh past the throttle window; inside it, one trailing
-  // refresh at the boundary so a burst's final events (the outcome writes)
-  // never wait for the heartbeat.
-  const onEvent = useCallback(
-    (event: RunStreamEvent) => {
-      setAfterId((prev) => maxEventId(prev, event.id));
-
-      const delayMs = eventRefreshDelayMs(lastRefreshAtRef.current, Date.now());
-
-      if (delayMs === 0) {
-        refreshAll();
-
-        return;
-      }
-
-      if (trailingTimerRef.current !== null) {
-        return;
-      }
-
-      trailingTimerRef.current = setTimeout(() => {
-        trailingTimerRef.current = null;
-        refreshAll();
-      }, delayMs);
-    },
-    [refreshAll],
-  );
-
-  // "offline" from the hook means it gave up for good; flipping
-  // streamUnavailable hands the page to the coordinated poll — the same
-  // degradation the assembly-runs panel uses.
-  const onConnectionChange = useCallback((next: ConnectionState) => {
-    setConnection(next);
-
-    if (next === "offline") {
-      setStreamUnavailable(true);
-    }
-  }, []);
-
-  useRunEventStream({
-    runId: liveRunId ?? "",
-    afterId,
-    enabled: driver === "stream" && liveRunId !== null,
-    onEvent,
-    onConnectionChange,
-  });
-
-  const intervalMs = refreshIntervalMs(driver, connection);
-  const discoveryActive = runDiscoveryActive({
-    liveRunId,
-    taskStatus,
-    anyPanelActive,
-  });
-  const discoveryActiveRef = useRef(discoveryActive);
-
-  useEffect(() => {
-    discoveryActiveRef.current = discoveryActive;
-  }, [discoveryActive]);
-
-  useEffect(() => {
-    if (intervalMs === null) {
-      return;
-    }
-
-    let inFlight = false;
-    let cancelled = false;
-
-    // Re-read the recorded run rows: attach a fresh live run, detach when the
-    // attached one turned terminal (a live stream never closes on its own),
-    // and give a replacement run a clean stream chance even after a prior
-    // give-up latched streamUnavailable.
-    async function discoverRun() {
-      if (inFlight) {
-        return;
-      }
-
-      inFlight = true;
-
-      try {
-        const res = await fetch(`/api/tasks/${taskId}/runs`, {
-          signal: AbortSignal.timeout(15_000),
-        });
-
-        if (!res.ok) {
-          return;
-        }
-
-        const body = (await res.json()) as { runs?: unknown[] };
-
-        if (cancelled) {
-          return;
-        }
-
-        const candidates = (Array.isArray(body.runs) ? body.runs : []).filter(
-          (row): row is LiveRunCandidate => {
-            const r = row as Partial<LiveRunCandidate> | null;
-
-            return (
-              typeof r?.id === "string" &&
-              typeof r?.status === "string" &&
-              typeof r?.created_at === "string"
-            );
-          },
-        );
-        const found = pickLiveRun(candidates);
-
-        if (found === liveRunIdRef.current) {
-          return;
-        }
-
-        if (found !== null) {
-          setStreamUnavailable(false);
-          setConnection("connecting");
-        }
-
-        setLiveRunId(found);
-      } catch {
-        // The next tick retries.
-      } finally {
-        inFlight = false;
-      }
-    }
-
-    const handle = setInterval(() => {
-      refreshAll();
-
-      if (discoveryActiveRef.current) {
-        void discoverRun();
-      }
-    }, intervalMs);
-
-    return () => {
-      cancelled = true;
-      clearInterval(handle);
-    };
-  }, [intervalMs, taskId, refreshAll]);
-
-  const live = driver === "stream" && connection === "live";
-  const value = useMemo(
-    () => ({ register, setActive, live }),
-    [register, setActive, live],
-  );
+}: TaskRefreshProviderProps) {
+  const value = useRefreshContextValue({ taskId, taskStatus, runs });
 
   return (
     <TaskRefreshContext.Provider value={value}>

@@ -1,3 +1,4 @@
+import { Alert } from "@/components/Alert";
 import Link from "next/link";
 import { TimeAgo } from "@/components/TimeAgo";
 import { EmptyState } from "@/components/EmptyState";
@@ -8,15 +9,21 @@ import type {
 } from "@/lib/api/cluster-agents";
 import ConnectClusterPanel from "./ConnectClusterPanel";
 import PauseClusterButton from "./PauseClusterButton";
+import RestartClusterButton from "./RestartClusterButton";
+import DataTable from "@/components/DataTable";
+
+/** Central cluster: lore-api dials static in-cluster address; satellites have no inbound path. */
+const CENTRAL_CLUSTER_AGENT_NAME = "central";
 
 export interface ClusterAgentsViewProps {
   agents: ClusterAgentRow[];
   offlineEvents: ClusterOfflineEvent[];
   /** Null when the install hand-out could not be fetched (the panel hides). */
   installInfo: ClusterInstallInfo | null;
-  /** Takes one cluster out of the rotation, or puts it back. The container
-   *  binds the agent id, so this view never chooses which. */
-  togglePaused: (id: string, paused: boolean) => Promise<void>;
+  /** Takes cluster in/out of rotation; container binds agent id. */
+  togglePaused: (id: string, next: { paused: boolean }) => Promise<void>;
+  /** Bounces the central cluster-agent. The container binds the agent id. */
+  restart: (id: string) => Promise<void>;
 }
 
 /** "12m 30s" from milliseconds; a claim age is minutes, not dates. */
@@ -28,155 +35,223 @@ export function formatElapsed(ms: number): string {
   return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
 }
 
-/**
- * Presentational view for the registered-clusters page (FR7 of
- * specs/running-stations-in-any-k8s-cluster). Pure render — the container
- * fetches the roster + offline log; this component only renders. The offline
- * table resolves an agent id to its registered name when the registry still
- * holds it (the audit row deliberately survives registry churn, so a deleted
- * agent falls back to its raw id).
- */
-export default function ClusterAgentsView({
-  agents,
-  offlineEvents,
-  installInfo,
+type ClusterAgent = ClusterAgentsViewProps["agents"][number];
+
+/** How many station runs this cluster is holding, linked to them when there are any. A zero is left as plain text: a link to an empty list is a dead end. */
+function RunningClaims({ agent }: { agent: ClusterAgent }) {
+  if (agent.running_claims === 0) {
+    return <>{agent.running_claims}</>;
+  }
+
+  return (
+    <Link href={`/assembly-runs?cluster_agent_id=${agent.id}`}>
+      {agent.running_claims}
+    </Link>
+  );
+}
+
+/** Pause, and — for the platform's own cluster only — restart. A satellite is someone else's cluster to bounce. Both actions are BOUND via `.bind()`: an inline arrow would not serialize to a client component. */
+function ClusterActions({
+  agent,
   togglePaused,
-}: ClusterAgentsViewProps) {
+  restart,
+}: Pick<ClusterAgentsViewProps, "togglePaused" | "restart"> & {
+  agent: ClusterAgent;
+}) {
+  return (
+    <span>
+      <PauseClusterButton
+        paused={agent.paused}
+        toggle={togglePaused.bind(null, agent.id)}
+      />
+      {agent.name === CENTRAL_CLUSTER_AGENT_NAME && (
+        <RestartClusterButton restart={restart.bind(null, agent.id)} />
+      )}
+    </span>
+  );
+}
+
+/** One cluster as a row of cells, in the roster's column order. */
+function rosterCells(
+  agent: ClusterAgent,
+  togglePaused: ClusterAgentsViewProps["togglePaused"],
+  restart: ClusterAgentsViewProps["restart"],
+) {
+  return [
+    agent.name,
+    <ClusterTags tags={agent.tags} key="tags" />,
+    <ClusterStatus status={agent.status} paused={agent.paused} key="status" />,
+    <TimeAgo date={agent.last_seen_at} key="seen" />,
+    <RunningClaims agent={agent} key="claims" />,
+    <ClusterActions
+      agent={agent}
+      togglePaused={togglePaused}
+      restart={restart}
+      key="actions"
+    />,
+  ];
+}
+
+type ClusterRosterProps = Pick<
+  ClusterAgentsViewProps,
+  "agents" | "togglePaused" | "restart"
+>;
+
+/** What each registered cluster can run and whether it is alive. Restart is offered only for the platform's own cluster — a satellite is not ours to bounce. */
+function ClusterRoster({ agents, togglePaused, restart }: ClusterRosterProps) {
+  if (agents.length === 0) {
+    return (
+      <EmptyState
+        title="No clusters registered"
+        description="A cluster-agent joins this roster when it registers against the Lore API."
+      />
+    );
+  }
+
+  return (
+    <DataTable
+      columns={["Name", "Tags", "Status", "Last seen", "Running claims", ""]}
+      rows={agents}
+      rowKey={(agent) => agent.id}
+      cells={(agent) => rosterCells(agent, togglePaused, restart)}
+    />
+  );
+}
+
+/** The cluster's name, falling back to its raw id (FR7). A cluster that has since been deleted still has events on record, and its id is more use to the reader than an em dash. */
+function clusterLabel(
+  clusterAgentId: string | null,
+  nameById: Map<string, string>,
+): string {
+  if (!clusterAgentId) {
+    return "—";
+  }
+
+  return nameById.get(clusterAgentId) ?? clusterAgentId;
+}
+
+/** The run this event requeued, when it names one. Shown by its first eight characters — enough to recognise, short enough for a table. */
+function RunLink({ runId }: { runId: string | null }) {
+  if (!runId) {
+    return <>—</>;
+  }
+
+  return <Link href={`/assembly-runs/${runId}`}>{runId.slice(0, 8)}</Link>;
+}
+
+interface OfflineEventsTableProps {
+  events: ClusterAgentsViewProps["offlineEvents"];
+  nameById: Map<string, string>;
+}
+
+/** A row appears when the reaper marks a cluster offline and requeues a station run it held, so a flapping cluster is visible as repetition here. */
+function OfflineEventsTable({ events, nameById }: OfflineEventsTableProps) {
+  return events.length === 0 ? (
+    <Alert variant="secondary">No offline events recorded.</Alert>
+  ) : (
+    <DataTable
+      columns={["Time", "Cluster", "Node", "Assembly run", "Held for"]}
+      rows={events}
+      rowKey={(event, index) =>
+        `${event.created_at}-${event.station_run_id ?? index}`
+      }
+      cells={(event) => offlineEventCells(event, nameById)}
+    />
+  );
+}
+
+/** One offline event as a row of cells, in the table's column order. */
+function offlineEventCells(
+  event: ClusterOfflineEvent,
+  nameById: Map<string, string>,
+) {
+  return [
+    <TimeAgo date={event.created_at} key="time" />,
+    clusterLabel(event.cluster_agent_id, nameById),
+    event.node_id ?? "—",
+    <RunLink runId={event.assembly_run_id} key="run" />,
+    event.elapsed_since_claim_ms === null
+      ? "—"
+      : formatElapsed(event.elapsed_since_claim_ms),
+  ];
+}
+
+/** Clusters view: pure render with offline audit fallback to raw id (FR7). */
+export default function ClusterAgentsView(props: ClusterAgentsViewProps) {
+  const { agents, offlineEvents, installInfo, togglePaused, restart } = props;
   const nameById = new Map(agents.map((agent) => [agent.id, agent.name]));
 
   return (
     <div>
+      <ClustersHeading />
+      {installInfo && <ConnectClusterPanel install={installInfo} />}
+      <ClusterRoster
+        agents={agents}
+        togglePaused={togglePaused}
+        restart={restart}
+      />
+      <OfflineEventsSection events={offlineEvents} nameById={nameById} />
+    </div>
+  );
+}
+
+function ClustersHeading() {
+  return (
+    <>
       <h1>Clusters</h1>
       <p className="meta page-lede">
         Every registered execution cluster: what it can run, whether it is
         alive, and how many station runs it currently holds.
       </p>
-      {installInfo && <ConnectClusterPanel info={installInfo} />}
-      {agents.length === 0 ? (
-        <EmptyState
-          title="No clusters registered"
-          description="A cluster-agent joins this roster when it registers against the Lore API."
-        />
-      ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Tags</th>
-              <th>Status</th>
-              <th>Last seen</th>
-              <th>Running claims</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {agents.map((agent) => (
-              <tr key={agent.id}>
-                <td>{agent.name}</td>
-                <td>
-                  {agent.tags.length === 0
-                    ? "—"
-                    : agent.tags.map((tag) => (
-                        <span key={tag} className="badge badge-gray">
-                          {tag}
-                        </span>
-                      ))}
-                </td>
-                <td>
-                  <span
-                    className={`badge ${
-                      agent.status === "offline" ? "badge-red" : "badge-green"
-                    }`}
-                  >
-                    {agent.status}
-                  </span>
-                  {/* Liveness and the operator switch are different facts: a
-                      paused cluster is alive and finishing its work, it is just
-                      not handed more. Both badges can show at once. */}
-                  {agent.paused && (
-                    <span className="badge badge-gray">paused</span>
-                  )}
-                </td>
-                <td>
-                  <TimeAgo date={agent.last_seen_at} />
-                </td>
-                <td>
-                  {agent.running_claims > 0 ? (
-                    <Link href={`/assembly-runs?cluster_agent_id=${agent.id}`}>
-                      {agent.running_claims}
-                    </Link>
-                  ) : (
-                    agent.running_claims
-                  )}
-                </td>
-                <td>
-                  {/* BOUND, never wrapped in an arrow. This is a server
-                      component: an inline closure is a plain function and
-                      React refuses to serialize it to a client component
-                      ("Functions cannot be passed directly to Client
-                      Components"), which took the whole page down. `.bind`
-                      produces a server action, which is serializable — and
-                      keeps the agent id server-side either way. */}
-                  <PauseClusterButton
-                    paused={agent.paused}
-                    toggle={togglePaused.bind(null, agent.id)}
-                  />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+    </>
+  );
+}
+
+function OfflineEventsSection({ events, nameById }: OfflineEventsTableProps) {
+  return (
+    <>
       <h2>Recent offline events</h2>
       <p className="meta">
         A row appears when the reaper marks a cluster offline and requeues a
         station run it held — a flapping cluster shows up here.
       </p>
-      {offlineEvents.length === 0 ? (
-        <p className="meta">No offline events recorded.</p>
-      ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>Time</th>
-              <th>Cluster</th>
-              <th>Node</th>
-              <th>Assembly run</th>
-              <th>Held for</th>
-            </tr>
-          </thead>
-          <tbody>
-            {offlineEvents.map((event, index) => (
-              <tr key={`${event.created_at}-${event.station_run_id ?? index}`}>
-                <td>
-                  <TimeAgo date={event.created_at} />
-                </td>
-                <td>
-                  {event.cluster_agent_id
-                    ? (nameById.get(event.cluster_agent_id) ??
-                      event.cluster_agent_id)
-                    : "—"}
-                </td>
-                <td>{event.node_id ?? "—"}</td>
-                <td>
-                  {event.assembly_run_id ? (
-                    <Link href={`/assembly-runs/${event.assembly_run_id}`}>
-                      {event.assembly_run_id.slice(0, 8)}
-                    </Link>
-                  ) : (
-                    "—"
-                  )}
-                </td>
-                <td>
-                  {event.elapsed_since_claim_ms === null
-                    ? "—"
-                    : formatElapsed(event.elapsed_since_claim_ms)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </div>
+      <OfflineEventsTable events={events} nameById={nameById} />
+    </>
+  );
+}
+
+function ClusterTags({ tags }: { tags: string[] }) {
+  if (tags.length === 0) {
+    return <>—</>;
+  }
+
+  return (
+    <>
+      {tags.map((tag) => (
+        <span key={tag} className="badge badge-gray">
+          {tag}
+        </span>
+      ))}
+    </>
+  );
+}
+
+/** Liveness and paused are independent, so both badges can show at once. */
+function ClusterStatus({
+  status,
+  paused,
+}: {
+  status: string;
+  paused: boolean;
+}) {
+  return (
+    <>
+      <span
+        className={`badge ${status === "offline" ? "badge-red" : "badge-green"}`}
+      >
+        {status}
+      </span>
+      {paused && <span className="badge badge-gray">paused</span>}
+    </>
   );
 }

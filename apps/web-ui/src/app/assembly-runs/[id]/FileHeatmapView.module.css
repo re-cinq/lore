@@ -20,6 +20,24 @@
   gap: var(--fs-xs);
 }
 
+/* A bar that opens a diff is a button, but reads like every other row; the pressed one keeps the hover tint. */
+.rowButton {
+  width: 100%;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+}
+
+.rowButton:hover,
+.rowButton[aria-pressed="true"] {
+  background: var(--bg-hover);
+}
+
 .path {
   overflow: hidden;
   font-family: var(--font-mono);
@@ -89,10 +107,4 @@
 .toggle:hover {
   background: var(--bg-hover);
   border-color: var(--border-hover);
-}
-
-.empty {
-  margin: 0;
-  font-size: var(--fs-sm);
-  color: var(--text-muted);
 }

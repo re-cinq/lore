@@ -58,8 +58,6 @@ describe("rewindOptions", () => {
 
 describe("lineageLabel", () => {
   it("names the round a fork descends from", () => {
-    // Round 5 descending from round 2 is the whole point of rewind — presenting it
-    // as a refinement of round 4 would misread the history as a straight line.
     expect(lineageLabel({ iteration: 5, label: "Round 5", parent: 2 })).toBe(
       "forked from round 2",
     );

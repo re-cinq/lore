@@ -1,4 +1,4 @@
-export * from "./project/index.js";
+export * from "./outbound/project/index.js";
 export {
   createTask as createPipelineTask,
   retryTask as retryPipelineTask,
@@ -6,24 +6,24 @@ export {
   listTasks as listPipelineTasks,
   recordEvent as recordTaskEvent,
   setTaskStatus,
-  updateTaskStatus,
   cancelTask as cancelPipelineTask,
   escalateTask as escalatePipelineTask,
   reviseTask as revisePipelineTask,
   markTaskMerged,
-  type CreateTaskInput,
-  type CreatedTask,
-  type RetriedTask,
-  type PipelineTaskRow,
   type TaskListRow,
-} from "./pipeline-tasks.js";
+} from "./domain/pipeline-tasks.js";
+// "./pipeline-task-actions.js" and "./pipeline-task-status.js" ride through pipeline-tasks.js/pipeline-task-core.js re-exports above.
+export * from "./domain/pipeline-task-core.js";
+export { enforceRepoTrustForTaskType } from "./domain/pipeline-task-trust.js";
 export {
   chunkFile,
   buildIngestedChunkMetadata,
   CHUNKER_VERSION,
-  type Chunk,
-} from "./chunker.js";
-export { redactSecrets } from "./redact.js";
+} from "./work/chunker.js";
+export * from "./work/chunker-symbols.js";
+export * from "./work/chunker-ast.js";
+export * from "./work/chunk-primitives.js";
+export { redactSecrets } from "./lib/redact.js";
 export {
   tokenSecretKey,
   perTaskName,
@@ -31,124 +31,61 @@ export {
   catalogLookupName,
   injectRepoToken,
   perTaskStation,
-} from "./cluster/per-task-token.js";
-export { preserveUnownedFields } from "./cluster/preserve-unowned.js";
-export { AGENT_MAX_TURNS } from "./cluster/agent-limits.js";
-export { CONTEXT_BOOTSTRAP } from "./agents/recipe-prompt.js";
-export type { AgentNodeStatus } from "./cluster/agent-node-status.js";
-export { statusFromAgentCr } from "./cluster/agent-node-status.js";
+} from "./outbound/cluster/per-task-token.js";
+export { preserveUnownedFields } from "./outbound/cluster/preserve-unowned.js";
+export { AGENT_MAX_TURNS } from "./outbound/cluster/agent-limits.js";
+export { CONTEXT_BOOTSTRAP } from "./domain/agents/recipe-prompt.js";
+export type { AgentNodeStatus } from "./outbound/cluster/agent-node-status.js";
+export { statusFromAgentCr } from "./outbound/cluster/agent-node-status.js";
 export type {
   AgentApi,
   AgentLister,
   AgentStatusReader,
   TokenProvisioner,
   TokenCleanup,
-} from "./cluster/cluster-ports.js";
+} from "./outbound/cluster/cluster-ports.js";
 export type {
   AgentPodInfo,
   PodSummary,
+  RunningPodInfo,
   PodLogSource,
-} from "./cluster/pod-logs-port.js";
+} from "./outbound/cluster/pod-logs-port.js";
 export {
   ClusterAgentClient,
   HttpAgentApi,
   HttpPodLogSource,
   HttpTokenCleanup,
   HttpAgentCatalog,
-} from "./cluster/cluster-agent-client.js";
+} from "./outbound/cluster/cluster-agent-client.js";
 export {
   writeEpisode,
   writeEpisodeWithCuration,
   type WriteEpisodeDeps,
   type CurationDeps,
-} from "./episode-writer.js";
+} from "./work/episode-writer.js";
 export {
   loadApprovalConfig,
   requiresApproval,
   getApprovalLabel,
   getApprovalConfig,
   type ApprovalConfig,
-} from "./approval-config.js";
+} from "./domain/approval-config.js";
 export {
   extractSection,
   stripCommentsAndWhitespace,
   sectionIsEmpty,
-} from "./pr-section-check.js";
-export {
-  getQueryEmbedding,
-  buildVertexUrl,
-} from "./embeddings/embedding-service.js";
-export { resolveAgentId } from "./agent-id.js";
-export { projectSpecFile } from "./spec-trace/project-spec-file.js";
-export { projectAdrFile } from "./spec-trace/project-adr-file.js";
-export {
-  descriptorsFromVitestList,
-  groupRunsByFile,
-  type VitestListEntry,
-} from "./spec-trace/trace-descriptors.js";
-export {
-  bindDescriptorsToSpecLinks,
-  type SpecSource,
-} from "./spec-trace/bind-descriptors-to-spec-links.js";
-export { resolveTestLines } from "./spec-trace/resolve-test-lines.js";
-export {
-  parseSpecAnchor,
-  parseSpecAnchors,
-  type SpecAnchor,
-} from "./spec-trace/spec-anchor.js";
-export { mapWithLimit } from "./concurrency/map-with-limit.js";
-export {
-  ingestSpecTrace,
-  type SpecTraceOutcome,
-} from "./spec-trace/ingest-spec-trace.js";
-export {
-  assembleTraceDocument,
-  fetchTraceDocument,
-  listSpecDocuments,
-  listAdrDocuments,
-  listAllSpecDocuments,
-  listAllAdrDocuments,
-  listSpecSummaries,
-  listAdrSummaries,
-  type SpecSummary,
-  type AdrSummary,
-  type TraceDocument,
-  type TraceStatement,
-  type TraceSection,
-  type TraceLinkRef,
-  type TraceCoverage,
-  type StatementState as TraceStatementState,
-} from "./spec-trace/assemble-trace-document.js";
-export {
-  fetchSpecGraph,
-  fetchSpecRing,
-  flattenSpecGraph,
-  flattenSpecRing,
-  mergePersistentFeatures,
-  specLabel,
-  adrLabel,
-  UNGROUPED_SECTION,
-  type SpecGraph,
-  type SpecGraphNode,
-  type SpecGraphLink,
-  type PersistentFeatureNode,
-  type SpecRing,
-  type RingSection,
-  type RingStatement,
-} from "./spec-trace/spec-graph.js";
-export {
-  planTraceUnits,
-  runTraceUnits,
-  type TraceUnit,
-} from "./spec-trace/trace-units.js";
-export { Llm } from "./llm/llm.js";
-export { selectProvider } from "./llm/select-provider.js";
-export { NoLlmProvider } from "./llm/no-llm-provider.js";
-export { FakeLlm } from "./llm/fake-llm.js";
-export { AnthropicProvider } from "./llm/anthropic-provider.js";
-export { OpenAiProvider } from "./llm/openai-provider.js";
-export { OllamaProvider } from "./llm/ollama-provider.js";
-export { CliProvider } from "./llm/cli-provider.js";
+} from "./work/pr-section-check.js";
+export * from "./outbound/embeddings/embedding-service.js";
+export { resolveAgentId } from "./outbound/agent-id.js";
+export * from "./work/index-spec-trace.js";
+export { mapWithLimit } from "./lib/concurrency/map-with-limit.js";
+export { Llm } from "./outbound/llm/llm.js";
+export { selectProvider } from "./outbound/llm/select-provider.js";
+export { NoLlmProvider } from "./outbound/llm/no-llm-provider.js";
+export { FakeLlm } from "./outbound/llm/fake-llm.js";
+export { AnthropicProvider } from "./outbound/llm/anthropic-provider.js";
+export { OllamaProvider } from "./outbound/llm/ollama-provider.js";
+export { CliProvider } from "./outbound/llm/cli-provider.js";
 export type {
   LlmProvider,
   LlmCompleteRequest,
@@ -156,61 +93,21 @@ export type {
   LlmToolRequest,
   LlmToolResult,
   LlmUsage,
-} from "./llm/llm-provider.js";
-export {
-  computeImpact,
-  buildImpactAnnotations,
-  buildImpactComment,
-  IMPACT_COMMENT_MARKER,
-  parseRanges,
-  type ChangedRange,
-  type ChangedDoc,
-  type ImpactOptions,
-  type ImpactReport,
-  type ImpactStatement,
-  type OrphanStatement,
-  type ImpactAnnotation,
-} from "./spec-trace/trace-impact.js";
-export {
-  readGraphBaseline,
-  stampGraphBaseline,
-  type GraphBaseline,
-} from "./spec-trace/graph-baseline.js";
-export {
-  assembleGraphContext,
-  fetchGraphContext,
-  DEFAULT_LIMIT as GRAPH_CONTEXT_DEFAULT_LIMIT,
-  type GraphContextBlock,
-  type GraphContextStatement,
-  type GraphContextResult,
-  type GraphSignal,
-} from "./spec-trace/graph-context.js";
-export {
-  runIngestGraph,
-  selectIngestFiles,
-  summarizeIngest,
-  chunkGlobsForKind,
-  INGEST_KINDS,
-  type IngestKind,
-  type IngestGraphParams,
-  type IngestGraphSummary,
-  type IngestGraphPorts,
-  type IngestKindDef,
-} from "./spec-trace/ingest-graph-task.js";
+} from "./outbound/llm/llm-provider.js";
 export {
   parseTasks,
   inferPhaseDependencies,
   syncTasksToDb,
   specSlugFromBranch,
   type ParsedTask,
-} from "./tasks.js";
+} from "./domain/tasks.js";
 export {
   insertEvent,
   eventRepo,
   SOURCES,
   type EventInsert,
   type EventSource,
-} from "./events.js";
+} from "./outbound/events.js";
 export {
   formatTrailers,
   formatValidatesTrailer,
@@ -218,13 +115,13 @@ export {
   parseValidatesTrailers,
   type Trailers,
   type ProvenanceRef,
-} from "./commit-trailers.js";
+} from "./domain/commit-trailers.js";
 export {
   StationInputSchema,
   parseStationInput,
   serializeStationInput,
   type StationInput,
-} from "./station-input.js";
+} from "./domain/station-input.js";
 export {
   resolveDarkFactorySettings,
   resolveExecutionImage,
@@ -240,145 +137,31 @@ export {
   type ReviewMode,
   type CreateIssueMode,
   type NotifyChannel,
-} from "./dark-factory-settings.js";
+} from "./domain/dark-factory-settings.js";
+export * from "./domain/dod/index.js";
 export type {
   PipelineTask,
   TaskStatus,
   TaskType,
   PRDetails,
   PRStatus,
-} from "./types.js";
+} from "./domain/types.js";
 export {
   parseReferences,
   linkifyMarkdown,
   type RefContext,
   type Segment,
-} from "./references.js";
-export {
-  parseSpecTitle,
-  extractSummary,
-  reassembleSpec,
-} from "./spec-summary.js";
-export {
-  segmentBlocks,
-  reassembleBlocks,
-  type Block,
-  type BlockKind,
-} from "./spec-blocks.js";
-export {
-  segmentStatements,
-  classifyByHeuristic,
-  buildIntroOrdinals,
-  type Statement,
-  type StatementKind,
-  type Testability,
-  type UntestableCategory,
-  type Classification,
-} from "./spec-segment.js";
-export {
-  docStatusPill,
-  parseDocStatus,
-  statusTier,
-  rewriteAdrStatusRow,
-  rewriteSpecStatusRow,
-  type DocKind,
-  type DocStatus,
-  type DocStatusPill,
-  type RewriteStatusOptions,
-  type StatusBucket,
-  type StatusTier,
-} from "./spec-status.js";
-export {
-  coverageStatusLabel,
-  coverageTier,
-  expectedStatus,
-  statementCoverage,
-  statusLabel,
-  unlinkedTestableStatements,
-  type CoverageTier,
-  type StatementCoverage,
-  type UnlinkedStatement,
-} from "./spec-status-coverage.js";
-export {
-  openSpecStatusFlipPr,
-  type StatusFlipOptions,
-  type StatusFlipResult,
-} from "./spec-status-flip.js";
-export { isTestFile, isDocFile, normalizeTestName } from "./test-paths.js";
-export {
-  parseTestCommandManifest,
-  resolveTestCommandManifest,
-  decideTestInterfaceCheck,
-  substituteSelector,
-  type TestCommandManifest,
-  type CoverageFormat,
-  type TestInterfaceCheck,
-} from "./test-command-manifest.js";
-export {
-  parseTestDescriptors,
-  parseRunResult,
-  type TestDescriptor,
-  type CoveredChunk,
-  type RunResult,
-  type TaggedRunResult,
-} from "./test-report.js";
-export {
-  LORE_INGEST_WORKFLOW_PATH,
-  LORE_INGEST_WORKFLOW_VERSION,
-  LORE_INGEST_WORKFLOW_CONTENT,
-  ingestWorkflowStatus,
-  parseIngestWorkflowVersion,
-  type IngestWorkflowStatus,
-} from "./ingest-workflow.js";
-export {
-  TRACE_IMPACT_WORKFLOW_PATH,
-  TRACE_IMPACT_WORKFLOW_VERSION,
-  TRACE_IMPACT_WORKFLOW_CONTENT,
-  traceImpactWorkflowStatus,
-  parseTraceImpactWorkflowVersion,
-  type TraceImpactWorkflowStatus,
-} from "./trace-impact-workflow.js";
-export {
-  parseTestLinksInStatement,
-  parseCodeLinksInStatement,
-  linksForStatements,
-  findMisplacedCoverageLinks,
-  resolveLinkPath,
-  type SpecLinkRef,
-  type TestLinkRef,
-  type CodeLinkRef,
-} from "./spec-link-parser.js";
-export {
-  specFeatureSlug,
-  hasDirectoryAffinity,
-  cosineSimilarity,
-  matchedAssertion,
-  deriveTestName,
-  parseEmbedding,
-  selectCandidates,
-  staleLinkKeys,
-  staleStatementOrdinals,
-  argmaxByTest,
-  hashSpecContent,
-  MAX_CANDIDATES_PER_SPEC,
-  EMBEDDING_THRESHOLD,
-  JUDGE_SCORE_THRESHOLD,
-  type Assertion,
-  type MatchKind,
-  type SpecTestLink,
-  type TestChunk,
-  type JudgeCandidate,
-  type SpecInput,
-  type CandidateSelection,
-  type Judgment,
-} from "./spec-judge.js";
-
-export { extractAssertions, type LlmJobContext } from "./spec-judge-llm.js";
+} from "./domain/references.js";
+// Re-exported via index-spec-content.js: "./spec-summary.js" "./spec-blocks.js" "./spec-segment.js" "./spec-sentence-split.js" "./spec-status.js" "./spec-status-coverage.js" "./spec-status-flip.js" "./test-paths.js" "./test-command-manifest.js" "./test-report.js" "./ingest-workflow.js" "./trace-impact-workflow.js" "./spec-link-parser.js" "./spec-judge.js" "./spec-judge-llm.js"
+export * from "./work/index-spec-content.js";
 
 export {
   memoryStore,
   setMemoryStore,
   selectMemoryStore,
+} from "./outbound/memory-store.js";
+// MemoryRecord is deliberately not re-exported here: project/index.js already exports an unrelated MemoryRecord (memory-port.ts).
+export {
   hasConnect,
   type MemoryStore,
   type MemoryTxClient,
@@ -386,10 +169,28 @@ export {
   type PgPool,
   type DgraphClientPort,
   type DgraphTxn,
-} from "./memory-store.js";
-export { PostgresMemoryStore } from "./postgres-memory-store.js";
-export { ShadowMemoryStore } from "./shadow-memory-store.js";
-export { DgraphMemoryStore } from "./dgraph-memory-store.js";
+} from "./domain/memory-store-types.js";
+export {
+  PostgresMemoryStore,
+  memoryListScope,
+} from "./outbound/postgres-memory-store.js";
+export { ShadowMemoryStore } from "./outbound/shadow-memory-store.js";
+export {
+  DgraphMemoryStore,
+  type GraphHop,
+} from "./outbound/dgraph-memory-store.js";
+export { toVectorLiteral, newUid } from "./outbound/dgraph-vector.js";
+export { withTxn } from "./outbound/dgraph-txn.js";
+export {
+  findLatestLive,
+  type MemoryRow,
+} from "./outbound/dgraph-memory-queries.js";
+export { flattenHops } from "./outbound/dgraph-graph-hops.js";
+export { contradictionNodes } from "./outbound/dgraph-fact-contradictions.js";
+export { searchMemories as dgraphSearchMemories } from "./outbound/dgraph-search.js";
+export { writeMemory as dgraphWriteMemory } from "./outbound/dgraph-memory-crud.js";
+export { persistFact as dgraphPersistFact } from "./outbound/dgraph-fact-episode.js";
+export { upsertEdge as dgraphUpsertEdge } from "./outbound/dgraph-graph-edges.js";
 export {
   rrfMerge,
   RRF_K,
@@ -398,12 +199,12 @@ export {
   scoreImportance,
   type MemorySearchResult,
   type RankedItem,
-} from "./memory-ranking.js";
+} from "./domain/memory-ranking.js";
 
 export {
   backfillMemoryToDgraph,
   type BackfillReport,
-} from "./backfill-memory.js";
+} from "./work/backfill-memory.js";
 
 export {
   evaluateParityGates,
@@ -411,20 +212,22 @@ export {
   meanTopkJaccard,
   type ParitySummary,
   type GateResult,
-} from "./backfill-parity.js";
+} from "./work/backfill-parity.js";
 
-export { auditDgraphAcl } from "./dgraph-acl-policy.js";
-export { createDgraphClient } from "./dgraph-client.js";
+export { auditDgraphAcl } from "./outbound/dgraph-acl-policy.js";
+export { createDgraphClient } from "./outbound/dgraph-client.js";
 export {
   classifyFile,
   dropIngestExcluded,
   type ContentType,
-} from "./content-classify.js";
-export { TEST_COMMAND_SETUP_PROMPT } from "./test-command-setup-prompt.js";
-export { LORE_TESTS_INSTRUCTION } from "./lore-tests-instruction.js";
+} from "./domain/content-classify.js";
+export { planChunkPrune } from "./domain/chunk-prune.js";
+export { stripCoverageLinks } from "./domain/spec-link-strip.js";
+export { TEST_COMMAND_SETUP_PROMPT } from "./lib/test-command-setup-prompt.js";
+export { LORE_TESTS_INSTRUCTION } from "./lib/lore-tests-instruction.js";
 
 // Pure-domain helpers relocated from agent/src/lib (Slice 2).
-export { allPathsMatch, matchingPatterns } from "./path-match.js";
+export { allPathsMatch, matchingPatterns } from "./lib/path-match.js";
 export {
   classifyError,
   errorMessage,
@@ -436,21 +239,29 @@ export {
   type FailureCategory,
   type StepFailure,
   type ClassifiedFailure,
-} from "./error-classify.js";
+} from "./lib/error-classify.js";
 export {
   isTransientInfraFailure,
   MAX_INFRA_RETRIES,
-} from "./k8s-pod-failure.js";
-export { isBusinessHours } from "./business-hours.js";
-export { isAlreadyExistsError } from "./k8s-errors.js";
+} from "./outbound/k8s-pod-failure.js";
+export { isBusinessHours } from "./lib/business-hours.js";
+export { isAlreadyExistsError } from "./outbound/k8s-errors.js";
 export {
   agentsNamespace,
   kubeConfigSource,
   loadKube,
   type KubeConfigSource,
   type KubeConfigLoader,
-} from "./kube-config.js";
-export { prFooter } from "./pr-body.js";
+} from "./outbound/kube-config.js";
+export { prFooter } from "./domain/pr-body.js";
+export {
+  ciConclusionOf,
+  ciJudgedSha,
+  externalCheckRuns,
+  failedCheckRuns,
+  summarizeFailedChecks,
+  SKIP_CI_MARKERS,
+} from "./outbound/project/pulls/check-runs.js";
 export {
   decideOnboard,
   onboardLockKey,
@@ -464,22 +275,20 @@ export {
   type OnboardDecision,
   type OnboardRepoRow,
   type OnboardTaskRow,
-} from "./onboard-guard.js";
-// Branch-lease backends (Slice 3) — the agent supervisor imports these until
-// it moves to the runner package and switches to project.leases (Slice 4).
+} from "./work/onboard-guard.js";
+// Branch-lease backends (Slice 3) — used by the agent supervisor until it moves to project.leases (Slice 4).
 export {
   DbLeaseBackend,
   FileLeaseBackend,
   type LeaseBackend,
   type LeasePool,
   type AcquireResult,
-} from "./project/leases/lease-backends.js";
+} from "./outbound/project/leases/lease-backends.js";
 export {
   buildReviewFixDescription,
   formatReviewFeedback,
-} from "./review-feedback.js";
-// Deterministic repo validation (lint/typecheck), relocated from mcp-server so
-// the runner kernel can drive it in a BYO toolchain sidecar (ADR-025).
+} from "./work/review-feedback.js";
+// Deterministic repo validation (lint/typecheck), relocated from mcp-server for the BYO toolchain sidecar (ADR-025).
 export {
   detectTooling,
   runValidation,
@@ -490,7 +299,7 @@ export {
   type StepResult,
   type ValidationResult,
   type ValidationExec,
-} from "./repo-validation/repo-validation.js";
+} from "./work/repo-validation/repo-validation.js";
 
 // The implementation loop's backlog: pure queue ordering + label taxonomy (FR1).
 export {
@@ -500,4 +309,4 @@ export {
   LORE_BLOCKED_LABEL,
   BACKLOG_LABEL_SEED,
   type PriorityLabel,
-} from "./backlog/index.js";
+} from "./work/backlog/index.js";

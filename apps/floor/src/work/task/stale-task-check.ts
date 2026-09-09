@@ -1,0 +1,121 @@
+/** Stale-task safety net (6h threshold): moves stuck-running tasks to needs-human-help, consulting open lines first. */
+
+import { projectFor } from "../../outbound/project-boot.js";
+import { pipeline, taskStore } from "../../outbound/queues.js";
+import type { StaleTask } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
+
+const STALE_THRESHOLD_HOURS = 6;
+
+export type StaleTaskRow = StaleTask;
+
+export interface StaleTaskCheckDeps {
+  findStaleRunning(hours: number): Promise<StaleTaskRow[]>;
+  /** True while an assembly run is queued/running/parked on human node (open, not stuck). */
+  hasOpenLine(taskId: string): Promise<boolean>;
+  escalate(task: StaleTaskRow, ageHours: number): Promise<void>;
+}
+
+type StaleSweepOutcome = "parked" | "escalated" | "error";
+
+export async function staleTaskCheckJob(
+  deps: StaleTaskCheckDeps = productionDeps(),
+): Promise<string> {
+  const rows = await deps.findStaleRunning(STALE_THRESHOLD_HOURS);
+
+  if (rows.length === 0) {
+    return `No stale tasks (threshold ${STALE_THRESHOLD_HOURS}h)`;
+  }
+  const outcomes: StaleSweepOutcome[] = [];
+
+  for (const task of rows) {
+    outcomes.push(await sweepStaleTask(task, deps));
+  }
+  const escalated = outcomes.filter((o) => o === "escalated").length;
+  const parked = outcomes.filter((o) => o === "parked").length;
+
+  return `Escalated ${escalated}/${rows.length} stale tasks, ${parked} still walking (threshold ${STALE_THRESHOLD_HOURS}h)`;
+}
+
+/** One task's verdict: still walking, escalated, or a failure this sweep swallows so the remaining rows are still checked. */
+async function sweepStaleTask(
+  task: StaleTaskRow,
+  deps: StaleTaskCheckDeps,
+): Promise<StaleSweepOutcome> {
+  try {
+    // The line is the authority on whether work is still in flight.
+    if (await deps.hasOpenLine(task.id)) {
+      return "parked";
+    }
+    const ageHoursRounded = Math.round(Number(task.age_hours) * 10) / 10;
+
+    await deps.escalate(task, ageHoursRounded);
+    console.log(
+      `[stale-task-check] escalated ${task.id} (${task.task_type} on ${task.target_repo}, age ${ageHoursRounded}h)`,
+    );
+
+    return "escalated";
+  } catch (err) {
+    console.error(`[stale-task-check] error escalating ${task.id}:`, err);
+
+    return "error";
+  }
+}
+
+/** The real escalation: flip the row, record it, and tell the Issue. */
+function productionDeps(): StaleTaskCheckDeps {
+  return {
+    findStaleRunning: (hours) => pipeline().taskQueue.findStaleRunning(hours),
+    // Deliberately duplicated read; "open = queued or running" is common pattern; one sweep or none
+    hasOpenLine: async (taskId) =>
+      (await pipeline().assemblyRuns.listForTask(taskId)).some(
+        (line) => line.status === "running" || line.status === "queued",
+      ),
+    escalate: (task, ageHoursRounded) =>
+      escalateStaleTask(task, ageHoursRounded),
+  };
+}
+
+async function escalateStaleTask(
+  task: StaleTaskRow,
+  ageHoursRounded: number,
+): Promise<void> {
+  await flagStaleTask(task, ageHoursRounded);
+  await commentStaleIssue(task, ageHoursRounded);
+}
+
+/** Flip the row to needs-human-help and record the transition; the event write is best-effort. */
+async function flagStaleTask(
+  task: StaleTaskRow,
+  ageHoursRounded: number,
+): Promise<void> {
+  await taskStore().setStatusIf(task.id, "running", "needs-human-help", {
+    failure_reason: `Stuck in 'running' for ${ageHoursRounded}h — safety-net timeout at ${STALE_THRESHOLD_HOURS}h`,
+  });
+  await taskStore()
+    .recordEvent(task.id, "running", "needs-human-help", {
+      reason: "stale-timeout",
+      age_hours: ageHoursRounded,
+      threshold_hours: STALE_THRESHOLD_HOURS,
+      detected_by: "stale-task-check",
+    })
+    .catch(() => {});
+}
+
+/** Tell the task's Issue, when it has one. Both writes are best-effort — the row is already flipped. */
+async function commentStaleIssue(
+  task: StaleTaskRow,
+  ageHoursRounded: number,
+): Promise<void> {
+  if (!task.issue_number) {
+    return;
+  }
+  const { issues } = await projectFor(task.target_repo);
+
+  await issues
+    .comment(
+      task.issue_number,
+      `Task has been in \`running\` status for ${ageHoursRounded}h — exceeded the ${STALE_THRESHOLD_HOURS}h safety-net threshold. Auto-escalated to \`needs-human-help\`. Task id: \`${task.id}\`.`,
+    )
+    .catch(() => {});
+  await issues.addLabel(task.issue_number, "needs-human-help").catch(() => {});
+}

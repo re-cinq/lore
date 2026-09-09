@@ -1,0 +1,70 @@
+/** Spec-task syncing, claiming, completion; thin pool-binding delegate to shared TaskQueueRepository. */
+
+import { recordTaskEvent, type PgPool } from "@re-cinq/lore-shared";
+import { PgTaskQueue } from "@re-cinq/lore-shared/project/tasks/task-queue-pg.js";
+
+// Re-exports shared parsing + spec-task syncing (Floor event handler shares syncTasksToDb).
+export {
+  parseTasks,
+  inferPhaseDependencies,
+  syncTasksToDb,
+  type ParsedTask,
+} from "@re-cinq/lore-shared";
+
+/** Spec-tasks in `repo` whose every dependency is completed/merged. */
+export function getReadyTasks(pool: PgPool, repo: string) {
+  return new PgTaskQueue(pool).findReadySpecTasks(repo);
+}
+
+// The claim's audit event. Swallows its own failure: the claim has already landed atomically, and losing the record of it must not make the caller believe it did not.
+async function recordClaim(
+  pool: PgPool,
+  taskId: string,
+  agentId: string,
+): Promise<void> {
+  try {
+    await recordTaskEvent(
+      pool,
+      taskId,
+      { from: "pending", to: "running" },
+      { agent_id: agentId, claimed_by: "lore_claim_task" },
+    );
+  } catch {
+    /* event recording must not block */
+  }
+}
+
+/** Atomically claim a pending spec-task; records the mcp claim audit event. */
+export async function claimTask(
+  pool: PgPool,
+  taskId: string,
+  agentId: string,
+): Promise<boolean> {
+  const claimed = await new PgTaskQueue(pool).claimSpecTask(taskId, agentId);
+
+  if (claimed) {
+    await recordClaim(pool, taskId, agentId);
+  }
+
+  return claimed;
+}
+
+/** Mark a running spec-task completed and return newly unblocked dependents. */
+export async function completeTask(pool: PgPool, taskId: string) {
+  const result = await new PgTaskQueue(pool).completeSpecTask(taskId);
+
+  if (result.completed) {
+    try {
+      await recordTaskEvent(
+        pool,
+        taskId,
+        { from: "running", to: "completed" },
+        {},
+      );
+    } catch {
+      /* event recording must not block */
+    }
+  }
+
+  return result;
+}

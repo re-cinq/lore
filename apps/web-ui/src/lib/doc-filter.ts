@@ -1,6 +1,4 @@
-// Pure filter/count/sort logic shared by every doc card list (per-repo specs,
-// per-repo ADRs, the global browsers). Views own only the useState wiring;
-// the counts feed SpecStatusChips and `visible` is what renders.
+// Pure filter/count/sort logic for doc card lists (specs, ADRs); Views own only useState wiring.
 
 import {
   matchesSpecStatusFilter,
@@ -17,53 +15,74 @@ export interface DocFilterResult<T> {
   visible: T[];
 }
 
-export function filterDocCards<T>(
-  items: T[],
-  statusOf: (item: T) => SpecStatusInfo | undefined,
-  filter: SpecStatusFilter,
-  query?: string,
+/** Free-text narrowing: the typed query and how to read an item's searchable text. */
+export interface DocSearch<T> {
+  query?: string;
+  textOf?: (item: T) => string;
+}
+
+function matchedCards<T>(
+  cards: T[],
+  needle: string,
   textOf?: (item: T) => string,
-): DocFilterResult<T> {
-  const needle = query?.trim().toLowerCase() ?? "";
-  const matched =
-    needle && textOf
-      ? items.filter((item) => textOf(item).toLowerCase().includes(needle))
-      : items;
+): T[] {
+  if (!needle || !textOf) {
+    return cards;
+  }
+
+  return cards.filter((card) => textOf(card).toLowerCase().includes(needle));
+}
+
+function countByStatus<T>(
+  cards: T[],
+  statusOf: (card: T) => SpecStatusInfo | undefined,
+): Partial<Record<SpecStatus, number>> {
   const counts: Partial<Record<SpecStatus, number>> = {};
 
-  for (const item of matched) {
-    const info = statusOf(item);
+  for (const card of cards) {
+    const status = statusOf(card);
 
-    if (info) {
-      counts[info.status] = (counts[info.status] ?? 0) + 1;
+    if (status) {
+      counts[status.status] = (counts[status.status] ?? 0) + 1;
     }
   }
 
+  return counts;
+}
+
+export function filterDocCards<T>(
+  cards: T[],
+  statusOf: (card: T) => SpecStatusInfo | undefined,
+  filter: SpecStatusFilter,
+  { query, textOf }: DocSearch<T> = {},
+): DocFilterResult<T> {
+  const needle = query?.trim().toLowerCase() ?? "";
+  const matched = matchedCards(cards, needle, textOf);
+
   return {
-    counts,
-    visible: matched.filter((item) =>
-      matchesSpecStatusFilter(statusOf(item), filter),
+    counts: countByStatus(matched, statusOf),
+    visible: matched.filter((card) =>
+      matchesSpecStatusFilter(statusOf(card), filter),
     ),
   };
 }
 
-/** `path` keeps the input order (lists arrive path-sorted); `status` stable-sorts
- *  by lifecycle order (draft → … → retired), unstatused items last. */
+/** Sort by path (input order) or status (lifecycle order). */
 export function sortDocCards<T>(
-  items: T[],
+  cards: T[],
   order: DocSortOrder,
-  statusOf: (item: T) => SpecStatusInfo | undefined,
+  statusOf: (card: T) => SpecStatusInfo | undefined,
 ): T[] {
   if (order === "path") {
-    return items;
+    return cards;
   }
-  const rank = (item: T): number => {
-    const info = statusOf(item);
+  const rank = (card: T): number => {
+    const status = statusOf(card);
 
-    return info
-      ? SPEC_STATUS_ORDER.indexOf(info.status)
+    return status
+      ? SPEC_STATUS_ORDER.indexOf(status.status)
       : SPEC_STATUS_ORDER.length;
   };
 
-  return [...items].sort((a, b) => rank(a) - rank(b));
+  return [...cards].sort((a, b) => rank(a) - rank(b));
 }

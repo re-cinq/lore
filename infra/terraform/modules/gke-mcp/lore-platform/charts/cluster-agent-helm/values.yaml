@@ -65,7 +65,7 @@ claim:
   name: central
   # The central agent carries every tag, including the central-only ones
   # (node:ingest mounts LORE_INGEST_TOKEN) satellites never receive.
-  tags: node:agent,node:validate,node:gate,node:retrospective,node:github_action,node:detect,node:ingest,node:comment-triage
+  tags: node:agent,node:validate,node:gate,node:retrospective,node:github_action,node:detect,node:ingest
   # In-cluster URL — registration/claim/heartbeat never leave the VPC here.
   loreApiUrl: http://lore-api.lore-api.svc.cluster.local:3000
   registrationTokenSecret:
@@ -75,6 +75,51 @@ claim:
   # container is readOnlyRootFilesystem (templates/rbac.yaml grants the one
   # named Secret).
   identitySecretName: lore-cluster-agent-identity
+
+# The per-cluster values the catalog sync loop renders into AgentDefinition/
+# Station CRs — everything the retired Helm catalog-seed hook used to template
+# into the committed seed (agent-crd.ts CatalogCrdOptions). Empty OMITS the
+# block it feeds, which is exactly right on a satellite that has no MCP
+# gateway, events sink or skills registry (the standalone chart leaves them
+# empty). Defaults mirror the ai-agents-helm values the seed rendered with.
+catalog:
+  # Declared, never inferred: `full` REFUSES TO BOOT unless eventsUrl, mcpUrl
+  # and skillsUrl are all set — a full cluster rendering the bare (satellite)
+  # shape because a value went unset shipped pods that died at boot on
+  # 2026-09-01. This chart deploys the IN-PLATFORM cluster-agent, so full is
+  # the only correct profile here; the standalone satellite chart is bare.
+  profile: full
+  eventsUrl: http://lore-floor.lore-floor.svc.cluster.local:8080/api/agent-events
+  # In-cluster URLs (same host the retired Helm seed rendered): the run-pod
+  # NetworkPolicy's gateway carve-out must keep matching these.
+  mcpUrl: http://lore-mcp-gateway.lore-api.svc.cluster.local:8080/mcp
+  skillsUrl: http://lore-mcp-gateway.lore-api.svc.cluster.local:8080/skills
+  # Credential keys for model families BEYOND anthropic (whose key is
+  # llmSecretKey below — the legacy knob stays the anthropic channel so a
+  # laptop's CLAUDE_CODE_OAUTH_TOKEN override keeps working). A definition
+  # naming a model whose family is absent is REFUSED by the sync loop (reason
+  # logged), never rendered with somebody else's key. Add
+  # `gemini: GEMINI_API_KEY` only after seeding that key (the four-place
+  # secrets checklist in CLAUDE.md). Serialized to env as JSON.
+  modelSecretKeys: {}
+  # (Station pods' LORE_API_URL rides the claim.loreApiUrl env var this chart
+  # already sets — one URL, both duties.)
+  # The LLM credential key this cluster's agent-secrets Secret carries:
+  # ANTHROPIC_API_KEY on GKE, CLAUDE_CODE_OAUTH_TOKEN on a laptop minikube.
+  llmSecretKey: ANTHROPIC_API_KEY
+  # The lore-station image station-mode recipes run on (per-cluster tag pin;
+  # the deploy script may override the tag alongside the stations image).
+  stationImage: ghcr.io/re-cinq/lore-station:latest
+  dgraphUrl: http://lore-dgraph-alpha.lore-dgraph.svc.cluster.local:8080
+  # CUTOVER (2026-09-01): the ai-agents chart's catalog-seed hook is off
+  # (seedCatalog: false), so this loop now owns every catalog CR — including
+  # the ones the seed left labeled `lore-catalog-seed`. Verified before the
+  # flip by rendering all 28 org definitions with this cluster's env and
+  # diffing against the live seed CRs: the only differences were the
+  # description wording and one newline before {context} (a Helm `{{-` chomp
+  # artifact in the seed; the sync render matches the generator's intent).
+  # Set back to false only alongside re-enabling seedCatalog.
+  ownSeeded: true
 
 # Stream run-pod stdout to the bus as it happens (LORE_POD_LOG_STREAMING). OFF
 # by default: this is the input that puts log VOLUME on pipeline.events. The

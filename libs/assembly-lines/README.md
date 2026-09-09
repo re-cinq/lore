@@ -61,7 +61,7 @@ the iteration and budgeted back-edges fail the run past `iteration_max`; a
 permanently classified node failure refuses the retry and reports the real
 cause. Because the state is the rows, duplicate or concurrent advancers
 converge and a Floor restart loses nothing (spec 6-dark-factory FR6.9). The
-event-driven walk in `apps/floor/src/jobs/assembly-run/advance.ts` is its
+event-driven walk in `apps/floor/src/work/assembly-run/advance.ts` is its
 Floor-side driver; the old in-process `executeAssemblyLine` is retired.
 
 ## Outcome parsing (`src/node-outcome.ts`, `src/node-types.ts`)

@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { collectPages, forEachPage, type Page } from "./paginate.js";
 
-/** Scripted pages, recording the token each fetch was handed. */
 function pages(scripted: Page<string>[]) {
   const tokensSeen: (string | undefined)[] = [];
   let next = 0;
@@ -24,8 +23,8 @@ describe("forEachPage", () => {
     ]);
     const seen: string[][] = [];
 
-    await forEachPage(source.fetch, async (items) => {
-      seen.push(items);
+    await forEachPage(source.fetch, async (page) => {
+      seen.push(page);
     });
 
     expect(seen).toEqual([["a", "b"], ["c"]]);

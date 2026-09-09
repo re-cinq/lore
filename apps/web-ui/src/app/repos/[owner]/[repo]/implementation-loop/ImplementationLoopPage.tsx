@@ -1,26 +1,33 @@
+import { Alert } from "@/components/Alert";
 import { getImplementationLoop } from "@/lib/api/backlog";
 import ImplementationLoopView from "./ImplementationLoopView";
 import { toggleImplementationLoopAction } from "./actions";
 
-export default async function ImplementationLoopPage({
-  params,
-}: {
+interface LoopPageProps {
   params: Promise<{ owner: string; repo: string }>;
-}) {
-  const { owner, repo } = await params;
+}
+
+/** Names the connection rather than the symptom, because an unreachable API and an empty backlog look the same on the page. */
+function LoadFailure({ reason }: { reason: string }) {
+  return (
+    <Alert variant="secondary">
+      Could not load the backlog state ({reason}) — check the Lore API
+      connection and reload.
+    </Alert>
+  );
+}
+
+export default async function ImplementationLoopPage(props: LoopPageProps) {
+  const { owner, repo } = await props.params;
   const fullName = `${owner}/${repo}`;
   const result = await getImplementationLoop(fullName);
 
-  // An API failure must not masquerade as a disabled loop with an empty
-  // backlog — say what actually happened.
+  // API failure must not masquerade as disabled loop with empty backlog.
   if (result.status !== "ok") {
-    return (
-      <p className="meta">
-        Could not load the backlog state (
-        {result.status === "error" ? result.message : "Lore API unconfigured"})
-        — check the Lore API connection and reload.
-      </p>
-    );
+    const reason =
+      result.status === "error" ? result.message : "Lore API unconfigured";
+
+    return <LoadFailure reason={reason} />;
   }
 
   return (

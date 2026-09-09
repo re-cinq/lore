@@ -1,6 +1,4 @@
-// Turns the walk rows into an execution-ordered step list — what ran, in what
-// order, the branch each step took, and why a step is in its state. Pure, so the
-// ordering and transition rules stay unit-testable away from the DB and React.
+// Turns walk rows into execution-ordered steps; pure so ordering/transitions stay testable.
 
 import type { AssemblyLineDefinition } from "./assembly-line-definition";
 import type { AssemblyRunNode } from "./assembly-runs";
@@ -64,10 +62,7 @@ function transitionOf(
   return `${edge.on} ${loops ? "↩" : "→"} ${edge.to}`;
 }
 
-/**
- * The steps in execution order (nodes arrive `ORDER BY id`). Each carries its
- * state, the branch it took, and — for a failing step — the run's reason.
- */
+/** Steps in execution order with state, branch taken, and failure reason. */
 export function stepViews(
   definition: AssemblyLineDefinition | null,
   nodes: readonly AssemblyRunNode[],
@@ -77,20 +72,36 @@ export function stepViews(
     ? layerByLongestPath(definition)
     : new Map<string, number>();
 
-  return nodes.map((node) => {
-    const { tone, label } = toneOf(node.outcome);
+  return nodes.map((node) => toStepView(definition, layers, node, runReason));
+}
 
-    return {
-      nodeId: node.nodeId,
-      iteration: node.iteration,
-      tone,
-      label,
-      outcome: node.outcome,
-      agentCrName: node.agentCrName,
-      commitSha: node.commitSha,
-      durationSeconds: node.durationSeconds,
-      transition: transitionOf(definition, layers, node),
-      reason: tone === "err" ? runReason : null,
-    };
-  });
+function toStepView(
+  definition: AssemblyLineDefinition | null,
+  layers: Map<string, number>,
+  node: AssemblyRunNode,
+  runReason: string | null,
+): StepView {
+  const { tone, label } = toneOf(node.outcome);
+
+  return {
+    ...rowFacts(node),
+    tone,
+    label,
+    transition: transitionOf(definition, layers, node),
+    reason: tone === "err" ? runReason : null,
+  };
+}
+
+/** The half of a step copied straight off its walk row. */
+function rowFacts(
+  node: AssemblyRunNode,
+): Omit<StepView, "tone" | "label" | "transition" | "reason"> {
+  return {
+    nodeId: node.nodeId,
+    iteration: node.iteration,
+    outcome: node.outcome,
+    agentCrName: node.agentCrName,
+    commitSha: node.commitSha,
+    durationSeconds: node.durationSeconds,
+  };
 }

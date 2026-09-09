@@ -12,55 +12,75 @@ type Task = TaskDetailTask;
 
 async function submitFeedback(formData: FormData) {
   "use server";
-  const taskId = formData.get("task_id") as string;
-  const feedback = formData.get("feedback") as string;
+  const taskId = formData.get("task_id") as string | null;
+  const feedback = formData.get("feedback") as string | null;
 
   if (!taskId || !feedback?.trim()) {
     return;
   }
 
-  // One call: lore-api queues the revision on the same branch, records the
-  // request on this task, and parks it at revision-requested.
+  // lore-api queues revision on same branch.
   await reviseTask(taskId, feedback);
 
   redirect(`/tasks/${taskId}`);
 }
 
-export default async function TaskDetailPage({
-  params,
-}: {
+/** The task, or null when there isn't one. An unreachable lore-api reads the same as a missing task here on purpose: either way this page has nothing to show, and the reader's next move is the same. */
+async function readTask(id: string): Promise<Task | null> {
+  const result = await getTask(id);
+
+  return (result.status === "ok" ? result.data : null) as Task | null;
+}
+
+/** Per-attempt run rows, for retry linking. `pipeline.assembly_runs.task_id` is non-unique — one task can have several attempts, and the newest is not always the one the reader wants. */
+async function readTaskRuns(id: string): Promise<TaskRunRow[]> {
+  const result = await getTaskRuns(id);
+
+  return (result.status === "ok"
+    ? result.data.runs
+    : []) as unknown as TaskRunRow[];
+}
+
+function TaskNotFound() {
+  return (
+    <div>
+      <h1>Task not found</h1>
+    </div>
+  );
+}
+
+/** A lone attempt has nothing the run page does not show better, so the task shell is skipped entirely. */
+function redirectToSoleRun(runs: TaskRunRow[]) {
+  const href = soleRunHref(runs);
+
+  if (href) {
+    redirect(href);
+  }
+}
+
+async function readFailedEvent(id: string) {
+  const events = await fetchTaskEvents(id);
+
+  return events.find((e) => e.to_status === "failed");
+}
+
+interface TaskDetailPageProps {
   params: Promise<{ id: string }>;
-}) {
+}
+
+export default async function TaskDetailPage({ params }: TaskDetailPageProps) {
   const { id } = await params;
-  const taskResult = await getTask(id);
-  const task = (
-    taskResult.status === "ok" ? taskResult.data : null
-  ) as Task | null;
+  const task = await readTask(id);
 
   if (!task) {
-    return (
-      <div>
-        <h1>Task not found</h1>
-      </div>
-    );
+    return <TaskNotFound />;
   }
 
-  // The task's per-attempt run rows (pipeline.assembly_runs.task_id is non-unique
-  // — a retry mints a fresh row) so the detail can link to each attempt's timeline.
-  // queryAllowMissing: empty on pre-0025 DBs.
-  const runResult = await getTaskRuns(id);
-  const runs = (runResult.status === "ok"
-    ? runResult.data.runs
-    : []) as unknown as TaskRunRow[];
+  const runs = await readTaskRuns(id);
 
-  const runHref = soleRunHref(runs);
+  redirectToSoleRun(runs);
 
-  if (runHref) {
-    redirect(runHref);
-  }
-
-  const events = await fetchTaskEvents(id);
-  const failedEvent = events.find((e) => e.to_status === "failed");
+  const failedEvent = await readFailedEvent(id);
 
   return (
     <TaskDetailView

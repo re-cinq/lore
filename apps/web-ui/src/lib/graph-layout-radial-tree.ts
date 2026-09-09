@@ -1,0 +1,135 @@
+// Radial-tree seed positions: depth maps to radius, leaves spread evenly by angle.
+
+import type { Point } from "./graph-layout";
+
+export interface RadialTreeOptions {
+  center: Point;
+  /** Radius added per hierarchy level — depth 0 (root) sits at the centre. */
+  ringGap: number;
+  /** Angular wedge the tree fills (defaults to a full circle). */
+  angleStart?: number;
+  angleEnd?: number;
+}
+
+function resolveAngleRange(opts: RadialTreeOptions): {
+  angleStart: number;
+  angleEnd: number;
+} {
+  return {
+    angleStart: opts.angleStart ?? 0,
+    angleEnd: opts.angleEnd ?? Math.PI * 2,
+  };
+}
+
+/** Fills in each non-leaf's angle as the mean of its children's (post-order guarantees they're set). */
+function fillParentAngles(
+  postOrder: string[],
+  childrenOf: Map<string, string[]>,
+  angle: Map<string, number>,
+  angleStart: number,
+): void {
+  for (const id of postOrder) {
+    if (angle.has(id)) {
+      continue;
+    }
+    const children = childrenOf.get(id) ?? [];
+    const sum = children.reduce(
+      (acc, child) => acc + (angle.get(child) ?? 0),
+      0,
+    );
+
+    angle.set(id, children.length ? sum / children.length : angleStart);
+  }
+}
+
+function positionsFromAngles(
+  depth: Map<string, number>,
+  angle: Map<string, number>,
+  angleStart: number,
+  layout: { center: Point; ringGap: number },
+): Map<string, Point> {
+  const positions = new Map<string, Point>();
+
+  for (const [id, d] of depth) {
+    const a = angle.get(id) ?? angleStart;
+    const r = d * layout.ringGap;
+
+    positions.set(id, {
+      x: layout.center.x + r * Math.cos(a),
+      y: layout.center.y + r * Math.sin(a),
+    });
+  }
+
+  return positions;
+}
+
+/** Depth-first walk of the graph as a tree. The `visited` set is what makes a graph safe to treat as one: a node already placed is not descended into again, so a cycle terminates and a diamond is drawn under whichever parent reached it first. Post-order is recorded because a parent's angle is the mean of its children's, which cannot be known until they are placed. */
+function walkTree(root: string, childrenOf: Map<string, string[]>) {
+  const walk: TreeWalk = {
+    childrenOf,
+    depth: new Map<string, number>(),
+    postOrder: [],
+    leaves: [],
+    visited: new Set<string>(),
+  };
+
+  visitTreeNode(root, 0, walk);
+
+  return { depth: walk.depth, postOrder: walk.postOrder, leaves: walk.leaves };
+}
+
+/** The mutable bookkeeping one depth-first walk threads through its recursion. */
+interface TreeWalk {
+  childrenOf: Map<string, string[]>;
+  depth: Map<string, number>;
+  postOrder: string[];
+  leaves: string[];
+  visited: Set<string>;
+}
+
+/** Place one node at depth `d`, then its unvisited children, recording it post-order. */
+function visitTreeNode(id: string, d: number, walk: TreeWalk): void {
+  const { visited, childrenOf } = walk;
+
+  if (visited.has(id)) {
+    return;
+  }
+  visited.add(id);
+  walk.depth.set(id, d);
+  const children = (childrenOf.get(id) ?? []).filter(
+    (child) => !visited.has(child),
+  );
+
+  if (children.length === 0) {
+    walk.leaves.push(id);
+  }
+
+  for (const child of children) {
+    visitTreeNode(child, d + 1, walk);
+  }
+  walk.postOrder.push(id);
+}
+
+/** Radial-tree seed positions; depth→radius, leaves spread evenly. */
+export function radialTree(
+  root: string,
+  childrenOf: Map<string, string[]>,
+  opts: RadialTreeOptions,
+): Map<string, Point> {
+  const { angleStart, angleEnd } = resolveAngleRange(opts);
+
+  const { depth, postOrder, leaves } = walkTree(root, childrenOf);
+  const span = angleEnd - angleStart;
+  const leafCount = Math.max(leaves.length, 1);
+  const angle = new Map<string, number>();
+
+  leaves.forEach((id, i) =>
+    angle.set(id, angleStart + (span * (i + 0.5)) / leafCount),
+  );
+
+  fillParentAngles(postOrder, childrenOf, angle, angleStart);
+
+  const { center, ringGap } = opts;
+
+  return positionsFromAngles(depth, angle, angleStart, { center, ringGap });
+}

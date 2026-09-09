@@ -5,18 +5,8 @@ import { authOptions } from "@/lib/auth-options";
 import { userCanAccessRepo } from "@/lib/user-repo-access";
 import { loadFeaturePoll } from "@/lib/feature-poll";
 
-// The planning wizard's poll. Thin on purpose: this file is excluded from
-// coverage, so anything that lives here is untested by construction — the reads
-// are in @/lib/feature-poll, under the gate.
-export async function GET(
-  req: Request,
-  { params }: { params: Promise<{ owner: string; repo: string; id: string }> },
-) {
-  const { owner, repo, id } = await params;
-  const fullName = `${owner}/${repo}`;
-  // Authorize BEFORE reading anything. The repo is in the path, so nothing has to
-  // be looked up first — which also means a 404 cannot be used to probe which
-  // feature ids exist in a repo the caller has no access to.
+/** The refusal this caller earns, or null when they may read on: 401 without a session, 403 when the session cannot see the repo. */
+async function accessDenial(fullName: string) {
   const session = (await getServerSession(authOptions)) as {
     accessToken?: string;
   } | null;
@@ -31,8 +21,24 @@ export async function GET(
       { status: 403 },
     );
   }
-  // `?graph=<runId>` — the run whose immutable graph clone the client already
-  // holds, so the server can omit it instead of re-sending it every four seconds.
+
+  return null;
+}
+
+// Thin on purpose: excluded from coverage, so the reads live in @/lib/feature-poll, under the gate.
+export async function GET(
+  req: Request,
+  { params }: { params: Promise<{ owner: string; repo: string; id: string }> },
+) {
+  const { owner, repo, id } = await params;
+  const fullName = `${owner}/${repo}`;
+  // Authorize BEFORE reading anything — a 404 must never be usable to probe feature ids in a repo the caller can't see.
+  const denial = await accessDenial(fullName);
+
+  if (denial) {
+    return denial;
+  }
+  // `?graph=<runId>` — the client already holds this run's immutable graph clone, so the server omits re-sending it every four seconds.
   const payload = await loadFeaturePoll(
     fullName,
     id,

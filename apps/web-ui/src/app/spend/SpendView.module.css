@@ -157,3 +157,11 @@
   color: var(--text-muted);
   padding-top: 8px;
 }
+
+.presetRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}

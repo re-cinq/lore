@@ -1,13 +1,4 @@
 // @vitest-environment node
-//
-// The planning wizard's poll had NO authorization: no session check, no
-// repo-access check. Any signed-in user could poll any repo's feature and read
-// its original prompt, every round's gap analysis, and the draft spec — for a repo
-// they cannot see on GitHub. Its sibling
-// (api/assembly-runs/[id]/nodes/[name]/logs) always gated both.
-//
-// The gate runs BEFORE the feature is looked up, so a 404 cannot be used to probe
-// which feature ids exist in a repo the caller has no access to.
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
@@ -60,16 +51,14 @@ describe("GET feature poll authorization", () => {
 
   it("rejects a caller who cannot see the repo", async () => {
     getServerSession.mockResolvedValue({ accessToken: "gho_x" });
-    userCanAccessRepo.mockResolvedValue(false);
+    userCanAccessRepo.mockResolvedValue(false); // eslint-disable-line re-lint/no-flag-params -- stubs the access answer the route reads, not a behaviour the callee selects
 
     expect((await GET(req, { params })).status).toBe(403);
   });
 
-  it("reads nothing at all for an unauthorized caller", async () => {
-    // The gate runs BEFORE the lookup: a 404 must not tell an outsider whether a
-    // feature id exists in a repo they cannot see.
+  it("reads nothing at all for an unauthorized caller, before the 404-probe lookup", async () => {
     getServerSession.mockResolvedValue({ accessToken: "gho_x" });
-    userCanAccessRepo.mockResolvedValue(false);
+    userCanAccessRepo.mockResolvedValue(false); // eslint-disable-line re-lint/no-flag-params -- stubs the access answer the route reads, not a behaviour the callee selects
 
     await GET(req, { params });
 
@@ -78,7 +67,7 @@ describe("GET feature poll authorization", () => {
 
   it("checks access against the repo named in the path", async () => {
     getServerSession.mockResolvedValue({ accessToken: "gho_x" });
-    userCanAccessRepo.mockResolvedValue(true);
+    userCanAccessRepo.mockResolvedValue(true); // eslint-disable-line re-lint/no-flag-params -- stubs the access answer the route reads, not a behaviour the callee selects
 
     await GET(req, { params });
 
@@ -87,7 +76,7 @@ describe("GET feature poll authorization", () => {
 
   it("proceeds to the feature lookup for an authorized caller", async () => {
     getServerSession.mockResolvedValue({ accessToken: "gho_x" });
-    userCanAccessRepo.mockResolvedValue(true);
+    userCanAccessRepo.mockResolvedValue(true); // eslint-disable-line re-lint/no-flag-params -- stubs the access answer the route reads, not a behaviour the callee selects
 
     expect((await GET(req, { params })).status).toBe(404);
     expect(getFeatureStatus).toHaveBeenCalled();

@@ -1,5 +1,7 @@
 #!/bin/bash
 set -euo pipefail
+TMP_BODY="$(mktemp)"
+trap 'rm -f "$TMP_BODY"' EXIT
 
 API_URL="${LORE_API_URL:?LORE_API_URL must be set}"
 TOKEN="${LORE_INGEST_TOKEN:?LORE_INGEST_TOKEN must be set}"
@@ -32,15 +34,20 @@ fi
 # reconcile), and a single shot false-failed an otherwise-healthy deploy.
 echo "[smoke] Repo status..."
 REPO_STATUS=""
+REPO_STATUS_CODE=""
 for _ in $(seq 1 5); do
-  REPO_STATUS=$(curl -sf --max-time 5 -H "Authorization: Bearer $TOKEN" "$API_URL/api/repo-status?repo=re-cinq/lore" 2>/dev/null || echo "")
+  # -w keeps the status on failure; -sf would swallow it and a 401/403 (a token
+  # that no longer matches the cluster's) then reads as an empty response.
+  REPO_STATUS=$(curl -s --max-time 5 -o /dev/stderr -w "%{http_code}" -H "Authorization: Bearer $TOKEN" "$API_URL/api/repo-status?repo=re-cinq/lore" 2>"$TMP_BODY" || echo "000")
+  REPO_STATUS_CODE="$REPO_STATUS"
+  REPO_STATUS=$(cat "$TMP_BODY")
   echo "$REPO_STATUS" | jq -e '.onboarded == true' >/dev/null 2>&1 && break
   sleep 3
 done
 if echo "$REPO_STATUS" | jq -e '.onboarded == true' >/dev/null 2>&1; then
   pass "repo-status"
 else
-  fail "repo-status: $REPO_STATUS"
+  fail "repo-status: HTTP ${REPO_STATUS_CODE} ${REPO_STATUS:0:200}"
 fi
 
 # NOTE: no task create/cancel check here on purpose. A post-deploy smoke test is

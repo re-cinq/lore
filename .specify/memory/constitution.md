@@ -379,11 +379,11 @@ tolerance without reinstating continuous polling. See ADR-015.
 | Code parsing | web-tree-sitter (TypeScript, Python, Go) |
 | Document parsing | LlamaIndex readers (GitHub, Confluence) + unstructured |
 | Knowledge graph | PostgreSQL `memory.entities` + `memory.edges` (incremental updates on `lore_write_episode`) |
-| Memory lifecycle | `apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.ts` — importance decay (Ebbinghaus model) + Haiku-driven consolidation |
+| Memory lifecycle | `apps/floor/src/work/memory/memory-lifecycle/memory-lifecycle.ts` — importance decay (Ebbinghaus model) + Haiku-driven consolidation |
 | Privacy filtering | `@re-cinq/lore-shared` `redactSecrets()` — strips keys, JWTs, connection strings before memory writes |
-| Prompt caching | `libs/shared/src/llm/prompt-cache.ts` — `getCacheControl(jobName)` returns ephemeral (5m) or 1h breakpoints; `analyzeCacheBreak` classifies hit / first-call / break |
-| Local task runner | `apps/mcp-server/src/mcp/tools/local-runner-tools.local.ts` — worktree-based execution with `validateRepoMatch`; task state in `~/.lore/local-tasks.json` |
-| Session tracker | `libs/server-core/src/platform/session-tracker.ts` — passive tool-call ring buffer (500 entries); exit dump + Stop hook POST |
+| Prompt caching | `libs/shared/src/outbound/llm/prompt-cache.ts` — `getCacheControl(jobName)` returns ephemeral (5m) or 1h breakpoints; `analyzeCacheBreak` classifies hit / first-call / break |
+| Local task runner | `apps/mcp-server/src/transport/tools/local-runner-tools.local.ts` — worktree-based execution with `validateRepoMatch`; task state in `~/.lore/local-tasks.json` |
+| Session tracker | `libs/server-core/src/outbound/session-tracker.ts` — passive tool-call ring buffer (500 entries); exit dump + Stop hook POST |
 | Local read cache | AgentDB optional local read cache when MCP runs in stdio mode (proxies writes to GKE backend) |
 | API token scopes | `pipeline.api_tokens` — SHA-256 hashed per-client tokens; scopes: read / write / task / webhook / admin |
 | Rate limiting | In-memory sliding window: 30/min webhooks, 60/min task ops, 200/min other; 1 MB body limit |
@@ -422,7 +422,7 @@ Deliverables:
 - ai-agent-subsystem: agent-cr controller
   (`ghcr.io/re-cinq/ai-agent-controller`) in the `ai-agents` namespace runs
   Agent CRs. The LoreTask CRD + `claude-runner` image were removed (ADR-031).
-- CronJobs: nightly reindex (2 AM), weekly gap detection (Mon 9 AM),
+- CronJobs: weekly gap detection (Mon 9 AM),
   weekly spec drift (Mon 10 AM), daily importance decay (5 AM),
   daily consolidation (5:30 AM).
 - OpenTelemetry instrumentation built into lore-api → Cloud Monitoring.

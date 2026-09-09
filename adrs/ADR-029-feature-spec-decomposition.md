@@ -17,9 +17,9 @@ This ADR adds a feature-decompose agent that runs in-process when a feature's sp
 > a story/task tree, Issues per story, `spec-task` rows — are unchanged.
 >
 > **What went wrong.** The trigger was a task-type predicate:
-> [decompose-kick.ts](../apps/floor/src/jobs/task/decompose-kick.ts) fires only when a
+> `decompose-kick.ts` fires only when a
 > merged PR belongs to a `feature-finalize` task. Once finalize became a *resume* of the
-> feature-planning line ([features.ts](../apps/lore-api/src/api/routes/features/features.ts))
+> feature-planning line ([features.ts](../apps/lore-api/src/transport/routes/features/features.ts))
 > the owning task is `feature-planning`, the predicate stops matching, and **decomposition
 > never starts** — silently, with nothing logged. Every feature planned on the merged line
 > is affected.
@@ -27,7 +27,7 @@ This ADR adds a feature-decompose agent that runs in-process when a feature's sp
 > **The replacement.** [feature-planning.yaml](../libs/assembly-lines/src/assembly-lines/feature-planning.yaml)
 > gains a `merged` node of type `wait` with `signal: pr_merged`, followed by the
 > `decompose` and `issues` nodes lifted from
-> [feature-decompose.yaml](../libs/assembly-lines/src/assembly-lines/feature-decompose.yaml),
+> `feature-decompose.yaml`,
 > which is retired. One line now spans the whole feature lifecycle:
 >
 > ```
@@ -45,10 +45,10 @@ This ADR adds a feature-decompose agent that runs in-process when a feature's sp
 > become steps in the graph rather than gaps between runs.
 >
 > **The trigger becomes a resume, not an insert.**
-> [merge-check.ts](../apps/stations/src/stations/merge-check/merge-check.ts) resolves the line via
-> `findOpenByPr` ([assembly-lines-port.ts](../libs/shared/src/project/assembly-runs/assembly-runs-port.ts))
+> [merge-check.ts](../apps/stations/src/work/merge-check/merge-check.ts) resolves the line via
+> `findOpenByPr` ([assembly-lines-port.ts](../libs/shared/src/outbound/project/assembly-runs/assembly-runs-port.ts))
 > and reports to the parked node with an `assembly_run.resume` event, handled by the
-> existing [resume-event-handler.ts](../apps/floor/src/jobs/assembly-run/resume-event-handler.ts).
+> existing [resume-event-handler.ts](../apps/floor/src/work/assembly-run/resume-event-handler.ts).
 > That is the same mechanism finalize already uses, so no new event type is introduced and
 > `decompose-kick.ts` is deleted rather than corrected. This depends on the `push` node
 > stamping `pr_number` on the line — `findOpenByPr` cannot resolve a line whose PR was
@@ -56,7 +56,7 @@ This ADR adds a feature-decompose agent that runs in-process when a feature's sp
 >
 > **Execution moved to a pod.** "In-process in the coordinator" was superseded by the
 > station cutover (ADR-031): `decompose` is an agent node and `issues` is a station
-> ([issues.ts](../apps/stations/src/stations/issues/issues.ts)) reaching the database over
+> ([issues.ts](../apps/stations/src/work/issues/issues.ts)) reaching the database over
 > HTTP, so the coordinator-credentials argument below no longer applies.
 >
 > **Alternative rejected.** Keep two lines and widen the kick predicate to also match a
@@ -72,7 +72,7 @@ This ADR adds a feature-decompose agent that runs in-process when a feature's sp
 Smart feature planning (ADR-027) ends at a merged `specs/<slug>/spec.md` PR plus,
 optionally, a single whole-feature "user story" Issue. Nothing turns that spec
 into implementable work. The planning prompt
-([planning-instructions.ts](../libs/shared/src/feature-planning/planning-instructions.ts))
+(`planning-instructions.ts`)
 deliberately refuses to break the feature into user stories or tasks and defers
 that to "a separate downstream agent" — but that agent did not exist. The result:
 a planned feature stalls after the spec lands; the handoff from *what we're
@@ -82,8 +82,8 @@ A task pipeline already exists: `spec-task` rows in `pipeline.tasks` (with
 `depends_on` / `phase` / `parallelizable` / `file_path` metadata) are picked up by
 the implementation pipeline under the per-repo trust gate. Today those rows are
 created only from a hand-authored `specs/<slug>/tasks.md` parsed on merge
-([syncTasksToDb](../apps/mcp-server/src/features/pipeline/tasks.ts),
-[merge-check.ts](../apps/floor/src/application/jobs/scheduled/merge-check.ts)),
+([syncTasksToDb](../libs/shared/src/domain/tasks.ts),
+[merge-check.ts](../apps/stations/src/work/merge-check/merge-check.ts)),
 and only for the legacy one-shot `feature-request` task type. The interactive
 planning flow produces no `tasks.md`, so it feeds nothing.
 
@@ -109,7 +109,7 @@ implementation pipeline.**
   ordered list of user stories, each with a summary, acceptance criteria, and its
   implementable tasks (id, description, `depends_on`, `phase`, `parallelizable`,
   `file_path`). The contract lives in
-  [decomposition-result.ts](../libs/shared/src/feature-planning/decomposition-result.ts),
+  [decomposition-result.ts](../libs/shared/src/domain/feature-planning/decomposition-result.ts),
   parsed leniently (same drift tolerance as `GapResult`); an invalid result fails
   the task.
 - **Stories → Issues, tasks → `spec-task` rows.** Each story becomes a GitHub

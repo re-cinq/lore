@@ -1,8 +1,3 @@
-// The IO half of feature-run: the fetchers behind the wizard's poll. The pure
-// shaping lives in feature-run.test.ts against real values; these tests pin the
-// fetch orchestration — which lookups run, in what fallback order, and that a
-// failure yields null rather than failing the poll.
-
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const fetchAssemblyRun = vi.fn();

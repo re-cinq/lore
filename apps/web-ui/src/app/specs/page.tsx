@@ -4,8 +4,7 @@ import { statusesByKey } from "@/lib/doc-statuses";
 import GlobalDocsView from "@/components/GlobalDocsView";
 
 export default async function SpecsPage() {
-  // The spec-traceability graph is the source of truth — the list and the
-  // lifecycle status pills alike, both from this one call.
+  // Spec-traceability graph: single source of truth for list and status pills
   const specs = await fetchAllSpecs();
 
   return (

@@ -8,6 +8,16 @@ import OnboardView, { type OnboardState } from "./OnboardView";
 
 const REPO_SLUG = /^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/;
 
+/** Files the onboard task, or says why it did not. Both refusals name the repo and what to check: a repo the App cannot see and one that is already being onboarded look identical from the form, and only the message tells them apart. An existing onboard is REPORTED rather than duplicated — two onboard PRs on one repo is the race this avoids. */
+async function startOnboarding(fullName: string): Promise<string | null> {
+  if ((await checkRepoAccess(fullName)) === "not-found") {
+    return `${fullName} was not found on GitHub — check the owner and repo name, and that the Lore GitHub App has access to it.`;
+  }
+  const result = await createOnboardTask(fullName);
+
+  return result.ok ? null : result.message;
+}
+
 async function onboardRepo(
   _prev: OnboardState,
   formData: FormData,
@@ -16,41 +26,35 @@ async function onboardRepo(
   const fullName = String(formData.get("full_name") ?? "").trim();
 
   if (!REPO_SLUG.test(fullName)) {
-    return {
-      error: `"${fullName}" is not a valid repository — use the owner/name format.`,
-      fullName,
-    };
+    return invalidSlugState(fullName);
   }
 
-  try {
-    if ((await checkRepoAccess(fullName)) === "not-found") {
-      return {
-        error: `${fullName} was not found on GitHub — check the owner and repo name, and that the Lore GitHub App has access to it.`,
-        fullName,
-      };
-    }
+  const refusal = await attemptOnboarding(fullName);
 
-    const result = await createOnboardTask(fullName);
-
-    // Already onboarded / PR still open / task in flight: report it instead of
-    // filing a duplicate task, which would open its own Issue and race its own
-    // PR against the one already in progress.
-    if (!result.ok) {
-      return { error: result.message, fullName };
-    }
-  } catch (err) {
-    // pg errors carry infrastructure detail (hosts, users) that an onboarding
-    // form must not disclose — log the real error, return a generic message.
-    console.error(`[onboard] onboarding ${fullName} failed:`, err);
-
-    return {
-      error: `Onboarding ${fullName} failed — check the server logs for details.`,
-      fullName,
-    };
+  if (refusal) {
+    return { error: refusal, fullName };
   }
 
   revalidatePath("/");
   redirect("/");
+}
+
+function invalidSlugState(fullName: string): OnboardState {
+  return {
+    error: `"${fullName}" is not a valid repository — use the owner/name format.`,
+    fullName,
+  };
+}
+
+/** PG errors carry infrastructure detail; the real error is logged and the caller gets a generic message. */
+async function attemptOnboarding(fullName: string): Promise<string | null> {
+  try {
+    return await startOnboarding(fullName);
+  } catch (err) {
+    console.error(`[onboard] onboarding ${fullName} failed:`, err);
+
+    return `Onboarding ${fullName} failed — check the server logs for details.`;
+  }
 }
 
 export default async function OnboardPage() {

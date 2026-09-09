@@ -56,7 +56,7 @@ describe("wireSchema", () => {
       wire.safeParse({
         id: "r1",
         jobName: "reindex",
-        startedAt: new Date(),
+        startedAt: new Date("2026-01-01T00:00:00.000Z"),
         error: null,
       }).success,
     ).toBe(false);
@@ -73,12 +73,7 @@ describe("wireSchema", () => {
 });
 
 describe("an unbound field", () => {
-  // `ColumnMap<T>` already demands every field, so this is unreachable through
-  // the types — the cast is how a real caller gets here: a schema built at
-  // runtime, or a map widened through `as`. The guard exists for that path,
-  // because the alternative was publishing the camelCase spelling as if it were
-  // a column.
-  it("refuses to rename a field the column map does not bind", () => {
+  it("refuses to rename a field the column map does not bind (reachable via a runtime-built schema or `as`-widened map)", () => {
     const withExtra = JobRunSchema.extend({ unbound: z.string() });
 
     expect(() =>

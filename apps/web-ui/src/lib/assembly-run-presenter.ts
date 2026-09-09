@@ -1,7 +1,4 @@
-// Pure presentation helpers for the run-keyed assembly-line views. No DB or
-// React here so the formatting rules stay unit-testable in isolation (precedent:
-// task-presenter.ts). Re-homed from the retired task-chain grouping lib.
-
+// Pure presentation helpers for the run-keyed assembly-line views — no DB/React, so formatting rules stay unit-testable (precedent: task-presenter.ts).
 const EM_DASH = "—";
 
 const RELATIVE_UNITS: { secs: number; name: string }[] = [
@@ -43,47 +40,42 @@ export function formatDuration(seconds: number | null): string {
 export type StatusTone =
   "success" | "danger" | "warning" | "info" | "running" | "muted";
 
-/** Map the run vocabulary (queued/running/finished/failed × outcome) to a
- *  display label + tone. `finished` is refined by the run's outcome. */
+type StatusVisual = { label: string; tone: StatusTone };
+
+const STATUS_VISUALS: Partial<Record<string, StatusVisual>> = {
+  queued: { label: "Queued", tone: "muted" },
+  running: { label: "Running", tone: "running" },
+  failed: { label: "Failed", tone: "danger" },
+};
+
+// status === "finished" carries the real verdict in outcome — the pg adapter maps only outcome `error` to status `failed`.
+const OUTCOME_VISUALS: Partial<Record<string, StatusVisual>> = {
+  pr_created: { label: "PR created", tone: "success" },
+  completed: { label: "Completed", tone: "success" },
+  failed: { label: "Failed", tone: "danger" },
+  no_changes: { label: "No changes", tone: "muted" },
+  pr_closed: { label: "PR closed", tone: "muted" },
+  lease_held: { label: "Skipped", tone: "muted" },
+  iteration_max: { label: "Iteration max", tone: "warning" },
+  pending: { label: "Pending", tone: "info" },
+};
+
+/** Maps the run vocabulary (queued/running/finished/failed × outcome) to a display label + tone; `finished` is refined by outcome. */
 export function runStatusVisual(
   status: string,
   outcome: string | null,
-): { label: string; tone: StatusTone } {
-  if (status === "queued") {
-    return { label: "Queued", tone: "muted" };
+): StatusVisual {
+  const known = STATUS_VISUALS[status];
+
+  if (known) {
+    return known;
   }
 
-  if (status === "running") {
-    return { label: "Running", tone: "running" };
-  }
-
-  if (status === "failed") {
-    return { label: "Failed", tone: "danger" };
-  }
-
-  // status === "finished" — the outcome carries the real verdict. A `finished`
-  // row can still be a FAILURE: the pg adapter maps only outcome `error` to
-  // status `failed`, so a single-CR task closed `failed`/`needs-human-help` and a
-  // code-review line closed `pr_closed` both land here with a non-error outcome.
-  switch (outcome) {
-    case "pr_created":
-      return { label: "PR created", tone: "success" };
-    case "completed":
-      return { label: "Completed", tone: "success" };
-    case "failed":
-      return { label: "Failed", tone: "danger" };
-    case "no_changes":
-      return { label: "No changes", tone: "muted" };
-    case "pr_closed":
-      return { label: "PR closed", tone: "muted" };
-    case "lease_held":
-      return { label: "Skipped", tone: "muted" };
-    case "iteration_max":
-      return { label: "Iteration max", tone: "warning" };
-    case "pending":
-      return { label: "Pending", tone: "info" };
-    default:
-      // Unknown/future outcome must never masquerade as success — stay neutral.
-      return { label: outcome ?? "Finished", tone: "muted" };
-  }
+  // Unknown/future outcome must never masquerade as success — stay neutral.
+  return (
+    (outcome ? OUTCOME_VISUALS[outcome] : undefined) ?? {
+      label: outcome ?? "Finished",
+      tone: "muted",
+    }
+  );
 }
