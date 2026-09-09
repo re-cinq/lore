@@ -100,12 +100,29 @@ function RunFacts({ run }: AssemblyRunViewProps) {
   );
 }
 
-/** Where this run sits: the runs list, its repo, then the line it ran — the same trail every other detail page carries. */
+// The line the repo's Backlog page runs; a run of any other line did not come from there.
+const BACKLOG_LINE = "implementation-loop";
+
+/** The Backlog step, for the runs that page starts and links to. It is a real step in the trail rather than a label: the tickets this run came from are on it. */
+function BacklogStep({ run }: AssemblyRunViewProps) {
+  if (run.blueprintName !== BACKLOG_LINE) {
+    return null;
+  }
+
+  return (
+    <>
+      <Link href={`/repos/${run.repo}/${BACKLOG_LINE}`}>Backlog</Link> /{" "}
+    </>
+  );
+}
+
+/** Where this run sits: the runs list, its repo, the backlog when one started it, then the line it ran — the same trail every other detail page carries. */
 function RunTrail({ run }: AssemblyRunViewProps) {
   return (
     <div className="breadcrumb">
       <Link href="/assembly-runs">Assembly Runs</Link> /{" "}
       <Link href={`/repos/${run.repo}`}>{run.repo}</Link> /{" "}
+      <BacklogStep run={run} />
       <strong>{run.blueprintName}</strong>
     </div>
   );

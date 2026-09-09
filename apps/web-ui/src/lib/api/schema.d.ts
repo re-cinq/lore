@@ -1801,23 +1801,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/spend/credits": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** POST /api/spend/credits */
-    post: operations["post_api_spend_credits"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   "/api/task": {
     parameters: {
       query?: never;
@@ -2575,14 +2558,6 @@ export interface components {
     CommitCreated: {
       /** @constant */
       ok: true;
-    };
-    CreditEntryRecorded: {
-      id: number;
-      effective_at: string;
-      amount_usd: number;
-      kind: string;
-      note: string;
-      actor: string;
     };
     DarkFactorySettings: {
       enabled: boolean;
@@ -4052,12 +4027,6 @@ export interface components {
         unbilled_usd: number;
         unbilled_days: number;
       };
-      budget: {
-        ledger_total_usd: number;
-        spent_since_usd: number;
-        remaining_usd: number;
-        anchored_at: string;
-      } | null;
       gcp: {
         available: boolean;
         total_usd: number;
@@ -4585,7 +4554,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The spend screen in one interval-scoped call: metered and billed LLM spend, their breakdowns, the recorded balance, and the estimated Kubernetes compute cost */
+      /** @description The spend screen in one interval-scoped call: metered and billed LLM spend, their breakdowns, and the estimated Kubernetes compute cost */
       200: {
         headers: {
           [name: string]: unknown;
@@ -7827,49 +7796,6 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["SpecTasksSynced"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  post_api_spend_credits: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          amount_usd: number;
-          effective_date?: string;
-          effective_time?: string;
-          /**
-           * @default topup
-           * @enum {string}
-           */
-          kind?: "opening" | "topup" | "correction";
-          /** @default  */
-          note?: string;
-          /** @default  */
-          recorded_by?: string;
-        };
-      };
-    };
-    responses: {
-      /** @description The balance entry that was recorded */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["CreditEntryRecorded"];
         };
       };
       400: components["responses"]["BadRequest"];

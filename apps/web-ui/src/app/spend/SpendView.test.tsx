@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { afterAll, beforeAll, describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { render, screen, within } from "@testing-library/react";
-import SpendView, { budgetOutlook, type SpendWindow } from "./SpendView";
+import SpendView, { type SpendWindow } from "./SpendView";
 
 const usd = (n: number) =>
   Number(n).toLocaleString(undefined, { style: "currency", currency: "USD" });
@@ -71,7 +71,6 @@ const loreOnly: SpendWindow = {
     unbilled_usd: 0,
     unbilled_days: 0,
   },
-  budget: null,
   gcp: {
     available: false,
     total_usd: 0,
@@ -176,7 +175,6 @@ describe("SpendView", () => {
     render(<SpendView spend={loreOnly} />);
 
     for (const name of [
-      "Balance",
       "LLM by Assembly Line",
       "Cost by Model",
       "Cost by Kind",
@@ -192,6 +190,14 @@ describe("SpendView", () => {
       ).toBeInTheDocument();
     }
     expect(screen.queryByText(/Month to Date|MTD|This Month/)).toBeNull();
+  });
+
+  it("carries no balance section, credits card or top-up form", () => {
+    render(<SpendView spend={loreOnly} />);
+
+    expect(screen.queryByRole("heading", { name: "Balance" })).toBeNull();
+    expect(screen.queryByText(/Credits remaining/)).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Record/ })).toBeNull();
   });
 
   it("headlines the interval, the Lore-computed cost, calls and token totals", () => {
@@ -342,12 +348,7 @@ describe("SpendView", () => {
     expect(
       screen.queryByRole("heading", { name: "Anthropic Daily Billed" }),
     ).not.toBeInTheDocument();
-    const balance = screen.getByRole("heading", { name: "Balance", level: 2 })
-      .nextElementSibling as HTMLElement;
-    const placeholders = screen.queryAllByText("—");
-
-    expect(placeholders).toHaveLength(1);
-    expect(balance.contains(placeholders[0])).toBe(true);
+    expect(screen.queryAllByText("—")).toHaveLength(0);
   });
 
   it("shows the billed card and Anthropic sections when an admin key is configured", () => {
@@ -433,249 +434,6 @@ describe("SpendView", () => {
 
     expect(note.textContent).toContain(usd(47.74));
   });
-
-  const budget = {
-    ledger_total_usd: 500,
-    spent_since_usd: 312.5,
-    remaining_usd: 187.5,
-    anchored_at: "2026-08-01T00:00:00Z",
-  };
-
-  const balanceCard = () =>
-    screen.getByRole("heading", { name: "Balance", level: 2 })
-      .nextElementSibling as HTMLElement;
-
-  it("renders the remaining balance below the interval figures", () => {
-    render(<SpendView spend={{ ...loreOnly, budget }} />);
-
-    expect(within(balanceCard()).getByText(usd(187.5))).toBeTruthy();
-  });
-
-  it("shows the recorded total, the spend and the day the count starts", () => {
-    render(<SpendView spend={{ ...loreOnly, budget }} />);
-
-    const note = within(balanceCard()).getByText(/recorded/);
-
-    expect(note.textContent).toContain(usd(500));
-    expect(note.textContent).toContain(usd(312.5));
-    expect(note.textContent).toContain(day("2026-08-01"));
-  });
-
-  it("shows an em dash and a prompt when no balance has been recorded", () => {
-    render(<SpendView spend={loreOnly} />);
-
-    const card = balanceCard();
-
-    expect(within(card).getByText("—")).toBeTruthy();
-    expect(within(card).queryByText(usd(0))).toBeNull();
-    expect(within(card).getByText(/No balance recorded yet/)).toBeTruthy();
-  });
-
-  it("says the balance is overrun when spend has passed it", () => {
-    render(
-      <SpendView
-        spend={{
-          ...loreOnly,
-          budget: { ...budget, spent_since_usd: 545, remaining_usd: -45 },
-        }}
-      />,
-    );
-
-    const card = balanceCard();
-
-    expect(within(card).getByText(usd(-45))).toBeTruthy();
-    expect(within(card).getByText(/already over the recorded balance/));
-  });
-});
-
-describe("budgetOutlook", () => {
-  const budget = {
-    ledger_total_usd: 500,
-    spent_since_usd: 300,
-    remaining_usd: 200,
-    anchored_at: "2026-08-01T00:00:00Z",
-  };
-
-  it("averages spend over the days elapsed since the anchor, inclusive", () => {
-    expect(budgetOutlook(budget, new Date(2026, 7, 10))).toEqual({
-      burnPerDay: 30,
-      daysLeft: 6,
-    });
-  });
-
-  it("counts a single day when the balance was recorded today", () => {
-    expect(budgetOutlook(budget, new Date(2026, 7, 1))).toMatchObject({
-      burnPerDay: 300,
-    });
-  });
-
-  it("returns null when nothing has been spent yet", () => {
-    expect(
-      budgetOutlook({ ...budget, spent_since_usd: 0 }, new Date(2026, 7, 10)),
-    ).toBeNull();
-  });
-
-  it("returns null when the anchor is in the future", () => {
-    expect(budgetOutlook(budget, new Date(2026, 6, 20))).toBeNull();
-  });
-
-  it("reports zero days left when the balance is already overrun", () => {
-    expect(
-      budgetOutlook(
-        { ...budget, spent_since_usd: 600, remaining_usd: -100 },
-        new Date(2026, 7, 10),
-      ),
-    ).toMatchObject({ daysLeft: 0 });
-  });
-});
-
-describe("SpendView top-up form", () => {
-  const recordAction = async () => ({});
-
-  it("asks for the opening balance when no balance is recorded", () => {
-    render(<SpendView spend={loreOnly} recordAction={recordAction} />);
-
-    expect(
-      screen.getByRole("button", { name: "Record balance" }),
-    ).toBeInTheDocument();
-    expect(screen.getByLabelText(/Amount/)).toBeInTheDocument();
-  });
-
-  it("asks for a top-up once a balance exists", () => {
-    render(
-      <SpendView
-        spend={{
-          ...loreOnly,
-          budget: {
-            ledger_total_usd: 500,
-            spent_since_usd: 100,
-            remaining_usd: 400,
-            anchored_at: "2026-08-01T00:00:00Z",
-          },
-        }}
-        recordAction={recordAction}
-      />,
-    );
-
-    expect(
-      screen.getByRole("button", { name: "Record top-up" }),
-    ).toBeInTheDocument();
-  });
-
-  it("omits the form entirely when no record action is supplied", () => {
-    render(<SpendView spend={loreOnly} />);
-
-    expect(screen.queryByLabelText(/Amount/)).toBeNull();
-  });
-});
-
-describe("SpendView runout wording", () => {
-  const NOW = new Date("2026-08-21T00:00:00Z");
-
-  beforeAll(() => {
-    vi.useFakeTimers();
-    vi.setSystemTime(NOW);
-  });
-  afterAll(() => {
-    vi.useRealTimers();
-  });
-
-  const withDaysLeft = (spent: number, remaining: number) => ({
-    ...loreOnly,
-    budget: {
-      ledger_total_usd: spent + remaining,
-      spent_since_usd: spent,
-      remaining_usd: remaining,
-      anchored_at: "2026-08-01T00:00:00Z",
-    },
-  });
-
-  it("says a day, not 1 days, on the last day of runway", () => {
-    render(<SpendView spend={withDaysLeft(561, 39)} />);
-
-    expect(screen.getByText(/about a day left/)).toBeTruthy();
-    expect(screen.queryByText(/1 days left/)).toBeNull();
-  });
-
-  it("pluralises every other runway length", () => {
-    render(<SpendView spend={withDaysLeft(214, 386)} />);
-
-    expect(screen.getByText(/about 37 days left/)).toBeTruthy();
-  });
-});
-
-describe("SpendView anchor precision", () => {
-  const at = (anchored_at: string) => ({
-    ...loreOnly,
-    budget: {
-      ledger_total_usd: 600,
-      spent_since_usd: 214,
-      remaining_usd: 386,
-      anchored_at,
-    },
-  });
-
-  it("shows no clock when the balance anchors to the start of its day", () => {
-    render(<SpendView spend={at("2026-08-01T00:00:00Z")} />);
-
-    const note = screen.getByText(/recorded/);
-
-    expect(note.textContent).toContain(day("2026-08-01"));
-    expect(note.textContent).not.toContain("00:00");
-  });
-
-  it("shows the clock when the balance anchors to a known moment", () => {
-    render(<SpendView spend={at("2026-08-01T14:30:00Z")} />);
-
-    expect(screen.getByText(/14:30 UTC/)).toBeTruthy();
-  });
-
-  it("measures elapsed days from the anchor's day, not from its clock", () => {
-    expect(
-      budgetOutlook(at("2026-08-01T14:30:00Z").budget, new Date(2026, 7, 10)),
-    ).toEqual(
-      budgetOutlook(at("2026-08-01T00:00:00Z").budget, new Date(2026, 7, 10)),
-    );
-  });
-});
-
-describe("SpendView top-up legend", () => {
-  const recordAction = async () => ({});
-
-  it("states that a blank date counts from the start of today", () => {
-    render(<SpendView spend={loreOnly} recordAction={recordAction} />);
-
-    expect(
-      screen.getByText(/Leave both blank to count from the start of today/),
-    ).toBeTruthy();
-    expect(screen.queryByText(/defaults to today/)).toBeNull();
-  });
-
-  it("explains which entry moves the counting window", () => {
-    render(<SpendView spend={loreOnly} recordAction={recordAction} />);
-
-    const legend = screen.getByText(/Which entry moves the window/)
-      .nextElementSibling as HTMLElement;
-
-    expect(legend.textContent).toMatch(/Only the opening entry/);
-    expect(legend.textContent).toMatch(/recording one days late/);
-  });
-
-  it("explains that a negative amount is a correction", () => {
-    render(<SpendView spend={loreOnly} recordAction={recordAction} />);
-
-    const legend = screen.getByText("Amount").nextElementSibling as HTMLElement;
-
-    expect(legend.textContent).toMatch(
-      /negative amount is recorded as a correction/,
-    );
-  });
-
-  it("omits the legend along with the form when no record action is supplied", () => {
-    render(<SpendView spend={loreOnly} />);
-
-    expect(screen.queryByText(/Which entry moves the window/)).toBeNull();
-  });
 });
 
 describe("SpendView cost by cluster", () => {
@@ -700,15 +458,9 @@ describe("SpendView cost by cluster", () => {
     expect(within(table).getByText(num(12))).toBeInTheDocument();
   });
 
-  it("notes that satellite spend is excluded from the balance only when a cluster exists", () => {
-    render(<SpendView spend={withClusters} />);
-    expect(screen.getByText(/excluded from this balance/)).toBeInTheDocument();
-  });
-
-  it("omits the satellite note and shows an empty state without cluster rows", () => {
+  it("shows an empty state without cluster rows", () => {
     render(<SpendView spend={loreOnly} />);
 
-    expect(screen.queryByText(/excluded from this balance/)).toBeNull();
     expect(
       within(tableByHeading("Cost by Cluster")).getByText(
         "No cluster-attributed spend",
@@ -725,7 +477,7 @@ describe("SpendView cost-per-run and vendor split", () => {
     expect(within(table).getByText(usd(27.47 / 15))).toBeInTheDocument();
   });
 
-  it("splits metered spend by the account each vendor bills, and says only Anthropic draws the balance", () => {
+  it("splits metered spend by the account each vendor bills, and says other vendors bill their own account", () => {
     render(<SpendView spend={loreOnly} />);
     const table = tableByHeading("Cost by Vendor");
 
@@ -734,7 +486,7 @@ describe("SpendView cost-per-run and vendor split", () => {
     expect(within(table).getByText("gemini")).toBeInTheDocument();
     expect(within(table).getByText(usd(13.68))).toBeInTheDocument();
     expect(
-      screen.getByText(/Only Anthropic spend draws the balance above/),
+      screen.getByText(/not charged to Anthropic's invoice/),
     ).toBeInTheDocument();
   });
 
@@ -749,7 +501,7 @@ describe("SpendView cost-per-run and vendor split", () => {
 
     render(<SpendView spend={anthropicOnly} />);
     expect(
-      screen.queryByText(/Only Anthropic spend draws the balance above/),
+      screen.queryByText(/not charged to Anthropic's invoice/),
     ).not.toBeInTheDocument();
   });
 });

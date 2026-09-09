@@ -21,12 +21,11 @@ import {
   readComputeSpend,
   type SpendWindowDeps,
 } from "./spend-window-compute.js";
-import { readBudget } from "./spend-window-budget.js";
 import { withPool } from "../with-pool.js";
 
 export type { SpendWindowDeps } from "./spend-window-compute.js";
 
-// The whole spend screen in one interval-scoped call (absorbed the old month-to-date /api/spend): metered llm_calls, billed anthropic_cost_daily, the NON-interval-scoped credit balance, and a central-cluster-only compute estimate (live pods degrade to [] if unreachable).
+// The whole spend screen in one interval-scoped call (absorbed the old month-to-date /api/spend): metered llm_calls, billed anthropic_cost_daily, and a central-cluster-only compute estimate (live pods degrade to [] if unreachable).
 
 const defaultDeps = (): SpendWindowDeps => ({
   livePods: async () => {
@@ -98,7 +97,6 @@ async function spendWindowBody(
     billed: await readAnthropicSpend(pool, win),
     gcp: await readGcpSpend(pool, win),
     compute: await readComputeSpend(pool, win, deps),
-    budget: await readBudget(pool),
   };
 }
 
@@ -112,7 +110,7 @@ export function spendWindowRoute(
     options: zodResponse(bearerScope("read"), SpendWindowSchema, {
       name: "SpendWindow",
       description:
-        "The spend screen in one interval-scoped call: metered and billed LLM spend, their breakdowns, the recorded balance, and the estimated Kubernetes compute cost",
+        "The spend screen in one interval-scoped call: metered and billed LLM spend, their breakdowns, and the estimated Kubernetes compute cost",
       errors: [400],
     }),
     handler: withPool(getPool, (pool, request, h) =>
