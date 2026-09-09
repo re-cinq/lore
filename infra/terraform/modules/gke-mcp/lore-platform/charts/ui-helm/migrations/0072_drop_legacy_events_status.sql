@@ -1,4 +1,4 @@
--- 0071_drop_legacy_events_status: retire the consume-side columns of pipeline.events.
+-- 0072_drop_legacy_events_status: retire the consume-side columns of pipeline.events.
 --
 -- Since ADR-044 every consumer drains its own pipeline.event_deliveries row;
 -- nothing has written pipeline.events.status (or attempts/error/claimed_at/
