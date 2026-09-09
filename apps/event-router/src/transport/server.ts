@@ -14,6 +14,20 @@ import { pipeline, deliveries, clusterAgents } from "../outbound/queues.js";
 // GitHub allows 25 MB; hapi default 1 MB would reject large push deliveries.
 const MAX_BODY_BYTES = 25 * 1024 * 1024;
 
+export function buildServer(opts: { port?: number } = {}): Hapi.Server {
+  const server = Hapi.server({
+    port: opts.port ?? 0,
+    host: "0.0.0.0",
+    routes: { payload: { maxBytes: MAX_BODY_BYTES } },
+  });
+
+  logRequestErrors(server);
+
+  server.route(allRoutes());
+
+  return server;
+}
+
 // Every route this server serves. The repository accessors are THUNKS throughout: the pool does not exist at describe time, so binding them eagerly would build a server that cannot be constructed in a test.
 function allRoutes(): Hapi.ServerRoute[] {
   return [
@@ -29,20 +43,6 @@ function allRoutes(): Hapi.ServerRoute[] {
     }),
     dbHealthRoute(),
   ];
-}
-
-export function buildServer(opts: { port?: number } = {}): Hapi.Server {
-  const server = Hapi.server({
-    port: opts.port ?? 0,
-    host: "0.0.0.0",
-    routes: { payload: { maxBytes: MAX_BODY_BYTES } },
-  });
-
-  logRequestErrors(server);
-
-  server.route(allRoutes());
-
-  return server;
 }
 
 export function startServer(port: number): Promise<() => Promise<void>> {

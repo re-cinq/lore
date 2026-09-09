@@ -15,12 +15,16 @@ export interface ValidateHandlerDeps {
   changedFiles?: () => string[] | Promise<string[]>;
 }
 
-function relayValidationExec(relay: RelayExecutor): ValidationExec {
-  return async (command) => {
-    const r = await relay.run(command);
-    const output = [r.stdout, r.stderr].filter(Boolean).join("\n").trim();
+// The `validate` node handler (ADR-025): detects the repo's toolchain in ctx.gitDir and runs quick checks — locally by default, or in the BYO sidecar over the relay when relayDir is set. A failing check yields `failed`, routed to the line's retry/escalation edge.
+export function createValidateHandler(
+  deps: ValidateHandlerDeps = {},
+): NodeHandler {
+  return async (_node, ctx) => {
+    const tooling = detectTooling(ctx.gitDir);
 
-    return { output, passed: r.exitCode === 0 };
+    return tooling.quickChecks.length === 0
+      ? skippedResult(tooling.language)
+      : runQuickChecks(deps, ctx, tooling);
   };
 }
 
@@ -30,29 +34,6 @@ function skippedResult(language: string): NodeResult {
     extras: {
       "Lore-Validation": "none",
       "Lore-Validation-Lang": language,
-    },
-  };
-}
-
-/** The node's answer, with the failing steps NAMED in the trailers: a downstream retry prompt reads them, and "validation failed" alone would give an agent nothing to act on. */
-function validationResult(
-  result: Awaited<ReturnType<typeof runValidation>>,
-  language: string,
-): NodeResult {
-  const failedSteps = result.steps.filter((s) => !s.passed);
-  const failed = failedSteps.map((s) => s.name);
-
-  return {
-    outcome: result.passed ? "success" : "failed",
-    extras: {
-      "Lore-Validation": result.passed ? "passed" : "failed",
-      "Lore-Validation-Lang": language,
-      ...(failed.length
-        ? {
-            "Lore-Validation-Failed": failed.join(","),
-            "Lore-Validation-Output": failureOutput(failedSteps),
-          }
-        : {}),
     },
   };
 }
@@ -76,16 +57,35 @@ async function runQuickChecks(
   return validationResult(result, tooling.language);
 }
 
-// The `validate` node handler (ADR-025): detects the repo's toolchain in ctx.gitDir and runs quick checks — locally by default, or in the BYO sidecar over the relay when relayDir is set. A failing check yields `failed`, routed to the line's retry/escalation edge.
-export function createValidateHandler(
-  deps: ValidateHandlerDeps = {},
-): NodeHandler {
-  return async (_node, ctx) => {
-    const tooling = detectTooling(ctx.gitDir);
+function relayValidationExec(relay: RelayExecutor): ValidationExec {
+  return async (command) => {
+    const r = await relay.run(command);
+    const output = [r.stdout, r.stderr].filter(Boolean).join("\n").trim();
 
-    return tooling.quickChecks.length === 0
-      ? skippedResult(tooling.language)
-      : runQuickChecks(deps, ctx, tooling);
+    return { output, passed: r.exitCode === 0 };
+  };
+}
+
+/** The node's answer, with the failing steps NAMED in the trailers: a downstream retry prompt reads them, and "validation failed" alone would give an agent nothing to act on. */
+function validationResult(
+  result: Awaited<ReturnType<typeof runValidation>>,
+  language: string,
+): NodeResult {
+  const failedSteps = result.steps.filter((s) => !s.passed);
+  const failed = failedSteps.map((s) => s.name);
+
+  return {
+    outcome: result.passed ? "success" : "failed",
+    extras: {
+      "Lore-Validation": result.passed ? "passed" : "failed",
+      "Lore-Validation-Lang": language,
+      ...(failed.length
+        ? {
+            "Lore-Validation-Failed": failed.join(","),
+            "Lore-Validation-Output": failureOutput(failedSteps),
+          }
+        : {}),
+    },
   };
 }
 
