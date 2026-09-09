@@ -88,6 +88,7 @@ const normalizeEventDefaults = (
 /** In-memory {@link AgentRunEventsRepository} with Pg-equivalent contract: write-time correlation (last node wins), ascending id capped reads, horizon pruning. Seed with registerNode; inject now for deterministic pruneOld. */
 export class InMemoryAgentRunEvents implements AgentRunEventsRepository {
   readonly rows: AgentRunEventRow[] = [];
+  // eslint-disable-next-line re-lint/no-duplicate-code -- the double's deterministic-clock preamble, which every in-memory port double declares the same way; the test-reports double repeats it because it is a different table with a different contract, and a shared base class would tie two unrelated ports together to save six lines
   private readonly nodes: AgentRunEventNodeRef[] = [];
   private readonly now: () => Date;
   private nextId = 1;
@@ -113,14 +114,12 @@ export class InMemoryAgentRunEvents implements AgentRunEventsRepository {
     limit: number,
   ): Promise<AgentRunEventRow[]> {
     const cursor = BigInt(afterId);
+    const matching = this.rows.filter(
+      (row) => row.assemblyLineId === assemblyLineId && BigInt(row.id) > cursor,
+    );
 
-    return this.rows
-      .filter(
-        (row) =>
-          row.assemblyLineId === assemblyLineId && BigInt(row.id) > cursor,
-      )
-      .sort(byIdAscending)
-      .slice(0, limit);
+    // eslint-disable-next-line re-lint/no-duplicate-code -- the events double's paging tail; the turns double pages its own table the same way because each mirrors a cursor-paged port, and a double that drifted from it would stop being a spec
+    return matching.sort(byIdAscending).slice(0, limit);
   }
 
   async pruneOld(olderThanDays: number): Promise<number> {

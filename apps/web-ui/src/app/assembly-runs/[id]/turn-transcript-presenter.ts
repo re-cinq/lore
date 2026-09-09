@@ -75,15 +75,6 @@ export function turnsForNode(
   return turns.filter((turn) => turn.nodeId === nodeId);
 }
 
-// The raw stream-json kind, unnarrowed — a kind never seen still shows.
-export function turnHeading(turn: AgentRunTurn): string {
-  return turn.eventType ?? "unknown";
-}
-
-export function envelopePretty(turn: AgentRunTurn): string {
-  return JSON.stringify(turn.envelope, null, 2);
-}
-
 // One classified entry from one turn, carrying that turn's stored timestamp — the per-message clock the formatted conversation renders.
 export interface TimedLogEntry {
   at: string;

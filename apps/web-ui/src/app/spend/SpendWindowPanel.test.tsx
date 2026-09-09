@@ -42,7 +42,6 @@ const WINDOW: SpendWindow = {
     unbilled_usd: 0,
     unbilled_days: 0,
   },
-  budget: null,
   gcp: {
     available: false,
     total_usd: 0,
@@ -113,9 +112,6 @@ describe("SpendWindowPanel", () => {
     expect(screen.getByText("+ $0.07/h burning now")).toBeInTheDocument();
     expect(screen.getByText("claude-sonnet-4-6")).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "Balance", level: 2 }),
-    ).toBeInTheDocument();
-    expect(
       screen.getByText(
         (_, element) =>
           element?.tagName === "P" &&
@@ -139,17 +135,6 @@ describe("SpendWindowPanel", () => {
     const today = new Date().toISOString().slice(0, 10);
 
     expect(last).toBe(`/api/spend-window?from=${today}&to=${today}`);
-  });
-
-  it("hands the record action through so the top-up form mounts", async () => {
-    stubFetch();
-
-    render(<SpendWindowPanel recordAction={async () => ({})} />);
-    await settle();
-
-    expect(
-      screen.getByRole("button", { name: "Record balance" }),
-    ).toBeInTheDocument();
   });
 
   it("an API refusal renders inline instead of a blank section", async () => {

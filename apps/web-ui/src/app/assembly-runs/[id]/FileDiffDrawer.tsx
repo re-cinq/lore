@@ -42,7 +42,13 @@ function failed(err: unknown): FilesState {
 }
 
 /** One fetch per run: the run id it was made for lives in a ref, so switching files re-reads nothing, and a drawer that is closed (no path) never fetches. */
-function usePullFiles(runId: string, enabled: boolean): FilesState {
+function usePullFiles({
+  runId,
+  enabled,
+}: {
+  runId: string;
+  enabled: boolean;
+}): FilesState {
   const [state, setState] = useState<FilesState>({ status: "loading" });
   const loadedFor = useRef<string | null>(null);
 
@@ -106,7 +112,10 @@ interface DrawerContentProps {
 
 export default function FileDiffDrawer(props: FileDiffDrawerProps) {
   const { runId, path, prNumber, onClose } = props;
-  const state = usePullFiles(runId, path !== null && prNumber !== null);
+  const state = usePullFiles({
+    runId,
+    enabled: path !== null && prNumber !== null,
+  });
 
   if (path === null) {
     return null;

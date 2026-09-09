@@ -476,7 +476,7 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "The spend screen in one interval-scoped call: metered and billed LLM spend, their breakdowns, the recorded balance, and the estimated Kubernetes compute cost",
+            "description": "The spend screen in one interval-scoped call: metered and billed LLM spend, their breakdowns, and the estimated Kubernetes compute cost",
             "content": {
               "application/json": {
                 "schema": {
@@ -7186,88 +7186,6 @@
         }
       }
     },
-    "/api/spend/credits": {
-      "post": {
-        "operationId": "post_api_spend_credits",
-        "summary": "POST /api/spend/credits",
-        "tags": ["Analytics"],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "x-rate-limit-bucket": "default",
-        "responses": {
-          "201": {
-            "description": "The balance entry that was recorded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CreditEntryRecorded"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "413": {
-            "$ref": "#/components/responses/PayloadTooLarge"
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          },
-          "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
-          }
-        },
-        "x-required-scope": "write",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "amount_usd": {
-                    "type": "number"
-                  },
-                  "effective_date": {
-                    "type": "string",
-                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
-                  },
-                  "effective_time": {
-                    "type": "string",
-                    "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
-                  },
-                  "kind": {
-                    "default": "topup",
-                    "type": "string",
-                    "enum": ["opening", "topup", "correction"]
-                  },
-                  "note": {
-                    "default": "",
-                    "type": "string"
-                  },
-                  "recorded_by": {
-                    "default": "",
-                    "type": "string"
-                  }
-                },
-                "required": ["amount_usd"],
-                "additionalProperties": false
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/task": {
       "post": {
         "operationId": "post_api_task",
@@ -9057,6 +8975,12 @@
           "task_pr_number": {
             "type": ["number", "null"]
           },
+          "issue_url": {
+            "type": ["string", "null"]
+          },
+          "issue_number": {
+            "type": ["number", "null"]
+          },
           "created_by": {
             "type": ["string", "null"]
           },
@@ -9081,6 +9005,8 @@
           "args_pr_number",
           "pr_url",
           "task_pr_number",
+          "issue_url",
+          "issue_number",
           "created_by",
           "cost_usd"
         ],
@@ -9143,6 +9069,12 @@
                 "task_pr_number": {
                   "type": ["number", "null"]
                 },
+                "issue_url": {
+                  "type": ["string", "null"]
+                },
+                "issue_number": {
+                  "type": ["number", "null"]
+                },
                 "created_by": {
                   "type": ["string", "null"]
                 },
@@ -9167,6 +9099,8 @@
                 "args_pr_number",
                 "pr_url",
                 "task_pr_number",
+                "issue_url",
+                "issue_number",
                 "created_by",
                 "cost_usd"
               ],
@@ -9843,38 +9777,6 @@
           }
         },
         "required": ["ok"],
-        "additionalProperties": false
-      },
-      "CreditEntryRecorded": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "number"
-          },
-          "effective_at": {
-            "type": "string"
-          },
-          "amount_usd": {
-            "type": "number"
-          },
-          "kind": {
-            "type": "string"
-          },
-          "note": {
-            "type": "string"
-          },
-          "actor": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "effective_at",
-          "amount_usd",
-          "kind",
-          "note",
-          "actor"
-        ],
         "additionalProperties": false
       },
       "DarkFactorySettings": {
@@ -15214,37 +15116,6 @@
             ],
             "additionalProperties": false
           },
-          "budget": {
-            "anyOf": [
-              {
-                "type": "object",
-                "properties": {
-                  "ledger_total_usd": {
-                    "type": "number"
-                  },
-                  "spent_since_usd": {
-                    "type": "number"
-                  },
-                  "remaining_usd": {
-                    "type": "number"
-                  },
-                  "anchored_at": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "ledger_total_usd",
-                  "spent_since_usd",
-                  "remaining_usd",
-                  "anchored_at"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "gcp": {
             "type": "object",
             "properties": {
@@ -15413,7 +15284,7 @@
             "additionalProperties": false
           }
         },
-        "required": ["interval", "llm", "billed", "budget", "gcp", "compute"],
+        "required": ["interval", "llm", "billed", "gcp", "compute"],
         "additionalProperties": false
       },
       "StationRunList": {

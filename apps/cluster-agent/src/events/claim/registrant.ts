@@ -265,12 +265,8 @@ function startCatalogSync(opts: SideLoopOpts): Promise<void> {
   const { firstSync, resolveFirstSync } = firstSyncLatch();
 
   void runCatalogSyncLoop({
-    sync: (ack, snapshot) =>
-      catalogSyncOnce(
-        syncOptions(env, config, identity, catalog),
-        ack,
-        snapshot,
-      ),
+    sync: (ack, mode) =>
+      catalogSyncOnce(syncOptions(env, config, identity, catalog), ack, mode),
     reRegister,
     sleep,
     baseDelayMs: syncIntervalMs(env),

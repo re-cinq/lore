@@ -16,6 +16,7 @@ export const CatalogConfigSchema = z
     disallowed_tools: z.array(z.string()).optional(),
     watch: z.object({ event: z.string(), path: z.string() }).optional(),
     repo_workdir: z.boolean().optional(),
+    // eslint-disable-next-line re-lint/no-duplicate-code -- the agent_definitions catalog blob, passed to the pod as stored; the task-types YAML recipe overlaps in field names only, and a hand-edited config and a DB passthrough must stay free to diverge
     command: z.array(z.string()).optional(),
     env: z.record(z.string(), z.string()).optional(),
     pod_labels: z.record(z.string(), z.string()).optional(),

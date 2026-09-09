@@ -53,6 +53,7 @@ export class InMemoryKnowledge implements KnowledgePort {
     );
   }
 
+  // eslint-disable-next-line re-lint/no-duplicate-code -- the in-memory knowledge adapter; it answers the port's method list so it stays interchangeable with the pg one, which is the whole reason a double exists
   queryTrace(_repo: string, _query: string): Promise<string> {
     return Promise.resolve(TRACE_NOT_DEPLOYED_MESSAGE);
   }

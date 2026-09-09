@@ -23,7 +23,7 @@ function authorized() {
     status: "ok",
     data: { id: "task-1", target_repo: "re-cinq/lore" },
   });
-  userCanAccessRepo.mockResolvedValue(true); // eslint-disable-line re-lint/no-flag-params -- stubs the access answer the route reads, not a behaviour the callee selects
+  userCanAccessRepo.mockResolvedValue(true);
 }
 
 beforeEach(() => {
@@ -64,7 +64,7 @@ describe("auth ladder", () => {
       status: "ok",
       data: { id: "task-1", target_repo: "other/repo" },
     });
-    userCanAccessRepo.mockResolvedValue(false); // eslint-disable-line re-lint/no-flag-params -- stubs the access answer the route reads, not a behaviour the callee selects
+    userCanAccessRepo.mockResolvedValue(false);
 
     const res = await GET(req, { params });
 

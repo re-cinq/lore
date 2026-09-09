@@ -57,15 +57,13 @@ function resolvePriority(priority: string | undefined): string {
   return priority === "immediate" ? "immediate" : "normal";
 }
 
-function buildInsertTaskSql(hasGroup: boolean): string {
-  return hasGroup
-    ? `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, context_bundle, priority, task_group_id)
+const INSERT_GROUPED_TASK_SQL = `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, context_bundle, priority, task_group_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING id, status, priority, created_at`
-    : `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, context_bundle, priority)
+       RETURNING id, status, priority, created_at`;
+
+const INSERT_TASK_SQL = `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, context_bundle, priority)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id, status, priority, created_at`;
-}
 
 function buildInsertTaskParams(
   input: CreateTaskInput,
@@ -125,7 +123,7 @@ async function insertTaskRow(
   resolved: ResolvedTaskFields,
 ): Promise<InsertedTaskRow> {
   const result = await pool.query<InsertedTaskRow>(
-    buildInsertTaskSql(Boolean(input.taskGroupId)),
+    input.taskGroupId ? INSERT_GROUPED_TASK_SQL : INSERT_TASK_SQL,
     buildInsertTaskParams(input, resolved),
   );
 

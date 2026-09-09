@@ -53,27 +53,23 @@ export interface OnboardTaskRow {
   id?: string | null;
 }
 
+// A merged onboarding PR masks its url, so the repo reads as `already-onboarded` rather than PR-pending.
 function openOnboardingPrUrl(
   repoRow: OnboardRepoRow | undefined,
-  merged: boolean,
 ): string | null {
-  if (merged) {
-    return null;
-  }
-
-  return repoRow?.onboarding_pr_url ?? null;
+  return repoRow?.onboarding_pr_merged === true
+    ? null
+    : (repoRow?.onboarding_pr_url ?? null);
 }
 
-// Derives the guard's input from the two query rows so the API and UI can't disagree; a merged onboarding PR masks its url so the repo reads as `already-onboarded`, not PR-pending.
+// Derives the guard's input from the two query rows so the API and UI can't disagree.
 export function toOnboardState(
   repoRow: OnboardRepoRow | undefined,
   taskRow: OnboardTaskRow | undefined,
 ): OnboardState {
-  const merged = repoRow?.onboarding_pr_merged === true;
-
   return {
-    onboardingPrMerged: merged,
-    openOnboardingPrUrl: openOnboardingPrUrl(repoRow, merged),
+    onboardingPrMerged: repoRow?.onboarding_pr_merged === true,
+    openOnboardingPrUrl: openOnboardingPrUrl(repoRow),
     inFlightTaskId: taskRow?.id ?? null,
   };
 }

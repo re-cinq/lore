@@ -193,16 +193,15 @@ function VendorCostTable({ byVendor }: ByVendorProps) {
   );
 }
 
-/** The note belongs WITH this table: only Anthropic spend draws the recorded balance, so a deployment using another vendor would otherwise read its balance as wrong. */
+/** The note belongs WITH this table: a deployment using another vendor would otherwise read every row here as money Anthropic charged. */
 function VendorCosts({ byVendor }: ByVendorProps) {
   return (
     <>
       <VendorCostTable byVendor={byVendor} />
-      {/* Only Anthropic draws recorded credits; others bill their own vendor */}
       {byVendor.some((r) => r.vendor !== "anthropic") && (
         <p className={`meta ${styles.subnote}`}>
-          Only Anthropic spend draws the balance above — other vendors bill
-          their own account.
+          Vendors other than Anthropic bill their own account, so their spend is
+          not charged to Anthropic&apos;s invoice.
         </p>
       )}
     </>

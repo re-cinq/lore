@@ -357,6 +357,65 @@ function contract(name: string, make: () => EventDeliveriesPort): void {
         expect.arrayContaining([{ event_name: eventName, count: 1 }]),
       );
     });
+
+    it("reports a dead-lettered delivery with the error that ended it", async () => {
+      const port = make();
+      const [s, eventName] = [sub(), evt()];
+
+      await port.subscribe(s, [{ eventName }]);
+      await port.insert({ eventName, source: "internal" });
+      const [delivery] = await port.claim(s, 10);
+
+      await port.markDead(delivery.id, "fetch failed");
+
+      expect(await port.deadLettered(60)).toEqual(
+        expect.arrayContaining([
+          {
+            event_name: eventName,
+            subscriber: s,
+            count: 1,
+            last_error: "fetch failed",
+          },
+        ]),
+      );
+    });
+
+    it("reports the newest error when a group dead-lettered more than once", async () => {
+      const port = make();
+      const [s, eventName] = [sub(), evt()];
+
+      await port.subscribe(s, [{ eventName }]);
+      await port.insert({ eventName, source: "internal" });
+      await port.insert({ eventName, source: "internal" });
+      const claimed = await port.claim(s, 10);
+
+      await port.markDead(claimed[0].id, "older failure");
+      await port.markDead(claimed[1].id, "newest failure");
+
+      expect(
+        (await port.deadLettered(60)).find((d) => d.event_name === eventName),
+      ).toEqual({
+        event_name: eventName,
+        subscriber: s,
+        count: 2,
+        last_error: "newest failure",
+      });
+    });
+
+    it("leaves a delivery still being retried out of the dead-letter report", async () => {
+      const port = make();
+      const [s, eventName] = [sub(), evt()];
+
+      await port.subscribe(s, [{ eventName }]);
+      await port.insert({ eventName, source: "internal" });
+      const [delivery] = await port.claim(s, 10);
+
+      await port.markFailed(delivery.id, "fetch failed", 30);
+
+      expect(
+        (await port.deadLettered(60)).filter((d) => d.event_name === eventName),
+      ).toEqual([]);
+    });
   });
 }
 
@@ -370,4 +429,61 @@ if (pg.ok) {
 
     return new PgEventDeliveries(pool);
   });
+
+  afterAll(async () => {
+    const pool = new Pool(PG_CONFIG);
+
+    try {
+      await pool.query(
+        `DELETE FROM pipeline.events WHERE event_name LIKE 'internal.test.%'`,
+      );
+      await pool.query(
+        `DELETE FROM pipeline.event_subscriptions WHERE subscriber LIKE 'sub-%'`,
+      );
+    } finally {
+      await pool.end();
+    }
+  });
 }
+
+function deadRow(id: string, handledAt: string, error: string) {
+  return {
+    id,
+    event_id: id,
+    subscriber: "floor",
+    event_name: "cron.agent_watcher_reconcile.tick",
+    source: "cron",
+    params: {},
+    repo: null,
+    status: "dead",
+    attempts: 5,
+    error,
+    claimed_at: handledAt,
+    next_attempt_at: handledAt,
+    handled_at: handledAt,
+    visibility_timeout_seconds: 600,
+  };
+}
+
+describe("InMemoryEventDeliveries dead-letter ordering", () => {
+  it("reports the newest error even when the older row was stored last", async () => {
+    const port = new InMemoryEventDeliveries(
+      [],
+      [
+        deadRow("1", "2026-09-08T15:00:00.000Z", "newest failure"),
+        deadRow("2", "2026-09-08T14:50:00.000Z", "older failure"),
+      ],
+      new Map(),
+      () => Date.parse("2026-09-08T15:30:00.000Z"),
+    );
+
+    expect(await port.deadLettered(60)).toEqual([
+      {
+        event_name: "cron.agent_watcher_reconcile.tick",
+        subscriber: "floor",
+        count: 2,
+        last_error: "newest failure",
+      },
+    ]);
+  });
+});

@@ -59,23 +59,72 @@ function PrFact({ prUrl, prNumber }: PrFactProps) {
   );
 }
 
+interface IssueFactProps {
+  issueUrl: string | null;
+  issueNumber: number | null;
+}
+
+function IssueFact({ issueUrl, issueNumber }: IssueFactProps) {
+  if (!issueUrl || !issueNumber) {
+    return null;
+  }
+
+  return (
+    <>
+      <dt>Issue</dt>
+      <dd>
+        <a href={issueUrl} target="_blank" rel="noreferrer">
+          #{issueNumber}
+        </a>
+      </dd>
+    </>
+  );
+}
+
 function RunFacts({ run }: AssemblyRunViewProps) {
   return (
-    <dl className={styles.facts}>
-      <dt>Repo</dt>
-      <dd>
-        <Link href={`/repos/${run.repo}`}>{run.repo}</Link>
-      </dd>
-      <dt>Branch</dt>
-      <dd className={styles.mono}>{run.branch ?? EM_DASH}</dd>
-      <dt>Outcome</dt>
-      <dd>{run.outcome ?? EM_DASH}</dd>
-      <ReasonFact reason={run.reason} />
-      <dt>Duration</dt>
-      <dd>{formatDuration(run.durationSeconds)}</dd>
-      <TaskFact taskId={run.taskId} />
-      <PrFact prUrl={run.prUrl} prNumber={run.prNumber} />
-    </dl>
+    <div className="spec-card">
+      <dl className={styles.facts}>
+        <dt>Branch</dt>
+        <dd className={styles.mono}>{run.branch ?? EM_DASH}</dd>
+        <dt>Outcome</dt>
+        <dd>{run.outcome ?? EM_DASH}</dd>
+        <ReasonFact reason={run.reason} />
+        <dt>Duration</dt>
+        <dd>{formatDuration(run.durationSeconds)}</dd>
+        <TaskFact taskId={run.taskId} />
+        <PrFact prUrl={run.prUrl} prNumber={run.prNumber} />
+        <IssueFact issueUrl={run.issueUrl} issueNumber={run.issueNumber} />
+      </dl>
+    </div>
+  );
+}
+
+// The line the repo's Backlog page runs; a run of any other line did not come from there.
+const BACKLOG_LINE = "implementation-loop";
+
+/** The Backlog step, for the runs that page starts and links to. It is a real step in the trail rather than a label: the tickets this run came from are on it. */
+function BacklogStep({ run }: AssemblyRunViewProps) {
+  if (run.blueprintName !== BACKLOG_LINE) {
+    return null;
+  }
+
+  return (
+    <>
+      <Link href={`/repos/${run.repo}/${BACKLOG_LINE}`}>Backlog</Link> /{" "}
+    </>
+  );
+}
+
+/** Where this run sits: the runs list, its repo, the backlog when one started it, then the line it ran — the same trail every other detail page carries. */
+function RunTrail({ run }: AssemblyRunViewProps) {
+  return (
+    <div className="breadcrumb">
+      <Link href="/assembly-runs">Assembly Runs</Link> /{" "}
+      <Link href={`/repos/${run.repo}`}>{run.repo}</Link> /{" "}
+      <BacklogStep run={run} />
+      <strong>{run.blueprintName}</strong>
+    </div>
   );
 }
 
@@ -85,6 +134,7 @@ export default function AssemblyRunView({ run }: AssemblyRunViewProps) {
 
   return (
     <div>
+      <RunTrail run={run} />
       <div className={styles.header}>
         <h1>{run.blueprintName}</h1>
         <span className={`${styles.status} ${styles[visual.tone]}`}>

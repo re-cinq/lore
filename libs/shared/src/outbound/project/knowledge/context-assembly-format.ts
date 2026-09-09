@@ -79,7 +79,10 @@ function isBetter(candidate: SourceItem, current: SourceItem): boolean {
   return ai > bi;
 }
 
-function documentAttrs(source: SourceItem, truncated: boolean): string[] {
+function documentAttrs(
+  source: SourceItem,
+  opts: { truncated?: boolean },
+): string[] {
   return [
     source.source_path ? `source="${escapeXmlAttr(source.source_path)}"` : "",
     source.content_type ? `type="${escapeXmlAttr(source.content_type)}"` : "",
@@ -88,7 +91,7 @@ function documentAttrs(source: SourceItem, truncated: boolean): string[] {
       ? `relevance="${source.score.toFixed(2)}"`
       : "",
     `tokens="${source.tokens}"`,
-    truncated ? 'truncated="true"' : "",
+    opts.truncated ? 'truncated="true"' : "",
   ];
 }
 
@@ -96,9 +99,7 @@ export function serializeDocument(
   source: SourceItem,
   opts: { truncated?: boolean } = {},
 ): string {
-  const attrs = documentAttrs(source, opts.truncated ?? false)
-    .filter(Boolean)
-    .join(" ");
+  const attrs = documentAttrs(source, opts).filter(Boolean).join(" ");
 
   return `<document ${attrs}>\n${source.text}\n</document>`;
 }

@@ -1,16 +1,16 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { authorizeSessionLoreApi } from "@/lib/lore-api-access";
-import { serverError } from "@/lib/api-error";
+import { repoRoute } from "@/lib/repo-route";
 
-function parsePreviewParams(url: URL): {
+function parsePreviewParams(searchParams: URLSearchParams): {
   query: string | null;
   template: string;
   debug: string;
 } {
-  const query = url.searchParams.get("query");
-  const template = url.searchParams.get("template") || "implementation";
-  const debug = url.searchParams.get("debug") === "1" ? "&debug=1" : "";
+  const query = searchParams.get("query");
+  const template = searchParams.get("template") || "implementation";
+  const debug = searchParams.get("debug") === "1" ? "&debug=1" : "";
 
   return { query, template, debug };
 }
@@ -50,21 +50,15 @@ async function previewResponse(
   return upstreamJson(upstream);
 }
 
-export async function GET(
-  req: Request,
-  { params }: { params: Promise<{ owner: string; repo: string }> },
-) {
-  const { owner, repo } = await params;
-  const fullName = `${owner}/${repo}`;
-  const { query, template, debug } = parsePreviewParams(new URL(req.url));
+export const GET = repoRoute(
+  "context-preview",
+  async (fullName, searchParams) => {
+    const { query, template, debug } = parsePreviewParams(searchParams);
 
-  if (!query) {
-    return NextResponse.json({ error: "query is required" }, { status: 400 });
-  }
+    if (!query) {
+      return NextResponse.json({ error: "query is required" }, { status: 400 });
+    }
 
-  try {
-    return await previewResponse(fullName, query, template, debug);
-  } catch (err) {
-    return serverError("context-preview", err);
-  }
-}
+    return previewResponse(fullName, query, template, debug);
+  },
+);

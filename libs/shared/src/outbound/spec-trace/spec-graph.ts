@@ -221,10 +221,10 @@ function resolveRingOwner(
   return (secUid && byUid.get(secUid)) || ungrouped;
 }
 
-function tallyRingOwner(owner: RingSection, tested: boolean): void {
+function tallyRingOwner(owner: RingSection, validatingLinks: number): void {
   owner.total += 1;
 
-  if (tested) {
+  if (validatingLinks > 0) {
     owner.tested += 1;
   }
 }
@@ -238,7 +238,7 @@ function flattenRingStatements(
     const owner = resolveRingOwner(st.sec?.uid, byUid, ungrouped);
     const tested = (st.v ?? 0) > 0;
 
-    tallyRingOwner(owner, tested);
+    tallyRingOwner(owner, st.v ?? 0);
 
     return {
       uid: st.uid,

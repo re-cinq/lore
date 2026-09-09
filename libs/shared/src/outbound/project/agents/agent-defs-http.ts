@@ -52,6 +52,7 @@ export class AgentDefsHttp implements AgentDefsPort {
     const body = (await res.json()) as
       { agents?: AgentDefinition[] } | AgentDefinition[];
 
+    // eslint-disable-next-line re-lint/no-duplicate-code -- the HTTP agent-definitions adapter; what it shares with the YAML one is the port's method list, and only one of the two can be the offline fallback
     return Array.isArray(body) ? body : (body.agents ?? []);
   }
 

@@ -6,10 +6,6 @@
   font-size: var(--fs-xs);
 }
 
-.toggleRow {
-  padding: 0 0.6rem 0.35rem;
-}
-
 .placeholder {
   margin: 0;
   padding: 0.5rem 0.6rem;
@@ -33,50 +29,6 @@
 }
 
 /* Raw mode: one envelope per turn, folded. */
-.turns {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  font-size: var(--fs-sm);
-  line-height: 1.45;
-}
-.turn {
-  padding: 0.35rem 0.6rem;
-  border-top: 1px solid var(--border);
-}
-.turnSummary {
-  cursor: pointer;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.5rem;
-  color: var(--text-muted);
-}
-.kind {
-  font-family: var(--font-mono);
-  font-weight: 600;
-  color: var(--accent);
-}
-.iteration {
-  border-radius: 999px;
-  padding: 0 0.4rem;
-  font-size: var(--fs-2xs);
-  color: var(--text-muted);
-  background: var(--bg-hover);
-  border: 1px solid var(--border);
-}
-.envelope {
-  margin: 0.4rem 0 0;
-  padding: 0.5rem;
-  max-height: 24rem;
-  overflow: auto;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  font-family: var(--font-mono);
-  font-size: var(--fs-xs);
-  background: var(--bg-hover);
-  border-radius: var(--radius-sm);
-}
 
 /* Conversation mode: the terminal. */
 .terminal {
@@ -93,10 +45,7 @@
 }
 .row,
 .segmentRow {
-  display: grid;
-  grid-template-columns: 5.5rem minmax(0, 1fr);
-  gap: 0.6rem;
-  align-items: baseline;
+  display: block;
   padding: 0.1rem 0;
 }
 .segmentRow {
@@ -109,10 +58,16 @@
   padding-top: 0;
   border-top: none;
 }
+/* The clock heads the entry it belongs to. It prints only when the second changes, so the space above it separates one exchange from the next. */
 .time {
+  display: block;
+  margin-top: 0.45rem;
   color: var(--text-muted);
   font-size: var(--fs-2xs);
   white-space: nowrap;
+}
+.terminal > li:first-child .time {
+  margin-top: 0;
 }
 .body {
   min-width: 0;

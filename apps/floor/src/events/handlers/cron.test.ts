@@ -9,9 +9,21 @@ const orphanedEvents =
     (minutes: number) => Promise<{ event_name: string; count: number }[]>
   >();
 
+const deadLettered = vi.fn<
+  (minutes: number) => Promise<
+    {
+      event_name: string;
+      subscriber: string;
+      count: number;
+      last_error: string | null;
+    }[]
+  >
+>();
+
 vi.mock("../../outbound/event-store.js", () => ({
   pruneHandled: (days: number) => pruneHandled(days),
   orphanedEvents: (minutes: number) => orphanedEvents(minutes),
+  deadLettered: (minutes: number) => deadLettered(minutes),
 }));
 
 vi.mock("../../outbound/queues.js", () => ({
@@ -31,6 +43,7 @@ beforeEach(() => {
   pruneOld.mockReset().mockResolvedValue(0);
   pruneTurns.mockReset().mockResolvedValue(0);
   orphanedEvents.mockReset().mockResolvedValue([]);
+  deadLettered.mockReset().mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -148,9 +161,46 @@ describe("eventsPrune orphan report", () => {
     expect(err).not.toHaveBeenCalled();
   });
 
+  it("names each handler that gave up, with its count and the error that ended it", async () => {
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    deadLettered.mockResolvedValue([
+      {
+        event_name: "cron.agent_watcher_reconcile.tick",
+        subscriber: "floor",
+        count: 60,
+        last_error: "fetch failed",
+      },
+    ]);
+    await eventsPrune({}, { eventId: "1" });
+
+    expect(err.mock.calls[0]?.[0]).toContain(
+      "cron.agent_watcher_reconcile.tick x60 (fetch failed)",
+    );
+  });
+
+  it("reports a dead-lettered delivery whose error was never recorded", async () => {
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    deadLettered.mockResolvedValue([
+      {
+        event_name: "cron.merge_check.tick",
+        subscriber: "floor",
+        count: 1,
+        last_error: null,
+      },
+    ]);
+    await eventsPrune({}, { eventId: "1" });
+
+    expect(err.mock.calls[0]?.[0]).toContain(
+      "cron.merge_check.tick x1 (no error)",
+    );
+  });
+
   it("looks back exactly one hour, matching its own tick, so no window is skipped or doubled", async () => {
     await eventsPrune({}, { eventId: "1" });
 
     expect(orphanedEvents).toHaveBeenCalledWith(60);
+    expect(deadLettered).toHaveBeenCalledWith(60);
   });
 });

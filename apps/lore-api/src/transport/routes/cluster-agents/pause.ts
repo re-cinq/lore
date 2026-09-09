@@ -38,7 +38,10 @@ export async function handleSetPaused(
   | { code: 200; body: z.infer<typeof PauseResponse> }
   | { code: 404; body: { error: string } }
 > {
-  const agent = await deps.agents.setPaused(id, body.paused);
+  const agent = await deps.agents.setPaused(
+    id,
+    body.paused ? "paused" : "running",
+  );
 
   if (!agent) {
     return { code: 404, body: { error: "cluster agent not found" } };

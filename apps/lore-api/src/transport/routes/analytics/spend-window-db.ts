@@ -2,7 +2,7 @@ import type { Pool, QueryResultRow } from "pg";
 
 const UNDEFINED_TABLE = "42P01";
 
-// A table that may not exist yet (anthropic_cost_daily, credit_ledger — migration-gated) degrades to empty rows rather than 500.
+// A table that may not exist yet (migration-gated) degrades to empty rows rather than 500.
 export async function optionalTableRows<T extends QueryResultRow>(
   pool: Pool,
   sql: string,

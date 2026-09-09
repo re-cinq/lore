@@ -84,7 +84,6 @@ import { usageRoute } from "./routes/analytics/usage.js";
 import { analyticsRoute } from "./routes/analytics/analytics.js";
 import { activityRoutes } from "./routes/analytics/activity.js";
 import { analyticsOverviewRoute } from "./routes/analytics/spend.js";
-import { creditLedgerRoute } from "./routes/analytics/credit-ledger.js";
 import { spendWindowRoute } from "./routes/analytics/spend-window.js";
 import { agentStatsRoute } from "./routes/analytics/agent-stats.js";
 import { impactRoute } from "./routes/impact/impact.js";
@@ -243,7 +242,6 @@ function analyticsRoutes(getPool: PoolGetter): ServerRoute[] {
     analyticsRoute(getPool),
     ...activityRoutes(getPool),
     spendWindowRoute(getPool),
-    creditLedgerRoute(getPool),
     analyticsOverviewRoute(getPool),
     agentStatsRoute(getPool),
   ];
