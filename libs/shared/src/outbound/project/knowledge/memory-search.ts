@@ -3,6 +3,7 @@
 import { getQueryEmbedding } from "../../embeddings/embedding-service.js";
 import { resolveAgentId } from "../../agent-id.js";
 import { diversify, rrfMerge } from "../../../domain/memory-ranking.js";
+import { keyTermsQuery } from "../../../domain/key-terms.js";
 import type { PgPool } from "../../memory-store.js";
 import {
   vectorSearchMemories,
@@ -74,15 +75,17 @@ async function vectorSearchBoth(
   ]);
 }
 
-/** Keyword search always runs (fallback when embedding unavailable). */
+/** Keyword search always runs (fallback when embedding unavailable), on the query's distinctive terms rather than the sentence. */
 async function keywordSearchBoth(
   pool: PgPool,
   query: string,
   scope: SearchScope,
 ): Promise<[RankedRow[], RankedRow[]]> {
+  const terms = keyTermsQuery(query);
+
   return Promise.all([
-    keywordSearchMemories(pool, query, scope.agent, scope.poolId),
-    keywordSearchFacts(pool, query, scope.agent, scope.includeInvalidated),
+    keywordSearchMemories(pool, terms, scope.agent, scope.poolId),
+    keywordSearchFacts(pool, terms, scope.agent, scope.includeInvalidated),
   ]);
 }
 
