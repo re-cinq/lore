@@ -61,6 +61,51 @@ describe("externalCheckRuns", () => {
 });
 
 describe("summarizeFailedChecks", () => {
+  it("names two checks sharing a name once, since two workflows can publish one", () => {
+    expect(
+      summarizeFailedChecks([
+        check({ name: "build", conclusion: "failure" }),
+        check({ name: "build", conclusion: "timed_out" }),
+      ]).names,
+    ).toEqual(["build"]);
+  });
+
+  it("gathers what both checks of one name reported into a single block", () => {
+    expect(
+      summarizeFailedChecks([
+        check({
+          name: "build",
+          conclusion: "failure",
+          output: { title: "ui", summary: null },
+        }),
+        check({
+          name: "build",
+          conclusion: "failure",
+          output: { title: "api", summary: null },
+        }),
+      ]).summary,
+    ).toBe("### build (failure)\n\nui\n\napi");
+  });
+
+  it("returns an empty summary when a failed check reported nothing, which is the ordinary case for an Actions job", () => {
+    expect(
+      summarizeFailedChecks([check({ name: "lint", conclusion: "failure" })]),
+    ).toEqual({ names: ["lint"], summary: "" });
+  });
+
+  it("omits the checks that reported nothing while keeping the one that did", () => {
+    expect(
+      summarizeFailedChecks([
+        check({ name: "build", conclusion: "failure" }),
+        check({
+          name: "lint",
+          conclusion: "failure",
+          output: { title: "3 problems", summary: null },
+        }),
+      ]).summary,
+    ).toBe("### lint (failure)\n\n3 problems");
+  });
+
   it("names only the failed checks, in the order given", () => {
     expect(
       summarizeFailedChecks([

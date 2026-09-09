@@ -46,6 +46,25 @@ describe("ciFeedbackOf", () => {
 });
 
 describe("withCiFeedback", () => {
+  it("renders no code fence when no check reported anything, which is the ordinary case", () => {
+    expect(
+      withCiFeedback("Do the work.", {
+        sha: "deadbeef",
+        failedChecks: "lint, build",
+        summary: "",
+      }),
+    ).toBe(
+      `Do the work.
+
+## CI reported failures on deadbeef
+
+The build for your last push is red. These checks failed: lint, build
+
+Map each name to the job that publishes it and run only that job's command.
+`,
+    );
+  });
+
   it("leaves the prompt untouched when there is no feedback", () => {
     expect(withCiFeedback("Do the work.", null)).toBe("Do the work.");
   });

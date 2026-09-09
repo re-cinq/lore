@@ -56,21 +56,35 @@ export function externalCheckRuns(checks: readonly CheckRun[]): CheckRun[] {
 /** How much of a CI report the next prompt carries, matching the failure-feedback cap the launcher already applies. */
 const MAX_SUMMARY_CHARS = 2500;
 
-/** The failed check NAMES (the reliable signal — a job's output is often just "Process completed with exit code 1") and their rendered detail, capped. */
+/** The failed check NAMES (the reliable signal — a job's output is often just "Process completed with exit code 1") and their rendered detail, capped. Grouped by NAME because two workflows may each publish a job called `build`, and "build, build" names nothing a reader can act on. */
 export function summarizeFailedChecks(
   checks: readonly CheckRun[],
   maxChars: number = MAX_SUMMARY_CHARS,
 ): { names: string[]; summary: string } {
-  const failed = failedCheckRuns(checks);
-  const summary = failed.map(failureBlock).join("\n\n");
+  const byName = groupByName(failedCheckRuns(checks));
+  const summary = [...byName]
+    .map(([name, runs]) => failureBlock(name, runs))
+    .filter((block) => block.length > 0)
+    .join("\n\n");
 
   return {
-    names: failed.map((run) => run.name),
+    names: [...byName.keys()],
     summary:
       summary.length > maxChars
         ? `${summary.substring(0, maxChars)}\n...(truncated)`
         : summary,
   };
+}
+
+/** Failed runs keyed by check name, insertion-ordered so the first failure GitHub listed stays first. */
+function groupByName(runs: readonly CheckRun[]): Map<string, CheckRun[]> {
+  const byName = new Map<string, CheckRun[]>();
+
+  for (const run of runs) {
+    byName.set(run.name, [...(byName.get(run.name) ?? []), run]);
+  }
+
+  return byName;
 }
 
 /** The newest commit a CI verdict can be read from, or null when every commit skipped CI. Not simply the head: the repo's own format job commits `style: prettier [skip ci]` onto the branch, and checks never appear on that sha — reading the head would leave a run waiting forever. Commits arrive oldest-first, as GitHub lists them. */
@@ -80,15 +94,15 @@ export function ciJudgedSha(commits: readonly PullCommit[]): string | null {
   return judged ? judged.sha : null;
 }
 
-/** One failed check as the prompt shows it: what failed, then whatever the job said about it. */
-function failureBlock(run: CheckRun): string {
-  return [
-    `### ${run.name} (${run.conclusion})`,
-    run.output?.title,
-    run.output?.summary,
-  ]
-    .filter((part) => typeof part === "string" && part.length > 0)
-    .join("\n\n");
+/** Everything the jobs of one check name reported, or "" when they reported nothing — which is the ordinary case for an Actions job, and why a heading alone is not worth rendering. */
+function failureBlock(name: string, runs: readonly CheckRun[]): string {
+  const reported = runs
+    .flatMap((run) => [run.output?.title, run.output?.summary])
+    .filter((part): part is string => typeof part === "string" && part !== "");
+
+  return reported.length === 0
+    ? ""
+    : [`### ${name} (${runs[0].conclusion})`, ...reported].join("\n\n");
 }
 
 /** True when this commit message tells GitHub to run nothing for it. */
