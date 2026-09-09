@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   computeTransferScore,
   diversify,
+  normalizeMemoryScores,
+  weightByConfidence,
   rrfMerge,
   scoreImportance,
 } from "./memory-ranking.js";
@@ -46,6 +48,67 @@ describe("computeTransferScore", () => {
 
   it("clamps to 0 when many local keywords stack", () => {
     expect(computeTransferScore("config deploy url auth secret env")).toBe(0);
+  });
+});
+
+describe("weightByConfidence", () => {
+  const pair = (staleScore: number, observedScore: number) =>
+    [
+      {
+        key: "stale",
+        value: "v",
+        score: staleScore,
+        agent_id: "a",
+        source: "fact" as const,
+        confidence: "stale",
+      },
+      {
+        key: "observed",
+        value: "v",
+        score: observedScore,
+        agent_id: "b",
+        source: "fact" as const,
+        confidence: "observed",
+      },
+    ] satisfies MemorySearchResult[];
+
+  it("sorts a stale fact below an observed one it narrowly outscored", () => {
+    expect(
+      weightByConfidence(pair(0.032, 0.03)).map((result) => result.key),
+    ).toEqual(["observed", "stale"]);
+  });
+
+  it("leaves a stale fact on top when it outscores an observed one outright", () => {
+    expect(
+      weightByConfidence(pair(0.09, 0.03)).map((result) => result.key),
+    ).toEqual(["stale", "observed"]);
+  });
+
+  it("treats a missing confidence as observed rather than penalising it", () => {
+    const untiered: MemorySearchResult[] = [
+      { key: "none", value: "v", score: 0.03, agent_id: "a", source: "memory" },
+    ];
+
+    expect(weightByConfidence(untiered)[0].score).toBe(0.03);
+  });
+});
+
+describe("normalizeMemoryScores", () => {
+  it("rescales 0.0328 and 0.0265 to 1 and the fraction between them", () => {
+    const tied: MemorySearchResult[] = [
+      { key: "top", value: "v", score: 0.0328, agent_id: "a", source: "fact" },
+      { key: "low", value: "v", score: 0.0265, agent_id: "b", source: "fact" },
+    ];
+
+    const scores = normalizeMemoryScores(tied).map((result) =>
+      Number(result.score.toFixed(3)),
+    );
+
+    expect(scores).toEqual([1, 0.808]);
+  });
+
+  it("returns an empty list unchanged rather than dividing by zero", () => {
+    expect(normalizeMemoryScores([])).toEqual([]);
   });
 });
 

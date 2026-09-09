@@ -109,6 +109,41 @@ export function computeTransferScore(text: string): number {
   return Math.max(0, Math.min(1, score));
 }
 
+// ── Confidence weighting and score normalisation ─────────────────────
+
+/** How much a tier is trusted when two results score alike. `stale` means "nothing has retrieved this in 30 days", which is evidence about the memory, not about the query — so it breaks ties rather than deciding them. */
+const CONFIDENCE_WEIGHT: Record<string, number> = {
+  verified: 1,
+  observed: 1,
+  inferred: 0.9,
+  stale: 0.6,
+};
+
+/** Re-sorts by fusion score scaled by confidence, so a stale fact sits below an observed one it only narrowly outscored and still wins when it outscores it outright. An absent tier is treated as `observed`: a memory carries no tier and must not be penalised for it. */
+export function weightByConfidence(
+  results: MemorySearchResult[],
+): MemorySearchResult[] {
+  return [...results]
+    .map((result) => ({
+      ...result,
+      score: result.score * (CONFIDENCE_WEIGHT[result.confidence ?? ""] ?? 1),
+    }))
+    .sort((a, b) => b.score - a.score);
+}
+
+/** Rescales so the top result is 1 and the rest are proportional fractions. Raw RRF sums sit near 1/61 and differ in the third decimal, so an unrelated hit reads as all but tied with the best one; the ordering is the same, the spread is legible. Mirrors what #1924 did for the chunk sources. */
+export function normalizeMemoryScores(
+  results: MemorySearchResult[],
+): MemorySearchResult[] {
+  const top = Math.max(...results.map((result) => result.score), 0);
+
+  if (top <= 0) {
+    return results;
+  }
+
+  return results.map((result) => ({ ...result, score: result.score / top }));
+}
+
 // ── Diversification: cap results per agent_id::source ────────────────
 
 export function diversify(

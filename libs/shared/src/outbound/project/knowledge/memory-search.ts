@@ -2,7 +2,12 @@
 
 import { getQueryEmbedding } from "../../embeddings/embedding-service.js";
 import { resolveAgentId } from "../../agent-id.js";
-import { diversify, rrfMerge } from "../../../domain/memory-ranking.js";
+import {
+  diversify,
+  rrfMerge,
+  weightByConfidence,
+  normalizeMemoryScores,
+} from "../../../domain/memory-ranking.js";
 import { keyTermsQuery } from "../../../domain/key-terms.js";
 import type { PgPool } from "../../memory-store.js";
 import {
@@ -156,7 +161,8 @@ async function rankedHits(
     keywordFacts,
   ]);
 
-  return diversify(merged, limit);
+  // Confidence breaks ties before the cap, so a stale fact cannot occupy a slot it only narrowly earned; normalising last makes the surviving spread readable.
+  return normalizeMemoryScores(diversify(weightByConfidence(merged), limit));
 }
 
 /** The search scope, or null when a named pool was requested that does not exist. */
