@@ -12,18 +12,6 @@ export interface MockReqInit {
   body?: unknown;
 }
 
-function rawRequestBody(body: unknown): string {
-  if (body === undefined) {
-    return "";
-  }
-
-  if (typeof body === "string") {
-    return body;
-  }
-
-  return JSON.stringify(body);
-}
-
 export function makeReq(init: MockReqInit): IncomingMessage {
   const raw = rawRequestBody(init.body);
   const stream = Readable.from([
@@ -41,6 +29,18 @@ export function makeReq(init: MockReqInit): IncomingMessage {
   return stream;
 }
 
+function rawRequestBody(body: unknown): string {
+  if (body === undefined) {
+    return "";
+  }
+
+  if (typeof body === "string") {
+    return body;
+  }
+
+  return JSON.stringify(body);
+}
+
 export interface MockRes extends ServerResponse {
   statusCode: number;
   headers: Record<string, string>;
@@ -56,6 +56,22 @@ interface MockResState {
   headers: Record<string, string>;
   body: string;
   ended: boolean;
+}
+
+export function makeRes(): MockRes {
+  const res = {
+    statusCode: 0,
+    headers: {},
+    body: "",
+    ended: false,
+    writeHead,
+    end,
+    get json() {
+      return JSON.parse(this.body);
+    },
+  };
+
+  return res as unknown as MockRes;
 }
 
 // Records the status and merges headers, exactly as ServerResponse does — a second writeHead adds to the headers rather than replacing them.
@@ -81,22 +97,6 @@ function end(this: MockResState, chunk?: unknown) {
   this.ended = true;
 
   return this;
-}
-
-export function makeRes(): MockRes {
-  const res = {
-    statusCode: 0,
-    headers: {},
-    body: "",
-    ended: false,
-    writeHead,
-    end,
-    get json() {
-      return JSON.parse(this.body);
-    },
-  };
-
-  return res as unknown as MockRes;
 }
 
 export interface MockPoolClient {

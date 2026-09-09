@@ -11,40 +11,6 @@ import {
   type SearchResult,
 } from "./memory-file-core.js";
 
-// One record as a list entry. `repo` and `has_facts` are always null/false in file mode — the file store holds no repo scoping and extracts no facts, and saying so plainly beats leaving the caller to infer it from a missing field.
-function listEntry(
-  key: string,
-  record: MemoryRecord,
-  id: string,
-): MemoryListEntry {
-  return {
-    key,
-    agent_id: id,
-    repo: null,
-    version: record.version,
-    created_at: record.created_at,
-    ttl_seconds: record.ttl_seconds,
-    has_facts: false,
-  };
-}
-
-/** The live entries, newest first. Deleted and expired records stay on disk — the store never rewrites a file to drop one — so every reader filters them out itself. */
-function activeEntries(
-  memories: Record<string, MemoryRecord>,
-  id: string,
-): MemoryListEntry[] {
-  const active: MemoryListEntry[] = [];
-
-  for (const [key, record] of Object.entries(memories)) {
-    if (!record.is_deleted && !isExpired(record)) {
-      active.push(listEntry(key, record, id));
-    }
-  }
-  active.sort((a, b) => b.created_at.localeCompare(a.created_at));
-
-  return active;
-}
-
 export function listMemoriesFile(
   agentId?: string,
   limit: number = 50,
@@ -69,40 +35,59 @@ export function listMemoriesFile(
   return { memories: paged, total };
 }
 
-function isInactive(record: MemoryRecord): boolean {
-  return record.is_deleted || isExpired(record);
+/** The live entries, newest first. Deleted and expired records stay on disk — the store never rewrites a file to drop one — so every reader filters them out itself. */
+function activeEntries(
+  memories: Record<string, MemoryRecord>,
+  id: string,
+): MemoryListEntry[] {
+  const active: MemoryListEntry[] = [];
+
+  for (const [key, record] of Object.entries(memories)) {
+    if (!record.is_deleted && !isExpired(record)) {
+      active.push(listEntry(key, record, id));
+    }
+  }
+  active.sort((a, b) => b.created_at.localeCompare(a.created_at));
+
+  return active;
 }
 
-function includesCaseless(text: string, lowerQuery: string): boolean {
-  return text.toLowerCase().includes(lowerQuery);
-}
-
-function matchesQuery(
+// One record as a list entry. `repo` and `has_facts` are always null/false in file mode — the file store holds no repo scoping and extracts no facts, and saying so plainly beats leaving the caller to infer it from a missing field.
+function listEntry(
   key: string,
   record: MemoryRecord,
-  lowerQuery: string,
-): boolean {
-  return (
-    includesCaseless(key, lowerQuery) ||
-    includesCaseless(record.value, lowerQuery)
-  );
-}
-
-// One match. Score is a flat 1.0 — file mode matches on substring, so every hit is equally good and pretending otherwise would rank them by nothing.
-function searchHit(
-  key: string,
-  record: MemoryRecord,
-  agentId: string,
-): SearchResult {
+  id: string,
+): MemoryListEntry {
   return {
     key,
-    value: record.value,
+    agent_id: id,
+    repo: null,
     version: record.version,
-    score: 1.0,
-    agent_id: agentId,
     created_at: record.created_at,
-    source: "memory",
+    ttl_seconds: record.ttl_seconds,
+    has_facts: false,
   };
+}
+
+export function searchMemoryFile(
+  query: string,
+  agentId?: string,
+  limit: number = 10,
+): SearchResult[] {
+  const id = resolveAgentId(agentId);
+  const memories = readJson<Record<string, MemoryRecord>>(memoriesPath(id), {});
+  const lowerQuery = query.toLowerCase();
+  const results = collectSearchResults(memories, id, lowerQuery, limit);
+
+  appendAudit({
+    agent_id: id,
+    operation: "search",
+    memory_key: null,
+    pool_name: null,
+    metadata: { query, result_count: results.length },
+  });
+
+  return results;
 }
 
 function collectSearchResults(
@@ -130,23 +115,38 @@ function collectSearchResults(
   return results;
 }
 
-export function searchMemoryFile(
-  query: string,
-  agentId?: string,
-  limit: number = 10,
-): SearchResult[] {
-  const id = resolveAgentId(agentId);
-  const memories = readJson<Record<string, MemoryRecord>>(memoriesPath(id), {});
-  const lowerQuery = query.toLowerCase();
-  const results = collectSearchResults(memories, id, lowerQuery, limit);
+function isInactive(record: MemoryRecord): boolean {
+  return record.is_deleted || isExpired(record);
+}
 
-  appendAudit({
-    agent_id: id,
-    operation: "search",
-    memory_key: null,
-    pool_name: null,
-    metadata: { query, result_count: results.length },
-  });
+function matchesQuery(
+  key: string,
+  record: MemoryRecord,
+  lowerQuery: string,
+): boolean {
+  return (
+    includesCaseless(key, lowerQuery) ||
+    includesCaseless(record.value, lowerQuery)
+  );
+}
 
-  return results;
+function includesCaseless(text: string, lowerQuery: string): boolean {
+  return text.toLowerCase().includes(lowerQuery);
+}
+
+// One match. Score is a flat 1.0 — file mode matches on substring, so every hit is equally good and pretending otherwise would rank them by nothing.
+function searchHit(
+  key: string,
+  record: MemoryRecord,
+  agentId: string,
+): SearchResult {
+  return {
+    key,
+    value: record.value,
+    version: record.version,
+    score: 1.0,
+    agent_id: agentId,
+    created_at: record.created_at,
+    source: "memory",
+  };
 }

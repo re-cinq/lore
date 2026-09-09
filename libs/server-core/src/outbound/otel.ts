@@ -91,14 +91,21 @@ export function traceEpisodeWritten(source: string): void {
   episodeCounter.add(1, { source });
 }
 
-function normalizePath(path: string): string {
-  // Collapse UUIDs and IDs to keep cardinality low
-  return path
-    .replace(/\/[0-9a-f-]{36}/g, "/:id")
-    .replace(/\?.*/, "")
-    .split("/")
-    .slice(0, 3)
-    .join("/");
+export function traceRetrieval(params: {
+  query: string;
+  namespace: string;
+  topScore: number;
+  resultCount: number;
+}): void {
+  recordRetrievalSpan(params);
+  retrievalHistogram.record(params.topScore, {
+    namespace: params.namespace,
+  });
+  retrievalCounter.add(1, { namespace: params.namespace });
+
+  if (isGapCandidate(params.topScore)) {
+    gapCounter.add(1, { namespace: params.namespace });
+  }
 }
 
 // One span per retrieval, carrying what was asked and how well it was answered. `gap_candidate` is recorded ON the span as well as counted, so a trace explains its own metric.
@@ -120,19 +127,12 @@ function recordRetrievalSpan(params: {
   span.end();
 }
 
-export function traceRetrieval(params: {
-  query: string;
-  namespace: string;
-  topScore: number;
-  resultCount: number;
-}): void {
-  recordRetrievalSpan(params);
-  retrievalHistogram.record(params.topScore, {
-    namespace: params.namespace,
-  });
-  retrievalCounter.add(1, { namespace: params.namespace });
-
-  if (isGapCandidate(params.topScore)) {
-    gapCounter.add(1, { namespace: params.namespace });
-  }
+function normalizePath(path: string): string {
+  // Collapse UUIDs and IDs to keep cardinality low
+  return path
+    .replace(/\/[0-9a-f-]{36}/g, "/:id")
+    .replace(/\?.*/, "")
+    .split("/")
+    .slice(0, 3)
+    .join("/");
 }

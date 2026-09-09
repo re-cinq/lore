@@ -80,12 +80,6 @@ export interface SearchResult {
 
 // ── Safe JSON read / write ───────────────────────────────────────────
 
-function ensureDir(dir: string): void {
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true });
-  }
-}
-
 export function readJson<T>(filePath: string, fallback: T): T {
   try {
     if (!existsSync(filePath)) {
@@ -103,6 +97,12 @@ export function readJson<T>(filePath: string, fallback: T): T {
 export function writeJson(filePath: string, value: unknown): void {
   ensureDir(dirname(filePath));
   writeFileSync(filePath, JSON.stringify(value, null, 2) + "\n", "utf-8");
+}
+
+function ensureDir(dir: string): void {
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
 }
 
 // ── Audit log ────────────────────────────────────────────────────────

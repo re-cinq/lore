@@ -22,80 +22,7 @@ export interface SnapshotRecord {
   memory_refs: Record<string, { value: string; version: number }>;
 }
 
-function snapshotsDir(agentId: string): string {
-  return join(agentDir(agentId), "snapshots");
-}
-
 type MemoryRefs = Record<string, { value: string; version: number }>;
-
-/** What a snapshot captures: value and version of everything alive at that moment. Deleted and expired records are skipped, so restoring never resurrects them. */
-function liveRefs(memories: Record<string, MemoryRecord>): MemoryRefs {
-  const refs: MemoryRefs = {};
-
-  for (const [key, record] of Object.entries(memories)) {
-    if (record.is_deleted || isExpired(record)) {
-      continue;
-    }
-    refs[key] = { value: record.value, version: record.version };
-  }
-
-  return refs;
-}
-
-/** Rebuilds records from a snapshot's refs. `created_at` is the RESTORE time, not the original — a snapshot carries no TTL, so a restored memory starts a fresh life rather than inheriting an expiry that has already passed. */
-function recordsFrom(
-  refs: MemoryRefs,
-  now: string,
-): Record<string, MemoryRecord> {
-  return Object.fromEntries(
-    Object.entries(refs).map(([key, ref]) => [
-      key,
-      {
-        value: ref.value,
-        version: ref.version,
-        created_at: now,
-        ttl_seconds: null,
-        is_deleted: false,
-        expires_at: null,
-      },
-    ]),
-  );
-}
-
-/** Both halves of a snapshot record the same two facts, and the pair is what makes an audit line answerable: which file, and how much of the store it holds. */
-function auditSnapshot(
-  operation: string,
-  agentId: string,
-  snapshotPath: string,
-  memoryCount: number,
-): void {
-  appendAudit({
-    agent_id: agentId,
-    operation,
-    memory_key: null,
-    pool_name: null,
-    metadata: { snapshot_path: snapshotPath, memory_count: memoryCount },
-  });
-}
-
-// A snapshot records REFS, not values: restoring rolls each key back to a version that is still in its own history, so the snapshot stays small and cannot disagree with the version files.
-function snapshotOf(
-  id: string,
-  now: string,
-  memoryRefs: SnapshotRecord["memory_refs"],
-): SnapshotRecord {
-  return {
-    snapshot_id: randomUUID(),
-    agent_id: id,
-    created_at: now,
-    memory_refs: memoryRefs,
-  };
-}
-
-// Where this snapshot lands. The timestamp is the filename with `:` and `.` replaced — both are legal in an ISO instant and neither is safe in a path on every filesystem.
-function snapshotPathFor(id: string, now: string): string {
-  return join(snapshotsDir(id), `${now.replace(/[:.]/g, "-")}.json`);
-}
 
 export function createSnapshotFile(agentId?: string): {
   snapshot_path: string;
@@ -117,6 +44,59 @@ export function createSnapshotFile(agentId?: string): {
     memory_count: memoryCount,
     created_at: now,
   };
+}
+
+// Where this snapshot lands. The timestamp is the filename with `:` and `.` replaced — both are legal in an ISO instant and neither is safe in a path on every filesystem.
+function snapshotPathFor(id: string, now: string): string {
+  return join(snapshotsDir(id), `${now.replace(/[:.]/g, "-")}.json`);
+}
+
+function snapshotsDir(agentId: string): string {
+  return join(agentDir(agentId), "snapshots");
+}
+
+/** What a snapshot captures: value and version of everything alive at that moment. Deleted and expired records are skipped, so restoring never resurrects them. */
+function liveRefs(memories: Record<string, MemoryRecord>): MemoryRefs {
+  const refs: MemoryRefs = {};
+
+  for (const [key, record] of Object.entries(memories)) {
+    if (record.is_deleted || isExpired(record)) {
+      continue;
+    }
+    refs[key] = { value: record.value, version: record.version };
+  }
+
+  return refs;
+}
+
+// A snapshot records REFS, not values: restoring rolls each key back to a version that is still in its own history, so the snapshot stays small and cannot disagree with the version files.
+function snapshotOf(
+  id: string,
+  now: string,
+  memoryRefs: SnapshotRecord["memory_refs"],
+): SnapshotRecord {
+  return {
+    snapshot_id: randomUUID(),
+    agent_id: id,
+    created_at: now,
+    memory_refs: memoryRefs,
+  };
+}
+
+/** Both halves of a snapshot record the same two facts, and the pair is what makes an audit line answerable: which file, and how much of the store it holds. */
+function auditSnapshot(
+  operation: string,
+  agentId: string,
+  snapshotPath: string,
+  memoryCount: number,
+): void {
+  appendAudit({
+    agent_id: agentId,
+    operation,
+    memory_key: null,
+    pool_name: null,
+    metadata: { snapshot_path: snapshotPath, memory_count: memoryCount },
+  });
 }
 
 export function restoreSnapshotFile(snapshotPath: string): {
@@ -144,4 +124,24 @@ export function restoreSnapshotFile(snapshotPath: string): {
   );
 
   return { restored: true, memory_count: Object.keys(restoredMemories).length };
+}
+
+/** Rebuilds records from a snapshot's refs. `created_at` is the RESTORE time, not the original — a snapshot carries no TTL, so a restored memory starts a fresh life rather than inheriting an expiry that has already passed. */
+function recordsFrom(
+  refs: MemoryRefs,
+  now: string,
+): Record<string, MemoryRecord> {
+  return Object.fromEntries(
+    Object.entries(refs).map(([key, ref]) => [
+      key,
+      {
+        value: ref.value,
+        version: ref.version,
+        created_at: now,
+        ttl_seconds: null,
+        is_deleted: false,
+        expires_at: null,
+      },
+    ]),
+  );
 }

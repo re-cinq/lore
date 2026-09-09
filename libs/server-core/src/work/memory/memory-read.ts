@@ -3,6 +3,36 @@
 import { getMemoryPool, auditLog } from "./memory-core.js";
 import { resolveAgentId } from "@re-cinq/lore-shared";
 
+export async function readMemory(
+  key: string,
+  agentId?: string,
+  version?: string | number,
+) {
+  const agent = resolveAgentId(agentId);
+
+  if (version === "all") {
+    const rows = await readAllVersions(agent, key);
+
+    await auditLog(agent, "read", key);
+
+    return rows;
+  }
+
+  if (isVersionNumberLike(version)) {
+    const row = await readVersionAt(agent, key, Number(version));
+
+    await auditLog(agent, "read", key);
+
+    return row;
+  }
+
+  const row = await readLatestVersion(agent, key);
+
+  await auditLog(agent, "read", key);
+
+  return row;
+}
+
 function isVersionNumberLike(version: string | number | undefined): boolean {
   return (
     typeof version === "number" ||
@@ -47,36 +77,6 @@ async function readLatestVersion(agent: string, key: string) {
   );
 
   return rows[0] || null;
-}
-
-export async function readMemory(
-  key: string,
-  agentId?: string,
-  version?: string | number,
-) {
-  const agent = resolveAgentId(agentId);
-
-  if (version === "all") {
-    const rows = await readAllVersions(agent, key);
-
-    await auditLog(agent, "read", key);
-
-    return rows;
-  }
-
-  if (isVersionNumberLike(version)) {
-    const row = await readVersionAt(agent, key, Number(version));
-
-    await auditLog(agent, "read", key);
-
-    return row;
-  }
-
-  const row = await readLatestVersion(agent, key);
-
-  await auditLog(agent, "read", key);
-
-  return row;
 }
 
 // ── Delete ───────────────────────────────────────────────────────────
