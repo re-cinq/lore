@@ -12,6 +12,7 @@ import {
 import type { OrphanStatement } from "./impact-types.js";
 
 interface GraphImplChunk {
+  "CodeChunk.xid"?: string;
   "CodeChunk.start_line"?: number;
   "CodeChunk.end_line"?: number;
   stmts?: GraphStatement[];
@@ -19,6 +20,7 @@ interface GraphImplChunk {
 
 const IMPL_QUERY = `query q($repo: string, $fp: string) {
   chunks(func: eq(CodeChunk.file_path, $fp)) @filter(eq(CodeChunk.repo, $repo)) {
+    CodeChunk.xid
     CodeChunk.start_line
     CodeChunk.end_line
     stmts: ~Statement.implemented_by {
@@ -41,6 +43,47 @@ function implChunkInScope(
   );
 }
 
+export interface ImplResult {
+  statements: Array<ImpactStatement & { xid: string }>;
+  /** Xids of every in-scope CodeChunk, even those with no associated statement (needed for the caller-hop pass). */
+  touchedChunkXids: string[];
+}
+
+/** Every CodeChunk the graph holds for one file. */
+async function chunksInFile(
+  dgraph: DgraphClientPort,
+  repo: string,
+  file: string,
+): Promise<GraphImplChunk[]> {
+  return withTxn(dgraph, async (txn) => {
+    const res = await txn.queryWithVars(IMPL_QUERY, { $repo: repo, $fp: file });
+
+    return (res.data.chunks ?? []) as GraphImplChunk[];
+  });
+}
+
+/** CodeChunks in `file` whose line range overlaps any changed range → their statements + xids. */
+export async function implementedByImpactAndXids(
+  dgraph: DgraphClientPort,
+  repo: string,
+  file: string,
+  ranges: [number, number][],
+): Promise<ImplResult> {
+  const chunks = await chunksInFile(dgraph, repo, file);
+  const inScope = chunks.filter((chunk) => implChunkInScope(chunk, ranges));
+
+  return {
+    statements: inScope.flatMap((chunk) =>
+      (chunk.stmts ?? []).map((stmt) =>
+        toImpactStatement(stmt, file, [], "file-link"),
+      ),
+    ),
+    touchedChunkXids: inScope
+      .map((c) => c["CodeChunk.xid"] ?? "")
+      .filter(Boolean),
+  };
+}
+
 /** CodeChunks in `file` whose line range overlaps any changed range → their statements. */
 export async function implementedByImpact(
   dgraph: DgraphClientPort,
@@ -48,19 +91,14 @@ export async function implementedByImpact(
   file: string,
   ranges: [number, number][],
 ): Promise<Array<ImpactStatement & { xid: string }>> {
-  const chunks = await withTxn(dgraph, async (txn) => {
-    const res = await txn.queryWithVars(IMPL_QUERY, { $repo: repo, $fp: file });
+  const { statements } = await implementedByImpactAndXids(
+    dgraph,
+    repo,
+    file,
+    ranges,
+  );
 
-    return (res.data.chunks ?? []) as GraphImplChunk[];
-  });
-
-  return chunks
-    .filter((chunk) => implChunkInScope(chunk, ranges))
-    .flatMap((chunk) =>
-      (chunk.stmts ?? []).map((stmt) =>
-        toImpactStatement(stmt, file, [], "file-link"),
-      ),
-    );
+  return statements;
 }
 
 interface GraphTestChunk {
