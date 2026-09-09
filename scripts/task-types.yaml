@@ -230,18 +230,34 @@ task_types:
 
       Record the triage in `.lore/dod.md`, committed with the tests (under
       `mechanical` the file is the whole commit). Write it for the next pod,
-      which has your branch and none of your reasoning:
+      which has your branch and none of your reasoning — and for the human who
+      opens the branch to see where the ticket stands. Use EXACTLY this shape.
+      It is markdown and it is read rendered: the blank lines are what keep the
+      claim, the strategy and the tests from collapsing into one paragraph, and
+      the checkboxes are what make a round's progress legible at a glance.
+      No emoji, no decoration; the structure is what makes it readable.
         # Definition of Done
-        Ticket claim: <the ticket's central claim, quoted verbatim>
-        Strategy: direct | parallel-change | characterize | mechanical
-        Why: <one or two sentences — what seam exists or does not>
-        Acceptance tests:
-          - path/to/test.ts::<test name> — <the behaviour it pins; under
-            `mechanical`, the EXISTING tests that must stay green>
-        Facets (the red-green-refactor steps you expect, smallest first;
-        under `mechanical`, the exact edits owed):
-          - <one line each>
-        Out of scope: <what this ticket does NOT cover>
+
+        > <the ticket's central claim, quoted verbatim>
+
+        **Strategy: `direct`** — <one or two sentences: what seam exists or does
+        not. One of direct | parallel-change | characterize | mechanical.>
+
+        ## Done when these pass
+
+        - [ ] **<test name>** — <the behaviour it pins; under `mechanical`, the
+          EXISTING tests that must stay green>
+          `path/to/test.ts`
+
+        ## Facets
+
+        - [ ] <the red-green-refactor steps you expect, smallest first; under
+          `mechanical`, the exact edits owed. One line each. A round ticks the
+          box it closed rather than rewriting the list.>
+
+        ## Out of scope
+
+        - <what this ticket does NOT cover>
 
       TRACEABILITY:
       - Each test validates a statement in a spec or ADR. Add the inline
@@ -317,7 +333,9 @@ task_types:
       is already defined by RED acceptance tests. You perform exactly ONE
       red-green-refactor round and then stop. Not two. Not "while I'm here".
 
-      START by reading `.lore/dod.md` on this branch. It names the strategy, the
+      START by reading `.lore/dod.md` on this branch. Its "Done when these pass"
+      list is the bar; its Facets checklist is where the last round got to. It
+      names the strategy, the
       acceptance tests that define done, and the facets expected. It is the
       brief; the ticket below is the context.
 
@@ -367,8 +385,10 @@ task_types:
       RULES:
       - Do not fix unrelated smells you notice. Name them in your final message;
         act on none of them.
-      - Append the facets you discover to the Facets list in `.lore/dod.md`, so
-        the next round starts from your findings rather than re-deriving them.
+      - Keep `.lore/dod.md` current: TICK the box of the facet you closed
+        (`- [ ]` becomes `- [x]`) and append any new facet you discovered as an
+        unchecked one. It is a live checklist, not an append-only log, and the
+        next round reads it to see where the ticket actually stands.
       - Commit when the test YOU wrote is green. Acceptance tests may still be
         red — that is the ordinary state mid-ticket, and the next round takes
         the next facet.
@@ -494,7 +514,8 @@ task_types:
       YOU DO NOT NEED TO PROVE IT. CI is the judge of this branch, it is green
       on the commit that brought you here, and that is why you are running at
       all. Do not re-run the suite, the linter or the typechecker: it buys
-      nothing and costs the whole round. Read `.lore/dod.md` for what the
+      nothing and costs the whole round. Read `.lore/dod.md`'s "Done when
+      these pass" list for what the
       ticket meant by done, and read the diff for what actually landed.
 
       WRITE `.lore/pr-body.md`. Prose, not a template. What the ticket

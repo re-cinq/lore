@@ -206,6 +206,28 @@ describe("the implementation-tdd recipe", () => {
     expect(round).toContain("own source text");
   });
 
+  it("asks the definition of done to open with the ticket claim as a blockquote", () => {
+    expect(
+      parseTaskTypesFile(COMMITTED).taskTypes["acceptance-dod"]
+        ?.prompt_template,
+    ).toContain("> <the ticket's central claim, quoted verbatim>");
+  });
+
+  it("asks the definition of done for task-list checkboxes, so a round's progress renders", () => {
+    const dod =
+      parseTaskTypesFile(COMMITTED).taskTypes["acceptance-dod"]
+        ?.prompt_template ?? "";
+
+    expect(dod).toContain("## Done when these pass");
+    expect(dod).toContain("- [ ] **<test name>**");
+  });
+
+  it("tells a round to tick the facet it closed rather than append to a log", () => {
+    expect(
+      parseTaskTypesFile(COMMITTED).taskTypes["tdd-round"]?.prompt_template,
+    ).toContain("`- [ ]` becomes `- [x]`");
+  });
+
   it("offers a mechanical strategy so a trivial ticket owes no new permanent test (#1744)", () => {
     const parsed = parseTaskTypesFile(COMMITTED);
     const dod = parsed.taskTypes["acceptance-dod"]?.prompt_template ?? "";
