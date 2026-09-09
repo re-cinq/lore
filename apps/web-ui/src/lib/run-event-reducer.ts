@@ -55,7 +55,7 @@ function idleNodeStates(
   return nodeStates;
 }
 
-/** Sets `row`'s node to its seeded state, unless a newer-iteration row already won. */
+/** Sets `row`'s node to its seeded state, unless a newer-iteration row already won. A node that already holds a transcript keeps it: the row carries the visit's verdict, not its events. */
 function applyVisitRow(
   nodeStates: Record<string, NodeRunState | undefined>,
   row: AssemblyRunNode,
@@ -69,9 +69,31 @@ function applyVisitRow(
   nodeStates[row.nodeId] = {
     status: seedStatus(row.outcome),
     iteration: row.iteration,
-    transcript: [],
-    droppedCount: 0,
+    ...carriedTranscript(seen),
   };
+}
+
+/** What a re-seed keeps from the node's existing state: its transcript and the count of what the cap evicted. */
+function carriedTranscript(
+  seen: NodeRunState | undefined,
+): Pick<NodeRunState, "transcript" | "droppedCount"> {
+  return seen
+    ? { transcript: seen.transcript, droppedCount: seen.droppedCount }
+    : { transcript: [], droppedCount: 0 };
+}
+
+/** Re-seeds node status from visit rows that arrived after mount (a `node_status` frame); transcripts and the cursor are untouched. */
+export function withVisitRows(
+  state: RunLiveState,
+  visitRows: readonly AssemblyRunNode[],
+): RunLiveState {
+  const nodeStates = { ...state.nodeStates };
+
+  for (const row of visitRows) {
+    applyVisitRow(nodeStates, row);
+  }
+
+  return { ...state, nodeStates };
 }
 
 /** Initial run state: every definition node idle, then each visited node set from its newest row. */

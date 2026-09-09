@@ -1,14 +1,12 @@
 import { NextResponse } from "next/server";
 import { fetchAssemblyRun, type AssemblyRun } from "@/lib/assembly-runs";
 import { resolveSessionAccessToken } from "@/lib/session-access-token";
-import { type FloorConfig } from "@/lib/floor-config";
-import { authorizeRepoFloorAccess } from "@/lib/floor-access";
+import type { RunUpstream, UpstreamConfig } from "@/lib/floor-config";
+import { authorizeRepoUpstreamAccess } from "@/lib/floor-access";
 import { serverError } from "@/lib/api-error";
 
-export interface AssemblyRunAuth {
+export interface AssemblyRunAuth extends UpstreamConfig {
   run: AssemblyRun;
-  floorUrl: string;
-  token: string;
 }
 
 /** Type guard narrowing an {@link authorizeAssemblyRunAccess} result to the error response. */
@@ -18,41 +16,56 @@ export function isAssemblyRunAuthError(
   return result instanceof NextResponse;
 }
 
-/** Session → run → repo-access → Floor-env ladder shared by every run proxy route (events/turns/stream/node-logs). */
+/** Session → run → repo-access → upstream-env ladder shared by every run proxy route (events/turns/node-logs on the Floor, the stream on lore-api). */
 export async function authorizeAssemblyRunAccess(
   id: string,
+  upstream: RunUpstream = "floor",
 ): Promise<AssemblyRunAuth | NextResponse> {
+  const session = await resolveSessionRun(id);
+
+  if (session instanceof NextResponse) {
+    return session;
+  }
+  const config = await authorizeRepoUpstreamAccess(
+    session.accessToken,
+    session.run.repo,
+    upstream,
+  );
+
+  return config instanceof NextResponse
+    ? config
+    : { run: session.run, ...config };
+}
+
+/** The first two rungs: a signed-in caller, and a run that exists. */
+async function resolveSessionRun(
+  id: string,
+): Promise<{ accessToken: string; run: AssemblyRun } | NextResponse> {
   const accessToken = await resolveSessionAccessToken();
 
   if (!accessToken) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-
   const run = await fetchAssemblyRun(id);
 
   if (!run) {
     return NextResponse.json({ error: "Run not found" }, { status: 404 });
   }
 
-  const floorConfig = await authorizeRepoFloorAccess(accessToken, run.repo);
-
-  if (floorConfig instanceof NextResponse) {
-    return floorConfig;
-  }
-
-  return { run, ...floorConfig };
+  return { accessToken, run };
 }
 
-/** What a run proxy needs once the ladder has passed: the run id, the caller's request, and the Floor to ask. */
-export interface RunProxyContext extends FloorConfig {
+/** What a run proxy needs once the ladder has passed: the run id, the caller's request, and the upstream to ask. */
+export interface RunProxyContext extends UpstreamConfig {
   id: string;
   req: Request;
 }
 
-/** A run-scoped Floor proxy route. The id, the auth ladder and the failure label are the same for every one of them, so each route states only its upstream call. */
+/** A run-scoped proxy route. The id, the auth ladder and the failure label are the same for every one of them, so each route states only its upstream call and which backend answers it. */
 export function assemblyRunProxyRoute(
   errorContext: string,
   proxy: (ctx: RunProxyContext) => Promise<Response>,
+  upstream: RunUpstream = "floor",
 ) {
   return async function GET(
     req: Request,
@@ -61,7 +74,7 @@ export function assemblyRunProxyRoute(
     const { id } = await params;
 
     try {
-      return await proxyAuthorizedRun(id, req, proxy);
+      return await proxyAuthorizedRun(id, req, proxy, upstream);
     } catch (err) {
       return serverError(errorContext, err);
     }
@@ -73,12 +86,13 @@ async function proxyAuthorizedRun(
   id: string,
   req: Request,
   proxy: (ctx: RunProxyContext) => Promise<Response>,
+  upstream: RunUpstream,
 ): Promise<Response> {
-  const auth = await authorizeAssemblyRunAccess(id);
+  const auth = await authorizeAssemblyRunAccess(id, upstream);
 
   if (isAssemblyRunAuthError(auth)) {
     return auth;
   }
 
-  return proxy({ id, req, floorUrl: auth.floorUrl, token: auth.token });
+  return proxy({ id, req, upstreamUrl: auth.upstreamUrl, token: auth.token });
 }

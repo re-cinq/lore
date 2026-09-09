@@ -10,13 +10,7 @@ import { fetchTaskEvents, fetchLlmCalls } from "@/lib/task-runtime";
 import { definitionForRun } from "@/lib/run-graph-definition";
 import { agentEditHrefs } from "@/lib/agent-edit-href";
 import { listAgents } from "@/lib/agents-api";
-import { Alert } from "@/components/Alert";
-import AssemblyRunView from "./AssemblyRunView";
-import { RunAutoRefresh } from "./RunAutoRefresh";
-import RunVisualizationPanel from "./RunVisualizationPanel";
-import { AssemblyRunOptions } from "./AssemblyRunOptions";
-import EventTimeline from "@/app/tasks/[id]/EventTimeline";
-import LlmCallsTable from "@/app/tasks/[id]/LlmCallsTable";
+import RunLiveShell from "./RunLiveShell";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -51,40 +45,6 @@ async function resolveTaskContext(taskId: string | null) {
   return { events, llmCalls };
 }
 
-function TaskLessRunAlert() {
-  return (
-    <Alert variant="secondary">
-      This run has no backing task — cost and status-transition history are not
-      available.
-    </Alert>
-  );
-}
-
-interface TaskContextSectionProps {
-  taskId: string | null;
-  events: Awaited<ReturnType<typeof fetchTaskEvents>>;
-  llmCalls: Awaited<ReturnType<typeof fetchLlmCalls>>;
-  repo: string;
-}
-
-function TaskContextSection({
-  taskId,
-  events,
-  llmCalls,
-  repo,
-}: TaskContextSectionProps) {
-  if (!taskId) {
-    return <TaskLessRunAlert />;
-  }
-
-  return (
-    <>
-      <EventTimeline events={events} />
-      <LlmCallsTable llmCalls={llmCalls} repo={repo} />
-    </>
-  );
-}
-
 /** Everything the page renders from, resolved in one place. `agentEditHrefs` is built from RESOLVED definitions because those carry the `project_id` the "Edit agent" link routes on; `listAgents` degrades to an empty list when the API is unreachable, which costs the links and nothing else. */
 async function resolveRunView(
   run: NonNullable<Awaited<ReturnType<typeof resolveRun>>>,
@@ -109,35 +69,16 @@ interface RunPageProps {
   view: Awaited<ReturnType<typeof resolveRunView>>;
 }
 
-function RunVisualization({ run, view }: RunPageProps) {
-  return (
-    <RunVisualizationPanel
-      runId={run.id}
-      runStatus={run.status}
-      definition={view.definition}
-      nodes={view.nodes}
-      repo={run.repo}
-      reason={run.reason}
-      agentEditHrefs={view.editHrefs}
-    />
-  );
-}
-
 function RunPage({ run, view }: RunPageProps) {
   return (
-    <>
-      <RunAutoRefresh runStatus={run.status} />
-      <AssemblyRunView run={run} />
-      <AssemblyRunOptions run={run} />
-      <RunVisualization run={run} view={view} />
-
-      <TaskContextSection
-        taskId={run.taskId}
-        events={view.events}
-        llmCalls={view.llmCalls}
-        repo={run.repo}
-      />
-    </>
+    <RunLiveShell
+      run={run}
+      nodes={view.nodes}
+      definition={view.definition}
+      taskEvents={view.events}
+      llmCalls={view.llmCalls}
+      agentEditHrefs={view.editHrefs}
+    />
   );
 }
 

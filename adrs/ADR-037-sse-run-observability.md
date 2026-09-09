@@ -75,7 +75,7 @@ projected row to matching subscribers after the write commits. ([validated by `r
 
 Reconnection is lossless by construction rather than by buffering: the browser
 resends `Last-Event-ID`, and the server replays from the database before
-attaching to the live tail. ([validated by `run-stream-session.test.ts:325`](apps/lore-api/src/work/run-stream/run-stream-session.test.ts#L325), [`run-event-reducer.test.ts:223`](apps/web-ui/src/lib/run-event-reducer.test.ts#L222)) The bus is therefore best-effort and holds no
+attaching to the live tail. ([validated by `run-stream-session.test.ts:325`](apps/lore-api/src/work/run-stream/run-stream-session.test.ts#L325), [`run-event-reducer.test.ts:223`](apps/web-ui/src/lib/run-event-reducer.test.ts#L223)) The bus is therefore best-effort and holds no
 backlog — durability lives in `pipeline.agent_run_events`, not in memory. ([validated by `run-stream-session.test.ts:403`](apps/lore-api/src/work/run-stream/run-stream-session.test.ts#L403))
 
 A subscriber that cannot keep up is disconnected rather than allowed to apply
@@ -85,7 +85,7 @@ the Floor's job loops. ([validated by `run-stream-session.test.ts:382`](apps/lor
 Both hops set `Cache-Control: no-cache, no-transform` and `X-Accel-Buffering: no`. ([validated by `run-stream.test.ts:60`](apps/lore-api/src/transport/routes/assembly-lines/run-stream.test.ts#L60), [`route.test.ts:149`](apps/web-ui/src/app/api/assembly-runs/[id]/events/stream/route.test.ts#L149))
 
 The `AgentRunEventRow` type is canonical in `libs/shared` and hand-mirrored in
-`apps/web-ui`, with a type-only drift guard under `scripts/type-drift/`. ([validated by `run-stream-types.test.ts:26`](apps/web-ui/src/lib/run-stream-types.test.ts#L27), [`run-stream-types.test.ts:67`](apps/web-ui/src/lib/run-stream-types.test.ts#L67))
+`apps/web-ui`, with a type-only drift guard under `scripts/type-drift/`. ([validated by `run-stream-types.test.ts:26`](apps/web-ui/src/lib/run-stream-types.test.ts#L28), [`run-stream-types.test.ts:67`](apps/web-ui/src/lib/run-stream-types.test.ts#L68))
 
 The definition DAG is laid out and rendered by hand in SVG, with no new
 dependency. ([validated by `dag-layout.test.ts:45`](apps/web-ui/src/lib/dag-layout.test.ts#L45), [`dag-layout.test.ts:147`](apps/web-ui/src/lib/dag-layout.test.ts#L147))

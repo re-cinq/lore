@@ -4,6 +4,7 @@ import {
   initialRunState,
   reduceRunEvent,
   replayTo,
+  withVisitRows,
 } from "./run-event-reducer";
 import type { RunStreamEvent } from "./run-stream-types";
 import type { AssemblyRunNode } from "./assembly-runs";
@@ -425,5 +426,32 @@ describe("replayTo is replayable-from-zero", () => {
     for (const node of implementationDefinition.nodes) {
       expect(atZero.nodeStates[node.id].status).toBe("idle");
     }
+  });
+});
+
+describe("withVisitRows", () => {
+  it("seeds a node the page learned about after mount as running from its row", () => {
+    const state = withVisitRows(initialRunState(implementationDefinition, []), [
+      visitRow({ nodeId: "validate", outcome: null }),
+    ]);
+
+    expect(state.nodeStates.validate).toMatchObject({
+      status: "running",
+      iteration: 1,
+    });
+  });
+
+  it("keeps a node's transcript and cursor while its row flips it to succeeded", () => {
+    const streamed = reduceRunEvent(
+      initialRunState(implementationDefinition, []),
+      event({ eventType: "tool_call", id: "5" }),
+    );
+    const state = withVisitRows(streamed, [visitRow({ outcome: "success" })]);
+
+    expect(state.nodeStates.implement).toMatchObject({
+      status: "succeeded",
+      transcript: streamed.nodeStates.implement.transcript,
+    });
+    expect(state.lastEventId).toBe("5");
   });
 });

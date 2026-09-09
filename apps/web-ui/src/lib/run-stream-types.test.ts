@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   parseRunStreamEvent,
+  parseRunStreamFrame,
   parseRunStreamRow,
   type RunStreamEvent,
 } from "./run-stream-types";
@@ -162,5 +163,44 @@ describe("parseRunStreamRow", () => {
 
   it("returns null for a non-object row", () => {
     expect(parseRunStreamRow("not-an-object")).toBeNull();
+  });
+});
+
+describe("parseRunStreamFrame", () => {
+  it("returns an agent_event frame with its row validated", () => {
+    expect(
+      parseRunStreamFrame(
+        JSON.stringify({ type: "agent_event", event: wellFormed }),
+      ),
+    ).toEqual({ type: "agent_event", event: wellFormed });
+  });
+
+  it("returns a state frame when it carries its key, and null when it does not", () => {
+    const node = { type: "node_status", node: { node_id: "implement" } };
+
+    expect(parseRunStreamFrame(JSON.stringify(node))).toEqual(node);
+    expect(
+      parseRunStreamFrame(JSON.stringify({ type: "run_status", run: {} })),
+    ).toBeNull();
+  });
+
+  it("returns null for an unknown frame type, an agent_event with a malformed row, and non-JSON", () => {
+    expect(
+      parseRunStreamFrame(JSON.stringify({ type: "weather", event: {} })),
+    ).toBeNull();
+    expect(
+      parseRunStreamFrame(
+        JSON.stringify({ type: "agent_event", event: { id: "1" } }),
+      ),
+    ).toBeNull();
+    expect(parseRunStreamFrame("{nope")).toBeNull();
+  });
+
+  it("returns a catchup_complete frame with its last id", () => {
+    expect(
+      parseRunStreamFrame(
+        JSON.stringify({ type: "catchup_complete", last_id: "9" }),
+      ),
+    ).toEqual({ type: "catchup_complete", last_id: "9" });
   });
 });

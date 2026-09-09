@@ -155,7 +155,11 @@ function useStreamSubscription(opts: DriverSubscriptionOptions) {
     runId: liveRunId ?? "",
     afterId: opts.afterId,
     enabled: driver === "stream" && liveRunId !== null,
-    onEvent: opts.onEvent,
+    onFrame: (frame) => {
+      if (frame.type === "agent_event") {
+        opts.onEvent(frame.event);
+      }
+    },
     onConnectionChange: opts.onConnectionChange,
   });
 }

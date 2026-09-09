@@ -1,11 +1,16 @@
 "use client";
 
 // The live-run container: owns every piece of mutable state and IO here so the sections below stay pure functions of props (DDAU / lore/no-io-in-view).
-import { useCallback, useReducer, useState } from "react";
+import { useCallback, useEffect, useReducer, useState } from "react";
 import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
 import type { AssemblyRunNode } from "@/lib/assembly-runs";
-import { reduceRunEvent, initialRunState } from "@/lib/run-event-reducer";
-import type { RunStreamEvent } from "@/lib/run-stream-types";
+import {
+  reduceRunEvent,
+  initialRunState,
+  withVisitRows,
+  type RunLiveState,
+} from "@/lib/run-event-reducer";
+import type { RunStreamEvent, RunStreamFrame } from "@/lib/run-stream-types";
 import styles from "./RunVisualizationPanel.module.css";
 import { isTerminalRunStatus } from "@/lib/run-stream-presenter";
 import { useRunStream } from "./use-run-history";
@@ -26,6 +31,8 @@ export interface RunVisualizationPanelProps {
   reason: string | null;
   // nodeId → agents-editor href for each agent node the catalog holds; resolved server-side, the panel only renders what it is handed.
   agentEditHrefs?: Record<string, string>;
+  /** The page's fold for the stream's state families; the panel owns the socket, the page owns run/node/task state. */
+  onFrame?: (frame: RunStreamFrame) => void;
 }
 
 /** What the viewer has selected or expanded. None of it is derived from the run, so it survives every live event. */
@@ -83,35 +90,55 @@ function useNodeAndGraph(run: RunFacts, view: NodeAndGraphView) {
 
 type RunVisualizationInput = Pick<
   RunVisualizationPanelProps,
-  "runId" | "runStatus" | "definition" | "nodes" | "reason"
+  "runId" | "runStatus" | "definition" | "nodes" | "reason" | "onFrame"
 >;
 
-/** Where the run's events come from: the reducer that holds them and the stream (or its polling fallback) that feeds it. Seeded from the visit ROWS so a run opened long after the fact renders immediately, then folded forward by whatever the stream delivers. */
-function useRunSources(run: RunFacts, runId: string) {
-  const [state, dispatch] = useReducer(reduceRunEvent, undefined, () =>
+/** What the panel's reducer folds: an agent event from the stream, or the visit rows the page re-seeds it from when a node_status frame lands. */
+type PanelAction = RunStreamEvent | { visitRows: readonly AssemblyRunNode[] };
+
+function reducePanel(state: RunLiveState, action: PanelAction): RunLiveState {
+  return "visitRows" in action
+    ? withVisitRows(state, action.visitRows)
+    : reduceRunEvent(state, action);
+}
+
+/** Re-seeds node status whenever the page hands the panel new visit rows (a `node_status` frame landed). */
+function useVisitRowReseed(
+  dispatch: (action: PanelAction) => void,
+  visitRows: readonly AssemblyRunNode[],
+): void {
+  useEffect(() => dispatch({ visitRows }), [dispatch, visitRows]);
+}
+
+/** Where the run's events come from: the reducer that holds them and the stream (or its polling fallback) that feeds it. Seeded from the visit ROWS so a run opened long after the fact renders immediately, then folded forward by whatever the stream delivers — and re-seeded when the page hands it new rows. */
+function useRunSources(
+  run: RunFacts,
+  runId: string,
+  onFrame: RunVisualizationPanelProps["onFrame"],
+) {
+  const [state, dispatch] = useReducer(reducePanel, undefined, () =>
     initialRunState(run.definition, run.nodes),
   );
-  const onEvent = useCallback(
-    (event: RunStreamEvent) => dispatch(event),
-    [dispatch],
-  );
+
+  useVisitRowReseed(dispatch, run.nodes);
   const { chipState } = useRunStream({
     runId,
     runStatus: run.runStatus,
     runIsLive: run.runIsLive,
     lastEventId: state.lastEventId ?? "0",
-    dispatch: onEvent,
+    dispatch,
+    onFrame,
   });
 
   return { state, chipState };
 }
 
 function useRunVisualization(input: RunVisualizationInput) {
-  const { runId, runStatus, definition, nodes, reason } = input;
+  const { runId, runStatus, definition, nodes, reason, onFrame } = input;
   const runIsLive = !isTerminalRunStatus(runStatus);
   const run: RunFacts = { nodes, definition, runStatus, runIsLive, reason };
   const toggles = useViewToggles();
-  const { state, chipState } = useRunSources(run, runId);
+  const { state, chipState } = useRunSources(run, runId, onFrame);
   const nodeAndGraph = useNodeAndGraph(run, {
     selectedNodeId: toggles.selectedNodeId,
     showOutcomes: toggles.showOutcomes,

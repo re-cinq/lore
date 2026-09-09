@@ -247,7 +247,7 @@ describe("degradation", () => {
 });
 
 describe("live events", () => {
-  it("applies an agent-event message to the graph", async () => {
+  it("applies an agent_event frame to the graph", async () => {
     stubHistory([]);
     useFakeEventSource();
 
@@ -255,10 +255,10 @@ describe("live events", () => {
     await settle();
 
     await act(async () => {
-      FakeEventSource.instances[0].emit(
-        "agent-event",
-        eventRow({ id: "9", nodeId: "validate", eventType: "init" }),
-      );
+      FakeEventSource.instances[0].emit("agent_event", {
+        type: "agent_event",
+        event: eventRow({ id: "9", nodeId: "validate", eventType: "init" }),
+      });
     });
 
     expect(screen.getAllByText("Running").length).toBeGreaterThan(0);
@@ -272,10 +272,10 @@ describe("live events", () => {
     await settle();
 
     await act(async () => {
-      FakeEventSource.instances[0].emit(
-        "agent-event",
-        eventRow({ id: "42", nodeId: "implement", eventType: "init" }),
-      );
+      FakeEventSource.instances[0].emit("agent_event", {
+        type: "agent_event",
+        event: eventRow({ id: "42", nodeId: "implement", eventType: "init" }),
+      });
     });
 
     expect(FakeEventSource.instances).toHaveLength(1);
@@ -304,16 +304,16 @@ describe("heatmap wiring and the live clock", () => {
     expect(screen.getByText("src/a.ts")).toBeInTheDocument();
 
     await act(async () => {
-      FakeEventSource.instances[0].emit(
-        "agent-event",
-        eventRow({
+      FakeEventSource.instances[0].emit("agent_event", {
+        type: "agent_event",
+        event: eventRow({
           id: "9",
           nodeId: "implement",
           eventType: "tool_call",
           toolName: "Edit",
           filePaths: ["src/b.ts"],
         }),
-      );
+      });
     });
 
     expect(container.querySelectorAll("[data-path]")).toHaveLength(2);
