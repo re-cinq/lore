@@ -284,20 +284,20 @@ The `Overlay` node carries the same chunk container edges the `Repo` root does �
 ### Anchor and lifecycle
 
 The overlay anchor records the branch and the head commit its line numbers are
-expressed in — the overlay's answer to `Repo.trace_commit`. ([validated by reads back the branch and head commit an upserted overlay was stamped with](libs/shared/src/work/spec-trace/overlay.test.ts#L39))
+expressed in — the overlay's answer to `Repo.trace_commit`. ([validated by reads back the branch and head commit an upserted overlay was stamped with](libs/shared/src/work/spec-trace/overlay.test.ts#L40))
 
-A run that never wrote one reads back as absent rather than as an error. ([validated by returns null for a run that never wrote an overlay](libs/shared/src/work/spec-trace/overlay.test.ts#L58))
+A run that never wrote one reads back as absent rather than as an error. ([validated by returns null for a run that never wrote an overlay](libs/shared/src/work/spec-trace/overlay.test.ts#L59))
 
 A second push in the same run restamps the existing anchor rather than adding a
-second overlay for the run. ([validated by restamps head commit on a second push rather than creating a second overlay](libs/shared/src/work/spec-trace/overlay.test.ts#L64))
+second overlay for the run. ([validated by restamps head commit on a second push rather than creating a second overlay](libs/shared/src/work/spec-trace/overlay.test.ts#L65))
 
 Dropping an overlay deletes every node it anchors and the anchor itself, so a
-finished run leaves nothing behind. ([validated by deletes the anchored chunks and the anchor, leaving no overlay for the run](libs/shared/src/work/spec-trace/overlay.test.ts#L79))
+finished run leaves nothing behind. ([validated by deletes the anchored chunks and the anchor, leaving no overlay for the run](libs/shared/src/work/spec-trace/overlay.test.ts#L80))
 
-The drop is safe to repeat: a run with no overlay drops nothing and reports zero. ([validated by drops nothing and reports zero for a run with no overlay](libs/shared/src/work/spec-trace/overlay.test.ts#L108))
+The drop is safe to repeat: a run with no overlay drops nothing and reports zero. ([validated by drops nothing and reports zero for a run with no overlay](libs/shared/src/work/spec-trace/overlay.test.ts#L109))
 
 Listing overlays is scoped to one repo, so a sweep for one repo's abandoned runs
-never sees another's. ([validated by lists only the overlays of the repo it was asked about](libs/shared/src/work/spec-trace/overlay.test.ts#L114))
+never sees another's. ([validated by lists only the overlays of the repo it was asked about](libs/shared/src/work/spec-trace/overlay.test.ts#L115))
 
 ### What an overlay ingest writes
 
@@ -326,23 +326,44 @@ can tell the test it just wrote from a regression it just caused.
 
 Coverage is aggregated per test FILE at ingest, so the answer names test files
 rather than individual `it()` blocks. A record is returned when its covered
-intervals overlap the asked-about range. ([validated by returns the test whose coverage overlaps the asked-about line range](libs/shared/src/work/spec-trace/tests-covering.test.ts#L75))
+intervals overlap the asked-about range. ([validated by returns the test whose coverage overlaps the asked-about line range](libs/shared/src/work/spec-trace/tests-covering.test.ts#L78))
 
 A range no coverage record touches returns nothing rather than falling back to
-the whole file. ([validated by returns nothing for a range no test covers](libs/shared/src/work/spec-trace/tests-covering.test.ts#L93))
+the whole file. ([validated by returns nothing for a range no test covers](libs/shared/src/work/spec-trace/tests-covering.test.ts#L96))
 
 Asking about a file without narrowing to a range returns every test file that
-covers it. ([validated by returns every covering test when no range narrows the question](libs/shared/src/work/spec-trace/tests-covering.test.ts#L111))
+covers it. ([validated by returns every covering test when no range narrows the question](libs/shared/src/work/spec-trace/tests-covering.test.ts#L114))
 
 Inside a run's overlay the same question is answered from the branch's own
-coverage, tagged as coming from the overlay. ([validated by reads the branch's own coverage from the run scope and marks it as overlay](libs/shared/src/work/spec-trace/tests-covering.test.ts#L128))
+coverage, tagged as coming from the overlay. ([validated by reads the branch's own coverage from the run scope and marks it as overlay](libs/shared/src/work/spec-trace/tests-covering.test.ts#L131))
 
 That branch coverage is invisible from the main scope, so a run in flight cannot
-change what anyone else is told. ([validated by does not see the branch's coverage from the main scope](libs/shared/src/work/spec-trace/tests-covering.test.ts#L149))
+change what anyone else is told. ([validated by does not see the branch's coverage from the main scope](libs/shared/src/work/spec-trace/tests-covering.test.ts#L155))
 
 The overlay's answer REPLACES main's for a file the branch covers; a file the
 branch never touched falls through to main, and a file neither covers returns
-nothing. ([validated by replaces main's answer for the file when the overlay covers it](libs/shared/src/work/spec-trace/tests-covering.test.ts#L27), [validated by falls through to main for a file the branch never touched](libs/shared/src/work/spec-trace/tests-covering.test.ts#L31), [validated by returns nothing when neither scope covers the file](libs/shared/src/work/spec-trace/tests-covering.test.ts#L35))
+nothing. ([validated by replaces main's answer for the file when the overlay covers it](libs/shared/src/work/spec-trace/tests-covering.test.ts#L30), [validated by falls through to main for a file the branch never touched](libs/shared/src/work/spec-trace/tests-covering.test.ts#L34), [validated by returns nothing when neither scope covers the file](libs/shared/src/work/spec-trace/tests-covering.test.ts#L38))
+
+### Ending a run's overlay
+
+The Floor never writes Dgraph itself, so closing a run does not delete its
+overlay directly: it emits the same `internal.ingest.spec_trace` event a test
+report rides, with kind `overlay-drop`, and the ingest station performs the
+delete. The event names the run's repo and the run whose overlay goes. ([validated by names the run's repo, the overlay-drop kind, and the run whose overlay goes](apps/floor/src/work/assembly-run/drop-overlay.test.ts#L25))
+
+A closing implementation run asks for that drop. ([validated by asks for a drop when an implementation run closes](apps/floor/src/work/assembly-run/drop-overlay.test.ts#L5))
+
+An ingest run does NOT, because the drop it asked for would itself be an ingest
+run, which would ask again, without end. ([validated by refuses for an ingest run, whose drop would start another ingest run forever](apps/floor/src/work/assembly-run/drop-overlay.test.ts#L11))
+
+Neither does a run with no repo, which can own no overlay. ([validated by refuses for a run with no repo, which can own no overlay](apps/floor/src/work/assembly-run/drop-overlay.test.ts#L17))
+
+The drop can still be missed — a dead pod, a lost event — so a retention sweep
+reaps every overlay a repo has not restamped since a cutoff. A run still pushing
+restamps its own anchor on every push, so an old stamp means the run is gone. ([validated by drops an overlay written before the cutoff](libs/shared/src/work/spec-trace/overlay.test.ts#L169))
+
+An overlay stamped after the cutoff is kept, because its run may still be
+pushing. ([validated by keeps an overlay written after the cutoff, because its run may still be pushing](libs/shared/src/work/spec-trace/overlay.test.ts#L184))
 
 ### `xid` keys (deterministic, idempotent)
 

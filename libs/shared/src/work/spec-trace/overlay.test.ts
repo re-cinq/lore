@@ -12,6 +12,7 @@ import {
   readOverlay,
   dropOverlay,
   listOverlays,
+  pruneOverlays,
 } from "./overlay.js";
 
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
@@ -152,3 +153,46 @@ async function readNode(
     await txn.discard().catch(() => {});
   }
 }
+
+describe.skipIf(!reachable)("pruneOverlays (live Dgraph)", () => {
+  const client = new dgraph.DgraphClient(
+    new dgraph.DgraphClientStub(DGRAPH_HTTP),
+  );
+
+  beforeAll(() => {
+    execFileSync("bash", [APPLIER], {
+      env: { ...process.env, DGRAPH_HTTP },
+      stdio: "pipe",
+    });
+  });
+
+  it("drops an overlay written before the cutoff", async () => {
+    const repo = `spec-trace/${randomUUID()}`;
+
+    await upsertOverlay(client, overlayScope(repo, randomUUID()), {
+      branch: "b",
+      headCommit: "sha",
+      at: new Date("2020-01-01T00:00:00.000Z"),
+    });
+
+    expect({
+      dropped: await pruneOverlays(client, repo, new Date("2021-01-01Z")),
+      left: await listOverlays(client, repo),
+    }).toEqual({ dropped: 1, left: [] });
+  });
+
+  it("keeps an overlay written after the cutoff, because its run may still be pushing", async () => {
+    const repo = `spec-trace/${randomUUID()}`;
+    const runId = randomUUID();
+
+    await upsertOverlay(client, overlayScope(repo, runId), {
+      branch: "b",
+      headCommit: "sha",
+      at: new Date("2026-01-01T00:00:00.000Z"),
+    });
+
+    expect(await pruneOverlays(client, repo, new Date("2021-01-01Z"))).toBe(0);
+
+    await dropOverlay(client, repo, runId);
+  });
+});

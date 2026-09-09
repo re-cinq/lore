@@ -48,6 +48,8 @@ export interface AdvanceDeps {
     complete(runId: string, resultSummary: string): Promise<unknown>;
     fail(runId: string, reason: string): Promise<unknown>;
   };
+  /** Drop the run's branch graph overlay now the run is over (issue #1769); winning finisher only, best-effort. The Floor never writes Dgraph itself, so this emits the ingest event that the ingest station acts on. Optional seam. */
+  dropGraphOverlay?: (run: AssemblyRunRecord) => Promise<void>;
   /** User-facing failure notification (Slack + PR comment), fired once per line by the winning finisher; optional seam. */
   notifyFailure?: (
     assemblyRun: AssemblyRunRecord,

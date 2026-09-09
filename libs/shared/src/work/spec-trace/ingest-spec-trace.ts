@@ -4,6 +4,7 @@ import type {
   CoveredChunk,
   DgraphClientPort,
 } from "../../outbound/spec-trace/deps.js";
+import { enforceTrue } from "../../lib/enforce.js";
 import {
   isOverlay,
   mainScope,
@@ -12,7 +13,14 @@ import {
 } from "../../domain/spec-trace/trace-scope.js";
 import { ingestTestReport, type TestReport } from "./ingest-test-report.js";
 import { ingestCoverageReport } from "./ingest-coverage.js";
-import { upsertOverlay } from "./overlay.js";
+import { dropOverlay, upsertOverlay } from "./overlay.js";
+
+/** The kinds whose body travels as a payload rather than being read from the repo. Exported so the Floor's dispatcher and the ingest station agree with `ingestByKind` by construction instead of by two hand-kept copies. */
+export const PAYLOAD_INGEST_KINDS: ReadonlySet<string> = new Set([
+  "test-report",
+  "coverage",
+  "overlay-drop",
+]);
 
 /** Normalized graph effect of one ingest, surfaced for logging + audit. */
 export interface SpecTraceOutcome {
@@ -102,6 +110,31 @@ async function anchorOverlay(
   });
 }
 
+/** The run is over: its overlay and everything it anchored go. No counts to report — the graph shrank, it did not gain. */
+async function dropOverlayKind(
+  dgraph: DgraphClientPort,
+  repo: string,
+  payload: ScopedPayload,
+): Promise<SpecTraceOutcome> {
+  const assemblyRunId = payload.assemblyRunId ?? "";
+
+  enforceTrue(
+    assemblyRunId.length > 0,
+    Error,
+    "ingestSpecTrace: overlay-drop names no assemblyRunId",
+  );
+  await dropOverlay(dgraph, repo, assemblyRunId);
+
+  return {
+    kind: "overlay-drop",
+    testChunks: 0,
+    validatedBy: 0,
+    violated: 0,
+    coverageNodes: 0,
+    coversEdges: 0,
+  };
+}
+
 async function ingestByKind(
   dgraph: DgraphClientPort,
   scope: TraceScope,
@@ -113,6 +146,8 @@ async function ingestByKind(
       return ingestTestReportKind(dgraph, scope, payload);
     case "coverage":
       return ingestCoverageKind(dgraph, scope, payload as CoveragePayload);
+    case "overlay-drop":
+      return dropOverlayKind(dgraph, scope.repo, payload as ScopedPayload);
     default:
       throw new Error(`ingestSpecTrace: unrecognized kind "${kind}"`);
   }
@@ -127,7 +162,9 @@ export async function ingestSpecTrace(
   const scoped = (payload ?? {}) as ScopedPayload;
   const scope = scopeFor(repo, scoped);
 
-  await anchorOverlay(dgraph, scope, scoped);
+  if (kind !== "overlay-drop") {
+    await anchorOverlay(dgraph, scope, scoped);
+  }
 
   const outcome = await ingestByKind(dgraph, scope, kind, payload);
 

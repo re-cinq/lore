@@ -10,6 +10,7 @@ import {
   INGEST_KINDS,
   type DgraphClientPort,
   type IngestGraphSummary,
+  PAYLOAD_INGEST_KINDS,
 } from "@re-cinq/lore-shared";
 import { eventLine, type NodeResult } from "@re-cinq/lore-assembly-lines";
 import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
@@ -17,7 +18,7 @@ import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
 // Derived, not parallel: INGEST_KINDS holds exactly the file-projectable doc kinds (tests is special-cased inside runIngestGraph).
 const DOC_KINDS = new Set(Object.keys(INGEST_KINDS));
 // Payload kinds arrive by reference (FR3): the body lives on the scheduling pipeline.events row; station_input carries only payload_event_id.
-const PAYLOAD_KINDS = new Set(["test-report", "coverage"]);
+const PAYLOAD_KINDS = PAYLOAD_INGEST_KINDS;
 // Keeps the extras value well under the ~1 KB stage-commit trailer guidance (station-contract.md) — long detail belongs in the log lines.
 const FAILED_FILES_MAX = 900;
 

@@ -10,18 +10,6 @@ import {
   type TraceScope,
 } from "../../domain/spec-trace/trace-scope.js";
 
-/** The edges an overlay anchors its nodes on — the drop walks exactly these to find what to delete. */
-const ANCHORED_EDGES = [
-  "Overlay.code_chunks",
-  "Overlay.test_chunks",
-  "Overlay.test_suites",
-  "Overlay.coverage",
-  "Overlay.files",
-] as const;
-
-/** Uids per delete mutation; a run that touched hundreds of files would otherwise send one enormous N-Quads body. */
-const DELETE_BATCH = 500;
-
 /** One run's overlay: which branch it describes and the commit its line numbers are expressed in. */
 export interface OverlayRecord {
   assemblyRunId: string;
@@ -55,22 +43,11 @@ const LIST_QUERY = `query q($repo: string) {
   ov(func: eq(Overlay.repo, $repo)) { ${OVERLAY_FIELDS} }
 }`;
 
-const ANCHORED_QUERY = `query q($xid: string) {
-  ov(func: eq(Overlay.xid, $xid)) {
-    uid
-${ANCHORED_EDGES.map((edge) => `    ${edge} { uid }`).join("\n")}
+const STALE_QUERY = `query q($repo: string, $cutoff: string) {
+  ov(func: eq(Overlay.repo, $repo)) @filter(lt(Overlay.written_at, $cutoff)) {
+    ${OVERLAY_FIELDS}
   }
 }`;
-
-function toRecord(row: GraphOverlay): OverlayRecord {
-  return {
-    assemblyRunId: row["Overlay.assembly_run_id"] ?? "",
-    repo: row["Overlay.repo"] ?? "",
-    branch: row["Overlay.branch"] ?? "",
-    headCommit: row["Overlay.head_commit"] ?? "",
-    writtenAt: row["Overlay.written_at"] ?? "",
-  };
-}
 
 /** Stamps the run's overlay anchor with the branch head its chunks are expressed in — the overlay's answer to `Repo.trace_commit`. */
 export async function upsertOverlay(
@@ -93,15 +70,11 @@ export async function readOverlay(
   repo: string,
   assemblyRunId: string,
 ): Promise<OverlayRecord | null> {
-  const rows = await withTxn(dgraph, async (txn) => {
-    const res = await txn.queryWithVars(READ_QUERY, {
-      $xid: overlayScope(repo, assemblyRunId).key,
-    });
-
-    return (res.data.ov ?? []) as GraphOverlay[];
+  const rows = await queryOverlays(dgraph, READ_QUERY, {
+    $xid: overlayScope(repo, assemblyRunId).key,
   });
 
-  return rows.length ? toRecord(rows[0]) : null;
+  return rows.length ? rows[0] : null;
 }
 
 /** Every overlay a repo currently holds — the sweep's input for runs whose drop never ran. */
@@ -109,14 +82,83 @@ export async function listOverlays(
   dgraph: DgraphClientPort,
   repo: string,
 ): Promise<OverlayRecord[]> {
+  return queryOverlays(dgraph, LIST_QUERY, { $repo: repo });
+}
+
+/** Deletes everything the run's overlay anchors plus the anchor itself, and reports how many nodes went. Safe to call twice: a run with no overlay drops nothing. */
+export async function dropOverlay(
+  dgraph: DgraphClientPort,
+  repo: string,
+  assemblyRunId: string,
+): Promise<number> {
+  const uids = await anchoredUids(
+    dgraph,
+    overlayScope(repo, assemblyRunId).key,
+  );
+
+  await deleteUids(dgraph, uids);
+
+  return uids.length;
+}
+
+/** The safety net for a run whose drop never ran — the pod died, the event was lost — reaping every overlay the repo has not restamped since `cutoff`. Returns how many it dropped. */
+export async function pruneOverlays(
+  dgraph: DgraphClientPort,
+  repo: string,
+  cutoff: Date,
+): Promise<number> {
+  const stale = await queryOverlays(dgraph, STALE_QUERY, {
+    $repo: repo,
+    $cutoff: cutoff.toISOString(),
+  });
+
+  for (const overlay of stale) {
+    await dropOverlay(dgraph, repo, overlay.assemblyRunId);
+  }
+
+  return stale.length;
+}
+
+/** Runs one of this module's overlay queries and shapes every row it returns. */
+async function queryOverlays(
+  dgraph: DgraphClientPort,
+  query: string,
+  vars: Record<string, string>,
+): Promise<OverlayRecord[]> {
   const rows = await withTxn(dgraph, async (txn) => {
-    const res = await txn.queryWithVars(LIST_QUERY, { $repo: repo });
+    const res = await txn.queryWithVars(query, vars);
 
     return (res.data.ov ?? []) as GraphOverlay[];
   });
 
   return rows.map(toRecord);
 }
+
+function toRecord(row: GraphOverlay): OverlayRecord {
+  return {
+    assemblyRunId: row["Overlay.assembly_run_id"] ?? "",
+    repo: row["Overlay.repo"] ?? "",
+    branch: row["Overlay.branch"] ?? "",
+    headCommit: row["Overlay.head_commit"] ?? "",
+    writtenAt: row["Overlay.written_at"] ?? "",
+  };
+}
+
+/** The edges an overlay anchors its nodes on — the drop walks exactly these to find what to delete. */
+const ANCHORED_EDGES = [
+  "Overlay.code_chunks",
+  "Overlay.test_chunks",
+  "Overlay.test_suites",
+  "Overlay.coverage",
+  "Overlay.files",
+] as const;
+
+const ANCHORED_QUERY = `query q($xid: string) {
+  ov(func: eq(Overlay.xid, $xid)) {
+    uid
+${ANCHORED_EDGES.map((edge) => `    ${edge} { uid }`).join("\n")}
+  }
+}`;
 
 /** Every uid the overlay owns, the anchor last so a partial delete still leaves the anchor to retry from. */
 async function anchoredUids(
@@ -140,6 +182,9 @@ async function anchoredUids(
   return [...new Set(owned), anchor.uid as string];
 }
 
+/** Uids per delete mutation; a run that touched hundreds of files would otherwise send one enormous N-Quads body. */
+const DELETE_BATCH = 500;
+
 async function deleteUids(
   dgraph: DgraphClientPort,
   uids: string[],
@@ -154,20 +199,4 @@ async function deleteUids(
       }),
     );
   }
-}
-
-/** Deletes everything the run's overlay anchors plus the anchor itself, and reports how many nodes went. Safe to call twice: a run with no overlay drops nothing. */
-export async function dropOverlay(
-  dgraph: DgraphClientPort,
-  repo: string,
-  assemblyRunId: string,
-): Promise<number> {
-  const uids = await anchoredUids(
-    dgraph,
-    overlayScope(repo, assemblyRunId).key,
-  );
-
-  await deleteUids(dgraph, uids);
-
-  return uids.length;
 }
