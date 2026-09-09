@@ -6,6 +6,7 @@ import stylistic from "@stylistic/eslint-plugin";
 import markdown from "@eslint/markdown";
 import importX from "eslint-plugin-import-x";
 import reLint from "@re-cinq/eslint-plugin-re-lint";
+import { MAX_EXPECTS_BASELINE } from "./eslint.baseline.max-expects.mjs";
 
 /**
  * Repo-wide ESLint (flat config). One common linter across every package plus the
@@ -489,7 +490,12 @@ export default tseslint.config(
       // A recording double IS half data and half behaviour: the code under
       // test writes the field and the test reads it. That is the point.
       "re-lint/no-hybrid-class": "off",
-      "re-lint/max-expects": "warn",
+      // Three, not one: across 2949 findings the median test asserted two
+      // things and p90 was four, so one was the rule being wrong rather than
+      // the tests. A returned value and the side effect it caused are two
+      // assertions about one behaviour. Error everywhere except the files
+      // listed in eslint.baseline.max-expects.mjs, which predate the rule.
+      "re-lint/max-expects": ["error", { max: 3 }],
       // Error since 2026-09-08: a test that reads the wall clock is one the
       // calendar can fail. Filler timestamps are fixed literals now, and the
       // tests that measure an age pin the clock with fake timers over Date
@@ -546,5 +552,12 @@ export default tseslint.config(
     language: "markdown/gfm",
     plugins: { markdown, "re-lint": reLint },
     rules: { "re-lint/no-dead-md-links": "error" },
+  },
+
+  // The pre-existing half of the max-expects queue: still reported, so the
+  // list is visible and shrinking, but not red while nobody has cleaned it.
+  {
+    files: MAX_EXPECTS_BASELINE,
+    rules: { "re-lint/max-expects": ["warn", { max: 3 }] },
   },
 );
