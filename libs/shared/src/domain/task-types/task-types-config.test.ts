@@ -175,6 +175,19 @@ describe("the implementation-tdd recipe", () => {
     ).toContain("run ONLY that");
   });
 
+  it("tells every delivering recipe to bring its branch up to date with the base before it stops", () => {
+    const parsed = parseTaskTypesFile(COMMITTED);
+
+    for (const name of DELIVERING_PROMPT_REFS) {
+      const prompt = parsed.taskTypes[name]?.prompt_template ?? "";
+
+      expect(prompt, name).toContain(
+        "bring the branch up to date with its base",
+      );
+      expect(prompt, name).toContain("NO CI AT ALL");
+    }
+  });
+
   it("tells every implementing recipe to report failure when it delivered nothing", () => {
     const parsed = parseTaskTypesFile(COMMITTED);
 

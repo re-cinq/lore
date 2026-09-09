@@ -57,6 +57,14 @@ task_types:
         short, factual message. Then `git push origin HEAD`. The clone carries
         its own credentials, so a plain push authenticates; you need no token
         and must never look for one.
+      - Then bring the branch up to date with its base — `git fetch origin main`
+        and merge `origin/main` in — and push again if that produced anything.
+        A branch that cannot merge cleanly gets NO CI AT ALL: GitHub runs no
+        workflow on a conflicted pull request, so the ticket parks on a build
+        that will never start. Resolve any conflict now, favouring `origin/main`
+        for anything this ticket did not write, and never by discarding your own
+        work. This is why a nine-day-old branch stalled: 186 commits of drift,
+        no checks, and a wait with nothing to wait for.
       - Confirm it landed: `git status` must report the branch is not ahead of
         its upstream. An unpushed commit lives only in this container and
         dies with it — do NOT report success for one.
@@ -120,6 +128,14 @@ task_types:
         short, factual message. Then `git push origin HEAD`. The clone carries
         its own credentials, so a plain push authenticates; you need no token
         and must never look for one.
+      - Then bring the branch up to date with its base — `git fetch origin main`
+        and merge `origin/main` in — and push again if that produced anything.
+        A branch that cannot merge cleanly gets NO CI AT ALL: GitHub runs no
+        workflow on a conflicted pull request, so the ticket parks on a build
+        that will never start. Resolve any conflict now, favouring `origin/main`
+        for anything this ticket did not write, and never by discarding your own
+        work. This is why a nine-day-old branch stalled: 186 commits of drift,
+        no checks, and a wait with nothing to wait for.
       - Confirm it landed: `git status` must report the branch is not ahead of
         its upstream. An unpushed commit lives only in this container and
         dies with it — do NOT report success for one.
@@ -289,6 +305,14 @@ task_types:
         short, factual message. Then `git push origin HEAD`. The clone carries
         its own credentials, so a plain push authenticates; you need no token
         and must never look for one.
+      - Then bring the branch up to date with its base — `git fetch origin main`
+        and merge `origin/main` in — and push again if that produced anything.
+        A branch that cannot merge cleanly gets NO CI AT ALL: GitHub runs no
+        workflow on a conflicted pull request, so the ticket parks on a build
+        that will never start. Resolve any conflict now, favouring `origin/main`
+        for anything this ticket did not write, and never by discarding your own
+        work. This is why a nine-day-old branch stalled: 186 commits of drift,
+        no checks, and a wait with nothing to wait for.
       - Confirm it landed: `git status` must report the branch is not ahead of
         its upstream. An unpushed commit lives only in this container and
         dies with it — do NOT report success for one.
@@ -407,6 +431,14 @@ task_types:
         short, factual message. Then `git push origin HEAD`. The clone carries
         its own credentials, so a plain push authenticates; you need no token
         and must never look for one.
+      - Then bring the branch up to date with its base — `git fetch origin main`
+        and merge `origin/main` in — and push again if that produced anything.
+        A branch that cannot merge cleanly gets NO CI AT ALL: GitHub runs no
+        workflow on a conflicted pull request, so the ticket parks on a build
+        that will never start. Resolve any conflict now, favouring `origin/main`
+        for anything this ticket did not write, and never by discarding your own
+        work. This is why a nine-day-old branch stalled: 186 commits of drift,
+        no checks, and a wait with nothing to wait for.
       - Confirm it landed: `git status` must report the branch is not ahead of
         its upstream. An unpushed commit lives only in this container and
         dies with it — do NOT report success for one.
@@ -478,6 +510,14 @@ task_types:
         short, factual message. Then `git push origin HEAD`. The clone carries
         its own credentials, so a plain push authenticates; you need no token
         and must never look for one.
+      - Then bring the branch up to date with its base — `git fetch origin main`
+        and merge `origin/main` in — and push again if that produced anything.
+        A branch that cannot merge cleanly gets NO CI AT ALL: GitHub runs no
+        workflow on a conflicted pull request, so the ticket parks on a build
+        that will never start. Resolve any conflict now, favouring `origin/main`
+        for anything this ticket did not write, and never by discarding your own
+        work. This is why a nine-day-old branch stalled: 186 commits of drift,
+        no checks, and a wait with nothing to wait for.
       - Confirm it landed: `git status` must report the branch is not ahead of
         its upstream. An unpushed commit lives only in this container and
         dies with it — do NOT report success for one.
@@ -575,6 +615,14 @@ task_types:
         short, factual message. Then `git push origin HEAD`. The clone carries
         its own credentials, so a plain push authenticates; you need no token
         and must never look for one.
+      - Then bring the branch up to date with its base — `git fetch origin main`
+        and merge `origin/main` in — and push again if that produced anything.
+        A branch that cannot merge cleanly gets NO CI AT ALL: GitHub runs no
+        workflow on a conflicted pull request, so the ticket parks on a build
+        that will never start. Resolve any conflict now, favouring `origin/main`
+        for anything this ticket did not write, and never by discarding your own
+        work. This is why a nine-day-old branch stalled: 186 commits of drift,
+        no checks, and a wait with nothing to wait for.
       - Confirm it landed: `git status` must report the branch is not ahead of
         its upstream. An unpushed commit lives only in this container and
         dies with it — do NOT report success for one.
@@ -637,6 +685,14 @@ task_types:
         short, factual message. Then `git push origin HEAD`. The clone carries
         its own credentials, so a plain push authenticates; you need no token
         and must never look for one.
+      - Then bring the branch up to date with its base — `git fetch origin main`
+        and merge `origin/main` in — and push again if that produced anything.
+        A branch that cannot merge cleanly gets NO CI AT ALL: GitHub runs no
+        workflow on a conflicted pull request, so the ticket parks on a build
+        that will never start. Resolve any conflict now, favouring `origin/main`
+        for anything this ticket did not write, and never by discarding your own
+        work. This is why a nine-day-old branch stalled: 186 commits of drift,
+        no checks, and a wait with nothing to wait for.
       - Confirm it landed: `git status` must report the branch is not ahead of
         its upstream. An unpushed commit lives only in this container and
         dies with it — do NOT report success for one.
