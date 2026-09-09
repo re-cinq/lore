@@ -45,7 +45,7 @@ function TestLinkRow({ link, repo, branch }: TestLinkRowProps) {
 function TestedCount({ count }: { count: number }) {
   return (
     <strong>
-      {count} test{count === 1 ? "" : "s"} validate this
+      {count} test{count === 1 ? "" : "s"} validate{count === 1 ? "s" : ""} this
     </strong>
   );
 }

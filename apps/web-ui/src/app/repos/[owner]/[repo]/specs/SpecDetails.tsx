@@ -93,13 +93,14 @@ interface SpecMarkdownProps {
 /** The spec itself, with the statement-highlighting plugins applied. Those plugins are what put the hover targets in the rendered HTML, so the popover has something to attach to. */
 function SpecMarkdown({ spec, rehypePlugins }: SpecMarkdownProps) {
   const { content, repo, branch } = spec;
+  const components = useResolvedMarkdownLinks(repo, branch);
 
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       rehypePlugins={rehypePlugins as any}
-      components={useResolvedMarkdownLinks(repo, branch)}
+      components={components}
     >
       {content}
     </ReactMarkdown>
