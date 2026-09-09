@@ -14,12 +14,24 @@ import {
 import { ingestTestReport, type TestReport } from "./ingest-test-report.js";
 import { ingestCoverageReport } from "./ingest-coverage.js";
 import { dropOverlay, upsertOverlay } from "./overlay.js";
+import {
+  projectFailure,
+  resolveFailures,
+  type FailureRecord,
+} from "./failure-nodes.js";
 
 /** The kinds whose body travels as a payload rather than being read from the repo. Exported so the Floor's dispatcher and the ingest station agree with `ingestByKind` by construction instead of by two hand-kept copies. */
 export const PAYLOAD_INGEST_KINDS: ReadonlySet<string> = new Set([
   "test-report",
   "coverage",
   "overlay-drop",
+  "failure",
+]);
+
+/** The kinds that describe a BRANCH SNAPSHOT and so belong in a run's overlay. A failure is not one: it is a fact about the repo's history that outlives the run, and `overlay-drop` names the overlay it deletes rather than writing into it. */
+const OVERLAY_SCOPED_KINDS: ReadonlySet<string> = new Set([
+  "test-report",
+  "coverage",
 ]);
 
 /** Normalized graph effect of one ingest, surfaced for logging + audit. */
@@ -39,6 +51,11 @@ interface ScopedPayload {
   assemblyRunId?: string;
   branch?: string;
   commit?: string;
+}
+
+/** A node's terminal outcome, as the Floor settles it. `outcome` is what tells a resolve from a new failure. */
+interface FailurePayload extends FailureRecord {
+  outcome: string;
 }
 
 /** Shape of the bulk `"coverage"` payload posted to the dispatcher. */
@@ -88,9 +105,13 @@ async function ingestTestReportKind(
   return { kind: "test-report", ...result };
 }
 
-/** Where this payload writes: its own run overlay when it names an assembly run, else the repo's `main` graph. */
-function scopeFor(repo: string, payload: ScopedPayload): TraceScope {
-  return payload.assemblyRunId
+/** Where this payload writes: its own run overlay when it is a branch snapshot naming a run, else the repo's `main` graph. */
+function scopeFor(
+  repo: string,
+  kind: string,
+  payload: ScopedPayload,
+): TraceScope {
+  return payload.assemblyRunId && OVERLAY_SCOPED_KINDS.has(kind)
     ? overlayScope(repo, payload.assemblyRunId)
     : mainScope(repo);
 }
@@ -110,6 +131,15 @@ async function anchorOverlay(
   });
 }
 
+/** What a kind that writes no chunks reports: the graph did not gain nodes, so every count is zero rather than absent. */
+const NO_GRAPH_COUNTS = {
+  testChunks: 0,
+  validatedBy: 0,
+  violated: 0,
+  coverageNodes: 0,
+  coversEdges: 0,
+};
+
 /** The run is over: its overlay and everything it anchored go. No counts to report — the graph shrank, it did not gain. */
 async function dropOverlayKind(
   dgraph: DgraphClientPort,
@@ -125,14 +155,30 @@ async function dropOverlayKind(
   );
   await dropOverlay(dgraph, repo, assemblyRunId);
 
-  return {
-    kind: "overlay-drop",
-    testChunks: 0,
-    validatedBy: 0,
-    violated: 0,
-    coverageNodes: 0,
-    coversEdges: 0,
-  };
+  return { kind: "overlay-drop", ...NO_GRAPH_COUNTS };
+}
+
+/** One node's terminal outcome as the graph records it: a green attempt stamps the sha onto what the earlier red attempts left, anything else projects a new failure. */
+async function failureKind(
+  dgraph: DgraphClientPort,
+  repo: string,
+  payload: FailurePayload,
+): Promise<SpecTraceOutcome> {
+  const settled = { kind: "failure", ...NO_GRAPH_COUNTS };
+
+  if (payload.outcome === "success") {
+    await resolveFailures(
+      dgraph,
+      repo,
+      { assemblyRunId: payload.assemblyRunId, nodeId: payload.nodeId },
+      payload.commit ?? "",
+    );
+
+    return settled;
+  }
+  await projectFailure(dgraph, repo, payload);
+
+  return settled;
 }
 
 async function ingestByKind(
@@ -148,6 +194,8 @@ async function ingestByKind(
       return ingestCoverageKind(dgraph, scope, payload as CoveragePayload);
     case "overlay-drop":
       return dropOverlayKind(dgraph, scope.repo, payload as ScopedPayload);
+    case "failure":
+      return failureKind(dgraph, scope.repo, payload as FailurePayload);
     default:
       throw new Error(`ingestSpecTrace: unrecognized kind "${kind}"`);
   }
@@ -160,7 +208,7 @@ export async function ingestSpecTrace(
   payload: unknown,
 ): Promise<SpecTraceOutcome> {
   const scoped = (payload ?? {}) as ScopedPayload;
-  const scope = scopeFor(repo, scoped);
+  const scope = scopeFor(repo, kind, scoped);
 
   if (kind !== "overlay-drop") {
     await anchorOverlay(dgraph, scope, scoped);

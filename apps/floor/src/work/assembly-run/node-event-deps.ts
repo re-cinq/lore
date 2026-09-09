@@ -81,6 +81,21 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
     // Publishes a service-form node for the pooled stations service to claim, instead of a pod per DB write/HTTP POST.
     publishNode: (event) =>
       eventReporter().insert({ ...event, source: "internal" }),
+    recordNodeOutcome: async (assemblyLineId, row, outcome) => {
+      const [{ nodeOutcomeEvent, shouldRecordOutcome }, run] =
+        await Promise.all([
+          import("./node-outcome-event.js"),
+          pipeline().assemblyRuns.getById(assemblyLineId),
+        ]);
+
+      if (!run || !shouldRecordOutcome(run)) {
+        return;
+      }
+      await eventReporter().insert({
+        ...nodeOutcomeEvent(run, row, outcome, new Date()),
+        source: "internal",
+      });
+    },
     dropGraphOverlay: async (run) => {
       const { shouldDropOverlay, dropOverlayEvent } =
         await import("./drop-overlay.js");

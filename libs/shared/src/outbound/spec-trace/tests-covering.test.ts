@@ -5,12 +5,13 @@ import { randomUUID } from "node:crypto";
 import * as dgraph from "dgraph-js-http";
 import { findRepoRoot } from "../../lib/repo-root.js";
 import { dgraphReachable } from "../../lib/dgraph-test-gate.js";
-import { ingestSpecTrace } from "./ingest-spec-trace.js";
-import { dropOverlay } from "./overlay.js";
+import { upsertByXid, replaceEdgeWithFacets } from "./dgraph-upsert.js";
 import { preferOverlay, testsCoveringInScope } from "./tests-covering.js";
 import {
   mainScope,
   overlayScope,
+  scopedXid,
+  type TraceScope,
 } from "../../domain/spec-trace/trace-scope.js";
 
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
@@ -52,41 +53,48 @@ describe.skipIf(!reachable)("testsCoveringInScope (live Dgraph)", () => {
     });
   });
 
-  function reportCovering(
-    covered: { file: string; startLine: number; endLine: number },
-    runId?: string,
-  ) {
-    return {
-      commit: "sha",
-      branch: "b",
-      ...(runId ? { assemblyRunId: runId } : {}),
-      tests: [
-        {
-          id: "src/widget.test.ts::adds",
-          name: "adds",
-          file: "src/widget.test.ts",
-          startLine: 4,
-          endLine: 9,
-        },
-      ],
-      results: [
-        { id: "src/widget.test.ts::adds", passed: true, covered: [covered] },
-      ],
-    };
+  async function seedCoverage(
+    scope: TraceScope,
+    covered: { file: string; ranges: string },
+  ): Promise<void> {
+    const testFile = "src/widget.test.ts";
+    const fileUid = await upsertByXid(
+      client,
+      "File",
+      scopedXid(scope, covered.file),
+      { "File.repo": scope.key, "File.path": covered.file },
+    );
+    const coverageUid = await upsertByXid(
+      client,
+      "Coverage",
+      scopedXid(scope, testFile, testFile),
+      { "Coverage.repo": scope.key, "Coverage.tool": "seed" },
+    );
+    const chunkUid = await upsertByXid(
+      client,
+      "TestChunk",
+      scopedXid(scope, testFile),
+      {
+        "TestChunk.repo": scope.key,
+        "TestChunk.file_path": testFile,
+        "TestChunk.test_name": testFile,
+        "TestChunk.coverage": { uid: coverageUid },
+      },
+    );
+
+    expect(chunkUid).toBeTruthy();
+    await replaceEdgeWithFacets(client, coverageUid, "Coverage.covers", [
+      { uid: fileUid, facets: { ranges: covered.ranges } },
+    ]);
   }
 
   it("returns the test whose coverage overlaps the asked-about line range", async () => {
-    const repo = `spec-trace/${randomUUID()}`;
+    const scope = mainScope(`spec-trace/${randomUUID()}`);
 
-    await ingestSpecTrace(
-      client,
-      repo,
-      "test-report",
-      reportCovering({ file: "src/widget.ts", startLine: 10, endLine: 20 }),
-    );
+    await seedCoverage(scope, { file: "src/widget.ts", ranges: "10-20" });
 
     expect(
-      await testsCoveringInScope(client, mainScope(repo), {
+      await testsCoveringInScope(client, scope, {
         file: "src/widget.ts",
         ranges: [[12, 14]],
       }),
@@ -94,17 +102,12 @@ describe.skipIf(!reachable)("testsCoveringInScope (live Dgraph)", () => {
   });
 
   it("returns nothing for a range no test covers", async () => {
-    const repo = `spec-trace/${randomUUID()}`;
+    const scope = mainScope(`spec-trace/${randomUUID()}`);
 
-    await ingestSpecTrace(
-      client,
-      repo,
-      "test-report",
-      reportCovering({ file: "src/widget.ts", startLine: 10, endLine: 20 }),
-    );
+    await seedCoverage(scope, { file: "src/widget.ts", ranges: "10-20" });
 
     expect(
-      await testsCoveringInScope(client, mainScope(repo), {
+      await testsCoveringInScope(client, scope, {
         file: "src/widget.ts",
         ranges: [[80, 90]],
       }),
@@ -112,66 +115,41 @@ describe.skipIf(!reachable)("testsCoveringInScope (live Dgraph)", () => {
   });
 
   it("returns every covering test when no range narrows the question", async () => {
-    const repo = `spec-trace/${randomUUID()}`;
+    const scope = mainScope(`spec-trace/${randomUUID()}`);
 
-    await ingestSpecTrace(
-      client,
-      repo,
-      "test-report",
-      reportCovering({ file: "src/widget.ts", startLine: 10, endLine: 20 }),
-    );
+    await seedCoverage(scope, { file: "src/widget.ts", ranges: "10-20" });
 
     expect(
-      await testsCoveringInScope(client, mainScope(repo), {
-        file: "src/widget.ts",
-      }),
+      await testsCoveringInScope(client, scope, { file: "src/widget.ts" }),
     ).toHaveLength(1);
   });
 
   it("reads the branch's own coverage from the run scope and marks it as overlay", async () => {
     const repo = `spec-trace/${randomUUID()}`;
-    const runId = randomUUID();
+    const scope = overlayScope(repo, randomUUID());
 
-    await ingestSpecTrace(
-      client,
-      repo,
-      "test-report",
-      reportCovering(
-        { file: "src/widget.ts", startLine: 1, endLine: 5 },
-        runId,
-      ),
-    );
+    await seedCoverage(scope, { file: "src/widget.ts", ranges: "1-5" });
 
     expect(
-      await testsCoveringInScope(client, overlayScope(repo, runId), {
+      await testsCoveringInScope(client, scope, {
         file: "src/widget.ts",
         ranges: [[2, 3]],
       }),
     ).toEqual([{ testFile: "src/widget.test.ts", origin: "overlay" }]);
-
-    await dropOverlay(client, repo, runId);
   });
 
   it("does not see the branch's coverage from the main scope", async () => {
     const repo = `spec-trace/${randomUUID()}`;
-    const runId = randomUUID();
 
-    await ingestSpecTrace(
-      client,
-      repo,
-      "test-report",
-      reportCovering(
-        { file: "src/widget.ts", startLine: 1, endLine: 5 },
-        runId,
-      ),
-    );
+    await seedCoverage(overlayScope(repo, randomUUID()), {
+      file: "src/widget.ts",
+      ranges: "1-5",
+    });
 
     expect(
       await testsCoveringInScope(client, mainScope(repo), {
         file: "src/widget.ts",
       }),
     ).toEqual([]);
-
-    await dropOverlay(client, repo, runId);
   });
 });

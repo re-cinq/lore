@@ -8,7 +8,7 @@ import {
   type GraphStatement,
   type ImpactStatement,
 } from "./impact-statement.js";
-import { intervalsOverlap } from "./line-range.js";
+import { intervalsOverlap } from "../../domain/spec-trace/line-range.js";
 
 const TEST_LINK_QUERY = `query q($repo: string, $fp: string) {
   chunks(func: eq(TestChunk.file_path, $fp)) @filter(eq(TestChunk.repo, $repo)) {

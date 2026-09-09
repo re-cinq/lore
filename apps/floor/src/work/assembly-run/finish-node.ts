@@ -36,36 +36,59 @@ export async function finishNodeAndAdvance(
   const { assemblyLineId, nodeId, result } = input;
 
   // Once-only effects are CAS-gated; the walk is NOT — advanceLine re-derives its step from the node rows, so re-running it recovers a delivery that closed the node then died before advancing.
-  if (await closeNodeRow(input, deps)) {
+  const closed = await closeNodeRow(input, deps);
+
+  if (closed) {
     await maybeStampPr(assemblyLineId, nodeId, result, deps);
     await maybeMarkPrReady(assemblyLineId, nodeId, result, deps);
     await reactToNodeFinished(assemblyLineId, nodeId, result, deps);
+    await recordNodeOutcome(assemblyLineId, closed, result, deps);
   }
 
   await advanceLine(assemblyLineId, deps);
 }
 
 /** Record one node's terminal outcome (CAS — first writer decides) and advance the line; `iteration` targets the exact revisit whose CR fired so a late duplicate event can't overwrite the current one. */
-/** Closes exactly one open row for this node, and says whether THIS delivery is the one that closed it. A missing target or a lost CAS both mean another delivery got there first — its follow-up has already fired, and firing again would re-route a result that was just routed. */
+/** Closes exactly one open row for this node and returns THE ROW when this delivery is the one that closed it. A missing target or a lost CAS both mean another delivery got there first — its follow-up has already fired, and firing again would re-route a result that was just routed. */
 async function closeNodeRow(
   input: NodeCompletion,
   deps: AdvanceDeps,
-): Promise<boolean> {
+): Promise<StationRunView | undefined> {
   const nodes = await deps.assemblyRuns.listStationRuns(input.assemblyLineId);
   const target = openRowForNode(nodes, input);
 
-  return (
-    target !== undefined &&
-    (await deps.assemblyRuns.finishStationRunOnce(
-      target.id,
-      input.result.outcome,
-      undefined,
-      {
-        failureClass: input.result.failureClass,
-        failureDetail: input.result.failureDetail,
-      },
-    ))
+  if (!target) {
+    return undefined;
+  }
+  const closed = await deps.assemblyRuns.finishStationRunOnce(
+    target.id,
+    input.result.outcome,
+    undefined,
+    {
+      failureClass: input.result.failureClass,
+      failureDetail: input.result.failureDetail,
+    },
   );
+
+  return closed ? target : undefined;
+}
+
+/** Tells the graph what this node did, so a later `fix-ci` can ask what has failed here before. Best-effort: a graph write must never fail a transition. */
+async function recordNodeOutcome(
+  assemblyLineId: string,
+  row: StationRunView,
+  result: NodeResult,
+  deps: AdvanceDeps,
+): Promise<void> {
+  if (!deps.recordNodeOutcome) {
+    return;
+  }
+
+  try {
+    await deps.recordNodeOutcome(assemblyLineId, row, result.outcome);
+  } catch (err) {
+    console.warn("[node-outcome] graph record threw:", (err as Error).message);
+  }
 }
 
 /** The exact revisit whose CR fired: an explicit iteration targets that row, otherwise the latest still-open row for the node wins, so a late duplicate event cannot overwrite the current one. */

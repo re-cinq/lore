@@ -35,7 +35,7 @@ export {
   preferOverlay,
   type CoveringTest,
   type CoverageTarget,
-} from "./spec-trace/tests-covering.js";
+} from "../outbound/spec-trace/tests-covering.js";
 export {
   mainScope,
   overlayScope,

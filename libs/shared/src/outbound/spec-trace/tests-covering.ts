@@ -1,14 +1,17 @@
 /** `tests_covering(file, range)` (issue #1770): which tests exercise a span, so a round that goes red can tell the test it just wrote from a regression it just caused. */
 
-import type { DgraphClientPort } from "../../outbound/spec-trace/deps.js";
-import { withTxn } from "../../outbound/spec-trace/dgraph-upsert.js";
+import type { DgraphClientPort } from "./deps.js";
+import { withTxn } from "./dgraph-upsert.js";
 import {
   isOverlay,
   mainScope,
   overlayScope,
   type TraceScope,
 } from "../../domain/spec-trace/trace-scope.js";
-import { parseRanges, intervalsOverlap } from "./line-range.js";
+import {
+  parseRanges,
+  intervalsOverlap,
+} from "../../domain/spec-trace/line-range.js";
 
 /** One test file whose run exercises the asked-about span, and which scope answered for it. Coverage is aggregated per test FILE at ingest, so this names a file rather than one `it()`. */
 export interface CoveringTest {
@@ -43,59 +46,6 @@ const COVERING_QUERY = `query q($repo: string, $fp: string) {
     }
   }
 }`;
-
-/** The intervals this coverage record claims in the asked-about file. */
-function coveredRanges(cov: GraphCoverage): [number, number][] {
-  const files = cov.file ?? [];
-
-  return files.length ? parseRanges(files[0]["file|ranges"] ?? "") : [];
-}
-
-/** Whether this record touches the file at all, and within the asked-about ranges when the caller narrowed them. */
-function coversTarget(cov: GraphCoverage, target: CoverageTarget): boolean {
-  const covered = coveredRanges(cov);
-
-  if (covered.length === 0) {
-    return false;
-  }
-
-  if (!target.ranges?.length) {
-    return true;
-  }
-
-  return covered.some(([cs, ce]) =>
-    target.ranges!.some(([s, e]) => intervalsOverlap(cs, ce, s, e)),
-  );
-}
-
-function toCoveringTest(
-  chunk: GraphTestChunk,
-  origin: CoveringTest["origin"],
-): CoveringTest {
-  const statement = chunk.stmts?.[0]?.["Statement.text"];
-
-  return {
-    testFile: chunk["TestChunk.file_path"] ?? "",
-    ...(statement ? { statement } : {}),
-    origin,
-  };
-}
-
-/** Drops repeat sightings of a file — several coverage records can name the same test file. */
-function dedupe(tests: CoveringTest[]): CoveringTest[] {
-  const seen = new Set<string>();
-
-  return tests.filter((test) => {
-    const key = test.testFile;
-
-    if (seen.has(key)) {
-      return false;
-    }
-    seen.add(key);
-
-    return true;
-  });
-}
 
 /** The tests covering `target` within ONE scope — main's own answer, or a run's branch answer. */
 export async function testsCoveringInScope(
@@ -143,13 +93,73 @@ export async function testsCovering(
   if (!scope.assemblyRunId) {
     return fromMain;
   }
-
-  return preferOverlay(
-    fromMain,
-    await testsCoveringInScope(
-      dgraph,
-      overlayScope(scope.repo, scope.assemblyRunId),
-      target,
-    ),
+  const branch = await testsCoveringInScope(
+    dgraph,
+    overlayScope(scope.repo, scope.assemblyRunId),
+    target,
   );
+
+  return preferOverlay(fromMain, branch);
+}
+
+/** Whether this record touches the file at all, and within the asked-about ranges when the caller narrowed them. */
+function coversTarget(cov: GraphCoverage, target: CoverageTarget): boolean {
+  const covered = coveredRanges(cov);
+
+  if (covered.length === 0) {
+    return false;
+  }
+
+  if (!target.ranges?.length) {
+    return true;
+  }
+
+  return covered.some(([cs, ce]) =>
+    target.ranges!.some(([s, e]) => intervalsOverlap(cs, ce, s, e)),
+  );
+}
+
+/** The intervals this coverage record claims in the asked-about file. */
+function coveredRanges(cov: GraphCoverage): [number, number][] {
+  const files = cov.file ?? [];
+
+  return files.length ? parseRanges(files[0]["file|ranges"] ?? "") : [];
+}
+
+function toCoveringTest(
+  chunk: GraphTestChunk,
+  origin: CoveringTest["origin"],
+): CoveringTest {
+  const statement = firstStatementText(chunk.stmts);
+
+  return {
+    testFile: chunk["TestChunk.file_path"] ?? "",
+    ...(statement ? { statement } : {}),
+    origin,
+  };
+}
+
+/** Drops repeat sightings of a file — several coverage records can name the same test file. */
+function dedupe(tests: CoveringTest[]): CoveringTest[] {
+  const seen = new Set<string>();
+
+  return tests.filter((test) => {
+    const key = test.testFile;
+
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+
+    return true;
+  });
+}
+
+/** The statement text of the first validating edge, or undefined when the chunk validates none. */
+function firstStatementText(
+  stmts: { "Statement.text"?: string }[] | undefined,
+): string | undefined {
+  const first = stmts?.at(0);
+
+  return first?.["Statement.text"];
 }

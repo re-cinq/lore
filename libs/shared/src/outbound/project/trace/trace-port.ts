@@ -4,6 +4,10 @@ import type {
   AdrSummary,
 } from "../../spec-trace/trace-document-listing.js";
 import type { SpecGraph, SpecRing } from "../../spec-trace/spec-graph.js";
+import type {
+  CoveringTest,
+  CoverageTarget,
+} from "../../spec-trace/tests-covering.js";
 
 /** Seam between Project facade and spec-traceability graph (Dgraph, source of truth). */
 export interface TracePort {
@@ -23,4 +27,10 @@ export interface TracePort {
   graph(repo: string): Promise<SpecGraph>;
   /** One spec's two-ring structure (sections + per-statement coverage) for graph expansion. */
   ring(repo: string, filePath: string): Promise<SpecRing>;
+  /** Test files exercising a source span — the run's branch overlay when `assemblyRunId` is given, else main. */
+  testsCovering(
+    repo: string,
+    target: CoverageTarget,
+    assemblyRunId?: string,
+  ): Promise<CoveringTest[]>;
 }

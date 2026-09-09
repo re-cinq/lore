@@ -5,6 +5,10 @@ import type {
   AdrSummary,
 } from "../../spec-trace/trace-document-listing.js";
 import type { SpecGraph, SpecRing } from "../../spec-trace/spec-graph.js";
+import type {
+  CoveringTest,
+  CoverageTarget,
+} from "../../spec-trace/tests-covering.js";
 
 /** Spec-traceability graph view; graph is source of truth, not Postgres chunk store. */
 export class TraceView {
@@ -51,5 +55,13 @@ export class TraceView {
   /** One spec's two-ring structure (sections + per-statement coverage) for graph expansion. */
   ring(filePath: string): Promise<SpecRing> {
     return this.port.ring(this.fullName, filePath);
+  }
+
+  /** Test files exercising a source span — a run's branch overlay when `assemblyRunId` is given, else main. */
+  testsCovering(
+    target: CoverageTarget,
+    assemblyRunId?: string,
+  ): Promise<CoveringTest[]> {
+    return this.port.testsCovering(this.fullName, target, assemblyRunId);
   }
 }

@@ -18,9 +18,10 @@ const CHUNK_OWNER_EDGES: Record<GcNodeType, string[]> = {
     "~Statement.implemented_by",
     "~AcceptanceCriterion.implemented_by",
     "~Coverage.covers",
+    "~Failure.chunks",
   ],
-  // A coverage-source File is owned by any Coverage still covering it.
-  File: ["~Coverage.covers"],
+  // A coverage-source File is owned by any Coverage still covering it — and by any Failure that named it, or the next re-projection would sweep the join target out from under a live Failure edge.
+  File: ["~Coverage.covers", "~Failure.files"],
 };
 
 /** Deletes chunks no longer in currentUids and not owned by CHUNK_OWNER_EDGES; pass excludeOwnerUids to GC before deletion. */

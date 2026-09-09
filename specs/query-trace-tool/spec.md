@@ -92,10 +92,47 @@ A `403 insufficient scope` from the remote surfaces a read-scope hint; a
 non-403 unreachable error omits it.
 ([validated by `surfaces a read-scope hint when the remote returns 403 insufficient scope`](libs/server-core/src/work/spec-trace/query-trace.test.ts#L251), [validated by `omits the scope hint for a non-403 unreachable error`](libs/server-core/src/work/spec-trace/query-trace.test.ts#L268))
 
+## The `tests_covering` shape
+
+The tool's second question, added for the implementation loop (issue #1770):
+which tests exercise a span. A `tdd-round` asks it before it edits a symbol, so
+that when the suite goes red it can tell the test it just wrote from a
+regression it just caused.
+
+The read is served by `GET /api/repos/{owner}/{repo}/trace/tests-covering`,
+which names the covered source file in `path`, optionally narrows to `ranges`,
+and optionally names the assembly run whose branch overlay should answer.
+
+A request naming no covered file is refused rather than answered for the whole
+repo. ([validated by returns 400 when no path names the covered file](apps/lore-api/src/transport/routes/trace/trace-tests-covering.test.ts#L44))
+
+The route returns the port's covering tests under a `tests` key. ([validated by returns the port's covering tests under a tests key](apps/lore-api/src/transport/routes/trace/trace-tests-covering.test.ts#L52))
+
+It parses `ranges` and passes them with the assembly run id to the port, ([validated by passes parsed ranges and the assembly run id to the port](apps/lore-api/src/transport/routes/trace/trace-tests-covering.test.ts#L65))
+
+It omits ranges entirely when the query names none, so an unnarrowed question stays unnarrowed. ([validated by omits ranges from the target when the query names none](apps/lore-api/src/transport/routes/trace/trace-tests-covering.test.ts#L82))
+
+A `ranges` query past the length bound is refused. ([validated by returns 400 when the ranges query exceeds the length bound](apps/lore-api/src/transport/routes/trace/trace-tests-covering.test.ts#L90))
+
+The repo-bound view binds its own repo and forwards the target and run id to the
+port, ([validated by binds the view's repo and forwards target plus run id to the port](libs/shared/src/outbound/project/trace/trace.test.ts#L29))
+
+It returns what the port answered unchanged when no run id narrows the read. ([validated by returns the port's covering tests unchanged when no run id narrows the read](libs/shared/src/outbound/project/trace/trace.test.ts#L46))
+
+The tool renders one row per test file, marking the row that came from the
+branch overlay and the statement each file validates. ([validated by renders one row per test file, marking the overlay row and the statement it validates](libs/server-core/src/work/spec-trace/query-trace.test.ts#L310))
+
+An empty answer renders as a sentence saying so, never as empty output — an
+agent cannot tell a blank reply from a broken one. ([validated by renders a no-tests-cover sentence for an empty list](libs/server-core/src/work/spec-trace/query-trace.test.ts#L332))
+
+The run id and ranges reach the proxied URL url-encoded. ([validated by passes assembly_run_id and ranges through to the proxied url, url-encoded](libs/server-core/src/work/spec-trace/query-trace.test.ts#L341))
+
+An unreachable API is reported as prose rather than thrown, like every other
+shape this tool serves. ([validated by reports the proxy failure rather than throwing when the api is unreachable](libs/server-core/src/work/spec-trace/query-trace.test.ts#L366))
+
 ## Out of Scope
 
 - The test-rooted direction ("what does test Y cover") — the `/trace/document`
   route is spec-rooted; that needs a separate read endpoint.
-- Any new backend route — this consumes the existing read route unchanged.
 - Free-form natural-language query parsing — the input is structured
   (`spec` + optional `statement`), deterministic, no LLM.
