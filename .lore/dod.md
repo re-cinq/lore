@@ -1,54 +1,83 @@
-# DoD — issue-1627: Floor still reads Agent CRs from central cluster on satellite paths
+# Definition of Done
 
-## Ticket
+> The Floor still reads Agent CRs from the central cluster on paths a satellite
+> run can take.
+>
+> **Proposal:** make the Floor consume reported state and stop reading CRs. Where
+> a read is genuinely needed (pod logs, a live probe), route it to the
+> cluster-agent that *claimed* the run, resolved from the station-run row, rather
+> than to the central one by default.
+>
+> **Acceptance**
+> - A written decision (ADR amendment) on which reads survive and how they are routed.
+> - No default-to-central CR read on a path a satellite run can take.
 
-The Floor still reads Agent CRs from the central cluster on paths a satellite run can take.
+**Strategy: `changes_requested`** — this ticket cannot be turned into a small
+set of failing acceptance tests that fail for its own stated reason, for two
+structural reasons.
 
-## Root cause
+1. **The first acceptance criterion is unobservable.** "A written decision (ADR
+   amendment) on which reads survive and how they are routed" is a design
+   artifact, not a behaviour reachable through a real entry point. The only test
+   that could assert it exists would `readFileSync` an ADR and regex for a
+   heading — a source-text scan, which the DoD contract forbids.
 
-`createNodeEventHandler` guards satellite-claimed station runs with `agentCrVisible`, but
-only when an **open** station-run row is found for the arriving `nodeId`. When no open row
-exists — because the node was already settled on the first delivery and the walk advanced
-to the next node (the line is still `running`) — the guard never fires and the handler
-falls through to `readAgentStatus`. That call goes to the **central** cluster, which
-returns `null` for a CR that lives in a satellite cluster. The fallback converts the null
-into `{ phase: "Succeeded" }` — a phantom re-settlement that contradicts the actual
-satellite outcome.
+2. **The second criterion depends on a design that criterion 1 has not yet
+   made.** "Route it to the cluster-agent that claimed the run, resolved from the
+   station-run row" is new routing infrastructure that does not exist anywhere in
+   the Floor today (confirmed: no per-row cluster-agent resolution in
+   `jobs/watcher` or `listeners/agent-reconcile`). To write an acceptance test I
+   would have to invent the shape of that routing — which reads survive, how the
+   claiming agent is resolved and reached, how a backstop that lists CRs (not
+   rows) reaches satellites at all — and that shape IS the ADR amendment the
+   ticket says must "land before implementation." Writing the test now redefines
+   the ticket instead of pinning it.
 
-Reproduction: a multi-node line where the first node was claimed and settled by a
-satellite; a late duplicate `kubernetes.agent_node.succeeded` event (without
-`params.status`, the form an old cluster-agent sends) arrives while the line is still
-`running` for its next node.
+The ticket also self-describes as an epic: "This is the largest of the four" and
+"should land as an amendment to ADR-044 before implementation." It is really a
+design decision followed by several per-path implementation slices.
 
-## Strategy
+## What is already done on this branch (green, keep)
 
-`direct` — the seam already exists: `createNodeEventHandler` accepts injectable deps,
-and `deps.readAgentStatus` is captured by reference so tests can splice in a recorder
-after construction.
+The prior cycle correctly identified and fixed ONE self-contained sub-bug and
+left a passing acceptance test for it:
 
-## Acceptance tests
+- **node-event-handler.test.ts** — "does not read the central cluster's CR when a
+  duplicate event arrives for a node a satellite already settled while the line
+  is still running" — PASSES today.
+  `apps/floor/src/jobs/assembly-run/node-event-handler.test.ts`
 
-| File | Line | Description |
-|------|------|-------------|
-| `apps/floor/src/jobs/assembly-run/node-event-handler.test.ts` | 432 | "does not read the central cluster's CR when a duplicate event arrives for a node a satellite already settled while the line is still running" |
+That closes the `node-event-handler` phantom-re-settlement path. It does not, on
+its own, satisfy either ticket-level acceptance bullet.
 
-All tests pass ⟺ the handler returns early (without calling `readAgentStatus`) whenever
-it finds no open station-run row for the arriving node, regardless of whether the
-assembly run is still open for other nodes.
+## Why the remaining scope is still open (evidence)
 
-## Facets covered
+- [ ] **ADR-044 amendment** — no ADR file was changed on this branch
+  (`git diff --name-only origin/main...HEAD` touches no `adrs/`). Acceptance
+  bullet 1 is unmet, and it is a writing task for a human/design step, not a test.
+- [ ] **`agent-reconcile` still defaults to central** — `reconcileAgents` is
+  `new HttpAgentApi(clusterAgent())` (central-only). A satellite-claimed
+  single-CR run whose terminal event was dropped is invisible to this backstop —
+  exactly the "backstop reads the wrong cluster, reports 'gone' for a run that is
+  fine" failure the ticket names. Fixing it needs the routing design (bullet 1):
+  a backstop that lists CRs has no station-run row to resolve a claimant from, so
+  "how it is routed" is a genuine open question, not an implementation detail.
+- [ ] **No per-row read routing exists** — nothing resolves a read to the
+  claiming cluster-agent from `clusterAgentId`. Acceptance bullet 2 is unmet
+  beyond the one node-handler path.
 
-- `node-event-handler.ts`: the `if (reported === null)` block must return early when
-  `openRow` is `null`, rather than falling through to `readAgentStatus`.
+## What is needed to unblock (turn this into testable tickets)
 
-## Out of scope
+1. Land the ADR-044 amendment deciding, per read site
+   (`agent-watcher`, `agent-reconcile`, `node-event-handler`, `jobs/kubernetes`,
+   the assembly-run reaper): does the read survive at all, and if so is it routed
+   to the claiming cluster-agent (resolved how — from the station-run row; and
+   how does a CR-listing backstop reach satellites it cannot list?).
+2. Split into per-path implementation slices, each of which THEN has a crisp,
+   testable "no central read on a satellite path" acceptance test against the
+   routing seam the ADR defines.
 
-- Wiring `centralClusterAgentId` in `productionNodeEventDeps()`: that omission affects
-  central-claimed nodes on old events (no `params.status`), which is a separate and lower-
-  priority gap not described by this ticket.
-- Two-cycle reaper behavior: the spec's "two reaper cycles" description is a worst-case
-  bound; the implementation does mark-offline and requeue in a single cycle, which is
-  correct and tested.
-- Reconcile backstop for satellite-claimed single-CR tasks: satellites report through
-  the event bus; the reconcile only sees central CRs. Out of scope per the spec's
-  Out of Scope section.
+## Out of scope for a single DoD test round
+
+- Inventing the routing design in test form ahead of the ADR.
+- The already-green `node-event-handler` duplicate-event slice (done).
