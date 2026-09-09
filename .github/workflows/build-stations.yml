@@ -78,6 +78,12 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      # report-deploy-failure.sh files/updates a `deploy-failed` issue when this
+      # job's deploy fails, so a service left on an old image is visible
+      # outside the Actions tab (#1650).
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
 
     steps:
       - uses: actions/checkout@v5

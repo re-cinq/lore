@@ -63,6 +63,27 @@ STALE_SECS=300       # a pending revision older than this is from a dead run, no
 ATTEMPTS=24
 ERRLOG="$(mktemp)"
 
+# Every exit 1 goes through here, so a failed deploy leaves a trace a human
+# will see without re-opening the Actions tab (#1650): an open issue per
+# service naming the tag that did not ship and the image still running.
+fail_deploy() {
+  bash "$(dirname "$0")/report-deploy-failure.sh" "$SUBCHART" "$TAG" "$DEPLOY" "$NS" "$1"
+  exit 1
+}
+
+# The ui-helm migrate hook runs on EVERY umbrella upgrade, whichever service
+# triggered it, and helm reports its failure as "pre-upgrade hooks failed" with
+# the real psql error only in the hook pod's log. Pull that log into the CI
+# output, or the deploy that carried a bad migration reads as a helm timeout.
+dump_migrate_hook_logs() {
+  if ! grep -q "hooks failed" "$ERRLOG"; then
+    return
+  fi
+  echo "----- migrate hook (lore-ui/lore-ui-migrate) -----"
+  kubectl -n lore-ui describe job lore-ui-migrate 2>/dev/null | tail -20 || true
+  kubectl -n lore-ui logs -l app=lore-ui-migrate --tail=100 --prefix 2>/dev/null || true
+}
+
 # Clear a pending-* revision secret ONLY if it is older than STALE_SECS — i.e. a
 # wedged leftover from an interrupted run, not the fresh lock of a deploy running
 # right now in another workflow.
@@ -122,7 +143,7 @@ for attempt in $(seq 1 "$ATTEMPTS"); do
     kubectl -n "$NS" logs -l "app=${DEPLOY}" --all-containers --previous --tail=150 --prefix || true
     echo "----- recent namespace events -----"
     kubectl -n "$NS" get events --sort-by=.lastTimestamp | tail -60 || true
-    exit 1
+    fail_deploy "rollout of deployment/${DEPLOY} did not complete within 5m"
   fi
   cat "$ERRLOG" >&2 # surface the failure in the CI log
   if bash "$(dirname "$0")/helm-lock-contention.sh" <"$ERRLOG"; then
@@ -132,8 +153,9 @@ for attempt in $(seq 1 "$ATTEMPTS"); do
   fi
   echo "[lore] helm upgrade failed (not lock contention):"
   cat "$ERRLOG"
-  exit 1
+  dump_migrate_hook_logs
+  fail_deploy "helm upgrade failed: $(head -c 300 "$ERRLOG" | tr '\n' ' ')"
 done
 
 echo "[lore] gave up after ${ATTEMPTS} attempts waiting for the release lock"
-exit 1
+fail_deploy "gave up after ${ATTEMPTS} attempts waiting for the release lock"
