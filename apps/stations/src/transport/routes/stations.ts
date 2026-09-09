@@ -47,7 +47,7 @@ function runStationHandler(
     running.add(name);
 
     try {
-      return h.response({ summary: await station() }).code(200);
+      return h.response({ job: name, summary: await station() }).code(200);
     } finally {
       running.delete(name);
     }
