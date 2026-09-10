@@ -1134,5 +1134,45 @@ describe.each(IMPLEMENTATIONS)(
         (await port.listStationRuns(runId))[0].startedAt.getTime(),
       ).toBeGreaterThan(enqueuedAt.getTime());
     });
+
+    it("a fork naming its own subject is refused, not joined, while another run holds that subject", async () => {
+      const { port, repo } = make();
+      const source = await port.start({
+        blueprintName: "code-review",
+        repo,
+        subjectKey: "feature:ten",
+      });
+
+      await port.stampBlueprint(source, "hash-1", GRAPH);
+      await port.markRunning(source);
+
+      const { nodeRowId } = await port.ensureStationRun({
+        assemblyRunId: source,
+        nodeId: "review",
+        iteration: 1,
+      });
+
+      await port.finishStationRunOnce(nodeRowId, "success");
+      await port.finish(source, "failed");
+
+      const holder = await port.start({
+        blueprintName: "code-review",
+        repo,
+        subjectKey: "feature:ten",
+      });
+
+      await expect(
+        port.start({
+          blueprintName: "code-review",
+          repo,
+          blueprintHash: "hash-1",
+          subjectKey: "feature:ten",
+          resumeFrom: { lineId: source, nodeId: "review" },
+        }),
+      ).rejects.toMatchObject({
+        name: "ResumeRefusedError",
+        message: `resume-from would take over subject "feature:ten" in ${repo}, but run "${holder}" is already working it — retry once that run finishes`,
+      });
+    });
   },
 );

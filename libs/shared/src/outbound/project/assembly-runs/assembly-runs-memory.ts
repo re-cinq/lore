@@ -130,8 +130,8 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
   private async findOpenRunForStart(
     input: AssemblyRunStartInput,
   ): Promise<OpenRunSummary | null> {
-    // Start-or-JOIN: a subject already in flight yields its run rather than a second one; the check IS the enforcement here since the double is single-threaded (Pg reaches the same answer via unique-violation).
-    if (!input.subjectKey) {
+    // Start-or-JOIN: a subject already in flight yields its run rather than a second one; the check IS the enforcement here since the double is single-threaded (Pg reaches the same answer via unique-violation). A fork never joins — like the Pg adapter, it is refused by resolveFork instead.
+    if (input.resumeFrom || !input.subjectKey) {
       return null;
     }
 
