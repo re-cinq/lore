@@ -129,6 +129,13 @@ material**. The **per-task GitHub token** is still minted from the existing App:
 short-lived per-task key into `agent-secrets` and removes it on terminal status (RBAC restricted by
 `resourceNames: ["agent-secrets"]`). No long-lived org PAT.
 
+*(amended 2026-09-10)* The per-task token is minted FRESH and scoped to the task's repo.
+`@octokit/auth-app` caches installation tokens for up to 59 minutes, so a cached token handed to a
+new pod could expire mid-run — run `d9b207e0`'s `fix-ci` lost a finished commit to exactly that, its
+push rejected with "Bad credentials" 30 minutes in (#2012). ([validated by getInstallationToken for re-cinq/lore asks for a fresh token scoped to lore, never octokit's cached one](libs/shared/src/outbound/project/lib/platform-github.test.ts#L328))
+A fresh token still lives one hour, so this is a stopgap: a token broker that mints on demand at
+push time replaces the per-task Secret key.
+
 **D7 — Networking.** Self-hydration and telemetry go over the **public LB** (port-443 egress is
 allowed by the run-pod NetworkPolicy, which blocks RFC1918/metadata). Run pods **drop direct Postgres
 access** — a security upgrade. **Station pods included** (D9): they reach data through the Project facade

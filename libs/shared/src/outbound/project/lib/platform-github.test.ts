@@ -26,15 +26,20 @@ const state: {
   issuesData?: Array<Record<string, unknown>>;
   reviewThreadPages?: Array<Record<string, unknown>>;
   graphqlCalls: Array<{ query: string; vars: Record<string, unknown> }>;
+  authCalls: Array<Record<string, unknown>>;
   createCall?: Record<string, unknown>;
   updateCall?: Record<string, unknown>;
   prNode?: { id: string; isDraft: boolean };
-} = { files: [], checkRuns: [], token: "", graphqlCalls: [] };
+} = { files: [], checkRuns: [], token: "", graphqlCalls: [], authCalls: [] };
 
 vi.mock("octokit", () => ({
   Octokit: class {
     hook = { before: () => {} };
-    auth = async () => ({ token: state.token });
+    auth = async (options: Record<string, unknown> = {}) => {
+      state.authCalls.push(options);
+
+      return { token: state.token };
+    };
     graphql = async (query: string, vars: Record<string, unknown>) => {
       state.graphqlCalls.push({ query, vars });
 
@@ -318,6 +323,16 @@ describe("PlatformGitHub paginated reads + helpers", () => {
   it("getInstallationToken returns the auth token", async () => {
     state.token = "ghs_installtoken";
     expect(await gh().getInstallationToken()).toBe("ghs_installtoken");
+  });
+
+  it("getInstallationToken for re-cinq/lore asks for a fresh token scoped to lore, never octokit's cached one", async () => {
+    await gh().getInstallationToken("re-cinq/lore");
+
+    expect(state.authCalls.at(-1)).toEqual({
+      type: "installation",
+      refresh: true,
+      repositoryNames: ["lore"],
+    });
   });
 
   it("createLabels swallows a 422 (already exists) and continues", async () => {

@@ -189,13 +189,15 @@ export class KubeTokenProvisioner implements TokenProvisioner, TokenCleanup {
   }
 }
 
-/** The org App installation token; per-repo least-privilege scoping is a follow-up — the repo arg is accepted now so the port is stable when it lands. */
+/** A fresh App installation token scoped to the one repo the run clones (least privilege: a leaked token touches nothing else). */
 export class GithubTokenMinter implements TokenMinter {
   constructor(
-    private readonly gh: { getInstallationToken(): Promise<string> },
+    private readonly gh: {
+      getInstallationToken(repo?: string): Promise<string>;
+    },
   ) {}
   async mint(repo: string): Promise<string> {
-    const token = await this.gh.getInstallationToken();
+    const token = await this.gh.getInstallationToken(repo);
 
     // An empty token writes a present-but-useless Secret key, so the pod dies in its init container on `git clone` with an uninformative "Repository not found". Fail here instead, where the cause is legible.
     enforceTrue(
