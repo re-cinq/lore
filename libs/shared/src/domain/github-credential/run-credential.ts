@@ -10,7 +10,7 @@ export interface RunCredentialClaims {
 
 export type RunCredentialVerdict =
   | { ok: true; claims: RunCredentialClaims }
-  | { ok: false; reason: "bad-signature" | "expired" };
+  | { ok: false; reason: "malformed" | "bad-signature" | "expired" };
 
 const VERSION = "v1";
 
@@ -30,6 +30,10 @@ export function verifyRunCredential(
   now: Date,
 ): RunCredentialVerdict {
   const [version, payload, signature] = credential.split(".");
+
+  if (version !== VERSION || !payload || !signature) {
+    return { ok: false, reason: "malformed" };
+  }
 
   if (!secretEquals(signature, mac(`${version}.${payload}`, key))) {
     return { ok: false, reason: "bad-signature" };

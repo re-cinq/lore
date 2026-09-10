@@ -1,7 +1,7 @@
 ---
 adr_number: 31
 title: "Agent / Station / AgentDefinition as Kubernetes CRDs — the production execution substrate (replaces LoreTask)"
-status: draft
+status: in progress
 date: 2026-06-25
 domains: [agent, pipeline, infra, governance, web-ui]
 ---
@@ -391,3 +391,7 @@ sits in a Secret at all.
 - A credential signed with any other key is refused as `bad-signature`,
   compared in constant time, so a pod cannot forge one for another repo or
   another run. ([validated by refuses a credential signed with another key as bad-signature](libs/shared/src/domain/github-credential/run-credential.test.ts#L20))
+- A credential presented at or after its expiry is refused as `expired`, so
+  one that leaks is worthless once its run's time is up. ([validated by refuses a correctly signed credential presented after 18:00 when it expired at 18:00, as expired](libs/shared/src/domain/github-credential/run-credential.test.ts#L28))
+- Anything that is not a `v1` credential is refused as `malformed` rather than
+  thrown, so garbage in the header is a clean refusal, never a 500. ([validated by refuses not-a-credential as malformed rather than throwing](libs/shared/src/domain/github-credential/run-credential.test.ts#L36))

@@ -32,4 +32,14 @@ describe("verifyRunCredential", () => {
       verifyRunCredential(credential, KEY, new Date("2026-09-10T18:00:01Z")),
     ).toEqual({ ok: false, reason: "expired" });
   });
+
+  it("refuses not-a-credential as malformed rather than throwing", () => {
+    expect(
+      verifyRunCredential(
+        "not-a-credential",
+        KEY,
+        new Date("2026-09-10T17:00:00Z"),
+      ),
+    ).toEqual({ ok: false, reason: "malformed" });
+  });
 });
