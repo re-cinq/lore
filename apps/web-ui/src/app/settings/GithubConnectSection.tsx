@@ -17,15 +17,28 @@ export default function GithubConnectSection({
   return (
     <section>
       <h2>GitHub</h2>
-      <ul>
-        {installations.map((installation) => (
-          <li key={installation.installation_id}>
-            {installation.account_login} — {installation.account_type},{" "}
-            {installation.repository_selection} repos
-          </li>
-        ))}
-      </ul>
+      <InstallationList installations={installations} />
       {installUrl && <a href={installUrl}>Install on another account</a>}
     </section>
+  );
+}
+
+/** The connected accounts, or the sentence that says there are none yet. */
+function InstallationList({
+  installations,
+}: Pick<GithubConnectSectionProps, "installations">) {
+  if (installations.length === 0) {
+    return <p>Lore is not connected to any GitHub account yet.</p>;
+  }
+
+  return (
+    <ul>
+      {installations.map((installation) => (
+        <li key={installation.installation_id}>
+          {installation.account_login} — {installation.account_type},{" "}
+          {installation.repository_selection} repos
+        </li>
+      ))}
+    </ul>
   );
 }

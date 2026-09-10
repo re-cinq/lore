@@ -50,4 +50,17 @@ describe("GithubConnectSection", () => {
 
     expect(screen.queryByRole("link")).toBeNull();
   });
+
+  it("says Lore is not connected to any GitHub account yet when none is recorded", () => {
+    render(
+      <GithubConnectSection
+        installations={[]}
+        installUrl="https://github.com/apps/lore-agent/installations/new"
+      />,
+    );
+
+    expect(
+      screen.getByText("Lore is not connected to any GitHub account yet."),
+    ).toBeInTheDocument();
+  });
 });

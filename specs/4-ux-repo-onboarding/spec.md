@@ -551,6 +551,8 @@ and a repo is served by the installation of its owner.
 - FR-8.13: The GitHub section links an admin to installing the App on another
   account, and offers no link at all while the App's slug is not configured.
   ([validated by links to installing the App on another account at the lore-agent install URL](apps/web-ui/src/app/settings/GithubConnectSection.test.tsx#L30), [offers no install link while the App's slug is not configured](apps/web-ui/src/app/settings/GithubConnectSection.test.tsx#L46))
+- FR-8.14: Before any account is connected, the GitHub section says so in
+  words rather than showing an empty list. ([validated by says Lore is not connected to any GitHub account yet when none is recorded](apps/web-ui/src/app/settings/GithubConnectSection.test.tsx#L54))
 
 ## Operational Targets (Background)
 
