@@ -96,18 +96,6 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
         source: "internal",
       });
     },
-    dropGraphOverlay: async (run) => {
-      const { shouldDropOverlay, dropOverlayEvent } =
-        await import("./drop-overlay.js");
-
-      if (!shouldDropOverlay(run)) {
-        return;
-      }
-      await eventReporter().insert({
-        ...dropOverlayEvent(run),
-        source: "internal",
-      });
-    },
     // What the retrospective station was for and never did (every blueprint names it as EXIT, so the walk never dispatches it).
     recordRunEpisode: async (run, outcome, reason) => {
       const { writeEpisode } = await import("@re-cinq/lore-shared");

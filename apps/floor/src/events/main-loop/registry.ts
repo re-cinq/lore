@@ -20,6 +20,7 @@ import {
   RUN_RESUME_EVENT,
 } from "@re-cinq/lore-shared/project/assembly-runs/run-events.js";
 import { agentNodeTerminal } from "../../work/assembly-run/node-event-handler.js";
+import { dropOverlayOnClose } from "../../work/assembly-run/drop-overlay.js";
 import {
   podLogAppended,
   telemetryPrune,
@@ -69,7 +70,12 @@ function githubEntries(): Entry[] {
     ...prReviewTriggerEntries(),
     [
       "github.pull_request.closed",
-      withExtra(github.specPrMerge, github.specPrResumeLine, codeReviewOnClose),
+      withExtra(
+        github.specPrMerge,
+        github.specPrResumeLine,
+        codeReviewOnClose,
+        dropOverlayOnClose,
+      ),
     ],
     [
       "github.pull_request_review.submitted",

@@ -83,7 +83,10 @@ function floorRoutes(opts: FloorServerOptions): Hapi.ServerRoute[] {
     }),
     agentLogsRoute(opts.podLogSource, opts.podLogArchive, opts.liveReadable),
     ...RUN_READ_ROUTES,
-    ...ingestRoutes({ testReports: opts.testReports }),
+    ...ingestRoutes({
+      testReports: opts.testReports,
+      defaultBranch: opts.defaultBranch,
+    }),
   ];
 }
 

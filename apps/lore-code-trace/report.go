@@ -47,18 +47,17 @@ type TaggedRunResult struct {
 
 type TestReport struct {
 	Commit string `json:"commit"`
-	Branch string `json:"branch"`
-	// AssemblyRunID routes the ingest into that run's branch overlay instead of
-	// the repo's main graph (issue #1769). Absent — never empty — on a CI run.
-	AssemblyRunID string            `json:"assemblyRunId,omitempty"`
-	Tests         []TestDescriptor  `json:"tests"`
-	Results       []TaggedRunResult `json:"results"`
+	// Branch is the checkout's branch. The server compares it with the repo's
+	// default branch: any other branch's report lands in that branch's overlay
+	// instead of the main graph (issue #1769).
+	Branch  string            `json:"branch"`
+	Tests   []TestDescriptor  `json:"tests"`
+	Results []TaggedRunResult `json:"results"`
 }
 
 type reportMeta struct {
-	Commit        string
-	Branch        string
-	AssemblyRunID string
+	Commit string
+	Branch string
 }
 
 // buildReport runs the manifest's list, then runs the run command once per file
@@ -127,11 +126,10 @@ func buildReport(ctx context.Context, m Manifest, cwd string, meta reportMeta, c
 	}
 
 	return TestReport{
-		Commit:        meta.Commit,
-		Branch:        meta.Branch,
-		AssemblyRunID: meta.AssemblyRunID,
-		Tests:         tests,
-		Results:       results,
+		Commit:  meta.Commit,
+		Branch:  meta.Branch,
+		Tests:   tests,
+		Results: results,
 	}, nil
 }
 

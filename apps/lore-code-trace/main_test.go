@@ -33,7 +33,7 @@ coverage_format: json
 	gitRun(t, dir, "commit", "-q", "-m", "init")
 
 	var out bytes.Buffer
-	if err := run(dir, false, "", &out); err != nil {
+	if err := run(dir, false, &out); err != nil {
 		t.Fatalf("run: %v", err)
 	}
 
@@ -49,30 +49,6 @@ coverage_format: json
 	}
 	if len(report.Results) != 1 || !report.Results[0].Passed {
 		t.Errorf("results: %+v", report.Results)
-	}
-}
-
-func TestResolveAssemblyRunIDPrefersTheFlagOverTheEnvironment(t *testing.T) {
-	t.Setenv("LORE_ASSEMBLY_RUN_ID", "from-env")
-	if got := resolveAssemblyRunID([]string{"--post", "--assembly-run", "from-flag"}); got != "from-flag" {
-		t.Errorf("got %q, want %q", got, "from-flag")
-	}
-	if got := resolveAssemblyRunID([]string{"--assembly-run=from-flag"}); got != "from-flag" {
-		t.Errorf("--assembly-run=<id>: got %q, want %q", got, "from-flag")
-	}
-}
-
-func TestResolveAssemblyRunIDFallsBackToTheEnvironment(t *testing.T) {
-	t.Setenv("LORE_ASSEMBLY_RUN_ID", "from-env")
-	if got := resolveAssemblyRunID([]string{"--post"}); got != "from-env" {
-		t.Errorf("got %q, want %q", got, "from-env")
-	}
-}
-
-func TestResolveAssemblyRunIDIsEmptyWithNeitherFlagNorEnvironment(t *testing.T) {
-	t.Setenv("LORE_ASSEMBLY_RUN_ID", "")
-	if got := resolveAssemblyRunID([]string{"--post"}); got != "" {
-		t.Errorf("got %q, want empty (a main-branch CI run)", got)
 	}
 }
 

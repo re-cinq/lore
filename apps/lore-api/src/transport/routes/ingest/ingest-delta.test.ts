@@ -51,6 +51,7 @@ function fakeDeps(): IngestDeltaDeps & {
 
       return { prunedChunks: files.length };
     },
+    defaultBranch: async () => "main",
   };
 }
 
@@ -391,5 +392,61 @@ describe("POST /api/repos/{owner}/{repo}/ingest", () => {
 
     expect(deps.projectSpec).toHaveBeenCalledTimes(2);
     expect(JSON.parse(res.payload)).toMatchObject({ projected: 1 });
+  });
+});
+
+describe("POST /api/repos/{owner}/{repo}/ingest from a branch", () => {
+  const reportFor = (branch: string) => ({
+    commit: SHA_B,
+    branch,
+    tests: [{ id: "a.test.ts::t", name: "t", file: "a.test.ts" }],
+    results: [{ id: "a.test.ts::t", passed: true, covered: [] }],
+  });
+  const deltaFor = (branch: string) => ({
+    kind: "test-report",
+    commit: SHA_B,
+    base_commit: SHA_A,
+    report: reportFor(branch),
+    deleted: ["gone.test.ts"],
+  });
+
+  it("writes a feat/x test-report delta into the feat/x overlay and prunes none of main's test files", async () => {
+    const deps = fakeDeps();
+    const server = await serverWith(deps, casAdvances);
+
+    await post(server, deltaFor("feat/x"));
+
+    expect(deps.calls).toEqual([
+      [
+        "ingestReport",
+        "re-cinq/lore",
+        { ...reportFor("feat/x"), overlayBranch: "feat/x" },
+      ],
+    ]);
+  });
+
+  it("leaves main's stored commit where it was and answers state overlay for a feat/x delta", async () => {
+    const issued: Issued[] = [];
+    const server = await serverWith(fakeDeps(), casAdvances, issued);
+    const res = await post(server, deltaFor("feat/x"));
+
+    expect({
+      state: JSON.parse(res.payload).state,
+      advanced: issued.some((q) =>
+        /INSERT INTO pipeline\.ingest_state/.test(q.sql),
+      ),
+    }).toEqual({ state: "overlay", advanced: false });
+  });
+
+  it("ingests a main delta onto main when the default branch is main", async () => {
+    const deps = fakeDeps();
+    const server = await serverWith(deps, casAdvances);
+
+    await post(server, deltaFor("main"));
+
+    expect(deps.calls).toEqual([
+      ["ingestReport", "re-cinq/lore", reportFor("main")],
+      ["pruneTests", "re-cinq/lore", ["gone.test.ts"]],
+    ]);
   });
 });

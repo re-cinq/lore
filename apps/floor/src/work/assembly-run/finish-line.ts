@@ -83,24 +83,7 @@ async function runWinnerHooks(
   }
 
   await callOnRunClosed(assemblyRun, outcome, reason, deps);
-  await dropOverlayIfApplicable(assemblyRun, deps);
   await notifyFailureIfApplicable(assemblyRun, outcome, reason, deps);
-}
-
-/** The run's branch overlay outlives the run unless something drops it; a graph write must never fail a close, so this only ever logs. */
-async function dropOverlayIfApplicable(
-  assemblyRun: AssemblyRunRecord,
-  deps: AdvanceDeps,
-): Promise<void> {
-  if (!deps.dropGraphOverlay) {
-    return;
-  }
-
-  try {
-    await deps.dropGraphOverlay(assemblyRun);
-  } catch (err) {
-    console.warn("[drop-overlay] hook threw:", (err as Error).message);
-  }
 }
 
 /** Telemetry only, swallowed on failure like maybeStampPr — an unwritten episode is still a finished run. */

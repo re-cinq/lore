@@ -15,10 +15,13 @@ import {
 } from "../../../events/listeners/ci-tests-map.js";
 import { insertEventList } from "../../../outbound/event-store.js";
 import { testReports } from "../../../outbound/queues.js";
+import { projectFor } from "../../../outbound/project-boot.js";
 import { rawBody, parseJsonBody } from "../raw-body.js";
 
 export interface CiTestsRouteDeps {
   testReports?: TestReportsRepository;
+  /** The repo's default branch — what tells a report for main from one for a branch in flight. */
+  defaultBranch?: (repo: string) => Promise<string>;
 }
 
 interface PostedResult {
@@ -55,6 +58,22 @@ function reportedTest(descriptor: TestDescriptor): ReportedTest {
   };
 }
 
+/** Only a report naming a branch needs the lookup: one naming none can only be main's, and the mapper refuses one naming no repo. */
+async function defaultBranchFor(
+  body: CiTestsBody,
+  deps: CiTestsRouteDeps,
+): Promise<string> {
+  if (!body.repo || !body.branch) {
+    return "";
+  }
+
+  return (deps.defaultBranch ?? repoDefaultBranch)(body.repo);
+}
+
+async function repoDefaultBranch(repo: string): Promise<string> {
+  return (await projectFor(repo)).repo.defaultBranch();
+}
+
 export function ciTestsRoute(deps: CiTestsRouteDeps = {}): ServerRoute {
   return {
     method: "POST",
@@ -62,7 +81,7 @@ export function ciTestsRoute(deps: CiTestsRouteDeps = {}): ServerRoute {
     options: { auth: "ingest-token", payload: { parse: false } },
     handler: async (request, h) => {
       const body = parseJsonBody<CiTestsBody>(rawBody(request), "ci-tests");
-      const mapped = mapCiTests(body);
+      const mapped = mapCiTests(body, await defaultBranchFor(body, deps));
 
       // A validation failure is a client error — 400 surfaces the mapper's message instead of a generic 500.
       enforceOk(mapped, apiError(400));
