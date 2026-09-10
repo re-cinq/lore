@@ -529,6 +529,10 @@ and a repo is served by the installation of its owner.
   selection it does not know rather than storing it. ([validated by reads GitHub's re-cinq installation as the organization installation 81234567 on selected repos](libs/shared/src/domain/github-installation/installation-from-github.test.ts#L5))
 - FR-8.6: An installation the account has suspended is recorded with the
   instant GitHub reports it was suspended. ([validated by reads a suspension GitHub reports at 2026-09-12T08:00:00Z as that instant](libs/shared/src/domain/github-installation/installation-from-github.test.ts#L22))
+- FR-8.7: When GitHub sends an admin back from installing the App, Lore
+  records that installation only after asking GitHub, as the App itself,
+  whether the id really is one of its installations — an id in a redirect is
+  not evidence on its own. ([validated by records installation 81234567 of re-cinq once GitHub confirms it belongs to this App](apps/lore-api/src/transport/routes/github-installations/record-installation.test.ts#L9))
 
 ## Operational Targets (Background)
 

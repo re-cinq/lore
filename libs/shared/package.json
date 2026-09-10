@@ -86,6 +86,10 @@
       "types": "./dist/domain/github-credential/*.d.ts",
       "default": "./dist/domain/github-credential/*.js"
     },
+    "./github-installation/*.js": {
+      "types": "./dist/domain/github-installation/*.d.ts",
+      "default": "./dist/domain/github-installation/*.js"
+    },
     "./llm/*.js": {
       "types": "./dist/outbound/llm/*.d.ts",
       "default": "./dist/outbound/llm/*.js"
