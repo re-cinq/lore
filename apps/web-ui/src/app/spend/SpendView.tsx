@@ -47,11 +47,15 @@ function comparePairs(spend: SpendWindow): ComparePairInput[] {
   ];
 }
 
-/** The Anthropic slice of what Lore metered — the only computed figure comparable to Anthropic's invoice, since other vendors bill their own account. Falls back to the LLM total when no vendor split exists. */
-function anthropicEstimate(llm: SpendWindow["llm"]): number {
+/** The Anthropic slice of what Lore metered — the only computed figure comparable to Anthropic's invoice, since other vendors bill their own account. A split that names no Anthropic row means Anthropic spent nothing (zero), NOT the all-vendor total; the total is the fallback only when there is no vendor split at all. */
+export function anthropicEstimate(llm: SpendWindow["llm"]): number {
   const anthropic = llm.by_vendor.find((v) => v.vendor === "anthropic");
 
-  return anthropic ? anthropic.cost_usd : llm.total_usd;
+  if (anthropic) {
+    return anthropic.cost_usd;
+  }
+
+  return llm.by_vendor.length === 0 ? llm.total_usd : 0;
 }
 
 function LoreComputedSection({ llm }: { llm: SpendWindow["llm"] }) {

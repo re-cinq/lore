@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
 import { render, screen, within } from "@testing-library/react";
-import SpendView, { type SpendWindow } from "./SpendView";
+import SpendView, { anthropicEstimate, type SpendWindow } from "./SpendView";
 
 const usd = (n: number) =>
   Number(n).toLocaleString(undefined, { style: "currency", currency: "USD" });
@@ -556,5 +556,38 @@ describe("SpendView redesign layout", () => {
 
     expect(disclosure).not.toBeNull();
     expect(disclosure).not.toHaveAttribute("open");
+  });
+});
+
+describe("anthropicEstimate", () => {
+  const llm = (
+    by_vendor: SpendWindow["llm"]["by_vendor"],
+    total_usd: number,
+  ): SpendWindow["llm"] => ({ ...loreOnly.llm, by_vendor, total_usd });
+
+  it("takes the Anthropic vendor row when the split names one", () => {
+    expect(
+      anthropicEstimate(
+        llm(
+          [
+            { vendor: "anthropic", calls: 82, cost_usd: 24.02 },
+            { vendor: "gemini", calls: 3, cost_usd: 13.68 },
+          ],
+          37.7,
+        ),
+      ),
+    ).toBe(24.02);
+  });
+
+  it("is zero when the split names other vendors but no Anthropic", () => {
+    expect(
+      anthropicEstimate(
+        llm([{ vendor: "gemini", calls: 3, cost_usd: 13.68 }], 13.68),
+      ),
+    ).toBe(0);
+  });
+
+  it("falls back to the metered total when there is no vendor split", () => {
+    expect(anthropicEstimate(llm([], 5))).toBe(5);
   });
 });
