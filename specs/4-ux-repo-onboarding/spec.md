@@ -562,6 +562,9 @@ and a repo is served by the installation of its owner.
   no link to build. ([validated by builds the lore-agent App's install URL from its slug](apps/web-ui/src/app/settings/github-app-install-url.test.ts#L5), [builds no install URL while no slug is configured](apps/web-ui/src/app/settings/github-app-install-url.test.ts#L11))
 - FR-8.18: The web UI records an installation by posting its id to lore-api's
   `/api/github/installations`. ([validated by posts installation 81234567 to lore-api's /api/github/installations](apps/web-ui/src/lib/api/github-installations.test.ts#L35))
+- FR-8.19: The callback GitHub sends an admin back to after installing the
+  App reads the installation id from the redirect's query string.
+  ([validated by reads installation 81234567 from GitHub's setup redirect](apps/web-ui/src/app/settings/github/callback/installation-id.test.ts#L5))
 
 ## Operational Targets (Background)
 
