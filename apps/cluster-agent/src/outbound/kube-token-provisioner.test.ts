@@ -27,6 +27,21 @@ describe("GithubTokenMinter", () => {
       ),
     );
   });
+
+  it("asks for the token of re-cinq/lore scoped to re-cinq/lore", async () => {
+    const asked: Array<string | undefined> = [];
+    const minter = new GithubTokenMinter({
+      getInstallationToken: async (repo?: string) => {
+        asked.push(repo);
+
+        return "ghs_scoped";
+      },
+    });
+
+    await minter.mint("re-cinq/lore");
+
+    expect(asked).toEqual(["re-cinq/lore"]);
+  });
 });
 
 describe("KubeSecretKeyWriter", () => {
