@@ -12,6 +12,7 @@ export interface GithubConnectSectionProps {
 /** The Connect GitHub section of the settings page (specs/4-ux-repo-onboarding FR-8): the accounts Lore can serve repos for. */
 export default function GithubConnectSection({
   installations,
+  installUrl,
 }: GithubConnectSectionProps) {
   return (
     <section>
@@ -24,6 +25,7 @@ export default function GithubConnectSection({
           </li>
         ))}
       </ul>
+      {installUrl && <a href={installUrl}>Install on another account</a>}
     </section>
   );
 }

@@ -26,4 +26,20 @@ describe("GithubConnectSection", () => {
       "re-cinq — Organization, selected repos",
     );
   });
+
+  it("links to installing the App on another account at the lore-agent install URL", () => {
+    render(
+      <GithubConnectSection
+        installations={[RE_CINQ]}
+        installUrl="https://github.com/apps/lore-agent/installations/new"
+      />,
+    );
+
+    expect(
+      screen.getByRole("link", { name: "Install on another account" }),
+    ).toHaveAttribute(
+      "href",
+      "https://github.com/apps/lore-agent/installations/new",
+    );
+  });
 });

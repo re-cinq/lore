@@ -548,6 +548,8 @@ and a repo is served by the installation of its owner.
 - FR-8.12: The settings page's GitHub section names each connected account
   with whether it is an organization or a user and whether it covers all or
   only selected repos. ([validated by lists re-cinq as a connected organization on selected repos](apps/web-ui/src/app/settings/GithubConnectSection.test.tsx#L17))
+- FR-8.13: The GitHub section links an admin to installing the App on another
+  account. ([validated by links to installing the App on another account at the lore-agent install URL](apps/web-ui/src/app/settings/GithubConnectSection.test.tsx#L30))
 
 ## Operational Targets (Background)
 
