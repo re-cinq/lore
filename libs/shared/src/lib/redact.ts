@@ -1,6 +1,8 @@
 /** Secret redaction — canonical implementation; strips API keys/JWTs/private keys/connection strings/tokens/base64 blobs before storage in logs or org-wide memory. Kept in sync with agent/src/lib/redact.ts. */
 
 const PATTERNS: Array<{ name: string; re: RegExp }> = [
+  // Before base64-blob, which would otherwise take only the payload and leave the signature.
+  { name: "run-credential", re: /v1\.[A-Za-z0-9_-]{20,}\.[0-9a-f]{64}/g },
   {
     name: "api-key",
     re: /(?:sk-|ghp_|ghs_|AKIA|xoxb-|xoxp-|glpat-)[A-Za-z0-9_-]{20,}/g,

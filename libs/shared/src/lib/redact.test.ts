@@ -106,4 +106,19 @@ describe("redactSecrets", () => {
     expect(result).toContain("[REDACTED:custom-secret]");
     expect(result).not.toContain("SECRET_VALUE_12345");
   });
+
+  it("redacts a whole run credential as it appears in an agent's printed environment", () => {
+    const claims = Buffer.from(
+      JSON.stringify({
+        stationRunId: "3f8e2c1a-9b7d-4e6f-a5c4-2d1b0e9f8a7c",
+        repo: "re-cinq/lore",
+        expiresAt: "2099-01-01T00:00:00.000Z",
+      }),
+    ).toString("base64url");
+    const credential = `v1.${claims}.c03e181db1b7032333cc53b5c97afc323f1d76daae55960314267253e15e8508`;
+
+    expect(redactSecrets(`AGENT_GIT_CREDENTIAL=${credential}`)).toBe(
+      "AGENT_GIT_CREDENTIAL=[REDACTED:run-credential]",
+    );
+  });
 });

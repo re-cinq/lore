@@ -395,6 +395,9 @@ sits in a Secret at all.
   CR parameter, beside `git_credential_url` — the broker on the lore-api it
   claimed from — so a satellite's pod reaches the same broker as a central
   one. ([validated by hands the pod its run credential and the lore-api broker URL as Agent CR parameters](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L155))
+- A run credential that reaches a transcript — an agent printing its environment —
+  is redacted whole before storage, payload and signature together, like any
+  other secret. ([validated by redacts a whole run credential as it appears in an agent's printed environment](libs/shared/src/lib/redact.test.ts#L110))
 - A credential signed with any other key is refused as `bad-signature`,
   compared in constant time, so a pod cannot forge one for another repo or
   another run. ([validated by refuses a credential signed with another key as bad-signature](libs/shared/src/domain/github-credential/run-credential.test.ts#L20))
