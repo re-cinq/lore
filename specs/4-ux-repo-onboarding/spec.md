@@ -557,6 +557,8 @@ and a repo is served by the installation of its owner.
   `/api/github/installations`. ([validated by reads the connected accounts from lore-api's /api/github/installations](apps/web-ui/src/lib/api/github-installations.test.ts#L24))
 - FR-8.16: The settings page shows the GitHub section with the accounts
   Lore is connected to. ([validated by renders the GitHub section with the connected re-cinq organization](apps/web-ui/src/app/settings/SettingsView.test.tsx#L188))
+- FR-8.17: The install link is built from the GitHub App's public slug, the
+  one piece of the App the web UI needs. ([validated by builds the lore-agent App's install URL from its slug](apps/web-ui/src/app/settings/github-app-install-url.test.ts#L5))
 
 ## Operational Targets (Background)
 
