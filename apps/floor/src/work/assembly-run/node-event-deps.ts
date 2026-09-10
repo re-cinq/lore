@@ -81,6 +81,33 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
     // Publishes a service-form node for the pooled stations service to claim, instead of a pod per DB write/HTTP POST.
     publishNode: (event) =>
       eventReporter().insert({ ...event, source: "internal" }),
+    recordNodeOutcome: async (assemblyLineId, row, verdict) => {
+      const [{ nodeOutcomeEvent, shouldRecordOutcome }, run] =
+        await Promise.all([
+          import("./node-outcome-event.js"),
+          pipeline().assemblyRuns.getById(assemblyLineId),
+        ]);
+
+      if (!run || !shouldRecordOutcome(run)) {
+        return;
+      }
+      await eventReporter().insert({
+        ...nodeOutcomeEvent(run, row, verdict, new Date()),
+        source: "internal",
+      });
+    },
+    dropGraphOverlay: async (run) => {
+      const { shouldDropOverlay, dropOverlayEvent } =
+        await import("./drop-overlay.js");
+
+      if (!shouldDropOverlay(run)) {
+        return;
+      }
+      await eventReporter().insert({
+        ...dropOverlayEvent(run),
+        source: "internal",
+      });
+    },
     // What the retrospective station was for and never did (every blueprint names it as EXIT, so the walk never dispatches it).
     recordRunEpisode: async (run, outcome, reason) => {
       const { writeEpisode } = await import("@re-cinq/lore-shared");

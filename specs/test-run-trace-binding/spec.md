@@ -145,3 +145,19 @@ discard — so a run's real graph effect is observable.
 - Re-emitting descriptors for non-platform repos: onboarded repos inline their
   own list/run via `LORE_TESTS_INSTRUCTION`; teaching that template to derive
   anchors is a follow-up.
+
+## Amendment (2026-09-10): the report's branch and run are consumed
+
+The `TestReport` carried `branch` from the start and nothing downstream read it.
+It is read now. A report that also names an `assemblyRunId` — the `lore-code-trace`
+binary sends one when `--assembly-run` or `LORE_ASSEMBLY_RUN_ID` is set, which is
+how an agent pod distinguishes itself from an ordinary CI push — is ingested into
+that run's branch overlay instead of the repo's `main` graph, and the branch and
+head commit are stamped on the overlay anchor as the coordinate its line numbers
+are expressed in.
+
+A report naming no run is unchanged in every respect: it writes `main`'s chunks
+and stamps `main`'s baseline exactly as before. See
+[`spec-traceability-graph/data-model.md`](../spec-traceability-graph/data-model.md)
+for the overlay's addressing and lifecycle, and issue #1769 for why the loop
+needed it.

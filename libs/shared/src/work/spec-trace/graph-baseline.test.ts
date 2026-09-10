@@ -7,6 +7,7 @@ import * as dgraph from "dgraph-js-http";
 import { readGraphBaseline, stampGraphBaseline } from "./graph-baseline.js";
 import { ingestCoverageReport } from "./ingest-coverage.js";
 import { dgraphReachable } from "../../lib/dgraph-test-gate.js";
+import { mainScope } from "../../domain/spec-trace/trace-scope.js";
 
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 const APPLIER = join(
@@ -90,7 +91,7 @@ describe.skipIf(!reachable)("graph baseline (live Dgraph)", () => {
 
     await ingestCoverageReport(
       dgraphClient,
-      { repo, tool: "lcov", commit: "c0ffee1" },
+      { scope: mainScope(repo), tool: "lcov", commit: "c0ffee1" },
       [
         {
           testFile: "src/widget.test.ts",

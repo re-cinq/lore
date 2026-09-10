@@ -6,6 +6,8 @@ export interface CiTestsBody {
   repo?: string;
   commit?: string;
   branch?: string;
+  /** The assembly run this report describes, when the suite ran inside one; routes the ingest into that run's overlay instead of main. */
+  assemblyRunId?: string;
   tests?: unknown[];
   results?: unknown[];
 }

@@ -1,4 +1,4 @@
-/** Phase 3 coverage ingest; writes Coverage nodes keyed by repo|testFile|testName; aggregates to File nodes with ranges facets. */
+/** Phase 3 coverage ingest; writes Coverage nodes keyed by scope|testFile|testName; aggregates to File nodes with ranges facets. */
 
 import type {
   CoveredChunk,
@@ -10,13 +10,26 @@ import {
   replaceEdgeWithFacets,
   type FacetedTarget,
 } from "../../outbound/spec-trace/dgraph-upsert.js";
+import {
+  isOverlay,
+  rootEdge,
+  scopedXid,
+  type TraceScope,
+} from "../../domain/spec-trace/trace-scope.js";
 import { gcOrphanChunks } from "./gc-orphan-chunks.js";
 import { stampGraphBaseline } from "./graph-baseline.js";
 import { firstOf } from "./uid-refs.js";
 
+/** What one coverage ingest is expressed against: the scope it writes into, the tool that produced it, and the commit its line numbers belong to. */
+export interface CoverageMeta {
+  scope: TraceScope;
+  tool: string;
+  commit: string;
+}
+
 export async function ingestCoverageReport(
   dgraph: DgraphClientPort,
-  meta: { repo: string; tool: string; commit: string },
+  meta: CoverageMeta,
   records: Array<{
     testFile: string;
     testName: string;
@@ -29,9 +42,9 @@ export async function ingestCoverageReport(
     coversEdges += await ingestOneCoverage(dgraph, meta, record);
   }
 
-  // Ranges expressed in this commit's line numbering; stamp once per report for pre-merge query alignment.
-  if (records.length) {
-    await stampGraphBaseline(dgraph, meta.repo, meta.commit, new Date());
+  // Ranges expressed in this commit's line numbering; stamp once per report for pre-merge query alignment. An overlay stamps its OWN anchor instead — a branch push must never move main's coordinate system.
+  if (records.length && !isOverlay(meta.scope)) {
+    await stampGraphBaseline(dgraph, meta.scope.repo, meta.commit, new Date());
   }
 
   // `coversEdges` counts covered FILES; `unmatched` always 0 (for return-shape stability).
@@ -40,36 +53,90 @@ export async function ingestCoverageReport(
 
 async function ingestOneCoverage(
   dgraph: DgraphClientPort,
-  meta: { repo: string; tool: string; commit: string },
+  meta: CoverageMeta,
   record: { testFile: string; testName: string; covered: CoveredChunk[] },
 ): Promise<number> {
-  const xid = `${meta.repo}|${record.testFile}|${record.testName}`;
-  const coverageUid = await upsertByXid(dgraph, "Coverage", xid, {
-    "Coverage.repo": meta.repo,
-    "Coverage.tool": meta.tool,
-    "Coverage.commit": meta.commit,
-  });
-  const fileUids = await replaceCovers(dgraph, meta.repo, coverageUid, record);
+  const { scope } = meta;
+  const coverageUid = await upsertCoverageNode(dgraph, meta, record);
+  const fileUids = await replaceCovers(dgraph, scope, coverageUid, record);
 
-  await attachCoverageToRepoRoot(dgraph, meta.repo, coverageUid, fileUids);
-  await linkTestChunkCoverage(dgraph, meta.repo, record, coverageUid);
+  await attachCoverageToScopeRoot(dgraph, scope, coverageUid, fileUids);
+  await linkTestChunkCoverage(dgraph, scope, record, coverageUid);
 
   return fileUids.length;
+}
+
+/** Sets TestChunk.coverage edge when matching TestChunk exists; query and mutate in separate txns. */
+async function linkTestChunkCoverage(
+  dgraph: DgraphClientPort,
+  scope: TraceScope,
+  record: { testFile: string; testName: string },
+  coverageUid: string,
+): Promise<void> {
+  const testChunkUid = await findTestChunkUid(dgraph, scope, record);
+
+  if (!testChunkUid) {
+    return;
+  }
+  await withTxn(dgraph, (txn) =>
+    txn.mutate({
+      setJson: {
+        uid: testChunkUid,
+        "TestChunk.coverage": { uid: coverageUid },
+      },
+      commitNow: true,
+    }),
+  );
+}
+
+/** The uid of the TestChunk this coverage record describes, or undefined when no ingest has projected one. */
+async function findTestChunkUid(
+  dgraph: DgraphClientPort,
+  scope: TraceScope,
+  record: { testFile: string; testName: string },
+): Promise<string | undefined> {
+  return withTxn(dgraph, async (txn) => {
+    const res = await txn.queryWithVars(
+      `query q($file: string, $name: string, $repo: string){ tc(func: eq(TestChunk.file_path, $file)) @filter(eq(TestChunk.test_name, $name) AND eq(TestChunk.repo, $repo)){ uid } }`,
+      { $file: record.testFile, $name: record.testName, $repo: scope.key },
+    );
+
+    return firstOf(res.data.tc)?.uid as string | undefined;
+  });
 }
 
 /** Points this coverage at the files it now covers. The previous targets are read BEFORE the replace: after it, there is no record of what this coverage used to own. */
 async function replaceCovers(
   dgraph: DgraphClientPort,
-  repo: string,
+  scope: TraceScope,
   coverageUid: string,
   record: { covered: CoveredChunk[] },
 ): Promise<string[]> {
   const previousCovers = await readCoversUids(dgraph, coverageUid);
-  const fileTargets = await upsertCoveredFiles(dgraph, repo, record.covered);
+  const fileTargets = await upsertCoveredFiles(dgraph, scope, record.covered);
 
   await replaceCoverTargets(dgraph, coverageUid, previousCovers, fileTargets);
 
   return fileTargets.map((t) => t.uid);
+}
+
+/** Repoints the coverage at its new file targets and garbage-collects the ones it dropped: a File node nothing points at is unreachable from the graph's entry point while still occupying it. */
+async function replaceCoverTargets(
+  dgraph: DgraphClientPort,
+  coverageUid: string,
+  previous: string[],
+  fileTargets: FacetedTarget[],
+): Promise<void> {
+  await replaceEdgeWithFacets(
+    dgraph,
+    coverageUid,
+    "Coverage.covers",
+    fileTargets,
+  );
+  await gcOrphanChunks(dgraph, "File", {
+    previous,
+    current: fileTargets.map((t) => t.uid),
+  });
 }
 
 /** Reads a Coverage node's current `Coverage.covers` target uids. */
@@ -93,14 +160,14 @@ async function readCoversUids(
 /** Upserts File nodes and returns as faceted edge targets with merged intervals serialized to ranges facet. */
 async function upsertCoveredFiles(
   dgraph: DgraphClientPort,
-  repo: string,
+  scope: TraceScope,
   covered: CoveredChunk[],
 ): Promise<FacetedTarget[]> {
   const targets: FacetedTarget[] = [];
 
   for (const [file, ranges] of groupRangesByFile(covered)) {
-    const uid = await upsertByXid(dgraph, "File", `${repo}|${file}`, {
-      "File.repo": repo,
+    const uid = await upsertByXid(dgraph, "File", scopedXid(scope, file), {
+      "File.repo": scope.key,
       "File.path": file,
     });
 
@@ -108,6 +175,11 @@ async function upsertCoveredFiles(
   }
 
   return targets;
+}
+
+/** Serializes a file's covered intervals (in covered order) to the `ranges` edge facet, e.g. "5-10,20-25". */
+function serializeRanges(ranges: CoveredChunk[]): string {
+  return ranges.map((r) => `${r.startLine}-${r.endLine}`).join(",");
 }
 
 /** Groups covered intervals by the file they belong to, preserving covered order within each file. */
@@ -126,80 +198,35 @@ function groupRangesByFile(
   return rangesByFile;
 }
 
-/** Serializes a file's covered intervals (in covered order) to the `ranges` edge facet, e.g. "5-10,20-25". */
-function serializeRanges(ranges: CoveredChunk[]): string {
-  return ranges.map((r) => `${r.startLine}-${r.endLine}`).join(",");
-}
-
-/** Repoints the coverage at its new file targets and garbage-collects the ones it dropped: a File node nothing points at is unreachable from the graph's entry point while still occupying it. */
-async function replaceCoverTargets(
+/** Hangs the coverage node and the files it covers off the scope's root — the Repo node on main, the run's Overlay node on a branch — so both stay reachable from the graph's entry point. */
+async function attachCoverageToScopeRoot(
   dgraph: DgraphClientPort,
-  coverageUid: string,
-  previous: string[],
-  fileTargets: FacetedTarget[],
-): Promise<void> {
-  await replaceEdgeWithFacets(
-    dgraph,
-    coverageUid,
-    "Coverage.covers",
-    fileTargets,
-  );
-  await gcOrphanChunks(dgraph, "File", {
-    previous,
-    current: fileTargets.map((t) => t.uid),
-  });
-}
-
-/** Hangs the coverage node and the files it covers off the Repo root, so both stay reachable from the graph's entry point. */
-async function attachCoverageToRepoRoot(
-  dgraph: DgraphClientPort,
-  repo: string,
+  scope: TraceScope,
   coverageUid: string,
   fileUids: string[],
 ): Promise<void> {
-  await upsertByXid(dgraph, "Repo", repo, {
-    "Repo.coverage": [{ uid: coverageUid }],
+  await upsertByXid(dgraph, scope.rootType, scope.key, {
+    [rootEdge(scope, "coverage")]: [{ uid: coverageUid }],
     ...(fileUids.length
-      ? { "Repo.files": fileUids.map((uid) => ({ uid })) }
+      ? { [rootEdge(scope, "files")]: fileUids.map((uid) => ({ uid })) }
       : {}),
   });
 }
 
-/** Sets TestChunk.coverage edge when matching TestChunk exists; query and mutate in separate txns. */
-async function linkTestChunkCoverage(
+/** The Coverage node for one test file, keyed inside the scope so a branch's record never overwrites main's. */
+async function upsertCoverageNode(
   dgraph: DgraphClientPort,
-  repo: string,
+  meta: CoverageMeta,
   record: { testFile: string; testName: string },
-  coverageUid: string,
-): Promise<void> {
-  const testChunkUid = await findTestChunkUid(dgraph, repo, record);
-
-  if (!testChunkUid) {
-    return;
-  }
-  await withTxn(dgraph, (txn) =>
-    txn.mutate({
-      setJson: {
-        uid: testChunkUid,
-        "TestChunk.coverage": { uid: coverageUid },
-      },
-      commitNow: true,
-    }),
+): Promise<string> {
+  return upsertByXid(
+    dgraph,
+    "Coverage",
+    scopedXid(meta.scope, record.testFile, record.testName),
+    {
+      "Coverage.repo": meta.scope.key,
+      "Coverage.tool": meta.tool,
+      "Coverage.commit": meta.commit,
+    },
   );
-}
-
-/** The uid of the TestChunk this coverage record describes, or undefined when no ingest has projected one. */
-async function findTestChunkUid(
-  dgraph: DgraphClientPort,
-  repo: string,
-  record: { testFile: string; testName: string },
-): Promise<string | undefined> {
-  return withTxn(dgraph, async (txn) => {
-    const res = await txn.queryWithVars(
-      `query q($file: string, $name: string, $repo: string){ tc(func: eq(TestChunk.file_path, $file)) @filter(eq(TestChunk.test_name, $name) AND eq(TestChunk.repo, $repo)){ uid } }`,
-      { $file: record.testFile, $name: record.testName, $repo: repo },
-    );
-
-    return firstOf(res.data.tc)?.uid as string | undefined;
-  });
 }

@@ -18,8 +18,44 @@ export {
 } from "./spec-trace/spec-anchor.js";
 export {
   ingestSpecTrace,
+  PAYLOAD_INGEST_KINDS,
   type SpecTraceOutcome,
 } from "./spec-trace/ingest-spec-trace.js";
+export {
+  pruneGraphRetention,
+  retentionCutoff,
+  GRAPH_RETENTION_DAYS,
+  type GraphRetentionResult,
+} from "./spec-trace/graph-retention.js";
+export {
+  upsertOverlay,
+  readOverlay,
+  dropOverlay,
+  listOverlays,
+  pruneOverlays,
+  type OverlayRecord,
+} from "./spec-trace/overlay.js";
+export {
+  testsCovering,
+  testsCoveringInScope,
+  preferOverlay,
+  type CoveringTest,
+  type CoverageTarget,
+} from "../outbound/spec-trace/tests-covering.js";
+export {
+  failuresTouching,
+  type FailureHit,
+} from "./spec-trace/failure-nodes.js";
+export {
+  mainScope,
+  overlayScope,
+  isOverlay,
+  scopedXid,
+  overlayKeyPrefix,
+  rootEdge,
+  parseOverlayKey,
+  type TraceScope,
+} from "../domain/spec-trace/trace-scope.js";
 export {
   deleteSpecSubtree,
   deleteAdrSubtree,

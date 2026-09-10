@@ -4,6 +4,8 @@ import type {
   TraceDocument,
   TraceStatement,
   TraceLinkRef,
+  CoveringTest,
+  FailureHit,
 } from "@re-cinq/lore-shared";
 import type { ProxyResult } from "../../outbound/proxy.js";
 
@@ -161,6 +163,14 @@ export interface QueryTraceArgs {
   callers_of?: string;
   callees_of?: string;
   depth?: number;
+  /** Path of the COVERED source file — asks which tests exercise it, not which statements describe it. */
+  tests_covering?: string;
+  /** Path of a source file — asks what has already failed on it, and what fixed it. */
+  failures_touching?: string;
+  /** "10-20,30-40": narrows `tests_covering` to spans of that file. */
+  ranges?: string;
+  /** Reads that run's branch overlay instead of main. */
+  assembly_run_id?: string;
 }
 
 export interface QueryTraceDeps {
@@ -177,6 +187,23 @@ export async function runQueryTrace(
 
   if (!repo) {
     return "Could not detect the current repo — run inside a git repo or pass `repo` (owner/repo).";
+  }
+
+  return routeQuery(repo, args, deps);
+}
+
+/** One branch per question the tool can be asked: what has failed here, what covers here, who calls this, or what does this spec claim. */
+function routeQuery(
+  repo: string,
+  args: QueryTraceArgs,
+  deps: QueryTraceDeps,
+): Promise<string> {
+  if (args.failures_touching) {
+    return failuresTouchingQuery(repo, args, deps);
+  }
+
+  if (args.tests_covering) {
+    return testsCoveringQuery(repo, args, deps);
   }
 
   return args.callers_of || args.callees_of
@@ -236,3 +263,118 @@ function formatProxyFailure(
 
   return `Lore API unreachable for lore-query-trace: ${result.detail}.${scopeHint}`;
 }
+
+/** Which tests exercise a source span — the run's branch overlay when `assembly_run_id` is given, else main. */
+async function testsCoveringQuery(
+  repo: string,
+  args: QueryTraceArgs,
+  deps: QueryTraceDeps,
+): Promise<string> {
+  const result = await deps.proxyGet(
+    `/api/repos/${repo}/trace/tests-covering?${coveringParams(args)}`,
+  );
+
+  if (!result.ok) {
+    return formatProxyFailure(result);
+  }
+  const { tests } = JSON.parse(result.body) as { tests: CoveringTest[] };
+
+  return formatCoveringTests(tests, coverageLabel(args));
+}
+
+/** The covered path plus the optional range/overlay narrowing, every value URL-encoded. */
+function coveringParams(args: QueryTraceArgs): string {
+  const params = new URLSearchParams({ path: args.tests_covering ?? "" });
+
+  if (args.ranges) {
+    params.set("ranges", args.ranges);
+  }
+
+  if (args.assembly_run_id) {
+    params.set("assemblyRunId", args.assembly_run_id);
+  }
+
+  return params.toString();
+}
+
+/** Names what was asked about, for both the summary line and the empty answer. */
+function coverageLabel(args: QueryTraceArgs): string {
+  return args.ranges
+    ? `${args.tests_covering} (lines ${args.ranges})`
+    : `${args.tests_covering}`;
+}
+
+// An empty list is an ANSWER — "nothing covers this" is the signal a red round needs — so it gets a sentence, never an empty string.
+function formatCoveringTests(tests: CoveringTest[], label: string): string {
+  if (tests.length === 0) {
+    return `No tests cover ${label}.`;
+  }
+
+  return [`Tests covering ${label}:`, ...tests.map(coveringLine)].join("\n");
+}
+
+/** One test file: the statement it validates when it declares one, and whether the overlay answered. */
+function coveringLine(test: CoveringTest): string {
+  const validates = test.statement
+    ? `validates: "${test.statement}"`
+    : "unlinked";
+  const overlay = test.origin === "overlay" ? " (overlay)" : "";
+
+  return `- ${test.testFile} — ${validates}${overlay}`;
+}
+
+/** What has already failed on this file — the question `fix-ci` asks before starting cold. */
+async function failuresTouchingQuery(
+  repo: string,
+  args: QueryTraceArgs,
+  deps: QueryTraceDeps,
+): Promise<string> {
+  const path = args.failures_touching ?? "";
+  const result = await deps.proxyGet(
+    `/api/repos/${repo}/trace/failures-touching?path=${encodeURIComponent(path)}`,
+  );
+
+  if (!result.ok) {
+    return formatProxyFailure(result);
+  }
+  const { failures } = JSON.parse(result.body) as { failures: FailureHit[] };
+
+  return formatFailures(failures, path);
+}
+
+// A clean file is an ANSWER — "nothing has failed here" is what tells the caller its breakage is new — so it gets a sentence, never an empty string.
+function formatFailures(hits: FailureHit[], path: string): string {
+  if (hits.length === 0) {
+    return `No recorded failures on ${path}.`;
+  }
+
+  return [
+    `Failures recorded on ${path} (${hits.length}), newest first:`,
+    ...hits.map(failureLine),
+  ].join("\n");
+}
+
+/** One failure condensed to a recognizable line: what failed, on which attempt, and whether anything ever ended it. */
+function failureLine(hit: FailureHit): string {
+  const status = hit.resolvedByCommit
+    ? `fixed by ${hit.resolvedByCommit}`
+    : "still open";
+
+  return `- [${hit.failureClass}] ${hit.nodeId} #${hit.iteration} at ${hit.commit} — ${detailPreview(hit.failureDetail)} — ${status}`;
+}
+
+/** The detail's first line, capped — recognition needs the opening message; the rest is in the run's pod logs. */
+function detailPreview(detail: string): string {
+  const [opening = ""] = detail.split("\n");
+  const line = opening.trim();
+
+  if (!line) {
+    return "(no detail)";
+  }
+
+  return line.length > DETAIL_PREVIEW_MAX
+    ? `${line.slice(0, DETAIL_PREVIEW_MAX)}…`
+    : line;
+}
+
+const DETAIL_PREVIEW_MAX = 120;

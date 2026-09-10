@@ -300,3 +300,167 @@ describe("runQueryTrace", () => {
     expect(calledPath).toMatch(/callers|call-graph/);
   });
 });
+
+describe("runQueryTrace tests_covering", () => {
+  const covering = (tests: unknown[]): ProxyResult => ({
+    ok: true,
+    body: JSON.stringify({ tests }),
+  });
+
+  it("renders one row per test file, marking the overlay row and the statement it validates", async () => {
+    const out = await runQueryTrace(
+      { repo: "o/r", tests_covering: "src/a.ts", ranges: "10-20" },
+      {
+        proxyGet: async () =>
+          covering([
+            { testFile: "src/a.test.ts", statement: "does a", origin: "main" },
+            { testFile: "src/b.test.ts", origin: "overlay" },
+          ]),
+        detectRepo: () => null,
+      },
+    );
+
+    expect(out).toBe(
+      [
+        "Tests covering src/a.ts (lines 10-20):",
+        '- src/a.test.ts — validates: "does a"',
+        "- src/b.test.ts — unlinked (overlay)",
+      ].join("\n"),
+    );
+  });
+
+  it("renders a no-tests-cover sentence for an empty list", async () => {
+    const out = await runQueryTrace(
+      { repo: "o/r", tests_covering: "src/a.ts" },
+      { proxyGet: async () => covering([]), detectRepo: () => null },
+    );
+
+    expect(out).toBe("No tests cover src/a.ts.");
+  });
+
+  it("passes assembly_run_id and ranges through to the proxied url, url-encoded", async () => {
+    let requested = "";
+
+    await runQueryTrace(
+      {
+        repo: "o/r",
+        tests_covering: "src/a b.ts",
+        ranges: "10-20,30-40",
+        assembly_run_id: "run-7",
+      },
+      {
+        proxyGet: async (p) => {
+          requested = p;
+
+          return covering([]);
+        },
+        detectRepo: () => null,
+      },
+    );
+
+    expect(requested).toBe(
+      "/api/repos/o/r/trace/tests-covering?path=src%2Fa+b.ts&ranges=10-20%2C30-40&assemblyRunId=run-7",
+    );
+  });
+
+  it("reports the proxy failure rather than throwing when the api is unreachable", async () => {
+    const out = await runQueryTrace(
+      { repo: "o/r", tests_covering: "src/a.ts" },
+      {
+        proxyGet: async () => ({
+          ok: false,
+          reason: "unreachable",
+          detail: "connect ECONNREFUSED",
+        }),
+        detectRepo: () => null,
+      },
+    );
+
+    expect(out).toBe(
+      "Lore API unreachable for lore-query-trace: connect ECONNREFUSED.",
+    );
+  });
+});
+
+describe("runQueryTrace failures_touching", () => {
+  const failing = (failures: unknown[]): ProxyResult => ({
+    ok: true,
+    body: JSON.stringify({ failures }),
+  });
+
+  const hit = {
+    stationRunId: "sr-1",
+    nodeId: "validate",
+    iteration: 1,
+    failureClass: "lint",
+    failureDetail: "src/a.ts:12 no-unused-vars\n  at Linter.verify",
+    commit: "a1b2c3d",
+    occurredAt: "2026-09-09T10:00:00.000Z",
+    resolvedByCommit: "e4f5a6b",
+  };
+
+  const ask = (proxyGet: (p: string) => Promise<ProxyResult>) =>
+    runQueryTrace(
+      { repo: "o/r", failures_touching: "src/a.ts" },
+      { proxyGet, detectRepo: () => null },
+    );
+
+  it("lists each failure with its node, attempt, commit and the sha that fixed it", async () => {
+    const out = await ask(async () => failing([hit]));
+
+    expect(out).toBe(
+      [
+        "Failures recorded on src/a.ts (1), newest first:",
+        "- [lint] validate #1 at a1b2c3d — src/a.ts:12 no-unused-vars — fixed by e4f5a6b",
+      ].join("\n"),
+    );
+  });
+
+  it("marks a failure with no resolving commit as still open", async () => {
+    const out = await ask(async () =>
+      failing([{ ...hit, resolvedByCommit: undefined }]),
+    );
+
+    expect(out).toContain("— still open");
+  });
+
+  it("renders a no-recorded-failures sentence for an empty list", async () => {
+    const out = await ask(async () => failing([]));
+
+    expect(out).toBe("No recorded failures on src/a.ts.");
+  });
+
+  it("truncates a detail longer than 120 characters to one capped line", async () => {
+    const out = await ask(async () =>
+      failing([{ ...hit, failureDetail: "x".repeat(200) }]),
+    );
+
+    expect(out).toContain(`${"x".repeat(120)}…`);
+  });
+
+  it("proxies a GET to the repo's failures-touching route with the path url-encoded", async () => {
+    let requested = "";
+
+    await ask(async (p) => {
+      requested = p;
+
+      return failing([]);
+    });
+
+    expect(requested).toBe(
+      "/api/repos/o/r/trace/failures-touching?path=src%2Fa.ts",
+    );
+  });
+
+  it("reports the proxy failure rather than throwing when the api is unreachable", async () => {
+    const out = await ask(async () => ({
+      ok: false,
+      reason: "unreachable",
+      detail: "connect ECONNREFUSED",
+    }));
+
+    expect(out).toBe(
+      "Lore API unreachable for lore-query-trace: connect ECONNREFUSED.",
+    );
+  });
+});

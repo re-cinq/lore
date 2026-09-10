@@ -7,7 +7,7 @@ import type {
   ImpactReport,
   OrphanStatement,
 } from "./impact-types.js";
-import { parseRanges } from "./line-range.js";
+import { parseRanges } from "../../domain/spec-trace/line-range.js";
 
 export function buildImpactAnnotations(
   report: ImpactReport,

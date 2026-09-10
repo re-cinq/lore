@@ -7,6 +7,7 @@ import * as dgraph from "dgraph-js-http";
 import { ingestCoverageReport } from "./ingest-coverage.js";
 import { makeDeleteRepoNodes } from "../../outbound/spec-trace/test-helpers/delete-repo-nodes.js";
 import { dgraphReachable } from "../../lib/dgraph-test-gate.js";
+import { mainScope } from "../../domain/spec-trace/trace-scope.js";
 
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 const APPLIER = join(
@@ -68,7 +69,7 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
 
     await ingestCoverageReport(
       dgraphClient,
-      { repo, tool: "v8", commit: "abc" },
+      { scope: mainScope(repo), tool: "v8", commit: "abc" },
       [
         {
           testFile: "a.test.ts",
@@ -107,7 +108,7 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
 
     await ingestCoverageReport(
       dgraphClient,
-      { repo, tool: "lcov", commit: "abc123" },
+      { scope: mainScope(repo), tool: "lcov", commit: "abc123" },
       [{ testFile: "test/widget.test.ts", testName: "renders", covered: [] }],
     );
 
@@ -135,7 +136,7 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
 
     const result = await ingestCoverageReport(
       dgraphClient,
-      { repo, tool: "lcov", commit: "abc123" },
+      { scope: mainScope(repo), tool: "lcov", commit: "abc123" },
       [
         {
           testFile: "t.test.ts",
@@ -183,7 +184,7 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
 
     await ingestCoverageReport(
       dgraphClient,
-      { repo, tool: "lcov", commit: "c1" },
+      { scope: mainScope(repo), tool: "lcov", commit: "c1" },
       [
         {
           testFile: "t.test.ts",
@@ -194,7 +195,7 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
     );
     await ingestCoverageReport(
       dgraphClient,
-      { repo, tool: "lcov", commit: "c2" },
+      { scope: mainScope(repo), tool: "lcov", commit: "c2" },
       [
         {
           testFile: "t.test.ts",
@@ -233,7 +234,7 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
 
     await ingestCoverageReport(
       dgraphClient,
-      { repo, tool: "lcov", commit: "c1" },
+      { scope: mainScope(repo), tool: "lcov", commit: "c1" },
       [
         { testFile: "a.test.ts", testName: "a", covered: [shared] },
         { testFile: "b.test.ts", testName: "b", covered: [shared] },
@@ -241,7 +242,7 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
     );
     await ingestCoverageReport(
       dgraphClient,
-      { repo, tool: "lcov", commit: "c2" },
+      { scope: mainScope(repo), tool: "lcov", commit: "c2" },
       [{ testFile: "a.test.ts", testName: "a", covered: [] }],
     );
 
@@ -278,7 +279,7 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
 
     await ingestCoverageReport(
       dgraphClient,
-      { repo, tool: "lcov", commit: "abc123" },
+      { scope: mainScope(repo), tool: "lcov", commit: "abc123" },
       [{ testFile: "t.test.ts", testName: "renders", covered: [] }],
     );
 

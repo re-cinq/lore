@@ -162,6 +162,7 @@ function makeDeps(port: InMemoryAssemblyRuns) {
   const cleaned: string[] = [];
   const jobRuns: string[] = [];
   const notified: Array<{ id: string; outcome: string; reason?: string }> = [];
+  const recorded: Array<{ nodeId: string; verdict: unknown }> = [];
   const armDispatch = port.enqueueStationRunDispatch.bind(port);
 
   port.enqueueStationRunDispatch = async (nodeRowId, dispatchSpec) => {
@@ -193,9 +194,12 @@ function makeDeps(port: InMemoryAssemblyRuns) {
     notifyFailure: async (row, outcome, reason) => {
       notified.push({ id: row.id, outcome, reason });
     },
+    recordNodeOutcome: async (_assemblyLineId, row, verdict) => {
+      recorded.push({ nodeId: row.nodeId, verdict });
+    },
   };
 
-  return { deps, enqueued, cleaned, jobRuns, notified };
+  return { deps, enqueued, cleaned, jobRuns, notified, recorded };
 }
 
 async function runningLine(port: InMemoryAssemblyRuns) {
@@ -778,5 +782,36 @@ describe("what the node-finished reaction is told about the node", () => {
     );
 
     expect(seen).toEqual([{ id: "review", type: "agent" }]);
+  });
+
+  it("hands the graph the delivery's failure detail, not the row read before the finish wrote it", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const id = await runningLine(port);
+    const { deps, recorded } = makeDeps(port);
+
+    await advanceLine(id, deps);
+    await finishNodeAndAdvance(
+      {
+        assemblyLineId: id,
+        nodeId: "review",
+        result: {
+          outcome: "changes_requested",
+          failureClass: "unknown",
+          failureDetail: "src/widget.ts(12,5): error TS2345",
+        },
+      },
+      deps,
+    );
+
+    expect(recorded).toEqual([
+      {
+        nodeId: "review",
+        verdict: {
+          outcome: "changes_requested",
+          failureClass: "unknown",
+          failureDetail: "src/widget.ts(12,5): error TS2345",
+        },
+      },
+    ]);
   });
 });

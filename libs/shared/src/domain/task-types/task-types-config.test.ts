@@ -319,4 +319,20 @@ describe("the implementation-tdd recipe", () => {
       "Red first",
     );
   });
+
+  it("has tdd-round ask which tests already cover a symbol before editing it", () => {
+    const parsed = parseTaskTypesFile(COMMITTED);
+    const round = parsed.taskTypes["tdd-round"]?.prompt_template ?? "";
+
+    expect(round).toContain("tests_covering");
+    expect(round).toContain("REGRESSION");
+  });
+
+  it("has fix-ci ask what failed on a path before it reads any file", () => {
+    const parsed = parseTaskTypesFile(COMMITTED);
+    const fix = parsed.taskTypes["fix-ci"]?.prompt_template ?? "";
+
+    expect(fix).toContain("failures_touching");
+    expect(fix).toContain("still open");
+  });
 });

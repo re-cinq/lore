@@ -48,6 +48,23 @@ export interface AdvanceDeps {
     complete(runId: string, resultSummary: string): Promise<unknown>;
     fail(runId: string, reason: string): Promise<unknown>;
   };
+  /** Record one node's terminal outcome in the traceability graph (issue #1771): a failure that names code becomes a Failure node, a success stamps the resolving sha onto the ones it fixed. Winning CAS only, best-effort; emits the ingest event rather than writing Dgraph, which the Floor never does. */
+  recordNodeOutcome?: (
+    assemblyLineId: string,
+    row: {
+      stationRunId: string;
+      nodeId: string;
+      iteration: number;
+      commitSha: string | null;
+    },
+    verdict: {
+      outcome: string;
+      failureClass?: string | null;
+      failureDetail?: string | null;
+    },
+  ) => Promise<void>;
+  /** Drop the run's branch graph overlay now the run is over (issue #1769); winning finisher only, best-effort. The Floor never writes Dgraph itself, so this emits the ingest event that the ingest station acts on. Optional seam. */
+  dropGraphOverlay?: (run: AssemblyRunRecord) => Promise<void>;
   /** User-facing failure notification (Slack + PR comment), fired once per line by the winning finisher; optional seam. */
   notifyFailure?: (
     assemblyRun: AssemblyRunRecord,

@@ -36,8 +36,9 @@ const (
 )
 
 func main() {
+	args := os.Args[1:]
 	post := false
-	for _, a := range os.Args[1:] {
+	for _, a := range args {
 		if a == "--post" {
 			post = true
 		}
@@ -47,13 +48,29 @@ func main() {
 		fmt.Fprintln(os.Stderr, "lore-code-trace:", err)
 		os.Exit(1)
 	}
-	if err := run(wd, post, os.Stdout); err != nil {
+	if err := run(wd, post, resolveAssemblyRunID(args), os.Stdout); err != nil {
 		fmt.Fprintln(os.Stderr, "lore-code-trace:", err)
 		os.Exit(1)
 	}
 }
 
-func run(startDir string, post bool, stdout io.Writer) error {
+// resolveAssemblyRunID answers the assembly run this report belongs to: an
+// explicit --assembly-run wins over LORE_ASSEMBLY_RUN_ID (the variable an agent
+// pod already carries), and empty means an ordinary CI run whose ingest lands in
+// the repo's main graph rather than a per-run overlay.
+func resolveAssemblyRunID(args []string) string {
+	for i, a := range args {
+		if a == "--assembly-run" && i+1 < len(args) {
+			return args[i+1]
+		}
+		if id, found := strings.CutPrefix(a, "--assembly-run="); found {
+			return id
+		}
+	}
+	return os.Getenv("LORE_ASSEMBLY_RUN_ID")
+}
+
+func run(startDir string, post bool, assemblyRun string, stdout io.Writer) error {
 	// Trust-boundary parity with the TS runner: never execute repo commands on the
 	// shared server (it sets LORE_DB_HOST); only CI / local sandboxes do.
 	if os.Getenv("LORE_DB_HOST") != "" {
@@ -78,7 +95,7 @@ func run(startDir string, post bool, stdout io.Writer) error {
 	}
 
 	ctx := context.Background()
-	report, err := buildReport(ctx, m, root, reportMeta{Commit: commit, Branch: branch}, runConcurrency, os.Stderr)
+	report, err := buildReport(ctx, m, root, reportMeta{Commit: commit, Branch: branch, AssemblyRunID: assemblyRun}, runConcurrency, os.Stderr)
 	if err != nil {
 		return err
 	}

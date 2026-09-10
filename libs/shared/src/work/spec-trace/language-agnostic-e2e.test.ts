@@ -9,6 +9,7 @@ import { ingestCoverageReport } from "./ingest-coverage.js";
 import { driftCheckFile } from "./drift-check-file.js";
 import { makeDeleteRepoNodes } from "../../outbound/spec-trace/test-helpers/delete-repo-nodes.js";
 import { dgraphReachable } from "../../lib/dgraph-test-gate.js";
+import { mainScope } from "../../domain/spec-trace/trace-scope.js";
 
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 const APPLIER = join(
@@ -143,7 +144,7 @@ describe.skipIf(!reachable)(
 
       await ingestCoverageReport(
         dgraphClient,
-        { repo, tool: "lcov", commit: "c1" },
+        { scope: mainScope(repo), tool: "lcov", commit: "c1" },
         [
           {
             testFile: "spec/widget_spec.rb",

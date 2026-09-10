@@ -1,6 +1,6 @@
 /** Routes a spec-trace trigger onto the ingest assembly line by kind (specs/ingest-station FR6): repo-read kinds (specs/adrs) self-chunk a force pass into per-directory events; payload kinds (test-report/coverage) fetch the body back by reference (FR3). */
 
-import { chunkGlobsForKind } from "@re-cinq/lore-shared";
+import { chunkGlobsForKind, PAYLOAD_INGEST_KINDS } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { EventInput } from "../../domain/event-types.js";
 import type { AssemblyRunStartInput } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
@@ -11,7 +11,7 @@ import { ingestSubject } from "@re-cinq/lore-shared/project/assembly-runs/subjec
 /** Kinds whose data is read from the repo (not carried in the trigger payload). */
 const REPO_READ_KINDS = new Set(["specs", "adrs"]);
 /** Kinds whose body rides the scheduling event and reaches the pod by reference. */
-const PAYLOAD_KINDS = new Set(["test-report", "coverage"]);
+const PAYLOAD_KINDS = PAYLOAD_INGEST_KINDS;
 
 /** The tree-listing seam the force self-chunking needs (the only repo read left). */
 export interface RepoReader {

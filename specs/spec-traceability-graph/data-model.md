@@ -237,7 +237,7 @@ ADR.supersedes:         [uid] @reverse @count .        # reverse = superseded_by
 
 ## Call graph (cross-file symbol references)
 
-The schema declares `CodeChunk.references` and `CodeChunk.imports` as reversible uid list predicates (`[uid] @reverse @count`). ([validated by declares CodeChunk.references and CodeChunk.imports as uid list predicates for the call graph](libs/shared/src/outbound/setup-spec-trace-schema.test.ts#L168))
+The schema declares `CodeChunk.references` and `CodeChunk.imports` as reversible uid list predicates (`[uid] @reverse @count`). ([validated by declares CodeChunk.references and CodeChunk.imports as uid list predicates for the call graph](libs/shared/src/outbound/setup-spec-trace-schema.test.ts#L167))
 
 `lore-query-trace` routes a `callers_of` query to a callers endpoint rather than the trace/document endpoint. ([validated by routes a callers_of query to a callers endpoint rather than the document endpoint](libs/server-core/src/work/spec-trace/query-trace.test.ts#L286))
 
@@ -245,11 +245,254 @@ Statements reached via `~CodeChunk.references` are annotated `indirect` and rend
 
 The reference extractor identifies imported symbols that are actually called in a TypeScript/JavaScript source file and returns their names paired with the module path they were imported from. ([validated by returns imported symbol names and their source paths when those symbols are called in a TypeScript source file](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L5), [validated by omits imported symbols that are never called in the file](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L28), [validated by returns an empty array for a file with no import declarations](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L44))
 
+## Per-run branch overlay
+
+The graph describes one snapshot of `main`. An implementation run makes many
+pushes to one branch before any of them merge, so a run that asked the graph
+about its own work got `main`'s answer. A **per-run overlay** closes that gap:
+a namespaced set of chunk/test/coverage nodes keyed on the assembly run,
+written at each branch push and dropped when the run ends. It is unioned over
+`main` at read time; `main` itself is never written by a branch.
+
+A projection writes into a **scope**, which owns three things: the xid prefix,
+the `.repo` scalar its nodes carry, and the root node they hang off. On `main`
+the scope key is the bare repo and the root is the `Repo` node. ([validated by keys on the bare repo and roots at Repo](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L13), [validated by returns false from isOverlay](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L21))
+
+An overlay scope inserts a `run:<assembly run id>` segment between the repo and
+the path, and roots at the run's `Overlay` node. ([validated by inserts a run segment between the repo and the path and roots at Overlay](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L27), [validated by returns true from isOverlay](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L36))
+
+Because the run segment is part of the xid, a branch's node for a path upserts
+independently of `main`'s node for the same path instead of overwriting it. ([validated by joins parts onto the main key with a pipe](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L42), [validated by joins parts onto the overlay key so main and overlay never collide](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L48), [validated by joins several parts in order](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L54))
+
+A run's xid prefix ends with the separator that closes its run segment, so a
+bulk operation on run `4` cannot also match run `42`. ([validated by is the prefix every one of a run's xids starts with](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L62), [validated by ends with the pipe that closes the run segment so run-4 cannot prefix-match run-42](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L70))
+
+The root-edge predicate a scope attaches its chunks to is named for its root
+type, so the same projection code hangs nodes off `Repo` on `main` and off
+`Overlay` on a branch. ([validated by names the Repo predicate for a main scope](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L78), [validated by names the Overlay predicate for an overlay scope](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L84))
+
+An overlay key is reversible back to the repo and run it names, and a bare repo
+key reports that it names no run. ([validated by recovers the repo and run id from an overlay key](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L92), [validated by returns null for a bare repo key](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L99))
+
+`Overlay.xid` is a hash upsert index and `Overlay.assembly_run_id` /
+`Overlay.head_commit` are indexed, so a run's overlay is found by id and the
+commit its ranges are expressed in is queryable. ([validated by declares Overlay.xid as a hash upsert index so a run's overlay upserts independently of main](libs/shared/src/outbound/setup-spec-trace-schema.test.ts#L205))
+
+The `Overlay` node carries the same chunk container edges the `Repo` root does —
+`test_chunks`, `code_chunks`, `coverage`, `files` — as reversible uid lists. ([validated by declares the Overlay chunk edges as uid lists so a run's nodes hang off it instead of the Repo root](libs/shared/src/outbound/setup-spec-trace-schema.test.ts#L219))
+
+### Anchor and lifecycle
+
+The overlay anchor records the branch and the head commit its line numbers are
+expressed in — the overlay's answer to `Repo.trace_commit`. ([validated by reads back the branch and head commit an upserted overlay was stamped with](libs/shared/src/work/spec-trace/overlay.test.ts#L40))
+
+A run that never wrote one reads back as absent rather than as an error. ([validated by returns null for a run that never wrote an overlay](libs/shared/src/work/spec-trace/overlay.test.ts#L59))
+
+A second push in the same run restamps the existing anchor rather than adding a
+second overlay for the run. ([validated by restamps head commit on a second push rather than creating a second overlay](libs/shared/src/work/spec-trace/overlay.test.ts#L65))
+
+Dropping an overlay deletes every node it anchors and the anchor itself, so a
+finished run leaves nothing behind. ([validated by deletes the anchored chunks and the anchor, leaving no overlay for the run](libs/shared/src/work/spec-trace/overlay.test.ts#L80))
+
+The drop is safe to repeat: a run with no overlay drops nothing and reports zero. ([validated by drops nothing and reports zero for a run with no overlay](libs/shared/src/work/spec-trace/overlay.test.ts#L109))
+
+Listing overlays is scoped to one repo, so a sweep for one repo's abandoned runs
+never sees another's. ([validated by lists only the overlays of the repo it was asked about](libs/shared/src/work/spec-trace/overlay.test.ts#L115))
+
+### What an overlay ingest writes
+
+A test report that names an assembly run writes its chunks under the run-scoped
+key, and a query filtered on the bare repo key does not see them. ([validated by writes the run's test chunks under the run-scoped key, not the repo key](libs/shared/src/work/spec-trace/ingest-overlay.test.ts#L84))
+
+The ingest stamps the run's overlay with the branch and head commit the report
+was posted for. ([validated by stamps the overlay with the branch and head commit the report was posted for](libs/shared/src/work/spec-trace/ingest-overlay.test.ts#L96))
+
+A branch push leaves `Repo.trace_commit` alone, so it cannot move the coordinate
+system the pre-merge impact query is expressed in. ([validated by leaves Repo.trace_commit alone so a branch push cannot move main's coordinate system](libs/shared/src/work/spec-trace/ingest-overlay.test.ts#L110))
+
+Specs, acceptance criteria and ADRs are never overlaid: the spec is the thing
+the branch is measured against. An overlay ingest therefore writes no
+`validated_by` onto the `main` statement a branch test claims — an unmerged run
+must not change what `main` claims to have proved. ([validated by writes no validated_by onto the main statement the branch test claims](libs/shared/src/work/spec-trace/ingest-overlay.test.ts#L127))
+
+A report that names no run is unchanged: it writes `main`'s chunks and stamps
+`main`'s baseline exactly as before. ([validated by still writes main's test chunks and baseline when the report names no run](libs/shared/src/work/spec-trace/ingest-overlay.test.ts#L148))
+
+### Reading coverage as the run sees it
+
+`tests_covering(file, range)` answers which tests exercise a span — the question
+a `tdd-round` asks before it edits a symbol, so that when the suite goes red it
+can tell the test it just wrote from a regression it just caused.
+
+Coverage is aggregated per test FILE at ingest, so the answer names test files
+rather than individual `it()` blocks. A record is returned when its covered
+intervals overlap the asked-about range. ([validated by returns the test whose coverage overlaps the asked-about line range](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L91))
+
+A range no coverage record touches returns nothing rather than falling back to
+the whole file. ([validated by returns nothing for a range no test covers](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L104))
+
+Asking about a file without narrowing to a range returns every test file that
+covers it. ([validated by returns every covering test when no range narrows the question](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L117))
+
+Inside a run's overlay the same question is answered from the branch's own
+coverage, tagged as coming from the overlay. ([validated by reads the branch's own coverage from the run scope and marks it as overlay](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L127))
+
+That branch coverage is invisible from the main scope, so a run in flight cannot
+change what anyone else is told. ([validated by does not see the branch's coverage from the main scope](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L141))
+
+The overlay's answer REPLACES main's for a file the branch covers; a file the
+branch never touched falls through to main, and a file neither covers returns
+nothing. ([validated by replaces main's answer for the file when the overlay covers it](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L31), [validated by falls through to main for a file the branch never touched](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L35), [validated by returns nothing when neither scope covers the file](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L39))
+
+### Ending a run's overlay
+
+The Floor never writes Dgraph itself, so closing a run does not delete its
+overlay directly: it emits the same `internal.ingest.spec_trace` event a test
+report rides, with kind `overlay-drop`, and the ingest station performs the
+delete. The event names the run's repo and the run whose overlay goes. ([validated by names the run's repo, the overlay-drop kind, and the run whose overlay goes](apps/floor/src/work/assembly-run/drop-overlay.test.ts#L25))
+
+A closing implementation run asks for that drop. ([validated by asks for a drop when an implementation run closes](apps/floor/src/work/assembly-run/drop-overlay.test.ts#L5))
+
+An ingest run does NOT, because the drop it asked for would itself be an ingest
+run, which would ask again, without end. ([validated by refuses for an ingest run, whose drop would start another ingest run forever](apps/floor/src/work/assembly-run/drop-overlay.test.ts#L11))
+
+Neither does a run with no repo, which can own no overlay. ([validated by refuses for a run with no repo, which can own no overlay](apps/floor/src/work/assembly-run/drop-overlay.test.ts#L17))
+
+The drop can still be missed — a dead pod, a lost event — so a retention sweep
+reaps every overlay a repo has not restamped since a cutoff. A run still pushing
+restamps its own anchor on every push, so an old stamp means the run is gone. ([validated by drops an overlay written before the cutoff](libs/shared/src/work/spec-trace/overlay.test.ts#L169))
+
+An overlay stamped after the cutoff is kept, because its run may still be
+pushing. ([validated by keeps an overlay written after the cutoff, because its run may still be pushing](libs/shared/src/work/spec-trace/overlay.test.ts#L184))
+
+## Failures
+
+`fix-ci` gets three attempts per ticket and every one of them starts cold, with
+no idea that this exact error in this exact file has been fixed before. The
+`pipeline.station_runs` row already records what failed; what was missing was a
+join from that record to the files it names. A **`Failure` node** supplies it:
+one per station-run attempt, edged to the files and code chunks its output
+implicated, carrying the sha of the attempt that later went green.
+
+### Reading a file out of tool output
+
+The parse is deterministic and covers the tools the validate step actually runs.
+A `tsc` diagnostic yields its file and line in both the parenthesized and the
+colon form. ([validated by returns src/foo.ts line 12 for a tsc parenthesized diagnostic](libs/shared/src/work/spec-trace/failure-sites.test.ts#L5), [validated by returns src/foo.ts line 12 for the tsc colon diagnostic variant](libs/shared/src/work/spec-trace/failure-sites.test.ts#L13))
+
+An eslint stylish block attributes its indented rows to the bare path header
+above them, and switches file when the next header appears. ([validated by attributes eslint stylish rows to the bare path header above them](libs/shared/src/work/spec-trace/failure-sites.test.ts#L21), [validated by switches file when a second eslint stylish path header appears](libs/shared/src/work/spec-trace/failure-sites.test.ts#L35))
+
+The eslint compact form, a go test failure block, a go build diagnostic, a
+vitest `FAIL` header and a stack frame inside parentheses each yield their file. ([validated by returns src/foo.ts line 12 for an eslint compact/unix row](libs/shared/src/work/spec-trace/failure-sites.test.ts#L49), [validated by returns foo_test.go line 42 for a go test failure block](libs/shared/src/work/spec-trace/failure-sites.test.ts#L55), [validated by returns ./pkg/foo.go line 12 for a go build diagnostic](libs/shared/src/work/spec-trace/failure-sites.test.ts#L66), [validated by returns the vitest FAIL header file with no line](libs/shared/src/work/spec-trace/failure-sites.test.ts#L72), [validated by returns src/foo.ts line 12 for a stack frame inside parentheses](libs/shared/src/work/spec-trace/failure-sites.test.ts#L78))
+
+Frames inside `node_modules` are dropped, and so is any path whose extension is
+not a supported source extension — the graph is intra-repo, and a dependency's
+internals implicate nothing anyone here can fix. ([validated by drops frames inside node_modules](libs/shared/src/work/spec-trace/failure-sites.test.ts#L84), [validated by drops a path whose extension is not a supported source extension](libs/shared/src/work/spec-trace/failure-sites.test.ts#L95))
+
+One path reported at two different lines is two sites; the same path and line
+reported twice is one. ([validated by returns two entries for one path reported at two different lines](libs/shared/src/work/spec-trace/failure-sites.test.ts#L99), [validated by returns one entry for the same path and line reported twice](libs/shared/src/work/spec-trace/failure-sites.test.ts#L108))
+
+Output naming no file yields nothing rather than throwing, whether it is empty,
+prose, or not a string at all. ([validated by returns an empty array for an empty string](libs/shared/src/work/spec-trace/failure-sites.test.ts#L116), [validated by returns an empty array for prose naming no file](libs/shared/src/work/spec-trace/failure-sites.test.ts#L120), [validated by returns an empty array for a non-string input](libs/shared/src/work/spec-trace/failure-sites.test.ts#L126))
+
+### Which failures name code
+
+The failure taxonomy is infra-shaped and has no code class, so a validate, lint,
+typecheck or test failure arrives as `unknown`. Only `unknown` — and a failure
+predating the taxonomy — can implicate a file. ([validated by returns true for unknown](libs/shared/src/work/spec-trace/failure-sites.test.ts#L132), [validated by returns true for null and undefined](libs/shared/src/work/spec-trace/failure-sites.test.ts#L136))
+
+Every explicitly infra or account class implicates no file, and a class outside
+the taxonomy fails closed. ([validated by returns false for every infra or account failure class](libs/shared/src/work/spec-trace/failure-sites.test.ts#L141), [validated by returns false for a class outside the taxonomy](libs/shared/src/work/spec-trace/failure-sites.test.ts#L156))
+
+### The node
+
+A typecheck failure projects one `Failure` edged to the file its output named, ([validated by projects a typecheck failure with an edge to the file its output named](libs/shared/src/work/spec-trace/failure-nodes.test.ts#L55))
+
+A query for that file returns it. ([validated by returns the projected failure to a query for the file it named](libs/shared/src/work/spec-trace/failure-nodes.test.ts#L65))
+
+An infra failure projects nothing. ([validated by projects nothing for an infra failure, which implicates no file](libs/shared/src/work/spec-trace/failure-nodes.test.ts#L84))
+
+So does a code-class failure whose output names no file: a `Failure` joined to
+nothing would be noise in every later query. ([validated by projects nothing for a code-class failure whose output names no file](libs/shared/src/work/spec-trace/failure-nodes.test.ts#L96))
+
+Where a code chunk's line range contains the failing line, the failure is edged
+to the chunk as well as the file. ([validated by links the code chunk whose line range contains the failing line](libs/shared/src/work/spec-trace/failure-nodes.test.ts#L108))
+
+The node is keyed on the station-run attempt, so a redelivered terminal event
+updates one failure rather than creating a second. ([validated by re-projecting the same station run leaves one failure, not two](libs/shared/src/work/spec-trace/failure-nodes.test.ts#L123))
+
+A file no failure ever named returns nothing. ([validated by returns nothing for a file no failure ever named](libs/shared/src/work/spec-trace/failure-nodes.test.ts#L135))
+
+### Resolution
+
+When a later attempt on the same node succeeds, its sha is stamped onto the
+failures the earlier attempts left. The pair — what failed, and the commit that
+ended it — is what a future `fix-ci` actually wants; the DIFF is never stored,
+because the agent can `git show` the sha. ([validated by stamps the sha of the attempt that went green onto the earlier failure](libs/shared/src/work/spec-trace/failure-nodes.test.ts#L151))
+
+A run that left no failure on that node has nothing to stamp. ([validated by stamps nothing when the run had no failure on that node](libs/shared/src/work/spec-trace/failure-nodes.test.ts#L169))
+
+Failures older than the retention cutoff are reaped; past that the retrospective
+episode carries the lesson in prose. ([validated by drops a failure older than the cutoff and keeps a newer one](libs/shared/src/work/spec-trace/failure-nodes.test.ts#L186))
+
+### How it reaches the graph
+
+The Floor never writes Dgraph itself, so a settled node emits an ingest event
+carrying its outcome, and the graph decides from that outcome whether to project
+a failure or resolve earlier ones. ([validated by carries the settled node and its outcome on the ingest lane](apps/floor/src/work/assembly-run/node-outcome-event.test.ts#L28))
+
+The event takes the node's IDENTITY from its station-run row and its VERDICT
+from the delivery. It cannot take the verdict from the row: the row is read
+BEFORE the finish writes the outcome onto it, so its failure fields are still
+empty at that moment. Reading them there would have projected every failure with
+no detail, and a failure with no detail names no file, and a failure that names
+no file is not projected at all — the whole feature would have been silently
+inert. ([validated by takes identity from the row and the failure from the verdict](apps/floor/src/work/assembly-run/node-outcome-event.test.ts#L28), [validated by hands the graph the delivery's failure detail, not the row read before the finish wrote it](apps/floor/src/work/assembly-run/finish-node.test.ts#L787))
+
+A verdict that names no failure carries nulls rather than omitting the fields, so
+a resolve is distinguishable from a malformed record. ([validated by carries nulls for a verdict that names no failure](apps/floor/src/work/assembly-run/node-outcome-event.test.ts#L61))
+
+A success and a failure on the same station run are keyed separately, so
+recording one never suppresses the other. ([validated by keys a success separately from the failure on the same station run](apps/floor/src/work/assembly-run/node-outcome-event.test.ts#L75))
+
+A run with a repo is recorded; a run without one is not, because its files
+belong to nothing. ([validated by records for a run that names a repo](apps/floor/src/work/assembly-run/node-outcome-event.test.ts#L18), [validated by refuses for a run with no repo, whose files belong to nothing](apps/floor/src/work/assembly-run/node-outcome-event.test.ts#L22))
+
+The ingest lane records a failed node against the file its output named. ([validated by records a failed node against the file its output named](libs/shared/src/work/spec-trace/ingest-failure-kind.test.ts#L49))
+
+The instant a failure happened crosses that lane as an ISO string, not a Date,
+because the payload is JSON — so the projection accepts either and normalizes. ([validated by records a failure whose occurredAt crossed the ingest JSON as a string](libs/shared/src/work/spec-trace/ingest-failure-kind.test.ts#L83))
+
+It writes no overlay while doing so: a failure is a fact about the repo's
+history that outlives the run, not a branch snapshot. ([validated by writes no overlay for a failure, which is a fact about the repo and not a branch snapshot](libs/shared/src/work/spec-trace/ingest-failure-kind.test.ts#L59))
+
+A later success on the same node stamps the resolving sha. ([validated by stamps the resolving sha when a later attempt on the same node succeeds](libs/shared/src/work/spec-trace/ingest-failure-kind.test.ts#L67))
+
+### Retention
+
+Overlays and failures are both run-scoped, so they age out on the same window
+the run's telemetry keeps: fourteen days. ([validated by defaults to the same fourteen days the run telemetry keeps](libs/shared/src/work/spec-trace/graph-retention.test.ts#L34))
+
+The cutoff is that window before the instant the reap runs. ([validated by is the retention window before the given instant](libs/shared/src/work/spec-trace/graph-retention.test.ts#L28))
+
+One pass reaps both kinds for a repo. ([validated by reaps an expired overlay and an expired failure in one pass](libs/shared/src/work/spec-trace/graph-retention.test.ts#L51))
+
+Anything inside the window is left alone — an overlay there may belong to a run
+still pushing. ([validated by leaves an overlay and a failure inside the window alone](libs/shared/src/work/spec-trace/graph-retention.test.ts#L77))
+
+The reap rides the ingest that already holds a graph client for the repo rather
+than a cron nobody wires. That is deliberate: `agent_run_events.pruneOld` shipped
+with no caller and pruned nothing for a release, and a prune whose only caller is
+a future commit is a prune that does not exist.
+
 ### `xid` keys (deterministic, idempotent)
 
 | Node | `xid` |
 |---|---|
 | `Repo` | `org/name` |
+| `Failure` | `repo\|failure:<station run id>` (one per ATTEMPT, so a revisit is its own node) |
+| `Overlay` | `repo\|run:<assembly run id>` (also the `.repo` scalar every node it anchors carries) |
 | `Feature` | `repo\|specs/<folder>` |
 | `Spec` | `repo\|file_path` |
 | `File` | `repo\|file_path` (coverage-source aggregation; `Coverage.covers\|ranges` facet holds intervals) |

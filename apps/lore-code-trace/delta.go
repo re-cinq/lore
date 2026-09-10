@@ -39,7 +39,8 @@ func parseNameStatus(out string) (changed, deleted []string) {
 // ranges of everything below it in the same file, so a test covering that file
 // has stale ranges even when its own source did not move.
 //
-// Commit and branch survive: they identify the delta, not its contents.
+// Commit, branch and the assembly run survive: they identify the delta, not its
+// contents.
 func selectDelta(report TestReport, changed []string) TestReport {
 	changedSet := make(map[string]struct{}, len(changed))
 	for _, path := range changed {
@@ -52,10 +53,11 @@ func selectDelta(report TestReport, changed []string) TestReport {
 	}
 
 	out := TestReport{
-		Commit:  report.Commit,
-		Branch:  report.Branch,
-		Tests:   []TestDescriptor{},
-		Results: []TaggedRunResult{},
+		Commit:        report.Commit,
+		Branch:        report.Branch,
+		AssemblyRunID: report.AssemblyRunID,
+		Tests:         []TestDescriptor{},
+		Results:       []TaggedRunResult{},
 	}
 	for _, test := range report.Tests {
 		result, hasResult := resultByID[test.ID]

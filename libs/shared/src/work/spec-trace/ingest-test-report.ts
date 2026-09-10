@@ -6,6 +6,10 @@ import type {
   TestDescriptor,
   TaggedRunResult,
 } from "../../outbound/spec-trace/deps.js";
+import {
+  isOverlay,
+  type TraceScope,
+} from "../../domain/spec-trace/trace-scope.js";
 import { ingestCoverageReport } from "./ingest-coverage.js";
 import {
   projectDescriptors,
@@ -30,6 +34,8 @@ interface CoverageRecord {
 export interface TestReport {
   commit?: string;
   branch?: string;
+  /** The assembly run whose branch this report describes; its presence is what routes the ingest into an overlay. */
+  assemblyRunId?: string;
   tests: TestDescriptor[];
   results: TaggedRunResult[];
 }
@@ -42,17 +48,17 @@ export interface IngestTestReportResult {
   violated: number;
 }
 
+/** No spec links from an overlay. A Statement belongs to `main` — the branch is measured AGAINST it — so writing `validated_by` from a branch test would let an unmerged run change what main claims to have proved. */
+const NO_SPEC_LINKS = { validatedBy: 0, violated: 0 };
+
 export async function ingestTestReport(
   dgraph: DgraphClientPort,
-  repo: string,
+  scope: TraceScope,
   report: TestReport,
 ): Promise<IngestTestReportResult> {
-  const resultById = new Map(
-    report.results.map((result) => [result.id, result]),
-  );
-  const entries = await projectDescriptors(dgraph, repo, report.tests);
-  const links = await writeSpecLinks(dgraph, repo, entries, resultById);
-  const cov = await ingestReportCoverage(dgraph, repo, report);
+  const entries = await projectDescriptors(dgraph, scope, report.tests);
+  const links = await specLinksFor(dgraph, scope, entries, report);
+  const cov = await ingestReportCoverage(dgraph, scope, report);
 
   return {
     testChunks: report.tests.length,
@@ -61,6 +67,23 @@ export async function ingestTestReport(
     coversEdges: cov.coversEdges,
     violated: links.violated,
   };
+}
+
+/** The spec links this report justifies, or none at all when it describes a branch. */
+async function specLinksFor(
+  dgraph: DgraphClientPort,
+  scope: TraceScope,
+  entries: DescriptorChunk[],
+  report: TestReport,
+): Promise<{ validatedBy: number; violated: number }> {
+  if (isOverlay(scope)) {
+    return NO_SPEC_LINKS;
+  }
+  const resultById = new Map(
+    report.results.map((result) => [result.id, result]),
+  );
+
+  return writeSpecLinks(dgraph, scope.repo, entries, resultById);
 }
 
 /** The spec links a run of the suite justifies, grouped two ways because a test can name its statement by ANCHOR (an explicit id) or by SENTENCE (the statement's own text). Both produce the same edge; only the addressing differs. */
@@ -123,12 +146,12 @@ async function writeGroupsCountingViolations<T>(
 /** Hands this report's covered ranges to the coverage ingest, tagged with the tool that produced them. */
 async function ingestReportCoverage(
   dgraph: DgraphClientPort,
-  repo: string,
+  scope: TraceScope,
   report: TestReport,
 ) {
   return ingestCoverageReport(
     dgraph,
-    { repo, tool: "test-interface", commit: report.commit ?? "" },
+    { scope, tool: "test-interface", commit: report.commit ?? "" },
     coverageRecordsFor(report),
   );
 }

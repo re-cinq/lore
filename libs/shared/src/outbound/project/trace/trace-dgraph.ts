@@ -16,6 +16,11 @@ import {
   type SpecGraph,
   type SpecRing,
 } from "../../spec-trace/spec-graph.js";
+import {
+  testsCovering,
+  type CoveringTest,
+  type CoverageTarget,
+} from "../../spec-trace/tests-covering.js";
 import type { TracePort } from "./trace-port.js";
 
 /** TracePort over the live spec-trace Dgraph — the same client the ingest path projects into. */
@@ -52,5 +57,13 @@ export class DgraphTrace implements TracePort {
 
   ring(repo: string, filePath: string): Promise<SpecRing> {
     return fetchSpecRing(repo, filePath, this.dgraph);
+  }
+
+  testsCovering(
+    repo: string,
+    target: CoverageTarget,
+    assemblyRunId?: string,
+  ): Promise<CoveringTest[]> {
+    return testsCovering(this.dgraph, { repo, assemblyRunId }, target);
   }
 }

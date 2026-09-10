@@ -2,7 +2,10 @@
 
 import type { DgraphClientPort } from "../../outbound/spec-trace/deps.js";
 import { withTxn } from "../../outbound/spec-trace/dgraph-upsert.js";
-import { intervalsOverlap, parseRanges } from "./line-range.js";
+import {
+  intervalsOverlap,
+  parseRanges,
+} from "../../domain/spec-trace/line-range.js";
 import {
   toImpactStatement,
   STATEMENT_PROJECTION,

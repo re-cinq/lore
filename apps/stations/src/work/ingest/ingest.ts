@@ -10,6 +10,8 @@ import {
   INGEST_KINDS,
   type DgraphClientPort,
   type IngestGraphSummary,
+  PAYLOAD_INGEST_KINDS,
+  pruneGraphRetention,
 } from "@re-cinq/lore-shared";
 import { eventLine, type NodeResult } from "@re-cinq/lore-assembly-lines";
 import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
@@ -17,7 +19,7 @@ import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
 // Derived, not parallel: INGEST_KINDS holds exactly the file-projectable doc kinds (tests is special-cased inside runIngestGraph).
 const DOC_KINDS = new Set(Object.keys(INGEST_KINDS));
 // Payload kinds arrive by reference (FR3): the body lives on the scheduling pipeline.events row; station_input carries only payload_event_id.
-const PAYLOAD_KINDS = new Set(["test-report", "coverage"]);
+const PAYLOAD_KINDS = PAYLOAD_INGEST_KINDS;
 // Keeps the extras value well under the ~1 KB stage-commit trailer guidance (station-contract.md) — long detail belongs in the log lines.
 const FAILED_FILES_MAX = 900;
 
@@ -107,8 +109,31 @@ async function runPayloadIngest(
   );
 
   console.log(eventLine(`ingest ${kind} complete: ${summaryLine}`));
+  await reapExpiredGraphData(dgraph, input.repo);
 
   return { outcome: "success", extras: { "Lore-Ingest-Summary": summaryLine } };
+}
+
+/** Housekeeping rides the ingest that already holds a graph client for this repo, rather than a cron nobody wires — the reason `agent_run_events.pruneOld` sat callerless for a release. Skip-not-fail: a reap must never fail the ingest it rode in on. */
+async function reapExpiredGraphData(
+  dgraph: DgraphClientPort,
+  repo: string,
+): Promise<void> {
+  try {
+    const reaped = await pruneGraphRetention(dgraph, repo);
+
+    if (reaped.overlays || reaped.failures) {
+      console.log(
+        eventLine(
+          `graph retention ${repo}: dropped ${reaped.overlays} overlay(s), ${reaped.failures} failure(s)`,
+        ),
+      );
+    }
+  } catch (err) {
+    console.warn(
+      `[stations] graph retention skipped for ${repo}: ${(err as Error).message}`,
+    );
+  }
 }
 
 async function runDocsIngest(

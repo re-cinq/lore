@@ -19,7 +19,7 @@ import type {
   SkipReason,
 } from "./impact-types.js";
 
-export { parseRanges } from "./line-range.js";
+export { parseRanges } from "../../domain/spec-trace/line-range.js";
 export type {
   ImpactStatement,
   Evidence,
