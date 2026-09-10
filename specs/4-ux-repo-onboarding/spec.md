@@ -4,7 +4,7 @@
 |----------------|---------------------------------------------|
 | Feature        | UX Redesign + Repo Onboarding               |
 | Branch         | 4-ux-repo-onboarding                        |
-| Status         | Shipped                                     |
+| Status         | In Progress                                 |
 | Created        | 2026-03-29                                  |
 | Owner          | Platform Engineering                        |
 
@@ -503,6 +503,19 @@ The app is built from a shared set of presentational components. ([validated by 
   API call) — unset, every authenticated user is allowed through.
   ([validated by `auth-options.test.ts:28`](apps/web-ui/src/lib/auth-options.test.ts#L28), [`auth-options.test.ts:38`](apps/web-ui/src/lib/auth-options.test.ts#L38), [`auth-options.test.ts:54`](apps/web-ui/src/lib/auth-options.test.ts#L54), [`auth-options.test.ts:69`](apps/web-ui/src/lib/auth-options.test.ts#L69), [`auth-options.test.ts:84`](apps/web-ui/src/lib/auth-options.test.ts#L84), [`auth-options.test.ts:98`](apps/web-ui/src/lib/auth-options.test.ts#L98))
 
+### FR-8: Connect GitHub
+
+Lore used to act on GitHub through one App installation fixed in the
+environment (`GITHUB_APP_INSTALLATION_ID`), so it could only ever serve the
+one org that installation covered. Connecting GitHub is now a flow in the UI:
+an admin installs the GitHub App on any org, Lore records the installation,
+and a repo is served by the installation of its owner.
+
+- FR-8.1: Lore records each GitHub App installation — the account it covers,
+  whether it covers all or only selected repos, and whether the account has
+  suspended it — and finds the installation for an account whatever the case
+  of the login, as GitHub logins are case-insensitive. ([validated by finds the re-cinq installation by its account login in any case](libs/shared/src/outbound/project/github-installations/github-installations.test.ts#L7))
+
 ## Operational Targets (Background)
 
 These are aspirational service targets and manual UX guidelines, not
@@ -534,7 +547,6 @@ unit-testable assertions.
 
 - Per-repo access control (use GitHub org membership for now).
 - Repo removal/archiving workflow.
-- Multi-org support (single org for now).
 - Custom onboarding templates per repo.
 
 ## Background: Dependencies
