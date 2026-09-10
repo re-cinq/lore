@@ -1,5 +1,4 @@
 import type { z } from "zod";
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { toRow } from "@re-cinq/lore-shared/lib/row.js";
 import { wireSchema } from "@re-cinq/lore-shared/lib/wire-schema.js";
 import {
@@ -22,18 +21,21 @@ export interface RecordInstallationDeps {
   installations: GithubInstallationsRepository;
 }
 
-/** Records the installation GitHub redirected an admin back with (specs/4-ux-repo-onboarding FR-8) — only after GitHub, asked as the App, confirms the id is one of this App's installations. */
+/** The recorded installation, or the 404 for an id GitHub does not know as one of this App's installations. */
+export type RecordInstallationResult =
+  | { code: 200; body: z.infer<typeof GithubInstallationWire> }
+  | { code: 404; body: { error: "not-an-installation-of-this-app" } };
+
+/** Records the installation GitHub redirected an admin back with (specs/4-ux-repo-onboarding FR-8) — only after GitHub, asked as the App, confirms the id is one of this App's installations; an id in a redirect is not evidence on its own. */
 export async function handleRecordInstallation(
   deps: RecordInstallationDeps,
   body: { installation_id: number },
-): Promise<{ code: 200; body: z.infer<typeof GithubInstallationWire> }> {
+): Promise<RecordInstallationResult> {
   const payload = await deps.app.getInstallation(body.installation_id);
 
-  enforceTrue(
-    payload,
-    Error,
-    `installation ${body.installation_id} is not an installation of this App`,
-  );
+  if (!payload) {
+    return { code: 404, body: { error: "not-an-installation-of-this-app" } };
+  }
   const recorded = await deps.installations.upsert(
     installationFromGithub(payload),
   );

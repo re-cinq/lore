@@ -38,4 +38,19 @@ describe("handleRecordInstallation", () => {
       installationId: "81234567",
     });
   });
+
+  it("answers 404 for installation 99999999 that GitHub does not know as this App's, recording nothing", async () => {
+    const installations = new InMemoryGithubInstallations(() => INSTALLED_AT);
+
+    expect(
+      await handleRecordInstallation(
+        { app: new InMemoryGithubApp([]), installations },
+        { installation_id: 99999999 },
+      ),
+    ).toEqual({
+      code: 404,
+      body: { error: "not-an-installation-of-this-app" },
+    });
+    expect(await installations.list()).toEqual([]);
+  });
 });

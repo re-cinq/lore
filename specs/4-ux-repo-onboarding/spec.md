@@ -533,6 +533,9 @@ and a repo is served by the installation of its owner.
   records that installation only after asking GitHub, as the App itself,
   whether the id really is one of its installations — an id in a redirect is
   not evidence on its own. ([validated by records installation 81234567 of re-cinq once GitHub confirms it belongs to this App](apps/lore-api/src/transport/routes/github-installations/record-installation.test.ts#L9))
+- FR-8.8: An installation id GitHub does not know as one of the App's
+  installations is answered with a 404 and nothing is recorded, so a forged
+  or mistaken redirect cannot put an installation in the registry. ([validated by answers 404 for installation 99999999 that GitHub does not know as this App's, recording nothing](apps/lore-api/src/transport/routes/github-installations/record-installation.test.ts#L42))
 
 ## Operational Targets (Background)
 
