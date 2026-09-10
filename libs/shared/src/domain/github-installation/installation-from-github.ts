@@ -23,6 +23,7 @@ export function installationFromGithub(
     repositorySelection: GithubRepositorySelectionSchema.parse(
       payload.repository_selection,
     ),
-    suspendedAt: null,
+    suspendedAt:
+      payload.suspended_at === null ? null : new Date(payload.suspended_at),
   };
 }

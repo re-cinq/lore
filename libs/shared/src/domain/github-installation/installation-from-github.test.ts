@@ -18,4 +18,15 @@ describe("installationFromGithub", () => {
       suspendedAt: null,
     });
   });
+
+  it("reads a suspension GitHub reports at 2026-09-12T08:00:00Z as that instant", () => {
+    expect(
+      installationFromGithub({
+        id: 81234567,
+        account: { login: "re-cinq", type: "Organization" },
+        repository_selection: "all",
+        suspended_at: "2026-09-12T08:00:00Z",
+      }).suspendedAt,
+    ).toEqual(new Date("2026-09-12T08:00:00.000Z"));
+  });
 });

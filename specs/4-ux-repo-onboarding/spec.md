@@ -527,6 +527,8 @@ and a repo is served by the installation of its owner.
   account and whether that is an organization or a user, and whether it
   covers all or only selected repos — refusing an account type or repository
   selection it does not know rather than storing it. ([validated by reads GitHub's re-cinq installation as the organization installation 81234567 on selected repos](libs/shared/src/domain/github-installation/installation-from-github.test.ts#L5))
+- FR-8.6: An installation the account has suspended is recorded with the
+  instant GitHub reports it was suspended. ([validated by reads a suspension GitHub reports at 2026-09-12T08:00:00Z as that instant](libs/shared/src/domain/github-installation/installation-from-github.test.ts#L22))
 
 ## Operational Targets (Background)
 
