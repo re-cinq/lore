@@ -1174,5 +1174,21 @@ describe.each(IMPLEMENTATIONS)(
         message: `resume-from would take over subject "feature:ten" in ${repo}, but run "${holder}" is already working it — retry once that run finishes`,
       });
     });
+
+    it("findStationRunById returns the open review visit its station run id names", async () => {
+      const { port, repo } = make();
+      const runId = await port.start({ blueprintName: "code-review", repo });
+      const { stationRunId } = await port.ensureStationRun({
+        assemblyRunId: runId,
+        nodeId: "review",
+        iteration: 1,
+      });
+
+      expect(await port.findStationRunById(stationRunId)).toMatchObject({
+        stationRunId,
+        nodeId: "review",
+        outcome: null,
+      });
+    });
   },
 );

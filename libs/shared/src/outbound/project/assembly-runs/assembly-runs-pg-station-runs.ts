@@ -245,5 +245,19 @@ export async function findStationRunByAgentCrName(
   return rows[0] ? toStationRun(rows[0]) : null;
 }
 
+export async function findStationRunById(
+  pool: PgPool,
+  stationRunId: string,
+): Promise<StationRunRecord | null> {
+  const { rows } = await pool.query(
+    `SELECT ${STATION_RUN_COLUMNS}
+       FROM pipeline.station_runs
+      WHERE station_run_id = $1`,
+    [stationRunId],
+  );
+
+  return rows[0] ? toStationRun(rows[0]) : null;
+}
+
 const toStationRun = (row: unknown): StationRunRecord =>
   toNodeRecord(row as Parameters<typeof toNodeRecord>[0]);

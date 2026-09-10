@@ -397,3 +397,5 @@ sits in a Secret at all.
   thrown, so garbage in the header is a clean refusal, never a 500. ([validated by refuses not-a-credential as malformed rather than throwing](libs/shared/src/domain/github-credential/run-credential.test.ts#L36))
 - The broker grants a git credential only for the repo the run credential
   names, and only while the station run it names is still open. ([validated by grants re-cinq/bowman-ui to the still-open station run its credential names](libs/shared/src/domain/github-credential/grant.test.ts#L11), [refuses the station run that already finished with success as run-closed](libs/shared/src/domain/github-credential/grant.test.ts#L21), [refuses re-cinq/lore to a credential issued for re-cinq/bowman-ui as repo-mismatch](libs/shared/src/domain/github-credential/grant.test.ts#L31))
+- The broker looks the station run up by the id its credential names, and
+  both stores answer that lookup the same way. ([validated by findStationRunById returns the open review visit its station run id names](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1178))

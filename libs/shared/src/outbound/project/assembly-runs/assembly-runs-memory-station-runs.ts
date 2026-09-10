@@ -299,6 +299,14 @@ export class StationRunStore {
     return newest ? toStationRun(newest) : null;
   }
 
+  async findStationRunById(
+    stationRunId: string,
+  ): Promise<StationRunRecord | null> {
+    const visit = this.nodes.find((n) => n.stationRunId === stationRunId);
+
+    return visit ? toStationRun(visit) : null;
+  }
+
   hasOpenClaimByAgent(runId: string, clusterAgentId: string): boolean {
     return this.nodes.some(
       (node) =>
