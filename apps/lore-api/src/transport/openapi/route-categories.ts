@@ -80,6 +80,8 @@ const TAG_RULES: Array<[RegExp, string]> = [
   [/\/webhook/, "Webhooks"],
   [/^\/api\/tokens\b/, "Tokens"],
   [/^\/api\/cluster-agents\b/, "Cluster Agents"],
+  // Connecting GitHub decides which orgs' repos Lore can serve.
+  [/^\/api\/github\/installations\b/, "Repositories"],
   [/^\/api\/(repos|repo-status|pr-status|onboard|settings)\b/, "Repositories"],
 ];
 

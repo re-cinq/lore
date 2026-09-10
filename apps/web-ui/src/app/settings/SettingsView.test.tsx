@@ -31,6 +31,8 @@ function renderView(
       saveSettings={action}
       saveApprovalConfig={action}
       regenerateToken={action}
+      githubInstallations={[]}
+      githubInstallUrl={null}
       {...over}
     />,
   );
@@ -181,5 +183,29 @@ describe("SettingsView", () => {
     expect(pre.textContent).toContain(
       "git config --global lore.api-url https://your-lore-api.example.com",
     );
+  });
+
+  it("renders the GitHub section with the connected re-cinq organization", () => {
+    renderView({
+      githubInstallations: [
+        {
+          installation_id: "81234567",
+          account_login: "re-cinq",
+          account_type: "Organization",
+          repository_selection: "selected",
+          suspended_at: null,
+          installed_at: "2026-09-10T20:00:00.000Z",
+          updated_at: "2026-09-10T20:00:00.000Z",
+        },
+      ],
+      githubInstallUrl: "https://github.com/apps/lore-agent/installations/new",
+    });
+
+    expect(
+      screen.getByRole("heading", { level: 2, name: "GitHub" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("re-cinq — Organization, selected repos"),
+    ).toBeInTheDocument();
   });
 });

@@ -173,6 +173,7 @@ resource "helm_release" "lore_platform" {
         LORE_DB_NAME       = "lore"
         LORE_DB_USER       = "lore"
         GITHUB_ALLOWED_ORG = var.github_org
+        GITHUB_APP_SLUG    = var.github_app_slug
         NEXTAUTH_URL       = var.lore_ui_url
         LORE_LOG_BUCKET    = "lore-task-logs-${var.project_id}"
         LORE_API_URL       = local.lore_api_in_cluster

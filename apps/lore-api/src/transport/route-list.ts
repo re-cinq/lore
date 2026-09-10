@@ -99,6 +99,8 @@ import { featuresRoutes } from "./routes/features/features.js";
 import { implementationLoopRoutes } from "./routes/backlog/backlog.js";
 import { openApiJsonRoute, docsRoute } from "./routes/openapi/openapi.js";
 import { githubCredentialsRoute } from "./routes/github-credentials/github-credentials.js";
+import { githubInstallationsRoute } from "./routes/github-installations/record-installation.js";
+import { githubInstallationsListRoute } from "./routes/github-installations/list-installations.js";
 
 type PoolGetter = () => Pool | null;
 
@@ -113,6 +115,8 @@ export function routeList(getPool: PoolGetter): ServerRoute[] {
     ...webhookRoutes(getPool),
     ...clusterAgentRoutes(getPool),
     githubCredentialsRoute(getPool),
+    githubInstallationsRoute(getPool),
+    githubInstallationsListRoute(getPool),
     ...agentDefinitionRoutes(getPool),
     ...analyticsRoutes(getPool),
     ...traceRoutes(),
