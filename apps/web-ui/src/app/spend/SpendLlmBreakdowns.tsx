@@ -28,8 +28,6 @@ export function LlmBreakdowns({ llm }: LlmProps) {
 
       <VendorCosts byVendor={llm.by_vendor} />
 
-      <ModelCosts byModel={llm.by_model} />
-
       <LlmBreakdownsBySlice llm={llm} />
     </>
   );
@@ -86,6 +84,25 @@ function VendorCostTable({ byVendor }: ByVendorProps) {
   );
 }
 
+/** The deeper cuts, folded behind a disclosure so the page opens on the two figures that matter most — cost per line and per vendor — rather than a wall of tables. Model, kind, day, repo, task type and cluster are one click away. */
+function LlmBreakdownsBySlice({ llm }: LlmProps) {
+  return (
+    <details className={styles.moreTables}>
+      <summary>
+        More breakdowns — by model, kind, day, repo, task type, cluster
+      </summary>
+      <ModelCosts byModel={llm.by_model} />
+
+      <KindCosts llm={llm} />
+
+      <DailyCosts llm={llm} />
+
+      <AttributedBreakdowns llm={llm} />
+      <ClusterBreakdown byCluster={llm.by_cluster} />
+    </details>
+  );
+}
+
 /** What Lore metered per model. This is the computed figure, not the invoice — the billed table alongside it is the vendor's own number, and the two are shown separately rather than reconciled here. */
 function ModelCosts({ byModel }: { byModel: SpendWindow["llm"]["by_model"] }) {
   return (
@@ -105,20 +122,6 @@ function ModelCosts({ byModel }: { byModel: SpendWindow["llm"]["by_model"] }) {
         num(r.output_tokens),
       ]}
     />
-  );
-}
-
-/** The cuts that answer "where did it go": by kind of work, by day, by repo, by task type, and by cluster. */
-function LlmBreakdownsBySlice({ llm }: LlmProps) {
-  return (
-    <>
-      <KindCosts llm={llm} />
-
-      <DailyCosts llm={llm} />
-
-      <AttributedBreakdowns llm={llm} />
-      <ClusterBreakdown byCluster={llm.by_cluster} />
-    </>
   );
 }
 

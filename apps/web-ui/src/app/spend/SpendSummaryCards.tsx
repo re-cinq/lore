@@ -20,11 +20,11 @@ interface SummaryCardsProps {
 
 /** The headline figures: what Lore computed from token counts, what each vendor actually billed, and what the pods cost. A billed card appears only once that vendor has synced. */
 export function SummaryCards(props: SummaryCardsProps) {
-  const { interval, llm, billed, gcp, compute } = props;
+  const { llm, billed, gcp, compute } = props;
 
   return (
     <div className={styles.cards}>
-      <LoreComputedCards interval={interval} llm={llm} />
+      <LoreComputedCards llm={llm} />
       {billed.available && <AnthropicBilledCard billed={billed} />}
       <StatCard
         label="Kubernetes (estimated)"
@@ -40,17 +40,10 @@ export function SummaryCards(props: SummaryCardsProps) {
 }
 
 /** What Lore metered itself, over the chosen interval. Marked an estimate throughout: these are computed from token counts, and the vendor's invoice beside them is the authority. */
-function LoreComputedCards({
-  interval,
-  llm,
-}: Pick<SummaryCardsProps, "interval" | "llm">) {
+function LoreComputedCards({ llm }: Pick<SummaryCardsProps, "llm">) {
   return (
     <>
-      <StatCard
-        label={`Lore-computed cost ${day(interval.from)} → ${day(interval.to)}`}
-        figure={usd(llm.total_usd)}
-        estimate
-      >
+      <StatCard label="Lore-computed cost" figure={usd(llm.total_usd)} estimate>
         <Subnote>estimate from token counts</Subnote>
       </StatCard>
       <StatCard label="API calls" figure={num(llm.calls)} />

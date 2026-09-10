@@ -1,25 +1,32 @@
 /* Claude API Spend view — co-located with SpendView.tsx. All values static;
    nothing here is computed at render. */
 
+/* One row: every headline card shares the width equally and shrinks to fit
+   rather than wrapping, so the whole summary reads at a glance on one line. */
 .cards {
-  display: flex;
-  gap: var(--space-5);
-  margin-bottom: var(--space-6);
-  flex-wrap: wrap;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
 }
 
+/* The global .spec-card ships 4px; these want equal room on every side, but
+   compact enough that seven of them fit one line. */
 .card {
-  flex: 1;
-  min-width: 180px;
+  padding: 12px 14px;
+  min-width: 0;
 }
 
+/* Smaller than the page's --fs-xl so a seven-figure token count fits a narrow
+   card without overflowing. */
 .figure {
-  font-size: var(--fs-xl);
+  font-size: var(--fs-md);
   font-weight: bold;
 }
 
 .figureInfo {
-  font-size: var(--fs-xl);
+  font-size: var(--fs-md);
   font-weight: bold;
   color: var(--info);
 }
@@ -29,12 +36,12 @@
 }
 
 .warningCard {
-  margin-bottom: var(--space-6);
+  margin-bottom: 24px;
   border-color: var(--warning);
 }
 
 .warningNote {
-  margin-top: var(--space-2);
+  margin-top: 4px;
 }
 
 .mono {
@@ -52,13 +59,122 @@
   font-weight: bold;
   font-size: var(--fs-xs);
   color: var(--text-muted);
-  padding-top: var(--space-3);
+  padding-top: 8px;
 }
 
 .presetRow {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: 8px;
   flex-wrap: wrap;
-  margin-bottom: var(--space-4);
+  margin-bottom: 12px;
+}
+
+/* --- Redesign: labelled sections, estimate-vs-billed bars, daily trend --- */
+
+/* Each of the three groups (Lore-computed, vendor invoices, compute) is a band.
+   The rule under the title is the only heavy divider on the page, so the three
+   kinds of number read apart at a glance rather than as one long scroll. */
+.section {
+  margin: 0 0 40px;
+}
+
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 28px 0 4px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--border);
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: var(--fs-lg);
+}
+
+/* The estimate/billed pill sits on the section head, stating once for the whole
+   group whether these figures are Lore's estimate or a vendor's invoice. */
+.kindPill {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: var(--fs-2xs);
+}
+
+/* Estimate against invoice, one row per vendor that has synced. */
+.compare {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: 8px 0 28px;
+  max-width: 520px;
+}
+
+.compareRow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.compareLabel {
+  font-weight: bold;
+}
+
+.compareBars {
+  width: 100%;
+  height: 22px;
+}
+
+/* Estimate in the info tone, invoice in solid text: the same colour language the
+   headline cards use, so a reader already knows which is which. */
+.compareEstimate {
+  fill: var(--info);
+}
+
+.compareBilled {
+  fill: var(--text);
+}
+
+.compareFigures {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+}
+
+.compareBilledFigure {
+  margin-left: 8px;
+  font-weight: bold;
+  color: var(--text);
+}
+
+/* The daily-cost chart: one labelled column per day, each carrying its cost
+   above the bar and its date below, so the numbers read off the chart itself.
+   An SVG (geometry as attributes, text at uniform scale) rather than CSS bars. */
+.trendChart {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 8px 0 24px;
+}
+
+.trendBar {
+  fill: var(--info);
+}
+
+.trendValue,
+.trendDate {
+  fill: var(--text-muted);
+  font-size: 9px;
+}
+
+/* The long tail of LLM breakdowns, one click from the two that matter. */
+.moreTables {
+  margin: 8px 0 24px;
+}
+
+.moreTables summary {
+  cursor: pointer;
+  font-weight: bold;
+  color: var(--text-muted);
+  padding: 6px 0;
 }
