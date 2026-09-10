@@ -539,6 +539,9 @@ and a repo is served by the installation of its owner.
 - FR-8.9: `POST /api/github/installations` is an admin act served over HTTP:
   a request without a bearer token is refused with a 401, and a malformed
   installation id with a 400 before GitHub is ever asked. ([validated by refuses a request that carries no bearer token with 401](apps/lore-api/src/integration-tests/github-installations.test.ts#L34), [refuses an installation id of not-a-number with 400 before GitHub is asked](apps/lore-api/src/integration-tests/github-installations.test.ts#L44))
+- FR-8.10: The Connect GitHub page lists every connected account in the same
+  wire shape an installation is recorded in, ordered by account login.
+  ([validated by lists the acme-corp and re-cinq installations in their wire shape, ordered by account login](apps/lore-api/src/transport/routes/github-installations/list-installations.test.ts#L8))
 
 ## Operational Targets (Background)
 
