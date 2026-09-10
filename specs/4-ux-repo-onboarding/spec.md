@@ -563,8 +563,8 @@ and a repo is served by the installation of its owner.
 - FR-8.18: The web UI records an installation by posting its id to lore-api's
   `/api/github/installations`. ([validated by posts installation 81234567 to lore-api's /api/github/installations](apps/web-ui/src/lib/api/github-installations.test.ts#L35))
 - FR-8.19: The callback GitHub sends an admin back to after installing the
-  App reads the installation id from the redirect's query string.
-  ([validated by reads installation 81234567 from GitHub's setup redirect](apps/web-ui/src/app/settings/github/callback/installation-id.test.ts#L5))
+  App reads the installation id from the redirect's query string; a redirect
+  without one, or with anything but a number, names no installation. ([validated by reads installation 81234567 from GitHub's setup redirect](apps/web-ui/src/app/settings/github/callback/installation-id.test.ts#L5), [reads no installation from a redirect without an id or with not-a-number](apps/web-ui/src/app/settings/github/callback/installation-id.test.ts#L14))
 
 ## Operational Targets (Background)
 
