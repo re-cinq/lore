@@ -299,7 +299,7 @@ The system MUST reorganize the UI around repos. ([validated by `HomeView.test.ts
   form, the approval form, and the install command with the supplied
   token/api-url (or placeholders). The former global Tasks view (a
   legacy chunk-backed page predating the pipeline) was removed in
-  #1057 (issue #1049) in favor of the per-repo Assembly Lines tab. ([validated by `SettingsView.test.tsx:43`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L40), [`SettingsView.test.tsx:63`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L63), [`SettingsView.test.tsx:76`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L76), [`SettingsView.test.tsx:89`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L89), [`SettingsView.test.tsx:101`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L101), [`SettingsView.test.tsx:110`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L110), [`SettingsView.test.tsx:140`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L140), [`SettingsView.test.tsx:162`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L162), [`SettingsView.test.tsx:174`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L174))
+  #1057 (issue #1049) in favor of the per-repo Assembly Lines tab. ([validated by `SettingsView.test.tsx:43`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L42), [`SettingsView.test.tsx:63`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L65), [`SettingsView.test.tsx:76`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L78), [`SettingsView.test.tsx:89`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L91), [`SettingsView.test.tsx:101`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L103), [`SettingsView.test.tsx:110`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L112), [`SettingsView.test.tsx:140`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L142), [`SettingsView.test.tsx:162`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L164), [`SettingsView.test.tsx:174`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L176))
 - FR-3.16: Every doc card list (specs, ADRs, the global browsers)
   shares one pure filter/sort helper — status counts and visibility
   (unstatused docs shown only under "All"), a case-insensitive text
@@ -555,6 +555,8 @@ and a repo is served by the installation of its owner.
   words rather than showing an empty list. ([validated by says Lore is not connected to any GitHub account yet when none is recorded](apps/web-ui/src/app/settings/GithubConnectSection.test.tsx#L54))
 - FR-8.15: The web UI reads the connected accounts from lore-api's
   `/api/github/installations`. ([validated by reads the connected accounts from lore-api's /api/github/installations](apps/web-ui/src/lib/api/github-installations.test.ts#L24))
+- FR-8.16: The settings page shows the GitHub section with the accounts
+  Lore is connected to. ([validated by renders the GitHub section with the connected re-cinq organization](apps/web-ui/src/app/settings/SettingsView.test.tsx#L188))
 
 ## Operational Targets (Background)
 

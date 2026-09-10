@@ -1,5 +1,8 @@
 import ThemeSwitcher from "@/components/ThemeSwitcher";
 import ApprovalGatesForm from "./ApprovalGatesForm";
+import GithubConnectSection, {
+  type GithubInstallationRow,
+} from "./GithubConnectSection";
 import styles from "./SettingsView.module.css";
 
 export interface SettingsApprovalConfig {
@@ -22,6 +25,10 @@ export interface SettingsViewProps {
   saveSettings: (formData: FormData) => void | Promise<void>;
   saveApprovalConfig: (formData: FormData) => void | Promise<void>;
   regenerateToken: (formData: FormData) => void | Promise<void>;
+  /** The GitHub accounts Lore is connected to (specs/4-ux-repo-onboarding FR-8). */
+  githubInstallations: GithubInstallationRow[];
+  /** Where an admin installs the GitHub App on another account; null while its slug is not configured. */
+  githubInstallUrl: string | null;
 }
 
 /** Each section declares the slice of the settings it consumes in its own props type, so the whole bag is handed down and narrowed there rather than re-listed here. */
@@ -31,6 +38,10 @@ export default function SettingsView(props: SettingsViewProps) {
       <h1>Settings</h1>
       <AppearanceSection />
       <PlatformStats {...props} />
+      <GithubConnectSection
+        installations={props.githubInstallations}
+        installUrl={props.githubInstallUrl}
+      />
       <PlatformConfigForm {...props} />
       <ApprovalGatesForm {...props} />
       <InstallCommand {...props} />

@@ -1,22 +1,22 @@
 export const dynamic = "force-dynamic";
 import { getTaskStats } from "@/lib/api/tasks";
 import { getOrgSettings, putOrgSettings } from "@/lib/api/repos";
+import { listGithubInstallations } from "@/lib/api/github-installations";
 import { revalidatePath } from "next/cache";
-import SettingsView, { type SettingsApprovalConfig } from "./SettingsView";
+import SettingsView, {
+  type SettingsApprovalConfig,
+  type SettingsViewProps,
+} from "./SettingsView";
+
+type SettingsViewData = Omit<
+  SettingsViewProps,
+  "saveSettings" | "saveApprovalConfig" | "regenerateToken"
+>;
 
 export default async function SettingsPage() {
-  const { settingsMap, repoCount, taskStats, approvalConfig } =
-    await loadSettingsPageData();
-
   return (
     <SettingsView
-      apiUrl={settingsMap.api_url || ""}
-      ingestToken={settingsMap.ingest_token || ""}
-      repoCount={repoCount}
-      totalTasks={taskStats.total}
-      tasksToday={taskStats.today}
-      approvalConfig={approvalConfig}
-      repoLines={Object.keys(approvalConfig.repos).join("\n")}
+      {...viewDataFrom(await loadSettingsPageData())}
       saveSettings={saveSettings}
       saveApprovalConfig={saveApprovalConfig}
       regenerateToken={regenerateToken}
@@ -24,17 +24,38 @@ export default async function SettingsPage() {
   );
 }
 
+/** The view's data props from what the page loaded. */
+function viewDataFrom(
+  loaded: Awaited<ReturnType<typeof loadSettingsPageData>>,
+): SettingsViewData {
+  return {
+    apiUrl: loaded.settingsMap.api_url || "",
+    ingestToken: loaded.settingsMap.ingest_token || "",
+    repoCount: loaded.repoCount,
+    totalTasks: loaded.taskStats.total,
+    tasksToday: loaded.taskStats.today,
+    approvalConfig: loaded.approvalConfig,
+    repoLines: Object.keys(loaded.approvalConfig.repos).join("\n"),
+    githubInstallations: loaded.githubInstallations,
+    githubInstallUrl: null,
+  };
+}
+
 /** Everything the settings page renders from, read in one place so the page itself is the wiring. */
 async function loadSettingsPageData() {
-  const org = await getOrgSettings();
+  const [org, stats, github] = await Promise.all([
+    getOrgSettings(),
+    getTaskStats(),
+    listGithubInstallations(),
+  ]);
   const settingsMap = settingsMapFrom(org);
-  const stats = await getTaskStats();
 
   return {
     settingsMap,
     repoCount: repoCountFrom(org),
     taskStats: taskStatsFrom(stats),
     approvalConfig: resolveApprovalConfig(settingsMap),
+    githubInstallations: github.status === "ok" ? github.data : [],
   };
 }
 
