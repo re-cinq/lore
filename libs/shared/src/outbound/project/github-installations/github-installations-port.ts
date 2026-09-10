@@ -14,4 +14,6 @@ export interface GithubInstallationsRepository {
   findByAccount(accountLogin: string): Promise<GithubInstallation | null>;
   /** Forget an installation — the App was uninstalled from its account, so nothing can be served through it any more. */
   remove(installationId: string): Promise<void>;
+  /** Every installation, ordered by account login — the accounts the Connect GitHub page shows. */
+  list(): Promise<GithubInstallation[]>;
 }

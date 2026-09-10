@@ -521,6 +521,8 @@ and a repo is served by the installation of its owner.
 - FR-8.3: When the App is uninstalled from an account, Lore forgets that
   installation, so it no longer claims to serve that account's repos.
   ([validated by forgets the re-cinq installation once the App is uninstalled there](libs/shared/src/outbound/project/github-installations/github-installations.test.ts#L45))
+- FR-8.4: Lore lists every account it is connected to, ordered by account
+  login. ([validated by lists acme-corp before re-cinq, ordered by account login](libs/shared/src/outbound/project/github-installations/github-installations.test.ts#L54))
 
 ## Operational Targets (Background)
 

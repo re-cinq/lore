@@ -41,4 +41,10 @@ export class InMemoryGithubInstallations implements GithubInstallationsRepositor
   async remove(installationId: string): Promise<void> {
     this.installations.delete(installationId);
   }
+
+  async list(): Promise<GithubInstallation[]> {
+    return [...this.installations.values()].sort((a, b) =>
+      a.accountLogin.localeCompare(b.accountLogin),
+    );
+  }
 }

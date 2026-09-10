@@ -50,4 +50,20 @@ describe("InMemoryGithubInstallations", () => {
 
     expect(await installations.findByAccount("re-cinq")).toBeNull();
   });
+
+  it("lists acme-corp before re-cinq, ordered by account login", async () => {
+    const installations = new InMemoryGithubInstallations(() => INSTALLED_AT);
+
+    await installations.upsert(RE_CINQ);
+    await installations.upsert({
+      ...RE_CINQ,
+      installationId: "89990001",
+      accountLogin: "acme-corp",
+    });
+
+    expect((await installations.list()).map((i) => i.accountLogin)).toEqual([
+      "acme-corp",
+      "re-cinq",
+    ]);
+  });
 });
