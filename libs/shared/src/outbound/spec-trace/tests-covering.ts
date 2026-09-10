@@ -78,10 +78,10 @@ export function preferOverlay(
   return fromOverlay.length ? fromOverlay : fromMain;
 }
 
-/** The tests covering `target` as the run sees them: its own branch coverage where it has any, main's everywhere else. */
+/** The tests covering `target` as the branch sees them: its own coverage where it has any, main's everywhere else. */
 export async function testsCovering(
   dgraph: DgraphClientPort,
-  scope: { repo: string; assemblyRunId?: string },
+  scope: { repo: string; branch?: string },
   target: CoverageTarget,
 ): Promise<CoveringTest[]> {
   const fromMain = await testsCoveringInScope(
@@ -90,12 +90,12 @@ export async function testsCovering(
     target,
   );
 
-  if (!scope.assemblyRunId) {
+  if (!scope.branch) {
     return fromMain;
   }
   const branch = await testsCoveringInScope(
     dgraph,
-    overlayScope(scope.repo, scope.assemblyRunId),
+    overlayScope(scope.repo, scope.branch),
     target,
   );
 
