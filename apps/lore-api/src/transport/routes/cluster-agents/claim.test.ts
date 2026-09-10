@@ -4,8 +4,11 @@ import { InMemoryClusterAgents } from "@re-cinq/lore-shared/project/cluster-agen
 import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { hashAgentToken } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agent-token.js";
+import { verifyRunCredential } from "@re-cinq/lore-shared/github-credential/run-credential.js";
 
 const TOKEN = "lca_minikube_secret";
+const KEY = "run-credential-key-for-tests";
+const CLAIM_TIME = new Date("2026-09-10T12:00:00.000Z");
 
 async function registeredAgent(tags: string[] = ["node:agent"]) {
   const agents = new InMemoryClusterAgents();
@@ -19,6 +22,10 @@ async function registeredAgent(tags: string[] = ["node:agent"]) {
   enforceTrue(agent, Error, "name already registered");
 
   return { agents, agent };
+}
+
+function claimDeps(agents: InMemoryClusterAgents, runs: InMemoryAssemblyRuns) {
+  return { agents, runs, key: KEY, now: () => CLAIM_TIME };
 }
 
 async function armedQueuedRun(requiredTags: string[] = ["node:agent"]) {
@@ -39,7 +46,7 @@ async function armedQueuedRun(requiredTags: string[] = ["node:agent"]) {
 
   await runs.enqueueStationRunDispatch(nodeRowId, {
     type: "implementation",
-    repo: "re-cinq/lore",
+    targetRepo: "re-cinq/lore",
     branch: "lore/task-1",
   });
 
@@ -51,7 +58,7 @@ describe("handleClaim", () => {
     const { agents, agent } = await registeredAgent();
     const { runs } = await armedQueuedRun();
 
-    expect(await handleClaim({ agents, runs }, undefined, agent.id)).toEqual({
+    expect(await handleClaim(claimDeps(agents, runs), undefined, agent.id)).toEqual({
       code: 401,
       body: { error: "unauthorized" },
     });
@@ -61,7 +68,7 @@ describe("handleClaim", () => {
     const { agents, agent } = await registeredAgent();
     const { runs } = await armedQueuedRun();
 
-    expect(await handleClaim({ agents, runs }, "lca_stolen", agent.id)).toEqual(
+    expect(await handleClaim(claimDeps(agents, runs), "lca_stolen", agent.id)).toEqual(
       { code: 403, body: { error: "forbidden" } },
     );
   });
@@ -71,7 +78,7 @@ describe("handleClaim", () => {
     const { runs } = await armedQueuedRun();
 
     expect(
-      await handleClaim({ agents, runs }, TOKEN, "some-other-agent-id"),
+      await handleClaim(claimDeps(agents, runs), TOKEN, "some-other-agent-id"),
     ).toEqual({ code: 403, body: { error: "forbidden" } });
   });
 
@@ -80,7 +87,7 @@ describe("handleClaim", () => {
 
     expect(
       await handleClaim(
-        { agents, runs: new InMemoryAssemblyRuns() },
+        claimDeps(agents, new InMemoryAssemblyRuns()),
         TOKEN,
         agent.id,
       ),
@@ -93,13 +100,13 @@ describe("handleClaim", () => {
 
     await agents.setPaused(agent.id, PAUSED);
 
-    expect(await handleClaim({ agents, runs }, TOKEN, agent.id)).toEqual({
+    expect(await handleClaim(claimDeps(agents, runs), TOKEN, agent.id)).toEqual({
       code: 204,
     });
 
     await agents.setPaused(agent.id, RESUMED);
 
-    expect(await handleClaim({ agents, runs }, TOKEN, agent.id)).toMatchObject({
+    expect(await handleClaim(claimDeps(agents, runs), TOKEN, agent.id)).toMatchObject({
       code: 200,
     });
   });
@@ -109,7 +116,7 @@ describe("handleClaim", () => {
     const { runs, assemblyRunId, nodeRowId, stationRunId } =
       await armedQueuedRun();
 
-    expect(await handleClaim({ agents, runs }, TOKEN, agent.id)).toEqual({
+    expect(await handleClaim(claimDeps(agents, runs), TOKEN, agent.id)).toEqual({
       code: 200,
       body: {
         station_run_id: stationRunId,
@@ -120,13 +127,31 @@ describe("handleClaim", () => {
         agent_cr_name: "abc123def456-implement",
         spec: {
           type: "implementation",
-          repo: "re-cinq/lore",
+          targetRepo: "re-cinq/lore",
           branch: "lore/task-1",
         },
+        git_credential: expect.stringMatching(/^v1\./),
       },
     });
-    expect(await handleClaim({ agents, runs }, TOKEN, agent.id)).toEqual({
+    expect(await handleClaim(claimDeps(agents, runs), TOKEN, agent.id)).toEqual({
       code: 204,
+    });
+  });
+
+  it("issues a run credential for re-cinq/lore bound to the claimed station run, expiring 24h after the claim", async () => {
+    const { agents, agent } = await registeredAgent();
+    const { runs, stationRunId } = await armedQueuedRun();
+    const claimed = await handleClaim(claimDeps(agents, runs), TOKEN, agent.id);
+    const credential =
+      claimed.code === 200 ? claimed.body.git_credential : "";
+
+    expect(verifyRunCredential(credential, KEY, CLAIM_TIME)).toEqual({
+      ok: true,
+      claims: {
+        stationRunId,
+        repo: "re-cinq/lore",
+        expiresAt: "2026-09-11T12:00:00.000Z",
+      },
     });
   });
 
@@ -134,7 +159,7 @@ describe("handleClaim", () => {
     const { agents, agent } = await registeredAgent(["node:agent"]);
     const { runs } = await armedQueuedRun(["node:agent", "gpu"]);
 
-    expect(await handleClaim({ agents, runs }, TOKEN, agent.id)).toEqual({
+    expect(await handleClaim(claimDeps(agents, runs), TOKEN, agent.id)).toEqual({
       code: 204,
     });
   });

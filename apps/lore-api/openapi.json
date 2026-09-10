@@ -9662,7 +9662,10 @@
           "agent_cr_name": {
             "type": ["string", "null"]
           },
-          "spec": {}
+          "spec": {},
+          "git_credential": {
+            "type": "string"
+          }
         },
         "required": [
           "station_run_id",
@@ -9671,7 +9674,8 @@
           "node_id",
           "iteration",
           "agent_cr_name",
-          "spec"
+          "spec",
+          "git_credential"
         ],
         "additionalProperties": false
       },

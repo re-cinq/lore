@@ -2536,6 +2536,7 @@ export interface components {
       iteration: number;
       agent_cr_name: string | null;
       spec: unknown;
+      git_credential: string;
     };
     ClusterAgentHeartbeat: {
       /** @constant */

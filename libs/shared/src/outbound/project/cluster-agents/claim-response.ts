@@ -12,4 +12,6 @@ export interface ClaimResponse {
   /** Null for a row enqueued without a CR name armed yet — the spec's own name is the fallback then. */
   agent_cr_name: string | null;
   spec: LoreTaskSpec;
+  /** The run credential the pod trades at POST /api/github-credentials for a token scoped to its repo (ADR-031 amendment 2026-09-10). */
+  git_credential: string;
 }

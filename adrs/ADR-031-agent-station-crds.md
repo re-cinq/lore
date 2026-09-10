@@ -388,6 +388,9 @@ sits in a Secret at all.
   parameter: the station run it belongs to, the one repo it may touch, and an
   expiry, signed with a key only lore-api holds. It is not a GitHub token and
   grants nothing on GitHub by itself. ([validated by returns the claims of a credential signed with the same key before it expires](libs/shared/src/domain/github-credential/run-credential.test.ts#L12))
+- The claim that hands a cluster-agent its station run also hands it that run's
+  credential, bound to the run's station-run id and its target repo and valid
+  for 24 hours from the claim; the broker's run-closed check ends it sooner. ([validated by issues a run credential for re-cinq/lore bound to the claimed station run, expiring 24h after the claim](apps/lore-api/src/transport/routes/cluster-agents/claim.test.ts#L141))
 - A credential signed with any other key is refused as `bad-signature`,
   compared in constant time, so a pod cannot forge one for another repo or
   another run. ([validated by refuses a credential signed with another key as bad-signature](libs/shared/src/domain/github-credential/run-credential.test.ts#L20))

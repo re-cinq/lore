@@ -208,7 +208,7 @@ one dispatch mechanism, not a special case plus a remote case.
   configurable interval (default 15 s); the claim is a single
   `SELECT … FOR UPDATE SKIP LOCKED` CTE that sets `status = 'claimed'`,
   `cluster_agent_id`, and `claimed_at` in one statement, so concurrent
-  claimants are safe. ([validated by `claim.test.ts:107`](apps/lore-api/src/transport/routes/cluster-agents/claim.test.ts#L107), [`assembly-runs.contract.test.ts:846`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L886), [`assembly-runs.contract.test.ts:906`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L946))
+  claimants are safe. ([validated by `claim.test.ts:107`](apps/lore-api/src/transport/routes/cluster-agents/claim.test.ts#L114), [`assembly-runs.contract.test.ts:846`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L886), [`assembly-runs.contract.test.ts:906`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L946))
 - The central cluster runs the same claim loop: cluster-agent-helm registers
   it as `central` — the name the Floor reaper resolves CR visibility by —
   with the full tag set, including the central-only tags satellites never
@@ -247,7 +247,7 @@ one dispatch mechanism, not a special case plus a remote case.
   issued at registration, like every other lore-api call the agent makes; a
   refused token (401 or 403) is reported as `unauthorized` rather than a bare
   error, so the loop can tell "re-register and retry" apart from every other
-  failure shape. ([validated by `claim.test.ts:50`](apps/lore-api/src/transport/routes/cluster-agents/claim.test.ts#L50), [`claim.test.ts:60`](apps/lore-api/src/transport/routes/cluster-agents/claim.test.ts#L60), [`claim.test.ts:69`](apps/lore-api/src/transport/routes/cluster-agents/claim.test.ts#L69), [`claim-loop.test.ts:121`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L121), [reports unauthorized on a 401](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L198), [`claim-loop.test.ts:188`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L204), [re-registers on unauthorized and keeps polling at the base interval](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L311))
+  failure shape. ([validated by `claim.test.ts:50`](apps/lore-api/src/transport/routes/cluster-agents/claim.test.ts#L57), [`claim.test.ts:60`](apps/lore-api/src/transport/routes/cluster-agents/claim.test.ts#L67), [`claim.test.ts:69`](apps/lore-api/src/transport/routes/cluster-agents/claim.test.ts#L76), [`claim-loop.test.ts:121`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L121), [reports unauthorized on a 401](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L198), [`claim-loop.test.ts:188`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L204), [re-registers on unauthorized and keeps polling at the base interval](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L311))
 - A claim call that fails outright — a non-2xx refusal, an unparseable body, a
   rejected fetch — is never allowed to throw out of the loop; it comes back as
   an `error` outcome the loop logs and continues past, and a launch failure
@@ -255,7 +255,7 @@ one dispatch mechanism, not a special case plus a remote case.
 - A claim request with no matching queued run returns `204`. An idle agent
   backs its polling off (doubling to a 60 s ceiling, resetting on the first
   hit), so a fleet of quiet satellites costs the API a bounded trickle
-  rather than O(N) at the floor interval. ([validated by `claim.test.ts:78`](apps/lore-api/src/transport/routes/cluster-agents/claim.test.ts#L78), [`claim.test.ts:133`](apps/lore-api/src/transport/routes/cluster-agents/claim.test.ts#L133), [`claim-loop.test.ts:61`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L61), [`claim-loop.test.ts:65`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L65), [`claim-loop.test.ts:71`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L71), [`claim-loop.test.ts:79`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L79), [`claim-loop.test.ts:90`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L90), [`claim-loop.test.ts:135`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L135), [holds the base sleep on the first empty, doubles across consecutive ones, and drains straight through a hit](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L297))
+  rather than O(N) at the floor interval. ([validated by `claim.test.ts:78`](apps/lore-api/src/transport/routes/cluster-agents/claim.test.ts#L85), [`claim.test.ts:133`](apps/lore-api/src/transport/routes/cluster-agents/claim.test.ts#L158), [`claim-loop.test.ts:61`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L61), [`claim-loop.test.ts:65`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L65), [`claim-loop.test.ts:71`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L71), [`claim-loop.test.ts:79`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L79), [`claim-loop.test.ts:90`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L90), [`claim-loop.test.ts:135`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L135), [holds the base sleep on the first empty, doubles across consecutive ones, and drains straight through a hit](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L297))
 - A claim that HITS does not sleep before the next poll. The queue has just
   proved it has work, and a fan-out enqueues many visits at once — at the base
   interval a cluster launched one pod every 15 seconds, so ten queued nodes took
@@ -654,7 +654,7 @@ nothing matches is a trick that loses the cluster's real tags.
   un-pauses it. The queued run is untouched and another cluster may take it.
   Enforced at the route, which already resolves the agent, rather than in the
   claim SQL: pausing is a fact about the cluster-agent, and the station-run
-  queue has no business knowing about the registry. ([validated by `claim.test.ts:90`](apps/lore-api/src/transport/routes/cluster-agents/claim.test.ts#L90))
+  queue has no business knowing about the registry. ([validated by `claim.test.ts:90`](apps/lore-api/src/transport/routes/cluster-agents/claim.test.ts#L97))
 - The Clusters page carries the switch as a per-row toggle, and shows
   `paused` as a badge beside liveness rather than instead of it. Each row's
   button takes the agent id as a BOUND parameter of the server action, never
@@ -784,19 +784,19 @@ config flag.
   exercised together against a migrated Postgres — an agent presenting the
   registration token is registered and can then claim with the per-agent token
   it was minted, while a wrong registration token and another agent's per-agent
-  token are both refused. ([validated by refuses registration without the pre-shared token](apps/lore-api/src/integration-tests/cluster-agent-claim.test.ts#L230), [`cluster-agent-claim.test.ts:217`](apps/lore-api/src/integration-tests/cluster-agent-claim.test.ts#L217), [`cluster-agent-claim.test.ts:118`](apps/lore-api/src/integration-tests/cluster-agent-claim.test.ts#L118))
+  token are both refused. ([validated by refuses registration without the pre-shared token](apps/lore-api/src/integration-tests/cluster-agent-claim.test.ts#L234), [`cluster-agent-claim.test.ts:217`](apps/lore-api/src/integration-tests/cluster-agent-claim.test.ts#L221), [`cluster-agent-claim.test.ts:118`](apps/lore-api/src/integration-tests/cluster-agent-claim.test.ts#L122))
 - FR2: a run requiring `gpu` is never handed to an agent without it; a run
   with empty `required_tags` is claimable by any agent. Asserted against the
   real `required_tags <@ tags` containment as well as the in-memory double,
   because that operator reads correctly in either direction and is wrong in
-  one of them. ([validated by does not hand a run to an agent missing one of its required tags](apps/lore-api/src/integration-tests/cluster-agent-claim.test.ts#L170), [`single-cr-dispatch-acceptance.test.ts:188`](apps/floor/src/work/station/single-cr-dispatch-acceptance.test.ts#L188), [`single-cr-dispatch-acceptance.test.ts:175`](apps/floor/src/work/station/single-cr-dispatch-acceptance.test.ts#L175), [`single-cr-dispatch-acceptance.test.ts:201`](apps/floor/src/work/station/single-cr-dispatch-acceptance.test.ts#L201))
+  one of them. ([validated by does not hand a run to an agent missing one of its required tags](apps/lore-api/src/integration-tests/cluster-agent-claim.test.ts#L174), [`single-cr-dispatch-acceptance.test.ts:188`](apps/floor/src/work/station/single-cr-dispatch-acceptance.test.ts#L188), [`single-cr-dispatch-acceptance.test.ts:175`](apps/floor/src/work/station/single-cr-dispatch-acceptance.test.ts#L175), [`single-cr-dispatch-acceptance.test.ts:201`](apps/floor/src/work/station/single-cr-dispatch-acceptance.test.ts#L201))
 - FR3: two agents claiming concurrently never receive the same run; a
   human-station or service-node row is never returned by a claim; the
   minikube acceptance walk ends with a PR authored from a locally executed
   station run. A queued row that has not been armed yet is likewise never
   handed out — the walk writes the row and its dispatch spec in two
   statements, and a claim between them would consume a visit with nothing to
-  launch. ([validated by never hands one visit to two clusters](apps/lore-api/src/integration-tests/cluster-agent-claim.test.ts#L241), [`cluster-agent-claim.test.ts:197`](apps/lore-api/src/integration-tests/cluster-agent-claim.test.ts#L197), [`cluster-agent-claim.test.ts:141`](apps/lore-api/src/integration-tests/cluster-agent-claim.test.ts#L141), [`single-cr-dispatch-acceptance.test.ts:220`](apps/floor/src/work/station/single-cr-dispatch-acceptance.test.ts#L220))
+  launch. ([validated by never hands one visit to two clusters](apps/lore-api/src/integration-tests/cluster-agent-claim.test.ts#L245), [`cluster-agent-claim.test.ts:197`](apps/lore-api/src/integration-tests/cluster-agent-claim.test.ts#L201), [`cluster-agent-claim.test.ts:141`](apps/lore-api/src/integration-tests/cluster-agent-claim.test.ts#L145), [`single-cr-dispatch-acceptance.test.ts:220`](apps/floor/src/work/station/single-cr-dispatch-acceptance.test.ts#L220))
 - FR3 (single-CR): a task type with no assembly line takes the same path. The
   round trip is walked cluster-free through the production functions of all
   three processes — the Floor's launch seam, the claim, the CR the claiming
