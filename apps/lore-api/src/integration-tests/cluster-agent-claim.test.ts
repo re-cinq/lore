@@ -82,7 +82,10 @@ describe("the cluster-agent claim, against real Postgres", () => {
     };
   }
 
+  const prevIngestToken = process.env.LORE_INGEST_TOKEN;
+
   beforeAll(async () => {
+    process.env.LORE_INGEST_TOKEN = "integration-ingest-token";
     process.env.LORE_CLUSTER_AGENT_REGISTRATION_TOKEN = REGISTRATION_TOKEN;
     pool = new pg.Pool({
       host: process.env.LORE_DB_HOST || "localhost",
@@ -113,6 +116,7 @@ describe("the cluster-agent claim, against real Postgres", () => {
     await pool.end();
 
     restoreEnv("LORE_CLUSTER_AGENT_REGISTRATION_TOKEN", prevRegistration);
+    restoreEnv("LORE_INGEST_TOKEN", prevIngestToken);
   });
 
   it("hands a registered agent the visit it enqueued, with its dispatch spec intact", async () => {

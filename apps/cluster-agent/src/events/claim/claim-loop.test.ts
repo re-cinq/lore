@@ -28,6 +28,7 @@ const CLAIM_BODY = {
     targetRepo: "re-cinq/lore",
     branch: "feat/thing",
   } satisfies LoreTaskSpec,
+  git_credential: "v1.claims-for-run-42.signature",
 };
 
 const jsonResponse = (status: number, body?: unknown): Response =>
@@ -146,9 +147,20 @@ describe("claimOnce", () => {
       stationRunId: "run-42",
       crName: "abc123def456-implement",
     });
-    expect(d.launched).toEqual([
+    expect(d.launched).toMatchObject([
       { ...CLAIM_BODY.spec, name: "abc123def456-implement" },
     ]);
+  });
+
+  it("hands the pod its run credential and the lore-api broker URL as Agent CR parameters", async () => {
+    const d = deps([jsonResponse(200, CLAIM_BODY)]);
+
+    await claimOnce(d.tick);
+
+    expect(d.launched[0]?.parameters).toEqual({
+      git_credential: "v1.claims-for-run-42.signature",
+      git_credential_url: "https://lore-api.example.com/api/github-credentials",
+    });
   });
 
   it("falls back to the spec's own name for a row with none recorded", async () => {

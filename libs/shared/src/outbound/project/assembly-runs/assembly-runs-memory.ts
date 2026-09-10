@@ -265,6 +265,10 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
     return this.stationRuns.findStationRunByAgentCrName(agentCrName);
   }
 
+  findStationRunById(stationRunId: string): Promise<StationRunRecord | null> {
+    return this.stationRuns.findStationRunById(stationRunId);
+  }
+
   list(query: AssemblyRunQuery): Promise<AssemblyRunRecord[]> {
     return Promise.resolve(this.queries.list(query));
   }
