@@ -542,6 +542,9 @@ and a repo is served by the installation of its owner.
 - FR-8.10: The Connect GitHub page lists every connected account in the same
   wire shape an installation is recorded in, ordered by account login.
   ([validated by lists the acme-corp and re-cinq installations in their wire shape, ordered by account login](apps/lore-api/src/transport/routes/github-installations/list-installations.test.ts#L8))
+- FR-8.11: `GET /api/github/installations` serves that list over HTTP to any
+  bearer with read scope — a connected org's login is not a secret.
+  ([validated by lists the connected accounts to a bearer with 200 and a JSON list](apps/lore-api/src/integration-tests/github-installations.test.ts#L55))
 
 ## Operational Targets (Background)
 

@@ -692,7 +692,8 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    get?: never;
+    /** GET /api/github/installations */
+    get: operations["get_api_github_installations"];
     put?: never;
     /** POST /api/github/installations */
     post: operations["post_api_github_installations"];
@@ -3145,6 +3146,19 @@ export interface components {
       /** Format: date-time */
       updated_at: string;
     };
+    GithubInstallations: {
+      installation_id: string;
+      account_login: string;
+      /** @enum {string} */
+      account_type: "Organization" | "User";
+      /** @enum {string} */
+      repository_selection: "all" | "selected";
+      suspended_at: string | null;
+      /** Format: date-time */
+      installed_at: string;
+      /** Format: date-time */
+      updated_at: string;
+    }[];
     GraphBrowse: {
       stats: {
         entity_count: number;
@@ -5549,6 +5563,30 @@ export interface operations {
       403: components["responses"]["Forbidden"];
       413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
+    };
+  };
+  get_api_github_installations: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Every connected GitHub account, ordered by account login */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["GithubInstallations"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
     };
   };
   post_api_github_installations: {

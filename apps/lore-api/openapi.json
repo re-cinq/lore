@@ -2203,6 +2203,42 @@
             }
           }
         }
+      },
+      "get": {
+        "operationId": "get_api_github_installations",
+        "summary": "GET /api/github/installations",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Every connected GitHub account, ordered by account login",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GithubInstallations"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read"
       }
     },
     "/api/graph": {
@@ -12002,6 +12038,57 @@
           "updated_at"
         ],
         "additionalProperties": false
+      },
+      "GithubInstallations": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "installation_id": {
+              "type": "string"
+            },
+            "account_login": {
+              "type": "string"
+            },
+            "account_type": {
+              "type": "string",
+              "enum": ["Organization", "User"]
+            },
+            "repository_selection": {
+              "type": "string",
+              "enum": ["all", "selected"]
+            },
+            "suspended_at": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "installed_at": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "updated_at": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          "required": [
+            "installation_id",
+            "account_login",
+            "account_type",
+            "repository_selection",
+            "suspended_at",
+            "installed_at",
+            "updated_at"
+          ],
+          "additionalProperties": false
+        }
       },
       "GraphBrowse": {
         "type": "object",

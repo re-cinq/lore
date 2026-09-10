@@ -51,4 +51,17 @@ describe("recording a GitHub installation, over HTTP", () => {
 
     expect({ statusCode: res.statusCode }).toEqual({ statusCode: 400 });
   });
+
+  it("lists the connected accounts to a bearer with 200 and a JSON list", async () => {
+    const res = await server.inject({
+      method: "GET",
+      url: "/api/github/installations",
+      headers: { authorization: `Bearer ${INGEST_TOKEN}` },
+    });
+
+    expect({
+      statusCode: res.statusCode,
+      isList: Array.isArray(JSON.parse(res.payload)),
+    }).toEqual({ statusCode: 200, isList: true });
+  });
 });
