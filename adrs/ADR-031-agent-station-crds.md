@@ -373,3 +373,18 @@ the DB row, owned by the sync loop (`lore-catalog-sync` label). While
 path is verified, the seed hook, `gen-catalog`, the committed
 `catalog-seed.yaml`, `check-catalog-drift.sh` and lore-api's synchronous
 push are deleted.
+
+## Amendment (2026-09-10): git credentials come from a broker, not the pod
+
+D6's per-task token was a copy made at launch: the cluster-agent minted an
+installation token into the shared `agent-secrets` Secret, and the pod read it
+once. Three failures came from that one design — the Secret filling past its
+1 MiB limit (#1538), tokens expiring mid-run (#2012), and tokens landing in
+stored telemetry (#2013). The token now comes from a broker in lore-api, minted
+at the moment git needs one, so nothing can expire mid-run and no GitHub token
+sits in a Secret at all.
+
+- A run presents a **run credential**, issued at claim time and carried as a CR
+  parameter: the station run it belongs to, the one repo it may touch, and an
+  expiry, signed with a key only lore-api holds. It is not a GitHub token and
+  grants nothing on GitHub by itself. ([validated by returns the claims of a credential signed with the same key before it expires](libs/shared/src/domain/github-credential/run-credential.test.ts#L12))

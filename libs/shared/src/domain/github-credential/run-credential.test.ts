@@ -16,4 +16,12 @@ describe("verifyRunCredential", () => {
       verifyRunCredential(credential, KEY, new Date("2026-09-10T17:00:00Z")),
     ).toEqual({ ok: true, claims });
   });
+
+  it("refuses a credential signed with another key as bad-signature", () => {
+    const credential = signRunCredential(claims, "another-key");
+
+    expect(
+      verifyRunCredential(credential, KEY, new Date("2026-09-10T17:00:00Z")),
+    ).toEqual({ ok: false, reason: "bad-signature" });
+  });
 });

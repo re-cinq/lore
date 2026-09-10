@@ -1,3 +1,6 @@
+import { createHmac } from "node:crypto";
+import { secretEquals } from "../../lib/secret-equals.js";
+
 /** What a run credential vouches for: which station run is asking, for which repo, until when. */
 export interface RunCredentialClaims {
   stationRunId: string;
@@ -5,19 +8,41 @@ export interface RunCredentialClaims {
   expiresAt: string;
 }
 
-export type RunCredentialVerdict = { ok: true; claims: RunCredentialClaims };
+export type RunCredentialVerdict =
+  | { ok: true; claims: RunCredentialClaims }
+  | { ok: false; reason: "bad-signature" };
 
+const VERSION = "v1";
+
+/** `v1.<base64url claims>.<hex HMAC-SHA256 of "v1.<payload>">` — the signature covers the version too, so a future format cannot be replayed as this one. */
 export function signRunCredential(
   claims: RunCredentialClaims,
-  _key: string,
+  key: string,
 ): string {
-  return JSON.stringify(claims);
+  const payload = Buffer.from(JSON.stringify(claims)).toString("base64url");
+
+  return `${VERSION}.${payload}.${mac(`${VERSION}.${payload}`, key)}`;
 }
 
 export function verifyRunCredential(
   credential: string,
-  _key: string,
+  key: string,
   _now: Date,
 ): RunCredentialVerdict {
-  return { ok: true, claims: JSON.parse(credential) as RunCredentialClaims };
+  const [version, payload, signature] = credential.split(".");
+
+  if (!secretEquals(signature, mac(`${version}.${payload}`, key))) {
+    return { ok: false, reason: "bad-signature" };
+  }
+
+  return {
+    ok: true,
+    claims: JSON.parse(
+      Buffer.from(payload, "base64url").toString(),
+    ) as RunCredentialClaims,
+  };
+}
+
+function mac(signed: string, key: string): string {
+  return createHmac("sha256", key).update(signed).digest("hex");
 }
