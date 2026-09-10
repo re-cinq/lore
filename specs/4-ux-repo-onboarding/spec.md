@@ -545,6 +545,9 @@ and a repo is served by the installation of its owner.
 - FR-8.11: `GET /api/github/installations` serves that list over HTTP to any
   bearer with read scope — a connected org's login is not a secret.
   ([validated by lists the connected accounts to a bearer with 200 and a JSON list](apps/lore-api/src/integration-tests/github-installations.test.ts#L55))
+- FR-8.12: The settings page's GitHub section names each connected account
+  with whether it is an organization or a user and whether it covers all or
+  only selected repos. ([validated by lists re-cinq as a connected organization on selected repos](apps/web-ui/src/app/settings/GithubConnectSection.test.tsx#L17))
 
 ## Operational Targets (Background)
 
