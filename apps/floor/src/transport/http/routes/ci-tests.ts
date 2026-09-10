@@ -58,22 +58,6 @@ function reportedTest(descriptor: TestDescriptor): ReportedTest {
   };
 }
 
-/** Only a report naming a branch needs the lookup: one naming none can only be main's, and the mapper refuses one naming no repo. */
-async function defaultBranchFor(
-  body: CiTestsBody,
-  deps: CiTestsRouteDeps,
-): Promise<string> {
-  if (!body.repo || !body.branch) {
-    return "";
-  }
-
-  return (deps.defaultBranch ?? repoDefaultBranch)(body.repo);
-}
-
-async function repoDefaultBranch(repo: string): Promise<string> {
-  return (await projectFor(repo)).repo.defaultBranch();
-}
-
 export function ciTestsRoute(deps: CiTestsRouteDeps = {}): ServerRoute {
   return {
     method: "POST",
@@ -96,4 +80,20 @@ export function ciTestsRoute(deps: CiTestsRouteDeps = {}): ServerRoute {
       return h.response({ ingested: mapped.events.length }).code(202);
     },
   };
+}
+
+/** Only a report naming a branch needs the lookup: one naming none can only be main's, and the mapper refuses one naming no repo. */
+async function defaultBranchFor(
+  body: CiTestsBody,
+  deps: CiTestsRouteDeps,
+): Promise<string> {
+  if (!body.repo || !body.branch) {
+    return "";
+  }
+
+  return (deps.defaultBranch ?? repoDefaultBranch)(body.repo);
+}
+
+async function repoDefaultBranch(repo: string): Promise<string> {
+  return (await projectFor(repo)).repo.defaultBranch();
 }

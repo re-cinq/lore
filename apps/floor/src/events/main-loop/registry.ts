@@ -68,15 +68,7 @@ export function resolve(
 function githubEntries(): Entry[] {
   return [
     ...prReviewTriggerEntries(),
-    [
-      "github.pull_request.closed",
-      withExtra(
-        github.specPrMerge,
-        github.specPrResumeLine,
-        codeReviewOnClose,
-        dropOverlayOnClose,
-      ),
-    ],
+    prClosedEntry(),
     [
       "github.pull_request_review.submitted",
       withExtra(github.onReviewSubmitted, codeReviewOnReviewSubmitted),
@@ -86,6 +78,19 @@ function githubEntries(): Entry[] {
     ["github.check_suite.completed", github.autoMerge],
     ["github.issue_comment.created", codeReviewOnComment],
     ["github.issues.labeled", github.issuesLabeled],
+  ];
+}
+
+/** Everything a closed PR finishes: the spec-task sync, the parked line's wake, the review choreography, and its head branch's graph overlay. */
+function prClosedEntry(): Entry {
+  return [
+    "github.pull_request.closed",
+    withExtra(
+      github.specPrMerge,
+      github.specPrResumeLine,
+      codeReviewOnClose,
+      dropOverlayOnClose,
+    ),
   ];
 }
 

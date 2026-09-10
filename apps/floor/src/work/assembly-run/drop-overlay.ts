@@ -3,6 +3,22 @@
 import type { EventHandler, EventInput } from "../../domain/event-types.js";
 import { eventReporter } from "../../outbound/queues.js";
 
+export const dropOverlayOnClose = createDropOverlayOnClose((event) =>
+  eventReporter().insert(event),
+);
+
+export function createDropOverlayOnClose(
+  insert: (event: EventInput) => Promise<unknown>,
+): EventHandler {
+  return async (params) => {
+    const event = dropOverlayEvent(params);
+
+    if (event) {
+      await insert(event);
+    }
+  };
+}
+
 /** The ingest event that drops a closed PR's head-branch overlay, or null when the PR names no head branch. The drop is idempotent, so a redelivered close needs no dedupe key — and a key would swallow the drop for a branch name a later PR reuses. */
 function dropOverlayEvent(params: Record<string, unknown>): EventInput | null {
   const { repo, branch } = params as { repo?: string; branch?: string };
@@ -17,19 +33,3 @@ function dropOverlayEvent(params: Record<string, unknown>): EventInput | null {
     params: { repo, kind: "overlay-drop", payload: { overlayBranch: branch } },
   };
 }
-
-export function createDropOverlayOnClose(
-  insert: (event: EventInput) => Promise<unknown>,
-): EventHandler {
-  return async (params) => {
-    const event = dropOverlayEvent(params);
-
-    if (event) {
-      await insert(event);
-    }
-  };
-}
-
-export const dropOverlayOnClose = createDropOverlayOnClose((event) =>
-  eventReporter().insert(event),
-);

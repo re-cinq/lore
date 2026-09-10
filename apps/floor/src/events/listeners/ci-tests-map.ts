@@ -19,29 +19,29 @@ export function mapCiTests(
   body: CiTestsBody,
   defaultBranch: string,
 ): CiTestsResult {
-  if (!body.repo) {
-    return { ok: false, status: 400, error: "missing repo" };
+  const { repo, ...report } = body;
+
+  if (!repo) {
+    return refused("repo");
   }
 
   if (!body.commit) {
-    return { ok: false, status: 400, error: "missing commit" };
+    return refused("commit");
   }
-
-  const { repo, ...report } = body;
   const overlayBranch = overlayBranchOf(body.branch, defaultBranch);
+  const payload = overlayBranch ? { ...report, overlayBranch } : report;
 
+  return { ok: true, events: [testReportEvent(repo, payload)] };
+}
+
+function refused(field: "repo" | "commit"): CiTestsResult {
+  return { ok: false, status: 400, error: `missing ${field}` };
+}
+
+function testReportEvent(repo: string, payload: object): EventInput {
   return {
-    ok: true,
-    events: [
-      {
-        eventName: "internal.ingest.spec_trace",
-        source: "internal",
-        params: {
-          repo,
-          kind: "test-report",
-          payload: overlayBranch ? { ...report, overlayBranch } : report,
-        },
-      },
-    ],
+    eventName: "internal.ingest.spec_trace",
+    source: "internal",
+    params: { repo, kind: "test-report", payload },
   };
 }
