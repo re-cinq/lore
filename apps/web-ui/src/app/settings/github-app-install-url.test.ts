@@ -7,4 +7,8 @@ describe("githubAppInstallUrl", () => {
       "https://github.com/apps/lore-agent/installations/new",
     );
   });
+
+  it("builds no install URL while no slug is configured", () => {
+    expect(githubAppInstallUrl(undefined)).toBeNull();
+  });
 });
