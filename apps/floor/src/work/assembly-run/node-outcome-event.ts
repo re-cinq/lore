@@ -1,5 +1,7 @@
 /** Telling the graph what one node's terminal outcome was (issue #1771). The Floor never writes Dgraph itself, so this rides the ingest lane the same way a test report does. */
 
+import { INGEST_BLUEPRINT } from "./drop-overlay.js";
+
 /** WHO the node was. Identity and the commit it ran at — the only things the station-run row can be trusted for here, because the row is read BEFORE the finish writes the verdict onto it. */
 export interface SettledNode {
   stationRunId: string;
@@ -53,7 +55,10 @@ function outcomePayload(
   };
 }
 
-/** Whether this settled node is worth telling the graph about: only a run with a repo, and only a node whose outcome either failed or resolves an earlier failure. */
-export function shouldRecordOutcome(run: { repo: string | null }): boolean {
-  return Boolean(run.repo);
+/** Whether this settled node is worth telling the graph about: only a run with a repo, and never an ingest run — recording its outcome starts another ingest run, whose outcome would start the next (the 2026-09-10 loop). */
+export function shouldRecordOutcome(run: {
+  repo: string | null;
+  blueprintName: string;
+}): boolean {
+  return run.blueprintName !== INGEST_BLUEPRINT && Boolean(run.repo);
 }
