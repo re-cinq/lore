@@ -70,6 +70,8 @@ const TAG_RULES: Array<[RegExp, string]> = [
   [/\/features\b/, "Features"],
   [/\/agent-definitions\b/, "Agents"],
   [/^\/api\/cluster-agents\b/, "Cluster Agents"],
+  // The git-credential broker serves the pods that cluster-agent dispatch launches.
+  [/^\/api\/github-credentials\b/, "Cluster Agents"],
   [/\/settings\/dark-factory\b/, "Dark Factory"],
   [/\/(trace|impact)\b/, "Traceability"],
   [/\/ingest/, "Ingestion"],

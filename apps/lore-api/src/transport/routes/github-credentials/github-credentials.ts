@@ -1,4 +1,65 @@
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
+import type { Pool } from "pg";
+import { z } from "zod";
+import { extractBearer } from "@re-cinq/lore-shared/http/bearer.js";
+import { PgAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-pg.js";
+import { PlatformGitHub } from "@re-cinq/lore-shared/project/lib/platform-github.js";
 import type { AssemblyRunsPort } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
+import { zodResponse } from "../../http/zod-response.js";
+import { zodValidate } from "../../http/zod-validate.js";
+import { withPool } from "../with-pool.js";
+import { runCredentialKey } from "../../../work/github-credential/run-credential-key.js";
+
+const GitCredentialBody = z.object({ repo: z.string().min(1) });
+
+const GitCredentialPair = z.object({
+  username: z.string(),
+  password: z.string(),
+});
+
+/** The git-credential broker (ADR-031 amendment 2026-09-10): an agent pod's credential helper trades its run credential for a token scoped to its repo, minted now. The run credential in `Authorization: Bearer` is the auth, so no bearer scope applies. */
+export function githubCredentialsRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "POST",
+    path: "/api/github-credentials",
+    options: zodResponse(
+      { auth: false, validate: { payload: zodValidate(GitCredentialBody) } },
+      GitCredentialPair,
+      {
+        name: "GitCredential",
+        description:
+          "A freshly minted installation token for the run's repo, as the git credential-helper username/password pair",
+        errors: [401, 403],
+      },
+    ),
+    handler: withPool(getPool, serveGitCredential),
+  };
+}
+
+async function serveGitCredential(
+  pool: Pool,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const github = new PlatformGitHub(process.env);
+  const result = await handleGitCredential(
+    {
+      runs: new PgAssemblyRuns(pool),
+      key: runCredentialKey(process.env),
+      now: () => new Date(),
+      mint: (repo) => github.getInstallationToken(repo),
+    },
+    extractBearer(request.headers.authorization) ?? "",
+    request.payload as z.infer<typeof GitCredentialBody>,
+  );
+
+  return h.response(result.body).code(result.code);
+}
 import {
   verifyRunCredential,
   type RunCredentialClaims,

@@ -404,6 +404,9 @@ sits in a Secret at all.
   moment git asks. ([validated by hands the open fix-ci visit a fresh token for re-cinq/bowman-ui as the git username/password pair](apps/lore-api/src/transport/routes/github-credentials/github-credentials.test.ts#L50))
 - A credential the broker cannot verify gets a 401 naming why, and a verified
   one whose run has closed gets a 403; in neither case is a token minted. ([validated by refuses a credential signed with another key with 401 bad-signature and mints nothing](apps/lore-api/src/transport/routes/github-credentials/github-credentials.test.ts#L62), [refuses the fix-ci visit that already finished with 403 run-closed and mints nothing](apps/lore-api/src/transport/routes/github-credentials/github-credentials.test.ts#L71))
+- The route is served for real: over HTTP against Postgres, the bearer, the body
+  and the station-run lookup are wired end to end, and a forged credential is
+  refused with a 401 before GitHub is ever called. ([validated by refuses a credential signed with another key with 401 bad-signature over HTTP](apps/lore-api/src/integration-tests/github-credentials.test.ts#L48))
 - The signing key is an HMAC of the ingest token under a fixed label, so no new
   secret has to be provisioned and a run credential never reuses the ingest
   token itself; without an ingest token lore-api refuses to sign anything rather

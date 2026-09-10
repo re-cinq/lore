@@ -70,6 +70,7 @@ function restoreLegacyShape({
 // 401 here covers auth:false routes that hand-authenticate (pre-shared token).
 const DECLARABLE_ERRORS: Array<{ status: number; ref: string }> = [
   { status: 401, ref: "Unauthorized" },
+  { status: 403, ref: "Forbidden" },
   { status: 404, ref: "NotFound" },
   { status: 409, ref: "Conflict" },
 ];
