@@ -391,6 +391,10 @@ sits in a Secret at all.
 - The claim that hands a cluster-agent its station run also hands it that run's
   credential, bound to the run's station-run id and its target repo and valid
   for 24 hours from the claim; the broker's run-closed check ends it sooner. ([validated by issues a run credential for re-cinq/lore bound to the claimed station run, expiring 24h after the claim](apps/lore-api/src/transport/routes/cluster-agents/claim.test.ts#L141))
+- The cluster-agent passes that credential to the pod as the `git_credential`
+  CR parameter, beside `git_credential_url` — the broker on the lore-api it
+  claimed from — so a satellite's pod reaches the same broker as a central
+  one. ([validated by hands the pod its run credential and the lore-api broker URL as Agent CR parameters](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L155))
 - A credential signed with any other key is refused as `bad-signature`,
   compared in constant time, so a pod cannot forge one for another repo or
   another run. ([validated by refuses a credential signed with another key as bad-signature](libs/shared/src/domain/github-credential/run-credential.test.ts#L20))

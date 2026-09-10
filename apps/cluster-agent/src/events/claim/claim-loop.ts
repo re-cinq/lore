@@ -131,9 +131,25 @@ export async function claimOnce(deps: ClaimTickDeps): Promise<ClaimOutcome> {
   if (typeof name !== "string") {
     return name;
   }
-  const spec: LoreTaskSpec = { ...body.spec, name };
+  const spec = withRunCredential({ ...body.spec, name }, body, deps.apiUrl);
 
   return launchClaim(deps, body, spec);
+}
+
+/** The pod's git credential helper trades the run credential at lore-api's broker for a token minted then (ADR-031 amendment 2026-09-10); both ride as CR parameters beside any the spec already carries. */
+function withRunCredential(
+  spec: LoreTaskSpec,
+  claim: ClaimResponse,
+  apiUrl: string,
+): LoreTaskSpec {
+  return {
+    ...spec,
+    parameters: {
+      ...spec.parameters,
+      git_credential: claim.git_credential,
+      git_credential_url: `${apiUrl}/api/github-credentials`,
+    },
+  };
 }
 
 async function requestClaim(
