@@ -58,7 +58,9 @@ describe("handleClaim", () => {
     const { agents, agent } = await registeredAgent();
     const { runs } = await armedQueuedRun();
 
-    expect(await handleClaim(claimDeps(agents, runs), undefined, agent.id)).toEqual({
+    expect(
+      await handleClaim(claimDeps(agents, runs), undefined, agent.id),
+    ).toEqual({
       code: 401,
       body: { error: "unauthorized" },
     });
@@ -68,9 +70,9 @@ describe("handleClaim", () => {
     const { agents, agent } = await registeredAgent();
     const { runs } = await armedQueuedRun();
 
-    expect(await handleClaim(claimDeps(agents, runs), "lca_stolen", agent.id)).toEqual(
-      { code: 403, body: { error: "forbidden" } },
-    );
+    expect(
+      await handleClaim(claimDeps(agents, runs), "lca_stolen", agent.id),
+    ).toEqual({ code: 403, body: { error: "forbidden" } });
   });
 
   it("rejects 403 when a valid token claims against another agent's id", async () => {
@@ -100,13 +102,17 @@ describe("handleClaim", () => {
 
     await agents.setPaused(agent.id, PAUSED);
 
-    expect(await handleClaim(claimDeps(agents, runs), TOKEN, agent.id)).toEqual({
-      code: 204,
-    });
+    expect(await handleClaim(claimDeps(agents, runs), TOKEN, agent.id)).toEqual(
+      {
+        code: 204,
+      },
+    );
 
     await agents.setPaused(agent.id, RESUMED);
 
-    expect(await handleClaim(claimDeps(agents, runs), TOKEN, agent.id)).toMatchObject({
+    expect(
+      await handleClaim(claimDeps(agents, runs), TOKEN, agent.id),
+    ).toMatchObject({
       code: 200,
     });
   });
@@ -116,34 +122,37 @@ describe("handleClaim", () => {
     const { runs, assemblyRunId, nodeRowId, stationRunId } =
       await armedQueuedRun();
 
-    expect(await handleClaim(claimDeps(agents, runs), TOKEN, agent.id)).toEqual({
-      code: 200,
-      body: {
-        station_run_id: stationRunId,
-        node_row_id: nodeRowId,
-        assembly_run_id: assemblyRunId,
-        node_id: "implement",
-        iteration: 0,
-        agent_cr_name: "abc123def456-implement",
-        spec: {
-          type: "implementation",
-          targetRepo: "re-cinq/lore",
-          branch: "lore/task-1",
+    expect(await handleClaim(claimDeps(agents, runs), TOKEN, agent.id)).toEqual(
+      {
+        code: 200,
+        body: {
+          station_run_id: stationRunId,
+          node_row_id: nodeRowId,
+          assembly_run_id: assemblyRunId,
+          node_id: "implement",
+          iteration: 0,
+          agent_cr_name: "abc123def456-implement",
+          spec: {
+            type: "implementation",
+            targetRepo: "re-cinq/lore",
+            branch: "lore/task-1",
+          },
+          git_credential: expect.stringMatching(/^v1\./),
         },
-        git_credential: expect.stringMatching(/^v1\./),
       },
-    });
-    expect(await handleClaim(claimDeps(agents, runs), TOKEN, agent.id)).toEqual({
-      code: 204,
-    });
+    );
+    expect(await handleClaim(claimDeps(agents, runs), TOKEN, agent.id)).toEqual(
+      {
+        code: 204,
+      },
+    );
   });
 
   it("issues a run credential for re-cinq/lore bound to the claimed station run, expiring 24h after the claim", async () => {
     const { agents, agent } = await registeredAgent();
     const { runs, stationRunId } = await armedQueuedRun();
     const claimed = await handleClaim(claimDeps(agents, runs), TOKEN, agent.id);
-    const credential =
-      claimed.code === 200 ? claimed.body.git_credential : "";
+    const credential = claimed.code === 200 ? claimed.body.git_credential : "";
 
     expect(verifyRunCredential(credential, KEY, CLAIM_TIME)).toEqual({
       ok: true,
@@ -159,9 +168,11 @@ describe("handleClaim", () => {
     const { agents, agent } = await registeredAgent(["node:agent"]);
     const { runs } = await armedQueuedRun(["node:agent", "gpu"]);
 
-    expect(await handleClaim(claimDeps(agents, runs), TOKEN, agent.id)).toEqual({
-      code: 204,
-    });
+    expect(await handleClaim(claimDeps(agents, runs), TOKEN, agent.id)).toEqual(
+      {
+        code: 204,
+      },
+    );
   });
 });
 

@@ -31,7 +31,9 @@ const GitCredentialPair = z.object({
 });
 
 /** The git-credential broker (ADR-031 amendment 2026-09-10): an agent pod's credential helper trades its run credential for a token scoped to its repo, minted now. The run credential in `Authorization: Bearer` is the auth, so no bearer scope applies. */
-export function githubCredentialsRoute(getPool: () => Pool | null): ServerRoute {
+export function githubCredentialsRoute(
+  getPool: () => Pool | null,
+): ServerRoute {
   return {
     method: "POST",
     path: "/api/github-credentials",
