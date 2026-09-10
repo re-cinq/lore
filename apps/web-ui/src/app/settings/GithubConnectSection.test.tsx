@@ -42,4 +42,12 @@ describe("GithubConnectSection", () => {
       "https://github.com/apps/lore-agent/installations/new",
     );
   });
+
+  it("offers no install link while the App's slug is not configured", () => {
+    render(
+      <GithubConnectSection installations={[RE_CINQ]} installUrl={null} />,
+    );
+
+    expect(screen.queryByRole("link")).toBeNull();
+  });
 });
