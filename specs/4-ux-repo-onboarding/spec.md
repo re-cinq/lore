@@ -518,6 +518,9 @@ and a repo is served by the installation of its owner.
 - FR-8.2: Recording an installation Lore already knows — the account widened
   it from selected repos to all of them, say — refreshes what it covers but
   keeps when it was first installed. ([validated by keeps when re-cinq was installed when the installation widens to all repos](libs/shared/src/outbound/project/github-installations/github-installations.test.ts#L29))
+- FR-8.3: When the App is uninstalled from an account, Lore forgets that
+  installation, so it no longer claims to serve that account's repos.
+  ([validated by forgets the re-cinq installation once the App is uninstalled there](libs/shared/src/outbound/project/github-installations/github-installations.test.ts#L45))
 
 ## Operational Targets (Background)
 

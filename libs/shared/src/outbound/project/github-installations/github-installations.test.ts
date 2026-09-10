@@ -41,4 +41,13 @@ describe("InMemoryGithubInstallations", () => {
       updatedAt: WIDENED_AT,
     });
   });
+
+  it("forgets the re-cinq installation once the App is uninstalled there", async () => {
+    const installations = new InMemoryGithubInstallations(() => INSTALLED_AT);
+
+    await installations.upsert(RE_CINQ);
+    await installations.remove(RE_CINQ.installationId);
+
+    expect(await installations.findByAccount("re-cinq")).toBeNull();
+  });
 });

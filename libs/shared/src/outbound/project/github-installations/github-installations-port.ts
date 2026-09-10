@@ -12,4 +12,6 @@ export interface GithubInstallationsRepository {
   upsert(input: UpsertGithubInstallationInput): Promise<GithubInstallation>;
   /** The installation covering this account, matched case-insensitively as GitHub logins are; null when the App is not installed there. */
   findByAccount(accountLogin: string): Promise<GithubInstallation | null>;
+  /** Forget an installation — the App was uninstalled from its account, so nothing can be served through it any more. */
+  remove(installationId: string): Promise<void>;
 }

@@ -37,4 +37,8 @@ export class InMemoryGithubInstallations implements GithubInstallationsRepositor
       ) ?? null
     );
   }
+
+  async remove(installationId: string): Promise<void> {
+    this.installations.delete(installationId);
+  }
 }
