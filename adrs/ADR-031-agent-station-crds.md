@@ -402,5 +402,5 @@ sits in a Secret at all.
 - `POST /api/github-credentials` hands an open run a token for its repo in the
   git credential-helper shape (`x-access-token` plus the token), minted at the
   moment git asks. ([validated by hands the open fix-ci visit a fresh token for re-cinq/bowman-ui as the git username/password pair](apps/lore-api/src/transport/routes/github-credentials/github-credentials.test.ts#L29))
-- A credential the broker cannot verify gets a 401 naming why, and no token is
-  minted. ([validated by refuses a credential signed with another key with 401 bad-signature and mints nothing](apps/lore-api/src/transport/routes/github-credentials/github-credentials.test.ts#L44))
+- A credential the broker cannot verify gets a 401 naming why, and a verified
+  one whose run has closed gets a 403; in neither case is a token minted. ([validated by refuses a credential signed with another key with 401 bad-signature and mints nothing](apps/lore-api/src/transport/routes/github-credentials/github-credentials.test.ts#L44), [refuses the fix-ci visit that already finished with 403 run-closed and mints nothing](apps/lore-api/src/transport/routes/github-credentials/github-credentials.test.ts#L76))

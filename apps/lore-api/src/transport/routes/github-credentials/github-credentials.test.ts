@@ -72,4 +72,48 @@ describe("handleGitCredential", () => {
       minted: [],
     });
   });
+
+  it("refuses the fix-ci visit that already finished with 403 run-closed and mints nothing", async () => {
+    const runs = new InMemoryAssemblyRuns();
+    const assemblyRunId = await runs.start({
+      blueprintName: "implementation-loop",
+      repo: "re-cinq/bowman-ui",
+    });
+    const { nodeRowId, stationRunId } = await runs.ensureStationRun({
+      assemblyRunId,
+      nodeId: "fix-ci",
+      iteration: 1,
+    });
+
+    await runs.finishStationRunOnce(nodeRowId, "changes_requested");
+
+    const credential = signRunCredential(
+      {
+        stationRunId,
+        repo: "re-cinq/bowman-ui",
+        expiresAt: "2026-09-10T18:00:00.000Z",
+      },
+      KEY,
+    );
+    const minted: string[] = [];
+    const result = await handleGitCredential(
+      {
+        runs,
+        key: KEY,
+        now: NOW,
+        mint: async (repo) => {
+          minted.push(repo);
+
+          return "ghs_leaked";
+        },
+      },
+      credential,
+      { repo: "re-cinq/bowman-ui" },
+    );
+
+    expect({ result, minted }).toEqual({
+      result: { code: 403, body: { error: "run-closed" } },
+      minted: [],
+    });
+  });
 });
