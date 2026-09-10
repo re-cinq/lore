@@ -5,113 +5,75 @@ import { handleGitCredential } from "./github-credentials.js";
 
 const KEY = "run-credential-test-key";
 const NOW = () => new Date("2026-09-10T17:00:00Z");
+const REPO = "re-cinq/bowman-ui";
 
-async function openVisit(repo: string) {
+async function fixCiVisit(key = KEY) {
   const runs = new InMemoryAssemblyRuns();
   const assemblyRunId = await runs.start({
     blueprintName: "implementation-loop",
-    repo,
+    repo: REPO,
   });
-  const { stationRunId } = await runs.ensureStationRun({
+  const { nodeRowId, stationRunId } = await runs.ensureStationRun({
     assemblyRunId,
     nodeId: "fix-ci",
     iteration: 1,
   });
   const credential = signRunCredential(
-    { stationRunId, repo, expiresAt: "2026-09-10T18:00:00.000Z" },
-    KEY,
+    { stationRunId, repo: REPO, expiresAt: "2026-09-10T18:00:00.000Z" },
+    key,
   );
 
-  return { runs, credential };
+  return { runs, nodeRowId, credential };
+}
+
+async function ask(runs: InMemoryAssemblyRuns, credential: string) {
+  const minted: string[] = [];
+  const result = await handleGitCredential(
+    {
+      runs,
+      key: KEY,
+      now: NOW,
+      mint: async (repo) => {
+        minted.push(repo);
+
+        return "ghs_fresh";
+      },
+    },
+    credential,
+    { repo: REPO },
+  );
+
+  return { result, minted };
 }
 
 describe("handleGitCredential", () => {
   it("hands the open fix-ci visit a fresh token for re-cinq/bowman-ui as the git username/password pair", async () => {
-    const { runs, credential } = await openVisit("re-cinq/bowman-ui");
+    const { runs, credential } = await fixCiVisit();
 
-    expect(
-      await handleGitCredential(
-        { runs, key: KEY, now: NOW, mint: async () => "ghs_fresh" },
-        credential,
-        { repo: "re-cinq/bowman-ui" },
-      ),
-    ).toEqual({
-      code: 200,
-      body: { username: "x-access-token", password: "ghs_fresh" },
+    expect(await ask(runs, credential)).toEqual({
+      result: {
+        code: 200,
+        body: { username: "x-access-token", password: "ghs_fresh" },
+      },
+      minted: [REPO],
     });
   });
 
   it("refuses a credential signed with another key with 401 bad-signature and mints nothing", async () => {
-    const { runs } = await openVisit("re-cinq/bowman-ui");
-    const forged = signRunCredential(
-      {
-        stationRunId: "any-run",
-        repo: "re-cinq/bowman-ui",
-        expiresAt: "2026-09-10T18:00:00.000Z",
-      },
-      "another-key",
-    );
-    const minted: string[] = [];
-    const result = await handleGitCredential(
-      {
-        runs,
-        key: KEY,
-        now: NOW,
-        mint: async (repo) => {
-          minted.push(repo);
+    const { runs, credential } = await fixCiVisit("another-key");
 
-          return "ghs_leaked";
-        },
-      },
-      forged,
-      { repo: "re-cinq/bowman-ui" },
-    );
-
-    expect({ result, minted }).toEqual({
+    expect(await ask(runs, credential)).toEqual({
       result: { code: 401, body: { error: "bad-signature" } },
       minted: [],
     });
   });
 
   it("refuses the fix-ci visit that already finished with 403 run-closed and mints nothing", async () => {
-    const runs = new InMemoryAssemblyRuns();
-    const assemblyRunId = await runs.start({
-      blueprintName: "implementation-loop",
-      repo: "re-cinq/bowman-ui",
-    });
-    const { nodeRowId, stationRunId } = await runs.ensureStationRun({
-      assemblyRunId,
-      nodeId: "fix-ci",
-      iteration: 1,
-    });
+    const { runs, nodeRowId, credential } = await fixCiVisit();
 
     await runs.finishStationRunOnce(nodeRowId, "changes_requested");
 
-    const credential = signRunCredential(
-      {
-        stationRunId,
-        repo: "re-cinq/bowman-ui",
-        expiresAt: "2026-09-10T18:00:00.000Z",
-      },
-      KEY,
-    );
-    const minted: string[] = [];
-    const result = await handleGitCredential(
-      {
-        runs,
-        key: KEY,
-        now: NOW,
-        mint: async (repo) => {
-          minted.push(repo);
-
-          return "ghs_leaked";
-        },
-      },
-      credential,
-      { repo: "re-cinq/bowman-ui" },
-    );
-
-    expect({ result, minted }).toEqual({
+    expect(await ask(runs, credential)).toEqual({
       result: { code: 403, body: { error: "run-closed" } },
       minted: [],
     });

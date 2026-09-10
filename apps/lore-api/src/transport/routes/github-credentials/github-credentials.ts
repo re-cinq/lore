@@ -37,13 +37,12 @@ export async function handleGitCredential(
     return { code: 403, body: { error: decision.reason } };
   }
 
-  return {
-    code: 200,
-    body: {
-      username: "x-access-token",
-      password: await deps.mint(decision.repo),
-    },
-  };
+  return { code: 200, body: credentialPair(await deps.mint(decision.repo)) };
+}
+
+/** GitHub accepts an installation token as the password of the `x-access-token` user. */
+function credentialPair(token: string): { username: string; password: string } {
+  return { username: "x-access-token", password: token };
 }
 
 /** The grant decision for the run the claims name; a run the store no longer has is treated as closed. */
