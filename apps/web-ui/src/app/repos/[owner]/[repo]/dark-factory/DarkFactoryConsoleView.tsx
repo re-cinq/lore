@@ -43,50 +43,6 @@ export default function DarkFactoryConsoleView(props: ConsoleViewProps) {
   );
 }
 
-/** Says up front that this is not a switch anyone can flip. The ceremony is stated here rather than only enforced at the API, so a reader learns the cost before clicking through. */
-function TwoKeyNote({ owner, repo }: { owner: string; repo: string }) {
-  return (
-    <p className="meta">
-      Enabling/disabling and editing this policy needs the two-key approval
-      ceremony —{" "}
-      <Link href={`/repos/${owner}/${repo}/dark-factory/settings`}>
-        Dark Factory settings
-      </Link>
-      .
-    </p>
-  );
-}
-
-/** The repo's own switch, spelled out with an icon so an "off" is legible at a glance. */
-function RepoGate({ enabled }: { enabled: boolean }) {
-  return enabled ? (
-    <>
-      <Icon name="check" size={13} inline /> enabled
-    </>
-  ) : (
-    <>
-      <Icon name="error" size={13} inline /> disabled
-    </>
-  );
-}
-
-interface GatesProps {
-  repoEnabled: boolean;
-  trustLevel: TrustLevel;
-}
-
-/** Both gates, always. Either one alone explains an "off", so showing only the failing one would leave a reader guessing whether the other is fine. */
-function Gates({ repoEnabled, trustLevel }: GatesProps) {
-  return (
-    <div className={styles.gates}>
-      <span>
-        Repo gate: <RepoGate enabled={repoEnabled} />
-      </span>
-      <span>Trust: {trustLevel}</span>
-    </div>
-  );
-}
-
 interface ActivationCardProps {
   owner: string;
   repo: string;
@@ -112,39 +68,47 @@ function ActivationCard(props: ActivationCardProps) {
   );
 }
 
-/** The auto-merge gates, each shown as the literal value it is set to. */
-function requirementRows(autoMerge: AutoMergeConfig) {
-  return [
-    { label: "Allowlist paths", value: autoMerge.paths.join(", ") },
-    { label: "Min trust", value: autoMerge.min_trust },
-    { label: "Require green CI", value: String(autoMerge.require_green_ci) },
-    {
-      label: "Require bot approval",
-      value: String(autoMerge.require_bot_approval),
-    },
-  ];
+interface GatesProps {
+  repoEnabled: boolean;
+  trustLevel: TrustLevel;
 }
 
-/** The policy as label/value pairs. An empty notify list reads as "escalation (implicit)" rather than blank: the platform always escalates, so nothing configured is not the same as nothing happening. */
-function policyRows(config: ConsoleConfig) {
-  const notify = config.notify.length
-    ? config.notify.join(", ")
-    : "escalation (implicit)";
-
-  return [
-    ...requirementRows(config.auto_merge),
-    { label: "Create issue", value: config.create_issue },
-    { label: "Review", value: config.review },
-    { label: "Notify", value: notify },
-  ];
-}
-
-function PolicyRow({ label, value }: { label: string; value: string }) {
+/** Both gates, always. Either one alone explains an "off", so showing only the failing one would leave a reader guessing whether the other is fine. */
+function Gates({ repoEnabled, trustLevel }: GatesProps) {
   return (
-    <div>
-      <dt className="meta">{label}</dt>
-      <dd>{value}</dd>
+    <div className={styles.gates}>
+      <span>
+        Repo gate: <RepoGate enabled={repoEnabled} />
+      </span>
+      <span>Trust: {trustLevel}</span>
     </div>
+  );
+}
+
+/** The repo's own switch, spelled out with an icon so an "off" is legible at a glance. */
+function RepoGate({ enabled }: { enabled: boolean }) {
+  return enabled ? (
+    <>
+      <Icon name="check" size={13} inline /> enabled
+    </>
+  ) : (
+    <>
+      <Icon name="error" size={13} inline /> disabled
+    </>
+  );
+}
+
+/** Says up front that this is not a switch anyone can flip. The ceremony is stated here rather than only enforced at the API, so a reader learns the cost before clicking through. */
+function TwoKeyNote({ owner, repo }: { owner: string; repo: string }) {
+  return (
+    <p className="meta">
+      Enabling/disabling and editing this policy needs the two-key approval
+      ceremony —{" "}
+      <Link href={`/repos/${owner}/${repo}/dark-factory/settings`}>
+        Dark Factory settings
+      </Link>
+      .
+    </p>
   );
 }
 
@@ -163,21 +127,52 @@ function AutoMergePolicy({ config }: { config: ConsoleConfig }) {
   );
 }
 
-/** One task the factory ran. A dash rather than a blank when there is no PR: dark mode's whole point is that the PR is the artifact, so its absence is worth showing. */
-function WorkItemRow({ workItem }: { workItem: WorkItemList[number] }) {
+/** The policy as label/value pairs. An empty notify list reads as "escalation (implicit)" rather than blank: the platform always escalates, so nothing configured is not the same as nothing happening. */
+function policyRows(config: ConsoleConfig) {
+  const notify = config.notify.length
+    ? config.notify.join(", ")
+    : "escalation (implicit)";
+
+  return [
+    ...requirementRows(config.auto_merge),
+    { label: "Create issue", value: config.create_issue },
+    { label: "Review", value: config.review },
+    { label: "Notify", value: notify },
+  ];
+}
+
+/** The auto-merge gates, each shown as the literal value it is set to. */
+function requirementRows(autoMerge: AutoMergeConfig) {
+  return [
+    { label: "Allowlist paths", value: autoMerge.paths.join(", ") },
+    { label: "Min trust", value: autoMerge.min_trust },
+    { label: "Require green CI", value: String(autoMerge.require_green_ci) },
+    {
+      label: "Require bot approval",
+      value: String(autoMerge.require_bot_approval),
+    },
+  ];
+}
+
+function PolicyRow({ label, value }: { label: string; value: string }) {
   return (
-    <tr>
-      <td>{workItem.type}</td>
-      <td>{workItem.status}</td>
-      <td>
-        {workItem.prUrl ? (
-          <a href={workItem.prUrl}>PR</a>
-        ) : (
-          <span className="meta">—</span>
-        )}
-      </td>
-      <td className="meta">{workItem.createdAt}</td>
-    </tr>
+    <div>
+      <dt className="meta">{label}</dt>
+      <dd>{value}</dd>
+    </div>
+  );
+}
+
+function WorkItems({ workItems }: { workItems: WorkItemList }) {
+  return (
+    <>
+      <h3>What it works on</h3>
+      {workItems.length > 0 ? (
+        <WorkItemsTable workItems={workItems} />
+      ) : (
+        <Alert variant="secondary">No recent tasks.</Alert>
+      )}
+    </>
   );
 }
 
@@ -201,14 +196,32 @@ function WorkItemsTable({ workItems }: { workItems: WorkItemList }) {
   );
 }
 
-function WorkItems({ workItems }: { workItems: WorkItemList }) {
+/** One task the factory ran. A dash rather than a blank when there is no PR: dark mode's whole point is that the PR is the artifact, so its absence is worth showing. */
+function WorkItemRow({ workItem }: { workItem: WorkItemList[number] }) {
+  return (
+    <tr>
+      <td>{workItem.type}</td>
+      <td>{workItem.status}</td>
+      <td>
+        {workItem.prUrl ? (
+          <a href={workItem.prUrl}>PR</a>
+        ) : (
+          <span className="meta">—</span>
+        )}
+      </td>
+      <td className="meta">{workItem.createdAt}</td>
+    </tr>
+  );
+}
+
+function DecisionFeed({ decisions }: { decisions: DecisionList }) {
   return (
     <>
-      <h3>What it works on</h3>
-      {workItems.length > 0 ? (
-        <WorkItemsTable workItems={workItems} />
+      <h3>Decision feed</h3>
+      {decisions.length > 0 ? (
+        <DecisionItems decisions={decisions} />
       ) : (
-        <Alert variant="secondary">No recent tasks.</Alert>
+        <Alert variant="secondary">No dark-factory audit events yet.</Alert>
       )}
     </>
   );
@@ -224,18 +237,5 @@ function DecisionItems({ decisions }: { decisions: DecisionList }) {
         </li>
       ))}
     </ul>
-  );
-}
-
-function DecisionFeed({ decisions }: { decisions: DecisionList }) {
-  return (
-    <>
-      <h3>Decision feed</h3>
-      {decisions.length > 0 ? (
-        <DecisionItems decisions={decisions} />
-      ) : (
-        <Alert variant="secondary">No dark-factory audit events yet.</Alert>
-      )}
-    </>
   );
 }

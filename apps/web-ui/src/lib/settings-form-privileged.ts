@@ -40,41 +40,123 @@ const text = (fd: FormData, name: string): string =>
 const sameArray = (a: string[] = [], b: string[] = []): boolean =>
   a.length === b.length && a.every((value, i) => value === b[i]);
 
-/** Attach a nested block only when something inside it changed — an empty block would read as "clear these settings". */
-function attachIfAny(
-  into: Record<string, unknown>,
-  key: string,
-  changes: Record<string, unknown>,
-): void {
-  if (Object.keys(changes).length > 0) {
-    into[key] = changes;
-  }
+export function parsePrivilegedChanges(
+  formData: FormData,
+  current: CurrentSettings,
+  knownTaskTypes: string[],
+): PrivilegedPatch {
+  const patch: PrivilegedPatch = {};
+
+  attachIfAny(
+    patch as Record<string, unknown>,
+    "dark_factory",
+    darkFactoryPatch(formData, current),
+  );
+  attachIfAny(
+    patch as Record<string, unknown>,
+    "task_overrides",
+    taskOverrideChanges(formData, current, knownTaskTypes),
+  );
+
+  return patch;
 }
 
-/** Record a text field only when it was filled in AND differs from what is stored — an empty box means "leave it alone", not "clear it". */
-function recordText(
-  into: Record<string, unknown>,
-  key: string,
-  value: string,
-  stored: string | undefined,
-): void {
-  if (value && value !== (stored ?? "")) {
-    into[key] = value;
-  }
+/** The whole dark_factory block, auto_merge nested inside it. */
+function darkFactoryPatch(
+  formData: FormData,
+  current: CurrentSettings,
+): Record<string, unknown> {
+  const df = current.dark_factory ?? {};
+  const dfChanges = darkFactoryChanges(formData, df);
+
+  attachIfAny(
+    dfChanges,
+    "auto_merge",
+    autoMergeChanges(formData, df.auto_merge ?? {}),
+  );
+
+  return dfChanges;
 }
 
-/** Record a checkbox only when the form rendered it AND it differs from what is stored — an absent control means the form never offered the field, not that it was cleared. */
-function recordCheckbox(
-  into: Record<string, unknown>,
-  key: string,
-  field: { value: boolean | undefined; stored: boolean },
-): void {
-  if (field.value !== undefined && field.value !== field.stored) {
-    into[key] = field.value;
+/** One row per known task type; a type the form left untouched contributes nothing. */
+function taskOverrideChanges(
+  formData: FormData,
+  current: CurrentSettings,
+  knownTaskTypes: string[],
+): Record<string, Record<string, unknown>> {
+  const changes: Record<string, Record<string, unknown>> = {};
+
+  for (const type of knownTaskTypes) {
+    const row = taskOverrideRow(
+      formData,
+      type,
+      current.task_overrides?.[type] ?? {},
+    );
+
+    attachIfAny(changes, type, row);
   }
+
+  return changes;
 }
 
 type DarkFactorySettings = NonNullable<CurrentSettings["dark_factory"]>;
+
+function darkFactoryChanges(
+  formData: FormData,
+  df: DarkFactorySettings,
+): Record<string, unknown> {
+  const changes: Record<string, unknown> = {};
+
+  recordDarkFactoryScalars(changes, formData, df);
+  recordNotify(changes, formData, df.notify ?? []);
+  attachIfAny(
+    changes,
+    "execution",
+    executionChanges(formData, df.execution?.image),
+  );
+
+  return changes;
+}
+
+type AutoMergeSettings = NonNullable<DarkFactorySettings["auto_merge"]>;
+
+function autoMergeChanges(
+  formData: FormData,
+  am: AutoMergeSettings,
+): Record<string, unknown> {
+  const changes: Record<string, unknown> = {};
+
+  recordPaths(changes, formData, am.paths ?? []);
+  recordText(
+    changes,
+    "min_trust",
+    text(formData, "df_am_min_trust"),
+    am.min_trust,
+  );
+  recordAutoMergeGates(changes, formData, am);
+
+  return changes;
+}
+
+type TaskOverride = NonNullable<CurrentSettings["task_overrides"]>[string];
+
+/** One task type's overrides; empty when the form changed nothing for it. */
+function taskOverrideRow(
+  formData: FormData,
+  type: string,
+  prev: TaskOverride,
+): Record<string, unknown> {
+  const row: Record<string, unknown> = {};
+
+  recordTaskOverrideFields(row, formData, type, prev);
+  attachIfAny(
+    row,
+    "execution",
+    executionImage(text(formData, `to_${type}_image`), prev.execution?.image),
+  );
+
+  return row;
+}
 
 function recordDarkFactoryScalars(
   changes: Record<string, unknown>,
@@ -105,23 +187,6 @@ function recordNotify(
   if (formData.has("df_notify") && !sameArray(notify, current)) {
     changes.notify = notify;
   }
-}
-
-function darkFactoryChanges(
-  formData: FormData,
-  df: DarkFactorySettings,
-): Record<string, unknown> {
-  const changes: Record<string, unknown> = {};
-
-  recordDarkFactoryScalars(changes, formData, df);
-  recordNotify(changes, formData, df.notify ?? []);
-  attachIfAny(
-    changes,
-    "execution",
-    executionChanges(formData, df.execution?.image),
-  );
-
-  return changes;
 }
 
 /** The BYO-container override, which is one field today and a block tomorrow. */
@@ -157,8 +222,6 @@ function recordPaths(
   }
 }
 
-type AutoMergeSettings = NonNullable<DarkFactorySettings["auto_merge"]>;
-
 /** The two merge gates, whose stored default is on — a form that never rendered them must not turn them off. */
 function recordAutoMergeGates(
   changes: Record<string, unknown>,
@@ -174,39 +237,6 @@ function recordAutoMergeGates(
     stored: am.require_bot_approval ?? true,
   });
 }
-
-function autoMergeChanges(
-  formData: FormData,
-  am: AutoMergeSettings,
-): Record<string, unknown> {
-  const changes: Record<string, unknown> = {};
-
-  recordPaths(changes, formData, am.paths ?? []);
-  recordText(
-    changes,
-    "min_trust",
-    text(formData, "df_am_min_trust"),
-    am.min_trust,
-  );
-  recordAutoMergeGates(changes, formData, am);
-
-  return changes;
-}
-
-/** A timeout counts only when the box holds a number that differs from what is stored. */
-function recordTimeout(
-  row: Record<string, unknown>,
-  raw: string,
-  stored: number | undefined,
-): void {
-  const timeout = raw ? Number(raw) : undefined;
-
-  if (timeout !== undefined && timeout !== stored) {
-    row.timeout_minutes = timeout;
-  }
-}
-
-type TaskOverride = NonNullable<CurrentSettings["task_overrides"]>[string];
 
 /** The scalar fields of one task-type override row. */
 function recordTaskOverrideFields(
@@ -229,24 +259,6 @@ function recordTaskOverrideFields(
   );
 }
 
-/** One task type's overrides; empty when the form changed nothing for it. */
-function taskOverrideRow(
-  formData: FormData,
-  type: string,
-  prev: TaskOverride,
-): Record<string, unknown> {
-  const row: Record<string, unknown> = {};
-
-  recordTaskOverrideFields(row, formData, type, prev);
-  attachIfAny(
-    row,
-    "execution",
-    executionImage(text(formData, `to_${type}_image`), prev.execution?.image),
-  );
-
-  return row;
-}
-
 /** The one-field execution block for a task-type override. */
 function executionImage(
   image: string,
@@ -259,61 +271,49 @@ function executionImage(
   return execution;
 }
 
-/** The whole dark_factory block, auto_merge nested inside it. */
-function darkFactoryPatch(
-  formData: FormData,
-  current: CurrentSettings,
-): Record<string, unknown> {
-  const df = current.dark_factory ?? {};
-  const dfChanges = darkFactoryChanges(formData, df);
-
-  attachIfAny(
-    dfChanges,
-    "auto_merge",
-    autoMergeChanges(formData, df.auto_merge ?? {}),
-  );
-
-  return dfChanges;
-}
-
-export function parsePrivilegedChanges(
-  formData: FormData,
-  current: CurrentSettings,
-  knownTaskTypes: string[],
-): PrivilegedPatch {
-  const patch: PrivilegedPatch = {};
-
-  attachIfAny(
-    patch as Record<string, unknown>,
-    "dark_factory",
-    darkFactoryPatch(formData, current),
-  );
-  attachIfAny(
-    patch as Record<string, unknown>,
-    "task_overrides",
-    taskOverrideChanges(formData, current, knownTaskTypes),
-  );
-
-  return patch;
-}
-
-/** One row per known task type; a type the form left untouched contributes nothing. */
-function taskOverrideChanges(
-  formData: FormData,
-  current: CurrentSettings,
-  knownTaskTypes: string[],
-): Record<string, Record<string, unknown>> {
-  const changes: Record<string, Record<string, unknown>> = {};
-
-  for (const type of knownTaskTypes) {
-    const row = taskOverrideRow(
-      formData,
-      type,
-      current.task_overrides?.[type] ?? {},
-    );
-
-    attachIfAny(changes, type, row);
+/** Record a checkbox only when the form rendered it AND it differs from what is stored — an absent control means the form never offered the field, not that it was cleared. */
+function recordCheckbox(
+  into: Record<string, unknown>,
+  key: string,
+  field: { value: boolean | undefined; stored: boolean },
+): void {
+  if (field.value !== undefined && field.value !== field.stored) {
+    into[key] = field.value;
   }
+}
 
-  return changes;
+/** Record a text field only when it was filled in AND differs from what is stored — an empty box means "leave it alone", not "clear it". */
+function recordText(
+  into: Record<string, unknown>,
+  key: string,
+  value: string,
+  stored: string | undefined,
+): void {
+  if (value && value !== (stored ?? "")) {
+    into[key] = value;
+  }
+}
+
+/** A timeout counts only when the box holds a number that differs from what is stored. */
+function recordTimeout(
+  row: Record<string, unknown>,
+  raw: string,
+  stored: number | undefined,
+): void {
+  const timeout = raw ? Number(raw) : undefined;
+
+  if (timeout !== undefined && timeout !== stored) {
+    row.timeout_minutes = timeout;
+  }
+}
+
+/** Attach a nested block only when something inside it changed — an empty block would read as "clear these settings". */
+function attachIfAny(
+  into: Record<string, unknown>,
+  key: string,
+  changes: Record<string, unknown>,
+): void {
+  if (Object.keys(changes).length > 0) {
+    into[key] = changes;
+  }
 }

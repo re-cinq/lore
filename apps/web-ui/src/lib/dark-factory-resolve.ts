@@ -43,10 +43,6 @@ export const DEFAULT_AUTO_MERGE_PATHS = [
 export const DEFAULT_EXECUTION_IMAGE =
   "ghcr.io/re-cinq/lore-claude-runner:latest";
 
-function orDefault<T>(value: T | undefined | null, fallback: T): T {
-  return value ?? fallback;
-}
-
 /** What each field falls back to when unset, per mode: dark mode narrows Issues, review, and notifications; light mode keeps the pre-dark behaviour. */
 const MODE_DEFAULTS = {
   dark: {
@@ -71,6 +67,22 @@ const DEFAULT_AUTO_MERGE: ResolvedDarkFactorySettings["auto_merge"] = {
   require_bot_approval: true,
 };
 
+export function resolveDarkFactorySettings(
+  partial: DarkFactorySettings | null | undefined,
+): ResolvedDarkFactorySettings {
+  const given = partial ?? {};
+  const enabled = given.enabled ?? false;
+  const fallback = enabled ? MODE_DEFAULTS.dark : MODE_DEFAULTS.light;
+
+  return {
+    enabled,
+    create_issue: orDefault(given.create_issue, fallback.create_issue),
+    auto_merge: resolveAutoMerge(given.auto_merge),
+    review: orDefault(given.review, fallback.review),
+    notify: orDefault(given.notify, [...fallback.notify]),
+  };
+}
+
 function resolveAutoMerge(
   autoMerge: DarkFactorySettings["auto_merge"],
 ): ResolvedDarkFactorySettings["auto_merge"] {
@@ -90,18 +102,6 @@ function resolveAutoMerge(
   };
 }
 
-export function resolveDarkFactorySettings(
-  partial: DarkFactorySettings | null | undefined,
-): ResolvedDarkFactorySettings {
-  const given = partial ?? {};
-  const enabled = given.enabled ?? false;
-  const fallback = enabled ? MODE_DEFAULTS.dark : MODE_DEFAULTS.light;
-
-  return {
-    enabled,
-    create_issue: orDefault(given.create_issue, fallback.create_issue),
-    auto_merge: resolveAutoMerge(given.auto_merge),
-    review: orDefault(given.review, fallback.review),
-    notify: orDefault(given.notify, [...fallback.notify]),
-  };
+function orDefault<T>(value: T | undefined | null, fallback: T): T {
+  return value ?? fallback;
 }

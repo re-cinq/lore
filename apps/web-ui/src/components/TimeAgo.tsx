@@ -8,15 +8,6 @@ interface TimeAgoProps {
   inline?: boolean;
 }
 
-/** The "(3 minutes ago)" half, muted beside the absolute timestamp. */
-function RelativeTime({ iso, nowMs }: { iso: string; nowMs: number }) {
-  return (
-    <span className={`meta ${styles.relative}`}>
-      ({formatRelativeTime(iso, nowMs)})
-    </span>
-  );
-}
-
 export function TimeAgo({
   date,
   // eslint-disable-next-line react-hooks/purity -- rendered once per request by server components; tests inject nowMs
@@ -36,5 +27,14 @@ export function TimeAgo({
       {inline ? " " : <br />}
       <RelativeTime iso={iso} nowMs={nowMs} />
     </time>
+  );
+}
+
+/** The "(3 minutes ago)" half, muted beside the absolute timestamp. */
+function RelativeTime({ iso, nowMs }: { iso: string; nowMs: number }) {
+  return (
+    <span className={`meta ${styles.relative}`}>
+      ({formatRelativeTime(iso, nowMs)})
+    </span>
   );
 }

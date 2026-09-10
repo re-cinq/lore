@@ -18,23 +18,12 @@ interface StatusLookup {
   now: () => number;
 }
 
-/** Live cache entry, or a freshly cached fetch that degrades to "aligned" on failure. */
-function cachedStatus({
-  key,
-  repo,
-  fetchStatus,
-  now,
-}: StatusLookup): Promise<IngestWorkflowStatus> {
-  const cached = cache.get(key);
-
-  if (cached && cached.expiresAt > now()) {
-    return cached.value;
-  }
-  const value = fetchStatus(repo).catch((): IngestWorkflowStatus => "aligned");
-
-  cache.set(key, { value, expiresAt: now() + INGEST_STATUS_TTL_MS });
-
-  return value;
+export async function getIngestStatuses(
+  repos: string[],
+  fetchStatus: (repo: string) => Promise<IngestWorkflowStatus>,
+  now: () => number = Date.now,
+): Promise<Map<string, IngestWorkflowStatus>> {
+  return getWorkflowStatuses("ingest", repos, fetchStatus, now);
 }
 
 /** Status for one workflow across many repos; kind namespaces cache key. */
@@ -54,12 +43,23 @@ export async function getWorkflowStatuses(
   return new Map(entries.map((e, i) => [e.repo, statuses[i]]));
 }
 
-export async function getIngestStatuses(
-  repos: string[],
-  fetchStatus: (repo: string) => Promise<IngestWorkflowStatus>,
-  now: () => number = Date.now,
-): Promise<Map<string, IngestWorkflowStatus>> {
-  return getWorkflowStatuses("ingest", repos, fetchStatus, now);
+/** Live cache entry, or a freshly cached fetch that degrades to "aligned" on failure. */
+function cachedStatus({
+  key,
+  repo,
+  fetchStatus,
+  now,
+}: StatusLookup): Promise<IngestWorkflowStatus> {
+  const cached = cache.get(key);
+
+  if (cached && cached.expiresAt > now()) {
+    return cached.value;
+  }
+  const value = fetchStatus(repo).catch((): IngestWorkflowStatus => "aligned");
+
+  cache.set(key, { value, expiresAt: now() + INGEST_STATUS_TTL_MS });
+
+  return value;
 }
 
 export function clearIngestStatusCache(): void {

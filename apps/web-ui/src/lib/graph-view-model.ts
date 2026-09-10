@@ -53,54 +53,41 @@ export interface VisibleGraph {
   edges: readonly VisibleEdge[];
 }
 
-/** Outcome (or edge condition) to a connector/badge tone. */
-export function outcomeTone(outcome: string): ConnectorTone {
-  if (outcome.includes("failed")) {
-    return "err";
+/** The nodes and connectors to draw for the active mode. */
+export function deriveVisibleGraph(
+  definition: AssemblyLineDefinition | null,
+  run: RunData | null,
+  mode: GraphMode,
+): VisibleGraph {
+  if (!definition) {
+    return { mode, nodes: [], edges: [] };
   }
 
-  if (outcome === "changes_requested") {
-    return "warn";
-  }
-
-  return outcome === "success" ? "ok" : "neutral";
+  return mode === "run" && run
+    ? runGraph(definition, run)
+    : definitionGraph(definition);
 }
 
-/** One drawn connector per node pair, however many conditions route along it. */
-function pairKey(from: string, to: string): string {
-  return `${from}->${to}`;
-}
+/** Run mode: whole line with each step's current state; path so far stands out. */
+function runGraph(
+  definition: AssemblyLineDefinition,
+  run: RunData,
+): VisibleGraph {
+  const { reached, takenPairs } = walkedPath(definition, run);
+  const edges = runConnectors(definition, takenPairs);
+  const terminals = terminalIds(definition);
+  const nodes = definition.nodes.map((node) => ({
+    id: node.id,
+    type: node.type,
+    outcomes: [],
+    verdict: run.verdicts[node.id] ?? null,
+    status: run.statuses[node.id] ?? "idle",
+    // Only reached terminals carry the result.
+    result: terminals.has(node.id) && reached.has(node.id) ? run.result : null,
+    nodeType: node.type,
+  }));
 
-function terminalIds(definition: AssemblyLineDefinition): Set<string> {
-  const hasOutgoing = new Set(definition.edges.map((edge) => edge.from));
-
-  const nodeIds = definition.nodes.map((node) => node.id);
-
-  return new Set(nodeIds.filter((id) => !hasOutgoing.has(id)));
-}
-
-/** One connector per distinct TARGET. Outcomes that lead to the same node collapse into a single neutral edge — drawing one arrow per verdict would suggest branching where the line does not actually fork; a target reached by exactly one outcome keeps that outcome's tone. */
-function connectorsFor(
-  from: string,
-  outgoing: AssemblyLineDefinition["edges"],
-): VisibleEdge[] {
-  const targets = [...new Set(outgoing.map((edge) => edge.to))];
-
-  if (targets.length === 1) {
-    return [{ from, to: targets[0], tone: "neutral" }];
-  }
-
-  return targets.map((to) => {
-    const ons = outgoing
-      .filter((edge) => edge.to === to)
-      .map((edge) => edge.on);
-
-    return {
-      from,
-      to,
-      tone: ons.length === 1 ? outcomeTone(ons[0]) : "neutral",
-    };
-  });
+  return { mode: "run", nodes, edges };
 }
 
 /** Definition mode: collapse same-target outcomes, branch different-target ones. */
@@ -124,21 +111,6 @@ function definitionGraph(definition: AssemblyLineDefinition): VisibleGraph {
     nodes: idleNodes(definition, outcomesByNode),
     edges,
   };
-}
-
-/** Every node in its pre-run state: no verdict, no result, idle. */
-function idleNodes(
-  definition: AssemblyLineDefinition,
-  outcomesByNode: Map<string, string[]>,
-): VisibleNode[] {
-  return definition.nodes.map((node) => ({
-    id: node.id,
-    type: node.type,
-    outcomes: outcomesByNode.get(node.id) ?? [],
-    verdict: null,
-    status: "idle" as const,
-    result: null,
-  }));
 }
 
 /** Which nodes and hops the run actually went through. Collected BEFORE the connectors are built, because several conditions can share one hop — a node counts as reached if any outcome led into or out of it. */
@@ -177,6 +149,53 @@ function runConnectors(
   });
 }
 
+function terminalIds(definition: AssemblyLineDefinition): Set<string> {
+  const hasOutgoing = new Set(definition.edges.map((edge) => edge.from));
+
+  const nodeIds = definition.nodes.map((node) => node.id);
+
+  return new Set(nodeIds.filter((id) => !hasOutgoing.has(id)));
+}
+
+/** One connector per distinct TARGET. Outcomes that lead to the same node collapse into a single neutral edge — drawing one arrow per verdict would suggest branching where the line does not actually fork; a target reached by exactly one outcome keeps that outcome's tone. */
+function connectorsFor(
+  from: string,
+  outgoing: AssemblyLineDefinition["edges"],
+): VisibleEdge[] {
+  const targets = [...new Set(outgoing.map((edge) => edge.to))];
+
+  if (targets.length === 1) {
+    return [{ from, to: targets[0], tone: "neutral" }];
+  }
+
+  return targets.map((to) => {
+    const ons = outgoing
+      .filter((edge) => edge.to === to)
+      .map((edge) => edge.on);
+
+    return {
+      from,
+      to,
+      tone: ons.length === 1 ? outcomeTone(ons[0]) : "neutral",
+    };
+  });
+}
+
+/** Every node in its pre-run state: no verdict, no result, idle. */
+function idleNodes(
+  definition: AssemblyLineDefinition,
+  outcomesByNode: Map<string, string[]>,
+): VisibleNode[] {
+  return definition.nodes.map((node) => ({
+    id: node.id,
+    type: node.type,
+    outcomes: outcomesByNode.get(node.id) ?? [],
+    verdict: null,
+    status: "idle" as const,
+    result: null,
+  }));
+}
+
 /** One drawn arrow for a hop, flagged with whether the run traversed it. */
 function runConnector(
   edge: { from: string; to: string },
@@ -191,39 +210,20 @@ function runConnector(
   };
 }
 
-/** Run mode: whole line with each step's current state; path so far stands out. */
-function runGraph(
-  definition: AssemblyLineDefinition,
-  run: RunData,
-): VisibleGraph {
-  const { reached, takenPairs } = walkedPath(definition, run);
-  const edges = runConnectors(definition, takenPairs);
-  const terminals = terminalIds(definition);
-  const nodes = definition.nodes.map((node) => ({
-    id: node.id,
-    type: node.type,
-    outcomes: [],
-    verdict: run.verdicts[node.id] ?? null,
-    status: run.statuses[node.id] ?? "idle",
-    // Only reached terminals carry the result.
-    result: terminals.has(node.id) && reached.has(node.id) ? run.result : null,
-    nodeType: node.type,
-  }));
-
-  return { mode: "run", nodes, edges };
+/** One drawn connector per node pair, however many conditions route along it. */
+function pairKey(from: string, to: string): string {
+  return `${from}->${to}`;
 }
 
-/** The nodes and connectors to draw for the active mode. */
-export function deriveVisibleGraph(
-  definition: AssemblyLineDefinition | null,
-  run: RunData | null,
-  mode: GraphMode,
-): VisibleGraph {
-  if (!definition) {
-    return { mode, nodes: [], edges: [] };
+/** Outcome (or edge condition) to a connector/badge tone. */
+export function outcomeTone(outcome: string): ConnectorTone {
+  if (outcome.includes("failed")) {
+    return "err";
   }
 
-  return mode === "run" && run
-    ? runGraph(definition, run)
-    : definitionGraph(definition);
+  if (outcome === "changes_requested") {
+    return "warn";
+  }
+
+  return outcome === "success" ? "ok" : "neutral";
 }

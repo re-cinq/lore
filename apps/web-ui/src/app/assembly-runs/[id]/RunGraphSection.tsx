@@ -6,6 +6,39 @@ import RunGraphView from "@/components/RunGraphView";
 import styles from "./RunVisualizationPanel.module.css";
 import { connectionLabel } from "@/lib/run-stream-presenter";
 
+/** The run as a picture: the connection chip, the graph itself, and the definition/run toggle. */
+interface RunGraphSectionProps {
+  chipState: Parameters<typeof connectionLabel>[0];
+  graph: Parameters<typeof RunGraphView>[0]["graph"];
+  definition: AssemblyLineDefinition | null;
+  onSelectNode: (nodeId: string) => void;
+  selectedNodeId: string | null;
+  nodeMeta: Readonly<Record<string, string>>;
+  hasRunData: boolean;
+  showOutcomes: boolean;
+  onToggleOutcomes: () => void;
+}
+
+export function RunGraphSection(props: RunGraphSectionProps) {
+  return (
+    <>
+      <ConnectionChip state={props.chipState} />
+      <RunGraphView
+        graph={props.graph}
+        definition={props.definition}
+        onSelectNode={props.onSelectNode}
+        selectedNodeId={props.selectedNodeId}
+        nodeMeta={props.nodeMeta}
+      />
+      <OutcomesToggle
+        show={props.hasRunData}
+        showOutcomes={props.showOutcomes}
+        onToggle={props.onToggleOutcomes}
+      />
+    </>
+  );
+}
+
 interface OutcomesToggleProps {
   show: boolean;
   showOutcomes: boolean;
@@ -34,19 +67,6 @@ export function OutcomesToggle({
   );
 }
 
-/** The run as a picture: the connection chip, the graph itself, and the definition/run toggle. */
-interface RunGraphSectionProps {
-  chipState: Parameters<typeof connectionLabel>[0];
-  graph: Parameters<typeof RunGraphView>[0]["graph"];
-  definition: AssemblyLineDefinition | null;
-  onSelectNode: (nodeId: string) => void;
-  selectedNodeId: string | null;
-  nodeMeta: Readonly<Record<string, string>>;
-  hasRunData: boolean;
-  showOutcomes: boolean;
-  onToggleOutcomes: () => void;
-}
-
 interface ConnectionChipProps {
   state: RunGraphSectionProps["chipState"];
 }
@@ -63,25 +83,5 @@ function ConnectionChip({ state }: ConnectionChipProps) {
         {connectionLabel(state)}
       </span>
     </div>
-  );
-}
-
-export function RunGraphSection(props: RunGraphSectionProps) {
-  return (
-    <>
-      <ConnectionChip state={props.chipState} />
-      <RunGraphView
-        graph={props.graph}
-        definition={props.definition}
-        onSelectNode={props.onSelectNode}
-        selectedNodeId={props.selectedNodeId}
-        nodeMeta={props.nodeMeta}
-      />
-      <OutcomesToggle
-        show={props.hasRunData}
-        showOutcomes={props.showOutcomes}
-        onToggle={props.onToggleOutcomes}
-      />
-    </>
   );
 }

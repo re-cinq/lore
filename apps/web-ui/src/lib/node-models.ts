@@ -15,22 +15,6 @@ export interface CatalogModel {
   model: string | null;
 }
 
-function modelFor(
-  recipe: string | null,
-  definitionModel: string | undefined,
-  catalog: readonly CatalogModel[],
-): NodeModel | null {
-  const fromCatalog = catalog.find((entry) => entry.name === recipe)?.model;
-
-  if (fromCatalog) {
-    return { model: fromCatalog, source: "recipe" };
-  }
-
-  return definitionModel
-    ? { model: definitionModel, source: "definition" }
-    : null;
-}
-
 /** nodeId → model, for every agent node with an answer. */
 export function resolveNodeModels(
   definition: AssemblyLineDefinition | null,
@@ -49,6 +33,22 @@ export function resolveNodeModels(
   }
 
   return models;
+}
+
+function modelFor(
+  recipe: string | null,
+  definitionModel: string | undefined,
+  catalog: readonly CatalogModel[],
+): NodeModel | null {
+  const fromCatalog = catalog.find((entry) => entry.name === recipe)?.model;
+
+  if (fromCatalog) {
+    return { model: fromCatalog, source: "recipe" };
+  }
+
+  return definitionModel
+    ? { model: definitionModel, source: "definition" }
+    : null;
 }
 
 /** The curated label for a model id, else the id itself — a new model reads as its id rather than as nothing. */

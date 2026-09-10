@@ -49,6 +49,20 @@ const BUCKETS: Array<{ status: SpecStatus; re: RegExp }> = [
 
 const MAX_LABEL = 24;
 
+export function parseSpecStatus(markdown: string): SpecStatusInfo | null {
+  for (const line of markdown.split("\n")) {
+    const cells = line.split("|").map((c) => c.trim());
+
+    if (cells.length < 3 || cells[1].toLowerCase() !== "status") {
+      continue;
+    }
+
+    return statusInfoFromCell(cells[2]);
+  }
+
+  return null;
+}
+
 /** Bucket + label from the `| Status |` row's value cell, trailing qualifier stripped. */
 function statusInfoFromCell(statusCell: string): SpecStatusInfo | null {
   const value = statusCell.replace(/\*/g, "").trim();
@@ -65,20 +79,6 @@ function statusInfoFromCell(statusCell: string): SpecStatusInfo | null {
     status: bucket.status,
     label: label.slice(0, MAX_LABEL) || value.slice(0, MAX_LABEL),
   };
-}
-
-export function parseSpecStatus(markdown: string): SpecStatusInfo | null {
-  for (const line of markdown.split("\n")) {
-    const cells = line.split("|").map((c) => c.trim());
-
-    if (cells.length < 3 || cells[1].toLowerCase() !== "status") {
-      continue;
-    }
-
-    return statusInfoFromCell(cells[2]);
-  }
-
-  return null;
 }
 
 /** Bucket a bare status value (an ADR frontmatter `status:`) into pill status. */

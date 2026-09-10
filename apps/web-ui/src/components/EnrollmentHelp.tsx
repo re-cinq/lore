@@ -1,6 +1,28 @@
 // What the enrollment checks mean, as popover copy — split out of EnrollmentSection so the section file stays about the checks themselves.
 import HelpPopover from "./HelpPopover";
 
+export default function EnrollmentHelp() {
+  return (
+    <HelpPopover label="What enrollment checks mean">
+      <p>
+        These checks show whether this repo is wired into Lore and whether
+        you&apos;ve set it up locally.
+      </p>
+      <EnrollmentHelpPoints />
+    </HelpPopover>
+  );
+}
+
+function EnrollmentHelpPoints() {
+  return (
+    <ul>
+      <RepoIntegrationPoint />
+      <McpUsagePoint />
+      <LocalSetupPoint />
+    </ul>
+  );
+}
+
 function RepoIntegrationPoint() {
   return (
     <li>
@@ -28,27 +50,5 @@ function LocalSetupPoint() {
       The <strong>local setup</strong> steps run on your machine and can&apos;t
       be auto-verified.
     </li>
-  );
-}
-
-function EnrollmentHelpPoints() {
-  return (
-    <ul>
-      <RepoIntegrationPoint />
-      <McpUsagePoint />
-      <LocalSetupPoint />
-    </ul>
-  );
-}
-
-export default function EnrollmentHelp() {
-  return (
-    <HelpPopover label="What enrollment checks mean">
-      <p>
-        These checks show whether this repo is wired into Lore and whether
-        you&apos;ve set it up locally.
-      </p>
-      <EnrollmentHelpPoints />
-    </HelpPopover>
   );
 }

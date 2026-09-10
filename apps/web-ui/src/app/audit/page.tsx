@@ -17,27 +17,6 @@ const OPERATIONS = [
   "list",
 ];
 
-/** One page of audit entries, with the total behind it. An unreachable lore-api reads as an empty page: the filters and the pager still render, and the reader can retry. */
-async function readAuditPage(
-  agent: string | undefined,
-  op: string | undefined,
-  offset: number,
-) {
-  const page = await getMemoryAudit({
-    agent,
-    operation: op,
-    limit: PAGE_SIZE,
-    offset,
-  });
-
-  return page.status === "ok"
-    ? {
-        entries: page.data.entries as AuditEntryRow[],
-        totalCount: page.data.total,
-      }
-    : { entries: [] as AuditEntryRow[], totalCount: 0 };
-}
-
 interface AuditPageProps {
   searchParams: Promise<{ agent?: string; op?: string; offset?: string }>;
 }
@@ -61,4 +40,25 @@ export default async function AuditPage(props: AuditPageProps) {
       hasNext={offset + PAGE_SIZE < totalCount}
     />
   );
+}
+
+/** One page of audit entries, with the total behind it. An unreachable lore-api reads as an empty page: the filters and the pager still render, and the reader can retry. */
+async function readAuditPage(
+  agent: string | undefined,
+  op: string | undefined,
+  offset: number,
+) {
+  const page = await getMemoryAudit({
+    agent,
+    operation: op,
+    limit: PAGE_SIZE,
+    offset,
+  });
+
+  return page.status === "ok"
+    ? {
+        entries: page.data.entries as AuditEntryRow[],
+        totalCount: page.data.total,
+      }
+    : { entries: [] as AuditEntryRow[], totalCount: 0 };
 }

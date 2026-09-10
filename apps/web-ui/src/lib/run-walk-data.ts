@@ -7,31 +7,6 @@ import type { NodeRunStatus } from "./run-event-reducer";
 import { latestRowByNode } from "./run-replay-view";
 import { takenEdgeKeys } from "./run-taken-edges";
 
-function isFailure(outcome: string): boolean {
-  return outcome.includes("failed");
-}
-
-/** A row's execution status. */
-function rowStatus(outcome: string | null): NodeRunStatus {
-  if (outcome === null) {
-    return "running";
-  }
-
-  return isFailure(outcome) ? "failed" : "succeeded";
-}
-
-/** The run's final token: failed/completed/null. */
-function runResult(
-  latest: ReadonlyMap<string, AssemblyRunNode>,
-  { finished }: { finished: boolean },
-): string | null {
-  if (anyRowFailed(latest)) {
-    return "failed";
-  }
-
-  return finished ? "completed" : null;
-}
-
 /** RunData derived from walk rows; finished status owned by caller. */
 export function walkRunData(
   definition: AssemblyLineDefinition | null,
@@ -64,8 +39,33 @@ function nodeOutcomes(latest: ReadonlyMap<string, AssemblyRunNode>): {
   return { verdicts, statuses };
 }
 
+/** The run's final token: failed/completed/null. */
+function runResult(
+  latest: ReadonlyMap<string, AssemblyRunNode>,
+  { finished }: { finished: boolean },
+): string | null {
+  if (anyRowFailed(latest)) {
+    return "failed";
+  }
+
+  return finished ? "completed" : null;
+}
+
 function anyRowFailed(latest: ReadonlyMap<string, AssemblyRunNode>): boolean {
   return [...latest.values()].some(
     (row) => row.outcome !== null && isFailure(row.outcome),
   );
+}
+
+/** A row's execution status. */
+function rowStatus(outcome: string | null): NodeRunStatus {
+  if (outcome === null) {
+    return "running";
+  }
+
+  return isFailure(outcome) ? "failed" : "succeeded";
+}
+
+function isFailure(outcome: string): boolean {
+  return outcome.includes("failed");
 }

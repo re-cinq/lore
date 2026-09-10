@@ -21,43 +21,42 @@ const gap: GapResult = {
   draft_spec_markdown: "# Spec standard",
 };
 
-const round = (
-  over: Partial<FeatureIterationRow> = {},
-): FeatureIterationRow => ({
-  id: "it3",
-  feature_id: "f1",
-  iteration: 3,
-  task_id: null,
-  status: "ready",
-  user_answers: null,
-  gap_result: gap,
-  parent_iteration: null,
-  created_at: "2026-08-12T18:00:00Z",
-  updated_at: "2026-08-12T18:00:00Z",
-  ...over,
-});
+function mount(initial: object, over: Partial<FeatureWithIterations> = {}) {
+  const srv = server(initial);
 
-const feature = (
-  over: Partial<FeatureWithIterations> = {},
-): FeatureWithIterations =>
-  ({
-    id: "f1",
-    title: "Define the spec standard",
-    status: "awaiting-input",
-    current_iteration: 3,
-    iterations: [round()],
-    ...over,
-  }) as unknown as FeatureWithIterations;
+  vi.stubGlobal("fetch", srv.fetch);
+  const finalize = vi.fn().mockResolvedValue(undefined);
 
-const node = (nodeId: string, outcome: string | null) => ({
-  nodeId,
-  iteration: 3,
-  outcome,
-  startedAt: "2026-08-12T19:30:00Z",
-  agentCrName: null,
-  commitSha: null,
-  durationSeconds: null,
-});
+  render(
+    <PlanningWizard
+      owner="re-cinq"
+      repo="lore"
+      feature={feature(over)}
+      timeoutMinutes={15}
+      refine={vi.fn().mockResolvedValue(undefined)}
+      onFinalize={finalize}
+      onCreateDraft={vi.fn()}
+      settledView={<div data-testid="settled" />}
+    />,
+  );
+
+  return { finalize, srv };
+}
+
+function server(initial: object) {
+  let state = initial;
+
+  return {
+    fetch: vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => state,
+    })),
+    set(next: object) {
+      state = next;
+    },
+  };
+}
 
 const poll = (
   status: string,
@@ -79,47 +78,48 @@ const poll = (
   },
 });
 
-function server(initial: object) {
-  let state = initial;
+const feature = (
+  over: Partial<FeatureWithIterations> = {},
+): FeatureWithIterations =>
+  ({
+    id: "f1",
+    title: "Define the spec standard",
+    status: "awaiting-input",
+    current_iteration: 3,
+    iterations: [round()],
+    ...over,
+  }) as unknown as FeatureWithIterations;
 
-  return {
-    fetch: vi.fn(async () => ({
-      ok: true,
-      status: 200,
-      json: async () => state,
-    })),
-    set(next: object) {
-      state = next;
-    },
-  };
-}
+const round = (
+  over: Partial<FeatureIterationRow> = {},
+): FeatureIterationRow => ({
+  id: "it3",
+  feature_id: "f1",
+  iteration: 3,
+  task_id: null,
+  status: "ready",
+  user_answers: null,
+  gap_result: gap,
+  parent_iteration: null,
+  created_at: "2026-08-12T18:00:00Z",
+  updated_at: "2026-08-12T18:00:00Z",
+  ...over,
+});
+
+const node = (nodeId: string, outcome: string | null) => ({
+  nodeId,
+  iteration: 3,
+  outcome,
+  startedAt: "2026-08-12T19:30:00Z",
+  agentCrName: null,
+  commitSha: null,
+  durationSeconds: null,
+});
 
 async function tick() {
   await act(async () => {
     await vi.advanceTimersByTimeAsync(4000);
   });
-}
-
-function mount(initial: object, over: Partial<FeatureWithIterations> = {}) {
-  const srv = server(initial);
-
-  vi.stubGlobal("fetch", srv.fetch);
-  const finalize = vi.fn().mockResolvedValue(undefined);
-
-  render(
-    <PlanningWizard
-      owner="re-cinq"
-      repo="lore"
-      feature={feature(over)}
-      timeoutMinutes={15}
-      refine={vi.fn().mockResolvedValue(undefined)}
-      onFinalize={finalize}
-      onCreateDraft={vi.fn()}
-      settledView={<div data-testid="settled" />}
-    />,
-  );
-
-  return { finalize, srv };
 }
 
 beforeEach(() => {

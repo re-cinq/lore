@@ -40,35 +40,26 @@ export interface TranscriptSegment {
   entries: readonly TimedEntry[];
 }
 
-/** A tool result closes the newest call still waiting for one; a result with no open call is just a line. */
-function closeOpenCall(
-  entries: TranscriptEntry[],
-  result: ToolCallResult,
-): boolean {
-  for (let i = entries.length - 1; i >= 0; i--) {
-    const candidate = entries[i];
+/** Every segment flattened in order, each headed by its label; the header carries the clock of the segment's first entry so a merge keeps it in place. */
+export function segmentEntries(
+  segments: readonly TranscriptSegment[],
+): TranscriptEntry[] {
+  return segments.flatMap(({ label, entries }) => {
+    const at = entries.length === 0 ? "" : entries[0].at;
+    const header: TranscriptEntry[] =
+      label === null ? [] : [{ kind: "segment", at, label }];
 
-    if (candidate.kind === "tool-call" && candidate.result === null) {
-      entries[i] = { ...candidate, result };
-
-      return true;
-    }
-  }
-
-  return false;
+    return [...header, ...pairToolCalls(entries)];
+  });
 }
 
-/** A tool result closes the newest open call; one with no open call stays a plain line. */
-function foldToolResult(
-  entries: TranscriptEntry[],
-  at: string,
-  entry: Extract<LogEntry, { kind: "tool-result" }>,
-): void {
-  const result = { text: entry.text, isError: entry.isError };
+/** Tool uses and their results become one entry each; thinking folds to its own kind; everything else stays a turn. */
+export function pairToolCalls(timed: readonly TimedEntry[]): TranscriptEntry[] {
+  const entries: TranscriptEntry[] = [];
 
-  if (!closeOpenCall(entries, result)) {
-    entries.push({ kind: "turn", at, entry });
-  }
+  timed.forEach((timedEntry) => foldOne(entries, timedEntry));
+
+  return entries;
 }
 
 function foldOne(entries: TranscriptEntry[], { at, entry }: TimedEntry): void {
@@ -95,40 +86,41 @@ function foldOne(entries: TranscriptEntry[], { at, entry }: TimedEntry): void {
   );
 }
 
-/** Tool uses and their results become one entry each; thinking folds to its own kind; everything else stays a turn. */
-export function pairToolCalls(timed: readonly TimedEntry[]): TranscriptEntry[] {
-  const entries: TranscriptEntry[] = [];
+/** A tool result closes the newest open call; one with no open call stays a plain line. */
+function foldToolResult(
+  entries: TranscriptEntry[],
+  at: string,
+  entry: Extract<LogEntry, { kind: "tool-result" }>,
+): void {
+  const result = { text: entry.text, isError: entry.isError };
 
-  timed.forEach((timedEntry) => foldOne(entries, timedEntry));
-
-  return entries;
+  if (!closeOpenCall(entries, result)) {
+    entries.push({ kind: "turn", at, entry });
+  }
 }
 
-/** Every segment flattened in order, each headed by its label; the header carries the clock of the segment's first entry so a merge keeps it in place. */
-export function segmentEntries(
-  segments: readonly TranscriptSegment[],
-): TranscriptEntry[] {
-  return segments.flatMap(({ label, entries }) => {
-    const at = entries.length === 0 ? "" : entries[0].at;
-    const header: TranscriptEntry[] =
-      label === null ? [] : [{ kind: "segment", at, label }];
+/** A tool result closes the newest call still waiting for one; a result with no open call is just a line. */
+function closeOpenCall(
+  entries: TranscriptEntry[],
+  result: ToolCallResult,
+): boolean {
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const candidate = entries[i];
 
-    return [...header, ...pairToolCalls(entries)];
-  });
+    if (candidate.kind === "tool-call" && candidate.result === null) {
+      entries[i] = { ...candidate, result };
+
+      return true;
+    }
+  }
+
+  return false;
 }
 
 export interface NodeWindow {
   start: string | null;
   /** Null while any visit is still running: the window is open-ended. */
   end: string | null;
-}
-
-function endOf(row: AssemblyRunNode): number | null {
-  if (!row.startedAt || row.durationSeconds === null) {
-    return null;
-  }
-
-  return Date.parse(row.startedAt) + row.durationSeconds * 1000;
 }
 
 /** The span this node's visits cover: the earliest start to the latest end, open while a visit has not ended. */
@@ -149,18 +141,12 @@ export function nodeWindow(rows: readonly AssemblyRunNode[]): NodeWindow {
   };
 }
 
-export function taskEventLabel(from: string | null, to: string): string {
-  const arrow = from === null ? "" : `${formatEnumLabel(from)} → `;
+function endOf(row: AssemblyRunNode): number | null {
+  if (!row.startedAt || row.durationSeconds === null) {
+    return null;
+  }
 
-  return `task ${arrow}${formatEnumLabel(to)}`;
-}
-
-function inWindow(at: string, window: NodeWindow): boolean {
-  const time = Date.parse(at);
-  const afterStart = window.start === null || time >= Date.parse(window.start);
-  const beforeEnd = window.end === null || time <= Date.parse(window.end);
-
-  return afterStart && beforeEnd;
+  return Date.parse(row.startedAt) + row.durationSeconds * 1000;
 }
 
 /** The task's transitions that fell inside this node's window, as system lines. */
@@ -176,6 +162,20 @@ export function taskEventEntries(
       label: taskEventLabel(event.from_status, event.to_status),
       metadata: event.metadata,
     }));
+}
+
+export function taskEventLabel(from: string | null, to: string): string {
+  const arrow = from === null ? "" : `${formatEnumLabel(from)} → `;
+
+  return `task ${arrow}${formatEnumLabel(to)}`;
+}
+
+function inWindow(at: string, window: NodeWindow): boolean {
+  const time = Date.parse(at);
+  const afterStart = window.start === null || time >= Date.parse(window.start);
+  const beforeEnd = window.end === null || time <= Date.parse(window.end);
+
+  return afterStart && beforeEnd;
 }
 
 /** One clock order across both sources; a task event at the same instant as an agent entry comes first, because the transition is what the agent's next line responds to. */
@@ -198,11 +198,6 @@ export function mergeTranscript(
   return merged;
 }
 
-/** The second an entry falls in, or NaN when its time cannot be read. */
-function secondOf(at: string): number {
-  return Math.floor(Date.parse(at) / 1000);
-}
-
 /** Which entries print a clock: the first, and any that begins a new second. A burst of turns inside one second is one exchange, and repeating the same time down the left of every line reads as noise rather than as timing. An unreadable time never matches its neighbour, so it always prints. */
 export function clockShown(entries: readonly TranscriptEntry[]): boolean[] {
   let previous = Number.NaN;
@@ -215,4 +210,9 @@ export function clockShown(entries: readonly TranscriptEntry[]): boolean[] {
 
     return shown;
   });
+}
+
+/** The second an entry falls in, or NaN when its time cannot be read. */
+function secondOf(at: string): number {
+  return Math.floor(Date.parse(at) / 1000);
 }

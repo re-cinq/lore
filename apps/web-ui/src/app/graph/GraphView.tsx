@@ -120,6 +120,26 @@ function TypeFilterLink({ entityType, active }: TypeFilterLinkProps) {
   );
 }
 
+type EntityTableProps = Pick<GraphViewProps, "entities" | "entity" | "type">;
+
+function EntityTable({ entities, entity, type }: EntityTableProps) {
+  return (
+    <DataTable
+      title="Entities"
+      columns={["Name", "Type", "Repo", "Edges", "Updated", ""]}
+      rows={entities}
+      rowKey={(e) => e.id}
+      rowClass={(e) =>
+        entity?.toLowerCase() === e.name.toLowerCase()
+          ? styles.activeRow
+          : undefined
+      }
+      empty="No entities yet. Write episodes to populate the graph."
+      cells={(e) => entityCells(e, type)}
+    />
+  );
+}
+
 /** One entity as a row, with the link that recentres the graph on it. The type filter is carried into that link so exploring an entity does not silently widen the view back to every type. */
 function entityCells(
   entity: GraphViewProps["entities"][number],
@@ -141,23 +161,44 @@ function entityCells(
   ];
 }
 
-type EntityTableProps = Pick<GraphViewProps, "entities" | "entity" | "type">;
+type EdgeTableProps = Pick<GraphViewProps, "entity" | "edges" | "showInvalid">;
 
-function EntityTable({ entities, entity, type }: EntityTableProps) {
+/** An invalidated edge is history, not noise — it stays available behind the toggle so a contradiction can be read after the fact. Relationships need an entity to hang off, so with none selected there is nothing to show. */
+function EdgeTable({ entity, edges, showInvalid }: EdgeTableProps) {
+  if (!entity) {
+    return null;
+  }
+
   return (
-    <DataTable
-      title="Entities"
-      columns={["Name", "Type", "Repo", "Edges", "Updated", ""]}
-      rows={entities}
-      rowKey={(e) => e.id}
-      rowClass={(e) =>
-        entity?.toLowerCase() === e.name.toLowerCase()
-          ? styles.activeRow
-          : undefined
-      }
-      empty="No entities yet. Write episodes to populate the graph."
-      cells={(e) => entityCells(e, type)}
-    />
+    <>
+      <h2>Relationships for &quot;{entity}&quot;</h2>
+      <InvalidEdgesToggle entity={entity} showInvalid={showInvalid} />
+      <DataTable
+        columns={["Source", "Relation", "Target", "Since", "Status", "From"]}
+        rows={edges}
+        rowKey={(_e, i) => String(i)}
+        rowClass={(e) => (e.valid_to ? styles.invalidatedRow : undefined)}
+        empty="No relationships found for this entity."
+        cells={edgeCells}
+      />
+    </>
+  );
+}
+
+type InvalidEdgesToggleProps = Pick<GraphViewProps, "showInvalid"> & {
+  entity: string;
+};
+
+function InvalidEdgesToggle({ entity, showInvalid }: InvalidEdgesToggleProps) {
+  return (
+    <div className={styles.invalidToggle}>
+      <a
+        href={`/graph?entity=${encodeURIComponent(entity)}${showInvalid ? "" : "&show_invalid=1"}`}
+        className={styles.invalidToggleLink}
+      >
+        {showInvalid ? "Hide invalidated" : "Show invalidated edges"}
+      </a>
+    </div>
   );
 }
 
@@ -199,46 +240,5 @@ function edgeStatusCell(validTo: Edge["valid_to"]): ReactNode {
     <span className="op-badge op-write" key="status">
       active
     </span>
-  );
-}
-
-type EdgeTableProps = Pick<GraphViewProps, "entity" | "edges" | "showInvalid">;
-
-/** An invalidated edge is history, not noise — it stays available behind the toggle so a contradiction can be read after the fact. Relationships need an entity to hang off, so with none selected there is nothing to show. */
-function EdgeTable({ entity, edges, showInvalid }: EdgeTableProps) {
-  if (!entity) {
-    return null;
-  }
-
-  return (
-    <>
-      <h2>Relationships for &quot;{entity}&quot;</h2>
-      <InvalidEdgesToggle entity={entity} showInvalid={showInvalid} />
-      <DataTable
-        columns={["Source", "Relation", "Target", "Since", "Status", "From"]}
-        rows={edges}
-        rowKey={(_e, i) => String(i)}
-        rowClass={(e) => (e.valid_to ? styles.invalidatedRow : undefined)}
-        empty="No relationships found for this entity."
-        cells={edgeCells}
-      />
-    </>
-  );
-}
-
-type InvalidEdgesToggleProps = Pick<GraphViewProps, "showInvalid"> & {
-  entity: string;
-};
-
-function InvalidEdgesToggle({ entity, showInvalid }: InvalidEdgesToggleProps) {
-  return (
-    <div className={styles.invalidToggle}>
-      <a
-        href={`/graph?entity=${encodeURIComponent(entity)}${showInvalid ? "" : "&show_invalid=1"}`}
-        className={styles.invalidToggleLink}
-      >
-        {showInvalid ? "Hide invalidated" : "Show invalidated edges"}
-      </a>
-    </div>
   );
 }

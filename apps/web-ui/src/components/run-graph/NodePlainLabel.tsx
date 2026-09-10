@@ -8,18 +8,19 @@ export interface NodePlainLabelProps {
   isTerminal: boolean;
 }
 
-interface CenteredTextProps {
-  className: string;
-  centerX: number;
-  textY: number;
-  label: string;
-}
+export default function NodePlainLabel(props: NodePlainLabelProps) {
+  const { title, centerX, centerY, isTerminal } = props;
 
-function CenteredText({ className, centerX, textY, label }: CenteredTextProps) {
   return (
-    <text className={className} x={centerX} y={textY} textAnchor="middle">
-      {label}
-    </text>
+    <>
+      <CenteredText
+        className={styles.nodeId}
+        centerX={centerX}
+        textY={isTerminal ? centerY - 4 : centerY + 4}
+        label={title}
+      />
+      {isTerminal ? <TerminalCaption {...props} /> : null}
+    </>
   );
 }
 
@@ -35,18 +36,17 @@ function TerminalCaption({ centerX, centerY }: NodePlainLabelProps) {
   );
 }
 
-export default function NodePlainLabel(props: NodePlainLabelProps) {
-  const { title, centerX, centerY, isTerminal } = props;
+interface CenteredTextProps {
+  className: string;
+  centerX: number;
+  textY: number;
+  label: string;
+}
 
+function CenteredText({ className, centerX, textY, label }: CenteredTextProps) {
   return (
-    <>
-      <CenteredText
-        className={styles.nodeId}
-        centerX={centerX}
-        textY={isTerminal ? centerY - 4 : centerY + 4}
-        label={title}
-      />
-      {isTerminal ? <TerminalCaption {...props} /> : null}
-    </>
+    <text className={className} x={centerX} y={textY} textAnchor="middle">
+      {label}
+    </text>
   );
 }

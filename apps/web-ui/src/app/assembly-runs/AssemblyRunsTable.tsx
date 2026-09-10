@@ -61,15 +61,21 @@ export default function AssemblyRunsTable({ runs }: AssemblyRunsTableProps) {
   );
 }
 
-function AllSkippedBody() {
+function RunsTableHead() {
   return (
-    <tbody>
+    <thead>
       <tr>
-        <td colSpan={TABLE_COLUMNS} className={styles.empty}>
-          All runs are coordination skips — use the toggle below to reveal them.
-        </td>
+        <th>Definition</th>
+        <th>Repo</th>
+        <th>Branch</th>
+        <th>Status</th>
+        <th>PR</th>
+        <th>Duration</th>
+        <th>Started</th>
+        <th title={BY_COLUMN_TITLE}>By</th>
+        <th title={COST_COLUMN_TITLE}>Cost</th>
       </tr>
-    </tbody>
+    </thead>
   );
 }
 
@@ -93,6 +99,56 @@ interface SkipToggleFooterProps {
   onToggle: () => void;
 }
 
+/** The row that reveals runs which did nothing. Hidden entirely when there were none — an empty "show 0 skips" control is a control that never has anything to say. */
+function SkipToggleFooter(props: SkipToggleFooterProps) {
+  if (props.skipCount === 0) {
+    return null;
+  }
+
+  return (
+    <tfoot>
+      <tr>
+        <td colSpan={TABLE_COLUMNS}>
+          <SkipToggleButton {...props} />
+        </td>
+      </tr>
+    </tfoot>
+  );
+}
+
+function RunRow({ run }: RunRowProps) {
+  return (
+    <tr>
+      <DefinitionCell run={run} />
+      <td>
+        <Link href={`/repos/${run.repo}`}>{run.repo}</Link>
+      </td>
+      <td className={styles.branch}>
+        <BranchCell branch={run.branch} />
+      </td>
+      <td>
+        <StatusCell run={run} />
+      </td>
+      <td>
+        <RunPrCell run={run} />
+      </td>
+      <RunSummaryCells run={run} />
+    </tr>
+  );
+}
+
+function AllSkippedBody() {
+  return (
+    <tbody>
+      <tr>
+        <td colSpan={TABLE_COLUMNS} className={styles.empty}>
+          All runs are coordination skips — use the toggle below to reveal them.
+        </td>
+      </tr>
+    </tbody>
+  );
+}
+
 function SkipToggleButton({
   skipCount,
   showSkips,
@@ -113,38 +169,12 @@ function SkipToggleButton({
   );
 }
 
-/** The row that reveals runs which did nothing. Hidden entirely when there were none — an empty "show 0 skips" control is a control that never has anything to say. */
-function SkipToggleFooter(props: SkipToggleFooterProps) {
-  if (props.skipCount === 0) {
-    return null;
-  }
-
+function DefinitionCell({ run }: RunRowProps) {
   return (
-    <tfoot>
-      <tr>
-        <td colSpan={TABLE_COLUMNS}>
-          <SkipToggleButton {...props} />
-        </td>
-      </tr>
-    </tfoot>
-  );
-}
-
-function RunsTableHead() {
-  return (
-    <thead>
-      <tr>
-        <th>Definition</th>
-        <th>Repo</th>
-        <th>Branch</th>
-        <th>Status</th>
-        <th>PR</th>
-        <th>Duration</th>
-        <th>Started</th>
-        <th title={BY_COLUMN_TITLE}>By</th>
-        <th title={COST_COLUMN_TITLE}>Cost</th>
-      </tr>
-    </thead>
+    <td>
+      <Link href={`/assembly-runs/${run.id}`}>{run.blueprintName}</Link>
+      <span className={styles.subId}>#{run.id.substring(0, 8)}</span>
+    </td>
   );
 }
 
@@ -176,15 +206,6 @@ function StatusCell({ run }: RunRowProps) {
   );
 }
 
-function DefinitionCell({ run }: RunRowProps) {
-  return (
-    <td>
-      <Link href={`/assembly-runs/${run.id}`}>{run.blueprintName}</Link>
-      <span className={styles.subId}>#{run.id.substring(0, 8)}</span>
-    </td>
-  );
-}
-
 function RunSummaryCells({ run }: RunRowProps) {
   return (
     <>
@@ -193,27 +214,6 @@ function RunSummaryCells({ run }: RunRowProps) {
       <td>{run.createdBy ? shortAgentId(run.createdBy) : EM_DASH}</td>
       <td>{run.costUsd !== null ? formatCost(run.costUsd) : EM_DASH}</td>
     </>
-  );
-}
-
-function RunRow({ run }: RunRowProps) {
-  return (
-    <tr>
-      <DefinitionCell run={run} />
-      <td>
-        <Link href={`/repos/${run.repo}`}>{run.repo}</Link>
-      </td>
-      <td className={styles.branch}>
-        <BranchCell branch={run.branch} />
-      </td>
-      <td>
-        <StatusCell run={run} />
-      </td>
-      <td>
-        <RunPrCell run={run} />
-      </td>
-      <RunSummaryCells run={run} />
-    </tr>
   );
 }
 

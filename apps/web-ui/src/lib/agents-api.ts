@@ -8,40 +8,6 @@ export type AgentSaveResult =
   | { status: "unconfigured" }
   | { status: "error"; message: string };
 
-function cfg(): { apiUrl: string; token: string } | null {
-  const apiUrl = process.env.LORE_API_URL;
-  // Prefer the admin token; the legacy full-access ingest token (local dev default) also satisfies the mcp route's admin-scope check.
-  const token = process.env.LORE_ADMIN_TOKEN || process.env.LORE_INGEST_TOKEN;
-
-  return apiUrl && token ? { apiUrl, token } : null;
-}
-
-/** A catalog read: an unreachable or unhappy endpoint reads as an empty catalog, never as a thrown render. */
-async function fetchAgentList(path: string): Promise<AgentDefinition[]> {
-  const c = cfg();
-
-  if (!c) {
-    return [];
-  }
-
-  try {
-    const res = await fetch(`${c.apiUrl}${path}`, {
-      signal: AbortSignal.timeout(15_000),
-      headers: { authorization: `Bearer ${c.token}` },
-      cache: "no-store",
-    });
-
-    if (!res.ok) {
-      return [];
-    }
-    const body = (await res.json()) as { agents?: AgentDefinition[] };
-
-    return body.agents ?? [];
-  } catch {
-    return [];
-  }
-}
-
 export async function listAgents(repo: string): Promise<AgentDefinition[]> {
   return await fetchAgentList(`/api/repos/${repo}/agent-definitions`);
 }
@@ -103,92 +69,6 @@ export async function fetchAgentUsage(): Promise<AgentUsage | null> {
   }
 }
 
-function buildAgentUsage(body: AgentUsageBody): AgentUsage {
-  return {
-    refs: Object.fromEntries(
-      (body.usage ?? []).map((entry) => [entry.name, entry.used_by]),
-    ),
-    applied: groupAppliedByName(body.applied ?? []),
-  };
-}
-
-function groupAppliedByName(
-  statuses: AgentApplyStatus[],
-): Record<string, AgentApplyStatus[]> {
-  const applied: Record<string, AgentApplyStatus[]> = {};
-
-  for (const status of statuses) {
-    (applied[status.name] ??= []).push(status);
-  }
-
-  return applied;
-}
-
-/** Headers for a definition write. The approval-PR header rides along only when there is one — the two-key gate on privileged fields reads it, and sending an empty value would be a claim of approval nobody made. */
-function writeHeaders(
-  token: string,
-  approvalPr?: string,
-): Record<string, string> {
-  return {
-    "content-type": "application/json",
-    authorization: `Bearer ${token}`,
-    ...(approvalPr ? { "x-lore-approval-pr": approvalPr } : {}),
-  };
-}
-
-/** The repo-scoped collection, or one definition inside it when named. */
-function agentUrl(apiUrl: string, repo: string, name?: string): string {
-  const base = `${apiUrl}/api/repos/${repo}/agent-definitions`;
-
-  return name ? `${base}/${encodeURIComponent(name)}` : base;
-}
-
-interface WriteRequest {
-  url: string;
-  method: string;
-  headers: Record<string, string>;
-  body: string;
-}
-
-/** One definition write; a transport failure becomes a result rather than a throw. */
-async function writeDefinition(req: WriteRequest): Promise<AgentSaveResult> {
-  let res: Response;
-
-  try {
-    res = await fetch(req.url, {
-      signal: AbortSignal.timeout(15_000),
-      method: req.method,
-      headers: req.headers,
-      body: req.body,
-      cache: "no-store",
-    });
-  } catch (err) {
-    return { status: "error", message: (err as Error).message };
-  }
-
-  return mapWriteResponse(res);
-}
-
-async function writeAgent(
-  repo: string,
-  def: Partial<AgentDefinition> & { name: string },
-  target: { name: string | undefined; method: "POST" | "PUT" },
-  approvalPr?: string,
-): Promise<AgentSaveResult> {
-  const c = cfg();
-
-  if (!c) {
-    return { status: "unconfigured" };
-  }
-
-  return writeDefinition({
-    url: agentUrl(c.apiUrl, repo, target.name),
-    method: target.method,
-    headers: writeHeaders(c.token, approvalPr),
-    body: JSON.stringify(def),
-  });
-}
-
 /** POSTs to the collection, so a name that already has a repo row is rejected by the API rather than silently overwritten. */
 export function createAgent(
   repo: string,
@@ -225,6 +105,175 @@ export async function saveOrgAgent(
   });
 }
 
+export async function deleteAgent(
+  repo: string,
+  name: string,
+): Promise<AgentSaveResult> {
+  const c = cfg();
+
+  if (!c) {
+    return { status: "unconfigured" };
+  }
+
+  return deleteDefinition(agentUrl(c.apiUrl, repo, name), c.token, name);
+}
+
+/** A catalog read: an unreachable or unhappy endpoint reads as an empty catalog, never as a thrown render. */
+async function fetchAgentList(path: string): Promise<AgentDefinition[]> {
+  const c = cfg();
+
+  if (!c) {
+    return [];
+  }
+
+  try {
+    const res = await fetch(`${c.apiUrl}${path}`, {
+      signal: AbortSignal.timeout(15_000),
+      headers: { authorization: `Bearer ${c.token}` },
+      cache: "no-store",
+    });
+
+    if (!res.ok) {
+      return [];
+    }
+    const body = (await res.json()) as { agents?: AgentDefinition[] };
+
+    return body.agents ?? [];
+  } catch {
+    return [];
+  }
+}
+
+function buildAgentUsage(body: AgentUsageBody): AgentUsage {
+  return {
+    refs: Object.fromEntries(
+      (body.usage ?? []).map((entry) => [entry.name, entry.used_by]),
+    ),
+    applied: groupAppliedByName(body.applied ?? []),
+  };
+}
+
+async function writeAgent(
+  repo: string,
+  def: Partial<AgentDefinition> & { name: string },
+  target: { name: string | undefined; method: "POST" | "PUT" },
+  approvalPr?: string,
+): Promise<AgentSaveResult> {
+  const c = cfg();
+
+  if (!c) {
+    return { status: "unconfigured" };
+  }
+
+  return writeDefinition({
+    url: agentUrl(c.apiUrl, repo, target.name),
+    method: target.method,
+    headers: writeHeaders(c.token, approvalPr),
+    body: JSON.stringify(def),
+  });
+}
+
+async function deleteDefinition(
+  url: string,
+  token: string,
+  name: string,
+): Promise<AgentSaveResult> {
+  let res: Response;
+
+  try {
+    res = await fetch(url, {
+      signal: AbortSignal.timeout(15_000),
+      method: "DELETE",
+      headers: { authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+  } catch (err) {
+    return { status: "error", message: (err as Error).message };
+  }
+
+  return res.ok ? deletedResult(name) : await readErrorBody(res);
+}
+
+function groupAppliedByName(
+  statuses: AgentApplyStatus[],
+): Record<string, AgentApplyStatus[]> {
+  const applied: Record<string, AgentApplyStatus[]> = {};
+
+  for (const status of statuses) {
+    (applied[status.name] ??= []).push(status);
+  }
+
+  return applied;
+}
+
+function cfg(): { apiUrl: string; token: string } | null {
+  const apiUrl = process.env.LORE_API_URL;
+  // Prefer the admin token; the legacy full-access ingest token (local dev default) also satisfies the mcp route's admin-scope check.
+  const token = process.env.LORE_ADMIN_TOKEN || process.env.LORE_INGEST_TOKEN;
+
+  return apiUrl && token ? { apiUrl, token } : null;
+}
+
+interface WriteRequest {
+  url: string;
+  method: string;
+  headers: Record<string, string>;
+  body: string;
+}
+
+/** One definition write; a transport failure becomes a result rather than a throw. */
+async function writeDefinition(req: WriteRequest): Promise<AgentSaveResult> {
+  let res: Response;
+
+  try {
+    res = await fetch(req.url, {
+      signal: AbortSignal.timeout(15_000),
+      method: req.method,
+      headers: req.headers,
+      body: req.body,
+      cache: "no-store",
+    });
+  } catch (err) {
+    return { status: "error", message: (err as Error).message };
+  }
+
+  return mapWriteResponse(res);
+}
+
+/** The repo-scoped collection, or one definition inside it when named. */
+function agentUrl(apiUrl: string, repo: string, name?: string): string {
+  const base = `${apiUrl}/api/repos/${repo}/agent-definitions`;
+
+  return name ? `${base}/${encodeURIComponent(name)}` : base;
+}
+
+/** Headers for a definition write. The approval-PR header rides along only when there is one — the two-key gate on privileged fields reads it, and sending an empty value would be a claim of approval nobody made. */
+function writeHeaders(
+  token: string,
+  approvalPr?: string,
+): Record<string, string> {
+  return {
+    "content-type": "application/json",
+    authorization: `Bearer ${token}`,
+    ...(approvalPr ? { "x-lore-approval-pr": approvalPr } : {}),
+  };
+}
+
+/** The failure the API reported, falling back to the status code. The body is parsed defensively because an error response is exactly the case where it may not be JSON at all — a gateway timeout answers in HTML. */
+async function readErrorBody(res: Response): Promise<AgentSaveResult> {
+  const body = await res.json().catch(() => ({}) as Record<string, unknown>);
+
+  return {
+    status: "error",
+    message: String(body.error ?? `HTTP ${res.status}`),
+  };
+}
+
+/** A delete answers with no body, so the name is all the caller gets back. */
+function deletedResult(name: string): AgentSaveResult {
+  return { status: "ok", agent: { name } as AgentDefinition };
+}
+
 async function mapWriteResponse(res: Response): Promise<AgentSaveResult> {
   const body = await res.json().catch(() => ({}) as Record<string, unknown>);
 
@@ -258,10 +307,6 @@ function mapErrorBody(
   return genericSaveError(status, body);
 }
 
-function stringField(value: unknown, fallback = ""): string {
-  return String(value ?? fallback);
-}
-
 function genericSaveError(
   status: number,
   body: Record<string, unknown>,
@@ -269,51 +314,6 @@ function genericSaveError(
   return { status: "error", message: String(body.error ?? `HTTP ${status}`) };
 }
 
-/** The failure the API reported, falling back to the status code. The body is parsed defensively because an error response is exactly the case where it may not be JSON at all — a gateway timeout answers in HTML. */
-async function readErrorBody(res: Response): Promise<AgentSaveResult> {
-  const body = await res.json().catch(() => ({}) as Record<string, unknown>);
-
-  return {
-    status: "error",
-    message: String(body.error ?? `HTTP ${res.status}`),
-  };
-}
-
-/** A delete answers with no body, so the name is all the caller gets back. */
-function deletedResult(name: string): AgentSaveResult {
-  return { status: "ok", agent: { name } as AgentDefinition };
-}
-
-async function deleteDefinition(
-  url: string,
-  token: string,
-  name: string,
-): Promise<AgentSaveResult> {
-  let res: Response;
-
-  try {
-    res = await fetch(url, {
-      signal: AbortSignal.timeout(15_000),
-      method: "DELETE",
-      headers: { authorization: `Bearer ${token}` },
-      cache: "no-store",
-    });
-  } catch (err) {
-    return { status: "error", message: (err as Error).message };
-  }
-
-  return res.ok ? deletedResult(name) : await readErrorBody(res);
-}
-
-export async function deleteAgent(
-  repo: string,
-  name: string,
-): Promise<AgentSaveResult> {
-  const c = cfg();
-
-  if (!c) {
-    return { status: "unconfigured" };
-  }
-
-  return deleteDefinition(agentUrl(c.apiUrl, repo, name), c.token, name);
+function stringField(value: unknown, fallback = ""): string {
+  return String(value ?? fallback);
 }

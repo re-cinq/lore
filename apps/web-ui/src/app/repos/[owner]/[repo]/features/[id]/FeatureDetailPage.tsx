@@ -21,6 +21,32 @@ import {
 } from "./actions";
 import { decompositionRows, planningTimeoutOf } from "./page-input";
 
+interface DetailPageProps {
+  params: Promise<{ owner: string; repo: string; id: string }>;
+}
+
+export default async function FeatureDetailPage(props: DetailPageProps) {
+  const { owner, repo, id } = await props.params;
+  const fullName = `${owner}/${repo}`;
+  const result = await getFeature(fullName, id);
+
+  if (result.status !== "ok") {
+    return <FeatureNotFound />;
+  }
+  const feature: FeatureWithIterations = result.data;
+  const view = await resolveFeatureView(fullName, id);
+
+  return (
+    <FeatureScreen
+      owner={owner}
+      repo={repo}
+      feature={feature}
+      view={view}
+      actions={featureActions(fullName, id)}
+    />
+  );
+}
+
 /** The four server actions the view can invoke, each pre-bound to this feature. Bound here rather than passed the ids: a client component cannot construct a server action, and handing it the ids would mean trusting the client to say which feature it is acting on. */
 function featureActions(fullName: string, id: string) {
   return {
@@ -63,10 +89,6 @@ async function resolveFeatureView(fullName: string, id: string) {
   };
 }
 
-interface DetailPageProps {
-  params: Promise<{ owner: string; repo: string; id: string }>;
-}
-
 interface FeatureScreenProps {
   owner: string;
   repo: string;
@@ -93,27 +115,5 @@ function FeatureScreen(props: FeatureScreenProps) {
         {...actions}
       />
     </>
-  );
-}
-
-export default async function FeatureDetailPage(props: DetailPageProps) {
-  const { owner, repo, id } = await props.params;
-  const fullName = `${owner}/${repo}`;
-  const result = await getFeature(fullName, id);
-
-  if (result.status !== "ok") {
-    return <FeatureNotFound />;
-  }
-  const feature: FeatureWithIterations = result.data;
-  const view = await resolveFeatureView(fullName, id);
-
-  return (
-    <FeatureScreen
-      owner={owner}
-      repo={repo}
-      feature={feature}
-      view={view}
-      actions={featureActions(fullName, id)}
-    />
   );
 }

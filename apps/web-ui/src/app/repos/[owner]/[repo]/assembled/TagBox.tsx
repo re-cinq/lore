@@ -10,6 +10,16 @@ interface TagBoxProps {
   depth?: number;
 }
 
+/** Recursive nested-box renderer: tags as bordered divs, leaves render content. */
+export default function TagBox({ node, raw, depth = 0 }: TagBoxProps) {
+  return (
+    <div className={`${styles.box} ${depth % 2 === 1 ? styles.alt : ""}`}>
+      <TagChip tag={node.tag} attrs={node.attrs} />
+      <TagBoxBody node={node} raw={raw} depth={depth} />
+    </div>
+  );
+}
+
 /** Monospace attribute chip: terminal readout with colored tags and green values. */
 function TagChip({ tag, attrs }: { tag: string; attrs: [string, string][] }) {
   return (
@@ -22,16 +32,6 @@ function TagChip({ tag, attrs }: { tag: string; attrs: [string, string][] }) {
         </span>
       ))}
     </span>
-  );
-}
-
-/** Recursive nested-box renderer: tags as bordered divs, leaves render content. */
-export default function TagBox({ node, raw, depth = 0 }: TagBoxProps) {
-  return (
-    <div className={`${styles.box} ${depth % 2 === 1 ? styles.alt : ""}`}>
-      <TagChip tag={node.tag} attrs={node.attrs} />
-      <TagBoxBody node={node} raw={raw} depth={depth} />
-    </div>
   );
 }
 

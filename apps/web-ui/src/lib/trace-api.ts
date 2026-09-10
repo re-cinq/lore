@@ -14,10 +14,6 @@ export interface GlobalDocEntry {
   status: SpecStatusInfo | null;
 }
 
-function traceGet<T>(repo: string, kindAndQuery: string): Promise<T | null> {
-  return loreApiGet<T>(`/api/repos/${repo}/trace/${kindAndQuery}`);
-}
-
 /** Spec document paths the graph holds for the repo. */
 export async function fetchTraceSpecs(repo: string): Promise<string[]> {
   return (await traceGet<{ specs: string[] }>(repo, "specs"))?.specs ?? [];
@@ -106,6 +102,10 @@ export async function fetchTraceRing(
       `ring?path=${encodeURIComponent(filePath)}`,
     )) ?? { sections: [], statements: [] }
   );
+}
+
+function traceGet<T>(repo: string, kindAndQuery: string): Promise<T | null> {
+  return loreApiGet<T>(`/api/repos/${repo}/trace/${kindAndQuery}`);
 }
 
 /** Cross-repo spec list for the global /specs viewer. */

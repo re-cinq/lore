@@ -9,16 +9,38 @@ interface RerunNodeButtonProps {
   resumeIteration: number;
 }
 
-function postRerun(target: RerunNodeButtonProps): Promise<Response> {
-  return fetch("/api/assembly-runs/rerun", {
-    method: "POST",
-    signal: AbortSignal.timeout(15_000),
-    body: new URLSearchParams({
-      run_id: target.runId,
-      node_id: target.resumeNodeId,
-      iteration: String(target.resumeIteration),
-    }),
-  });
+export function RerunNodeButton(props: RerunNodeButtonProps) {
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function rerun(event: React.MouseEvent<HTMLButtonElement>) {
+    // The button sits inside a clickable row; without both, retrying would also select the node behind it.
+    event.preventDefault();
+    event.stopPropagation();
+    setPending(true);
+    setError(null);
+    settleRerun(await startRerun(props), setError, setPending);
+  }
+
+  return (
+    <RerunControl
+      pending={pending}
+      error={error}
+      onClick={(event) => void rerun(event)}
+    />
+  );
+}
+
+/** Records a failed retry. Only a FAILURE settles here: success navigates away, so clearing `pending` on that path would flash the idle label over a page that is already leaving. */
+function settleRerun(
+  failure: string | null,
+  setError: (error: string | null) => void,
+  setPending: (pending: boolean) => void,
+): void {
+  if (failure !== null) {
+    setError(failure);
+    setPending(false);
+  }
 }
 
 /** Starts the rerun and navigates to the new run, or returns the message to show. Nothing is returned on success because the page is already leaving. */
@@ -40,18 +62,6 @@ async function startRerun(
   }
 }
 
-/** Records a failed retry. Only a FAILURE settles here: success navigates away, so clearing `pending` on that path would flash the idle label over a page that is already leaving. */
-function settleRerun(
-  failure: string | null,
-  setError: (error: string | null) => void,
-  setPending: (pending: boolean) => void,
-): void {
-  if (failure !== null) {
-    setError(failure);
-    setPending(false);
-  }
-}
-
 interface RerunControlProps {
   pending: boolean;
   error: string | null;
@@ -69,24 +79,14 @@ function RerunControl({ pending, error, onClick }: RerunControlProps) {
   );
 }
 
-export function RerunNodeButton(props: RerunNodeButtonProps) {
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function rerun(event: React.MouseEvent<HTMLButtonElement>) {
-    // The button sits inside a clickable row; without both, retrying would also select the node behind it.
-    event.preventDefault();
-    event.stopPropagation();
-    setPending(true);
-    setError(null);
-    settleRerun(await startRerun(props), setError, setPending);
-  }
-
-  return (
-    <RerunControl
-      pending={pending}
-      error={error}
-      onClick={(event) => void rerun(event)}
-    />
-  );
+function postRerun(target: RerunNodeButtonProps): Promise<Response> {
+  return fetch("/api/assembly-runs/rerun", {
+    method: "POST",
+    signal: AbortSignal.timeout(15_000),
+    body: new URLSearchParams({
+      run_id: target.runId,
+      node_id: target.resumeNodeId,
+      iteration: String(target.resumeIteration),
+    }),
+  });
 }

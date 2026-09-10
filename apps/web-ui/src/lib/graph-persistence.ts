@@ -26,14 +26,6 @@ export type GraphState = {
 /** Schema version stamped on every captured snapshot. */
 export const STATE_VERSION = 1;
 
-function nodePosition(node: PositionedNode): NodePosition {
-  return {
-    x: node.fx ?? node.x ?? 0,
-    y: node.fy ?? node.y ?? 0,
-    pinned: node.fx != null || node.fy != null,
-  };
-}
-
 /** Snapshot nodes and expandedIds; prefer fixed coords when pinned. */
 export function captureGraphState(
   nodes: PositionedNode[],
@@ -49,6 +41,14 @@ export function captureGraphState(
     version: STATE_VERSION,
     positions,
     expanded: [...expandedIds],
+  };
+}
+
+function nodePosition(node: PositionedNode): NodePosition {
+  return {
+    x: node.fx ?? node.x ?? 0,
+    y: node.fy ?? node.y ?? 0,
+    pinned: node.fx != null || node.fy != null,
   };
 }
 
@@ -78,15 +78,6 @@ export function serializeGraphState(state: GraphState): string {
   return JSON.stringify(state);
 }
 
-/** True when value is stamped with current STATE_VERSION. */
-function isGraphState(value: unknown): value is GraphState {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    (value as { version?: unknown }).version === STATE_VERSION
-  );
-}
-
 /** Parse JSON string back into GraphState or null on corrupt/version mismatch. */
 export function parseGraphState(raw: string | null): GraphState | null {
   try {
@@ -96,4 +87,13 @@ export function parseGraphState(raw: string | null): GraphState | null {
   } catch {
     return null;
   }
+}
+
+/** True when value is stamped with current STATE_VERSION. */
+function isGraphState(value: unknown): value is GraphState {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    (value as { version?: unknown }).version === STATE_VERSION
+  );
 }

@@ -4,29 +4,32 @@ import { resolveSessionAccessToken } from "@/lib/session-access-token";
 import { authorizeRepoFloorAccess } from "@/lib/floor-access";
 import { serverError } from "@/lib/api-error";
 
-/** The form's repo + PR number, or the 400 explaining what is missing. */
-async function readTriggerForm(
-  req: Request,
-): Promise<{ repo: string; prNumber: number } | NextResponse> {
-  const form = await req.formData();
-  const repo = String(form.get("repo") ?? "");
-  const prNumber = Number(form.get("pr_number"));
-
-  if (!repo || !prNumber) {
-    return NextResponse.json(
-      { error: "repo and pr_number are required" },
-      { status: 400 },
-    );
-  }
-
-  return { repo, prNumber };
-}
-
 interface TriggerAuth {
   repo: string;
   prNumber: number;
   floorUrl: string;
   token: string;
+}
+
+// "Trigger review" backend: authorizes against the target repo, then proxies to the Floor's /api/review/start (UI has no cluster/DB write path for assembly lines).
+export async function POST(req: Request) {
+  try {
+    const auth = await authorizeTrigger(req);
+
+    if (auth instanceof Response) {
+      return auth;
+    }
+
+    const refusal = await startReview(auth);
+
+    if (refusal) {
+      return refusal;
+    }
+
+    return buildTriggerRedirect(req);
+  } catch (err) {
+    return serverError("review-trigger", err);
+  }
 }
 
 /** Session → form → repo-access → Floor-env ladder for the trigger request. */
@@ -54,17 +57,6 @@ async function authorizeTrigger(
   return { ...trigger, ...floorConfig };
 }
 
-/** Redirects back to the referring page (or the runs list, absent one) after a successful trigger. */
-function buildTriggerRedirect(req: Request): NextResponse {
-  const referer = req.headers.get("referer");
-  const base = referer ?? new URL(req.url).origin;
-
-  return NextResponse.redirect(
-    new URL(referer ? base : "/assembly-runs", base),
-    { status: 303 },
-  );
-}
-
 /** Asks the Floor to start the review, and answers with the 502 if it would not — null means it did. */
 async function startReview(auth: TriggerAuth): Promise<NextResponse | null> {
   const { repo, prNumber, floorUrl, token } = auth;
@@ -88,23 +80,31 @@ async function startReview(auth: TriggerAuth): Promise<NextResponse | null> {
   );
 }
 
-// "Trigger review" backend: authorizes against the target repo, then proxies to the Floor's /api/review/start (UI has no cluster/DB write path for assembly lines).
-export async function POST(req: Request) {
-  try {
-    const auth = await authorizeTrigger(req);
+/** Redirects back to the referring page (or the runs list, absent one) after a successful trigger. */
+function buildTriggerRedirect(req: Request): NextResponse {
+  const referer = req.headers.get("referer");
+  const base = referer ?? new URL(req.url).origin;
 
-    if (auth instanceof Response) {
-      return auth;
-    }
+  return NextResponse.redirect(
+    new URL(referer ? base : "/assembly-runs", base),
+    { status: 303 },
+  );
+}
 
-    const refusal = await startReview(auth);
+/** The form's repo + PR number, or the 400 explaining what is missing. */
+async function readTriggerForm(
+  req: Request,
+): Promise<{ repo: string; prNumber: number } | NextResponse> {
+  const form = await req.formData();
+  const repo = String(form.get("repo") ?? "");
+  const prNumber = Number(form.get("pr_number"));
 
-    if (refusal) {
-      return refusal;
-    }
-
-    return buildTriggerRedirect(req);
-  } catch (err) {
-    return serverError("review-trigger", err);
+  if (!repo || !prNumber) {
+    return NextResponse.json(
+      { error: "repo and pr_number are required" },
+      { status: 400 },
+    );
   }
+
+  return { repo, prNumber };
 }

@@ -36,30 +36,14 @@ export function createZoom(
     });
 }
 
-function leafHitNodes(c: GraphController, lod: { collapsing: boolean }) {
-  const leaves = c.nodes.filter((n) =>
-    visibleLeaf(n, { aggHidden: c.aggHidden, collapsing: lod.collapsing }),
-  );
-
-  return leaves.map((n) => ({
-    id: n.id,
-    x: n.x ?? 0,
-    y: n.y ?? 0,
-    r: radiusOf(n.type),
-  }));
-}
-
-/** The leaf dot under the pointer, if any: the click lands in screen space, the dots live in world space. */
-function leafHitAt(
+// SVG covers canvas: background click inverts pointer, hit-tests leaf dots.
+export function wireBackgroundClick(
   c: GraphController,
-  event: PointerEvent,
-  lod: { collapsing: boolean },
-): SimNode | undefined {
-  const [px, py] = d3.pointer(event, c.el);
-  const world = invertPoint(c.transform as ZoomTransform, { x: px, y: py });
-  const hitId = findNodeAtPoint(world, leafHitNodes(c, lod), HIT_SLOP);
-
-  return hitId ? c.nodeById.get(hitId) : undefined;
+  isAggregating: () => boolean,
+): void {
+  c.svg.on("click", (event: PointerEvent) => {
+    selectHit(c, leafHitAt(c, event, { collapsing: isAggregating() }));
+  });
 }
 
 /** A hit selects, highlights and centres the leaf; a miss clears the selection. */
@@ -77,109 +61,30 @@ function selectHit(c: GraphController, hit: SimNode | undefined): void {
   centerOn(c, hit);
 }
 
-// SVG covers canvas: background click inverts pointer, hit-tests leaf dots.
-export function wireBackgroundClick(
+/** The leaf dot under the pointer, if any: the click lands in screen space, the dots live in world space. */
+function leafHitAt(
   c: GraphController,
-  isAggregating: () => boolean,
-): void {
-  c.svg.on("click", (event: PointerEvent) => {
-    selectHit(c, leafHitAt(c, event, { collapsing: isAggregating() }));
-  });
-}
-
-/** Hard-places a node on the ring at a given angle, and stops it dead. Zeroing velocity matters as much as the position: a node the simulation is still carrying would drift straight back off the spoke. */
-function pinAt(
-  node: SimNode | undefined,
-  {
-    cx,
-    cy,
-    radius,
-    mid,
-  }: { cx: number; cy: number; radius: number; mid: number },
-): void {
-  if (!node) {
-    return;
-  }
-
-  node.x = cx + radius * Math.sin(mid);
-  node.y = cy - radius * Math.cos(mid);
-  node.vx = 0;
-  node.vy = 0;
-}
-
-/** The neighbour to spoke, or nothing. Three exclusions, each for its own reason: an already-pinned or expanded node has its own place; an ADR is an anchor the spacing force owns and is never spoked; and a chunk owned by several statements would be pulled toward all of them, so it floats rather than picking one. */
-function spokeableLeaf(
-  c: GraphController,
-  neighbourId: string,
+  event: PointerEvent,
+  lod: { collapsing: boolean },
 ): SimNode | undefined {
-  if (c.ringPinned.has(neighbourId) || c.expanded.has(neighbourId)) {
-    return undefined;
-  }
-  const leaf = c.nodeById.get(neighbourId);
+  const [px, py] = d3.pointer(event, c.el);
+  const world = invertPoint(c.transform as ZoomTransform, { x: px, y: py });
+  const hitId = findNodeAtPoint(world, leafHitNodes(c, lod), HIT_SLOP);
 
-  if (
-    !leaf ||
-    !isSpokeableLeafType(leaf) ||
-    !hasSingleOwner(neighbourId, c.adj)
-  ) {
-    return undefined;
-  }
-
-  return leaf;
+  return hitId ? c.nodeById.get(hitId) : undefined;
 }
 
-/** One statement's spokeable neighbours, in adjacency order — the order decides how far out each one lands. */
-function spokeableNeighbours(
-  c: GraphController,
-  statementUid: string,
-): SimNode[] {
-  const leaves: SimNode[] = [];
-  const neighbours = c.adj.get(statementUid);
+function leafHitNodes(c: GraphController, lod: { collapsing: boolean }) {
+  const leaves = c.nodes.filter((n) =>
+    visibleLeaf(n, { aggHidden: c.aggHidden, collapsing: lod.collapsing }),
+  );
 
-  neighbours?.forEach((neighbourId) => {
-    const leaf = spokeableLeaf(c, neighbourId);
-
-    if (leaf) {
-      leaves.push(leaf);
-    }
-  });
-
-  return leaves;
-}
-
-/** Fans one statement's neighbours outward along its own angle, each a further 34px step off the ring. */
-function placeStatementNeighbours(
-  c: GraphController,
-  exp: ExpandData,
-  statement: StatementArc,
-  { cx, cy }: { cx: number; cy: number },
-): void {
-  spokeableNeighbours(c, statement.uid).forEach((leaf, placed) => {
-    pinAt(leaf, {
-      cx,
-      cy,
-      radius: exp.outerR1 + 32 + placed * 34,
-      mid: statement.mid,
-    });
-  });
-}
-
-// Pin statements on outer ring, fan related nodes radially outward: short spokes never chords.
-function placeStatementSpokes(
-  c: GraphController,
-  exp: ExpandData,
-  cx: number,
-  cy: number,
-): void {
-  exp.statements.forEach((statement) => {
-    pinAt(c.nodeById.get(statement.uid), {
-      cx,
-      cy,
-      radius: exp.outerMid,
-      mid: statement.mid,
-    });
-    placeStatementNeighbours(c, exp, statement, { cx, cy });
-  });
+  return leaves.map((n) => ({
+    id: n.id,
+    x: n.x ?? 0,
+    y: n.y ?? 0,
+    r: radiusOf(n.type),
+  }));
 }
 
 // One frame: ring-spoke placement, SVG transforms, canvas draw (driven by sim tick or manual drag).
@@ -219,4 +124,99 @@ function applyGroupTransforms(c: GraphController): void {
 
       return `translate(${spec?.x ?? 0},${spec?.y ?? 0})`;
     });
+}
+
+// Pin statements on outer ring, fan related nodes radially outward: short spokes never chords.
+function placeStatementSpokes(
+  c: GraphController,
+  exp: ExpandData,
+  cx: number,
+  cy: number,
+): void {
+  exp.statements.forEach((statement) => {
+    pinAt(c.nodeById.get(statement.uid), {
+      cx,
+      cy,
+      radius: exp.outerMid,
+      mid: statement.mid,
+    });
+    placeStatementNeighbours(c, exp, statement, { cx, cy });
+  });
+}
+
+/** Fans one statement's neighbours outward along its own angle, each a further 34px step off the ring. */
+function placeStatementNeighbours(
+  c: GraphController,
+  exp: ExpandData,
+  statement: StatementArc,
+  { cx, cy }: { cx: number; cy: number },
+): void {
+  spokeableNeighbours(c, statement.uid).forEach((leaf, placed) => {
+    pinAt(leaf, {
+      cx,
+      cy,
+      radius: exp.outerR1 + 32 + placed * 34,
+      mid: statement.mid,
+    });
+  });
+}
+
+/** Hard-places a node on the ring at a given angle, and stops it dead. Zeroing velocity matters as much as the position: a node the simulation is still carrying would drift straight back off the spoke. */
+function pinAt(
+  node: SimNode | undefined,
+  {
+    cx,
+    cy,
+    radius,
+    mid,
+  }: { cx: number; cy: number; radius: number; mid: number },
+): void {
+  if (!node) {
+    return;
+  }
+
+  node.x = cx + radius * Math.sin(mid);
+  node.y = cy - radius * Math.cos(mid);
+  node.vx = 0;
+  node.vy = 0;
+}
+
+/** One statement's spokeable neighbours, in adjacency order — the order decides how far out each one lands. */
+function spokeableNeighbours(
+  c: GraphController,
+  statementUid: string,
+): SimNode[] {
+  const leaves: SimNode[] = [];
+  const neighbours = c.adj.get(statementUid);
+
+  neighbours?.forEach((neighbourId) => {
+    const leaf = spokeableLeaf(c, neighbourId);
+
+    if (leaf) {
+      leaves.push(leaf);
+    }
+  });
+
+  return leaves;
+}
+
+/** The neighbour to spoke, or nothing. Three exclusions, each for its own reason: an already-pinned or expanded node has its own place; an ADR is an anchor the spacing force owns and is never spoked; and a chunk owned by several statements would be pulled toward all of them, so it floats rather than picking one. */
+function spokeableLeaf(
+  c: GraphController,
+  neighbourId: string,
+): SimNode | undefined {
+  if (c.ringPinned.has(neighbourId) || c.expanded.has(neighbourId)) {
+    return undefined;
+  }
+  const leaf = c.nodeById.get(neighbourId);
+
+  if (
+    !leaf ||
+    !isSpokeableLeafType(leaf) ||
+    !hasSingleOwner(neighbourId, c.adj)
+  ) {
+    return undefined;
+  }
+
+  return leaf;
 }

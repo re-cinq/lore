@@ -31,39 +31,41 @@ interface HeatmapBarsProps extends FileHeatmapViewProps {
   hidden: number;
 }
 
-function BarFill({ touch }: { touch: FileTouch }) {
+export default function FileHeatmapView(props: FileHeatmapViewProps) {
+  const { touches, showAll } = props;
+  const ranked = aggregateFileTouches(touches, showAll ? undefined : TOP_N);
+  const hidden = remainderTouchCount(touches, TOP_N);
+
   return (
-    <span
-      className={styles.fill}
-      data-fill
-      style={{ ["--fill-width" as string]: `${touch.weight * 100}%` }}
+    <CollapsibleCard
+      title="Files touched"
+      defaultOpen
+      emptyState="No files touched yet."
     >
-      <span
-        className={styles.read}
-        style={{ ["--read-share" as string]: touch.reads }}
-      />
-      <span
-        className={styles.write}
-        style={{ ["--write-share" as string]: touch.writes }}
-      />
-    </span>
+      {ranked.length === 0 ? null : (
+        <HeatmapBars {...props} ranked={ranked} hidden={hidden} />
+      )}
+    </CollapsibleCard>
   );
 }
 
-function BarContent({ touch }: { touch: FileTouch }) {
+function HeatmapBars(props: HeatmapBarsProps) {
+  const { ranked, showAll, hidden, onOpenFile, activePath } = props;
+
   return (
-    <>
-      <span className={styles.path} title={stripWorkspacePrefix(touch.path)}>
-        {truncateMiddle(stripWorkspacePrefix(touch.path), PATH_MAX)}
-      </span>
-      <span className={styles.bar} aria-hidden="true">
-        <BarFill touch={touch} />
-      </span>
-      <span className={styles.counts}>
-        <span className={styles.readCount}>{touch.reads} read</span>
-        <span className={styles.writeCount}>{touch.writes} write</span>
-      </span>
-    </>
+    <div className={styles.heatmap}>
+      <ol className={styles.rows}>
+        {ranked.map((touch) => (
+          <Bar
+            key={touch.path}
+            touch={touch}
+            onOpenFile={onOpenFile}
+            active={touch.path === activePath}
+          />
+        ))}
+      </ol>
+      {showAll || hidden > 0 ? <ShowMoreToggle {...props} /> : null}
+    </div>
   );
 }
 
@@ -71,20 +73,6 @@ interface BarProps {
   touch: FileTouch;
   onOpenFile?: (path: string) => void;
   active: boolean;
-}
-
-function BarButton({ touch, onOpenFile, active }: Required<BarProps>) {
-  return (
-    <button
-      type="button"
-      className={`${styles.row} ${styles.rowButton}`}
-      data-path={touch.path}
-      aria-pressed={active}
-      onClick={() => onOpenFile(touch.path)}
-    >
-      <BarContent touch={touch} />
-    </button>
-  );
 }
 
 /** A plain row, or — when the heatmap can open diffs — a button carrying the same `data-path`. */
@@ -116,40 +104,52 @@ function ShowMoreToggle({
   );
 }
 
-function HeatmapBars(props: HeatmapBarsProps) {
-  const { ranked, showAll, hidden, onOpenFile, activePath } = props;
-
+function BarButton({ touch, onOpenFile, active }: Required<BarProps>) {
   return (
-    <div className={styles.heatmap}>
-      <ol className={styles.rows}>
-        {ranked.map((touch) => (
-          <Bar
-            key={touch.path}
-            touch={touch}
-            onOpenFile={onOpenFile}
-            active={touch.path === activePath}
-          />
-        ))}
-      </ol>
-      {showAll || hidden > 0 ? <ShowMoreToggle {...props} /> : null}
-    </div>
+    <button
+      type="button"
+      className={`${styles.row} ${styles.rowButton}`}
+      data-path={touch.path}
+      aria-pressed={active}
+      onClick={() => onOpenFile(touch.path)}
+    >
+      <BarContent touch={touch} />
+    </button>
   );
 }
 
-export default function FileHeatmapView(props: FileHeatmapViewProps) {
-  const { touches, showAll } = props;
-  const ranked = aggregateFileTouches(touches, showAll ? undefined : TOP_N);
-  const hidden = remainderTouchCount(touches, TOP_N);
-
+function BarContent({ touch }: { touch: FileTouch }) {
   return (
-    <CollapsibleCard
-      title="Files touched"
-      defaultOpen
-      emptyState="No files touched yet."
+    <>
+      <span className={styles.path} title={stripWorkspacePrefix(touch.path)}>
+        {truncateMiddle(stripWorkspacePrefix(touch.path), PATH_MAX)}
+      </span>
+      <span className={styles.bar} aria-hidden="true">
+        <BarFill touch={touch} />
+      </span>
+      <span className={styles.counts}>
+        <span className={styles.readCount}>{touch.reads} read</span>
+        <span className={styles.writeCount}>{touch.writes} write</span>
+      </span>
+    </>
+  );
+}
+
+function BarFill({ touch }: { touch: FileTouch }) {
+  return (
+    <span
+      className={styles.fill}
+      data-fill
+      style={{ ["--fill-width" as string]: `${touch.weight * 100}%` }}
     >
-      {ranked.length === 0 ? null : (
-        <HeatmapBars {...props} ranked={ranked} hidden={hidden} />
-      )}
-    </CollapsibleCard>
+      <span
+        className={styles.read}
+        style={{ ["--read-share" as string]: touch.reads }}
+      />
+      <span
+        className={styles.write}
+        style={{ ["--write-share" as string]: touch.writes }}
+      />
+    </span>
   );
 }

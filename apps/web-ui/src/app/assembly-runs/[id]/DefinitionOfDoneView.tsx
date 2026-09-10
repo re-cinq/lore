@@ -14,24 +14,45 @@ const STATUS_CLASS: Record<AcceptanceTestStatus["status"], string> = {
   unknown: styles.unknown,
 };
 
-function AcceptanceTestRow({ test }: { test: AcceptanceTestStatus }) {
+export interface DefinitionOfDoneViewProps {
+  progress: DodProgress;
+}
+
+const EMPTY =
+  "No definition of done on this run's branch — the acceptance-dod step has not written one yet, or pr-ready has already removed it.";
+
+/** A run with no `.lore/dod.md` on its branch renders the empty state rather than a bare header. */
+export default function DefinitionOfDoneView({
+  progress,
+}: DefinitionOfDoneViewProps) {
+  if (!progress.present) {
+    return (
+      <CollapsibleCard
+        title="Definition of Done"
+        defaultOpen
+        emptyState={EMPTY}
+      />
+    );
+  }
+
+  return <PresentCard progress={progress} />;
+}
+
+/** The card with a definition to show: the pass count in its header, then the tests, facets and claim. */
+function PresentCard({ progress }: DefinitionOfDoneViewProps) {
+  const summary = dodSummary(progress);
+
   return (
-    <li className={styles.test} data-acceptance={test.status}>
-      <span className={`${styles.glyph} ${STATUS_CLASS[test.status]}`}>
-        {statusGlyph(test.status)}
-      </span>
-      <span className={styles.testBody}>
-        <span className={styles.testName}>
-          {test.path}
-          <span className={styles.separator}>::</span>
-          {test.name}
-        </span>
-        <span className={styles.behaviour}>{test.behaviour}</span>
-        {test.status === "unknown" && (
-          <span className={styles.note}>not in the latest CI report</span>
-        )}
-      </span>
-    </li>
+    <CollapsibleCard
+      title="Definition of Done"
+      defaultOpen
+      status={{ label: summary.label, tone: summary.tone }}
+      hint={summary.hint}
+    >
+      <AcceptanceTests tests={progress.acceptanceTests ?? []} />
+      <Facets facets={progress.facets} />
+      <Claim progress={progress} />
+    </CollapsibleCard>
   );
 }
 
@@ -81,6 +102,27 @@ function Claim({ progress }: { progress: DodProgress }) {
   );
 }
 
+function AcceptanceTestRow({ test }: { test: AcceptanceTestStatus }) {
+  return (
+    <li className={styles.test} data-acceptance={test.status}>
+      <span className={`${styles.glyph} ${STATUS_CLASS[test.status]}`}>
+        {statusGlyph(test.status)}
+      </span>
+      <span className={styles.testBody}>
+        <span className={styles.testName}>
+          {test.path}
+          <span className={styles.separator}>::</span>
+          {test.name}
+        </span>
+        <span className={styles.behaviour}>{test.behaviour}</span>
+        {test.status === "unknown" && (
+          <span className={styles.note}>not in the latest CI report</span>
+        )}
+      </span>
+    </li>
+  );
+}
+
 function OutOfScope({ excluded }: { excluded: DodProgress["outOfScope"] }) {
   if (!excluded || excluded.length === 0) {
     return null;
@@ -92,46 +134,4 @@ function OutOfScope({ excluded }: { excluded: DodProgress["outOfScope"] }) {
       <dd>{excluded.join(" · ")}</dd>
     </>
   );
-}
-
-export interface DefinitionOfDoneViewProps {
-  progress: DodProgress;
-}
-
-const EMPTY =
-  "No definition of done on this run's branch — the acceptance-dod step has not written one yet, or pr-ready has already removed it.";
-
-/** The card with a definition to show: the pass count in its header, then the tests, facets and claim. */
-function PresentCard({ progress }: DefinitionOfDoneViewProps) {
-  const summary = dodSummary(progress);
-
-  return (
-    <CollapsibleCard
-      title="Definition of Done"
-      defaultOpen
-      status={{ label: summary.label, tone: summary.tone }}
-      hint={summary.hint}
-    >
-      <AcceptanceTests tests={progress.acceptanceTests ?? []} />
-      <Facets facets={progress.facets} />
-      <Claim progress={progress} />
-    </CollapsibleCard>
-  );
-}
-
-/** A run with no `.lore/dod.md` on its branch renders the empty state rather than a bare header. */
-export default function DefinitionOfDoneView({
-  progress,
-}: DefinitionOfDoneViewProps) {
-  if (!progress.present) {
-    return (
-      <CollapsibleCard
-        title="Definition of Done"
-        defaultOpen
-        emptyState={EMPTY}
-      />
-    );
-  }
-
-  return <PresentCard progress={progress} />;
 }

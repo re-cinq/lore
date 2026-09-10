@@ -28,16 +28,41 @@ export interface RepoContextViewProps {
   hasMore?: boolean;
 }
 
-function emptyMessage(q?: string, type?: string): string {
-  if (q) {
-    return `No context matches “${q}”${type ? ` in ${type}` : ""}.`;
-  }
+/** Presentational view for repo's ingested context; container runs queries and hands view-model down. */
+export default function RepoContextView(props: RepoContextViewProps) {
+  const { owner, repo } = props;
+  const base = `/repos/${owner}/${repo}/context`;
 
-  if (type) {
-    return `No ${type} context ingested yet.`;
-  }
+  return (
+    <div>
+      <ContextHeader />
 
-  return "No context ingested yet. Context will appear after the nightly ingestion runs.";
+      <ContextFilters
+        basePath={base}
+        types={props.types}
+        activeType={props.type}
+        q={props.q}
+      />
+
+      <ChunkSection {...props} base={base} fullName={`${owner}/${repo}`} />
+    </div>
+  );
+}
+
+/** What context IS, for a reader who has not met the term. Kept beside the list rather than in a doc, because the question arises exactly here. */
+function ContextHeader() {
+  return (
+    <>
+      <div className={styles.header}>
+        <h2 className={styles.title}>Context</h2>
+        <ContextHelp />
+      </div>
+      <p className={`meta ${styles.intro}`}>
+        Conventions, ADRs, specs, and code ingested from this repo that agents
+        use as context.
+      </p>
+    </>
+  );
 }
 
 /** What context is and how an agent gets it. Answers the three questions a reader arrives with — what is in here, how fresh is it, and what an agent actually sees of it. */
@@ -73,18 +98,24 @@ function ContextHelpPoints() {
   );
 }
 
-/** What context IS, for a reader who has not met the term. Kept beside the list rather than in a doc, because the question arises exactly here. */
-function ContextHeader() {
+type ChunkSectionProps = RepoContextViewProps & {
+  base: string;
+  fullName: string;
+};
+
+/** The count, then the chunks — or, with nothing to show, why the list is empty. */
+function ChunkSection({ hasMore = false, ...props }: ChunkSectionProps) {
+  const { chunks, q, type } = props;
+
   return (
     <>
-      <div className={styles.header}>
-        <h2 className={styles.title}>Context</h2>
-        <ContextHelp />
-      </div>
-      <p className={`meta ${styles.intro}`}>
-        Conventions, ADRs, specs, and code ingested from this repo that agents
-        use as context.
-      </p>
+      <ChunkCount count={chunks.length} q={q} more={hasMore} />
+
+      {chunks.length === 0 ? (
+        <Alert variant="secondary">{emptyMessage(q, type)}</Alert>
+      ) : (
+        <ChunkList {...props} hasMore={hasMore} />
+      )}
     </>
   );
 }
@@ -108,6 +139,23 @@ function ChunkCount({
   );
 }
 
+function emptyMessage(q?: string, type?: string): string {
+  if (q) {
+    return `No context matches “${q}”${type ? ` in ${type}` : ""}.`;
+  }
+
+  if (type) {
+    return `No ${type} context ingested yet.`;
+  }
+
+  return "No context ingested yet. Context will appear after the nightly ingestion runs.";
+}
+
+type ChunkListProps = Pick<
+  RepoContextViewProps,
+  "chunks" | "owner" | "repo" | "q" | "type"
+> & { base: string; fullName: string; hasMore: boolean };
+
 /** The chunks and the way to ask for more. A chunk with no `file_path` came from a source with no file behind it — a memory or a fact — so it gets no detail link rather than one that would 404. */
 function ChunkList({ base, fullName, ...props }: ChunkListProps) {
   return (
@@ -125,11 +173,6 @@ function ChunkList({ base, fullName, ...props }: ChunkListProps) {
   );
 }
 
-type ChunkListProps = Pick<
-  RepoContextViewProps,
-  "chunks" | "owner" | "repo" | "q" | "type"
-> & { base: string; fullName: string; hasMore: boolean };
-
 /** The chunk's own page, or nothing. A chunk with no `file_path` came from a source with no file behind it — a memory or a fact — so it gets no link rather than one that would 404. */
 function detailHrefOf(
   chunk: RepoContextViewProps["chunks"][number],
@@ -138,47 +181,4 @@ function detailHrefOf(
   return chunk.file_path
     ? `${base}/${encodeURIComponent(chunk.file_path)}`
     : undefined;
-}
-
-/** Presentational view for repo's ingested context; container runs queries and hands view-model down. */
-export default function RepoContextView(props: RepoContextViewProps) {
-  const { owner, repo } = props;
-  const base = `/repos/${owner}/${repo}/context`;
-
-  return (
-    <div>
-      <ContextHeader />
-
-      <ContextFilters
-        basePath={base}
-        types={props.types}
-        activeType={props.type}
-        q={props.q}
-      />
-
-      <ChunkSection {...props} base={base} fullName={`${owner}/${repo}`} />
-    </div>
-  );
-}
-
-type ChunkSectionProps = RepoContextViewProps & {
-  base: string;
-  fullName: string;
-};
-
-/** The count, then the chunks — or, with nothing to show, why the list is empty. */
-function ChunkSection({ hasMore = false, ...props }: ChunkSectionProps) {
-  const { chunks, q, type } = props;
-
-  return (
-    <>
-      <ChunkCount count={chunks.length} q={q} more={hasMore} />
-
-      {chunks.length === 0 ? (
-        <Alert variant="secondary">{emptyMessage(q, type)}</Alert>
-      ) : (
-        <ChunkList {...props} hasMore={hasMore} />
-      )}
-    </>
-  );
 }

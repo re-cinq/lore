@@ -21,88 +21,68 @@ const DOWNLOAD_EXTENSION: Record<string, string> = {
   mermaid: "mmd",
 };
 
-function downloadName(mockup: GapMockup, index: number): string {
-  const stem = (mockup.title || `mockup-${index + 1}`).replace(
-    /[^\w.-]+/g,
-    "-",
+export default function MockupSection({
+  mockups,
+  stylesheet,
+}: {
+  mockups: GapMockup[];
+  stylesheet?: string;
+}) {
+  return (
+    <div>
+      {mockups.map((m, i) => (
+        <MockupFigure key={i} mockup={m} index={i} stylesheet={stylesheet} />
+      ))}
+    </div>
   );
-
-  return `${stem}.${DOWNLOAD_EXTENSION[mockup.format ?? "svg"] ?? "txt"}`;
 }
 
-/** Lazily imported; never notifies — store IS "am I in a browser". */
-const subscribeNever = () => () => {};
-
-/** Renders one mermaid diagram to SVG. Returns EMPTY rather than the markup when a script tag survives: a mockup is author-supplied text rendered into a frame, and framing a potentially escaped script is worse than showing no diagram. */
-async function renderMermaid(markup: string, index: number): Promise<string> {
-  const mermaid = (await import("mermaid")).default;
-
-  mermaid.initialize({
-    startOnLoad: false,
-    securityLevel: "strict",
-    // Flowchart-only; ER and edge labels are foreignObject HTML, so MOCKUP_SVG_CONFIG would have to allow the tag.
-    flowchart: { htmlLabels: false },
-  });
-  const rendered = await mermaid.render(`mockup-${index}`, markup.trim());
-
-  return /<script/i.test(rendered.svg) ? "" : rendered.svg;
+interface MockupCaptionProps {
+  mockup: GapMockup;
+  index: number;
 }
 
-type SetSvg = Dispatch<SetStateAction<string | null>>;
+function MockupFigure(props: MockupCaptionProps & { stylesheet?: string }) {
+  const { mockup, index, stylesheet } = props;
+  const { mermaidSvg, isMermaid, clean } = useMockupMarkup(mockup, index);
 
-/** Starts a render and hands back the cleanup that disowns it, so a diagram that finishes after its mockup changed is dropped instead of shown. */
-function renderInto(markup: string, index: number, setSvg: SetSvg) {
-  let live = true;
-
-  void (async () => {
-    try {
-      const svgMarkup = await renderMermaid(markup, index);
-
-      // `live` flips to false from the cleanup below, across an async boundary the type checker can't see.
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-      if (live) {
-        setSvg(svgMarkup);
-      }
-    } catch {
-      // Parse failure does not fail the round; the author still has every section.
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-      if (live) {
-        setSvg("");
-      }
-    }
-  })();
-
-  return () => {
-    live = false;
-  };
+  return (
+    <figure style={{ margin: "0 0 12px" }}>
+      <MockupCaption mockup={mockup} index={index} />
+      <MockupFrame
+        isMermaid={isMermaid}
+        mermaidSvg={mermaidSvg}
+        clean={clean}
+        stylesheet={stylesheet}
+        mockup={mockup}
+        index={index}
+      />
+    </figure>
+  );
 }
 
-function useMermaidSvg(mockup: GapMockup, index: number): string | null {
-  const [svg, setSvg] = useState<string | null>(null);
+const CAPTION_STYLE = {
+  marginBottom: 4,
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 8,
+};
 
-  useEffect(() => {
-    if (mockup.format !== "mermaid") {
-      return;
-    }
-
-    return renderInto(mockup.markup, index, setSvg);
-  }, [mockup.format, mockup.markup, index]);
-
-  return svg;
-}
-
-function mockupTitle(mockup: GapMockup, index: number): string {
-  return mockup.title || `Mockup ${index + 1}`;
-}
-
-function frameHeight(
-  frame: Pick<MockupFrameProps, "isMermaid" | "mermaidSvg" | "mockup">,
-): number {
-  const { isMermaid, mermaidSvg } = frame;
-  const fromMermaid =
-    isMermaid && mermaidSvg ? mermaidFrameHeight(mermaidSvg) : null;
-
-  return fromMermaid ?? mockupHeight(frame.mockup);
+/** The mockup's title and a download link for its source. The markup is offered as a data URI because the frame is sandboxed with no scripts — there is no way for the frame itself to hand its contents back. */
+function MockupCaption({ mockup, index }: MockupCaptionProps) {
+  return (
+    <figcaption className="meta" style={CAPTION_STYLE}>
+      <span>{mockupTitle(mockup, index)}</span>
+      <a
+        href={`data:text/plain;charset=utf-8,${encodeURIComponent(mockup.markup)}`}
+        download={downloadName(mockup, index)}
+        className="meta"
+      >
+        download ↓
+      </a>
+    </figcaption>
+  );
 }
 
 interface MockupFrameProps {
@@ -140,17 +120,6 @@ function MockupFrame(props: MockupFrameProps) {
   );
 }
 
-/** The markup this figure may safely render. Mermaid output skips DOMPurify because purifying would strip its foreignObject — it is protected instead by mermaid's own securityLevel:"strict" plus the sandboxed frame, while AUTHOR markup is always purified. */
-function cleanMarkup(mockup: GapMockup, mermaidSvg: string | null): string {
-  if (mockup.format === "mermaid") {
-    return mermaidSvg ?? "";
-  }
-  const config =
-    mockup.format === "html" ? MOCKUP_HTML_CONFIG : MOCKUP_SVG_CONFIG;
-
-  return sanitizeMockupMarkup(DOMPurify, mockup.markup, config);
-}
-
 /** Empty until the browser takes over: the server renders with no `sanitize`, and useSyncExternalStore resolves that disagreement without a hydration mismatch. */
 function useMockupMarkup(mockup: GapMockup, index: number) {
   const mermaidSvg = useMermaidSvg(mockup, index);
@@ -168,66 +137,97 @@ function useMockupMarkup(mockup: GapMockup, index: number) {
   };
 }
 
-interface MockupCaptionProps {
-  mockup: GapMockup;
-  index: number;
+function downloadName(mockup: GapMockup, index: number): string {
+  const stem = (mockup.title || `mockup-${index + 1}`).replace(
+    /[^\w.-]+/g,
+    "-",
+  );
+
+  return `${stem}.${DOWNLOAD_EXTENSION[mockup.format ?? "svg"] ?? "txt"}`;
 }
 
-const CAPTION_STYLE = {
-  marginBottom: 4,
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: 8,
-};
-
-/** The mockup's title and a download link for its source. The markup is offered as a data URI because the frame is sandboxed with no scripts — there is no way for the frame itself to hand its contents back. */
-function MockupCaption({ mockup, index }: MockupCaptionProps) {
-  return (
-    <figcaption className="meta" style={CAPTION_STYLE}>
-      <span>{mockupTitle(mockup, index)}</span>
-      <a
-        href={`data:text/plain;charset=utf-8,${encodeURIComponent(mockup.markup)}`}
-        download={downloadName(mockup, index)}
-        className="meta"
-      >
-        download ↓
-      </a>
-    </figcaption>
-  );
+function mockupTitle(mockup: GapMockup, index: number): string {
+  return mockup.title || `Mockup ${index + 1}`;
 }
 
-function MockupFigure(props: MockupCaptionProps & { stylesheet?: string }) {
-  const { mockup, index, stylesheet } = props;
-  const { mermaidSvg, isMermaid, clean } = useMockupMarkup(mockup, index);
+function frameHeight(
+  frame: Pick<MockupFrameProps, "isMermaid" | "mermaidSvg" | "mockup">,
+): number {
+  const { isMermaid, mermaidSvg } = frame;
+  const fromMermaid =
+    isMermaid && mermaidSvg ? mermaidFrameHeight(mermaidSvg) : null;
 
-  return (
-    <figure style={{ margin: "0 0 12px" }}>
-      <MockupCaption mockup={mockup} index={index} />
-      <MockupFrame
-        isMermaid={isMermaid}
-        mermaidSvg={mermaidSvg}
-        clean={clean}
-        stylesheet={stylesheet}
-        mockup={mockup}
-        index={index}
-      />
-    </figure>
-  );
+  return fromMermaid ?? mockupHeight(frame.mockup);
 }
 
-export default function MockupSection({
-  mockups,
-  stylesheet,
-}: {
-  mockups: GapMockup[];
-  stylesheet?: string;
-}) {
-  return (
-    <div>
-      {mockups.map((m, i) => (
-        <MockupFigure key={i} mockup={m} index={i} stylesheet={stylesheet} />
-      ))}
-    </div>
-  );
+function useMermaidSvg(mockup: GapMockup, index: number): string | null {
+  const [svg, setSvg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (mockup.format !== "mermaid") {
+      return;
+    }
+
+    return renderInto(mockup.markup, index, setSvg);
+  }, [mockup.format, mockup.markup, index]);
+
+  return svg;
+}
+
+/** Lazily imported; never notifies — store IS "am I in a browser". */
+const subscribeNever = () => () => {};
+
+/** The markup this figure may safely render. Mermaid output skips DOMPurify because purifying would strip its foreignObject — it is protected instead by mermaid's own securityLevel:"strict" plus the sandboxed frame, while AUTHOR markup is always purified. */
+function cleanMarkup(mockup: GapMockup, mermaidSvg: string | null): string {
+  if (mockup.format === "mermaid") {
+    return mermaidSvg ?? "";
+  }
+  const config =
+    mockup.format === "html" ? MOCKUP_HTML_CONFIG : MOCKUP_SVG_CONFIG;
+
+  return sanitizeMockupMarkup(DOMPurify, mockup.markup, config);
+}
+
+type SetSvg = Dispatch<SetStateAction<string | null>>;
+
+/** Starts a render and hands back the cleanup that disowns it, so a diagram that finishes after its mockup changed is dropped instead of shown. */
+function renderInto(markup: string, index: number, setSvg: SetSvg) {
+  let live = true;
+
+  void (async () => {
+    try {
+      const svgMarkup = await renderMermaid(markup, index);
+
+      // `live` flips to false from the cleanup below, across an async boundary the type checker can't see.
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+      if (live) {
+        setSvg(svgMarkup);
+      }
+    } catch {
+      // Parse failure does not fail the round; the author still has every section.
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+      if (live) {
+        setSvg("");
+      }
+    }
+  })();
+
+  return () => {
+    live = false;
+  };
+}
+
+/** Renders one mermaid diagram to SVG. Returns EMPTY rather than the markup when a script tag survives: a mockup is author-supplied text rendered into a frame, and framing a potentially escaped script is worse than showing no diagram. */
+async function renderMermaid(markup: string, index: number): Promise<string> {
+  const mermaid = (await import("mermaid")).default;
+
+  mermaid.initialize({
+    startOnLoad: false,
+    securityLevel: "strict",
+    // Flowchart-only; ER and edge labels are foreignObject HTML, so MOCKUP_SVG_CONFIG would have to allow the tag.
+    flowchart: { htmlLabels: false },
+  });
+  const rendered = await mermaid.render(`mockup-${index}`, markup.trim());
+
+  return /<script/i.test(rendered.svg) ? "" : rendered.svg;
 }

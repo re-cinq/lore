@@ -24,6 +24,65 @@ export interface PRDetails {
   computed_status: PRStatus;
 }
 
+export interface PRStatusCardProps {
+  details: PRDetails | null;
+  error: string | null;
+  prUrl: string;
+}
+
+/** Pure PR-status card; Panel owns poll, threads details/error down. */
+export default function PRStatusCard({
+  details,
+  error,
+  prUrl,
+}: PRStatusCardProps) {
+  // A failed poll must not wipe already-loaded details off the screen.
+  if (showUnavailable(error, details)) {
+    return <StatusUnavailable prUrl={prUrl} />;
+  }
+
+  if (!details) {
+    return <StatusLoading />;
+  }
+
+  return (
+    <div className={`spec-card ${styles.card}`}>
+      <StatusRow details={details} />
+
+      <ChecksRow details={details} />
+      <ReviewsRow details={details} />
+    </div>
+  );
+}
+
+function showUnavailable(
+  error: string | null,
+  details: PRDetails | null,
+): boolean {
+  return Boolean(error) && !details;
+}
+
+/** The poll failed and nothing has loaded yet. Still offers the GitHub link — the PR exists and the reader can go look at it, which is more useful than an error alone. */
+function StatusUnavailable({ prUrl }: { prUrl: string }) {
+  return (
+    <div className={`spec-card ${styles.card}`}>
+      <strong>PR Status:</strong>{" "}
+      <span className="meta">Status unavailable — </span>
+      <a href={prUrl} target="_blank">
+        View on GitHub
+      </a>
+    </div>
+  );
+}
+
+function StatusLoading() {
+  return (
+    <div className={`spec-card ${styles.card}`}>
+      <strong>PR Status:</strong> <span className="meta">Loading…</span>
+    </div>
+  );
+}
+
 const STATUS_COLORS: Record<PRStatus, string> = {
   draft: "var(--text-muted)",
   open: "var(--info)",
@@ -34,15 +93,36 @@ const STATUS_COLORS: Record<PRStatus, string> = {
   closed: "var(--border-hover)",
 };
 
+/** The PR at a glance: its state, its number, its title. The pill takes its colour from the computed status rather than from GitHub's own, because a PR that is open but failing is not the same thing to a reader as one that is open and green. */
+function StatusRow({ details }: { details: PRDetails }) {
+  return (
+    <div className={styles.statusRow}>
+      <strong>PR Status:</strong>
+      <span
+        className={`status-pill ${styles.pill}`}
+        style={{
+          ["--pill-color" as string]: resolvedColor(details.computed_status),
+        }}
+      >
+        {details.computed_status}
+      </span>
+      <a href={details.html_url} target="_blank" className={styles.titleLink}>
+        #{details.number} {details.title}
+      </a>
+    </div>
+  );
+}
+
 function resolvedColor(status: PRStatus): string {
   return STATUS_COLORS[status] || "var(--text-muted)";
 }
 
-function showUnavailable(
-  error: string | null,
-  details: PRDetails | null,
-): boolean {
-  return Boolean(error) && !details;
+function ChecksRow({ details }: { details: PRDetails }) {
+  if (details.checks.length === 0) {
+    return null;
+  }
+
+  return <ChecksSummary tally={tallyChecks(details.checks)} />;
 }
 
 type ChecksTally = ReturnType<typeof tallyChecks>;
@@ -58,6 +138,19 @@ function tallyChecks(checks: PRDetails["checks"]) {
     ).length,
     pendingChecks: checks.filter((c) => c.status !== "completed").length,
   };
+}
+
+function ChecksSummary({ tally }: { tally: ChecksTally }) {
+  const { passingChecks, failingChecks, pendingChecks } = tally;
+
+  return (
+    <div className={styles.checksRow}>
+      <strong>Checks:</strong>{" "}
+      <CheckTally count={passingChecks} kind="passing" />
+      <CheckTally count={failingChecks} kind="failing" />
+      <CheckTally count={pendingChecks} kind="pending" />
+    </div>
+  );
 }
 
 const CHECK_KINDS = {
@@ -87,32 +180,6 @@ function CheckTally({
   );
 }
 
-function ChecksSummary({ tally }: { tally: ChecksTally }) {
-  const { passingChecks, failingChecks, pendingChecks } = tally;
-
-  return (
-    <div className={styles.checksRow}>
-      <strong>Checks:</strong>{" "}
-      <CheckTally count={passingChecks} kind="passing" />
-      <CheckTally count={failingChecks} kind="failing" />
-      <CheckTally count={pendingChecks} kind="pending" />
-    </div>
-  );
-}
-
-function ChecksRow({ details }: { details: PRDetails }) {
-  if (details.checks.length === 0) {
-    return null;
-  }
-
-  return <ChecksSummary tally={tallyChecks(details.checks)} />;
-}
-
-interface ReviewsSummaryProps {
-  approvals: PRDetails["reviews"];
-  changesRequested: PRDetails["reviews"];
-}
-
 function ReviewsRow({ details }: { details: PRDetails }) {
   const approvals = details.reviews.filter((r) => r.state === "APPROVED");
   const changesRequested = details.reviews.filter(
@@ -126,6 +193,11 @@ function ReviewsRow({ details }: { details: PRDetails }) {
   return (
     <ReviewsSummary approvals={approvals} changesRequested={changesRequested} />
   );
+}
+
+interface ReviewsSummaryProps {
+  approvals: PRDetails["reviews"];
+  changesRequested: PRDetails["reviews"];
 }
 
 function ReviewsSummary({ approvals, changesRequested }: ReviewsSummaryProps) {
@@ -143,78 +215,6 @@ function ReviewsSummary({ approvals, changesRequested }: ReviewsSummaryProps) {
           Changes requested by {changesRequested.map((r) => r.user).join(", ")}
         </span>
       )}
-    </div>
-  );
-}
-
-/** The poll failed and nothing has loaded yet. Still offers the GitHub link — the PR exists and the reader can go look at it, which is more useful than an error alone. */
-function StatusUnavailable({ prUrl }: { prUrl: string }) {
-  return (
-    <div className={`spec-card ${styles.card}`}>
-      <strong>PR Status:</strong>{" "}
-      <span className="meta">Status unavailable — </span>
-      <a href={prUrl} target="_blank">
-        View on GitHub
-      </a>
-    </div>
-  );
-}
-
-/** The PR at a glance: its state, its number, its title. The pill takes its colour from the computed status rather than from GitHub's own, because a PR that is open but failing is not the same thing to a reader as one that is open and green. */
-function StatusRow({ details }: { details: PRDetails }) {
-  return (
-    <div className={styles.statusRow}>
-      <strong>PR Status:</strong>
-      <span
-        className={`status-pill ${styles.pill}`}
-        style={{
-          ["--pill-color" as string]: resolvedColor(details.computed_status),
-        }}
-      >
-        {details.computed_status}
-      </span>
-      <a href={details.html_url} target="_blank" className={styles.titleLink}>
-        #{details.number} {details.title}
-      </a>
-    </div>
-  );
-}
-
-function StatusLoading() {
-  return (
-    <div className={`spec-card ${styles.card}`}>
-      <strong>PR Status:</strong> <span className="meta">Loading…</span>
-    </div>
-  );
-}
-
-export interface PRStatusCardProps {
-  details: PRDetails | null;
-  error: string | null;
-  prUrl: string;
-}
-
-/** Pure PR-status card; Panel owns poll, threads details/error down. */
-export default function PRStatusCard({
-  details,
-  error,
-  prUrl,
-}: PRStatusCardProps) {
-  // A failed poll must not wipe already-loaded details off the screen.
-  if (showUnavailable(error, details)) {
-    return <StatusUnavailable prUrl={prUrl} />;
-  }
-
-  if (!details) {
-    return <StatusLoading />;
-  }
-
-  return (
-    <div className={`spec-card ${styles.card}`}>
-      <StatusRow details={details} />
-
-      <ChecksRow details={details} />
-      <ReviewsRow details={details} />
     </div>
   );
 }

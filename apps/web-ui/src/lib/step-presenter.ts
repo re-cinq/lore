@@ -22,6 +22,36 @@ export interface StepView {
   reason: string | null;
 }
 
+/** Steps in execution order with state, branch taken, and failure reason. */
+export function stepViews(
+  definition: AssemblyLineDefinition | null,
+  nodes: readonly AssemblyRunNode[],
+  runReason: string | null = null,
+): StepView[] {
+  const layers = definition
+    ? layerByLongestPath(definition)
+    : new Map<string, number>();
+
+  return nodes.map((node) => toStepView(definition, layers, node, runReason));
+}
+
+function toStepView(
+  definition: AssemblyLineDefinition | null,
+  layers: Map<string, number>,
+  node: AssemblyRunNode,
+  runReason: string | null,
+): StepView {
+  const { tone, label } = toneOf(node.outcome);
+
+  return {
+    ...rowFacts(node),
+    tone,
+    label,
+    transition: transitionOf(definition, layers, node),
+    reason: tone === "err" ? runReason : null,
+  };
+}
+
 const TONES: { tone: StepTone; label: string }[] = [
   { tone: "ok", label: "Succeeded" },
   { tone: "warn", label: "Changes requested" },
@@ -60,36 +90,6 @@ function transitionOf(
   const loops = (layers.get(edge.to) ?? 0) <= (layers.get(edge.from) ?? 0);
 
   return `${edge.on} ${loops ? "↩" : "→"} ${edge.to}`;
-}
-
-/** Steps in execution order with state, branch taken, and failure reason. */
-export function stepViews(
-  definition: AssemblyLineDefinition | null,
-  nodes: readonly AssemblyRunNode[],
-  runReason: string | null = null,
-): StepView[] {
-  const layers = definition
-    ? layerByLongestPath(definition)
-    : new Map<string, number>();
-
-  return nodes.map((node) => toStepView(definition, layers, node, runReason));
-}
-
-function toStepView(
-  definition: AssemblyLineDefinition | null,
-  layers: Map<string, number>,
-  node: AssemblyRunNode,
-  runReason: string | null,
-): StepView {
-  const { tone, label } = toneOf(node.outcome);
-
-  return {
-    ...rowFacts(node),
-    tone,
-    label,
-    transition: transitionOf(definition, layers, node),
-    reason: tone === "err" ? runReason : null,
-  };
 }
 
 /** The half of a step copied straight off its walk row. */

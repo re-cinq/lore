@@ -12,38 +12,6 @@ type CreateAction = (
   formData: FormData,
 ) => Promise<{ error?: string }>;
 
-/** What the author supplies. Both required: the planning round has nothing to analyze without a prompt, and nothing to call the feature without a title. */
-function FeatureFields() {
-  return (
-    <>
-      <label>
-        Title
-        <input name="title" required placeholder="Short feature name" />
-      </label>
-      <label>
-        Describe the feature
-        <textarea
-          name="prompt"
-          rows={6}
-          required
-          placeholder="What should it do, for whom, and why?"
-        />
-      </label>
-    </>
-  );
-}
-
-/** Why the prompt is worth writing carefully: it is the whole input to the planning round. */
-function PlanningBlurb() {
-  return (
-    <p className="meta">
-      Describe what you want. A planning Station analyzes it against this
-      project and returns a gap-closing analysis you can refine before a spec PR
-      is opened.
-    </p>
-  );
-}
-
 interface SmartFeatureCreateViewProps {
   action: CreateAction;
   definition?: AssemblyLineDefinition | null;
@@ -67,5 +35,37 @@ export default function SmartFeatureCreateView({
         Start planning
       </SubmitButton>
     </form>
+  );
+}
+
+/** Why the prompt is worth writing carefully: it is the whole input to the planning round. */
+function PlanningBlurb() {
+  return (
+    <p className="meta">
+      Describe what you want. A planning Station analyzes it against this
+      project and returns a gap-closing analysis you can refine before a spec PR
+      is opened.
+    </p>
+  );
+}
+
+/** What the author supplies. Both required: the planning round has nothing to analyze without a prompt, and nothing to call the feature without a title. */
+function FeatureFields() {
+  return (
+    <>
+      <label>
+        Title
+        <input name="title" required placeholder="Short feature name" />
+      </label>
+      <label>
+        Describe the feature
+        <textarea
+          name="prompt"
+          rows={6}
+          required
+          placeholder="What should it do, for whom, and why?"
+        />
+      </label>
+    </>
   );
 }

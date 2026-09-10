@@ -9,15 +9,27 @@ import {
   turnsUrl,
 } from "./turn-transcript-presenter";
 
-export function exceededWalkBudget(
-  turnsLoaded: number,
-  pages: number,
-): boolean {
-  return turnsLoaded >= MAX_TURNS_LOADED || pages >= MAX_WALK_PAGES;
-}
+/** One full walk of the turns endpoint, honoring the page/turn caps; throws on transport failure. */
+export async function walkAllTurns(runId: string, isDisposed: () => boolean) {
+  const collected: AgentRunTurn[] = [];
+  let cursor = "0";
+  let pages = 0;
 
-export function walkErrorMessage(e: unknown): string {
-  return e instanceof Error ? e.message : String(e);
+  for (;;) {
+    const page = await fetchTurnsPage(runId, cursor);
+
+    if (isDisposed()) {
+      return { turns: collected, hitCap: false };
+    }
+    pages += 1;
+    collectTurns(page.rows, collected);
+    const step = walkStep(page, { collectedCount: collected.length, pages });
+
+    if ("hitCap" in step) {
+      return { turns: collected, hitCap: step.hitCap };
+    }
+    cursor = step.cursor;
+  }
 }
 
 async function fetchTurnsPage(runId: string, cursor: string) {
@@ -66,25 +78,13 @@ function walkStep(
   return { cursor: next };
 }
 
-/** One full walk of the turns endpoint, honoring the page/turn caps; throws on transport failure. */
-export async function walkAllTurns(runId: string, isDisposed: () => boolean) {
-  const collected: AgentRunTurn[] = [];
-  let cursor = "0";
-  let pages = 0;
+export function exceededWalkBudget(
+  turnsLoaded: number,
+  pages: number,
+): boolean {
+  return turnsLoaded >= MAX_TURNS_LOADED || pages >= MAX_WALK_PAGES;
+}
 
-  for (;;) {
-    const page = await fetchTurnsPage(runId, cursor);
-
-    if (isDisposed()) {
-      return { turns: collected, hitCap: false };
-    }
-    pages += 1;
-    collectTurns(page.rows, collected);
-    const step = walkStep(page, { collectedCount: collected.length, pages });
-
-    if ("hitCap" in step) {
-      return { turns: collected, hitCap: step.hitCap };
-    }
-    cursor = step.cursor;
-  }
+export function walkErrorMessage(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
 }

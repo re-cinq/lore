@@ -16,6 +16,56 @@ export interface ContextViewProps {
   chunks: ContextChunk[];
 }
 
+/** Global cross-repo context list; pure render with repo labels and detail links. */
+export default function ContextView(props: ContextViewProps) {
+  const { type, q, types, chunks } = props;
+
+  return (
+    <div>
+      <h1>Context</h1>
+      <GlobalScopeNotice />
+
+      <ContextFilters
+        basePath="/context"
+        types={types}
+        activeType={type}
+        q={q}
+      />
+
+      <ContextChunkList chunks={chunks} filtered={Boolean(q || type)} />
+    </div>
+  );
+}
+
+/** Says which context this is. Worth saying because the per-repo view looks the same and answers a narrower question — a reader who arrived here from a repo page would otherwise read another repo's chunks as that repo's. */
+function GlobalScopeNotice() {
+  return (
+    <div className={styles.notice}>
+      <p className={`meta ${styles.noticeText}`}>
+        This is the global view across all repos. For repo-specific context,
+        visit <a href="/">Repositories</a> and select a repo.
+      </p>
+    </div>
+  );
+}
+
+interface ContextChunkListProps {
+  chunks: ContextChunk[];
+  filtered: boolean;
+}
+
+function ContextChunkList({ chunks, filtered }: ContextChunkListProps) {
+  return chunks.length === 0 ? (
+    <ContextEmptyState filtered={filtered} />
+  ) : (
+    <>
+      {chunks.map((chunk) => (
+        <GlobalChunkCard key={chunk.id} chunk={chunk} />
+      ))}
+    </>
+  );
+}
+
 /** Two different nothings: a filter that matched nothing offers a way back, while a repo with no ingested context explains when context arrives. Telling them apart is the whole point — the first is the reader's doing, the second is not. */
 function ContextEmptyState({ filtered }: { filtered: boolean }) {
   if (!filtered) {
@@ -45,18 +95,6 @@ function NothingIngestedState() {
   );
 }
 
-/** Says which context this is. Worth saying because the per-repo view looks the same and answers a narrower question — a reader who arrived here from a repo page would otherwise read another repo's chunks as that repo's. */
-function GlobalScopeNotice() {
-  return (
-    <div className={styles.notice}>
-      <p className={`meta ${styles.noticeText}`}>
-        This is the global view across all repos. For repo-specific context,
-        visit <a href="/">Repositories</a> and select a repo.
-      </p>
-    </div>
-  );
-}
-
 /** One chunk, labelled with the repo it came from. A chunk with no `file_path` came from a source with no file behind it — a memory or a fact — so it gets no detail link rather than one that would 404. */
 function GlobalChunkCard({
   chunk,
@@ -74,43 +112,5 @@ function GlobalChunkCard({
           : undefined
       }
     />
-  );
-}
-
-/** Global cross-repo context list; pure render with repo labels and detail links. */
-export default function ContextView(props: ContextViewProps) {
-  const { type, q, types, chunks } = props;
-
-  return (
-    <div>
-      <h1>Context</h1>
-      <GlobalScopeNotice />
-
-      <ContextFilters
-        basePath="/context"
-        types={types}
-        activeType={type}
-        q={q}
-      />
-
-      <ContextChunkList chunks={chunks} filtered={Boolean(q || type)} />
-    </div>
-  );
-}
-
-interface ContextChunkListProps {
-  chunks: ContextChunk[];
-  filtered: boolean;
-}
-
-function ContextChunkList({ chunks, filtered }: ContextChunkListProps) {
-  return chunks.length === 0 ? (
-    <ContextEmptyState filtered={filtered} />
-  ) : (
-    <>
-      {chunks.map((chunk) => (
-        <GlobalChunkCard key={chunk.id} chunk={chunk} />
-      ))}
-    </>
   );
 }

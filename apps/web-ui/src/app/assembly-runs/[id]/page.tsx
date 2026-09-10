@@ -16,6 +16,27 @@ import RunLiveShell from "./RunLiveShell";
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// Resolver for `/assembly-runs/[id]`: a run renders detail; a task id redirects to `/tasks/[id]` (legacy links keep working); unknown → "Not found".
+export default async function AssemblyLineResolverPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+
+  if (!UUID_RE.test(id)) {
+    return <p>Not found.</p>;
+  }
+
+  const run = await resolveRun(id);
+
+  if (!run) {
+    return <p>Not found.</p>;
+  }
+
+  return <RunPage run={run} view={await resolveRunView(run, id)} />;
+}
+
 // The id may be a TASK id rather than a run id — old links pointed here; redirects there and returns null.
 async function resolveRun(id: string): Promise<AssemblyRun | null> {
   const run = await fetchAssemblyRun(id);
@@ -31,19 +52,6 @@ async function resolveRun(id: string): Promise<AssemblyRun | null> {
   }
 
   return null;
-}
-
-async function resolveTaskContext(taskId: string | null) {
-  if (!taskId) {
-    return { events: [], llmCalls: [] };
-  }
-
-  const [events, llmCalls] = await Promise.all([
-    fetchTaskEvents(taskId),
-    fetchLlmCalls(taskId),
-  ]);
-
-  return { events, llmCalls };
 }
 
 /** Everything the page renders from, resolved in one place. `agentEditHrefs` is built from RESOLVED definitions because those carry the `project_id` the "Edit agent" link routes on; `listAgents` degrades to an empty list when the API is unreachable, which costs the links and nothing else. */
@@ -86,23 +94,15 @@ function RunPage({ run, view }: RunPageProps) {
   );
 }
 
-// Resolver for `/assembly-runs/[id]`: a run renders detail; a task id redirects to `/tasks/[id]` (legacy links keep working); unknown → "Not found".
-export default async function AssemblyLineResolverPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
-
-  if (!UUID_RE.test(id)) {
-    return <p>Not found.</p>;
+async function resolveTaskContext(taskId: string | null) {
+  if (!taskId) {
+    return { events: [], llmCalls: [] };
   }
 
-  const run = await resolveRun(id);
+  const [events, llmCalls] = await Promise.all([
+    fetchTaskEvents(taskId),
+    fetchLlmCalls(taskId),
+  ]);
 
-  if (!run) {
-    return <p>Not found.</p>;
-  }
-
-  return <RunPage run={run} view={await resolveRunView(run, id)} />;
+  return { events, llmCalls };
 }

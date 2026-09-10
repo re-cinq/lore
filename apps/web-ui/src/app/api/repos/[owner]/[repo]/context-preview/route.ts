@@ -3,6 +3,19 @@ import { NextResponse } from "next/server";
 import { authorizeSessionLoreApi } from "@/lib/lore-api-access";
 import { repoRoute } from "@/lib/repo-route";
 
+export const GET = repoRoute(
+  "context-preview",
+  async (fullName, searchParams) => {
+    const { query, template, debug } = parsePreviewParams(searchParams);
+
+    if (!query) {
+      return NextResponse.json({ error: "query is required" }, { status: 400 });
+    }
+
+    return previewResponse(fullName, query, template, debug);
+  },
+);
+
 function parsePreviewParams(searchParams: URLSearchParams): {
   query: string | null;
   template: string;
@@ -13,16 +26,6 @@ function parsePreviewParams(searchParams: URLSearchParams): {
   const debug = searchParams.get("debug") === "1" ? "&debug=1" : "";
 
   return { query, template, debug };
-}
-
-/** The assembled context, passed through unread. The status is NOT remapped: this route proxies the same endpoint a task runner hydrates from, so what the reader sees is byte-for-byte what a dev session receives on turn 1. */
-async function upstreamJson(upstream: Response) {
-  const body = await upstream.text();
-
-  return new NextResponse(body, {
-    status: upstream.status,
-    headers: { "Content-Type": "application/json" },
-  });
 }
 
 /** The authorized half: the session's lore-api credentials, then the same `/api/context` call a task runner makes. */
@@ -50,15 +53,12 @@ async function previewResponse(
   return upstreamJson(upstream);
 }
 
-export const GET = repoRoute(
-  "context-preview",
-  async (fullName, searchParams) => {
-    const { query, template, debug } = parsePreviewParams(searchParams);
+/** The assembled context, passed through unread. The status is NOT remapped: this route proxies the same endpoint a task runner hydrates from, so what the reader sees is byte-for-byte what a dev session receives on turn 1. */
+async function upstreamJson(upstream: Response) {
+  const body = await upstream.text();
 
-    if (!query) {
-      return NextResponse.json({ error: "query is required" }, { status: 400 });
-    }
-
-    return previewResponse(fullName, query, template, debug);
-  },
-);
+  return new NextResponse(body, {
+    status: upstream.status,
+    headers: { "Content-Type": "application/json" },
+  });
+}

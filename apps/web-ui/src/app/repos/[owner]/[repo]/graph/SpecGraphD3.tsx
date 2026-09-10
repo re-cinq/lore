@@ -36,24 +36,6 @@ import {
 export { computeRing } from "./spec-graph-ring-layout";
 export { nodeLinks } from "./spec-graph-node-links";
 
-function resolveColors(el: SVGSVGElement) {
-  // Canvas needs literal colors (not var() strings); tokens resolved per render, SVG keeps var() refs.
-  const tokenStyles = getComputedStyle(el);
-  const lookup = (name: string) => tokenStyles.getPropertyValue(name);
-
-  return {
-    surfaceColor: cssToken(lookup, "--bg-surface", "#ffffff"),
-    edgeColor: cssToken(lookup, "--chart-neutral", "#94a3b8"),
-    badgeTextColor: cssToken(lookup, "--text-on-accent", "#ffffff"),
-    canvasColorOf: (type: SpecGraphNode["type"]) =>
-      resolveColor(lookup, colorOf(type)),
-    coverageTint: d3.interpolateRgb(
-      cssToken(lookup, "--danger", "#dc2626"),
-      cssToken(lookup, "--success", "#16a34a"),
-    ),
-  };
-}
-
 // eslint-disable-next-line max-lines-per-function -- imperative d3 canvas renderer: one effect owning the simulation, the draw loop and the hit testing, which is also why vitest.config excludes it from coverage. Splitting it needs its own piece of work, not a sweep.
 export default function SpecGraphD3({
   graph,
@@ -334,4 +316,22 @@ export default function SpecGraphD3({
       </div>
     </div>
   );
+}
+
+function resolveColors(el: SVGSVGElement) {
+  // Canvas needs literal colors (not var() strings); tokens resolved per render, SVG keeps var() refs.
+  const tokenStyles = getComputedStyle(el);
+  const lookup = (name: string) => tokenStyles.getPropertyValue(name);
+
+  return {
+    surfaceColor: cssToken(lookup, "--bg-surface", "#ffffff"),
+    edgeColor: cssToken(lookup, "--chart-neutral", "#94a3b8"),
+    badgeTextColor: cssToken(lookup, "--text-on-accent", "#ffffff"),
+    canvasColorOf: (type: SpecGraphNode["type"]) =>
+      resolveColor(lookup, colorOf(type)),
+    coverageTint: d3.interpolateRgb(
+      cssToken(lookup, "--danger", "#dc2626"),
+      cssToken(lookup, "--success", "#16a34a"),
+    ),
+  };
 }

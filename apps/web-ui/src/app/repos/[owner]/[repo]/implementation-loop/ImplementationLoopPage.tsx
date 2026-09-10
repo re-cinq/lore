@@ -7,16 +7,6 @@ interface LoopPageProps {
   params: Promise<{ owner: string; repo: string }>;
 }
 
-/** Names the connection rather than the symptom, because an unreachable API and an empty backlog look the same on the page. */
-function LoadFailure({ reason }: { reason: string }) {
-  return (
-    <Alert variant="secondary">
-      Could not load the backlog state ({reason}) — check the Lore API
-      connection and reload.
-    </Alert>
-  );
-}
-
 export default async function ImplementationLoopPage(props: LoopPageProps) {
   const { owner, repo } = await props.params;
   const fullName = `${owner}/${repo}`;
@@ -35,5 +25,15 @@ export default async function ImplementationLoopPage(props: LoopPageProps) {
       loop={result.data}
       toggle={toggleImplementationLoopAction.bind(null, fullName)}
     />
+  );
+}
+
+/** Names the connection rather than the symptom, because an unreachable API and an empty backlog look the same on the page. */
+function LoadFailure({ reason }: { reason: string }) {
+  return (
+    <Alert variant="secondary">
+      Could not load the backlog state ({reason}) — check the Lore API
+      connection and reload.
+    </Alert>
   );
 }

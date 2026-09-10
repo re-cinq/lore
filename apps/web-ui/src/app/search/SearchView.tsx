@@ -26,16 +26,45 @@ export interface SearchViewProps {
   results: SearchResult[];
 }
 
-function sourceBadgeClass(source: SearchResult["source"]): string {
-  if (source === "fact") {
-    return "op-search";
-  }
+/** Cross-source search page: pure render of merged/scored memory/fact/chunk results. */
+export default function SearchView(props: SearchViewProps) {
+  const { q, repo, repos, results } = props;
 
-  if (source === "chunk") {
-    return "op-write";
-  }
+  return (
+    <div>
+      <h1>Search Memories</h1>
+      <SearchForm q={q} repo={repo} repos={repos} />
+      <ResultCountLine q={q} repo={repo} count={results.length} />
+      {results.map((r, i) => (
+        <SearchResultCard key={i} result={r} />
+      ))}
+      {q && results.length === 0 && (
+        <div className="empty-state">
+          <p>No results found. Try a different search term.</p>
+        </div>
+      )}
+    </div>
+  );
+}
 
-  return "op-read";
+/** The query and the repo it is scoped to. A plain GET form, so a search lands in the URL and can be shared or bookmarked. */
+function SearchForm({
+  q,
+  repo,
+  repos,
+}: Pick<SearchViewProps, "q" | "repo" | "repos">) {
+  return (
+    <form method="get" className="search-form">
+      <RepoFilterSelect repo={repo} repos={repos} />
+      <input
+        type="text"
+        name="q"
+        defaultValue={q || ""}
+        placeholder="Search memories, facts, and ingested docs..."
+      />
+      <button type="submit">Search</button>
+    </form>
+  );
 }
 
 interface RepoFilterSelectProps {
@@ -125,43 +154,14 @@ function ResultSource({ result: r }: { result: SearchResult }) {
   );
 }
 
-/** The query and the repo it is scoped to. A plain GET form, so a search lands in the URL and can be shared or bookmarked. */
-function SearchForm({
-  q,
-  repo,
-  repos,
-}: Pick<SearchViewProps, "q" | "repo" | "repos">) {
-  return (
-    <form method="get" className="search-form">
-      <RepoFilterSelect repo={repo} repos={repos} />
-      <input
-        type="text"
-        name="q"
-        defaultValue={q || ""}
-        placeholder="Search memories, facts, and ingested docs..."
-      />
-      <button type="submit">Search</button>
-    </form>
-  );
-}
+function sourceBadgeClass(source: SearchResult["source"]): string {
+  if (source === "fact") {
+    return "op-search";
+  }
 
-/** Cross-source search page: pure render of merged/scored memory/fact/chunk results. */
-export default function SearchView(props: SearchViewProps) {
-  const { q, repo, repos, results } = props;
+  if (source === "chunk") {
+    return "op-write";
+  }
 
-  return (
-    <div>
-      <h1>Search Memories</h1>
-      <SearchForm q={q} repo={repo} repos={repos} />
-      <ResultCountLine q={q} repo={repo} count={results.length} />
-      {results.map((r, i) => (
-        <SearchResultCard key={i} result={r} />
-      ))}
-      {q && results.length === 0 && (
-        <div className="empty-state">
-          <p>No results found. Try a different search term.</p>
-        </div>
-      )}
-    </div>
-  );
+  return "op-read";
 }

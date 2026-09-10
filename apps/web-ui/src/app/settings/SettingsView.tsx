@@ -80,41 +80,26 @@ function StatCard({ label, value }: { label: string; value: number }) {
   );
 }
 
-/** Its own form, not another button beside Save: regenerating invalidates every existing token at once, so it must not ride a submit someone meant as a save. */
-function RegenerateTokenForm({
-  regenerateToken,
-}: Pick<SettingsViewProps, "regenerateToken">) {
-  return (
-    <form action={regenerateToken} className={styles.regenerateForm}>
-      <button type="submit" className={`danger ${styles.regenerateButton}`}>
-        Regenerate Token
-      </button>
-      <span className={`meta ${styles.regenerateNote}`}>
-        Warning: invalidates all existing tokens. You&apos;ll need to update all
-        repos and developer installs.
-      </span>
-    </form>
-  );
-}
+type PlatformConfigFormProps = Pick<
+  SettingsViewProps,
+  "apiUrl" | "ingestToken" | "saveSettings" | "regenerateToken"
+>;
 
-/** The shared token, and the two places it has to be repeated. Naming both — the developer install and the repo's Actions secret — is the point: changing it here alone leaves every install and every workflow on the old one. */
-function IngestTokenField({
-  ingestToken,
-}: Pick<SettingsViewProps, "ingestToken">) {
+function PlatformConfigForm(props: PlatformConfigFormProps) {
+  const { apiUrl, ingestToken, saveSettings, regenerateToken } = props;
+
   return (
     <>
-      <label className={styles.labelSpaced}>Ingest Token</label>
-      <input
-        name="ingest_token"
-        defaultValue={ingestToken || ""}
-        className={styles.tokenInput}
-      />
-      <p className={`meta ${styles.fieldNote}`}>
-        Shared token for authenticating ingest and task API calls. Set this in
-        developer installs via{" "}
-        <code>git config --global lore.ingest-token</code> and on repos as the{" "}
-        <code>LORE_INGEST_TOKEN</code> GitHub Actions secret.
-      </p>
+      <h2>Platform Configuration</h2>
+      <form action={saveSettings} className={`task-form ${styles.form}`}>
+        <PlatformFields apiUrl={apiUrl} ingestToken={ingestToken} />
+
+        <div className={styles.actions}>
+          <button type="submit">Save</button>
+        </div>
+      </form>
+
+      <RegenerateTokenForm regenerateToken={regenerateToken} />
     </>
   );
 }
@@ -142,27 +127,42 @@ function PlatformFields({
   );
 }
 
-type PlatformConfigFormProps = Pick<
-  SettingsViewProps,
-  "apiUrl" | "ingestToken" | "saveSettings" | "regenerateToken"
->;
-
-function PlatformConfigForm(props: PlatformConfigFormProps) {
-  const { apiUrl, ingestToken, saveSettings, regenerateToken } = props;
-
+/** The shared token, and the two places it has to be repeated. Naming both — the developer install and the repo's Actions secret — is the point: changing it here alone leaves every install and every workflow on the old one. */
+function IngestTokenField({
+  ingestToken,
+}: Pick<SettingsViewProps, "ingestToken">) {
   return (
     <>
-      <h2>Platform Configuration</h2>
-      <form action={saveSettings} className={`task-form ${styles.form}`}>
-        <PlatformFields apiUrl={apiUrl} ingestToken={ingestToken} />
-
-        <div className={styles.actions}>
-          <button type="submit">Save</button>
-        </div>
-      </form>
-
-      <RegenerateTokenForm regenerateToken={regenerateToken} />
+      <label className={styles.labelSpaced}>Ingest Token</label>
+      <input
+        name="ingest_token"
+        defaultValue={ingestToken || ""}
+        className={styles.tokenInput}
+      />
+      <p className={`meta ${styles.fieldNote}`}>
+        Shared token for authenticating ingest and task API calls. Set this in
+        developer installs via{" "}
+        <code>git config --global lore.ingest-token</code> and on repos as the{" "}
+        <code>LORE_INGEST_TOKEN</code> GitHub Actions secret.
+      </p>
     </>
+  );
+}
+
+/** Its own form, not another button beside Save: regenerating invalidates every existing token at once, so it must not ride a submit someone meant as a save. */
+function RegenerateTokenForm({
+  regenerateToken,
+}: Pick<SettingsViewProps, "regenerateToken">) {
+  return (
+    <form action={regenerateToken} className={styles.regenerateForm}>
+      <button type="submit" className={`danger ${styles.regenerateButton}`}>
+        Regenerate Token
+      </button>
+      <span className={`meta ${styles.regenerateNote}`}>
+        Warning: invalidates all existing tokens. You&apos;ll need to update all
+        repos and developer installs.
+      </span>
+    </form>
   );
 }
 

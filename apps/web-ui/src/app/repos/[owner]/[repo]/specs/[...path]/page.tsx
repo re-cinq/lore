@@ -9,6 +9,29 @@ import type { StatementInfo } from "../SpecDetails";
 import styles from "./page.module.scss";
 import { decodeCatchAllPath } from "@/lib/catch-all-path";
 
+interface RepoSpecDetailProps {
+  params: Promise<{ owner: string; repo: string; path: string[] }>;
+}
+
+export default async function RepoSpecDetail({ params }: RepoSpecDetailProps) {
+  const { owner, repo, path } = await params;
+  const fullName = `${owner}/${repo}`;
+  const filePath = decodeCatchAllPath(path);
+  const { source, statements, status } = await readSpec(fullName, filePath);
+
+  return (
+    <div>
+      <SpecBreadcrumb href={`/repos/${owner}/${repo}/specs`} status={status} />
+      <SpecBody
+        repo={fullName}
+        source={source}
+        statements={statements}
+        filePath={filePath}
+      />
+    </div>
+  );
+}
+
 /** The spec as the GRAPH holds it, not as the repo does: the source renders the markdown, and the document supplies the per-statement coverage overlay laid over it. */
 async function readSpec(fullName: string, filePath: string) {
   const [source, doc] = await Promise.all([
@@ -21,17 +44,6 @@ async function readSpec(fullName: string, filePath: string) {
     statements: doc ? toStatementInfo(doc.statements) : [],
     status: source ? parseSpecStatus(source) : null,
   };
-}
-
-/** Why this spec is blank, and how to fix it. Almost always means the graph has not been projected yet rather than that the file is missing, so the note names the steps rather than reporting a 404. */
-function EmptyGraphData({ filePath }: { filePath: string }) {
-  return (
-    <p className="muted">
-      No graph data for <code>{filePath}</code>. Build the graph from the{" "}
-      <strong>Graph</strong> tab and run the <code>ingest-*</code> tasks, then
-      refresh.
-    </p>
-  );
 }
 
 interface SpecBreadcrumbProps {
@@ -63,25 +75,13 @@ function SpecBody({ repo, source, statements, filePath }: SpecBodyProps) {
   return <SpecDocument repo={repo} content={source} statements={statements} />;
 }
 
-interface RepoSpecDetailProps {
-  params: Promise<{ owner: string; repo: string; path: string[] }>;
-}
-
-export default async function RepoSpecDetail({ params }: RepoSpecDetailProps) {
-  const { owner, repo, path } = await params;
-  const fullName = `${owner}/${repo}`;
-  const filePath = decodeCatchAllPath(path);
-  const { source, statements, status } = await readSpec(fullName, filePath);
-
+/** Why this spec is blank, and how to fix it. Almost always means the graph has not been projected yet rather than that the file is missing, so the note names the steps rather than reporting a 404. */
+function EmptyGraphData({ filePath }: { filePath: string }) {
   return (
-    <div>
-      <SpecBreadcrumb href={`/repos/${owner}/${repo}/specs`} status={status} />
-      <SpecBody
-        repo={fullName}
-        source={source}
-        statements={statements}
-        filePath={filePath}
-      />
-    </div>
+    <p className="muted">
+      No graph data for <code>{filePath}</code>. Build the graph from the{" "}
+      <strong>Graph</strong> tab and run the <code>ingest-*</code> tasks, then
+      refresh.
+    </p>
   );
 }

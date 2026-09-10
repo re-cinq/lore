@@ -11,6 +11,26 @@ interface DocListControlsProps {
   onSortChange?: (order: DocSortOrder) => void;
 }
 
+export default function DocListControls({
+  query,
+  onQueryChange,
+  sort,
+  onSortChange,
+}: DocListControlsProps) {
+  return (
+    <div className={styles.controls}>
+      <input
+        type="search"
+        value={query}
+        placeholder="Search title or description…"
+        onChange={(event) => onQueryChange(event.target.value)}
+        className={styles.search}
+      />
+      <SortSelect sort={sort} onSortChange={onSortChange} />
+    </div>
+  );
+}
+
 /** The sort control, shown only when the caller can act on it. A disabled or inert select would suggest an ordering the list does not actually offer. */
 function SortSelect({
   sort,
@@ -29,25 +49,5 @@ function SortSelect({
       <option value="path">Sort: path</option>
       <option value="status">Sort: status</option>
     </select>
-  );
-}
-
-export default function DocListControls({
-  query,
-  onQueryChange,
-  sort,
-  onSortChange,
-}: DocListControlsProps) {
-  return (
-    <div className={styles.controls}>
-      <input
-        type="search"
-        value={query}
-        placeholder="Search title or description…"
-        onChange={(event) => onQueryChange(event.target.value)}
-        className={styles.search}
-      />
-      <SortSelect sort={sort} onSortChange={onSortChange} />
-    </div>
   );
 }

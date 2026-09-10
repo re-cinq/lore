@@ -17,6 +17,27 @@ interface FeatureListViewProps {
   features: FeatureRow[];
 }
 
+export default function FeatureListView(props: FeatureListViewProps) {
+  const { owner, repo, features } = props;
+  const base = `/repos/${owner}/${repo}/features`;
+
+  return (
+    <div>
+      <div className={styles.header}>
+        <p className={`meta ${styles.count}`}>
+          {features.length} feature{features.length === 1 ? "" : "s"} (drafts +
+          shipped).
+        </p>
+        <Link href={`${base}/new`} className="button">
+          + Feature
+        </Link>
+      </div>
+
+      <FeatureGrid features={features} base={base} />
+    </div>
+  );
+}
+
 /** The features, or an invitation to plan one. The empty state names the control by its label so a first-time reader knows where to start. */
 function FeatureGrid({ features, base }: FeatureGridProps) {
   if (features.length === 0) {
@@ -57,26 +78,5 @@ function FeatureCard({ feature, base }: { feature: FeatureRow; base: string }) {
         </p>
       )}
     </Link>
-  );
-}
-
-export default function FeatureListView(props: FeatureListViewProps) {
-  const { owner, repo, features } = props;
-  const base = `/repos/${owner}/${repo}/features`;
-
-  return (
-    <div>
-      <div className={styles.header}>
-        <p className={`meta ${styles.count}`}>
-          {features.length} feature{features.length === 1 ? "" : "s"} (drafts +
-          shipped).
-        </p>
-        <Link href={`${base}/new`} className="button">
-          + Feature
-        </Link>
-      </div>
-
-      <FeatureGrid features={features} base={base} />
-    </div>
   );
 }

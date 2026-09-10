@@ -7,7 +7,6 @@ import markdown from "@eslint/markdown";
 import importX from "eslint-plugin-import-x";
 import reLint from "@re-cinq/eslint-plugin-re-lint";
 import { MAX_EXPECTS_BASELINE } from "./eslint.baseline.max-expects.mjs";
-import { CALLEE_BELOW_CALLER_BASELINE } from "./eslint.baseline.callee-below-caller.mjs";
 
 /**
  * Repo-wide ESLint (flat config). One common linter across every package plus the
@@ -243,9 +242,7 @@ export default tseslint.config(
       // where an assertion reaching into captured data is navigation.
       "re-lint/max-member-chain": "error",
       // A file reads downward: the caller first, the helpers it calls below it.
-      // Error outside the files listed in eslint.baseline.callee-below-caller.mjs,
-      // which were written before the rule and whose reordering moves the line
-      // numbers 182 spec links point at.
+      // Error everywhere since 2026-09-10 — the baseline drained to zero.
       "re-lint/callee-below-caller": "error",
       // Error since 2026-09-08: 20 declarations moved down to their first use.
       // The other 19 carry an inline disable, because moving them would change
@@ -568,13 +565,5 @@ export default tseslint.config(
   {
     files: MAX_EXPECTS_BASELINE,
     rules: { "re-lint/max-expects": ["warn", { max: 3 }] },
-  },
-
-  // The pre-existing half of the callee-below-caller queue: still reported, so
-  // the list stays visible and shrinking, but not red while nobody has moved
-  // a declaration and re-anchored the specs that point into the file.
-  {
-    files: CALLEE_BELOW_CALLER_BASELINE,
-    rules: { "re-lint/callee-below-caller": "warn" },
   },
 );

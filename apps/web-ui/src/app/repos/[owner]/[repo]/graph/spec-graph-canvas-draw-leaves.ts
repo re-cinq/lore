@@ -16,6 +16,19 @@ export interface LeafDrawDeps {
   collapsing: boolean;
 }
 
+export function drawLeafNodes(
+  deps: LeafDrawDeps,
+  state: CanvasDrawState,
+): void {
+  deps.ctx.lineWidth = 1.5 / state.transform.k;
+
+  for (const n of state.nodes) {
+    if (!shouldSkipLeaf(deps, n, state)) {
+      drawLeafNode(deps, n, state);
+    }
+  }
+}
+
 function shouldSkipLeaf(
   deps: LeafDrawDeps,
   n: SimNode,
@@ -44,19 +57,6 @@ function drawLeafNode(
   ctx.stroke();
 }
 
-export function drawLeafNodes(
-  deps: LeafDrawDeps,
-  state: CanvasDrawState,
-): void {
-  deps.ctx.lineWidth = 1.5 / state.transform.k;
-
-  for (const n of state.nodes) {
-    if (!shouldSkipLeaf(deps, n, state)) {
-      drawLeafNode(deps, n, state);
-    }
-  }
-}
-
 export interface BadgeDrawDeps {
   ctx: CanvasRenderingContext2D;
   dpr: number;
@@ -64,20 +64,21 @@ export interface BadgeDrawDeps {
   aggBadges: AggBadge[];
 }
 
-/** Where a badge sits: just off its parent's top-right, in screen pixels so it stays a fixed size at any zoom. */
-function badgeAnchor(
-  parent: SimNode,
-  transform: CanvasDrawState["transform"],
-): { x: number; y: number } {
-  const screen = applyPoint(transform as ZoomTransform, {
-    x: parent.x ?? 0,
-    y: parent.y ?? 0,
-  });
+// Screen-space pass: count badges over collapsed parents (CSS pixels, zoom-readable).
+export function drawAggregationBadges(
+  deps: BadgeDrawDeps,
+  state: CanvasDrawState,
+): void {
+  const { ctx, dpr } = deps;
 
-  return {
-    x: screen.x + radiusOf(parent.type) + 8,
-    y: screen.y - radiusOf(parent.type),
-  };
+  ctx.save();
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.globalAlpha = 1;
+  ctx.font = "600 10px sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  deps.aggBadges.forEach((badge) => drawBadge(deps, badge, state));
+  ctx.restore();
 }
 
 function drawBadge(
@@ -101,19 +102,18 @@ function drawBadge(
   ctx.fillText(String(badge.count), px, py + 0.5);
 }
 
-// Screen-space pass: count badges over collapsed parents (CSS pixels, zoom-readable).
-export function drawAggregationBadges(
-  deps: BadgeDrawDeps,
-  state: CanvasDrawState,
-): void {
-  const { ctx, dpr } = deps;
+/** Where a badge sits: just off its parent's top-right, in screen pixels so it stays a fixed size at any zoom. */
+function badgeAnchor(
+  parent: SimNode,
+  transform: CanvasDrawState["transform"],
+): { x: number; y: number } {
+  const screen = applyPoint(transform as ZoomTransform, {
+    x: parent.x ?? 0,
+    y: parent.y ?? 0,
+  });
 
-  ctx.save();
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.globalAlpha = 1;
-  ctx.font = "600 10px sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  deps.aggBadges.forEach((badge) => drawBadge(deps, badge, state));
-  ctx.restore();
+  return {
+    x: screen.x + radiusOf(parent.type) + 8,
+    y: screen.y - radiusOf(parent.type),
+  };
 }

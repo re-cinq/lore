@@ -27,21 +27,6 @@ export interface AnalyticsViewProps {
   jobRuns: JobRun[];
 }
 
-function formatDuration(started: string, completed: string | null): string {
-  if (!completed) {
-    return "—";
-  }
-  const ms = new Date(completed).getTime() - new Date(started).getTime();
-  const seconds = Math.floor(ms / 1000);
-
-  if (seconds < 60) {
-    return `${seconds}s`;
-  }
-  const minutes = Math.floor(seconds / 60);
-
-  return `${minutes}m`;
-}
-
 // Pure render — page.tsx runs all the SQL and passes resolved row arrays.
 export default function AnalyticsView({
   taskSummary,
@@ -63,26 +48,6 @@ export default function AnalyticsView({
       <RecentJobRuns jobRuns={jobRuns} />
     </div>
   );
-}
-
-const EMPTY_TASK_SUMMARY: TaskSummary = {
-  total: 0,
-  succeeded: 0,
-  failed: 0,
-  active: 0,
-};
-
-function summaryCards(
-  taskSummary: TaskSummary | null,
-): [string, number, string | undefined][] {
-  const summary = taskSummary ?? EMPTY_TASK_SUMMARY;
-
-  return [
-    ["Total Tasks", summary.total, undefined],
-    ["Succeeded", summary.succeeded, styles.statValueSuccess],
-    ["Failed", summary.failed, styles.statValueDanger],
-    ["Active", summary.active, styles.statValueWarning],
-  ];
 }
 
 function TaskSummaryCards({
@@ -107,46 +72,6 @@ function TaskSummaryCards({
   );
 }
 
-interface SummaryStatCardProps {
-  label: string;
-  value: number;
-  tone: string | undefined;
-}
-
-function SummaryStatCard({ label, value, tone }: SummaryStatCardProps) {
-  return (
-    <div className={`spec-card ${styles.statCard}`}>
-      <div className="meta">{label}</div>
-      <div className={tone ? `${styles.statValue} ${tone}` : styles.statValue}>
-        {Number(value).toLocaleString()}
-      </div>
-    </div>
-  );
-}
-
-/** One tool's latency percentiles, with a verdict on p95. */
-function latencyCells(row: AnalyticsViewProps["latencyStats"][number]) {
-  return [
-    <span className="badge" key="tool">
-      {row.tool}
-    </span>,
-    Number(row.call_count).toLocaleString(),
-    `${Number(row.p50_ms).toFixed(0)}ms`,
-    `${Number(row.p95_ms).toFixed(0)}ms`,
-    `${Number(row.p99_ms).toFixed(0)}ms`,
-    <LatencyVerdict p95Ms={Number(row.p95_ms)} key="status" />,
-  ];
-}
-
-/** Whether this tool is inside the retrieval budget. 200ms is the line: past it, context assembly is what the developer is waiting on rather than something they would not notice. */
-function LatencyVerdict({ p95Ms }: { p95Ms: number }) {
-  if (p95Ms > 200) {
-    return <span className="op-badge op-delete">&gt;200ms</span>;
-  }
-
-  return <span className="op-badge op-write">OK</span>;
-}
-
 function RetrievalLatency({
   latencyStats,
 }: Pick<AnalyticsViewProps, "latencyStats">) {
@@ -161,19 +86,6 @@ function RetrievalLatency({
       cells={latencyCells}
     />
   );
-}
-
-function usageByTaskTypeCells(
-  row: AnalyticsViewProps["usageByTaskType"][number],
-) {
-  return [
-    <span className="badge" key="type">
-      {row.task_type}
-    </span>,
-    Number(row.task_count).toLocaleString(),
-    Number(row.total_input_tokens).toLocaleString(),
-    Number(row.total_output_tokens).toLocaleString(),
-  ];
 }
 
 function UsageByTaskType({
@@ -222,6 +134,93 @@ function DailyUsage({ dailyUsage }: Pick<AnalyticsViewProps, "dailyUsage">) {
   );
 }
 
+function RecentJobRuns({ jobRuns }: Pick<AnalyticsViewProps, "jobRuns">) {
+  return (
+    <DataTable
+      title="Recent Job Runs"
+      columns={["Job", "Started", "Duration", "Status", "Result", "Logs"]}
+      rows={jobRuns}
+      rowKey={(r) => r.id}
+      monoColumns={[2]}
+      empty="No job runs"
+      cells={jobRunCells}
+    />
+  );
+}
+
+const EMPTY_TASK_SUMMARY: TaskSummary = {
+  total: 0,
+  succeeded: 0,
+  failed: 0,
+  active: 0,
+};
+
+function summaryCards(
+  taskSummary: TaskSummary | null,
+): [string, number, string | undefined][] {
+  const summary = taskSummary ?? EMPTY_TASK_SUMMARY;
+
+  return [
+    ["Total Tasks", summary.total, undefined],
+    ["Succeeded", summary.succeeded, styles.statValueSuccess],
+    ["Failed", summary.failed, styles.statValueDanger],
+    ["Active", summary.active, styles.statValueWarning],
+  ];
+}
+
+interface SummaryStatCardProps {
+  label: string;
+  value: number;
+  tone: string | undefined;
+}
+
+function SummaryStatCard({ label, value, tone }: SummaryStatCardProps) {
+  return (
+    <div className={`spec-card ${styles.statCard}`}>
+      <div className="meta">{label}</div>
+      <div className={tone ? `${styles.statValue} ${tone}` : styles.statValue}>
+        {Number(value).toLocaleString()}
+      </div>
+    </div>
+  );
+}
+
+/** One tool's latency percentiles, with a verdict on p95. */
+function latencyCells(row: AnalyticsViewProps["latencyStats"][number]) {
+  return [
+    <span className="badge" key="tool">
+      {row.tool}
+    </span>,
+    Number(row.call_count).toLocaleString(),
+    `${Number(row.p50_ms).toFixed(0)}ms`,
+    `${Number(row.p95_ms).toFixed(0)}ms`,
+    `${Number(row.p99_ms).toFixed(0)}ms`,
+    <LatencyVerdict p95Ms={Number(row.p95_ms)} key="status" />,
+  ];
+}
+
+/** Whether this tool is inside the retrieval budget. 200ms is the line: past it, context assembly is what the developer is waiting on rather than something they would not notice. */
+function LatencyVerdict({ p95Ms }: { p95Ms: number }) {
+  if (p95Ms > 200) {
+    return <span className="op-badge op-delete">&gt;200ms</span>;
+  }
+
+  return <span className="op-badge op-write">OK</span>;
+}
+
+function usageByTaskTypeCells(
+  row: AnalyticsViewProps["usageByTaskType"][number],
+) {
+  return [
+    <span className="badge" key="type">
+      {row.task_type}
+    </span>,
+    Number(row.task_count).toLocaleString(),
+    Number(row.total_input_tokens).toLocaleString(),
+    Number(row.total_output_tokens).toLocaleString(),
+  ];
+}
+
 /** One job run as a row. */
 function jobRunCells(run: AnalyticsViewProps["jobRuns"][number]) {
   return [
@@ -240,6 +239,21 @@ function jobRunCells(run: AnalyticsViewProps["jobRuns"][number]) {
   ];
 }
 
+function formatDuration(started: string, completed: string | null): string {
+  if (!completed) {
+    return "—";
+  }
+  const ms = new Date(completed).getTime() - new Date(started).getTime();
+  const seconds = Math.floor(ms / 1000);
+
+  if (seconds < 60) {
+    return `${seconds}s`;
+  }
+  const minutes = Math.floor(seconds / 60);
+
+  return `${minutes}m`;
+}
+
 /** The error REPLACES the summary rather than sitting beside it: a run that failed has no result worth reading, and the reason is what the reader came for. */
 function RunResult({ run }: { run: AnalyticsViewProps["jobRuns"][number] }) {
   if (run.error) {
@@ -256,18 +270,4 @@ function LogsLink({ run }: { run: AnalyticsViewProps["jobRuns"][number] }) {
   }
 
   return <a href={`/job-runs/${run.id}`}>view</a>;
-}
-
-function RecentJobRuns({ jobRuns }: Pick<AnalyticsViewProps, "jobRuns">) {
-  return (
-    <DataTable
-      title="Recent Job Runs"
-      columns={["Job", "Started", "Duration", "Status", "Result", "Logs"]}
-      rows={jobRuns}
-      rowKey={(r) => r.id}
-      monoColumns={[2]}
-      empty="No job runs"
-      cells={jobRunCells}
-    />
-  );
 }

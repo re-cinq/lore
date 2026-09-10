@@ -50,6 +50,29 @@ export interface CanvasDrawerParams {
   aggBadges: AggBadge[];
 }
 
+export function createCanvasDrawer(params: CanvasDrawerParams) {
+  const { ctx, canvas, dpr, colors, aggHidden, aggBadges } = params;
+  const bundleLine = d3
+    .line<[number, number]>()
+    .curve(d3.curveBundle.beta(BUNDLE_BETA))
+    .context(ctx);
+
+  function draw(state: CanvasDrawState): void {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const collapsing = isAggregating(state.transform.k);
+
+    drawWorld({ ctx, dpr, colors, aggHidden, bundleLine, collapsing }, state);
+
+    if (collapsing) {
+      drawAggregationBadges({ ctx, dpr, colors, aggBadges }, state);
+    }
+  }
+
+  return { draw };
+}
+
 // Shared with hit-testing: a leaf drawn on canvas is also the leaf a click can land on.
 export function isAggregating(zoomK: number): boolean {
   return shouldAggregate(zoomK, LOD_THRESHOLD);
@@ -84,27 +107,4 @@ function drawWorld(deps: WorldPassDeps, state: CanvasDrawState): void {
   drawEdges({ ctx, colors, aggHidden, bundleLine, collapsing }, state);
   drawLeafNodes({ ctx, colors, aggHidden, collapsing }, state);
   ctx.restore();
-}
-
-export function createCanvasDrawer(params: CanvasDrawerParams) {
-  const { ctx, canvas, dpr, colors, aggHidden, aggBadges } = params;
-  const bundleLine = d3
-    .line<[number, number]>()
-    .curve(d3.curveBundle.beta(BUNDLE_BETA))
-    .context(ctx);
-
-  function draw(state: CanvasDrawState): void {
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    const collapsing = isAggregating(state.transform.k);
-
-    drawWorld({ ctx, dpr, colors, aggHidden, bundleLine, collapsing }, state);
-
-    if (collapsing) {
-      drawAggregationBadges({ ctx, dpr, colors, aggBadges }, state);
-    }
-  }
-
-  return { draw };
 }

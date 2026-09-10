@@ -14,8 +14,20 @@ export interface EdgeDrawDeps {
   collapsing: boolean;
 }
 
-function pointOf(n: SimNode): { x: number; y: number } {
-  return { x: n.x ?? 0, y: n.y ?? 0 };
+export function drawEdges(deps: EdgeDrawDeps, state: CanvasDrawState): void {
+  deps.ctx.lineWidth = 1.3 / state.transform.k;
+
+  for (const l of state.links) {
+    if (shouldSkipEdge(l, deps, state.ringPinned)) {
+      continue;
+    }
+    strokeEdge(
+      deps,
+      l,
+      { s: l.source as SimNode, t: l.target as SimNode },
+      state,
+    );
+  }
 }
 
 // An edge into a ring-represented statement, or touching a collapsed leaf, never gets drawn.
@@ -34,48 +46,6 @@ function shouldSkipEdge(
   return (
     deps.collapsing && (deps.aggHidden.has(sId) || deps.aggHidden.has(tId))
   );
-}
-
-/** The control points a bundled edge bends through — its route up and back down the containment hierarchy. Control ids that no longer resolve are dropped rather than treated as the origin, which would drag the curve to the top-left corner. */
-function bundlePoints(l: SimLink, state: CanvasDrawState): [number, number][] {
-  return (l.controlIds ?? [])
-    .map((id) => state.nodeById.get(id))
-    .filter((n): n is SimNode => !!n)
-    .map((n) => [n.x ?? 0, n.y ?? 0] as [number, number]);
-}
-
-/** Draws the bundled curve, reporting false when fewer than three control points make it not a curve worth bending. */
-function strokeBundle(
-  deps: EdgeDrawDeps,
-  bundlePts: [number, number][],
-): boolean {
-  if (bundlePts.length <= 2) {
-    return false;
-  }
-  const { ctx, bundleLine } = deps;
-
-  ctx.beginPath();
-  bundleLine(bundlePts);
-  ctx.stroke();
-
-  return true;
-}
-
-/** Straight edge, clipped so it never crosses an open ring's interior. */
-function strokeStraight(
-  ctx: CanvasRenderingContext2D,
-  endpoints: { s: SimNode; t: SimNode },
-  state: CanvasDrawState,
-): void {
-  const { s, t } = endpoints;
-  const pieces = visibleSegments(pointOf(s), pointOf(t), state.ringDiscs);
-
-  ctx.beginPath();
-  pieces.forEach((p) => {
-    ctx.moveTo(p.a.x, p.a.y);
-    ctx.lineTo(p.b.x, p.b.y);
-  });
-  ctx.stroke();
 }
 
 function strokeEdge(
@@ -99,18 +69,48 @@ function strokeEdge(
   }
 }
 
-export function drawEdges(deps: EdgeDrawDeps, state: CanvasDrawState): void {
-  deps.ctx.lineWidth = 1.3 / state.transform.k;
-
-  for (const l of state.links) {
-    if (shouldSkipEdge(l, deps, state.ringPinned)) {
-      continue;
-    }
-    strokeEdge(
-      deps,
-      l,
-      { s: l.source as SimNode, t: l.target as SimNode },
-      state,
-    );
+/** Draws the bundled curve, reporting false when fewer than three control points make it not a curve worth bending. */
+function strokeBundle(
+  deps: EdgeDrawDeps,
+  bundlePts: [number, number][],
+): boolean {
+  if (bundlePts.length <= 2) {
+    return false;
   }
+  const { ctx, bundleLine } = deps;
+
+  ctx.beginPath();
+  bundleLine(bundlePts);
+  ctx.stroke();
+
+  return true;
+}
+
+/** The control points a bundled edge bends through — its route up and back down the containment hierarchy. Control ids that no longer resolve are dropped rather than treated as the origin, which would drag the curve to the top-left corner. */
+function bundlePoints(l: SimLink, state: CanvasDrawState): [number, number][] {
+  return (l.controlIds ?? [])
+    .map((id) => state.nodeById.get(id))
+    .filter((n): n is SimNode => !!n)
+    .map((n) => [n.x ?? 0, n.y ?? 0] as [number, number]);
+}
+
+/** Straight edge, clipped so it never crosses an open ring's interior. */
+function strokeStraight(
+  ctx: CanvasRenderingContext2D,
+  endpoints: { s: SimNode; t: SimNode },
+  state: CanvasDrawState,
+): void {
+  const { s, t } = endpoints;
+  const pieces = visibleSegments(pointOf(s), pointOf(t), state.ringDiscs);
+
+  ctx.beginPath();
+  pieces.forEach((p) => {
+    ctx.moveTo(p.a.x, p.a.y);
+    ctx.lineTo(p.b.x, p.b.y);
+  });
+  ctx.stroke();
+}
+
+function pointOf(n: SimNode): { x: number; y: number } {
+  return { x: n.x ?? 0, y: n.y ?? 0 };
 }

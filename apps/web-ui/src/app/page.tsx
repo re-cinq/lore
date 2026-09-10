@@ -19,12 +19,26 @@ import HomeView, { type Repo } from "./HomeView";
 
 const HOME_REPO_LIMIT = 100;
 
-/** What an unconfigured GitHub App answers with: empty maps, which read downstream as "nothing to fix" rather than as an error. */
-function noWorkflowStatuses() {
-  return {
-    ingestStatus: new Map<string, IngestWorkflowStatus>(),
-    impactStatus: new Map<string, IngestWorkflowStatus>(),
-  };
+export default async function HomePage() {
+  // Query repos with activity summary, bounded to the most recently onboarded.
+  const repoList = reposOrThrow(await listRepos());
+  // ONE page only: most recently onboarded repos (unlike pickers).
+  const repos: Repo[] = repoList.repos.slice(0, HOME_REPO_LIMIT);
+
+  const { ingestStatus, impactStatus } = await readWorkflowStatuses(repos);
+  const misaligned = needsFix(repos, ingestStatus);
+  const impactMisaligned = needsFix(repos, impactStatus);
+
+  return (
+    <HomeView
+      repos={repos}
+      ingestStatus={ingestStatus}
+      impactMisaligned={impactMisaligned}
+      fixTraceImpactWorkflows={fixTraceImpactWorkflows}
+      misaligned={misaligned}
+      fixIngestWorkflows={fixIngestWorkflows}
+    />
+  );
 }
 
 /** Both workflow checks, or empty maps. Skipped entirely when the GitHub App is unconfigured — that path made zero GitHub calls (#1027). */
@@ -49,6 +63,14 @@ async function readWorkflowStatuses(repos: Repo[]) {
   return { ingestStatus, impactStatus };
 }
 
+/** What an unconfigured GitHub App answers with: empty maps, which read downstream as "nothing to fix" rather than as an error. */
+function noWorkflowStatuses() {
+  return {
+    ingestStatus: new Map<string, IngestWorkflowStatus>(),
+    impactStatus: new Map<string, IngestWorkflowStatus>(),
+  };
+}
+
 /** The repos whose workflow is missing or stale. A stale spec-impact workflow suppresses that repo's findings, so it is offered for fixing exactly like a missing one. */
 function needsFix(repos: Repo[], status: Map<string, IngestWorkflowStatus>) {
   return repos
@@ -58,26 +80,4 @@ function needsFix(repos: Repo[], status: Map<string, IngestWorkflowStatus>) {
       return s === "missing" || s === "stale";
     })
     .map((r) => r.full_name);
-}
-
-export default async function HomePage() {
-  // Query repos with activity summary, bounded to the most recently onboarded.
-  const repoList = reposOrThrow(await listRepos());
-  // ONE page only: most recently onboarded repos (unlike pickers).
-  const repos: Repo[] = repoList.repos.slice(0, HOME_REPO_LIMIT);
-
-  const { ingestStatus, impactStatus } = await readWorkflowStatuses(repos);
-  const misaligned = needsFix(repos, ingestStatus);
-  const impactMisaligned = needsFix(repos, impactStatus);
-
-  return (
-    <HomeView
-      repos={repos}
-      ingestStatus={ingestStatus}
-      impactMisaligned={impactMisaligned}
-      fixTraceImpactWorkflows={fixTraceImpactWorkflows}
-      misaligned={misaligned}
-      fixIngestWorkflows={fixIngestWorkflows}
-    />
-  );
 }

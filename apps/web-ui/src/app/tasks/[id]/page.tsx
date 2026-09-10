@@ -10,6 +10,34 @@ import { fetchTaskEvents } from "@/lib/task-runtime";
 
 type Task = TaskDetailTask;
 
+interface TaskDetailPageProps {
+  params: Promise<{ id: string }>;
+}
+
+export default async function TaskDetailPage({ params }: TaskDetailPageProps) {
+  const { id } = await params;
+  const task = await readTask(id);
+
+  if (!task) {
+    return <TaskNotFound />;
+  }
+
+  const runs = await readTaskRuns(id);
+
+  redirectToSoleRun(runs);
+
+  const failedEvent = await readFailedEvent(id);
+
+  return (
+    <TaskDetailView
+      task={task}
+      failedEvent={failedEvent}
+      runs={runs}
+      submitFeedback={submitFeedback}
+    />
+  );
+}
+
 async function submitFeedback(formData: FormData) {
   "use server";
   const taskId = formData.get("task_id") as string | null;
@@ -62,32 +90,4 @@ async function readFailedEvent(id: string) {
   const events = await fetchTaskEvents(id);
 
   return events.find((e) => e.to_status === "failed");
-}
-
-interface TaskDetailPageProps {
-  params: Promise<{ id: string }>;
-}
-
-export default async function TaskDetailPage({ params }: TaskDetailPageProps) {
-  const { id } = await params;
-  const task = await readTask(id);
-
-  if (!task) {
-    return <TaskNotFound />;
-  }
-
-  const runs = await readTaskRuns(id);
-
-  redirectToSoleRun(runs);
-
-  const failedEvent = await readFailedEvent(id);
-
-  return (
-    <TaskDetailView
-      task={task}
-      failedEvent={failedEvent}
-      runs={runs}
-      submitFeedback={submitFeedback}
-    />
-  );
 }

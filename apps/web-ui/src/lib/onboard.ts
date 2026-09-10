@@ -19,16 +19,18 @@ export type OnboardTaskResult =
       taskId: string | null;
     };
 
-function blockedBody(result: OnboardRefusal): OnboardBlockedBody | null {
-  return result.status === "error"
-    ? (result.body as OnboardBlockedBody | null)
-    : null;
-}
+/** Queue onboard task, refusing duplicates (already onboarded, PR open, task in-flight); pass reonboard for missing-files repair; guard runs in lore-api under per-repo lock (#968). */
+export async function createOnboardTask(
+  fullName: string,
+  options: { reonboard?: boolean } = {},
+): Promise<OnboardTaskResult> {
+  const result = await onboardRepo(fullName, options);
 
-function refusalMessage(result: OnboardRefusal): string {
-  return result.status === "unconfigured"
-    ? "Onboarding is unavailable: the web UI has no lore-api configured."
-    : result.message;
+  if (result.status === "ok") {
+    return { ok: true, taskId: result.data.task_id };
+  }
+
+  return resolveRefusal(result);
 }
 
 /** Builds the refusal shape for every non-ok guard outcome. */
@@ -44,16 +46,14 @@ function resolveRefusal(result: OnboardRefusal): OnboardTaskResult {
   };
 }
 
-/** Queue onboard task, refusing duplicates (already onboarded, PR open, task in-flight); pass reonboard for missing-files repair; guard runs in lore-api under per-repo lock (#968). */
-export async function createOnboardTask(
-  fullName: string,
-  options: { reonboard?: boolean } = {},
-): Promise<OnboardTaskResult> {
-  const result = await onboardRepo(fullName, options);
+function blockedBody(result: OnboardRefusal): OnboardBlockedBody | null {
+  return result.status === "error"
+    ? (result.body as OnboardBlockedBody | null)
+    : null;
+}
 
-  if (result.status === "ok") {
-    return { ok: true, taskId: result.data.task_id };
-  }
-
-  return resolveRefusal(result);
+function refusalMessage(result: OnboardRefusal): string {
+  return result.status === "unconfigured"
+    ? "Onboarding is unavailable: the web UI has no lore-api configured."
+    : result.message;
 }

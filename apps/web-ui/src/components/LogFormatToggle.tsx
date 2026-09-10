@@ -1,22 +1,25 @@
 import styles from "./LogFormatToggle.module.css";
 
-interface ToggleOptionProps {
-  label: string;
-  pressed: boolean;
-  onSelect: () => void;
+interface LogFormatToggleRowProps {
+  className: string;
+  showRaw: boolean;
+  setShowRaw: (raw: boolean) => void;
 }
 
-/** One half of the control. `aria-pressed` rather than a selected class, so the active format is announced and not only styled. */
-function ToggleOption({ label, pressed, onSelect }: ToggleOptionProps) {
+/** The toggle on its own row, wired to a boolean setter — the shape both log viewers need; each passes the row class from its own stylesheet, which is all they disagree about. */
+export function LogFormatToggleRow({
+  className,
+  showRaw,
+  setShowRaw,
+}: LogFormatToggleRowProps) {
   return (
-    <button
-      type="button"
-      className={styles.option}
-      aria-pressed={pressed}
-      onClick={onSelect}
-    >
-      {label}
-    </button>
+    <div className={className}>
+      <LogFormatToggle
+        raw={showRaw}
+        onFormatted={() => setShowRaw(false)}
+        onRaw={() => setShowRaw(true)}
+      />
+    </div>
   );
 }
 
@@ -40,25 +43,22 @@ export default function LogFormatToggle({
   );
 }
 
-interface LogFormatToggleRowProps {
-  className: string;
-  showRaw: boolean;
-  setShowRaw: (raw: boolean) => void;
+interface ToggleOptionProps {
+  label: string;
+  pressed: boolean;
+  onSelect: () => void;
 }
 
-/** The toggle on its own row, wired to a boolean setter — the shape both log viewers need; each passes the row class from its own stylesheet, which is all they disagree about. */
-export function LogFormatToggleRow({
-  className,
-  showRaw,
-  setShowRaw,
-}: LogFormatToggleRowProps) {
+/** One half of the control. `aria-pressed` rather than a selected class, so the active format is announced and not only styled. */
+function ToggleOption({ label, pressed, onSelect }: ToggleOptionProps) {
   return (
-    <div className={className}>
-      <LogFormatToggle
-        raw={showRaw}
-        onFormatted={() => setShowRaw(false)}
-        onRaw={() => setShowRaw(true)}
-      />
-    </div>
+    <button
+      type="button"
+      className={styles.option}
+      aria-pressed={pressed}
+      onClick={onSelect}
+    >
+      {label}
+    </button>
   );
 }

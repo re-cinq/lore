@@ -12,37 +12,19 @@ interface DailyBilledProps {
   rows: SpendWindow["billed"]["daily"];
 }
 
-/** A vendor's invoice by day. Anthropic's rows and GCP's have the same shape, so the two tables are one component with a different title. */
-function DailyBilledTable({ title, rows }: DailyBilledProps) {
+/** What the two vendors actually billed. Each half renders only once that vendor has synced — an absent section means "never synced", not "spent nothing". */
+export function BilledBreakdowns({
+  billed,
+  gcp,
+}: {
+  billed: SpendWindow["billed"];
+  gcp: SpendWindow["gcp"];
+}) {
   return (
-    <CostTable
-      title={title}
-      columns={["Date", "Billed Cost"]}
-      rows={rows}
-      rowKey={(r) => r.bucket_date}
-      cells={(r) => [day(r.bucket_date), usd(r.cost_usd)]}
-    />
-  );
-}
-
-/** The invoice split by model. A row with no model name is billing that is not per-token — it is labelled rather than hidden, because it still lands on the same invoice. */
-function BilledByModel({ byModel }: BilledByModelProps) {
-  return (
-    <CostTable
-      title="Anthropic Billed by Model"
-      columns={["Model", "Billed Cost", "Input Tokens", "Output Tokens"]}
-      rows={byModel}
-      rowKey={(r) => r.model || "(non-token)"}
-      monoColumns={[2, 3]}
-      cells={(r) => [
-        <span className="badge" key="model">
-          {r.model || "(non-token)"}
-        </span>,
-        usd(r.cost_usd),
-        num(r.input_tokens),
-        num(r.output_tokens),
-      ]}
-    />
+    <>
+      <AnthropicBilled billed={billed} />
+      <GcpBilled gcp={gcp} />
+    </>
   );
 }
 
@@ -82,77 +64,37 @@ function GcpBilled({ gcp }: { gcp: SpendWindow["gcp"] }) {
   );
 }
 
-/** What the two vendors actually billed. Each half renders only once that vendor has synced — an absent section means "never synced", not "spent nothing". */
-export function BilledBreakdowns({
-  billed,
-  gcp,
-}: {
-  billed: SpendWindow["billed"];
-  gcp: SpendWindow["gcp"];
-}) {
+/** The invoice split by model. A row with no model name is billing that is not per-token — it is labelled rather than hidden, because it still lands on the same invoice. */
+function BilledByModel({ byModel }: BilledByModelProps) {
   return (
-    <>
-      <AnthropicBilled billed={billed} />
-      <GcpBilled gcp={gcp} />
-    </>
+    <CostTable
+      title="Anthropic Billed by Model"
+      columns={["Model", "Billed Cost", "Input Tokens", "Output Tokens"]}
+      rows={byModel}
+      rowKey={(r) => r.model || "(non-token)"}
+      monoColumns={[2, 3]}
+      cells={(r) => [
+        <span className="badge" key="model">
+          {r.model || "(non-token)"}
+        </span>,
+        usd(r.cost_usd),
+        num(r.input_tokens),
+        num(r.output_tokens),
+      ]}
+    />
   );
 }
 
-/** One running pod and what it has cost so far. */
-function LivePodRow({
-  pod,
-}: {
-  pod: SpendWindow["compute"]["live_pods"][number];
-}) {
+/** A vendor's invoice by day. Anthropic's rows and GCP's have the same shape, so the two tables are one component with a different title. */
+function DailyBilledTable({ title, rows }: DailyBilledProps) {
   return (
-    <tr>
-      <td>{pod.name}</td>
-      <td>
-        {/* requests is a `{[key: string]: string}` index signature — cpu/memory keys aren't guaranteed present. */}
-        {/* eslint-disable-next-line @typescript-eslint/no-unnecessary-condition */}
-        {pod.requests.cpu ?? "—"} cpu · {pod.requests.memory ?? "—"}
-      </td>
-      <td>{usd(pod.usd_per_hour)}</td>
-      <td>{usd(pod.usd_so_far)}</td>
-    </tr>
-  );
-}
-
-function LivePodTable({ pods }: LivePodsProps) {
-  return (
-    <table>
-      <thead>
-        <tr>
-          <th>Pod</th>
-          <th>Requests</th>
-          <th>$/hour</th>
-          <th>So far</th>
-        </tr>
-      </thead>
-      <tbody>
-        {pods.map((pod) => (
-          <LivePodRow key={pod.name} pod={pod} />
-        ))}
-      </tbody>
-    </table>
-  );
-}
-
-interface LivePodsProps {
-  pods: SpendWindow["compute"]["live_pods"];
-}
-
-/** What is burning money right now, as opposed to the interval totals below it. */
-function LivePods({ pods }: LivePodsProps) {
-  return (
-    <>
-      <h2>Pods Running Now</h2>
-      {pods.length === 0 ? (
-        <p className="meta">No run pods are live right now.</p>
-      ) : (
-        <LivePodTable pods={pods} />
-      )}
-    </>
+    <CostTable
+      title={title}
+      columns={["Date", "Billed Cost"]}
+      rows={rows}
+      rowKey={(r) => r.bucket_date}
+      cells={(r) => [day(r.bucket_date), usd(r.cost_usd)]}
+    />
   );
 }
 
@@ -178,6 +120,64 @@ export function ComputeBreakdowns(props: ComputeBreakdownsProps) {
       />
       <ComputeEstimateNote compute={compute} gcpAvailable={gcpAvailable} />
     </>
+  );
+}
+
+interface LivePodsProps {
+  pods: SpendWindow["compute"]["live_pods"];
+}
+
+/** What is burning money right now, as opposed to the interval totals below it. */
+function LivePods({ pods }: LivePodsProps) {
+  return (
+    <>
+      <h2>Pods Running Now</h2>
+      {pods.length === 0 ? (
+        <p className="meta">No run pods are live right now.</p>
+      ) : (
+        <LivePodTable pods={pods} />
+      )}
+    </>
+  );
+}
+
+function LivePodTable({ pods }: LivePodsProps) {
+  return (
+    <table>
+      <thead>
+        <tr>
+          <th>Pod</th>
+          <th>Requests</th>
+          <th>$/hour</th>
+          <th>So far</th>
+        </tr>
+      </thead>
+      <tbody>
+        {pods.map((pod) => (
+          <LivePodRow key={pod.name} pod={pod} />
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+/** One running pod and what it has cost so far. */
+function LivePodRow({
+  pod,
+}: {
+  pod: SpendWindow["compute"]["live_pods"][number];
+}) {
+  return (
+    <tr>
+      <td>{pod.name}</td>
+      <td>
+        {/* requests is a `{[key: string]: string}` index signature — cpu/memory keys aren't guaranteed present. */}
+        {/* eslint-disable-next-line @typescript-eslint/no-unnecessary-condition */}
+        {pod.requests.cpu ?? "—"} cpu · {pod.requests.memory ?? "—"}
+      </td>
+      <td>{usd(pod.usd_per_hour)}</td>
+      <td>{usd(pod.usd_so_far)}</td>
+    </tr>
   );
 }
 

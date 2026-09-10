@@ -8,6 +8,30 @@ import type { FeatureWithIterations } from "@/lib/feature-types";
 import type { DecompStoryGroup } from "@/lib/decomposition-view";
 import styles from "./FeatureDetailView.module.scss";
 
+interface FinalizedViewProps {
+  owner: string;
+  repo: string;
+  feature: FeatureWithIterations;
+  decomposition: { stories: DecompStoryGroup[]; total: number };
+}
+
+export function FinalizedView(props: FinalizedViewProps) {
+  const { owner, repo, feature, decomposition } = props;
+
+  return (
+    <div>
+      <SpecPrCard feature={feature} />
+      <DecompositionView
+        owner={owner}
+        repo={repo}
+        stories={decomposition.stories}
+        total={decomposition.total}
+      />
+      <DraftSpecCard markdown={feature.draft_spec_md} />
+    </div>
+  );
+}
+
 /** Where the spec landed. A finalized feature whose PR has not appeared yet is still in flight rather than broken, so the absence reads as progress rather than as a missing link. */
 function SpecPrCard({ feature }: { feature: FeatureWithIterations }) {
   if (!feature.spec_pr_url) {
@@ -60,29 +84,5 @@ function DraftSpecCard({ markdown }: { markdown?: string | null }) {
     >
       <Markdown markdown={markdown} />
     </CollapsibleCard>
-  );
-}
-
-interface FinalizedViewProps {
-  owner: string;
-  repo: string;
-  feature: FeatureWithIterations;
-  decomposition: { stories: DecompStoryGroup[]; total: number };
-}
-
-export function FinalizedView(props: FinalizedViewProps) {
-  const { owner, repo, feature, decomposition } = props;
-
-  return (
-    <div>
-      <SpecPrCard feature={feature} />
-      <DecompositionView
-        owner={owner}
-        repo={repo}
-        stories={decomposition.stories}
-        total={decomposition.total}
-      />
-      <DraftSpecCard markdown={feature.draft_spec_md} />
-    </div>
   );
 }

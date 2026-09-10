@@ -11,6 +11,76 @@ interface HistoryPage {
   events?: unknown[];
 }
 
+interface PollTarget {
+  runId: string;
+  lastEventIdRef: { current: string };
+  dispatch: (event: RunStreamEvent) => void;
+}
+
+/** Degraded path for a live run without a stream: polls from the reducer's cursor, kept in a ref so a poll result never restarts the interval. */
+export function useHistoryPoll(
+  input: Omit<PollTarget, "lastEventIdRef"> & {
+    active: boolean;
+    lastEventId: string;
+  },
+): void {
+  const { active, runId, lastEventId, dispatch } = input;
+  const lastEventIdRef = useRef(lastEventId);
+
+  useEffect(() => {
+    lastEventIdRef.current = lastEventId;
+  }, [lastEventId]);
+
+  useEffect(() => {
+    if (!active) {
+      return;
+    }
+
+    return startPolling({ runId, lastEventIdRef, dispatch });
+  }, [active, runId, dispatch]);
+}
+
+/** Starts the poll interval and returns its disposer. The `cancelled` flag is separate from `clearInterval`: a request already in flight when the effect tears down still resolves, and dispatching its rows into an unmounted reducer is the classic late-write bug. */
+function startPolling(target: PollTarget): () => void {
+  let cancelled = false;
+  const state = { inFlight: false };
+  const id = setInterval(
+    () => void pollOnce(state, () => cancelled, target),
+    HISTORY_POLL_MS,
+  );
+
+  return () => {
+    cancelled = true;
+    clearInterval(id);
+  };
+}
+
+/** One poll tick. Skipped while a previous request is still out, so a slow backend cannot stack requests faster than it answers them; a failed tick is swallowed because the next one retries and the chip already reads "Polling". */
+async function pollOnce(
+  state: { inFlight: boolean },
+  cancelled: () => boolean,
+  { runId, lastEventIdRef, dispatch }: PollTarget,
+): Promise<void> {
+  if (state.inFlight) {
+    return;
+  }
+
+  state.inFlight = true;
+
+  try {
+    const page = await fetchPage(runId, lastEventIdRef.current);
+
+    if (cancelled() || !page.ok) {
+      return;
+    }
+    dispatchParsedRows(page.rows, dispatch);
+  } catch {
+    // The next tick retries; the chip already reads Polling.
+  } finally {
+    state.inFlight = false;
+  }
+}
+
 export async function fetchPage(
   runId: string,
   cursor: string,
@@ -44,74 +114,4 @@ export function dispatchParsedRows(
   }
 
   return parsedRows;
-}
-
-interface PollTarget {
-  runId: string;
-  lastEventIdRef: { current: string };
-  dispatch: (event: RunStreamEvent) => void;
-}
-
-/** One poll tick. Skipped while a previous request is still out, so a slow backend cannot stack requests faster than it answers them; a failed tick is swallowed because the next one retries and the chip already reads "Polling". */
-async function pollOnce(
-  state: { inFlight: boolean },
-  cancelled: () => boolean,
-  { runId, lastEventIdRef, dispatch }: PollTarget,
-): Promise<void> {
-  if (state.inFlight) {
-    return;
-  }
-
-  state.inFlight = true;
-
-  try {
-    const page = await fetchPage(runId, lastEventIdRef.current);
-
-    if (cancelled() || !page.ok) {
-      return;
-    }
-    dispatchParsedRows(page.rows, dispatch);
-  } catch {
-    // The next tick retries; the chip already reads Polling.
-  } finally {
-    state.inFlight = false;
-  }
-}
-
-/** Starts the poll interval and returns its disposer. The `cancelled` flag is separate from `clearInterval`: a request already in flight when the effect tears down still resolves, and dispatching its rows into an unmounted reducer is the classic late-write bug. */
-function startPolling(target: PollTarget): () => void {
-  let cancelled = false;
-  const state = { inFlight: false };
-  const id = setInterval(
-    () => void pollOnce(state, () => cancelled, target),
-    HISTORY_POLL_MS,
-  );
-
-  return () => {
-    cancelled = true;
-    clearInterval(id);
-  };
-}
-
-/** Degraded path for a live run without a stream: polls from the reducer's cursor, kept in a ref so a poll result never restarts the interval. */
-export function useHistoryPoll(
-  input: Omit<PollTarget, "lastEventIdRef"> & {
-    active: boolean;
-    lastEventId: string;
-  },
-): void {
-  const { active, runId, lastEventId, dispatch } = input;
-  const lastEventIdRef = useRef(lastEventId);
-
-  useEffect(() => {
-    lastEventIdRef.current = lastEventId;
-  }, [lastEventId]);
-
-  useEffect(() => {
-    if (!active) {
-      return;
-    }
-
-    return startPolling({ runId, lastEventIdRef, dispatch });
-  }, [active, runId, dispatch]);
 }

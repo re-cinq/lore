@@ -6,6 +6,30 @@ import { serverError } from "@/lib/api-error";
 const MAX_LINES = 60;
 const DEFAULT_WINDOW = 24;
 
+/** Returns a line slice of a repo file as plain text — powers the TestChunk code preview. */
+export async function GET(
+  req: Request,
+  { params }: { params: Promise<{ owner: string; repo: string }> },
+) {
+  const { owner, repo } = await params;
+  const url = new URL(req.url);
+  const path = url.searchParams.get("path");
+
+  if (!path) {
+    return NextResponse.json(
+      { error: "required: path query param" },
+      { status: 400 },
+    );
+  }
+  const { start, end } = lineWindow(url);
+
+  try {
+    return await fileSlice(`${owner}/${repo}`, path, start, end);
+  } catch (err) {
+    return serverError("file", err);
+  }
+}
+
 /** The line range to return, clamped. `MAX_LINES` is a ceiling on the answer rather than a validation error: a caller asking for a whole file gets a preview, not a refusal. */
 function lineWindow(url: URL): { start: number; end: number } {
   const start = Math.max(1, Number(url.searchParams.get("start")) || 1);
@@ -33,28 +57,4 @@ async function fileSlice(
     .join("\n");
 
   return NextResponse.json({ path, start, end, text });
-}
-
-/** Returns a line slice of a repo file as plain text — powers the TestChunk code preview. */
-export async function GET(
-  req: Request,
-  { params }: { params: Promise<{ owner: string; repo: string }> },
-) {
-  const { owner, repo } = await params;
-  const url = new URL(req.url);
-  const path = url.searchParams.get("path");
-
-  if (!path) {
-    return NextResponse.json(
-      { error: "required: path query param" },
-      { status: 400 },
-    );
-  }
-  const { start, end } = lineWindow(url);
-
-  try {
-    return await fileSlice(`${owner}/${repo}`, path, start, end);
-  } catch (err) {
-    return serverError("file", err);
-  }
 }

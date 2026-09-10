@@ -77,9 +77,72 @@ type DarkFactoryStatsProps = Pick<
   | "escalationsWeek"
 >;
 
-/** A tone only when the figure is non-zero, so a quiet week reads as quiet rather than as good or bad news. */
-function tonedWhenNonZero(count: number, tone: string): string | undefined {
-  return count > 0 ? tone : undefined;
+/** The repo's dark-factory posture at a glance: whether it is on, how far it is trusted, and what the last seven days produced. */
+function DarkFactoryCard(props: DarkFactoryStatsProps & RepoLinkProps) {
+  const { owner, repo } = props;
+
+  return (
+    <div className={`spec-card ${styles.dfCard}`}>
+      <div className={styles.dfHead}>
+        <h3 className={styles.dfTitle}>Dark Factory</h3>
+        <Link href={`/repos/${owner}/${repo}/settings`} className="meta">
+          configure →
+        </Link>
+      </div>
+      <DarkFactoryStats {...props} />
+    </div>
+  );
+}
+
+type RecentTasksProps = RepoLinkProps &
+  Pick<RepoOverviewViewProps, "recentTasks">;
+
+function RecentTasks({ owner, repo, recentTasks }: RecentTasksProps) {
+  if (recentTasks.length === 0) {
+    return <CreateFirstTaskPrompt owner={owner} repo={repo} />;
+  }
+
+  return (
+    <DataTable
+      title="Recent Tasks"
+      columns={["Task", "Status", "PR", "Created"]}
+      rows={recentTasks}
+      rowKey={(t) => String(t.id)}
+      cells={taskCells}
+    />
+  );
+}
+
+function LatestEvents({
+  owner,
+  repo,
+  latestEvents,
+}: Pick<RepoOverviewViewProps, "owner" | "repo" | "latestEvents">) {
+  return (
+    <>
+      <div className={styles.eventsHead}>
+        <h2 className={styles.eventsTitle}>Latest Events</h2>
+        <Link href={`/repos/${owner}/${repo}/events`} className="meta">
+          Show all →
+        </Link>
+      </div>
+      <EventsTable events={latestEvents} />
+    </>
+  );
+}
+
+/** The week's dark-factory figures. */
+function DarkFactoryStats(props: DarkFactoryStatsProps) {
+  const { darkFactoryEnabled, trustLevel, darkTasksWeek } = props;
+
+  return (
+    <div className={styles.stats}>
+      <Stat label="Mode" value={<ModeValue enabled={darkFactoryEnabled} />} />
+      <Stat label="Trust" value={trustLevel} />
+      <Stat label="Tasks (7d)" value={darkTasksWeek} />
+      <WeeklyOutcomeStats {...props} />
+    </div>
+  );
 }
 
 /** Whether the repo runs dark. "Off (legacy)" rather than a bare "Off": every repo predates the mode, so off is the inherited state, not a choice someone made. */
@@ -111,35 +174,9 @@ function WeeklyOutcomeStats(props: DarkFactoryStatsProps) {
   );
 }
 
-/** The week's dark-factory figures. */
-function DarkFactoryStats(props: DarkFactoryStatsProps) {
-  const { darkFactoryEnabled, trustLevel, darkTasksWeek } = props;
-
-  return (
-    <div className={styles.stats}>
-      <Stat label="Mode" value={<ModeValue enabled={darkFactoryEnabled} />} />
-      <Stat label="Trust" value={trustLevel} />
-      <Stat label="Tasks (7d)" value={darkTasksWeek} />
-      <WeeklyOutcomeStats {...props} />
-    </div>
-  );
-}
-
-/** The repo's dark-factory posture at a glance: whether it is on, how far it is trusted, and what the last seven days produced. */
-function DarkFactoryCard(props: DarkFactoryStatsProps & RepoLinkProps) {
-  const { owner, repo } = props;
-
-  return (
-    <div className={`spec-card ${styles.dfCard}`}>
-      <div className={styles.dfHead}>
-        <h3 className={styles.dfTitle}>Dark Factory</h3>
-        <Link href={`/repos/${owner}/${repo}/settings`} className="meta">
-          configure →
-        </Link>
-      </div>
-      <DarkFactoryStats {...props} />
-    </div>
-  );
+/** A tone only when the figure is non-zero, so a quiet week reads as quiet rather than as good or bad news. */
+function tonedWhenNonZero(count: number, tone: string): string | undefined {
+  return count > 0 ? tone : undefined;
 }
 
 function Stat({
@@ -158,6 +195,19 @@ function Stat({
         {value}
       </div>
     </div>
+  );
+}
+
+// No table at all when there are no tasks — an empty grid says less than the invitation to create one.
+function CreateFirstTaskPrompt({ owner, repo }: RepoLinkProps) {
+  return (
+    <>
+      <h2>Recent Tasks</h2>
+      <Alert variant="secondary">
+        No tasks yet.{" "}
+        <Link href={`/repos/${owner}/${repo}/tasks`}>Create one</Link>
+      </Alert>
+    </>
   );
 }
 
@@ -183,38 +233,6 @@ function taskCells(task: RepoOverviewViewProps["recentTasks"][number]) {
   ];
 }
 
-// No table at all when there are no tasks — an empty grid says less than the invitation to create one.
-function CreateFirstTaskPrompt({ owner, repo }: RepoLinkProps) {
-  return (
-    <>
-      <h2>Recent Tasks</h2>
-      <Alert variant="secondary">
-        No tasks yet.{" "}
-        <Link href={`/repos/${owner}/${repo}/tasks`}>Create one</Link>
-      </Alert>
-    </>
-  );
-}
-
-type RecentTasksProps = RepoLinkProps &
-  Pick<RepoOverviewViewProps, "recentTasks">;
-
-function RecentTasks({ owner, repo, recentTasks }: RecentTasksProps) {
-  if (recentTasks.length === 0) {
-    return <CreateFirstTaskPrompt owner={owner} repo={repo} />;
-  }
-
-  return (
-    <DataTable
-      title="Recent Tasks"
-      columns={["Task", "Status", "PR", "Created"]}
-      rows={recentTasks}
-      rowKey={(t) => String(t.id)}
-      cells={taskCells}
-    />
-  );
-}
-
 /** The most recent events, or a note that there are none. */
 function EventsTable({
   events,
@@ -234,23 +252,5 @@ function EventsTable({
         ))}
       </tbody>
     </table>
-  );
-}
-
-function LatestEvents({
-  owner,
-  repo,
-  latestEvents,
-}: Pick<RepoOverviewViewProps, "owner" | "repo" | "latestEvents">) {
-  return (
-    <>
-      <div className={styles.eventsHead}>
-        <h2 className={styles.eventsTitle}>Latest Events</h2>
-        <Link href={`/repos/${owner}/${repo}/events`} className="meta">
-          Show all →
-        </Link>
-      </div>
-      <EventsTable events={latestEvents} />
-    </>
   );
 }

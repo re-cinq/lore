@@ -3,19 +3,6 @@ const HEADING_LINE = /^## /;
 /** A markdown region: a `## ` section (heading text) or the leading preamble (heading null). */
 type Section = { heading: string | null; body: string };
 
-/** Closes off `current` into `sections` (if any) and starts a fresh one at `line`. */
-function startNewSection(
-  sections: Section[],
-  current: string[] | null,
-  line: string,
-): string[] {
-  if (current) {
-    sections.push(buildSection(current));
-  }
-
-  return [line];
-}
-
 /** Split markdown into sections at each `## ` heading; content before the first heading becomes a leading `heading: null` section. */
 export function splitMarkdownSections(source: string): Section[] {
   const sections: Section[] = [];
@@ -34,6 +21,19 @@ export function splitMarkdownSections(source: string): Section[] {
   sections.push(buildSection(current!));
 
   return sections;
+}
+
+/** Closes off `current` into `sections` (if any) and starts a fresh one at `line`. */
+function startNewSection(
+  sections: Section[],
+  current: string[] | null,
+  line: string,
+): string[] {
+  if (current) {
+    sections.push(buildSection(current));
+  }
+
+  return [line];
 }
 
 function buildSection(lines: string[]): Section {

@@ -40,6 +40,18 @@ export default function SettingsView(props: SettingsViewProps) {
   );
 }
 
+function SettingsHelp() {
+  return (
+    <HelpPopover label="How settings are applied">
+      <p>
+        Per-repo configuration, merged over the global{" "}
+        <code>task-types.yaml</code> defaults — repo values win.
+      </p>
+      <SettingsHelpPoints />
+    </HelpPopover>
+  );
+}
+
 /** The three things a reader most often gets wrong about this page. */
 function SettingsHelpPoints() {
   return (
@@ -60,16 +72,63 @@ function SettingsHelpPoints() {
   );
 }
 
-function SettingsHelp() {
+type GeneralFieldsProps = Pick<SettingsViewProps, "team" | "settings">;
+
+/** The free-text settings, in the order they are shown. `name` is the form field the server action reads, so it is also the key each value is looked up under. */
+const GENERAL_FIELDS = [
+  { label: "Team", name: "team", placeholder: "e.g. platform, payments" },
+  {
+    label: "Allowed Task Types (comma-separated)",
+    name: "task_types",
+    placeholder: "general, runbook, implementation",
+  },
+  {
+    label: "Default Dispatch Task Type",
+    name: "dispatch_default_type",
+    placeholder: "general",
+  },
+  {
+    label: "Slack Channel ID",
+    name: "slack_channel_id",
+    placeholder: "C0123456789",
+  },
+  {
+    label: "Dispatch Label",
+    name: "dispatch_label",
+    placeholder: "lore (default)",
+  },
+];
+
+/** Routing and trust: who owns the repo, what it is allowed to run, and how much of it happens without asking. */
+function GeneralFields({ team, settings }: GeneralFieldsProps) {
+  const values = generalValues({ team, settings });
+  const { trustLevel, autoReview } = selectFieldDefaults(settings);
+
   return (
-    <HelpPopover label="How settings are applied">
-      <p>
-        Per-repo configuration, merged over the global{" "}
-        <code>task-types.yaml</code> defaults — repo values win.
-      </p>
-      <SettingsHelpPoints />
-    </HelpPopover>
+    <>
+      <h3 className={styles.section}>General</h3>
+
+      {GENERAL_FIELDS.map((field) => (
+        <TextField key={field.name} {...field} value={values[field.name]} />
+      ))}
+
+      <RunPolicyFields trustLevel={trustLevel} autoReview={autoReview} />
+    </>
   );
+}
+
+/** The value each free-text field shows, keyed by the form `name` the server action reads. */
+function generalValues(props: GeneralFieldsProps): Record<string, string> {
+  const { taskTypes, dispatchDefaultType, slackChannelId, dispatchLabel } =
+    textFieldDefaults(props.settings);
+
+  return {
+    team: props.team,
+    task_types: taskTypes,
+    dispatch_default_type: dispatchDefaultType,
+    slack_channel_id: slackChannelId,
+    dispatch_label: dispatchLabel,
+  };
 }
 
 function textFieldDefaults(settings: RepoSettingsShape) {
@@ -86,6 +145,23 @@ function selectFieldDefaults(settings: RepoSettingsShape) {
     trustLevel: settings.trust?.level ?? "implementation",
     autoReview: settings.auto_review ? "yes" : "no",
   };
+}
+
+interface TextFieldProps {
+  label: string;
+  name: string;
+  value: string;
+  placeholder: string;
+}
+
+/** A labelled free-text setting. Uncontrolled on purpose: the form posts to a server action, so the browser holds the edits and a re-render cannot discard what the reader typed. */
+function TextField({ label, name, value, placeholder }: TextFieldProps) {
+  return (
+    <>
+      <label>{label}</label>
+      <input name={name} defaultValue={value} placeholder={placeholder} />
+    </>
+  );
 }
 
 interface RunPolicyFieldsProps {
@@ -114,94 +190,6 @@ function RunPolicyFields({ trustLevel, autoReview }: RunPolicyFieldsProps) {
   );
 }
 
-/** The free-text settings, in the order they are shown. `name` is the form field the server action reads, so it is also the key each value is looked up under. */
-const GENERAL_FIELDS = [
-  { label: "Team", name: "team", placeholder: "e.g. platform, payments" },
-  {
-    label: "Allowed Task Types (comma-separated)",
-    name: "task_types",
-    placeholder: "general, runbook, implementation",
-  },
-  {
-    label: "Default Dispatch Task Type",
-    name: "dispatch_default_type",
-    placeholder: "general",
-  },
-  {
-    label: "Slack Channel ID",
-    name: "slack_channel_id",
-    placeholder: "C0123456789",
-  },
-  {
-    label: "Dispatch Label",
-    name: "dispatch_label",
-    placeholder: "lore (default)",
-  },
-];
-
-interface TextFieldProps {
-  label: string;
-  name: string;
-  value: string;
-  placeholder: string;
-}
-
-/** A labelled free-text setting. Uncontrolled on purpose: the form posts to a server action, so the browser holds the edits and a re-render cannot discard what the reader typed. */
-function TextField({ label, name, value, placeholder }: TextFieldProps) {
-  return (
-    <>
-      <label>{label}</label>
-      <input name={name} defaultValue={value} placeholder={placeholder} />
-    </>
-  );
-}
-
-type GeneralFieldsProps = Pick<SettingsViewProps, "team" | "settings">;
-
-/** The value each free-text field shows, keyed by the form `name` the server action reads. */
-function generalValues(props: GeneralFieldsProps): Record<string, string> {
-  const { taskTypes, dispatchDefaultType, slackChannelId, dispatchLabel } =
-    textFieldDefaults(props.settings);
-
-  return {
-    team: props.team,
-    task_types: taskTypes,
-    dispatch_default_type: dispatchDefaultType,
-    slack_channel_id: slackChannelId,
-    dispatch_label: dispatchLabel,
-  };
-}
-
-/** Routing and trust: who owns the repo, what it is allowed to run, and how much of it happens without asking. */
-function GeneralFields({ team, settings }: GeneralFieldsProps) {
-  const values = generalValues({ team, settings });
-  const { trustLevel, autoReview } = selectFieldDefaults(settings);
-
-  return (
-    <>
-      <h3 className={styles.section}>General</h3>
-
-      {GENERAL_FIELDS.map((field) => (
-        <TextField key={field.name} {...field} value={values[field.name]} />
-      ))}
-
-      <RunPolicyFields trustLevel={trustLevel} autoReview={autoReview} />
-    </>
-  );
-}
-
-function RepoOptions({ allRepos }: Pick<SettingsViewProps, "allRepos">) {
-  return (
-    <>
-      {allRepos.map((repo) => (
-        <option key={repo.full_name} value={repo.full_name}>
-          {repo.full_name}
-        </option>
-      ))}
-    </>
-  );
-}
-
 type CrossRepoFieldProps = Pick<SettingsViewProps, "allRepos"> & {
   selectedRepos: string[];
 };
@@ -223,6 +211,18 @@ function CrossRepoField({ allRepos, selectedRepos }: CrossRepoFieldProps) {
         Hold Cmd/Ctrl to select multiple. Linked repos automatically get this
         repo added to their cross-repo list.
       </span>
+    </>
+  );
+}
+
+function RepoOptions({ allRepos }: Pick<SettingsViewProps, "allRepos">) {
+  return (
+    <>
+      {allRepos.map((repo) => (
+        <option key={repo.full_name} value={repo.full_name}>
+          {repo.full_name}
+        </option>
+      ))}
     </>
   );
 }

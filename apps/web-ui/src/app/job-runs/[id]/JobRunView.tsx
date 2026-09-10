@@ -12,6 +12,29 @@ export interface JobRunViewProps {
   logs: string | null;
 }
 
+export default function JobRunView({ id, run, logs }: JobRunViewProps) {
+  if (!run) {
+    return <MissingJobRun id={id} />;
+  }
+
+  return (
+    <div>
+      <p>
+        <Link href="/analytics">← Back to analytics</Link>
+      </p>
+      <h1>
+        <span className="badge">{run.job_name}</span>{" "}
+        <span className={`op-badge op-${run.status}`}>{run.status}</span>
+      </h1>
+
+      <RunFacts run={run} />
+
+      <h2>Output</h2>
+      <OutputSection logs={logs} logPath={run.log_path} />
+    </div>
+  );
+}
+
 function MissingJobRun({ id }: { id: string }) {
   return (
     <div>
@@ -20,6 +43,27 @@ function MissingJobRun({ id }: { id: string }) {
       <p>
         <Link href="/analytics">← Back to analytics</Link>
       </p>
+    </div>
+  );
+}
+
+function RunFacts({ run }: { run: JobRunRow }) {
+  return (
+    <div className={`spec-card ${styles.card}`}>
+      <div>
+        <span className="meta">Run ID:</span> <code>{run.id}</code>
+      </div>
+      <div>
+        <span className="meta">Started:</span>{" "}
+        {new Date(run.started_at).toLocaleString()}
+      </div>
+      {run.completed_at && (
+        <div>
+          <span className="meta">Completed:</span>{" "}
+          {new Date(run.completed_at).toLocaleString()}
+        </div>
+      )}
+      <RunOutcome run={run} />
     </div>
   );
 }
@@ -51,33 +95,6 @@ function RunError({ error }: { error: string }) {
   );
 }
 
-function RunFacts({ run }: { run: JobRunRow }) {
-  return (
-    <div className={`spec-card ${styles.card}`}>
-      <div>
-        <span className="meta">Run ID:</span> <code>{run.id}</code>
-      </div>
-      <div>
-        <span className="meta">Started:</span>{" "}
-        {new Date(run.started_at).toLocaleString()}
-      </div>
-      {run.completed_at && (
-        <div>
-          <span className="meta">Completed:</span>{" "}
-          {new Date(run.completed_at).toLocaleString()}
-        </div>
-      )}
-      <RunOutcome run={run} />
-    </div>
-  );
-}
-
-function missingLogMessage(logPath: string | null): string {
-  return logPath
-    ? "Log object missing or unreadable."
-    : "No log_path recorded for this run (in-process jobs do not yet capture per-run output).";
-}
-
 function OutputSection({
   logs,
   logPath,
@@ -92,25 +109,8 @@ function OutputSection({
   return <pre className={styles.output}>{logs}</pre>;
 }
 
-export default function JobRunView({ id, run, logs }: JobRunViewProps) {
-  if (!run) {
-    return <MissingJobRun id={id} />;
-  }
-
-  return (
-    <div>
-      <p>
-        <Link href="/analytics">← Back to analytics</Link>
-      </p>
-      <h1>
-        <span className="badge">{run.job_name}</span>{" "}
-        <span className={`op-badge op-${run.status}`}>{run.status}</span>
-      </h1>
-
-      <RunFacts run={run} />
-
-      <h2>Output</h2>
-      <OutputSection logs={logs} logPath={run.log_path} />
-    </div>
-  );
+function missingLogMessage(logPath: string | null): string {
+  return logPath
+    ? "Log object missing or unreadable."
+    : "No log_path recorded for this run (in-process jobs do not yet capture per-run output).";
 }

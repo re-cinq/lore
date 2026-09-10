@@ -9,6 +9,74 @@ interface LlmCallProps {
   repo: string;
 }
 
+export interface LlmCallsTableProps {
+  llmCalls: TaskRuntimeLlmCall[];
+  repo: string;
+}
+
+/** Per-run LLM cost/token rows (pipeline.llm_calls). Pure render. */
+export default function LlmCallsTable({ llmCalls, repo }: LlmCallsTableProps) {
+  return (
+    <CollapsibleCard
+      title="LLM Calls"
+      defaultOpen
+      emptyState="No LLM calls recorded for this task."
+    >
+      {llmCalls.length === 0 ? null : (
+        <CallsTable llmCalls={llmCalls} repo={repo} />
+      )}
+    </CollapsibleCard>
+  );
+}
+
+/** The calls as rows. Keyed by timestamp AND index because a run can make several calls within the same second, and a duplicate key would drop all but one of them. */
+function CallsTable({ llmCalls, repo }: LlmCallsTableProps) {
+  return (
+    <table>
+      <CallsTableHead />
+      <tbody>
+        {llmCalls.map((c, i) => (
+          <LlmCallRow key={`${c.created_at}-${i}`} call={c} repo={repo} />
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function CallsTableHead() {
+  return (
+    <thead>
+      <tr>
+        <th>Model</th>
+        <th>Status</th>
+        <th>Tokens (in/out)</th>
+        <th>Duration</th>
+        <th>Time</th>
+      </tr>
+    </thead>
+  );
+}
+
+function LlmCallRow({ call, repo }: LlmCallProps) {
+  return (
+    <tr>
+      <td className={styles.mono}>{call.model}</td>
+      <td>
+        <CallStatusCell call={call} repo={repo} />
+      </td>
+      <td className={styles.mono}>
+        {Number(call.input_tokens).toLocaleString()} /{" "}
+        {Number(call.output_tokens).toLocaleString()}
+      </td>
+      <td className={styles.mono}>{formatCallDuration(call.duration_ms)}</td>
+      <td className="meta">
+        {/* created_at permits null but every row from runner carries one */}
+        {call.created_at ? <TimeAgo date={call.created_at} /> : "—"}
+      </td>
+    </tr>
+  );
+}
+
 function CallStatusCell({ call, repo }: LlmCallProps) {
   if (call.status !== "failed") {
     return <span className="op-badge op-pr-created">success</span>;
@@ -32,72 +100,4 @@ function formatCallDuration(
   durationMs: TaskRuntimeLlmCall["duration_ms"],
 ): string {
   return durationMs ? `${(Number(durationMs) / 1000).toFixed(1)}s` : "—";
-}
-
-function LlmCallRow({ call, repo }: LlmCallProps) {
-  return (
-    <tr>
-      <td className={styles.mono}>{call.model}</td>
-      <td>
-        <CallStatusCell call={call} repo={repo} />
-      </td>
-      <td className={styles.mono}>
-        {Number(call.input_tokens).toLocaleString()} /{" "}
-        {Number(call.output_tokens).toLocaleString()}
-      </td>
-      <td className={styles.mono}>{formatCallDuration(call.duration_ms)}</td>
-      <td className="meta">
-        {/* created_at permits null but every row from runner carries one */}
-        {call.created_at ? <TimeAgo date={call.created_at} /> : "—"}
-      </td>
-    </tr>
-  );
-}
-
-function CallsTableHead() {
-  return (
-    <thead>
-      <tr>
-        <th>Model</th>
-        <th>Status</th>
-        <th>Tokens (in/out)</th>
-        <th>Duration</th>
-        <th>Time</th>
-      </tr>
-    </thead>
-  );
-}
-
-export interface LlmCallsTableProps {
-  llmCalls: TaskRuntimeLlmCall[];
-  repo: string;
-}
-
-/** The calls as rows. Keyed by timestamp AND index because a run can make several calls within the same second, and a duplicate key would drop all but one of them. */
-function CallsTable({ llmCalls, repo }: LlmCallsTableProps) {
-  return (
-    <table>
-      <CallsTableHead />
-      <tbody>
-        {llmCalls.map((c, i) => (
-          <LlmCallRow key={`${c.created_at}-${i}`} call={c} repo={repo} />
-        ))}
-      </tbody>
-    </table>
-  );
-}
-
-/** Per-run LLM cost/token rows (pipeline.llm_calls). Pure render. */
-export default function LlmCallsTable({ llmCalls, repo }: LlmCallsTableProps) {
-  return (
-    <CollapsibleCard
-      title="LLM Calls"
-      defaultOpen
-      emptyState="No LLM calls recorded for this task."
-    >
-      {llmCalls.length === 0 ? null : (
-        <CallsTable llmCalls={llmCalls} repo={repo} />
-      )}
-    </CollapsibleCard>
-  );
 }

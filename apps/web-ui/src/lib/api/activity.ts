@@ -12,39 +12,6 @@ export type RepoEventRow =
 
 export type JobRunRow = components["schemas"]["JobRun"];
 
-function setTrimmedParam(
-  params: URLSearchParams,
-  key: string,
-  value?: string,
-): void {
-  const trimmed = value?.trim();
-
-  if (trimmed) {
-    params.set(key, trimmed);
-  }
-}
-
-function buildMemoryAuditParams(opts: {
-  agent?: string;
-  operation?: string;
-  zeroResults?: boolean;
-  limit?: number;
-  offset?: number;
-}): URLSearchParams {
-  const params = new URLSearchParams();
-
-  setTrimmedParam(params, "agent", opts.agent);
-  setTrimmedParam(params, "operation", opts.operation);
-
-  if (opts.zeroResults) {
-    params.set("zero_results", "true");
-  }
-  params.set("limit", String(opts.limit ?? 50));
-  params.set("offset", String(opts.offset ?? 0));
-
-  return params;
-}
-
 /** A page of memory-audit entries plus the unpaged total the pager needs. */
 export function getMemoryAudit(opts: {
   agent?: string;
@@ -108,4 +75,37 @@ export function getRepoSessions(
   repo: string,
 ): Promise<ApiResult<{ devs: number; last: string | null }>> {
   return apiFetch("lore-api", `/api/repos/${repo}/sessions`);
+}
+
+function buildMemoryAuditParams(opts: {
+  agent?: string;
+  operation?: string;
+  zeroResults?: boolean;
+  limit?: number;
+  offset?: number;
+}): URLSearchParams {
+  const params = new URLSearchParams();
+
+  setTrimmedParam(params, "agent", opts.agent);
+  setTrimmedParam(params, "operation", opts.operation);
+
+  if (opts.zeroResults) {
+    params.set("zero_results", "true");
+  }
+  params.set("limit", String(opts.limit ?? 50));
+  params.set("offset", String(opts.offset ?? 0));
+
+  return params;
+}
+
+function setTrimmedParam(
+  params: URLSearchParams,
+  key: string,
+  value?: string,
+): void {
+  const trimmed = value?.trim();
+
+  if (trimmed) {
+    params.set(key, trimmed);
+  }
 }

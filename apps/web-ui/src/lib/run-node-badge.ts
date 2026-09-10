@@ -20,6 +20,28 @@ export interface NodeBadgeInput {
   now: string;
 }
 
+export function nodeBadgeMeta({
+  row,
+  state,
+  model,
+  now,
+}: NodeBadgeInput): NodeBadgeMeta {
+  return {
+    model: model ? modelShortLabel(model.model) : null,
+    durationSeconds: elapsedSeconds(row, state, now),
+    iteration: row?.iteration ?? state?.iteration ?? 0,
+  };
+}
+
+/** A finished visit reports its recorded duration; a running one counts from its start; a node with neither has none. */
+function elapsedSeconds(
+  row: AssemblyRunNode | undefined,
+  state: NodeRunState | undefined,
+  now: string,
+): number | null {
+  return row?.durationSeconds ?? liveElapsed(row, state, now);
+}
+
 /** Seconds a running visit has been at it, counted from its start; null when it is not running or never started. */
 function liveElapsed(
   row: AssemblyRunNode | undefined,
@@ -34,28 +56,6 @@ function liveElapsed(
     0,
     Math.round((Date.parse(now) - Date.parse(row.startedAt)) / 1000),
   );
-}
-
-/** A finished visit reports its recorded duration; a running one counts from its start; a node with neither has none. */
-function elapsedSeconds(
-  row: AssemblyRunNode | undefined,
-  state: NodeRunState | undefined,
-  now: string,
-): number | null {
-  return row?.durationSeconds ?? liveElapsed(row, state, now);
-}
-
-export function nodeBadgeMeta({
-  row,
-  state,
-  model,
-  now,
-}: NodeBadgeInput): NodeBadgeMeta {
-  return {
-    model: model ? modelShortLabel(model.model) : null,
-    durationSeconds: elapsedSeconds(row, state, now),
-    iteration: row?.iteration ?? state?.iteration ?? 0,
-  };
 }
 
 /** `Sonnet 4.6 · 3m 12s · ×2` — each part only when it says something; an unvisited node with no model reads as nothing at all. */

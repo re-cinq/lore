@@ -30,24 +30,24 @@ export interface AuditViewProps extends AuditPagination {
   op?: string;
 }
 
-/** One audit entry as a row. The agent's full id is in the title attribute — the displayed form is shortened, and the full id is what someone needs when tracing an operation back. */
-function auditCells(entry: AuditViewProps["entries"][number]) {
-  return [
-    <TimeAgo date={entry.created_at} key="time" />,
-    <span title={entry.agent_id} key="agent">
-      {displayAgentId(entry.agent_id)}
-    </span>,
-    <span className={`op-badge op-${entry.operation}`} key="op">
-      {formatEnumLabel(entry.operation)}
-    </span>,
-    entry.memory_key || "—",
-    entry.pool_name || "—",
-    entry.metadata ? (
-      <MetadataDetails metadata={entry.metadata} key="meta" />
-    ) : (
-      "—"
-    ),
-  ];
+/** Audit log view: pure render; rebuilds pagination URLs from props. */
+export default function AuditView(props: AuditViewProps) {
+  const { entries, totalCount, operations, agent, op } = props;
+  const pageUrl = (to: number) => auditUrl({ agent, op, offset: to });
+
+  return (
+    <div>
+      <h1>Audit Trail</h1>
+      <p className="meta page-lede">
+        Every memory read and write across the org, in time order. Filter by
+        agent or operation.
+      </p>
+      <AuditFilters agent={agent} op={op} operations={operations} />
+      <p className={`meta ${styles.count}`}>{totalCount} total entries</p>
+      <AuditTable entries={entries} agent={agent} op={op} total={totalCount} />
+      <AuditPager pageUrl={pageUrl} pagination={props} />
+    </div>
+  );
 }
 
 interface AuditTableProps {
@@ -90,41 +90,6 @@ function AuditPager({ pageUrl, pagination }: AuditPagerProps) {
       <PagerLink href={pageUrl(offset + pageSize)} enabled={hasNext}>
         Next &rarr;
       </PagerLink>
-    </div>
-  );
-}
-
-interface PagerLinkProps {
-  href: string;
-  enabled: boolean;
-  children: ReactNode;
-}
-
-/** Both arrows stay LINKS and are styled disabled rather than removed, so the control keeps its position between the first page and the rest. */
-function PagerLink({ href, enabled, children }: PagerLinkProps) {
-  return (
-    <Link href={href} className={enabled ? "" : "disabled"}>
-      {children}
-    </Link>
-  );
-}
-
-/** Audit log view: pure render; rebuilds pagination URLs from props. */
-export default function AuditView(props: AuditViewProps) {
-  const { entries, totalCount, operations, agent, op } = props;
-  const pageUrl = (to: number) => auditUrl({ agent, op, offset: to });
-
-  return (
-    <div>
-      <h1>Audit Trail</h1>
-      <p className="meta page-lede">
-        Every memory read and write across the org, in time order. Filter by
-        agent or operation.
-      </p>
-      <AuditFilters agent={agent} op={op} operations={operations} />
-      <p className={`meta ${styles.count}`}>{totalCount} total entries</p>
-      <AuditTable entries={entries} agent={agent} op={op} total={totalCount} />
-      <AuditPager pageUrl={pageUrl} pagination={props} />
     </div>
   );
 }
@@ -176,17 +141,24 @@ function AuditFilters({ agent, op, operations }: AuditFiltersProps) {
   );
 }
 
-function OperationSelect({ op, operations }: Omit<AuditFiltersProps, "agent">) {
-  return (
-    <select name="op" defaultValue={op || ""}>
-      <option value="">All operations</option>
-      {operations.map((o) => (
-        <option key={o} value={o}>
-          {formatEnumLabel(o)}
-        </option>
-      ))}
-    </select>
-  );
+/** One audit entry as a row. The agent's full id is in the title attribute — the displayed form is shortened, and the full id is what someone needs when tracing an operation back. */
+function auditCells(entry: AuditViewProps["entries"][number]) {
+  return [
+    <TimeAgo date={entry.created_at} key="time" />,
+    <span title={entry.agent_id} key="agent">
+      {displayAgentId(entry.agent_id)}
+    </span>,
+    <span className={`op-badge op-${entry.operation}`} key="op">
+      {formatEnumLabel(entry.operation)}
+    </span>,
+    entry.memory_key || "—",
+    entry.pool_name || "—",
+    entry.metadata ? (
+      <MetadataDetails metadata={entry.metadata} key="meta" />
+    ) : (
+      "—"
+    ),
+  ];
 }
 
 /** An empty page under a filter is a different story from an empty trail, and only the first one has an action. */
@@ -206,6 +178,34 @@ function AuditEmptyState({ filtered }: { filtered: boolean }) {
       title="No activity recorded yet"
       description="Entries appear here as agents read and write memory."
     />
+  );
+}
+
+interface PagerLinkProps {
+  href: string;
+  enabled: boolean;
+  children: ReactNode;
+}
+
+/** Both arrows stay LINKS and are styled disabled rather than removed, so the control keeps its position between the first page and the rest. */
+function PagerLink({ href, enabled, children }: PagerLinkProps) {
+  return (
+    <Link href={href} className={enabled ? "" : "disabled"}>
+      {children}
+    </Link>
+  );
+}
+
+function OperationSelect({ op, operations }: Omit<AuditFiltersProps, "agent">) {
+  return (
+    <select name="op" defaultValue={op || ""}>
+      <option value="">All operations</option>
+      {operations.map((o) => (
+        <option key={o} value={o}>
+          {formatEnumLabel(o)}
+        </option>
+      ))}
+    </select>
   );
 }
 

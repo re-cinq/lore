@@ -3,6 +3,21 @@ import { getJobRun } from "@/lib/api/activity";
 import { Storage } from "@google-cloud/storage";
 import JobRunView, { JobRunRow } from "./JobRunView";
 
+export default async function JobRunPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+
+  const result = await getJobRun(id);
+  const run: JobRunRow | null = result.status === "ok" ? result.data : null;
+
+  const logs = run ? await fetchLogs(run.log_path) : null;
+
+  return <JobRunView id={id} run={run} logs={logs} />;
+}
+
 async function fetchLogs(logPath: string | null): Promise<string | null> {
   if (!logPath) {
     return null;
@@ -24,19 +39,4 @@ async function fetchLogs(logPath: string | null): Promise<string | null> {
   } catch {
     return null;
   }
-}
-
-export default async function JobRunPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
-
-  const result = await getJobRun(id);
-  const run: JobRunRow | null = result.status === "ok" ? result.data : null;
-
-  const logs = run ? await fetchLogs(run.log_path) : null;
-
-  return <JobRunView id={id} run={run} logs={logs} />;
 }

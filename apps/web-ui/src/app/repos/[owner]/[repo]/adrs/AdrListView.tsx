@@ -14,6 +14,32 @@ interface AdrSummary {
 
 type AdrStatusOf = (adr: AdrSummary) => SpecStatusInfo | undefined;
 
+interface AdrListViewProps {
+  owner: string;
+  repo: string;
+  adrs: AdrSummary[];
+  /** Status per ADR path. Absent for a repo whose ADRs have not been projected yet. */
+  statuses?: Record<string, SpecStatusInfo>;
+}
+
+export default function AdrListView(props: AdrListViewProps) {
+  const { owner, repo, adrs, statuses = {} } = props;
+  const view = useDocListView();
+
+  if (adrs.length === 0) {
+    return <EmptyAdrs />;
+  }
+
+  return (
+    <AdrListBody
+      view={view}
+      adrs={adrs}
+      statusOf={(adr) => statuses[adr.filePath]}
+      base={`/repos/${owner}/${repo}`}
+    />
+  );
+}
+
 /** Not an error state: ADRs reach the graph through CI, so an empty list means nothing has been pushed since the workflow was installed. */
 function EmptyAdrs() {
   return (
@@ -22,34 +48,6 @@ function EmptyAdrs() {
       push to <code>main</code> — push an<code>adrs/</code> change (or re-run
       the <strong>lore-ingest</strong> workflow), then refresh.
     </p>
-  );
-}
-
-/** The filter narrowed the list to nothing, which is a different answer from the repo having no ADRs at all. */
-function EmptyAdrFilter() {
-  return <p className="muted">No ADRs match this filter.</p>;
-}
-
-interface AdrCardsProps {
-  adrs: AdrSummary[];
-  statusOf: AdrStatusOf;
-  /** Repo route the detail links hang off, e.g. `/repos/owner/repo`. */
-  base: string;
-}
-
-function AdrCards({ adrs, statusOf, base }: AdrCardsProps) {
-  return (
-    <>
-      {adrs.map((adr) => (
-        <SpecCard
-          key={adr.filePath}
-          title={adr.title}
-          description={adr.description}
-          status={statusOf(adr)}
-          detailsHref={`${base}/adrs/${encodeURIComponent(adr.filePath)}`}
-        />
-      ))}
-    </>
   );
 }
 
@@ -82,28 +80,30 @@ function AdrListBody({ view, adrs, statusOf, base }: AdrListBodyProps) {
   );
 }
 
-interface AdrListViewProps {
-  owner: string;
-  repo: string;
+interface AdrCardsProps {
   adrs: AdrSummary[];
-  /** Status per ADR path. Absent for a repo whose ADRs have not been projected yet. */
-  statuses?: Record<string, SpecStatusInfo>;
+  statusOf: AdrStatusOf;
+  /** Repo route the detail links hang off, e.g. `/repos/owner/repo`. */
+  base: string;
 }
 
-export default function AdrListView(props: AdrListViewProps) {
-  const { owner, repo, adrs, statuses = {} } = props;
-  const view = useDocListView();
-
-  if (adrs.length === 0) {
-    return <EmptyAdrs />;
-  }
-
+function AdrCards({ adrs, statusOf, base }: AdrCardsProps) {
   return (
-    <AdrListBody
-      view={view}
-      adrs={adrs}
-      statusOf={(adr) => statuses[adr.filePath]}
-      base={`/repos/${owner}/${repo}`}
-    />
+    <>
+      {adrs.map((adr) => (
+        <SpecCard
+          key={adr.filePath}
+          title={adr.title}
+          description={adr.description}
+          status={statusOf(adr)}
+          detailsHref={`${base}/adrs/${encodeURIComponent(adr.filePath)}`}
+        />
+      ))}
+    </>
   );
+}
+
+/** The filter narrowed the list to nothing, which is a different answer from the repo having no ADRs at all. */
+function EmptyAdrFilter() {
+  return <p className="muted">No ADRs match this filter.</p>;
 }

@@ -11,6 +11,30 @@ export interface RadialTreeOptions {
   angleEnd?: number;
 }
 
+/** Radial-tree seed positions; depth→radius, leaves spread evenly. */
+export function radialTree(
+  root: string,
+  childrenOf: Map<string, string[]>,
+  opts: RadialTreeOptions,
+): Map<string, Point> {
+  const { angleStart, angleEnd } = resolveAngleRange(opts);
+
+  const { depth, postOrder, leaves } = walkTree(root, childrenOf);
+  const span = angleEnd - angleStart;
+  const leafCount = Math.max(leaves.length, 1);
+  const angle = new Map<string, number>();
+
+  leaves.forEach((id, i) =>
+    angle.set(id, angleStart + (span * (i + 0.5)) / leafCount),
+  );
+
+  fillParentAngles(postOrder, childrenOf, angle, angleStart);
+
+  const { center, ringGap } = opts;
+
+  return positionsFromAngles(depth, angle, angleStart, { center, ringGap });
+}
+
 function resolveAngleRange(opts: RadialTreeOptions): {
   angleStart: number;
   angleEnd: number;
@@ -19,48 +43,6 @@ function resolveAngleRange(opts: RadialTreeOptions): {
     angleStart: opts.angleStart ?? 0,
     angleEnd: opts.angleEnd ?? Math.PI * 2,
   };
-}
-
-/** Fills in each non-leaf's angle as the mean of its children's (post-order guarantees they're set). */
-function fillParentAngles(
-  postOrder: string[],
-  childrenOf: Map<string, string[]>,
-  angle: Map<string, number>,
-  angleStart: number,
-): void {
-  for (const id of postOrder) {
-    if (angle.has(id)) {
-      continue;
-    }
-    const children = childrenOf.get(id) ?? [];
-    const sum = children.reduce(
-      (acc, child) => acc + (angle.get(child) ?? 0),
-      0,
-    );
-
-    angle.set(id, children.length ? sum / children.length : angleStart);
-  }
-}
-
-function positionsFromAngles(
-  depth: Map<string, number>,
-  angle: Map<string, number>,
-  angleStart: number,
-  layout: { center: Point; ringGap: number },
-): Map<string, Point> {
-  const positions = new Map<string, Point>();
-
-  for (const [id, d] of depth) {
-    const a = angle.get(id) ?? angleStart;
-    const r = d * layout.ringGap;
-
-    positions.set(id, {
-      x: layout.center.x + r * Math.cos(a),
-      y: layout.center.y + r * Math.sin(a),
-    });
-  }
-
-  return positions;
 }
 
 /** Depth-first walk of the graph as a tree. The `visited` set is what makes a graph safe to treat as one: a node already placed is not descended into again, so a cycle terminates and a diamond is drawn under whichever parent reached it first. Post-order is recorded because a parent's angle is the mean of its children's, which cannot be known until they are placed. */
@@ -110,26 +92,44 @@ function visitTreeNode(id: string, d: number, walk: TreeWalk): void {
   walk.postOrder.push(id);
 }
 
-/** Radial-tree seed positions; depth→radius, leaves spread evenly. */
-export function radialTree(
-  root: string,
+/** Fills in each non-leaf's angle as the mean of its children's (post-order guarantees they're set). */
+function fillParentAngles(
+  postOrder: string[],
   childrenOf: Map<string, string[]>,
-  opts: RadialTreeOptions,
+  angle: Map<string, number>,
+  angleStart: number,
+): void {
+  for (const id of postOrder) {
+    if (angle.has(id)) {
+      continue;
+    }
+    const children = childrenOf.get(id) ?? [];
+    const sum = children.reduce(
+      (acc, child) => acc + (angle.get(child) ?? 0),
+      0,
+    );
+
+    angle.set(id, children.length ? sum / children.length : angleStart);
+  }
+}
+
+function positionsFromAngles(
+  depth: Map<string, number>,
+  angle: Map<string, number>,
+  angleStart: number,
+  layout: { center: Point; ringGap: number },
 ): Map<string, Point> {
-  const { angleStart, angleEnd } = resolveAngleRange(opts);
+  const positions = new Map<string, Point>();
 
-  const { depth, postOrder, leaves } = walkTree(root, childrenOf);
-  const span = angleEnd - angleStart;
-  const leafCount = Math.max(leaves.length, 1);
-  const angle = new Map<string, number>();
+  for (const [id, d] of depth) {
+    const a = angle.get(id) ?? angleStart;
+    const r = d * layout.ringGap;
 
-  leaves.forEach((id, i) =>
-    angle.set(id, angleStart + (span * (i + 0.5)) / leafCount),
-  );
+    positions.set(id, {
+      x: layout.center.x + r * Math.cos(a),
+      y: layout.center.y + r * Math.sin(a),
+    });
+  }
 
-  fillParentAngles(postOrder, childrenOf, angle, angleStart);
-
-  const { center, ringGap } = opts;
-
-  return positionsFromAngles(depth, angle, angleStart, { center, ringGap });
+  return positions;
 }

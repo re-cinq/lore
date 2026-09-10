@@ -14,52 +14,6 @@ export interface RunGraphDefinition {
   synthetic: boolean;
 }
 
-/** Distinct visited node ids, in the order the walk first reached them. */
-function visitedNodes(visitRows: readonly AssemblyRunNode[]): DefinitionNode[] {
-  const seen = new Set<string>();
-  const nodes: DefinitionNode[] = [];
-
-  for (const rowNode of visitRows) {
-    if (seen.has(rowNode.nodeId)) {
-      continue;
-    }
-
-    seen.add(rowNode.nodeId);
-    nodes.push({ id: rowNode.nodeId, type: "agent" });
-  }
-
-  return nodes;
-}
-
-/** Sequential always edges between visited nodes; prevents longest-path layering collapse into vertical pile. */
-function chainEdges(nodes: readonly DefinitionNode[]): DefinitionEdge[] {
-  return nodes.slice(1).map((node, index) => ({
-    from: nodes[index].id,
-    to: node.id,
-    on: "always" as const,
-  }));
-}
-
-/** Stored graph in view shape; fills description/version authoring metadata (omitted from clone to save space). */
-function fromRunGraph(graph: RunGraph): AssemblyLineDefinition {
-  return {
-    name: graph.name,
-    description: "",
-    version: 1,
-    entry: graph.entry,
-    exit: graph.exit,
-    nodes: graph.nodes.map((node) => ({
-      ...node,
-      // Safe: node.type from snapshotGraph (loader's node-type union); drift guard keeps unions aligned.
-      type: node.type as DefinitionNode["type"],
-    })),
-    edges: graph.edges.map((edge) => ({
-      ...edge,
-      on: edge.on as DefinitionEdge["on"],
-    })),
-  };
-}
-
 /** Graph to draw for a run: its own clone if present, otherwise chain synthesized from visit rows. */
 export function definitionForRun(
   blueprintName: string,
@@ -82,6 +36,43 @@ export function definitionForRun(
   };
 }
 
+/** Stored graph in view shape; fills description/version authoring metadata (omitted from clone to save space). */
+function fromRunGraph(graph: RunGraph): AssemblyLineDefinition {
+  return {
+    name: graph.name,
+    description: "",
+    version: 1,
+    entry: graph.entry,
+    exit: graph.exit,
+    nodes: graph.nodes.map((node) => ({
+      ...node,
+      // Safe: node.type from snapshotGraph (loader's node-type union); drift guard keeps unions aligned.
+      type: node.type as DefinitionNode["type"],
+    })),
+    edges: graph.edges.map((edge) => ({
+      ...edge,
+      on: edge.on as DefinitionEdge["on"],
+    })),
+  };
+}
+
+/** Distinct visited node ids, in the order the walk first reached them. */
+function visitedNodes(visitRows: readonly AssemblyRunNode[]): DefinitionNode[] {
+  const seen = new Set<string>();
+  const nodes: DefinitionNode[] = [];
+
+  for (const rowNode of visitRows) {
+    if (seen.has(rowNode.nodeId)) {
+      continue;
+    }
+
+    seen.add(rowNode.nodeId);
+    nodes.push({ id: rowNode.nodeId, type: "agent" });
+  }
+
+  return nodes;
+}
+
 /** Chain of the visited nodes, standing in for a run that stored no clone. */
 function syntheticDefinition(
   name: string,
@@ -96,4 +87,13 @@ function syntheticDefinition(
     nodes,
     edges: chainEdges(nodes),
   };
+}
+
+/** Sequential always edges between visited nodes; prevents longest-path layering collapse into vertical pile. */
+function chainEdges(nodes: readonly DefinitionNode[]): DefinitionEdge[] {
+  return nodes.slice(1).map((node, index) => ({
+    from: nodes[index].id,
+    to: node.id,
+    on: "always" as const,
+  }));
 }

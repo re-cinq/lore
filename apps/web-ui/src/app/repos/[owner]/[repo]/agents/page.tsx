@@ -19,23 +19,23 @@ interface DefinitionsSectionProps {
   usage: Awaited<ReturnType<typeof fetchAgentUsage>>;
 }
 
-/** The section's own heading, count and the one action it offers. */
-function DefinitionsHead({
-  fullName,
-  count,
+export default async function RepoAgents({
+  params,
 }: {
-  fullName: string;
-  count: number;
+  params: Promise<{ owner: string; repo: string }>;
 }) {
+  const { owner, repo } = await params;
+  const fullName = `${owner}/${repo}`;
+
+  const [agents, usage] = await Promise.all([
+    listAgents(fullName),
+    fetchAgentUsage(),
+  ]);
+
   return (
-    <div className={styles.sectionHead}>
-      <div className={styles.headingGroup}>
-        <h2 className={styles.sectionTitle}>Agent definitions</h2>
-        <span className="count-pill">{count}</span>
-      </div>
-      <Link href={`/repos/${fullName}/agents/new`}>
-        <button>+ New definition</button>
-      </Link>
+    <div>
+      <DefinitionsSection fullName={fullName} agents={agents} usage={usage} />
+      <SessionsSection activity={await repoActivity(fullName)} />
     </div>
   );
 }
@@ -59,6 +59,27 @@ async function DefinitionsSection(props: DefinitionsSectionProps) {
         remove={removeAgentOverrideAction.bind(null, fullName)}
       />
     </section>
+  );
+}
+
+/** The section's own heading, count and the one action it offers. */
+function DefinitionsHead({
+  fullName,
+  count,
+}: {
+  fullName: string;
+  count: number;
+}) {
+  return (
+    <div className={styles.sectionHead}>
+      <div className={styles.headingGroup}>
+        <h2 className={styles.sectionTitle}>Agent definitions</h2>
+        <span className="count-pill">{count}</span>
+      </div>
+      <Link href={`/repos/${fullName}/agents/new`}>
+        <button>+ New definition</button>
+      </Link>
+    </div>
   );
 }
 
@@ -89,26 +110,5 @@ function SessionsSection({ activity }: { activity: AgentRow[] }) {
       </p>
       <AgentsTable embedded agents={activity} />
     </section>
-  );
-}
-
-export default async function RepoAgents({
-  params,
-}: {
-  params: Promise<{ owner: string; repo: string }>;
-}) {
-  const { owner, repo } = await params;
-  const fullName = `${owner}/${repo}`;
-
-  const [agents, usage] = await Promise.all([
-    listAgents(fullName),
-    fetchAgentUsage(),
-  ]);
-
-  return (
-    <div>
-      <DefinitionsSection fullName={fullName} agents={agents} usage={usage} />
-      <SessionsSection activity={await repoActivity(fullName)} />
-    </div>
   );
 }

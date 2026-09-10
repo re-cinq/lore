@@ -9,6 +9,53 @@ export interface SaveState {
 
 export const INITIAL_SAVE_STATE: SaveState = { saved: false, privileged: null };
 
+/** Feedback banner for settings save; general fields persist directly; privileged fields gate through two-key API. */
+export default function SaveResultBanner({ state }: { state: SaveState }) {
+  if (!state.saved) {
+    return null;
+  }
+
+  return (
+    <div className={styles.banner} role="status">
+      <p className={styles.savedOk}>Settings saved.</p>
+      <PrivilegedFeedback privileged={state.privileged} />
+    </div>
+  );
+}
+
+function PrivilegedFeedback({
+  privileged,
+}: {
+  privileged: PrivilegedSaveResult | null;
+}) {
+  return privileged ? renderPrivileged(privileged) : null;
+}
+
+function renderPrivileged<K extends PrivilegedSaveResult["status"]>(
+  privileged: Extract<PrivilegedSaveResult, { status: K }>,
+) {
+  return BANNER_BY_STATUS[privileged.status](privileged);
+}
+
+const BANNER_BY_STATUS: {
+  [K in PrivilegedSaveResult["status"]]: (
+    privileged: Extract<PrivilegedSaveResult, { status: K }>,
+  ) => ReactElement;
+} = {
+  ok: () => <PrivilegedOk />,
+  two_key_required: (privileged) => (
+    <PrivilegedTwoKeyRequired fieldPaths={privileged.fieldPaths} />
+  ),
+  codeowners_failed: (privileged) => (
+    <PrivilegedCodeownersFailed
+      code={privileged.code}
+      detail={privileged.detail}
+    />
+  ),
+  unconfigured: () => <PrivilegedUnconfigured />,
+  error: (privileged) => <PrivilegedError message={privileged.message} />,
+};
+
 function PrivilegedOk() {
   return (
     <p className={styles.savedOk}>
@@ -66,52 +113,5 @@ function PrivilegedError({ message }: { message: string }) {
     <p className={styles.warn} role="alert">
       Could not apply privileged changes: {message}
     </p>
-  );
-}
-
-const BANNER_BY_STATUS: {
-  [K in PrivilegedSaveResult["status"]]: (
-    privileged: Extract<PrivilegedSaveResult, { status: K }>,
-  ) => ReactElement;
-} = {
-  ok: () => <PrivilegedOk />,
-  two_key_required: (privileged) => (
-    <PrivilegedTwoKeyRequired fieldPaths={privileged.fieldPaths} />
-  ),
-  codeowners_failed: (privileged) => (
-    <PrivilegedCodeownersFailed
-      code={privileged.code}
-      detail={privileged.detail}
-    />
-  ),
-  unconfigured: () => <PrivilegedUnconfigured />,
-  error: (privileged) => <PrivilegedError message={privileged.message} />,
-};
-
-function renderPrivileged<K extends PrivilegedSaveResult["status"]>(
-  privileged: Extract<PrivilegedSaveResult, { status: K }>,
-) {
-  return BANNER_BY_STATUS[privileged.status](privileged);
-}
-
-function PrivilegedFeedback({
-  privileged,
-}: {
-  privileged: PrivilegedSaveResult | null;
-}) {
-  return privileged ? renderPrivileged(privileged) : null;
-}
-
-/** Feedback banner for settings save; general fields persist directly; privileged fields gate through two-key API. */
-export default function SaveResultBanner({ state }: { state: SaveState }) {
-  if (!state.saved) {
-    return null;
-  }
-
-  return (
-    <div className={styles.banner} role="status">
-      <p className={styles.savedOk}>Settings saved.</p>
-      <PrivilegedFeedback privileged={state.privileged} />
-    </div>
   );
 }

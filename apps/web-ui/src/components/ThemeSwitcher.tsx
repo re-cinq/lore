@@ -18,6 +18,42 @@ const SCHEMES: { value: ColorSchemePref; label: string; icon: IconName }[] = [
   { value: "dark", label: "Dark", icon: "moon" },
 ];
 
+export default function ThemeSwitcher() {
+  const { family, scheme, setFamily, setScheme } = useTheme();
+
+  return (
+    <div className={styles.switcher}>
+      <FamilyGroup selected={family} onSelect={setFamily} />
+      <SchemeGroup selected={scheme} onSelect={setScheme} />
+    </div>
+  );
+}
+
+interface FamilyGroupProps {
+  selected: ThemeFamily;
+  onSelect: (next: ThemeFamily) => void;
+}
+
+/** Which palette the page uses. A real radio group rather than styled buttons: the browser then gives arrow-key navigation and the grouping announcement for free. */
+function FamilyGroup({ selected, onSelect }: FamilyGroupProps) {
+  return (
+    <fieldset className={styles.group}>
+      <legend className={styles.legend}>Theme</legend>
+      <div className={styles.segmented}>
+        {FAMILIES.map(({ value, label }) => (
+          <FamilyOption
+            key={value}
+            value={value}
+            label={label}
+            selected={selected === value}
+            onSelect={onSelect}
+          />
+        ))}
+      </div>
+    </fieldset>
+  );
+}
+
 interface FamilyOptionProps {
   value: ThemeFamily;
   label: string;
@@ -43,23 +79,22 @@ function FamilyOption({ value, label, selected, onSelect }: FamilyOptionProps) {
   );
 }
 
-interface FamilyGroupProps {
-  selected: ThemeFamily;
-  onSelect: (next: ThemeFamily) => void;
+interface SchemeGroupProps {
+  selected: ColorSchemePref;
+  onSelect: (next: ColorSchemePref) => void;
 }
 
-/** Which palette the page uses. A real radio group rather than styled buttons: the browser then gives arrow-key navigation and the grouping announcement for free. */
-function FamilyGroup({ selected, onSelect }: FamilyGroupProps) {
+/** Light, dark, or follow the system. Icon-only, so each option carries its label as `title` and `aria-label` — the icon alone names nothing to a screen reader. */
+function SchemeGroup({ selected, onSelect }: SchemeGroupProps) {
   return (
     <fieldset className={styles.group}>
-      <legend className={styles.legend}>Theme</legend>
+      <legend className={styles.legend}>Appearance</legend>
       <div className={styles.segmented}>
-        {FAMILIES.map(({ value, label }) => (
-          <FamilyOption
-            key={value}
-            value={value}
-            label={label}
-            selected={selected === value}
+        {SCHEMES.map((option) => (
+          <SchemeOption
+            key={option.value}
+            option={option}
+            selected={selected === option.value}
             onSelect={onSelect}
           />
         ))}
@@ -91,40 +126,5 @@ function SchemeOption({ option, selected, onSelect }: SchemeOptionProps) {
       />
       <Icon name={option.icon} size={16} />
     </label>
-  );
-}
-
-interface SchemeGroupProps {
-  selected: ColorSchemePref;
-  onSelect: (next: ColorSchemePref) => void;
-}
-
-/** Light, dark, or follow the system. Icon-only, so each option carries its label as `title` and `aria-label` — the icon alone names nothing to a screen reader. */
-function SchemeGroup({ selected, onSelect }: SchemeGroupProps) {
-  return (
-    <fieldset className={styles.group}>
-      <legend className={styles.legend}>Appearance</legend>
-      <div className={styles.segmented}>
-        {SCHEMES.map((option) => (
-          <SchemeOption
-            key={option.value}
-            option={option}
-            selected={selected === option.value}
-            onSelect={onSelect}
-          />
-        ))}
-      </div>
-    </fieldset>
-  );
-}
-
-export default function ThemeSwitcher() {
-  const { family, scheme, setFamily, setScheme } = useTheme();
-
-  return (
-    <div className={styles.switcher}>
-      <FamilyGroup selected={family} onSelect={setFamily} />
-      <SchemeGroup selected={scheme} onSelect={setScheme} />
-    </div>
   );
 }

@@ -29,39 +29,65 @@ export interface RunGraphViewProps {
   heading?: string | null;
 }
 
-/** The lookups that let the drawing match a laid-out node or edge back to its model. A node with no outgoing edge is terminal, which is read from the EDGES rather than from the node, because a definition does not mark its own ends. */
-function graphLookups(graph: RunGraphViewProps["graph"]) {
-  const { nodes, edges } = graph;
+// The mode-selected workflow graph. Pure render of a VisibleGraph.
+export default function RunGraphView(props: RunGraphViewProps) {
+  const { graph, definition, heading = "Graph", nodeMeta } = props;
 
-  return {
-    nodeById: new Map(nodes.map((node) => [node.id, node])),
-    edgeByPair: new Map(
-      edges.map((edge) => [edgeMapKey(edge.from, edge.to), edge]),
-    ),
-    nodesWithOutgoing: new Set(edges.map((edge) => edge.from)),
-  };
+  if (graph.nodes.length === 0) {
+    return <EmptyGraph />;
+  }
+
+  return (
+    <section className={styles.panel}>
+      {heading !== null && <h2 className={styles.heading}>{heading}</h2>}
+      <GraphSvg
+        laid={layoutRunGraph(graph, definition, {
+          withMeta: hasMetaLine(graph, nodeMeta),
+        })}
+        mode={graph.mode}
+        onSelectNode={props.onSelectNode}
+        selectedNodeId={props.selectedNodeId}
+        nodeMeta={nodeMeta}
+      />
+    </section>
+  );
 }
 
-/** Everything geometric: where each node sits, how big the canvas has to be, plus the model lookups the drawing needs. */
-function layoutRunGraph(
-  graph: RunGraphViewProps["graph"],
-  definition: RunGraphViewProps["definition"],
-  { withMeta }: { withMeta: boolean },
-) {
-  const nodeHeight = nodeHeightFor(graph, { withMeta });
-  const layout = layoutAssemblyLine(toLayoutDefinition(graph, definition), {
-    nodeWidth: NODE_WIDTH,
-    nodeHeight,
-    rowGap: nodeHeight + 48,
-  });
+function EmptyGraph() {
+  return (
+    <p className={styles.empty}>No assembly-line graph to show for this run.</p>
+  );
+}
 
-  return {
-    layout,
-    view: fitView(layout.contentBox),
-    nodeHeight,
-    titleId: `run-graph-title-${graph.mode}`,
-    ...graphLookups(graph),
-  };
+interface LaidGraphProps {
+  laid: ReturnType<typeof layoutRunGraph>;
+  mode: RunGraphViewProps["graph"]["mode"];
+  onSelectNode: RunGraphViewProps["onSelectNode"];
+  selectedNodeId: RunGraphViewProps["selectedNodeId"];
+  nodeMeta: RunGraphViewProps["nodeMeta"];
+}
+
+/** The graph itself. A node nothing leaves is TERMINAL, which the plain label renders differently. `role="img"` with a `<title>`: the drawing is one picture to a screen reader, not a stack of unlabelled shapes, and the mode belongs in that label because the same nodes mean different things in definition and run mode. */
+function GraphSvg(props: LaidGraphProps) {
+  const { laid, mode } = props;
+  const { layout, view, titleId, edgeByPair } = laid;
+
+  return (
+    <svg
+      className={styles.svg}
+      style={{ ["--graph-width" as string]: `${view.width}px` }}
+      role="img"
+      aria-labelledby={titleId}
+      viewBox={view.viewBox}
+    >
+      <title id={titleId}>{`Workflow graph (${mode})`}</title>
+      <ArrowMarkerDefs />
+
+      <GraphEdges edges={layout.edges} edgeByPair={edgeByPair} />
+
+      <GraphNodes {...props} />
+    </svg>
+  );
 }
 
 interface GraphEdgesProps {
@@ -89,14 +115,6 @@ function GraphEdges({ edges, edgeByPair }: GraphEdgesProps) {
   );
 }
 
-interface LaidGraphProps {
-  laid: ReturnType<typeof layoutRunGraph>;
-  mode: RunGraphViewProps["graph"]["mode"];
-  onSelectNode: RunGraphViewProps["onSelectNode"];
-  selectedNodeId: RunGraphViewProps["selectedNodeId"];
-  nodeMeta: RunGraphViewProps["nodeMeta"];
-}
-
 /** Every node in the layout. A node nothing leaves is TERMINAL, which the plain label renders differently — the end of a line should read as an end rather than as a step still waiting for a successor. */
 function GraphNodes(props: LaidGraphProps) {
   const { laid, mode, onSelectNode, selectedNodeId, nodeMeta } = props;
@@ -117,36 +135,41 @@ function GraphNodes(props: LaidGraphProps) {
   ));
 }
 
-/** The graph itself. A node nothing leaves is TERMINAL, which the plain label renders differently. `role="img"` with a `<title>`: the drawing is one picture to a screen reader, not a stack of unlabelled shapes, and the mode belongs in that label because the same nodes mean different things in definition and run mode. */
-function GraphSvg(props: LaidGraphProps) {
-  const { laid, mode } = props;
-  const { layout, view, titleId, edgeByPair } = laid;
+/** Everything geometric: where each node sits, how big the canvas has to be, plus the model lookups the drawing needs. */
+function layoutRunGraph(
+  graph: RunGraphViewProps["graph"],
+  definition: RunGraphViewProps["definition"],
+  { withMeta }: { withMeta: boolean },
+) {
+  const nodeHeight = nodeHeightFor(graph, { withMeta });
+  const layout = layoutAssemblyLine(toLayoutDefinition(graph, definition), {
+    nodeWidth: NODE_WIDTH,
+    nodeHeight,
+    rowGap: nodeHeight + 48,
+  });
 
-  return (
-    <svg
-      className={styles.svg}
-      style={{ ["--graph-width" as string]: `${view.width}px` }}
-      role="img"
-      aria-labelledby={titleId}
-      viewBox={view.viewBox}
-    >
-      <title id={titleId}>{`Workflow graph (${mode})`}</title>
-      <ArrowMarkerDefs />
-
-      <GraphEdges edges={layout.edges} edgeByPair={edgeByPair} />
-
-      <GraphNodes {...props} />
-    </svg>
-  );
+  return {
+    layout,
+    view: fitView(layout.contentBox),
+    nodeHeight,
+    titleId: `run-graph-title-${graph.mode}`,
+    ...graphLookups(graph),
+  };
 }
 
-function EmptyGraph() {
-  return (
-    <p className={styles.empty}>No assembly-line graph to show for this run.</p>
-  );
+/** The lookups that let the drawing match a laid-out node or edge back to its model. A node with no outgoing edge is terminal, which is read from the EDGES rather than from the node, because a definition does not mark its own ends. */
+function graphLookups(graph: RunGraphViewProps["graph"]) {
+  const { nodes, edges } = graph;
+
+  return {
+    nodeById: new Map(nodes.map((node) => [node.id, node])),
+    edgeByPair: new Map(
+      edges.map((edge) => [edgeMapKey(edge.from, edge.to), edge]),
+    ),
+    nodesWithOutgoing: new Set(edges.map((edge) => edge.from)),
+  };
 }
 
-// The mode-selected workflow graph. Pure render of a VisibleGraph.
 /** A facts line is drawn only in run mode, and only when some node has one to draw. */
 function hasMetaLine(
   graph: RunGraphViewProps["graph"],
@@ -155,28 +178,5 @@ function hasMetaLine(
   return (
     graph.mode === "run" &&
     graph.nodes.some((node) => (nodeMeta?.[node.id] ?? "") !== "")
-  );
-}
-
-export default function RunGraphView(props: RunGraphViewProps) {
-  const { graph, definition, heading = "Graph", nodeMeta } = props;
-
-  if (graph.nodes.length === 0) {
-    return <EmptyGraph />;
-  }
-
-  return (
-    <section className={styles.panel}>
-      {heading !== null && <h2 className={styles.heading}>{heading}</h2>}
-      <GraphSvg
-        laid={layoutRunGraph(graph, definition, {
-          withMeta: hasMetaLine(graph, nodeMeta),
-        })}
-        mode={graph.mode}
-        onSelectNode={props.onSelectNode}
-        selectedNodeId={props.selectedNodeId}
-        nodeMeta={nodeMeta}
-      />
-    </section>
   );
 }

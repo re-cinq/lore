@@ -26,6 +26,32 @@ export interface PRDetails {
   computed_status: PRStatus;
 }
 
+export function computeStatus(
+  pr: { merged: boolean; state: string; draft?: boolean },
+  checks: Array<{ conclusion: string | null }>,
+  reviews: Array<{ state: string }>,
+): PRStatus {
+  const match = statusRules(pr, checks, reviews).find(([cond]) => cond);
+
+  return match ? match[1] : "open";
+}
+
+/** First matching rule wins — same order as the old if-chain, expressed as data instead of branches. */
+function statusRules(
+  pr: { merged: boolean; state: string; draft?: boolean },
+  checks: Array<{ conclusion: string | null }>,
+  reviews: Array<{ state: string }>,
+): Array<[boolean, PRStatus]> {
+  return [
+    [pr.merged, "merged"],
+    [pr.state === "closed", "closed"],
+    [!!pr.draft, "draft"],
+    [hasFailingChecks(checks), "checks-failing"],
+    [reviews.some((r) => r.state === "CHANGES_REQUESTED"), "changes-requested"],
+    [isApprovedAndPassing(reviews, checks), "approved"],
+  ];
+}
+
 function hasFailingChecks(checks: Array<{ conclusion: string | null }>) {
   return checks.some(
     (c) => c.conclusion === "failure" || c.conclusion === "timed_out",
@@ -45,32 +71,6 @@ function isApprovedAndPassing(
         c.conclusion === null,
     )
   );
-}
-
-/** First matching rule wins — same order as the old if-chain, expressed as data instead of branches. */
-function statusRules(
-  pr: { merged: boolean; state: string; draft?: boolean },
-  checks: Array<{ conclusion: string | null }>,
-  reviews: Array<{ state: string }>,
-): Array<[boolean, PRStatus]> {
-  return [
-    [pr.merged, "merged"],
-    [pr.state === "closed", "closed"],
-    [!!pr.draft, "draft"],
-    [hasFailingChecks(checks), "checks-failing"],
-    [reviews.some((r) => r.state === "CHANGES_REQUESTED"), "changes-requested"],
-    [isApprovedAndPassing(reviews, checks), "approved"],
-  ];
-}
-
-export function computeStatus(
-  pr: { merged: boolean; state: string; draft?: boolean },
-  checks: Array<{ conclusion: string | null }>,
-  reviews: Array<{ state: string }>,
-): PRStatus {
-  const match = statusRules(pr, checks, reviews).find(([cond]) => cond);
-
-  return match ? match[1] : "open";
 }
 
 export type RepoAccess = "ok" | "not-found" | "unknown";
@@ -108,6 +108,27 @@ interface FileAt {
   path: string;
 }
 
+/** Check if paths exist on repo's default branch; fail-soft. */
+export async function checkRepoFiles(
+  repo: string,
+  paths: string[],
+): Promise<Record<string, boolean | null>> {
+  if (!isGitHubConfigured()) {
+    return allUnknown(paths);
+  }
+  const { repos } = (await octokit()).rest;
+  const [owner, name] = split(repo);
+  const result: Record<string, boolean | null> = {};
+
+  await Promise.all(
+    paths.map(async (path) => {
+      result[path] = await fileExists(repos, { owner, name, path });
+    }),
+  );
+
+  return result;
+}
+
 function allUnknown(paths: string[]): Record<string, boolean | null> {
   const result: Record<string, boolean | null> = {};
 
@@ -132,43 +153,22 @@ async function fileExists(
   }
 }
 
-/** Check if paths exist on repo's default branch; fail-soft. */
-export async function checkRepoFiles(
+/** Fetch decoded UTF-8 file content from repo's default branch; null on 404 or unconfigured. */
+export async function getRepoFileContent(
   repo: string,
-  paths: string[],
-): Promise<Record<string, boolean | null>> {
+  path: string,
+): Promise<string | null> {
   if (!isGitHubConfigured()) {
-    return allUnknown(paths);
+    return null;
   }
   const { repos } = (await octokit()).rest;
   const [owner, name] = split(repo);
-  const result: Record<string, boolean | null> = {};
 
-  await Promise.all(
-    paths.map(async (path) => {
-      result[path] = await fileExists(repos, { owner, name, path });
-    }),
-  );
-
-  return result;
-}
-
-function isFileWithStringContent(
-  content: unknown,
-): content is { content: string } {
-  if (Array.isArray(content)) {
-    return false;
+  try {
+    return await decodedContent(repos, { owner, name, path });
+  } catch (e) {
+    return nullOnNotFound(e);
   }
-  const c = content as { type?: string; content?: unknown };
-
-  return c.type === "file" && typeof c.content === "string";
-}
-
-function nullOnNotFound(e: unknown): null {
-  if ((e as { status?: number }).status === 404) {
-    return null;
-  }
-  throw e;
 }
 
 /** Decoded UTF-8 body, or null when the path is a directory or a non-string blob. */
@@ -189,22 +189,22 @@ async function decodedContent(
   return Buffer.from(content.content, "base64").toString("utf-8");
 }
 
-/** Fetch decoded UTF-8 file content from repo's default branch; null on 404 or unconfigured. */
-export async function getRepoFileContent(
-  repo: string,
-  path: string,
-): Promise<string | null> {
-  if (!isGitHubConfigured()) {
+function isFileWithStringContent(
+  content: unknown,
+): content is { content: string } {
+  if (Array.isArray(content)) {
+    return false;
+  }
+  const c = content as { type?: string; content?: unknown };
+
+  return c.type === "file" && typeof c.content === "string";
+}
+
+function nullOnNotFound(e: unknown): null {
+  if ((e as { status?: number }).status === 404) {
     return null;
   }
-  const { repos } = (await octokit()).rest;
-  const [owner, name] = split(repo);
-
-  try {
-    return await decodedContent(repos, { owner, name, path });
-  } catch (e) {
-    return nullOnNotFound(e);
-  }
+  throw e;
 }
 
 export {
@@ -261,6 +261,66 @@ interface PrAt {
   headSha: string;
 }
 
+export async function getPRDetails(
+  repo: string,
+  prNumber: number,
+): Promise<PRDetails> {
+  const rest = (await octokit()).rest;
+  const [owner, repoName] = split(repo);
+  const pr = await fetchPr(rest.pulls, { owner, repoName, prNumber });
+  const signals = await prSignals(rest, {
+    owner,
+    repoName,
+    prNumber,
+    headSha: pr.head.sha,
+  });
+
+  return toPrDetails(pr, signals);
+}
+
+async function fetchPr(
+  pulls: RestApi["pulls"],
+  at: { owner: string; repoName: string; prNumber: number },
+) {
+  const { data: pr } = await pulls.get({
+    owner: at.owner,
+    repo: at.repoName,
+    pull_number: at.prNumber,
+  });
+
+  return pr;
+}
+
+/** Checks and reviews for a PR, fetched together. */
+async function prSignals(api: Pick<RestApi, "checks" | "pulls">, at: PrAt) {
+  const [checks, reviews] = await Promise.all([
+    fetchChecks(api.checks, at),
+    fetchReviews(api.pulls, at),
+  ]);
+
+  return { checks, reviews };
+}
+
+type PrPayload = Awaited<ReturnType<typeof fetchPr>>;
+type PrSignals = Awaited<ReturnType<typeof prSignals>>;
+
+function toPrDetails(pr: PrPayload, signals: PrSignals): PRDetails {
+  const { checks, reviews } = signals;
+
+  return {
+    number: pr.number,
+    title: pr.title,
+    state: pr.state,
+    draft: pr.draft ?? false,
+    merged: pr.merged,
+    mergeable: pr.mergeable ?? null,
+    html_url: pr.html_url,
+    checks,
+    reviews,
+    computed_status: computeStatus(pr, checks, reviews),
+  };
+}
+
 /** Degrades to an empty list rather than failing the read: a card that renders without its check list beats one that does not render at all. */
 async function fetchChecks(checks: RestApi["checks"], at: PrAt) {
   const result = await checks
@@ -290,64 +350,4 @@ async function fetchReviews(pulls: RestApi["pulls"], at: PrAt) {
     state: r.state,
     submitted_at: r.submitted_at || "",
   }));
-}
-
-/** Checks and reviews for a PR, fetched together. */
-async function prSignals(api: Pick<RestApi, "checks" | "pulls">, at: PrAt) {
-  const [checks, reviews] = await Promise.all([
-    fetchChecks(api.checks, at),
-    fetchReviews(api.pulls, at),
-  ]);
-
-  return { checks, reviews };
-}
-
-async function fetchPr(
-  pulls: RestApi["pulls"],
-  at: { owner: string; repoName: string; prNumber: number },
-) {
-  const { data: pr } = await pulls.get({
-    owner: at.owner,
-    repo: at.repoName,
-    pull_number: at.prNumber,
-  });
-
-  return pr;
-}
-
-type PrPayload = Awaited<ReturnType<typeof fetchPr>>;
-type PrSignals = Awaited<ReturnType<typeof prSignals>>;
-
-function toPrDetails(pr: PrPayload, signals: PrSignals): PRDetails {
-  const { checks, reviews } = signals;
-
-  return {
-    number: pr.number,
-    title: pr.title,
-    state: pr.state,
-    draft: pr.draft ?? false,
-    merged: pr.merged,
-    mergeable: pr.mergeable ?? null,
-    html_url: pr.html_url,
-    checks,
-    reviews,
-    computed_status: computeStatus(pr, checks, reviews),
-  };
-}
-
-export async function getPRDetails(
-  repo: string,
-  prNumber: number,
-): Promise<PRDetails> {
-  const rest = (await octokit()).rest;
-  const [owner, repoName] = split(repo);
-  const pr = await fetchPr(rest.pulls, { owner, repoName, prNumber });
-  const signals = await prSignals(rest, {
-    owner,
-    repoName,
-    prNumber,
-    headSha: pr.head.sha,
-  });
-
-  return toPrDetails(pr, signals);
 }

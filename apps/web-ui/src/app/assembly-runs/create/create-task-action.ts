@@ -12,23 +12,6 @@ interface CreateTaskFields {
   priority: string;
 }
 
-function readCreateTaskFields(formData: FormData): CreateTaskFields {
-  return {
-    description: formData.get("description") as string | null,
-    taskType: (formData.get("task_type") as string) || "general",
-    targetRepo: (formData.get("target_repo") as string) || "re-cinq/lore",
-    priority: formData.get("priority") === "immediate" ? "immediate" : "normal",
-  };
-}
-
-function resolveCreatedBy(
-  session: { user?: { name?: string | null; email?: string | null } } | null,
-): string {
-  const user = session?.user;
-
-  return (user?.name || user?.email || "ui") as string;
-}
-
 export async function createTask(formData: FormData) {
   const fields = readCreateTaskFields(formData);
 
@@ -51,4 +34,21 @@ export async function createTask(formData: FormData) {
   // Land on the task detail — a fresh task has no run row yet, and Run Now / Cancel live there.
   revalidatePath("/assembly-runs");
   redirect(`/tasks/${created.data.task_id}`);
+}
+
+function readCreateTaskFields(formData: FormData): CreateTaskFields {
+  return {
+    description: formData.get("description") as string | null,
+    taskType: (formData.get("task_type") as string) || "general",
+    targetRepo: (formData.get("target_repo") as string) || "re-cinq/lore",
+    priority: formData.get("priority") === "immediate" ? "immediate" : "normal",
+  };
+}
+
+function resolveCreatedBy(
+  session: { user?: { name?: string | null; email?: string | null } } | null,
+): string {
+  const user = session?.user;
+
+  return (user?.name || user?.email || "ui") as string;
 }

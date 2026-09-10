@@ -85,13 +85,19 @@ const SUMMARIZERS: Partial<Record<string, (payload: AuditPayload) => string>> =
     spec_trace_ingest: summarizeSpecTraceIngest,
   };
 
-function summarize(event: ConsoleAuditEvent): string {
-  // openapi.json marks `payload` required, but it describes server intent, not the wire: a malformed audit row can omit it.
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-  const payload = event.payload ?? {};
-  const summarizer = SUMMARIZERS[event.event_type];
-
-  return summarizer ? summarizer(payload) : event.event_type;
+export function deriveDarkFactoryConsole(
+  input: DarkFactoryConsoleInput,
+): DarkFactoryConsoleModel {
+  return {
+    activation: {
+      ...(input.resolved.enabled ? ACTIVE_ACTIVATION : DISABLED_ACTIVATION),
+      repoEnabled: input.resolved.enabled,
+    },
+    config: input.resolved,
+    trustLevel: input.trustLevel,
+    workItems: input.tasks.map(toWorkItem),
+    decisions: input.decisions.map(toDecisionItem),
+  };
 }
 
 function toWorkItem(task: ConsoleTask): WorkItem {
@@ -112,17 +118,11 @@ function toDecisionItem(event: ConsoleAuditEvent): DecisionItem {
   };
 }
 
-export function deriveDarkFactoryConsole(
-  input: DarkFactoryConsoleInput,
-): DarkFactoryConsoleModel {
-  return {
-    activation: {
-      ...(input.resolved.enabled ? ACTIVE_ACTIVATION : DISABLED_ACTIVATION),
-      repoEnabled: input.resolved.enabled,
-    },
-    config: input.resolved,
-    trustLevel: input.trustLevel,
-    workItems: input.tasks.map(toWorkItem),
-    decisions: input.decisions.map(toDecisionItem),
-  };
+function summarize(event: ConsoleAuditEvent): string {
+  // openapi.json marks `payload` required, but it describes server intent, not the wire: a malformed audit row can omit it.
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+  const payload = event.payload ?? {};
+  const summarizer = SUMMARIZERS[event.event_type];
+
+  return summarizer ? summarizer(payload) : event.event_type;
 }

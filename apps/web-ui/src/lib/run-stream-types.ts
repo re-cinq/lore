@@ -35,14 +35,6 @@ const FRAME_TYPES: ReadonlySet<string> = new Set<RunStreamFrame["type"]>([
   "catchup_complete",
 ]);
 
-function isEventType(value: string | null): value is AgentRunEventType {
-  return value !== null && EVENT_TYPES.has(value);
-}
-
-function stringList(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((v) => typeof v === "string") : [];
-}
-
 /** Parse SSE payload; returns null on error; silently drops unknown event types for forward-compatibility. */
 export function parseRunStreamEvent(raw: string): RunStreamEvent | null {
   try {
@@ -71,6 +63,10 @@ export function parseRunStreamRow(value: unknown): RunStreamEvent | null {
   return { id, taskId, eventType, createdAt, ...optionalEventFields(body) };
 }
 
+function isEventType(value: string | null): value is AgentRunEventType {
+  return value !== null && EVENT_TYPES.has(value);
+}
+
 /** Every field a row may omit; each one narrows to null/empty rather than rejecting the row. */
 function optionalEventFields(
   body: Record<string, unknown>,
@@ -90,6 +86,10 @@ function optionalEventFields(
   };
 }
 
+function stringList(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((v) => typeof v === "string") : [];
+}
+
 /** The key each state family must carry to be applicable; a frame missing it is dropped rather than applied half-formed. */
 const FRAME_KEYS: Record<
   Exclude<RunStreamFrame["type"], "agent_event">,
@@ -101,17 +101,6 @@ const FRAME_KEYS: Record<
   ci_check: ["check", "repo"],
   catchup_complete: ["last_id", ""],
 };
-
-function hasKey(
-  body: Record<string, unknown>,
-  [member, field]: [string, string],
-): boolean {
-  if (field === "") {
-    return str(body[member]) !== null;
-  }
-
-  return str(record(body[member])[field]) !== null;
-}
 
 /** Parse one SSE frame's data. An agent event is validated field by field (it feeds the reducer's fold); the state families are checked for their key and otherwise trusted, since they are re-sent whole on every reconnect. */
 export function parseRunStreamFrame(raw: string): RunStreamFrame | null {
@@ -139,4 +128,15 @@ function classifyFrame(body: Record<string, unknown>): RunStreamFrame | null {
   return hasKey(body, FRAME_KEYS[kind])
     ? (body as unknown as RunStreamFrame)
     : null;
+}
+
+function hasKey(
+  body: Record<string, unknown>,
+  [member, field]: [string, string],
+): boolean {
+  if (field === "") {
+    return str(body[member]) !== null;
+  }
+
+  return str(record(body[member])[field]) !== null;
 }

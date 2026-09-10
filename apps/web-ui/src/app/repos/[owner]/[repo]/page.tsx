@@ -42,6 +42,28 @@ export default async function RepoOverview(props: RepoOverviewProps) {
 
 type OverviewPanels = Awaited<ReturnType<typeof fetchOverviewPanels>>;
 
+/** Everything the overview renders, fetched fail-soft. A failed call costs its own panel, never the page. */
+async function loadRepoOverview(fullName: string) {
+  const panels = await fetchOverviewPanels(fullName);
+  const [chunkSummary, webhook] = await Promise.all([
+    getRepoChunkSummary(fullName).then((r) =>
+      r.status === "ok" ? r.data : { count: 0, convention_files: [] },
+    ),
+    withWebhookSecret(fullName, panels.webhook),
+  ]);
+  const settings = overviewSettings(panels.repoInfo?.settings);
+
+  return {
+    readme: panels.readme,
+    enrollmentChecks: buildEnrollmentChecks(panels, chunkSummary, webhook),
+    darkFactoryEnabled: settings.darkFactoryEnabled,
+    trustLevel: settings.trustLevel,
+    ...weeklyCounts(panels.activityCounts),
+    recentTasks: panels.recentTasks as unknown as RecentTask[],
+    latestEvents: panels.latestEvents,
+  };
+}
+
 function buildEnrollmentChecks(
   panels: OverviewPanels,
   chunkSummary: { count: number; convention_files: string[] },
@@ -69,28 +91,6 @@ function weeklyCounts(activityCounts: OverviewPanels["activityCounts"]) {
   };
 }
 
-/** Everything the overview renders, fetched fail-soft. A failed call costs its own panel, never the page. */
-async function loadRepoOverview(fullName: string) {
-  const panels = await fetchOverviewPanels(fullName);
-  const [chunkSummary, webhook] = await Promise.all([
-    getRepoChunkSummary(fullName).then((r) =>
-      r.status === "ok" ? r.data : { count: 0, convention_files: [] },
-    ),
-    withWebhookSecret(fullName, panels.webhook),
-  ]);
-  const settings = overviewSettings(panels.repoInfo?.settings);
-
-  return {
-    readme: panels.readme,
-    enrollmentChecks: buildEnrollmentChecks(panels, chunkSummary, webhook),
-    darkFactoryEnabled: settings.darkFactoryEnabled,
-    trustLevel: settings.trustLevel,
-    ...weeklyCounts(panels.activityCounts),
-    recentTasks: panels.recentTasks as unknown as RecentTask[],
-    latestEvents: panels.latestEvents,
-  };
-}
-
 /** The secret is admin-scoped and fetched only for a hook that still needs setting up by hand — it is pasted into GitHub, never sent to a client. */
 async function withWebhookSecret(
   fullName: string,
@@ -102,6 +102,16 @@ async function withWebhookSecret(
   const secret = await getWebhookSecret(fullName).catch(() => null);
 
   return { ...webhook, secret: secret ?? undefined };
+}
+
+/** The eight panel reads, all fail-soft and all in one batch: page latency is the slowest call, not their sum (#1030). Both halves are started before either is awaited, so splitting them costs no round trip. */
+async function fetchOverviewPanels(fullName: string) {
+  const [repoPanels, integrationPanels] = await Promise.all([
+    fetchRepoPanels(fullName),
+    fetchIntegrationPanels(fullName),
+  ]);
+
+  return { ...repoPanels, ...integrationPanels };
 }
 
 /** What the repo itself says: its README, its record, its recent work. Every read is fail-soft — a panel that cannot load renders empty rather than taking the page down with it. */
@@ -121,17 +131,6 @@ async function fetchRepoPanels(fullName: string) {
   ]);
 
   return { readme, repoInfo, recentTasks, latestEvents };
-}
-
-/** The onboarding files Lore expects a repo to carry, each reported as null when the read fails. */
-function fetchOnboardingFiles(fullName: string) {
-  return checkRepoFiles(fullName, [
-    "AGENTS.md",
-    ".github/workflows/lore-ingest.yml",
-  ]).catch(() => ({
-    "AGENTS.md": null,
-    ".github/workflows/lore-ingest.yml": null,
-  }));
 }
 
 /** How well the repo is wired into Lore: its session, its onboarding files, its webhook, its dark-factory counters. Fail-soft in the same way, and each figure falls back to null rather than to zero — "not known" is not "none". */
@@ -154,12 +153,13 @@ async function fetchIntegrationPanels(fullName: string) {
   return { localMcpRow, githubFiles, webhook, activityCounts };
 }
 
-/** The eight panel reads, all fail-soft and all in one batch: page latency is the slowest call, not their sum (#1030). Both halves are started before either is awaited, so splitting them costs no round trip. */
-async function fetchOverviewPanels(fullName: string) {
-  const [repoPanels, integrationPanels] = await Promise.all([
-    fetchRepoPanels(fullName),
-    fetchIntegrationPanels(fullName),
-  ]);
-
-  return { ...repoPanels, ...integrationPanels };
+/** The onboarding files Lore expects a repo to carry, each reported as null when the read fails. */
+function fetchOnboardingFiles(fullName: string) {
+  return checkRepoFiles(fullName, [
+    "AGENTS.md",
+    ".github/workflows/lore-ingest.yml",
+  ]).catch(() => ({
+    "AGENTS.md": null,
+    ".github/workflows/lore-ingest.yml": null,
+  }));
 }

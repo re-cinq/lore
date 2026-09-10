@@ -18,12 +18,35 @@ const INSTALL_STEP = {
   },
 };
 
-function CommandRow({ command }: { command: string }) {
+/** Step 2 is what eventually flips the MCP check green. */
+export default function LocalSetupSteps() {
   return (
-    <div className={styles.commandRow}>
-      <pre className={styles.command}>{command}</pre>
-      <CopyButton text={command} />
-    </div>
+    <>
+      <div className={`meta ${styles.groupLabel}`}>Your local setup</div>
+      <SetupSteps />
+      <p className={`meta ${styles.footnote}`}>
+        These run on your machine and aren&apos;t auto-verified — completing
+        step 2 flips <strong>Used locally via MCP</strong> green once a session
+        summary is recorded.
+      </p>
+    </>
+  );
+}
+
+/** The three commands a developer runs once per machine. Ordered because they depend on each other — the install registers the MCP server the second step then loads. */
+function SetupSteps() {
+  return (
+    <ol className={styles.steps}>
+      <Step {...INSTALL_STEP} />
+      <Step
+        label="Open this repo and start Claude Code — org context loads automatically."
+        command="claude"
+      />
+      <Step
+        label="Verify context loads."
+        command={'claude "how do we handle auth in this repo?"'}
+      />
+    </ol>
   );
 }
 
@@ -50,34 +73,11 @@ function Step({ label, note, command, alt }: StepProps) {
   );
 }
 
-/** The three commands a developer runs once per machine. Ordered because they depend on each other — the install registers the MCP server the second step then loads. */
-function SetupSteps() {
+function CommandRow({ command }: { command: string }) {
   return (
-    <ol className={styles.steps}>
-      <Step {...INSTALL_STEP} />
-      <Step
-        label="Open this repo and start Claude Code — org context loads automatically."
-        command="claude"
-      />
-      <Step
-        label="Verify context loads."
-        command={'claude "how do we handle auth in this repo?"'}
-      />
-    </ol>
-  );
-}
-
-/** Step 2 is what eventually flips the MCP check green. */
-export default function LocalSetupSteps() {
-  return (
-    <>
-      <div className={`meta ${styles.groupLabel}`}>Your local setup</div>
-      <SetupSteps />
-      <p className={`meta ${styles.footnote}`}>
-        These run on your machine and aren&apos;t auto-verified — completing
-        step 2 flips <strong>Used locally via MCP</strong> green once a session
-        summary is recorded.
-      </p>
-    </>
+    <div className={styles.commandRow}>
+      <pre className={styles.command}>{command}</pre>
+      <CopyButton text={command} />
+    </div>
   );
 }

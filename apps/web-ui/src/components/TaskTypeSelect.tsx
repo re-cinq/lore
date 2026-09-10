@@ -17,14 +17,6 @@ interface TaskTypeSelectProps {
   options: { value: string; label: string }[];
 }
 
-function TaskTypeOptions({ options }: TaskTypeSelectProps) {
-  return options.map((o) => (
-    <option key={o.value} value={o.value}>
-      {o.label}
-    </option>
-  ));
-}
-
 export function TaskTypeSelect({ options }: TaskTypeSelectProps) {
   const [selected, setSelected] = useState(options[0]?.value ?? "");
   const description = DESCRIPTIONS[selected];
@@ -42,4 +34,12 @@ export function TaskTypeSelect({ options }: TaskTypeSelectProps) {
       {description && <span className="meta">{description}</span>}
     </>
   );
+}
+
+function TaskTypeOptions({ options }: TaskTypeSelectProps) {
+  return options.map((o) => (
+    <option key={o.value} value={o.value}>
+      {o.label}
+    </option>
+  ));
 }

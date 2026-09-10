@@ -42,6 +42,40 @@ const KIND_LABEL: Record<AgentKind, string> = {
   task: "Task",
 };
 
+type WhyColumn = Pick<AgentRowsProps, "hasWhy">;
+
+interface TaskAgentsToggleProps {
+  taskAgentCount: number;
+  showTaskAgents: boolean;
+  onToggle: () => void;
+}
+
+interface AgentRowsProps {
+  agents: AgentsTableProps["agents"];
+  hasWhy: boolean;
+}
+
+/** Shared sessions/agents table for `/agents` and the per-repo Agents tab; pure presentation, the container tags each row's `kind` via `classifyAgent`. */
+export default function AgentsTable(props: AgentsTableProps) {
+  const { agents, intro, title = "Agents", embedded = false } = props;
+  const [showTaskAgents, setShowTaskAgents] = useState(false);
+  const taskAgentCount = agents.filter((a) => a.kind === "task").length;
+  const visible = showTaskAgents ? agents : localAgents(agents);
+  const hasWhy = hasReasonColumn(agents);
+
+  return (
+    <div>
+      {!embedded && <AgentsTableHeading title={title} intro={intro} />}
+      <TaskAgentsToggle
+        taskAgentCount={taskAgentCount}
+        showTaskAgents={showTaskAgents}
+        onToggle={() => setShowTaskAgents((v) => !v)}
+      />
+      <AgentRows agents={visible} hasWhy={hasWhy} />
+    </div>
+  );
+}
+
 // Task agents are ephemeral audit rows, so they stay behind the toggle until asked for.
 function localAgents(agents: AgentRow[]): AgentRow[] {
   return agents.filter((a) => a.kind === "local");
@@ -50,32 +84,6 @@ function localAgents(agents: AgentRow[]): AgentRow[] {
 // The Why column exists only when some agent has a reason to show.
 function hasReasonColumn(agents: AgentRow[]): boolean {
   return agents.some((a) => a.reason != null || a.reason_type != null);
-}
-
-type WhyColumn = Pick<AgentRowsProps, "hasWhy">;
-
-function agentColumns(cols: WhyColumn): string[] {
-  return [
-    "Agent",
-    "Type",
-    "Created by",
-    ...(cols.hasWhy ? ["Why"] : []),
-    "Tasks",
-    "Cost",
-    "Memories",
-    "Last Active",
-  ];
-}
-
-/** The collapsed half of the audit toggle; the expanded half is a fixed word. */
-function auditToggleLabel(taskAgentCount: number): string {
-  return `Show task agents (audit) — ${taskAgentCount} hidden`;
-}
-
-interface TaskAgentsToggleProps {
-  taskAgentCount: number;
-  showTaskAgents: boolean;
-  onToggle: () => void;
 }
 
 function TaskAgentsToggle({
@@ -99,17 +107,39 @@ function TaskAgentsToggle({
   );
 }
 
-/** The "why" cell, present only when some agent HAS a reason — a column of dashes says less than no column. */
-function whyCells(a: AgentRow, cols: WhyColumn): ReactNode[] {
-  if (!cols.hasWhy) {
-    return [];
-  }
+/** The collapsed half of the audit toggle; the expanded half is a fixed word. */
+function auditToggleLabel(taskAgentCount: number): string {
+  return `Show task agents (audit) — ${taskAgentCount} hidden`;
+}
 
+/** The table proper. Keyed on `agent_id`, falling back to the row index for calls nothing attributed — an unattributed row is still a row, and dropping it would make the totals disagree with the list. */
+function AgentRows({ agents, hasWhy }: AgentRowsProps) {
+  return (
+    <DataTable
+      columns={agentColumns({ hasWhy })}
+      rows={agents}
+      rowKey={(a, index) => a.agent_id ?? `unattributed-${index}`}
+      empty={
+        <EmptyState
+          title="No agents yet"
+          description="Agents appear as developers use the Lore MCP server. Per-task run agents stay behind the audit toggle."
+        />
+      }
+      cells={(a) => agentCells(a, { hasWhy })}
+    />
+  );
+}
+
+function agentColumns(cols: WhyColumn): string[] {
   return [
-    <span key="why">
-      {a.reason_type && <span className="badge">{a.reason_type}</span>}{" "}
-      <span className="meta">{truncate(a.reason, 50)}</span>
-    </span>,
+    "Agent",
+    "Type",
+    "Created by",
+    ...(cols.hasWhy ? ["Why"] : []),
+    "Tasks",
+    "Cost",
+    "Memories",
+    "Last Active",
   ];
 }
 
@@ -133,48 +163,18 @@ function agentCells(a: AgentRow, cols: WhyColumn): ReactNode[] {
   ];
 }
 
-interface AgentRowsProps {
-  agents: AgentsTableProps["agents"];
-  hasWhy: boolean;
-}
+/** The "why" cell, present only when some agent HAS a reason — a column of dashes says less than no column. */
+function whyCells(a: AgentRow, cols: WhyColumn): ReactNode[] {
+  if (!cols.hasWhy) {
+    return [];
+  }
 
-/** The table proper. Keyed on `agent_id`, falling back to the row index for calls nothing attributed — an unattributed row is still a row, and dropping it would make the totals disagree with the list. */
-function AgentRows({ agents, hasWhy }: AgentRowsProps) {
-  return (
-    <DataTable
-      columns={agentColumns({ hasWhy })}
-      rows={agents}
-      rowKey={(a, index) => a.agent_id ?? `unattributed-${index}`}
-      empty={
-        <EmptyState
-          title="No agents yet"
-          description="Agents appear as developers use the Lore MCP server. Per-task run agents stay behind the audit toggle."
-        />
-      }
-      cells={(a) => agentCells(a, { hasWhy })}
-    />
-  );
-}
-
-/** Shared sessions/agents table for `/agents` and the per-repo Agents tab; pure presentation, the container tags each row's `kind` via `classifyAgent`. */
-export default function AgentsTable(props: AgentsTableProps) {
-  const { agents, intro, title = "Agents", embedded = false } = props;
-  const [showTaskAgents, setShowTaskAgents] = useState(false);
-  const taskAgentCount = agents.filter((a) => a.kind === "task").length;
-  const visible = showTaskAgents ? agents : localAgents(agents);
-  const hasWhy = hasReasonColumn(agents);
-
-  return (
-    <div>
-      {!embedded && <AgentsTableHeading title={title} intro={intro} />}
-      <TaskAgentsToggle
-        taskAgentCount={taskAgentCount}
-        showTaskAgents={showTaskAgents}
-        onToggle={() => setShowTaskAgents((v) => !v)}
-      />
-      <AgentRows agents={visible} hasWhy={hasWhy} />
-    </div>
-  );
+  return [
+    <span key="why">
+      {a.reason_type && <span className="badge">{a.reason_type}</span>}{" "}
+      <span className="meta">{truncate(a.reason, 50)}</span>
+    </span>,
+  ];
 }
 
 function AgentLink({ agentId }: { agentId: string | null }) {
@@ -204,6 +204,20 @@ function AgentsTableHeading({
   );
 }
 
+/** What the two kinds are, and the caveat on cost. Both are things a reader asks once and then knows, which is what a popover is for — a permanent paragraph would be re-read on every visit. */
+function AgentKindsHelp() {
+  return (
+    <HelpPopover label="What agents are">
+      <p>Two kinds of session show up here:</p>
+      <AgentKindsPoints />
+      <p>
+        <strong>Cost</strong> sums tracked <code>llm_calls</code>; headless
+        agent token spend is not metered, so it is a lower bound.
+      </p>
+    </HelpPopover>
+  );
+}
+
 // The distinction between the two kinds of agent.
 function AgentKindsPoints() {
   return (
@@ -219,19 +233,5 @@ function AgentKindsPoints() {
         They exist for auditing, so they&apos;re hidden until you ask for them.
       </li>
     </ul>
-  );
-}
-
-/** What the two kinds are, and the caveat on cost. Both are things a reader asks once and then knows, which is what a popover is for — a permanent paragraph would be re-read on every visit. */
-function AgentKindsHelp() {
-  return (
-    <HelpPopover label="What agents are">
-      <p>Two kinds of session show up here:</p>
-      <AgentKindsPoints />
-      <p>
-        <strong>Cost</strong> sums tracked <code>llm_calls</code>; headless
-        agent token spend is not metered, so it is a lower bound.
-      </p>
-    </HelpPopover>
   );
 }

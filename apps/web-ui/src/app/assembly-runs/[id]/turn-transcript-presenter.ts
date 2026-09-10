@@ -26,19 +26,6 @@ export function turnsUrl(runId: string, afterId: string): string {
     : `${base}&after=${encodeURIComponent(afterId)}`;
 }
 
-// Scans backwards for the last row with a string id so one bad row can't stall paging.
-function lastStringId(page: readonly unknown[]): string | null {
-  for (let i = page.length - 1; i >= 0; i--) {
-    const id = (page[i] as { id?: unknown } | null)?.id;
-
-    if (typeof id === "string") {
-      return id;
-    }
-  }
-
-  return null;
-}
-
 // Floor's `hasMore` is authoritative when present; absent (deploy skew, #1310 fallback), falls back to the short-page rule.
 export function nextTurnsCursor(
   page: readonly unknown[],
@@ -53,6 +40,19 @@ export function nextTurnsCursor(
   }
 
   return lastStringId(page);
+}
+
+// Scans backwards for the last row with a string id so one bad row can't stall paging.
+function lastStringId(page: readonly unknown[]): string | null {
+  for (let i = page.length - 1; i >= 0; i--) {
+    const id = (page[i] as { id?: unknown } | null)?.id;
+
+    if (typeof id === "string") {
+      return id;
+    }
+  }
+
+  return null;
 }
 
 // The response's `hasMore` when boolean, else undefined — an absent/malformed flag must select the fallback rule, never a truthy string.
@@ -81,6 +81,24 @@ export interface TimedLogEntry {
   entry: LogEntry;
 }
 
+// Each turn's envelope classified via the pod-log-viewer rules, tagged with its own createdAt; an unclassifiable envelope still yields one raw entry.
+export function conversationEntries(
+  turns: readonly AgentRunTurn[],
+): TimedLogEntry[] {
+  const timed: TimedLogEntry[] = [];
+
+  for (const turn of turns) {
+    const entries = logEntriesFromValue(
+      turn.envelope,
+      JSON.stringify(turn.envelope),
+    );
+
+    entries.forEach((entry) => appendTimedEntry(timed, entry, turn.createdAt));
+  }
+
+  return timed;
+}
+
 // Appends one classified entry, folding it into the previous when it continues or supersedes it.
 function appendTimedEntry(
   timed: TimedLogEntry[],
@@ -103,24 +121,6 @@ function appendTimedEntry(
     return;
   }
   timed.push({ at, entry });
-}
-
-// Each turn's envelope classified via the pod-log-viewer rules, tagged with its own createdAt; an unclassifiable envelope still yields one raw entry.
-export function conversationEntries(
-  turns: readonly AgentRunTurn[],
-): TimedLogEntry[] {
-  const timed: TimedLogEntry[] = [];
-
-  for (const turn of turns) {
-    const entries = logEntriesFromValue(
-      turn.envelope,
-      JSON.stringify(turn.envelope),
-    );
-
-    entries.forEach((entry) => appendTimedEntry(timed, entry, turn.createdAt));
-  }
-
-  return timed;
 }
 
 // A compact local clock time for a stored turn timestamp, empty when it does not parse — never a literal "Invalid Date" in the UI.

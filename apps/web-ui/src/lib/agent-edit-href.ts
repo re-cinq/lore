@@ -10,25 +10,6 @@ export interface AgentDefRef {
   project_id?: string | null;
 }
 
-function hrefForAgentNode(
-  node: DefinitionNode,
-  defs: readonly AgentDefRef[],
-  repo: string,
-): [string, string] | null {
-  const recipe = recipeNameFor(node);
-  const def = defs.find((d) => d.name === recipe);
-
-  if (recipe === null || !def) {
-    return null;
-  }
-
-  const href = def.project_id
-    ? `/repos/${repo}/agents/${encodeURIComponent(recipe)}/edit`
-    : `/agents/edit/${encodeURIComponent(recipe)}`;
-
-  return [node.id, href];
-}
-
 /** nodeId → editor href, for every agent node whose recipe the catalog holds. */
 export function agentEditHrefs(
   definition: AssemblyLineDefinition | null,
@@ -50,4 +31,23 @@ export function agentEditHrefs(
   }
 
   return hrefs;
+}
+
+function hrefForAgentNode(
+  node: DefinitionNode,
+  defs: readonly AgentDefRef[],
+  repo: string,
+): [string, string] | null {
+  const recipe = recipeNameFor(node);
+  const def = defs.find((d) => d.name === recipe);
+
+  if (recipe === null || !def) {
+    return null;
+  }
+
+  const href = def.project_id
+    ? `/repos/${repo}/agents/${encodeURIComponent(recipe)}/edit`
+    : `/agents/edit/${encodeURIComponent(recipe)}`;
+
+  return [node.id, href];
 }

@@ -26,45 +26,38 @@ const TIME_AGO_UNITS: Array<[number, string]> = [
   [60, "minute"],
 ];
 
-function formatTimeAgo(seconds: number, span: number, unit: string): string {
-  const n = Math.floor(seconds / span);
+const EMPTY_BACKLOG =
+  "The backlog is empty. Label an issue priority:high, priority:medium, or priority:low to queue it.";
 
-  return `${n} ${unit}${n === 1 ? "" : "s"} ago`;
+/** Tone per node state: unrecognised renders as failed-red so new outcomes are loud. */
+const DOT_STATES = new Set([
+  "success",
+  "running",
+  "waiting",
+  "pending",
+  "changes_requested",
+]);
+
+type PipelineNode = NonNullable<LoopTicket["pipeline"]>[number];
+
+interface LoopViewProps {
+  loop: ImplementationLoop;
+  toggle: (next: { enabled: boolean }) => Promise<void>;
 }
 
-/** Relative time for the Status column; exported for its test. */
-export function timeAgo(iso: string | null, now: Date = new Date()): string {
-  if (!iso) {
-    return "";
-  }
-  const seconds = Math.max(
-    0,
-    Math.floor((now.getTime() - new Date(iso).getTime()) / 1000),
-  );
+/** Pure view (DDAU): data down as `loop`, toggle up via bound server action. */
+export default function ImplementationLoopView(props: LoopViewProps) {
+  const { loop, toggle } = props;
 
-  if (seconds < 60) {
-    return "just now";
-  }
-  const match = TIME_AGO_UNITS.find(([span]) => seconds >= span);
-
-  return match ? formatTimeAgo(seconds, match[0], match[1]) : "";
-}
-
-/** How a ticket enters the loop and what it does with it. Kept beside the queues because the priority label IS the whole opt-in, and a reader looking at an empty backlog needs to know that before anything appears. */
-function LoopExplainer() {
   return (
-    <p className={`meta ${styles.howTo}`}>
-      Label an open issue with exactly one of <code>priority:high</code>,{" "}
-      <code>priority:medium</code>, or <code>priority:low</code> to queue it —
-      the label is the whole opt-in. While the loop is enabled it picks the
-      highest-priority ticket (oldest first on ties), implements it test-first,
-      opens a pull request, and waits until that PR is green with every review
-      thread resolved before picking the next. It never merges — a human does
-      that, whenever they like. A ticket that gets stuck is labelled{" "}
-      <code>lore:blocked</code> with a comment saying why; remove the label to
-      re-queue it. An issue carrying two priority labels is skipped until a
-      human settles the ambiguity.
-    </p>
+    <div>
+      <LoopHeader enabled={loop.enabled} toggle={toggle} />
+      <LoopExplainer />
+
+      {backlogStages(loop).map((stage) => (
+        <LoopSection key={stage.heading} {...stage} />
+      ))}
+    </div>
   );
 }
 
@@ -94,24 +87,29 @@ function LoopHeader({ enabled, toggle }: LoopHeaderProps) {
   );
 }
 
+/** How a ticket enters the loop and what it does with it. Kept beside the queues because the priority label IS the whole opt-in, and a reader looking at an empty backlog needs to know that before anything appears. */
+function LoopExplainer() {
+  return (
+    <p className={`meta ${styles.howTo}`}>
+      Label an open issue with exactly one of <code>priority:high</code>,{" "}
+      <code>priority:medium</code>, or <code>priority:low</code> to queue it —
+      the label is the whole opt-in. While the loop is enabled it picks the
+      highest-priority ticket (oldest first on ties), implements it test-first,
+      opens a pull request, and waits until that PR is green with every review
+      thread resolved before picking the next. It never merges — a human does
+      that, whenever they like. A ticket that gets stuck is labelled{" "}
+      <code>lore:blocked</code> with a comment saying why; remove the label to
+      re-queue it. An issue carrying two priority labels is skipped until a
+      human settles the ambiguity.
+    </p>
+  );
+}
+
 interface LoopSectionProps {
   heading: string;
   tickets: ImplementationLoop["next"];
   emptyText: string;
 }
-
-/** One stage of the backlog. Each empty text says what would put a ticket here rather than just "none", because an empty section usually means the reader has something to do. */
-function LoopSection({ heading, tickets, emptyText }: LoopSectionProps) {
-  return (
-    <section className={styles.section}>
-      <h2>{heading}</h2>
-      <TicketTable tickets={tickets} emptyText={emptyText} />
-    </section>
-  );
-}
-
-const EMPTY_BACKLOG =
-  "The backlog is empty. Label an issue priority:high, priority:medium, or priority:low to queue it.";
 
 /** The three stages of the backlog, in the order a ticket moves through them. */
 function backlogStages(loop: ImplementationLoop): LoopSectionProps[] {
@@ -134,37 +132,13 @@ function backlogStages(loop: ImplementationLoop): LoopSectionProps[] {
   ];
 }
 
-interface LoopViewProps {
-  loop: ImplementationLoop;
-  toggle: (next: { enabled: boolean }) => Promise<void>;
-}
-
-/** Pure view (DDAU): data down as `loop`, toggle up via bound server action. */
-export default function ImplementationLoopView(props: LoopViewProps) {
-  const { loop, toggle } = props;
-
+/** One stage of the backlog. Each empty text says what would put a ticket here rather than just "none", because an empty section usually means the reader has something to do. */
+function LoopSection({ heading, tickets, emptyText }: LoopSectionProps) {
   return (
-    <div>
-      <LoopHeader enabled={loop.enabled} toggle={toggle} />
-      <LoopExplainer />
-
-      {backlogStages(loop).map((stage) => (
-        <LoopSection key={stage.heading} {...stage} />
-      ))}
-    </div>
-  );
-}
-
-function TicketTableHead() {
-  return (
-    <thead>
-      <tr>
-        <th className={styles.statusCol}>Status</th>
-        <th>Ticket</th>
-        <th>Stages</th>
-        <th className={styles.actionsCol}>Actions</th>
-      </tr>
-    </thead>
+    <section className={styles.section}>
+      <h2>{heading}</h2>
+      <TicketTable tickets={tickets} emptyText={emptyText} />
+    </section>
   );
 }
 
@@ -190,6 +164,48 @@ function TicketTable({ tickets, emptyText }: TicketTableProps) {
   );
 }
 
+function TicketTableHead() {
+  return (
+    <thead>
+      <tr>
+        <th className={styles.statusCol}>Status</th>
+        <th>Ticket</th>
+        <th>Stages</th>
+        <th className={styles.actionsCol}>Actions</th>
+      </tr>
+    </thead>
+  );
+}
+
+function TicketRow({ ticket }: { ticket: LoopTicket }) {
+  return (
+    <tr data-testid="ticket-row">
+      <TicketStatusCell ticket={ticket} />
+      <TicketTitleCell ticket={ticket} />
+      <td>
+        <MiniPipeline ticket={ticket} />
+      </td>
+      <TicketActionsCell ticket={ticket} />
+    </tr>
+  );
+}
+
+function TicketStatusCell({ ticket }: { ticket: LoopTicket }) {
+  const tone = STATUS_TONE[ticket.state] ?? "danger";
+
+  return (
+    <td>
+      <span
+        className={`${styles.statusBadge} ${styles[`tone_${tone}`]}`}
+        data-testid="ticket-status"
+      >
+        {ticket.state}
+      </span>
+      <TicketTime ticket={ticket} />
+    </td>
+  );
+}
+
 /** When the ticket entered its current state. Absent on a ticket the loop has not touched yet. */
 function TicketTime({ ticket }: { ticket: LoopTicket }) {
   if (!ticket.created_at) {
@@ -207,18 +223,38 @@ function TicketTime({ ticket }: { ticket: LoopTicket }) {
   );
 }
 
-function TicketStatusCell({ ticket }: { ticket: LoopTicket }) {
-  const tone = STATUS_TONE[ticket.state] ?? "danger";
+/** Relative time for the Status column; exported for its test. */
+export function timeAgo(iso: string | null, now: Date = new Date()): string {
+  if (!iso) {
+    return "";
+  }
+  const seconds = Math.max(
+    0,
+    Math.floor((now.getTime() - new Date(iso).getTime()) / 1000),
+  );
 
+  if (seconds < 60) {
+    return "just now";
+  }
+  const match = TIME_AGO_UNITS.find(([span]) => seconds >= span);
+
+  return match ? formatTimeAgo(seconds, match[0], match[1]) : "";
+}
+
+function formatTimeAgo(seconds: number, span: number, unit: string): string {
+  const n = Math.floor(seconds / span);
+
+  return `${n} ${unit}${n === 1 ? "" : "s"} ago`;
+}
+
+function TicketTitleCell({ ticket }: { ticket: LoopTicket }) {
   return (
     <td>
-      <span
-        className={`${styles.statusBadge} ${styles[`tone_${tone}`]}`}
-        data-testid="ticket-status"
-      >
-        {ticket.state}
-      </span>
-      <TicketTime ticket={ticket} />
+      <TicketLink ticket={ticket} />
+      {ticket.priority && (
+        <span className={styles.priority}>{ticket.priority}</span>
+      )}
+      <TicketError ticket={ticket} />
     </td>
   );
 }
@@ -253,27 +289,34 @@ function TicketError({ ticket }: { ticket: LoopTicket }) {
   );
 }
 
-function TicketTitleCell({ ticket }: { ticket: LoopTicket }) {
-  return (
-    <td>
-      <TicketLink ticket={ticket} />
-      {ticket.priority && (
-        <span className={styles.priority}>{ticket.priority}</span>
-      )}
-      <TicketError ticket={ticket} />
-    </td>
-  );
-}
-
-function TicketPrLink({ ticket }: { ticket: LoopTicket }) {
-  if (!ticket.pr_url) {
+function MiniPipeline({ ticket }: { ticket: LoopTicket }) {
+  if (!ticket.pipeline || !ticket.run_id) {
     return null;
   }
 
   return (
-    <a href={ticket.pr_url} target="_blank" rel="noreferrer" className="button">
-      PR
+    <a
+      className={styles.miniPipeline}
+      href={`/assembly-runs/${ticket.run_id}`}
+      title="Open the live run"
+      data-testid="mini-pipeline"
+    >
+      {ticket.pipeline.map((node) => (
+        <PipelineDot key={node.node_id} node={node} />
+      ))}
     </a>
+  );
+}
+
+function PipelineDot({ node }: { node: PipelineNode }) {
+  const state = DOT_STATES.has(node.state) ? node.state : "failed";
+
+  return (
+    <span
+      title={`${node.node_id}: ${node.state}`}
+      data-testid={`mini-node-${node.node_id}`}
+      className={`${styles.dot} ${styles[state as keyof typeof styles]}`}
+    />
   );
 }
 
@@ -290,57 +333,14 @@ function TicketActionsCell({ ticket }: { ticket: LoopTicket }) {
   );
 }
 
-function TicketRow({ ticket }: { ticket: LoopTicket }) {
-  return (
-    <tr data-testid="ticket-row">
-      <TicketStatusCell ticket={ticket} />
-      <TicketTitleCell ticket={ticket} />
-      <td>
-        <MiniPipeline ticket={ticket} />
-      </td>
-      <TicketActionsCell ticket={ticket} />
-    </tr>
-  );
-}
-
-/** Tone per node state: unrecognised renders as failed-red so new outcomes are loud. */
-const DOT_STATES = new Set([
-  "success",
-  "running",
-  "waiting",
-  "pending",
-  "changes_requested",
-]);
-
-type PipelineNode = NonNullable<LoopTicket["pipeline"]>[number];
-
-function PipelineDot({ node }: { node: PipelineNode }) {
-  const state = DOT_STATES.has(node.state) ? node.state : "failed";
-
-  return (
-    <span
-      title={`${node.node_id}: ${node.state}`}
-      data-testid={`mini-node-${node.node_id}`}
-      className={`${styles.dot} ${styles[state as keyof typeof styles]}`}
-    />
-  );
-}
-
-function MiniPipeline({ ticket }: { ticket: LoopTicket }) {
-  if (!ticket.pipeline || !ticket.run_id) {
+function TicketPrLink({ ticket }: { ticket: LoopTicket }) {
+  if (!ticket.pr_url) {
     return null;
   }
 
   return (
-    <a
-      className={styles.miniPipeline}
-      href={`/assembly-runs/${ticket.run_id}`}
-      title="Open the live run"
-      data-testid="mini-pipeline"
-    >
-      {ticket.pipeline.map((node) => (
-        <PipelineDot key={node.node_id} node={node} />
-      ))}
+    <a href={ticket.pr_url} target="_blank" rel="noreferrer" className="button">
+      PR
     </a>
   );
 }

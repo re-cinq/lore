@@ -33,19 +33,30 @@ export function toUserAnswers(f: FeedbackState): SectionAnswers {
   };
 }
 
-function SectionCard({
-  title,
-  highlight,
-  children,
-}: {
-  title: string;
-  highlight?: boolean;
-  children: React.ReactNode;
-}) {
+interface GapSectionsProps {
+  gap: GapResult;
+  feedback: FeedbackState;
+  onChange: (next: FeedbackState) => void;
+  onCreateDraft: (title: string, prompt: string) => void;
+}
+
+export default function GapSections(props: GapSectionsProps) {
+  const { gap, feedback, onChange, onCreateDraft } = props;
+  const sections = sectionsOf(gap);
+
   return (
-    <div className={highlight ? "spec-card overview" : "spec-card"}>
-      <h3>{title}</h3>
-      {children}
+    <div>
+      {sections.length === 0 && (
+        <EmptySections draft={gap.draft_spec_markdown?.trim() ?? ""} />
+      )}
+      <SectionList {...props} sections={sections} />
+
+      <SplitSuggestionSlot
+        split={gap.split_suggestion}
+        onCreateDraft={onCreateDraft}
+      />
+
+      <FreeFormCard feedback={feedback} onChange={onChange} />
     </div>
   );
 }
@@ -72,92 +83,33 @@ function EmptySections({ draft }: { draft: string }) {
   );
 }
 
-/** The section's mockups, when the round produced any. */
-function SectionMockups({
-  section,
-  stylesheet,
-}: {
-  section: GapSection;
-  stylesheet: GapResult["mockup_stylesheet"];
-}) {
-  if (!section.mockups || section.mockups.length === 0) {
-    return null;
-  }
-
-  return <MockupSection mockups={section.mockups} stylesheet={stylesheet} />;
-}
-
-interface SectionBodyProps {
-  section: GapSection;
-  index: number;
-  gap: GapResult;
+interface FeedbackProps {
   feedback: FeedbackState;
   onChange: (next: FeedbackState) => void;
 }
 
-/** The section's follow-up questions, in the order the round asked them. */
-function SectionQuestions(props: Omit<SectionBodyProps, "index" | "gap">) {
-  const { section, feedback, onChange } = props;
+/** Every section the round produced. Keyed on title AND index because two sections can legitimately share a heading, and a duplicate key would let React reuse one section's inputs for the other. */
+function SectionList(
+  props: FeedbackProps & { sections: GapSection[]; gap: GapResult },
+) {
+  const { sections, gap, feedback, onChange } = props;
 
-  return (
-    <>
-      {(section.questions ?? []).map((q) => (
-        <QuestionInput
-          key={q.id}
-          q={q}
-          feedback={feedback}
-          onChange={onChange}
-        />
-      ))}
-    </>
-  );
-}
-
-function SectionBody(props: SectionBodyProps) {
-  const { section, index, gap, feedback, onChange } = props;
-
-  return (
-    <SectionCard title={section.title} highlight={index === 0}>
-      {section.content && <Markdown markdown={section.content} />}
-      <SectionMockups section={section} stylesheet={gap.mockup_stylesheet} />
-      <SectionQuestions
-        section={section}
-        feedback={feedback}
-        onChange={onChange}
-      />
-      <SectionFeedback
-        sectionKey={section.title}
-        feedback={feedback}
-        onChange={onChange}
-      />
-    </SectionCard>
-  );
+  return sections.map((section, index) => (
+    <SectionBody
+      key={`${section.title}-${index}`}
+      section={section}
+      index={index}
+      gap={gap}
+      feedback={feedback}
+      onChange={onChange}
+    />
+  ));
 }
 
 interface SplitSuggestionProps {
   rationale: string;
   proposedFeatures: { title: string; scope: string }[];
   onCreateDraft: (title: string, prompt: string) => void;
-}
-
-function SplitSuggestion(props: SplitSuggestionProps) {
-  const { rationale, proposedFeatures, onCreateDraft } = props;
-
-  return (
-    <SectionCard title="This feature looks large — consider splitting">
-      <p>{rationale}</p>
-      {proposedFeatures.map((p, i) => (
-        <div key={i} className={styles.splitRow}>
-          <span>
-            <strong>{p.title}</strong> — <span className="meta">{p.scope}</span>
-          </span>
-          <button type="button" onClick={() => onCreateDraft(p.title, p.scope)}>
-            Create draft
-          </button>
-        </div>
-      ))}
-    </SectionCard>
-  );
 }
 
 /** The round's suggestion to split this feature, when it made one. */
@@ -183,11 +135,6 @@ function SplitSuggestionSlot({
   );
 }
 
-interface FeedbackProps {
-  feedback: FeedbackState;
-  onChange: (next: FeedbackState) => void;
-}
-
 /** Direction that belongs to no section. Capped and counted because it rides into the next round's prompt: an unbounded field here is an unbounded prompt there. */
 function FreeFormCard(props: FeedbackProps) {
   const { feedback, onChange } = props;
@@ -208,48 +155,101 @@ function FreeFormCard(props: FeedbackProps) {
   );
 }
 
-interface GapSectionsProps {
+interface SectionBodyProps {
+  section: GapSection;
+  index: number;
   gap: GapResult;
   feedback: FeedbackState;
   onChange: (next: FeedbackState) => void;
-  onCreateDraft: (title: string, prompt: string) => void;
 }
 
-/** Every section the round produced. Keyed on title AND index because two sections can legitimately share a heading, and a duplicate key would let React reuse one section's inputs for the other. */
-function SectionList(
-  props: FeedbackProps & { sections: GapSection[]; gap: GapResult },
-) {
-  const { sections, gap, feedback, onChange } = props;
-
-  return sections.map((section, index) => (
-    <SectionBody
-      key={`${section.title}-${index}`}
-      section={section}
-      index={index}
-      gap={gap}
-      feedback={feedback}
-      onChange={onChange}
-    />
-  ));
-}
-
-export default function GapSections(props: GapSectionsProps) {
-  const { gap, feedback, onChange, onCreateDraft } = props;
-  const sections = sectionsOf(gap);
+function SectionBody(props: SectionBodyProps) {
+  const { section, index, gap, feedback, onChange } = props;
 
   return (
-    <div>
-      {sections.length === 0 && (
-        <EmptySections draft={gap.draft_spec_markdown?.trim() ?? ""} />
-      )}
-      <SectionList {...props} sections={sections} />
-
-      <SplitSuggestionSlot
-        split={gap.split_suggestion}
-        onCreateDraft={onCreateDraft}
+    <SectionCard title={section.title} highlight={index === 0}>
+      {section.content && <Markdown markdown={section.content} />}
+      <SectionMockups section={section} stylesheet={gap.mockup_stylesheet} />
+      <SectionQuestions
+        section={section}
+        feedback={feedback}
+        onChange={onChange}
       />
+      <SectionFeedback
+        sectionKey={section.title}
+        feedback={feedback}
+        onChange={onChange}
+      />
+    </SectionCard>
+  );
+}
 
-      <FreeFormCard feedback={feedback} onChange={onChange} />
+function SplitSuggestion(props: SplitSuggestionProps) {
+  const { rationale, proposedFeatures, onCreateDraft } = props;
+
+  return (
+    <SectionCard title="This feature looks large — consider splitting">
+      <p>{rationale}</p>
+      {proposedFeatures.map((p, i) => (
+        <div key={i} className={styles.splitRow}>
+          <span>
+            <strong>{p.title}</strong> — <span className="meta">{p.scope}</span>
+          </span>
+          <button type="button" onClick={() => onCreateDraft(p.title, p.scope)}>
+            Create draft
+          </button>
+        </div>
+      ))}
+    </SectionCard>
+  );
+}
+
+function SectionCard({
+  title,
+  highlight,
+  children,
+}: {
+  title: string;
+  highlight?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={highlight ? "spec-card overview" : "spec-card"}>
+      <h3>{title}</h3>
+      {children}
     </div>
+  );
+}
+
+/** The section's mockups, when the round produced any. */
+function SectionMockups({
+  section,
+  stylesheet,
+}: {
+  section: GapSection;
+  stylesheet: GapResult["mockup_stylesheet"];
+}) {
+  if (!section.mockups || section.mockups.length === 0) {
+    return null;
+  }
+
+  return <MockupSection mockups={section.mockups} stylesheet={stylesheet} />;
+}
+
+/** The section's follow-up questions, in the order the round asked them. */
+function SectionQuestions(props: Omit<SectionBodyProps, "index" | "gap">) {
+  const { section, feedback, onChange } = props;
+
+  return (
+    <>
+      {(section.questions ?? []).map((q) => (
+        <QuestionInput
+          key={q.id}
+          q={q}
+          feedback={feedback}
+          onChange={onChange}
+        />
+      ))}
+    </>
   );
 }
