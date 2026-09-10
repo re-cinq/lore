@@ -523,6 +523,10 @@ and a repo is served by the installation of its owner.
   ([validated by forgets the re-cinq installation once the App is uninstalled there](libs/shared/src/outbound/project/github-installations/github-installations.test.ts#L147))
 - FR-8.4: Lore lists every account it is connected to, ordered by account
   login. ([validated by lists acme-corp before re-cinq, ordered by account login](libs/shared/src/outbound/project/github-installations/github-installations.test.ts#L157))
+- FR-8.5: Lore reads an installation as GitHub describes it — its id, the
+  account and whether that is an organization or a user, and whether it
+  covers all or only selected repos — refusing an account type or repository
+  selection it does not know rather than storing it. ([validated by reads GitHub's re-cinq installation as the organization installation 81234567 on selected repos](libs/shared/src/domain/github-installation/installation-from-github.test.ts#L5))
 
 ## Operational Targets (Background)
 
