@@ -395,3 +395,5 @@ sits in a Secret at all.
   one that leaks is worthless once its run's time is up. ([validated by refuses a correctly signed credential presented after 18:00 when it expired at 18:00, as expired](libs/shared/src/domain/github-credential/run-credential.test.ts#L28))
 - Anything that is not a `v1` credential is refused as `malformed` rather than
   thrown, so garbage in the header is a clean refusal, never a 500. ([validated by refuses not-a-credential as malformed rather than throwing](libs/shared/src/domain/github-credential/run-credential.test.ts#L36))
+- The broker grants a git credential only for the repo the run credential
+  names, and only while the station run it names is still open. ([validated by grants re-cinq/bowman-ui to the still-open station run its credential names](libs/shared/src/domain/github-credential/grant.test.ts#L11), [refuses the station run that already finished with success as run-closed](libs/shared/src/domain/github-credential/grant.test.ts#L21))

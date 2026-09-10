@@ -17,4 +17,14 @@ describe("decideGitCredential", () => {
       }),
     ).toEqual({ grant: true, repo: "re-cinq/bowman-ui" });
   });
+
+  it("refuses the station run that already finished with success as run-closed", () => {
+    expect(
+      decideGitCredential({
+        claims,
+        stationRun: { stationRunId: claims.stationRunId, outcome: "success" },
+        repo: "re-cinq/bowman-ui",
+      }),
+    ).toEqual({ grant: false, reason: "run-closed" });
+  });
 });

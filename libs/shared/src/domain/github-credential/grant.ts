@@ -8,10 +8,16 @@ export interface GitCredentialRequest {
   repo: string;
 }
 
-export type GitCredentialDecision = { grant: true; repo: string };
+export type GitCredentialDecision =
+  | { grant: true; repo: string }
+  | { grant: false; reason: "run-closed" };
 
 export function decideGitCredential(
   request: GitCredentialRequest,
 ): GitCredentialDecision {
+  if (request.stationRun.outcome !== null) {
+    return { grant: false, reason: "run-closed" };
+  }
+
   return { grant: true, repo: request.repo };
 }
