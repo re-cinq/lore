@@ -10,6 +10,14 @@ import { extractBearer } from "@re-cinq/lore-shared/http/bearer.js";
 import { PgAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-pg.js";
 import { PlatformGitHub } from "@re-cinq/lore-shared/project/lib/platform-github.js";
 import type { AssemblyRunsPort } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
+import {
+  verifyRunCredential,
+  type RunCredentialClaims,
+} from "@re-cinq/lore-shared/github-credential/run-credential.js";
+import {
+  decideGitCredential,
+  type GitCredentialDecision,
+} from "@re-cinq/lore-shared/github-credential/grant.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { withPool } from "../with-pool.js";
@@ -60,14 +68,6 @@ async function serveGitCredential(
 
   return h.response(result.body).code(result.code);
 }
-import {
-  verifyRunCredential,
-  type RunCredentialClaims,
-} from "@re-cinq/lore-shared/github-credential/run-credential.js";
-import {
-  decideGitCredential,
-  type GitCredentialDecision,
-} from "@re-cinq/lore-shared/github-credential/grant.js";
 
 /** What the broker needs: the station-run store, the signing key, a clock, and the minter that turns a repo into a fresh GitHub token. */
 export interface GitCredentialDeps {

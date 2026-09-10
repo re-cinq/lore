@@ -2085,6 +2085,60 @@
         "x-required-scope": "read"
       }
     },
+    "/api/github-credentials": {
+      "post": {
+        "operationId": "post_api_github-credentials",
+        "summary": "POST /api/github-credentials",
+        "tags": ["Cluster Agents"],
+        "security": [],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "A freshly minted installation token for the run's repo, as the git credential-helper username/password pair",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitCredential"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "repo": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["repo"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/graph": {
       "get": {
         "operationId": "get_api_graph",
@@ -11816,6 +11870,19 @@
           "updated_at",
           "iterations"
         ],
+        "additionalProperties": false
+      },
+      "GitCredential": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          }
+        },
+        "required": ["username", "password"],
         "additionalProperties": false
       },
       "GraphBrowse": {

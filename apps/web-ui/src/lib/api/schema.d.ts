@@ -668,6 +668,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/github-credentials": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/github-credentials */
+    post: operations["post_api_github-credentials"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/graph": {
     parameters: {
       query?: never;
@@ -3093,6 +3110,10 @@ export interface components {
         updated_at: string;
       }[];
     };
+    GitCredential: {
+      username: string;
+      password: string;
+    };
     GraphBrowse: {
       stats: {
         entity_count: number;
@@ -5466,6 +5487,37 @@ export interface operations {
       403: components["responses"]["Forbidden"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "post_api_github-credentials": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          repo: string;
+        };
+      };
+    };
+    responses: {
+      /** @description A freshly minted installation token for the run's repo, as the git credential-helper username/password pair */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["GitCredential"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
     };
   };
   get_api_graph: {
