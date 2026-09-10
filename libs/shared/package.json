@@ -82,6 +82,10 @@
       "types": "./dist/work/feature-planning/*.d.ts",
       "default": "./dist/work/feature-planning/*.js"
     },
+    "./github-credential/*.js": {
+      "types": "./dist/domain/github-credential/*.d.ts",
+      "default": "./dist/domain/github-credential/*.js"
+    },
     "./llm/*.js": {
       "types": "./dist/outbound/llm/*.d.ts",
       "default": "./dist/outbound/llm/*.js"
