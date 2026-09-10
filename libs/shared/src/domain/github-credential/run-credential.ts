@@ -10,7 +10,7 @@ export interface RunCredentialClaims {
 
 export type RunCredentialVerdict =
   | { ok: true; claims: RunCredentialClaims }
-  | { ok: false; reason: "bad-signature" };
+  | { ok: false; reason: "bad-signature" | "expired" };
 
 const VERSION = "v1";
 
@@ -27,20 +27,22 @@ export function signRunCredential(
 export function verifyRunCredential(
   credential: string,
   key: string,
-  _now: Date,
+  now: Date,
 ): RunCredentialVerdict {
   const [version, payload, signature] = credential.split(".");
 
   if (!secretEquals(signature, mac(`${version}.${payload}`, key))) {
     return { ok: false, reason: "bad-signature" };
   }
+  const claims = JSON.parse(
+    Buffer.from(payload, "base64url").toString(),
+  ) as RunCredentialClaims;
 
-  return {
-    ok: true,
-    claims: JSON.parse(
-      Buffer.from(payload, "base64url").toString(),
-    ) as RunCredentialClaims,
-  };
+  if (now.getTime() >= Date.parse(claims.expiresAt)) {
+    return { ok: false, reason: "expired" };
+  }
+
+  return { ok: true, claims };
 }
 
 function mac(signed: string, key: string): string {

@@ -24,4 +24,12 @@ describe("verifyRunCredential", () => {
       verifyRunCredential(credential, KEY, new Date("2026-09-10T17:00:00Z")),
     ).toEqual({ ok: false, reason: "bad-signature" });
   });
+
+  it("refuses a correctly signed credential presented after 18:00 when it expired at 18:00, as expired", () => {
+    const credential = signRunCredential(claims, KEY);
+
+    expect(
+      verifyRunCredential(credential, KEY, new Date("2026-09-10T18:00:01Z")),
+    ).toEqual({ ok: false, reason: "expired" });
+  });
 });

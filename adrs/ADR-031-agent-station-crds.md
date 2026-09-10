@@ -388,3 +388,6 @@ sits in a Secret at all.
   parameter: the station run it belongs to, the one repo it may touch, and an
   expiry, signed with a key only lore-api holds. It is not a GitHub token and
   grants nothing on GitHub by itself. ([validated by returns the claims of a credential signed with the same key before it expires](libs/shared/src/domain/github-credential/run-credential.test.ts#L12))
+- A credential signed with any other key is refused as `bad-signature`,
+  compared in constant time, so a pod cannot forge one for another repo or
+  another run. ([validated by refuses a credential signed with another key as bad-signature](libs/shared/src/domain/github-credential/run-credential.test.ts#L20))
