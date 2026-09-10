@@ -16,7 +16,8 @@ export class InMemoryGithubInstallations implements GithubInstallationsRepositor
     const at = this.now();
     const installation: GithubInstallation = {
       ...input,
-      installedAt: at,
+      installedAt:
+        this.installations.get(input.installationId)?.installedAt ?? at,
       updatedAt: at,
     };
 
