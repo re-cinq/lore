@@ -565,6 +565,8 @@ and a repo is served by the installation of its owner.
 - FR-8.19: The callback GitHub sends an admin back to after installing the
   App reads the installation id from the redirect's query string; a redirect
   without one, or with anything but a number, names no installation. ([validated by reads installation 81234567 from GitHub's setup redirect](apps/web-ui/src/app/settings/github/callback/installation-id.test.ts#L5), [reads no installation from a redirect without an id or with not-a-number](apps/web-ui/src/app/settings/github/callback/installation-id.test.ts#L14))
+- FR-8.20: Once the installation is recorded, the callback sends the admin
+  back to the settings page. ([validated by goes back to the settings page once re-cinq's installation is recorded](apps/web-ui/src/app/settings/github/callback/callback-outcome.test.ts#L5))
 
 ## Operational Targets (Background)
 
