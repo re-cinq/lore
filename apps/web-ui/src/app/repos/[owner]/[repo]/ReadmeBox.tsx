@@ -17,6 +17,22 @@ interface ReadmeBoxProps {
   htmlUrl: string;
 }
 
+export default function ReadmeBox(props: ReadmeBoxProps) {
+  const [expanded, setExpanded] = useState(false);
+  const blocks = splitBlocks(props.markdown);
+  const collapsible = blocks.length > 2;
+  const collapsed = blocks.slice(0, 2).join("\n\n");
+  const shown = expanded || !collapsible ? props.markdown : collapsed;
+  const toggle = () => setExpanded((e) => !e);
+
+  return (
+    <div className={styles.readme}>
+      <ReadmeMarkdown {...props} markdown={shown} />
+      {collapsible && <ReadmeToggle expanded={expanded} onToggle={toggle} />}
+    </div>
+  );
+}
+
 /** The README as GitHub renders it. Raw HTML is allowed through but sanitized, since a README is repo content and may carry badge markup a plain markdown pass would drop. */
 function ReadmeMarkdown({ markdown, rawBaseUrl, htmlUrl }: ReadmeBoxProps) {
   return (
@@ -48,21 +64,5 @@ function ReadmeToggle({
     >
       {expanded ? "Read less" : "Read more"}
     </button>
-  );
-}
-
-export default function ReadmeBox(props: ReadmeBoxProps) {
-  const [expanded, setExpanded] = useState(false);
-  const blocks = splitBlocks(props.markdown);
-  const collapsible = blocks.length > 2;
-  const collapsed = blocks.slice(0, 2).join("\n\n");
-  const shown = expanded || !collapsible ? props.markdown : collapsed;
-  const toggle = () => setExpanded((e) => !e);
-
-  return (
-    <div className={styles.readme}>
-      <ReadmeMarkdown {...props} markdown={shown} />
-      {collapsible && <ReadmeToggle expanded={expanded} onToggle={toggle} />}
-    </div>
   );
 }

@@ -7,37 +7,6 @@ export interface AssemblyRunCreateViewProps {
   createTaskAction: (formData: FormData) => void | Promise<void>;
 }
 
-interface TargetRepoFieldProps {
-  repos: AssemblyRunCreateViewProps["onboardedRepos"];
-}
-
-function TargetRepoInput() {
-  return (
-    <input
-      name="target_repo"
-      defaultValue="re-cinq/lore"
-      placeholder="owner/repo"
-    />
-  );
-}
-
-/** A picker once repos are onboarded, a free-text field before that — the first task on a fresh install has nothing to pick from, and typing the repo is how it gets created. */
-function TargetRepoField({ repos }: TargetRepoFieldProps) {
-  if (repos.length === 0) {
-    return <TargetRepoInput />;
-  }
-
-  return (
-    <select name="target_repo">
-      {repos.map((r) => (
-        <option key={r.full_name} value={r.full_name}>
-          {r.full_name}
-        </option>
-      ))}
-    </select>
-  );
-}
-
 /** The task types a human can start from this form. Narrower than the full set on purpose: onboard and review are started by the platform in response to something, not typed in here. */
 const TASK_TYPE_OPTIONS = [
   { value: "general", label: "General" },
@@ -46,33 +15,7 @@ const TASK_TYPE_OPTIONS = [
   { value: "gap-fill", label: "Gap Fill" },
 ];
 
-/** Opting out of the local-runner queue. Unchecked means the task waits to be picked up on a developer's machine, which is the cheaper default. */
-function PriorityField() {
-  return (
-    <label className={styles.priorityLabel}>
-      <input type="checkbox" name="priority" value="immediate" />
-      <span>Execute immediately</span>
-      <span className={`meta ${styles.priorityHint}`}>
-        — runs on GKE now instead of waiting for local pickup
-      </span>
-    </label>
-  );
-}
-
-function DescriptionField() {
-  return (
-    <>
-      <label>Description</label>
-      <textarea
-        name="description"
-        rows={4}
-        required
-        placeholder="What should the agent do? Be specific..."
-      />
-    </>
-  );
-}
-
+/* eslint-disable re-lint/no-duplicate-code -- this form's markup (and its own DescriptionField) is a deliberate near-copy of RepoTaskCreateView's, not a shared component neither form owns */
 // Pure render — page.tsx resolves the repo list; the only mutation (Create Task) is passed in as createTaskAction and fired via the form.
 export default function AssemblyRunCreateView({
   onboardedRepos,
@@ -95,5 +38,64 @@ export default function AssemblyRunCreateView({
         <SubmitButton pendingLabel="Creating…">Create Task</SubmitButton>
       </form>
     </div>
+  );
+}
+
+function DescriptionField() {
+  return (
+    <>
+      <label>Description</label>
+      <textarea
+        name="description"
+        rows={4}
+        required
+        placeholder="What should the agent do? Be specific..."
+      />
+    </>
+  );
+}
+/* eslint-enable re-lint/no-duplicate-code */
+
+interface TargetRepoFieldProps {
+  repos: AssemblyRunCreateViewProps["onboardedRepos"];
+}
+
+/** A picker once repos are onboarded, a free-text field before that — the first task on a fresh install has nothing to pick from, and typing the repo is how it gets created. */
+function TargetRepoField({ repos }: TargetRepoFieldProps) {
+  if (repos.length === 0) {
+    return <TargetRepoInput />;
+  }
+
+  return (
+    <select name="target_repo">
+      {repos.map((r) => (
+        <option key={r.full_name} value={r.full_name}>
+          {r.full_name}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function TargetRepoInput() {
+  return (
+    <input
+      name="target_repo"
+      defaultValue="re-cinq/lore"
+      placeholder="owner/repo"
+    />
+  );
+}
+
+/** Opting out of the local-runner queue. Unchecked means the task waits to be picked up on a developer's machine, which is the cheaper default. */
+function PriorityField() {
+  return (
+    <label className={styles.priorityLabel}>
+      <input type="checkbox" name="priority" value="immediate" />
+      <span>Execute immediately</span>
+      <span className={`meta ${styles.priorityHint}`}>
+        — runs on GKE now instead of waiting for local pickup
+      </span>
+    </label>
   );
 }

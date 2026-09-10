@@ -20,6 +20,74 @@ export interface DataTableProps<T> {
   empty?: ReactNode;
 }
 
+export default function DataTable<T>(props: DataTableProps<T>) {
+  return (
+    <>
+      {props.title ? <h2>{props.title}</h2> : null}
+      <table>
+        <HeaderRow columns={props.columns} />
+        <BodyRows {...props} />
+      </table>
+    </>
+  );
+}
+
+/** The column header row, its own component so the header never picks up the row-level concerns below. */
+function HeaderRow({ columns }: { columns: string[] }) {
+  return (
+    <thead>
+      <tr>
+        {columns.map((column) => (
+          <th key={column}>{column}</th>
+        ))}
+      </tr>
+    </thead>
+  );
+}
+
+/** Every row, or the empty state — one place decides which, so a table can never render both or neither. */
+function BodyRows<T>(props: DataTableProps<T>) {
+  const { columns, rows, rowKey, empty = "No data" } = props;
+
+  return (
+    <tbody>
+      {rows.map((row, index) => (
+        <DataRow key={rowKey(row, index)} {...props} row={row} />
+      ))}
+      {rows.length === 0 ? (
+        <EmptyRow span={columns.length}>{empty}</EmptyRow>
+      ) : null}
+    </tbody>
+  );
+}
+
+/** One data row. Split from the body so the body states only the row-or-empty decision, not how a single row is built. */
+function DataRow<T>(props: DataTableProps<T> & { row: T }) {
+  const { row, columns, cells, rowClass } = props;
+
+  return (
+    <tr className={rowClass?.(row)}>
+      <Cells
+        cells={cells(row)}
+        columns={columns}
+        mono={props.monoColumns ?? []}
+        monoClass={props.monoClass ?? styles.mono}
+      />
+    </tr>
+  );
+}
+
+/** The no-rows state, spanning the full width so it reads as a statement about the table rather than a value in its first column. */
+function EmptyRow({ span, children }: { span: number; children: ReactNode }) {
+  return (
+    <tr>
+      <td colSpan={span} className={`meta ${styles.center}`}>
+        {children}
+      </td>
+    </tr>
+  );
+}
+
 /** One row's cells. Keyed by COLUMN name rather than by position, so a table whose columns change identity does not reuse a cell's DOM node for different data. */
 function Cells({
   cells,
@@ -40,72 +108,4 @@ function Cells({
       {cell}
     </td>
   ));
-}
-
-/** The no-rows state, spanning the full width so it reads as a statement about the table rather than a value in its first column. */
-function EmptyRow({ span, children }: { span: number; children: ReactNode }) {
-  return (
-    <tr>
-      <td colSpan={span} className={`meta ${styles.center}`}>
-        {children}
-      </td>
-    </tr>
-  );
-}
-
-/** The column header row, its own component so the header never picks up the row-level concerns below. */
-function HeaderRow({ columns }: { columns: string[] }) {
-  return (
-    <thead>
-      <tr>
-        {columns.map((column) => (
-          <th key={column}>{column}</th>
-        ))}
-      </tr>
-    </thead>
-  );
-}
-
-/** One data row. Split from the body so the body states only the row-or-empty decision, not how a single row is built. */
-function DataRow<T>(props: DataTableProps<T> & { row: T }) {
-  const { row, columns, cells, rowClass } = props;
-
-  return (
-    <tr className={rowClass?.(row)}>
-      <Cells
-        cells={cells(row)}
-        columns={columns}
-        mono={props.monoColumns ?? []}
-        monoClass={props.monoClass ?? styles.mono}
-      />
-    </tr>
-  );
-}
-
-/** Every row, or the empty state — one place decides which, so a table can never render both or neither. */
-function BodyRows<T>(props: DataTableProps<T>) {
-  const { columns, rows, rowKey, empty = "No data" } = props;
-
-  return (
-    <tbody>
-      {rows.map((row, index) => (
-        <DataRow key={rowKey(row, index)} {...props} row={row} />
-      ))}
-      {rows.length === 0 ? (
-        <EmptyRow span={columns.length}>{empty}</EmptyRow>
-      ) : null}
-    </tbody>
-  );
-}
-
-export default function DataTable<T>(props: DataTableProps<T>) {
-  return (
-    <>
-      {props.title ? <h2>{props.title}</h2> : null}
-      <table>
-        <HeaderRow columns={props.columns} />
-        <BodyRows {...props} />
-      </table>
-    </>
-  );
 }

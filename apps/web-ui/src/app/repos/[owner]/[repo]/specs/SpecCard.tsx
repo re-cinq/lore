@@ -15,6 +15,27 @@ export interface SpecCardProps {
   detailsHref?: string;
 }
 
+export default function SpecCard({
+  title,
+  description,
+  status,
+  coverage,
+  files,
+  detailsHref,
+}: SpecCardProps) {
+  return (
+    <div className={styles.card}>
+      <h3 className={styles.title}>
+        {title}
+        {status && <SpecStatusPill status={status} />}
+      </h3>
+      {description && <p className={styles.note}>{description}</p>}
+      <CoverageNote coverage={coverage} />
+      <FilesOrDetails files={files} detailsHref={detailsHref} />
+    </div>
+  );
+}
+
 function CoverageNote({
   coverage,
 }: {
@@ -52,25 +73,4 @@ function FilesOrDetails({
   }
 
   return detailsHref ? <Link href={detailsHref}>Details</Link> : null;
-}
-
-export default function SpecCard({
-  title,
-  description,
-  status,
-  coverage,
-  files,
-  detailsHref,
-}: SpecCardProps) {
-  return (
-    <div className={styles.card}>
-      <h3 className={styles.title}>
-        {title}
-        {status && <SpecStatusPill status={status} />}
-      </h3>
-      {description && <p className={styles.note}>{description}</p>}
-      <CoverageNote coverage={coverage} />
-      <FilesOrDetails files={files} detailsHref={detailsHref} />
-    </div>
-  );
 }

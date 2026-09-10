@@ -44,6 +44,22 @@ interface RunGraphInput {
   takenEdges: RunData["taken"];
 }
 
+export function useRunGraph(input: RunGraphInput) {
+  const { nodes, definition, nodeStates, showOutcomes } = input;
+  const hasRunData = computeHasRunData(nodes.length, nodeStates);
+  const latestRows = useMemo(() => latestRowByNode(nodes), [nodes]);
+  const retrySource = useRetrySource(input);
+  const runData = useRunData({ ...input, latestRows });
+  const visibleGraph = useVisibleGraph({
+    definition,
+    hasRunData,
+    runData,
+    showOutcomes,
+  });
+
+  return { hasRunData, visibleGraph, retrySource, latestRows };
+}
+
 /** The graph as drawn. A run with no rows yet passes `null` run data on purpose — the definition alone renders as the plain shape of the line, rather than as every node wrongly reporting "not started". */
 function useVisibleGraph(input: {
   definition: AssemblyLineDefinition | null;
@@ -92,39 +108,12 @@ function useRunData(input: RunDataInput): RunData {
   );
 }
 
-export function useRunGraph(input: RunGraphInput) {
-  const { nodes, definition, nodeStates, showOutcomes } = input;
-  const hasRunData = computeHasRunData(nodes.length, nodeStates);
-  const latestRows = useMemo(() => latestRowByNode(nodes), [nodes]);
-  const retrySource = useRetrySource(input);
-  const runData = useRunData({ ...input, latestRows });
-  const visibleGraph = useVisibleGraph({
-    definition,
-    hasRunData,
-    runData,
-    showOutcomes,
-  });
-
-  return { hasRunData, visibleGraph, retrySource, latestRows };
-}
-
 interface SelectedNodeInput {
   nodes: readonly AssemblyRunNode[];
   definition: AssemblyLineDefinition | null;
   reason: string | null;
   selectedNodeId: string | null;
   nodeStates: Readonly<Record<string, NodeRunState>>;
-}
-
-/** What each visit was GIVEN, per attempt. A visit with no recorded input contributes nothing rather than an empty entry — the inspector lists inputs, and a blank row reads as "given nothing" rather than "not recorded". */
-function useNodeInputs(selectedRows: readonly AssemblyRunNode[]) {
-  return useMemo(
-    () =>
-      selectedRows.flatMap((node) =>
-        node.input ? [{ iteration: node.iteration, ...node.input }] : [],
-      ),
-    [selectedRows],
-  );
 }
 
 /** Everything the inspector needs about the selected node. Its walk rows are the source for the attempt history and the per-attempt pod logs; what each visit was GIVEN is per-visit state like its outcome, and rides those rows rather than the event stream, since no pod echoes its own prompt. */
@@ -146,4 +135,15 @@ export function useSelectedNode(input: SelectedNodeInput) {
   );
 
   return { selected, selectedRows, nodeInputs, selectedAttempts, takenEdges };
+}
+
+/** What each visit was GIVEN, per attempt. A visit with no recorded input contributes nothing rather than an empty entry — the inspector lists inputs, and a blank row reads as "given nothing" rather than "not recorded". */
+function useNodeInputs(selectedRows: readonly AssemblyRunNode[]) {
+  return useMemo(
+    () =>
+      selectedRows.flatMap((node) =>
+        node.input ? [{ iteration: node.iteration, ...node.input }] : [],
+      ),
+    [selectedRows],
+  );
 }

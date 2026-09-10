@@ -2,10 +2,21 @@
 
 import type { GapResult, GapSection } from "./feature-types";
 
-function mockupsFor(gap: GapResult, key: string) {
-  return (gap.mockups ?? []).filter(
-    (m) => (m.section ?? "architecture") === key,
-  );
+/** Uniform sections list; new or derived from legacy shape. */
+export function sectionsOf(gap: GapResult | null | undefined): GapSection[] {
+  if (!gap) {
+    return [];
+  }
+
+  if (gap.sections) {
+    return gap.sections;
+  }
+
+  return [
+    architectureSection(gap),
+    userFlowsSection(gap),
+    questionsSection(gap),
+  ].filter((section): section is GapSection => section !== null);
 }
 
 function architectureSection(gap: GapResult): GapSection | null {
@@ -54,19 +65,8 @@ function questionsSection(gap: GapResult): GapSection | null {
     : null;
 }
 
-/** Uniform sections list; new or derived from legacy shape. */
-export function sectionsOf(gap: GapResult | null | undefined): GapSection[] {
-  if (!gap) {
-    return [];
-  }
-
-  if (gap.sections) {
-    return gap.sections;
-  }
-
-  return [
-    architectureSection(gap),
-    userFlowsSection(gap),
-    questionsSection(gap),
-  ].filter((section): section is GapSection => section !== null);
+function mockupsFor(gap: GapResult, key: string) {
+  return (gap.mockups ?? []).filter(
+    (m) => (m.section ?? "architecture") === key,
+  );
 }

@@ -13,6 +13,41 @@ export interface ContainmentOptions {
   epsilon?: number;
 }
 
+/** Keep node velocity inside radius border; damp speed by overshoot. */
+export function containedVelocity(
+  point: Point,
+  velocity: { vx: number; vy: number },
+  bound: { center: Point; radius: number },
+  options?: ContainmentOptions,
+): { vx: number; vy: number } {
+  const knobs = resolveContainment(options);
+
+  return atRest(containBound(point, velocity, bound, knobs), knobs.epsilon);
+}
+
+/** Velocity with any outward component past the radius cancelled and damped. */
+function containBound(
+  point: Point,
+  velocity: { vx: number; vy: number },
+  { center, radius }: { center: Point; radius: number },
+  knobs: Required<ContainmentOptions>,
+): { vx: number; vy: number } {
+  const dx = point.x - center.x;
+  const dy = point.y - center.y;
+  const dist = Math.hypot(dx, dy);
+
+  if (dist <= radius || dist === 0) {
+    return velocity;
+  }
+
+  return containOverflowVelocity(
+    velocity,
+    { ux: dx / dist, uy: dy / dist },
+    dist - radius,
+    knobs,
+  );
+}
+
 /** Overshoot correction: cancel outward, ease back in with capped pull. */
 function containOverflowVelocity(
   velocity: { vx: number; vy: number },
@@ -59,39 +94,4 @@ function atRest(
     vx: Math.abs(vx) < epsilon ? 0 : vx,
     vy: Math.abs(vy) < epsilon ? 0 : vy,
   };
-}
-
-/** Keep node velocity inside radius border; damp speed by overshoot. */
-export function containedVelocity(
-  point: Point,
-  velocity: { vx: number; vy: number },
-  bound: { center: Point; radius: number },
-  options?: ContainmentOptions,
-): { vx: number; vy: number } {
-  const knobs = resolveContainment(options);
-
-  return atRest(containBound(point, velocity, bound, knobs), knobs.epsilon);
-}
-
-/** Velocity with any outward component past the radius cancelled and damped. */
-function containBound(
-  point: Point,
-  velocity: { vx: number; vy: number },
-  { center, radius }: { center: Point; radius: number },
-  knobs: Required<ContainmentOptions>,
-): { vx: number; vy: number } {
-  const dx = point.x - center.x;
-  const dy = point.y - center.y;
-  const dist = Math.hypot(dx, dy);
-
-  if (dist <= radius || dist === 0) {
-    return velocity;
-  }
-
-  return containOverflowVelocity(
-    velocity,
-    { ux: dx / dist, uy: dy / dist },
-    dist - radius,
-    knobs,
-  );
 }

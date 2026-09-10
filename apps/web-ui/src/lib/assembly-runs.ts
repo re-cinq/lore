@@ -12,21 +12,6 @@ import {
 
 export * from "./assembly-run-rows";
 
-/** lore-api owns the SQL; every read answers empty rather than throwing — a run view is additive, a pre-0025 database must not take a page down. */
-async function readRuns(query: string): Promise<AssemblyRun[]> {
-  const result = await apiFetch<{ runs: AssemblyRunRow[] }>(
-    "lore-api",
-    `/api/assembly-lines${query}`,
-  );
-
-  if (result.status !== "ok") {
-    return [];
-  }
-  const { runs } = result.data;
-
-  return runs.map(toAssemblyRun);
-}
-
 export interface AssemblyRunFilter {
   status?: string;
   repo?: string;
@@ -58,6 +43,21 @@ function assemblyRunFilterParams(opts: AssemblyRunFilter): URLSearchParams {
   params.set("limit", String(opts.limit ?? 50));
 
   return params;
+}
+
+/** lore-api owns the SQL; every read answers empty rather than throwing — a run view is additive, a pre-0025 database must not take a page down. */
+async function readRuns(query: string): Promise<AssemblyRun[]> {
+  const result = await apiFetch<{ runs: AssemblyRunRow[] }>(
+    "lore-api",
+    `/api/assembly-lines${query}`,
+  );
+
+  if (result.status !== "ok") {
+    return [];
+  }
+  const { runs } = result.data;
+
+  return runs.map(toAssemblyRun);
 }
 
 /** One run by id, or null (also null on pre-0025 DBs so the resolver falls through). */

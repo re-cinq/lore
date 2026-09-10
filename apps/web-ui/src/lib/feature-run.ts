@@ -29,46 +29,6 @@ export interface FeatureRunPayload {
   definitionUnchanged?: boolean;
 }
 
-/** The run columns the payload carries through verbatim. */
-function runFields(run: AssemblyRun) {
-  const { id, status, startedAt, repo, reason } = run;
-
-  return { id, status, startedAt, repo, reason };
-}
-
-/** Shape run + nodes into poll payload; pure. */
-export function toFeatureRunPayload(
-  run: AssemblyRun,
-  nodes: AssemblyRunNode[],
-  tokens: RunTokens | null = null,
-): FeatureRunPayload {
-  const { blueprintName, graph } = run;
-  const { definition, synthetic } = definitionForRun(
-    blueprintName,
-    nodes,
-    graph,
-  );
-
-  return { ...runFields(run), definition, synthetic, nodes, tokens };
-}
-
-/** Run, its nodes and its tokens, shaped for the panel. */
-async function loadRunPayload(
-  assemblyLineId: string,
-): Promise<FeatureRunPayload | null> {
-  const run = await fetchAssemblyRun(assemblyLineId);
-
-  if (!run) {
-    return null;
-  }
-
-  return toFeatureRunPayload(
-    run,
-    await fetchAssemblyRunNodes(run.id),
-    await fetchRunTokens(run.id),
-  );
-}
-
 /** Fetch run to visualize by line id (resolved by lore-api). */
 export async function fetchFeatureRunById(
   assemblyLineId: string | null | undefined,
@@ -93,4 +53,44 @@ export async function fetchFeatureRunById(
   } catch {
     return null;
   }
+}
+
+/** Run, its nodes and its tokens, shaped for the panel. */
+async function loadRunPayload(
+  assemblyLineId: string,
+): Promise<FeatureRunPayload | null> {
+  const run = await fetchAssemblyRun(assemblyLineId);
+
+  if (!run) {
+    return null;
+  }
+
+  return toFeatureRunPayload(
+    run,
+    await fetchAssemblyRunNodes(run.id),
+    await fetchRunTokens(run.id),
+  );
+}
+
+/** Shape run + nodes into poll payload; pure. */
+export function toFeatureRunPayload(
+  run: AssemblyRun,
+  nodes: AssemblyRunNode[],
+  tokens: RunTokens | null = null,
+): FeatureRunPayload {
+  const { blueprintName, graph } = run;
+  const { definition, synthetic } = definitionForRun(
+    blueprintName,
+    nodes,
+    graph,
+  );
+
+  return { ...runFields(run), definition, synthetic, nodes, tokens };
+}
+
+/** The run columns the payload carries through verbatim. */
+function runFields(run: AssemblyRun) {
+  const { id, status, startedAt, repo, reason } = run;
+
+  return { id, status, startedAt, repo, reason };
 }

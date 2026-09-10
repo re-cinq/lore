@@ -3,15 +3,6 @@ import { fetchSpecSummaries } from "@/lib/trace-api";
 import { statusesByPath } from "@/lib/doc-statuses";
 import SpecListView from "./SpecListView";
 
-/** What the list is drawn from — the graph, not the repo — and how much of it there is. */
-function SpecsLede({ fullName, count }: { fullName: string; count: number }) {
-  return (
-    <p className="meta page-lede">
-      Specs in the traceability graph for <code>{fullName}</code> ({count}).
-    </p>
-  );
-}
-
 interface RepoSpecsProps {
   params: Promise<{ owner: string; repo: string }>;
 }
@@ -35,5 +26,14 @@ export default async function RepoSpecs({ params }: RepoSpecsProps) {
         statuses={statuses}
       />
     </div>
+  );
+}
+
+/** What the list is drawn from — the graph, not the repo — and how much of it there is. */
+function SpecsLede({ fullName, count }: { fullName: string; count: number }) {
+  return (
+    <p className="meta page-lede">
+      Specs in the traceability graph for <code>{fullName}</code> ({count}).
+    </p>
   );
 }

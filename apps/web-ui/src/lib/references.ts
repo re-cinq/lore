@@ -21,6 +21,48 @@ const PROTECT_SRC =
 
 const SCAN_SRC = `(?<file>${FILE_SRC})|(?<issue>${ISSUE_SRC})|(?<uuid>${UUID_SRC})`;
 
+export function parseReferences(text: string, ctx: RefContext): Segment[] {
+  const out: Segment[] = [];
+  const re = new RegExp(PROTECT_SRC, "g");
+  let last = 0;
+  let m: RegExpExecArray | null;
+
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) {
+      out.push(...scanPlain(text.slice(last, m.index), ctx));
+    }
+    out.push({ text: m[0] });
+    last = m.index + m[0].length;
+  }
+
+  if (last < text.length) {
+    out.push(...scanPlain(text.slice(last), ctx));
+  }
+
+  return out;
+}
+
+function scanPlain(text: string, ctx: RefContext): Segment[] {
+  const out: Segment[] = [];
+  const re = new RegExp(SCAN_SRC, "gi");
+  let last = 0;
+  let m: RegExpExecArray | null;
+
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) {
+      out.push({ text: text.slice(last, m.index) });
+    }
+    out.push({ text: m[0], href: hrefFor(m[0], matchGroup(m), ctx) });
+    last = m.index + m[0].length;
+  }
+
+  if (last < text.length) {
+    out.push({ text: text.slice(last) });
+  }
+
+  return out;
+}
+
 function hrefFor(
   match: string,
   group: "file" | "issue" | "uuid",
@@ -49,46 +91,4 @@ function matchGroup(m: RegExpExecArray): "file" | "issue" | "uuid" {
   }
 
   return "uuid";
-}
-
-function scanPlain(text: string, ctx: RefContext): Segment[] {
-  const out: Segment[] = [];
-  const re = new RegExp(SCAN_SRC, "gi");
-  let last = 0;
-  let m: RegExpExecArray | null;
-
-  while ((m = re.exec(text)) !== null) {
-    if (m.index > last) {
-      out.push({ text: text.slice(last, m.index) });
-    }
-    out.push({ text: m[0], href: hrefFor(m[0], matchGroup(m), ctx) });
-    last = m.index + m[0].length;
-  }
-
-  if (last < text.length) {
-    out.push({ text: text.slice(last) });
-  }
-
-  return out;
-}
-
-export function parseReferences(text: string, ctx: RefContext): Segment[] {
-  const out: Segment[] = [];
-  const re = new RegExp(PROTECT_SRC, "g");
-  let last = 0;
-  let m: RegExpExecArray | null;
-
-  while ((m = re.exec(text)) !== null) {
-    if (m.index > last) {
-      out.push(...scanPlain(text.slice(last, m.index), ctx));
-    }
-    out.push({ text: m[0] });
-    last = m.index + m[0].length;
-  }
-
-  if (last < text.length) {
-    out.push(...scanPlain(text.slice(last), ctx));
-  }
-
-  return out;
 }

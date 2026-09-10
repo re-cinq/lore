@@ -31,28 +31,6 @@ interface ModelFieldProps {
   customModel: string;
 }
 
-/** The picker itself: every known model plus the escape hatch that reveals the custom box. */
-function ModelSelect({
-  selection,
-  onSelect,
-}: Omit<ModelFieldProps, "customModel">): React.ReactElement {
-  return (
-    <select
-      name="model_select"
-      value={selection}
-      onChange={(e) => onSelect(e.target.value)}
-    >
-      <option value="">(inherit)</option>
-      {KNOWN_MODELS.map((m) => (
-        <option key={m.id} value={m.id}>
-          {m.label}
-        </option>
-      ))}
-      <option value="__custom__">Custom…</option>
-    </select>
-  );
-}
-
 /** A known model or a typed-in id. The custom box only exists while `Custom…` is selected, so a stale id can never be submitted alongside a picked one. */
 export function ModelField({
   selection,
@@ -73,80 +51,8 @@ export function ModelField({
   );
 }
 
-interface ResourceRowProps {
-  label: string;
-  prefix: string;
-  values: PodResources["requests"];
-  placeholders: [string, string, string];
-}
-
-/** The three quantities a row edits, paired with the platform default each shows when left blank. */
-function resourceFields(
-  values: PodResources["requests"],
-  placeholders: [string, string, string],
-): [string, string | undefined, string][] {
-  return [
-    ["cpu", values?.cpu, placeholders[0]],
-    ["memory", values?.memory, placeholders[1]],
-    ["ephemeral", values?.["ephemeral-storage"], placeholders[2]],
-  ];
-}
-
-/** One row of the requests/limits grid. Blank inherits the platform default, which is what the placeholder shows. */
-function ResourceRow(props: ResourceRowProps): React.ReactElement {
-  const { label, prefix, values, placeholders } = props;
-  const fields = resourceFields(values, placeholders);
-
-  return (
-    <>
-      <span className={styles.resourceHeading}>{label}</span>
-      {fields.map(([field, value, placeholder]) => (
-        <input
-          key={field}
-          name={`res_${prefix}_${field}`}
-          defaultValue={value ?? ""}
-          placeholder={placeholder}
-        />
-      ))}
-    </>
-  );
-}
-
 interface PodResourceProps {
   podResources: PodResources;
-}
-
-/** The grid's column headings. The leading empty cell is the row-label column, which has no heading of its own. */
-function ResourceGridHead(): React.ReactElement {
-  return (
-    <>
-      <span />
-      <span className={styles.resourceHeading}>CPU</span>
-      <span className={styles.resourceHeading}>Memory</span>
-      <span className={styles.resourceHeading}>Ephemeral storage</span>
-    </>
-  );
-}
-
-/** The requests/limits grid. Placeholders carry the PLATFORM defaults rather than prefilling them, so a definition that has chosen nothing stores nothing — and picks up a new default when the platform changes one. */
-function ResourceGrid({ podResources }: PodResourceProps): React.ReactElement {
-  return (
-    <div className={styles.resourceGrid}>
-      <ResourceGridHead />
-      <ResourceRow
-        label="Requests"
-        prefix="requests"
-        values={podResources.requests}
-        placeholders={["250m", "512Mi", "2Gi"]}
-      />
-      <ResourceRow
-        label="Limits"
-        prefix="limits"
-        values={podResources.limits}
-        placeholders={["1", "1Gi", "4Gi"]}
-      />
-    </div>
-  );
 }
 
 export function PodResourceFields({
@@ -162,27 +68,6 @@ export function PodResourceFields({
         stored on this definition, so they survive releases.
       </span>
     </>
-  );
-}
-
-/** What blank means, and what changing it costs. The approval requirement is stated HERE rather than only enforced server-side, so the ceremony is visible before the save fails. */
-function ImageNote({
-  defaultImage,
-}: {
-  defaultImage?: string;
-}): React.ReactElement {
-  return (
-    <span className={styles.formNote}>
-      Inherits the default runner image
-      {defaultImage ? (
-        <>
-          {" "}
-          (<code>{defaultImage}</code>)
-        </>
-      ) : null}{" "}
-      when blank. Changing it requires a CODEOWNERS-approved{" "}
-      <code>dark-factory-approval</code> PR — reference it below.
-    </span>
   );
 }
 
@@ -274,25 +159,6 @@ interface RunLimitsFieldsProps {
   promptPlaceholder: string | undefined;
 }
 
-/** Blank means inherit rather than "no timeout", which the placeholder rather than the bounds is what says so. */
-function TimeoutField({
-  timeoutMinutes,
-}: Pick<RunLimitsFieldsProps, "timeoutMinutes">) {
-  return (
-    <>
-      <label>Timeout (minutes)</label>
-      <input
-        name="timeout_minutes"
-        type="number"
-        min={1}
-        max={1440}
-        defaultValue={timeoutMinutes}
-        placeholder="(inherit)"
-      />
-    </>
-  );
-}
-
 /** How long a run may take and what it is told to do. Both fall back to the INHERITED value when left blank — the placeholder says so, because an empty field here means "use the org default", not "no timeout" or "no prompt". */
 export function RunLimitsFields(props: RunLimitsFieldsProps) {
   const { timeoutMinutes, prompt, promptPlaceholder } = props;
@@ -307,6 +173,140 @@ export function RunLimitsFields(props: RunLimitsFieldsProps) {
         rows={6}
         defaultValue={prompt}
         placeholder={promptPlaceholder}
+      />
+    </>
+  );
+}
+
+/** The picker itself: every known model plus the escape hatch that reveals the custom box. */
+function ModelSelect({
+  selection,
+  onSelect,
+}: Omit<ModelFieldProps, "customModel">): React.ReactElement {
+  return (
+    <select
+      name="model_select"
+      value={selection}
+      onChange={(e) => onSelect(e.target.value)}
+    >
+      <option value="">(inherit)</option>
+      {KNOWN_MODELS.map((m) => (
+        <option key={m.id} value={m.id}>
+          {m.label}
+        </option>
+      ))}
+      <option value="__custom__">Custom…</option>
+    </select>
+  );
+}
+
+/** The requests/limits grid. Placeholders carry the PLATFORM defaults rather than prefilling them, so a definition that has chosen nothing stores nothing — and picks up a new default when the platform changes one. */
+function ResourceGrid({ podResources }: PodResourceProps): React.ReactElement {
+  return (
+    <div className={styles.resourceGrid}>
+      <ResourceGridHead />
+      <ResourceRow
+        label="Requests"
+        prefix="requests"
+        values={podResources.requests}
+        placeholders={["250m", "512Mi", "2Gi"]}
+      />
+      <ResourceRow
+        label="Limits"
+        prefix="limits"
+        values={podResources.limits}
+        placeholders={["1", "1Gi", "4Gi"]}
+      />
+    </div>
+  );
+}
+
+interface ResourceRowProps {
+  label: string;
+  prefix: string;
+  values: PodResources["requests"];
+  placeholders: [string, string, string];
+}
+
+/** One row of the requests/limits grid. Blank inherits the platform default, which is what the placeholder shows. */
+function ResourceRow(props: ResourceRowProps): React.ReactElement {
+  const { label, prefix, values, placeholders } = props;
+  const fields = resourceFields(values, placeholders);
+
+  return (
+    <>
+      <span className={styles.resourceHeading}>{label}</span>
+      {fields.map(([field, value, placeholder]) => (
+        <input
+          key={field}
+          name={`res_${prefix}_${field}`}
+          defaultValue={value ?? ""}
+          placeholder={placeholder}
+        />
+      ))}
+    </>
+  );
+}
+
+/** The grid's column headings. The leading empty cell is the row-label column, which has no heading of its own. */
+function ResourceGridHead(): React.ReactElement {
+  return (
+    <>
+      <span />
+      <span className={styles.resourceHeading}>CPU</span>
+      <span className={styles.resourceHeading}>Memory</span>
+      <span className={styles.resourceHeading}>Ephemeral storage</span>
+    </>
+  );
+}
+
+/** The three quantities a row edits, paired with the platform default each shows when left blank. */
+function resourceFields(
+  values: PodResources["requests"],
+  placeholders: [string, string, string],
+): [string, string | undefined, string][] {
+  return [
+    ["cpu", values?.cpu, placeholders[0]],
+    ["memory", values?.memory, placeholders[1]],
+    ["ephemeral", values?.["ephemeral-storage"], placeholders[2]],
+  ];
+}
+
+/** What blank means, and what changing it costs. The approval requirement is stated HERE rather than only enforced server-side, so the ceremony is visible before the save fails. */
+function ImageNote({
+  defaultImage,
+}: {
+  defaultImage?: string;
+}): React.ReactElement {
+  return (
+    <span className={styles.formNote}>
+      Inherits the default runner image
+      {defaultImage ? (
+        <>
+          {" "}
+          (<code>{defaultImage}</code>)
+        </>
+      ) : null}{" "}
+      when blank. Changing it requires a CODEOWNERS-approved{" "}
+      <code>dark-factory-approval</code> PR — reference it below.
+    </span>
+  );
+}
+
+/** Blank means inherit rather than "no timeout", which the placeholder rather than the bounds is what says so. */
+function TimeoutField({
+  timeoutMinutes,
+}: Pick<RunLimitsFieldsProps, "timeoutMinutes">) {
+  return (
+    <>
+      <label>Timeout (minutes)</label>
+      <input
+        name="timeout_minutes"
+        type="number"
+        min={1}
+        max={1440}
+        defaultValue={timeoutMinutes}
+        placeholder="(inherit)"
       />
     </>
   );

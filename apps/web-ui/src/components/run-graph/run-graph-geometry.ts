@@ -78,6 +78,22 @@ export function nodeHeightFor(
     : BASE_NODE_HEIGHT;
 }
 
+// A layout-shaped definition from the visible graph.
+export function toLayoutDefinition(
+  graph: VisibleGraph,
+  definition: AssemblyLineDefinition | null,
+): AssemblyLineDefinition {
+  return {
+    name: definition?.name ?? "workflow",
+    description: "",
+    version: 1,
+    entry: resolveEntry(definition, graph),
+    exit: definition?.exit ?? "",
+    nodes: layoutNodes(graph),
+    edges: layoutEdges(graph),
+  };
+}
+
 function resolveEntry(
   definition: AssemblyLineDefinition | null,
   graph: VisibleGraph,
@@ -101,22 +117,6 @@ function layoutEdges(graph: VisibleGraph): AssemblyLineDefinition["edges"] {
     to: edge.to,
     on: "always" as const,
   }));
-}
-
-// A layout-shaped definition from the visible graph.
-export function toLayoutDefinition(
-  graph: VisibleGraph,
-  definition: AssemblyLineDefinition | null,
-): AssemblyLineDefinition {
-  return {
-    name: definition?.name ?? "workflow",
-    description: "",
-    version: 1,
-    entry: resolveEntry(definition, graph),
-    exit: definition?.exit ?? "",
-    nodes: layoutNodes(graph),
-    edges: layoutEdges(graph),
-  };
 }
 
 // The one key shape for an edge, shared by the model lookup and the `data-edge` attribute tests query, so the two can never drift apart.

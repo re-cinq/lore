@@ -17,41 +17,6 @@ export interface DarkFactoryViewProps {
   saveAction: SaveAction;
 }
 
-/** The "security-gated" tag rides in the title itself: it is the first thing a reader needs before touching anything below. */
-function DarkFactoryTitle() {
-  return (
-    <>
-      Dark Factory <span className={styles.gated}>security-gated</span>
-    </>
-  );
-}
-
-/** The approval-PR requirement, stated before the fields it applies to rather than in the refusal a save would otherwise return. */
-function DarkFactoryLede() {
-  return (
-    <>
-      Per-repo autonomy. Reference an approved{" "}
-      <code>dark-factory-approval</code> PR when changing a gated field.
-    </>
-  );
-}
-
-/** Which container a run executes in. Left empty it inherits the platform default, shown as the placeholder rather than as a stored value. */
-function ExecutionImageField(props: DarkFactoryViewProps) {
-  const { rawImage, defaultExecutionImage } = props;
-
-  return (
-    <>
-      <label>Execution image (BYO toolchain)</label>
-      <input
-        name="df_execution_image"
-        defaultValue={rawImage ?? ""}
-        placeholder={defaultExecutionImage}
-      />
-    </>
-  );
-}
-
 export default function DarkFactoryView(props: DarkFactoryViewProps) {
   const { fullName, resolved, saveAction } = props;
 
@@ -73,6 +38,15 @@ export default function DarkFactoryView(props: DarkFactoryViewProps) {
   );
 }
 
+/** The "security-gated" tag rides in the title itself: it is the first thing a reader needs before touching anything below. */
+function DarkFactoryTitle() {
+  return (
+    <>
+      Dark Factory <span className={styles.gated}>security-gated</span>
+    </>
+  );
+}
+
 function DarkFactoryHelp() {
   return (
     <HelpPopover label="What Dark Factory does">
@@ -91,6 +65,64 @@ function DarkFactoryHelp() {
   );
 }
 
+/** The approval-PR requirement, stated before the fields it applies to rather than in the refusal a save would otherwise return. */
+function DarkFactoryLede() {
+  return (
+    <>
+      Per-repo autonomy. Reference an approved{" "}
+      <code>dark-factory-approval</code> PR when changing a gated field.
+    </>
+  );
+}
+
+interface ResolvedProps {
+  resolved: ResolvedDarkFactorySettings;
+}
+
+/** What the factory does at all: whether it runs dark, whether it files Issues, whether it reviews, and who hears about it. */
+function ModeFields({ resolved }: ResolvedProps) {
+  return (
+    <>
+      <ChoiceField
+        label="Dark mode enabled"
+        name="df_enabled"
+        value={resolved.enabled ? "yes" : "no"}
+        options={YES_NO_OPTIONS}
+      />
+
+      <ReportingFields resolved={resolved} />
+
+      <NotifyField selected={resolved.notify} />
+    </>
+  );
+}
+
+/** "No" first: enabling dark mode is the deliberate act, so the safe answer is the one already selected. */
+const YES_NO_OPTIONS: [string, string][] = [
+  ["no", "No"],
+  ["yes", "Yes"],
+];
+
+/** How a dark run reports itself: whether it files an Issue, and whether a review runs before merge. */
+function ReportingFields({ resolved }: ResolvedProps) {
+  return (
+    <>
+      <ChoiceField
+        label="Create GitHub Issue"
+        name="df_create_issue"
+        value={resolved.create_issue}
+        options={CREATE_ISSUE_OPTIONS}
+      />
+      <ChoiceField
+        label="Review mode"
+        name="df_review"
+        value={resolved.review}
+        options={REVIEW_OPTIONS}
+      />
+    </>
+  );
+}
+
 /** Issues are off by default in dark mode — the PR is the artifact — so "never" leads. */
 const CREATE_ISSUE_OPTIONS: [string, string][] = [
   ["never", "Never"],
@@ -102,12 +134,6 @@ const REVIEW_OPTIONS: [string, string][] = [
   ["trust_based", "Trust-based"],
   ["always", "Always"],
   ["never", "Never"],
-];
-
-/** "No" first: enabling dark mode is the deliberate act, so the safe answer is the one already selected. */
-const YES_NO_OPTIONS: [string, string][] = [
-  ["no", "No"],
-  ["yes", "Yes"],
 ];
 
 interface ChoiceFieldProps {
@@ -149,44 +175,58 @@ function NotifyField({ selected }: { selected: readonly string[] }) {
   );
 }
 
-interface ResolvedProps {
-  resolved: ResolvedDarkFactorySettings;
-}
+type AutoMerge = ResolvedDarkFactorySettings["auto_merge"];
 
-/** How a dark run reports itself: whether it files an Issue, and whether a review runs before merge. */
-function ReportingFields({ resolved }: ResolvedProps) {
+/** When a PR may merge itself: which paths it may touch, and the trust and safety gates it must clear first. */
+function AutoMergeFields({ resolved }: ResolvedProps) {
+  const { auto_merge: autoMerge } = resolved;
+
   return (
     <>
-      <ChoiceField
-        label="Create GitHub Issue"
-        name="df_create_issue"
-        value={resolved.create_issue}
-        options={CREATE_ISSUE_OPTIONS}
+      <label>Auto-merge paths (one glob per line)</label>
+      <textarea
+        name="df_am_paths"
+        rows={4}
+        defaultValue={autoMerge.paths.join("\n")}
       />
-      <ChoiceField
-        label="Review mode"
-        name="df_review"
-        value={resolved.review}
-        options={REVIEW_OPTIONS}
-      />
+
+      <MinTrustField value={autoMerge.min_trust} />
+
+      <AutoMergeRequirements autoMerge={autoMerge} />
     </>
   );
 }
 
-/** What the factory does at all: whether it runs dark, whether it files Issues, whether it reviews, and who hears about it. */
-function ModeFields({ resolved }: ResolvedProps) {
+/** The trust rung a repo must reach before a PR may merge itself. Trust is earned by merges, so this is a floor on experience rather than a permission someone grants. */
+function MinTrustField({ value }: { value: string }) {
   return (
     <>
-      <ChoiceField
-        label="Dark mode enabled"
-        name="df_enabled"
-        value={resolved.enabled ? "yes" : "no"}
-        options={YES_NO_OPTIONS}
+      <label>Auto-merge min trust</label>
+      <select name="df_am_min_trust" defaultValue={value}>
+        {TRUST_LEVELS.map((level) => (
+          <option key={level} value={level}>
+            {level}
+          </option>
+        ))}
+      </select>
+    </>
+  );
+}
+
+/** Every "No" here is a downgrade, which is exactly what the approval ceremony gates. */
+function AutoMergeRequirements({ autoMerge }: { autoMerge: AutoMerge }) {
+  return (
+    <>
+      <RequirementField
+        label="Require green CI to auto-merge"
+        name="df_am_green_ci"
+        required={autoMerge.require_green_ci}
       />
-
-      <ReportingFields resolved={resolved} />
-
-      <NotifyField selected={resolved.notify} />
+      <RequirementField
+        label="Require bot approval to auto-merge"
+        name="df_am_bot_approval"
+        required={autoMerge.require_bot_approval}
+      />
     </>
   );
 }
@@ -212,58 +252,18 @@ function RequirementField({
   );
 }
 
-/** The trust rung a repo must reach before a PR may merge itself. Trust is earned by merges, so this is a floor on experience rather than a permission someone grants. */
-function MinTrustField({ value }: { value: string }) {
-  return (
-    <>
-      <label>Auto-merge min trust</label>
-      <select name="df_am_min_trust" defaultValue={value}>
-        {TRUST_LEVELS.map((level) => (
-          <option key={level} value={level}>
-            {level}
-          </option>
-        ))}
-      </select>
-    </>
-  );
-}
-
-type AutoMerge = ResolvedDarkFactorySettings["auto_merge"];
-
-/** Every "No" here is a downgrade, which is exactly what the approval ceremony gates. */
-function AutoMergeRequirements({ autoMerge }: { autoMerge: AutoMerge }) {
-  return (
-    <>
-      <RequirementField
-        label="Require green CI to auto-merge"
-        name="df_am_green_ci"
-        required={autoMerge.require_green_ci}
-      />
-      <RequirementField
-        label="Require bot approval to auto-merge"
-        name="df_am_bot_approval"
-        required={autoMerge.require_bot_approval}
-      />
-    </>
-  );
-}
-
-/** When a PR may merge itself: which paths it may touch, and the trust and safety gates it must clear first. */
-function AutoMergeFields({ resolved }: ResolvedProps) {
-  const { auto_merge: autoMerge } = resolved;
+/** Which container a run executes in. Left empty it inherits the platform default, shown as the placeholder rather than as a stored value. */
+function ExecutionImageField(props: DarkFactoryViewProps) {
+  const { rawImage, defaultExecutionImage } = props;
 
   return (
     <>
-      <label>Auto-merge paths (one glob per line)</label>
-      <textarea
-        name="df_am_paths"
-        rows={4}
-        defaultValue={autoMerge.paths.join("\n")}
+      <label>Execution image (BYO toolchain)</label>
+      <input
+        name="df_execution_image"
+        defaultValue={rawImage ?? ""}
+        placeholder={defaultExecutionImage}
       />
-
-      <MinTrustField value={autoMerge.min_trust} />
-
-      <AutoMergeRequirements autoMerge={autoMerge} />
     </>
   );
 }

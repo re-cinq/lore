@@ -29,6 +29,56 @@ export interface AgentDetailViewProps {
 
 type Memory = AgentDetailViewProps["memories"][number];
 
+export default function AgentDetailView({
+  agentId,
+  memoryCount,
+  memories,
+}: AgentDetailViewProps) {
+  return (
+    <div>
+      <h1>Agent: {agentId.substring(0, 12)}...</h1>
+      <p>{memoryCount} memories</p>
+      <div className="memory-list">
+        {memories.map((m) => (
+          <MemoryCard key={m.id} memory={m} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+interface MemoryCardProps {
+  memory: AgentDetailViewProps["memories"][number];
+}
+
+/** One memory, collapsed. Its version history and extracted facts appear only when there are any — a heading over an empty list reads as data that failed to load. */
+function MemoryCard({ memory: m }: MemoryCardProps) {
+  return (
+    <details key={m.id} className="memory-card">
+      <MemoryCardSummary memory={m} />
+      <div className="memory-detail">
+        <h4>Current Value</h4>
+        <pre>{m.value}</pre>
+        <VersionHistory versions={m.versions} />
+        <ExtractedFacts facts={m.facts} />
+      </div>
+    </details>
+  );
+}
+
+function MemoryCardSummary({ memory: m }: MemoryCardProps) {
+  return (
+    <summary>
+      <strong>{m.key}</strong>
+      <span className="meta">
+        v{m.version} · {new Date(m.created_at).toLocaleString()}
+      </span>
+      {m.has_facts && <span className="badge">facts</span>}
+      {m.ttl_seconds && <span className="badge">TTL: {m.ttl_seconds}s</span>}
+    </summary>
+  );
+}
+
 /** What this memory used to say. Hidden when there is only the current version — a "Version History (1)" heading over the value already shown above it is noise. */
 function VersionHistory({ versions }: { versions: Memory["versions"] }) {
   if (versions.length <= 1) {
@@ -65,55 +115,5 @@ function ExtractedFacts({ facts }: { facts: Memory["facts"] }) {
         ))}
       </ul>
     </>
-  );
-}
-
-interface MemoryCardProps {
-  memory: AgentDetailViewProps["memories"][number];
-}
-
-/** One memory, collapsed. Its version history and extracted facts appear only when there are any — a heading over an empty list reads as data that failed to load. */
-function MemoryCard({ memory: m }: MemoryCardProps) {
-  return (
-    <details key={m.id} className="memory-card">
-      <MemoryCardSummary memory={m} />
-      <div className="memory-detail">
-        <h4>Current Value</h4>
-        <pre>{m.value}</pre>
-        <VersionHistory versions={m.versions} />
-        <ExtractedFacts facts={m.facts} />
-      </div>
-    </details>
-  );
-}
-
-function MemoryCardSummary({ memory: m }: MemoryCardProps) {
-  return (
-    <summary>
-      <strong>{m.key}</strong>
-      <span className="meta">
-        v{m.version} · {new Date(m.created_at).toLocaleString()}
-      </span>
-      {m.has_facts && <span className="badge">facts</span>}
-      {m.ttl_seconds && <span className="badge">TTL: {m.ttl_seconds}s</span>}
-    </summary>
-  );
-}
-
-export default function AgentDetailView({
-  agentId,
-  memoryCount,
-  memories,
-}: AgentDetailViewProps) {
-  return (
-    <div>
-      <h1>Agent: {agentId.substring(0, 12)}...</h1>
-      <p>{memoryCount} memories</p>
-      <div className="memory-list">
-        {memories.map((m) => (
-          <MemoryCard key={m.id} memory={m} />
-        ))}
-      </div>
-    </div>
   );
 }

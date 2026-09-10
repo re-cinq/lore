@@ -16,54 +16,78 @@ const STATUS: Record<CheckStatus, { icon: IconName; color: string }> = {
   unknown: { icon: "unknown", color: "var(--text-muted)" },
 };
 
-function ReonboardAction({
-  check,
-  reonboardAction,
-}: {
-  check: Check;
+interface EnrollmentSectionProps {
+  checks: Check[];
   reonboardAction?: () => Promise<void>;
-}) {
-  if (check.action?.kind !== "reonboard" || !reonboardAction) {
-    return null;
-  }
-
-  return <ReonboardButton action={reonboardAction} text={check.action.text} />;
-}
-
-function SetupWebhookAction({
-  check,
-  setupWebhookAction,
-}: {
-  check: Check;
   setupWebhookAction?: () => Promise<void>;
-}) {
-  if (check.action?.kind !== "setup-webhook" || !setupWebhookAction) {
-    return null;
-  }
+}
 
+export default function EnrollmentSection(props: EnrollmentSectionProps) {
   return (
-    <SetupWebhookButton action={setupWebhookAction} text={check.action.text} />
+    <div className={`spec-card ${styles.section}`}>
+      <EnrollmentHeader checks={props.checks} />
+
+      <div className={`meta ${styles.groupLabel}`}>Repo integration</div>
+      <div className={styles.checks}>
+        <CheckRows {...props} />
+      </div>
+
+      <LocalSetupSteps />
+    </div>
   );
 }
 
-function CheckCopy({ check }: { check: Check }) {
-  if (!check.copy) {
-    return null;
-  }
+/** The section title, with how many of the checks are green. */
+function EnrollmentHeader({ checks }: { checks: Check[] }) {
+  const { passed, total } = passSummary(checks);
 
   return (
-    <span className={styles.copyUrl}>
-      {check.copy.label && <span className="meta">{check.copy.label}:</span>}
-      <code className={styles.copyUrlValue}>{check.copy.value}</code>
-      <CopyButton text={check.copy.value} />
-    </span>
+    <div className={styles.header}>
+      <h3 className={styles.heading}>Enrollment</h3>
+      <EnrollmentHelp />
+      <span className={`meta ${styles.summary}`}>
+        {passed}/{total} checks passing
+      </span>
+    </div>
   );
+}
+
+/** Every repo-integration check, each carrying whichever fix action applies to it. */
+function CheckRows({
+  checks,
+  reonboardAction,
+  setupWebhookAction,
+}: EnrollmentSectionProps) {
+  return checks.map((check) => (
+    <CheckRow
+      key={check.id}
+      check={check}
+      reonboardAction={reonboardAction}
+      setupWebhookAction={setupWebhookAction}
+    />
+  ));
 }
 
 interface CheckRowProps {
   check: Check;
   reonboardAction?: () => Promise<void>;
   setupWebhookAction?: () => Promise<void>;
+}
+
+function CheckRow(props: CheckRowProps) {
+  const { check } = props;
+
+  return (
+    <div className="enroll-row">
+      <CheckStatusIcon status={check.status} />
+      <span className={styles.label}>{check.label}</span>
+      <span className="enroll-dots" />
+      <CheckDetail check={check} />
+      <CheckActions {...props} />
+      <CheckCopy check={check} />
+      <CheckSecret check={check} />
+    </div>
+  );
 }
 
 /** The pass/fail marker. Colour rides through a CSS variable rather than a class per status, so a new status needs a STATUS entry and no stylesheet change. */
@@ -118,6 +142,20 @@ function CheckActions({
   );
 }
 
+function CheckCopy({ check }: { check: Check }) {
+  if (!check.copy) {
+    return null;
+  }
+
+  return (
+    <span className={styles.copyUrl}>
+      {check.copy.label && <span className="meta">{check.copy.label}:</span>}
+      <code className={styles.copyUrlValue}>{check.copy.value}</code>
+      <CopyButton text={check.copy.value} />
+    </span>
+  );
+}
+
 function CheckSecret({ check }: { check: Check }) {
   if (!check.secret) {
     return null;
@@ -126,70 +164,32 @@ function CheckSecret({ check }: { check: Check }) {
   return <SecretReveal value={check.secret.value} label={check.secret.label} />;
 }
 
-function CheckRow(props: CheckRowProps) {
-  const { check } = props;
-
-  return (
-    <div className="enroll-row">
-      <CheckStatusIcon status={check.status} />
-      <span className={styles.label}>{check.label}</span>
-      <span className="enroll-dots" />
-      <CheckDetail check={check} />
-      <CheckActions {...props} />
-      <CheckCopy check={check} />
-      <CheckSecret check={check} />
-    </div>
-  );
-}
-
-/** The section title, with how many of the checks are green. */
-function EnrollmentHeader({ checks }: { checks: Check[] }) {
-  const { passed, total } = passSummary(checks);
-
-  return (
-    <div className={styles.header}>
-      <h3 className={styles.heading}>Enrollment</h3>
-      <EnrollmentHelp />
-      <span className={`meta ${styles.summary}`}>
-        {passed}/{total} checks passing
-      </span>
-    </div>
-  );
-}
-
-export default function EnrollmentSection(props: EnrollmentSectionProps) {
-  return (
-    <div className={`spec-card ${styles.section}`}>
-      <EnrollmentHeader checks={props.checks} />
-
-      <div className={`meta ${styles.groupLabel}`}>Repo integration</div>
-      <div className={styles.checks}>
-        <CheckRows {...props} />
-      </div>
-
-      <LocalSetupSteps />
-    </div>
-  );
-}
-
-interface EnrollmentSectionProps {
-  checks: Check[];
-  reonboardAction?: () => Promise<void>;
-  setupWebhookAction?: () => Promise<void>;
-}
-
-/** Every repo-integration check, each carrying whichever fix action applies to it. */
-function CheckRows({
-  checks,
+function ReonboardAction({
+  check,
   reonboardAction,
+}: {
+  check: Check;
+  reonboardAction?: () => Promise<void>;
+}) {
+  if (check.action?.kind !== "reonboard" || !reonboardAction) {
+    return null;
+  }
+
+  return <ReonboardButton action={reonboardAction} text={check.action.text} />;
+}
+
+function SetupWebhookAction({
+  check,
   setupWebhookAction,
-}: EnrollmentSectionProps) {
-  return checks.map((check) => (
-    <CheckRow
-      key={check.id}
-      check={check}
-      reonboardAction={reonboardAction}
-      setupWebhookAction={setupWebhookAction}
-    />
-  ));
+}: {
+  check: Check;
+  setupWebhookAction?: () => Promise<void>;
+}) {
+  if (check.action?.kind !== "setup-webhook" || !setupWebhookAction) {
+    return null;
+  }
+
+  return (
+    <SetupWebhookButton action={setupWebhookAction} text={check.action.text} />
+  );
 }

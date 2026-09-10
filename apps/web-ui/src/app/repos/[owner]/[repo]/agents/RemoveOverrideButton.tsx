@@ -10,6 +10,26 @@ export interface RemoveOverrideButtonProps {
   remove: () => Promise<void>;
 }
 
+/** Drops a per-repo agent override, restoring the org-wide default for that station. Confirmed rather than fired from one press — the repo's own prompt and model do not come back. */
+export default function RemoveOverrideButton(props: RemoveOverrideButtonProps) {
+  const { name, remove } = props;
+  const [pending, startTransition] = useTransition();
+  const [confirming, setConfirming] = useState(false);
+
+  if (confirming) {
+    return (
+      <ConfirmRow
+        name={name}
+        pending={pending}
+        onConfirm={() => startTransition(() => remove())}
+        onCancel={() => setConfirming(false)}
+      />
+    );
+  }
+
+  return <ArmButton onClick={() => setConfirming(true)} />;
+}
+
 interface ConfirmRowProps {
   name: string;
   pending: boolean;
@@ -41,24 +61,4 @@ function ArmButton({ onClick }: { onClick: () => void }) {
       Remove
     </button>
   );
-}
-
-/** Drops a per-repo agent override, restoring the org-wide default for that station. Confirmed rather than fired from one press — the repo's own prompt and model do not come back. */
-export default function RemoveOverrideButton(props: RemoveOverrideButtonProps) {
-  const { name, remove } = props;
-  const [pending, startTransition] = useTransition();
-  const [confirming, setConfirming] = useState(false);
-
-  if (confirming) {
-    return (
-      <ConfirmRow
-        name={name}
-        pending={pending}
-        onConfirm={() => startTransition(() => remove())}
-        onCancel={() => setConfirming(false)}
-      />
-    );
-  }
-
-  return <ArmButton onClick={() => setConfirming(true)} />;
 }

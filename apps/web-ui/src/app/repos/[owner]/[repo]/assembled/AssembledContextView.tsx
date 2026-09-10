@@ -201,6 +201,20 @@ type AssemblyTrace = NonNullable<
   NonNullable<AssembledContextViewProps["result"]>["trace"]
 >;
 
+/** What the assembly was given and what it spent: template, budget, cross-repo reach, freshness, and how long it took. */
+function TraceSummary({ trace }: { trace: AssemblyTrace }) {
+  return (
+    <div className={styles.summary}>
+      <TraceBadges trace={trace} />
+      <p className={`meta ${styles.summaryMeta}`}>
+        {trace.budget.used} / {trace.budget.total} tokens used ·{" "}
+        {trace.budget.leftover} left
+      </p>
+      <Bar used={trace.budget.used} total={trace.budget.total} />
+    </div>
+  );
+}
+
 /** The assembly's inputs at a glance. Cross-repo and staleness show only when they APPLY — a badge saying "fresh" on every assembly teaches the reader to stop looking at the row. */
 function TraceBadges({ trace }: { trace: AssemblyTrace }) {
   return (
@@ -214,20 +228,6 @@ function TraceBadges({ trace }: { trace: AssemblyTrace }) {
       <span className={`meta ${styles.spacer}`}>
         {trace.timingsMs.total} ms
       </span>
-    </div>
-  );
-}
-
-/** What the assembly was given and what it spent: template, budget, cross-repo reach, freshness, and how long it took. */
-function TraceSummary({ trace }: { trace: AssemblyTrace }) {
-  return (
-    <div className={styles.summary}>
-      <TraceBadges trace={trace} />
-      <p className={`meta ${styles.summaryMeta}`}>
-        {trace.budget.used} / {trace.budget.total} tokens used ·{" "}
-        {trace.budget.leftover} left
-      </p>
-      <Bar used={trace.budget.used} total={trace.budget.total} />
     </div>
   );
 }

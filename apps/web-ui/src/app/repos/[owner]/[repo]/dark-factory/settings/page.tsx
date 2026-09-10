@@ -19,32 +19,6 @@ import {
   approvalPrFrom,
 } from "./page-input";
 
-async function saveDarkFactory(
-  _prev: SaveState,
-  formData: FormData,
-): Promise<SaveState> {
-  "use server";
-  const fullName = formData.get("full_name") as string;
-
-  const repoRow = await getRepo(fullName);
-  const current = currentSettingsOf(repoSettingsOf(repoRow));
-  const patch = parsePrivilegedChanges(formData, current, []);
-
-  let privileged: PrivilegedSaveResult | null = null;
-
-  if (!isEmptyPatch(patch)) {
-    privileged = await putPrivilegedSettings(
-      fullName,
-      patch,
-      approvalPrFrom(formData),
-    );
-  }
-
-  revalidatePath(`/repos/${fullName}/dark-factory/settings`);
-
-  return { saved: true, privileged };
-}
-
 interface RepoDarkFactoryProps {
   params: Promise<{ owner: string; repo: string }>;
 }
@@ -69,4 +43,30 @@ export default async function RepoDarkFactory(props: RepoDarkFactoryProps) {
       saveAction={saveDarkFactory}
     />
   );
+}
+
+async function saveDarkFactory(
+  _prev: SaveState,
+  formData: FormData,
+): Promise<SaveState> {
+  "use server";
+  const fullName = formData.get("full_name") as string;
+
+  const repoRow = await getRepo(fullName);
+  const current = currentSettingsOf(repoSettingsOf(repoRow));
+  const patch = parsePrivilegedChanges(formData, current, []);
+
+  let privileged: PrivilegedSaveResult | null = null;
+
+  if (!isEmptyPatch(patch)) {
+    privileged = await putPrivilegedSettings(
+      fullName,
+      patch,
+      approvalPrFrom(formData),
+    );
+  }
+
+  revalidatePath(`/repos/${fullName}/dark-factory/settings`);
+
+  return { saved: true, privileged };
 }

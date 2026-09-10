@@ -16,6 +16,32 @@ interface RepoSpecDoc {
   statements: ReturnType<typeof toStatementInfo>;
 }
 
+interface SpecDetailPageProps {
+  params: Promise<{ path: string[] }>;
+}
+
+export default async function SpecDetailPage({ params }: SpecDetailPageProps) {
+  const { path } = await params;
+  const filePath = decodeCatchAllPath(path);
+
+  const docs = await fetchSpecAcrossRepos(filePath);
+
+  return (
+    <div>
+      <div className="breadcrumb">
+        <Link href="/specs">Specs</Link> / {filePath}
+      </div>
+      {docs.length === 0 ? (
+        <EmptyGraphData filePath={filePath} />
+      ) : (
+        docs.map((doc) => (
+          <RepoSpecBlock key={doc.repo} doc={doc} filePath={filePath} />
+        ))
+      )}
+    </div>
+  );
+}
+
 /** Every repo that holds this path, with its own text and statements. The same spec path can exist in several repos, and a repo whose source will not load is DROPPED rather than rendered empty — an empty frame reads as a spec with no content. */
 async function fetchSpecAcrossRepos(filePath: string): Promise<RepoSpecDoc[]> {
   const repos = (await fetchAllSpecs())
@@ -74,32 +100,6 @@ function RepoSpecBlock({ doc, filePath }: RepoSpecBlockProps) {
         content={doc.source}
         statements={doc.statements}
       />
-    </div>
-  );
-}
-
-interface SpecDetailPageProps {
-  params: Promise<{ path: string[] }>;
-}
-
-export default async function SpecDetailPage({ params }: SpecDetailPageProps) {
-  const { path } = await params;
-  const filePath = decodeCatchAllPath(path);
-
-  const docs = await fetchSpecAcrossRepos(filePath);
-
-  return (
-    <div>
-      <div className="breadcrumb">
-        <Link href="/specs">Specs</Link> / {filePath}
-      </div>
-      {docs.length === 0 ? (
-        <EmptyGraphData filePath={filePath} />
-      ) : (
-        docs.map((doc) => (
-          <RepoSpecBlock key={doc.repo} doc={doc} filePath={filePath} />
-        ))
-      )}
     </div>
   );
 }

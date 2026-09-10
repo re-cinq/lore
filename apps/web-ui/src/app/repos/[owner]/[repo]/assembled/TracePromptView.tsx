@@ -34,6 +34,21 @@ interface AssembledPromptProps {
   onToggleRaw: () => void;
 }
 
+/** The same XML the runners receive, as a nested tag tree — or the raw text, for copying into somewhere that wants it verbatim. */
+export function AssembledPrompt({
+  trace,
+  text,
+  raw,
+  onToggleRaw,
+}: AssembledPromptProps) {
+  return (
+    <>
+      <PromptToolbar raw={raw} text={text} onToggleRaw={onToggleRaw} />
+      <TagBox node={buildTagTree(trace)} raw={raw} />
+    </>
+  );
+}
+
 /** Switch between the tag tree and the verbatim text, or take a copy. The label names the OTHER view — a toggle reading "Raw" while showing raw text says the wrong thing. */
 function PromptToolbar({
   raw,
@@ -66,20 +81,5 @@ function CopyButton({ text }: Pick<AssembledPromptProps, "text">) {
     >
       Copy
     </button>
-  );
-}
-
-/** The same XML the runners receive, as a nested tag tree — or the raw text, for copying into somewhere that wants it verbatim. */
-export function AssembledPrompt({
-  trace,
-  text,
-  raw,
-  onToggleRaw,
-}: AssembledPromptProps) {
-  return (
-    <>
-      <PromptToolbar raw={raw} text={text} onToggleRaw={onToggleRaw} />
-      <TagBox node={buildTagTree(trace)} raw={raw} />
-    </>
   );
 }

@@ -37,121 +37,28 @@ export interface FullTranscriptPanelProps {
   rows?: readonly AssemblyRunNode[];
 }
 
-interface TranscriptDisplayInput {
-  error: string | null;
-  open: boolean;
-  turns: AgentRunTurn[] | null;
-  capped: boolean;
-  /** Everything the conversation would draw: the node's turns plus the task events inside its window. */
-  entryCount: number;
-}
+const NO_EVENTS: readonly TaskRuntimeEvent[] = [];
+const NO_ROWS: readonly AssemblyRunNode[] = [];
 
-/** Whether the loading / capped / empty notices apply — pulled out so the JSX below is a flat, branch-free layout. */
-function transcriptMessageFlags({
-  error,
-  open,
-  turns,
-  capped,
-  entryCount,
-}: TranscriptDisplayInput): {
-  showLoading: boolean;
-  showCapped: boolean;
-  showEmpty: boolean;
-} {
-  const noError = !error;
+export default function FullTranscriptPanel(props: FullTranscriptPanelProps) {
+  const { runId, nodeId, taskEvents = NO_EVENTS, rows = NO_ROWS } = props;
+  const walk = useTranscriptWalk(runId);
+  const segments = useNodeSegments({
+    turns: walk.turns,
+    nodeId,
+    taskEvents,
+    rows,
+  });
 
-  return {
-    showLoading: noError && open && turns === null,
-    showCapped: noError && capped,
-    showEmpty: noError && turns !== null && entryCount === 0,
-  };
-}
-
-/** Whether the conversation applies — no error, and something to draw for this node. */
-function transcriptListVisible({
-  error,
-  entryCount,
-}: Pick<TranscriptDisplayInput, "error" | "entryCount">): boolean {
-  return !error && entryCount > 0;
-}
-
-interface WalkRefs {
-  disposedRef: { current: boolean };
-  startedRef: { current: boolean };
-}
-
-interface TranscriptSetters {
-  setTurns: (turns: AgentRunTurn[]) => void;
-  setCapped: (capped: boolean) => void;
-  setError: (error: string | null) => void;
-}
-
-/** A failed walk RE-ARMS the started gate, so closing and reopening retries instead of pinning the error until a page reload. A disposed panel is told nothing. */
-function failTranscript(e: unknown, refs: WalkRefs, set: TranscriptSetters) {
-  if (refs.disposedRef.current) {
-    return;
-  }
-  set.setError(walkErrorMessage(e));
-  refs.startedRef.current = false;
-}
-
-/** Walks the transcript once. The stale error is cleared up front so a retry reads as Loading rather than as the previous failure. */
-async function loadTranscript(
-  runId: string,
-  refs: WalkRefs,
-  set: TranscriptSetters,
-): Promise<void> {
-  try {
-    set.setError(null);
-    const result = await walkAllTurns(runId, () => refs.disposedRef.current);
-
-    if (refs.disposedRef.current) {
-      return;
-    }
-    set.setTurns(result.turns);
-    set.setCapped(result.hitCap);
-    set.setError(null);
-  } catch (e) {
-    failTranscript(e, refs, set);
-  }
-}
-
-// Unmount is the only cancellation — a re-closed panel still wants its data, but a dead component must not receive it.
-function useDisposedRef() {
-  const disposedRef = useRef(false);
-
-  useEffect(
-    () => () => {
-      disposedRef.current = true;
-    },
-    [],
+  return (
+    <CollapsibleCard title="Transcript" defaultOpen onToggle={walk.setOpen}>
+      <p className={`meta ${styles.hint}`}>
+        Untruncated turns from the transcript store (30-day retention), with the
+        task&apos;s status changes in this step folded in.
+      </p>
+      <TranscriptBody walk={walk} segments={segments} nodeId={nodeId} />
+    </CollapsibleCard>
   );
-
-  return disposedRef;
-}
-
-/** Walks the transcript ONCE per open. A failure re-arms the gate, so closing and reopening retries instead of pinning the error until a page reload. */
-function useTranscriptData(runId: string, { open }: { open: boolean }) {
-  const [turns, setTurns] = useState<AgentRunTurn[] | null>(null);
-  const [capped, setCapped] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const startedRef = useRef(false);
-  const disposedRef = useDisposedRef();
-
-  useEffect(() => {
-    if (!open || startedRef.current) {
-      return;
-    }
-    startedRef.current = true;
-
-    void loadTranscript(
-      runId,
-      { disposedRef, startedRef },
-      { setTurns, setCapped, setError },
-    );
-  }, [open, runId, disposedRef]);
-
-  return { turns, capped, error };
 }
 
 function useTranscriptWalk(runId: string) {
@@ -191,6 +98,68 @@ function useNodeSegments(sources: ConversationSources) {
   }, [nodeTurns, taskEvents, rows]);
 
   return { nodeTurns, entries };
+}
+
+/** Everything inside the card. Exactly one of the messages or the list is on screen at a time, so the flags are resolved here rather than by each child deciding for itself. */
+interface TranscriptBodyProps {
+  walk: ReturnType<typeof useTranscriptWalk>;
+  segments: ReturnType<typeof useNodeSegments>;
+  nodeId: string;
+}
+
+interface TranscriptListProps {
+  show: boolean;
+  segments: ReturnType<typeof useNodeSegments>;
+}
+
+function TranscriptBody({ walk, segments, nodeId }: TranscriptBodyProps) {
+  const { turns, error } = walk;
+  const { showList, ...flags } = bodyFlags(walk, segments);
+
+  return (
+    <>
+      <TranscriptNotices
+        error={error}
+        flags={flags}
+        turnsLoaded={(turns ?? []).length}
+        nodeId={nodeId}
+      />
+      <TranscriptList show={showList} segments={segments} />
+    </>
+  );
+}
+
+interface TranscriptDisplayInput {
+  error: string | null;
+  open: boolean;
+  turns: AgentRunTurn[] | null;
+  capped: boolean;
+  /** Everything the conversation would draw: the node's turns plus the task events inside its window. */
+  entryCount: number;
+}
+
+/** Walks the transcript ONCE per open. A failure re-arms the gate, so closing and reopening retries instead of pinning the error until a page reload. */
+function useTranscriptData(runId: string, { open }: { open: boolean }) {
+  const [turns, setTurns] = useState<AgentRunTurn[] | null>(null);
+  const [capped, setCapped] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const startedRef = useRef(false);
+  const disposedRef = useDisposedRef();
+
+  useEffect(() => {
+    if (!open || startedRef.current) {
+      return;
+    }
+    startedRef.current = true;
+
+    void loadTranscript(
+      runId,
+      { disposedRef, startedRef },
+      { setTurns, setCapped, setError },
+    );
+  }, [open, runId, disposedRef]);
+
+  return { turns, capped, error };
 }
 
 /** Which of the panel's mutually exclusive states is on screen. One decision, so the four flags are resolved together rather than each child asking separately. */
@@ -234,59 +203,90 @@ function TranscriptNotices({
   );
 }
 
-/** Everything inside the card. Exactly one of the messages or the list is on screen at a time, so the flags are resolved here rather than by each child deciding for itself. */
-interface TranscriptBodyProps {
-  walk: ReturnType<typeof useTranscriptWalk>;
-  segments: ReturnType<typeof useNodeSegments>;
-  nodeId: string;
-}
-
-interface TranscriptListProps {
-  show: boolean;
-  segments: ReturnType<typeof useNodeSegments>;
-}
-
 function TranscriptList({ show, segments }: TranscriptListProps) {
   return <TranscriptTurnsList show={show} entries={segments.entries} />;
 }
 
-function TranscriptBody({ walk, segments, nodeId }: TranscriptBodyProps) {
-  const { turns, error } = walk;
-  const { showList, ...flags } = bodyFlags(walk, segments);
-
-  return (
-    <>
-      <TranscriptNotices
-        error={error}
-        flags={flags}
-        turnsLoaded={(turns ?? []).length}
-        nodeId={nodeId}
-      />
-      <TranscriptList show={showList} segments={segments} />
-    </>
-  );
+interface WalkRefs {
+  disposedRef: { current: boolean };
+  startedRef: { current: boolean };
 }
 
-const NO_EVENTS: readonly TaskRuntimeEvent[] = [];
-const NO_ROWS: readonly AssemblyRunNode[] = [];
+interface TranscriptSetters {
+  setTurns: (turns: AgentRunTurn[]) => void;
+  setCapped: (capped: boolean) => void;
+  setError: (error: string | null) => void;
+}
 
-export default function FullTranscriptPanel(props: FullTranscriptPanelProps) {
-  const { runId, nodeId, taskEvents = NO_EVENTS, rows = NO_ROWS } = props;
-  const walk = useTranscriptWalk(runId);
-  const segments = useNodeSegments({
-    turns: walk.turns,
-    nodeId,
-    taskEvents,
-    rows,
-  });
+// Unmount is the only cancellation — a re-closed panel still wants its data, but a dead component must not receive it.
+function useDisposedRef() {
+  const disposedRef = useRef(false);
 
-  return (
-    <CollapsibleCard title="Transcript" defaultOpen onToggle={walk.setOpen}>
-      <p className={`meta ${styles.hint}`}>
-        Untruncated turns from the transcript store (30-day retention), with the
-        task&apos;s status changes in this step folded in.
-      </p>
-      <TranscriptBody walk={walk} segments={segments} nodeId={nodeId} />
-    </CollapsibleCard>
+  useEffect(
+    () => () => {
+      disposedRef.current = true;
+    },
+    [],
   );
+
+  return disposedRef;
+}
+
+/** Walks the transcript once. The stale error is cleared up front so a retry reads as Loading rather than as the previous failure. */
+async function loadTranscript(
+  runId: string,
+  refs: WalkRefs,
+  set: TranscriptSetters,
+): Promise<void> {
+  try {
+    set.setError(null);
+    const result = await walkAllTurns(runId, () => refs.disposedRef.current);
+
+    if (refs.disposedRef.current) {
+      return;
+    }
+    set.setTurns(result.turns);
+    set.setCapped(result.hitCap);
+    set.setError(null);
+  } catch (e) {
+    failTranscript(e, refs, set);
+  }
+}
+
+/** Whether the loading / capped / empty notices apply — pulled out so the JSX below is a flat, branch-free layout. */
+function transcriptMessageFlags({
+  error,
+  open,
+  turns,
+  capped,
+  entryCount,
+}: TranscriptDisplayInput): {
+  showLoading: boolean;
+  showCapped: boolean;
+  showEmpty: boolean;
+} {
+  const noError = !error;
+
+  return {
+    showLoading: noError && open && turns === null,
+    showCapped: noError && capped,
+    showEmpty: noError && turns !== null && entryCount === 0,
+  };
+}
+
+/** Whether the conversation applies — no error, and something to draw for this node. */
+function transcriptListVisible({
+  error,
+  entryCount,
+}: Pick<TranscriptDisplayInput, "error" | "entryCount">): boolean {
+  return !error && entryCount > 0;
+}
+
+/** A failed walk RE-ARMS the started gate, so closing and reopening retries instead of pinning the error until a page reload. A disposed panel is told nothing. */
+function failTranscript(e: unknown, refs: WalkRefs, set: TranscriptSetters) {
+  if (refs.disposedRef.current) {
+    return;
+  }
+  set.setError(walkErrorMessage(e));
+  refs.startedRef.current = false;
 }

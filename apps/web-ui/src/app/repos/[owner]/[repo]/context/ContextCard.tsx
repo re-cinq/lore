@@ -23,32 +23,6 @@ export interface ContextCardProps {
   repoLabel?: string;
 }
 
-function PathCell({
-  filePath,
-  detailHref,
-}: {
-  filePath: string | null;
-  detailHref?: string;
-}) {
-  if (detailHref) {
-    return (
-      <Link href={detailHref} className={styles.path}>
-        {filePath}
-      </Link>
-    );
-  }
-
-  return <span className={styles.path}>{filePath ?? "—"}</span>;
-}
-
-function DateCell({ ingestedAt }: { ingestedAt: string | null }) {
-  return (
-    <span className={styles.date}>
-      {ingestedAt ? <TimeAgo date={ingestedAt} inline /> : "—"}
-    </span>
-  );
-}
-
 /** One row in context list: type badge, path, metadata, date, clamped preview. */
 export default function ContextCard(props: ContextCardProps) {
   // Both columns permit NULL; untyped/pathless chunks are real rows, not crashes
@@ -82,6 +56,32 @@ function CardHead({
       {repoLabel && <span className={styles.repo}>{repoLabel}</span>}
       <DateCell ingestedAt={chunk.ingested_at} />
     </div>
+  );
+}
+
+function PathCell({
+  filePath,
+  detailHref,
+}: {
+  filePath: string | null;
+  detailHref?: string;
+}) {
+  if (detailHref) {
+    return (
+      <Link href={detailHref} className={styles.path}>
+        {filePath}
+      </Link>
+    );
+  }
+
+  return <span className={styles.path}>{filePath ?? "—"}</span>;
+}
+
+function DateCell({ ingestedAt }: { ingestedAt: string | null }) {
+  return (
+    <span className={styles.date}>
+      {ingestedAt ? <TimeAgo date={ingestedAt} inline /> : "—"}
+    </span>
   );
 }
 

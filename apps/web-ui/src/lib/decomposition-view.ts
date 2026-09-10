@@ -17,13 +17,19 @@ export interface DecompStoryGroup {
   tasks: DecompTask[];
 }
 
-function taskFromRow(r: DecompTaskRow): DecompTask {
-  return {
-    specTaskId: r.context_bundle?.spec_task_id ?? "",
-    description: r.description,
-    status: r.status,
-    phase: r.context_bundle?.phase ?? 0,
-  };
+/** Group spec-task rows by story Issue (issue order, null last). */
+export function groupDecomposition(rows: DecompTaskRow[]): {
+  stories: DecompStoryGroup[];
+  total: number;
+} {
+  const stories = [...groupByStory(rows).entries()]
+    .map(([storyIssue, tasks]) => ({
+      storyIssue,
+      tasks: tasks.sort((a, b) => a.specTaskId.localeCompare(b.specTaskId)),
+    }))
+    .sort((a, b) => compareStoryIssues(a.storyIssue, b.storyIssue));
+
+  return { stories, total: rows.length };
 }
 
 function groupByStory(rows: DecompTaskRow[]): Map<number | null, DecompTask[]> {
@@ -56,17 +62,11 @@ function compareStoryIssues(a: number | null, b: number | null): number {
   return a - b;
 }
 
-/** Group spec-task rows by story Issue (issue order, null last). */
-export function groupDecomposition(rows: DecompTaskRow[]): {
-  stories: DecompStoryGroup[];
-  total: number;
-} {
-  const stories = [...groupByStory(rows).entries()]
-    .map(([storyIssue, tasks]) => ({
-      storyIssue,
-      tasks: tasks.sort((a, b) => a.specTaskId.localeCompare(b.specTaskId)),
-    }))
-    .sort((a, b) => compareStoryIssues(a.storyIssue, b.storyIssue));
-
-  return { stories, total: rows.length };
+function taskFromRow(r: DecompTaskRow): DecompTask {
+  return {
+    specTaskId: r.context_bundle?.spec_task_id ?? "",
+    description: r.description,
+    status: r.status,
+    phase: r.context_bundle?.phase ?? 0,
+  };
 }

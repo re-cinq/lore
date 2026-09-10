@@ -8,14 +8,13 @@ import OnboardView, { type OnboardState } from "./OnboardView";
 
 const REPO_SLUG = /^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/;
 
-/** Files the onboard task, or says why it did not. Both refusals name the repo and what to check: a repo the App cannot see and one that is already being onboarded look identical from the form, and only the message tells them apart. An existing onboard is REPORTED rather than duplicated — two onboard PRs on one repo is the race this avoids. */
-async function startOnboarding(fullName: string): Promise<string | null> {
-  if ((await checkRepoAccess(fullName)) === "not-found") {
-    return `${fullName} was not found on GitHub — check the owner and repo name, and that the Lore GitHub App has access to it.`;
-  }
-  const result = await createOnboardTask(fullName);
+export default async function OnboardPage() {
+  const repoList = reposOrThrow(await listAllRepos());
+  const onboarded = repoList.repos.map((repo) => ({
+    full_name: repo.full_name,
+  }));
 
-  return result.ok ? null : result.message;
+  return <OnboardView onboarded={onboarded} onboardRepoAction={onboardRepo} />;
 }
 
 async function onboardRepo(
@@ -57,11 +56,12 @@ async function attemptOnboarding(fullName: string): Promise<string | null> {
   }
 }
 
-export default async function OnboardPage() {
-  const repoList = reposOrThrow(await listAllRepos());
-  const onboarded = repoList.repos.map((repo) => ({
-    full_name: repo.full_name,
-  }));
+/** Files the onboard task, or says why it did not. Both refusals name the repo and what to check: a repo the App cannot see and one that is already being onboarded look identical from the form, and only the message tells them apart. An existing onboard is REPORTED rather than duplicated — two onboard PRs on one repo is the race this avoids. */
+async function startOnboarding(fullName: string): Promise<string | null> {
+  if ((await checkRepoAccess(fullName)) === "not-found") {
+    return `${fullName} was not found on GitHub — check the owner and repo name, and that the Lore GitHub App has access to it.`;
+  }
+  const result = await createOnboardTask(fullName);
 
-  return <OnboardView onboarded={onboarded} onboardRepoAction={onboardRepo} />;
+  return result.ok ? null : result.message;
 }

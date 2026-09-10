@@ -43,56 +43,44 @@ export interface NodeDetail {
   startedAt: string | null;
 }
 
+export function describeNode(input: NodeDetailInput): NodeDetail {
+  const nodeType = findNode(input)?.type;
+  const visual = resolveVisual(input.row, input.state, nodeType);
+  const terminal = isTerminal(input.definition, input.nodeId);
+  const row = rowFacts(input.row);
+
+  return {
+    tone: visual.tone,
+    statusLabel: resolveStatusLabel(visual, { terminal }),
+    why: whyText(input, nodeType, {
+      tone: visual.tone,
+      terminal,
+      duration: formatDuration(row.durationSeconds),
+    }),
+    failures: resolveFailures(visual.tone, input.state),
+    files: uniqueFiles(input.state),
+    nodeType: nodeType ?? null,
+    ...nodeFacts(input, row, { running: visual.tone === "running" }),
+  };
+}
+
+function findNode(input: NodeDetailInput) {
+  return (input.definition?.nodes ?? []).find((n) => n.id === input.nodeId);
+}
+
+function resolveVisual(
+  row: AssemblyRunNode | undefined,
+  state: NodeRunState | undefined,
+  nodeType: string | undefined,
+) {
+  return nodeRunVisual(row?.outcome ?? null, state?.status ?? "idle", nodeType);
+}
+
 function isTerminal(
   definition: AssemblyLineDefinition | null,
   nodeId: string,
 ): boolean {
   return !(definition?.edges ?? []).some((edge) => edge.from === nodeId);
-}
-
-function uniqueFiles(state: NodeRunState | undefined): string[] {
-  const files = new Set<string>();
-
-  for (const event of state?.transcript ?? []) {
-    event.filePaths.forEach((path) => files.add(path));
-  }
-
-  return [...files];
-}
-
-function isFailedResult(event: RunStreamEvent): boolean {
-  return (
-    event.eventType === "result" && event.isError && Boolean(event.summary)
-  );
-}
-
-/** Last errored result line's summary; closest thing to a failure message in the stream. */
-function failureSummary(state: NodeRunState | undefined): string | null {
-  const failure = [...(state?.transcript ?? [])].reverse().find(isFailedResult);
-
-  return failure?.summary ?? null;
-}
-
-function toFailedStep(event: RunStreamEvent): FailedStep {
-  return {
-    tool:
-      event.toolName ??
-      (event.eventType === "result" ? "agent" : event.eventType),
-    detail: event.summary ?? "",
-  };
-}
-
-/** Every errored step with message, in order; concrete causes (tool calls, verdicts) behind the one-line why. */
-function erroredSteps(state: NodeRunState | undefined): FailedStep[] {
-  return (state?.transcript ?? [])
-    .filter((event) => event.isError && event.summary)
-    .map(toFailedStep);
-}
-
-interface NodeStanding {
-  tone: NodeStatusTone;
-  terminal: boolean;
-  duration: string;
 }
 
 interface RowFacts {
@@ -126,40 +114,6 @@ function rowFacts(row: AssemblyRunNode | undefined): RowFacts {
     : EMPTY_ROW_FACTS;
 }
 
-interface StateFacts {
-  eventCount: number;
-  droppedCount: number;
-  iteration: number | null;
-}
-
-const EMPTY_STATE_FACTS: StateFacts = {
-  eventCount: 0,
-  droppedCount: 0,
-  iteration: null,
-};
-
-function stateFacts(state: NodeRunState | undefined): StateFacts {
-  return state
-    ? {
-        eventCount: state.transcript.length,
-        droppedCount: state.droppedCount,
-        iteration: state.iteration,
-      }
-    : EMPTY_STATE_FACTS;
-}
-
-function resolveIteration(row: RowFacts, state: StateFacts): number {
-  return row.iteration ?? state.iteration ?? 0;
-}
-
-function resolveVisual(
-  row: AssemblyRunNode | undefined,
-  state: NodeRunState | undefined,
-  nodeType: string | undefined,
-) {
-  return nodeRunVisual(row?.outcome ?? null, state?.status ?? "idle", nodeType);
-}
-
 function resolveStatusLabel(
   visual: { tone: NodeStatusTone; label: string },
   { terminal }: { terminal: boolean },
@@ -167,25 +121,20 @@ function resolveStatusLabel(
   return visual.tone === "idle" && terminal ? "Terminal" : visual.label;
 }
 
-function resolveOutcomeLabel(
-  outcome: string | null,
-  { running }: { running: boolean },
-): string {
-  return running ? "in progress" : (outcome ?? "—");
+interface NodeStanding {
+  tone: NodeStatusTone;
+  terminal: boolean;
+  duration: string;
 }
 
-function resolveDurationLabel(
-  durationSeconds: number | null,
-  { running }: { running: boolean },
+function whyText(
+  input: NodeDetailInput,
+  type: string | undefined,
+  { tone, terminal, duration }: NodeStanding,
 ): string {
-  return running ? "running" : formatDuration(durationSeconds);
-}
+  const noun = type ? `the ${type} node` : "this step";
 
-function resolveFailures(
-  tone: NodeStatusTone,
-  state: NodeRunState | undefined,
-): FailedStep[] {
-  return tone === "err" ? erroredSteps(state) : [];
+  return WHY_BY_TONE[tone]({ noun, type, input, terminal, duration });
 }
 
 interface WhyArgs {
@@ -195,6 +144,16 @@ interface WhyArgs {
   terminal: boolean;
   duration: string;
 }
+
+const WHY_BY_TONE: Record<NodeStatusTone, (args: WhyArgs) => string> = {
+  running: ({ noun }) => `In progress — ${noun} is running.`,
+  waiting: whyWaiting,
+  ok: whyOk,
+  warn: ({ noun, duration }) =>
+    `Ran ${noun} and requested changes in ${duration}.`,
+  err: whyErr,
+  idle: whyIdle,
+};
 
 // Parked human station: reader needs to know whose move it is (often their own).
 function whyWaiting({ type }: WhyArgs): string {
@@ -220,49 +179,50 @@ function whyIdle({ terminal }: WhyArgs): string {
     : "Not reached — the run finished along another branch before it ran.";
 }
 
-const WHY_BY_TONE: Record<NodeStatusTone, (args: WhyArgs) => string> = {
-  running: ({ noun }) => `In progress — ${noun} is running.`,
-  waiting: whyWaiting,
-  ok: whyOk,
-  warn: ({ noun, duration }) =>
-    `Ran ${noun} and requested changes in ${duration}.`,
-  err: whyErr,
-  idle: whyIdle,
-};
+/** Last errored result line's summary; closest thing to a failure message in the stream. */
+function failureSummary(state: NodeRunState | undefined): string | null {
+  const failure = [...(state?.transcript ?? [])].reverse().find(isFailedResult);
 
-function whyText(
-  input: NodeDetailInput,
-  type: string | undefined,
-  { tone, terminal, duration }: NodeStanding,
-): string {
-  const noun = type ? `the ${type} node` : "this step";
-
-  return WHY_BY_TONE[tone]({ noun, type, input, terminal, duration });
+  return failure?.summary ?? null;
 }
 
-function findNode(input: NodeDetailInput) {
-  return (input.definition?.nodes ?? []).find((n) => n.id === input.nodeId);
+function isFailedResult(event: RunStreamEvent): boolean {
+  return (
+    event.eventType === "result" && event.isError && Boolean(event.summary)
+  );
 }
 
-export function describeNode(input: NodeDetailInput): NodeDetail {
-  const nodeType = findNode(input)?.type;
-  const visual = resolveVisual(input.row, input.state, nodeType);
-  const terminal = isTerminal(input.definition, input.nodeId);
-  const row = rowFacts(input.row);
+function resolveFailures(
+  tone: NodeStatusTone,
+  state: NodeRunState | undefined,
+): FailedStep[] {
+  return tone === "err" ? erroredSteps(state) : [];
+}
 
+/** Every errored step with message, in order; concrete causes (tool calls, verdicts) behind the one-line why. */
+function erroredSteps(state: NodeRunState | undefined): FailedStep[] {
+  return (state?.transcript ?? [])
+    .filter((event) => event.isError && event.summary)
+    .map(toFailedStep);
+}
+
+function toFailedStep(event: RunStreamEvent): FailedStep {
   return {
-    tone: visual.tone,
-    statusLabel: resolveStatusLabel(visual, { terminal }),
-    why: whyText(input, nodeType, {
-      tone: visual.tone,
-      terminal,
-      duration: formatDuration(row.durationSeconds),
-    }),
-    failures: resolveFailures(visual.tone, input.state),
-    files: uniqueFiles(input.state),
-    nodeType: nodeType ?? null,
-    ...nodeFacts(input, row, { running: visual.tone === "running" }),
+    tool:
+      event.toolName ??
+      (event.eventType === "result" ? "agent" : event.eventType),
+    detail: event.summary ?? "",
   };
+}
+
+function uniqueFiles(state: NodeRunState | undefined): string[] {
+  const files = new Set<string>();
+
+  for (const event of state?.transcript ?? []) {
+    event.filePaths.forEach((path) => files.add(path));
+  }
+
+  return [...files];
 }
 
 type NodeFacts = Omit<
@@ -289,4 +249,44 @@ function nodeFacts(
     durationSeconds: row.durationSeconds,
     startedAt: row.startedAt,
   };
+}
+
+interface StateFacts {
+  eventCount: number;
+  droppedCount: number;
+  iteration: number | null;
+}
+
+const EMPTY_STATE_FACTS: StateFacts = {
+  eventCount: 0,
+  droppedCount: 0,
+  iteration: null,
+};
+
+function stateFacts(state: NodeRunState | undefined): StateFacts {
+  return state
+    ? {
+        eventCount: state.transcript.length,
+        droppedCount: state.droppedCount,
+        iteration: state.iteration,
+      }
+    : EMPTY_STATE_FACTS;
+}
+
+function resolveIteration(row: RowFacts, state: StateFacts): number {
+  return row.iteration ?? state.iteration ?? 0;
+}
+
+function resolveOutcomeLabel(
+  outcome: string | null,
+  { running }: { running: boolean },
+): string {
+  return running ? "in progress" : (outcome ?? "—");
+}
+
+function resolveDurationLabel(
+  durationSeconds: number | null,
+  { running }: { running: boolean },
+): string {
+  return running ? "running" : formatDuration(durationSeconds);
 }

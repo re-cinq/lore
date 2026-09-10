@@ -7,6 +7,20 @@ import type { NodeRunState } from "./run-event-reducer";
 // A node id the definition names may have no state yet, so the index is honest about the hole.
 type NodeStates = Readonly<Record<string, NodeRunState | undefined>>;
 
+export function autoSelectNodeId(
+  definition: AssemblyLineDefinition | null,
+  nodeStates: NodeStates,
+  latestRows: ReadonlyMap<string, AssemblyRunNode>,
+): string | null {
+  const order = nodeOrder(definition, nodeStates);
+
+  return (
+    firstWithStatus(order, nodeStates, "running") ??
+    firstWithStatus(order, nodeStates, "failed") ??
+    lastFinished(order, nodeStates, latestRows)
+  );
+}
+
 /** Definition order, then any node the stream knows that the definition does not. */
 function nodeOrder(
   definition: AssemblyLineDefinition | null,
@@ -39,20 +53,6 @@ function lastFinished(
   return finished.reduce<string | null>(
     (best, id) => (best !== null && startOf(best) >= startOf(id) ? best : id),
     null,
-  );
-}
-
-export function autoSelectNodeId(
-  definition: AssemblyLineDefinition | null,
-  nodeStates: NodeStates,
-  latestRows: ReadonlyMap<string, AssemblyRunNode>,
-): string | null {
-  const order = nodeOrder(definition, nodeStates);
-
-  return (
-    firstWithStatus(order, nodeStates, "running") ??
-    firstWithStatus(order, nodeStates, "failed") ??
-    lastFinished(order, nodeStates, latestRows)
   );
 }
 

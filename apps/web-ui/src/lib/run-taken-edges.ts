@@ -13,18 +13,6 @@ export function edgeKey(
   return `${edge.from}-${edge.to}-${edge.on}`;
 }
 
-function pickEdge(
-  outgoing: readonly DefinitionEdge[],
-  outcome: string,
-): DefinitionEdge | null {
-  return (
-    outgoing.find((edge) => edge.on === outcome) ??
-    outgoing.find((edge) => outcome.endsWith(`-${edge.on}`)) ??
-    outgoing.find((edge) => edge.on === "always") ??
-    null
-  );
-}
-
 /** Edge a node traversed, or null while running or unmatched; shared by taken-path overlay and step list. */
 export function chosenEdge(
   definition: AssemblyLineDefinition | null,
@@ -38,6 +26,18 @@ export function chosenEdge(
   return pickEdge(
     definition.edges.filter((edge) => edge.from === nodeId),
     outcome,
+  );
+}
+
+function pickEdge(
+  outgoing: readonly DefinitionEdge[],
+  outcome: string,
+): DefinitionEdge | null {
+  return (
+    outgoing.find((edge) => edge.on === outcome) ??
+    outgoing.find((edge) => outcome.endsWith(`-${edge.on}`)) ??
+    outgoing.find((edge) => edge.on === "always") ??
+    null
   );
 }
 

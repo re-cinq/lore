@@ -19,27 +19,6 @@ export interface GapsViewProps {
   zeroResultSearches: ZeroResultSearchRow[];
 }
 
-/** Where the gap agent's own output goes. The PRs live on GitHub rather than in this page, so the section is a signpost — there is nothing here to act on. */
-function DraftPrsSection() {
-  return (
-    <section className={styles.section}>
-      <h2>Context Gap Draft PRs</h2>
-      <p className="meta">
-        The gap detection agent creates draft PRs when it identifies missing
-        context.
-      </p>
-      <a
-        href="https://github.com/re-cinq/lore/pulls?q=label:context-gap-draft"
-        target="_blank"
-        rel="noopener noreferrer"
-        className={styles.draftLink}
-      >
-        View context-gap-draft PRs on GitHub &rarr;
-      </a>
-    </section>
-  );
-}
-
 /** Gap detection view; pure render with audit_log and memories from container (read-only). */
 export default function GapsView({
   gapMemories,
@@ -60,6 +39,27 @@ export default function GapsView({
       <AgentFindings gapMemories={gapMemories} />
       <ZeroResultSearches zeroResultSearches={zeroResultSearches} />
     </div>
+  );
+}
+
+/** Where the gap agent's own output goes. The PRs live on GitHub rather than in this page, so the section is a signpost — there is nothing here to act on. */
+function DraftPrsSection() {
+  return (
+    <section className={styles.section}>
+      <h2>Context Gap Draft PRs</h2>
+      <p className="meta">
+        The gap detection agent creates draft PRs when it identifies missing
+        context.
+      </p>
+      <a
+        href="https://github.com/re-cinq/lore/pulls?q=label:context-gap-draft"
+        target="_blank"
+        rel="noopener noreferrer"
+        className={styles.draftLink}
+      >
+        View context-gap-draft PRs on GitHub &rarr;
+      </a>
+    </section>
   );
 }
 
@@ -87,6 +87,26 @@ function GapFindingCard({ memory }: { memory: GapMemoryRow }) {
       </span>
       <pre className={styles.findingValue}>{memory.value}</pre>
     </div>
+  );
+}
+
+/** A search that returned nothing is the clearest signal of missing org context: someone asked, and there was no answer to give. */
+function ZeroResultSearches({
+  zeroResultSearches,
+}: Pick<GapsViewProps, "zeroResultSearches">) {
+  return (
+    <section>
+      <h2>Zero-Result Searches</h2>
+      <p className="meta">
+        Searches that returned no results indicate potential gaps in
+        organizational context.
+      </p>
+      {zeroResultSearches.length === 0 ? (
+        <Alert variant="secondary">No zero-result searches recorded.</Alert>
+      ) : (
+        <SearchesTable zeroResultSearches={zeroResultSearches} />
+      )}
+    </section>
   );
 }
 
@@ -129,25 +149,5 @@ function ZeroResultRow({ entry }: { entry: ZeroResultSearchRow }) {
         <TimeAgo date={entry.created_at} />
       </td>
     </tr>
-  );
-}
-
-/** A search that returned nothing is the clearest signal of missing org context: someone asked, and there was no answer to give. */
-function ZeroResultSearches({
-  zeroResultSearches,
-}: Pick<GapsViewProps, "zeroResultSearches">) {
-  return (
-    <section>
-      <h2>Zero-Result Searches</h2>
-      <p className="meta">
-        Searches that returned no results indicate potential gaps in
-        organizational context.
-      </p>
-      {zeroResultSearches.length === 0 ? (
-        <Alert variant="secondary">No zero-result searches recorded.</Alert>
-      ) : (
-        <SearchesTable zeroResultSearches={zeroResultSearches} />
-      )}
-    </section>
   );
 }

@@ -9,54 +9,14 @@ import styles from "./LogEntriesView.module.css";
 
 const INLINE_RESULT_MAX = 160;
 
-function resultSummary(entry: Extract<LogEntry, { kind: "result" }>): string {
-  const parts = [entry.isError ? "✗ failed" : "✓ finished"];
-
-  if (entry.durationMs !== undefined) {
-    parts.push(` — ${formatDuration(entry.durationMs)}`);
-  }
-
-  if (entry.costUsd !== undefined) {
-    parts.push(` · $${entry.costUsd.toFixed(2)}`);
-  }
-
-  if (entry.numTurns !== undefined) {
-    parts.push(` · ${entry.numTurns} turns`);
-  }
-
-  return parts.join("");
-}
-
-/** The exit code decides when present; without it, a non-zero exit is never assumed, or every still-running hook would read failed. */
-function hookPassed(entry: Extract<LogEntry, { kind: "hook" }>): boolean {
-  return entry.exitCode === undefined
-    ? entry.outcome === "success"
-    : entry.exitCode === 0;
-}
-
-/** Formatted here rather than in JSX so it is testable without a DOM. */
-export function hookSummary(
-  entry: Extract<LogEntry, { kind: "hook" }>,
-): string {
-  const exit = entry.exitCode === undefined ? "" : ` (exit ${entry.exitCode})`;
-  const status =
-    entry.outcome === undefined
-      ? "running…"
-      : `${hookPassed(entry) ? "✓" : "✗"}${exit}`;
-
-  return `· hook ${entry.hookName} ${status}`;
-}
-
-/** Elapsed seconds are the total for the call, so the folded run's newest beat is the whole clock. */
-export function toolProgressSummary(
-  entry: Extract<LogEntry, { kind: "tool-progress" }>,
-): string {
-  const clock =
-    entry.elapsedSeconds === undefined
-      ? ""
-      : ` (${formatDuration(entry.elapsedSeconds * 1000)})`;
-
-  return `· ${entry.toolName} still running…${clock}`;
+export default function LogEntriesView({ entries }: { entries: LogEntry[] }) {
+  return (
+    <>
+      {entries.map((entry, index) => (
+        <EntryLine key={index} entry={entry} />
+      ))}
+    </>
+  );
 }
 
 /** Exported so a view that adds its own gutter (the run page's timestamped transcript) reuses this switch instead of copying it. */
@@ -68,6 +28,63 @@ export function EntryLine({ entry }: { entry: LogEntry }) {
     reportLine(entry) ??
     rawLine(entry)
   );
+}
+
+/** The run's own bookkeeping: start, stop, and the thinking meter. */
+function sessionLine(entry: LogEntry) {
+  if (entry.kind === "lifecycle") {
+    return lifecycleLine(entry);
+  }
+
+  if (entry.kind === "session-init") {
+    return sessionInitLine(entry);
+  }
+
+  return thinkingTokensLine(entry);
+}
+
+/** What the agent said and did: its thinking, its text, its tool calls. */
+function agentLine(entry: LogEntry) {
+  if (entry.kind === "thinking") {
+    return <div className={styles.thinking}>{entry.text}</div>;
+  }
+
+  if (entry.kind === "assistant-text") {
+    return <div className={styles.text}>{entry.text}</div>;
+  }
+
+  if (entry.kind === "tool-use") {
+    return <div className={styles.tool}>{entry.summary}</div>;
+  }
+
+  if (entry.kind === "tool-progress") {
+    return <div className={styles.dim}>{toolProgressSummary(entry)}</div>;
+  }
+
+  return toolResultLine(entry) ?? userTextLine(entry);
+}
+
+/** How the run reports itself: its verdict, its limits, its failures, its artifacts. */
+function reportLine(entry: LogEntry) {
+  if (entry.kind === "result") {
+    return resultLine(entry);
+  }
+
+  if (entry.kind === "rate-limit") {
+    return <div className={styles.rateLimit}>{rateLimitSummary(entry)}</div>;
+  }
+
+  if (entry.kind === "agent-error") {
+    return agentErrorLine(entry);
+  }
+
+  return hookLine(entry) ?? stationLine(entry);
+}
+
+function rawLine(entry: LogEntry) {
+  return entry.kind === "raw" ? (
+    <div className={styles.rawLine}>{entry.text}</div>
+  ) : null;
 }
 
 function lifecycleLine(entry: Extract<LogEntry, { kind: "lifecycle" }>) {
@@ -103,38 +120,16 @@ function thinkingTokensLine(entry: LogEntry) {
   ) : null;
 }
 
-/** The run's own bookkeeping: start, stop, and the thinking meter. */
-function sessionLine(entry: LogEntry) {
-  if (entry.kind === "lifecycle") {
-    return lifecycleLine(entry);
-  }
+/** Elapsed seconds are the total for the call, so the folded run's newest beat is the whole clock. */
+export function toolProgressSummary(
+  entry: Extract<LogEntry, { kind: "tool-progress" }>,
+): string {
+  const clock =
+    entry.elapsedSeconds === undefined
+      ? ""
+      : ` (${formatDuration(entry.elapsedSeconds * 1000)})`;
 
-  if (entry.kind === "session-init") {
-    return sessionInitLine(entry);
-  }
-
-  return thinkingTokensLine(entry);
-}
-
-/** What the agent said and did: its thinking, its text, its tool calls. */
-function agentLine(entry: LogEntry) {
-  if (entry.kind === "thinking") {
-    return <div className={styles.thinking}>{entry.text}</div>;
-  }
-
-  if (entry.kind === "assistant-text") {
-    return <div className={styles.text}>{entry.text}</div>;
-  }
-
-  if (entry.kind === "tool-use") {
-    return <div className={styles.tool}>{entry.summary}</div>;
-  }
-
-  if (entry.kind === "tool-progress") {
-    return <div className={styles.dim}>{toolProgressSummary(entry)}</div>;
-  }
-
-  return toolResultLine(entry) ?? userTextLine(entry);
+  return `· ${entry.toolName} still running…${clock}`;
 }
 
 /** A short single-line result reads inline; anything longer folds away. */
@@ -193,23 +188,6 @@ function agentErrorLine(entry: Extract<LogEntry, { kind: "agent-error" }>) {
   );
 }
 
-/** How the run reports itself: its verdict, its limits, its failures, its artifacts. */
-function reportLine(entry: LogEntry) {
-  if (entry.kind === "result") {
-    return resultLine(entry);
-  }
-
-  if (entry.kind === "rate-limit") {
-    return <div className={styles.rateLimit}>{rateLimitSummary(entry)}</div>;
-  }
-
-  if (entry.kind === "agent-error") {
-    return agentErrorLine(entry);
-  }
-
-  return hookLine(entry) ?? stationLine(entry);
-}
-
 /** A hook that failed carries its output; one that passed is a single line. */
 function hookLine(entry: LogEntry) {
   if (entry.kind !== "hook") {
@@ -248,6 +226,37 @@ function stationLine(entry: LogEntry) {
   return fileLine(entry);
 }
 
+function resultSummary(entry: Extract<LogEntry, { kind: "result" }>): string {
+  const parts = [entry.isError ? "✗ failed" : "✓ finished"];
+
+  if (entry.durationMs !== undefined) {
+    parts.push(` — ${formatDuration(entry.durationMs)}`);
+  }
+
+  if (entry.costUsd !== undefined) {
+    parts.push(` · $${entry.costUsd.toFixed(2)}`);
+  }
+
+  if (entry.numTurns !== undefined) {
+    parts.push(` · ${entry.numTurns} turns`);
+  }
+
+  return parts.join("");
+}
+
+/** Formatted here rather than in JSX so it is testable without a DOM. */
+export function hookSummary(
+  entry: Extract<LogEntry, { kind: "hook" }>,
+): string {
+  const exit = entry.exitCode === undefined ? "" : ` (exit ${entry.exitCode})`;
+  const status =
+    entry.outcome === undefined
+      ? "running…"
+      : `${hookPassed(entry) ? "✓" : "✗"}${exit}`;
+
+  return `· hook ${entry.hookName} ${status}`;
+}
+
 /** A declared artifact that never arrived is a failure, not a fold-away. */
 function fileLine(entry: LogEntry) {
   if (entry.kind !== "file") {
@@ -272,18 +281,9 @@ function fileLine(entry: LogEntry) {
   );
 }
 
-function rawLine(entry: LogEntry) {
-  return entry.kind === "raw" ? (
-    <div className={styles.rawLine}>{entry.text}</div>
-  ) : null;
-}
-
-export default function LogEntriesView({ entries }: { entries: LogEntry[] }) {
-  return (
-    <>
-      {entries.map((entry, index) => (
-        <EntryLine key={index} entry={entry} />
-      ))}
-    </>
-  );
+/** The exit code decides when present; without it, a non-zero exit is never assumed, or every still-running hook would read failed. */
+function hookPassed(entry: Extract<LogEntry, { kind: "hook" }>): boolean {
+  return entry.exitCode === undefined
+    ? entry.outcome === "success"
+    : entry.exitCode === 0;
 }

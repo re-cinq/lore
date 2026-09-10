@@ -1,6 +1,38 @@
 import type { LogEntry } from "./agent-log-types";
 import { errorMessage, isRecord, toolSummary } from "./agent-log-format";
 
+/** gemini-cli's flat dialect: one event per thing, instead of message.content blocks. */
+export function geminiStreamEntries(
+  value: Record<string, unknown>,
+): LogEntry[] | null {
+  if (value.type === "init" && typeof value.model === "string") {
+    return sessionInitEntries(value, value.model);
+  }
+
+  if (value.type === "message" && typeof value.content === "string") {
+    return plainMessageEntries({
+      role: value.role,
+      content: value.content,
+      delta: value.delta === true,
+    });
+  }
+
+  return geminiToolEntries(value) ?? geminiOutcomeEntries(value);
+}
+
+function sessionInitEntries(
+  value: Record<string, unknown>,
+  model: string,
+): LogEntry[] {
+  return [
+    {
+      kind: "session-init",
+      model,
+      detailsJson: JSON.stringify(value, null, 2),
+    },
+  ];
+}
+
 /** A delta chunk keeps whitespace-only content — trimming it would glue the words around it at fold time. */
 function plainMessageEntries(message: {
   role: unknown;
@@ -24,6 +56,17 @@ function plainMessageEntries(message: {
   }
 
   return [{ kind: "assistant-text", text: content }];
+}
+
+function geminiToolEntries(value: Record<string, unknown>): LogEntry[] | null {
+  return geminiToolUseEntry(value) ?? geminiToolResultEntry(value);
+}
+
+/** How a gemini run ends: an error mid-flight, or the terminal result line. */
+function geminiOutcomeEntries(
+  value: Record<string, unknown>,
+): LogEntry[] | null {
+  return geminiErrorEntry(value) ?? geminiResultEntry(value);
 }
 
 function geminiToolUseEntry(value: Record<string, unknown>): LogEntry[] | null {
@@ -61,10 +104,6 @@ function geminiToolResultEntry(
   ];
 }
 
-function geminiToolEntries(value: Record<string, unknown>): LogEntry[] | null {
-  return geminiToolUseEntry(value) ?? geminiToolResultEntry(value);
-}
-
 function geminiErrorEntry(value: Record<string, unknown>): LogEntry[] | null {
   if (value.type !== "error" || typeof value.message !== "string") {
     return null;
@@ -77,18 +116,6 @@ function geminiErrorEntry(value: Record<string, unknown>): LogEntry[] | null {
       message: value.message,
     },
   ];
-}
-
-function durationField(value: unknown): { durationMs?: number } {
-  return typeof value === "number" ? { durationMs: value } : {};
-}
-
-function costField(value: unknown): { costUsd?: number } {
-  return typeof value === "number" ? { costUsd: value } : {};
-}
-
-function turnsField(value: unknown): { numTurns?: number } {
-  return typeof value === "number" ? { numTurns: value } : {};
 }
 
 function geminiResultEntry(value: Record<string, unknown>): LogEntry[] | null {
@@ -111,41 +138,14 @@ function geminiResultEntry(value: Record<string, unknown>): LogEntry[] | null {
   ];
 }
 
-/** How a gemini run ends: an error mid-flight, or the terminal result line. */
-function geminiOutcomeEntries(
-  value: Record<string, unknown>,
-): LogEntry[] | null {
-  return geminiErrorEntry(value) ?? geminiResultEntry(value);
+function durationField(value: unknown): { durationMs?: number } {
+  return typeof value === "number" ? { durationMs: value } : {};
 }
 
-function sessionInitEntries(
-  value: Record<string, unknown>,
-  model: string,
-): LogEntry[] {
-  return [
-    {
-      kind: "session-init",
-      model,
-      detailsJson: JSON.stringify(value, null, 2),
-    },
-  ];
+function costField(value: unknown): { costUsd?: number } {
+  return typeof value === "number" ? { costUsd: value } : {};
 }
 
-/** gemini-cli's flat dialect: one event per thing, instead of message.content blocks. */
-export function geminiStreamEntries(
-  value: Record<string, unknown>,
-): LogEntry[] | null {
-  if (value.type === "init" && typeof value.model === "string") {
-    return sessionInitEntries(value, value.model);
-  }
-
-  if (value.type === "message" && typeof value.content === "string") {
-    return plainMessageEntries({
-      role: value.role,
-      content: value.content,
-      delta: value.delta === true,
-    });
-  }
-
-  return geminiToolEntries(value) ?? geminiOutcomeEntries(value);
+function turnsField(value: unknown): { numTurns?: number } {
+  return typeof value === "number" ? { numTurns: value } : {};
 }

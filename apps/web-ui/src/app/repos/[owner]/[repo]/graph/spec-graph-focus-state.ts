@@ -15,30 +15,23 @@ export interface FocusState {
   setSearchTerm: (term: string) => void;
 }
 
-/** A node's opacity by focus level. With no focus set everything is fully visible; a node the focus walk never reached is faded rather than hidden, so the graph keeps its shape. */
-function levelOpacity(
-  focusLevels: Map<string, number> | null,
-  id: string,
-): number {
-  if (!focusLevels) {
-    return 1;
-  }
-  const level = focusLevels.get(id);
+export function createFocusState(
+  getNodeById: () => Map<string, SimNode>,
+): FocusState {
+  const vars: FocusVars = { focusLevels: null, searchTerm: "" };
+  const matchesSearch = createMatcher(getNodeById, vars);
 
-  return level === undefined ? FADED : (LEVEL_OPACITY[level] ?? FADED);
-}
-
-/** An edge's opacity, from the levels of BOTH endpoints — an edge is only as prominent as its dimmer end. */
-function edgeLevelOpacity(
-  focusLevels: Map<string, number> | null,
-  sourceId: string,
-  targetId: string,
-): number {
-  if (!focusLevels) {
-    return 0.5;
-  }
-
-  return levelPairOpacity(focusLevels.get(sourceId), focusLevels.get(targetId));
+  return {
+    nodeOpacity: (id) => nodeOpacityOf(vars, matchesSearch, id),
+    edgeOpacity: (sourceId, targetId) =>
+      edgeOpacityOf(vars, matchesSearch, sourceId, targetId),
+    setFocusLevels: (levels) => {
+      vars.focusLevels = levels;
+    },
+    setSearchTerm: (term) => {
+      vars.searchTerm = term;
+    },
+  };
 }
 
 /** The mutable half of a focus state: the two settings the setters write and every opacity read consults. */
@@ -87,21 +80,28 @@ function edgeOpacityOf(
   return matchesSearch(sourceId) && matchesSearch(targetId) ? 0.5 : FADED;
 }
 
-export function createFocusState(
-  getNodeById: () => Map<string, SimNode>,
-): FocusState {
-  const vars: FocusVars = { focusLevels: null, searchTerm: "" };
-  const matchesSearch = createMatcher(getNodeById, vars);
+/** A node's opacity by focus level. With no focus set everything is fully visible; a node the focus walk never reached is faded rather than hidden, so the graph keeps its shape. */
+function levelOpacity(
+  focusLevels: Map<string, number> | null,
+  id: string,
+): number {
+  if (!focusLevels) {
+    return 1;
+  }
+  const level = focusLevels.get(id);
 
-  return {
-    nodeOpacity: (id) => nodeOpacityOf(vars, matchesSearch, id),
-    edgeOpacity: (sourceId, targetId) =>
-      edgeOpacityOf(vars, matchesSearch, sourceId, targetId),
-    setFocusLevels: (levels) => {
-      vars.focusLevels = levels;
-    },
-    setSearchTerm: (term) => {
-      vars.searchTerm = term;
-    },
-  };
+  return level === undefined ? FADED : (LEVEL_OPACITY[level] ?? FADED);
+}
+
+/** An edge's opacity, from the levels of BOTH endpoints — an edge is only as prominent as its dimmer end. */
+function edgeLevelOpacity(
+  focusLevels: Map<string, number> | null,
+  sourceId: string,
+  targetId: string,
+): number {
+  if (!focusLevels) {
+    return 0.5;
+  }
+
+  return levelPairOpacity(focusLevels.get(sourceId), focusLevels.get(targetId));
 }

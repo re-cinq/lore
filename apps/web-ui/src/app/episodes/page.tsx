@@ -10,21 +10,6 @@ interface EpisodesPageProps {
   searchParams: Promise<{ source?: string; offset?: string }>;
 }
 
-/** One page of episodes, with the total behind it. An unreachable lore-api reads as an empty page. */
-async function readEpisodePage(source: string | undefined, offset: number) {
-  const page = await listEpisodes({
-    source,
-    limit: PAGE_SIZE,
-    offset,
-  });
-  const totalCount = page.status === "ok" ? page.data.total : 0;
-  const episodes = (page.status === "ok"
-    ? page.data.episodes
-    : []) as unknown as EpisodeRow[];
-
-  return { totalCount, episodes };
-}
-
 export default async function EpisodesPage(props: EpisodesPageProps) {
   const { source, offset: offsetStr } = await props.searchParams;
   const offset = Math.max(0, parseInt(offsetStr || "0", 10) || 0);
@@ -40,4 +25,19 @@ export default async function EpisodesPage(props: EpisodesPageProps) {
       pageSize={PAGE_SIZE}
     />
   );
+}
+
+/** One page of episodes, with the total behind it. An unreachable lore-api reads as an empty page. */
+async function readEpisodePage(source: string | undefined, offset: number) {
+  const page = await listEpisodes({
+    source,
+    limit: PAGE_SIZE,
+    offset,
+  });
+  const totalCount = page.status === "ok" ? page.data.total : 0;
+  const episodes = (page.status === "ok"
+    ? page.data.episodes
+    : []) as unknown as EpisodeRow[];
+
+  return { totalCount, episodes };
 }

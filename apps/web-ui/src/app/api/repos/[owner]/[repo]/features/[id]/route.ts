@@ -5,26 +5,6 @@ import { authOptions } from "@/lib/auth-options";
 import { userCanAccessRepo } from "@/lib/user-repo-access";
 import { loadFeaturePoll } from "@/lib/feature-poll";
 
-/** The refusal this caller earns, or null when they may read on: 401 without a session, 403 when the session cannot see the repo. */
-async function accessDenial(fullName: string) {
-  const session = (await getServerSession(authOptions)) as {
-    accessToken?: string;
-  } | null;
-
-  if (!session?.accessToken) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  if (!(await userCanAccessRepo(session.accessToken, fullName))) {
-    return NextResponse.json(
-      { error: "Access denied — you do not have access to this repo" },
-      { status: 403 },
-    );
-  }
-
-  return null;
-}
-
 // Thin on purpose: excluded from coverage, so the reads live in @/lib/feature-poll, under the gate.
 export async function GET(
   req: Request,
@@ -50,4 +30,24 @@ export async function GET(
   }
 
   return NextResponse.json(payload);
+}
+
+/** The refusal this caller earns, or null when they may read on: 401 without a session, 403 when the session cannot see the repo. */
+async function accessDenial(fullName: string) {
+  const session = (await getServerSession(authOptions)) as {
+    accessToken?: string;
+  } | null;
+
+  if (!session?.accessToken) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (!(await userCanAccessRepo(session.accessToken, fullName))) {
+    return NextResponse.json(
+      { error: "Access denied — you do not have access to this repo" },
+      { status: 403 },
+    );
+  }
+
+  return null;
 }

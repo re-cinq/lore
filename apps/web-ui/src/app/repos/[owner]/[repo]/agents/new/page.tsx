@@ -10,6 +10,34 @@ import {
 import { DEFAULT_EXECUTION_IMAGE } from "@/lib/dark-factory-resolve";
 import AgentForm from "../AgentForm";
 
+interface NewAgentProps {
+  params: Promise<{ owner: string; repo: string }>;
+}
+
+export default async function NewAgent({ params }: NewAgentProps) {
+  const { owner, repo } = await params;
+  const fullName = `${owner}/${repo}`;
+
+  async function createAction(_prev: AgentFormState, formData: FormData) {
+    "use server";
+
+    return await createDefinition(fullName, formData);
+  }
+
+  return (
+    <div>
+      <NewAgentHeader fullName={fullName} />
+      <AgentForm
+        repo={fullName}
+        agent={null}
+        action={createAction}
+        isNew
+        defaultImage={DEFAULT_EXECUTION_IMAGE}
+      />
+    </div>
+  );
+}
+
 /** Creates the definition, redirecting to the list on success. The create write means a name that already exists is rejected by the API rather than silently overwriting the definition behind it. */
 async function createDefinition(
   fullName: string,
@@ -38,33 +66,5 @@ function NewAgentHeader({ fullName }: { fullName: string }) {
       </div>
       <h1>New agent definition</h1>
     </>
-  );
-}
-
-interface NewAgentProps {
-  params: Promise<{ owner: string; repo: string }>;
-}
-
-export default async function NewAgent({ params }: NewAgentProps) {
-  const { owner, repo } = await params;
-  const fullName = `${owner}/${repo}`;
-
-  async function createAction(_prev: AgentFormState, formData: FormData) {
-    "use server";
-
-    return await createDefinition(fullName, formData);
-  }
-
-  return (
-    <div>
-      <NewAgentHeader fullName={fullName} />
-      <AgentForm
-        repo={fullName}
-        agent={null}
-        action={createAction}
-        isNew
-        defaultImage={DEFAULT_EXECUTION_IMAGE}
-      />
-    </div>
   );
 }

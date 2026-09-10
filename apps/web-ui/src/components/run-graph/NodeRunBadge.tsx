@@ -15,32 +15,15 @@ export interface NodeRunBadgeProps {
   baselines: readonly number[];
 }
 
-// Hover title ONLY when drawing cost characters — a tooltip repeating on-screen text is noise and doubles it in the a11y tree.
-function fitted(text: string) {
-  const shown = fitNodeLabel(text);
-
-  return { shown, full: shown === text ? null : text };
-}
-
-/** Text clipped to the node box, with the untruncated value as a `<title>` so hovering still gives the whole thing. SVG text neither wraps nor ellipsizes on its own, so a long node id would otherwise run straight out of its box and across the graph. */
-function FittedText({
-  className,
-  textX,
-  textY,
-  text,
-}: {
-  className: string;
-  textX: number;
-  textY: number;
-  text: string;
-}) {
-  const { shown, full } = fitted(text);
+export default function NodeRunBadge(props: NodeRunBadgeProps) {
+  const { badge, leftEdge, centerY } = props;
 
   return (
-    <text className={className} x={textX} y={textY} textAnchor="start">
-      {full && <title>{full}</title>}
-      {shown}
-    </text>
+    <>
+      <StatusIcon tone={badge.tone} cx={leftEdge + 24} cy={centerY} />
+      <NodeTitleLabel {...props} />
+      <NodeVerdictLabel {...props} />
+    </>
   );
 }
 
@@ -77,14 +60,31 @@ function NodeVerdictLabel({
   );
 }
 
-export default function NodeRunBadge(props: NodeRunBadgeProps) {
-  const { badge, leftEdge, centerY } = props;
+/** Text clipped to the node box, with the untruncated value as a `<title>` so hovering still gives the whole thing. SVG text neither wraps nor ellipsizes on its own, so a long node id would otherwise run straight out of its box and across the graph. */
+function FittedText({
+  className,
+  textX,
+  textY,
+  text,
+}: {
+  className: string;
+  textX: number;
+  textY: number;
+  text: string;
+}) {
+  const { shown, full } = fitted(text);
 
   return (
-    <>
-      <StatusIcon tone={badge.tone} cx={leftEdge + 24} cy={centerY} />
-      <NodeTitleLabel {...props} />
-      <NodeVerdictLabel {...props} />
-    </>
+    <text className={className} x={textX} y={textY} textAnchor="start">
+      {full && <title>{full}</title>}
+      {shown}
+    </text>
   );
+}
+
+// Hover title ONLY when drawing cost characters — a tooltip repeating on-screen text is noise and doubles it in the a11y tree.
+function fitted(text: string) {
+  const shown = fitNodeLabel(text);
+
+  return { shown, full: shown === text ? null : text };
 }

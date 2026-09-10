@@ -10,6 +10,21 @@ export interface SubmittedLine {
   body: string;
 }
 
+/** Author's input for a round (sections, questions, free-form); whitespace-only dropped. */
+export function submittedFeedback(
+  answers: SectionAnswers | null | undefined,
+): SubmittedLine[] {
+  if (!answers) {
+    return [];
+  }
+
+  return [
+    ...sectionLines(answers.sections),
+    ...questionLines(answers.questions),
+    ...freeFormLine(answers.free_form),
+  ];
+}
+
 function sectionLines(sections: SectionAnswers["sections"]): SubmittedLine[] {
   return Object.entries(sections ?? {})
     .map(([heading, section]) => ({
@@ -38,19 +53,4 @@ function freeFormLine(freeForm: string | undefined): SubmittedLine[] {
   return note
     ? [{ heading: "Other comments", direction: null, body: note }]
     : [];
-}
-
-/** Author's input for a round (sections, questions, free-form); whitespace-only dropped. */
-export function submittedFeedback(
-  answers: SectionAnswers | null | undefined,
-): SubmittedLine[] {
-  if (!answers) {
-    return [];
-  }
-
-  return [
-    ...sectionLines(answers.sections),
-    ...questionLines(answers.questions),
-    ...freeFormLine(answers.free_form),
-  ];
 }

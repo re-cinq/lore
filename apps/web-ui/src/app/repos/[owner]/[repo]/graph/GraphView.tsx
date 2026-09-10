@@ -39,6 +39,30 @@ const GRAPH_COLUMN = {
   minHeight: 0,
 } as const;
 
+interface GraphViewProps {
+  owner: string;
+  repo: string;
+  graph: SpecGraph;
+}
+
+/** Toolbar + graph container with search/reset; reset clears persisted layout and re-runs layout effect. */
+export default function GraphView({ owner, repo, graph }: GraphViewProps) {
+  const repoId = `${owner}/${repo}`;
+  const { query, setQuery, resetSignal, reset } = useGraphViewState(repoId);
+
+  return (
+    <div style={GRAPH_COLUMN}>
+      <GraphToolbar query={query} onQueryChange={setQuery} onReset={reset} />
+      <SpecGraphD3
+        graph={graph}
+        repo={repoId}
+        searchQuery={query}
+        resetSignal={resetSignal}
+      />
+    </div>
+  );
+}
+
 interface GraphToolbarProps {
   query: string;
   onQueryChange: (value: string) => void;
@@ -66,21 +90,6 @@ function GraphToolbar({ query, onQueryChange, onReset }: GraphToolbarProps) {
   );
 }
 
-/** Forgets the dragged-into-place layout for this repo. Storage being unavailable is not a failure worth surfacing — the reset signal alone still re-settles the graph, which is what the reader asked for. */
-function clearSavedLayout(repoId: string): void {
-  try {
-    localStorage.removeItem(`lore.graph:${repoId}`);
-  } catch {
-    // storage unavailable — the signal bump alone still re-settles the layout
-  }
-}
-
-interface GraphViewProps {
-  owner: string;
-  repo: string;
-  graph: SpecGraph;
-}
-
 /** The search query and the reset signal the layout effect watches; resetting bumps the signal AND drops the saved layout. */
 function useGraphViewState(repoId: string) {
   const [query, setQuery] = useState("");
@@ -95,20 +104,11 @@ function useGraphViewState(repoId: string) {
   return { query, setQuery, resetSignal, reset };
 }
 
-/** Toolbar + graph container with search/reset; reset clears persisted layout and re-runs layout effect. */
-export default function GraphView({ owner, repo, graph }: GraphViewProps) {
-  const repoId = `${owner}/${repo}`;
-  const { query, setQuery, resetSignal, reset } = useGraphViewState(repoId);
-
-  return (
-    <div style={GRAPH_COLUMN}>
-      <GraphToolbar query={query} onQueryChange={setQuery} onReset={reset} />
-      <SpecGraphD3
-        graph={graph}
-        repo={repoId}
-        searchQuery={query}
-        resetSignal={resetSignal}
-      />
-    </div>
-  );
+/** Forgets the dragged-into-place layout for this repo. Storage being unavailable is not a failure worth surfacing — the reset signal alone still re-settles the graph, which is what the reader asked for. */
+function clearSavedLayout(repoId: string): void {
+  try {
+    localStorage.removeItem(`lore.graph:${repoId}`);
+  } catch {
+    // storage unavailable — the signal bump alone still re-settles the layout
+  }
 }

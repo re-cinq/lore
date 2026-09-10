@@ -4,8 +4,46 @@ import type { ReactNode } from "react";
 import { StatusPill, type StatusTone } from "./StatusPill";
 import styles from "./CollapsibleCard.module.scss";
 
-function hasVisibleContent(children: ReactNode): boolean {
-  return children !== null && children !== undefined && children !== false;
+interface CollapsibleCardProps {
+  title: string;
+  /** A toned outcome pill rendered right after the title — string data only. */
+  status?: { label: string; tone: StatusTone };
+  /** Plain-text header tags rendered as muted spans; empty entries are dropped, so callers pass optional values unfiltered. */
+  labels?: (string | null | undefined)[];
+  /** Shown beside the title, for saying how much is folded away without opening it. */
+  hint?: string;
+  /** Defaults to CLOSED — long documents were taking the page over; callers whose content IS the point pass this. */
+  defaultOpen?: boolean;
+  /** The note shown when the card has no content, so every empty card says it the same way. */
+  emptyState?: string;
+  /** Interactive header content; must preventDefault on click or it also toggles the fold — a <summary> treats any click as its own. */
+  actions?: ReactNode;
+  /** Reports the fold state on every toggle, for callers that fetch lazily on first open. */
+  onToggle?: (open: boolean) => void;
+  className?: string;
+  children?: ReactNode;
+}
+
+export default function CollapsibleCard(props: CollapsibleCardProps) {
+  const { defaultOpen = false, onToggle, className = "", children } = props;
+
+  return (
+    <div className={`spec-card ${className}`.trim()}>
+      <details
+        open={defaultOpen}
+        onToggle={onToggle ? (e) => onToggle(e.currentTarget.open) : undefined}
+      >
+        <CardSummary
+          title={props.title}
+          status={props.status}
+          labels={props.labels}
+          hint={props.hint}
+          actions={props.actions}
+        />
+        <CardBody emptyState={props.emptyState}>{children}</CardBody>
+      </details>
+    </div>
+  );
 }
 
 interface CardSummaryProps {
@@ -50,44 +88,6 @@ function CardBody({ emptyState, children }: CardBodyProps) {
   );
 }
 
-interface CollapsibleCardProps {
-  title: string;
-  /** A toned outcome pill rendered right after the title — string data only. */
-  status?: { label: string; tone: StatusTone };
-  /** Plain-text header tags rendered as muted spans; empty entries are dropped, so callers pass optional values unfiltered. */
-  labels?: (string | null | undefined)[];
-  /** Shown beside the title, for saying how much is folded away without opening it. */
-  hint?: string;
-  /** Defaults to CLOSED — long documents were taking the page over; callers whose content IS the point pass this. */
-  defaultOpen?: boolean;
-  /** The note shown when the card has no content, so every empty card says it the same way. */
-  emptyState?: string;
-  /** Interactive header content; must preventDefault on click or it also toggles the fold — a <summary> treats any click as its own. */
-  actions?: ReactNode;
-  /** Reports the fold state on every toggle, for callers that fetch lazily on first open. */
-  onToggle?: (open: boolean) => void;
-  className?: string;
-  children?: ReactNode;
-}
-
-export default function CollapsibleCard(props: CollapsibleCardProps) {
-  const { defaultOpen = false, onToggle, className = "", children } = props;
-
-  return (
-    <div className={`spec-card ${className}`.trim()}>
-      <details
-        open={defaultOpen}
-        onToggle={onToggle ? (e) => onToggle(e.currentTarget.open) : undefined}
-      >
-        <CardSummary
-          title={props.title}
-          status={props.status}
-          labels={props.labels}
-          hint={props.hint}
-          actions={props.actions}
-        />
-        <CardBody emptyState={props.emptyState}>{children}</CardBody>
-      </details>
-    </div>
-  );
+function hasVisibleContent(children: ReactNode): boolean {
+  return children !== null && children !== undefined && children !== false;
 }

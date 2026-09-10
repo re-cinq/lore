@@ -5,13 +5,16 @@ import ActionsCell, { type RemoveOverride } from "./ActionsCell";
 import { rowCells } from "./agent-row-cells";
 import styles from "./agents.module.css";
 
-/** Nothing resolved for this repo — neither an org default nor an override, which is a configuration state rather than an error. */
-function EmptyDefinitions() {
-  return (
-    <div className={`empty-state ${styles.emptyLeft}`}>
-      <p>No agent definitions resolved for this repo.</p>
-    </div>
-  );
+interface AgentListProps {
+  /** Repo base path for Edit links; null renders org-catalog (/agents). */
+  base: string | null;
+  agents: AgentDefinition[];
+  /** Blueprint refs and cluster verdicts; null when endpoint unreachable (renders unknown). */
+  usage?: AgentUsage | null;
+  /** With base null: link to global org editor (/agents/edit/[name]). */
+  orgEditable?: boolean;
+  /** Drops a repo override so the org default resolves again; omitted where there is no repo to remove one from. */
+  remove?: RemoveOverride;
 }
 
 /** Agent definitions table; org vs project labeling (editing on dedicated pages). */
@@ -36,32 +39,36 @@ export default function AgentList(props: AgentListProps) {
   );
 }
 
-interface AgentListProps {
-  /** Repo base path for Edit links; null renders org-catalog (/agents). */
-  base: string | null;
-  agents: AgentDefinition[];
-  /** Blueprint refs and cluster verdicts; null when endpoint unreachable (renders unknown). */
-  usage?: AgentUsage | null;
-  /** With base null: link to global org editor (/agents/edit/[name]). */
-  orgEditable?: boolean;
-  /** Drops a repo override so the org default resolves again; omitted where there is no repo to remove one from. */
-  remove?: RemoveOverride;
+/** Nothing resolved for this repo — neither an org default nor an override, which is a configuration state rather than an error. */
+function EmptyDefinitions() {
+  return (
+    <div className={`empty-state ${styles.emptyLeft}`}>
+      <p>No agent definitions resolved for this repo.</p>
+    </div>
+  );
 }
 
-function TableHead({ showEdit }: { showEdit: boolean }) {
+/** Editing is a per-repo act everywhere except the org catalog, so where you are decides what an edit means. */
+function ScopeHint({
+  base,
+  orgEditable,
+}: {
+  base: string | null;
+  orgEditable: boolean;
+}) {
+  if (base !== null) {
+    return <RepoScopeHint />;
+  }
+
+  if (orgEditable) {
+    return <OrgEditableHint />;
+  }
+
   return (
-    <thead>
-      <tr>
-        <th>Name</th>
-        <th>Scope</th>
-        <th>Model</th>
-        <th>Timeout</th>
-        <th>Mode</th>
-        <th>Used by</th>
-        <th>Rollout</th>
-        {showEdit && <th></th>}
-      </tr>
-    </thead>
+    <p className={styles.hint}>
+      The org-default catalog every repo inherits. Editing is a per-repo act —
+      open a repo&apos;s Agents tab to override a definition there.
+    </p>
   );
 }
 
@@ -70,23 +77,6 @@ interface AgentTableProps extends Pick<
   "base" | "agents" | "usage" | "remove"
 > {
   showEdit: boolean;
-}
-
-/** One row per resolved definition, in the order the caller resolved them. */
-function AgentRows({ base, agents, usage, showEdit, remove }: AgentTableProps) {
-  return (
-    <tbody>
-      {agents.map((agent) => (
-        <AgentRow
-          key={agent.name}
-          agent={agent}
-          usage={usage ?? null}
-          editHref={showEdit ? editHref(base, agent.name) : null}
-          remove={remove}
-        />
-      ))}
-    </tbody>
-  );
 }
 
 /** The trailing edit column exists only where editing is possible, rather than rendering a disabled control — a column of dead links says less than no column. */
@@ -124,75 +114,37 @@ function OrgEditableHint() {
   );
 }
 
-/** Editing is a per-repo act everywhere except the org catalog, so where you are decides what an edit means. */
-function ScopeHint({
-  base,
-  orgEditable,
-}: {
-  base: string | null;
-  orgEditable: boolean;
-}) {
-  if (base !== null) {
-    return <RepoScopeHint />;
-  }
-
-  if (orgEditable) {
-    return <OrgEditableHint />;
-  }
-
+function TableHead({ showEdit }: { showEdit: boolean }) {
   return (
-    <p className={styles.hint}>
-      The org-default catalog every repo inherits. Editing is a per-repo act —
-      open a repo&apos;s Agents tab to override a definition there.
-    </p>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Scope</th>
+        <th>Model</th>
+        <th>Timeout</th>
+        <th>Mode</th>
+        <th>Used by</th>
+        <th>Rollout</th>
+        {showEdit && <th></th>}
+      </tr>
+    </thead>
   );
 }
 
-function editHref(base: string | null, name: string): string {
-  return base !== null
-    ? `${base}/agents/${encodeURIComponent(name)}/edit`
-    : `/agents/edit/${encodeURIComponent(name)}`;
-}
-
-function ScopePill({ isProject }: { isProject: boolean }) {
+/** One row per resolved definition, in the order the caller resolved them. */
+function AgentRows({ base, agents, usage, showEdit, remove }: AgentTableProps) {
   return (
-    <span
-      className="status-pill"
-      style={
-        {
-          "--pill-color": isProject ? "var(--accent)" : "var(--text-muted)",
-        } as CSSProperties
-      }
-    >
-      {isProject ? "project" : "org"}
-    </span>
-  );
-}
-
-/** A detail cell, with the modifier that turns bad news into something a reader scans for. */
-function detailClass(modifier: string | null): string {
-  return `${styles.detail} ${modifier ?? ""}`;
-}
-
-/** A usage or rollout cell. Both carry a flag saying the value is BAD news — dormant, or a rollout that did not land — which the class turns into something a reader scans for rather than reads. */
-function StatusCell({
-  kind,
-  name,
-  cell,
-}: {
-  kind: "usage" | "rollout";
-  name: string;
-  cell: { text: string; dormant?: boolean; bad?: boolean };
-}) {
-  const className =
-    kind === "usage"
-      ? detailClass(cell.dormant ? styles.detailDormant : null)
-      : detailClass(cell.bad ? styles.detailBad : null);
-
-  return (
-    <td className={className} data-testid={`${kind}-${name}`}>
-      {cell.text}
-    </td>
+    <tbody>
+      {agents.map((agent) => (
+        <AgentRow
+          key={agent.name}
+          agent={agent}
+          usage={usage ?? null}
+          editHref={showEdit ? editHref(base, agent.name) : null}
+          remove={remove}
+        />
+      ))}
+    </tbody>
   );
 }
 
@@ -201,6 +153,32 @@ interface AgentRowProps {
   usage: AgentUsage | null;
   editHref: string | null;
   remove?: RemoveOverride;
+}
+
+function AgentRow({ agent, usage, editHref, remove }: AgentRowProps) {
+  const { use, mode, rollout } = rowCells(agent, usage);
+  const isProject = agent.project_id != null && agent.project_id !== "";
+
+  return (
+    <tr>
+      <td className={styles.name}>{agent.name}</td>
+      <AgentConfigCells agent={agent} mode={mode} isProject={isProject} />
+      <StatusCell kind="usage" name={agent.name} cell={use} />
+      <StatusCell kind="rollout" name={agent.name} cell={rollout} />
+      <ActionsCell
+        href={editHref}
+        name={agent.name}
+        isProject={isProject}
+        remove={remove}
+      />
+    </tr>
+  );
+}
+
+function editHref(base: string | null, name: string): string {
+  return base !== null
+    ? `${base}/agents/${encodeURIComponent(name)}/edit`
+    : `/agents/edit/${encodeURIComponent(name)}`;
 }
 
 interface AgentConfigCellsProps {
@@ -225,22 +203,44 @@ function AgentConfigCells({ agent, mode, isProject }: AgentConfigCellsProps) {
   );
 }
 
-function AgentRow({ agent, usage, editHref, remove }: AgentRowProps) {
-  const { use, mode, rollout } = rowCells(agent, usage);
-  const isProject = agent.project_id != null && agent.project_id !== "";
+/** A usage or rollout cell. Both carry a flag saying the value is BAD news — dormant, or a rollout that did not land — which the class turns into something a reader scans for rather than reads. */
+function StatusCell({
+  kind,
+  name,
+  cell,
+}: {
+  kind: "usage" | "rollout";
+  name: string;
+  cell: { text: string; dormant?: boolean; bad?: boolean };
+}) {
+  const className =
+    kind === "usage"
+      ? detailClass(cell.dormant ? styles.detailDormant : null)
+      : detailClass(cell.bad ? styles.detailBad : null);
 
   return (
-    <tr>
-      <td className={styles.name}>{agent.name}</td>
-      <AgentConfigCells agent={agent} mode={mode} isProject={isProject} />
-      <StatusCell kind="usage" name={agent.name} cell={use} />
-      <StatusCell kind="rollout" name={agent.name} cell={rollout} />
-      <ActionsCell
-        href={editHref}
-        name={agent.name}
-        isProject={isProject}
-        remove={remove}
-      />
-    </tr>
+    <td className={className} data-testid={`${kind}-${name}`}>
+      {cell.text}
+    </td>
   );
+}
+
+function ScopePill({ isProject }: { isProject: boolean }) {
+  return (
+    <span
+      className="status-pill"
+      style={
+        {
+          "--pill-color": isProject ? "var(--accent)" : "var(--text-muted)",
+        } as CSSProperties
+      }
+    >
+      {isProject ? "project" : "org"}
+    </span>
+  );
+}
+
+/** A detail cell, with the modifier that turns bad news into something a reader scans for. */
+function detailClass(modifier: string | null): string {
+  return `${styles.detail} ${modifier ?? ""}`;
 }

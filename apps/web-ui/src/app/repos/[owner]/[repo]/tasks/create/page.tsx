@@ -4,29 +4,17 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import RepoTaskCreateView from "./RepoTaskCreateView";
 
-function taskFormFields(formData: FormData) {
-  return {
-    description: formData.get("description") as string | null,
-    taskType: (formData.get("task_type") as string) || "general",
-    targetRepo: formData.get("target_repo") as string,
-    priority:
-      (formData.get("priority") as string) === "immediate"
-        ? "immediate"
-        : "normal",
-  };
-}
+export default async function CreateRepoTask({
+  params,
+}: {
+  params: Promise<{ owner: string; repo: string }>;
+}) {
+  const { owner, repo } = await params;
+  const fullName = `${owner}/${repo}`;
 
-/** Land on task detail on success, or repo tasks tab on failure. */
-function taskRedirectPath(
-  created: Awaited<ReturnType<typeof queueTask>>,
-  targetRepo: string,
-) {
-  if (created.status === "ok") {
-    return `/tasks/${created.data.task_id}`;
-  }
-  const [owner, repo] = targetRepo.split("/");
-
-  return `/repos/${owner}/${repo}/tasks`;
+  return (
+    <RepoTaskCreateView fullName={fullName} createTaskAction={createTask} />
+  );
 }
 
 async function createTask(formData: FormData) {
@@ -51,15 +39,27 @@ async function createTask(formData: FormData) {
   redirect(taskRedirectPath(created, targetRepo));
 }
 
-export default async function CreateRepoTask({
-  params,
-}: {
-  params: Promise<{ owner: string; repo: string }>;
-}) {
-  const { owner, repo } = await params;
-  const fullName = `${owner}/${repo}`;
+function taskFormFields(formData: FormData) {
+  return {
+    description: formData.get("description") as string | null,
+    taskType: (formData.get("task_type") as string) || "general",
+    targetRepo: formData.get("target_repo") as string,
+    priority:
+      (formData.get("priority") as string) === "immediate"
+        ? "immediate"
+        : "normal",
+  };
+}
 
-  return (
-    <RepoTaskCreateView fullName={fullName} createTaskAction={createTask} />
-  );
+/** Land on task detail on success, or repo tasks tab on failure. */
+function taskRedirectPath(
+  created: Awaited<ReturnType<typeof queueTask>>,
+  targetRepo: string,
+) {
+  if (created.status === "ok") {
+    return `/tasks/${created.data.task_id}`;
+  }
+  const [owner, repo] = targetRepo.split("/");
+
+  return `/repos/${owner}/${repo}/tasks`;
 }

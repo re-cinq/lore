@@ -45,6 +45,28 @@ export interface TaskDetailViewProps {
   submitFeedback: (formData: FormData) => void | Promise<void>;
 }
 
+export default function TaskDetailView({
+  task,
+  failedEvent,
+  runs = [],
+  submitFeedback,
+}: TaskDetailViewProps) {
+  return (
+    <TaskRefreshProvider taskId={task.id} taskStatus={task.status} runs={runs}>
+      <div>
+        <h1>Task: {task.description.substring(0, 80)}</h1>
+        <TaskSummaryCard task={task} />
+
+        <TaskFailurePanel task={task} failedEvent={failedEvent} />
+
+        <FeedbackSection task={task} submitFeedback={submitFeedback} />
+
+        <RunsSection runs={runs} />
+      </div>
+    </TaskRefreshProvider>
+  );
+}
+
 function TaskFailurePanel({
   task,
   failedEvent,
@@ -62,30 +84,6 @@ function TaskFailurePanel({
 }
 
 const TERMINAL_TASK_STATUSES = ["merged", "cancelled"];
-
-/** What the reader tells the agent to change. The placeholder is a worked example rather than a prompt: feedback that names the approach produces a revision, feedback that says "fix it" produces another guess. */
-interface FeedbackFormProps {
-  taskId: string;
-  submitFeedback: (formData: FormData) => void | Promise<void>;
-}
-
-function FeedbackForm({ taskId, submitFeedback }: FeedbackFormProps) {
-  return (
-    <form action={submitFeedback}>
-      <input type="hidden" name="task_id" value={taskId} />
-      <textarea
-        name="feedback"
-        rows={3}
-        required
-        placeholder="e.g. Don't use a custom CLI — use the existing MCP tools instead. The approach should be..."
-        className={styles.feedbackTextarea}
-      />
-      <button type="submit" className={styles.feedbackBtn}>
-        Request Revision
-      </button>
-    </form>
-  );
-}
 
 interface FeedbackSectionProps {
   task: TaskDetailTask;
@@ -112,15 +110,27 @@ function FeedbackSection({ task, submitFeedback }: FeedbackSectionProps) {
   );
 }
 
-function RunListItem({ run }: { run: TaskRunRow }) {
+/** What the reader tells the agent to change. The placeholder is a worked example rather than a prompt: feedback that names the approach produces a revision, feedback that says "fix it" produces another guess. */
+interface FeedbackFormProps {
+  taskId: string;
+  submitFeedback: (formData: FormData) => void | Promise<void>;
+}
+
+function FeedbackForm({ taskId, submitFeedback }: FeedbackFormProps) {
   return (
-    <li>
-      <Link href={`/assembly-runs/${run.id}`}>#{run.id.substring(0, 8)}</Link> —{" "}
-      <span className={`op-badge op-${run.status}`}>
-        {formatEnumLabel(run.outcome ?? run.status)}
-      </span>{" "}
-      · started <TimeAgo date={run.created_at} inline />
-    </li>
+    <form action={submitFeedback}>
+      <input type="hidden" name="task_id" value={taskId} />
+      <textarea
+        name="feedback"
+        rows={3}
+        required
+        placeholder="e.g. Don't use a custom CLI — use the existing MCP tools instead. The approach should be..."
+        className={styles.feedbackTextarea}
+      />
+      <button type="submit" className={styles.feedbackBtn}>
+        Request Revision
+      </button>
+    </form>
   );
 }
 
@@ -145,24 +155,14 @@ function RunsSection({ runs }: { runs: TaskRunRow[] }) {
   );
 }
 
-export default function TaskDetailView({
-  task,
-  failedEvent,
-  runs = [],
-  submitFeedback,
-}: TaskDetailViewProps) {
+function RunListItem({ run }: { run: TaskRunRow }) {
   return (
-    <TaskRefreshProvider taskId={task.id} taskStatus={task.status} runs={runs}>
-      <div>
-        <h1>Task: {task.description.substring(0, 80)}</h1>
-        <TaskSummaryCard task={task} />
-
-        <TaskFailurePanel task={task} failedEvent={failedEvent} />
-
-        <FeedbackSection task={task} submitFeedback={submitFeedback} />
-
-        <RunsSection runs={runs} />
-      </div>
-    </TaskRefreshProvider>
+    <li>
+      <Link href={`/assembly-runs/${run.id}`}>#{run.id.substring(0, 8)}</Link> —{" "}
+      <span className={`op-badge op-${run.status}`}>
+        {formatEnumLabel(run.outcome ?? run.status)}
+      </span>{" "}
+      · started <TimeAgo date={run.created_at} inline />
+    </li>
   );
 }

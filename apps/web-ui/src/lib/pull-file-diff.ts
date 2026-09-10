@@ -13,10 +13,6 @@ export type DiffViewModel =
   | { kind: "binary"; file: PullFileChange }
   | { kind: "diff"; file: PullFileChange; lines: DiffLine[]; stats: DiffStats };
 
-function endsWithEither(a: string, b: string): boolean {
-  return a.endsWith(b) || b.endsWith(a);
-}
-
 /** The changed file a touched path names: exact, then with the sandbox prefix dropped, then by a shared tail — a heatmap path may be absolute while GitHub's is repo-relative. */
 export function matchChangedFile(
   files: readonly PullFileChange[],
@@ -38,6 +34,10 @@ export function matchChangedFile(
   }
 
   return null;
+}
+
+function endsWithEither(a: string, b: string): boolean {
+  return a.endsWith(b) || b.endsWith(a);
 }
 
 /** What the diff view renders: nothing to show, a file GitHub gave no patch for, or the parsed lines with their tally. */

@@ -10,6 +10,21 @@ export function split(repo: string): [string, string] {
   return [owner, name];
 }
 
+export async function octokit(): Promise<Octokit> {
+  const creds = readGithubAppEnv();
+
+  if (!hasGithubAppCredentials(creds)) {
+    throw new Error("GitHub App credentials not configured");
+  }
+
+  return withoutBlindRetryOnCreates(
+    new Octokit({
+      authStrategy: createAppAuth,
+      auth: creds,
+    }),
+  );
+}
+
 function readGithubAppEnv() {
   return {
     appId: process.env.GITHUB_APP_ID ?? "",
@@ -25,21 +40,6 @@ function hasGithubAppCredentials(
     Boolean(creds.appId) &&
     Boolean(creds.privateKey) &&
     Boolean(creds.installationId)
-  );
-}
-
-export async function octokit(): Promise<Octokit> {
-  const creds = readGithubAppEnv();
-
-  if (!hasGithubAppCredentials(creds)) {
-    throw new Error("GitHub App credentials not configured");
-  }
-
-  return withoutBlindRetryOnCreates(
-    new Octokit({
-      authStrategy: createAppAuth,
-      auth: creds,
-    }),
   );
 }
 

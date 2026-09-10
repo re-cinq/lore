@@ -1,17 +1,14 @@
 import styles from "./loading.module.scss";
 import Skeleton from "@/components/Skeleton";
 
-/** A headed run of rows. Row counts are deliberately unequal between sections so the skeleton reads as a page with structure rather than a uniform block. */
-function RowSection({ rows }: { rows: number }) {
+// Fallback for repo segment; tab subroutes have no closer loading.tsx, so stay tab-neutral (no overview-specific text).
+export default function RepoLoading() {
   return (
-    <>
-      <Skeleton width="25%" height={20} className={styles.sectionHeading} />
-      <div className={styles.rows}>
-        {Array.from({ length: rows }, (_, i) => (
-          <Skeleton key={i} />
-        ))}
-      </div>
-    </>
+    <div role="status" aria-label="Loading repository">
+      <HeaderCards />
+      <RowSection rows={3} />
+      <RowSection rows={5} />
+    </div>
   );
 }
 
@@ -36,13 +33,16 @@ function HeaderCards() {
   );
 }
 
-// Fallback for repo segment; tab subroutes have no closer loading.tsx, so stay tab-neutral (no overview-specific text).
-export default function RepoLoading() {
+/** A headed run of rows. Row counts are deliberately unequal between sections so the skeleton reads as a page with structure rather than a uniform block. */
+function RowSection({ rows }: { rows: number }) {
   return (
-    <div role="status" aria-label="Loading repository">
-      <HeaderCards />
-      <RowSection rows={3} />
-      <RowSection rows={5} />
-    </div>
+    <>
+      <Skeleton width="25%" height={20} className={styles.sectionHeading} />
+      <div className={styles.rows}>
+        {Array.from({ length: rows }, (_, i) => (
+          <Skeleton key={i} />
+        ))}
+      </div>
+    </>
   );
 }

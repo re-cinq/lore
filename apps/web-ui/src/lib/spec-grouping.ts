@@ -35,8 +35,33 @@ export interface SpecGroup {
   files: SpecFileRef[];
 }
 
-const basename = (path: string): string => path.split("/").pop() ?? path;
-const isSpecDoc = (path: string): boolean => basename(path) === "spec.md";
+/** Collapse per-file summaries into one card per spec folder, titled from spec.md. */
+export function groupSpecSummaries(summaries: SpecSummaryInput[]): SpecGroup[] {
+  const byKey = new Map<string, SpecSummaryInput[]>();
+
+  for (const summary of summaries) {
+    const key = specGroupKey(summary.filePath);
+
+    (byKey.get(key) ?? byKey.set(key, []).get(key)!).push(summary);
+  }
+
+  const groups: SpecGroup[] = [];
+
+  for (const [key, specs] of byKey) {
+    const sorted = [...specs].sort(orderSpecFirst);
+    const primary = sorted.find((s) => isSpecDoc(s.filePath)) ?? sorted[0];
+
+    groups.push({
+      key,
+      title: primary.title || basename(key),
+      description: primary.description,
+      coverage: docCoverage(primary),
+      files: sorted.map((s) => ({ filePath: s.filePath, title: s.title })),
+    });
+  }
+
+  return groups.sort((a, b) => a.key.localeCompare(b.key));
+}
 
 /** The spec folder a file belongs to: everything under `specs/<name>/` folds into `specs/<name>`; otherwise its directory. */
 export function specGroupKey(filePath: string): string {
@@ -70,30 +95,6 @@ function docCoverage({ coverage }: SpecSummaryInput): SpecGroupCoverage {
   };
 }
 
-/** Collapse per-file summaries into one card per spec folder, titled from spec.md. */
-export function groupSpecSummaries(summaries: SpecSummaryInput[]): SpecGroup[] {
-  const byKey = new Map<string, SpecSummaryInput[]>();
+const isSpecDoc = (path: string): boolean => basename(path) === "spec.md";
 
-  for (const summary of summaries) {
-    const key = specGroupKey(summary.filePath);
-
-    (byKey.get(key) ?? byKey.set(key, []).get(key)!).push(summary);
-  }
-
-  const groups: SpecGroup[] = [];
-
-  for (const [key, specs] of byKey) {
-    const sorted = [...specs].sort(orderSpecFirst);
-    const primary = sorted.find((s) => isSpecDoc(s.filePath)) ?? sorted[0];
-
-    groups.push({
-      key,
-      title: primary.title || basename(key),
-      description: primary.description,
-      coverage: docCoverage(primary),
-      files: sorted.map((s) => ({ filePath: s.filePath, title: s.title })),
-    });
-  }
-
-  return groups.sort((a, b) => a.key.localeCompare(b.key));
-}
+const basename = (path: string): string => path.split("/").pop() ?? path;

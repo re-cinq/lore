@@ -4,76 +4,38 @@ import { getOrgSettings, putOrgSettings } from "@/lib/api/repos";
 import { revalidatePath } from "next/cache";
 import SettingsView, { type SettingsApprovalConfig } from "./SettingsView";
 
-async function saveSettings(formData: FormData) {
-  "use server";
-  const entries = [
-    { key: "api_url", value: formData.get("api_url") as string | null },
-    {
-      key: "ingest_token",
-      value: formData.get("ingest_token") as string | null,
-    },
-  ];
+export default async function SettingsPage() {
+  const { settingsMap, repoCount, taskStats, approvalConfig } =
+    await loadSettingsPageData();
 
-  await putOrgSettings(
-    entries.map(({ key, value }) => ({ key, value: value ?? "" })),
-  );
-  revalidatePath("/settings");
-}
-
-function trimmedApprovalLabel(formData: FormData): string {
   return (
-    (formData.get("approval_label") as string | null)?.trim() || "approved"
+    <SettingsView
+      apiUrl={settingsMap.api_url || ""}
+      ingestToken={settingsMap.ingest_token || ""}
+      repoCount={repoCount}
+      totalTasks={taskStats.total}
+      tasksToday={taskStats.today}
+      approvalConfig={approvalConfig}
+      repoLines={Object.keys(approvalConfig.repos).join("\n")}
+      saveSettings={saveSettings}
+      saveApprovalConfig={saveApprovalConfig}
+      regenerateToken={regenerateToken}
+    />
   );
 }
 
-function parseAutoApprove(formData: FormData): string[] {
-  const raw = (formData.get("auto_approve") as string) || "";
+/** Everything the settings page renders from, read in one place so the page itself is the wiring. */
+async function loadSettingsPageData() {
+  const org = await getOrgSettings();
+  const settingsMap = settingsMapFrom(org);
+  const stats = await getTaskStats();
 
-  return raw
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
-
-function parseApprovalRepos(
-  formData: FormData,
-): Record<string, { required: boolean }> {
-  const raw = (formData.get("approval_repos") as string) || "";
-  const repos: Record<string, { required: boolean }> = {};
-
-  for (const line of raw.split("\n")) {
-    const repo = line.trim();
-
-    if (repo) {
-      repos[repo] = { required: true };
-    }
-  }
-
-  return repos;
-}
-
-async function saveApprovalConfig(formData: FormData) {
-  "use server";
-  const config = {
-    required: formData.get("approval_required") === "on",
-    label: trimmedApprovalLabel(formData),
-    auto_approve: parseAutoApprove(formData),
-    repos: parseApprovalRepos(formData),
+  return {
+    settingsMap,
+    repoCount: repoCountFrom(org),
+    taskStats: taskStatsFrom(stats),
+    approvalConfig: resolveApprovalConfig(settingsMap),
   };
-
-  await putOrgSettings([
-    { key: "approval_config", value: JSON.stringify(config) },
-  ]);
-  revalidatePath("/settings");
-}
-
-async function regenerateToken() {
-  "use server";
-  const crypto = await import("crypto");
-  const newToken = crypto.randomBytes(32).toString("hex");
-
-  await putOrgSettings([{ key: "ingest_token", value: newToken }]);
-  revalidatePath("/settings");
 }
 
 function settingsMapFrom(
@@ -120,36 +82,74 @@ function resolveApprovalConfig(
   }
 }
 
-export default async function SettingsPage() {
-  const { settingsMap, repoCount, taskStats, approvalConfig } =
-    await loadSettingsPageData();
+async function saveSettings(formData: FormData) {
+  "use server";
+  const entries = [
+    { key: "api_url", value: formData.get("api_url") as string | null },
+    {
+      key: "ingest_token",
+      value: formData.get("ingest_token") as string | null,
+    },
+  ];
 
+  await putOrgSettings(
+    entries.map(({ key, value }) => ({ key, value: value ?? "" })),
+  );
+  revalidatePath("/settings");
+}
+
+async function saveApprovalConfig(formData: FormData) {
+  "use server";
+  const config = {
+    required: formData.get("approval_required") === "on",
+    label: trimmedApprovalLabel(formData),
+    auto_approve: parseAutoApprove(formData),
+    repos: parseApprovalRepos(formData),
+  };
+
+  await putOrgSettings([
+    { key: "approval_config", value: JSON.stringify(config) },
+  ]);
+  revalidatePath("/settings");
+}
+
+function trimmedApprovalLabel(formData: FormData): string {
   return (
-    <SettingsView
-      apiUrl={settingsMap.api_url || ""}
-      ingestToken={settingsMap.ingest_token || ""}
-      repoCount={repoCount}
-      totalTasks={taskStats.total}
-      tasksToday={taskStats.today}
-      approvalConfig={approvalConfig}
-      repoLines={Object.keys(approvalConfig.repos).join("\n")}
-      saveSettings={saveSettings}
-      saveApprovalConfig={saveApprovalConfig}
-      regenerateToken={regenerateToken}
-    />
+    (formData.get("approval_label") as string | null)?.trim() || "approved"
   );
 }
 
-/** Everything the settings page renders from, read in one place so the page itself is the wiring. */
-async function loadSettingsPageData() {
-  const org = await getOrgSettings();
-  const settingsMap = settingsMapFrom(org);
-  const stats = await getTaskStats();
+function parseAutoApprove(formData: FormData): string[] {
+  const raw = (formData.get("auto_approve") as string) || "";
 
-  return {
-    settingsMap,
-    repoCount: repoCountFrom(org),
-    taskStats: taskStatsFrom(stats),
-    approvalConfig: resolveApprovalConfig(settingsMap),
-  };
+  return raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function parseApprovalRepos(
+  formData: FormData,
+): Record<string, { required: boolean }> {
+  const raw = (formData.get("approval_repos") as string) || "";
+  const repos: Record<string, { required: boolean }> = {};
+
+  for (const line of raw.split("\n")) {
+    const repo = line.trim();
+
+    if (repo) {
+      repos[repo] = { required: true };
+    }
+  }
+
+  return repos;
+}
+
+async function regenerateToken() {
+  "use server";
+  const crypto = await import("crypto");
+  const newToken = crypto.randomBytes(32).toString("hex");
+
+  await putOrgSettings([{ key: "ingest_token", value: newToken }]);
+  revalidatePath("/settings");
 }

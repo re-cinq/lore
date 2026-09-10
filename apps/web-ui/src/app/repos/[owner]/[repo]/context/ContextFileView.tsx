@@ -28,8 +28,24 @@ export interface ContextFileViewProps {
   groups: ContextFileGroup[];
 }
 
-function basename(filePath: string): string {
-  return filePath.split("/").pop() || filePath;
+/** Per-file context detail: full chunks rendered richly via ChunkBody (per-repo or global). */
+export default function ContextFileView({
+  filePath,
+  contextLink,
+  groups,
+}: ContextFileViewProps) {
+  const total = groups.reduce((n, g) => n + g.chunks.length, 0);
+
+  if (total === 0) {
+    return <FileNotFound filePath={filePath} contextLink={contextLink} />;
+  }
+
+  return (
+    <div>
+      <FileHeader filePath={filePath} contextLink={contextLink} />
+      <RepoChunkGroups filePath={filePath} groups={groups} />
+    </div>
+  );
 }
 
 /** The same path can be absent while the page itself is valid — a file ingested under another repo, or one removed since. */
@@ -49,6 +65,73 @@ function FileNotFound({
       <div className="empty-state">
         <p>No context found at &quot;{filePath}&quot;.</p>
       </div>
+    </div>
+  );
+}
+
+/** Breadcrumb and title name the file; the full path says where it lives, which the basename alone does not. */
+function FileHeader({
+  filePath,
+  contextLink,
+}: Pick<ContextFileViewProps, "filePath" | "contextLink">) {
+  return (
+    <>
+      <div className="breadcrumb">
+        <Link href={contextLink}>Context</Link> /{" "}
+        <strong>{basename(filePath)}</strong>
+      </div>
+      <h1>{basename(filePath)}</h1>
+      <p className={`meta ${styles.path}`}>{filePath}</p>
+    </>
+  );
+}
+
+function basename(filePath: string): string {
+  return filePath.split("/").pop() || filePath;
+}
+
+/** The group header appears only when there is more than one repo to tell apart. */
+function RepoChunkGroups({
+  filePath,
+  groups,
+}: Pick<ContextFileViewProps, "filePath" | "groups">) {
+  const showGroupHeader = groups.length > 1 || groups.some((g) => g.repoHref);
+
+  return groups.map((g, gi) => (
+    <RepoChunkGroup
+      key={g.repo}
+      group={g}
+      filePath={filePath}
+      showHeader={showGroupHeader}
+      lastGroup={gi === groups.length - 1}
+    />
+  ));
+}
+
+interface RepoChunkGroupProps {
+  group: ContextFileViewProps["groups"][number];
+  filePath: string;
+  showHeader: boolean;
+  lastGroup: boolean;
+}
+
+/** One repo's chunks for this path. The rules separate chunks WITHIN a repo from the boundary between repos. */
+function RepoChunkGroup({ group: g, ...props }: RepoChunkGroupProps) {
+  return (
+    <div key={g.repo} className={styles.group}>
+      {props.showHeader && <GroupHeader group={g} />}
+      {g.chunks.map((c, i) => (
+        <ChunkWithRule
+          key={c.id}
+          chunk={c}
+          group={g}
+          filePath={props.filePath}
+          ruled={i < g.chunks.length - 1}
+        />
+      ))}
+      {!props.lastGroup && (
+        <hr className={`${styles.hr} ${styles.groupRule}`} />
+      )}
     </div>
   );
 }
@@ -89,87 +172,4 @@ function ChunkWithRule({ chunk, group, filePath, ruled }: ChunkWithRuleProps) {
       {ruled && <hr className={`${styles.hr} ${styles.chunkRule}`} />}
     </div>
   );
-}
-
-interface RepoChunkGroupProps {
-  group: ContextFileViewProps["groups"][number];
-  filePath: string;
-  showHeader: boolean;
-  lastGroup: boolean;
-}
-
-/** One repo's chunks for this path. The rules separate chunks WITHIN a repo from the boundary between repos. */
-function RepoChunkGroup({ group: g, ...props }: RepoChunkGroupProps) {
-  return (
-    <div key={g.repo} className={styles.group}>
-      {props.showHeader && <GroupHeader group={g} />}
-      {g.chunks.map((c, i) => (
-        <ChunkWithRule
-          key={c.id}
-          chunk={c}
-          group={g}
-          filePath={props.filePath}
-          ruled={i < g.chunks.length - 1}
-        />
-      ))}
-      {!props.lastGroup && (
-        <hr className={`${styles.hr} ${styles.groupRule}`} />
-      )}
-    </div>
-  );
-}
-
-/** Per-file context detail: full chunks rendered richly via ChunkBody (per-repo or global). */
-export default function ContextFileView({
-  filePath,
-  contextLink,
-  groups,
-}: ContextFileViewProps) {
-  const total = groups.reduce((n, g) => n + g.chunks.length, 0);
-
-  if (total === 0) {
-    return <FileNotFound filePath={filePath} contextLink={contextLink} />;
-  }
-
-  return (
-    <div>
-      <FileHeader filePath={filePath} contextLink={contextLink} />
-      <RepoChunkGroups filePath={filePath} groups={groups} />
-    </div>
-  );
-}
-
-/** Breadcrumb and title name the file; the full path says where it lives, which the basename alone does not. */
-function FileHeader({
-  filePath,
-  contextLink,
-}: Pick<ContextFileViewProps, "filePath" | "contextLink">) {
-  return (
-    <>
-      <div className="breadcrumb">
-        <Link href={contextLink}>Context</Link> /{" "}
-        <strong>{basename(filePath)}</strong>
-      </div>
-      <h1>{basename(filePath)}</h1>
-      <p className={`meta ${styles.path}`}>{filePath}</p>
-    </>
-  );
-}
-
-/** The group header appears only when there is more than one repo to tell apart. */
-function RepoChunkGroups({
-  filePath,
-  groups,
-}: Pick<ContextFileViewProps, "filePath" | "groups">) {
-  const showGroupHeader = groups.length > 1 || groups.some((g) => g.repoHref);
-
-  return groups.map((g, gi) => (
-    <RepoChunkGroup
-      key={g.repo}
-      group={g}
-      filePath={filePath}
-      showHeader={showGroupHeader}
-      lastGroup={gi === groups.length - 1}
-    />
-  ));
 }

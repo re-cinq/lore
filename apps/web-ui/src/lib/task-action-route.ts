@@ -2,14 +2,6 @@ import { NextResponse } from "next/server";
 import type { ApiResult } from "@/lib/api/result";
 import { serverError, upstreamError } from "@/lib/api-error";
 
-/** The externally visible origin from the ingress headers — `req.url` is the in-cluster address, which would bounce the reader off the public host. */
-function requestOrigin(req: Request): string {
-  const host = req.headers.get("x-forwarded-host") || req.headers.get("host");
-  const proto = req.headers.get("x-forwarded-proto") || "https";
-
-  return host ? `${proto}://${host}` : req.url;
-}
-
 /** A task command route: lore-api owns the state rules, so this forwards its refusal and otherwise bounces back to the task page. */
 export function taskActionRoute(
   command: (id: string) => Promise<ApiResult<unknown>>,
@@ -46,4 +38,12 @@ async function runTaskCommand(
   }
 
   return NextResponse.redirect(new URL(`/tasks/${id}`, requestOrigin(req)));
+}
+
+/** The externally visible origin from the ingress headers — `req.url` is the in-cluster address, which would bounce the reader off the public host. */
+function requestOrigin(req: Request): string {
+  const host = req.headers.get("x-forwarded-host") || req.headers.get("host");
+  const proto = req.headers.get("x-forwarded-proto") || "https";
+
+  return host ? `${proto}://${host}` : req.url;
 }

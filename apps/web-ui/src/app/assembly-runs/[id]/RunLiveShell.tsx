@@ -29,28 +29,30 @@ export interface RunLiveShellProps {
   nodeModels?: Record<string, NodeModel>;
 }
 
-function TaskLessRunAlert() {
+export default function RunLiveShell(props: RunLiveShellProps) {
+  const [live, applyFrame] = useReducer(reduceRunLive, props, (seed) =>
+    initialRunLive(seed.run, seed.nodes, seed.taskEvents),
+  );
+  const run = withLiveFacts(props.run, live.run);
+
   return (
-    <Alert variant="secondary">
-      This run has no backing task — cost and status-transition history are not
-      available.
-    </Alert>
+    <>
+      <AssemblyRunView run={run} />
+      <DefinitionOfDonePanel runId={run.id} refreshKey={dodRefreshKey(live)} />
+      <AssemblyRunOptions run={run} />
+      <LiveSections
+        props={props}
+        run={run}
+        live={live}
+        applyFrame={applyFrame}
+      />
+    </>
   );
 }
 
-interface TaskContextProps {
-  taskId: string | null;
-  llmCalls: readonly TaskRuntimeLlmCall[];
-  repo: string;
-}
-
-/** The task's cost table; its status transitions now live inside the selected node's transcript. */
-function TaskContextSection({ taskId, llmCalls, repo }: TaskContextProps) {
-  if (!taskId) {
-    return <TaskLessRunAlert />;
-  }
-
-  return <LlmCallsTable llmCalls={[...llmCalls]} repo={repo} />;
+/** Changes when the run's status or its CI check moved — the two moments the definition of done can read differently. */
+function dodRefreshKey(live: ReturnType<typeof initialRunLive>): string {
+  return `${live.run.status}:${live.ciCheck?.observed_at ?? ""}`;
 }
 
 /** The live-driven half below the header: the panel that owns the socket, and the task accounting fed by the same fold. */
@@ -59,6 +61,21 @@ interface LiveSectionsProps {
   run: AssemblyRun;
   live: ReturnType<typeof initialRunLive>;
   applyFrame: (frame: RunStreamFrame) => void;
+}
+
+function LiveSections(sections: LiveSectionsProps) {
+  const { props, run } = sections;
+
+  return (
+    <>
+      <RunVisualizationPanel {...panelProps(sections)} />
+      <TaskContextSection
+        taskId={run.taskId}
+        llmCalls={props.llmCalls}
+        repo={run.repo}
+      />
+    </>
+  );
 }
 
 /** The panel's props from the shell's facts: the page's own inputs plus the live rows and the fold that feeds them. */
@@ -78,43 +95,26 @@ function panelProps({ props, run, live, applyFrame }: LiveSectionsProps) {
   };
 }
 
-function LiveSections(sections: LiveSectionsProps) {
-  const { props, run } = sections;
-
-  return (
-    <>
-      <RunVisualizationPanel {...panelProps(sections)} />
-      <TaskContextSection
-        taskId={run.taskId}
-        llmCalls={props.llmCalls}
-        repo={run.repo}
-      />
-    </>
-  );
+interface TaskContextProps {
+  taskId: string | null;
+  llmCalls: readonly TaskRuntimeLlmCall[];
+  repo: string;
 }
 
-/** Changes when the run's status or its CI check moved — the two moments the definition of done can read differently. */
-function dodRefreshKey(live: ReturnType<typeof initialRunLive>): string {
-  return `${live.run.status}:${live.ciCheck?.observed_at ?? ""}`;
+/** The task's cost table; its status transitions now live inside the selected node's transcript. */
+function TaskContextSection({ taskId, llmCalls, repo }: TaskContextProps) {
+  if (!taskId) {
+    return <TaskLessRunAlert />;
+  }
+
+  return <LlmCallsTable llmCalls={[...llmCalls]} repo={repo} />;
 }
 
-export default function RunLiveShell(props: RunLiveShellProps) {
-  const [live, applyFrame] = useReducer(reduceRunLive, props, (seed) =>
-    initialRunLive(seed.run, seed.nodes, seed.taskEvents),
-  );
-  const run = withLiveFacts(props.run, live.run);
-
+function TaskLessRunAlert() {
   return (
-    <>
-      <AssemblyRunView run={run} />
-      <DefinitionOfDonePanel runId={run.id} refreshKey={dodRefreshKey(live)} />
-      <AssemblyRunOptions run={run} />
-      <LiveSections
-        props={props}
-        run={run}
-        live={live}
-        applyFrame={applyFrame}
-      />
-    </>
+    <Alert variant="secondary">
+      This run has no backing task — cost and status-transition history are not
+      available.
+    </Alert>
   );
 }

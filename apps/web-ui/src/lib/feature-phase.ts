@@ -59,6 +59,43 @@ export function featurePhaseOf(input: FeaturePhaseInput): FeaturePhase {
 
 type Run = NonNullable<FeaturePhaseInput["run"]>;
 
+/** The phase the line reports, or null when the line cannot say. */
+function phaseFromLine(run: FeaturePhaseInput["run"]): FeaturePhase | null {
+  if (!run) {
+    return null;
+  }
+
+  if (hasFailedNode(run.nodes)) {
+    return { kind: "failed" };
+  }
+
+  if (!isLineActive(run.status)) {
+    return terminalPhase(run);
+  }
+
+  return workingPhase(run, lastOpenNode(run.nodes));
+}
+
+/** The pre-merged-line derivation, kept for features that resolve no line. */
+function phaseFromRound(input: FeaturePhaseInput): FeaturePhase {
+  if (!isPlanningActive(input.feature.status)) {
+    return { kind: "done" };
+  }
+  const { latestIteration: latest, task } = input;
+
+  if (roundSettledFailed(task, latest)) {
+    return { kind: "failed" };
+  }
+
+  if (!isRoundReady(latest) && !isTaskActive(task)) {
+    return { kind: "failed" };
+  }
+
+  return isRoundPlanning(latest)
+    ? { kind: "planning" }
+    : { kind: "awaiting-author" };
+}
+
 function hasFailedNode(nodes: readonly AssemblyRunNode[]): boolean {
   return nodes.some((n) => n.outcome !== null && isFailure(n.outcome));
 }
@@ -80,15 +117,6 @@ function lastOpenNode(
   return [...nodes].reverse().find((n) => n.outcome === null);
 }
 
-function phaseKindFor(
-  run: Run,
-  nodeId: string,
-): FeaturePhase["kind"] | undefined {
-  const nodeType = (run.graph?.nodes ?? []).find((n) => n.id === nodeId)?.type;
-
-  return humanStation(nodeType)?.phase ?? NODE_PHASE[nodeId];
-}
-
 function workingPhase(
   run: Run,
   working: AssemblyRunNode | undefined,
@@ -107,21 +135,13 @@ function workingPhase(
   } as FeaturePhase;
 }
 
-/** The phase the line reports, or null when the line cannot say. */
-function phaseFromLine(run: FeaturePhaseInput["run"]): FeaturePhase | null {
-  if (!run) {
-    return null;
-  }
+function phaseKindFor(
+  run: Run,
+  nodeId: string,
+): FeaturePhase["kind"] | undefined {
+  const nodeType = (run.graph?.nodes ?? []).find((n) => n.id === nodeId)?.type;
 
-  if (hasFailedNode(run.nodes)) {
-    return { kind: "failed" };
-  }
-
-  if (!isLineActive(run.status)) {
-    return terminalPhase(run);
-  }
-
-  return workingPhase(run, lastOpenNode(run.nodes));
+  return humanStation(nodeType)?.phase ?? NODE_PHASE[nodeId];
 }
 
 function isTaskActive(task: FeaturePhaseInput["task"]): boolean {
@@ -144,26 +164,6 @@ function isRoundPlanning(
   latest: FeaturePhaseInput["latestIteration"],
 ): boolean {
   return !latest || latest.status === "running";
-}
-
-/** The pre-merged-line derivation, kept for features that resolve no line. */
-function phaseFromRound(input: FeaturePhaseInput): FeaturePhase {
-  if (!isPlanningActive(input.feature.status)) {
-    return { kind: "done" };
-  }
-  const { latestIteration: latest, task } = input;
-
-  if (roundSettledFailed(task, latest)) {
-    return { kind: "failed" };
-  }
-
-  if (!isRoundReady(latest) && !isTaskActive(task)) {
-    return { kind: "failed" };
-  }
-
-  return isRoundPlanning(latest)
-    ? { kind: "planning" }
-    : { kind: "awaiting-author" };
 }
 
 function isFailure(outcome: string): boolean {

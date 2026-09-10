@@ -57,23 +57,6 @@ function stubFetch(...responses: Response[]) {
   return fetchMock;
 }
 
-function detailsOf(container: HTMLElement): HTMLDetailsElement {
-  const details = container.querySelector("details");
-
-  if (!details) {
-    throw new Error("panel not rendered");
-  }
-
-  return details;
-}
-
-function openDetails(container: HTMLElement) {
-  const details = detailsOf(container);
-
-  details.open = true;
-  fireEvent(details, new Event("toggle"));
-}
-
 function closeDetails(container: HTMLElement) {
   const details = detailsOf(container);
 
@@ -89,6 +72,23 @@ async function openPanel(container: HTMLElement) {
       await Promise.resolve();
     });
   }
+}
+
+function openDetails(container: HTMLElement) {
+  const details = detailsOf(container);
+
+  details.open = true;
+  fireEvent(details, new Event("toggle"));
+}
+
+function detailsOf(container: HTMLElement): HTMLDetailsElement {
+  const details = container.querySelector("details");
+
+  if (!details) {
+    throw new Error("panel not rendered");
+  }
+
+  return details;
 }
 
 describe("FullTranscriptPanel", () => {

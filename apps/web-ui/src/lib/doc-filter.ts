@@ -21,6 +21,23 @@ export interface DocSearch<T> {
   textOf?: (item: T) => string;
 }
 
+export function filterDocCards<T>(
+  cards: T[],
+  statusOf: (card: T) => SpecStatusInfo | undefined,
+  filter: SpecStatusFilter,
+  { query, textOf }: DocSearch<T> = {},
+): DocFilterResult<T> {
+  const needle = query?.trim().toLowerCase() ?? "";
+  const matched = matchedCards(cards, needle, textOf);
+
+  return {
+    counts: countByStatus(matched, statusOf),
+    visible: matched.filter((card) =>
+      matchesSpecStatusFilter(statusOf(card), filter),
+    ),
+  };
+}
+
 function matchedCards<T>(
   cards: T[],
   needle: string,
@@ -48,23 +65,6 @@ function countByStatus<T>(
   }
 
   return counts;
-}
-
-export function filterDocCards<T>(
-  cards: T[],
-  statusOf: (card: T) => SpecStatusInfo | undefined,
-  filter: SpecStatusFilter,
-  { query, textOf }: DocSearch<T> = {},
-): DocFilterResult<T> {
-  const needle = query?.trim().toLowerCase() ?? "";
-  const matched = matchedCards(cards, needle, textOf);
-
-  return {
-    counts: countByStatus(matched, statusOf),
-    visible: matched.filter((card) =>
-      matchesSpecStatusFilter(statusOf(card), filter),
-    ),
-  };
 }
 
 /** Sort by path (input order) or status (lifecycle order). */

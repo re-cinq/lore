@@ -22,6 +22,20 @@ interface Cursor {
   newNo: number;
 }
 
+/** Numbered lines of a unified patch; the no-newline marker survives as an unnumbered context line, an empty or absent patch yields no lines. */
+export function parseUnifiedPatch(
+  patch: string | null | undefined,
+): DiffLine[] {
+  if (!patch) {
+    return [];
+  }
+  const cursor: Cursor = { oldNo: 0, newNo: 0 };
+
+  return patch
+    .split("\n")
+    .map((raw) => hunkLine(raw, cursor) ?? bodyLine(raw, cursor));
+}
+
 function hunkLine(raw: string, cursor: Cursor): DiffLine | null {
   const header = HUNK_HEADER.exec(raw);
 
@@ -50,20 +64,6 @@ function bodyLine(raw: string, cursor: Cursor): DiffLine {
   }
 
   return { kind: "ctx", oldNo: cursor.oldNo++, newNo: cursor.newNo++, text };
-}
-
-/** Numbered lines of a unified patch; the no-newline marker survives as an unnumbered context line, an empty or absent patch yields no lines. */
-export function parseUnifiedPatch(
-  patch: string | null | undefined,
-): DiffLine[] {
-  if (!patch) {
-    return [];
-  }
-  const cursor: Cursor = { oldNo: 0, newNo: 0 };
-
-  return patch
-    .split("\n")
-    .map((raw) => hunkLine(raw, cursor) ?? bodyLine(raw, cursor));
 }
 
 export function diffStats(lines: DiffLine[]): DiffStats {

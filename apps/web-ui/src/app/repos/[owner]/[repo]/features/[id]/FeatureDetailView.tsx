@@ -21,20 +21,6 @@ import type {
 import type { DecompStoryGroup } from "@/lib/decomposition-view";
 import { FinalizedView } from "./FinalizedView";
 
-/** Only show the live graph below to avoid a frozen server-rendered twin while a node is working. */
-function showsLiveGraphBelow(
-  run: AssemblyRunSummary | null,
-  feature: FeatureWithIterations,
-): boolean {
-  if (run === null) {
-    return false;
-  }
-
-  const phase = featurePhaseOf({ run, feature });
-
-  return phase.kind === "planning" || phase.kind === "writing-spec";
-}
-
 interface FeatureDetailViewProps {
   owner: string;
   repo: string;
@@ -50,6 +36,46 @@ interface FeatureDetailViewProps {
   onCreateSpecFile: (userAnswers: SectionAnswers) => Promise<void>;
   split: (title: string, prompt: string) => Promise<void>;
   del: () => Promise<void>;
+}
+
+export default function FeatureDetailView(props: FeatureDetailViewProps) {
+  const { owner, repo, feature } = props;
+  const [pending, startTransition] = useTransition();
+  const onCreateDraft = (title: string, prompt: string) =>
+    startTransition(() => props.split(title, prompt));
+
+  return (
+    <div>
+      <FeatureIntro {...props} base={`/repos/${owner}/${repo}`} />
+      <LifecycleBody {...props} onCreateDraft={onCreateDraft} />
+      <DeleteFeature
+        title={feature.title}
+        pending={pending}
+        onDelete={() => startTransition(() => props.del())}
+      />
+    </div>
+  );
+}
+
+/** The header, the assembly line, and the prompt that started it. The line is omitted when the body below will render a LIVE one — two graphs of the same run, one of them frozen at server-render time, is worse than one. */
+function FeatureIntro(props: FeatureDetailViewProps & { base: string }) {
+  const { feature, base, definition = null, run = null } = props;
+
+  return (
+    <>
+      <FeatureHeader feature={feature} base={base} />
+
+      {showsLiveGraphBelow(run ?? null, feature) ? null : (
+        <FeatureAssemblyLine
+          definition={definition}
+          run={run}
+          title="This feature's assembly line"
+        />
+      )}
+
+      <OriginalPrompt prompt={feature.original_prompt} />
+    </>
+  );
 }
 
 interface FeatureHeaderProps {
@@ -88,44 +114,18 @@ function OriginalPrompt({ prompt }: { prompt: string | null }) {
   );
 }
 
-/** The header, the assembly line, and the prompt that started it. The line is omitted when the body below will render a LIVE one — two graphs of the same run, one of them frozen at server-render time, is worse than one. */
-function FeatureIntro(props: FeatureDetailViewProps & { base: string }) {
-  const { feature, base, definition = null, run = null } = props;
+/** Only show the live graph below to avoid a frozen server-rendered twin while a node is working. */
+function showsLiveGraphBelow(
+  run: AssemblyRunSummary | null,
+  feature: FeatureWithIterations,
+): boolean {
+  if (run === null) {
+    return false;
+  }
 
-  return (
-    <>
-      <FeatureHeader feature={feature} base={base} />
+  const phase = featurePhaseOf({ run, feature });
 
-      {showsLiveGraphBelow(run ?? null, feature) ? null : (
-        <FeatureAssemblyLine
-          definition={definition}
-          run={run}
-          title="This feature's assembly line"
-        />
-      )}
-
-      <OriginalPrompt prompt={feature.original_prompt} />
-    </>
-  );
-}
-
-export default function FeatureDetailView(props: FeatureDetailViewProps) {
-  const { owner, repo, feature } = props;
-  const [pending, startTransition] = useTransition();
-  const onCreateDraft = (title: string, prompt: string) =>
-    startTransition(() => props.split(title, prompt));
-
-  return (
-    <div>
-      <FeatureIntro {...props} base={`/repos/${owner}/${repo}`} />
-      <LifecycleBody {...props} onCreateDraft={onCreateDraft} />
-      <DeleteFeature
-        title={feature.title}
-        pending={pending}
-        onDelete={() => startTransition(() => props.del())}
-      />
-    </div>
-  );
+  return phase.kind === "planning" || phase.kind === "writing-spec";
 }
 
 interface LifecycleBodyProps {

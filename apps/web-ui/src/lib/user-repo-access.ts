@@ -2,43 +2,6 @@
 
 type FetchLike = typeof fetch;
 
-/** Why GitHub denied access (distinction must survive for operator visibility). */
-function denialReason(status: number): string {
-  if (status === 404) {
-    return "a 404 here usually means the OAuth app has no access to the org, not that the repo is missing";
-  }
-
-  if (status === 401) {
-    return "the session's token is stale or revoked — signing out and back in mints a new one";
-  }
-
-  if (status === 403) {
-    return "rate-limited or blocked by the org's OAuth app policy";
-  }
-
-  return "unexpected status";
-}
-
-/** Never the token, only the repo and the status. */
-function warnDenied(repo: string, status: number): void {
-  console.warn(
-    `[repo-access] denied ${repo}: GitHub answered ${status} (${denialReason(status)})`,
-  );
-}
-
-function warnUnreachable(repo: string, err: unknown): void {
-  console.warn(
-    `[repo-access] denied ${repo}: could not reach GitHub — ${err instanceof Error ? err.message : String(err)}`,
-  );
-}
-
-function authHeaders(accessToken: string): Record<string, string> {
-  return {
-    Authorization: `Bearer ${accessToken}`,
-    Accept: "application/vnd.github+json",
-  };
-}
-
 export async function userCanAccessRepo(
   accessToken: string,
   repo: string,
@@ -60,4 +23,41 @@ export async function userCanAccessRepo(
 
     return false;
   }
+}
+
+function authHeaders(accessToken: string): Record<string, string> {
+  return {
+    Authorization: `Bearer ${accessToken}`,
+    Accept: "application/vnd.github+json",
+  };
+}
+
+/** Never the token, only the repo and the status. */
+function warnDenied(repo: string, status: number): void {
+  console.warn(
+    `[repo-access] denied ${repo}: GitHub answered ${status} (${denialReason(status)})`,
+  );
+}
+
+function warnUnreachable(repo: string, err: unknown): void {
+  console.warn(
+    `[repo-access] denied ${repo}: could not reach GitHub — ${err instanceof Error ? err.message : String(err)}`,
+  );
+}
+
+/** Why GitHub denied access (distinction must survive for operator visibility). */
+function denialReason(status: number): string {
+  if (status === 404) {
+    return "a 404 here usually means the OAuth app has no access to the org, not that the repo is missing";
+  }
+
+  if (status === 401) {
+    return "the session's token is stale or revoked — signing out and back in mints a new one";
+  }
+
+  if (status === 403) {
+    return "rate-limited or blocked by the org's OAuth app policy";
+  }
+
+  return "unexpected status";
 }

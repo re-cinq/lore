@@ -7,19 +7,6 @@ import GraphView, {
   type EntityTypeCount,
 } from "./GraphView";
 
-/** The graph as it stands, or an empty one. An unreachable lore-api renders the browser with no entities rather than an error: the view's own empty state says to write episodes, which is the right next step on a fresh install too. */
-async function readGraph(query: {
-  entity?: string;
-  type?: string;
-  showInvalid: boolean;
-}) {
-  const browse = await getGraphBrowse(query);
-
-  return browse.status === "ok"
-    ? browse.data
-    : { stats: {}, entity_types: [], entities: [], edges: [] };
-}
-
 interface GraphPageProps {
   searchParams: Promise<{
     entity?: string;
@@ -45,4 +32,17 @@ export default async function GraphPage({ searchParams }: GraphPageProps) {
       edges={graph.edges as unknown as Edge[]}
     />
   );
+}
+
+/** The graph as it stands, or an empty one. An unreachable lore-api renders the browser with no entities rather than an error: the view's own empty state says to write episodes, which is the right next step on a fresh install too. */
+async function readGraph(query: {
+  entity?: string;
+  type?: string;
+  showInvalid: boolean;
+}) {
+  const browse = await getGraphBrowse(query);
+
+  return browse.status === "ok"
+    ? browse.data
+    : { stats: {}, entity_types: [], entities: [], edges: [] };
 }

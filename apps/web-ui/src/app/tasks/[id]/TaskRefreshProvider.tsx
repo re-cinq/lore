@@ -23,6 +23,12 @@ import {
   runDiscoveryActive,
   type LiveRunCandidate,
 } from "./task-refresh-presenter";
+import {
+  usePanelRegistry,
+  useCoalescedRefresh,
+  useRefreshTicker,
+  type Membership,
+} from "./refresh-mechanics";
 
 type Refresh = () => void | Promise<void>;
 
@@ -67,6 +73,120 @@ interface StreamCallbackOptions {
   setLiveRunId: (id: string | null) => void;
 }
 
+interface RefreshDriverOptions {
+  taskId: string;
+  taskStatus: string;
+  /** The task's runs at first render — the seed for which one is live. */
+  runs: readonly LiveRunCandidate[];
+}
+
+interface DriverSubscriptionOptions {
+  taskId: string;
+  taskStatus: string;
+  driver: ReturnType<typeof resolveRefreshDriver>;
+  connection: ConnectionState;
+  liveRunId: string | null;
+  afterId: string;
+  anyPanelActive: boolean;
+  refreshAll: () => void;
+  onEvent: (event: RunStreamEvent) => void;
+  onConnectionChange: (state: ConnectionState) => void;
+  onLiveRunFound: (runId: string | null) => void;
+}
+
+interface TaskRefreshProviderProps {
+  taskId: string;
+  taskStatus: string;
+  runs: readonly LiveRunCandidate[];
+  children: ReactNode;
+}
+
+export default function TaskRefreshProvider({
+  taskId,
+  taskStatus,
+  runs,
+  children,
+}: TaskRefreshProviderProps) {
+  const value = useRefreshContextValue({ taskId, taskStatus, runs });
+
+  return (
+    <TaskRefreshContext.Provider value={value}>
+      {children}
+    </TaskRefreshContext.Provider>
+  );
+}
+
+/** The context the panels read: who to call on a tick, and whether the page is genuinely live. */
+function useRefreshContextValue(
+  options: RefreshDriverOptions,
+): TaskRefreshContextValue {
+  const { register, setActive, driver, connection } = useRefreshDriver(options);
+  const live = driver === "stream" && connection === "live";
+
+  return useMemo(
+    () => ({ register, setActive, live }),
+    [register, setActive, live],
+  );
+}
+
+/** Chooses how this page stays current and keeps it that way. The stream is preferred; falling back to POLLING is a one-way move within a mount — once the stream has proved unavailable, retrying it per render would reconnect on every refresh. Discovery keeps looking for a live run while the task is unfinished, because a run can start after the page loaded. */
+function useRefreshDriver({ taskId, taskStatus, runs }: RefreshDriverOptions) {
+  const state = useDriverState(runs);
+  const { liveRunId, streamUnavailable, connection } = state;
+  const { register, setActive, refreshAll, anyPanelActive } =
+    usePanelRegistry();
+  const driver = pickDriver({ liveRunId, streamUnavailable, anyPanelActive });
+  const onEvent = useCoalescedRefresh(refreshAll, state.setAfterId);
+
+  useDriverSubscriptions({
+    ...state,
+    taskId,
+    taskStatus,
+    driver,
+    anyPanelActive,
+    refreshAll,
+    onEvent,
+  });
+
+  return { register, setActive, driver, connection };
+}
+
+/** Everything the driver needs to remember across renders, plus the two callbacks that change it. */
+function useDriverState(runs: readonly LiveRunCandidate[]) {
+  const [liveRunId, setLiveRunId] = useState(() => pickLiveRun(runs));
+  const [streamUnavailable, setStreamUnavailable] = useState(false);
+  const [connection, setConnection] = useState<ConnectionState>("connecting");
+  const [afterId, setAfterId] = useState("0");
+  const { onConnectionChange, onLiveRunFound } = useStreamCallbacks({
+    setConnection,
+    setStreamUnavailable,
+    setLiveRunId,
+  });
+
+  return {
+    liveRunId,
+    streamUnavailable,
+    connection,
+    afterId,
+    setAfterId,
+    onConnectionChange,
+    onLiveRunFound,
+  };
+}
+
+/** The two transitions that change HOW the page refreshes. */
+function useStreamCallbacks(options: StreamCallbackOptions) {
+  const { setConnection, setStreamUnavailable } = options;
+
+  return {
+    onConnectionChange: useConnectionChange(
+      setConnection,
+      setStreamUnavailable,
+    ),
+    onLiveRunFound: useLiveRunFound(options),
+  };
+}
+
 /** Going offline latches the stream as unavailable, dropping the page to coordinated polling. */
 function useConnectionChange(
   setConnection: (state: ConnectionState) => void,
@@ -100,19 +220,6 @@ function useLiveRunFound(options: StreamCallbackOptions) {
   );
 }
 
-/** The two transitions that change HOW the page refreshes. */
-function useStreamCallbacks(options: StreamCallbackOptions) {
-  const { setConnection, setStreamUnavailable } = options;
-
-  return {
-    onConnectionChange: useConnectionChange(
-      setConnection,
-      setStreamUnavailable,
-    ),
-    onLiveRunFound: useLiveRunFound(options),
-  };
-}
-
 /** Stream or poll. `EventSource` is probed rather than assumed: it is absent under SSR and in the test environment, and a page that assumed it would never fall back to polling there. */
 function pickDriver(input: {
   liveRunId: string | null;
@@ -125,25 +232,10 @@ function pickDriver(input: {
   });
 }
 
-interface RefreshDriverOptions {
-  taskId: string;
-  taskStatus: string;
-  /** The task's runs at first render — the seed for which one is live. */
-  runs: readonly LiveRunCandidate[];
-}
-
-interface DriverSubscriptionOptions {
-  taskId: string;
-  taskStatus: string;
-  driver: ReturnType<typeof resolveRefreshDriver>;
-  connection: ConnectionState;
-  liveRunId: string | null;
-  afterId: string;
-  anyPanelActive: boolean;
-  refreshAll: () => void;
-  onEvent: (event: RunStreamEvent) => void;
-  onConnectionChange: (state: ConnectionState) => void;
-  onLiveRunFound: (runId: string | null) => void;
+/** Both ways of staying current, subscribed together. Neither is conditional: the stream hook is disabled rather than unmounted, and the ticker takes a null interval rather than being skipped, because a hook that comes and goes with the driver would break the rules of hooks the moment the fallback fires. */
+function useDriverSubscriptions(opts: DriverSubscriptionOptions) {
+  useStreamSubscription(opts);
+  useTickerSubscription(opts);
 }
 
 function useStreamSubscription(opts: DriverSubscriptionOptions) {
@@ -177,97 +269,4 @@ function useTickerSubscription(opts: DriverSubscriptionOptions) {
     liveRunId,
     onLiveRunFound: opts.onLiveRunFound,
   });
-}
-
-/** Both ways of staying current, subscribed together. Neither is conditional: the stream hook is disabled rather than unmounted, and the ticker takes a null interval rather than being skipped, because a hook that comes and goes with the driver would break the rules of hooks the moment the fallback fires. */
-function useDriverSubscriptions(opts: DriverSubscriptionOptions) {
-  useStreamSubscription(opts);
-  useTickerSubscription(opts);
-}
-
-/** Everything the driver needs to remember across renders, plus the two callbacks that change it. */
-function useDriverState(runs: readonly LiveRunCandidate[]) {
-  const [liveRunId, setLiveRunId] = useState(() => pickLiveRun(runs));
-  const [streamUnavailable, setStreamUnavailable] = useState(false);
-  const [connection, setConnection] = useState<ConnectionState>("connecting");
-  const [afterId, setAfterId] = useState("0");
-  const { onConnectionChange, onLiveRunFound } = useStreamCallbacks({
-    setConnection,
-    setStreamUnavailable,
-    setLiveRunId,
-  });
-
-  return {
-    liveRunId,
-    streamUnavailable,
-    connection,
-    afterId,
-    setAfterId,
-    onConnectionChange,
-    onLiveRunFound,
-  };
-}
-
-/** Chooses how this page stays current and keeps it that way. The stream is preferred; falling back to POLLING is a one-way move within a mount — once the stream has proved unavailable, retrying it per render would reconnect on every refresh. Discovery keeps looking for a live run while the task is unfinished, because a run can start after the page loaded. */
-function useRefreshDriver({ taskId, taskStatus, runs }: RefreshDriverOptions) {
-  const state = useDriverState(runs);
-  const { liveRunId, streamUnavailable, connection } = state;
-  const { register, setActive, refreshAll, anyPanelActive } =
-    usePanelRegistry();
-  const driver = pickDriver({ liveRunId, streamUnavailable, anyPanelActive });
-  const onEvent = useCoalescedRefresh(refreshAll, state.setAfterId);
-
-  useDriverSubscriptions({
-    ...state,
-    taskId,
-    taskStatus,
-    driver,
-    anyPanelActive,
-    refreshAll,
-    onEvent,
-  });
-
-  return { register, setActive, driver, connection };
-}
-
-import {
-  usePanelRegistry,
-  useCoalescedRefresh,
-  useRefreshTicker,
-  type Membership,
-} from "./refresh-mechanics";
-
-/** The context the panels read: who to call on a tick, and whether the page is genuinely live. */
-function useRefreshContextValue(
-  options: RefreshDriverOptions,
-): TaskRefreshContextValue {
-  const { register, setActive, driver, connection } = useRefreshDriver(options);
-  const live = driver === "stream" && connection === "live";
-
-  return useMemo(
-    () => ({ register, setActive, live }),
-    [register, setActive, live],
-  );
-}
-
-interface TaskRefreshProviderProps {
-  taskId: string;
-  taskStatus: string;
-  runs: readonly LiveRunCandidate[];
-  children: ReactNode;
-}
-
-export default function TaskRefreshProvider({
-  taskId,
-  taskStatus,
-  runs,
-  children,
-}: TaskRefreshProviderProps) {
-  const value = useRefreshContextValue({ taskId, taskStatus, runs });
-
-  return (
-    <TaskRefreshContext.Provider value={value}>
-      {children}
-    </TaskRefreshContext.Provider>
-  );
 }

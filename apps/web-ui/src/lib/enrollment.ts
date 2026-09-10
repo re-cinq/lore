@@ -61,18 +61,58 @@ const GH_FILE_PURPOSE: Record<string, string> = {
     "push-triggered context ingestion — keeps Lore fresh on every push",
 };
 
-function daysAgo(now: number, iso: string): string {
-  const d = Math.floor((now - new Date(iso).getTime()) / 86_400_000);
+type ResolvedInput = EnrollmentInput & { now: number };
 
-  return d <= 0 ? "today" : `${d}d ago`;
+export function computeEnrollmentChecks(rawInput: EnrollmentInput): Check[] {
+  const input = { ...rawInput, now: rawInput.now ?? Date.now() };
+  const { onboardingPrUrl, onboardingPrMerged, localMcp, now } = input;
+
+  return [
+    onboardedCheck(input),
+    ...(onboardingPrUrl
+      ? [
+          onboardingPrCheck({
+            url: onboardingPrUrl,
+            merged: onboardingPrMerged,
+          }),
+        ]
+      : []),
+    ingestedCheck(input.lastIngestedAt, now, input.chunkCount),
+    conventionsCheck(input),
+    teamCheck(input.team),
+    ...repoSurfaceChecks(input),
+    localMcpCheck(now, localMcp.developerCount, localMcp.lastActivity),
+  ];
 }
 
-function neverIngestedCheck(): Check {
+export function passSummary(checks: Check[]): {
+  passed: number;
+  total: number;
+} {
   return {
-    id: "ingested",
-    label: "Context ingested",
-    status: "fail",
-    detail: "never ingested",
+    passed: checks.filter((c) => c.status === "pass").length,
+    total: checks.length,
+  };
+}
+
+function onboardedCheck(
+  repo: Pick<EnrollmentInput, "onboarded" | "onboardedAt">,
+): Check {
+  return {
+    id: "onboarded",
+    label: "Onboarded",
+    status: repo.onboarded ? "pass" : "fail",
+    detail: onboardedDetail(repo),
+  };
+}
+
+function onboardingPrCheck(pr: { url: string; merged: boolean }): Check {
+  return {
+    id: "onboarding-pr",
+    label: "Onboarding PR merged",
+    status: pr.merged ? "pass" : "warn",
+    detail: pr.merged ? undefined : "open",
+    link: pr.merged ? undefined : { href: pr.url, text: "review & merge" },
   };
 }
 
@@ -95,54 +135,49 @@ function ingestedCheck(
   };
 }
 
-function githubFileStatus(file: { exists: boolean | null }): CheckStatus {
-  if (file.exists === true) {
-    return "pass";
-  }
-
-  if (file.exists === false) {
-    return "fail";
-  }
-
-  return "unknown";
-}
-
-/** Unknown and missing carry their own wording; a file that is there carries only its purpose. */
-function applyGithubFileDetail(
-  check: Check,
-  purpose: string | undefined,
-): void {
-  if (check.status === "unknown") {
-    check.detail = "GitHub App has no repo access";
-
-    return;
-  }
-
-  if (check.status === "fail") {
-    check.detail = purpose ? `missing · ${purpose}` : "missing";
-    check.action = { kind: "reonboard", text: "create a PR with this file" };
-
-    return;
-  }
-
-  if (purpose) {
-    check.detail = purpose;
-  }
-}
-
-function githubFileCheck(
-  path: string,
-  file: { exists: boolean | null },
+function conventionsCheck(
+  repo: Pick<EnrollmentInput, "hasConventions">,
 ): Check {
-  const check: Check = {
-    id: `gh:${path}`,
-    label: `${path} on GitHub`,
-    status: githubFileStatus(file),
+  return {
+    id: "conventions",
+    label: "Conventions ingested",
+    status: repo.hasConventions ? "pass" : "fail",
+    detail: repo.hasConventions
+      ? undefined
+      : "AGENTS.md / CLAUDE.md not in context",
   };
+}
 
-  applyGithubFileDetail(check, GH_FILE_PURPOSE[path]);
+function teamCheck(team: string | null): Check {
+  return {
+    id: "team",
+    label: "Team assigned",
+    status: team ? "pass" : "warn",
+    detail: team ?? "using org_shared",
+  };
+}
 
-  return check;
+/** One row per probed GitHub file, then the webhook row when it was fetched. */
+function repoSurfaceChecks(input: ResolvedInput): Check[] {
+  const { githubFiles, webhook } = input;
+  const files = Object.entries(githubFiles).map(([path, exists]) =>
+    githubFileCheck(path, { exists }),
+  );
+
+  return webhook ? [...files, webhookCheckRow(webhook)] : files;
+}
+
+function localMcpCheck(
+  now: number,
+  developerCount: number,
+  lastActivity: string | null,
+): Check {
+  return {
+    id: "local-mcp",
+    label: "Used locally via MCP",
+    status: developerCount > 0 ? "pass" : "fail",
+    detail: localMcpDetail(now, developerCount, lastActivity),
+  };
 }
 
 function onboardedDetail(
@@ -159,6 +194,30 @@ function onboardedDetail(
   }
 
   return "registered in Lore";
+}
+
+function neverIngestedCheck(): Check {
+  return {
+    id: "ingested",
+    label: "Context ingested",
+    status: "fail",
+    detail: "never ingested",
+  };
+}
+
+function githubFileCheck(
+  path: string,
+  file: { exists: boolean | null },
+): Check {
+  const check: Check = {
+    id: `gh:${path}`,
+    label: `${path} on GitHub`,
+    status: githubFileStatus(file),
+  };
+
+  applyGithubFileDetail(check, GH_FILE_PURPOSE[path]);
+
+  return check;
 }
 
 function unknownWebhookDetail(reason: string | undefined): string {
@@ -201,18 +260,6 @@ const WEBHOOK_DETAIL: Record<
   unknown: (w) => unknownWebhookDetail(w.reason),
 };
 
-/** Manual setup fields (URL + signing secret) only make sense while the hook isn't already delivering. */
-function applyManualSetupFields(check: Check, w: WebhookCheck): void {
-  if (!w.canonicalUrl || w.state === "configured") {
-    return;
-  }
-  check.copy = { value: w.canonicalUrl, label: "set this URL" };
-
-  if (w.secret) {
-    check.secret = { value: w.secret, label: "and this secret" };
-  }
-}
-
 function webhookCheckRow(w: WebhookCheck): Check {
   const stateInfo = WEBHOOK_STATE[w.state];
   const detail = WEBHOOK_DETAIL[w.state](w);
@@ -231,49 +278,6 @@ function webhookCheckRow(w: WebhookCheck): Check {
   return check;
 }
 
-function onboardedCheck(
-  repo: Pick<EnrollmentInput, "onboarded" | "onboardedAt">,
-): Check {
-  return {
-    id: "onboarded",
-    label: "Onboarded",
-    status: repo.onboarded ? "pass" : "fail",
-    detail: onboardedDetail(repo),
-  };
-}
-
-function onboardingPrCheck(pr: { url: string; merged: boolean }): Check {
-  return {
-    id: "onboarding-pr",
-    label: "Onboarding PR merged",
-    status: pr.merged ? "pass" : "warn",
-    detail: pr.merged ? undefined : "open",
-    link: pr.merged ? undefined : { href: pr.url, text: "review & merge" },
-  };
-}
-
-function conventionsCheck(
-  repo: Pick<EnrollmentInput, "hasConventions">,
-): Check {
-  return {
-    id: "conventions",
-    label: "Conventions ingested",
-    status: repo.hasConventions ? "pass" : "fail",
-    detail: repo.hasConventions
-      ? undefined
-      : "AGENTS.md / CLAUDE.md not in context",
-  };
-}
-
-function teamCheck(team: string | null): Check {
-  return {
-    id: "team",
-    label: "Team assigned",
-    status: team ? "pass" : "warn",
-    detail: team ?? "using org_shared",
-  };
-}
-
 function localMcpDetail(
   now: number,
   developerCount: number,
@@ -288,59 +292,55 @@ function localMcpDetail(
   return `${developerCount} developer${plural}${lastSeen}`;
 }
 
-function localMcpCheck(
-  now: number,
-  developerCount: number,
-  lastActivity: string | null,
-): Check {
-  return {
-    id: "local-mcp",
-    label: "Used locally via MCP",
-    status: developerCount > 0 ? "pass" : "fail",
-    detail: localMcpDetail(now, developerCount, lastActivity),
-  };
+function daysAgo(now: number, iso: string): string {
+  const d = Math.floor((now - new Date(iso).getTime()) / 86_400_000);
+
+  return d <= 0 ? "today" : `${d}d ago`;
 }
 
-type ResolvedInput = EnrollmentInput & { now: number };
+function githubFileStatus(file: { exists: boolean | null }): CheckStatus {
+  if (file.exists === true) {
+    return "pass";
+  }
 
-/** One row per probed GitHub file, then the webhook row when it was fetched. */
-function repoSurfaceChecks(input: ResolvedInput): Check[] {
-  const { githubFiles, webhook } = input;
-  const files = Object.entries(githubFiles).map(([path, exists]) =>
-    githubFileCheck(path, { exists }),
-  );
+  if (file.exists === false) {
+    return "fail";
+  }
 
-  return webhook ? [...files, webhookCheckRow(webhook)] : files;
+  return "unknown";
 }
 
-export function computeEnrollmentChecks(rawInput: EnrollmentInput): Check[] {
-  const input = { ...rawInput, now: rawInput.now ?? Date.now() };
-  const { onboardingPrUrl, onboardingPrMerged, localMcp, now } = input;
+/** Unknown and missing carry their own wording; a file that is there carries only its purpose. */
+function applyGithubFileDetail(
+  check: Check,
+  purpose: string | undefined,
+): void {
+  if (check.status === "unknown") {
+    check.detail = "GitHub App has no repo access";
 
-  return [
-    onboardedCheck(input),
-    ...(onboardingPrUrl
-      ? [
-          onboardingPrCheck({
-            url: onboardingPrUrl,
-            merged: onboardingPrMerged,
-          }),
-        ]
-      : []),
-    ingestedCheck(input.lastIngestedAt, now, input.chunkCount),
-    conventionsCheck(input),
-    teamCheck(input.team),
-    ...repoSurfaceChecks(input),
-    localMcpCheck(now, localMcp.developerCount, localMcp.lastActivity),
-  ];
+    return;
+  }
+
+  if (check.status === "fail") {
+    check.detail = purpose ? `missing · ${purpose}` : "missing";
+    check.action = { kind: "reonboard", text: "create a PR with this file" };
+
+    return;
+  }
+
+  if (purpose) {
+    check.detail = purpose;
+  }
 }
 
-export function passSummary(checks: Check[]): {
-  passed: number;
-  total: number;
-} {
-  return {
-    passed: checks.filter((c) => c.status === "pass").length,
-    total: checks.length,
-  };
+/** Manual setup fields (URL + signing secret) only make sense while the hook isn't already delivering. */
+function applyManualSetupFields(check: Check, w: WebhookCheck): void {
+  if (!w.canonicalUrl || w.state === "configured") {
+    return;
+  }
+  check.copy = { value: w.canonicalUrl, label: "set this URL" };
+
+  if (w.secret) {
+    check.secret = { value: w.secret, label: "and this secret" };
+  }
 }

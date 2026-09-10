@@ -28,6 +28,22 @@ interface PlanningWizardProps {
   settledView: ReactNode;
 }
 
+export default function PlanningWizard(props: PlanningWizardProps) {
+  const round = usePlanningRound(props);
+  const phaseCard = phaseCardOf(props, round);
+
+  if (phaseCard) {
+    return phaseCard;
+  }
+
+  return (
+    <AnalysisView
+      {...analysisProps(round)}
+      handlers={roundHandlers(round, props.onCreateDraft)}
+    />
+  );
+}
+
 /** A card here means the line is between rounds — running, failed, or finished — and there is no analysis to edit yet. */
 function phaseCardOf(props: PlanningWizardProps, round: PlanningRound) {
   return phaseView({
@@ -53,20 +69,4 @@ function roundHandlers(
     onCreateSpecPr: round.submitCreateSpecFile,
     onContinueFrom: round.setContinueFrom,
   };
-}
-
-export default function PlanningWizard(props: PlanningWizardProps) {
-  const round = usePlanningRound(props);
-  const phaseCard = phaseCardOf(props, round);
-
-  if (phaseCard) {
-    return phaseCard;
-  }
-
-  return (
-    <AnalysisView
-      {...analysisProps(round)}
-      handlers={roundHandlers(round, props.onCreateDraft)}
-    />
-  );
 }

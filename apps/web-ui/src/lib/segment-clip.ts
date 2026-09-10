@@ -7,9 +7,22 @@ export type { Disc };
 /** A point in layout coordinates. */
 export type Point = { x: number; y: number };
 
-/** The point on segment a→b at parameter `t` (t=0 → a, t=1 → b). */
-function pointAt(a: Point, b: Point, t: number): Point {
-  return { x: a.x + t * (b.x - a.x), y: a.y + t * (b.y - a.y) };
+/** Parts of segment outside all discs: complement of merged inside-intervals within [0, 1]. */
+export function visibleSegments(
+  a: Point,
+  b: Point,
+  discs: Disc[],
+): Array<{ a: Point; b: Point }> {
+  const intervals = discs
+    .map((disc) => insideInterval(a, b, disc))
+    .filter((interval): interval is [number, number] => interval !== null)
+    .sort((left, right) => left[0] - right[0]);
+
+  if (intervals.length === 0) {
+    return [{ a, b }];
+  }
+
+  return piecesOutside(a, b, mergeIntervals(intervals));
 }
 
 /** Returns [enter, exit] parameter interval where segment is strictly inside disc, or null. */
@@ -93,20 +106,7 @@ function piecesOutside(
   return pieces;
 }
 
-/** Parts of segment outside all discs: complement of merged inside-intervals within [0, 1]. */
-export function visibleSegments(
-  a: Point,
-  b: Point,
-  discs: Disc[],
-): Array<{ a: Point; b: Point }> {
-  const intervals = discs
-    .map((disc) => insideInterval(a, b, disc))
-    .filter((interval): interval is [number, number] => interval !== null)
-    .sort((left, right) => left[0] - right[0]);
-
-  if (intervals.length === 0) {
-    return [{ a, b }];
-  }
-
-  return piecesOutside(a, b, mergeIntervals(intervals));
+/** The point on segment a→b at parameter `t` (t=0 → a, t=1 → b). */
+function pointAt(a: Point, b: Point, t: number): Point {
+  return { x: a.x + t * (b.x - a.x), y: a.y + t * (b.y - a.y) };
 }

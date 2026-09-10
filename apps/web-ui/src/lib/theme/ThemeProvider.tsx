@@ -36,19 +36,38 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 const DARK_QUERY = "(prefers-color-scheme: dark)";
 
-function systemScheme(): ResolvedScheme {
-  const dark =
-    typeof window !== "undefined" && window.matchMedia(DARK_QUERY).matches;
+export function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const [family, setFamilyState] = useState<ThemeFamily>(seedFamily);
+  const [scheme, setSchemeState] = useState<ColorSchemePref>(seedScheme);
 
-  return dark ? "dark" : "light";
+  const setFamily = usePersisted(setFamilyState, FAMILY_KEY);
+  const setScheme = usePersisted(setSchemeState, SCHEME_KEY);
+
+  useThemeDom(family, scheme);
+  const resolvedScheme = resolveColorScheme(scheme, systemScheme());
+
+  return (
+    <ThemeContext.Provider
+      value={{ family, scheme, resolvedScheme, setFamily, setScheme }}
+    >
+      {children}
+    </ThemeContext.Provider>
+  );
 }
 
-function applyToDom(family: ThemeFamily, resolved: ResolvedScheme): void {
-  const el = document.documentElement;
+/** Seeded from the inline script to avoid flash/hydration mismatch. */
+function seedFamily(): ThemeFamily {
+  return typeof window !== "undefined"
+    ? (window.__loreFamily ??
+        parseFamily(document.documentElement.getAttribute("data-theme-family")))
+    : DEFAULT_FAMILY;
+}
 
-  el.setAttribute("data-theme-family", family);
-  el.setAttribute("data-color-scheme", resolved);
-  window.__loreFamily = family;
+/** Seeded from localStorage, the same key the inline script reads. */
+function seedScheme(): ColorSchemePref {
+  return typeof window !== "undefined"
+    ? parseSchemePref(window.localStorage.getItem(SCHEME_KEY))
+    : DEFAULT_SCHEME;
 }
 
 /** A setter that also writes the choice to localStorage, so the inline seed script can restore it on the next load before React runs. */
@@ -84,38 +103,19 @@ function useThemeDom(family: ThemeFamily, scheme: ColorSchemePref): void {
   }, [scheme, family]);
 }
 
-/** Seeded from the inline script to avoid flash/hydration mismatch. */
-function seedFamily(): ThemeFamily {
-  return typeof window !== "undefined"
-    ? (window.__loreFamily ??
-        parseFamily(document.documentElement.getAttribute("data-theme-family")))
-    : DEFAULT_FAMILY;
+function systemScheme(): ResolvedScheme {
+  const dark =
+    typeof window !== "undefined" && window.matchMedia(DARK_QUERY).matches;
+
+  return dark ? "dark" : "light";
 }
 
-/** Seeded from localStorage, the same key the inline script reads. */
-function seedScheme(): ColorSchemePref {
-  return typeof window !== "undefined"
-    ? parseSchemePref(window.localStorage.getItem(SCHEME_KEY))
-    : DEFAULT_SCHEME;
-}
+function applyToDom(family: ThemeFamily, resolved: ResolvedScheme): void {
+  const el = document.documentElement;
 
-export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [family, setFamilyState] = useState<ThemeFamily>(seedFamily);
-  const [scheme, setSchemeState] = useState<ColorSchemePref>(seedScheme);
-
-  const setFamily = usePersisted(setFamilyState, FAMILY_KEY);
-  const setScheme = usePersisted(setSchemeState, SCHEME_KEY);
-
-  useThemeDom(family, scheme);
-  const resolvedScheme = resolveColorScheme(scheme, systemScheme());
-
-  return (
-    <ThemeContext.Provider
-      value={{ family, scheme, resolvedScheme, setFamily, setScheme }}
-    >
-      {children}
-    </ThemeContext.Provider>
-  );
+  el.setAttribute("data-theme-family", family);
+  el.setAttribute("data-color-scheme", resolved);
+  window.__loreFamily = family;
 }
 
 export function useTheme(): ThemeContextValue {

@@ -10,6 +10,12 @@ const SPEC_FAMILY_TYPES = new Set<SpecGraphNode["type"]>([
   "Section",
 ]);
 
+export function nodeLinks(node: SpecGraphNode, repo: string): NodeLink[] {
+  return [loreLink(node), githubLink(node, repo)].filter(
+    (link): link is NodeLink => link !== null,
+  );
+}
+
 function loreLink(node: SpecGraphNode): NodeLink | null {
   if (!SPEC_FAMILY_TYPES.has(node.type) || !node.path) {
     return null;
@@ -34,10 +40,4 @@ function githubLink(node: SpecGraphNode, repo: string): NodeLink | null {
     href: `https://github.com/${repo}/blob/HEAD/${node.path}${line}`,
     external: true,
   };
-}
-
-export function nodeLinks(node: SpecGraphNode, repo: string): NodeLink[] {
-  return [loreLink(node), githubLink(node, repo)].filter(
-    (link): link is NodeLink => link !== null,
-  );
 }

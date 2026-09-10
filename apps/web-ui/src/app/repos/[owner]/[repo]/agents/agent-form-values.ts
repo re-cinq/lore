@@ -18,6 +18,27 @@ export function scopeNote(scope: {
   return "This is a project agent for this repo, overriding the organisation default.";
 }
 
+/** Every field's starting value, resolved once. A blank field means "inherit the layer below", so the stored value becomes the PLACEHOLDER and the input itself stays empty — prefilling would silently promote an inherited value into an override on the next save. */
+export function agentFormValues(
+  agent: AgentDefinition | null,
+  { isNew }: { isNew: boolean },
+) {
+  const { name, executionMode } = resolveNameAndMode(agent);
+  const { reviewRequired, timeoutMinutes } = resolveReviewAndTimeout(agent);
+
+  return {
+    name,
+    executionMode,
+    reviewRequired,
+    timeoutMinutes,
+    prompt: isNew ? "" : (agent?.prompt ?? ""),
+    promptPlaceholder: resolvePromptPlaceholder(agent),
+    ...resolveModelFields(agent),
+    inherited: resolveInherited(agent, { isNew }),
+    podResources: resolvePodResources(agent),
+  };
+}
+
 /** A custom model fills the free-text field and selects the custom option; a known one leaves the field empty and selects itself. */
 function resolveModelFields(agent: AgentDefinition | null) {
   const model = agent?.model ?? "";
@@ -59,25 +80,4 @@ function resolveInherited(
 function resolvePodResources(agent: AgentDefinition | null): PodResources {
   return ((agent?.config as { pod_resources?: PodResources } | null)
     ?.pod_resources ?? {}) as PodResources;
-}
-
-/** Every field's starting value, resolved once. A blank field means "inherit the layer below", so the stored value becomes the PLACEHOLDER and the input itself stays empty — prefilling would silently promote an inherited value into an override on the next save. */
-export function agentFormValues(
-  agent: AgentDefinition | null,
-  { isNew }: { isNew: boolean },
-) {
-  const { name, executionMode } = resolveNameAndMode(agent);
-  const { reviewRequired, timeoutMinutes } = resolveReviewAndTimeout(agent);
-
-  return {
-    name,
-    executionMode,
-    reviewRequired,
-    timeoutMinutes,
-    prompt: isNew ? "" : (agent?.prompt ?? ""),
-    promptPlaceholder: resolvePromptPlaceholder(agent),
-    ...resolveModelFields(agent),
-    inherited: resolveInherited(agent, { isNew }),
-    podResources: resolvePodResources(agent),
-  };
 }

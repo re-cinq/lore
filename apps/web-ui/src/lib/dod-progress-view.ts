@@ -24,14 +24,6 @@ export function statusGlyph(status: AcceptanceTestStatus["status"]): string {
   return GLYPH[status];
 }
 
-function toneFor(passed: number, total: number, failed: number): DodTone {
-  if (failed > 0) {
-    return "err";
-  }
-
-  return total > 0 && passed === total ? "ok" : "running";
-}
-
 /** `2 of 5 acceptance tests pass` — red once anything fails, green once everything does, otherwise in progress. */
 export function dodSummary(progress: DodProgress): DodSummary {
   const tests = progress.acceptanceTests ?? [];
@@ -47,4 +39,12 @@ export function dodSummary(progress: DodProgress): DodSummary {
       ? `as reported by CI @ ${report.commit.slice(0, 7)}`
       : "no CI report for this branch yet",
   };
+}
+
+function toneFor(passed: number, total: number, failed: number): DodTone {
+  if (failed > 0) {
+    return "err";
+  }
+
+  return total > 0 && passed === total ? "ok" : "running";
 }

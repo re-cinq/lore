@@ -1,5 +1,21 @@
 import type { LogEntry } from "./agent-log-types";
 
+/** Whether `next` replaces `previous`: thinking-tokens, hook_progress, and tool heartbeats all report running totals, not increments (adjacent-only, so concurrent hooks/calls stay interleaved). */
+export function supersedesPrevious(
+  previous: LogEntry | undefined,
+  next: LogEntry,
+): boolean {
+  if (next.kind === "thinking-tokens") {
+    return supersedesThinkingTokens(previous);
+  }
+
+  if (next.kind === "tool-progress") {
+    return supersedesToolProgress(previous, next);
+  }
+
+  return supersedesHook(previous, next);
+}
+
 function supersedesThinkingTokens(previous: LogEntry | undefined): boolean {
   return previous?.kind === "thinking-tokens";
 }
@@ -22,22 +38,6 @@ function supersedesHook(
     previous?.kind === "hook" &&
     previous.hookId === next.hookId
   );
-}
-
-/** Whether `next` replaces `previous`: thinking-tokens, hook_progress, and tool heartbeats all report running totals, not increments (adjacent-only, so concurrent hooks/calls stay interleaved). */
-export function supersedesPrevious(
-  previous: LogEntry | undefined,
-  next: LogEntry,
-): boolean {
-  if (next.kind === "thinking-tokens") {
-    return supersedesThinkingTokens(previous);
-  }
-
-  if (next.kind === "tool-progress") {
-    return supersedesToolProgress(previous, next);
-  }
-
-  return supersedesHook(previous, next);
 }
 
 /** Joins a gemini streaming chunk onto the prior assistant text (null if `next` starts its own entry) — gemini emits prose only as `delta:true` fragments, never a final message. */

@@ -31,6 +31,28 @@ interface AgentFormProps {
   orgScope?: boolean;
 }
 
+export default function AgentForm(props: AgentFormProps) {
+  const { repo, agent, isNew, defaultImage, orgScope = false } = props;
+  const [state, formAction] = useActionState(props.action, {});
+  const formValues = agentFormValues(agent, { isNew });
+  const values = { ...formValues, repo, isNew, orgScope };
+  const [model, setModel] = useState(values.initialSelection);
+
+  return (
+    <form action={formAction} className="task-form">
+      <FormPreamble values={values} />
+      <IdentityFields values={values} model={model} onSelect={setModel} />
+      <ExecutionFields
+        values={values}
+        image={agent?.image}
+        defaultImage={defaultImage}
+      />
+
+      <FormActions isNew={isNew} state={state} />
+    </form>
+  );
+}
+
 /** Every prefilled value the fields read, plus the scope the save writes at — one bundle, so a field group takes the request rather than a handful of loose strings. */
 type AgentFormValues = ReturnType<typeof agentFormValues> & {
   repo: string;
@@ -107,27 +129,5 @@ function ExecutionFields({
         <ImageFields image={image} defaultImage={defaultImage} />
       )}
     </>
-  );
-}
-
-export default function AgentForm(props: AgentFormProps) {
-  const { repo, agent, isNew, defaultImage, orgScope = false } = props;
-  const [state, formAction] = useActionState(props.action, {});
-  const formValues = agentFormValues(agent, { isNew });
-  const values = { ...formValues, repo, isNew, orgScope };
-  const [model, setModel] = useState(values.initialSelection);
-
-  return (
-    <form action={formAction} className="task-form">
-      <FormPreamble values={values} />
-      <IdentityFields values={values} model={model} onSelect={setModel} />
-      <ExecutionFields
-        values={values}
-        image={agent?.image}
-        defaultImage={defaultImage}
-      />
-
-      <FormActions isNew={isNew} state={state} />
-    </form>
   );
 }

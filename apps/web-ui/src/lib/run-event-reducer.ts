@@ -34,13 +34,36 @@ const IDLE: NodeRunState = Object.freeze({
   droppedCount: 0,
 });
 
-/** Convert walk row outcome to node status; null = running; success/changes_requested = complete (latter is verdict, not failure). */
-function seedStatus(outcome: string | null): NodeRunStatus {
-  if (outcome === null) {
-    return "running";
+/** Re-seeds node status from visit rows that arrived after mount (a `node_status` frame); transcripts and the cursor are untouched. */
+export function withVisitRows(
+  state: RunLiveState,
+  visitRows: readonly AssemblyRunNode[],
+): RunLiveState {
+  const nodeStates = { ...state.nodeStates };
+
+  for (const row of visitRows) {
+    applyVisitRow(nodeStates, row);
   }
 
-  return outcome.includes("failed") ? "failed" : "succeeded";
+  return { ...state, nodeStates };
+}
+
+/** Initial run state: every definition node idle, then each visited node set from its newest row. */
+export function initialRunState(
+  def: AssemblyLineDefinition | null,
+  visitRows: readonly AssemblyRunNode[],
+): RunLiveState {
+  const nodeStates = idleNodeStates(def);
+
+  for (const row of visitRows) {
+    applyVisitRow(nodeStates, row);
+  }
+
+  return {
+    lastEventId: null,
+    nodeStates,
+    fileTouches: {},
+  };
 }
 
 function idleNodeStates(
@@ -73,6 +96,15 @@ function applyVisitRow(
   };
 }
 
+/** Convert walk row outcome to node status; null = running; success/changes_requested = complete (latter is verdict, not failure). */
+function seedStatus(outcome: string | null): NodeRunStatus {
+  if (outcome === null) {
+    return "running";
+  }
+
+  return outcome.includes("failed") ? "failed" : "succeeded";
+}
+
 /** What a re-seed keeps from the node's existing state: its transcript and the count of what the cap evicted. */
 function carriedTranscript(
   seen: NodeRunState | undefined,
@@ -82,35 +114,64 @@ function carriedTranscript(
     : { transcript: [], droppedCount: 0 };
 }
 
-/** Re-seeds node status from visit rows that arrived after mount (a `node_status` frame); transcripts and the cursor are untouched. */
-export function withVisitRows(
-  state: RunLiveState,
-  visitRows: readonly AssemblyRunNode[],
+/** Fold the first `cursor` events onto `base`; the whole list when omitted. */
+export function replayTo(
+  base: RunLiveState,
+  events: readonly RunStreamEvent[],
+  cursor: number = events.length,
 ): RunLiveState {
-  const nodeStates = { ...state.nodeStates };
-
-  for (const row of visitRows) {
-    applyVisitRow(nodeStates, row);
-  }
-
-  return { ...state, nodeStates };
+  return events
+    .slice(0, cursor)
+    .reduce((state, event) => reduceRunEvent(state, event), base);
 }
 
-/** Initial run state: every definition node idle, then each visited node set from its newest row. */
-export function initialRunState(
-  def: AssemblyLineDefinition | null,
-  visitRows: readonly AssemblyRunNode[],
+/** Apply one event; returns state unchanged (by identity) for id at/behind cursor (SSE reconnect replay = no-op). */
+export function reduceRunEvent(
+  state: RunLiveState,
+  event: RunStreamEvent,
 ): RunLiveState {
-  const nodeStates = idleNodeStates(def);
-
-  for (const row of visitRows) {
-    applyVisitRow(nodeStates, row);
+  if (!isNewer(event.id, state.lastEventId)) {
+    return state;
   }
 
+  if (event.nodeId === null) {
+    return { ...state, lastEventId: event.id };
+  }
+
+  return applyNodeEvent(state, event, event.nodeId);
+}
+
+/** The node-scoped fold, plus the run-wide file-touch accumulator. */
+function applyNodeEvent(
+  state: RunLiveState,
+  event: RunStreamEvent,
+  nodeId: string,
+): RunLiveState {
   return {
-    lastEventId: null,
-    nodeStates,
-    fileTouches: {},
+    lastEventId: event.id,
+    nodeStates: withNodeState(state, event, nodeId),
+    fileTouches: withFileTouches(
+      state.fileTouches,
+      event.filePaths,
+      event.toolName,
+    ),
+  };
+}
+
+function withNodeState(
+  state: RunLiveState,
+  event: RunStreamEvent,
+  nodeId: string,
+): Record<string, NodeRunState> {
+  const node = state.nodeStates[nodeId] ?? IDLE;
+
+  return {
+    ...state.nodeStates,
+    [nodeId]: {
+      status: nextStatus(event, node.status),
+      iteration: event.iteration ?? node.iteration,
+      ...appendCapped(node, event),
+    },
   };
 }
 
@@ -174,65 +235,4 @@ function isNewer(id: string, cursor: string | null): boolean {
   }
 
   return id.length === cursor.length ? id > cursor : id.length > cursor.length;
-}
-
-/** Apply one event; returns state unchanged (by identity) for id at/behind cursor (SSE reconnect replay = no-op). */
-export function reduceRunEvent(
-  state: RunLiveState,
-  event: RunStreamEvent,
-): RunLiveState {
-  if (!isNewer(event.id, state.lastEventId)) {
-    return state;
-  }
-
-  if (event.nodeId === null) {
-    return { ...state, lastEventId: event.id };
-  }
-
-  return applyNodeEvent(state, event, event.nodeId);
-}
-
-/** The node-scoped fold, plus the run-wide file-touch accumulator. */
-function applyNodeEvent(
-  state: RunLiveState,
-  event: RunStreamEvent,
-  nodeId: string,
-): RunLiveState {
-  return {
-    lastEventId: event.id,
-    nodeStates: withNodeState(state, event, nodeId),
-    fileTouches: withFileTouches(
-      state.fileTouches,
-      event.filePaths,
-      event.toolName,
-    ),
-  };
-}
-
-function withNodeState(
-  state: RunLiveState,
-  event: RunStreamEvent,
-  nodeId: string,
-): Record<string, NodeRunState> {
-  const node = state.nodeStates[nodeId] ?? IDLE;
-
-  return {
-    ...state.nodeStates,
-    [nodeId]: {
-      status: nextStatus(event, node.status),
-      iteration: event.iteration ?? node.iteration,
-      ...appendCapped(node, event),
-    },
-  };
-}
-
-/** Fold the first `cursor` events onto `base`; the whole list when omitted. */
-export function replayTo(
-  base: RunLiveState,
-  events: readonly RunStreamEvent[],
-  cursor: number = events.length,
-): RunLiveState {
-  return events
-    .slice(0, cursor)
-    .reduce((state, event) => reduceRunEvent(state, event), base);
 }

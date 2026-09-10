@@ -14,13 +14,23 @@ const PREFIX: Record<DiffLineKind, string> = {
   hunk: " ",
 };
 
-function DiffRow({ line, index }: { line: DiffLine; index: number }) {
+export default function DiffView({ model }: DiffViewProps) {
+  if (model.kind === "absent") {
+    return <span className="meta">Not changed in this PR.</span>;
+  }
+
+  if (model.kind === "binary") {
+    return <span className="meta">No text diff for this file.</span>;
+  }
+
   return (
-    <div className={styles.line} data-diff-line={line.kind} key={index}>
-      <span className={styles.lineNo}>{line.oldNo ?? ""}</span>
-      <span className={styles.lineNo}>{line.newNo ?? ""}</span>
-      <span className={styles.prefix}>{PREFIX[line.kind]}</span>
-      <span className={styles.text}>{line.text}</span>
+    <div className={styles.diff}>
+      <DiffHeader model={model} />
+      <div className={styles.lines}>
+        {model.lines.map((line, index) => (
+          <DiffRow key={index} line={line} index={index} />
+        ))}
+      </div>
     </div>
   );
 }
@@ -44,23 +54,13 @@ function DiffHeader({
   );
 }
 
-export default function DiffView({ model }: DiffViewProps) {
-  if (model.kind === "absent") {
-    return <span className="meta">Not changed in this PR.</span>;
-  }
-
-  if (model.kind === "binary") {
-    return <span className="meta">No text diff for this file.</span>;
-  }
-
+function DiffRow({ line, index }: { line: DiffLine; index: number }) {
   return (
-    <div className={styles.diff}>
-      <DiffHeader model={model} />
-      <div className={styles.lines}>
-        {model.lines.map((line, index) => (
-          <DiffRow key={index} line={line} index={index} />
-        ))}
-      </div>
+    <div className={styles.line} data-diff-line={line.kind} key={index}>
+      <span className={styles.lineNo}>{line.oldNo ?? ""}</span>
+      <span className={styles.lineNo}>{line.newNo ?? ""}</span>
+      <span className={styles.prefix}>{PREFIX[line.kind]}</span>
+      <span className={styles.text}>{line.text}</span>
     </div>
   );
 }

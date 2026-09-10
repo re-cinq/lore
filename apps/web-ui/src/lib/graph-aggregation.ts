@@ -20,31 +20,6 @@ export interface AggregationResult {
   badges: LeafBadge[];
 }
 
-function isCollapsibleLeaf(
-  node: AggNode,
-  degree: Map<string, number>,
-  collapsibleTypes: Set<SpecGraphNodeType>,
-): boolean {
-  return collapsibleTypes.has(node.type) && (degree.get(node.id) ?? 0) === 1;
-}
-
-/** Add one leaf to its parent's badge, creating the badge on the first leaf. */
-function recordBadge(
-  groups: Map<string, LeafBadge>,
-  parentId: string,
-  type: SpecGraphNodeType,
-): void {
-  const key = `${parentId}::${type}`;
-  const badge = groups.get(key);
-
-  if (badge) {
-    badge.count += 1;
-
-    return;
-  }
-  groups.set(key, { parentId, type, count: 1 });
-}
-
 /** Collapse degree-1 nodes onto single neighbour; return ids to hide and badge counts. */
 export function aggregateLeaves(
   nodes: AggNode[],
@@ -69,6 +44,31 @@ export function aggregateLeaves(
   }
 
   return { hidden, badges: [...groups.values()] };
+}
+
+function isCollapsibleLeaf(
+  node: AggNode,
+  degree: Map<string, number>,
+  collapsibleTypes: Set<SpecGraphNodeType>,
+): boolean {
+  return collapsibleTypes.has(node.type) && (degree.get(node.id) ?? 0) === 1;
+}
+
+/** Add one leaf to its parent's badge, creating the badge on the first leaf. */
+function recordBadge(
+  groups: Map<string, LeafBadge>,
+  parentId: string,
+  type: SpecGraphNodeType,
+): void {
+  const key = `${parentId}::${type}`;
+  const badge = groups.get(key);
+
+  if (badge) {
+    badge.count += 1;
+
+    return;
+  }
+  groups.set(key, { parentId, type, count: 1 });
 }
 
 /** A degree-1 node's single opposite endpoint is its parent. */

@@ -67,34 +67,71 @@ type Of<K extends TranscriptEntry["kind"]> = Extract<
   { kind: K }
 >;
 
-/** The first line of a result, shown after the call so a reader need not open it to know how it went. */
-function ResultPeek({ text }: { text: string }) {
+export function TranscriptTurnsList({
+  show,
+  entries,
+}: {
+  show: boolean;
+  entries: readonly TranscriptEntry[];
+}) {
+  if (!show) {
+    return null;
+  }
+
+  return <ConversationList entries={entries} />;
+}
+
+function ConversationList({
+  entries,
+}: {
+  entries: readonly TranscriptEntry[];
+}) {
+  const shown = clockShown(entries);
+
   return (
-    <span className={styles.resultPeek}> ← {clip(text, SUMMARY_MAX)}</span>
+    <ol className={styles.terminal} data-transcript>
+      {entries.map((entry, index) => (
+        <TranscriptRow key={index} entry={entry} showClock={shown[index]} />
+      ))}
+    </ol>
   );
 }
 
-/** A call with its result: the one-line summary, the result peeking after it, the whole result a click away; tinted when it errored. */
-function ToolCallDetails({
-  summary,
-  result,
+function TranscriptRow({
+  entry,
+  showClock,
 }: {
-  summary: string;
-  result: NonNullable<Of<"tool-call">["result"]>;
+  entry: TranscriptEntry;
+  showClock: boolean;
 }) {
+  const rowClass = entry.kind === "segment" ? styles.segmentRow : styles.row;
+
   return (
-    <details
-      className={result.isError ? styles.toolError : styles.tool}
-      data-tool-call
-    >
-      <summary className={styles.summary}>
-        ▸ {summary}
-        <ResultPeek text={result.text} />
-      </summary>
-      <pre className={styles.resultBody}>{result.text}</pre>
-    </details>
+    <li className={rowClass} data-entry={entry.kind}>
+      {showClock && (
+        <time className={styles.time} dateTime={entry.at}>
+          {clockTime(entry.at)}
+        </time>
+      )}
+      <div className={styles.body}>{rowBody(entry)}</div>
+    </li>
   );
 }
+
+function rowBody(entry: TranscriptEntry): ReactNode {
+  // The table is total over the union; the cast tells TypeScript the key and the entry agree.
+  return (ROW[entry.kind] as (entry: TranscriptEntry) => ReactNode)(entry);
+}
+
+const ROW: { [K in TranscriptEntry["kind"]]: (entry: Of<K>) => ReactNode } = {
+  turn: (entry) => <EntryLine entry={entry.entry} />,
+  "tool-call": (entry) => <ToolCallRow entry={entry} />,
+  thinking: (entry) => <ThinkingRow entry={entry} />,
+  "task-event": (entry) => <TaskEventRow entry={entry} />,
+  segment: (entry) => (
+    <span className={styles.segmentLabel}>{entry.label}</span>
+  ),
+};
 
 /** `▸ Read src/a.ts` with the result a click away; an open call (no result yet) says so. */
 function ToolCallRow({ entry }: { entry: Of<"tool-call"> }) {
@@ -139,68 +176,31 @@ function TaskEventRow({ entry }: { entry: Of<"task-event"> }) {
   );
 }
 
-const ROW: { [K in TranscriptEntry["kind"]]: (entry: Of<K>) => ReactNode } = {
-  turn: (entry) => <EntryLine entry={entry.entry} />,
-  "tool-call": (entry) => <ToolCallRow entry={entry} />,
-  thinking: (entry) => <ThinkingRow entry={entry} />,
-  "task-event": (entry) => <TaskEventRow entry={entry} />,
-  segment: (entry) => (
-    <span className={styles.segmentLabel}>{entry.label}</span>
-  ),
-};
-
-function rowBody(entry: TranscriptEntry): ReactNode {
-  // The table is total over the union; the cast tells TypeScript the key and the entry agree.
-  return (ROW[entry.kind] as (entry: TranscriptEntry) => ReactNode)(entry);
-}
-
-function TranscriptRow({
-  entry,
-  showClock,
+/** A call with its result: the one-line summary, the result peeking after it, the whole result a click away; tinted when it errored. */
+function ToolCallDetails({
+  summary,
+  result,
 }: {
-  entry: TranscriptEntry;
-  showClock: boolean;
+  summary: string;
+  result: NonNullable<Of<"tool-call">["result"]>;
 }) {
-  const rowClass = entry.kind === "segment" ? styles.segmentRow : styles.row;
-
   return (
-    <li className={rowClass} data-entry={entry.kind}>
-      {showClock && (
-        <time className={styles.time} dateTime={entry.at}>
-          {clockTime(entry.at)}
-        </time>
-      )}
-      <div className={styles.body}>{rowBody(entry)}</div>
-    </li>
+    <details
+      className={result.isError ? styles.toolError : styles.tool}
+      data-tool-call
+    >
+      <summary className={styles.summary}>
+        ▸ {summary}
+        <ResultPeek text={result.text} />
+      </summary>
+      <pre className={styles.resultBody}>{result.text}</pre>
+    </details>
   );
 }
 
-function ConversationList({
-  entries,
-}: {
-  entries: readonly TranscriptEntry[];
-}) {
-  const shown = clockShown(entries);
-
+/** The first line of a result, shown after the call so a reader need not open it to know how it went. */
+function ResultPeek({ text }: { text: string }) {
   return (
-    <ol className={styles.terminal} data-transcript>
-      {entries.map((entry, index) => (
-        <TranscriptRow key={index} entry={entry} showClock={shown[index]} />
-      ))}
-    </ol>
+    <span className={styles.resultPeek}> ← {clip(text, SUMMARY_MAX)}</span>
   );
-}
-
-export function TranscriptTurnsList({
-  show,
-  entries,
-}: {
-  show: boolean;
-  entries: readonly TranscriptEntry[];
-}) {
-  if (!show) {
-    return null;
-  }
-
-  return <ConversationList entries={entries} />;
 }

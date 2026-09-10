@@ -22,6 +22,26 @@ const DF_EVENT_TYPES = [
   "spec_trace_ingest",
 ];
 
+export default async function DarkFactoryPage({
+  params,
+}: {
+  params: Promise<{ owner: string; repo: string }>;
+}) {
+  const { owner, repo } = await params;
+  const fullName = `${owner}/${repo}`;
+
+  const repoRecord = await getRepo(fullName);
+  const repoData = repoRecord.status === "ok" ? repoRecord.data : null;
+
+  if (!repoData) {
+    return <div>Repo not found</div>;
+  }
+
+  const model = await consoleModel(fullName, repoData.settings ?? {});
+
+  return <DarkFactoryConsoleView owner={owner} repo={repo} model={model} />;
+}
+
 /** The console's whole model. Both reads are BEST-EFFORT: a legacy cluster with no `audit_log` returns an empty list rather than failing, and the activation state above it is worth showing even when the history below is missing. */
 async function consoleModel(
   fullName: string,
@@ -43,24 +63,4 @@ async function consoleModel(
         .entries as unknown as RawAuditRow[],
     ),
   });
-}
-
-export default async function DarkFactoryPage({
-  params,
-}: {
-  params: Promise<{ owner: string; repo: string }>;
-}) {
-  const { owner, repo } = await params;
-  const fullName = `${owner}/${repo}`;
-
-  const repoRecord = await getRepo(fullName);
-  const repoData = repoRecord.status === "ok" ? repoRecord.data : null;
-
-  if (!repoData) {
-    return <div>Repo not found</div>;
-  }
-
-  const model = await consoleModel(fullName, repoData.settings ?? {});
-
-  return <DarkFactoryConsoleView owner={owner} repo={repo} model={model} />;
 }

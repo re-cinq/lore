@@ -6,15 +6,6 @@ import type { TouchCounts } from "@/lib/file-heatmap";
 import FileDiffDrawer from "./FileDiffDrawer";
 import FileHeatmapView from "./FileHeatmapView";
 
-/** Which touched file's diff is open. Viewer state, not run state: it survives every live event. */
-function useDiffDrawer() {
-  const [openDiffPath, setOpenDiffPath] = useState<string | null>(null);
-  const openDiff = useCallback((path: string) => setOpenDiffPath(path), []);
-  const closeDiff = useCallback(() => setOpenDiffPath(null), []);
-
-  return { openDiffPath, openDiff, closeDiff };
-}
-
 export interface RunFilesSectionProps {
   touches: Record<string, TouchCounts>;
   showAll: boolean;
@@ -42,4 +33,13 @@ export function RunFilesSection(props: RunFilesSectionProps) {
       />
     </>
   );
+}
+
+/** Which touched file's diff is open. Viewer state, not run state: it survives every live event. */
+function useDiffDrawer() {
+  const [openDiffPath, setOpenDiffPath] = useState<string | null>(null);
+  const openDiff = useCallback((path: string) => setOpenDiffPath(path), []);
+  const closeDiff = useCallback(() => setOpenDiffPath(null), []);
+
+  return { openDiffPath, openDiff, closeDiff };
 }

@@ -20,20 +20,47 @@ export interface FeaturePollPayload {
   run: FeatureRunPayload | null;
 }
 
-/** Local Docker Station's live log for a task (best effort). */
-function liveStationLog(taskId: string): string | null {
-  try {
-    const file = path.join(
-      os.homedir(),
-      ".lore",
-      "station-logs",
-      `${taskId}.log`,
-    );
+/** Poll payload, or null when feature not found. */
+export async function loadFeaturePoll(
+  fullName: string,
+  id: string,
+  /** Run whose graph client already holds (avoids re-shipping clone every 4s). */
+  haveGraphForRun?: string | null,
+): Promise<FeaturePollPayload | null> {
+  const status = await getFeatureStatus(fullName, id);
 
-    return formatStationConversation(fs.readFileSync(file, "utf8")) || null;
-  } catch {
+  if (status.status !== "ok") {
     return null;
   }
+
+  return pollPayloadFrom(status.data, haveGraphForRun);
+}
+
+type FeatureStatusData = {
+  feature: FeatureRow;
+  latest_iteration: FeatureIterationRow | null;
+  last_ready_iteration: FeatureIterationRow | null;
+} & RunIdCarrier;
+
+async function pollPayloadFrom(
+  statusData: FeatureStatusData,
+  haveGraphForRun?: string | null,
+): Promise<FeaturePollPayload> {
+  const {
+    feature,
+    latest_iteration: latestIteration,
+    last_ready_iteration,
+  } = statusData;
+  const task = await resolveTask(latestIteration?.task_id);
+
+  return {
+    feature,
+    latestIteration,
+    task,
+    liveOutput: liveOutputFor(latestIteration?.task_id, task?.status),
+    lastReady: last_ready_iteration,
+    run: await fetchFeatureRunById(runIdOf(statusData), haveGraphForRun),
+  };
 }
 
 type PollTask = { status: string; failure_reason: string | null };
@@ -71,45 +98,18 @@ function liveOutputFor(
   return liveStationLog(taskId);
 }
 
-type FeatureStatusData = {
-  feature: FeatureRow;
-  latest_iteration: FeatureIterationRow | null;
-  last_ready_iteration: FeatureIterationRow | null;
-} & RunIdCarrier;
+/** Local Docker Station's live log for a task (best effort). */
+function liveStationLog(taskId: string): string | null {
+  try {
+    const file = path.join(
+      os.homedir(),
+      ".lore",
+      "station-logs",
+      `${taskId}.log`,
+    );
 
-async function pollPayloadFrom(
-  statusData: FeatureStatusData,
-  haveGraphForRun?: string | null,
-): Promise<FeaturePollPayload> {
-  const {
-    feature,
-    latest_iteration: latestIteration,
-    last_ready_iteration,
-  } = statusData;
-  const task = await resolveTask(latestIteration?.task_id);
-
-  return {
-    feature,
-    latestIteration,
-    task,
-    liveOutput: liveOutputFor(latestIteration?.task_id, task?.status),
-    lastReady: last_ready_iteration,
-    run: await fetchFeatureRunById(runIdOf(statusData), haveGraphForRun),
-  };
-}
-
-/** Poll payload, or null when feature not found. */
-export async function loadFeaturePoll(
-  fullName: string,
-  id: string,
-  /** Run whose graph client already holds (avoids re-shipping clone every 4s). */
-  haveGraphForRun?: string | null,
-): Promise<FeaturePollPayload | null> {
-  const status = await getFeatureStatus(fullName, id);
-
-  if (status.status !== "ok") {
+    return formatStationConversation(fs.readFileSync(file, "utf8")) || null;
+  } catch {
     return null;
   }
-
-  return pollPayloadFrom(status.data, haveGraphForRun);
 }

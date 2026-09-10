@@ -13,17 +13,17 @@ export interface DefinitionOfDonePanelProps {
 
 const REQUEST_TIMEOUT_MS = 15_000;
 
-async function readProgress(runId: string): Promise<DodProgress | null> {
-  const res = await fetch(
-    `/api/assembly-runs/${encodeURIComponent(runId)}/dod`,
-    { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) },
-  );
+export default function DefinitionOfDonePanel({
+  runId,
+  refreshKey,
+}: DefinitionOfDonePanelProps) {
+  const progress = useDodProgress(runId, refreshKey);
 
-  if (!res.ok) {
+  if (progress === null) {
     return null;
   }
 
-  return (await res.json()) as DodProgress;
+  return <DefinitionOfDoneView progress={progress} />;
 }
 
 /** The latest progress, or null while loading or after a failed read; a disposed panel is told nothing. */
@@ -49,15 +49,15 @@ function useDodProgress(runId: string, refreshKey: string) {
   return progress;
 }
 
-export default function DefinitionOfDonePanel({
-  runId,
-  refreshKey,
-}: DefinitionOfDonePanelProps) {
-  const progress = useDodProgress(runId, refreshKey);
+async function readProgress(runId: string): Promise<DodProgress | null> {
+  const res = await fetch(
+    `/api/assembly-runs/${encodeURIComponent(runId)}/dod`,
+    { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) },
+  );
 
-  if (progress === null) {
+  if (!res.ok) {
     return null;
   }
 
-  return <DefinitionOfDoneView progress={progress} />;
+  return (await res.json()) as DodProgress;
 }

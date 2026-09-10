@@ -8,22 +8,18 @@ import {
 import { serverError } from "@/lib/api-error";
 import { proxyJson } from "@/lib/floor-proxy";
 
-/** One node's logs from the Floor. The 30s ceiling is deliberate: reading a pod's logs is a cluster round trip, and a reader waiting on a spinner is better served by an error than by a request that never returns. */
-function fetchNodeLogs(
-  upstreamUrl: string,
-  token: string,
-  name: string,
-  tail: string | null,
+// Proxy for one node's live pod logs via the Floor's /api/agent-logs/{name} (UI SA has no cluster access); Floor 401/403 surface as 502.
+export async function GET(
+  req: Request,
+  { params }: { params: Promise<{ id: string; name: string }> },
 ) {
-  const query = tail ? `?tail=${encodeURIComponent(tail)}` : "";
+  const { id, name } = await params;
 
-  return fetch(
-    `${upstreamUrl}/api/agent-logs/${encodeURIComponent(name)}${query}`,
-    {
-      signal: AbortSignal.timeout(30_000),
-      headers: { Authorization: `Bearer ${token}` },
-    },
-  );
+  try {
+    return await nodeLogsResponse(req, id, name);
+  } catch (err) {
+    return serverError("assembly-line-node-logs", err);
+  }
 }
 
 /** Authorize, then resolve the CR name against this run's nodes, then proxy. Order matters: the node lookup only ever happens for a caller already allowed to see the run. */
@@ -49,16 +45,20 @@ async function nodeLogsResponse(req: Request, id: string, name: string) {
   return proxyJson(await fetchNodeLogs(upstreamUrl, token, name, tail));
 }
 
-// Proxy for one node's live pod logs via the Floor's /api/agent-logs/{name} (UI SA has no cluster access); Floor 401/403 surface as 502.
-export async function GET(
-  req: Request,
-  { params }: { params: Promise<{ id: string; name: string }> },
+/** One node's logs from the Floor. The 30s ceiling is deliberate: reading a pod's logs is a cluster round trip, and a reader waiting on a spinner is better served by an error than by a request that never returns. */
+function fetchNodeLogs(
+  upstreamUrl: string,
+  token: string,
+  name: string,
+  tail: string | null,
 ) {
-  const { id, name } = await params;
+  const query = tail ? `?tail=${encodeURIComponent(tail)}` : "";
 
-  try {
-    return await nodeLogsResponse(req, id, name);
-  } catch (err) {
-    return serverError("assembly-line-node-logs", err);
-  }
+  return fetch(
+    `${upstreamUrl}/api/agent-logs/${encodeURIComponent(name)}${query}`,
+    {
+      signal: AbortSignal.timeout(30_000),
+      headers: { Authorization: `Bearer ${token}` },
+    },
+  );
 }

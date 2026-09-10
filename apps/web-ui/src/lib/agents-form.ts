@@ -19,83 +19,6 @@ export interface ParsedAgentForm {
   approvalPr?: string;
 }
 
-const RESOURCE_INPUTS: ReadonlyArray<[field: string, resource: string]> = [
-  ["cpu", "cpu"],
-  ["memory", "memory"],
-  ["ephemeral", "ephemeral-storage"],
-];
-
-function resourceBlock(
-  fd: FormData,
-  kind: "requests" | "limits",
-): Record<string, string> | undefined {
-  const entries = RESOURCE_INPUTS.flatMap(([field, resource]) => {
-    const value = ((fd.get(`res_${kind}_${field}`) as string) || "").trim();
-
-    return value ? [[resource, value] as const] : [];
-  });
-
-  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
-}
-
-function parsePodResources(fd: FormData): PodResources | null {
-  const requests = resourceBlock(fd, "requests");
-  const limits = resourceBlock(fd, "limits");
-
-  if (!requests && !limits) {
-    return null;
-  }
-
-  return {
-    ...(requests ? { requests } : {}),
-    ...(limits ? { limits } : {}),
-  };
-}
-
-function formString(fd: FormData, key: string): string {
-  return ((fd.get(key) as string) || "").trim();
-}
-
-function orNull(value: string): string | null {
-  return value || null;
-}
-
-function orDefault(value: string, fallback: string): string {
-  return value || fallback;
-}
-
-function parseModel(fd: FormData): string | null {
-  const modelSel = formString(fd, "model_select");
-
-  if (modelSel === "__custom__") {
-    return orNull(formString(fd, "model_custom"));
-  }
-
-  return orNull(modelSel);
-}
-
-function parseTimeoutMinutes(fd: FormData): number | null {
-  const timeoutRaw = formString(fd, "timeout_minutes");
-
-  return timeoutRaw ? Number(timeoutRaw) : null;
-}
-
-/** The definition payload the API is sent, name already resolved by the caller. */
-function parseDefinition(fd: FormData, name: string): ParsedAgentForm["def"] {
-  return {
-    name,
-    model: parseModel(fd),
-    timeout_minutes: parseTimeoutMinutes(fd),
-    prompt: orNull(formString(fd, "prompt")),
-    image: orNull(formString(fd, "image")),
-    execution_mode: orDefault(formString(fd, "execution_mode"), "claude-code"),
-    review_required: fd.get("review_required") === "1",
-    // Null inherits the org default's config (skills/disallowed_tools/etc) — the form has no field for it.
-    config: null,
-    pod_resources: parsePodResources(fd),
-  };
-}
-
 export function parseAgentForm(fd: FormData): ParsedAgentForm {
   const isNew = fd.get("is_new") === "1";
   const name = isNew ? formString(fd, "name_input") : formString(fd, "name");
@@ -132,4 +55,81 @@ export function saveResultToState(r: AgentSaveResult): AgentFormState {
   }
 
   return { error: r.message };
+}
+
+/** The definition payload the API is sent, name already resolved by the caller. */
+function parseDefinition(fd: FormData, name: string): ParsedAgentForm["def"] {
+  return {
+    name,
+    model: parseModel(fd),
+    timeout_minutes: parseTimeoutMinutes(fd),
+    prompt: orNull(formString(fd, "prompt")),
+    image: orNull(formString(fd, "image")),
+    execution_mode: orDefault(formString(fd, "execution_mode"), "claude-code"),
+    review_required: fd.get("review_required") === "1",
+    // Null inherits the org default's config (skills/disallowed_tools/etc) — the form has no field for it.
+    config: null,
+    pod_resources: parsePodResources(fd),
+  };
+}
+
+function parseModel(fd: FormData): string | null {
+  const modelSel = formString(fd, "model_select");
+
+  if (modelSel === "__custom__") {
+    return orNull(formString(fd, "model_custom"));
+  }
+
+  return orNull(modelSel);
+}
+
+function parseTimeoutMinutes(fd: FormData): number | null {
+  const timeoutRaw = formString(fd, "timeout_minutes");
+
+  return timeoutRaw ? Number(timeoutRaw) : null;
+}
+
+function orDefault(value: string, fallback: string): string {
+  return value || fallback;
+}
+
+function parsePodResources(fd: FormData): PodResources | null {
+  const requests = resourceBlock(fd, "requests");
+  const limits = resourceBlock(fd, "limits");
+
+  if (!requests && !limits) {
+    return null;
+  }
+
+  return {
+    ...(requests ? { requests } : {}),
+    ...(limits ? { limits } : {}),
+  };
+}
+
+function orNull(value: string): string | null {
+  return value || null;
+}
+
+function formString(fd: FormData, key: string): string {
+  return ((fd.get(key) as string) || "").trim();
+}
+
+const RESOURCE_INPUTS: ReadonlyArray<[field: string, resource: string]> = [
+  ["cpu", "cpu"],
+  ["memory", "memory"],
+  ["ephemeral", "ephemeral-storage"],
+];
+
+function resourceBlock(
+  fd: FormData,
+  kind: "requests" | "limits",
+): Record<string, string> | undefined {
+  const entries = RESOURCE_INPUTS.flatMap(([field, resource]) => {
+    const value = ((fd.get(`res_${kind}_${field}`) as string) || "").trim();
+
+    return value ? [[resource, value] as const] : [];
+  });
+
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
 }

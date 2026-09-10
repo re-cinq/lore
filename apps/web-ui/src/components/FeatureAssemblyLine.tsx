@@ -22,27 +22,6 @@ interface FeatureAssemblyLineProps {
   title?: string;
 }
 
-/** The graph itself, drawn from the walk when there is one and from the declaration otherwise. */
-function LineGraph({
-  definition,
-  runData,
-}: {
-  definition: AssemblyLineDefinition;
-  runData: RunData;
-}) {
-  return (
-    <RunGraphView
-      graph={deriveVisibleGraph(
-        definition,
-        runData,
-        runData ? "run" : "definition",
-      )}
-      definition={definition}
-      heading={null}
-    />
-  );
-}
-
 // With a run, draws the CURRENT STATE (status per step, walked hops bold); without one, falls back to the declared graph as a preview, not a claim.
 export function FeatureAssemblyLine({
   definition,
@@ -64,5 +43,26 @@ export function FeatureAssemblyLine({
       <p className="meta">Assembly line: {definition.name}</p>
       <LineGraph definition={definition} runData={runData} />
     </CollapsibleCard>
+  );
+}
+
+/** The graph itself, drawn from the walk when there is one and from the declaration otherwise. */
+function LineGraph({
+  definition,
+  runData,
+}: {
+  definition: AssemblyLineDefinition;
+  runData: RunData;
+}) {
+  return (
+    <RunGraphView
+      graph={deriveVisibleGraph(
+        definition,
+        runData,
+        runData ? "run" : "definition",
+      )}
+      definition={definition}
+      heading={null}
+    />
   );
 }

@@ -17,37 +17,6 @@ export {
 export { supersedesPrevious, mergedDelta } from "./agent-log-merge";
 export { rateLimitWindows, rateLimitSummary } from "./agent-log-station";
 
-/** Classifies an already-decoded envelope — callers holding the object (transcript store hands out parsed JSONB) must not stringify to re-parse it. */
-export function logEntriesFromValue(
-  value: unknown,
-  originalLine: string,
-): LogEntry[] {
-  return classify(unwrapEnvelope(value), originalLine);
-}
-
-/** One NDJSON line → its entries; empty lines yield none, unparseable JSON passes through verbatim as raw. */
-export function parseAgentLogLine(line: string): LogEntry[] {
-  const trimmed = line.trim();
-
-  if (!trimmed) {
-    return [];
-  }
-
-  if (!trimmed.startsWith("{")) {
-    return [{ kind: "raw", text: trimmed }];
-  }
-
-  let value: unknown;
-
-  try {
-    value = JSON.parse(trimmed);
-  } catch {
-    return [{ kind: "raw", text: trimmed }];
-  }
-
-  return logEntriesFromValue(value, trimmed);
-}
-
 export function parseAgentLog(raw: string): LogEntry[] {
   const entries: LogEntry[] = [];
 
@@ -74,11 +43,35 @@ export function parseAgentLog(raw: string): LogEntry[] {
   return entries;
 }
 
-// {"source":…,"event":…} attribution envelope (ADR-031 D8); prod streams carry it single- and double-wrapped.
-function isAttributedEnvelope(
+/** One NDJSON line → its entries; empty lines yield none, unparseable JSON passes through verbatim as raw. */
+export function parseAgentLogLine(line: string): LogEntry[] {
+  const trimmed = line.trim();
+
+  if (!trimmed) {
+    return [];
+  }
+
+  if (!trimmed.startsWith("{")) {
+    return [{ kind: "raw", text: trimmed }];
+  }
+
+  let value: unknown;
+
+  try {
+    value = JSON.parse(trimmed);
+  } catch {
+    return [{ kind: "raw", text: trimmed }];
+  }
+
+  return logEntriesFromValue(value, trimmed);
+}
+
+/** Classifies an already-decoded envelope — callers holding the object (transcript store hands out parsed JSONB) must not stringify to re-parse it. */
+export function logEntriesFromValue(
   value: unknown,
-): value is { source: unknown; event: unknown } {
-  return isRecord(value) && "source" in value && "event" in value;
+  originalLine: string,
+): LogEntry[] {
+  return classify(unwrapEnvelope(value), originalLine);
 }
 
 function unwrapEnvelope(value: unknown): unknown {
@@ -91,6 +84,27 @@ function unwrapEnvelope(value: unknown): unknown {
   }
 
   return current;
+}
+
+/** The stream carries two CLI dialects. Claude Code nests content under `message.content`; gemini-cli emits flat events. A shape belongs to exactly one of them, so each dialect answers for its own and `null` means "not mine". */
+function classify(value: unknown, originalLine: string): LogEntry[] {
+  if (!isRecord(value)) {
+    return [{ kind: "raw", text: originalLine }];
+  }
+
+  return (
+    lifecycleEntries(value) ??
+    claudeStreamEntries(value, originalLine) ??
+    geminiStreamEntries(value) ??
+    stationEntries(value, originalLine) ?? [{ kind: "raw", text: originalLine }]
+  );
+}
+
+// {"source":…,"event":…} attribution envelope (ADR-031 D8); prod streams carry it single- and double-wrapped.
+function isAttributedEnvelope(
+  value: unknown,
+): value is { source: unknown; event: unknown } {
+  return isRecord(value) && "source" in value && "event" in value;
 }
 
 /** The Floor's own wrapper events, emitted around either dialect. */
@@ -109,18 +123,4 @@ function lifecycleEntries(value: Record<string, unknown>): LogEntry[] | null {
   }
 
   return null;
-}
-
-/** The stream carries two CLI dialects. Claude Code nests content under `message.content`; gemini-cli emits flat events. A shape belongs to exactly one of them, so each dialect answers for its own and `null` means "not mine". */
-function classify(value: unknown, originalLine: string): LogEntry[] {
-  if (!isRecord(value)) {
-    return [{ kind: "raw", text: originalLine }];
-  }
-
-  return (
-    lifecycleEntries(value) ??
-    claudeStreamEntries(value, originalLine) ??
-    geminiStreamEntries(value) ??
-    stationEntries(value, originalLine) ?? [{ kind: "raw", text: originalLine }]
-  );
 }

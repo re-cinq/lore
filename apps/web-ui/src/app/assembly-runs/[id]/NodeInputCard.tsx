@@ -14,27 +14,6 @@ export interface NodeInputView {
   ref: string;
 }
 
-// Same body structure as every other card — never a bespoke tree of paragraphs and definition lists.
-export function inputCardText(input: NodeInputView): string {
-  return [
-    `${input.repo} @ ${input.ref}`,
-    input.description,
-    input.prompt,
-    ...Object.entries(input.params ?? {}).map(
-      ([key, value]) => `${key}: ${value}`,
-    ),
-  ]
-    .filter((part): part is string => Boolean(part))
-    .join("\n\n");
-}
-
-function truncated(input: NodeInputView): boolean {
-  return (
-    TRUNCATION_MARKER.test(input.description) ||
-    TRUNCATION_MARKER.test(input.prompt ?? "")
-  );
-}
-
 interface NodeInputCardProps {
   inputs: readonly NodeInputView[];
 }
@@ -56,4 +35,25 @@ export default function NodeInputCard({ inputs }: NodeInputCardProps) {
       ))}
     </>
   );
+}
+
+function truncated(input: NodeInputView): boolean {
+  return (
+    TRUNCATION_MARKER.test(input.description) ||
+    TRUNCATION_MARKER.test(input.prompt ?? "")
+  );
+}
+
+// Same body structure as every other card — never a bespoke tree of paragraphs and definition lists.
+export function inputCardText(input: NodeInputView): string {
+  return [
+    `${input.repo} @ ${input.ref}`,
+    input.description,
+    input.prompt,
+    ...Object.entries(input.params ?? {}).map(
+      ([key, value]) => `${key}: ${value}`,
+    ),
+  ]
+    .filter((part): part is string => Boolean(part))
+    .join("\n\n");
 }

@@ -23,14 +23,20 @@ export async function GET(
   }
 }
 
-function buildSettingsPatch(body: {
-  team?: string | null;
-  settings?: Record<string, unknown>;
-}): { team?: string | null; settings?: Record<string, unknown> } {
-  return {
-    ...(body.team !== undefined ? { team: body.team || null } : {}),
-    ...(body.settings !== undefined ? { settings: body.settings } : {}),
-  };
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ owner: string; repo: string }> },
+) {
+  try {
+    const { owner, repo } = await params;
+    const fullName = `${owner}/${repo}`;
+    const body = await request.json();
+
+    // lore-api owns the write incl. the privileged-field refusal; a 403 means the caller hit a dark-factory field needing the CODEOWNER approval PR.
+    return await writeSettings(fullName, buildSettingsPatch(body));
+  } catch (err) {
+    return serverError("settings.POST", err);
+  }
 }
 
 /** The write, then the read-back that answers with what is now stored. Either upstream refusal is passed on as-is. */
@@ -54,18 +60,12 @@ async function writeSettings(
   return NextResponse.json({ full_name, team, settings });
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ owner: string; repo: string }> },
-) {
-  try {
-    const { owner, repo } = await params;
-    const fullName = `${owner}/${repo}`;
-    const body = await request.json();
-
-    // lore-api owns the write incl. the privileged-field refusal; a 403 means the caller hit a dark-factory field needing the CODEOWNER approval PR.
-    return await writeSettings(fullName, buildSettingsPatch(body));
-  } catch (err) {
-    return serverError("settings.POST", err);
-  }
+function buildSettingsPatch(body: {
+  team?: string | null;
+  settings?: Record<string, unknown>;
+}): { team?: string | null; settings?: Record<string, unknown> } {
+  return {
+    ...(body.team !== undefined ? { team: body.team || null } : {}),
+    ...(body.settings !== undefined ? { settings: body.settings } : {}),
+  };
 }

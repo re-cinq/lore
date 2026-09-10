@@ -9,24 +9,6 @@ import { nodeLinks } from "./spec-graph-node-links";
 
 /** Presentational overlays drawn on top of the canvas/SVG graph: hover tooltip, crossings label, and the selected-node detail card. */
 
-// Memoized: re-parse markdown only on text change, not on every cursor move.
-export const HoverMarkdown = memo(function HoverMarkdown({
-  text,
-}: {
-  text: string;
-}) {
-  return (
-    <div className="md-popover">
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeHighlight]}
-      >
-        {text}
-      </ReactMarkdown>
-    </div>
-  );
-});
-
 export function CrossingsLabel({ crossings }: { crossings: number }) {
   return (
     <span title="straight-segment edge crossings at the settled layout (lower is clearer)">
@@ -71,12 +53,96 @@ export function HoverTooltip({
   );
 }
 
+// Memoized: re-parse markdown only on text change, not on every cursor move.
+export const HoverMarkdown = memo(function HoverMarkdown({
+  text,
+}: {
+  text: string;
+}) {
+  return (
+    <div className="md-popover">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeHighlight]}
+      >
+        {text}
+      </ReactMarkdown>
+    </div>
+  );
+});
+
 const HEADER_ROW = {
   display: "flex",
   alignItems: "center",
   gap: 6,
   marginBottom: 6,
 } as const;
+
+interface SelectedNodeProps {
+  selected: SpecGraphNode;
+  repo: string;
+}
+
+const CARD_STYLE: React.CSSProperties = {
+  position: "absolute",
+  left: "50%",
+  top: "50%",
+  transform: "translate(-50%, 28px)",
+  maxWidth: 420,
+  maxHeight: 320,
+  overflow: "auto",
+  padding: 12,
+  borderRadius: 8,
+  border: "1px solid var(--border)",
+  background: "var(--bg-surface)",
+  color: "var(--text)",
+  boxShadow: "var(--shadow-lg)",
+  fontSize: "var(--fs-sm)",
+};
+
+interface SelectedNodeCardProps extends SelectedNodeProps {
+  onClose: () => void;
+}
+
+export function SelectedNodeCard({
+  selected,
+  repo,
+  onClose,
+}: SelectedNodeCardProps) {
+  return (
+    <div style={CARD_STYLE}>
+      <SelectedNodeHeader selected={selected} onClose={onClose} />
+      {selected.label && (
+        <div style={{ fontWeight: 600, marginBottom: 4 }}>{selected.label}</div>
+      )}
+      <NodeDetailMarkdown detail={selected.detail} />
+      <SelectedNodePathLine selected={selected} />
+      <SelectedNodeTestPreview selected={selected} repo={repo} />
+      <NodeLinks selected={selected} repo={repo} />
+    </div>
+  );
+}
+
+function SelectedNodeHeader({
+  selected,
+  onClose,
+}: {
+  selected: SpecGraphNode;
+  onClose: () => void;
+}) {
+  return (
+    <div style={HEADER_ROW}>
+      <TypeDot type={selected.type} />
+      <strong>{selected.type}</strong>
+      {selected.type === "Spec" && (
+        <span style={{ color: "var(--text-muted)", fontSize: "var(--fs-xs)" }}>
+          · double-click to expand
+        </span>
+      )}
+      <CloseButton onClose={onClose} />
+    </div>
+  );
+}
 
 /** The node's type colour, matching the dot the graph draws for it — the card and the canvas have to agree, or the reader cannot tell which node they selected. */
 function TypeDot({ type }: { type: SpecGraphNode["type"] }) {
@@ -113,27 +179,6 @@ function CloseButton({ onClose }: { onClose: () => void }) {
   );
 }
 
-function SelectedNodeHeader({
-  selected,
-  onClose,
-}: {
-  selected: SpecGraphNode;
-  onClose: () => void;
-}) {
-  return (
-    <div style={HEADER_ROW}>
-      <TypeDot type={selected.type} />
-      <strong>{selected.type}</strong>
-      {selected.type === "Spec" && (
-        <span style={{ color: "var(--text-muted)", fontSize: "var(--fs-xs)" }}>
-          · double-click to expand
-        </span>
-      )}
-      <CloseButton onClose={onClose} />
-    </div>
-  );
-}
-
 function SelectedNodePathLine({ selected }: { selected: SpecGraphNode }) {
   if (!selected.path) {
     return null;
@@ -155,11 +200,6 @@ function SelectedNodePathLine({ selected }: { selected: SpecGraphNode }) {
   );
 }
 
-interface SelectedNodeProps {
-  selected: SpecGraphNode;
-  repo: string;
-}
-
 function SelectedNodeTestPreview({ selected, repo }: SelectedNodeProps) {
   if (selected.type !== "TestChunk" || !selected.path || !selected.line) {
     return null;
@@ -176,23 +216,6 @@ function SelectedNodeTestPreview({ selected, repo }: SelectedNodeProps) {
     </div>
   );
 }
-
-const CARD_STYLE: React.CSSProperties = {
-  position: "absolute",
-  left: "50%",
-  top: "50%",
-  transform: "translate(-50%, 28px)",
-  maxWidth: 420,
-  maxHeight: 320,
-  overflow: "auto",
-  padding: 12,
-  borderRadius: 8,
-  border: "1px solid var(--border)",
-  background: "var(--bg-surface)",
-  color: "var(--text)",
-  boxShadow: "var(--shadow-lg)",
-  fontSize: "var(--fs-sm)",
-};
 
 /** Where this node can be opened: its source, and anything the graph knows it relates to. External links open in a new tab so the graph keeps its layout — which is dragged by hand and worth not losing. */
 function NodeLinks({ selected, repo }: SelectedNodeProps) {
@@ -227,29 +250,6 @@ function NodeDetailMarkdown({ detail }: { detail?: string }) {
       >
         {detail}
       </ReactMarkdown>
-    </div>
-  );
-}
-
-interface SelectedNodeCardProps extends SelectedNodeProps {
-  onClose: () => void;
-}
-
-export function SelectedNodeCard({
-  selected,
-  repo,
-  onClose,
-}: SelectedNodeCardProps) {
-  return (
-    <div style={CARD_STYLE}>
-      <SelectedNodeHeader selected={selected} onClose={onClose} />
-      {selected.label && (
-        <div style={{ fontWeight: 600, marginBottom: 4 }}>{selected.label}</div>
-      )}
-      <NodeDetailMarkdown detail={selected.detail} />
-      <SelectedNodePathLine selected={selected} />
-      <SelectedNodeTestPreview selected={selected} repo={repo} />
-      <NodeLinks selected={selected} repo={repo} />
     </div>
   );
 }

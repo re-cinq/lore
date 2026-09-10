@@ -23,6 +23,33 @@ export interface LayoutLink {
   target: string;
 }
 
+/** Partition nodes into connected components via union-find. */
+export function connectedComponents(
+  nodeIds: string[],
+  links: LayoutLink[],
+): string[][] {
+  const parent = new Map<string, string>();
+  const { find, union } = unionFind(parent);
+
+  for (const id of nodeIds) {
+    ensureSelfParent(parent, id);
+  }
+
+  for (const { source, target } of links) {
+    ensureSelfParent(parent, source);
+    ensureSelfParent(parent, target);
+    union(source, target);
+  }
+
+  const groups = new Map<string, string[]>();
+
+  for (const id of nodeIds) {
+    pushToGroup(groups, find(id), id);
+  }
+
+  return [...groups.values()];
+}
+
 /** Adds `id` as its own parent when the union-find map hasn't seen it yet. */
 function ensureSelfParent(parent: Map<string, string>, id: string): void {
   if (!parent.has(id)) {
@@ -71,33 +98,6 @@ function pushToGroup(
     return;
   }
   groups.set(root, [id]);
-}
-
-/** Partition nodes into connected components via union-find. */
-export function connectedComponents(
-  nodeIds: string[],
-  links: LayoutLink[],
-): string[][] {
-  const parent = new Map<string, string>();
-  const { find, union } = unionFind(parent);
-
-  for (const id of nodeIds) {
-    ensureSelfParent(parent, id);
-  }
-
-  for (const { source, target } of links) {
-    ensureSelfParent(parent, source);
-    ensureSelfParent(parent, target);
-    union(source, target);
-  }
-
-  const groups = new Map<string, string[]>();
-
-  for (const id of nodeIds) {
-    pushToGroup(groups, find(id), id);
-  }
-
-  return [...groups.values()];
 }
 
 /** Component spots on rim, evenly spaced by angle. */
@@ -203,6 +203,17 @@ export function featureRingRadius(
   return Math.max(minRadius, (featureCount * 2.2 * treeRadius) / (2 * Math.PI));
 }
 
+export function separateSmallComponents(
+  nodes: PlacedNode[],
+  smallIds: Set<string>,
+  center: Point,
+  margin: number,
+): Map<string, Point> {
+  const barrier = maxRadiusExcluding(nodes, smallIds, center) + margin;
+
+  return pushPastBarrier(nodes, smallIds, center, barrier);
+}
+
 /** Farthest non-small node from `center`, the anchor the small ones must clear. */
 function maxRadiusExcluding(
   nodes: PlacedNode[],
@@ -265,15 +276,4 @@ function pushToBarrier(
     x: center.x + (barrier * dx) / dist,
     y: center.y + (barrier * dy) / dist,
   };
-}
-
-export function separateSmallComponents(
-  nodes: PlacedNode[],
-  smallIds: Set<string>,
-  center: Point,
-  margin: number,
-): Map<string, Point> {
-  const barrier = maxRadiusExcluding(nodes, smallIds, center) + margin;
-
-  return pushPastBarrier(nodes, smallIds, center, barrier);
 }

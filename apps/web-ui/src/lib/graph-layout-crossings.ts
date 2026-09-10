@@ -17,6 +17,24 @@ interface CrossingSegment {
   b: Point;
 }
 
+export function countCrossings(
+  edges: CrossingEdge[],
+  pos: Map<string, Point>,
+): number {
+  const segs = resolveSegments(edges, pos);
+  let crossings = 0;
+
+  segs.forEach((first, i) => {
+    for (let j = i + 1; j < segs.length; j += 1) {
+      if (segmentsCross(first, segs[j])) {
+        crossings += 1;
+      }
+    }
+  });
+
+  return crossings;
+}
+
 /** Count pairs of edges whose straight segments properly cross. */
 function segmentsCross(A: CrossingSegment, B: CrossingSegment): boolean {
   const aTouchesB = A.s === B.s || A.s === B.t;
@@ -34,24 +52,6 @@ function segmentsCross(A: CrossingSegment, B: CrossingSegment): boolean {
   const bStraddlesA = d3 * d4 < 0;
 
   return aStraddlesB && bStraddlesA;
-}
-
-export function countCrossings(
-  edges: CrossingEdge[],
-  pos: Map<string, Point>,
-): number {
-  const segs = resolveSegments(edges, pos);
-  let crossings = 0;
-
-  segs.forEach((first, i) => {
-    for (let j = i + 1; j < segs.length; j += 1) {
-      if (segmentsCross(first, segs[j])) {
-        crossings += 1;
-      }
-    }
-  });
-
-  return crossings;
 }
 
 /** Drop edges whose endpoints have no resolved position. */

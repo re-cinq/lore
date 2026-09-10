@@ -18,6 +18,26 @@ interface SectionFeedbackProps {
 
 type SectionEntry = { comment?: string; direction?: SectionDirection };
 
+export function SectionFeedback(props: SectionFeedbackProps) {
+  const { sectionKey, feedback } = props;
+  const current = feedback.sections[sectionKey] ?? {};
+  const set = sectionSetter(props, current);
+
+  return (
+    <div className={styles.feedback}>
+      <DirectionPicker
+        sectionKey={sectionKey}
+        direction={current.direction}
+        onSelect={(direction) => set({ direction })}
+      />
+      <SectionComment
+        value={current.comment ?? ""}
+        onSet={(comment) => set({ comment })}
+      />
+    </div>
+  );
+}
+
 interface DirectionPickerProps {
   sectionKey: string;
   direction: SectionDirection | undefined;
@@ -75,41 +95,10 @@ function SectionComment({
   );
 }
 
-export function SectionFeedback(props: SectionFeedbackProps) {
-  const { sectionKey, feedback } = props;
-  const current = feedback.sections[sectionKey] ?? {};
-  const set = sectionSetter(props, current);
-
-  return (
-    <div className={styles.feedback}>
-      <DirectionPicker
-        sectionKey={sectionKey}
-        direction={current.direction}
-        onSelect={(direction) => set({ direction })}
-      />
-      <SectionComment
-        value={current.comment ?? ""}
-        onSet={(comment) => set({ comment })}
-      />
-    </div>
-  );
-}
-
 interface QuestionInputProps {
   q: GapQuestion;
   feedback: FeedbackState;
   onChange: (next: FeedbackState) => void;
-}
-
-/** Records one answer, leaving every other answer the author gave untouched. */
-function answerSetter(props: QuestionInputProps) {
-  const { q, feedback, onChange } = props;
-
-  return (value: string) =>
-    onChange({
-      ...feedback,
-      questions: { ...feedback.questions, [q.id]: value },
-    });
 }
 
 /** One follow-up question for a section — short label, detail in `why`, answer input. */
@@ -129,6 +118,17 @@ export function QuestionInput(props: QuestionInputProps) {
       />
     </div>
   );
+}
+
+/** Records one answer, leaving every other answer the author gave untouched. */
+function answerSetter(props: QuestionInputProps) {
+  const { q, feedback, onChange } = props;
+
+  return (value: string) =>
+    onChange({
+      ...feedback,
+      questions: { ...feedback.questions, [q.id]: value },
+    });
 }
 
 interface AnswerControlProps {

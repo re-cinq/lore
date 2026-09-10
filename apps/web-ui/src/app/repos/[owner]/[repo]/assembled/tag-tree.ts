@@ -9,44 +9,6 @@ export interface TagNode {
   contentType?: string;
 }
 
-function documentAttrs(
-  document: SourceItem,
-  { truncated }: { truncated: boolean },
-): [string, string][] {
-  const attrs = optionalDocumentAttrs(document);
-
-  attrs.push(["tokens", String(document.tokens)]);
-
-  if (truncated) {
-    attrs.push(["truncated", "true"]);
-  }
-
-  return attrs;
-}
-
-/** Provenance that is only there when it applies: a document assembled from live state has no source path, and one pulled in by rule has no relevance score. */
-function optionalDocumentAttrs(document: SourceItem): [string, string][] {
-  const attrs: [string, string][] = [];
-
-  if (document.source_path) {
-    attrs.push(["source", document.source_path]);
-  }
-
-  if (document.content_type) {
-    attrs.push(["type", document.content_type]);
-  }
-
-  if (document.repo) {
-    attrs.push(["repo", document.repo]);
-  }
-
-  if (typeof document.score === "number") {
-    attrs.push(["relevance", document.score.toFixed(2)]);
-  }
-
-  return attrs;
-}
-
 /** Build nested tag tree for TagBox from trace. */
 export function buildTagTree(trace: AssemblyTrace): TagNode {
   return {
@@ -85,4 +47,42 @@ function documentNodes(section: TraceSection): TagNode[] {
     content: document.text,
     contentType: document.content_type,
   }));
+}
+
+function documentAttrs(
+  document: SourceItem,
+  { truncated }: { truncated: boolean },
+): [string, string][] {
+  const attrs = optionalDocumentAttrs(document);
+
+  attrs.push(["tokens", String(document.tokens)]);
+
+  if (truncated) {
+    attrs.push(["truncated", "true"]);
+  }
+
+  return attrs;
+}
+
+/** Provenance that is only there when it applies: a document assembled from live state has no source path, and one pulled in by rule has no relevance score. */
+function optionalDocumentAttrs(document: SourceItem): [string, string][] {
+  const attrs: [string, string][] = [];
+
+  if (document.source_path) {
+    attrs.push(["source", document.source_path]);
+  }
+
+  if (document.content_type) {
+    attrs.push(["type", document.content_type]);
+  }
+
+  if (document.repo) {
+    attrs.push(["repo", document.repo]);
+  }
+
+  if (typeof document.score === "number") {
+    attrs.push(["relevance", document.score.toFixed(2)]);
+  }
+
+  return attrs;
 }
