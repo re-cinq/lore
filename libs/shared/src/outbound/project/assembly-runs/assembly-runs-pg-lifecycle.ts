@@ -1,4 +1,8 @@
-import { resolveResumePrefix } from "./resume.js";
+import {
+  assertSubjectFree,
+  forkSubjectKey,
+  resolveResumePrefix,
+} from "./resume.js";
 import { fanOutClause } from "../events/fan-out.js";
 import { RUN_START_EVENT } from "./run-events.js";
 import type { RunGraph } from "../../../domain/run-graph.js";
@@ -89,14 +93,48 @@ async function startResumed(
     await getById(pool, resumeFrom.lineId),
     await listStationRuns(pool, resumeFrom.lineId),
   );
-  const { rows } = await pool.query(RESUME_START_SQL, [
+  const subjectKey = forkSubjectKey(input, source);
+
+  await assertForkSubjectFree(pool, input.repo, subjectKey);
+
+  return insertFork(pool, input.repo, subjectKey, [
     ...forkedRunParams(input, source),
     ...forkOriginParams(resumeFrom, prefix),
-    ...forkInheritedParams(input, source),
+    ...forkInheritedParams(source, subjectKey),
     resumeFrom.iteration ?? null,
   ]);
+}
 
-  return rows[0].id as string;
+/** The fork's one-statement write. Another start can take the subject between the check and the insert; that race gets the same refusal, naming whoever won. */
+async function insertFork(
+  pool: PgPool,
+  repo: string,
+  subjectKey: string | null,
+  params: unknown[],
+): Promise<string> {
+  try {
+    const { rows } = await pool.query(RESUME_START_SQL, params);
+
+    return rows[0].id as string;
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      await assertForkSubjectFree(pool, repo, subjectKey);
+    }
+    throw err;
+  }
+}
+
+/** Refuses the fork while another open run holds the subject it would take over. */
+async function assertForkSubjectFree(
+  pool: PgPool,
+  repo: string,
+  subjectKey: string | null,
+): Promise<void> {
+  const holder = subjectKey
+    ? await findOpenBySubject(pool, repo, subjectKey)
+    : null;
+
+  assertSubjectFree(repo, subjectKey, holder);
 }
 
 /** The run's own columns ($1-$6): what the fork declares, over what it inherits from the source. */
@@ -124,15 +162,12 @@ function forkOriginParams(
   return [resumeFrom.lineId, resumeFrom.nodeId, cutoffNodeRowId, prefix.length];
 }
 
-/** What the fork takes over from the source ($11-$12): its graph, since it replays the source's rows, and its subject key (legal only from a terminal run, so the key is free). */
+/** What the fork takes over from the source ($11-$12): its graph, since it replays the source's rows, and the subject key already proven free. */
 function forkInheritedParams(
-  input: AssemblyRunStartInput,
   source: AssemblyRunRecord,
+  subjectKey: string | null,
 ): unknown[] {
-  return [
-    source.graph ? JSON.stringify(source.graph) : null,
-    input.subjectKey ?? source.subjectKey ?? null,
-  ];
+  return [source.graph ? JSON.stringify(source.graph) : null, subjectKey];
 }
 
 /** The plain-start write: row + `assembly_line.start` event in ONE CTE. */

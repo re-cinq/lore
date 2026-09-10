@@ -805,6 +805,45 @@ describe.each(IMPLEMENTATIONS)(
       );
     });
 
+    it("a fork is refused, naming the run in flight, while another run holds the subject it would take over", async () => {
+      const { port, repo } = make();
+      const source = await port.start({
+        blueprintName: "code-review",
+        repo,
+        subjectKey: "feature:nine",
+      });
+
+      await port.stampBlueprint(source, "hash-1", GRAPH);
+      await port.markRunning(source);
+
+      const { nodeRowId } = await port.ensureStationRun({
+        assemblyRunId: source,
+        nodeId: "review",
+        iteration: 1,
+      });
+
+      await port.finishStationRunOnce(nodeRowId, "success");
+      await port.finish(source, "failed");
+
+      const holder = await port.start({
+        blueprintName: "code-review",
+        repo,
+        subjectKey: "feature:nine",
+      });
+
+      await expect(
+        port.start({
+          blueprintName: "code-review",
+          repo,
+          blueprintHash: "hash-1",
+          resumeFrom: { lineId: source, nodeId: "review" },
+        }),
+      ).rejects.toMatchObject({
+        name: "ResumeRefusedError",
+        message: `resume-from would take over subject "feature:nine" in ${repo}, but run "${holder}" is already working it — retry once that run finishes`,
+      });
+    });
+
     it("a fork inherits the source's visits but not their verdict", async () => {
       const { port, repo } = make();
       const source = await port.start({

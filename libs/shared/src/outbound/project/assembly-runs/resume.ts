@@ -38,6 +38,27 @@ export function resolveResumePrefix(
   return { source, prefix: prefixThrough(source, nodes, resumeFrom) };
 }
 
+/** The subject key a fork runs under: the caller's override, else the source's — a fork re-runs the same work, so it holds the same guard. */
+export function forkSubjectKey(
+  input: AssemblyRunStartInput,
+  source: AssemblyRunRecord,
+): string | null {
+  return input.subjectKey ?? source.subjectKey ?? null;
+}
+
+/** The source being over frees its subject only from the SOURCE — another run may already hold it (the backlog loop's repo-wide `backlog` key is the common case). Refused, naming the holder, instead of tripping the in-flight index as a bare 500. */
+export function assertSubjectFree(
+  repo: string,
+  subjectKey: string | null,
+  holder: { id: string } | null,
+): void {
+  enforceTrue(
+    !holder,
+    ResumeRefusedError,
+    `resume-from would take over subject "${subjectKey}" in ${repo}, but run "${holder?.id}" is already working it — retry once that run finishes`,
+  );
+}
+
 /** A fork INHERITS the source line's branch and task, so passing either is a caller error rather than an override — silently ignoring them would fork onto the wrong branch. */
 function assertResumeInput(
   input: AssemblyRunStartInput,
