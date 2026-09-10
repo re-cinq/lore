@@ -47,16 +47,6 @@ const TraceReadSchema = z.record(z.string(), z.unknown());
 type ProjectResult = Awaited<ReturnType<typeof projectFor>>;
 type Trace = ProjectResult["trace"];
 
-// A deployment whose lore.features table was never created reads as no features.
-function listFeaturesTolerantly(featureStore: ProjectResult["features"]) {
-  return featureStore.list().catch((err) => {
-    if ((err as { code?: string }).code === "42P01") {
-      return [];
-    }
-    throw err;
-  });
-}
-
 // lore.features is source of truth for Feature nodes (ADR-027); tolerate 42P01.
 async function graphWithFeatures(trace: Trace, project: ProjectResult) {
   const { features: featureStore } = project;
@@ -74,6 +64,16 @@ async function graphWithFeatures(trace: Trace, project: ProjectResult) {
       status: f.status,
     })),
   );
+}
+
+// A deployment whose lore.features table was never created reads as no features.
+function listFeaturesTolerantly(featureStore: ProjectResult["features"]) {
+  return featureStore.list().catch((err) => {
+    if ((err as { code?: string }).code === "42P01") {
+      return [];
+    }
+    throw err;
+  });
 }
 
 // Kinds answerable without a ?path=; each handler shapes its own response body.
@@ -111,6 +111,48 @@ const PATH_KINDS: Record<
   source: async (trace, filePath) => ({ source: await trace.source(filePath) }),
   "tests-covering": testsCoveringResult,
 };
+
+export function traceRoute(): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/repos/{owner}/{repo}/trace/{kind}",
+    options: zodResponse(
+      {
+        ...bearerScope("read"),
+        validate: { query: zodValidate(TraceQuery) },
+      },
+      TraceReadSchema,
+      {
+        name: "TraceRead",
+        description: "A traceability read, shaped by {kind}",
+        errors: [400, 404],
+      },
+    ),
+    handler: (request, h) => serveTrace(request, h),
+  };
+}
+
+/** A traceability read, shaped by {kind}: the spec-to-test graph the coverage view and the VS Code extension both read. */
+async function serveTrace(
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const kind = request.params.kind;
+
+  enforceTrue(TRACE_KINDS.has(kind), apiError(404), "not found");
+  const query = request.query as TraceQuery;
+
+  try {
+    return h.response(await traceResult(request, kind, query));
+  } catch (err) {
+    // Guard's refusal carries its status; only unexpected failure needs shaping.
+    rethrowBoom(err);
+
+    return h
+      .response({ error: err instanceof Error ? err.message : String(err) })
+      .code(500);
+  }
+}
 
 /** The body for one {kind}: the no-path handlers shape their own, the rest need the ?path= the guard below demands. */
 async function traceResult(
@@ -152,46 +194,4 @@ async function failuresResult(
   }
 
   return { failures: await failuresTouching(dgraph, repo, filePath) };
-}
-
-/** A traceability read, shaped by {kind}: the spec-to-test graph the coverage view and the VS Code extension both read. */
-async function serveTrace(
-  request: Request,
-  h: ResponseToolkit,
-): Promise<ResponseObject> {
-  const kind = request.params.kind;
-
-  enforceTrue(TRACE_KINDS.has(kind), apiError(404), "not found");
-  const query = request.query as TraceQuery;
-
-  try {
-    return h.response(await traceResult(request, kind, query));
-  } catch (err) {
-    // Guard's refusal carries its status; only unexpected failure needs shaping.
-    rethrowBoom(err);
-
-    return h
-      .response({ error: err instanceof Error ? err.message : String(err) })
-      .code(500);
-  }
-}
-
-export function traceRoute(): ServerRoute {
-  return {
-    method: "GET",
-    path: "/api/repos/{owner}/{repo}/trace/{kind}",
-    options: zodResponse(
-      {
-        ...bearerScope("read"),
-        validate: { query: zodValidate(TraceQuery) },
-      },
-      TraceReadSchema,
-      {
-        name: "TraceRead",
-        description: "A traceability read, shaped by {kind}",
-        errors: [400, 404],
-      },
-    ),
-    handler: (request, h) => serveTrace(request, h),
-  };
 }
