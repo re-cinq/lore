@@ -62,8 +62,8 @@ export class DgraphTrace implements TracePort {
   testsCovering(
     repo: string,
     target: CoverageTarget,
-    assemblyRunId?: string,
+    branch?: string,
   ): Promise<CoveringTest[]> {
-    return testsCovering(this.dgraph, { repo, assemblyRunId }, target);
+    return testsCovering(this.dgraph, { repo, branch }, target);
   }
 }

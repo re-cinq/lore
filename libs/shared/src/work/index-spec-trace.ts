@@ -49,11 +49,10 @@ export {
 export {
   mainScope,
   overlayScope,
+  overlayBranchOf,
   isOverlay,
   scopedXid,
-  overlayKeyPrefix,
   rootEdge,
-  parseOverlayKey,
   type TraceScope,
 } from "../domain/spec-trace/trace-scope.js";
 export {

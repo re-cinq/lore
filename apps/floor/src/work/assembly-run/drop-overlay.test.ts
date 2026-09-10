@@ -1,41 +1,55 @@
 import { describe, it, expect } from "vitest";
-import { shouldDropOverlay, dropOverlayEvent } from "./drop-overlay.js";
+import { createDropOverlayOnClose } from "./drop-overlay.js";
+import type { EventInput } from "../../domain/event-types.js";
 
-describe("shouldDropOverlay", () => {
-  it("asks for a drop when an implementation run closes", () => {
+async function eventsFor(
+  params: Record<string, unknown>,
+): Promise<EventInput[]> {
+  const inserted: EventInput[] = [];
+
+  await createDropOverlayOnClose(async (event) => {
+    inserted.push(event);
+  })(params);
+
+  return inserted;
+}
+
+describe("createDropOverlayOnClose", () => {
+  it("asks the ingest to drop the feat/x overlay when the merged feat/x PR closes", async () => {
     expect(
-      shouldDropOverlay({ blueprintName: "implementation", repo: "o/r" }),
-    ).toBe(true);
-  });
-
-  it("refuses for an ingest run, whose drop would start another ingest run forever", () => {
-    expect(shouldDropOverlay({ blueprintName: "ingest", repo: "o/r" })).toBe(
-      false,
-    );
-  });
-
-  it("refuses for a run with no repo, which can own no overlay", () => {
-    expect(
-      shouldDropOverlay({ blueprintName: "implementation", repo: null }),
-    ).toBe(false);
-  });
-});
-
-describe("dropOverlayEvent", () => {
-  it("names the run's repo, the overlay-drop kind, and the run whose overlay goes", () => {
-    expect(
-      dropOverlayEvent({
-        id: "run-42",
+      await eventsFor({
         repo: "o/r",
-      } as Parameters<typeof dropOverlayEvent>[0]),
-    ).toEqual({
-      eventName: "internal.ingest.spec_trace",
-      params: {
-        repo: "o/r",
-        kind: "overlay-drop",
-        payload: { assemblyRunId: "run-42" },
+        pr_number: 7,
+        merged: true,
+        branch: "feat/x",
+      }),
+    ).toEqual([
+      {
+        eventName: "internal.ingest.spec_trace",
+        source: "internal",
+        params: {
+          repo: "o/r",
+          kind: "overlay-drop",
+          payload: { overlayBranch: "feat/x" },
+        },
       },
-      dedupeKey: "overlay-drop:run-42",
-    });
+    ]);
+  });
+
+  it("asks for the same drop when the feat/x PR closes unmerged", async () => {
+    expect(
+      await eventsFor({
+        repo: "o/r",
+        pr_number: 7,
+        merged: false,
+        branch: "feat/x",
+      }),
+    ).toMatchObject([{ params: { payload: { overlayBranch: "feat/x" } } }]);
+  });
+
+  it("asks for nothing when the closed PR names no head branch", async () => {
+    expect(await eventsFor({ repo: "o/r", pr_number: 7, branch: "" })).toEqual(
+      [],
+    );
   });
 });

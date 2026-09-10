@@ -47,7 +47,7 @@ export async function projectDescriptors(
   return entries;
 }
 
-/** Attach every TestChunk + leaf TestSuite to the scope's root — the Repo node on main, the run's Overlay node on a branch — so the test layer is reachable; set-union dedups across re-ingests. */
+/** Attach every TestChunk + leaf TestSuite to the scope's root — the Repo node on main, the branch's Overlay node otherwise — so the test layer is reachable; set-union dedups across re-ingests. */
 async function attachTestLayerToRoot(
   dgraph: DgraphClientPort,
   scope: TraceScope,

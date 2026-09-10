@@ -202,9 +202,9 @@ describe.skipIf(!reachable)(
       expect(byPred["Memory.xid"]).toMatchObject({ index: true, upsert: true });
     });
 
-    it("declares Overlay.xid as a hash upsert index so a run's overlay upserts independently of main", async () => {
+    it("declares Overlay.xid as a hash upsert index so a branch's overlay upserts independently of main", async () => {
       const { schema } = await querySchema(
-        "schema(pred: [Overlay.xid, Overlay.assembly_run_id, Overlay.head_commit]) {index upsert tokenizer}",
+        "schema(pred: [Overlay.xid, Overlay.branch, Overlay.head_commit]) {index upsert tokenizer}",
       );
       const byPred = Object.fromEntries(schema.map((s) => [s.predicate, s]));
 
@@ -212,11 +212,11 @@ describe.skipIf(!reachable)(
         index: true,
         upsert: true,
       });
-      expect(byPred["Overlay.assembly_run_id"]).toMatchObject({ index: true });
+      expect(byPred["Overlay.branch"]).toMatchObject({ index: true });
       expect(byPred["Overlay.head_commit"]).toMatchObject({ index: true });
     });
 
-    it("declares the Overlay chunk edges as uid lists so a run's nodes hang off it instead of the Repo root", async () => {
+    it("declares the Overlay chunk edges as uid lists so a branch's nodes hang off it instead of the Repo root", async () => {
       const { schema } = await querySchema(
         "schema(pred: [Overlay.test_chunks, Overlay.code_chunks, Overlay.coverage, Overlay.files]) {type list}",
       );

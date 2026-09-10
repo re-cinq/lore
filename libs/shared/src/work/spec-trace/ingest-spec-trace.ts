@@ -1,4 +1,4 @@
-/** End-to-end spec-traceability-graph wiring; routes payload to ingest function by kind, and into `main` or a per-run overlay by whether the payload names an assembly run. */
+/** End-to-end spec-traceability-graph wiring; routes payload to ingest function by kind, and into `main` or a branch overlay by whether the payload names an overlay branch. */
 
 import type {
   CoveredChunk,
@@ -28,7 +28,7 @@ export const PAYLOAD_INGEST_KINDS: ReadonlySet<string> = new Set([
   "failure",
 ]);
 
-/** The kinds that describe a BRANCH SNAPSHOT and so belong in a run's overlay. A failure is not one: it is a fact about the repo's history that outlives the run, and `overlay-drop` names the overlay it deletes rather than writing into it. */
+/** The kinds that describe a BRANCH SNAPSHOT and so belong in that branch's overlay. A failure is not one: it is a fact about the repo's history that outlives the branch, and `overlay-drop` names the overlay it deletes rather than writing into it. */
 const OVERLAY_SCOPED_KINDS: ReadonlySet<string> = new Set([
   "test-report",
   "coverage",
@@ -42,14 +42,13 @@ export interface SpecTraceOutcome {
   violated: number;
   coverageNodes: number;
   coversEdges: number;
-  /** The run whose overlay this ingest wrote into; absent when it wrote `main`. */
-  assemblyRunId?: string;
+  /** The branch whose overlay this ingest wrote into; absent when it wrote `main`. */
+  overlayBranch?: string;
 }
 
-/** The fields any ingested payload may carry to place itself on a branch rather than on `main`. */
+/** The fields any ingested payload may carry to place itself on a branch rather than on `main`. `overlayBranch` is set by the ingress that knows the repo's default branch; a bare `branch` is only what the producer reported, and on its own writes `main`. */
 interface ScopedPayload {
-  assemblyRunId?: string;
-  branch?: string;
+  overlayBranch?: string;
   commit?: string;
 }
 
@@ -87,9 +86,7 @@ export async function ingestSpecTrace(
 
   const outcome = await ingestByKind(dgraph, scope, kind, payload);
 
-  return scope.assemblyRunId
-    ? { ...outcome, assemblyRunId: scope.assemblyRunId }
-    : outcome;
+  return scope.branch ? { ...outcome, overlayBranch: scope.branch } : outcome;
 }
 
 async function ingestByKind(
@@ -154,20 +151,20 @@ async function ingestTestReportKind(
   return { kind: "test-report", ...result };
 }
 
-/** The run is over: its overlay and everything it anchored go. No counts to report — the graph shrank, it did not gain. */
+/** The branch's PR closed: its overlay and everything it anchored go. No counts to report — the graph shrank, it did not gain. */
 async function dropOverlayKind(
   dgraph: DgraphClientPort,
   repo: string,
   payload: ScopedPayload,
 ): Promise<SpecTraceOutcome> {
-  const assemblyRunId = payload.assemblyRunId ?? "";
+  const branch = payload.overlayBranch ?? "";
 
   enforceTrue(
-    assemblyRunId.length > 0,
+    branch.length > 0,
     Error,
-    "ingestSpecTrace: overlay-drop names no assemblyRunId",
+    "ingestSpecTrace: overlay-drop names no overlayBranch",
   );
-  await dropOverlay(dgraph, repo, assemblyRunId);
+  await dropOverlay(dgraph, repo, branch);
 
   return { kind: "overlay-drop", ...NO_GRAPH_COUNTS };
 }
@@ -195,7 +192,7 @@ async function failureKind(
   return settled;
 }
 
-/** Stamps the run's overlay anchor with the branch head its ranges are expressed in, BEFORE the chunks land, so a crashed ingest still leaves an anchor the sweep can find and drop. */
+/** Stamps the branch's overlay anchor with the head its ranges are expressed in, BEFORE the chunks land, so a crashed ingest still leaves an anchor the sweep can find and drop. */
 async function anchorOverlay(
   dgraph: DgraphClientPort,
   scope: TraceScope,
@@ -204,19 +201,16 @@ async function anchorOverlay(
   if (!isOverlay(scope)) {
     return;
   }
-  await upsertOverlay(dgraph, scope, {
-    branch: payload.branch ?? "",
-    headCommit: payload.commit ?? "",
-  });
+  await upsertOverlay(dgraph, scope, { headCommit: payload.commit ?? "" });
 }
 
-/** Where this payload writes: its own run overlay when it is a branch snapshot naming a run, else the repo's `main` graph. */
+/** Where this payload writes: its branch's overlay when it is a branch snapshot naming an overlay branch, else the repo's `main` graph. */
 function scopeFor(
   repo: string,
   kind: string,
   payload: ScopedPayload,
 ): TraceScope {
-  return payload.assemblyRunId && OVERLAY_SCOPED_KINDS.has(kind)
-    ? overlayScope(repo, payload.assemblyRunId)
+  return payload.overlayBranch && OVERLAY_SCOPED_KINDS.has(kind)
+    ? overlayScope(repo, payload.overlayBranch)
     : mainScope(repo);
 }

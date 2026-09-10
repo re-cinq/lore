@@ -57,11 +57,11 @@ export class TraceView {
     return this.port.ring(this.fullName, filePath);
   }
 
-  /** Test files exercising a source span — a run's branch overlay when `assemblyRunId` is given, else main. */
+  /** Test files exercising a source span — that branch's overlay when `branch` is given, else main. */
   testsCovering(
     target: CoverageTarget,
-    assemblyRunId?: string,
+    branch?: string,
   ): Promise<CoveringTest[]> {
-    return this.port.testsCovering(this.fullName, target, assemblyRunId);
+    return this.port.testsCovering(this.fullName, target, branch);
   }
 }

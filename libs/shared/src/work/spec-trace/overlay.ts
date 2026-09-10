@@ -1,4 +1,4 @@
-/** The per-run branch overlay's lifecycle (issue #1769): the anchor a run's branch-scoped chunks hang off, and the drop that removes them when the run ends. */
+/** The branch overlay's lifecycle (issue #1769): the anchor a branch's chunks hang off, and the drop that removes them when the branch's PR closes. */
 
 import type { DgraphClientPort } from "../../outbound/spec-trace/deps.js";
 import {
@@ -10,9 +10,8 @@ import {
   type TraceScope,
 } from "../../domain/spec-trace/trace-scope.js";
 
-/** One run's overlay: which branch it describes and the commit its line numbers are expressed in. */
+/** One branch's overlay: which branch it describes and the commit its line numbers are expressed in. */
 export interface OverlayRecord {
-  assemblyRunId: string;
   repo: string;
   branch: string;
   headCommit: string;
@@ -22,7 +21,6 @@ export interface OverlayRecord {
 interface GraphOverlay {
   uid?: string;
   "Overlay.repo"?: string;
-  "Overlay.assembly_run_id"?: string;
   "Overlay.branch"?: string;
   "Overlay.head_commit"?: string;
   "Overlay.written_at"?: string;
@@ -30,7 +28,6 @@ interface GraphOverlay {
 
 const OVERLAY_FIELDS = `uid
     Overlay.repo
-    Overlay.assembly_run_id
     Overlay.branch
     Overlay.head_commit
     Overlay.written_at`;
@@ -49,35 +46,34 @@ const STALE_QUERY = `query q($repo: string, $cutoff: string) {
   }
 }`;
 
-/** Stamps the run's overlay anchor with the branch head its chunks are expressed in — the overlay's answer to `Repo.trace_commit`. */
+/** Stamps the branch's overlay anchor with the head its chunks are expressed in — the overlay's answer to `Repo.trace_commit`. */
 export async function upsertOverlay(
   dgraph: DgraphClientPort,
   scope: TraceScope,
-  meta: { branch: string; headCommit: string; at?: Date },
+  meta: { headCommit: string; at?: Date },
 ): Promise<string> {
   return upsertByXid(dgraph, "Overlay", scope.key, {
     "Overlay.repo": scope.repo,
-    "Overlay.assembly_run_id": scope.assemblyRunId,
-    "Overlay.branch": meta.branch,
+    "Overlay.branch": scope.branch,
     "Overlay.head_commit": meta.headCommit,
     "Overlay.written_at": (meta.at ?? new Date()).toISOString(),
   });
 }
 
-/** The overlay a run wrote, or null when it never wrote one. */
+/** The overlay a branch wrote, or null when it never wrote one. */
 export async function readOverlay(
   dgraph: DgraphClientPort,
   repo: string,
-  assemblyRunId: string,
+  branch: string,
 ): Promise<OverlayRecord | null> {
   const rows = await queryOverlays(dgraph, READ_QUERY, {
-    $xid: overlayScope(repo, assemblyRunId).key,
+    $xid: overlayScope(repo, branch).key,
   });
 
   return rows.length ? rows[0] : null;
 }
 
-/** Every overlay a repo currently holds — the sweep's input for runs whose drop never ran. */
+/** Every overlay a repo currently holds — one per branch that has pushed a report. */
 export async function listOverlays(
   dgraph: DgraphClientPort,
   repo: string,
@@ -85,23 +81,20 @@ export async function listOverlays(
   return queryOverlays(dgraph, LIST_QUERY, { $repo: repo });
 }
 
-/** Deletes everything the run's overlay anchors plus the anchor itself, and reports how many nodes went. Safe to call twice: a run with no overlay drops nothing. */
+/** Deletes everything the branch's overlay anchors plus the anchor itself, and reports how many nodes went. Safe to call twice: a branch with no overlay drops nothing. */
 export async function dropOverlay(
   dgraph: DgraphClientPort,
   repo: string,
-  assemblyRunId: string,
+  branch: string,
 ): Promise<number> {
-  const uids = await anchoredUids(
-    dgraph,
-    overlayScope(repo, assemblyRunId).key,
-  );
+  const uids = await anchoredUids(dgraph, overlayScope(repo, branch).key);
 
   await deleteUids(dgraph, uids);
 
   return uids.length;
 }
 
-/** The safety net for a run whose drop never ran — the pod died, the event was lost — reaping every overlay the repo has not restamped since `cutoff`. Returns how many it dropped. */
+/** The safety net for a branch whose drop never ran — it never opened a PR, the event was lost — reaping every overlay the repo has not restamped since `cutoff`. Returns how many it dropped. */
 export async function pruneOverlays(
   dgraph: DgraphClientPort,
   repo: string,
@@ -113,7 +106,7 @@ export async function pruneOverlays(
   });
 
   for (const overlay of stale) {
-    await dropOverlay(dgraph, repo, overlay.assemblyRunId);
+    await dropOverlay(dgraph, repo, overlay.branch);
   }
 
   return stale.length;
@@ -136,7 +129,6 @@ async function queryOverlays(
 
 function toRecord(row: GraphOverlay): OverlayRecord {
   return {
-    assemblyRunId: row["Overlay.assembly_run_id"] ?? "",
     repo: row["Overlay.repo"] ?? "",
     branch: row["Overlay.branch"] ?? "",
     headCommit: row["Overlay.head_commit"] ?? "",

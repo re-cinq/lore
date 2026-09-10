@@ -32,11 +32,11 @@ const QUERY_TRACE_INPUT = {
     .describe(
       "Line spans narrowing `tests_covering`, e.g. '10-20,30-40'. Omit for the whole file.",
     ),
-  assembly_run_id: z
+  branch: z
     .string()
     .optional()
     .describe(
-      "Assembly run uuid. Reads that run's branch overlay — the coverage its own commits produced — falling back to main for files the branch never touched.",
+      "Git branch, e.g. the output of `git branch --show-current`. Reads that branch's overlay — the coverage its own pushes produced — falling back to main for files the branch never touched.",
     ),
   callers_of: z
     .string()

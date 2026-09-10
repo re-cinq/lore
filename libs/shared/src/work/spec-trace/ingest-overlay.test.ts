@@ -20,11 +20,13 @@ const APPLIER = join(
 
 const reachable = await dgraphReachable();
 
-function report(runId?: string) {
+const BRANCH = "lore/impl/issue-9";
+
+function report(overlayBranch?: string) {
   return {
     commit: "branchsha",
-    branch: "lore/impl/issue-9",
-    ...(runId ? { assemblyRunId: runId } : {}),
+    branch: BRANCH,
+    ...(overlayBranch ? { overlayBranch } : {}),
     tests: [
       {
         id: "src/widget.test.ts::adds",
@@ -81,59 +83,55 @@ describe.skipIf(!reachable)("overlay-mode ingest (live Dgraph)", () => {
       )) as { tc?: unknown[] }
     ).tc ?? [];
 
-  it("writes the run's test chunks under the run-scoped key, not the repo key", async () => {
+  it("writes the branch's test chunks under the branch-scoped key, not the repo key", async () => {
     const repo = `spec-trace/${randomUUID()}`;
-    const runId = randomUUID();
 
-    await ingestSpecTrace(client, repo, "test-report", report(runId));
+    await ingestSpecTrace(client, repo, "test-report", report(BRANCH));
 
-    expect(await testChunksOf(`${repo}|run:${runId}`)).not.toEqual([]);
+    expect(await testChunksOf(`${repo}|branch:${BRANCH}`)).not.toEqual([]);
     expect(await testChunksOf(repo)).toEqual([]);
 
-    await dropOverlay(client, repo, runId);
+    await dropOverlay(client, repo, BRANCH);
   });
 
   it("stamps the overlay with the branch and head commit the report was posted for", async () => {
     const repo = `spec-trace/${randomUUID()}`;
-    const runId = randomUUID();
 
-    await ingestSpecTrace(client, repo, "test-report", report(runId));
+    await ingestSpecTrace(client, repo, "test-report", report(BRANCH));
 
-    expect(await readOverlay(client, repo, runId)).toMatchObject({
-      branch: "lore/impl/issue-9",
+    expect(await readOverlay(client, repo, BRANCH)).toMatchObject({
+      branch: BRANCH,
       headCommit: "branchsha",
     });
 
-    await dropOverlay(client, repo, runId);
+    await dropOverlay(client, repo, BRANCH);
   });
 
   it("leaves Repo.trace_commit alone so a branch push cannot move main's coordinate system", async () => {
     const repo = `spec-trace/${randomUUID()}`;
-    const runId = randomUUID();
 
     await upsertByXid(client, "Repo", repo, {
       "Repo.trace_commit": "mainsha",
       "Repo.trace_commit_at": "2026-01-01T00:00:00.000Z",
     });
-    await ingestSpecTrace(client, repo, "test-report", report(runId));
+    await ingestSpecTrace(client, repo, "test-report", report(BRANCH));
 
     expect(await readGraphBaseline(client, repo)).toMatchObject({
       commit: "mainsha",
     });
 
-    await dropOverlay(client, repo, runId);
+    await dropOverlay(client, repo, BRANCH);
   });
 
   it("writes no validated_by onto the main statement the branch test claims", async () => {
     const repo = `spec-trace/${randomUUID()}`;
-    const runId = randomUUID();
     const statementXid = `${repo}|specs/widget/spec.md|1`;
 
     await upsertByXid(client, "Statement", statementXid, {
       "Statement.repo": repo,
       "Statement.text": "The widget adds.",
     });
-    await ingestSpecTrace(client, repo, "test-report", report(runId));
+    await ingestSpecTrace(client, repo, "test-report", report(BRANCH));
 
     const graph = (await readGraph(
       `query q($xid: string) { s(func: eq(Statement.xid, $xid)) { vb: Statement.validated_by { uid } } }`,
@@ -142,10 +140,10 @@ describe.skipIf(!reachable)("overlay-mode ingest (live Dgraph)", () => {
 
     expect(graph.s?.[0]?.vb).toBeUndefined();
 
-    await dropOverlay(client, repo, runId);
+    await dropOverlay(client, repo, BRANCH);
   });
 
-  it("still writes main's test chunks and baseline when the report names no run", async () => {
+  it("still writes main's test chunks and baseline when the report names a branch but no overlay branch", async () => {
     const repo = `spec-trace/${randomUUID()}`;
 
     await ingestSpecTrace(client, repo, "test-report", report());

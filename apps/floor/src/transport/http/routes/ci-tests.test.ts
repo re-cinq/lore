@@ -21,7 +21,11 @@ afterEach(() => {
 });
 
 const authed = (payload: string, testReports = new InMemoryTestReports()) =>
-  buildServer({ getJobStatus: () => ({}), testReports }).inject({
+  buildServer({
+    getJobStatus: () => ({}),
+    testReports,
+    defaultBranch: async () => "main",
+  }).inject({
     method: "POST",
     url: "/api/webhook/ci-tests",
     headers: { authorization: "Bearer right-token" },
@@ -164,5 +168,21 @@ describe("POST /api/webhook/ci-tests", () => {
     );
 
     expect(res.statusCode).toBe(500);
+  });
+
+  it("routes a feat/x report into the feat/x overlay when the default branch is main", async () => {
+    process.env.LORE_INGEST_TOKEN = "right-token";
+
+    await authed(
+      JSON.stringify({
+        repo: "re-cinq/lore",
+        commit: "abc123",
+        branch: "feat/x",
+      }),
+    );
+
+    expect(vi.mocked(insertEventList).mock.calls[0][0]).toMatchObject([
+      { params: { payload: { branch: "feat/x", overlayBranch: "feat/x" } } },
+    ]);
   });
 });

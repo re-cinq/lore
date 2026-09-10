@@ -10,6 +10,7 @@ import {
   type SpecTraceOutcome,
   type DgraphClientPort,
 } from "@re-cinq/lore-shared";
+import { projectFor } from "../../../outbound/project-boot.js";
 
 /** The graph writes one incremental delta needs, as a seam the route's tests can replace. */
 export interface IngestDeltaDeps {
@@ -29,6 +30,8 @@ export interface IngestDeltaDeps {
   deleteAdr(repo: string, path: string): Promise<void>;
   ingestReport(repo: string, payload: unknown): Promise<SpecTraceOutcome>;
   pruneTests(repo: string, files: string[]): Promise<{ prunedChunks: number }>;
+  /** The repo's default branch: a test report for any other branch is work in flight and goes to that branch's overlay. */
+  defaultBranch(repo: string): Promise<string>;
 }
 
 /** The client every projector needs; a delta that reached here without one is a wiring bug, not a request error. */
@@ -60,5 +63,7 @@ export const defaultDeps = (): IngestDeltaDeps => {
     ingestReport: (repo, payload) =>
       ingestSpecTrace(must(), repo, "test-report", payload),
     pruneTests: (repo, files) => pruneTestFiles(must(), repo, files),
+    defaultBranch: async (repo) =>
+      (await projectFor(repo)).repo.defaultBranch(),
   };
 };

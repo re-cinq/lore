@@ -1,4 +1,5 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { overlayBranchOf } from "@re-cinq/lore-shared";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
@@ -48,8 +49,8 @@ type IngestDeltaBody = z.infer<typeof IngestDeltaBody>;
 const IngestDeltaResultSchema = z.object({
   kind: z.string(),
   commit: z.string(),
-  /** "advanced" (pointer moved), "pending-chunks" (multi-part), "unrecorded" (unmigrated). */
-  state: z.enum(["advanced", "pending-chunks", "unrecorded"]),
+  /** "advanced" (pointer moved), "pending-chunks" (multi-part), "unrecorded" (unmigrated), "overlay" (a branch's report, written to its overlay; main's pointer untouched). */
+  state: z.enum(["advanced", "pending-chunks", "unrecorded", "overlay"]),
   projected: z.number(),
   deleted: z.number(),
   test_chunks: z.number(),
@@ -83,7 +84,7 @@ export function ingestDeltaRoute(
   };
 }
 
-/** Guard, project, then settle the stored pointer — in that order, so a refused delta writes nothing. */
+/** Guard, then project — a default-branch delta settles the stored pointer after projecting, a branch's delta writes its overlay and settles nothing. A refused delta writes nothing. */
 async function serveIngestDelta(
   pool: Pool,
   deps: IngestDeltaDeps,
@@ -95,14 +96,68 @@ async function serveIngestDelta(
 
   await assertDeltaAcceptable(pool, deps, repo, body);
 
+  const overlayBranch = await overlayBranchOfDelta(deps, repo, body);
+
+  return h.response(
+    overlayBranch
+      ? await overlayDeltaResult(deps, repo, body, overlayBranch)
+      : await mainDeltaResult(pool, deps, repo, body),
+  );
+}
+
+/** The branch a test-report delta describes when it is not the repo's default one — work in flight, which belongs in that branch's overlay. Doc deltas are main-only. */
+async function overlayBranchOfDelta(
+  deps: IngestDeltaDeps,
+  repo: string,
+  body: IngestDeltaBody,
+): Promise<string | undefined> {
+  const reported = (body.report as { branch?: string } | undefined)?.branch;
+
+  if (body.kind !== "test-report" || !reported) {
+    return undefined;
+  }
+
+  return overlayBranchOf(reported, await deps.defaultBranch(repo));
+}
+
+/** A branch's delta: its report goes into the overlay and nothing of main's moves — not its test files, whose deleted paths are relative to main's commit, and not its stored pointer. */
+async function overlayDeltaResult(
+  deps: IngestDeltaDeps,
+  repo: string,
+  body: IngestDeltaBody,
+  overlayBranch: string,
+) {
+  const outcome = await deps.ingestReport(repo, {
+    ...(body.report as object),
+    overlayBranch,
+  });
+
+  return {
+    kind: body.kind,
+    commit: body.commit,
+    state: "overlay" as const,
+    projected: 0,
+    deleted: 0,
+    test_chunks: outcome.testChunks,
+    pruned_test_files: 0,
+  };
+}
+
+/** A default-branch delta: project it, THEN settle main's stored pointer, so a failed projection never moves the pointer past work that did not land. */
+async function mainDeltaResult(
+  pool: Pool,
+  deps: IngestDeltaDeps,
+  repo: string,
+  body: IngestDeltaBody,
+) {
   const counts = await applyDelta(deps, repo, body);
 
-  return h.response({
+  return {
     kind: body.kind,
     commit: body.commit,
     state: await settleDelta(pool, repo, body),
     ...counts,
-  });
+  };
 }
 
 /** Every reason to refuse a delta BEFORE projecting any of it. The stale-base check is the race detection: two CI runs diffing the same base would each project against a commit the other has moved past, so the loser must re-fetch and re-diff. */

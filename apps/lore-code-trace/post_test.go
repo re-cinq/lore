@@ -43,42 +43,6 @@ func TestPostReportSendsEachChunkWithAuthAndRepo(t *testing.T) {
 	}
 }
 
-// The overlay routing key (issue #1769) has to survive the embedding into
-// postBody, and its absence has to be an ABSENT key rather than an empty string
-// — the server reads "no assemblyRunId" as "project onto the repo's main graph".
-func TestPostReportBodyCarriesAssemblyRunIdWhenSet(t *testing.T) {
-	body := postedBody(t, TestReport{Commit: "c", Branch: "b", AssemblyRunID: "run-42"})
-	if body["assemblyRunId"] != "run-42" {
-		t.Errorf("assemblyRunId: got %v, want %q", body["assemblyRunId"], "run-42")
-	}
-}
-
-func TestPostReportBodyOmitsAssemblyRunIdWhenUnset(t *testing.T) {
-	body := postedBody(t, TestReport{Commit: "c", Branch: "b"})
-	if _, present := body["assemblyRunId"]; present {
-		t.Errorf("assemblyRunId must be absent, not empty: %v", body)
-	}
-}
-
-func postedBody(t *testing.T, report TestReport) map[string]any {
-	t.Helper()
-	var raw []byte
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		raw, _ = io.ReadAll(r.Body)
-		w.WriteHeader(http.StatusAccepted)
-	}))
-	defer srv.Close()
-
-	if err := postReport(context.Background(), srv.URL, "t", "o/r", []TestReport{report}, srv.Client()); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	var body map[string]any
-	if err := json.Unmarshal(raw, &body); err != nil {
-		t.Fatalf("body not JSON: %v", err)
-	}
-	return body
-}
-
 func TestPostReportErrorsOnNon2xx(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)

@@ -42,7 +42,6 @@ and [ADR-023](../../adrs/ADR-023-ci-driven-doc-and-test-projection.md).
 | Flag     | Effect                                                                                       |
 | -------- | -------------------------------------------------------------------------------------------- |
 | `--post` | POST the report to the Floor ci-tests ingress instead of printing it. Requires the env vars. |
-| `--assembly-run <id>` | Tag the report with the assembly run it belongs to, so the ingest lands in that run's branch overlay instead of the repo's main graph. Overrides `LORE_ASSEMBLY_RUN_ID`; omitted from the posted body when neither is set. |
 
 Exit code: `0` on success, `1` on any fatal error
 (errors go to stderr, prefixed `lore-code-trace:`).
@@ -53,7 +52,6 @@ Exit code: `0` on success, `1` on any fatal error
 | ---------------------- | -------------------------------------------------------------------------------------------------------- |
 | `LORE_WEBHOOK_URL`     | Base URL of the Floor server (`--post` only, required). `/api/webhook/ci-tests` is appended.              |
 | `LORE_INGEST_TOKEN`    | Bearer token for the ingest POST (`--post` only, required).                                               |
-| `LORE_ASSEMBLY_RUN_ID` | The assembly run this report belongs to (set in agent pods). Sent as `assemblyRunId`; absent from the body when unset, which means an ordinary CI run. `--assembly-run` wins. |
 | `LORE_TRACE_TIMEOUT_MS`| Per-command timeout for `list` and each `run`, in ms. Default 120000. CI sets 600000 for cold runners.    |
 | `LORE_DB_HOST`         | If set, the binary **refuses to run** — trust-boundary parity with the TS runner: repo commands execute only in a trusted sandbox (CI/local), never the shared server. |
 

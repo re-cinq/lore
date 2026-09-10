@@ -124,9 +124,9 @@ describe.skipIf(!reachable)("testsCoveringInScope (live Dgraph)", () => {
     ).toHaveLength(1);
   });
 
-  it("reads the branch's own coverage from the run scope and marks it as overlay", async () => {
+  it("reads the branch's own coverage from the branch scope and marks it as overlay", async () => {
     const repo = `spec-trace/${randomUUID()}`;
-    const scope = overlayScope(repo, randomUUID());
+    const scope = overlayScope(repo, "feat/x");
 
     await seedCoverage(scope, { file: "src/widget.ts", ranges: "1-5" });
 
@@ -141,7 +141,7 @@ describe.skipIf(!reachable)("testsCoveringInScope (live Dgraph)", () => {
   it("does not see the branch's coverage from the main scope", async () => {
     const repo = `spec-trace/${randomUUID()}`;
 
-    await seedCoverage(overlayScope(repo, randomUUID()), {
+    await seedCoverage(overlayScope(repo, "feat/x"), {
       file: "src/widget.ts",
       ranges: "1-5",
     });

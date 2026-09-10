@@ -1,6 +1,7 @@
 /** Telling the graph what one node's terminal outcome was (issue #1771). The Floor never writes Dgraph itself, so this rides the ingest lane the same way a test report does. */
 
-import { INGEST_BLUEPRINT } from "./drop-overlay.js";
+/** The blueprint the ingest lane itself runs under. An ingest run must never record its node outcomes: a recorded outcome is an ingest event, which starts another ingest run, which would record again, forever (#2007). */
+const INGEST_BLUEPRINT = "ingest";
 
 /** WHO the node was. Identity and the commit it ran at — the only things the station-run row can be trusted for here, because the row is read BEFORE the finish writes the verdict onto it. */
 export interface SettledNode {

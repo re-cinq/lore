@@ -54,7 +54,7 @@ already owns the dgraph egress and the Vertex embed path.
   table has not been migrated the projection still lands and the response
   says `unrecorded` instead of 500-ing CI — the next state fetch answers
   null and the flow degrades to a full ingest per push.
-  ([validated by refuses a stale base with a 409 naming the current commit, and projects nothing](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L181), [`ingest-delta.test.ts:102`](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L102), [`ingest-delta.test.ts:355`](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L355), [`ingest-delta.test.ts:257`](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L257), [`ingest-delta.test.ts:301`](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L301), [`ingest-delta.test.ts:328`](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L328))
+  ([validated by refuses a stale base with a 409 naming the current commit, and projects nothing](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L182), [`ingest-delta.test.ts:103`](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L103), [`ingest-delta.test.ts:356`](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L356), [`ingest-delta.test.ts:258`](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L258), [`ingest-delta.test.ts:302`](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L302), [`ingest-delta.test.ts:329`](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L329))
 
 - **FR3 — the delta is JSON posted straight to lore-api, projected in-process.**
   `POST /api/repos/{owner}/{repo}/ingest` (write scope) takes the kind, the
@@ -68,7 +68,14 @@ already owns the dgraph egress and the Vertex embed path.
   Unknown kinds and malformed commits are 400s; a deployment without
   `LORE_DGRAPH_HTTP` refuses with a 503 naming the missing configuration
   instead of pretending to ingest.
-  ([validated by projects changed docs, prunes deleted ones, and advances the state](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L102), [`ingest-delta.test.ts:136`](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L136), [`ingest-delta.test.ts:154`](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L154), [`ingest-delta.test.ts:199`](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L199), [`ingest-delta.test.ts:234`](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L234), [`ingest-delta.test.ts:288`](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L288), [`ingest-delta.test.ts:374`](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L374))
+  ([validated by projects changed docs, prunes deleted ones, and advances the state](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L103), [`ingest-delta.test.ts:137`](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L137), [`ingest-delta.test.ts:155`](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L155), [`ingest-delta.test.ts:200`](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L200), [`ingest-delta.test.ts:235`](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L235), [`ingest-delta.test.ts:289`](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L289), [`ingest-delta.test.ts:375`](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L375))
+
+  A test-report delta built on a branch other than the repo's default one is
+  work in flight, not `main`: it is ingested into that branch's overlay, prunes
+  none of `main`'s test files (its deleted paths are relative to `main`'s
+  commit), leaves the stored commit where it was, and answers `overlay`. A
+  delta for the default branch projects onto `main` exactly as before.
+  ([validated by writes a feat/x test-report delta into the feat/x overlay and prunes none of main's test files](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L413), [validated by leaves main's stored commit where it was and answers state overlay for a feat/x delta](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L428), [validated by ingests a main delta onto main when the default branch is main](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L441))
 
 - **FR4 — deletions ride in the payload and prune their graph subtrees.** An
   incremental report carries only CHANGED tests, so absence stops meaning

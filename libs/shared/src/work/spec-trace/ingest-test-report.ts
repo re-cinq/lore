@@ -34,8 +34,6 @@ interface CoverageRecord {
 export interface TestReport {
   commit?: string;
   branch?: string;
-  /** The assembly run whose branch this report describes; its presence is what routes the ingest into an overlay. */
-  assemblyRunId?: string;
   tests: TestDescriptor[];
   results: TaggedRunResult[];
 }

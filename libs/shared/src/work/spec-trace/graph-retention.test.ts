@@ -51,8 +51,7 @@ describe.skipIf(!reachable)("pruneGraphRetention (live Dgraph)", () => {
   it("reaps an expired overlay and an expired failure in one pass", async () => {
     const repo = `spec-trace/${randomUUID()}`;
 
-    await upsertOverlay(client, overlayScope(repo, randomUUID()), {
-      branch: "b",
+    await upsertOverlay(client, overlayScope(repo, "feat/old"), {
       headCommit: "sha",
       at: new Date("2020-01-01T00:00:00.000Z"),
     });
@@ -77,8 +76,7 @@ describe.skipIf(!reachable)("pruneGraphRetention (live Dgraph)", () => {
   it("leaves an overlay and a failure inside the window alone", async () => {
     const repo = `spec-trace/${randomUUID()}`;
 
-    await upsertOverlay(client, overlayScope(repo, randomUUID()), {
-      branch: "b",
+    await upsertOverlay(client, overlayScope(repo, "feat/new"), {
       headCommit: "sha",
       at: new Date("2026-01-14T00:00:00.000Z"),
     });

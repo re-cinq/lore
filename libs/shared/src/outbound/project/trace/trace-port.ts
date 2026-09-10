@@ -27,10 +27,10 @@ export interface TracePort {
   graph(repo: string): Promise<SpecGraph>;
   /** One spec's two-ring structure (sections + per-statement coverage) for graph expansion. */
   ring(repo: string, filePath: string): Promise<SpecRing>;
-  /** Test files exercising a source span — the run's branch overlay when `assemblyRunId` is given, else main. */
+  /** Test files exercising a source span — that branch's overlay when `branch` is given, else main. */
   testsCovering(
     repo: string,
     target: CoverageTarget,
-    assemblyRunId?: string,
+    branch?: string,
   ): Promise<CoveringTest[]>;
 }
