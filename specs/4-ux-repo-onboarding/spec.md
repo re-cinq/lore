@@ -514,15 +514,15 @@ and a repo is served by the installation of its owner.
 - FR-8.1: Lore records each GitHub App installation — the account it covers,
   whether it covers all or only selected repos, and whether the account has
   suspended it — and finds the installation for an account whatever the case
-  of the login, as GitHub logins are case-insensitive. ([validated by finds the re-cinq installation by its account login in any case](libs/shared/src/outbound/project/github-installations/github-installations.test.ts#L17))
+  of the login, as GitHub logins are case-insensitive. ([validated by finds the re-cinq installation by its account login in any case](libs/shared/src/outbound/project/github-installations/github-installations.test.ts#L116))
 - FR-8.2: Recording an installation Lore already knows — the account widened
   it from selected repos to all of them, say — refreshes what it covers but
-  keeps when it was first installed. ([validated by keeps when re-cinq was installed when the installation widens to all repos](libs/shared/src/outbound/project/github-installations/github-installations.test.ts#L29))
+  keeps when it was first installed. ([validated by keeps when re-cinq was installed when the installation widens to all repos](libs/shared/src/outbound/project/github-installations/github-installations.test.ts#L131))
 - FR-8.3: When the App is uninstalled from an account, Lore forgets that
   installation, so it no longer claims to serve that account's repos.
-  ([validated by forgets the re-cinq installation once the App is uninstalled there](libs/shared/src/outbound/project/github-installations/github-installations.test.ts#L45))
+  ([validated by forgets the re-cinq installation once the App is uninstalled there](libs/shared/src/outbound/project/github-installations/github-installations.test.ts#L147))
 - FR-8.4: Lore lists every account it is connected to, ordered by account
-  login. ([validated by lists acme-corp before re-cinq, ordered by account login](libs/shared/src/outbound/project/github-installations/github-installations.test.ts#L54))
+  login. ([validated by lists acme-corp before re-cinq, ordered by account login](libs/shared/src/outbound/project/github-installations/github-installations.test.ts#L157))
 
 ## Operational Targets (Background)
 
