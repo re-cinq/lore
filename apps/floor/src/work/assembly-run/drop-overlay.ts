@@ -2,8 +2,8 @@
 
 import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 
-/** The blueprint the ingest lane itself runs under. An ingest run must never ask for its own overlay to be dropped: that drop would start another ingest run, which would ask again, forever. */
-const INGEST_BLUEPRINT = "ingest";
+/** The blueprint the ingest lane itself runs under. An ingest run must never feed the ingest lane (an overlay drop, a node outcome): whatever it emits starts another ingest run, which would emit again, forever. */
+export const INGEST_BLUEPRINT = "ingest";
 
 /** Whether closing this run should ask the graph to drop an overlay for it. */
 export function shouldDropOverlay(run: {

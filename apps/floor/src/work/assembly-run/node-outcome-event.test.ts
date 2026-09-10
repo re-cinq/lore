@@ -16,11 +16,21 @@ const at = new Date("2026-01-01T00:00:00.000Z");
 
 describe("shouldRecordOutcome", () => {
   it("records for a run that names a repo", () => {
-    expect(shouldRecordOutcome({ repo: "o/r" })).toBe(true);
+    expect(
+      shouldRecordOutcome({ repo: "o/r", blueprintName: "implementation" }),
+    ).toBe(true);
   });
 
   it("refuses for a run with no repo, whose files belong to nothing", () => {
-    expect(shouldRecordOutcome({ repo: null })).toBe(false);
+    expect(
+      shouldRecordOutcome({ repo: null, blueprintName: "implementation" }),
+    ).toBe(false);
+  });
+
+  it("refuses for an ingest run, whose recorded outcome would start another ingest run", () => {
+    expect(shouldRecordOutcome({ repo: "o/r", blueprintName: "ingest" })).toBe(
+      false,
+    );
   });
 });
 
