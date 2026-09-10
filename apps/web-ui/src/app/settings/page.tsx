@@ -3,6 +3,7 @@ import { getTaskStats } from "@/lib/api/tasks";
 import { getOrgSettings, putOrgSettings } from "@/lib/api/repos";
 import { listGithubInstallations } from "@/lib/api/github-installations";
 import { revalidatePath } from "next/cache";
+import { githubAppInstallUrl } from "./github-app-install-url";
 import SettingsView, {
   type SettingsApprovalConfig,
   type SettingsViewProps,
@@ -37,7 +38,7 @@ function viewDataFrom(
     approvalConfig: loaded.approvalConfig,
     repoLines: Object.keys(loaded.approvalConfig.repos).join("\n"),
     githubInstallations: loaded.githubInstallations,
-    githubInstallUrl: null,
+    githubInstallUrl: githubAppInstallUrl(process.env.GITHUB_APP_SLUG),
   };
 }
 

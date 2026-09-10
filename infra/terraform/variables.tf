@@ -89,6 +89,12 @@ variable "github_org" {
   default     = ""
 }
 
+variable "github_app_slug" {
+  description = "Public slug of the GitHub App (github.com/apps/<slug>), for the Connect GitHub install link; empty shows no link"
+  type        = string
+  default     = ""
+}
+
 variable "lore_webhook_hostname" {
   description = "Hostname for the Floor's /api/webhook ingress (e.g. lore-webhook.example.com): the CI ingest doors (/api/webhook/ci-ingest, /api/webhook/ci-tests — consumer repos' vars.LORE_WEBHOOK_URL base) plus the legacy /api/webhook/github alias the ingress rewrites to the event-router (ADR-044). Empty disables the ingress."
   type        = string

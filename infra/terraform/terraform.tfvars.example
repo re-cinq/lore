@@ -24,6 +24,7 @@ lore_api_url     = "https://lore-api.example.com"
 lore_ui_url      = "https://lore.example.com"
 lore_ui_hostname = "lore.example.com"
 github_org       = "your-github-org"
+github_app_slug  = "your-github-app-slug"
 
 # Shared agent MCP gateway. Empty ("") disables its ingress and leaves the
 # seeded agent recipes without a live MCP endpoint (the mcp_servers block is
