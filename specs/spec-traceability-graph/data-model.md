@@ -245,80 +245,93 @@ Statements reached via `~CodeChunk.references` are annotated `indirect` and rend
 
 The reference extractor identifies imported symbols that are actually called in a TypeScript/JavaScript source file and returns their names paired with the module path they were imported from. ([validated by returns imported symbol names and their source paths when those symbols are called in a TypeScript source file](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L5), [validated by omits imported symbols that are never called in the file](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L28), [validated by returns an empty array for a file with no import declarations](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L44))
 
-## Per-run branch overlay
+## Branch overlay
 
 The graph describes one snapshot of `main`. An implementation run makes many
 pushes to one branch before any of them merge, so a run that asked the graph
-about its own work got `main`'s answer. A **per-run overlay** closes that gap:
-a namespaced set of chunk/test/coverage nodes keyed on the assembly run,
-written at each branch push and dropped when the run ends. It is unioned over
-`main` at read time; `main` itself is never written by a branch.
+about its own work got `main`'s answer. A **branch overlay** closes that gap:
+a namespaced set of chunk/test/coverage nodes keyed on the branch, written at
+each branch push and dropped when the branch's PR closes. It is keyed on the
+branch rather than on an assembly run because a pod can always name its branch
+and can never learn its run id, and because every run on a PR's head branch —
+implementation, review, triage, reply — describes the same code. It is unioned
+over `main` at read time; `main` itself is never written by a branch.
 
 A projection writes into a **scope**, which owns three things: the xid prefix,
 the `.repo` scalar its nodes carry, and the root node they hang off. On `main`
-the scope key is the bare repo and the root is the `Repo` node. ([validated by keys on the bare repo and roots at Repo](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L13), [validated by returns false from isOverlay](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L21))
+the scope key is the bare repo and the root is the `Repo` node. ([validated by keys on the bare repo and roots at Repo](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L12), [validated by returns false from isOverlay](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L20))
 
-An overlay scope inserts a `run:<assembly run id>` segment between the repo and
-the path, and roots at the run's `Overlay` node. ([validated by inserts a run segment between the repo and the path and roots at Overlay](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L27), [validated by returns true from isOverlay](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L36))
+An overlay scope inserts a `branch:<name>` segment between the repo and the
+path, and roots at the branch's `Overlay` node. ([validated by inserts a branch segment between the repo and the path and roots at Overlay](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L26), [validated by returns true from isOverlay](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L35))
 
-Because the run segment is part of the xid, a branch's node for a path upserts
-independently of `main`'s node for the same path instead of overwriting it. ([validated by joins parts onto the main key with a pipe](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L42), [validated by joins parts onto the overlay key so main and overlay never collide](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L48), [validated by joins several parts in order](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L54))
-
-A run's xid prefix ends with the separator that closes its run segment, so a
-bulk operation on run `4` cannot also match run `42`. ([validated by is the prefix every one of a run's xids starts with](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L62), [validated by ends with the pipe that closes the run segment so run-4 cannot prefix-match run-42](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L70))
+Because the branch segment is part of the xid, a branch's node for a path
+upserts independently of `main`'s node for the same path instead of overwriting
+it. ([validated by joins parts onto the main key with a pipe](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L60), [validated by joins parts onto the overlay key so main and overlay never collide](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L66), [validated by joins several parts in order](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L72))
 
 The root-edge predicate a scope attaches its chunks to is named for its root
 type, so the same projection code hangs nodes off `Repo` on `main` and off
-`Overlay` on a branch. ([validated by names the Repo predicate for a main scope](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L78), [validated by names the Overlay predicate for an overlay scope](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L84))
+`Overlay` on a branch. ([validated by names the Repo predicate for a main scope](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L80), [validated by names the Overlay predicate for an overlay scope](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L86))
 
-An overlay key is reversible back to the repo and run it names, and a bare repo
-key reports that it names no run. ([validated by recovers the repo and run id from an overlay key](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L92), [validated by returns null for a bare repo key](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L99))
-
-`Overlay.xid` is a hash upsert index and `Overlay.assembly_run_id` /
-`Overlay.head_commit` are indexed, so a run's overlay is found by id and the
-commit its ranges are expressed in is queryable. ([validated by declares Overlay.xid as a hash upsert index so a run's overlay upserts independently of main](libs/shared/src/outbound/setup-spec-trace-schema.test.ts#L205))
+`Overlay.xid` is a hash upsert index and `Overlay.branch` /
+`Overlay.head_commit` are indexed, so a branch's overlay is found by name and
+the commit its ranges are expressed in is queryable. ([validated by declares Overlay.xid as a hash upsert index so a branch's overlay upserts independently of main](libs/shared/src/outbound/setup-spec-trace-schema.test.ts#L205))
 
 The `Overlay` node carries the same chunk container edges the `Repo` root does —
-`test_chunks`, `code_chunks`, `coverage`, `files` — as reversible uid lists. ([validated by declares the Overlay chunk edges as uid lists so a run's nodes hang off it instead of the Repo root](libs/shared/src/outbound/setup-spec-trace-schema.test.ts#L219))
+`test_chunks`, `code_chunks`, `coverage`, `files` — as reversible uid lists. ([validated by declares the Overlay chunk edges as uid lists so a branch's nodes hang off it instead of the Repo root](libs/shared/src/outbound/setup-spec-trace-schema.test.ts#L219))
+
+### Which branch is an overlay
+
+A report names the branch it was built on, but only the ingress that receives it
+can learn the repo's default branch — so the ingress decides, with one shared
+rule, and hands the ingest an explicit overlay branch. A report for any branch
+other than the default one is an overlay. ([validated by returns feat/x when the report names feat/x and the default branch is main](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L41))
+
+A report for the default branch is `main`'s, whatever the default is called. ([validated by returns undefined when the report names the default branch](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L45))
+
+A detached `HEAD` names a commit rather than a branch, and a report naming no
+branch names nothing; both are `main`'s. ([validated by returns undefined for a detached HEAD](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L49), [validated by returns undefined when the report names no branch](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L53))
 
 ### Anchor and lifecycle
 
 The overlay anchor records the branch and the head commit its line numbers are
 expressed in — the overlay's answer to `Repo.trace_commit`. ([validated by reads back the branch and head commit an upserted overlay was stamped with](libs/shared/src/work/spec-trace/overlay.test.ts#L40))
 
-A run that never wrote one reads back as absent rather than as an error. ([validated by returns null for a run that never wrote an overlay](libs/shared/src/work/spec-trace/overlay.test.ts#L59))
+A branch that never wrote one reads back as absent rather than as an error. ([validated by returns null for a branch that never wrote an overlay](libs/shared/src/work/spec-trace/overlay.test.ts#L57))
 
-A second push in the same run restamps the existing anchor rather than adding a
-second overlay for the run. ([validated by restamps head commit on a second push rather than creating a second overlay](libs/shared/src/work/spec-trace/overlay.test.ts#L65))
+A second push to the same branch restamps the existing anchor rather than adding
+a second overlay — and every run on the branch pushes to that one anchor. ([validated by restamps head commit on a second push to the branch rather than creating a second overlay](libs/shared/src/work/spec-trace/overlay.test.ts#L63))
 
 Dropping an overlay deletes every node it anchors and the anchor itself, so a
-finished run leaves nothing behind. ([validated by deletes the anchored chunks and the anchor, leaving no overlay for the run](libs/shared/src/work/spec-trace/overlay.test.ts#L80))
+closed branch leaves nothing behind. ([validated by deletes the anchored chunks and the anchor, leaving no overlay for the branch](libs/shared/src/work/spec-trace/overlay.test.ts#L77))
 
-The drop is safe to repeat: a run with no overlay drops nothing and reports zero. ([validated by drops nothing and reports zero for a run with no overlay](libs/shared/src/work/spec-trace/overlay.test.ts#L109))
+The drop is safe to repeat: a branch with no overlay drops nothing and reports
+zero. ([validated by drops nothing and reports zero for a branch with no overlay](libs/shared/src/work/spec-trace/overlay.test.ts#L104))
 
-Listing overlays is scoped to one repo, so a sweep for one repo's abandoned runs
-never sees another's. ([validated by lists only the overlays of the repo it was asked about](libs/shared/src/work/spec-trace/overlay.test.ts#L115))
+Listing overlays is scoped to one repo, so a sweep for one repo's abandoned
+branches never sees another's. ([validated by lists only the overlays of the repo it was asked about](libs/shared/src/work/spec-trace/overlay.test.ts#L110))
 
 ### What an overlay ingest writes
 
-A test report that names an assembly run writes its chunks under the run-scoped
-key, and a query filtered on the bare repo key does not see them. ([validated by writes the run's test chunks under the run-scoped key, not the repo key](libs/shared/src/work/spec-trace/ingest-overlay.test.ts#L84))
+A test report that names an overlay branch writes its chunks under the
+branch-scoped key, and a query filtered on the bare repo key does not see them. ([validated by writes the branch's test chunks under the branch-scoped key, not the repo key](libs/shared/src/work/spec-trace/ingest-overlay.test.ts#L86))
 
-The ingest stamps the run's overlay with the branch and head commit the report
-was posted for. ([validated by stamps the overlay with the branch and head commit the report was posted for](libs/shared/src/work/spec-trace/ingest-overlay.test.ts#L96))
+The ingest stamps the branch's overlay with the head commit the report was
+posted for. ([validated by stamps the overlay with the branch and head commit the report was posted for](libs/shared/src/work/spec-trace/ingest-overlay.test.ts#L97))
 
 A branch push leaves `Repo.trace_commit` alone, so it cannot move the coordinate
 system the pre-merge impact query is expressed in. ([validated by leaves Repo.trace_commit alone so a branch push cannot move main's coordinate system](libs/shared/src/work/spec-trace/ingest-overlay.test.ts#L110))
 
 Specs, acceptance criteria and ADRs are never overlaid: the spec is the thing
 the branch is measured against. An overlay ingest therefore writes no
-`validated_by` onto the `main` statement a branch test claims — an unmerged run
-must not change what `main` claims to have proved. ([validated by writes no validated_by onto the main statement the branch test claims](libs/shared/src/work/spec-trace/ingest-overlay.test.ts#L127))
+`validated_by` onto the `main` statement a branch test claims — an unmerged
+branch must not change what `main` claims to have proved. ([validated by writes no validated_by onto the main statement the branch test claims](libs/shared/src/work/spec-trace/ingest-overlay.test.ts#L126))
 
-A report that names no run is unchanged: it writes `main`'s chunks and stamps
-`main`'s baseline exactly as before. ([validated by still writes main's test chunks and baseline when the report names no run](libs/shared/src/work/spec-trace/ingest-overlay.test.ts#L148))
+A report that names a branch but no overlay branch is unchanged: it writes
+`main`'s chunks and stamps `main`'s baseline exactly as before. That is what
+keeps the main-only incremental ingest, whose reports always name their branch,
+on `main`. ([validated by still writes main's test chunks and baseline when the report names a branch but no overlay branch](libs/shared/src/work/spec-trace/ingest-overlay.test.ts#L146))
 
-### Reading coverage as the run sees it
+### Reading coverage as the branch sees it
 
 `tests_covering(file, range)` answers which tests exercise a span — the question
 a `tdd-round` asks before it edits a symbol, so that when the suite goes red it
@@ -334,36 +347,37 @@ the whole file. ([validated by returns nothing for a range no test covers](libs/
 Asking about a file without narrowing to a range returns every test file that
 covers it. ([validated by returns every covering test when no range narrows the question](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L117))
 
-Inside a run's overlay the same question is answered from the branch's own
-coverage, tagged as coming from the overlay. ([validated by reads the branch's own coverage from the run scope and marks it as overlay](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L127))
+Inside a branch's overlay the same question is answered from the branch's own
+coverage, tagged as coming from the overlay. ([validated by reads the branch's own coverage from the branch scope and marks it as overlay](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L127))
 
-That branch coverage is invisible from the main scope, so a run in flight cannot
+That branch coverage is invisible from the main scope, so a branch in flight cannot
 change what anyone else is told. ([validated by does not see the branch's coverage from the main scope](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L141))
 
 The overlay's answer REPLACES main's for a file the branch covers; a file the
 branch never touched falls through to main, and a file neither covers returns
 nothing. ([validated by replaces main's answer for the file when the overlay covers it](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L31), [validated by falls through to main for a file the branch never touched](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L35), [validated by returns nothing when neither scope covers the file](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L39))
 
-### Ending a run's overlay
+### Ending a branch's overlay
 
-The Floor never writes Dgraph itself, so closing a run does not delete its
-overlay directly: it emits the same `internal.ingest.spec_trace` event a test
-report rides, with kind `overlay-drop`, and the ingest station performs the
-delete. The event names the run's repo and the run whose overlay goes. ([validated by names the run's repo, the overlay-drop kind, and the run whose overlay goes](apps/floor/src/work/assembly-run/drop-overlay.test.ts#L25))
+The Floor never writes Dgraph itself, so a closing PR does not delete its
+branch's overlay directly: the Floor emits the same `internal.ingest.spec_trace`
+event a test report rides, with kind `overlay-drop` naming the PR's repo and
+head branch, and the ingest station performs the delete. ([validated by asks the ingest to drop the feat/x overlay when the merged feat/x PR closes](apps/floor/src/work/assembly-run/drop-overlay.test.ts#L18))
 
-A closing implementation run asks for that drop. ([validated by asks for a drop when an implementation run closes](apps/floor/src/work/assembly-run/drop-overlay.test.ts#L5))
+The drop follows the PR, not a run: review, triage and reply runs all work on
+the PR's head branch, so the first of them to finish would otherwise wipe an
+overlay the implementation loop is still writing. A PR closed without merging
+drops its overlay the same way. ([validated by asks for the same drop when the feat/x PR closes unmerged](apps/floor/src/work/assembly-run/drop-overlay.test.ts#L39))
 
-An ingest run does NOT, because the drop it asked for would itself be an ingest
-run, which would ask again, without end. ([validated by refuses for an ingest run, whose drop would start another ingest run forever](apps/floor/src/work/assembly-run/drop-overlay.test.ts#L11))
+A closed PR that names no head branch asks for nothing. ([validated by asks for nothing when the closed PR names no head branch](apps/floor/src/work/assembly-run/drop-overlay.test.ts#L50))
 
-Neither does a run with no repo, which can own no overlay. ([validated by refuses for a run with no repo, which can own no overlay](apps/floor/src/work/assembly-run/drop-overlay.test.ts#L17))
+The drop can still be missed — a branch that never opened a PR, a lost event —
+so a retention sweep reaps every overlay a repo has not restamped since a
+cutoff. A branch still pushing restamps its own anchor on every push, so an old
+stamp means nobody is. ([validated by drops an overlay written before the cutoff](libs/shared/src/work/spec-trace/overlay.test.ts#L162))
 
-The drop can still be missed — a dead pod, a lost event — so a retention sweep
-reaps every overlay a repo has not restamped since a cutoff. A run still pushing
-restamps its own anchor on every push, so an old stamp means the run is gone. ([validated by drops an overlay written before the cutoff](libs/shared/src/work/spec-trace/overlay.test.ts#L169))
-
-An overlay stamped after the cutoff is kept, because its run may still be
-pushing. ([validated by keeps an overlay written after the cutoff, because its run may still be pushing](libs/shared/src/work/spec-trace/overlay.test.ts#L184))
+An overlay stamped after the cutoff is kept, because its branch may still be
+pushing. ([validated by keeps an overlay written after the cutoff, because its branch may still be pushing](libs/shared/src/work/spec-trace/overlay.test.ts#L176))
 
 ## Failures
 
@@ -479,7 +493,7 @@ The cutoff is that window before the instant the reap runs. ([validated by is th
 One pass reaps both kinds for a repo. ([validated by reaps an expired overlay and an expired failure in one pass](libs/shared/src/work/spec-trace/graph-retention.test.ts#L51))
 
 Anything inside the window is left alone — an overlay there may belong to a run
-still pushing. ([validated by leaves an overlay and a failure inside the window alone](libs/shared/src/work/spec-trace/graph-retention.test.ts#L77))
+still pushing. ([validated by leaves an overlay and a failure inside the window alone](libs/shared/src/work/spec-trace/graph-retention.test.ts#L76))
 
 The reap rides the ingest that already holds a graph client for the repo rather
 than a cron nobody wires. That is deliberate: `agent_run_events.pruneOld` shipped

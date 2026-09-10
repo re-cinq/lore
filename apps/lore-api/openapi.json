@@ -12235,7 +12235,7 @@
           },
           "state": {
             "type": "string",
-            "enum": ["advanced", "pending-chunks", "unrecorded"]
+            "enum": ["advanced", "pending-chunks", "unrecorded", "overlay"]
           },
           "projected": {
             "type": "number"

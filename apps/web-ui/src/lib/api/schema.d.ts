@@ -3200,7 +3200,7 @@ export interface components {
       kind: string;
       commit: string;
       /** @enum {string} */
-      state: "advanced" | "pending-chunks" | "unrecorded";
+      state: "advanced" | "pending-chunks" | "unrecorded" | "overlay";
       projected: number;
       deleted: number;
       test_chunks: number;
