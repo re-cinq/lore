@@ -31,4 +31,21 @@ describe("callbackOutcome", () => {
         "GitHub does not know that installation as one of this App's, so nothing was recorded.",
     });
   });
+
+  it("explains an unconfigured web UI or a 500 upstream exploded instead of returning to settings", () => {
+    expect([
+      callbackOutcome({ status: "unconfigured" }),
+      callbackOutcome({
+        status: "error",
+        message: "upstream exploded",
+        code: 500,
+      }),
+    ]).toEqual([
+      {
+        error:
+          "The web UI cannot reach lore-api, so the installation was not recorded.",
+      },
+      { error: "Recording the installation failed: upstream exploded" },
+    ]);
+  });
 });

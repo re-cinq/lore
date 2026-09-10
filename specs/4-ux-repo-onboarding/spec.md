@@ -570,6 +570,9 @@ and a repo is served by the installation of its owner.
 - FR-8.21: When GitHub does not know the installation as one of the App's,
   the callback tells the admin so, and that nothing was recorded, instead of
   returning to settings as if it had worked. ([validated by explains that nothing was recorded when lore-api answers 404 not-an-installation-of-this-app](apps/web-ui/src/app/settings/github/callback/callback-outcome.test.ts#L22))
+- FR-8.22: Any other failure — a web UI that cannot reach lore-api, or an
+  error from lore-api itself — is explained to the admin too, never hidden
+  behind a return to settings. ([validated by explains an unconfigured web UI or a 500 upstream exploded instead of returning to settings](apps/web-ui/src/app/settings/github/callback/callback-outcome.test.ts#L35))
 
 ## Operational Targets (Background)
 
