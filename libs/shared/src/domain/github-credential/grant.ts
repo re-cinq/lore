@@ -10,13 +10,17 @@ export interface GitCredentialRequest {
 
 export type GitCredentialDecision =
   | { grant: true; repo: string }
-  | { grant: false; reason: "run-closed" };
+  | { grant: false; reason: "run-closed" | "repo-mismatch" };
 
 export function decideGitCredential(
   request: GitCredentialRequest,
 ): GitCredentialDecision {
   if (request.stationRun.outcome !== null) {
     return { grant: false, reason: "run-closed" };
+  }
+
+  if (request.repo !== request.claims.repo) {
+    return { grant: false, reason: "repo-mismatch" };
   }
 
   return { grant: true, repo: request.repo };

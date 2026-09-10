@@ -27,4 +27,14 @@ describe("decideGitCredential", () => {
       }),
     ).toEqual({ grant: false, reason: "run-closed" });
   });
+
+  it("refuses re-cinq/lore to a credential issued for re-cinq/bowman-ui as repo-mismatch", () => {
+    expect(
+      decideGitCredential({
+        claims,
+        stationRun: { stationRunId: claims.stationRunId, outcome: null },
+        repo: "re-cinq/lore",
+      }),
+    ).toEqual({ grant: false, reason: "repo-mismatch" });
+  });
 });
