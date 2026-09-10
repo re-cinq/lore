@@ -536,6 +536,9 @@ and a repo is served by the installation of its owner.
 - FR-8.8: An installation id GitHub does not know as one of the App's
   installations is answered with a 404 and nothing is recorded, so a forged
   or mistaken redirect cannot put an installation in the registry. ([validated by answers 404 for installation 99999999 that GitHub does not know as this App's, recording nothing](apps/lore-api/src/transport/routes/github-installations/record-installation.test.ts#L42))
+- FR-8.9: `POST /api/github/installations` is an admin act served over HTTP:
+  a request without a bearer token is refused with a 401, and a malformed
+  installation id with a 400 before GitHub is ever asked. ([validated by refuses a request that carries no bearer token with 401](apps/lore-api/src/integration-tests/github-installations.test.ts#L34), [refuses an installation id of not-a-number with 400 before GitHub is asked](apps/lore-api/src/integration-tests/github-installations.test.ts#L44))
 
 ## Operational Targets (Background)
 

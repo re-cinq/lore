@@ -2139,6 +2139,72 @@
         }
       }
     },
+    "/api/github/installations": {
+      "post": {
+        "operationId": "post_api_github_installations",
+        "summary": "POST /api/github/installations",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The installation Lore recorded, once GitHub confirmed it is one of this App's",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GithubInstallation"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "admin",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "installation_id": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": ["installation_id"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/graph": {
       "get": {
         "operationId": "get_api_graph",
@@ -11887,6 +11953,54 @@
           }
         },
         "required": ["username", "password"],
+        "additionalProperties": false
+      },
+      "GithubInstallation": {
+        "type": "object",
+        "properties": {
+          "installation_id": {
+            "type": "string"
+          },
+          "account_login": {
+            "type": "string"
+          },
+          "account_type": {
+            "type": "string",
+            "enum": ["Organization", "User"]
+          },
+          "repository_selection": {
+            "type": "string",
+            "enum": ["all", "selected"]
+          },
+          "suspended_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "installed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "installation_id",
+          "account_login",
+          "account_type",
+          "repository_selection",
+          "suspended_at",
+          "installed_at",
+          "updated_at"
+        ],
         "additionalProperties": false
       },
       "GraphBrowse": {

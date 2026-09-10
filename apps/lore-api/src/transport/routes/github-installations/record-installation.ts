@@ -1,5 +1,18 @@
-import type { z } from "zod";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
+import type { Pool } from "pg";
+import { z } from "zod";
+import { OctokitGithubApp } from "@re-cinq/lore-shared/project/github-installations/github-app-octokit.js";
+import { PgGithubInstallations } from "@re-cinq/lore-shared/project/github-installations/github-installations-pg.js";
 import { toRow } from "@re-cinq/lore-shared/lib/row.js";
+import { zodResponse } from "../../http/zod-response.js";
+import { bearerScope } from "../../http/bearer-scope.js";
+import { zodValidate } from "../../http/zod-validate.js";
+import { withPool } from "../with-pool.js";
 import { wireSchema } from "@re-cinq/lore-shared/lib/wire-schema.js";
 import {
   GithubInstallationSchema,
@@ -46,4 +59,53 @@ export async function handleRecordInstallation(
       toRow(GITHUB_INSTALLATION_COLUMNS, recorded),
     ),
   };
+}
+
+const RecordInstallationBody = z.object({
+  installation_id: z.number().int().positive(),
+});
+
+const RECORD_INSTALLATION_OPTIONS = zodResponse(
+  {
+    ...bearerScope("admin"),
+    validate: { payload: zodValidate(RecordInstallationBody) },
+  },
+  GithubInstallationWire,
+  {
+    name: "GithubInstallation",
+    description:
+      "The installation Lore recorded, once GitHub confirmed it is one of this App's",
+    errors: [400, 404],
+  },
+);
+
+/** POST /api/github/installations — the Connect GitHub callback's server half. Admin scope: connecting an org is an admin act, and the web UI calls this with the installation id GitHub redirected back with. */
+export function githubInstallationsRoute(
+  getPool: () => Pool | null,
+): ServerRoute {
+  return {
+    method: "POST",
+    path: "/api/github/installations",
+    options: RECORD_INSTALLATION_OPTIONS,
+    handler: withPool(getPool, serveRecordInstallation),
+  };
+}
+
+async function serveRecordInstallation(
+  pool: Pool,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const result = await handleRecordInstallation(
+    {
+      app: new OctokitGithubApp({
+        appId: process.env.GITHUB_APP_ID ?? "",
+        privateKey: process.env.GITHUB_APP_PRIVATE_KEY ?? "",
+      }),
+      installations: new PgGithubInstallations(pool),
+    },
+    request.payload as z.infer<typeof RecordInstallationBody>,
+  );
+
+  return h.response(result.body).code(result.code);
 }
