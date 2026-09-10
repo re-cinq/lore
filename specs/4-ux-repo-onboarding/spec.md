@@ -554,12 +554,14 @@ and a repo is served by the installation of its owner.
 - FR-8.14: Before any account is connected, the GitHub section says so in
   words rather than showing an empty list. ([validated by says Lore is not connected to any GitHub account yet when none is recorded](apps/web-ui/src/app/settings/GithubConnectSection.test.tsx#L54))
 - FR-8.15: The web UI reads the connected accounts from lore-api's
-  `/api/github/installations`. ([validated by reads the connected accounts from lore-api's /api/github/installations](apps/web-ui/src/lib/api/github-installations.test.ts#L24))
+  `/api/github/installations`. ([validated by reads the connected accounts from lore-api's /api/github/installations](apps/web-ui/src/lib/api/github-installations.test.ts#L25))
 - FR-8.16: The settings page shows the GitHub section with the accounts
   Lore is connected to. ([validated by renders the GitHub section with the connected re-cinq organization](apps/web-ui/src/app/settings/SettingsView.test.tsx#L188))
 - FR-8.17: The install link is built from the GitHub App's public slug, the
   one piece of the App the web UI needs; with no slug configured there is
   no link to build. ([validated by builds the lore-agent App's install URL from its slug](apps/web-ui/src/app/settings/github-app-install-url.test.ts#L5), [builds no install URL while no slug is configured](apps/web-ui/src/app/settings/github-app-install-url.test.ts#L11))
+- FR-8.18: The web UI records an installation by posting its id to lore-api's
+  `/api/github/installations`. ([validated by posts installation 81234567 to lore-api's /api/github/installations](apps/web-ui/src/lib/api/github-installations.test.ts#L35))
 
 ## Operational Targets (Background)
 
