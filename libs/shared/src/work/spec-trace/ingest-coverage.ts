@@ -198,7 +198,7 @@ function groupRangesByFile(
   return rangesByFile;
 }
 
-/** Hangs the coverage node and the files it covers off the scope's root — the Repo node on main, the run's Overlay node on a branch — so both stay reachable from the graph's entry point. */
+/** Hangs the coverage node and the files it covers off the scope's root — the Repo node on main, the branch's Overlay node otherwise — so both stay reachable from the graph's entry point. */
 async function attachCoverageToScopeRoot(
   dgraph: DgraphClientPort,
   scope: TraceScope,
