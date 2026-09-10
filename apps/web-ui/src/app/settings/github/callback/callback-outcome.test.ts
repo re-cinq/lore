@@ -18,4 +18,17 @@ describe("callbackOutcome", () => {
       }),
     ).toEqual({ redirectTo: "/settings" });
   });
+
+  it("explains that nothing was recorded when lore-api answers 404 not-an-installation-of-this-app", () => {
+    expect(
+      callbackOutcome({
+        status: "error",
+        message: "not-an-installation-of-this-app",
+        code: 404,
+      }),
+    ).toEqual({
+      error:
+        "GitHub does not know that installation as one of this App's, so nothing was recorded.",
+    });
+  });
 });

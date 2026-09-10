@@ -567,6 +567,9 @@ and a repo is served by the installation of its owner.
   without one, or with anything but a number, names no installation. ([validated by reads installation 81234567 from GitHub's setup redirect](apps/web-ui/src/app/settings/github/callback/installation-id.test.ts#L5), [reads no installation from a redirect without an id or with not-a-number](apps/web-ui/src/app/settings/github/callback/installation-id.test.ts#L14))
 - FR-8.20: Once the installation is recorded, the callback sends the admin
   back to the settings page. ([validated by goes back to the settings page once re-cinq's installation is recorded](apps/web-ui/src/app/settings/github/callback/callback-outcome.test.ts#L5))
+- FR-8.21: When GitHub does not know the installation as one of the App's,
+  the callback tells the admin so, and that nothing was recorded, instead of
+  returning to settings as if it had worked. ([validated by explains that nothing was recorded when lore-api answers 404 not-an-installation-of-this-app](apps/web-ui/src/app/settings/github/callback/callback-outcome.test.ts#L22))
 
 ## Operational Targets (Background)
 
