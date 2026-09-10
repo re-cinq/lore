@@ -4,7 +4,7 @@
 |----------------|---------------------------------------------|
 | Feature        | UX Redesign + Repo Onboarding               |
 | Branch         | 4-ux-repo-onboarding                        |
-| Status         | Shipped                                     |
+| Status         | In Progress                                 |
 | Created        | 2026-03-29                                  |
 | Owner          | Platform Engineering                        |
 
@@ -299,7 +299,7 @@ The system MUST reorganize the UI around repos. ([validated by `HomeView.test.ts
   form, the approval form, and the install command with the supplied
   token/api-url (or placeholders). The former global Tasks view (a
   legacy chunk-backed page predating the pipeline) was removed in
-  #1057 (issue #1049) in favor of the per-repo Assembly Lines tab. ([validated by `SettingsView.test.tsx:43`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L40), [`SettingsView.test.tsx:63`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L63), [`SettingsView.test.tsx:76`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L76), [`SettingsView.test.tsx:89`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L89), [`SettingsView.test.tsx:101`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L101), [`SettingsView.test.tsx:110`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L110), [`SettingsView.test.tsx:140`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L140), [`SettingsView.test.tsx:162`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L162), [`SettingsView.test.tsx:174`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L174))
+  #1057 (issue #1049) in favor of the per-repo Assembly Lines tab. ([validated by `SettingsView.test.tsx:43`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L42), [`SettingsView.test.tsx:63`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L65), [`SettingsView.test.tsx:76`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L78), [`SettingsView.test.tsx:89`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L91), [`SettingsView.test.tsx:101`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L103), [`SettingsView.test.tsx:110`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L112), [`SettingsView.test.tsx:140`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L142), [`SettingsView.test.tsx:162`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L164), [`SettingsView.test.tsx:174`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L176))
 - FR-3.16: Every doc card list (specs, ADRs, the global browsers)
   shares one pure filter/sort helper — status counts and visibility
   (unstatused docs shown only under "All"), a case-insensitive text
@@ -503,6 +503,77 @@ The app is built from a shared set of presentational components. ([validated by 
   API call) — unset, every authenticated user is allowed through.
   ([validated by `auth-options.test.ts:28`](apps/web-ui/src/lib/auth-options.test.ts#L28), [`auth-options.test.ts:38`](apps/web-ui/src/lib/auth-options.test.ts#L38), [`auth-options.test.ts:54`](apps/web-ui/src/lib/auth-options.test.ts#L54), [`auth-options.test.ts:69`](apps/web-ui/src/lib/auth-options.test.ts#L69), [`auth-options.test.ts:84`](apps/web-ui/src/lib/auth-options.test.ts#L84), [`auth-options.test.ts:98`](apps/web-ui/src/lib/auth-options.test.ts#L98))
 
+### FR-8: Connect GitHub
+
+Lore used to act on GitHub through one App installation fixed in the
+environment (`GITHUB_APP_INSTALLATION_ID`), so it could only ever serve the
+one org that installation covered. Connecting GitHub is now a flow in the UI:
+an admin installs the GitHub App on any org, Lore records the installation,
+and a repo is served by the installation of its owner.
+
+- FR-8.1: Lore records each GitHub App installation — the account it covers,
+  whether it covers all or only selected repos, and whether the account has
+  suspended it — and finds the installation for an account whatever the case
+  of the login, as GitHub logins are case-insensitive. ([validated by finds the re-cinq installation by its account login in any case](libs/shared/src/outbound/project/github-installations/github-installations.test.ts#L116))
+- FR-8.2: Recording an installation Lore already knows — the account widened
+  it from selected repos to all of them, say — refreshes what it covers but
+  keeps when it was first installed. ([validated by keeps when re-cinq was installed when the installation widens to all repos](libs/shared/src/outbound/project/github-installations/github-installations.test.ts#L131))
+- FR-8.3: When the App is uninstalled from an account, Lore forgets that
+  installation, so it no longer claims to serve that account's repos.
+  ([validated by forgets the re-cinq installation once the App is uninstalled there](libs/shared/src/outbound/project/github-installations/github-installations.test.ts#L147))
+- FR-8.4: Lore lists every account it is connected to, ordered by account
+  login. ([validated by lists acme-corp before re-cinq, ordered by account login](libs/shared/src/outbound/project/github-installations/github-installations.test.ts#L157))
+- FR-8.5: Lore reads an installation as GitHub describes it — its id, the
+  account and whether that is an organization or a user, and whether it
+  covers all or only selected repos — refusing an account type or repository
+  selection it does not know rather than storing it. ([validated by reads GitHub's re-cinq installation as the organization installation 81234567 on selected repos](libs/shared/src/domain/github-installation/installation-from-github.test.ts#L5))
+- FR-8.6: An installation the account has suspended is recorded with the
+  instant GitHub reports it was suspended. ([validated by reads a suspension GitHub reports at 2026-09-12T08:00:00Z as that instant](libs/shared/src/domain/github-installation/installation-from-github.test.ts#L22))
+- FR-8.7: When GitHub sends an admin back from installing the App, Lore
+  records that installation only after asking GitHub, as the App itself,
+  whether the id really is one of its installations — an id in a redirect is
+  not evidence on its own. ([validated by records installation 81234567 of re-cinq once GitHub confirms it belongs to this App](apps/lore-api/src/transport/routes/github-installations/record-installation.test.ts#L9))
+- FR-8.8: An installation id GitHub does not know as one of the App's
+  installations is answered with a 404 and nothing is recorded, so a forged
+  or mistaken redirect cannot put an installation in the registry. ([validated by answers 404 for installation 99999999 that GitHub does not know as this App's, recording nothing](apps/lore-api/src/transport/routes/github-installations/record-installation.test.ts#L42))
+- FR-8.9: `POST /api/github/installations` is an admin act served over HTTP:
+  a request without a bearer token is refused with a 401, and a malformed
+  installation id with a 400 before GitHub is ever asked. ([validated by refuses a request that carries no bearer token with 401](apps/lore-api/src/integration-tests/github-installations.test.ts#L34), [refuses an installation id of not-a-number with 400 before GitHub is asked](apps/lore-api/src/integration-tests/github-installations.test.ts#L44))
+- FR-8.10: The Connect GitHub page lists every connected account in the same
+  wire shape an installation is recorded in, ordered by account login.
+  ([validated by lists the acme-corp and re-cinq installations in their wire shape, ordered by account login](apps/lore-api/src/transport/routes/github-installations/list-installations.test.ts#L8))
+- FR-8.11: `GET /api/github/installations` serves that list over HTTP to any
+  bearer with read scope — a connected org's login is not a secret.
+  ([validated by lists the connected accounts to a bearer with 200 and a JSON list](apps/lore-api/src/integration-tests/github-installations.test.ts#L55))
+- FR-8.12: The settings page's GitHub section names each connected account
+  with whether it is an organization or a user and whether it covers all or
+  only selected repos. ([validated by lists re-cinq as a connected organization on selected repos](apps/web-ui/src/app/settings/GithubConnectSection.test.tsx#L17))
+- FR-8.13: The GitHub section links an admin to installing the App on another
+  account, and offers no link at all while the App's slug is not configured.
+  ([validated by links to installing the App on another account at the lore-agent install URL](apps/web-ui/src/app/settings/GithubConnectSection.test.tsx#L30), [offers no install link while the App's slug is not configured](apps/web-ui/src/app/settings/GithubConnectSection.test.tsx#L46))
+- FR-8.14: Before any account is connected, the GitHub section says so in
+  words rather than showing an empty list. ([validated by says Lore is not connected to any GitHub account yet when none is recorded](apps/web-ui/src/app/settings/GithubConnectSection.test.tsx#L54))
+- FR-8.15: The web UI reads the connected accounts from lore-api's
+  `/api/github/installations`. ([validated by reads the connected accounts from lore-api's /api/github/installations](apps/web-ui/src/lib/api/github-installations.test.ts#L25))
+- FR-8.16: The settings page shows the GitHub section with the accounts
+  Lore is connected to. ([validated by renders the GitHub section with the connected re-cinq organization](apps/web-ui/src/app/settings/SettingsView.test.tsx#L188))
+- FR-8.17: The install link is built from the GitHub App's public slug, the
+  one piece of the App the web UI needs; with no slug configured there is
+  no link to build. ([validated by builds the lore-agent App's install URL from its slug](apps/web-ui/src/app/settings/github-app-install-url.test.ts#L5), [builds no install URL while no slug is configured](apps/web-ui/src/app/settings/github-app-install-url.test.ts#L11))
+- FR-8.18: The web UI records an installation by posting its id to lore-api's
+  `/api/github/installations`. ([validated by posts installation 81234567 to lore-api's /api/github/installations](apps/web-ui/src/lib/api/github-installations.test.ts#L35))
+- FR-8.19: The callback GitHub sends an admin back to after installing the
+  App reads the installation id from the redirect's query string; a redirect
+  without one, or with anything but a number, names no installation. ([validated by reads installation 81234567 from GitHub's setup redirect](apps/web-ui/src/app/settings/github/callback/installation-id.test.ts#L5), [reads no installation from a redirect without an id or with not-a-number](apps/web-ui/src/app/settings/github/callback/installation-id.test.ts#L14))
+- FR-8.20: Once the installation is recorded, the callback sends the admin
+  back to the settings page. ([validated by goes back to the settings page once re-cinq's installation is recorded](apps/web-ui/src/app/settings/github/callback/callback-outcome.test.ts#L5))
+- FR-8.21: When GitHub does not know the installation as one of the App's,
+  the callback tells the admin so, and that nothing was recorded, instead of
+  returning to settings as if it had worked. ([validated by explains that nothing was recorded when lore-api answers 404 not-an-installation-of-this-app](apps/web-ui/src/app/settings/github/callback/callback-outcome.test.ts#L22))
+- FR-8.22: Any other failure — a web UI that cannot reach lore-api, or an
+  error from lore-api itself — is explained to the admin too, never hidden
+  behind a return to settings. ([validated by explains an unconfigured web UI or a 500 upstream exploded instead of returning to settings](apps/web-ui/src/app/settings/github/callback/callback-outcome.test.ts#L35))
+
 ## Operational Targets (Background)
 
 These are aspirational service targets and manual UX guidelines, not
@@ -534,7 +605,6 @@ unit-testable assertions.
 
 - Per-repo access control (use GitHub org membership for now).
 - Repo removal/archiving workflow.
-- Multi-org support (single org for now).
 - Custom onboarding templates per repo.
 
 ## Background: Dependencies

@@ -70,6 +70,8 @@ const TAG_RULES: Array<[RegExp, string]> = [
   [/\/features\b/, "Features"],
   [/\/agent-definitions\b/, "Agents"],
   [/^\/api\/cluster-agents\b/, "Cluster Agents"],
+  // The git-credential broker serves the pods that cluster-agent dispatch launches.
+  [/^\/api\/github-credentials\b/, "Cluster Agents"],
   [/\/settings\/dark-factory\b/, "Dark Factory"],
   [/\/(trace|impact)\b/, "Traceability"],
   [/\/ingest/, "Ingestion"],
@@ -78,6 +80,8 @@ const TAG_RULES: Array<[RegExp, string]> = [
   [/\/webhook/, "Webhooks"],
   [/^\/api\/tokens\b/, "Tokens"],
   [/^\/api\/cluster-agents\b/, "Cluster Agents"],
+  // Connecting GitHub decides which orgs' repos Lore can serve.
+  [/^\/api\/github\/installations\b/, "Repositories"],
   [/^\/api\/(repos|repo-status|pr-status|onboard|settings)\b/, "Repositories"],
 ];
 

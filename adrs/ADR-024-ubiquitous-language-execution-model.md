@@ -130,7 +130,7 @@ and lose the update; no `resourceVersion` ever crosses the wire.
 - A catalog pair is written station-first and deleted station-last, so an
   AgentDefinition — the thing a dispatch looks up — is never visible pointing at
   a station that does not exist. The per-task provisioner writes the SAME pair
-  through its own call site and answers to the same rule. ([validated by writes the station before the agent definition that points at it](apps/cluster-agent/src/outbound/paired-writes.test.ts#L27), [`paired-writes.test.ts:35`](apps/cluster-agent/src/outbound/paired-writes.test.ts#L35), [`paired-writes.test.ts:54`](apps/cluster-agent/src/outbound/paired-writes.test.ts#L54), [`kube-token-provisioner.test.ts:221`](apps/cluster-agent/src/outbound/kube-token-provisioner.test.ts#L221))
+  through its own call site and answers to the same rule. ([validated by writes the station before the agent definition that points at it](apps/cluster-agent/src/outbound/paired-writes.test.ts#L27), [`paired-writes.test.ts:35`](apps/cluster-agent/src/outbound/paired-writes.test.ts#L35), [`paired-writes.test.ts:54`](apps/cluster-agent/src/outbound/paired-writes.test.ts#L54), [`kube-token-provisioner.test.ts:221`](apps/cluster-agent/src/outbound/kube-token-provisioner.test.ts#L236))
 - A refusal is read by its status, never collapsed: 404 is absence, 403 names
   the Role rule that is missing, anything else is a failure. ([validated by reads the code this client version sets](apps/cluster-agent/src/lib/k8s-errors.test.ts#L13), [`k8s-errors.test.ts:14`](apps/cluster-agent/src/lib/k8s-errors.test.ts#L17), [`k8s-errors.test.ts:18`](apps/cluster-agent/src/lib/k8s-errors.test.ts#L21), [`k8s-errors.test.ts:22`](apps/cluster-agent/src/lib/k8s-errors.test.ts#L25), [`k8s-errors.test.ts:28`](apps/cluster-agent/src/lib/k8s-errors.test.ts#L31), [`k8s-errors.test.ts:35`](apps/cluster-agent/src/lib/k8s-errors.test.ts#L38), [`k8s-errors.test.ts:44`](apps/cluster-agent/src/lib/k8s-errors.test.ts#L47), [`k8s-errors.test.ts:56`](apps/cluster-agent/src/lib/k8s-errors.test.ts#L59), [`k8s-errors.test.ts:66`](apps/cluster-agent/src/lib/k8s-errors.test.ts#L69))
 - The status is read wherever this client puts it, including out of the message,
@@ -140,7 +140,7 @@ and lose the update; no `resourceVersion` ever crosses the wire.
   retry that exists for exactly that race never fires, and provisioning fails
   whenever two agents start at once. A thrown value whose message is not a string carries no status either,
   rather than throwing from inside the classifier that exists to keep failures
-  legible. ([validated by reads 409 out of the message when it is nowhere else](apps/cluster-agent/src/lib/k8s-errors.test.ts#L81), [`k8s-errors.test.ts:82`](apps/cluster-agent/src/lib/k8s-errors.test.ts#L85), [`k8s-errors.test.ts:87`](apps/cluster-agent/src/lib/k8s-errors.test.ts#L90), [`k8s-errors.test.ts:92`](apps/cluster-agent/src/lib/k8s-errors.test.ts#L95), [retries the replace when the lost race arrives as a prose-only 409](apps/cluster-agent/src/outbound/kube-token-provisioner.test.ts#L67), [`kube-token-provisioner.test.ts:82`](apps/cluster-agent/src/outbound/kube-token-provisioner.test.ts#L82), [`kube-token-provisioner.test.ts:91`](apps/cluster-agent/src/outbound/kube-token-provisioner.test.ts#L91))
+  legible. ([validated by reads 409 out of the message when it is nowhere else](apps/cluster-agent/src/lib/k8s-errors.test.ts#L81), [`k8s-errors.test.ts:82`](apps/cluster-agent/src/lib/k8s-errors.test.ts#L85), [`k8s-errors.test.ts:87`](apps/cluster-agent/src/lib/k8s-errors.test.ts#L90), [`k8s-errors.test.ts:92`](apps/cluster-agent/src/lib/k8s-errors.test.ts#L95), [retries the replace when the lost race arrives as a prose-only 409](apps/cluster-agent/src/outbound/kube-token-provisioner.test.ts#L82), [`kube-token-provisioner.test.ts:82`](apps/cluster-agent/src/outbound/kube-token-provisioner.test.ts#L97), [`kube-token-provisioner.test.ts:91`](apps/cluster-agent/src/outbound/kube-token-provisioner.test.ts#L106))
 - *(Removed 2026-08-30: `POST /api/cluster/per-task-tokens` and its route-level
   "provisions in one call" test are gone — every launch is a claim now (#1651),
   so provisioning runs in-process through `KubeTokenProvisioner.provision`
@@ -156,7 +156,7 @@ and lose the update; no `resourceVersion` ever crosses the wire.
   created may never reach one — so a partial triple would outlive the launch it
   was minted for: a live credential nobody uses, a row in the accumulation that
   once took `agent-secrets` past its 1MiB ceiling, or a recipe pointing at a
-  token that reclaim already removed. ([validated by leaves no token or AgentDefinition behind when applyStation fails](apps/cluster-agent/src/outbound/kube-token-provisioner.test.ts#L164), [`kube-token-provisioner.test.ts:184`](apps/cluster-agent/src/outbound/kube-token-provisioner.test.ts#L184), [`kube-token-provisioner.test.ts:204`](apps/cluster-agent/src/outbound/kube-token-provisioner.test.ts#L204))
+  token that reclaim already removed. ([validated by leaves no token or AgentDefinition behind when applyStation fails](apps/cluster-agent/src/outbound/kube-token-provisioner.test.ts#L179), [`kube-token-provisioner.test.ts:184`](apps/cluster-agent/src/outbound/kube-token-provisioner.test.ts#L199), [`kube-token-provisioner.test.ts:204`](apps/cluster-agent/src/outbound/kube-token-provisioner.test.ts#L219))
 - A catalog pair is applied in one call, so create-409-replace cannot be
   split. The HTTP door that let a remote caller invoke it is gone with
   lore-api's push (specs/catalog-db-sync FR8.6) — each cluster's sync loop
@@ -173,6 +173,8 @@ and lose the update; no `resourceVersion` ever crosses the wire.
 - An empty minted token is refused where the cause is legible, rather than
   written as a present-but-useless Secret key that fails later inside a pod's
   init container. ([validated by throws naming the repo and the App vars when the token comes back empty](apps/cluster-agent/src/outbound/kube-token-provisioner.test.ts#L19), [`kube-token-provisioner.test.ts:11`](apps/cluster-agent/src/outbound/kube-token-provisioner.test.ts#L11))
+- The minted token is scoped to the one repo the run clones, so a token that
+  leaks from a pod can touch nothing else. ([validated by asks for the token of re-cinq/lore scoped to re-cinq/lore](apps/cluster-agent/src/outbound/kube-token-provisioner.test.ts#L31))
 
 
 The callers keep their behaviour, not just their shape. A CR that no longer

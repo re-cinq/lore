@@ -145,6 +145,8 @@ export interface AssemblyRunsPort {
   findStationRunByAgentCrName(
     agentCrName: string,
   ): Promise<StationRunRecord | null>;
+  /** The visit a `station_run_id` names, or null — the git-credential broker's check that the run a credential names is still open. */
+  findStationRunById(stationRunId: string): Promise<StationRunRecord | null>;
   // The claim (FR3): atomically takes the oldest queued visit whose required_tags the claimant satisfies, one statement; null when nothing matches.
   /** Arms a queued visit with its dispatch contract; written after ensureStationRun since claim only takes armed rows. */
   enqueueStationRunDispatch(

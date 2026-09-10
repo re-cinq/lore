@@ -95,6 +95,12 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
     return stationRuns.findStationRunByAgentCrName(this.pool, agentCrName);
   }
 
+  async findStationRunById(
+    stationRunId: string,
+  ): Promise<StationRunRecord | null> {
+    return stationRuns.findStationRunById(this.pool, stationRunId);
+  }
+
   async listOpen(): Promise<AssemblyRunRecord[]> {
     return queries.listOpen(this.pool);
   }

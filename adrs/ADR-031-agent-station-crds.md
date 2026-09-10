@@ -1,7 +1,7 @@
 ---
 adr_number: 31
 title: "Agent / Station / AgentDefinition as Kubernetes CRDs — the production execution substrate (replaces LoreTask)"
-status: draft
+status: in progress
 date: 2026-06-25
 domains: [agent, pipeline, infra, governance, web-ui]
 ---
@@ -128,6 +128,13 @@ GitHub App credentials, ingest/internal tokens, Slack) into `agent-secrets` — 
 material**. The **per-task GitHub token** is still minted from the existing App: the Floor PATCHes a
 short-lived per-task key into `agent-secrets` and removes it on terminal status (RBAC restricted by
 `resourceNames: ["agent-secrets"]`). No long-lived org PAT.
+
+*(amended 2026-09-10)* The per-task token is minted FRESH and scoped to the task's repo.
+`@octokit/auth-app` caches installation tokens for up to 59 minutes, so a cached token handed to a
+new pod could expire mid-run — run `d9b207e0`'s `fix-ci` lost a finished commit to exactly that, its
+push rejected with "Bad credentials" 30 minutes in (#2012). ([validated by getInstallationToken for re-cinq/lore asks for a fresh token scoped to lore, never octokit's cached one](libs/shared/src/outbound/project/lib/platform-github.test.ts#L328))
+A fresh token still lives one hour, so this is a stopgap: a token broker that mints on demand at
+push time replaces the per-task Secret key.
 
 **D7 — Networking.** Self-hydration and telemetry go over the **public LB** (port-443 egress is
 allowed by the run-pod NetworkPolicy, which blocks RFC1918/metadata). Run pods **drop direct Postgres
@@ -366,3 +373,51 @@ the DB row, owned by the sync loop (`lore-catalog-sync` label). While
 path is verified, the seed hook, `gen-catalog`, the committed
 `catalog-seed.yaml`, `check-catalog-drift.sh` and lore-api's synchronous
 push are deleted.
+
+## Amendment (2026-09-10): git credentials come from a broker, not the pod
+
+D6's per-task token was a copy made at launch: the cluster-agent minted an
+installation token into the shared `agent-secrets` Secret, and the pod read it
+once. Three failures came from that one design — the Secret filling past its
+1 MiB limit (#1538), tokens expiring mid-run (#2012), and tokens landing in
+stored telemetry (#2013). The token now comes from a broker in lore-api, minted
+at the moment git needs one, so nothing can expire mid-run and no GitHub token
+sits in a Secret at all.
+
+- A run presents a **run credential**, issued at claim time and carried as a CR
+  parameter: the station run it belongs to, the one repo it may touch, and an
+  expiry, signed with a key only lore-api holds. It is not a GitHub token and
+  grants nothing on GitHub by itself. ([validated by returns the claims of a credential signed with the same key before it expires](libs/shared/src/domain/github-credential/run-credential.test.ts#L12))
+- The claim that hands a cluster-agent its station run also hands it that run's
+  credential, bound to the run's station-run id and its target repo and valid
+  for 24 hours from the claim; the broker's run-closed check ends it sooner. ([validated by issues a run credential for re-cinq/lore bound to the claimed station run, expiring 24h after the claim](apps/lore-api/src/transport/routes/cluster-agents/claim.test.ts#L151))
+- The cluster-agent passes that credential to the pod as the `git_credential`
+  CR parameter, beside `git_credential_url` — the broker on the lore-api it
+  claimed from — so a satellite's pod reaches the same broker as a central
+  one. ([validated by hands the pod its run credential and the lore-api broker URL as Agent CR parameters](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L155))
+- A run credential that reaches a transcript — an agent printing its environment —
+  is redacted whole before storage, payload and signature together, like any
+  other secret. ([validated by redacts a whole run credential as it appears in an agent's printed environment](libs/shared/src/lib/redact.test.ts#L110))
+- A credential signed with any other key is refused as `bad-signature`,
+  compared in constant time, so a pod cannot forge one for another repo or
+  another run. ([validated by refuses a credential signed with another key as bad-signature](libs/shared/src/domain/github-credential/run-credential.test.ts#L20))
+- A credential presented at or after its expiry is refused as `expired`, so
+  one that leaks is worthless once its run's time is up. ([validated by refuses a correctly signed credential presented after 18:00 when it expired at 18:00, as expired](libs/shared/src/domain/github-credential/run-credential.test.ts#L28))
+- Anything that is not a `v1` credential is refused as `malformed` rather than
+  thrown, so garbage in the header is a clean refusal, never a 500. ([validated by refuses not-a-credential as malformed rather than throwing](libs/shared/src/domain/github-credential/run-credential.test.ts#L36))
+- The broker grants a git credential only for the repo the run credential
+  names, and only while the station run it names is still open. ([validated by grants re-cinq/bowman-ui to the still-open station run its credential names](libs/shared/src/domain/github-credential/grant.test.ts#L11), [refuses the station run that already finished with success as run-closed](libs/shared/src/domain/github-credential/grant.test.ts#L21), [refuses re-cinq/lore to a credential issued for re-cinq/bowman-ui as repo-mismatch](libs/shared/src/domain/github-credential/grant.test.ts#L31))
+- The broker looks the station run up by the id its credential names, and
+  both stores answer that lookup the same way. ([validated by findStationRunById returns the open review visit its station run id names](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1178))
+- `POST /api/github-credentials` hands an open run a token for its repo in the
+  git credential-helper shape (`x-access-token` plus the token), minted at the
+  moment git asks. ([validated by hands the open fix-ci visit a fresh token for re-cinq/bowman-ui as the git username/password pair](apps/lore-api/src/transport/routes/github-credentials/github-credentials.test.ts#L50))
+- A credential the broker cannot verify gets a 401 naming why, and a verified
+  one whose run has closed gets a 403; in neither case is a token minted. ([validated by refuses a credential signed with another key with 401 bad-signature and mints nothing](apps/lore-api/src/transport/routes/github-credentials/github-credentials.test.ts#L62), [refuses the fix-ci visit that already finished with 403 run-closed and mints nothing](apps/lore-api/src/transport/routes/github-credentials/github-credentials.test.ts#L71))
+- The route is served for real: over HTTP against Postgres, the bearer, the body
+  and the station-run lookup are wired end to end, and a forged credential is
+  refused with a 401 before GitHub is ever called. ([validated by refuses a credential signed with another key with 401 bad-signature over HTTP](apps/lore-api/src/integration-tests/github-credentials.test.ts#L48))
+- The signing key is an HMAC of the ingest token under a fixed label, so no new
+  secret has to be provisioned and a run credential never reuses the ingest
+  token itself; without an ingest token lore-api refuses to sign anything rather
+  than sign with an empty key. ([validated by derives eef1993b…00f6df from ingest token ingest-token-for-tests, a domain-separated HMAC rather than the token itself](apps/lore-api/src/work/github-credential/run-credential-key.test.ts#L5), [refuses to derive a key when LORE_INGEST_TOKEN is unset, naming the variable](apps/lore-api/src/work/github-credential/run-credential-key.test.ts#L11))

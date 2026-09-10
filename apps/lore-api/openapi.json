@@ -2085,6 +2085,162 @@
         "x-required-scope": "read"
       }
     },
+    "/api/github-credentials": {
+      "post": {
+        "operationId": "post_api_github-credentials",
+        "summary": "POST /api/github-credentials",
+        "tags": ["Cluster Agents"],
+        "security": [],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "A freshly minted installation token for the run's repo, as the git credential-helper username/password pair",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitCredential"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "repo": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["repo"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/github/installations": {
+      "post": {
+        "operationId": "post_api_github_installations",
+        "summary": "POST /api/github/installations",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The installation Lore recorded, once GitHub confirmed it is one of this App's",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GithubInstallation"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "admin",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "installation_id": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": ["installation_id"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "get_api_github_installations",
+        "summary": "GET /api/github/installations",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Every connected GitHub account, ordered by account login",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GithubInstallations"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read"
+      }
+    },
     "/api/graph": {
       "get": {
         "operationId": "get_api_graph",
@@ -9608,7 +9764,10 @@
           "agent_cr_name": {
             "type": ["string", "null"]
           },
-          "spec": {}
+          "spec": {},
+          "git_credential": {
+            "type": "string"
+          }
         },
         "required": [
           "station_run_id",
@@ -9617,7 +9776,8 @@
           "node_id",
           "iteration",
           "agent_cr_name",
-          "spec"
+          "spec",
+          "git_credential"
         ],
         "additionalProperties": false
       },
@@ -11817,6 +11977,118 @@
           "iterations"
         ],
         "additionalProperties": false
+      },
+      "GitCredential": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          }
+        },
+        "required": ["username", "password"],
+        "additionalProperties": false
+      },
+      "GithubInstallation": {
+        "type": "object",
+        "properties": {
+          "installation_id": {
+            "type": "string"
+          },
+          "account_login": {
+            "type": "string"
+          },
+          "account_type": {
+            "type": "string",
+            "enum": ["Organization", "User"]
+          },
+          "repository_selection": {
+            "type": "string",
+            "enum": ["all", "selected"]
+          },
+          "suspended_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "installed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "installation_id",
+          "account_login",
+          "account_type",
+          "repository_selection",
+          "suspended_at",
+          "installed_at",
+          "updated_at"
+        ],
+        "additionalProperties": false
+      },
+      "GithubInstallations": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "installation_id": {
+              "type": "string"
+            },
+            "account_login": {
+              "type": "string"
+            },
+            "account_type": {
+              "type": "string",
+              "enum": ["Organization", "User"]
+            },
+            "repository_selection": {
+              "type": "string",
+              "enum": ["all", "selected"]
+            },
+            "suspended_at": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "installed_at": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "updated_at": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          "required": [
+            "installation_id",
+            "account_login",
+            "account_type",
+            "repository_selection",
+            "suspended_at",
+            "installed_at",
+            "updated_at"
+          ],
+          "additionalProperties": false
+        }
       },
       "GraphBrowse": {
         "type": "object",
