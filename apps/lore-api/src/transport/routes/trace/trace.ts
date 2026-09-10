@@ -22,7 +22,7 @@ import { zodValidate } from "../../http/zod-validate.js";
 const TraceQuery = z.object({
   path: z.string().max(1024).optional(),
   ranges: z.string().max(200).optional(),
-  assemblyRunId: z.string().max(64).optional(),
+  branch: z.string().max(255).optional(),
 });
 
 type TraceQuery = z.infer<typeof TraceQuery>;
@@ -89,7 +89,7 @@ const NO_PATH_KINDS: Partial<
   graph: graphWithFeatures,
 };
 
-// `ranges` narrows the covered file to spans; `assemblyRunId` reads that run's branch overlay instead of main.
+// `ranges` narrows the covered file to spans; `branch` reads that branch's overlay instead of main.
 async function testsCoveringResult(
   trace: Trace,
   filePath: string,
@@ -98,7 +98,7 @@ async function testsCoveringResult(
   const ranges = parseRanges(query.ranges ?? "");
   const target = { file: filePath, ...(ranges.length ? { ranges } : {}) };
 
-  return { tests: await trace.testsCovering(target, query.assemblyRunId) };
+  return { tests: await trace.testsCovering(target, query.branch) };
 }
 
 // Kinds gated behind the ?path= required-query check below.

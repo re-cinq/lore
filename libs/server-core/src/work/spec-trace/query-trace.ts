@@ -169,8 +169,8 @@ export interface QueryTraceArgs {
   failures_touching?: string;
   /** "10-20,30-40": narrows `tests_covering` to spans of that file. */
   ranges?: string;
-  /** Reads that run's branch overlay instead of main. */
-  assembly_run_id?: string;
+  /** Reads that branch's overlay instead of main. */
+  branch?: string;
 }
 
 export interface QueryTraceDeps {
@@ -264,7 +264,7 @@ function formatProxyFailure(
   return `Lore API unreachable for lore-query-trace: ${result.detail}.${scopeHint}`;
 }
 
-/** Which tests exercise a source span — the run's branch overlay when `assembly_run_id` is given, else main. */
+/** Which tests exercise a source span — that branch's overlay when `branch` is given, else main. */
 async function testsCoveringQuery(
   repo: string,
   args: QueryTraceArgs,
@@ -290,8 +290,8 @@ function coveringParams(args: QueryTraceArgs): string {
     params.set("ranges", args.ranges);
   }
 
-  if (args.assembly_run_id) {
-    params.set("assemblyRunId", args.assembly_run_id);
+  if (args.branch) {
+    params.set("branch", args.branch);
   }
 
   return params.toString();

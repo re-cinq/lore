@@ -6,7 +6,7 @@ import type { CoveringTest } from "../../spec-trace/tests-covering.js";
 interface Call {
   repo: string;
   target: { file: string; ranges?: [number, number][] };
-  assemblyRunId?: string;
+  branch?: string;
 }
 
 function viewOver(calls: Call[], answer: CoveringTest[] = []) {
@@ -14,9 +14,9 @@ function viewOver(calls: Call[], answer: CoveringTest[] = []) {
     testsCovering: async (
       repo: string,
       target: Call["target"],
-      assemblyRunId?: string,
+      branch?: string,
     ) => {
-      calls.push({ repo, target, assemblyRunId });
+      calls.push({ repo, target, branch });
 
       return answer;
     },
@@ -26,24 +26,24 @@ function viewOver(calls: Call[], answer: CoveringTest[] = []) {
 }
 
 describe("TraceView.testsCovering", () => {
-  it("binds the view's repo and forwards target plus run id to the port", async () => {
+  it("binds the view's repo and forwards target plus branch to the port", async () => {
     const calls: Call[] = [];
 
     await viewOver(calls).testsCovering(
       { file: "src/a.ts", ranges: [[1, 9]] },
-      "run-7",
+      "feat/x",
     );
 
     expect(calls).toEqual([
       {
         repo: "o/r",
         target: { file: "src/a.ts", ranges: [[1, 9]] },
-        assemblyRunId: "run-7",
+        branch: "feat/x",
       },
     ]);
   });
 
-  it("returns the port's covering tests unchanged when no run id narrows the read", async () => {
+  it("returns the port's covering tests unchanged when no branch narrows the read", async () => {
     const answer: CoveringTest[] = [
       { testFile: "src/a.test.ts", origin: "main" },
     ];

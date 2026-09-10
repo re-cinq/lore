@@ -338,7 +338,7 @@ describe("runQueryTrace tests_covering", () => {
     expect(out).toBe("No tests cover src/a.ts.");
   });
 
-  it("passes assembly_run_id and ranges through to the proxied url, url-encoded", async () => {
+  it("passes branch and ranges through to the proxied url, url-encoded", async () => {
     let requested = "";
 
     await runQueryTrace(
@@ -346,7 +346,7 @@ describe("runQueryTrace tests_covering", () => {
         repo: "o/r",
         tests_covering: "src/a b.ts",
         ranges: "10-20,30-40",
-        assembly_run_id: "run-7",
+        branch: "feat/x",
       },
       {
         proxyGet: async (p) => {
@@ -359,7 +359,7 @@ describe("runQueryTrace tests_covering", () => {
     );
 
     expect(requested).toBe(
-      "/api/repos/o/r/trace/tests-covering?path=src%2Fa+b.ts&ranges=10-20%2C30-40&assemblyRunId=run-7",
+      "/api/repos/o/r/trace/tests-covering?path=src%2Fa+b.ts&ranges=10-20%2C30-40&branch=feat%2Fx",
     );
   });
 

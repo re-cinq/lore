@@ -62,10 +62,10 @@ describe("GET /api/repos/:owner/:repo/trace/tests-covering", () => {
     });
   });
 
-  it("passes parsed ranges and the assembly run id to the port", async () => {
+  it("passes parsed ranges and the branch to the port", async () => {
     const testsCovering = fakeTrace();
 
-    await get(`${base}?path=src/a.ts&ranges=10-20,30-40&assemblyRunId=run-7`);
+    await get(`${base}?path=src/a.ts&ranges=10-20,30-40&branch=feat%2Fx`);
 
     expect(testsCovering).toHaveBeenCalledWith(
       {
@@ -75,7 +75,7 @@ describe("GET /api/repos/:owner/:repo/trace/tests-covering", () => {
           [30, 40],
         ],
       },
-      "run-7",
+      "feat/x",
     );
   });
 
