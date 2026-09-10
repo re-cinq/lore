@@ -1,6 +1,10 @@
 import { enforceTrue } from "../../../lib/enforce.js";
 import { randomUUID } from "node:crypto";
-import { resolveResumePrefix } from "./resume.js";
+import {
+  assertSubjectFree,
+  forkSubjectKey,
+  resolveResumePrefix,
+} from "./resume.js";
 import { RUN_START_EVENT } from "./run-events.js";
 import type { RunGraph } from "../../../domain/run-graph.js";
 import {
@@ -78,14 +82,28 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
     if (!resumeFrom) {
       return { source: null, inherited: [] };
     }
-    const source = await this.getById(resumeFrom.lineId);
-    const inherited = resolveResumePrefix(
+    const { source, prefix } = resolveResumePrefix(
       input,
-      source,
+      await this.getById(resumeFrom.lineId),
       await this.listStationRuns(resumeFrom.lineId),
-    ).prefix;
+    );
 
-    return { source, inherited };
+    await this.assertForkSubjectFree(input, source);
+
+    return { source, inherited: prefix };
+  }
+
+  /** The double's stand-in for the Pg in-flight index: a fork may not take over a subject another open run already holds. */
+  private async assertForkSubjectFree(
+    input: AssemblyRunStartInput,
+    source: AssemblyRunRecord,
+  ): Promise<void> {
+    const subjectKey = forkSubjectKey(input, source);
+    const holder = subjectKey
+      ? await this.findOpenBySubject(input.repo, subjectKey)
+      : null;
+
+    assertSubjectFree(input.repo, subjectKey, holder);
   }
 
   private recordStartEvent(
@@ -112,8 +130,8 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
   private async findOpenRunForStart(
     input: AssemblyRunStartInput,
   ): Promise<OpenRunSummary | null> {
-    // Start-or-JOIN: a subject already in flight yields its run rather than a second one; the check IS the enforcement here since the double is single-threaded (Pg reaches the same answer via unique-violation).
-    if (!input.subjectKey) {
+    // Start-or-JOIN: a subject already in flight yields its run rather than a second one; the check IS the enforcement here since the double is single-threaded (Pg reaches the same answer via unique-violation). A fork never joins — like the Pg adapter, it is refused by resolveFork instead.
+    if (input.resumeFrom || !input.subjectKey) {
       return null;
     }
 
