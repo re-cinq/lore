@@ -344,10 +344,14 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
 
   // ── auth ────────────────────────────────────────────────────────────
 
-  /** GitHub App installation token for the git-auth helper's clone/push credential; not on GitHubPort — consumers depend on the structural shape, keeping the Project facade token-free. */
-  async getInstallationToken(): Promise<string> {
+  /** GitHub App installation token for the git-auth helper's clone/push credential; not on GitHubPort — consumers depend on the structural shape, keeping the Project facade token-free. Always FRESH (octokit caches tokens up to 59 minutes, so a cached one can die mid-run) and, given a repo, scoped to that one repo. */
+  async getInstallationToken(repo?: string): Promise<string> {
     const ok = await this.octo();
-    const auth = (await ok.auth({ type: "installation" })) as { token: string };
+    const auth = (await ok.auth({
+      type: "installation",
+      refresh: true,
+      ...(repo ? { repositoryNames: [repo.split("/")[1]] } : {}),
+    })) as { token: string };
 
     return auth.token;
   }
