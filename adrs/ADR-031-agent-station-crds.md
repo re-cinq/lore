@@ -399,3 +399,8 @@ sits in a Secret at all.
   names, and only while the station run it names is still open. ([validated by grants re-cinq/bowman-ui to the still-open station run its credential names](libs/shared/src/domain/github-credential/grant.test.ts#L11), [refuses the station run that already finished with success as run-closed](libs/shared/src/domain/github-credential/grant.test.ts#L21), [refuses re-cinq/lore to a credential issued for re-cinq/bowman-ui as repo-mismatch](libs/shared/src/domain/github-credential/grant.test.ts#L31))
 - The broker looks the station run up by the id its credential names, and
   both stores answer that lookup the same way. ([validated by findStationRunById returns the open review visit its station run id names](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1178))
+- `POST /api/github-credentials` hands an open run a token for its repo in the
+  git credential-helper shape (`x-access-token` plus the token), minted at the
+  moment git asks. ([validated by hands the open fix-ci visit a fresh token for re-cinq/bowman-ui as the git username/password pair](apps/lore-api/src/transport/routes/github-credentials/github-credentials.test.ts#L29))
+- A credential the broker cannot verify gets a 401 naming why, and no token is
+  minted. ([validated by refuses a credential signed with another key with 401 bad-signature and mints nothing](apps/lore-api/src/transport/routes/github-credentials/github-credentials.test.ts#L44))

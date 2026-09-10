@@ -40,4 +40,36 @@ describe("handleGitCredential", () => {
       body: { username: "x-access-token", password: "ghs_fresh" },
     });
   });
+
+  it("refuses a credential signed with another key with 401 bad-signature and mints nothing", async () => {
+    const { runs } = await openVisit("re-cinq/bowman-ui");
+    const forged = signRunCredential(
+      {
+        stationRunId: "any-run",
+        repo: "re-cinq/bowman-ui",
+        expiresAt: "2026-09-10T18:00:00.000Z",
+      },
+      "another-key",
+    );
+    const minted: string[] = [];
+    const result = await handleGitCredential(
+      {
+        runs,
+        key: KEY,
+        now: NOW,
+        mint: async (repo) => {
+          minted.push(repo);
+
+          return "ghs_leaked";
+        },
+      },
+      forged,
+      { repo: "re-cinq/bowman-ui" },
+    );
+
+    expect({ result, minted }).toEqual({
+      result: { code: 401, body: { error: "bad-signature" } },
+      minted: [],
+    });
+  });
 });
