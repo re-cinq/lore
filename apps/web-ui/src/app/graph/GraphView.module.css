@@ -1,18 +1,18 @@
 .intro {
-  margin-bottom: 12px;
+  margin-bottom: var(--space-4);
 }
 
 .statRow {
   display: flex;
-  gap: 2rem;
-  margin-bottom: 1.5rem;
+  gap: var(--space-7);
+  margin-bottom: var(--space-6);
   flex-wrap: wrap;
 }
 
 .filterRow {
-  margin-bottom: 1rem;
+  margin-bottom: var(--space-5);
   display: flex;
-  gap: 0.5rem;
+  gap: var(--space-3);
   flex-wrap: wrap;
 }
 
@@ -23,11 +23,11 @@
 .emptyCell {
   text-align: center;
   color: var(--text-muted);
-  padding: 24px;
+  padding: var(--space-6);
 }
 
 .invalidToggle {
-  margin-bottom: 0.5rem;
+  margin-bottom: var(--space-3);
 }
 
 .invalidToggleLink {

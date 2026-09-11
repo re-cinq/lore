@@ -31,10 +31,10 @@
 @mixin log-block($max-height: 240px) {
   max-height: $max-height;
   overflow: auto;
-  padding: 10px;
+  padding: var(--space-4);
   background: var(--bg-elevated);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   font-size: var(--fs-xs);
   white-space: pre-wrap;
   word-break: break-word;

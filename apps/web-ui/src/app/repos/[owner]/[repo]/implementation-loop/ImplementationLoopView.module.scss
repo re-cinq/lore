@@ -2,40 +2,40 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 1rem;
+  margin-bottom: var(--space-5);
 }
 
 .section {
-  margin-bottom: 1.5rem;
+  margin-bottom: var(--space-6);
 }
 
 .ticket {
   display: flex;
   align-items: baseline;
-  gap: 0.6rem;
-  padding: 0.4rem 0;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
 }
 
 .priority {
-  font-size: 0.8rem;
+  font-size: var(--fs-xs);
   opacity: 0.8;
 }
 
 .state {
   margin-left: auto;
-  font-size: 0.8rem;
+  font-size: var(--fs-xs);
   opacity: 0.7;
 }
 
 .howTo {
   max-width: 60rem;
-  margin-bottom: 1.5rem;
+  margin-bottom: var(--space-6);
 }
 
 .miniPipeline {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
+  gap: var(--space-2);
   text-decoration: none;
 }
 
@@ -47,30 +47,30 @@
 }
 
 .success {
-  background: #2da160;
+  background: var(--success);
 }
 
 .failed {
-  background: #dd2b0e;
+  background: var(--danger);
 }
 
 .changes_requested {
-  background: #c17d10;
+  background: var(--warning);
 }
 
 .running {
-  background: #1f75cb;
+  background: var(--info);
   animation: miniPulse 1.2s ease-in-out infinite;
 }
 
 .waiting {
   background: transparent;
-  border: 2px solid #1f75cb;
+  border: 2px solid var(--info);
 }
 
 .pending {
   background: transparent;
-  border: 2px solid #999;
+  border: 2px solid var(--chart-neutral);
 }
 
 @keyframes miniPulse {
@@ -85,14 +85,14 @@
 
   th {
     text-align: left;
-    font-size: 0.85rem;
-    padding: 0.4rem 0.6rem;
-    border-bottom: 2px solid rgba(128, 128, 128, 0.3);
+    font-size: var(--fs-sm);
+    padding: var(--space-3) var(--space-3);
+    border-bottom: 2px solid var(--border);
   }
 
   td {
-    padding: 0.5rem 0.6rem;
-    border-bottom: 1px solid rgba(128, 128, 128, 0.15);
+    padding: var(--space-3) var(--space-3);
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
     vertical-align: middle;
   }
 }
@@ -108,39 +108,39 @@
 
 .statusBadge {
   display: inline-block;
-  padding: 0.1rem 0.6rem;
-  border-radius: 1rem;
-  font-size: 0.8rem;
-  color: #fff;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-lg);
+  font-size: var(--fs-xs);
+  color: var(--text-on-accent);
 }
 
 .tone_success {
-  background: #2da160;
+  background: var(--success);
 }
 
 .tone_danger {
-  background: #dd2b0e;
+  background: var(--danger);
 }
 
 .tone_info {
-  background: #1f75cb;
+  background: var(--info);
 }
 
 .tone_neutral {
-  background: #737278;
+  background: var(--chart-neutral);
 }
 
 .timeAgo {
   display: block;
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   opacity: 0.7;
-  margin-top: 0.2rem;
+  margin-top: var(--space-2);
 }
 
 .errorLine {
-  margin: 0.3rem 0 0;
-  font-size: 0.8rem;
-  color: #dd2b0e;
+  margin: var(--space-2) 0 0;
+  font-size: var(--fs-xs);
+  color: var(--danger);
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;

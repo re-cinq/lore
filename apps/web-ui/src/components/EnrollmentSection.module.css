@@ -25,8 +25,8 @@
   flex-basis: 100%;
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-left: 22px;
+  gap: var(--space-3);
+  margin-left: var(--space-6);
   font-size: var(--fs-xs);
   min-width: 0;
 }
@@ -36,7 +36,7 @@
 
 .commandRow {
   display: flex;
-  gap: 8px;
+  gap: var(--space-3);
   align-items: flex-start;
 }
 
@@ -46,32 +46,32 @@
 }
 
 .step {
-  margin-bottom: 14px;
+  margin-bottom: var(--space-5);
 }
 
 .stepLabel {
-  margin-bottom: 2px;
+  margin-bottom: var(--space-1);
 }
 
 .stepNote {
   font-size: var(--fs-xs);
-  margin-bottom: 6px;
+  margin-bottom: var(--space-3);
 }
 
 .altLabel {
   font-size: var(--fs-xs);
-  margin: 6px 0 4px;
+  margin: var(--space-3) 0 var(--space-2);
 }
 
 .section {
-  margin-bottom: 16px;
+  margin-bottom: var(--space-5);
 }
 
 .header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
 }
 
 .heading {
@@ -87,20 +87,20 @@
   font-size: var(--fs-xs);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  margin-bottom: 6px;
+  margin-bottom: var(--space-3);
 }
 
 .checks {
-  margin-bottom: 20px;
+  margin-bottom: var(--space-6);
 }
 
 .steps {
-  padding-left: 1.4em;
+  padding-left: var(--space-6);
   margin: 0;
 }
 
 .footnote {
   font-size: var(--fs-xs);
-  margin-top: 8px;
+  margin-top: var(--space-3);
   margin-bottom: 0;
 }

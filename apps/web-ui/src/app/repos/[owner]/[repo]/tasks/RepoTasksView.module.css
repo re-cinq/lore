@@ -7,7 +7,7 @@
 .heading {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-3);
 }
 
 .title {
@@ -15,8 +15,8 @@
 }
 
 .intro {
-  margin-top: -4px;
-  margin-bottom: 16px;
+  margin-top: calc(var(--space-2) * -1);
+  margin-bottom: var(--space-5);
 }
 
 .emptyCell {

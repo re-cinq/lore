@@ -1,5 +1,5 @@
 .summary {
-  margin-bottom: 16px;
+  margin-bottom: var(--space-5);
 }
 
 .valueCell {
@@ -16,17 +16,17 @@
 
 .valueActions {
   display: flex;
-  gap: 8px;
-  margin-top: 4px;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
 }
 
 .valueAction {
-  padding: 2px 8px;
+  padding: var(--space-1) var(--space-3);
   font-size: var(--fs-xs);
 }
 
 .emptyCell {
   text-align: center;
   color: var(--text-muted);
-  padding: 24px;
+  padding: var(--space-6);
 }

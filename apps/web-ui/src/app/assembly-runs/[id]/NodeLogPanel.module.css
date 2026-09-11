@@ -3,12 +3,12 @@
 .error {
   color: var(--danger);
   font-size: var(--fs-sm);
-  margin: 8px 12px;
+  margin: var(--space-3) var(--space-4);
 }
 
 .placeholder {
   font-style: italic;
-  margin: 8px 12px;
+  margin: var(--space-3) var(--space-4);
 }
 
 .terminal {
@@ -16,9 +16,9 @@
   color: var(--text);
   font-family: var(--font-mono);
   font-size: var(--fs-xs);
-  line-height: 1.5;
-  padding: 16px;
-  margin: 8px 12px 12px;
+  line-height: var(--lh-base);
+  padding: var(--space-5);
+  margin: var(--space-3) var(--space-4) var(--space-4);
   border-radius: var(--radius-sm);
   overflow-y: auto;
   max-height: 500px;
@@ -30,5 +30,5 @@
 .toggleRow {
   display: flex;
   justify-content: flex-end;
-  margin: 8px 12px 4px;
+  margin: var(--space-3) var(--space-4) var(--space-2);
 }

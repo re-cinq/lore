@@ -1,15 +1,15 @@
 /* Structured failure metadata panel — co-located with FailurePanel.tsx. */
 
 .card {
-  margin-top: 16px;
+  margin-top: var(--space-5);
   border-left: 3px solid var(--danger);
 }
 
 .heading {
-  margin: 0 0 8px 0;
+  margin: 0 0 var(--space-3) 0;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-3);
 }
 
 .headingLabel {
@@ -17,19 +17,19 @@
 }
 
 .error {
-  margin: 0 0 8px 0;
+  margin: 0 0 var(--space-3) 0;
 }
 
 .hint {
-  margin: 0 0 8px 0;
+  margin: 0 0 var(--space-3) 0;
 }
 
 .details {
-  margin-top: 8px;
+  margin-top: var(--space-3);
 }
 
 .detail {
-  margin-bottom: 8px;
+  margin-bottom: var(--space-3);
 }
 
 .detailStep {
@@ -37,15 +37,15 @@
 }
 
 .detailBadge {
-  margin-left: 8px;
+  margin-left: var(--space-3);
 }
 
 .detailError {
-  margin: 4px 0 0 0;
+  margin: var(--space-2) 0 0 0;
   font-size: var(--fs-sm);
 }
 
 .detailHint {
-  margin: 2px 0 0 0;
+  margin: var(--space-1) 0 0 0;
   font-size: var(--fs-xs);
 }

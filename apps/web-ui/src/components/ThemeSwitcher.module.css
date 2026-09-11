@@ -1,7 +1,7 @@
 .switcher {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--space-5);
 }
 
 .group {
@@ -12,9 +12,9 @@
 
 .legend {
   padding: 0;
-  margin-bottom: 6px;
+  margin-bottom: var(--space-3);
   font-size: var(--fs-xs);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -33,11 +33,11 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: var(--space-3);
   flex: 1;
-  padding: 7px 14px;
+  padding: var(--space-3) var(--space-5);
   font-size: var(--fs-sm);
-  font-weight: 500;
+  font-weight: var(--fw-medium);
   color: var(--text-muted);
   cursor: pointer;
   white-space: nowrap;

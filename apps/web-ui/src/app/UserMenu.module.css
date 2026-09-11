@@ -1,15 +1,15 @@
 .menu {
-  padding: 16px;
+  padding: var(--space-5);
   border-top: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-3);
 }
 
 .identity {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-4);
 }
 
 .avatar {
@@ -30,6 +30,6 @@
 
 .signOut {
   width: 100%;
-  padding: 6px 12px;
+  padding: var(--space-3) var(--space-4);
   font-size: var(--fs-sm);
 }

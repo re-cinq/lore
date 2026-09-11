@@ -1,15 +1,15 @@
 .tests,
 .facets {
   list-style: none;
-  margin: 0.25rem 0 0;
+  margin: var(--space-2) 0 0;
   padding: 0;
   font-size: var(--fs-sm);
 }
 .test,
 .facets li {
   display: flex;
-  gap: 0.6rem;
-  padding: 0.3rem 0.6rem;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
   border-top: 1px solid var(--border);
   align-items: baseline;
 }
@@ -22,7 +22,7 @@
   width: 1.2rem;
   text-align: center;
   font-family: var(--font-mono);
-  font-weight: 700;
+  font-weight: var(--fw-bold);
 }
 .pass {
   color: var(--success);
@@ -36,7 +36,7 @@
 .testBody {
   display: flex;
   flex-direction: column;
-  gap: 0.1rem;
+  gap: var(--space-1);
   min-width: 0;
 }
 .testName {
@@ -46,7 +46,7 @@
 }
 .separator {
   color: var(--text-muted);
-  margin: 0 0.15rem;
+  margin: 0 var(--space-1);
 }
 .behaviour {
   color: var(--text);
@@ -57,14 +57,14 @@
   font-style: italic;
 }
 .facets {
-  margin-top: 0.6rem;
+  margin-top: var(--space-3);
   border-top: 1px dashed var(--border);
 }
 .claim {
   display: grid;
   grid-template-columns: max-content 1fr;
-  gap: 0.35rem 1rem;
-  margin: 0.8rem 0.6rem 0.4rem;
+  gap: var(--space-2) var(--space-5);
+  margin: var(--space-4) var(--space-3) var(--space-3);
   font-size: var(--fs-sm);
 }
 .claim dt {
@@ -79,7 +79,7 @@
 .strategy {
   font-family: var(--font-mono);
   font-size: var(--fs-xs);
-  padding: 0 0.35rem;
+  padding: 0 var(--space-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg-hover);

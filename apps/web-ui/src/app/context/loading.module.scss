@@ -1,8 +1,8 @@
 @use "styles/tokens" as t;
 
 .chips {
-  @include t.row(8px);
-  margin-top: 16px;
+  @include t.row(var(--space-3));
+  margin-top: var(--space-5);
 }
 
 .chip {
@@ -10,6 +10,6 @@
 }
 
 .card {
-  @include t.stack(8px);
-  margin-top: 12px;
+  @include t.stack(var(--space-3));
+  margin-top: var(--space-4);
 }

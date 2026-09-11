@@ -1,19 +1,19 @@
 .panel {
-  margin-block: 1.5rem;
+  margin-block: var(--space-6);
 }
 
 .header {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 0.5rem;
+  gap: var(--space-4);
+  margin-bottom: var(--space-3);
 }
 
 .chip {
-  border-radius: 999px;
-  padding: 0.1rem 0.6rem;
+  border-radius: var(--radius-pill);
+  padding: var(--space-1) var(--space-3);
   font-size: var(--fs-xs);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   border: 1px solid transparent;
 }
 
@@ -47,7 +47,7 @@
 .workbench {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: var(--space-6);
 }
 .workbench > * {
   min-width: 0;
@@ -57,11 +57,11 @@
 }
 
 .inspector {
-  margin-top: 0.5rem;
+  margin-top: var(--space-3);
 }
 
 .hint {
-  margin-top: 0.5rem;
+  margin-top: var(--space-3);
   color: var(--text-muted);
   font-size: var(--fs-sm);
   font-style: italic;
@@ -69,8 +69,8 @@
 
 .outcomesToggle {
   display: inline-block;
-  margin: 0.25rem 0 1rem;
-  padding: 0.35rem 0.75rem;
+  margin: var(--space-2) 0 var(--space-5);
+  padding: var(--space-2) var(--space-4);
   background: none;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm, 6px);

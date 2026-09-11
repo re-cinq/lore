@@ -11,21 +11,21 @@
   line-height: inherit;
 }
 .agentProse .markdown :is(p, ul, ol, blockquote, pre, table) {
-  margin: 0 0 0.6em;
+  margin: 0 0 var(--space-3);
 }
 .agentProse .markdown :is(h1, h2, h3, h4, h5, h6) {
-  margin: 0.8em 0 0.4em;
+  margin: var(--space-4) 0 var(--space-3);
   padding-bottom: 0;
   border-bottom: none;
-  font-size: 1.1em;
+  font-size: var(--fs-md);
 }
 .agentProse .markdown code {
   background: var(--bg-hover);
 }
 
 .card {
-  margin: 0.5rem 0 0.25rem;
-  padding: 0.5rem 0.75rem;
+  margin: var(--space-3) 0 var(--space-2);
+  padding: var(--space-3) var(--space-4);
   border: 1px solid var(--tone);
   border-left-width: 4px;
   border-radius: var(--radius-sm);
@@ -48,35 +48,35 @@
 .cardHeader {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: var(--space-3);
 }
 .cardTitle {
   color: var(--text-muted);
   font-size: var(--fs-2xs);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 .badge {
-  padding: 0 0.5rem;
+  padding: 0 var(--space-3);
   border: 1px solid var(--tone);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   color: var(--tone);
-  font-weight: 700;
+  font-weight: var(--fw-bold);
 }
 
 .extras {
   display: grid;
   grid-template-columns: max-content 1fr;
-  gap: 0.25rem 0.9rem;
-  margin: 0.5rem 0 0;
+  gap: var(--space-2) var(--space-5);
+  margin: var(--space-3) 0 0;
 }
 .extra {
   display: contents;
 }
 .extra dt {
   color: var(--text-muted);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
 }
 .extra dd {
   margin: 0;
@@ -85,7 +85,7 @@
 
 .payload {
   display: block;
-  margin-top: 0.4rem;
+  margin-top: var(--space-3);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   color: var(--danger);

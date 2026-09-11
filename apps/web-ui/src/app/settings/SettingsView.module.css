@@ -3,19 +3,19 @@
 
 .appearanceCard {
   max-width: 600px;
-  margin-bottom: 24px;
+  margin-bottom: var(--space-6);
 }
 
 .appearanceNote {
   font-size: var(--fs-xs);
   margin-top: 0;
-  margin-bottom: 12px;
+  margin-bottom: var(--space-4);
 }
 
 .statsRow {
   display: flex;
-  gap: 16px;
-  margin-bottom: 24px;
+  gap: var(--space-5);
+  margin-bottom: var(--space-6);
 }
 
 .statCard {
@@ -24,7 +24,7 @@
 
 .statValue {
   font-size: var(--fs-xl);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
 }
 
 .form {
@@ -33,11 +33,11 @@
 
 .fieldNote {
   font-size: var(--fs-xs);
-  margin-top: 2px;
+  margin-top: var(--space-1);
 }
 
 .labelSpaced {
-  margin-top: 16px;
+  margin-top: var(--space-5);
 }
 
 .tokenInput {
@@ -47,32 +47,32 @@
 
 .actions {
   display: flex;
-  gap: 8px;
-  margin-top: 16px;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
 }
 
 .regenerateForm {
-  margin-top: 8px;
+  margin-top: var(--space-3);
 }
 
 .regenerateButton {
   font-size: var(--fs-xs);
-  padding: 6px 12px;
+  padding: var(--space-3) var(--space-4);
 }
 
 .regenerateNote {
-  margin-left: 8px;
+  margin-left: var(--space-3);
   font-size: var(--fs-xs);
 }
 
 .sectionHeading {
-  margin-top: 32px;
+  margin-top: var(--space-7);
 }
 
 .checkboxLabel {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-3);
 }
 
 .reposTextarea {

@@ -3,17 +3,17 @@
 // Both controls are the same bordered surface; only their padding and the way
 // they take up the row differ.
 @mixin field {
-  padding: 4px 10px;
+  padding: var(--space-2) var(--space-4);
   background: var(--bg-surface);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   color: var(--text);
 }
 
 .controls {
-  @include t.row(8px);
+  @include t.row(var(--space-3));
   flex-wrap: wrap;
-  margin-bottom: 12px;
+  margin-bottom: var(--space-4);
 }
 
 .search {
@@ -24,5 +24,5 @@
 
 .sort {
   @include field;
-  padding: 4px 8px;
+  padding: var(--space-2) var(--space-3);
 }

@@ -12,16 +12,16 @@
 
 .title {
   color: var(--text);
-  margin-bottom: 24px;
+  margin-bottom: var(--space-6);
 }
 
 .subtitle {
   color: var(--text-muted);
-  margin-bottom: 24px;
+  margin-bottom: var(--space-6);
 }
 
 .button {
-  padding: 12px 24px;
+  padding: var(--space-4) var(--space-6);
   background: var(--bg-surface);
   color: var(--text);
   border: 1px solid var(--border);

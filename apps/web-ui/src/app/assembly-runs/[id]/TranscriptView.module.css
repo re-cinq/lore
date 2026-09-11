@@ -2,18 +2,18 @@
 
 .hint {
   margin: 0;
-  padding: 0 0.6rem 0.35rem;
+  padding: 0 var(--space-3) var(--space-2);
   font-size: var(--fs-xs);
 }
 
 .placeholder {
   margin: 0;
-  padding: 0.5rem 0.6rem;
+  padding: var(--space-3) var(--space-3);
 }
 
 .error {
   margin: 0;
-  padding: 0.5rem 0.6rem;
+  padding: var(--space-3) var(--space-3);
   font-size: var(--fs-xs);
   color: var(--danger);
   background: var(--danger-bg);
@@ -21,7 +21,7 @@
 
 .notice {
   margin: 0;
-  padding: 0.35rem 0.6rem;
+  padding: var(--space-2) var(--space-3);
   font-size: var(--fs-xs);
   color: var(--warning);
   background: var(--warning-bg);
@@ -33,24 +33,24 @@
 /* Conversation mode: the terminal. */
 .terminal {
   list-style: none;
-  margin: 0.25rem 0.6rem 0.6rem;
-  padding: 0.75rem;
+  margin: var(--space-2) var(--space-3) var(--space-3);
+  padding: var(--space-4);
   background: var(--bg);
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   font-family: var(--font-mono);
   font-size: var(--fs-xs);
-  line-height: 1.55;
+  line-height: var(--lh-base);
 }
 .row,
 .segmentRow {
   display: block;
-  padding: 0.1rem 0;
+  padding: var(--space-1) 0;
 }
 .segmentRow {
-  margin-top: 0.6rem;
-  padding-top: 0.4rem;
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
   border-top: 1px dashed var(--border);
 }
 .segmentRow:first-child {
@@ -61,7 +61,7 @@
 /* The clock heads the entry it belongs to. It prints only when the second changes, so the space above it separates one exchange from the next. */
 .time {
   display: block;
-  margin-top: 0.45rem;
+  margin-top: var(--space-3);
   color: var(--text-muted);
   font-size: var(--fs-2xs);
   white-space: nowrap;
@@ -76,7 +76,7 @@
 }
 .segmentLabel {
   color: var(--text-muted);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   font-size: var(--fs-2xs);
@@ -102,8 +102,8 @@
   cursor: pointer;
 }
 .resultBody {
-  margin: 0.3rem 0 0.5rem 1rem;
-  padding: 0.4rem 0.5rem;
+  margin: var(--space-2) 0 var(--space-3) var(--space-5);
+  padding: var(--space-3) var(--space-3);
   max-height: 24rem;
   overflow: auto;
   white-space: pre-wrap;

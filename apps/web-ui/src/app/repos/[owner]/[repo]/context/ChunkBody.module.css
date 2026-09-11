@@ -7,9 +7,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--space-4);
   flex-wrap: wrap;
-  margin-bottom: 6px;
+  margin-bottom: var(--space-3);
   font-family: var(--font-mono);
   font-size: var(--fs-xs);
   color: var(--text-muted);

@@ -1,13 +1,13 @@
 .form {
   max-width: 500px;
-  margin-top: 24px;
+  margin-top: var(--space-6);
 }
 
 .hint {
   font-size: var(--fs-xs);
-  margin-top: 4px;
+  margin-top: var(--space-2);
 }
 
 .submit {
-  margin-top: 12px;
+  margin-top: var(--space-4);
 }

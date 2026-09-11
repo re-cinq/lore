@@ -3,8 +3,8 @@
 
 .statsRow {
   display: flex;
-  gap: 16px;
-  margin-bottom: 24px;
+  gap: var(--space-5);
+  margin-bottom: var(--space-6);
   flex-wrap: wrap;
 }
 

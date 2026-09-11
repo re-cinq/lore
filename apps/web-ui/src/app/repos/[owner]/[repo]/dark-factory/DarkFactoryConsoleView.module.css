@@ -1,17 +1,17 @@
 .stateRow {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 0.5rem;
+  gap: var(--space-4);
+  margin-bottom: var(--space-3);
 }
 
 .badge {
   display: inline-block;
-  padding: 0.15rem 0.6rem;
+  padding: var(--space-1) var(--space-3);
   border: 1px solid transparent;
   border-radius: var(--radius-pill);
   font-size: var(--fs-xs);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
@@ -37,20 +37,20 @@
 .gates {
   display: flex;
   flex-wrap: wrap;
-  gap: 1.25rem;
+  gap: var(--space-6);
   font-size: var(--fs-sm);
-  margin-bottom: 0.5rem;
+  margin-bottom: var(--space-3);
 }
 
 .config {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 0.5rem 1.5rem;
+  gap: var(--space-3) var(--space-6);
   margin: 0;
 }
 
 .config dt {
-  margin-bottom: 0.1rem;
+  margin-bottom: var(--space-1);
 }
 
 .config dd {
@@ -69,7 +69,7 @@
 .feed li {
   display: flex;
   justify-content: space-between;
-  gap: 1rem;
-  padding: 0.4rem 0;
+  gap: var(--space-5);
+  padding: var(--space-3) 0;
   border-bottom: 1px solid var(--border);
 }

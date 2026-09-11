@@ -1,10 +1,10 @@
 .why {
-  margin: 0.6rem 0 0.2rem;
-  padding: 0.5rem 0.7rem;
+  margin: var(--space-3) 0 var(--space-2);
+  padding: var(--space-3) var(--space-4);
   border-left: 3px solid var(--border);
-  border-radius: 0 6px 6px 0;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
   font-size: var(--fs-sm);
-  line-height: 1.45;
+  line-height: var(--lh-base);
 }
 .whyOk {
   border-left-color: var(--success);
@@ -32,17 +32,17 @@
   background: var(--bg-muted, transparent);
 }
 .failures {
-  margin: 0.7rem 0 0;
+  margin: var(--space-4) 0 0;
   border: 1px solid var(--danger);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   overflow: hidden;
 }
 .failuresHead {
-  padding: 0.35rem 0.7rem;
+  padding: var(--space-2) var(--space-4);
   background: var(--danger-bg);
   color: var(--danger);
   font-size: var(--fs-xs);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
@@ -55,8 +55,8 @@
 }
 .failItem {
   display: flex;
-  gap: 0.6rem;
-  padding: 0.4rem 0.7rem;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
   border-top: 1px solid var(--border);
   align-items: baseline;
 }
@@ -68,7 +68,7 @@
   font-family: var(--font-mono);
   font-size: var(--fs-xs);
   color: var(--danger);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
 }
 .failDetail {
   font-size: var(--fs-sm);
@@ -79,8 +79,8 @@
 .facts {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
-  gap: 0.5rem 1rem;
-  margin: 0.7rem 0 0;
+  gap: var(--space-3) var(--space-5);
+  margin: var(--space-4) 0 0;
 }
 .fact dt {
   color: var(--text-muted);
@@ -89,7 +89,7 @@
   letter-spacing: 0.03em;
 }
 .fact dd {
-  margin: 0.1rem 0 0;
+  margin: var(--space-1) 0 0;
   font-size: var(--fs-sm);
 }
 .mono {
@@ -97,17 +97,17 @@
   font-size: var(--fs-xs);
 }
 .attempts {
-  margin: 0.7rem 0 0;
+  margin: var(--space-4) 0 0;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   overflow: hidden;
 }
 .attemptsHead {
-  padding: 0.35rem 0.7rem;
+  padding: var(--space-2) var(--space-4);
   background: var(--bg-muted, var(--bg-elevated));
   color: var(--text-muted);
   font-size: var(--fs-xs);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
@@ -118,8 +118,8 @@
 }
 .attemptItem {
   display: flex;
-  gap: 0.6rem;
-  padding: 0.4rem 0.7rem;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
   border-top: 1px solid var(--border);
   align-items: baseline;
   flex-wrap: wrap;
@@ -141,14 +141,14 @@
 
 .files {
   list-style: none;
-  margin: 0.7rem 0 0;
-  padding: 0.6rem 0.7rem;
+  margin: var(--space-4) 0 0;
+  padding: var(--space-3) var(--space-4);
   background: var(--bg-muted, var(--bg-elevated));
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   max-height: 9rem;
   overflow-y: auto;
 }
 .files li {
-  padding: 0.1rem 0;
+  padding: var(--space-1) 0;
   color: var(--text-muted);
 }

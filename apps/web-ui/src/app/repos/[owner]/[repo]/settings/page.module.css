@@ -4,7 +4,7 @@
 .titleRow {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-3);
 }
 
 .title {
@@ -12,8 +12,8 @@
 }
 
 .lede {
-  margin-top: 6px;
-  margin-bottom: 16px;
+  margin-top: var(--space-3);
+  margin-bottom: var(--space-5);
 }
 
 .form {
@@ -25,10 +25,10 @@
 }
 
 .section {
-  margin-top: 24px;
-  margin-bottom: 4px;
+  margin-top: var(--space-6);
+  margin-bottom: var(--space-2);
   border-top: 1px solid var(--border);
-  padding-top: 16px;
+  padding-top: var(--space-5);
 }
 
 .gated {
@@ -37,31 +37,31 @@
   color: var(--warning);
   border: 1px solid var(--warning);
   border-radius: var(--radius-sm);
-  padding: 1px 6px;
-  margin-left: 8px;
+  padding: 1px var(--space-3);
+  margin-left: var(--space-3);
   vertical-align: middle;
 }
 
 .override {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 8px 12px;
-  margin-bottom: 10px;
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-4);
 }
 
 .override legend {
-  font-weight: 600;
-  padding: 0 6px;
+  font-weight: var(--fw-semibold);
+  padding: 0 var(--space-3);
 }
 
 .banner {
-  margin: 12px 0;
+  margin: var(--space-4) 0;
   max-width: 500px;
 }
 
 .savedOk {
   color: var(--success);
-  margin: 4px 0;
+  margin: var(--space-2) 0;
 }
 
 .warn {
@@ -69,8 +69,8 @@
   background: var(--warning-bg);
   border: 1px solid var(--warning);
   border-radius: var(--radius-sm);
-  padding: 8px 12px;
-  margin: 6px 0;
+  padding: var(--space-3) var(--space-4);
+  margin: var(--space-3) 0;
 }
 
 .incidents {

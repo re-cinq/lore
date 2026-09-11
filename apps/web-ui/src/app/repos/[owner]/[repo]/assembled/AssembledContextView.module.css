@@ -5,7 +5,7 @@
 .titleRow {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-3);
 }
 
 .title {
@@ -13,20 +13,20 @@
 }
 
 .lede {
-  margin: 6px 0 12px;
+  margin: var(--space-3) 0 var(--space-4);
 }
 
 .form {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-bottom: 16px;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
 }
 
 .textarea {
   width: 100%;
   resize: vertical;
-  padding: 8px;
+  padding: var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
 }
@@ -34,11 +34,11 @@
 .controls {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-3);
 }
 
 .select {
-  padding: 6px;
+  padding: var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
 }
@@ -50,8 +50,8 @@
 /* Budget summary */
 
 .summary {
-  margin-bottom: 16px;
-  padding: 12px;
+  margin-bottom: var(--space-5);
+  padding: var(--space-4);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--bg-surface);
@@ -61,8 +61,8 @@
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
 }
 
 .spacer {
@@ -70,7 +70,7 @@
 }
 
 .summaryMeta {
-  margin: 0 0 4px;
+  margin: 0 0 var(--space-2);
 }
 
 /* Shared used/total bar */
@@ -91,8 +91,8 @@
 /* Per-section trace card */
 
 .card {
-  margin-bottom: 10px;
-  padding: 10px 12px;
+  margin-bottom: var(--space-4);
+  padding: var(--space-4) var(--space-4);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--bg-surface);
@@ -102,19 +102,19 @@
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-3);
 }
 
 .cardTitle {
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
 }
 
 .barWrap {
-  margin-top: 6px;
+  margin-top: var(--space-3);
 }
 
 .docs {
-  margin-top: 8px;
+  margin-top: var(--space-3);
 }
 
 .docsSummary {
@@ -123,18 +123,18 @@
 
 .docList {
   list-style: none;
-  margin: 8px 0 0;
+  margin: var(--space-3) 0 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-3);
 }
 
 .docItem {
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-3);
 }
 
 /* Assembled prompt */
@@ -142,8 +142,8 @@
 .promptHead {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-top: 16px;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
 }
 
 .promptTitle {
@@ -151,12 +151,12 @@
 }
 
 .sourcesTitle {
-  margin-bottom: 8px;
+  margin-bottom: var(--space-3);
 }
 
 .fallback {
-  margin-top: 12px;
-  padding: 16px;
+  margin-top: var(--space-4);
+  padding: var(--space-5);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--bg-surface);

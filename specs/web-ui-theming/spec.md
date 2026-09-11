@@ -24,8 +24,8 @@ of files, and nothing followed the OS light/dark preference.
 
 A token-driven theming system with **three theme families**, each with
 **light + dark variants and OS auto-switching**, its own font, and its own
-icon set ([token parity per family](apps/web-ui/src/app/theme-tokens.test.ts#L66), [icon set per family](apps/web-ui/src/components/Icon.test.tsx#L55)). The current dark-only look is
-replaced ([now light + dark per family](apps/web-ui/src/app/theme-tokens.test.ts#L66)).
+icon set ([token parity per family](apps/web-ui/src/app/theme-tokens.test.ts#L72), [icon set per family](apps/web-ui/src/components/Icon.test.tsx#L55)). The current dark-only look is
+replaced ([now light + dark per family](apps/web-ui/src/app/theme-tokens.test.ts#L72)).
 
 - **Elegant** — Figma-like. `Inter` font, rounded corners, soft shadows, and a
   subtle frosted-glass feel (translucent + `backdrop-filter` blur) on elevated
@@ -44,8 +44,10 @@ replaced ([now light + dark per family](apps/web-ui/src/app/theme-tokens.test.ts
    ↑ set before first paint by an inline <script> (no FOUC)
    ↑ kept in sync by ThemeProvider (React context)
 
-theme.css   → defines ALL tokens for 4 family×scheme combinations
-globals.css → consumes tokens only (zero hardcoded color/size)
+theme.css   → :root = every token of the default theme (elegant, light);
+              the dark scheme and retro/chicago override only what differs
+globals.css → consumes tokens only; re-lint/prefer-design-tokens (error)
+              rejects raw color/spacing/type/radius/shadow/z-index values
 Icon.tsx    → renders Lucide (elegant) or Pixelarticons (retro) by family
 ```
 
@@ -79,12 +81,12 @@ is missing or unrecognized; it then writes both data attributes plus the
 
 `useTheme()` throws a descriptive error when called outside a `ThemeProvider`. ([validated by `ThemeProvider.test.tsx:365`](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L358))
 
-**New — `web-ui/src/app/theme.css`** — the token source of truth ([validated by `theme-tokens.test.ts:59`](apps/web-ui/src/app/theme-tokens.test.ts#L66)). Family-level
-blocks hold shape/type/glass tokens (`--radius*`, `--fs-*` type scale,
-`--glass-blur`); four `[data-theme-family][data-color-scheme]` blocks hold
-colors (`--bg*`, `--border*`, `--text*`, `--accent*`, status `--success/warning/
-danger/info` + `-bg`, `--shadow*`, `--glass-bg/border`, `--color-scheme`).
-`prefers-reduced-transparency` and a `@supports` fallback drop glass to opaque ([token blocks per family×scheme](apps/web-ui/src/app/theme-tokens.test.ts#L72)).
+**New — `web-ui/src/app/theme.css`** — the token source of truth: one default
+theme plus overrides, with a `prefers-reduced-transparency` and `@supports`
+fallback dropping glass to opaque.
+
+- `:root` declares every token once, as the default theme (Elegant, light): fonts, the type scale, radii, glass, colors (`--bg*`, `--border*`, `--text*`, `--accent*`, status `--success/warning/danger/info` + `-bg`, `--shadow*`, `--glass-bg/border`, `--color-scheme`) and the design scales below; every other block overrides only tokens `:root` declares. ([overrides stay inside the defaults](apps/web-ui/src/app/theme-tokens.test.ts#L62))
+- The overrides are the default dark scheme (`[data-color-scheme="dark"]`), the Retro and Classic family blocks and their light/dark palettes; each overriding palette defines the categorical chart palette per scheme, where the default defines it once. ([chart palette in defaults and per scheme](apps/web-ui/src/app/theme-tokens.test.ts#L81))
 
 **New — `web-ui/src/components/`** — `icon-map.ts` (semantic `IconName` →
 per-family Iconify name, offline via `@iconify-json/*`), `Icon.tsx`,
@@ -138,9 +140,20 @@ set. ([validated by `Icon.test.tsx:78`](apps/web-ui/src/components/Icon.test.tsx
 
 ### Type Scale
 
-`--fs-xs … --fs-xl` defined per family ([micro-label size per family](apps/web-ui/src/app/theme-tokens.test.ts#L97)). Retro pins every body size to 14px
+`--fs-xs … --fs-xl` defined per family ([micro-label size per family](apps/web-ui/src/app/theme-tokens.test.ts#L104)). Retro pins every body size to 14px
 because GohuFont is a bitmap crisp only at its native 14px grid; Elegant is
-xs 12 / base 16 / xl 25 ([retro pins body sizes to 14px](apps/web-ui/src/app/theme-tokens.test.ts#L86)). No font-size literal remains in `src/`.
+xs 12 / base 16 / xl 25 ([retro pins body sizes to 14px](apps/web-ui/src/app/theme-tokens.test.ts#L95)). No font-size literal remains in `src/`.
+
+### Design Scales
+
+Beside the type scale, `:root` declares Bootstrap-style scales that every
+stylesheet reaches through `var()`, because `re-lint/prefer-design-tokens` runs at
+`error` on every web-ui CSS/SCSS file: spacing `--space-1…8` (2/4/8/12/16/24/32/48px),
+weights `--fw-normal/medium/semibold/bold`, line heights `--lh-1/sm/base/lg`, and
+stacking layers `--z-raised/dropdown/sticky/backdrop/offcanvas/popover` ([scales in the defaults](apps/web-ui/src/app/theme-tokens.test.ts#L109)).
+Classic overrides them to match the Win98 look: dense dialogs tighten the spacers
+with its compact type, and Tahoma's regular/bold pair makes every emphasized weight
+bold ([compact Classic scale](apps/web-ui/src/app/theme-tokens.test.ts#L136)).
 
 ## Out of Scope
 
@@ -171,7 +184,7 @@ xs 12 / base 16 / xl 25 ([retro pins body sizes to 14px](apps/web-ui/src/app/the
   hues). `SpecGraphD3` resolves tokens to literals per render for canvas and
   `d3.interpolateRgb` (which cannot consume `var()`); SVG keeps raw `var()`
   references. The lifecycle palette in `feature-status.ts` now returns token
-  strings. ([validated by `feature-status.test.ts:10`](apps/web-ui/src/lib/feature-status.test.ts#L10), [chart tokens per family](apps/web-ui/src/app/theme-tokens.test.ts#L72), [canvas literal resolution](apps/web-ui/src/lib/theme-token-resolve.test.ts#L23))
+  strings. ([validated by `feature-status.test.ts:10`](apps/web-ui/src/lib/feature-status.test.ts#L10), [chart tokens per family](apps/web-ui/src/app/theme-tokens.test.ts#L81), [canvas literal resolution](apps/web-ui/src/lib/theme-token-resolve.test.ts#L23))
 - **2026-08-05 — Classic (Chicago) family.** Added a third theme family,
   `chicago` — a Windows-98 look (per [98.css](https://jdan.github.io/98.css/)):
   silver `#c0c0c0` beveled surfaces, navy `#000080` title bars, Tahoma / MS Sans

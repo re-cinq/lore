@@ -8,5 +8,5 @@
   border-width: 2px;
   display: inline-block;
   vertical-align: middle;
-  margin-right: 6px;
+  margin-right: var(--space-3);
 }
