@@ -22,7 +22,7 @@ jobs:
         id: baseline
         env:
           LORE_INGEST_TOKEN: ${{ secrets.LORE_INGEST_TOKEN }}
-          LORE_INGEST_URL: ${{ vars.LORE_INGEST_URL || vars.LORE_API_URL }}
+          LORE_INGEST_URL: ${{ secrets.LORE_INGEST_URL || vars.LORE_INGEST_URL || vars.LORE_API_URL }}
         run: |
           # Which commit the graph's line ranges belong to. Needed BEFORE the
           # diff, because it decides which files can be compared line-for-line.
@@ -138,7 +138,7 @@ jobs:
         id: query
         env:
           LORE_INGEST_TOKEN: ${{ secrets.LORE_INGEST_TOKEN }}
-          LORE_INGEST_URL: ${{ vars.LORE_INGEST_URL || vars.LORE_API_URL }}
+          LORE_INGEST_URL: ${{ secrets.LORE_INGEST_URL || vars.LORE_INGEST_URL || vars.LORE_API_URL }}
           COMMIT: ${{ github.event.pull_request.head.sha }}
           GRAPH_COMMIT: ${{ steps.baseline.outputs.graph_commit }}
         run: |
