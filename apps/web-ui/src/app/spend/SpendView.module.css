@@ -1,25 +1,36 @@
 /* Claude API Spend view — co-located with SpendView.tsx. All values static;
    nothing here is computed at render. */
 
+/* Four to a row, so seven headline cards land as two balanced rows (4 + 3) with
+   the figures kept prominent, rather than seven cramped columns on one line.
+   Drops to two per row once the viewport can no longer hold four. */
 .cards {
-  display: flex;
-  gap: var(--space-5);
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4);
   margin-bottom: var(--space-6);
-  flex-wrap: wrap;
 }
 
+@media (max-width: 720px) {
+  .cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* The global .spec-card ships 4px; these want equal room on every side. */
 .card {
-  flex: 1;
-  min-width: 180px;
+  padding: var(--space-4) var(--space-5);
+  min-width: 0;
 }
 
+/* Below the page's --fs-xl, but still a prominent headline figure. */
 .figure {
-  font-size: var(--fs-xl);
+  font-size: var(--fs-lg);
   font-weight: bold;
 }
 
 .figureInfo {
-  font-size: var(--fs-xl);
+  font-size: var(--fs-lg);
   font-weight: bold;
   color: var(--info);
 }
@@ -61,4 +72,154 @@
   gap: var(--space-3);
   flex-wrap: wrap;
   margin-bottom: var(--space-4);
+}
+
+/* The from/to controls, styled to sit with the preset buttons rather than as raw
+   browser date fields: a muted label, then a bordered input with hover and focus
+   states matching the rest of the page's form controls. */
+.dateField {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.dateInput {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-family: inherit;
+  line-height: var(--lh-sm);
+}
+
+.dateInput:hover {
+  border-color: var(--border-hover);
+}
+
+.dateInput:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 var(--focus-ring-width) var(--focus-ring);
+}
+
+.dateInput::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.6;
+}
+
+.dateInput::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
+/* --- Redesign: labelled sections, estimate-vs-billed bars, daily trend --- */
+
+/* Each of the three groups (Lore-computed, vendor invoices, compute) is a band.
+   The rule under the title is the only heavy divider on the page, so the three
+   kinds of number read apart at a glance rather than as one long scroll. */
+.section {
+  margin: 0 0 var(--space-8);
+}
+
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-4);
+  margin: var(--space-6) 0 var(--space-2);
+  padding-bottom: var(--space-3);
+  border-bottom: 2px solid var(--border);
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: var(--fs-lg);
+}
+
+/* The estimate/billed pill sits on the section head, stating once for the whole
+   group whether these figures are Lore's estimate or a vendor's invoice. */
+.kindPill {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: var(--fs-2xs);
+}
+
+/* Estimate against invoice, one row per vendor that has synced. */
+.compare {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  margin: var(--space-3) 0 var(--space-6);
+  max-width: 520px;
+}
+
+.compareRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.compareLabel {
+  font-weight: bold;
+}
+
+.compareBars {
+  width: 100%;
+  height: 22px;
+}
+
+/* Estimate in the info tone, invoice in solid text: the same colour language the
+   headline cards use, so a reader already knows which is which. */
+.compareEstimate {
+  fill: var(--info);
+}
+
+.compareBilled {
+  fill: var(--text);
+}
+
+.compareFigures {
+  display: flex;
+  gap: var(--space-3);
+  align-items: baseline;
+}
+
+.compareBilledFigure {
+  margin-left: var(--space-3);
+  font-weight: bold;
+  color: var(--text);
+}
+
+/* The daily-cost chart: one labelled column per day, each carrying its cost
+   above the bar and its date below, so the numbers read off the chart itself.
+   An SVG (geometry as attributes, text at uniform scale) rather than CSS bars. */
+.trendChart {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: var(--space-3) 0 var(--space-6);
+}
+
+.trendBar {
+  fill: var(--info);
+}
+
+.trendValue,
+.trendDate {
+  fill: var(--text-muted);
+  font-size: var(--fs-2xs);
+}
+
+/* The long tail of LLM breakdowns, one click from the two that matter. */
+.moreTables {
+  margin: var(--space-3) 0 var(--space-6);
+}
+
+.moreTables summary {
+  cursor: pointer;
+  font-weight: bold;
+  color: var(--text-muted);
+  padding: var(--space-3) 0;
 }

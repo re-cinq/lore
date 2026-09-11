@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
 import { render, screen, within } from "@testing-library/react";
-import SpendView, { type SpendWindow } from "./SpendView";
+import SpendView, { anthropicEstimate, type SpendWindow } from "./SpendView";
 
 const usd = (n: number) =>
   Number(n).toLocaleString(undefined, { style: "currency", currency: "USD" });
@@ -200,13 +200,9 @@ describe("SpendView", () => {
     expect(screen.queryByRole("button", { name: /^Record/ })).toBeNull();
   });
 
-  it("headlines the interval, the Lore-computed cost, calls and token totals", () => {
+  it("headlines the Lore-computed cost, calls and token totals", () => {
     render(<SpendView spend={loreOnly} />);
-    expect(
-      screen.getByText(
-        `Lore-computed cost ${day("2026-08-26")} → ${day("2026-09-02")}`,
-      ),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Lore-computed cost")).toBeInTheDocument();
     expect(screen.getByText(usd(37.7))).toBeInTheDocument();
     expect(screen.getByText("estimate from token counts")).toBeInTheDocument();
     expect(screen.getByText(num(85))).toBeInTheDocument();
@@ -244,8 +240,9 @@ describe("SpendView", () => {
 
   it("renders the Google Cloud billed card with the net total and its closed-through day", () => {
     render(<SpendView spend={withGcpBilling} />);
-    expect(screen.getByText("Google Cloud (billed)")).toBeInTheDocument();
-    expect(screen.getByText(usd(210.4))).toBeInTheDocument();
+    const card = screen.getByText("Google Cloud (billed)").parentElement!;
+
+    expect(within(card).getByText(usd(210.4))).toBeInTheDocument();
     expect(
       screen.getByText(`billed through ${day("2026-09-01")} — net of credits`),
     ).toBeInTheDocument();
@@ -353,8 +350,9 @@ describe("SpendView", () => {
 
   it("shows the billed card and Anthropic sections when an admin key is configured", () => {
     render(<SpendView spend={withAdminKey} />);
-    expect(screen.getByText("Billed cost (Anthropic)")).toBeInTheDocument();
-    expect(screen.getByText(usd(1234.5))).toBeInTheDocument();
+    const card = screen.getByText("Billed cost (Anthropic)").parentElement!;
+
+    expect(within(card).getByText(usd(1234.5))).toBeInTheDocument();
     const asOf = screen.getByText(/^as of /).textContent ?? "";
 
     expect(asOf).toMatch(/^as of \d{2}-\d{2}-\d{4} \d{2}:\d{2}$/);
@@ -503,5 +501,93 @@ describe("SpendView cost-per-run and vendor split", () => {
     expect(
       screen.queryByText(/not charged to Anthropic's invoice/),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("SpendView redesign layout", () => {
+  it("groups the page into labelled estimate and billed sections", () => {
+    render(<SpendView spend={withAdminKey} />);
+
+    const computed = screen.getByRole("region", {
+      name: "Lore-computed LLM spend",
+    });
+    const invoices = screen.getByRole("region", { name: "Vendor invoices" });
+    const compute = screen.getByRole("region", { name: "Kubernetes compute" });
+
+    expect(within(computed).getByText("estimate")).toBeInTheDocument();
+    expect(within(invoices).getByText("billed")).toBeInTheDocument();
+    expect(within(compute).getByText("estimate")).toBeInTheDocument();
+  });
+
+  it("omits the vendor-invoices section until a vendor has synced", () => {
+    render(<SpendView spend={loreOnly} />);
+
+    expect(
+      screen.queryByRole("region", { name: "Vendor invoices" }),
+    ).toBeNull();
+  });
+
+  it("compares the Lore estimate against the invoice once a vendor has synced", () => {
+    render(<SpendView spend={withAdminKey} />);
+
+    expect(screen.getByText("LLM — Anthropic")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /estimate.*billed/i })).toBeTruthy();
+  });
+
+  it("shows no comparison bars when nothing has been billed", () => {
+    render(<SpendView spend={loreOnly} />);
+
+    expect(screen.queryByText("LLM — Anthropic")).toBeNull();
+  });
+
+  it("charts the daily cost above the breakdown tables", () => {
+    render(<SpendView spend={loreOnly} />);
+
+    expect(
+      screen.getByRole("heading", { name: "Daily Cost Trend", level: 2 }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /daily llm cost/i })).toBeTruthy();
+  });
+
+  it("folds the deeper LLM breakdowns behind a disclosure", () => {
+    render(<SpendView spend={loreOnly} />);
+    const summary = screen.getByText(/More breakdowns/);
+    const disclosure = summary.closest("details");
+
+    expect(disclosure).not.toBeNull();
+    expect(disclosure).not.toHaveAttribute("open");
+  });
+});
+
+describe("anthropicEstimate", () => {
+  const llm = (
+    by_vendor: SpendWindow["llm"]["by_vendor"],
+    total_usd: number,
+  ): SpendWindow["llm"] => ({ ...loreOnly.llm, by_vendor, total_usd });
+
+  it("takes the Anthropic vendor row when the split names one", () => {
+    expect(
+      anthropicEstimate(
+        llm(
+          [
+            { vendor: "anthropic", calls: 82, cost_usd: 24.02 },
+            { vendor: "gemini", calls: 3, cost_usd: 13.68 },
+          ],
+          37.7,
+        ),
+      ),
+    ).toBe(24.02);
+  });
+
+  it("is zero when the split names other vendors but no Anthropic", () => {
+    expect(
+      anthropicEstimate(
+        llm([{ vendor: "gemini", calls: 3, cost_usd: 13.68 }], 13.68),
+      ),
+    ).toBe(0);
+  });
+
+  it("falls back to the metered total when there is no vendor split", () => {
+    expect(anthropicEstimate(llm([], 5))).toBe(5);
   });
 });

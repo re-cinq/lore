@@ -64,7 +64,7 @@ day-old data.
    `pipeline.anthropic_cost_daily`; everything current-day comes from
    `pipeline.llm_calls`, which is the only source that can cover today at
    all — and the only one with kind attribution (Anthropic reports by model
-   only). ([validated by `SpendView.test.tsx:270`](apps/web-ui/src/app/spend/SpendView.test.tsx#L340), [`SpendView.test.tsx:354`](apps/web-ui/src/app/spend/SpendView.test.tsx#L354))
+   only). ([validated by `SpendView.test.tsx:270`](apps/web-ui/src/app/spend/SpendView.test.tsx#L338), [`SpendView.test.tsx:352`](apps/web-ui/src/app/spend/SpendView.test.tsx#L352))
 3. **Everything Anthropic has not billed yet is shown as a labeled computed
    line on the billed card** ("billed through 8/18 — + $47.74 over 2 days
    since (Lore-computed)"), never silently summed into the authoritative
@@ -173,4 +173,4 @@ same export the sync reads.
   export has closed through) and by-service/daily tables only when available,
   hiding them entirely until the export has synced; the estimate card stays
   regardless, because the export lags a day or more and the estimate is the
-  only figure that covers "now". ([validated by [`SpendView.test.tsx:245`](apps/web-ui/src/app/spend/SpendView.test.tsx#L245), [`SpendView.test.tsx:254`](apps/web-ui/src/app/spend/SpendView.test.tsx#L254), [`SpendView.test.tsx:279`](apps/web-ui/src/app/spend/SpendView.test.tsx#L279))
+  only figure that covers "now". ([validated by [`SpendView.test.tsx:241`](apps/web-ui/src/app/spend/SpendView.test.tsx#L241), [`SpendView.test.tsx:252`](apps/web-ui/src/app/spend/SpendView.test.tsx#L252), [`SpendView.test.tsx:277`](apps/web-ui/src/app/spend/SpendView.test.tsx#L277))
