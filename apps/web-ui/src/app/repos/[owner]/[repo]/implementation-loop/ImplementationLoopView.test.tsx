@@ -20,10 +20,12 @@ const ticket = (over: Partial<LoopTicket> = {}): LoopTicket => ({
 
 function renderView(loop: Partial<ImplementationLoop> = {}) {
   const toggle = vi.fn(async () => {});
+  const retryOnboarding = vi.fn(async () => {});
   const rendered = render(
     <ImplementationLoopView
       loop={{
         enabled: false,
+        onboarding: { merged: true, pr_url: null, last_task: null },
         current: null,
         current_run_id: null,
         next: [],
@@ -31,10 +33,11 @@ function renderView(loop: Partial<ImplementationLoop> = {}) {
         ...loop,
       }}
       toggle={toggle}
+      retryOnboarding={retryOnboarding}
     />,
   );
 
-  return { ...rendered, toggle };
+  return { ...rendered, toggle, retryOnboarding };
 }
 
 describe("ImplementationLoopView", () => {
@@ -221,5 +224,27 @@ describe("timeAgo", () => {
     expect(timeAgo("2026-08-26T09:00:00Z", now)).toBe("1 hour ago");
     expect(timeAgo("2026-08-24T10:00:00Z", now)).toBe("2 days ago");
     expect(timeAgo(null, now)).toBe("");
+  });
+});
+
+describe("ImplementationLoopView when the repo is not onboarded", () => {
+  it("says the loop picks nothing, shows why onboarding failed, and offers to retry it", () => {
+    const { getByText, getByRole, retryOnboarding } = renderView({
+      enabled: true,
+      onboarding: {
+        merged: false,
+        pr_url: null,
+        last_task: {
+          id: "d5602eb8",
+          status: "failed",
+          failure_reason: "Git Repository is empty.",
+        },
+      },
+    });
+
+    expect(getByText(/won't pick tickets/)).toBeTruthy();
+    expect(getByText(/Git Repository is empty\./)).toBeTruthy();
+    fireEvent.click(getByRole("button", { name: "Retry onboarding" }));
+    expect(retryOnboarding).toHaveBeenCalledTimes(1);
   });
 });

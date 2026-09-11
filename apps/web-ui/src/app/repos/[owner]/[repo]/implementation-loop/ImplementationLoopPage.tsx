@@ -1,7 +1,10 @@
 import { Alert } from "@/components/Alert";
 import { getImplementationLoop } from "@/lib/api/backlog";
 import ImplementationLoopView from "./ImplementationLoopView";
-import { toggleImplementationLoopAction } from "./actions";
+import {
+  retryOnboardingAction,
+  toggleImplementationLoopAction,
+} from "./actions";
 
 interface LoopPageProps {
   params: Promise<{ owner: string; repo: string }>;
@@ -24,6 +27,7 @@ export default async function ImplementationLoopPage(props: LoopPageProps) {
     <ImplementationLoopView
       loop={result.data}
       toggle={toggleImplementationLoopAction.bind(null, fullName)}
+      retryOnboarding={retryOnboardingAction.bind(null, fullName)}
     />
   );
 }

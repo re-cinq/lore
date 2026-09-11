@@ -6,7 +6,10 @@ vi.mock("@/lib/api/backlog", () => ({
   getImplementationLoop: vi.fn(),
   setImplementationLoopEnabled: vi.fn(),
 }));
-vi.mock("./actions", () => ({ toggleImplementationLoopAction: vi.fn() }));
+vi.mock("./actions", () => ({
+  toggleImplementationLoopAction: vi.fn(),
+  retryOnboardingAction: vi.fn(),
+}));
 
 import { getImplementationLoop } from "@/lib/api/backlog";
 import ImplementationLoopPage from "./ImplementationLoopPage";
@@ -19,6 +22,7 @@ describe("ImplementationLoopPage", () => {
       status: "ok",
       data: {
         enabled: true,
+        onboarding: { merged: true, pr_url: null, last_task: null },
         current: null,
         current_run_id: null,
         next: [],
