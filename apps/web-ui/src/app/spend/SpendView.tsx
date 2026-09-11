@@ -4,7 +4,6 @@ import { LlmBreakdowns } from "./SpendLlmBreakdowns";
 import { BilledBreakdowns, ComputeBreakdowns } from "./SpendBilledAndCompute";
 import { SpendSection } from "./SpendSection";
 import { SpendCompareBars, type ComparePairInput } from "./SpendCompareBars";
-import { SpendTrendChart } from "./SpendTrendChart";
 
 // Rows are aliases over OpenAPI /api/analytics/spend-window contract (ADR-035)
 export type SpendWindow = components["schemas"]["SpendWindow"];
@@ -65,8 +64,6 @@ function LoreComputedSection({ llm }: { llm: SpendWindow["llm"] }) {
       kind="estimate"
       caption="Metered from token counts (input/output × per-model pricing, cache-adjusted). The vendor invoice is the authority; this is the live estimate beside it."
     >
-      <h2>Daily Cost Trend</h2>
-      <SpendTrendChart daily={llm.daily} />
       <LlmBreakdowns llm={llm} />
     </SpendSection>
   );

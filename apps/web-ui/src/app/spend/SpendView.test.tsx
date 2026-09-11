@@ -540,15 +540,6 @@ describe("SpendView redesign layout", () => {
     expect(screen.queryByText("LLM — Anthropic")).toBeNull();
   });
 
-  it("charts the daily cost above the breakdown tables", () => {
-    render(<SpendView spend={loreOnly} />);
-
-    expect(
-      screen.getByRole("heading", { name: "Daily Cost Trend", level: 2 }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: /daily llm cost/i })).toBeTruthy();
-  });
-
   it("folds the deeper LLM breakdowns behind a disclosure", () => {
     render(<SpendView spend={loreOnly} />);
     const summary = screen.getByText(/More breakdowns/);

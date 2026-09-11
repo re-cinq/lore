@@ -192,26 +192,6 @@
   color: var(--text);
 }
 
-/* The daily-cost chart: one labelled column per day, each carrying its cost
-   above the bar and its date below, so the numbers read off the chart itself.
-   An SVG (geometry as attributes, text at uniform scale) rather than CSS bars. */
-.trendChart {
-  display: block;
-  width: 100%;
-  height: auto;
-  margin: var(--space-3) 0 var(--space-6);
-}
-
-.trendBar {
-  fill: var(--info);
-}
-
-.trendValue,
-.trendDate {
-  fill: var(--text-muted);
-  font-size: var(--fs-2xs);
-}
-
 /* The long tail of LLM breakdowns, one click from the two that matter. */
 .moreTables {
   margin: var(--space-3) 0 var(--space-6);
