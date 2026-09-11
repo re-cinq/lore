@@ -1,32 +1,36 @@
 /* Claude API Spend view — co-located with SpendView.tsx. All values static;
    nothing here is computed at render. */
 
-/* One row: every headline card shares the width equally and shrinks to fit
-   rather than wrapping, so the whole summary reads at a glance on one line. */
+/* Four to a row, so seven headline cards land as two balanced rows (4 + 3) with
+   the figures kept prominent, rather than seven cramped columns on one line.
+   Drops to two per row once the viewport can no longer hold four. */
 .cards {
   display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 24px;
 }
 
-/* The global .spec-card ships 4px; these want equal room on every side, but
-   compact enough that seven of them fit one line. */
+@media (max-width: 720px) {
+  .cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* The global .spec-card ships 4px; these want equal room on every side. */
 .card {
-  padding: 12px 14px;
+  padding: 14px 16px;
   min-width: 0;
 }
 
-/* Smaller than the page's --fs-xl so a seven-figure token count fits a narrow
-   card without overflowing. */
+/* Below the page's --fs-xl, but still a prominent headline figure. */
 .figure {
-  font-size: var(--fs-md);
+  font-size: var(--fs-lg);
   font-weight: bold;
 }
 
 .figureInfo {
-  font-size: var(--fs-md);
+  font-size: var(--fs-lg);
   font-weight: bold;
   color: var(--info);
 }
