@@ -1,5 +1,6 @@
 import type {
   CheckRun,
+  JobFailure,
   PullCommit,
   ReviewThread,
 } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
@@ -31,6 +32,8 @@ export interface PrReadyCheckDeps {
   listPrCommits(repo: string, number: number): Promise<PullCommit[]>;
   /** Every check run for a ref. Read raw, because a red verdict has to NAME what failed. */
   listChecks(repo: string, ref: string): Promise<CheckRun[]>;
+  /** How a failed Actions job failed, from the job itself: its check run reports nothing. Null when GitHub will not say. */
+  failedJob(repo: string, jobId: number): Promise<JobFailure | null>;
   /** GitHub's mergeability for the PR: false when it conflicts (and so gets no workflow run at all), null while GitHub computes it. */
   prMergeable(repo: string, number: number): Promise<boolean | null>;
   /** Does this repo run checks at all? A repo fact, not a clock. */

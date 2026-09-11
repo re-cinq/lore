@@ -60,7 +60,7 @@ describe("withCiFeedback", () => {
 
 The build for your last push is red. These checks failed: lint, build
 
-Map each name to the job that publishes it and run only that job's command.
+Where a failed step is named below, run only that step's command; otherwise map each name to the job that publishes it and run only that job's command.
 `,
     );
   });
@@ -93,7 +93,7 @@ Map each name to the job that publishes it and run only that job's command.
 
 The build for your last push is red. These checks failed: lint
 
-Map each name to the job that publishes it and run only that job's command.
+Where a failed step is named below, run only that step's command; otherwise map each name to the job that publishes it and run only that job's command.
 
 \`\`\`
 ### lint (failure)

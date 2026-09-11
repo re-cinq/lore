@@ -3,6 +3,8 @@ import {
   ciJudgedSha,
   externalCheckRuns,
 } from "@re-cinq/lore-shared";
+import { failedCheckRuns } from "@re-cinq/lore-shared/project/pulls/check-runs.js";
+import type { CheckRun } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import { decidePrReady, type PrReadyVerdict } from "./decide-ready.js";
 import {
   decideCiReady,
@@ -54,7 +56,12 @@ async function prEvidence(
     ],
   );
 
-  return { checks, threads, openReviewRunCount, hasCiHistory };
+  return {
+    checks: await explainedChecks(run.repo, checks, deps),
+    threads,
+    openReviewRunCount,
+    hasCiHistory,
+  };
 }
 
 /** A red build reaches `fix-ci` naming the checks that failed; every other blocked reason carries only its reason. */
@@ -84,22 +91,72 @@ export async function ciReportForRun(
   run: LoopRunSlice,
   deps: PrReadyCheckDeps,
 ): Promise<ParkedReport | null> {
-  const prNumber = Number(run.args.pr_number) || 0;
   const judged = await judgeable(run, deps);
+  const evidence = await ciEvidence(run, deps, judged);
+  const verdict = decideCiReady({
+    ...evidence,
+    judgedSha: judged?.headSha ?? null,
+    lastReportedSha: lastReportedSha(run.args),
+  });
+
+  return ciReport(verdict);
+}
+
+/** What a round is judged on: the repo's own checks, whether it runs CI at all, and whether GitHub will build the PR. The three are independent reads and go together. */
+async function ciEvidence(
+  run: LoopRunSlice,
+  deps: PrReadyCheckDeps,
+  judged: { headSha: string } | null,
+) {
+  const prNumber = Number(run.args.pr_number) || 0;
   const [checks, hasCiHistory, mergeable] = await Promise.all([
     judged ? deps.listChecks(run.repo, judged.headSha) : [],
     deps.hasCiHistory(run.repo),
     prNumber ? deps.prMergeable(run.repo, prNumber) : null,
   ]);
-  const verdict = decideCiReady({
-    checks: externalCheckRuns(checks),
-    hasCiHistory,
-    judgedSha: judged?.headSha ?? null,
-    lastReportedSha: lastReportedSha(run.args),
-    mergeable,
-  });
+  const external = externalCheckRuns(checks);
 
-  return ciReport(verdict);
+  return {
+    checks: await explainedChecks(run.repo, external, deps),
+    hasCiHistory,
+    mergeable,
+  };
+}
+
+/** A red build's checks, each silent Actions job carrying its own account of how it failed. Read only on red, because on green there is nothing to explain and each job costs two requests. */
+async function explainedChecks(
+  repo: string,
+  checks: CheckRun[],
+  deps: PrReadyCheckDeps,
+): Promise<CheckRun[]> {
+  if (ciConclusionOf(checks) !== "failure") {
+    return checks;
+  }
+  const failed = new Set(failedCheckRuns(checks));
+
+  return Promise.all(
+    checks.map(async (run) =>
+      failed.has(run) ? explainedRun(repo, run, deps) : run,
+    ),
+  );
+}
+
+/** One failed run, with its job's account attached when it is an Actions job that reported nothing itself. */
+async function explainedRun(
+  repo: string,
+  run: CheckRun,
+  deps: PrReadyCheckDeps,
+): Promise<CheckRun> {
+  if (
+    run.app !== "github-actions" ||
+    run.id === undefined ||
+    run.output?.summary
+  ) {
+    return run;
+  }
+  const jobFailure = await deps.failedJob(repo, run.id);
+
+  return jobFailure ? { ...run, jobFailure } : run;
 }
 
 /** The round verdict as the parked node hears it; a wait is silence. */

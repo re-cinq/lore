@@ -1,6 +1,7 @@
 import type {
   CheckRun,
   CiConclusion,
+  JobFailure,
   PullCommit,
 } from "./pull-requests-port.js";
 
@@ -97,7 +98,7 @@ export function ciJudgedSha(commits: readonly PullCommit[]): string | null {
 /** Everything the jobs of one check name reported, or "" when they reported nothing — which is the ordinary case for an Actions job, and why a heading alone is not worth rendering. */
 function failureBlock(name: string, runs: readonly CheckRun[]): string {
   const reported = runs
-    .flatMap((run) => [run.output?.title, run.output?.summary])
+    .flatMap(reportedParts)
     .filter((part): part is string => typeof part === "string" && part !== "");
 
   return reported.length === 0
@@ -105,9 +106,52 @@ function failureBlock(name: string, runs: readonly CheckRun[]): string {
     : [`### ${name} (${runs[0].conclusion})`, ...reported].join("\n\n");
 }
 
+/** Everything one run says about its failure: what it reported in its check run, then what its job's own log says. */
+function reportedParts(run: CheckRun): Array<string | null | undefined> {
+  return [
+    run.output?.title,
+    run.output?.summary,
+    ...jobFailureParts(run.jobFailure),
+  ];
+}
+
+/** An Actions job's own account of its failure: the step that failed, then what it printed. */
+function jobFailureParts(failure: JobFailure | undefined): string[] {
+  return failure
+    ? [`Failed step: ${failure.steps.join(", ")}`, failure.tail.join("\n")]
+    : [];
+}
+
 /** True when this commit message tells GitHub to run nothing for it. */
 function skipsCi(message: string): boolean {
   const lower = message.toLowerCase();
 
   return SKIP_CI_MARKERS.some((marker) => lower.includes(marker));
+}
+
+/** The line GitHub writes when a step's command exits non-zero: where a failing step's output ends. */
+const STEP_EXIT_MARKER = "##[error]Process completed with exit code";
+
+/** The line closing a step's command header: where its output begins. */
+const STEP_HEADER_END = "##[endgroup]";
+
+/** What the failing step printed, from an Actions job log: the lines between its command header and its exit line, without timestamps, `##[error]` markers or blanks. It is the part a reader needs and the part an Actions check run's own output never carries. */
+export function failureTail(log: string): string[] {
+  const lines = log.split("\n").map(withoutTimestamp);
+  const exit = lines.findIndex((line) => line.startsWith(STEP_EXIT_MARKER));
+
+  if (exit < 0) {
+    return [];
+  }
+  const header = lines.lastIndexOf(STEP_HEADER_END, exit);
+
+  return lines
+    .slice(header + 1, exit)
+    .map((line) => line.replace(/^##\[error\]/, "").trim())
+    .filter((line) => line !== "");
+}
+
+/** A log line without the timestamp Actions prefixes to every line. */
+function withoutTimestamp(line: string): string {
+  return line.replace(/^\uFEFF?\d{4}-\d\d-\d\dT[\d:.]+Z ?/, "").trimEnd();
 }

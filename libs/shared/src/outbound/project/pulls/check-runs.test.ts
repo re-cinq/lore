@@ -3,6 +3,7 @@ import {
   ciConclusionOf,
   ciJudgedSha,
   externalCheckRuns,
+  failureTail,
   summarizeFailedChecks,
 } from "./check-runs.js";
 import type { CheckRun, PullCommit } from "./pull-requests-port.js";
@@ -184,5 +185,66 @@ describe("ciJudgedSha", () => {
         commit({ sha: "bbb", message: "wip [NO CI]" }),
       ]),
     ).toBe("aaa");
+  });
+});
+
+const BOWMAN_UI_LINT_FAILURE_JOB_LOG = [
+  "2026-09-10T15:19:24.9182696Z found 0 vulnerabilities",
+  "2026-09-10T15:19:24.9810135Z ##[end-action id=__self.__run;outcome=success;conclusion=success;duration_ms=5329]",
+  "2026-09-10T15:19:24.9853800Z ##[group]Run npm run lint",
+  "2026-09-10T15:19:24.9889926Z shell: /usr/bin/bash -e {0}",
+  "2026-09-10T15:19:24.9890197Z ##[endgroup]",
+  "2026-09-10T15:19:25.0884201Z ",
+  "2026-09-10T15:19:25.0884965Z > @re-cinq/bowman-ui@0.0.0 lint",
+  "2026-09-10T15:19:25.0885477Z > eslint . --max-warnings 0",
+  "2026-09-10T15:19:33.0739922Z ",
+  "2026-09-10T15:19:33.0741174Z /home/runner/work/bowman-ui/bowman-ui/specs/bowman-ui-theming-tokens/spec.md",
+  '2026-09-10T15:19:33.0771169Z ##[error]  6:1  error  Status "shipped" does not match this spec\'s test-link coverage — 54 of 57 testable statements carry a link',
+  "2026-09-10T15:19:33.0778538Z ",
+  "2026-09-10T15:19:33.0778881Z ✖ 1 problem (1 error, 0 warnings)",
+  "2026-09-10T15:19:33.3498151Z ##[error]Process completed with exit code 1.",
+  "2026-09-10T15:19:33.3661297Z Post job cleanup.",
+].join("\n");
+
+describe("failureTail", () => {
+  it("returns what the failing step printed between its command header and its exit line", () => {
+    expect(failureTail(BOWMAN_UI_LINT_FAILURE_JOB_LOG)).toEqual([
+      "> @re-cinq/bowman-ui@0.0.0 lint",
+      "> eslint . --max-warnings 0",
+      "/home/runner/work/bowman-ui/bowman-ui/specs/bowman-ui-theming-tokens/spec.md",
+      '6:1  error  Status "shipped" does not match this spec\'s test-link coverage — 54 of 57 testable statements carry a link',
+      "✖ 1 problem (1 error, 0 warnings)",
+    ]);
+  });
+
+  it("returns no lines when no step in the log exited non-zero", () => {
+    expect(
+      failureTail(
+        "2026-09-10T15:19:24.9853800Z ##[group]Run npm run lint\n2026-09-10T15:19:24.9890197Z ##[endgroup]\n2026-09-10T15:19:25.0884965Z > eslint .",
+      ),
+    ).toEqual([]);
+  });
+});
+
+describe("summarizeFailedChecks on an Actions job", () => {
+  it("renders the failed step and what it printed when the job reported nothing itself", () => {
+    expect(
+      summarizeFailedChecks([
+        check({
+          name: "build-test",
+          conclusion: "failure",
+          output: { title: null, summary: null },
+          jobFailure: {
+            steps: ["Lint (--max-warnings 0)"],
+            tail: [
+              "specs/bowman-ui-theming-tokens/spec.md",
+              '6:1  error  Status "shipped" does not match',
+            ],
+          },
+        }),
+      ]).summary,
+    ).toBe(
+      '### build-test (failure)\n\nFailed step: Lint (--max-warnings 0)\n\nspecs/bowman-ui-theming-tokens/spec.md\n6:1  error  Status "shipped" does not match',
+    );
   });
 });

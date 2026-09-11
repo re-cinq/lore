@@ -242,13 +242,29 @@ export async function checkRuns(
     per_page: 100,
   });
 
-  return runs.map((r) => ({
+  return runs.map(checkRunOf);
+}
+
+/** The fields of a listed check run that Lore reads. */
+interface ListedCheckRun {
+  id: number;
+  app: { slug?: string } | null;
+  name: string;
+  status: string;
+  conclusion: string | null;
+  output: { title: string | null; summary: string | null };
+}
+
+/** One check run as Lore reads it. Projected, not spread: the output also carries `text` and the annotation counters, none of which a prompt has room for. */
+function checkRunOf(r: ListedCheckRun): CheckRun {
+  return {
+    id: r.id,
+    app: r.app?.slug,
     name: r.name,
     status: r.status,
     conclusion: r.conclusion,
-    // Projected, not spread: the output also carries `text` and the annotation counters, none of which a prompt has room for.
     output: { title: r.output.title, summary: r.output.summary },
-  }));
+  };
 }
 
 export async function ciConclusion(

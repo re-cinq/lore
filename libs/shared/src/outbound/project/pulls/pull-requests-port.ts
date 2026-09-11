@@ -75,8 +75,20 @@ export interface CheckRun {
   name: string;
   status: string;
   conclusion: string | null;
+  /** GitHub's id for the run. For a GitHub Actions run it is also the job id, which is how the job's steps and log are found. */
+  id?: number;
+  /** Slug of the app that published the run; `github-actions` marks a run whose job can be read. */
+  app?: string;
   /** What the job reported about itself. Optional: only the CI-feedback path reads it, and every in-memory double predates it. */
   output?: { title: string | null; summary: string | null };
+  /** For a failed GitHub Actions job, what the job itself says about the failure. Filled in only on a red verdict, because reading it costs two more requests per job. */
+  jobFailure?: JobFailure;
+}
+
+/** How an Actions job failed, read from the job because its check run reports nothing: the steps that failed, and what the failing one printed. */
+export interface JobFailure {
+  steps: string[];
+  tail: string[];
 }
 
 /** One inline comment inside a review thread — the GraphQL node, REST-mappable. */
@@ -175,6 +187,8 @@ export interface PullRequestsPort {
   listFileChanges(repo: string, number: number): Promise<PullFileChange[]>;
   /** Every check run for a ref, paginated raw — the gate predicate (stricter than ciConclusion) stays in the caller. */
   listChecks(repo: string, ref: string): Promise<CheckRun[]>;
+  /** How a failed GitHub Actions job failed, read from the job itself; null when GitHub will not say. */
+  failedJob(repo: string, jobId: number): Promise<JobFailure | null>;
   /** Every review thread on a PR — GraphQL, since resolution has no REST read. */
   listReviewThreads(repo: string, number: number): Promise<ReviewThread[]>;
   /** Mark one thread resolved; threadId is the GraphQL node id from listReviewThreads (no repo param needed). */

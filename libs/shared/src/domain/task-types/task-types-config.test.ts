@@ -199,9 +199,11 @@ describe("the implementation-tdd recipe", () => {
     }
   });
 
-  it("tells every implementing recipe but tdd-round to report failure when it delivered nothing", () => {
+  it("tells every implementing recipe but tdd-round and fix-ci to report failure when it delivered nothing", () => {
     const parsed = parseTaskTypesFile(COMMITTED);
-    const oneShot = DELIVERING_PROMPT_REFS.filter((n) => n !== "tdd-round");
+    const oneShot = DELIVERING_PROMPT_REFS.filter(
+      (n) => n !== "tdd-round" && n !== "fix-ci",
+    );
 
     for (const name of oneShot) {
       const prompt = parsed.taskTypes[name]?.prompt_template ?? "";
@@ -334,5 +336,23 @@ describe("the implementation-tdd recipe", () => {
 
     expect(fix).toContain("failures_touching");
     expect(fix).toContain("still open");
+  });
+});
+
+describe("the fix-ci recipe and a named failed step", () => {
+  it("tells fix-ci to run only the failed step's command when the CI report names one", () => {
+    expect(
+      parseTaskTypesFile(COMMITTED).taskTypes["fix-ci"]?.prompt_template,
+    ).toContain("run only that step's command");
+  });
+});
+
+describe("the fix-ci recipe when the branch moved", () => {
+  it("tells fix-ci to change nothing and report success when commits CI has not judged sit on top of the reported sha", () => {
+    const fix =
+      parseTaskTypesFile(COMMITTED).taskTypes["fix-ci"]?.prompt_template ?? "";
+
+    expect(fix).toContain("..HEAD");
+    expect(fix).toContain("the branch moved after CI judged it");
   });
 });

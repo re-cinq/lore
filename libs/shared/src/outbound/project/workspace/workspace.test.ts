@@ -88,6 +88,7 @@ describe("Workspace", () => {
       listFiles: async () => [],
       listFileChanges: async () => [],
       listChecks: async () => [],
+      failedJob: async () => null,
       listReviewThreads: async () => [],
       resolveReviewThread: async () => {},
       update: async () => {},

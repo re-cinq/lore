@@ -13,6 +13,8 @@ interface FakeFile {
 const state: {
   files: FakeFile[];
   checkRuns: Array<{
+    id?: number;
+    app?: { slug: string } | null;
     name: string;
     status: string;
     conclusion: string | null;
@@ -30,6 +32,9 @@ const state: {
   createCall?: Record<string, unknown>;
   updateCall?: Record<string, unknown>;
   prNode?: { id: string; isDraft: boolean };
+  job?: { steps: Array<{ name: string; conclusion: string | null }> };
+  jobLog?: string;
+  jobError?: { status: number };
 } = { files: [], checkRuns: [], token: "", graphqlCalls: [], authCalls: [] };
 
 vi.mock("octokit", () => ({
@@ -87,6 +92,16 @@ vi.mock("octokit", () => ({
         },
       },
       checks: { listForRef: async () => state.checkRuns },
+      actions: {
+        getJobForWorkflowRun: async () => {
+          if (state.jobError) {
+            throw state.jobError;
+          }
+
+          return { data: state.job };
+        },
+        downloadJobLogsForWorkflowRun: async () => ({ data: state.jobLog }),
+      },
       git: { getTree: async () => ({ data: state.treeData }) },
       issues: {
         addLabels: async () => ({}),
@@ -536,5 +551,85 @@ describe("PlatformGitHub review threads (GraphQL)", () => {
     await gh().markReady("re-cinq/lore", 7);
 
     expect(state.graphqlCalls).toHaveLength(1);
+  });
+});
+
+describe("PlatformGitHub Actions job reads", () => {
+  const gh = () => new PlatformGitHub({ GITHUB_TOKEN: "gh-token" });
+
+  beforeEach(() => {
+    state.checkRuns = [];
+  });
+
+  it("listChecks keeps each run's id and the app that published it, since an Actions run's id is its job id", async () => {
+    state.checkRuns = [
+      {
+        id: 102930584180,
+        app: { slug: "github-actions" },
+        name: "build-test",
+        status: "completed",
+        conclusion: "failure",
+        output: { title: null, summary: null },
+      },
+    ];
+    expect(await gh().listChecks("re-cinq/bowman-ui", "f58642f4")).toEqual([
+      {
+        id: 102930584180,
+        app: "github-actions",
+        name: "build-test",
+        status: "completed",
+        conclusion: "failure",
+        output: { title: null, summary: null },
+      },
+    ]);
+  });
+});
+
+describe("PlatformGitHub failedJob", () => {
+  const gh = () => new PlatformGitHub({ GITHUB_TOKEN: "gh-token" });
+
+  beforeEach(() => {
+    state.job = undefined;
+    state.jobLog = undefined;
+    state.jobError = undefined;
+  });
+
+  it("failedJob returns the failed step names and what the failing step printed", async () => {
+    state.job = {
+      steps: [
+        { name: "Set up job", conclusion: "success" },
+        { name: "Lint (--max-warnings 0)", conclusion: "failure" },
+        { name: "Typecheck", conclusion: "skipped" },
+      ],
+    };
+    state.jobLog = [
+      "2026-09-10T15:19:24.9890197Z ##[endgroup]",
+      "2026-09-10T15:19:33.0741174Z /home/runner/work/bowman-ui/bowman-ui/specs/bowman-ui-theming-tokens/spec.md",
+      '2026-09-10T15:19:33.0771169Z ##[error]  6:1  error  Status "shipped" does not match',
+      "2026-09-10T15:19:33.3498151Z ##[error]Process completed with exit code 1.",
+    ].join("\n");
+    expect(await gh().failedJob("re-cinq/bowman-ui", 102930584180)).toEqual({
+      steps: ["Lint (--max-warnings 0)"],
+      tail: [
+        "/home/runner/work/bowman-ui/bowman-ui/specs/bowman-ui-theming-tokens/spec.md",
+        '6:1  error  Status "shipped" does not match',
+      ],
+    });
+  });
+});
+
+describe("PlatformGitHub failedJob when GitHub refuses", () => {
+  const gh = () => new PlatformGitHub({ GITHUB_TOKEN: "gh-token" });
+
+  beforeEach(() => {
+    state.job = undefined;
+    state.jobLog = undefined;
+    state.jobError = undefined;
+  });
+
+  it("failedJob returns null when GitHub refuses the job read, so the verdict still goes out with the check names", async () => {
+    state.jobError = { status: 403 };
+
+    expect(await gh().failedJob("re-cinq/bowman-ui", 102930584180)).toBe(null);
   });
 });
