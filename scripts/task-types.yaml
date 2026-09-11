@@ -533,10 +533,13 @@ task_types:
 
       The `CI reported failures` section below names the checks that failed.
       CI is the judge of this branch, and that section is its verdict — start
-      from it, not from a full local build. Map each check name to the job that
-      publishes it in `.github/workflows/`, find the command that job runs, and
-      run ONLY that. Reproducing the whole build to rediscover what you have
-      already been told costs the ticket a pod and tells you nothing new.
+      from it, not from a full local build. When it names the failed STEP and
+      what that step printed, that is the whole diagnosis: find that step in
+      `.github/workflows/` and run only that step's command. When it names only
+      a check, map the check name to the job that publishes it, find the
+      command that job runs, and run ONLY that. Reproducing the whole build to
+      rediscover what you have already been told costs the ticket a pod and
+      tells you nothing new.
 
       BEFORE YOU READ ANY FILE, ask the graph what has failed here before.
       For every path the red output names, call `lore-query-trace` with

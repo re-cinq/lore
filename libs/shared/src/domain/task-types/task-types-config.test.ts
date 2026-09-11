@@ -336,3 +336,11 @@ describe("the implementation-tdd recipe", () => {
     expect(fix).toContain("still open");
   });
 });
+
+describe("the fix-ci recipe and a named failed step", () => {
+  it("tells fix-ci to run only the failed step's command when the CI report names one", () => {
+    expect(
+      parseTaskTypesFile(COMMITTED).taskTypes["fix-ci"]?.prompt_template,
+    ).toContain("run only that step's command");
+  });
+});
