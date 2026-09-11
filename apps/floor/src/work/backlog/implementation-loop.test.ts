@@ -22,6 +22,7 @@ function deps(overrides: Partial<LoopTickDeps> = {}) {
   const base: LoopTickDeps = {
     listRepos: async () => ["acme/widgets"],
     rawSettings: async () => ({ implementation_loop: { enabled: true } }),
+    isOnboarded: async () => true,
     findOpenBySubject: async () => null,
     activeTaskByIssue: async () => null,
     listIssues: async () => [issue(7, ["priority:high"])],
@@ -308,5 +309,26 @@ describe("a guarded head does not freeze the queue", () => {
       console.log = orig;
     }
     expect(lines.filter((l) => l.includes("no pick"))).toEqual([]);
+  });
+});
+
+describe("a repo whose loop is on but whose onboarding has not merged", () => {
+  it("picks nothing and says why, instead of being skipped in silence", async () => {
+    const lines: string[] = [];
+    const orig = console.log;
+
+    console.log = (msg: string) => void lines.push(String(msg));
+
+    try {
+      const d = deps({ isOnboarded: async () => false });
+
+      await createImplementationLoopTickHandler(d.deps)({});
+      expect(d.minted).toEqual([]);
+    } finally {
+      console.log = orig;
+    }
+    expect(lines.filter((l) => l.includes("[implementation-loop]"))).toEqual([
+      "[implementation-loop] acme/widgets: loop enabled but the repo is not onboarded — its onboarding PR has not merged, so no ticket is picked",
+    ]);
   });
 });

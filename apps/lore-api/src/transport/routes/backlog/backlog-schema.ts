@@ -29,8 +29,27 @@ export const TicketSchema = z.object({
   pipeline: z.array(PipelineNodeSchema).nullable(),
 });
 
+/** Why the loop may not be picking. It never picks for a repo whose onboarding PR has not merged, so the page needs whether it merged, the open onboarding PR if there is one, and the newest onboard task with why it failed. */
+export const OnboardingSchema = z.object({
+  merged: z.boolean(),
+  /** The open onboarding PR; null once it merged, or when none was opened. */
+  pr_url: z.string().nullable(),
+  last_task: z
+    .object({
+      id: z.string(),
+      status: z.string(),
+      failure_reason: z.string().nullable(),
+      /** Still running by the onboard guard's own definition, so the page links to it rather than offering a retry the guard would refuse. */
+      in_flight: z.boolean(),
+    })
+    .nullable(),
+});
+
+export type Onboarding = z.infer<typeof OnboardingSchema>;
+
 export const ImplementationLoopSchema = z.object({
   enabled: z.boolean(),
+  onboarding: OnboardingSchema,
   current: TicketSchema.nullable(),
   /** The open backlog run's id — the live run view at /assembly-runs/{id}. */
   current_run_id: z.string().nullable(),

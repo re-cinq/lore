@@ -98,3 +98,19 @@ describe("PgSettings", () => {
     });
   });
 });
+
+describe("PgSettings.allRepos", () => {
+  it("reads every repo row with no onboarding filter", async () => {
+    const capture: Array<{ text: string; params?: unknown[] }> = [];
+    const store = new PgSettings(
+      fakePool(capture, [
+        { full_name: "re-cinq/Otto" },
+        { full_name: "re-cinq/lore" },
+      ]),
+      fakeWriter([]),
+    );
+
+    expect(await store.allRepos()).toEqual(["re-cinq/Otto", "re-cinq/lore"]);
+    expect(capture[0].text).not.toContain("onboarding_pr_merged");
+  });
+});

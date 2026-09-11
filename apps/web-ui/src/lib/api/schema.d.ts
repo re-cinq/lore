@@ -3199,6 +3199,16 @@ export interface components {
     };
     ImplementationLoop: {
       enabled: boolean;
+      onboarding: {
+        merged: boolean;
+        pr_url: string | null;
+        last_task: {
+          id: string;
+          status: string;
+          failure_reason: string | null;
+          in_flight: boolean;
+        } | null;
+      };
       current: {
         issue_number: number;
         issue_url: string | null;

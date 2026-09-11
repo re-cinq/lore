@@ -5,10 +5,15 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/api/backlog", () => ({
   setImplementationLoopEnabled: vi.fn(),
 }));
+vi.mock("@/lib/api/repos", () => ({ onboardRepo: vi.fn() }));
 
 import { revalidatePath } from "next/cache";
 import { setImplementationLoopEnabled } from "@/lib/api/backlog";
-import { toggleImplementationLoopAction } from "./actions";
+import { onboardRepo } from "@/lib/api/repos";
+import {
+  retryOnboardingAction,
+  toggleImplementationLoopAction,
+} from "./actions";
 
 beforeEach(() => vi.clearAllMocks());
 
@@ -39,5 +44,21 @@ describe("toggleImplementationLoopAction", () => {
       toggleImplementationLoopAction("re-cinq/lore", { enabled: true }),
     ).rejects.toThrow();
     expect(revalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+describe("retryOnboardingAction", () => {
+  it("queues the repo's onboarding again and refreshes the tab", async () => {
+    vi.mocked(onboardRepo).mockResolvedValue({
+      status: "ok",
+      data: { repo_id: "r1", task_id: "t1", status: "pending" },
+    } as never);
+
+    await retryOnboardingAction("re-cinq/Otto");
+
+    expect(onboardRepo).toHaveBeenCalledWith("re-cinq/Otto");
+    expect(revalidatePath).toHaveBeenCalledWith(
+      "/repos/re-cinq/Otto/implementation-loop",
+    );
   });
 });

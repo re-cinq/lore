@@ -4,6 +4,7 @@ import { Alert } from "@/components/Alert";
 import { useTransition } from "react";
 import type { ImplementationLoop, LoopTicket } from "@/lib/api/backlog";
 import styles from "./ImplementationLoopView.module.scss";
+import OnboardingBanner from "./OnboardingBanner";
 
 /** GitLab-pipelines-style status tones, keyed on the ticket's task status. */
 const STATUS_TONE: Record<string, "success" | "danger" | "info" | "neutral"> = {
@@ -43,15 +44,18 @@ type PipelineNode = NonNullable<LoopTicket["pipeline"]>[number];
 interface LoopViewProps {
   loop: ImplementationLoop;
   toggle: (next: { enabled: boolean }) => Promise<void>;
+  /** Queues the repo's onboarding again, through the same guard the /onboard page uses. */
+  retryOnboarding: () => Promise<void>;
 }
 
-/** Pure view (DDAU): data down as `loop`, toggle up via bound server action. */
+/** Pure view (DDAU): data down as `loop`, toggle and retry up via bound server actions. */
 export default function ImplementationLoopView(props: LoopViewProps) {
-  const { loop, toggle } = props;
+  const { loop, toggle, retryOnboarding } = props;
 
   return (
     <div>
       <LoopHeader enabled={loop.enabled} toggle={toggle} />
+      <OnboardingBanner loop={loop} retry={retryOnboarding} />
       <LoopExplainer />
 
       {backlogStages(loop).map((stage) => (
@@ -120,7 +124,7 @@ function backlogStages(loop: ImplementationLoop): LoopSectionProps[] {
       emptyText: "No ticket is being worked right now.",
     },
     {
-      heading: "Next up",
+      heading: queueHeading(loop),
       tickets: loop.next,
       emptyText: EMPTY_BACKLOG,
     },
@@ -130,6 +134,13 @@ function backlogStages(loop: ImplementationLoop): LoopSectionProps[] {
       emptyText: "Nothing addressed yet.",
     },
   ];
+}
+
+/** The queue's heading. While the repo is not onboarded the loop will not start on it, and "Next up" read as if it were about to. */
+function queueHeading(loop: ImplementationLoop): string {
+  return loop.enabled && !loop.onboarding.merged
+    ? "Waiting for onboarding"
+    : "Next up";
 }
 
 /** One stage of the backlog. Each empty text says what would put a ticket here rather than just "none", because an empty section usually means the reader has something to do. */

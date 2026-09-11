@@ -20,10 +20,12 @@ const ticket = (over: Partial<LoopTicket> = {}): LoopTicket => ({
 
 function renderView(loop: Partial<ImplementationLoop> = {}) {
   const toggle = vi.fn(async () => {});
+  const retryOnboarding = vi.fn(async () => {});
   const rendered = render(
     <ImplementationLoopView
       loop={{
         enabled: false,
+        onboarding: { merged: true, pr_url: null, last_task: null },
         current: null,
         current_run_id: null,
         next: [],
@@ -31,10 +33,11 @@ function renderView(loop: Partial<ImplementationLoop> = {}) {
         ...loop,
       }}
       toggle={toggle}
+      retryOnboarding={retryOnboarding}
     />,
   );
 
-  return { ...rendered, toggle };
+  return { ...rendered, toggle, retryOnboarding };
 }
 
 describe("ImplementationLoopView", () => {
@@ -221,5 +224,95 @@ describe("timeAgo", () => {
     expect(timeAgo("2026-08-26T09:00:00Z", now)).toBe("1 hour ago");
     expect(timeAgo("2026-08-24T10:00:00Z", now)).toBe("2 days ago");
     expect(timeAgo(null, now)).toBe("");
+  });
+});
+
+describe("ImplementationLoopView when the repo is not onboarded", () => {
+  it("says the loop picks nothing, shows why onboarding failed, and offers to retry it", () => {
+    const { getByText, getByRole, retryOnboarding } = renderView({
+      enabled: true,
+      onboarding: {
+        merged: false,
+        pr_url: null,
+        last_task: {
+          id: "d5602eb8",
+          status: "failed",
+          failure_reason: "Git Repository is empty.",
+          in_flight: false,
+        },
+      },
+    });
+
+    expect(getByText(/won't pick tickets/)).toBeTruthy();
+    expect(getByText(/Git Repository is empty\./)).toBeTruthy();
+    fireEvent.click(getByRole("button", { name: "Retry onboarding" }));
+    expect(retryOnboarding).toHaveBeenCalledTimes(1);
+  });
+
+  it("links to the open onboarding PR instead of offering a retry while one waits to merge", () => {
+    const { getByRole, queryByRole } = renderView({
+      enabled: true,
+      onboarding: {
+        merged: false,
+        pr_url: "https://github.com/re-cinq/Otto/pull/216",
+        last_task: {
+          id: "t2",
+          status: "pr-created",
+          failure_reason: null,
+          in_flight: true,
+        },
+      },
+    });
+
+    expect(
+      getByRole("link", { name: "Merge the onboarding PR" }).getAttribute(
+        "href",
+      ),
+    ).toBe("https://github.com/re-cinq/Otto/pull/216");
+    expect(queryByRole("button", { name: "Retry onboarding" })).toBeNull();
+  });
+
+  it("links to the running onboarding task instead of offering a retry", () => {
+    const { getByRole, queryByRole } = renderView({
+      enabled: true,
+      onboarding: {
+        merged: false,
+        pr_url: null,
+        last_task: {
+          id: "t3",
+          status: "running",
+          failure_reason: null,
+          in_flight: true,
+        },
+      },
+    });
+
+    expect(
+      getByRole("link", { name: "Onboarding is running" }).getAttribute("href"),
+    ).toBe("/tasks/t3");
+    expect(queryByRole("button", { name: "Retry onboarding" })).toBeNull();
+  });
+
+  it("offers to onboard a repo that was never onboarded, without calling it a failure", () => {
+    const { getByRole, queryByText, retryOnboarding } = renderView({
+      enabled: true,
+      onboarding: { merged: false, pr_url: null, last_task: null },
+    });
+
+    expect(queryByText(/Onboarding failed/)).toBeNull();
+    fireEvent.click(getByRole("button", { name: "Onboard this repo" }));
+    expect(retryOnboarding).toHaveBeenCalledTimes(1);
+  });
+
+  it("heads the queue Waiting for onboarding instead of Next up, so it does not read as about to start", () => {
+    const { getByRole, queryByRole } = renderView({
+      enabled: true,
+      onboarding: { merged: false, pr_url: null, last_task: null },
+    });
+
+    expect(
+      getByRole("heading", { name: "Waiting for onboarding" }),
+    ).toBeTruthy();
+    expect(queryByRole("heading", { name: "Next up" })).toBeNull();
   });
 });

@@ -12238,6 +12238,45 @@
           "enabled": {
             "type": "boolean"
           },
+          "onboarding": {
+            "type": "object",
+            "properties": {
+              "merged": {
+                "type": "boolean"
+              },
+              "pr_url": {
+                "type": ["string", "null"]
+              },
+              "last_task": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string"
+                      },
+                      "failure_reason": {
+                        "type": ["string", "null"]
+                      },
+                      "in_flight": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": ["id", "status", "failure_reason", "in_flight"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["merged", "pr_url", "last_task"],
+            "additionalProperties": false
+          },
           "current": {
             "anyOf": [
               {
@@ -12465,7 +12504,14 @@
             }
           }
         },
-        "required": ["enabled", "current", "current_run_id", "next", "recent"],
+        "required": [
+          "enabled",
+          "onboarding",
+          "current",
+          "current_run_id",
+          "next",
+          "recent"
+        ],
         "additionalProperties": false
       },
       "ImplementationLoopToggle": {
