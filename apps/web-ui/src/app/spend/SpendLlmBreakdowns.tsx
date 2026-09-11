@@ -2,6 +2,7 @@ import styles from "./SpendView.module.css";
 import type { SpendWindow } from "./SpendView";
 import { usd, num, day } from "./spend-format";
 import { CostTable, EmptyRow } from "./CostTable";
+import { BillingSource } from "./SpendBillingSource";
 
 interface LlmProps {
   llm: SpendWindow["llm"];
@@ -27,6 +28,8 @@ export function LlmBreakdowns({ llm }: LlmProps) {
       <AssemblyLineCosts llm={llm} />
 
       <VendorCosts byVendor={llm.by_vendor} />
+
+      <BillingSource byCluster={llm.by_cluster} />
 
       <LlmBreakdownsBySlice llm={llm} />
     </>
