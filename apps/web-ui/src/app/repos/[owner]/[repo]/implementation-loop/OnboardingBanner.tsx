@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { useTransition } from "react";
 import { Alert } from "@/components/Alert";
 import type { ImplementationLoop } from "@/lib/api/backlog";
@@ -34,6 +35,14 @@ interface OnboardingFailureProps {
 function OnboardingNextStep({ onboarding, retry }: OnboardingFailureProps) {
   if (onboarding.pr_url) {
     return <a href={onboarding.pr_url}>Merge the onboarding PR</a>;
+  }
+
+  if (onboarding.last_task?.in_flight) {
+    return (
+      <Link href={`/tasks/${onboarding.last_task.id}`}>
+        Onboarding is running
+      </Link>
+    );
   }
 
   return <OnboardingFailure onboarding={onboarding} retry={retry} />;

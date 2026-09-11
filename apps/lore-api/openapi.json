@@ -12260,9 +12260,12 @@
                       },
                       "failure_reason": {
                         "type": ["string", "null"]
+                      },
+                      "in_flight": {
+                        "type": "boolean"
                       }
                     },
-                    "required": ["id", "status", "failure_reason"],
+                    "required": ["id", "status", "failure_reason", "in_flight"],
                     "additionalProperties": false
                   },
                   {

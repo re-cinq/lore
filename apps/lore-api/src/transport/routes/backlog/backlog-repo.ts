@@ -1,6 +1,7 @@
 // The repo as the backlog reads it: its settings, and the onboarding state that decides whether the loop can pick for it at all.
 
 import type { Pool } from "pg";
+import { IN_FLIGHT_TASK_STATUSES } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import {
@@ -73,6 +74,9 @@ export function onboardingOf({ repo, task }: RepoRead): Onboarding {
           id: task.id,
           status: task.status,
           failure_reason: task.failureReason ?? null,
+          in_flight: (IN_FLIGHT_TASK_STATUSES as readonly string[]).includes(
+            task.status,
+          ),
         }
       : null,
   };

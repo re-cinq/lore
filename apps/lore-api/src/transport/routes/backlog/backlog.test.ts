@@ -93,7 +93,39 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
         id: "d5602eb8-0000-4000-8000-000000000001",
         status: "failed",
         failure_reason: "Git Repository is empty.",
+        in_flight: false,
       },
+    });
+  });
+
+  it("marks a still-running onboard task as in flight, so the page links to it instead of offering a retry", async () => {
+    const pool = makePool();
+
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            settings: { implementation_loop: { enabled: true } },
+            onboarding_pr_merged: false,
+            onboarding_pr_url: null,
+            id: "t3",
+            status: "running",
+            failure_reason: null,
+          },
+        ],
+      })
+      .mockResolvedValue({ rows: [] });
+    vi.mocked(projectFor).mockResolvedValue({
+      issues: { list: async () => [] },
+    } as never);
+
+    const res = await get(pool);
+
+    expect(JSON.parse(res.payload).onboarding.last_task).toEqual({
+      id: "t3",
+      status: "running",
+      failure_reason: null,
+      in_flight: true,
     });
   });
 

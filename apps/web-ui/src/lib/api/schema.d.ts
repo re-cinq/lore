@@ -3206,6 +3206,7 @@ export interface components {
           id: string;
           status: string;
           failure_reason: string | null;
+          in_flight: boolean;
         } | null;
       };
       current: {

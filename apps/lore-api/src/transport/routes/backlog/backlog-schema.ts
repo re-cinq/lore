@@ -39,6 +39,8 @@ export const OnboardingSchema = z.object({
       id: z.string(),
       status: z.string(),
       failure_reason: z.string().nullable(),
+      /** Still running by the onboard guard's own definition, so the page links to it rather than offering a retry the guard would refuse. */
+      in_flight: z.boolean(),
     })
     .nullable(),
 });

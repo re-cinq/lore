@@ -238,6 +238,7 @@ describe("ImplementationLoopView when the repo is not onboarded", () => {
           id: "d5602eb8",
           status: "failed",
           failure_reason: "Git Repository is empty.",
+          in_flight: false,
         },
       },
     });
@@ -254,7 +255,12 @@ describe("ImplementationLoopView when the repo is not onboarded", () => {
       onboarding: {
         merged: false,
         pr_url: "https://github.com/re-cinq/Otto/pull/216",
-        last_task: { id: "t2", status: "pr-created", failure_reason: null },
+        last_task: {
+          id: "t2",
+          status: "pr-created",
+          failure_reason: null,
+          in_flight: true,
+        },
       },
     });
 
@@ -263,6 +269,27 @@ describe("ImplementationLoopView when the repo is not onboarded", () => {
         "href",
       ),
     ).toBe("https://github.com/re-cinq/Otto/pull/216");
+    expect(queryByRole("button", { name: "Retry onboarding" })).toBeNull();
+  });
+
+  it("links to the running onboarding task instead of offering a retry", () => {
+    const { getByRole, queryByRole } = renderView({
+      enabled: true,
+      onboarding: {
+        merged: false,
+        pr_url: null,
+        last_task: {
+          id: "t3",
+          status: "running",
+          failure_reason: null,
+          in_flight: true,
+        },
+      },
+    });
+
+    expect(
+      getByRole("link", { name: "Onboarding is running" }).getAttribute("href"),
+    ).toBe("/tasks/t3");
     expect(queryByRole("button", { name: "Retry onboarding" })).toBeNull();
   });
 });
