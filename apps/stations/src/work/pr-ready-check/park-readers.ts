@@ -56,7 +56,12 @@ async function prEvidence(
     ],
   );
 
-  return { checks, threads, openReviewRunCount, hasCiHistory };
+  return {
+    checks: await explainedChecks(run.repo, checks, deps),
+    threads,
+    openReviewRunCount,
+    hasCiHistory,
+  };
 }
 
 /** A red build reaches `fix-ci` naming the checks that failed; every other blocked reason carries only its reason. */

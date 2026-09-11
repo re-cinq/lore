@@ -417,3 +417,40 @@ describe("a red verdict on an Actions job", () => {
     ]);
   });
 });
+
+describe("a red end-of-line verdict on an Actions job", () => {
+  it("hands fix-ci the failed step and what it printed when the job's check reported nothing", async () => {
+    const d = deps({
+      listChecks: async () => [
+        {
+          id: 102930584180,
+          app: "github-actions",
+          name: "build-test",
+          status: "completed",
+          conclusion: "failure",
+          output: { title: null, summary: null },
+        },
+      ],
+      failedJob: async () => ({
+        steps: ["Lint (--max-warnings 0)"],
+        tail: ['6:1  error  Status "shipped" does not match'],
+      }),
+    });
+
+    await prReadyCheckSweep(d.deps);
+
+    expect(d.reported).toEqual([
+      {
+        target: { lineId: "run-1", nodeId: "await-pr", iteration: 1 },
+        outcome: "changes_requested",
+        args: {
+          reason: "ci_red",
+          ci_feedback_sha: "deadbeef",
+          ci_failed_checks: "build-test",
+          ci_failure_summary:
+            '### build-test (failure)\n\nFailed step: Lint (--max-warnings 0)\n\n6:1  error  Status "shipped" does not match',
+        },
+      },
+    ]);
+  });
+});
