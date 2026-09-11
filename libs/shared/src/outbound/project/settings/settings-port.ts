@@ -46,6 +46,8 @@ export interface SettingsPort {
   onboardedRepos(): Promise<OnboardedRepo[]>;
   /** True when the repo's onboarding PR has merged (gap-detect's per-repo guard). */
   isOnboarded(repo: string): Promise<boolean>;
+  /** Every repo Lore has a row for, onboarded or not. The implementation loop walks these, so a repo that switched the loop on before its onboarding merged is reported rather than never looked at. */
+  allRepos(): Promise<string[]>;
   /** Stamp `last_ingested_at = now()` after a reindex pass. */
   markIngested(repo: string): Promise<void>;
   /** Repos with an open, unmerged onboarding PR (merge-check polls these). */

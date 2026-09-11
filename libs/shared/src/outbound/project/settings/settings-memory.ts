@@ -174,6 +174,10 @@ export class InMemorySettings implements SettingsPort {
       }));
   }
 
+  async allRepos(): Promise<string[]> {
+    return this.repos.map((r) => r.full_name);
+  }
+
   async isOnboarded(repo: string): Promise<boolean> {
     return this.repos.some(
       (r) => r.full_name === repo && r.onboarding_pr_merged === true,

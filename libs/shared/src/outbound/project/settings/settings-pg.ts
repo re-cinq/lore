@@ -131,6 +131,14 @@ export class PgSettings implements SettingsPort {
     return rows as OnboardedRepo[];
   }
 
+  async allRepos(): Promise<string[]> {
+    const { rows } = await this.pool.query<{ full_name: string }>(
+      "SELECT full_name FROM lore.repos ORDER BY full_name",
+    );
+
+    return rows.map((r) => r.full_name);
+  }
+
   async isOnboarded(repo: string): Promise<boolean> {
     const { rows } = await this.pool.query(
       "SELECT 1 FROM lore.repos WHERE full_name = $1 AND onboarding_pr_merged = true",

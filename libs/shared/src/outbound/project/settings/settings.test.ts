@@ -58,3 +58,14 @@ describe("InMemorySettings.onboardedRepos", () => {
     ]);
   });
 });
+
+describe("InMemorySettings.allRepos", () => {
+  it("lists every repo, onboarded or not", async () => {
+    const port = new InMemorySettings([
+      { full_name: "re-cinq/lore", onboarding_pr_merged: true },
+      { full_name: "re-cinq/Otto", onboarding_pr_merged: false },
+    ]);
+
+    expect(await port.allRepos()).toEqual(["re-cinq/lore", "re-cinq/Otto"]);
+  });
+});

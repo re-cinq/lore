@@ -230,8 +230,7 @@ function tickDeps(
   const { pipeline, settings, taskStore } = queues;
 
   return {
-    listRepos: async () =>
-      (await settings().onboardedRepos()).map((r) => r.full_name),
+    listRepos: () => settings().allRepos(),
     rawSettings: (repo) => settings().rawSettings(repo),
     isOnboarded: (repo) => settings().isOnboarded(repo),
     findOpenBySubject: (repo, key) =>
