@@ -36,17 +36,22 @@ describe("billingSourceSplit", () => {
 });
 
 describe("BillingSource", () => {
-  it("splits metered spend into org API key and satellite subscription", () => {
-    render(<BillingSource byCluster={byCluster} />);
-    const table = screen.getByRole("heading", {
-      name: "Billing Source",
-      level: 2,
-    }).nextElementSibling as HTMLElement;
+  const table = () =>
+    screen.getByRole("heading", { name: "Billing Source", level: 2 })
+      .nextElementSibling as HTMLElement;
 
-    expect(within(table).getByText(/API key/)).toBeInTheDocument();
-    expect(within(table).getByText(usd(260.3))).toBeInTheDocument();
-    expect(within(table).getByText(/Subscription/)).toBeInTheDocument();
-    expect(within(table).getByText(usd(60.17))).toBeInTheDocument();
+  it("shows the org API-key row with its cost", () => {
+    render(<BillingSource byCluster={byCluster} />);
+
+    expect(within(table()).getByText(/API key/)).toBeInTheDocument();
+    expect(within(table()).getByText(usd(260.3))).toBeInTheDocument();
+  });
+
+  it("sums the satellite subscription rows into one billed cost", () => {
+    render(<BillingSource byCluster={byCluster} />);
+
+    expect(within(table()).getByText(/Subscription/)).toBeInTheDocument();
+    expect(within(table()).getByText(usd(60.17))).toBeInTheDocument();
   });
 
   it("notes that the billed figure covers only the API-key portion", () => {
