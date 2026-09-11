@@ -232,8 +232,10 @@ describe("PlatformGitHub paginated reads + helpers", () => {
       labels: [{ name: "lore-managed" }],
       html_url: "https://gh/re-cinq/lore/issues/9",
     };
+
     state.issueData = { ...issue, body: "## Why\nno tab switch" };
     const withBody = await gh().getIssue("re-cinq/lore", 9);
+
     state.issueData = { ...issue, body: null };
     const withoutBody = await gh().getIssue("re-cinq/lore", 9);
     const ref = {
