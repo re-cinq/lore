@@ -617,3 +617,19 @@ describe("PlatformGitHub failedJob", () => {
     });
   });
 });
+
+describe("PlatformGitHub failedJob when GitHub refuses", () => {
+  const gh = () => new PlatformGitHub({ GITHUB_TOKEN: "gh-token" });
+
+  beforeEach(() => {
+    state.job = undefined;
+    state.jobLog = undefined;
+    state.jobError = undefined;
+  });
+
+  it("failedJob returns null when GitHub refuses the job read, so the verdict still goes out with the check names", async () => {
+    state.jobError = { status: 403 };
+
+    expect(await gh().failedJob("re-cinq/bowman-ui", 102930584180)).toBe(null);
+  });
+});
