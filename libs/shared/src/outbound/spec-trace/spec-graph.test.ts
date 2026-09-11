@@ -322,3 +322,83 @@ describe("flattenSpecGraph", () => {
     expect(flattenSpecGraph({})).toEqual({ nodes: [], links: [] });
   });
 });
+
+describe("flattenSpecGraph unlinked tests", () => {
+  const coveredChunk = {
+    uid: "0xt1",
+    "TestChunk.file_path": "apps/api/test/config.test.ts",
+    "TestChunk.test_name": "apps/api/test/config.test.ts",
+    cov: {
+      covers: [
+        {
+          uid: "0xf1",
+          "File.path": "apps/api/src/config.ts",
+          "Coverage.covers|ranges": "1-20",
+        },
+      ],
+    },
+  };
+
+  it("draws a covered TestChunk and its File when no spec links it", () => {
+    const graph = flattenSpecGraph({ q: [], tests: [coveredChunk] });
+
+    expect(graph.nodes).toEqual([
+      {
+        id: "0xt1",
+        type: "TestChunk",
+        label: "config.test.ts",
+        path: "apps/api/test/config.test.ts",
+        line: undefined,
+        endLine: undefined,
+        detail: "apps/api/test/config.test.ts",
+      },
+      {
+        id: "file|apps/api/src/config.ts",
+        type: "File",
+        label: "config.ts",
+        path: "apps/api/src/config.ts",
+        detail: "1-20",
+      },
+    ]);
+    expect(graph.links).toEqual([
+      { source: "0xt1", target: "file|apps/api/src/config.ts", kind: "covers" },
+    ]);
+  });
+
+  it("does not duplicate a TestChunk a statement already validated_by", () => {
+    const graph = flattenSpecGraph({
+      q: [
+        {
+          uid: "0x1",
+          "Spec.file_path": "specs/auth/spec.md",
+          stmts: [
+            {
+              uid: "0x2",
+              "Statement.text": "Reads config.",
+              vb: [coveredChunk],
+            },
+          ],
+        },
+      ],
+      tests: [coveredChunk],
+    });
+
+    expect(graph.nodes.filter((n) => n.id === "0xt1")).toHaveLength(1);
+    expect(graph.links.filter((l) => l.kind === "covers")).toHaveLength(1);
+  });
+
+  it("skips a TestChunk whose coverage covers nothing", () => {
+    const graph = flattenSpecGraph({
+      q: [],
+      tests: [
+        {
+          uid: "0xt2",
+          "TestChunk.file_path": "test/old.test.ts",
+          cov: { covers: [] },
+        },
+      ],
+    });
+
+    expect(graph).toEqual({ nodes: [], links: [] });
+  });
+});
