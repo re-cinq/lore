@@ -292,4 +292,15 @@ describe("ImplementationLoopView when the repo is not onboarded", () => {
     ).toBe("/tasks/t3");
     expect(queryByRole("button", { name: "Retry onboarding" })).toBeNull();
   });
+
+  it("offers to onboard a repo that was never onboarded, without calling it a failure", () => {
+    const { getByRole, queryByText, retryOnboarding } = renderView({
+      enabled: true,
+      onboarding: { merged: false, pr_url: null, last_task: null },
+    });
+
+    expect(queryByText(/Onboarding failed/)).toBeNull();
+    fireEvent.click(getByRole("button", { name: "Onboard this repo" }));
+    expect(retryOnboarding).toHaveBeenCalledTimes(1);
+  });
 });

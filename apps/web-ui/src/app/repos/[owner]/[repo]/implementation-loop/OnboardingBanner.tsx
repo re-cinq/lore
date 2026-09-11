@@ -26,13 +26,13 @@ export default function OnboardingBanner({
   );
 }
 
-interface OnboardingFailureProps {
+interface OnboardingStepProps {
   onboarding: ImplementationLoop["onboarding"];
   retry: () => Promise<void>;
 }
 
-/** The one action that moves onboarding forward: merge the PR it already opened, or queue it again. Retrying while a PR waits would only be refused by the onboard guard. */
-function OnboardingNextStep({ onboarding, retry }: OnboardingFailureProps) {
+/** The one action that moves onboarding forward: merge the PR it already opened, follow the run already under way, or queue it. Retrying while a PR waits or a run is in flight would only be refused by the onboard guard. */
+function OnboardingNextStep({ onboarding, retry }: OnboardingStepProps) {
   if (onboarding.pr_url) {
     return <a href={onboarding.pr_url}>Merge the onboarding PR</a>;
   }
@@ -45,24 +45,50 @@ function OnboardingNextStep({ onboarding, retry }: OnboardingFailureProps) {
     );
   }
 
-  return <OnboardingFailure onboarding={onboarding} retry={retry} />;
+  return onboarding.last_task ? (
+    <OnboardingFailure onboarding={onboarding} retry={retry} />
+  ) : (
+    <NeverOnboarded retry={retry} />
+  );
 }
 
-/** The failed onboarding's reason and the button that queues it again. Disabled for the length of the transition, like the toggle, so a double click cannot queue two. */
-function OnboardingFailure({ onboarding, retry }: OnboardingFailureProps) {
-  const [pending, startTransition] = useTransition();
-
+/** The failed onboarding's reason and the button that queues it again. */
+function OnboardingFailure({ onboarding, retry }: OnboardingStepProps) {
   return (
     <>
       Onboarding failed:{" "}
       {onboarding.last_task?.failure_reason ?? "no reason was recorded."}{" "}
-      <button
-        className="button"
-        disabled={pending}
-        onClick={() => startTransition(() => retry())}
-      >
-        Retry onboarding
-      </button>
+      <OnboardButton label="Retry onboarding" retry={retry} />
     </>
+  );
+}
+
+/** A repo nobody has tried to onboard yet: not a failure, just a step not taken. */
+function NeverOnboarded({ retry }: Pick<OnboardingStepProps, "retry">) {
+  return (
+    <>
+      This repo has not been onboarded yet.{" "}
+      <OnboardButton label="Onboard this repo" retry={retry} />
+    </>
+  );
+}
+
+interface OnboardButtonProps {
+  label: string;
+  retry: () => Promise<void>;
+}
+
+/** Queues onboarding. Disabled for the length of the transition, like the toggle, so a double click cannot queue two. */
+function OnboardButton({ label, retry }: OnboardButtonProps) {
+  const [pending, startTransition] = useTransition();
+
+  return (
+    <button
+      className="button"
+      disabled={pending}
+      onClick={() => startTransition(() => retry())}
+    >
+      {label}
+    </button>
   );
 }
