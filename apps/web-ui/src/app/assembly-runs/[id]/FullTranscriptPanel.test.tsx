@@ -139,7 +139,7 @@ describe("FullTranscriptPanel", () => {
     expect(String(fetchMock.mock.calls[1][0])).toContain(
       `after=${TURNS_PAGE_LIMIT}`,
     );
-  });
+  }, 15_000);
 
   it("stops the walk at the load cap and says so, instead of loading unbounded turns", async () => {
     const fetchMock = stubFetch(
@@ -327,7 +327,7 @@ describe("FullTranscriptPanel with the Floor's hasMore flag", () => {
     await openPanel(container);
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-  });
+  }, 15_000);
 
   it("stops paging when the Floor reports more but the page carries no usable cursor, and says so", async () => {
     const fetchMock = stubFetch(

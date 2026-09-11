@@ -210,7 +210,7 @@ describe("LogEntriesView", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders assistant text and thinking with their own classes", () => {
+  it("renders assistant text as a markdown paragraph and thinking with its own class", () => {
     render(
       <LogEntriesView
         entries={[
@@ -220,8 +220,8 @@ describe("LogEntriesView", () => {
       />,
     );
 
-    expect(screen.getByText("I'll fetch the PR metadata.")).toHaveClass(
-      styles.text,
+    expect(screen.getByText("I'll fetch the PR metadata.")).toBeInstanceOf(
+      HTMLParagraphElement,
     );
     expect(screen.getByText("checking the diff first")).toHaveClass(
       styles.thinking,
@@ -374,5 +374,45 @@ describe("file artifact entries", () => {
         "✗ pr.description not produced: agent exited before writing the file",
       ),
     ).toHaveClass(styles.error);
+  });
+});
+
+describe("agent prose as markdown", () => {
+  it("renders assistant text as markdown and its LORE_NODE_RESULT line as a node-result card", () => {
+    const { container } = render(
+      <LogEntriesView
+        entries={[
+          {
+            kind: "assistant-text",
+            text: '**0 regressions** — all green.\n\nLORE_NODE_RESULT: {"outcome":"success","extras":{}}',
+          },
+        ]}
+      />,
+    );
+
+    expect(container.querySelector("strong")).toHaveTextContent(
+      "0 regressions",
+    );
+    expect(
+      container.querySelector('[data-node-result="success"]'),
+    ).toBeInTheDocument();
+  });
+
+  it("renders the folded result text as markdown with its node-result card inside the fold", () => {
+    const { container } = render(
+      <LogEntriesView
+        entries={[
+          {
+            kind: "result",
+            text: "- red bar\n\nLORE_NODE_RESULT: failed",
+            isError: false,
+          },
+        ]}
+      />,
+    );
+    const fold = container.querySelector("details");
+
+    expect(fold?.querySelector("li")).toHaveTextContent("red bar");
+    expect(fold?.querySelector('[data-node-result="failed"]')).not.toBeNull();
   });
 });

@@ -5,6 +5,7 @@ import {
   formatTokens,
   type LogEntry,
 } from "@/lib/agent-log-entries";
+import AgentProse from "./AgentProse";
 import styles from "./LogEntriesView.module.css";
 
 const INLINE_RESULT_MAX = 160;
@@ -50,7 +51,7 @@ function agentLine(entry: LogEntry) {
   }
 
   if (entry.kind === "assistant-text") {
-    return <div className={styles.text}>{entry.text}</div>;
+    return <AgentProse text={entry.text} />;
   }
 
   if (entry.kind === "tool-use") {
@@ -173,7 +174,7 @@ function resultLine(entry: Extract<LogEntry, { kind: "result" }>) {
       {entry.text && (
         <details className={styles.dim}>
           <summary className={styles.summary}>result</summary>
-          <pre className={styles.detailsPre}>{entry.text}</pre>
+          <AgentProse text={entry.text} />
         </details>
       )}
     </div>
