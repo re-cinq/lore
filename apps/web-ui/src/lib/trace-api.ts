@@ -4,6 +4,7 @@ import { loreApiGet } from "@/lib/lore-api-get";
 import type { TraceDocument } from "@/lib/trace-types";
 import type { SpecGraph, SpecRing } from "@/lib/spec-graph";
 import type { SpecStatusInfo } from "@/lib/spec-status";
+import type { ProjectionCommits } from "@/lib/graph-empty-state";
 
 export type { TraceDocument };
 
@@ -102,6 +103,28 @@ export async function fetchTraceRing(
       `ring?path=${encodeURIComponent(filePath)}`,
     )) ?? { sections: [], statements: [] }
   );
+}
+
+/** The commit each CI projection kind last landed for a repo (null = that kind never ran). */
+export async function fetchProjectionCommits(
+  repo: string,
+): Promise<ProjectionCommits> {
+  const [specs, adrs, testReport] = await Promise.all(
+    ["specs", "adrs", "test-report"].map((kind) => ingestedCommit(repo, kind)),
+  );
+
+  return { specs, adrs, testReport };
+}
+
+async function ingestedCommit(
+  repo: string,
+  kind: string,
+): Promise<string | null> {
+  const state = await loreApiGet<{ commit: string | null }>(
+    `/api/repos/${repo}/ingest-state?kind=${kind}`,
+  );
+
+  return state?.commit ?? null;
 }
 
 function traceGet<T>(repo: string, kindAndQuery: string): Promise<T | null> {

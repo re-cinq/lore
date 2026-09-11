@@ -1,7 +1,9 @@
 export const dynamic = "force-dynamic";
 
-import { fetchTraceGraph } from "@/lib/trace-api";
+import { fetchProjectionCommits, fetchTraceGraph } from "@/lib/trace-api";
 import GraphView from "./GraphView";
+import GraphEmptyState from "./GraphEmptyState";
+import { decideGraphEmptyReason } from "@/lib/graph-empty-state";
 
 const PAGE_COLUMN: React.CSSProperties = {
   display: "flex",
@@ -17,13 +19,16 @@ interface RepoGraphPageProps {
 
 export default async function RepoGraphPage({ params }: RepoGraphPageProps) {
   const { owner, repo } = await params;
-  const graph = await fetchTraceGraph(`${owner}/${repo}`);
+  const [graph, projection] = await Promise.all([
+    fetchTraceGraph(`${owner}/${repo}`),
+    fetchProjectionCommits(`${owner}/${repo}`),
+  ]);
 
   return (
     <div style={PAGE_COLUMN}>
       <GraphIntro nodes={graph.nodes.length} edges={graph.links.length} />
       {graph.nodes.length === 0 ? (
-        <EmptyGraphNote />
+        <GraphEmptyState reason={decideGraphEmptyReason(projection)} />
       ) : (
         <GraphView owner={owner} repo={repo} graph={graph} />
       )}
@@ -39,19 +44,6 @@ function GraphIntro({ nodes, edges }: { nodes: number; edges: number }) {
       or code, projected by CI (specs/ADRs via <code>lore-ingest.yml</code>,
       tests via <code>lore-tests.yml</code>). Showing {nodes} nodes / {edges}{" "}
       edges.
-    </p>
-  );
-}
-
-/** Why the graph is empty and what fills it. An empty graph almost always means CI has not projected yet rather than that the repo has no specs, so the note names the workflows rather than saying there is nothing. */
-function EmptyGraphNote() {
-  return (
-    <p style={{ color: "var(--text-muted)" }}>
-      No graph yet. It is built by CI on push to <code>main</code> — specs/ADRs
-      via <code>lore-ingest.yml</code> and tests via <code>lore-tests.yml</code>{" "}
-      (POSTing <code>/test-report</code> + <code>/coverage</code>); refresh once
-      those run. Requires <code>LORE_DGRAPH_HTTP</code> to be configured on the
-      UI server.
     </p>
   );
 }
