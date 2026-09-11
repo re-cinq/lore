@@ -1,15 +1,4 @@
-// Pure bar geometry for the spend charts; returns fractions in [0, 1] the SVG scales.
-
-/** Height of each value as a fraction of the largest. Empty, all-zero, and negative inputs floor at zero rather than divide by zero or return a negative height. */
-export function barHeightFractions(values: number[]): number[] {
-  const max = Math.max(0, ...values);
-
-  if (max <= 0) {
-    return values.map(() => 0);
-  }
-
-  return values.map((v) => (v > 0 ? v / max : 0));
-}
+// Pure bar geometry for the spend comparison bars; returns fractions in [0, 1] the SVG scales.
 
 export interface ComparePair {
   estimateFraction: number;
