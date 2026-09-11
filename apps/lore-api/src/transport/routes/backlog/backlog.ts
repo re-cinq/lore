@@ -18,6 +18,7 @@ import {
   ImplementationLoopSchema,
   ToggleBodySchema,
   ToggleResultSchema,
+  type Onboarding,
   type Ticket,
 } from "./backlog-schema.js";
 import {
@@ -28,6 +29,7 @@ import {
   type LoopTaskRow,
 } from "./backlog-ticket.js";
 import { withPool } from "../with-pool.js";
+import { onboardingOf, readRepoRow } from "./backlog-repo.js";
 
 export { pipelineOf } from "./backlog-ticket.js";
 
@@ -89,6 +91,7 @@ async function serveReadBacklog(
     .response({
       enabled: state.enabled,
       current_run_id: state.currentRunId,
+      onboarding: state.onboarding,
       ...projectBacklog(state),
     })
     .code(200);
@@ -99,6 +102,7 @@ type NodeRows = Parameters<typeof taskTicket>[3];
 
 interface BacklogState {
   enabled: boolean;
+  onboarding: Onboarding;
   taskRows: LoopTaskRow[];
   openIssues: OpenIssues;
   currentRunId: string | null;
@@ -106,35 +110,22 @@ interface BacklogState {
   nodeRows: NodeRows;
 }
 
-/** Everything the view needs, read in one place: the toggle, the loop's task rows, the repo's open issues, and the run each task belongs to. */
+/** Everything the view needs, read in one place: the toggle and onboarding state, the loop's task rows, the repo's open issues, and the run each task belongs to. */
 async function loadBacklogState(
   pool: Pool,
   repo: string,
 ): Promise<BacklogState> {
-  const settings = await readRepoSettings(pool, repo);
+  const read = await readRepoRow(pool, repo);
   const taskRows = await readLoopTasks(pool, repo);
 
   return {
-    enabled: resolveEnabled(settings),
+    enabled: resolveEnabled(read.repo.settings),
+    onboarding: onboardingOf(read),
     taskRows,
     openIssues: await readOpenIssues(repo),
     currentRunId: await readCurrentRunId(pool, repo),
     ...(await readRunIndex(pool, taskRows)),
   };
-}
-
-/** The repo's settings blob, or a 404 — an unknown repo has no backlog to report on. */
-async function readRepoSettings(
-  pool: Pool,
-  repo: string,
-): Promise<Record<string, unknown> | null> {
-  const { rows } = await pool.query<{
-    settings: Record<string, unknown> | null;
-  }>("SELECT settings FROM lore.repos WHERE full_name = $1", [repo]);
-
-  enforceTrue(rows.length > 0, apiError(404), `repo not found: ${repo}`);
-
-  return rows[0].settings;
 }
 
 /** The loop's own tasks, newest first. TWICE the display cap is read: the open ones are filtered out to build the "recent" list, and without the headroom a repo with several in flight would show a short one. */

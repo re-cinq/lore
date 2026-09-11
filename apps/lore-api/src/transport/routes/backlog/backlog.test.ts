@@ -63,6 +63,40 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
     expect((await get(pool)).statusCode).toBe(404);
   });
 
+  it("reports the repo's onboarding state and its last onboard task, so the page can say why nothing is picked", async () => {
+    const pool = makePool();
+
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            settings: { implementation_loop: { enabled: true } },
+            onboarding_pr_merged: false,
+            onboarding_pr_url: null,
+            id: "d5602eb8-0000-4000-8000-000000000001",
+            status: "failed",
+            failure_reason: "Git Repository is empty.",
+          },
+        ],
+      })
+      .mockResolvedValue({ rows: [] });
+    vi.mocked(projectFor).mockResolvedValue({
+      issues: { list: async () => [] },
+    } as never);
+
+    const res = await get(pool);
+
+    expect(JSON.parse(res.payload).onboarding).toEqual({
+      merged: false,
+      pr_url: null,
+      last_task: {
+        id: "d5602eb8-0000-4000-8000-000000000001",
+        status: "failed",
+        failure_reason: "Git Repository is empty.",
+      },
+    });
+  });
+
   it("returns the toggle, current ticket, ordered queue, and recent tickets", async () => {
     const pool = makePool();
 
@@ -142,6 +176,7 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
     expect(res.statusCode).toBe(200);
     expect(JSON.parse(res.payload)).toEqual({
       enabled: true,
+      onboarding: { merged: false, pr_url: null, last_task: null },
       current_run_id: "run-42",
       current: {
         created_at: "2026-08-26T06:00:00.000Z",
