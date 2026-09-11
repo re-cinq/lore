@@ -14,6 +14,8 @@ import { implementationLoopEnabled } from "./implementation-loop-enabled.js";
 export interface LoopTickDeps {
   listRepos(): Promise<string[]>;
   rawSettings(repo: string): Promise<unknown>;
+  /** Whether the repo's onboarding PR has merged; the loop never picks for a repo that has not finished onboarding. */
+  isOnboarded(repo: string): Promise<boolean>;
   findOpenBySubject(
     repo: string,
     subjectKey: string,
@@ -70,11 +72,7 @@ interface BacklogPick {
 }
 
 async function tickRepo(repo: string, deps: LoopTickDeps): Promise<void> {
-  if (!implementationLoopEnabled(await deps.rawSettings(repo))) {
-    return;
-  }
-
-  if (await deps.findOpenBySubject(repo, backlogSubject())) {
+  if (!(await readyToPick(repo, deps))) {
     return;
   }
 
@@ -91,6 +89,23 @@ async function tickRepo(repo: string, deps: LoopTickDeps): Promise<void> {
   const resume = await resolveResume(repo, picked, branch, deps);
 
   await dispatchLoopTask({ repo, picked, branch, resume }, deps);
+}
+
+/** Whether this tick may pick for the repo: its loop is on, it has finished onboarding, and it is not already driving a run. A repo that is on but not onboarded says so, because a tick that only walked onboarded repos once skipped such a repo with no trace at all. */
+async function readyToPick(repo: string, deps: LoopTickDeps): Promise<boolean> {
+  if (!implementationLoopEnabled(await deps.rawSettings(repo))) {
+    return false;
+  }
+
+  if (!(await deps.isOnboarded(repo))) {
+    console.log(
+      `[implementation-loop] ${repo}: loop enabled but the repo is not onboarded — its onboarding PR has not merged, so no ticket is picked`,
+    );
+
+    return false;
+  }
+
+  return !(await deps.findOpenBySubject(repo, backlogSubject()));
 }
 
 /** Walks past guarded tickets rather than stopping on the first one — returning on the guarded HEAD froze the backlog behind one unmerged PR twice (27h 2026-08-30, overnight 2026-09-02). */
@@ -218,6 +233,7 @@ function tickDeps(
     listRepos: async () =>
       (await settings().onboardedRepos()).map((r) => r.full_name),
     rawSettings: (repo) => settings().rawSettings(repo),
+    isOnboarded: (repo) => settings().isOnboarded(repo),
     findOpenBySubject: (repo, key) =>
       pipeline().assemblyRuns.findOpenBySubject(repo, key),
     activeTaskByIssue: (repo, issueNumber) =>
