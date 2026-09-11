@@ -120,8 +120,12 @@ func buildReport(ctx context.Context, m Manifest, cwd string, meta reportMeta, c
 		if rr == nil {
 			continue
 		}
+		covered := rr.Covered
+		if covered == nil {
+			covered = []CoveredChunk{}
+		}
 		for _, id := range idsByFile[f] {
-			results = append(results, TaggedRunResult{ID: id, Passed: rr.Passed, Covered: rr.Covered})
+			results = append(results, TaggedRunResult{ID: id, Passed: rr.Passed, Covered: covered})
 		}
 	}
 

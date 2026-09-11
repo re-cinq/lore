@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"strings"
 	"testing"
@@ -72,6 +73,29 @@ func TestBuildReportParsesLcovRunOutput(t *testing.T) {
 	want := []CoveredChunk{{File: "src/x.go", StartLine: 1, EndLine: 2}}
 	if len(r.Covered) != 1 || r.Covered[0] != want[0] {
 		t.Errorf("covered: got %+v, want %+v", r.Covered, want)
+	}
+}
+
+// A run that reports no coverage must still post "covered":[] — the server
+// iterates the field, and a nil slice would marshal to null.
+func TestBuildReportPostsEmptyCoveredArrayWhenRunReportsNoCoverage(t *testing.T) {
+	listJSON := `[{"id":"x::1","name":"1","file":"x.go"}]`
+	m := Manifest{
+		List:           "printf '%s' '" + listJSON + "'",
+		Run:            "true {selector}",
+		CoverageFormat: "lcov",
+		Cwd:            ".",
+	}
+	report, err := buildReport(context.Background(), m, t.TempDir(), reportMeta{Commit: "c", Branch: "b"}, 2, io.Discard)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	body, err := json.Marshal(report.Results)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if got, want := string(body), `[{"id":"x::1","passed":true,"covered":[]}]`; got != want {
+		t.Errorf("results JSON: got %s, want %s", got, want)
 	}
 }
 

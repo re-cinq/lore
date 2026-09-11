@@ -95,6 +95,30 @@ describe.skipIf(!reachable)("ingestSpecTrace (live Dgraph)", () => {
     });
   });
 
+  it("writes the TestChunk and no COVERS edge when a test-report result's covered is null", async () => {
+    const repo = `spec-trace/${randomUUID()}`;
+
+    createdRepo = repo;
+
+    await ingestSpecTrace(dgraphClient, repo, "test-report", {
+      tests: [{ id: "t1", name: "renders", file: "test/widget.test.ts" }],
+      results: [{ id: "t1", passed: false, covered: null }],
+    });
+
+    const graph = (await readGraph(
+      `query q($xid: string, $repo: string) {
+        tc(func: eq(TestChunk.xid, $xid)) { TestChunk.test_name }
+        cov(func: eq(Coverage.repo, $repo)) { Coverage.covers { File.xid } }
+      }`,
+      { $xid: `${repo}|t1`, $repo: repo },
+    )) as { tc?: Record<string, unknown>[]; cov?: unknown[] };
+
+    expect(graph).toEqual({
+      tc: [{ "TestChunk.test_name": "renders" }],
+      cov: [],
+    });
+  });
+
   it("writes Coverage with a COVERS edge to a File node via ingestCoverageReport when kind is coverage, with no pre-seeding or AST", async () => {
     const repo = `spec-trace/${randomUUID()}`;
 
