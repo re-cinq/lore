@@ -37,6 +37,8 @@ export interface GraphResult {
       OwnerLinks & { uid: string; "AcceptanceCriterion.text"?: string }
     >;
   }>;
+  /** Every covered TestChunk in the repo, spec-linked or not; the flattener draws the ones no statement claimed. */
+  tests?: NonNullable<OwnerLinks["vb"]>;
 }
 
 interface GraphSink {
@@ -61,8 +63,33 @@ export function flattenSpecGraph(graph: GraphResult): SpecGraph {
     emitFeatureNode(spec, nodes, links);
     emitSpecChildNodes(spec, specPath, nodes, links);
   }
+  emitUnlinkedTests(graph.tests, nodes, links);
 
   return { nodes: [...nodes.values()], links };
+}
+
+/** Tests with coverage that no statement validated_by: a repo with tests but no specs still has a graph — its tests and the files they exercise. A chunk that covers nothing (an orphan from a broken adapter) draws nothing. */
+function emitUnlinkedTests(
+  tests: GraphResult["tests"],
+  nodes: Map<string, SpecGraphNode>,
+  links: SpecGraphLink[],
+): void {
+  const unclaimed = (tests ?? []).filter(
+    (chunk) => !nodes.has(chunk.uid) && coversSomething(chunk),
+  );
+
+  for (const chunk of unclaimed) {
+    nodes.set(chunk.uid, testChunkNode(chunk));
+    emitCoveredFileNodes(chunk, nodes, links);
+  }
+}
+
+function coversSomething(
+  chunk: NonNullable<OwnerLinks["vb"]>[number],
+): boolean {
+  const covers = chunk.cov?.covers ?? [];
+
+  return covers.length > 0;
 }
 
 /** "specs/1-lore-platform/spec.md" → "1-lore-platform (spec)"; ".specify/spec.md" → "spec". */

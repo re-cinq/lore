@@ -143,9 +143,13 @@ const GRAPH_DQL = `query specGraph($repo: string) {
       db: AcceptanceCriterion.decided_by { uid ADR.file_path ADR.number }
     }
   }
+  tests(func: eq(TestChunk.repo, $repo)) @filter(has(TestChunk.coverage)) {
+    uid TestChunk.file_path TestChunk.test_name TestChunk.start_line TestChunk.end_line
+    cov: TestChunk.coverage { covers: Coverage.covers @facets(ranges) { uid File.path } }
+  }
 }`;
 
-/** Reads a repo's spec force-graph (Specs + linked Statements + their test/code/ADR targets). */
+/** Reads a repo's spec force-graph (Specs + linked Statements + their test/code/ADR targets), plus the covered tests no spec links so a spec-less repo still draws. */
 export async function fetchSpecGraph(
   repo: string,
   dgraph: DgraphClientPort,
