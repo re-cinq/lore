@@ -13,6 +13,8 @@ interface FakeFile {
 const state: {
   files: FakeFile[];
   checkRuns: Array<{
+    id?: number;
+    app?: { slug: string } | null;
     name: string;
     status: string;
     conclusion: string | null;
@@ -536,5 +538,36 @@ describe("PlatformGitHub review threads (GraphQL)", () => {
     await gh().markReady("re-cinq/lore", 7);
 
     expect(state.graphqlCalls).toHaveLength(1);
+  });
+});
+
+describe("PlatformGitHub Actions job reads", () => {
+  const gh = () => new PlatformGitHub({ GITHUB_TOKEN: "gh-token" });
+
+  beforeEach(() => {
+    state.checkRuns = [];
+  });
+
+  it("listChecks keeps each run's id and the app that published it, since an Actions run's id is its job id", async () => {
+    state.checkRuns = [
+      {
+        id: 102930584180,
+        app: { slug: "github-actions" },
+        name: "build-test",
+        status: "completed",
+        conclusion: "failure",
+        output: { title: null, summary: null },
+      },
+    ];
+    expect(await gh().listChecks("re-cinq/bowman-ui", "f58642f4")).toEqual([
+      {
+        id: 102930584180,
+        app: "github-actions",
+        name: "build-test",
+        status: "completed",
+        conclusion: "failure",
+        output: { title: null, summary: null },
+      },
+    ]);
   });
 });

@@ -75,6 +75,10 @@ export interface CheckRun {
   name: string;
   status: string;
   conclusion: string | null;
+  /** GitHub's id for the run. For a GitHub Actions run it is also the job id, which is how the job's steps and log are found. */
+  id?: number;
+  /** Slug of the app that published the run; `github-actions` marks a run whose job can be read. */
+  app?: string;
   /** What the job reported about itself. Optional: only the CI-feedback path reads it, and every in-memory double predates it. */
   output?: { title: string | null; summary: string | null };
   /** For a failed GitHub Actions job, what the job itself says about the failure. Filled in only on a red verdict, because reading it costs two more requests per job. */
