@@ -82,6 +82,7 @@ function deps(overrides: Partial<PrReadyCheckDeps> = {}) {
     listChecks: async () => [
       { name: "test", status: "completed", conclusion: "success" },
     ],
+    failedJob: async () => null,
     listReviewThreads: async () => [],
     countOpenReviewRuns: async () => 0,
     report: async (target, outcome, args) => {
@@ -373,5 +374,46 @@ describe("prReadyCheckSweep", () => {
 
     expect(d.reported).toEqual([]);
     expect(summary).toBe("checked 1, resumed 0, blocked 0, waiting 1");
+  });
+});
+
+describe("a red verdict on an Actions job", () => {
+  it("adds the failed step and what it printed when the job's check reported nothing", async () => {
+    const d = deps({
+      listStationRuns: async () => parkedAtCi,
+      listChecks: async () => [
+        {
+          id: 102930584180,
+          app: "github-actions",
+          name: "build-test",
+          status: "completed",
+          conclusion: "failure",
+          output: { title: null, summary: null },
+        },
+      ],
+      failedJob: async (_repo, jobId) =>
+        jobId === 102930584180
+          ? {
+              steps: ["Lint (--max-warnings 0)"],
+              tail: ['6:1  error  Status "shipped" does not match'],
+            }
+          : null,
+    });
+
+    await prReadyCheckSweep(d.deps);
+
+    expect(d.reported).toEqual([
+      {
+        target: { lineId: "run-1", nodeId: "await-ci", iteration: 1 },
+        outcome: "changes_requested",
+        args: {
+          reason: "ci_red",
+          ci_feedback_sha: "deadbeef",
+          ci_failed_checks: "build-test",
+          ci_failure_summary:
+            '### build-test (failure)\n\nFailed step: Lint (--max-warnings 0)\n\n6:1  error  Status "shipped" does not match',
+        },
+      },
+    ]);
   });
 });

@@ -12,6 +12,7 @@ import type {
   PullStats,
   CiConclusion,
   CheckRun,
+  JobFailure,
   ReviewThread,
   PullFileChange,
 } from "./pull-requests-port.js";
@@ -124,6 +125,11 @@ export class PullRequests {
 
   listChecks(ref: string): Promise<CheckRun[]> {
     return this.pulls.listChecks(this.repo, ref);
+  }
+
+  /** How a failed Actions job on this repo failed; null when GitHub will not say. */
+  failedJob(jobId: number): Promise<JobFailure | null> {
+    return this.pulls.failedJob(this.repo, jobId);
   }
 
   listReviewThreads(number: number): Promise<ReviewThread[]> {

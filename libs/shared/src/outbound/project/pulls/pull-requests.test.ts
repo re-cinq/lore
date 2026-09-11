@@ -198,3 +198,22 @@ describe("PullRequests review threads", () => {
     expect(readied).toEqual([{ repo: "re-cinq/lore", number: 7 }]);
   });
 });
+
+describe("PullRequests failedJob", () => {
+  it("reads a failed Actions job through the repo it was bound to", async () => {
+    const asked: Array<{ repo: string; jobId: number }> = [];
+    const port: PullRequestsPort = {
+      ...fakePulls([], []),
+      failedJob: async (repo, jobId) => {
+        asked.push({ repo, jobId });
+
+        return { steps: ["Lint (--max-warnings 0)"], tail: ["6:1  error"] };
+      },
+    };
+
+    expect(
+      await new PullRequests("re-cinq/bowman-ui", port).failedJob(102930584180),
+    ).toEqual({ steps: ["Lint (--max-warnings 0)"], tail: ["6:1  error"] });
+    expect(asked).toEqual([{ repo: "re-cinq/bowman-ui", jobId: 102930584180 }]);
+  });
+});

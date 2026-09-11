@@ -156,18 +156,27 @@ function openReviewRunCounter(
     ).length;
 }
 
+/** The sweep's reads that go to the pull request itself. */
+type PrReads = Pick<
+  PrReadyCheckDeps,
+  | "listPrCommits"
+  | "listChecks"
+  | "failedJob"
+  | "listReviewThreads"
+  | "prMergeable"
+>;
+
 /** The PR-side reads, all through one per-sweep repo cache. */
 function prReads(
   projectOf: (repo: string) => Promise<Pick<Project, "pulls">>,
-): Pick<
-  PrReadyCheckDeps,
-  "listPrCommits" | "listChecks" | "listReviewThreads" | "prMergeable"
-> {
+): PrReads {
   return {
     listPrCommits: async (repo, number) =>
       (await projectOf(repo)).pulls.listCommits(number),
     listChecks: async (repo, ref) =>
       (await projectOf(repo)).pulls.listChecks(ref),
+    failedJob: async (repo, jobId) =>
+      (await projectOf(repo)).pulls.failedJob(jobId),
     prMergeable: async (repo, number) =>
       (await (await projectOf(repo)).pulls.get(number))?.mergeable ?? null,
     listReviewThreads: async (repo, number) =>
