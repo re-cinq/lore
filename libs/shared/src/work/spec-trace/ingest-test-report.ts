@@ -187,12 +187,12 @@ function coveredRangesByFile(
   return byFile;
 }
 
-/** Folds covered ranges into the file's range map, keyed by position so a range reported by several tests is stored once. */
+/** Folds covered ranges into the file's range map, keyed by position so a range reported by several tests is stored once. A result with no coverage arrives as `null` (the binary's empty Go slice), and records nothing rather than failing the whole report. */
 function recordCoveredRanges(
   ranges: Map<string, CoveredChunk>,
-  covered: CoveredChunk[],
+  covered: CoveredChunk[] | null,
 ): void {
-  for (const chunk of covered) {
+  for (const chunk of covered ?? []) {
     ranges.set(`${chunk.file}:${chunk.startLine}:${chunk.endLine}`, chunk);
   }
 }
