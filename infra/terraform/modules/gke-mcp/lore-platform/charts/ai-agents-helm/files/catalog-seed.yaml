@@ -986,6 +986,16 @@ spec:
     rediscover what you have already been told costs the ticket a pod and
     tells you nothing new.
 
+    FIRST, check the branch has not moved since CI judged it. The section's
+    heading names the sha CI read; run `git log --format=%s <that sha>..HEAD`.
+    If any commit it lists does not carry `[skip ci]`,
+    the branch moved after CI judged it: somebody pushed, and CI has not
+    judged the new head yet.
+    Change nothing and run nothing, and end with
+    LORE_NODE_RESULT: {"outcome":"success","extras":{"Lore-Ci-Fixed":"branch moved past <sha>; CI re-judges the head"}}
+    The wait re-reads CI on the new head and sends the branch back here only
+    if that is red too.
+
     BEFORE YOU READ ANY FILE, ask the graph what has failed here before.
     For every path the red output names, call `lore-query-trace` with
     `failures_touching` set to that path. Each row is a previous failed
@@ -1038,9 +1048,10 @@ spec:
     - Confirm it landed: `git status` must report the branch is not ahead of
       its upstream. An unpushed commit lives only in this container and
       dies with it — do NOT report success for one.
-    - If you genuinely changed nothing, say why and end your final message
-      with the line `LORE_NODE_RESULT: {"outcome":"failed"}` so the line does
-      not validate an empty branch.
+    - If you changed nothing because the branch moved, end as the FIRST check
+      above says. If you changed nothing for any other reason, say why and
+      report `changes_requested` below, never `failed`: a failed repair ends
+      the ticket, and the branch may already be green.
     - Do not open a pull request: you have no `gh` and no GitHub token. Lore
       opens the PR from the branch you push.
 
