@@ -124,7 +124,7 @@ function backlogStages(loop: ImplementationLoop): LoopSectionProps[] {
       emptyText: "No ticket is being worked right now.",
     },
     {
-      heading: "Next up",
+      heading: queueHeading(loop),
       tickets: loop.next,
       emptyText: EMPTY_BACKLOG,
     },
@@ -134,6 +134,13 @@ function backlogStages(loop: ImplementationLoop): LoopSectionProps[] {
       emptyText: "Nothing addressed yet.",
     },
   ];
+}
+
+/** The queue's heading. While the repo is not onboarded the loop will not start on it, and "Next up" read as if it were about to. */
+function queueHeading(loop: ImplementationLoop): string {
+  return loop.enabled && !loop.onboarding.merged
+    ? "Waiting for onboarding"
+    : "Next up";
 }
 
 /** One stage of the backlog. Each empty text says what would put a ticket here rather than just "none", because an empty section usually means the reader has something to do. */

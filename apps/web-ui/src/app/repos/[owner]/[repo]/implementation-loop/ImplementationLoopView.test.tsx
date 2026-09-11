@@ -303,4 +303,16 @@ describe("ImplementationLoopView when the repo is not onboarded", () => {
     fireEvent.click(getByRole("button", { name: "Onboard this repo" }));
     expect(retryOnboarding).toHaveBeenCalledTimes(1);
   });
+
+  it("heads the queue Waiting for onboarding instead of Next up, so it does not read as about to start", () => {
+    const { getByRole, queryByRole } = renderView({
+      enabled: true,
+      onboarding: { merged: false, pr_url: null, last_task: null },
+    });
+
+    expect(
+      getByRole("heading", { name: "Waiting for onboarding" }),
+    ).toBeTruthy();
+    expect(queryByRole("heading", { name: "Next up" })).toBeNull();
+  });
 });
