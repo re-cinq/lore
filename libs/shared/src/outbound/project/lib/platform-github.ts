@@ -33,6 +33,7 @@ import * as repoConfig from "./platform-github-repo-config.js";
 import * as pullsRead from "./platform-github-pulls-read.js";
 import * as pullsReviewReads from "./platform-github-pulls-review-reads.js";
 import * as pullsWrite from "./platform-github-pulls-write.js";
+import * as actionsReads from "./platform-github-actions.js";
 
 export type { IssueState, CloseReason };
 
@@ -269,6 +270,10 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
 
   listChecks(repo: string, ref: string): Promise<CheckRun[]> {
     return this.octo().then((ok) => pullsReviewReads.checkRuns(ok, repo, ref));
+  }
+
+  async failedJob(repo: string, jobId: number) {
+    return actionsReads.failedJob(await this.octo(), repo, jobId);
   }
 
   async ciConclusion(repo: string, ref: string): Promise<CiConclusion> {

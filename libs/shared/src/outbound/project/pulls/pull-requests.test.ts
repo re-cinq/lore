@@ -87,6 +87,7 @@ function fakePulls(
     listFiles: async () => [],
     listFileChanges: async () => [],
     listChecks: async () => [],
+    failedJob: async () => null,
   };
 }
 

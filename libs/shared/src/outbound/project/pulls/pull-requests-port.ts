@@ -187,6 +187,8 @@ export interface PullRequestsPort {
   listFileChanges(repo: string, number: number): Promise<PullFileChange[]>;
   /** Every check run for a ref, paginated raw — the gate predicate (stricter than ciConclusion) stays in the caller. */
   listChecks(repo: string, ref: string): Promise<CheckRun[]>;
+  /** How a failed GitHub Actions job failed, read from the job itself; null when GitHub will not say. */
+  failedJob(repo: string, jobId: number): Promise<JobFailure | null>;
   /** Every review thread on a PR — GraphQL, since resolution has no REST read. */
   listReviewThreads(repo: string, number: number): Promise<ReviewThread[]>;
   /** Mark one thread resolved; threadId is the GraphQL node id from listReviewThreads (no repo param needed). */

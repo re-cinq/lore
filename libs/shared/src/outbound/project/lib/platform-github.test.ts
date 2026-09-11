@@ -32,6 +32,9 @@ const state: {
   createCall?: Record<string, unknown>;
   updateCall?: Record<string, unknown>;
   prNode?: { id: string; isDraft: boolean };
+  job?: { steps: Array<{ name: string; conclusion: string | null }> };
+  jobLog?: string;
+  jobError?: { status: number };
 } = { files: [], checkRuns: [], token: "", graphqlCalls: [], authCalls: [] };
 
 vi.mock("octokit", () => ({
@@ -89,6 +92,16 @@ vi.mock("octokit", () => ({
         },
       },
       checks: { listForRef: async () => state.checkRuns },
+      actions: {
+        getJobForWorkflowRun: async () => {
+          if (state.jobError) {
+            throw state.jobError;
+          }
+
+          return { data: state.job };
+        },
+        downloadJobLogsForWorkflowRun: async () => ({ data: state.jobLog }),
+      },
       git: { getTree: async () => ({ data: state.treeData }) },
       issues: {
         addLabels: async () => ({}),
@@ -569,5 +582,38 @@ describe("PlatformGitHub Actions job reads", () => {
         output: { title: null, summary: null },
       },
     ]);
+  });
+});
+
+describe("PlatformGitHub failedJob", () => {
+  const gh = () => new PlatformGitHub({ GITHUB_TOKEN: "gh-token" });
+
+  beforeEach(() => {
+    state.job = undefined;
+    state.jobLog = undefined;
+    state.jobError = undefined;
+  });
+
+  it("failedJob returns the failed step names and what the failing step printed", async () => {
+    state.job = {
+      steps: [
+        { name: "Set up job", conclusion: "success" },
+        { name: "Lint (--max-warnings 0)", conclusion: "failure" },
+        { name: "Typecheck", conclusion: "skipped" },
+      ],
+    };
+    state.jobLog = [
+      "2026-09-10T15:19:24.9890197Z ##[endgroup]",
+      "2026-09-10T15:19:33.0741174Z /home/runner/work/bowman-ui/bowman-ui/specs/bowman-ui-theming-tokens/spec.md",
+      '2026-09-10T15:19:33.0771169Z ##[error]  6:1  error  Status "shipped" does not match',
+      "2026-09-10T15:19:33.3498151Z ##[error]Process completed with exit code 1.",
+    ].join("\n");
+    expect(await gh().failedJob("re-cinq/bowman-ui", 102930584180)).toEqual({
+      steps: ["Lint (--max-warnings 0)"],
+      tail: [
+        "/home/runner/work/bowman-ui/bowman-ui/specs/bowman-ui-theming-tokens/spec.md",
+        '6:1  error  Status "shipped" does not match',
+      ],
+    });
   });
 });
