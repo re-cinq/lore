@@ -35,13 +35,13 @@ jobs:
         if: steps.changes.outputs.files != '[]'
         env:
           LORE_INGEST_TOKEN: ${{ secrets.LORE_INGEST_TOKEN }}
-          LORE_INGEST_URL: ${{ vars.LORE_INGEST_URL || vars.LORE_API_URL }}
+          LORE_INGEST_URL: ${{ secrets.LORE_INGEST_URL || vars.LORE_INGEST_URL || vars.LORE_API_URL }}
           FILES: ${{ steps.changes.outputs.files }}
         run: |
           # Misconfiguration (unset URL) is a hard error - a missing var must
           # never silently fall back and report success.
           if [ -z "${LORE_INGEST_URL}" ]; then
-            echo "::error::LORE_INGEST_URL repository variable is not set - context was NOT ingested"
+            echo "::error::LORE_INGEST_URL repository variable or secret is not set - context was NOT ingested"
             exit 1
           fi
           # Same class of misconfiguration: an unset token means every POST is
@@ -116,12 +116,12 @@ jobs:
       - name: Project ${{ matrix.kind }} into the graph
         env:
           LORE_INGEST_TOKEN: ${{ secrets.LORE_INGEST_TOKEN }}
-          LORE_INGEST_URL: ${{ vars.LORE_INGEST_URL || vars.LORE_API_URL }}
+          LORE_INGEST_URL: ${{ secrets.LORE_INGEST_URL || vars.LORE_INGEST_URL || vars.LORE_API_URL }}
         run: |
           # Misconfiguration (unset URL) is a hard error - a missing var must
           # never silently fall back and report success.
           if [ -z "${LORE_INGEST_URL}" ]; then
-            echo "::error::LORE_INGEST_URL repository variable is not set - ${{ matrix.kind }} were NOT projected"
+            echo "::error::LORE_INGEST_URL repository variable or secret is not set - ${{ matrix.kind }} were NOT projected"
             exit 1
           fi
           # Same class of misconfiguration: an unset token means every POST is
