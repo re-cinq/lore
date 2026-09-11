@@ -25,8 +25,6 @@ function tokensOf(selector: string): Set<string> {
   return new Set(Object.keys(declarationsOf(selector)));
 }
 
-const DEFAULTS = ":root {";
-const DEFAULT_DARK = "[data-color-scheme='dark'] {";
 const RETRO = "[data-theme-family='retro'] {";
 const RETRO_LIGHT = "[data-theme-family='retro'][data-color-scheme='light']";
 const RETRO_DARK = "[data-theme-family='retro'][data-color-scheme='dark']";
@@ -36,7 +34,7 @@ const CHICAGO_LIGHT =
 const CHICAGO_DARK = "[data-theme-family='chicago'][data-color-scheme='dark']";
 
 const OVERRIDE_BLOCKS = [
-  DEFAULT_DARK,
+  "[data-color-scheme='dark'] {",
   RETRO,
   RETRO_LIGHT,
   RETRO_DARK,
@@ -45,6 +43,7 @@ const OVERRIDE_BLOCKS = [
   CHICAGO_DARK,
 ];
 
+const DEFAULTS = ":root {";
 const defaults = tokensOf(DEFAULTS);
 
 const CHART_TOKENS = [
@@ -80,8 +79,16 @@ describe("theme.css token contract", () => {
   });
 
   it("defines the chart palette in the defaults and per scheme for retro and chicago", () => {
-    for (const block of [DEFAULTS, RETRO_LIGHT, RETRO_DARK, CHICAGO_LIGHT, CHICAGO_DARK]) {
-      expect([...tokensOf(block)]).toEqual(expect.arrayContaining(CHART_TOKENS));
+    for (const block of [
+      DEFAULTS,
+      RETRO_LIGHT,
+      RETRO_DARK,
+      CHICAGO_LIGHT,
+      CHICAGO_DARK,
+    ]) {
+      expect([...tokensOf(block)]).toEqual(
+        expect.arrayContaining(CHART_TOKENS),
+      );
     }
   });
 
