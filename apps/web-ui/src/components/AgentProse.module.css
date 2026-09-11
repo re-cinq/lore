@@ -1,0 +1,92 @@
+/* Agent prose inside the terminal transcript: markdown scaled down to the terminal's own size, and the node-result card tinted by outcome. Every colour is a theme token. */
+
+.agentProse {
+  white-space: normal;
+}
+
+/* Two classes outrank Markdown.module.css's single `.prose`, so the terminal's mono and size win without touching the shared renderer. */
+.agentProse .markdown {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+.agentProse .markdown :is(p, ul, ol, blockquote, pre, table) {
+  margin: 0 0 0.6em;
+}
+.agentProse .markdown :is(h1, h2, h3, h4, h5, h6) {
+  margin: 0.8em 0 0.4em;
+  padding-bottom: 0;
+  border-bottom: none;
+  font-size: 1.1em;
+}
+.agentProse .markdown code {
+  background: var(--bg-hover);
+}
+
+.card {
+  margin: 0.5rem 0 0.25rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--tone);
+  border-left-width: 4px;
+  border-radius: var(--radius-sm);
+  background: var(--tone-bg);
+  color: var(--text);
+}
+.success {
+  --tone: var(--success);
+  --tone-bg: var(--success-bg);
+}
+.changesRequested {
+  --tone: var(--warning);
+  --tone-bg: var(--warning-bg);
+}
+.failed {
+  --tone: var(--danger);
+  --tone-bg: var(--danger-bg);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.cardTitle {
+  color: var(--text-muted);
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.badge {
+  padding: 0 0.5rem;
+  border: 1px solid var(--tone);
+  border-radius: 999px;
+  color: var(--tone);
+  font-weight: 700;
+}
+
+.extras {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.25rem 0.9rem;
+  margin: 0.5rem 0 0;
+}
+.extra {
+  display: contents;
+}
+.extra dt {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.extra dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.payload {
+  display: block;
+  margin-top: 0.4rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--danger);
+}

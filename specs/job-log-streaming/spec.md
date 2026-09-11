@@ -233,7 +233,7 @@ The terminal result renders a summary footer with duration, cost and turn count 
 
 The user prompt renders as collapsed details prefixed `user:`. ([validated by `LogEntriesView.test.tsx:158`](apps/web-ui/src/components/LogEntriesView.test.tsx#L166))
 
-Raw entries render verbatim; assistant text and thinking render with their own classes. ([validated by `LogEntriesView.test.tsx:175`](apps/web-ui/src/components/LogEntriesView.test.tsx#L183), [validated by `LogEntriesView.test.tsx:187`](apps/web-ui/src/components/LogEntriesView.test.tsx#L195))
+Raw entries render verbatim; assistant text renders as markdown (see assembly-line-run-viz FR4.19) and thinking with its own class. ([validated by `LogEntriesView.test.tsx:175`](apps/web-ui/src/components/LogEntriesView.test.tsx#L183), [validated by `LogEntriesView.test.tsx:187`](apps/web-ui/src/components/LogEntriesView.test.tsx#L195))
 
 The Raw/Formatted toggle marks the active option via aria-pressed and reports changes through onChange. ([validated by `LogFormatToggle.test.tsx:9`](apps/web-ui/src/components/LogFormatToggle.test.tsx#L9), [validated by `LogFormatToggle.test.tsx:30`](apps/web-ui/src/components/LogFormatToggle.test.tsx#L30))
 
