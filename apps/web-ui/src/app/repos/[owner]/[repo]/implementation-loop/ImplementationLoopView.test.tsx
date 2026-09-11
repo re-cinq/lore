@@ -247,4 +247,22 @@ describe("ImplementationLoopView when the repo is not onboarded", () => {
     fireEvent.click(getByRole("button", { name: "Retry onboarding" }));
     expect(retryOnboarding).toHaveBeenCalledTimes(1);
   });
+
+  it("links to the open onboarding PR instead of offering a retry while one waits to merge", () => {
+    const { getByRole, queryByRole } = renderView({
+      enabled: true,
+      onboarding: {
+        merged: false,
+        pr_url: "https://github.com/re-cinq/Otto/pull/216",
+        last_task: { id: "t2", status: "pr-created", failure_reason: null },
+      },
+    });
+
+    expect(
+      getByRole("link", { name: "Merge the onboarding PR" }).getAttribute(
+        "href",
+      ),
+    ).toBe("https://github.com/re-cinq/Otto/pull/216");
+    expect(queryByRole("button", { name: "Retry onboarding" })).toBeNull();
+  });
 });

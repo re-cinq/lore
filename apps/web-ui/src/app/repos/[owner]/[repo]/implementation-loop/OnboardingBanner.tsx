@@ -20,7 +20,7 @@ export default function OnboardingBanner({
     <Alert>
       The loop is on but won&apos;t pick tickets: Lore only works repos whose
       onboarding PR has merged.{" "}
-      <OnboardingFailure onboarding={loop.onboarding} retry={retry} />
+      <OnboardingNextStep onboarding={loop.onboarding} retry={retry} />
     </Alert>
   );
 }
@@ -28,6 +28,15 @@ export default function OnboardingBanner({
 interface OnboardingFailureProps {
   onboarding: ImplementationLoop["onboarding"];
   retry: () => Promise<void>;
+}
+
+/** The one action that moves onboarding forward: merge the PR it already opened, or queue it again. Retrying while a PR waits would only be refused by the onboard guard. */
+function OnboardingNextStep({ onboarding, retry }: OnboardingFailureProps) {
+  if (onboarding.pr_url) {
+    return <a href={onboarding.pr_url}>Merge the onboarding PR</a>;
+  }
+
+  return <OnboardingFailure onboarding={onboarding} retry={retry} />;
 }
 
 /** The failed onboarding's reason and the button that queues it again. Disabled for the length of the transition, like the toggle, so a double click cannot queue two. */
