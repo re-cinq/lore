@@ -136,9 +136,10 @@ function PresetButtons({ onChange }: { onChange: IntervalChange }) {
 /** One end of the range. Edits the named field and leaves the other alone, so moving `from` past `to` is the reader's business rather than something this control silently corrects. */
 function DateField({ label, field, interval, onChange }: DateFieldProps) {
   return (
-    <label className="meta">
-      {label}{" "}
+    <label className={styles.dateField}>
+      {label}
       <input
+        className={styles.dateInput}
         type="date"
         value={interval[field]}
         onChange={(e) =>

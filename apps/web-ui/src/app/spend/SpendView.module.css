@@ -74,6 +74,47 @@
   margin-bottom: 12px;
 }
 
+/* The from/to controls, styled to sit with the preset buttons rather than as raw
+   browser date fields: a muted label, then a bordered input with hover and focus
+   states matching the rest of the page's form controls. */
+.dateField {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.dateInput {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-family: inherit;
+  line-height: 1.2;
+}
+
+.dateInput:hover {
+  border-color: var(--border-hover);
+}
+
+.dateInput:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--info-bg);
+}
+
+.dateInput::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.6;
+}
+
+.dateInput::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
 /* --- Redesign: labelled sections, estimate-vs-billed bars, daily trend --- */
 
 /* Each of the three groups (Lore-computed, vendor invoices, compute) is a band.
