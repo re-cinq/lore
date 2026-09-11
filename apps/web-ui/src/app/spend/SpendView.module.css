@@ -7,8 +7,8 @@
 .cards {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-  margin-bottom: 24px;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
 }
 
 @media (max-width: 720px) {
@@ -19,7 +19,7 @@
 
 /* The global .spec-card ships 4px; these want equal room on every side. */
 .card {
-  padding: 14px 16px;
+  padding: var(--space-4) var(--space-5);
   min-width: 0;
 }
 
@@ -40,12 +40,12 @@
 }
 
 .warningCard {
-  margin-bottom: 24px;
+  margin-bottom: var(--space-6);
   border-color: var(--warning);
 }
 
 .warningNote {
-  margin-top: 4px;
+  margin-top: var(--space-2);
 }
 
 .mono {
@@ -63,15 +63,15 @@
   font-weight: bold;
   font-size: var(--fs-xs);
   color: var(--text-muted);
-  padding-top: 8px;
+  padding-top: var(--space-3);
 }
 
 .presetRow {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-3);
   flex-wrap: wrap;
-  margin-bottom: 12px;
+  margin-bottom: var(--space-4);
 }
 
 /* The from/to controls, styled to sit with the preset buttons rather than as raw
@@ -80,20 +80,20 @@
 .dateField {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-3);
   font-size: var(--fs-xs);
   color: var(--text-muted);
 }
 
 .dateInput {
-  padding: 6px 10px;
+  padding: var(--space-3) var(--space-4);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg-surface);
   color: var(--text);
   font-size: var(--fs-sm);
   font-family: inherit;
-  line-height: 1.2;
+  line-height: var(--lh-sm);
 }
 
 .dateInput:hover {
@@ -103,7 +103,7 @@
 .dateInput:focus-visible {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--info-bg);
+  box-shadow: 0 0 0 var(--focus-ring-width) var(--focus-ring);
 }
 
 .dateInput::-webkit-calendar-picker-indicator {
@@ -121,15 +121,15 @@
    The rule under the title is the only heavy divider on the page, so the three
    kinds of number read apart at a glance rather than as one long scroll. */
 .section {
-  margin: 0 0 40px;
+  margin: 0 0 var(--space-8);
 }
 
 .sectionHead {
   display: flex;
   align-items: baseline;
-  gap: 10px;
-  margin: 28px 0 4px;
-  padding-bottom: 8px;
+  gap: var(--space-4);
+  margin: var(--space-6) 0 var(--space-2);
+  padding-bottom: var(--space-3);
   border-bottom: 2px solid var(--border);
 }
 
@@ -150,15 +150,15 @@
 .compare {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  margin: 8px 0 28px;
+  gap: var(--space-5);
+  margin: var(--space-3) 0 var(--space-6);
   max-width: 520px;
 }
 
 .compareRow {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-2);
 }
 
 .compareLabel {
@@ -182,12 +182,12 @@
 
 .compareFigures {
   display: flex;
-  gap: 6px;
+  gap: var(--space-3);
   align-items: baseline;
 }
 
 .compareBilledFigure {
-  margin-left: 8px;
+  margin-left: var(--space-3);
   font-weight: bold;
   color: var(--text);
 }
@@ -199,7 +199,7 @@
   display: block;
   width: 100%;
   height: auto;
-  margin: 8px 0 24px;
+  margin: var(--space-3) 0 var(--space-6);
 }
 
 .trendBar {
@@ -209,17 +209,17 @@
 .trendValue,
 .trendDate {
   fill: var(--text-muted);
-  font-size: 9px;
+  font-size: var(--fs-2xs);
 }
 
 /* The long tail of LLM breakdowns, one click from the two that matter. */
 .moreTables {
-  margin: 8px 0 24px;
+  margin: var(--space-3) 0 var(--space-6);
 }
 
 .moreTables summary {
   cursor: pointer;
   font-weight: bold;
   color: var(--text-muted);
-  padding: 6px 0;
+  padding: var(--space-3) 0;
 }
