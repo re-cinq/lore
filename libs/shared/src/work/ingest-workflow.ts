@@ -4,7 +4,7 @@ export const LORE_INGEST_WORKFLOW_PATH = ".github/workflows/lore-ingest.yml";
 
 export const LORE_INGEST_WORKFLOW_VERSION = 5;
 
-// v4 (#1545): fail loudly on misconfiguration/4xx, warn only on transient 5xx; v5: `--no-renames`, because rename detection lists only a moved file's destination, so its old path was never posted, never deleted, and (since #1880) never swept — as a delete + add it takes /api/ingest's existing 404→delete branch.
+// v4 (#1545): fail loudly on misconfiguration/4xx, warn only on transient 5xx; v5: `--no-renames`, because rename detection lists only a moved file's destination, so its old path was never posted, never deleted, and (since #1880) never swept — as a delete + add it takes /api/ingest's existing 404→delete branch. The v5 URL binding also reads secrets.LORE_INGEST_URL ahead of the vars, so a repo can keep the endpoint hostname out of its public run logs (the runner masks secrets, not variables) without deviating from this template; the binding is additive (an unset secret falls through to the vars), so v5 installs need no re-projection and the marker stays 5.
 export const LORE_INGEST_WORKFLOW_CONTENT = `# lore-ingest-version: 5
 name: Lore Context Ingest
 
@@ -40,13 +40,13 @@ jobs:
         if: steps.changes.outputs.files != '[]'
         env:
           LORE_INGEST_TOKEN: \${{ secrets.LORE_INGEST_TOKEN }}
-          LORE_INGEST_URL: \${{ vars.LORE_INGEST_URL || vars.LORE_API_URL }}
+          LORE_INGEST_URL: \${{ secrets.LORE_INGEST_URL || vars.LORE_INGEST_URL || vars.LORE_API_URL }}
           FILES: \${{ steps.changes.outputs.files }}
         run: |
           # Misconfiguration (unset URL) is a hard error - a missing var must
           # never silently fall back and report success.
           if [ -z "\${LORE_INGEST_URL}" ]; then
-            echo "::error::LORE_INGEST_URL repository variable is not set - context was NOT ingested"
+            echo "::error::LORE_INGEST_URL repository variable or secret is not set - context was NOT ingested"
             exit 1
           fi
           # Same class of misconfiguration: an unset token means every POST is
@@ -121,12 +121,12 @@ jobs:
       - name: Project \${{ matrix.kind }} into the graph
         env:
           LORE_INGEST_TOKEN: \${{ secrets.LORE_INGEST_TOKEN }}
-          LORE_INGEST_URL: \${{ vars.LORE_INGEST_URL || vars.LORE_API_URL }}
+          LORE_INGEST_URL: \${{ secrets.LORE_INGEST_URL || vars.LORE_INGEST_URL || vars.LORE_API_URL }}
         run: |
           # Misconfiguration (unset URL) is a hard error - a missing var must
           # never silently fall back and report success.
           if [ -z "\${LORE_INGEST_URL}" ]; then
-            echo "::error::LORE_INGEST_URL repository variable is not set - \${{ matrix.kind }} were NOT projected"
+            echo "::error::LORE_INGEST_URL repository variable or secret is not set - \${{ matrix.kind }} were NOT projected"
             exit 1
           fi
           # Same class of misconfiguration: an unset token means every POST is

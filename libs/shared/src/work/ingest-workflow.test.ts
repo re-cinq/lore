@@ -48,12 +48,12 @@ describe("LORE_INGEST_WORKFLOW_CONTENT", () => {
     expect(LORE_INGEST_WORKFLOW_CONTENT).not.toContain("LORE_INGEST_URL:-");
   });
 
-  it("keeps the secret wiring and reads the URL with the LORE_API_URL fallback the sibling template uses", () => {
+  it("keeps the secret wiring and reads the URL from a secret before the vars fallback", () => {
     expect(LORE_INGEST_WORKFLOW_CONTENT).toContain(
       "LORE_INGEST_TOKEN: ${{ secrets.LORE_INGEST_TOKEN }}",
     );
     expect(LORE_INGEST_WORKFLOW_CONTENT).toContain(
-      "LORE_INGEST_URL: ${{ vars.LORE_INGEST_URL || vars.LORE_API_URL }}",
+      "LORE_INGEST_URL: ${{ secrets.LORE_INGEST_URL || vars.LORE_INGEST_URL || vars.LORE_API_URL }}",
     );
   });
 

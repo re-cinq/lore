@@ -34,7 +34,7 @@ describe("TRACE_IMPACT_WORKFLOW_CONTENT", () => {
       "LORE_INGEST_TOKEN: ${{ secrets.LORE_INGEST_TOKEN }}",
     );
     expect(TRACE_IMPACT_WORKFLOW_CONTENT).toContain(
-      "LORE_INGEST_URL: ${{ vars.LORE_INGEST_URL || vars.LORE_API_URL }}",
+      "LORE_INGEST_URL: ${{ secrets.LORE_INGEST_URL || vars.LORE_INGEST_URL || vars.LORE_API_URL }}",
     );
   });
 
