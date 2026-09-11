@@ -34,9 +34,10 @@
 [data-theme-family="chicago"] button:active {
   box-shadow: var(--border-sunken-outer), var(--border-sunken-inner);
   /* Classic 1px content shove on press: +1 top/left, -1 bottom/right applied to
-     the globals.css button padding (8px 16px), so total box size is unchanged.
-     Keep in sync if that base padding changes. */
-  padding: var(--space-3) var(--space-5) var(--space-3) var(--space-5);
+     the globals.css button padding (var(--space-3) var(--space-5)), so total box
+     size is unchanged. Keep in sync if that base padding changes. */
+  padding: calc(var(--space-3) + 1px) calc(var(--space-5) - 1px)
+    calc(var(--space-3) - 1px) calc(var(--space-5) + 1px);
 }
 
 /* Text fields — sunken white wells. Checkboxes/radios keep native rendering. */
