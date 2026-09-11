@@ -1,5 +1,6 @@
 // The Definition of Done as the run page shows it (specs/implementation-loop FR16): the pass count in the card's header, each acceptance test with its CI verdict, then the claim, the strategy and what was ruled out. Pure render; the panel above owns the fetch.
 import CollapsibleCard from "@/components/CollapsibleCard";
+import InlineMarkdown from "@/components/InlineMarkdown";
 import {
   dodSummary,
   statusGlyph,
@@ -80,7 +81,7 @@ function Facets({ facets }: { facets: DodProgress["facets"] }) {
       {facets.map((facet) => (
         <li key={facet.text} data-facet={facet.done ? "done" : "open"}>
           <span className={styles.glyph}>{facet.done ? "☑" : "☐"}</span>
-          {facet.text}
+          <InlineMarkdown text={facet.text} />
         </li>
       ))}
     </ul>
@@ -91,11 +92,13 @@ function Claim({ progress }: { progress: DodProgress }) {
   return (
     <dl className={styles.claim}>
       <dt>Claim</dt>
-      <dd>{progress.ticketClaim}</dd>
+      <dd>
+        <InlineMarkdown text={progress.ticketClaim ?? ""} />
+      </dd>
       <dt>Strategy</dt>
       <dd>
         <span className={styles.strategy}>{progress.strategy}</span>{" "}
-        {progress.why}
+        <InlineMarkdown text={progress.why ?? ""} />
       </dd>
       <OutOfScope excluded={progress.outOfScope} />
     </dl>
@@ -109,17 +112,25 @@ function AcceptanceTestRow({ test }: { test: AcceptanceTestStatus }) {
         {statusGlyph(test.status)}
       </span>
       <span className={styles.testBody}>
-        <span className={styles.testName}>
-          {test.path}
-          <span className={styles.separator}>::</span>
-          {test.name}
+        <TestName test={test} />
+        <span className={styles.behaviour}>
+          <InlineMarkdown text={test.behaviour} />
         </span>
-        <span className={styles.behaviour}>{test.behaviour}</span>
         {test.status === "unknown" && (
           <span className={styles.note}>not in the latest CI report</span>
         )}
       </span>
     </li>
+  );
+}
+
+function TestName({ test }: { test: AcceptanceTestStatus }) {
+  return (
+    <span className={styles.testName}>
+      {test.path}
+      <span className={styles.separator}>::</span>
+      {test.name}
+    </span>
   );
 }
 
@@ -131,7 +142,9 @@ function OutOfScope({ excluded }: { excluded: DodProgress["outOfScope"] }) {
   return (
     <>
       <dt>Out of scope</dt>
-      <dd>{excluded.join(" · ")}</dd>
+      <dd>
+        <InlineMarkdown text={excluded.join(" · ")} />
+      </dd>
     </>
   );
 }

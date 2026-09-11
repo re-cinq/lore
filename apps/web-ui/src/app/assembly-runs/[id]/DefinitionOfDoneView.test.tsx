@@ -70,6 +70,32 @@ describe("DefinitionOfDoneView", () => {
     expect(screen.getByText("per-it fidelity")).toBeInTheDocument();
   });
 
+  it("renders the markdown the dod carries as elements, not as literal backticks and asterisks", () => {
+    const { container } = render(
+      <DefinitionOfDoneView
+        progress={{
+          ...progress,
+          ticketClaim: "Readers see `dod.md` **rendered**.",
+          why: "one `card`",
+          acceptanceTests: [
+            {
+              ...progress.acceptanceTests![0],
+              behaviour: "the `N of M` header",
+            },
+          ],
+          facets: [{ text: "`header` count", done: true }],
+          outOfScope: ["per-`it` fidelity"],
+        }}
+      />,
+    );
+
+    expect({
+      codes: container.querySelectorAll("code").length,
+      bold: container.querySelector("dd strong")?.textContent,
+      literals: /[`*]/.test(container.textContent ?? ""),
+    }).toEqual({ codes: 5, bold: "rendered", literals: false });
+  });
+
   it("renders the empty state for a run whose branch carries no definition of done", () => {
     render(<DefinitionOfDoneView progress={{ present: false }} />);
 
