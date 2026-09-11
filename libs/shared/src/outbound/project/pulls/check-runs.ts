@@ -111,3 +111,30 @@ function skipsCi(message: string): boolean {
 
   return SKIP_CI_MARKERS.some((marker) => lower.includes(marker));
 }
+
+/** The line GitHub writes when a step's command exits non-zero: where a failing step's output ends. */
+const STEP_EXIT_MARKER = "##[error]Process completed with exit code";
+
+/** The line closing a step's command header: where its output begins. */
+const STEP_HEADER_END = "##[endgroup]";
+
+/** What the failing step printed, from an Actions job log: the lines between its command header and its exit line, without timestamps, `##[error]` markers or blanks. It is the part a reader needs and the part an Actions check run's own output never carries. */
+export function failureTail(log: string): string[] {
+  const lines = log.split("\n").map(withoutTimestamp);
+  const exit = lines.findIndex((line) => line.startsWith(STEP_EXIT_MARKER));
+
+  if (exit < 0) {
+    return [];
+  }
+  const header = lines.lastIndexOf(STEP_HEADER_END, exit);
+
+  return lines
+    .slice(header + 1, exit)
+    .map((line) => line.replace(/^##\[error\]/, "").trim())
+    .filter((line) => line !== "");
+}
+
+/** A log line without the timestamp Actions prefixes to every line. */
+function withoutTimestamp(line: string): string {
+  return line.replace(/^\uFEFF?\d{4}-\d\d-\d\dT[\d:.]+Z ?/, "").trimEnd();
+}
