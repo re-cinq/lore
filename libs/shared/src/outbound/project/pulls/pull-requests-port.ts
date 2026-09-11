@@ -77,6 +77,14 @@ export interface CheckRun {
   conclusion: string | null;
   /** What the job reported about itself. Optional: only the CI-feedback path reads it, and every in-memory double predates it. */
   output?: { title: string | null; summary: string | null };
+  /** For a failed GitHub Actions job, what the job itself says about the failure. Filled in only on a red verdict, because reading it costs two more requests per job. */
+  jobFailure?: JobFailure;
+}
+
+/** How an Actions job failed, read from the job because its check run reports nothing: the steps that failed, and what the failing one printed. */
+export interface JobFailure {
+  steps: string[];
+  tail: string[];
 }
 
 /** One inline comment inside a review thread — the GraphQL node, REST-mappable. */

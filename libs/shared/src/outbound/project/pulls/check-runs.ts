@@ -1,6 +1,7 @@
 import type {
   CheckRun,
   CiConclusion,
+  JobFailure,
   PullCommit,
 } from "./pull-requests-port.js";
 
@@ -97,12 +98,28 @@ export function ciJudgedSha(commits: readonly PullCommit[]): string | null {
 /** Everything the jobs of one check name reported, or "" when they reported nothing — which is the ordinary case for an Actions job, and why a heading alone is not worth rendering. */
 function failureBlock(name: string, runs: readonly CheckRun[]): string {
   const reported = runs
-    .flatMap((run) => [run.output?.title, run.output?.summary])
+    .flatMap(reportedParts)
     .filter((part): part is string => typeof part === "string" && part !== "");
 
   return reported.length === 0
     ? ""
     : [`### ${name} (${runs[0].conclusion})`, ...reported].join("\n\n");
+}
+
+/** Everything one run says about its failure: what it reported in its check run, then what its job's own log says. */
+function reportedParts(run: CheckRun): Array<string | null | undefined> {
+  return [
+    run.output?.title,
+    run.output?.summary,
+    ...jobFailureParts(run.jobFailure),
+  ];
+}
+
+/** An Actions job's own account of its failure: the step that failed, then what it printed. */
+function jobFailureParts(failure: JobFailure | undefined): string[] {
+  return failure
+    ? [`Failed step: ${failure.steps.join(", ")}`, failure.tail.join("\n")]
+    : [];
 }
 
 /** True when this commit message tells GitHub to run nothing for it. */

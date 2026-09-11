@@ -225,3 +225,26 @@ describe("failureTail", () => {
     ).toEqual([]);
   });
 });
+
+describe("summarizeFailedChecks on an Actions job", () => {
+  it("renders the failed step and what it printed when the job reported nothing itself", () => {
+    expect(
+      summarizeFailedChecks([
+        check({
+          name: "build-test",
+          conclusion: "failure",
+          output: { title: null, summary: null },
+          jobFailure: {
+            steps: ["Lint (--max-warnings 0)"],
+            tail: [
+              "specs/bowman-ui-theming-tokens/spec.md",
+              '6:1  error  Status "shipped" does not match',
+            ],
+          },
+        }),
+      ]).summary,
+    ).toBe(
+      '### build-test (failure)\n\nFailed step: Lint (--max-warnings 0)\n\nspecs/bowman-ui-theming-tokens/spec.md\n6:1  error  Status "shipped" does not match',
+    );
+  });
+});
