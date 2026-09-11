@@ -216,4 +216,12 @@ describe("failureTail", () => {
       "✖ 1 problem (1 error, 0 warnings)",
     ]);
   });
+
+  it("returns no lines when no step in the log exited non-zero", () => {
+    expect(
+      failureTail(
+        "2026-09-10T15:19:24.9853800Z ##[group]Run npm run lint\n2026-09-10T15:19:24.9890197Z ##[endgroup]\n2026-09-10T15:19:25.0884965Z > eslint .",
+      ),
+    ).toEqual([]);
+  });
 });
