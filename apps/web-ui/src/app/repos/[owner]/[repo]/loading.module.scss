@@ -1,19 +1,19 @@
 @use "styles/tokens" as t;
 
 .card {
-  @include t.stack(12px);
+  @include t.stack(var(--space-4));
 }
 
 .stats {
-  @include t.row(24px);
-  margin-top: 16px;
+  @include t.row(var(--space-6));
+  margin-top: var(--space-5);
 }
 
 .sectionHeading {
-  margin-top: 24px;
+  margin-top: var(--space-6);
 }
 
 .rows {
-  @include t.stack(10px);
-  margin-top: 10px;
+  @include t.stack(var(--space-4));
+  margin-top: var(--space-4);
 }

@@ -1,7 +1,7 @@
 .header {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-3);
 }
 
 .title {
@@ -9,6 +9,6 @@
 }
 
 .intro {
-  margin-top: 6px;
-  margin-bottom: 12px;
+  margin-top: var(--space-3);
+  margin-bottom: var(--space-4);
 }

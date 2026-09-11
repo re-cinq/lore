@@ -3,7 +3,7 @@
 .header {
   @include t.row-between;
   align-items: center;
-  margin-bottom: 12px;
+  margin-bottom: var(--space-4);
 }
 
 .count {
@@ -12,7 +12,7 @@
 
 .grid {
   display: grid;
-  gap: 10px;
+  gap: var(--space-4);
 }
 
 .card {
@@ -21,7 +21,7 @@
 }
 
 .cardHeader {
-  @include t.row-between(12px);
+  @include t.row-between(var(--space-4));
 }
 
 .cardTitle {
@@ -29,7 +29,7 @@
 }
 
 .excerpt {
-  margin-top: 6px;
+  margin-top: var(--space-3);
 }
 
 .lineage {

@@ -1,5 +1,5 @@
 @use "styles/tokens" as t;
 
 .card {
-  @include t.stack(10px);
+  @include t.stack(var(--space-4));
 }

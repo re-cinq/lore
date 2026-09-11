@@ -4,8 +4,8 @@
 
 .box {
   position: relative;
-  margin-top: 16px;
-  padding: 18px 12px 12px;
+  margin-top: var(--space-5);
+  padding: var(--space-5) var(--space-4) var(--space-4);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--bg-surface);
@@ -23,7 +23,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  padding: 1px 8px;
+  padding: 1px var(--space-3);
   border-radius: var(--radius-sm);
   background: var(--hud-chip-bg);
   color: var(--hud-chip-fg);

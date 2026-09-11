@@ -3,8 +3,8 @@
 
 .cards {
   display: flex;
-  gap: 16px;
-  margin-bottom: 24px;
+  gap: var(--space-5);
+  margin-bottom: var(--space-6);
   flex-wrap: wrap;
 }
 
@@ -29,12 +29,12 @@
 }
 
 .warningCard {
-  margin-bottom: 24px;
+  margin-bottom: var(--space-6);
   border-color: var(--warning);
 }
 
 .warningNote {
-  margin-top: 4px;
+  margin-top: var(--space-2);
 }
 
 .mono {
@@ -52,13 +52,13 @@
   font-weight: bold;
   font-size: var(--fs-xs);
   color: var(--text-muted);
-  padding-top: 8px;
+  padding-top: var(--space-3);
 }
 
 .presetRow {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-3);
   flex-wrap: wrap;
-  margin-bottom: 12px;
+  margin-bottom: var(--space-4);
 }

@@ -1,12 +1,12 @@
 .title {
-  margin-bottom: 4px;
+  margin-bottom: var(--space-2);
 }
 
 .desc {
   margin-top: 0;
-  margin-bottom: 12px;
+  margin-bottom: var(--space-4);
 }
 
 .body {
-  margin-top: 16px;
+  margin-top: var(--space-5);
 }

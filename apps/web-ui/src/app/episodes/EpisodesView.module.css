@@ -1,9 +1,9 @@
 .intro {
-  margin-bottom: 12px;
+  margin-bottom: var(--space-4);
 }
 
 .count {
-  margin-bottom: 12px;
+  margin-bottom: var(--space-4);
 }
 
 .contentPre {
@@ -15,5 +15,5 @@
 .emptyCell {
   text-align: center;
   color: var(--text-muted);
-  padding: 24px;
+  padding: var(--space-6);
 }

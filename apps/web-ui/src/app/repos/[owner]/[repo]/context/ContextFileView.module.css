@@ -1,18 +1,18 @@
 .path {
   font-family: var(--font-mono);
   margin-top: 0;
-  margin-bottom: 16px;
+  margin-bottom: var(--space-5);
 }
 
 .group {
-  margin-bottom: 24px;
+  margin-bottom: var(--space-6);
 }
 
 .groupHeader {
   display: flex;
-  gap: 12px;
+  gap: var(--space-4);
   align-items: center;
-  margin-bottom: 12px;
+  margin-bottom: var(--space-4);
   flex-wrap: wrap;
 }
 
@@ -22,9 +22,9 @@
 }
 
 .chunkRule {
-  margin: 20px 0;
+  margin: var(--space-6) 0;
 }
 
 .groupRule {
-  margin: 24px 0;
+  margin: var(--space-6) 0;
 }

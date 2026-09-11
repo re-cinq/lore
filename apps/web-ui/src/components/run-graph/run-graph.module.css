@@ -1,11 +1,11 @@
 .panel {
-  margin-bottom: 1.5rem;
+  margin-bottom: var(--space-6);
 }
 .heading {
   font-size: var(--fs-md);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   letter-spacing: -0.01em;
-  margin-bottom: 0.5rem;
+  margin-bottom: var(--space-3);
 }
 .svg {
   display: block;
@@ -18,7 +18,7 @@
 .empty {
   color: var(--text-muted);
   font-size: var(--fs-sm);
-  margin-bottom: 1.5rem;
+  margin-bottom: var(--space-6);
 }
 
 .edge {
@@ -114,20 +114,20 @@
 .nodeId {
   fill: var(--text);
   font-size: var(--fs-sm);
-  font-weight: 650;
+  font-weight: var(--fw-bold);
   letter-spacing: -0.01em;
 }
 .nodeStatus {
   fill: var(--text-muted);
   font-size: var(--fs-2xs);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 /* Run mode: the verdict/result carried inside the node, color as an accent. */
 .statusLabel {
   font-size: var(--fs-xs);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
 }
 /* Definition mode: the outcomes a source node can produce, listed inside it. */
 .possibleLabel {
@@ -136,7 +136,7 @@
 }
 .outcomeRow {
   font-size: var(--fs-xs);
-  font-weight: 500;
+  font-weight: var(--fw-medium);
 }
 .outOk {
   fill: var(--success);

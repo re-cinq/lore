@@ -4,6 +4,7 @@ import globals from "globals";
 import reactHooks from "eslint-plugin-react-hooks";
 import stylistic from "@stylistic/eslint-plugin";
 import markdown from "@eslint/markdown";
+import css from "@eslint/css";
 import importX from "eslint-plugin-import-x";
 import reLint from "@re-cinq/eslint-plugin-re-lint";
 import { MAX_EXPECTS_BASELINE } from "./eslint.baseline.max-expects.mjs";
@@ -558,6 +559,18 @@ export default tseslint.config(
     language: "markdown/gfm",
     plugins: { markdown, "re-lint": reLint },
     rules: { "re-lint/no-dead-md-links": "error" },
+  },
+
+  // Stylesheets draw every color, spacing, type, radius, shadow and z-index
+  // value from the theme.css tokens, so a theme overrides one variable instead
+  // of chasing literals. `tolerant` lets the CSS parser read SCSS nesting; a
+  // 1px hairline is a border width, not a spacing decision.
+  {
+    files: ["apps/web-ui/src/**/*.{css,scss}"],
+    language: "css/css",
+    languageOptions: { tolerant: true },
+    plugins: { css, "re-lint": reLint },
+    rules: { "re-lint/prefer-design-tokens": ["error", { allow: ["1px"] }] },
   },
 
   // The pre-existing half of the max-expects queue: still reported, so the

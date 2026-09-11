@@ -36,7 +36,7 @@
   /* Classic 1px content shove on press: +1 top/left, -1 bottom/right applied to
      the globals.css button padding (8px 16px), so total box size is unchanged.
      Keep in sync if that base padding changes. */
-  padding: 9px 15px 7px 17px;
+  padding: var(--space-3) var(--space-5) var(--space-3) var(--space-5);
 }
 
 /* Text fields — sunken white wells. Checkboxes/radios keep native rendering. */
@@ -89,7 +89,7 @@
   border: none;
   border-radius: 0;
   box-shadow: var(--border-raised-outer), var(--border-raised-inner);
-  margin-right: 2px;
+  margin-right: var(--space-1);
 }
 
 [data-theme-family="chicago"] .tab-link.active {

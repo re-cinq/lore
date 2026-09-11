@@ -9,7 +9,7 @@
   position: absolute;
   top: 8px;
   right: 8px;
-  z-index: 1;
+  z-index: var(--z-raised);
 }
 
 /* Prose prompt, not code — wrap like .content-viewer pre rather than

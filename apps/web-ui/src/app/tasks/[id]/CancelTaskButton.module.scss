@@ -1,5 +1,5 @@
 @use "styles/tokens" as t;
 
 .confirm {
-  @include t.row(10px);
+  @include t.row(var(--space-4));
 }

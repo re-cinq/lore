@@ -1,13 +1,13 @@
 .dfCard {
-  margin-bottom: 16px;
-  padding: 16px;
+  margin-bottom: var(--space-5);
+  padding: var(--space-5);
 }
 
 .dfHead {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  margin-bottom: 8px;
+  margin-bottom: var(--space-3);
 }
 
 .dfTitle {
@@ -16,7 +16,7 @@
 
 .stats {
   display: flex;
-  gap: 24px;
+  gap: var(--space-6);
   flex-wrap: wrap;
 }
 
@@ -27,8 +27,8 @@
 }
 
 .statValue {
-  font-weight: 600;
-  margin-top: 2px;
+  font-weight: var(--fw-semibold);
+  margin-top: var(--space-1);
 }
 
 .eventsHead {

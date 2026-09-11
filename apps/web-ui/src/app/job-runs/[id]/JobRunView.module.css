@@ -1,5 +1,5 @@
 .card {
-  margin-bottom: 16px;
+  margin-bottom: var(--space-5);
 }
 
 .error {
@@ -8,7 +8,7 @@
 
 .output {
   background: var(--bg-mono);
-  padding: 12px;
+  padding: var(--space-4);
   overflow-x: auto;
   font-size: var(--fs-sm);
   font-family: var(--font-mono);

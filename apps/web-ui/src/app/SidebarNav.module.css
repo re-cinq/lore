@@ -1,8 +1,8 @@
 .group {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  margin-top: 14px;
+  gap: var(--space-1);
+  margin-top: var(--space-5);
 }
 
 .group:first-child {
@@ -14,10 +14,10 @@
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  padding: 4px 12px 2px;
+  padding: var(--space-2) var(--space-4) var(--space-1);
   font-family: inherit;
   font-size: var(--fs-2xs);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-muted);
@@ -47,19 +47,19 @@
 .footer {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 10px 8px;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-3);
 }
 
 .footerLink {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-sm);
   color: var(--text-muted);
   font-size: var(--fs-sm);
-  font-weight: 500;
+  font-weight: var(--fw-medium);
   transition:
     background var(--transition),
     color var(--transition);
@@ -80,12 +80,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 8px 12px;
+  padding: var(--space-3) var(--space-4);
   background: var(--bg-hover);
   border-radius: var(--radius-sm);
   color: var(--text);
   font-size: var(--fs-sm);
-  font-weight: 500;
+  font-weight: var(--fw-medium);
   transition:
     background var(--transition),
     color var(--transition);

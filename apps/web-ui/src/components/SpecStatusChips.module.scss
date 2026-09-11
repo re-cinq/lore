@@ -1,17 +1,17 @@
 @use "styles/tokens" as t;
 
 .chips {
-  margin-bottom: 12px;
+  margin-bottom: var(--space-4);
 }
 
 .row {
-  @include t.row(6px);
+  @include t.row(var(--space-3));
   flex-wrap: wrap;
 }
 
 // Layered on the global `.badge`: same pill metrics, made pressable.
 .chip {
-  @include t.row(6px);
+  @include t.row(var(--space-3));
   display: inline-flex;
   background: var(--bg-surface);
   border: 1px solid var(--border);
@@ -35,6 +35,6 @@
 }
 
 .legend {
-  margin: 6px 0 0;
+  margin: var(--space-3) 0 0;
   font-size: var(--fs-2xs);
 }

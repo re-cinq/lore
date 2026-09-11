@@ -34,9 +34,10 @@
     "services:down": "docker compose -f infra/compose.yaml down"
   },
   "devDependencies": {
+    "@eslint/css": "^2.0.0",
     "@eslint/js": "^10.0.1",
     "@eslint/markdown": "^8.0.3",
-    "@re-cinq/eslint-plugin-re-lint": "^1.3.0",
+    "@re-cinq/eslint-plugin-re-lint": "^1.4.0",
     "@stylistic/eslint-plugin": "^5.10.0",
     "concurrently": "^10.0.5",
     "eslint": "^10.10.0",

@@ -1,29 +1,21 @@
 /*
- * Design tokens for the two theme families (elegant, retro), each with light
- * and dark variants. Family-level blocks hold shape/type/glass tokens that do
- * not change with the color scheme; the four family×scheme blocks hold colors.
- * Consumed by globals.css and component styles — never hardcode color here's
- * job is to be the single source of truth for color.
+ * Design tokens. `:root` holds the complete default theme (elegant, light).
+ * Every other theme and scheme overrides only the tokens that make it look
+ * like itself, so each token is declared once by default and a theme reads as
+ * the list of its differences. The scales follow Bootstrap's variables
+ * ($spacers, $font-sizes, $font-weight-*, $line-height-*, $border-radius-*,
+ * $zindex-*). Components read these through var(); the
+ * re-lint/prefer-design-tokens rule rejects raw values anywhere else.
  */
 
+/* ============================================================ DEFAULT ===== */
+/* Elegant, light. Figma-like: Inter, rounded corners, soft shadows, frosted  */
+/* glass. Palette modeled on apple.com/mac.                                   */
+
 :root {
+  --color-scheme: light;
   --transition: 150ms ease;
 
-  /* HUD tag-chip palette for the assembled-context tag tree. Intentionally
-     theme-independent — the chip is a black "terminal readout" straddling the
-     box border in every theme (the "fancy movie" look). Kept here in the token
-     file so components reference vars, never raw hex. */
-  --hud-chip-bg: #000000;
-  --hud-chip-fg: #e6e6e6;
-  --hud-chip-tag: #7aa2f7;
-  --hud-chip-attr: #9ece6a;
-}
-
-/* ============================================================ ELEGANT ===== */
-/* Figma-like: Inter, rounded corners, soft shadows, frosted glass.           */
-/* Palette modeled on apple.com/mac.                                          */
-
-[data-theme-family="elegant"] {
   --font-ui:
     var(--font-inter), system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-sans: var(--font-ui);
@@ -31,7 +23,7 @@
     ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
   --font-heading: var(--font-ui);
 
-  /* Type scale — referenced by globals.css; never hardcode font-size elsewhere. */
+  /* Type scale ($font-sizes). */
   --fs-2xs: 10px;
   --fs-xs: 12px;
   --fs-sm: 14px;
@@ -40,28 +32,48 @@
   --fs-lg: 20px;
   --fs-xl: 25px;
 
+  /* Font weights ($font-weight-*). */
+  --fw-normal: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+
+  /* Line heights ($line-height-*). */
+  --lh-1: 1;
+  --lh-sm: 1.25;
+  --lh-base: 1.5;
+  --lh-lg: 1.65;
+
+  /* Spacing ($spacers): margin, padding and gap. */
+  --space-1: 2px;
+  --space-2: 4px;
+  --space-3: 8px;
+  --space-4: 12px;
+  --space-5: 16px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 48px;
+
+  /* Radii ($border-radius-*). */
   --radius-sm: 6px;
   --radius: 10px;
   --radius-lg: 16px;
   --radius-pill: 9999px;
 
+  --focus-ring-width: 3px;
   --glass-blur: blur(20px) saturate(180%);
 
-  /* Categorical chart palette — spec-graph node types + neutral fallback.
-     Scheme-independent for this family, hence defined once here. */
-  --chart-feature: #db2777;
-  --chart-spec: #7c3aed;
-  --chart-section: #0891b2;
-  --chart-statement: #2563eb;
-  --chart-criterion: #4f46e5;
-  --chart-test: #16a34a;
-  --chart-code: #ea580c;
-  --chart-adr: #d97706;
-  --chart-neutral: #94a3b8;
-}
+  /* Stacking layers ($zindex-*), lowest first. */
+  --z-raised: 1;
+  --z-dropdown: 10;
+  --z-sticky: 20;
+  --z-backdrop: 40;
+  --z-offcanvas: 50;
+  --z-popover: 60;
 
-[data-theme-family="elegant"][data-color-scheme="light"] {
-  --color-scheme: light;
+  /* Absolute colors, for surfaces that must not follow the scheme. */
+  --white: #ffffff;
+  --black: #000000;
 
   --bg: #f5f5f7;
   --bg-surface: #ffffff;
@@ -93,9 +105,39 @@
 
   --glass-bg: rgba(255, 255, 255, 0.72);
   --glass-border: rgba(0, 0, 0, 0.08);
+  --backdrop: rgba(0, 0, 0, 0.5);
+
+  /* Categorical chart palette: spec-graph node types + neutral fallback. */
+  --chart-feature: #db2777;
+  --chart-spec: #7c3aed;
+  --chart-section: #0891b2;
+  --chart-statement: #2563eb;
+  --chart-criterion: #4f46e5;
+  --chart-test: #16a34a;
+  --chart-code: #ea580c;
+  --chart-adr: #d97706;
+  --chart-neutral: #94a3b8;
+
+  /* HUD tag-chip palette for the assembled-context tag tree. Theme-independent
+     on purpose: a black "terminal readout" straddling the box border. */
+  --hud-chip-bg: #000000;
+  --hud-chip-fg: #e6e6e6;
+  --hud-chip-tag: #7aa2f7;
+  --hud-chip-attr: #9ece6a;
+
+  /* Win98 bevel vocabulary. Flat by default; chicago draws the 3D edge. */
+  --button-highlight: var(--white);
+  --button-face: var(--bg-surface);
+  --button-shadow: var(--border);
+  --window-frame: var(--text);
+  --field-bg: var(--bg-surface);
+  --border-raised-outer: none;
+  --border-raised-inner: none;
+  --border-sunken-outer: none;
+  --border-sunken-inner: none;
 }
 
-[data-theme-family="elegant"][data-color-scheme="dark"] {
+[data-color-scheme="dark"] {
   --color-scheme: dark;
 
   --bg: #000000;
@@ -161,6 +203,7 @@
   --radius-pill: 0;
 
   --glass-blur: blur(4px);
+  --backdrop: rgba(26, 27, 38, 0.72);
 }
 
 [data-theme-family="retro"][data-color-scheme="dark"] {
@@ -279,12 +322,26 @@
   --fs-lg: 18px;
   --fs-xl: 24px;
 
+  /* Tahoma ships regular and bold only; Win98 chrome is either one. */
+  --fw-medium: 700;
+  --fw-semibold: 700;
+
+  /* Win98 dialogs are dense: the spacers tighten with the type scale. */
+  --space-3: 6px;
+  --space-4: 8px;
+  --space-5: 12px;
+  --space-6: 16px;
+  --space-7: 24px;
+  --space-8: 32px;
+
   --radius-sm: 0;
   --radius: 0;
   --radius-lg: 0;
   --radius-pill: 0;
 
+  --focus-ring-width: 1px;
   --glass-blur: none;
+  --backdrop: transparent;
 
   /* 98.css bevel formulas — reference the per-scheme primitives below. */
   --border-raised-outer:

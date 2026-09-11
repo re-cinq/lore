@@ -1,16 +1,16 @@
 @use "styles/tokens" as t;
 
 .specCard {
-  margin-bottom: 12px;
+  margin-bottom: var(--space-4);
 }
 
 .header {
-  @include t.row-between(12px);
-  margin-bottom: 12px;
+  @include t.row-between(var(--space-4));
+  margin-bottom: var(--space-4);
 }
 
 .titleRow {
-  @include t.row(10px);
+  @include t.row(var(--space-4));
 }
 
 .title {
@@ -18,7 +18,7 @@
 }
 
 .links {
-  @include t.row(12px);
+  @include t.row(var(--space-4));
 }
 
 .prompt {
@@ -27,5 +27,5 @@
 }
 
 .confirmRow {
-  @include t.row(10px);
+  @include t.row(var(--space-4));
 }

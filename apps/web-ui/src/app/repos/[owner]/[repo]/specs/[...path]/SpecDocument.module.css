@@ -5,8 +5,8 @@
    colocated-CSS-module convention. */
 
 .section {
-  margin-bottom: 16px;
-  padding: 10px 12px;
+  margin-bottom: var(--space-5);
+  padding: var(--space-4) var(--space-4);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--bg-surface);

@@ -6,14 +6,14 @@
 
 .headerActions {
   display: flex;
-  gap: 0.5rem;
+  gap: var(--space-3);
   align-items: center;
 }
 
 .cardTitle {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-3);
 }
 
 /* Both colours below come from the freshness/ingest palettes in lib — the card
@@ -29,5 +29,5 @@
 
 .ingestBadge {
   background: var(--badge-color);
-  color: white;
+  color: var(--text-on-accent);
 }

@@ -1,14 +1,14 @@
 .header {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  margin-bottom: 1rem;
+  gap: var(--space-5);
+  margin-bottom: var(--space-5);
 }
 .status {
-  padding: 0.15rem 0.6rem;
+  padding: var(--space-1) var(--space-3);
   border-radius: var(--radius-pill);
   font-size: var(--fs-sm);
-  color: #fff;
+  color: var(--text-on-accent);
 }
 .success {
   background: var(--success);
@@ -32,11 +32,11 @@
 .facts {
   display: grid;
   grid-template-columns: max-content 1fr;
-  gap: 0.35rem 1rem;
+  gap: var(--space-2) var(--space-5);
   /* The surrounding .spec-card owns the border and the 12px gap to the next
      block; the grid only pads itself off that card's 4px edge. */
   margin: 0;
-  padding: 0.6rem 0.75rem;
+  padding: var(--space-3) var(--space-4);
 }
 .facts dt {
   color: var(--text-muted);
