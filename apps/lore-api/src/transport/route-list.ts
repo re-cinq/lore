@@ -12,6 +12,7 @@ import { orgSettingsRoutes } from "./routes/repos/org-settings.js";
 import { repoSettingsRoute } from "./routes/repos/repo-settings.js";
 import { prStatusRoute } from "./routes/repos/pr-status.js";
 import { pullFilesRoute } from "./routes/repos/pull-files.js";
+import { issueRoute } from "./routes/repos/issue.js";
 import { contextRoute } from "./routes/context/context.js";
 import { chunkBrowseRoutes } from "./routes/context/chunks-browse.js";
 import { graphRoute } from "./routes/graph/graph.js";
@@ -144,6 +145,7 @@ function repoRoutes(getPool: PoolGetter): ServerRoute[] {
     repoSettingsRoute(getPool),
     prStatusRoute(),
     pullFilesRoute(),
+    issueRoute(),
     contextRoute(getPool),
     ...chunkBrowseRoutes(getPool),
     graphRoute(getPool),

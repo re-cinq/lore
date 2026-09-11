@@ -13,7 +13,9 @@ import type { TaskRuntimeEvent, TaskRuntimeLlmCall } from "@/lib/task-runtime";
 import type { RunStreamFrame } from "@/lib/run-stream-types";
 import type { NodeModel } from "@/lib/node-models";
 import { Alert } from "@/components/Alert";
+import type { Issue } from "@/lib/api/issues";
 import AssemblyRunView from "./AssemblyRunView";
+import RunIssueCard from "./RunIssueCard";
 import DefinitionOfDonePanel from "./DefinitionOfDonePanel";
 import { AssemblyRunOptions } from "./AssemblyRunOptions";
 import RunVisualizationPanel from "./RunVisualizationPanel";
@@ -27,6 +29,8 @@ export interface RunLiveShellProps {
   llmCalls: readonly TaskRuntimeLlmCall[];
   agentEditHrefs?: Record<string, string>;
   nodeModels?: Record<string, NodeModel>;
+  /** The issue the run works on, read server-side; null when the run names none or GitHub could not answer. */
+  issue?: Issue | null;
 }
 
 export default function RunLiveShell(props: RunLiveShellProps) {
@@ -38,6 +42,7 @@ export default function RunLiveShell(props: RunLiveShellProps) {
   return (
     <>
       <AssemblyRunView run={run} />
+      <RunIssueCard issue={props.issue ?? null} />
       <DefinitionOfDonePanel runId={run.id} refreshKey={dodRefreshKey(live)} />
       <AssemblyRunOptions run={run} />
       <LiveSections

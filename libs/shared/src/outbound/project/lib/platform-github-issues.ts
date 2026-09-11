@@ -18,6 +18,7 @@ interface OctokitIssue {
   state: string;
   labels: OctokitLabel[];
   html_url: string;
+  body?: string | null;
 }
 
 export async function listIssues(
@@ -40,19 +41,15 @@ export async function listIssues(
     .map((i) => toListedIssueRef(repo, i));
 }
 
-/** The listing projection: the shared IssueRef fields plus the creation time and body only the list read carries. */
+/** The listing projection: the shared IssueRef fields plus the creation time only the list read carries. */
 function toListedIssueRef(
   repo: string,
-  issue: OctokitIssue & { created_at: string; body?: string | null },
+  issue: OctokitIssue & { created_at: string },
 ): IssueRef {
-  return {
-    ...toIssueRef(repo, issue),
-    createdAt: issue.created_at,
-    ...(issue.body ? { body: issue.body } : {}),
-  };
+  return { ...toIssueRef(repo, issue), createdAt: issue.created_at };
 }
 
-/** The IssueRef fields every issue read projects. */
+/** The IssueRef fields every issue read projects; GitHub answers an empty body as null, which projects as no body at all. */
 function toIssueRef(repo: string, issue: OctokitIssue): IssueRef {
   return {
     repo,
@@ -61,6 +58,7 @@ function toIssueRef(repo: string, issue: OctokitIssue): IssueRef {
     state: issue.state as IssueState,
     labels: labelNames(issue.labels),
     url: issue.html_url,
+    ...(issue.body ? { body: issue.body } : {}),
   };
 }
 

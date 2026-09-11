@@ -1,11 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import rehypeRaw from "rehype-raw";
-import rehypeSanitize from "rehype-sanitize";
-import { markdownSanitizeSchema } from "@/lib/markdown-sanitize";
+import GitHubMarkdown from "@/components/GitHubMarkdown";
 import styles from "./ReadmeBox.module.css";
 import { resolveUrl, splitBlocks } from "./readme-markdown";
 
@@ -33,18 +29,15 @@ export default function ReadmeBox(props: ReadmeBoxProps) {
   );
 }
 
-/** The README as GitHub renders it. Raw HTML is allowed through but sanitized, since a README is repo content and may carry badge markup a plain markdown pass would drop. */
+/** The README as GitHub renders it, with image sources resolved against raw content and links against the repo tree. */
 function ReadmeMarkdown({ markdown, rawBaseUrl, htmlUrl }: ReadmeBoxProps) {
   return (
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
-      rehypePlugins={[rehypeRaw, [rehypeSanitize, markdownSanitizeSchema]]}
+    <GitHubMarkdown
+      markdown={markdown}
       urlTransform={(url, key) =>
         resolveUrl(url, key === "src" ? rawBaseUrl : htmlUrl)
       }
-    >
-      {markdown}
-    </ReactMarkdown>
+    />
   );
 }
 

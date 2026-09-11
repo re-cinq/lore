@@ -11,6 +11,7 @@ import { definitionForRun } from "@/lib/run-graph-definition";
 import { agentEditHrefs } from "@/lib/agent-edit-href";
 import { resolveNodeModels } from "@/lib/node-models";
 import { listAgents } from "@/lib/agents-api";
+import { fetchIssue, type Issue } from "@/lib/api/issues";
 import RunLiveShell from "./RunLiveShell";
 
 const UUID_RE =
@@ -59,6 +60,7 @@ async function resolveRunView(
   run: NonNullable<Awaited<ReturnType<typeof resolveRun>>>,
   id: string,
 ) {
+  const issueRead = resolveIssue(run);
   const nodes = await fetchAssemblyRunNodes(id);
   const { events, llmCalls } = await resolveTaskContext(run.taskId);
   const { definition } = definitionForRun(run.blueprintName, nodes, run.graph);
@@ -71,6 +73,7 @@ async function resolveRunView(
     definition,
     editHrefs: agentEditHrefs(definition, agents, run.repo),
     nodeModels: resolveNodeModels(definition, agents),
+    issue: await issueRead,
   };
 }
 
@@ -90,6 +93,7 @@ function RunPage({ run, view }: RunPageProps) {
       llmCalls={view.llmCalls}
       agentEditHrefs={view.editHrefs}
       nodeModels={view.nodeModels}
+      issue={view.issue}
     />
   );
 }
@@ -105,4 +109,15 @@ async function resolveTaskContext(taskId: string | null) {
   ]);
 
   return { events, llmCalls };
+}
+
+/** The issue the run works on, for the card that shows it in place; a run naming no issue, or a GitHub read that fails, costs the card and nothing else. */
+async function resolveIssue(run: AssemblyRun): Promise<Issue | null> {
+  if (!run.issueNumber) {
+    return null;
+  }
+
+  const result = await fetchIssue(run.repo, run.issueNumber);
+
+  return result.status === "ok" ? result.data : null;
 }

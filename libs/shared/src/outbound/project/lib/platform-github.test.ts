@@ -26,6 +26,7 @@ const state: {
   prData?: Record<string, unknown>;
   treeData?: Record<string, unknown>;
   issuesData?: Array<Record<string, unknown>>;
+  issueData?: Record<string, unknown>;
   reviewThreadPages?: Array<Record<string, unknown>>;
   graphqlCalls: Array<{ query: string; vars: Record<string, unknown> }>;
   authCalls: Array<Record<string, unknown>>;
@@ -106,6 +107,7 @@ vi.mock("octokit", () => ({
       issues: {
         addLabels: async () => ({}),
         listForRepo: async () => state.issuesData ?? [],
+        get: async () => ({ data: state.issueData }),
         createLabel: async () => {
           if (state.labelError) {
             throw state.labelError;
@@ -220,6 +222,35 @@ describe("PlatformGitHub paginated reads + helpers", () => {
 
     expect(files).toHaveLength(31);
     expect(files).toContain("src/f30.ts");
+  });
+
+  it("getIssue carries the issue body and omits a null one", async () => {
+    const issue = {
+      number: 9,
+      title: "Render the issue",
+      state: "open",
+      labels: [{ name: "lore-managed" }],
+      html_url: "https://gh/re-cinq/lore/issues/9",
+    };
+
+    state.issueData = { ...issue, body: "## Why\nno tab switch" };
+    const withBody = await gh().getIssue("re-cinq/lore", 9);
+
+    state.issueData = { ...issue, body: null };
+    const withoutBody = await gh().getIssue("re-cinq/lore", 9);
+    const ref = {
+      repo: "re-cinq/lore",
+      number: 9,
+      title: "Render the issue",
+      state: "open",
+      labels: ["lore-managed"],
+      url: "https://gh/re-cinq/lore/issues/9",
+    };
+
+    expect({ withBody, withoutBody }).toEqual({
+      withBody: { ...ref, body: "## Why\nno tab switch" },
+      withoutBody: ref,
+    });
   });
 
   it("listFileChanges returns status, additions, deletions and patch per file across pages", async () => {

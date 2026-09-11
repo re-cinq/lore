@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, act } from "@testing-library/react";
-import RunLiveShell from "./RunLiveShell";
+import RunLiveShell, { type RunLiveShellProps } from "./RunLiveShell";
 import type { AssemblyRun } from "@/lib/assembly-runs";
 import { implementationDefinition } from "@/lib/definition-fixtures";
 
@@ -60,7 +60,7 @@ async function settle() {
   }
 }
 
-function renderShell() {
+function renderShell(extra: Partial<RunLiveShellProps> = {}) {
   FakeEventSource.instances = [];
   vi.stubGlobal("EventSource", FakeEventSource);
   vi.stubGlobal(
@@ -79,6 +79,7 @@ function renderShell() {
       definition={implementationDefinition}
       taskEvents={[]}
       llmCalls={[]}
+      {...extra}
     />,
   );
 }
@@ -182,5 +183,22 @@ describe("RunLiveShell", () => {
     expect(container.querySelector("[data-task-event]")).toHaveTextContent(
       "task Running → PR created",
     );
+  });
+
+  it("shows the issue the run works on as a card, so reading it needs no trip to GitHub", async () => {
+    renderShell({
+      issue: {
+        number: 42,
+        title: "Show the issue on the run page",
+        state: "open",
+        url: "https://github.com/re-cinq/lore/issues/42",
+        body: "## Why",
+      },
+    });
+    await settle();
+
+    expect(
+      screen.getByText("Issue #42 · Show the issue on the run page"),
+    ).toBeInTheDocument();
   });
 });
