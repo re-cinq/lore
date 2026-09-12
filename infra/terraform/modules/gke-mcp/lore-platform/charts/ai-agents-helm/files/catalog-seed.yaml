@@ -212,11 +212,14 @@ spec:
 
 
     DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
-    - Before you commit, run the repository's own fix/format step OVER THE
-      FILES YOU CHANGED — not the whole repo (`npx eslint --fix <files>`,
-      `gofmt -w <files>`, whichever this repo uses). Scoped it is seconds of
-      work, and it erases the whole class of failures CI would otherwise
-      report as a red build; unscoped it eats the round's budget.
+    - Before you commit, run the repository's FORMATTER over the files you
+      changed (`npx prettier --write <files>`, `gofmt -w <files>`, whichever
+      this repo uses) and nothing else from CI's checklist. Do NOT run the
+      linter in this pod: CI runs it on every push, and here it does not
+      fit — in this repository a two-file `eslint` peaks near 800 MB against
+      a 1Gi pod, and runs 112256d9 and 62c1ca5e were OOM-killed on exactly
+      that. A lint finding comes back as a red build naming the file and
+      line, which the next round fixes with an editor.
     - Then TYPECHECK the packages you touched (`npx tsc --noEmit -p <pkg>`,
       `go build ./...`, whichever this repo uses). Your tests passing does NOT
       mean the code compiles: vitest transpiles each file without checking
@@ -363,11 +366,14 @@ spec:
 
 
     DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
-    - Before you commit, run the repository's own fix/format step OVER THE
-      FILES YOU CHANGED — not the whole repo (`npx eslint --fix <files>`,
-      `gofmt -w <files>`, whichever this repo uses). Scoped it is seconds of
-      work, and it erases the whole class of failures CI would otherwise
-      report as a red build; unscoped it eats the round's budget.
+    - Before you commit, run the repository's FORMATTER over the files you
+      changed (`npx prettier --write <files>`, `gofmt -w <files>`, whichever
+      this repo uses) and nothing else from CI's checklist. Do NOT run the
+      linter in this pod: CI runs it on every push, and here it does not
+      fit — in this repository a two-file `eslint` peaks near 800 MB against
+      a 1Gi pod, and runs 112256d9 and 62c1ca5e were OOM-killed on exactly
+      that. A lint finding comes back as a red build naming the file and
+      line, which the next round fixes with an editor.
     - Then TYPECHECK the packages you touched (`npx tsc --noEmit -p <pkg>`,
       `go build ./...`, whichever this repo uses). Your tests passing does NOT
       mean the code compiles: vitest transpiles each file without checking
@@ -615,11 +621,14 @@ spec:
     - Do not edit `| Status |` on any spec. Nothing is implemented yet.
 
     DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
-    - Before you commit, run the repository's own fix/format step OVER THE
-      FILES YOU CHANGED — not the whole repo (`npx eslint --fix <files>`,
-      `gofmt -w <files>`, whichever this repo uses). Scoped it is seconds of
-      work, and it erases the whole class of failures CI would otherwise
-      report as a red build; unscoped it eats the round's budget.
+    - Before you commit, run the repository's FORMATTER over the files you
+      changed (`npx prettier --write <files>`, `gofmt -w <files>`, whichever
+      this repo uses) and nothing else from CI's checklist. Do NOT run the
+      linter in this pod: CI runs it on every push, and here it does not
+      fit — in this repository a two-file `eslint` peaks near 800 MB against
+      a 1Gi pod, and runs 112256d9 and 62c1ca5e were OOM-killed on exactly
+      that. A lint finding comes back as a red build naming the file and
+      line, which the next round fixes with an editor.
     - Then TYPECHECK the packages you touched (`npx tsc --noEmit -p <pkg>`,
       `go build ./...`, whichever this repo uses). Your tests passing does NOT
       mean the code compiles: vitest transpiles each file without checking
@@ -833,11 +842,14 @@ spec:
       re-run the whole build to find it; the section names the checks.
 
     DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
-    - Before you commit, run the repository's own fix/format step OVER THE
-      FILES YOU CHANGED — not the whole repo (`npx eslint --fix <files>`,
-      `gofmt -w <files>`, whichever this repo uses). Scoped it is seconds of
-      work, and it erases the whole class of failures CI would otherwise
-      report as a red build; unscoped it eats the round's budget.
+    - Before you commit, run the repository's FORMATTER over the files you
+      changed (`npx prettier --write <files>`, `gofmt -w <files>`, whichever
+      this repo uses) and nothing else from CI's checklist. Do NOT run the
+      linter in this pod: CI runs it on every push, and here it does not
+      fit — in this repository a two-file `eslint` peaks near 800 MB against
+      a 1Gi pod, and runs 112256d9 and 62c1ca5e were OOM-killed on exactly
+      that. A lint finding comes back as a red build naming the file and
+      line, which the next round fixes with an editor.
     - Then TYPECHECK the packages you touched (`npx tsc --noEmit -p <pkg>`,
       `go build ./...`, whichever this repo uses). Your tests passing does NOT
       mean the code compiles: vitest transpiles each file without checking
@@ -998,16 +1010,14 @@ spec:
     rediscover what you have already been told costs the ticket a pod and
     tells you nothing new.
 
-    NEVER LINT, FORMAT OR TYPECHECK THE WHOLE REPOSITORY IN THIS POD. A
-    `format`, `lint` or `typecheck` job's command runs over every file on a
-    machine CI sized for it; here it exceeds the pod's memory and kills you
-    mid-run — run 112256d9 died exactly there, `npx eslint .` at 1Gi, on a
-    one-line fix. Scope every such command to the files this branch
-    changed: `git diff --name-only origin/main...HEAD`. If the scoped run
-    is green, do not widen it — the failing file is one you did not change
-    (a rule that reads the whole repo, a stale generated artifact), and the
-    way to find it is `lore_get_ci_failures`, then `lore_get_ci_job_log`
-    with `grep: "error"`, never a wider local run.
+    NEVER RUN THE LINTER IN THIS POD, scoped or not. CI ran it on a machine
+    sized for it; here a two-file `eslint` peaks near 800 MB against a 1Gi
+    pod, and runs 112256d9 and 62c1ca5e were OOM-killed on it. When the red
+    check is a lint or format job, its findings are what you fix, not what
+    you reproduce: take the file and line from the annotation, or ask CI
+    with `lore_get_ci_failures` and then `lore_get_ci_job_log` with
+    `grep: "error"`. Typecheck and format only the files this branch
+    changed: `git diff --name-only origin/main...HEAD`.
 
     IF THE SECTION IS MISSING OR TOO THIN, ASK CI YOURSELF: call
     `lore_get_ci_failures` with no arguments — it reports on the branch you
@@ -1054,11 +1064,14 @@ spec:
       finding, not a fix.
 
     DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
-    - Before you commit, run the repository's own fix/format step OVER THE
-      FILES YOU CHANGED — not the whole repo (`npx eslint --fix <files>`,
-      `gofmt -w <files>`, whichever this repo uses). Scoped it is seconds of
-      work, and it erases the whole class of failures CI would otherwise
-      report as a red build; unscoped it eats the round's budget.
+    - Before you commit, run the repository's FORMATTER over the files you
+      changed (`npx prettier --write <files>`, `gofmt -w <files>`, whichever
+      this repo uses) and nothing else from CI's checklist. Do NOT run the
+      linter in this pod: CI runs it on every push, and here it does not
+      fit — in this repository a two-file `eslint` peaks near 800 MB against
+      a 1Gi pod, and runs 112256d9 and 62c1ca5e were OOM-killed on exactly
+      that. A lint finding comes back as a red build naming the file and
+      line, which the next round fixes with an editor.
     - Then TYPECHECK the packages you touched (`npx tsc --noEmit -p <pkg>`,
       `go build ./...`, whichever this repo uses). Your tests passing does NOT
       mean the code compiles: vitest transpiles each file without checking
@@ -1236,11 +1249,14 @@ spec:
       missed it.
 
     DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
-    - Before you commit, run the repository's own fix/format step OVER THE
-      FILES YOU CHANGED — not the whole repo (`npx eslint --fix <files>`,
-      `gofmt -w <files>`, whichever this repo uses). Scoped it is seconds of
-      work, and it erases the whole class of failures CI would otherwise
-      report as a red build; unscoped it eats the round's budget.
+    - Before you commit, run the repository's FORMATTER over the files you
+      changed (`npx prettier --write <files>`, `gofmt -w <files>`, whichever
+      this repo uses) and nothing else from CI's checklist. Do NOT run the
+      linter in this pod: CI runs it on every push, and here it does not
+      fit — in this repository a two-file `eslint` peaks near 800 MB against
+      a 1Gi pod, and runs 112256d9 and 62c1ca5e were OOM-killed on exactly
+      that. A lint finding comes back as a red build naming the file and
+      line, which the next round fixes with an editor.
     - Then TYPECHECK the packages you touched (`npx tsc --noEmit -p <pkg>`,
       `go build ./...`, whichever this repo uses). Your tests passing does NOT
       mean the code compiles: vitest transpiles each file without checking
@@ -1383,11 +1399,14 @@ spec:
       change, or leave the code as it is and say plainly why, so the
       reviewer reads a reason rather than silence.
     DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
-    - Before you commit, run the repository's own fix/format step OVER THE
-      FILES YOU CHANGED — not the whole repo (`npx eslint --fix <files>`,
-      `gofmt -w <files>`, whichever this repo uses). Scoped it is seconds of
-      work, and it erases the whole class of failures CI would otherwise
-      report as a red build; unscoped it eats the round's budget.
+    - Before you commit, run the repository's FORMATTER over the files you
+      changed (`npx prettier --write <files>`, `gofmt -w <files>`, whichever
+      this repo uses) and nothing else from CI's checklist. Do NOT run the
+      linter in this pod: CI runs it on every push, and here it does not
+      fit — in this repository a two-file `eslint` peaks near 800 MB against
+      a 1Gi pod, and runs 112256d9 and 62c1ca5e were OOM-killed on exactly
+      that. A lint finding comes back as a red build naming the file and
+      line, which the next round fixes with an editor.
     - Then TYPECHECK the packages you touched (`npx tsc --noEmit -p <pkg>`,
       `go build ./...`, whichever this repo uses). Your tests passing does NOT
       mean the code compiles: vitest transpiles each file without checking

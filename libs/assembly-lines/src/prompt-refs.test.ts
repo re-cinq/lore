@@ -70,7 +70,7 @@ describe("the fix-ci recipe behind repair-build", () => {
     return parsed.task_types["fix-ci"].prompt_template;
   }
 
-  it("tells the node to fix an annotated file:line with an editor, never an install, never a repo-wide lint, and to ask CI through lore_get_ci_failures and lore_get_ci_job_log rather than rebuild", async () => {
+  it("tells the node to fix an annotated file:line with an editor, never an install, never the linter, and to ask CI through lore_get_ci_failures and lore_get_ci_job_log rather than rebuild", async () => {
     const prompt = (await fixCiPrompt()).replace(/\s+/g, " ");
     const says = (phrase: string) => prompt.includes(phrase);
 
@@ -86,9 +86,7 @@ describe("the fix-ci recipe behind repair-build", () => {
       forbidsRebuild: says(
         "Never reinstall or rebuild the workspace to learn what CI already printed.",
       ),
-      forbidsRepoWideLint: says(
-        "NEVER LINT, FORMAT OR TYPECHECK THE WHOLE REPOSITORY IN THIS POD.",
-      ),
+      forbidsLinter: says("NEVER RUN THE LINTER IN THIS POD, scoped or not."),
       scopesToChangedFiles: says("git diff --name-only origin/main...HEAD"),
     }).toEqual({
       editsTheAnnotatedLine: true,
@@ -96,8 +94,23 @@ describe("the fix-ci recipe behind repair-build", () => {
       asksCi: true,
       readsTheLog: true,
       forbidsRebuild: true,
-      forbidsRepoWideLint: true,
+      forbidsLinter: true,
       scopesToChangedFiles: true,
     });
+  });
+});
+
+describe("every recipe's delivery contract", () => {
+  it("tells no pod to run the linter: CI runs it on every push, and in this repo a two-file eslint peaks near 800 MB against a 1Gi pod", async () => {
+    const parsed = parse(await readFile(TASK_TYPES, "utf-8")) as {
+      task_types: Record<string, { prompt_template?: string }>;
+    };
+    const lintingRecipes = Object.entries(parsed.task_types)
+      .filter(([, recipe]) =>
+        /npx eslint|eslint --fix/.test(recipe.prompt_template ?? ""),
+      )
+      .map(([name]) => name);
+
+    expect(lintingRecipes).toEqual([]);
   });
 });
