@@ -169,7 +169,7 @@ export class PgSettings implements SettingsPort {
   async markOnboardingMergedById(id: string): Promise<void> {
     await this.pool.query(
       `UPDATE lore.repos
-          SET onboarding_pr_merged = true, last_ingested_at = now()
+          SET onboarding_pr_merged = true
         WHERE id = $1`,
       [id],
     );

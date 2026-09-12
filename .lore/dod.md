@@ -6,14 +6,14 @@
 
 ## Done when these pass
 
-- [ ] **markOnboardingMergedById does not stamp last_ingested_at** — The SQL issued by `markOnboardingMergedById` sets `onboarding_pr_merged = true` but does not include `last_ingested_at = now()`. This pins option 2: CI owns ingestion, the merge check is not an ingest, and the staleness warning must not be silenced by a write that did nothing.
+- [x] **markOnboardingMergedById does not stamp last_ingested_at** — The SQL issued by `markOnboardingMergedById` sets `onboarding_pr_merged = true` but does not include `last_ingested_at = now()`. This pins option 2: CI owns ingestion, the merge check is not an ingest, and the staleness warning must not be silenced by a write that did nothing.
   `libs/shared/src/outbound/project/settings/settings-pg.test.ts`
 
 ## Facets
 
-- [ ] Drop `last_ingested_at = now()` from the `markOnboardingMergedById` SQL in `settings-pg.ts:172` (the live path that stamps without ingesting).
-- [ ] Delete `checkOnboardingPRs`, `checkOnboardingPr`, and `recordMergedOnboarding` from `apps/lore-api/src/work/repo/repo-onboard.ts` (dead code — no callers outside their own definitions).
-- [ ] Confirm the test above goes green; confirm the 7 existing tests in the same describe block still pass.
+- [x] Drop `last_ingested_at = now()` from the `markOnboardingMergedById` SQL in `settings-pg.ts:172` (the live path that stamps without ingesting).
+- [x] Delete `checkOnboardingPRs`, `checkOnboardingPr`, and `recordMergedOnboarding` from `apps/lore-api/src/work/repo/repo-onboard.ts` (dead code — no callers outside their own definitions).
+- [x] Confirm the test above goes green; confirm the 7 existing tests in the same describe block still pass.
 
 ## Out of scope
 
