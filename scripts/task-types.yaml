@@ -555,6 +555,17 @@ task_types:
       rediscover what you have already been told costs the ticket a pod and
       tells you nothing new.
 
+      NEVER LINT, FORMAT OR TYPECHECK THE WHOLE REPOSITORY IN THIS POD. A
+      `format`, `lint` or `typecheck` job's command runs over every file on a
+      machine CI sized for it; here it exceeds the pod's memory and kills you
+      mid-run — run 112256d9 died exactly there, `npx eslint .` at 1Gi, on a
+      one-line fix. Scope every such command to the files this branch
+      changed: `git diff --name-only origin/main...HEAD`. If the scoped run
+      is green, do not widen it — the failing file is one you did not change
+      (a rule that reads the whole repo, a stale generated artifact), and the
+      way to find it is `lore_get_ci_failures`, then `lore_get_ci_job_log`
+      with `grep: "error"`, never a wider local run.
+
       IF THE SECTION IS MISSING OR TOO THIN, ASK CI YOURSELF: call
       `lore_get_ci_failures` with no arguments — it reports on the branch you
       are on: the judged sha, the conclusion, and each failed check with its

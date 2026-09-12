@@ -70,7 +70,7 @@ describe("the fix-ci recipe behind repair-build", () => {
     return parsed.task_types["fix-ci"].prompt_template;
   }
 
-  it("tells the node to fix an annotated file:line with an editor, never an install, and to ask CI through lore_get_ci_failures and lore_get_ci_job_log rather than rebuild", async () => {
+  it("tells the node to fix an annotated file:line with an editor, never an install, never a repo-wide lint, and to ask CI through lore_get_ci_failures and lore_get_ci_job_log rather than rebuild", async () => {
     const prompt = (await fixCiPrompt()).replace(/\s+/g, " ");
     const says = (phrase: string) => prompt.includes(phrase);
 
