@@ -17,9 +17,9 @@
 
 ## Facets
 
-- [ ] Change `activeTaskByIssue` in `InMemoryTaskQueue` (`task-queue-memory.ts`) to also exclude `retried` and `completed` from the active set — either extend the NOT IN check or switch to a positive IN allowlist.
-- [ ] Mirror the change in `PgTaskQueue` (`task-queue-pg.ts`) — update the SQL `NOT IN ('failed', 'cancelled')` clause to also exclude `retried` and `completed`.
-- [ ] Update the port docstring on `activeTaskByIssue` in `task-queue-port.ts` to reflect the corrected set of terminal statuses.
+- [x] Change `activeTaskByIssue` in `InMemoryTaskQueue` (`task-queue-memory.ts`) to also exclude `retried` and `completed` from the active set — either extend the NOT IN check or switch to a positive IN allowlist.
+- [x] Mirror the change in `PgTaskQueue` (`task-queue-pg.ts`) — update the SQL `NOT IN ('failed', 'cancelled')` clause to also exclude `retried` and `completed`.
+- [x] Update the port docstring on `activeTaskByIssue` in `task-queue-port.ts` to reflect the corrected set of terminal statuses.
 
 ## Out of scope
 
