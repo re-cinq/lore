@@ -194,3 +194,26 @@ export async function listFiles(
 
   return changes.map((f) => f.filename);
 }
+
+/** The newest `limit` commits on a branch. GitHub lists them newest-first; reversed here so the branch reads like a pull request's commit list. */
+export async function listBranchCommits(
+  ok: Octokit,
+  repo: string,
+  branch: string,
+  limit: number,
+): Promise<PullCommit[]> {
+  const [owner, name] = split(repo);
+  const { repos } = ok.rest;
+  const { data: newestFirst } = await repos.listCommits({
+    owner,
+    repo: name,
+    sha: branch,
+    per_page: limit,
+  });
+
+  return newestFirst.reverse().map(({ sha, commit }) => ({
+    sha,
+    message: commit.message,
+    date: commit.committer?.date ?? "",
+  }));
+}

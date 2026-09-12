@@ -11,6 +11,8 @@ import { repoRecordRoute } from "./routes/repos/repo-record.js";
 import { orgSettingsRoutes } from "./routes/repos/org-settings.js";
 import { repoSettingsRoute } from "./routes/repos/repo-settings.js";
 import { prStatusRoute } from "./routes/repos/pr-status.js";
+import { ciFailuresRoute } from "./routes/repos/ci-failures.js";
+import { ciJobLogRoute } from "./routes/repos/ci-job-log.js";
 import { pullFilesRoute } from "./routes/repos/pull-files.js";
 import { issueRoute } from "./routes/repos/issue.js";
 import { contextRoute } from "./routes/context/context.js";
@@ -145,6 +147,8 @@ function repoRoutes(getPool: PoolGetter): ServerRoute[] {
     repoSettingsRoute(getPool),
     prStatusRoute(),
     pullFilesRoute(),
+    ciFailuresRoute(),
+    ciJobLogRoute(),
     issueRoute(),
     contextRoute(getPool),
     ...chunkBrowseRoutes(getPool),

@@ -55,6 +55,12 @@ that's plumbing, not duplication.
 | `GET /api/repos/:o/:r/trace/*` | [spec](repo-trace/spec.md) | read | Read a repo's trace docs/graph/ring. |
 | `GET /api/trace/specs` | [spec](global-trace-specs/spec.md) | read | Cross-repo spec document list. |
 
+## GitHub reads
+| Route | Spec | Auth | Purpose |
+|-------|------|------|---------|
+| `GET /api/repos/:o/:r/ci-failures` | [spec](ci-failures/spec.md) | read | What CI said about a branch: judged sha, verdict, each failed check explained from its job. |
+| `GET /api/repos/:o/:r/ci-jobs/:job_id/log` | [spec](ci-job-log/spec.md) | read | The tail of one Actions job's log, timestamps stripped, grep-filtered. |
+
 ## Admin & health
 | Route | Spec | Auth | Purpose |
 |-------|------|------|---------|

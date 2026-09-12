@@ -3,7 +3,7 @@ import {
   ciJudgedSha,
   externalCheckRuns,
 } from "@re-cinq/lore-shared";
-import { failedCheckRuns } from "@re-cinq/lore-shared/project/pulls/check-runs.js";
+import { explainFailedChecks } from "@re-cinq/lore-shared/project/pulls/check-runs.js";
 import type { CheckRun } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import { decidePrReady, type PrReadyVerdict } from "./decide-ready.js";
 import {
@@ -123,40 +123,13 @@ async function ciEvidence(
   };
 }
 
-/** A red build's checks, each silent Actions job carrying its own account of how it failed. Read only on red, because on green there is nothing to explain and each job costs two requests. */
-async function explainedChecks(
+/** The shared explainer, bound to this sweep's job reader. */
+function explainedChecks(
   repo: string,
   checks: CheckRun[],
   deps: PrReadyCheckDeps,
 ): Promise<CheckRun[]> {
-  if (ciConclusionOf(checks) !== "failure") {
-    return checks;
-  }
-  const failed = new Set(failedCheckRuns(checks));
-
-  return Promise.all(
-    checks.map(async (run) =>
-      failed.has(run) ? explainedRun(repo, run, deps) : run,
-    ),
-  );
-}
-
-/** One failed run, with its job's account attached when it is an Actions job that reported nothing itself. */
-async function explainedRun(
-  repo: string,
-  run: CheckRun,
-  deps: PrReadyCheckDeps,
-): Promise<CheckRun> {
-  if (
-    run.app !== "github-actions" ||
-    run.id === undefined ||
-    run.output?.summary
-  ) {
-    return run;
-  }
-  const jobFailure = await deps.failedJob(repo, run.id);
-
-  return jobFailure ? { ...run, jobFailure } : run;
+  return explainFailedChecks(checks, (jobId) => deps.failedJob(repo, jobId));
 }
 
 /** The round verdict as the parked node hears it; a wait is silence. */
