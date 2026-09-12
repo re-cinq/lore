@@ -60,3 +60,38 @@ describe("assembly-line prompt_refs", () => {
     );
   });
 });
+
+describe("the fix-ci recipe behind repair-build", () => {
+  async function fixCiPrompt(): Promise<string> {
+    const parsed = parse(await readFile(TASK_TYPES, "utf-8")) as {
+      task_types: Record<string, { prompt_template: string }>;
+    };
+
+    return parsed.task_types["fix-ci"].prompt_template;
+  }
+
+  it("tells the node to fix an annotated file:line with an editor, never an install, and to ask CI through lore_get_ci_failures and lore_get_ci_job_log rather than rebuild", async () => {
+    const prompt = (await fixCiPrompt()).replace(/\s+/g, " ");
+    const says = (phrase: string) => prompt.includes(phrase);
+
+    expect({
+      editsTheAnnotatedLine: says(
+        "open that file at that line and fix what it says",
+      ),
+      forbidsInstall: says("needs an editor, not `npm ci`"),
+      asksCi: says("call `lore_get_ci_failures` with no arguments"),
+      readsTheLog: says(
+        "call `lore_get_ci_job_log` with that failure's `job_id`",
+      ),
+      forbidsRebuild: says(
+        "Never reinstall or rebuild the workspace to learn what CI already printed.",
+      ),
+    }).toEqual({
+      editsTheAnnotatedLine: true,
+      forbidsInstall: true,
+      asksCi: true,
+      readsTheLog: true,
+      forbidsRebuild: true,
+    });
+  });
+});
