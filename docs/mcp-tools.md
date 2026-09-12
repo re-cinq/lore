@@ -71,6 +71,8 @@ Hand a job to Lore's background agents; they open a pull request for review.
 | `lore_get_task_logs` | Reads a task's execution transcript. | ☁️ Cloud | ⚡ Cached (once the task finishes) |
 | `lore_get_job_logs` | Reads a scheduled background job's log. | ☁️ Cloud | ⚡ Cached |
 | `lore_get_pr_status` | Checks a pull request's status on GitHub. | ☁️ GitHub | |
+| `lore_get_ci_failures` | Says what CI failed on your branch and where (file:line), so you read the verdict instead of re-running the build. | ☁️ Cloud → GitHub | |
+| `lore_get_ci_job_log` | Reads the tail of one CI job's log, filtered. | ☁️ Cloud → GitHub | |
 | `lore_cancel_task` / `lore_retry_task` | Stops or retries a job. | ☁️ Cloud (service-side) | |
 | `lore_list_task_group` | Tracks a group of related jobs across repos. | ☁️ Cloud (service-side) | |
 | `lore_sync_tasks` / `lore_ready_tasks` / `lore_claim_task` / `lore_complete_task` | Coordinate spec-driven tasks and their dependencies. | ☁️ Cloud (service-side) | |

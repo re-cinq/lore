@@ -8,6 +8,7 @@ import { registerSpecTraceTools } from "./tools/spec-trace-tools.js";
 import { registerLocalRunnerTools } from "./tools/local-runner-tools.local.js";
 import { registerSpecTraceLocalTools } from "./tools/spec-trace-tools.local.js";
 import { registerUpdateTools } from "./tools/update-tools.js";
+import { registerCiTools } from "./tools/ci-tools.js";
 
 // Conventions that hold for every lore_ tool, stated once here instead of in each tool description to keep the always-loaded tool schema small.
 const SERVER_INSTRUCTIONS = `Lore serves shared org context (conventions, ADRs, memories, facts, knowledge graph) plus a task pipeline to Claude Code. Tool names share the lore_ prefix as a namespace.
@@ -51,6 +52,7 @@ function registerSharedTools(server: McpServer): void {
   registerSpecTraceTools(server);
   registerUsageTools(server);
   registerRepoTools(server);
+  registerCiTools(server);
 }
 
 // Registered only outside `agent` mode: lore_create_pipeline_task is the recursion vector, and the rest need a developer's own machine.

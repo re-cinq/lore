@@ -219,7 +219,7 @@ useful granularity.
 
 ### FR8 — Files touched opens a per-file diff
 
-- FR8.1. The pull-requests port exposes each changed file's status, additions, deletions and unified patch (`listFileChanges`) behind the same paginated `pulls.listFiles` read that lists filenames, so a large PR is never truncated at one API page and no second GitHub round-trip is spent on the names. ([validated by `platform-github.test.ts:256`](libs/shared/src/outbound/project/lib/platform-github.test.ts#L256))
+- FR8.1. The pull-requests port exposes each changed file's status, additions, deletions and unified patch (`listFileChanges`) behind the same paginated `pulls.listFiles` read that lists filenames, so a large PR is never truncated at one API page and no second GitHub round-trip is spent on the names. ([validated by `platform-github.test.ts:256`](libs/shared/src/outbound/project/lib/platform-github.test.ts#L278))
 
 - FR8.2. `GET /api/repos/{owner}/{repo}/pulls/{number}/files` returns those files under the `read` scope as `{ files }`, rejects a non-positive or non-integer number with 400, answers 424 when GitHub is unconfigured (the dependency is absent, nothing failed) and 404 for a pull request GitHub does not know. ([validated by `pull-files.test.ts:65`](apps/lore-api/src/transport/routes/repos/pull-files.test.ts#L65), [`pull-files.test.ts:71`](apps/lore-api/src/transport/routes/repos/pull-files.test.ts#L71), [`pull-files.test.ts:76`](apps/lore-api/src/transport/routes/repos/pull-files.test.ts#L76), [`pull-files.test.ts:83`](apps/lore-api/src/transport/routes/repos/pull-files.test.ts#L83), [`pull-files.test.ts:90`](apps/lore-api/src/transport/routes/repos/pull-files.test.ts#L90))
 
@@ -233,7 +233,7 @@ useful granularity.
 
 ### FR9 — The issue a run works on reads in place
 
-- FR9.1. The single-issue GitHub read carries the issue's body the way the listing read does, and an issue GitHub answers with a null body carries none. ([validated by `platform-github.test.ts:227`](libs/shared/src/outbound/project/lib/platform-github.test.ts#L227))
+- FR9.1. The single-issue GitHub read carries the issue's body the way the listing read does, and an issue GitHub answers with a null body carries none. ([validated by `platform-github.test.ts:227`](libs/shared/src/outbound/project/lib/platform-github.test.ts#L249))
 
 - FR9.2. `GET /api/repos/{owner}/{repo}/issues/{number}` returns the issue's number, title, state, url and body under the `read` scope, with a null body for an issue opened with no description; it answers 401 without a bearer token, rejects a non-positive or non-integer number with 400, answers 404 for an issue GitHub does not know and 424 when GitHub is unconfigured. ([validated by `issue.test.ts:60`](apps/lore-api/src/transport/routes/repos/issue.test.ts#L60), [`issue.test.ts:64`](apps/lore-api/src/transport/routes/repos/issue.test.ts#L64), [`issue.test.ts:71`](apps/lore-api/src/transport/routes/repos/issue.test.ts#L71), [`issue.test.ts:86`](apps/lore-api/src/transport/routes/repos/issue.test.ts#L86), [`issue.test.ts:90`](apps/lore-api/src/transport/routes/repos/issue.test.ts#L90), [`issue.test.ts:94`](apps/lore-api/src/transport/routes/repos/issue.test.ts#L94))
 

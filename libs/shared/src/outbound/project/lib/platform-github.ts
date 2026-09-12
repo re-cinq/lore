@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- one class implementing two ports, one delegating method per port method: the length IS the port surface, and splitting the class would put half of GitHub in one file and half in another. */
 import type { Octokit } from "octokit";
 import type { FileChange } from "./github-port.js";
 import type { PullDraft } from "../pulls/pull-requests-port.js";
@@ -274,6 +275,18 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
 
   async failedJob(repo: string, jobId: number) {
     return actionsReads.failedJob(await this.octo(), repo, jobId);
+  }
+
+  async jobLog(repo: string, jobId: number): Promise<string | null> {
+    return actionsReads.jobLog(await this.octo(), repo, jobId);
+  }
+
+  async listBranchCommits(
+    repo: string,
+    branch: string,
+    limit: number,
+  ): Promise<PullCommit[]> {
+    return pullsRead.listBranchCommits(await this.octo(), repo, branch, limit);
   }
 
   async ciConclusion(repo: string, ref: string): Promise<CiConclusion> {

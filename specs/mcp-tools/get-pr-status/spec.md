@@ -7,8 +7,8 @@
 | Created | 2026-06-10                     |
 | Owner   | Platform Engineering           |
 | Tool    | `lore_get_pr_status`                |
-| Module  | pipeline (`pipeline-tools.ts`) |
-| Scope   | shared                         |
+| Module  | ci (`ci-tools.ts`)             |
+| Scope   | shared (served in agent mode)  |
 
 `lore_get_pr_status` fetches a task's live PR state from GitHub and folds PR state, check-run conclusions, and review verdicts into one derived `computed_status`, returning the underlying checks and reviews without the caller scripting the GitHub REST API.
 
@@ -22,7 +22,7 @@ without scripting the GitHub REST API.
 
 ## Interface
 
-Registered via `server.tool` ([registration + handler](apps/mcp-server/src/transport/tools/pipeline-tools-lifecycle.ts#L182)).
+Registered via `server.tool` ([registration + handler](apps/mcp-server/src/transport/tools/ci-tools.ts#L162)), beside the CI reads since 2026-09-12 so an agent pod can ask whether its pull request is green ([validated by is served beside the CI reads, so an agent pod can ask whether its pull request is green](apps/mcp-server/src/transport/tools/ci-tools.test.ts#L174)).
 
 - **name**: `lore_get_pr_status`
 - **description** (verbatim):
