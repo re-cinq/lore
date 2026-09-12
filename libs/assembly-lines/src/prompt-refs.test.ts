@@ -86,12 +86,18 @@ describe("the fix-ci recipe behind repair-build", () => {
       forbidsRebuild: says(
         "Never reinstall or rebuild the workspace to learn what CI already printed.",
       ),
+      forbidsRepoWideLint: says(
+        "NEVER LINT, FORMAT OR TYPECHECK THE WHOLE REPOSITORY IN THIS POD.",
+      ),
+      scopesToChangedFiles: says("git diff --name-only origin/main...HEAD"),
     }).toEqual({
       editsTheAnnotatedLine: true,
       forbidsInstall: true,
       asksCi: true,
       readsTheLog: true,
       forbidsRebuild: true,
+      forbidsRepoWideLint: true,
+      scopesToChangedFiles: true,
     });
   });
 });
