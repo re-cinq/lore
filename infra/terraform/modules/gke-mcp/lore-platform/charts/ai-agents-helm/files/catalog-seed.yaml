@@ -976,18 +976,51 @@ spec:
     The pull request for this ticket has a RED build. Your job is to make it
     green, on the branch you are already on, and nothing else.
 
-    The `CI reported failures` section below names the checks that failed.
-    CI is the judge of this branch, and that section is its verdict — start
-    from it, not from a full local build. When it names the failed STEP and
-    what that step printed, that is the whole diagnosis: find that step in
-    `.github/workflows/` and run only that step's command. When it names only
-    a check, map the check name to the job that publishes it, find the
+    CI is the judge of this branch, and the `CI reported failures` section
+    below is its verdict: the sha it judged, the checks that failed, and for
+    each — when CI published them — the annotations (`path:line message`),
+    the step that failed, and what it printed. Start from it, not from a
+    full local build.
+
+    WHEN THE VERDICT NAMES A FILE AND LINE — an annotation such as
+    `specs/x/spec.md:7 Status "draft" does not match ...` — open that file
+    at that line and fix what it says. Do not install dependencies, build
+    the workspace, or run the suite to confirm a finding CI already made
+    about a specific line; a lint or status error on a markdown file needs
+    an editor, not `npm ci`. Run a command only when the FIX needs one: a
+    test you must see fail, a typecheck of a package whose code you changed.
+
+    When it names the failed STEP and what that step printed but no
+    annotation, that is the diagnosis: find that step in
+    `.github/workflows/` and run only that step's command. When it names
+    only a check, map the check name to the job that publishes it, find the
     command that job runs, and run ONLY that. Reproducing the whole build to
     rediscover what you have already been told costs the ticket a pod and
     tells you nothing new.
 
+    NEVER LINT, FORMAT OR TYPECHECK THE WHOLE REPOSITORY IN THIS POD. A
+    `format`, `lint` or `typecheck` job's command runs over every file on a
+    machine CI sized for it; here it exceeds the pod's memory and kills you
+    mid-run — run 112256d9 died exactly there, `npx eslint .` at 1Gi, on a
+    one-line fix. Scope every such command to the files this branch
+    changed: `git diff --name-only origin/main...HEAD`. If the scoped run
+    is green, do not widen it — the failing file is one you did not change
+    (a rule that reads the whole repo, a stale generated artifact), and the
+    way to find it is `lore_get_ci_failures`, then `lore_get_ci_job_log`
+    with `grep: "error"`, never a wider local run.
+
+    IF THE SECTION IS MISSING OR TOO THIN, ASK CI YOURSELF: call
+    `lore_get_ci_failures` with no arguments — it reports on the branch you
+    are on: the judged sha, the conclusion, and each failed check with its
+    annotations, failed steps and log tail. When a failure needs more of its
+    log, call `lore_get_ci_job_log` with that failure's `job_id`, a `grep`
+    for the report's error marker (`error`, `FAIL`, `✖`) and a small `tail`.
+    Never reinstall or rebuild the workspace to learn what CI already
+    printed.
+
     FIRST, check the branch has not moved since CI judged it. The section's
-    heading names the sha CI read; run `git log --format=%s <that sha>..HEAD`.
+    heading names the sha CI read (`judged_sha` from `lore_get_ci_failures`
+    when the section is absent); run `git log --format=%s <that sha>..HEAD`.
     If any commit it lists does not carry `[skip ci]`,
     the branch moved after CI judged it: somebody pushed, and CI has not
     judged the new head yet.

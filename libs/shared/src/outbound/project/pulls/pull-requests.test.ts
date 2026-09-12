@@ -88,6 +88,8 @@ function fakePulls(
     listFileChanges: async () => [],
     listChecks: async () => [],
     failedJob: async () => null,
+    listBranchCommits: async () => [],
+    jobLog: async () => null,
   };
 }
 
@@ -207,13 +209,51 @@ describe("PullRequests failedJob", () => {
       failedJob: async (repo, jobId) => {
         asked.push({ repo, jobId });
 
-        return { steps: ["Lint (--max-warnings 0)"], tail: ["6:1  error"] };
+        return {
+          annotations: [],
+          steps: ["Lint (--max-warnings 0)"],
+          tail: ["6:1  error"],
+        };
       },
     };
 
     expect(
       await new PullRequests("re-cinq/bowman-ui", port).failedJob(102930584180),
-    ).toEqual({ steps: ["Lint (--max-warnings 0)"], tail: ["6:1  error"] });
+    ).toEqual({
+      annotations: [],
+      steps: ["Lint (--max-warnings 0)"],
+      tail: ["6:1  error"],
+    });
     expect(asked).toEqual([{ repo: "re-cinq/bowman-ui", jobId: 102930584180 }]);
+  });
+});
+
+describe("PullRequests branch reads", () => {
+  it("reads a branch's commits and a job's log through the repo it was bound to", async () => {
+    const asked: string[] = [];
+    const port: PullRequestsPort = {
+      ...fakePulls([], []),
+      listBranchCommits: async (repo, branch, limit) => {
+        asked.push(`${repo} ${branch} ${limit}`);
+
+        return [{ sha: "abc", message: "feat", date: "t" }];
+      },
+      jobLog: async (repo, jobId) => {
+        asked.push(`${repo} ${jobId}`);
+
+        return "log";
+      },
+    };
+    const pulls = new PullRequests("re-cinq/lore", port);
+
+    expect({
+      commits: await pulls.listBranchCommits("topic", 30),
+      log: await pulls.jobLog(7),
+      asked,
+    }).toEqual({
+      commits: [{ sha: "abc", message: "feat", date: "t" }],
+      log: "log",
+      asked: ["re-cinq/lore topic 30", "re-cinq/lore 7"],
+    });
   });
 });
