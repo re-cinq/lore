@@ -288,3 +288,11 @@ function coverageFromExtras(
 function issueNumberArg(args: Record<string, unknown>): number | null {
   return typeof args.issue_number === "number" ? args.issue_number : null;
 }
+
+/** Scaffolding paths that the deterministic pr-ready strip must delete before un-drafting the PR (FR6). */
+const SCAFFOLDING_PATHS = [".lore/dod.md"];
+
+/** Return the subset of branchFiles that are implementation-loop scaffolding — never reviewer material. */
+export function scaffoldingToStrip(branchFiles: string[]): string[] {
+  return branchFiles.filter((f) => SCAFFOLDING_PATHS.includes(f));
+}

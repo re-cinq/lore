@@ -24,8 +24,8 @@ branch-delete port op and takes the removal off the agent's discretion.
 
 ## Facets
 
-- [ ] RED: add `scaffoldingToStrip` acceptance test (done here).
-- [ ] GREEN: add pure `scaffoldingToStrip(branchFiles)` to `spec-pr.ts`.
+- [x] RED: add `scaffoldingToStrip` acceptance test (done here).
+- [x] GREEN: add pure `scaffoldingToStrip(branchFiles)` to `spec-pr.ts`.
 - [ ] Wire `markPrReady` to delete the returned paths from the branch before it
   un-drafts the PR (new branch-delete op on the GitHub/pulls port; `commitFile`
   today only creates/updates).
