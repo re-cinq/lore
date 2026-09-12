@@ -56,13 +56,13 @@ task_types:
         a 1Gi pod, and runs 112256d9 and 62c1ca5e were OOM-killed on exactly
         that. A lint finding comes back as a red build naming the file and
         line, which the next round fixes with an editor.
-      - Then TYPECHECK the packages you touched (`npx tsc --noEmit -p <pkg>`,
-        `go build ./...`, whichever this repo uses). Your tests passing does NOT
-        mean the code compiles: vitest transpiles each file without checking
-        types, so a missing import or a wrong signature runs green here and
-        fails the build on CI. That is not hypothetical — it is how a branch
-        reached five rounds and a red build with its whole acceptance suite
-        passing.
+      - Do NOT typecheck here either. A green test is not a compiled build —
+        vitest transpiles each file without checking types — but CI's build
+        step is what proves it, and in this repository `tsc --noEmit` on
+        `libs/shared` peaks near 950 MB against the 1Gi pod: run 2a291314's
+        dod pod was OOM-killed on it. A type error comes back as a red build
+        whose failed step and log tail name the file and line; the next
+        round fixes it there. Read your imports and signatures twice instead.
       - When the work is done, `git add` what you changed and commit it with a
         short, factual message. Then `git push origin HEAD`. The clone carries
         its own credentials, so a plain push authenticates; you need no token
@@ -137,13 +137,13 @@ task_types:
         a 1Gi pod, and runs 112256d9 and 62c1ca5e were OOM-killed on exactly
         that. A lint finding comes back as a red build naming the file and
         line, which the next round fixes with an editor.
-      - Then TYPECHECK the packages you touched (`npx tsc --noEmit -p <pkg>`,
-        `go build ./...`, whichever this repo uses). Your tests passing does NOT
-        mean the code compiles: vitest transpiles each file without checking
-        types, so a missing import or a wrong signature runs green here and
-        fails the build on CI. That is not hypothetical — it is how a branch
-        reached five rounds and a red build with its whole acceptance suite
-        passing.
+      - Do NOT typecheck here either. A green test is not a compiled build —
+        vitest transpiles each file without checking types — but CI's build
+        step is what proves it, and in this repository `tsc --noEmit` on
+        `libs/shared` peaks near 950 MB against the 1Gi pod: run 2a291314's
+        dod pod was OOM-killed on it. A type error comes back as a red build
+        whose failed step and log tail name the file and line; the next
+        round fixes it there. Read your imports and signatures twice instead.
       - When the work is done, `git add` what you changed and commit it with a
         short, factual message. Then `git push origin HEAD`. The clone carries
         its own credentials, so a plain push authenticates; you need no token
@@ -324,13 +324,13 @@ task_types:
         a 1Gi pod, and runs 112256d9 and 62c1ca5e were OOM-killed on exactly
         that. A lint finding comes back as a red build naming the file and
         line, which the next round fixes with an editor.
-      - Then TYPECHECK the packages you touched (`npx tsc --noEmit -p <pkg>`,
-        `go build ./...`, whichever this repo uses). Your tests passing does NOT
-        mean the code compiles: vitest transpiles each file without checking
-        types, so a missing import or a wrong signature runs green here and
-        fails the build on CI. That is not hypothetical — it is how a branch
-        reached five rounds and a red build with its whole acceptance suite
-        passing.
+      - Do NOT typecheck here either. A green test is not a compiled build —
+        vitest transpiles each file without checking types — but CI's build
+        step is what proves it, and in this repository `tsc --noEmit` on
+        `libs/shared` peaks near 950 MB against the 1Gi pod: run 2a291314's
+        dod pod was OOM-killed on it. A type error comes back as a red build
+        whose failed step and log tail name the file and line; the next
+        round fixes it there. Read your imports and signatures twice instead.
       - When the work is done, `git add` what you changed and commit it with a
         short, factual message. Then `git push origin HEAD`. The clone carries
         its own credentials, so a plain push authenticates; you need no token
@@ -475,13 +475,13 @@ task_types:
         a 1Gi pod, and runs 112256d9 and 62c1ca5e were OOM-killed on exactly
         that. A lint finding comes back as a red build naming the file and
         line, which the next round fixes with an editor.
-      - Then TYPECHECK the packages you touched (`npx tsc --noEmit -p <pkg>`,
-        `go build ./...`, whichever this repo uses). Your tests passing does NOT
-        mean the code compiles: vitest transpiles each file without checking
-        types, so a missing import or a wrong signature runs green here and
-        fails the build on CI. That is not hypothetical — it is how a branch
-        reached five rounds and a red build with its whole acceptance suite
-        passing.
+      - Do NOT typecheck here either. A green test is not a compiled build —
+        vitest transpiles each file without checking types — but CI's build
+        step is what proves it, and in this repository `tsc --noEmit` on
+        `libs/shared` peaks near 950 MB against the 1Gi pod: run 2a291314's
+        dod pod was OOM-killed on it. A type error comes back as a red build
+        whose failed step and log tail name the file and line; the next
+        round fixes it there. Read your imports and signatures twice instead.
       - When the work is done, `git add` what you changed and commit it with a
         short, factual message. Then `git push origin HEAD`. The clone carries
         its own credentials, so a plain push authenticates; you need no token
@@ -573,8 +573,9 @@ task_types:
       check is a lint or format job, its findings are what you fix, not what
       you reproduce: take the file and line from the annotation, or ask CI
       with `lore_get_ci_failures` and then `lore_get_ci_job_log` with
-      `grep: "error"`. Typecheck and format only the files this branch
-      changed: `git diff --name-only origin/main...HEAD`.
+      `grep: "error"`. Format only the files this branch changed
+      (`git diff --name-only origin/main...HEAD`); typecheck nothing here —
+      CI's build step already did, and it does not fit this pod.
 
       IF THE SECTION IS MISSING OR TOO THIN, ASK CI YOURSELF: call
       `lore_get_ci_failures` with no arguments — it reports on the branch you
@@ -629,13 +630,13 @@ task_types:
         a 1Gi pod, and runs 112256d9 and 62c1ca5e were OOM-killed on exactly
         that. A lint finding comes back as a red build naming the file and
         line, which the next round fixes with an editor.
-      - Then TYPECHECK the packages you touched (`npx tsc --noEmit -p <pkg>`,
-        `go build ./...`, whichever this repo uses). Your tests passing does NOT
-        mean the code compiles: vitest transpiles each file without checking
-        types, so a missing import or a wrong signature runs green here and
-        fails the build on CI. That is not hypothetical — it is how a branch
-        reached five rounds and a red build with its whole acceptance suite
-        passing.
+      - Do NOT typecheck here either. A green test is not a compiled build —
+        vitest transpiles each file without checking types — but CI's build
+        step is what proves it, and in this repository `tsc --noEmit` on
+        `libs/shared` peaks near 950 MB against the 1Gi pod: run 2a291314's
+        dod pod was OOM-killed on it. A type error comes back as a red build
+        whose failed step and log tail name the file and line; the next
+        round fixes it there. Read your imports and signatures twice instead.
       - When the work is done, `git add` what you changed and commit it with a
         short, factual message. Then `git push origin HEAD`. The clone carries
         its own credentials, so a plain push authenticates; you need no token
@@ -745,13 +746,13 @@ task_types:
         a 1Gi pod, and runs 112256d9 and 62c1ca5e were OOM-killed on exactly
         that. A lint finding comes back as a red build naming the file and
         line, which the next round fixes with an editor.
-      - Then TYPECHECK the packages you touched (`npx tsc --noEmit -p <pkg>`,
-        `go build ./...`, whichever this repo uses). Your tests passing does NOT
-        mean the code compiles: vitest transpiles each file without checking
-        types, so a missing import or a wrong signature runs green here and
-        fails the build on CI. That is not hypothetical — it is how a branch
-        reached five rounds and a red build with its whole acceptance suite
-        passing.
+      - Do NOT typecheck here either. A green test is not a compiled build —
+        vitest transpiles each file without checking types — but CI's build
+        step is what proves it, and in this repository `tsc --noEmit` on
+        `libs/shared` peaks near 950 MB against the 1Gi pod: run 2a291314's
+        dod pod was OOM-killed on it. A type error comes back as a red build
+        whose failed step and log tail name the file and line; the next
+        round fixes it there. Read your imports and signatures twice instead.
       - When the work is done, `git add` what you changed and commit it with a
         short, factual message. Then `git push origin HEAD`. The clone carries
         its own credentials, so a plain push authenticates; you need no token
@@ -825,13 +826,13 @@ task_types:
         a 1Gi pod, and runs 112256d9 and 62c1ca5e were OOM-killed on exactly
         that. A lint finding comes back as a red build naming the file and
         line, which the next round fixes with an editor.
-      - Then TYPECHECK the packages you touched (`npx tsc --noEmit -p <pkg>`,
-        `go build ./...`, whichever this repo uses). Your tests passing does NOT
-        mean the code compiles: vitest transpiles each file without checking
-        types, so a missing import or a wrong signature runs green here and
-        fails the build on CI. That is not hypothetical — it is how a branch
-        reached five rounds and a red build with its whole acceptance suite
-        passing.
+      - Do NOT typecheck here either. A green test is not a compiled build —
+        vitest transpiles each file without checking types — but CI's build
+        step is what proves it, and in this repository `tsc --noEmit` on
+        `libs/shared` peaks near 950 MB against the 1Gi pod: run 2a291314's
+        dod pod was OOM-killed on it. A type error comes back as a red build
+        whose failed step and log tail name the file and line; the next
+        round fixes it there. Read your imports and signatures twice instead.
       - When the work is done, `git add` what you changed and commit it with a
         short, factual message. Then `git push origin HEAD`. The clone carries
         its own credentials, so a plain push authenticates; you need no token
