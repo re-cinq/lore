@@ -536,6 +536,19 @@ describe("emptyBranchReason", () => {
   });
 });
 
+describe("scaffoldingToStrip", () => {
+  it("strips .lore/dod.md from the branch so scaffolding never reaches a reviewer", async () => {
+    const { scaffoldingToStrip } = await import("./spec-pr.js");
+    const branchFiles = [
+      ".lore/dod.md",
+      "libs/shared/src/domain/graph/code-chunk.ts",
+      "specs/graph/spec.md",
+    ];
+
+    expect(scaffoldingToStrip(branchFiles)).toEqual([".lore/dod.md"]);
+  });
+});
+
 async function lineRow(h: Harness) {
   const row = await h.lines.getById(h.lineId);
 
