@@ -85,8 +85,9 @@ export interface CheckRun {
   jobFailure?: JobFailure;
 }
 
-/** How an Actions job failed, read from the job because its check run reports nothing: the steps that failed, and what the failing one printed. */
+/** How an Actions job failed, read from the job because its check run reports nothing: the failure annotations it published (`path:line message` — the one thing that names WHERE), the steps that failed, and what the failing one printed. */
 export interface JobFailure {
+  annotations: string[];
   steps: string[];
   tail: string[];
 }
@@ -189,6 +190,14 @@ export interface PullRequestsPort {
   listChecks(repo: string, ref: string): Promise<CheckRun[]>;
   /** How a failed GitHub Actions job failed, read from the job itself; null when GitHub will not say. */
   failedJob(repo: string, jobId: number): Promise<JobFailure | null>;
+  /** The newest `limit` commits on a branch, oldest first as listCommits orders them — so a verdict on a branch with no pull request finds its judged sha the same way. */
+  listBranchCommits(
+    repo: string,
+    branch: string,
+    limit: number,
+  ): Promise<PullCommit[]>;
+  /** A GitHub Actions job's raw log, for a reader who needs more than the failing step's tail; null when GitHub will not show it. */
+  jobLog(repo: string, jobId: number): Promise<string | null>;
   /** Every review thread on a PR — GraphQL, since resolution has no REST read. */
   listReviewThreads(repo: string, number: number): Promise<ReviewThread[]>;
   /** Mark one thread resolved; threadId is the GraphQL node id from listReviewThreads (no repo param needed). */

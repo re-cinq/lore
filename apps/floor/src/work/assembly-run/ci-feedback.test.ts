@@ -21,6 +21,22 @@ describe("ciFeedbackOf", () => {
     });
   });
 
+  it("reads the feedback when the visit that routed here failed on an unchanged red sha, which is how repair-build is reached", () => {
+    expect(
+      ciFeedbackOf(
+        [
+          { nodeId: "tdd-round", outcome: "success" },
+          { nodeId: "await-ci", outcome: "failed" },
+        ],
+        redArgs,
+      ),
+    ).toEqual({
+      sha: "deadbeef",
+      failedChecks: "lint, test:shared",
+      summary: "### lint (failure)\n\nno-unused-vars",
+    });
+  });
+
   it("returns null when the visit that routed here succeeded", () => {
     expect(
       ciFeedbackOf([{ nodeId: "await-ci", outcome: "success" }], redArgs),

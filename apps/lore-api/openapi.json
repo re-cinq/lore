@@ -4180,6 +4180,138 @@
         ]
       }
     },
+    "/api/repos/{owner}/{repo}/ci-failures": {
+      "get": {
+        "operationId": "get_api_repos_owner_repo_ci-failures",
+        "summary": "GET /api/repos/{owner}/{repo}/ci-failures",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "What CI said about a branch: the judged sha, the verdict, and each failed check with its annotations, failed steps and log tail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CiFailures"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/repos/{owner}/{repo}/ci-jobs/{job_id}/log": {
+      "get": {
+        "operationId": "get_api_repos_owner_repo_ci-jobs_job_id_log",
+        "summary": "GET /api/repos/{owner}/{repo}/ci-jobs/{job_id}/log",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The tail of one GitHub Actions job's log, timestamps stripped, optionally filtered to lines containing grep",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CiJobLog"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/api/repos/{owner}/{repo}/commit": {
       "post": {
         "operationId": "post_api_repos_owner_repo_commit",
@@ -9627,6 +9759,89 @@
           }
         },
         "required": ["types"],
+        "additionalProperties": false
+      },
+      "CiFailures": {
+        "type": "object",
+        "properties": {
+          "branch": {
+            "type": "string"
+          },
+          "judged_sha": {
+            "type": ["string", "null"]
+          },
+          "conclusion": {
+            "type": "string",
+            "enum": ["success", "failure", "pending", "none"]
+          },
+          "failures": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "app": {
+                  "type": ["string", "null"]
+                },
+                "job_id": {
+                  "type": ["number", "null"]
+                },
+                "annotations": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "steps": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "tail": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "name",
+                "app",
+                "job_id",
+                "annotations",
+                "steps",
+                "tail"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["branch", "judged_sha", "conclusion", "failures"],
+        "additionalProperties": false
+      },
+      "CiJobLog": {
+        "type": "object",
+        "properties": {
+          "job_id": {
+            "type": "number"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "total": {
+            "type": "number"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": ["job_id", "lines", "total", "truncated"],
         "additionalProperties": false
       },
       "ClusterAgentCatalogEvents": {

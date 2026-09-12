@@ -148,14 +148,20 @@ describe("the implementation-tdd recipe", () => {
     }
   });
 
-  it("tells every delivering recipe to fix and format the files it changed, scoped, before committing", () => {
+  it("tells every delivering recipe to format the files it changed and never to run the linter", () => {
     const parsed = parseTaskTypesFile(COMMITTED);
 
     for (const name of DELIVERING_PROMPT_REFS) {
-      const prompt = parsed.taskTypes[name]?.prompt_template ?? "";
+      const prompt = (parsed.taskTypes[name]?.prompt_template ?? "").replace(
+        /\s+/g,
+        " ",
+      );
 
-      expect(prompt, name).toContain("fix/format step OVER THE");
-      expect(prompt, name).toContain("not the whole repo");
+      expect(prompt, name).toContain(
+        "run the repository's FORMATTER over the files you changed",
+      );
+      expect(prompt, name).toContain("Do NOT run the linter in this pod");
+      expect(prompt, name).not.toContain("npx eslint");
     }
   });
 

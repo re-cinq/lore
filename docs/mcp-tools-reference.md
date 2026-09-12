@@ -274,6 +274,41 @@ One-line purpose: fetch live PR state directly from GitHub for a repo + PR numbe
 - **Where it runs:** calls `api.github.com` directly via the configured GitHub App or token — **no DB, no `LORE_API_URL` proxy.**
 - **Cache/mutation:** read-only.
 
+#### `lore_get_ci_failures`
+
+One-line purpose: what CI said about a branch — the judged sha, the verdict, and every failed check with its annotations (`path:line message`), failed steps, and log tail.
+
+- **When to use:** before reproducing any build. CI already ran it; a pod on a red branch reads the verdict here instead of `npm ci` + the suite.
+- **When not to use:** for more of one job's log use `lore_get_ci_job_log`; for the pull request's review state use `lore_get_pr_status`.
+
+| Parameter | Required | Default | Description |
+|---|---|---|---|
+| `repo` | no | git remote of the cwd | Repository as `owner/name`. |
+| `branch` | no | checked-out branch of the cwd | Branch to report on. A pod on its own branch passes nothing. |
+| `pr_number` | no | — | Alternative to `branch`: the pull request whose head branch to report on. |
+
+- **Returns:** JSON `{branch, judged_sha, conclusion, failures[]}`; each failure is `{name, app, job_id, annotations[], steps[], tail[]}`. `conclusion` is `success | failure | pending | none`; `judged_sha` is the newest commit not marked `[skip ci]`.
+- **Where it runs:** `GET /api/repos/:o/:r/ci-failures` over `LORE_API_URL`; lore-api reads GitHub with its App credential — no token in the caller.
+- **Cache/mutation:** read-only.
+
+#### `lore_get_ci_job_log`
+
+One-line purpose: the tail of one GitHub Actions job's log, timestamps stripped, optionally filtered.
+
+- **When to use:** a failure from `lore_get_ci_failures` needs more than its annotations and tail.
+- **When not to use:** never to re-run the job locally; the log is what it printed.
+
+| Parameter | Required | Default | Description |
+|---|---|---|---|
+| `repo` | no | git remote of the cwd | Repository as `owner/name`. |
+| `job_id` | yes | — | The `job_id` of a failure reported by `lore_get_ci_failures`. |
+| `tail` | no | 200 | Last N lines to return, max 2000. |
+| `grep` | no | — | Case-insensitive substring; only matching lines are kept, before the tail is taken. |
+
+- **Returns:** JSON `{job_id, lines[], total, truncated}` — `total` counts the lines the filter kept.
+- **Where it runs:** `GET /api/repos/:o/:r/ci-jobs/:job_id/log` over `LORE_API_URL`.
+- **Cache/mutation:** read-only.
+
 #### `lore_list_pipeline_tasks`
 
 One-line purpose: list pipeline tasks newest-first, optionally filtered to one status. The general browse view.
