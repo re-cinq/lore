@@ -22,7 +22,7 @@ export async function failedJob(
   }
 }
 
-/** The steps that failed and what the failing one printed. The job and its log are independent reads, so they go together. */
+/** The failure annotations, the steps that failed and what the failing one printed. The three are independent reads, so they go together. An Actions job's id is also its check run's id, which is what the annotations hang off. */
 async function readFailedJob(
   ok: Octokit,
   repo: string,
@@ -31,15 +31,47 @@ async function readFailedJob(
   const [owner, name] = split(repo);
   const params = { owner, repo: name, job_id: jobId };
   const { actions } = ok.rest;
-  const [job, log] = await Promise.all([
+  const [job, log, annotations] = await Promise.all([
     actions.getJobForWorkflowRun(params),
     actions.downloadJobLogsForWorkflowRun(params),
+    readAnnotations(ok, { owner, repo: name, check_run_id: jobId }),
   ]);
 
   return {
+    annotations: failureAnnotations(annotations),
     steps: failedStepNames(job.data.steps ?? []),
     tail: typeof log.data === "string" ? failureTail(log.data) : [],
   };
+}
+
+/** Every annotation on a check run, paginated: a lint step files one per finding, and one page holds 100. */
+async function readAnnotations(
+  ok: Octokit,
+  params: { owner: string; repo: string; check_run_id: number },
+) {
+  const { checks } = ok.rest;
+
+  return ok.paginate(checks.listAnnotations, {
+    ...params,
+    per_page: 100,
+  });
+}
+
+/** The level GitHub gives an annotation a step's tooling reported as an error; warnings and notices are the noise a 10,000-line lint report is mostly made of. */
+const FAILURE_LEVEL = "failure";
+
+/** Each error-level annotation as `path:line message` — the form a reader (or an agent) opens a file on. */
+function failureAnnotations(
+  annotations: ReadonlyArray<{
+    path: string;
+    start_line: number;
+    annotation_level: string | null;
+    message: string | null;
+  }>,
+): string[] {
+  return annotations
+    .filter((a) => a.annotation_level === FAILURE_LEVEL)
+    .map((a) => `${a.path}:${a.start_line} ${a.message ?? ""}`.trimEnd());
 }
 
 /** The names of the steps whose conclusion failed the job, in the order they ran. */

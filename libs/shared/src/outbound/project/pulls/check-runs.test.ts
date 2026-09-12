@@ -235,6 +235,7 @@ describe("summarizeFailedChecks on an Actions job", () => {
           conclusion: "failure",
           output: { title: null, summary: null },
           jobFailure: {
+            annotations: [],
             steps: ["Lint (--max-warnings 0)"],
             tail: [
               "specs/bowman-ui-theming-tokens/spec.md",
@@ -245,6 +246,29 @@ describe("summarizeFailedChecks on an Actions job", () => {
       ]).summary,
     ).toBe(
       '### build-test (failure)\n\nFailed step: Lint (--max-warnings 0)\n\nspecs/bowman-ui-theming-tokens/spec.md\n6:1  error  Status "shipped" does not match',
+    );
+  });
+});
+
+describe("summarizeFailedChecks on an Actions job with annotations", () => {
+  it("renders the failure annotations first, naming the file and line before the failed step and its output", () => {
+    expect(
+      summarizeFailedChecks([
+        check({
+          name: "format",
+          conclusion: "failure",
+          output: { title: null, summary: null },
+          jobFailure: {
+            annotations: [
+              'specs/testing-standards/spec.md:7 Status "draft" does not match this spec\'s test-link coverage',
+            ],
+            steps: ["Prettier + eslint --fix"],
+            tail: ["✖ 10540 problems (1 error, 10539 warnings)"],
+          },
+        }),
+      ]).summary,
+    ).toBe(
+      '### format (failure)\n\nspecs/testing-standards/spec.md:7 Status "draft" does not match this spec\'s test-link coverage\n\nFailed step: Prettier + eslint --fix\n\n✖ 10540 problems (1 error, 10539 warnings)',
     );
   });
 });

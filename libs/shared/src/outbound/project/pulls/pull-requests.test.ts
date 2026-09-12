@@ -207,13 +207,21 @@ describe("PullRequests failedJob", () => {
       failedJob: async (repo, jobId) => {
         asked.push({ repo, jobId });
 
-        return { steps: ["Lint (--max-warnings 0)"], tail: ["6:1  error"] };
+        return {
+          annotations: [],
+          steps: ["Lint (--max-warnings 0)"],
+          tail: ["6:1  error"],
+        };
       },
     };
 
     expect(
       await new PullRequests("re-cinq/bowman-ui", port).failedJob(102930584180),
-    ).toEqual({ steps: ["Lint (--max-warnings 0)"], tail: ["6:1  error"] });
+    ).toEqual({
+      annotations: [],
+      steps: ["Lint (--max-warnings 0)"],
+      tail: ["6:1  error"],
+    });
     expect(asked).toEqual([{ repo: "re-cinq/bowman-ui", jobId: 102930584180 }]);
   });
 });

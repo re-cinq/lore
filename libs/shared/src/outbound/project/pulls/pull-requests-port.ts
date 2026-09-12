@@ -85,8 +85,9 @@ export interface CheckRun {
   jobFailure?: JobFailure;
 }
 
-/** How an Actions job failed, read from the job because its check run reports nothing: the steps that failed, and what the failing one printed. */
+/** How an Actions job failed, read from the job because its check run reports nothing: the failure annotations it published (`path:line message` — the one thing that names WHERE), the steps that failed, and what the failing one printed. */
 export interface JobFailure {
+  annotations: string[];
   steps: string[];
   tail: string[];
 }

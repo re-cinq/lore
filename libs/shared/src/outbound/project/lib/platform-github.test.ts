@@ -36,6 +36,12 @@ const state: {
   job?: { steps: Array<{ name: string; conclusion: string | null }> };
   jobLog?: string;
   jobError?: { status: number };
+  annotations?: Array<{
+    path: string;
+    start_line: number;
+    annotation_level: string;
+    message: string;
+  }>;
 } = { files: [], checkRuns: [], token: "", graphqlCalls: [], authCalls: [] };
 
 vi.mock("octokit", () => ({
@@ -92,7 +98,10 @@ vi.mock("octokit", () => ({
           state.updateCall = params;
         },
       },
-      checks: { listForRef: async () => state.checkRuns },
+      checks: {
+        listForRef: async () => state.checkRuns,
+        listAnnotations: async () => state.annotations ?? [],
+      },
       actions: {
         getJobForWorkflowRun: async () => {
           if (state.jobError) {
@@ -623,6 +632,7 @@ describe("PlatformGitHub failedJob", () => {
     state.job = undefined;
     state.jobLog = undefined;
     state.jobError = undefined;
+    state.annotations = undefined;
   });
 
   it("failedJob returns the failed step names and what the failing step printed", async () => {
@@ -640,11 +650,39 @@ describe("PlatformGitHub failedJob", () => {
       "2026-09-10T15:19:33.3498151Z ##[error]Process completed with exit code 1.",
     ].join("\n");
     expect(await gh().failedJob("re-cinq/bowman-ui", 102930584180)).toEqual({
+      annotations: [],
       steps: ["Lint (--max-warnings 0)"],
       tail: [
         "/home/runner/work/bowman-ui/bowman-ui/specs/bowman-ui-theming-tokens/spec.md",
         '6:1  error  Status "shipped" does not match',
       ],
+    });
+  });
+
+  it("failedJob renders the check run's failure-level annotations as path:line message, dropping warnings", async () => {
+    state.job = { steps: [{ name: "Lint", conclusion: "failure" }] };
+    state.jobLog = "";
+    state.annotations = [
+      {
+        path: "specs/web-ui-theming/spec.md",
+        start_line: 60,
+        annotation_level: "warning",
+        message: "Testable statement has no test link",
+      },
+      {
+        path: "specs/testing-standards/spec.md",
+        start_line: 7,
+        annotation_level: "failure",
+        message:
+          'Status "draft" does not match this spec\'s test-link coverage',
+      },
+    ];
+    expect(await gh().failedJob("re-cinq/bowman-ui", 102930584180)).toEqual({
+      annotations: [
+        'specs/testing-standards/spec.md:7 Status "draft" does not match this spec\'s test-link coverage',
+      ],
+      steps: ["Lint"],
+      tail: [],
     });
   });
 });

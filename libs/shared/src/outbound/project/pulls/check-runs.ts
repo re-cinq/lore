@@ -115,10 +115,14 @@ function reportedParts(run: CheckRun): Array<string | null | undefined> {
   ];
 }
 
-/** An Actions job's own account of its failure: the step that failed, then what it printed. */
+/** An Actions job's own account of its failure: where (its failure annotations), then the step that failed, then what it printed. */
 function jobFailureParts(failure: JobFailure | undefined): string[] {
   return failure
-    ? [`Failed step: ${failure.steps.join(", ")}`, failure.tail.join("\n")]
+    ? [
+        failure.annotations.join("\n"),
+        `Failed step: ${failure.steps.join(", ")}`,
+        failure.tail.join("\n"),
+      ]
     : [];
 }
 
