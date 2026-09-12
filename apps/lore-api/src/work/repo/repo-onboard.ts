@@ -2,7 +2,6 @@ import type { Pool, PoolClient } from "pg";
 import {
   createPipelineTask,
   decideOnboard,
-  errorMessage,
   onboardLockKey,
   onboardTaskDescription,
   toOnboardState,
