@@ -604,6 +604,31 @@ describe("countUnmergedInGroup", () => {
   });
 });
 
+describe("activeTaskByIssue", () => {
+  it("InMemory returns null for a retried task — retried is terminal and must not guard the issue", async () => {
+    const q = new InMemoryTaskQueue([
+      { id: "t1", status: "retried", target_repo: "a/b", issue_number: 85 },
+    ]);
+
+    expect(await q.activeTaskByIssue("a/b", 85)).toBeNull();
+  });
+
+  it("InMemory returns null for a completed task — completed is terminal and must not guard the issue", async () => {
+    const q = new InMemoryTaskQueue([
+      { id: "t1", status: "completed", target_repo: "a/b", issue_number: 85 },
+    ]);
+
+    expect(await q.activeTaskByIssue("a/b", 85)).toBeNull();
+  });
+
+  it("PgTaskQueue SQL excludes retried from active statuses", async () => {
+    const { pool, calls } = fakePgPool([{ rows: [] }]);
+
+    await new PgTaskQueue(pool).activeTaskByIssue("a/b", 85);
+    expect(calls[0].text).toContain("retried");
+  });
+});
+
 describe("setColumns", () => {
   it("PgTaskQueue writes only the given allow-listed columns, without status or updated_at", async () => {
     const { pool, calls } = fakePgPool([{ rows: [] }]);
