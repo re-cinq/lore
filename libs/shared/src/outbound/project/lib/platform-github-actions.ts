@@ -14,12 +14,22 @@ export async function failedJob(
   try {
     return await readFailedJob(ok, repo, jobId);
   } catch (err) {
-    console.warn(
-      `[github] job ${jobId} on ${repo} unreadable (${(err as { status?: number }).status ?? "error"}); the CI verdict names its check only`,
-    );
+    warnUnreadable("job", repo, jobId, err);
 
     return null;
   }
+}
+
+/** One line per refused read, carrying GitHub's status when it gave one. */
+function warnUnreadable(
+  what: string,
+  repo: string,
+  jobId: number,
+  err: unknown,
+) {
+  const status = (err as { status?: number }).status ?? "error";
+
+  console.warn(`[github] ${what} ${jobId} on ${repo} unreadable (${status})`);
 }
 
 /** The failure annotations, the steps that failed and what the failing one printed. The three are independent reads, so they go together. An Actions job's id is also its check run's id, which is what the annotations hang off. */
@@ -81,4 +91,28 @@ function failedStepNames(
   return steps
     .filter((step) => step.conclusion === "failure")
     .map((step) => step.name);
+}
+
+/** A job's raw log, or null when GitHub refuses — the same refusal failedJob tolerates, surfaced to a reader as "GitHub will not show this" rather than as a thrown 403. */
+export async function jobLog(
+  ok: Octokit,
+  repo: string,
+  jobId: number,
+): Promise<string | null> {
+  const [owner, name] = split(repo);
+  const { actions } = ok.rest;
+
+  try {
+    const { data: log } = await actions.downloadJobLogsForWorkflowRun({
+      owner,
+      repo: name,
+      job_id: jobId,
+    });
+
+    return typeof log === "string" ? log : null;
+  } catch (err) {
+    warnUnreadable("job log", repo, jobId, err);
+
+    return null;
+  }
 }

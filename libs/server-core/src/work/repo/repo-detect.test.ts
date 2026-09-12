@@ -6,7 +6,11 @@ vi.mock("node:child_process", () => ({
   execSync: (...args: unknown[]) => execSync(...args),
 }));
 
-import { detectCurrentRepo, resetRepoCache } from "./repo-detect.js";
+import {
+  detectCurrentBranch,
+  detectCurrentRepo,
+  resetRepoCache,
+} from "./repo-detect.js";
 
 describe("detectCurrentRepo", () => {
   beforeEach(() => {
@@ -47,6 +51,37 @@ describe("detectCurrentRepo", () => {
     resetRepoCache();
     execSync.mockReturnValue("git@github.com:re-cinq/other.git\n");
     expect(detectCurrentRepo()).toBe("re-cinq/other");
+    expect(execSync).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("detectCurrentBranch", () => {
+  beforeEach(() => {
+    execSync.mockReset();
+  });
+
+  it("returns the checked-out branch", () => {
+    execSync.mockReturnValue("lore/implementation-loop/issue-1510\n");
+    expect(detectCurrentBranch()).toBe("lore/implementation-loop/issue-1510");
+  });
+
+  it("returns null on a detached HEAD, which names no branch CI could have judged", () => {
+    execSync.mockReturnValue("HEAD\n");
+    expect(detectCurrentBranch()).toBeNull();
+  });
+
+  it("returns null when the git command throws", () => {
+    execSync.mockImplementation(() => {
+      throw new Error("not a git repo");
+    });
+    expect(detectCurrentBranch()).toBeNull();
+  });
+
+  it("re-runs git on every call, since a checkout can switch branches between two calls", () => {
+    execSync.mockReturnValue("a\n");
+    detectCurrentBranch();
+    execSync.mockReturnValue("b\n");
+    expect(detectCurrentBranch()).toBe("b");
     expect(execSync).toHaveBeenCalledTimes(2);
   });
 });

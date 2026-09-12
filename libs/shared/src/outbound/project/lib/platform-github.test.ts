@@ -36,6 +36,10 @@ const state: {
   job?: { steps: Array<{ name: string; conclusion: string | null }> };
   jobLog?: string;
   jobError?: { status: number };
+  branchCommits?: Array<{
+    sha: string;
+    commit: { message: string; committer: { date: string } | null };
+  }>;
   annotations?: Array<{
     path: string;
     start_line: number;
@@ -110,9 +114,18 @@ vi.mock("octokit", () => ({
 
           return { data: state.job };
         },
-        downloadJobLogsForWorkflowRun: async () => ({ data: state.jobLog }),
+        downloadJobLogsForWorkflowRun: async () => {
+          if (state.jobError) {
+            throw state.jobError;
+          }
+
+          return { data: state.jobLog };
+        },
       },
       git: { getTree: async () => ({ data: state.treeData }) },
+      repos: {
+        listCommits: async () => ({ data: state.branchCommits ?? [] }),
+      },
       issues: {
         addLabels: async () => ({}),
         listForRepo: async () => state.issuesData ?? [],
@@ -700,5 +713,47 @@ describe("PlatformGitHub failedJob when GitHub refuses", () => {
     state.jobError = { status: 403 };
 
     expect(await gh().failedJob("re-cinq/bowman-ui", 102930584180)).toBe(null);
+  });
+});
+
+describe("PlatformGitHub branch reads for the CI tools", () => {
+  const gh = () => new PlatformGitHub({ GITHUB_TOKEN: "gh-token" });
+
+  it("listBranchCommits returns the branch's commits oldest-first, the order listCommits uses, so ciJudgedSha reads both alike", async () => {
+    state.branchCommits = [
+      {
+        sha: "newest",
+        commit: {
+          message: "style: prettier [skip ci]",
+          committer: { date: "2026-09-09T13:00:00Z" },
+        },
+      },
+      {
+        sha: "older",
+        commit: { message: "feat: round 4", committer: null },
+      },
+    ];
+    expect(await gh().listBranchCommits("re-cinq/lore", "topic", 30)).toEqual([
+      { sha: "older", message: "feat: round 4", date: "" },
+      {
+        sha: "newest",
+        message: "style: prettier [skip ci]",
+        date: "2026-09-09T13:00:00Z",
+      },
+    ]);
+  });
+
+  it("jobLog returns the job's raw log", async () => {
+    state.jobLog =
+      "2026-09-09T13:06:58.1703793Z ##[error]    7:1  error  Status";
+    state.jobError = undefined;
+    expect(await gh().jobLog("re-cinq/lore", 102476456760)).toBe(
+      "2026-09-09T13:06:58.1703793Z ##[error]    7:1  error  Status",
+    );
+  });
+
+  it("jobLog returns null when GitHub refuses the log read", async () => {
+    state.jobError = { status: 403 };
+    expect(await gh().jobLog("re-cinq/lore", 102476456760)).toBe(null);
   });
 });

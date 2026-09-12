@@ -159,3 +159,108 @@ export function failureTail(log: string): string[] {
 function withoutTimestamp(line: string): string {
   return line.replace(/^\uFEFF?\d{4}-\d\d-\d\dT[\d:.]+Z ?/, "").trimEnd();
 }
+
+/** Reads a failed Actions job's own account of itself. */
+export type JobFailureReader = (jobId: number) => Promise<JobFailure | null>;
+
+/** A red build's checks, each silent Actions job carrying its own account of how it failed. Read only on red, because on green there is nothing to explain and each job costs requests. Shared by the CI wait's verdict and the CI-failures read a pod asks for, so the two never explain a job differently. */
+export async function explainFailedChecks(
+  checks: readonly CheckRun[],
+  readJob: JobFailureReader,
+): Promise<CheckRun[]> {
+  if (ciConclusionOf(checks) !== "failure") {
+    return [...checks];
+  }
+  const failed = new Set(failedCheckRuns(checks));
+
+  return Promise.all(
+    checks.map(async (run) =>
+      failed.has(run) ? explainedRun(run, readJob) : run,
+    ),
+  );
+}
+
+/** The app whose runs have a job to read. */
+const ACTIONS_APP = "github-actions";
+
+/** One failed run, with its job's account attached when it is an Actions job that reported nothing itself. */
+async function explainedRun(
+  run: CheckRun,
+  readJob: JobFailureReader,
+): Promise<CheckRun> {
+  if (run.app !== ACTIONS_APP || run.id === undefined || run.output?.summary) {
+    return run;
+  }
+  const jobFailure = await readJob(run.id);
+
+  return jobFailure ? { ...run, jobFailure } : run;
+}
+
+/** One failed check as a reader outside the Floor sees it: which job to read further, and what it already said. */
+export interface CiFailure {
+  name: string;
+  app: string | null;
+  job_id: number | null;
+  annotations: string[];
+  steps: string[];
+  tail: string[];
+}
+
+/** What CI says about a branch: the sha it judged, the verdict, and every failed check with its account. */
+export interface CiFailureReport {
+  branch: string;
+  judged_sha: string | null;
+  conclusion: CiConclusion;
+  failures: CiFailure[];
+}
+
+/** The report for a branch, from its judged sha and that sha's (explained) checks. No judgeable sha means no verdict at all — `none`, as an unbuilt repo reads. */
+export function ciFailureReport(
+  branch: string,
+  judgedSha: string | null,
+  checks: readonly CheckRun[],
+): CiFailureReport {
+  return {
+    branch,
+    judged_sha: judgedSha,
+    conclusion: judgedSha === null ? "none" : ciConclusionOf(checks),
+    failures: failedCheckRuns(checks).map(ciFailureOf),
+  };
+}
+
+/** What a run that was never explained says about itself: nothing. */
+const UNEXPLAINED: JobFailure = { annotations: [], steps: [], tail: [] };
+
+/** One failed run flattened for the wire: the ids a follow-up read needs beside the account already in hand. */
+function ciFailureOf(run: CheckRun): CiFailure {
+  const { annotations, steps, tail } = run.jobFailure ?? UNEXPLAINED;
+
+  return {
+    name: run.name,
+    app: run.app ?? null,
+    job_id: run.id ?? null,
+    annotations,
+    steps,
+    tail,
+  };
+}
+
+/** A bounded slice of a job log: the last `tail` lines, after an optional case-insensitive `grep`, without the timestamp Actions prefixes to every line. `total` counts the lines the filter kept, so a reader knows how much the tail left out. */
+export function logLines(
+  log: string,
+  opts: { tail: number; grep?: string },
+): { lines: string[]; total: number; truncated: boolean } {
+  const needle = opts.grep?.toLowerCase();
+  const kept = log
+    .split("\n")
+    .map(withoutTimestamp)
+    .filter(
+      (line) => needle === undefined || line.toLowerCase().includes(needle),
+    );
+
+  return {
+    lines: kept.slice(-opts.tail),
+    total: kept.length,
+    truncated: kept.length > opts.tail,
+  };
+}
