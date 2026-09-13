@@ -19,9 +19,26 @@ export class InMemoryCatalogEvents implements CatalogEventsRepository {
   }
 
   async listSince(cursor: string, limit: number): Promise<CatalogEvent[]> {
-    return this.events
+    const raw = this.events
       .filter((event) => BigInt(event.id) > BigInt(cursor))
       .slice(0, limit);
+
+    const expanded: CatalogEvent[] = [];
+
+    for (const event of raw) {
+      expanded.push(event);
+      // An org-level upsert fans out to every project row that inherits it so
+      // cluster-agents re-render the qualified CR pair with the updated content.
+      if (event.projectId === null && event.op === "upsert") {
+        for (const entry of this.entries) {
+          if (entry.name === event.name && entry.projectId !== null) {
+            expanded.push({ ...event, projectId: entry.projectId });
+          }
+        }
+      }
+    }
+
+    return expanded;
   }
 
   async snapshot(): Promise<{ entries: CatalogEntry[]; cursor: string }> {

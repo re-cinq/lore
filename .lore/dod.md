@@ -18,7 +18,7 @@ that absence. No live Postgres is needed (and none is reachable here; the
 
 ## Done when these pass
 
-- [ ] **an org-level upsert fans out to the project-qualified CRs that inherit
+- [x] **an org-level upsert fans out to the project-qualified CRs that inherit
   it** — an acked cluster-agent polling after a single `(name, NULL)` org
   upsert event is served the project-qualified `(name, projectId)` entry too,
   resolved to the inherited definition, so its CR is re-rendered.
@@ -26,17 +26,14 @@ that absence. No live Postgres is needed (and none is reachable here; the
 
 ## Facets
 
-- [ ] Fan-out is absent today: the served tail carries only the bare
+- [x] Fan-out is absent today: the served tail carries only the bare
   `(name, NULL)` entry after an org save.
-- [ ] Fix direction (either satisfies the test): the change log fans out an
-  org-level event to every project row of that name (serve-time expansion in
-  `CatalogEventsRepository` / its `InMemoryCatalogEvents` behavioral spell,
-  mirrored in `PgCatalogEvents`), OR `updateOrgDefinition` emits companion
-  `(name, projectId)` events at write time in the same statement
-  (`UPDATE_ORG_DEF_SQL`). Keep the Pg adapter and the InMemory double at parity.
-- [ ] The real-Postgres end-to-end (`apps/lore-api/src/integration-tests/catalog-events.test.ts`)
-  should gain the same assertion when the fix lands — it is CI-only (needs a DB,
-  excluded from the default run) so it is not the runnable red bar here.
+- [x] Fix direction (serve-time expansion chosen): `InMemoryCatalogEvents.listSince`
+  expands org-level upserts by synthesizing entries for every project row sharing
+  the name (from `this.entries`); `PgCatalogEvents.listSince` does the same via
+  a CTE that UNION ALLs a JOIN on `lore.agent_definitions`. Both keep parity.
+- [x] The real-Postgres end-to-end (`apps/lore-api/src/integration-tests/catalog-events.test.ts`)
+  gained the fan-out assertion (CI-only; not the local runnable bar).
 
 ## Out of scope
 
