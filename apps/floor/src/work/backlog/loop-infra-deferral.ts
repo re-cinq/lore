@@ -25,7 +25,7 @@ const INFRA_CLASSES = new Set(["unclaimed", "infra"]);
 
 /** A run whose last recorded visit failed on the cluster rather than on the work. */
 export function isInfraFailure(visits: readonly StationVisit[]): boolean {
-  const last = visits.filter((visit) => visit.outcome !== null).at(-1);
+  const last = visits.findLast((visit) => visit.outcome !== null);
 
   return (
     last?.outcome === "failed" && INFRA_CLASSES.has(last.failureClass ?? "")
