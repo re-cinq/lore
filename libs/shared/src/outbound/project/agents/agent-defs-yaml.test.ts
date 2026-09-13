@@ -126,23 +126,4 @@ describe("AgentDefsYaml", () => {
     expect(def?.prompt).toBe(DECOMPOSITION_INSTRUCTIONS);
     expect(def?.model).toBe("claude-sonnet-4-6");
   });
-
-  it("refuses writes without a database", async () => {
-    const store = new AgentDefsYaml(path);
-
-    await expect(
-      store.create("re-cinq/lore", {
-        name: "x",
-        model: null,
-        timeout_minutes: null,
-        prompt: null,
-        image: null,
-        execution_mode: "claude-code",
-        review_required: false,
-        config: null,
-      }),
-    ).rejects.toThrow(
-      new Error("agent definitions are read-only without a database"),
-    );
-  });
 });

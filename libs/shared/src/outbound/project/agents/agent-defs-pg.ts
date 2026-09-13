@@ -4,7 +4,8 @@ import {
   resolveAgentConfig,
   type AgentDefinition,
   type AgentDefinitionInput,
-  type AgentDefsPort,
+  type AgentDefsReadPort,
+  type AgentDefsWritePort,
   type PodResourcesWrite,
 } from "./agent-defs-port.js";
 import {
@@ -18,7 +19,7 @@ import {
   UPDATE_ORG_DEF_SQL,
 } from "./agent-defs-sql.js";
 
-// AgentDefsPort over lore.agent_definitions via resolveAgentConfig three-layer merge (project → org → yaml); pods use AgentDefsHttp.
+// AgentDefsWritePort over lore.agent_definitions via resolveAgentConfig three-layer merge (project → org → yaml); pods use AgentDefsHttp.
 
 interface AgentRow {
   name: string;
@@ -143,7 +144,7 @@ function resolveGroupedDefinition(
 // Effective definition for catalog entry by (name, projectId); missing override or org entry falls through to yaml layer.
 export async function resolveCatalogEntry(
   pool: PgPool,
-  base: AgentDefsPort,
+  base: AgentDefsReadPort,
   name: string,
   projectId: string | null,
 ): Promise<AgentDefinition | null> {
@@ -192,11 +193,11 @@ export async function updateOrgDefinition(
   return toDef(rows[0] as unknown as AgentRow);
 }
 
-export class PgAgentDefs implements AgentDefsPort {
+export class PgAgentDefs implements AgentDefsWritePort {
   constructor(
     private readonly pool: PgPool,
     /** task-types.yaml fallback — the bottom precedence layer (prompt etc.). */
-    private readonly base: AgentDefsPort,
+    private readonly base: AgentDefsReadPort,
   ) {}
 
   async resolve(repo: string, name: string): Promise<AgentDefinition | null> {

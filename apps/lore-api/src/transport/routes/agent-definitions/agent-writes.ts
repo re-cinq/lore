@@ -109,7 +109,7 @@ async function writeNewDefinition(
 ) {
   const { pod_resources, ...fields } = create;
 
-  return project.agentDefs.create(
+  return project.agentDefsWriter.create(
     await createFieldsWithPodResources(
       project.agentDefs,
       fields,
@@ -142,7 +142,7 @@ async function writePatchedDefinition(
 ) {
   const { pod_resources, ...fields } = patch;
 
-  return project.agentDefs.update(
+  return project.agentDefsWriter.update(
     name,
     fields,
     await resolvePodResourcesUpdate(project.agentDefs, name, pod_resources),
