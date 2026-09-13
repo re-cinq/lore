@@ -285,6 +285,7 @@ describe("implementation-loop acceptance: the pod sees the CI block the Floor ap
     });
 
     const floorPrompt = h.enqueued.at(-1)?.prompt ?? "";
+
     expect(floorPrompt).toContain("These checks failed: lint");
 
     const { agentDefToCrds } =
