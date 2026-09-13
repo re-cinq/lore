@@ -595,6 +595,18 @@ task_types:
       rediscover what you have already been told costs the ticket a pod and
       tells you nothing new.
 
+      RUN A STEP'S COMMAND WHERE CI RAN IT, never from wherever your shell
+      happens to be. When the report says `Ran as: npm script <script> of
+      package <package>` (`npm_script` in `lore_get_ci_failures`), run
+      `npm run <script> -w <package>` from the repository root — or plain
+      `npm run <script>` if <package> is the root package.json's own name.
+      For any other step, take the directory from the workflow step itself
+      (its `working-directory:`, a `cd`, or a `-w`/`--prefix` in its `run:`).
+      A package's test command run at the repo root is NOT that command:
+      `npx vitest run` there discovers every package's suite. Run 754cb4fa ran
+      nine suites with coverage for 43 minutes and hit its deadline answering
+      what one package's suite answers in minutes.
+
       NEVER RUN THE LINTER IN THIS POD, scoped or not. CI ran it on a machine
       sized for it; here a two-file `eslint` peaks near 800 MB against a 1Gi
       pod, and runs 112256d9 and 62c1ca5e were OOM-killed on it. When the red
