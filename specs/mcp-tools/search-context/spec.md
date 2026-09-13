@@ -116,10 +116,9 @@ An unknown team yields a path-not-found error. ([validated by `returns a path-no
 
 `hybridSearch` falls back to `org_shared` for an injection-shaped schema name without an existence check. ([validated by `falls back to org_shared for an injection-shaped schema without an existence check`](libs/server-core/src/outbound/db.test.ts#L59))
 
-The DB branch's ranking quality is exercised only against live Postgres + Vertex
-embeddings. *(untested beyond schema resolution: the RRF result-formatting is
-inline in the handler with no extractable seam; the file-fallback branch above
-is fully covered.)*
+`hybridSearch` uses `websearch_to_tsquery` with extracted key terms for the BM25 leg, not `plainto_tsquery` over the full natural-language query. ([validated by `keyword leg uses websearch_to_tsquery with extracted key terms, not plainto_tsquery over the whole question`](libs/server-core/src/outbound/db-hybrid-defects.test.ts#L31))
+
+`hybridSearch` normalises returned `rrf_score` values so the highest-ranked result is 1.0 rather than a raw RRF fraction near 1/61. ([validated by `normalises rrf_score — top result is 1, not raw RRF`](libs/server-core/src/outbound/db-hybrid-defects.test.ts#L43))
 
 ## Out of Scope
 
