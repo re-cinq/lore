@@ -190,6 +190,42 @@ describe("handleCatalogEvents", () => {
     expect(result.body.cursor).toEqual("3");
   });
 
+  it("an org-level upsert fans out to the project-qualified CRs that inherit it", async () => {
+    const PROJECT = "r2263bc7a";
+    const inherited = def("pr-ready", PROJECT);
+    const { deps, agent, agents, events } = await harness(
+      new Map([
+        ["pr-ready ", def("pr-ready")],
+        [`pr-ready ${PROJECT}`, inherited],
+      ]),
+    );
+
+    // Both rows currently exist; the project row carries no prompt of its own,
+    // so its resolution INHERITS the org prompt.
+    events.setEntries([
+      { name: "pr-ready", projectId: null },
+      { name: "pr-ready", projectId: PROJECT },
+    ]);
+    await agents.advanceCatalogCursor(agent.id, "0");
+
+    // The org save: one (name, NULL) upsert event.
+    events.append("pr-ready", null, "upsert");
+
+    const result = await handleCatalogEvents(deps, TOKEN, agent.id);
+
+    enforceTrue(result.code === 200, Error, "expected 200");
+    const served = result.body.entries.find((e) => e.project_id === PROJECT);
+
+    // The project-qualified pair must be re-served so its CR is re-rendered
+    // with the new org prompt — otherwise the fleet keeps running the old
+    // recipe under the qualified name dispatch uses.
+    expect(served).toEqual({
+      name: "pr-ready",
+      project_id: PROJECT,
+      definition: inherited,
+    });
+  });
+
   it("an empty tail answers with the stored cursor and no entries", async () => {
     const { deps, agent, agents } = await harness(new Map());
 
