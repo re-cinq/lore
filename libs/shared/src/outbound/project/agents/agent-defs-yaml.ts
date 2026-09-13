@@ -6,14 +6,11 @@ import {
 } from "../../../domain/task-types/task-types-config.js";
 import {
   type AgentDefinition,
-  type AgentDefinitionInput,
-  type AgentDefsPort,
+  type AgentDefsReadPort,
 } from "./agent-defs-port.js";
 import { DECOMPOSITION_INSTRUCTIONS } from "../../../domain/feature-planning/decomposition-instructions.js";
 
-// Read-only AgentDefsPort over task-types.yaml (offline/bootstrap fallback); writes throw.
-
-const READ_ONLY = "agent definitions are read-only without a database";
+// AgentDefsReadPort over task-types.yaml (offline/bootstrap fallback).
 
 /** Union of candidate task-types.yaml paths from both loaders, in precedence order. */
 function candidatePaths(
@@ -125,7 +122,7 @@ function applyFeatureDecomposeOverride(
   }
 }
 
-export class AgentDefsYaml implements AgentDefsPort {
+export class AgentDefsYaml implements AgentDefsReadPort {
   private cache: Map<string, AgentDefinition> | null = null;
 
   constructor(
@@ -174,28 +171,8 @@ export class AgentDefsYaml implements AgentDefsPort {
   }
 
   async list(_repo: string): Promise<AgentDefinition[]> {
-    return [...this.load().values()].sort(
-      (a, b) => a.name.localeCompare(b.name),
-      // eslint-disable-next-line re-lint/no-duplicate-code -- the YAML/offline agent-definitions adapter; its unsupported-write methods exist to satisfy the port, and no-forwarding-class bans the base class that would declare them once
+    return [...this.load().values()].sort((a, b) =>
+      a.name.localeCompare(b.name),
     );
-  }
-
-  async create(
-    _repo: string,
-    _def: AgentDefinitionInput,
-  ): Promise<AgentDefinition> {
-    throw new Error(READ_ONLY);
-  }
-
-  async update(
-    _repo: string,
-    _name: string,
-    _patch: Partial<AgentDefinitionInput>,
-  ): Promise<AgentDefinition> {
-    throw new Error(READ_ONLY);
-  }
-
-  async delete(_repo: string, _name: string): Promise<void> {
-    throw new Error(READ_ONLY);
   }
 }

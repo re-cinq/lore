@@ -24,12 +24,16 @@ export const KNOWN_MODELS: ReadonlyArray<{ id: string; label: string }> = [
   { id: "gemini-2.5-flash-lite", label: "Gemini 2.5 Flash Lite" },
 ];
 
-/** The configuration surface of project.agents — read + write agent definitions; read adapters (yaml, http) implement resolve/list and throw on writes. */
-export interface AgentDefsPort {
+/** Read surface implemented by all adapters (yaml, http, pg). */
+export interface AgentDefsReadPort {
   /** The effective definition for a task type in a repo (project → org → yaml), or null. */
   resolve(repo: string, name: string): Promise<AgentDefinition | null>;
   /** Every effective definition for a repo (org defaults overlaid with project rows). */
   list(repo: string): Promise<AgentDefinition[]>;
+}
+
+/** Write surface implemented only by PgAgentDefs; runner adapters do not carry these methods. */
+export interface AgentDefsWritePort extends AgentDefsReadPort {
   create(repo: string, def: AgentDefinitionInput): Promise<AgentDefinition>;
   update(
     repo: string,
@@ -39,6 +43,9 @@ export interface AgentDefsPort {
   ): Promise<AgentDefinition>;
   delete(repo: string, name: string): Promise<void>;
 }
+
+/** @deprecated Prefer AgentDefsReadPort (runner adapters) or AgentDefsWritePort (pg adapter). */
+export type AgentDefsPort = AgentDefsWritePort;
 
 const pick = <T>(...layers: (T | null | undefined)[]): T | null => {
   for (const v of layers) {

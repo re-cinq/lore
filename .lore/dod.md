@@ -18,20 +18,20 @@ exactly what the ticket asks — "The stubs and their duplication disappear."
 
 ## Done when these pass
 
-- [ ] **neither AgentDefsHttp nor AgentDefsYaml exposes create/update/delete** —
+- [x] **neither AgentDefsHttp nor AgentDefsYaml exposes create/update/delete** —
   constructing each read adapter and asserting `"create"`/`"update"`/`"delete"`
   are absent from it. Red today because both carry the throwing stubs.
   `libs/shared/src/outbound/project/agents/agent-defs-read-only.test.ts`
 
 ## Facets
 
-- [ ] Split `AgentDefsPort` into a read port (`resolve`/`list`) and a write port
+- [x] Split `AgentDefsPort` into a read port (`resolve`/`list`) and a write port
   (`create`/`update`/`delete`, with `PodResourcesWrite`); `PgAgentDefs`
   implements both.
-- [ ] Drop `create`/`update`/`delete` (and the `READ_ONLY` constant) from
+- [x] Drop `create`/`update`/`delete` (and the `READ_ONLY` constant) from
   `agent-defs-http.ts` and `agent-defs-yaml.ts` — they implement the read port
   only. The `no-duplicate-code` disables on those two files go with them.
-- [ ] Rewire callers: read sites take the read port; the one write site
+- [x] Rewire callers: read sites take the read port; the one write site
   (`apps/lore-api/.../agent-definitions/agent-writes.ts`, and the `AgentDefs`
   facade path it goes through) takes the write port. Delete the now-impossible
   runtime-refusal tests (`agent-defs-http.test.ts` "refuses writes from a

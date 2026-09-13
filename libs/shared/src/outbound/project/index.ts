@@ -130,6 +130,8 @@ export type {
   AgentDefinition,
   AgentDefinitionInput,
   AgentDefsPort,
+  AgentDefsReadPort,
+  AgentDefsWritePort,
 } from "./agents/agent-defs-port.js";
 export { resolveAgentConfig, KNOWN_MODELS } from "./agents/agent-defs-port.js";
 export type { LlmPort, LlmCompletion } from "./agents/llm-port.js";

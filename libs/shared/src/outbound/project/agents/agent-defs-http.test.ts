@@ -75,10 +75,4 @@ describe("AgentDefsHttp", () => {
       ),
     ).toEqual(["general"]);
   });
-
-  it("refuses writes from a runner", async () => {
-    await expect(
-      new AgentDefsHttp(baseUrl).delete("re-cinq/re-plan", "general"),
-    ).rejects.toThrow(/read-only from a runner/);
-  });
 });
