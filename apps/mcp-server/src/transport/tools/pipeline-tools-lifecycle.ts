@@ -7,7 +7,6 @@ import {
   deniedError,
   unconfiguredError,
   textResult,
-  proxyGetApi,
 } from "./deps.js";
 import { invalidate as invalidateCache } from "@re-cinq/lore-server-core/platform/proxy-cache.js";
 import {
@@ -15,10 +14,7 @@ import {
   isAuthDenied,
   resolveApiCredentials,
 } from "./pipeline-tools-shared.js";
-import {
-  CREATE_PIPELINE_TASK_INPUT,
-  GET_PR_STATUS_INPUT,
-} from "./pipeline-tools-schemas.js";
+import { CREATE_PIPELINE_TASK_INPUT } from "./pipeline-tools-schemas.js";
 
 interface CreateTaskArgs {
   description: string;
@@ -39,7 +35,6 @@ const TASK_DERIVED_READS = [
 export function registerPipelineLifecycleTools(server: McpServer) {
   registerCreatePipelineTaskTool(server);
   registerGetPipelineStatusTool(server);
-  registerGetPrStatusTool(server);
 }
 
 function registerCreatePipelineTaskTool(server: McpServer) {
@@ -200,53 +195,4 @@ async function statusResponse(res: Response) {
   }
 
   return textResult(JSON.stringify(await res.json(), null, 2));
-}
-
-function registerGetPrStatusTool(server: McpServer) {
-  server.tool(
-    "lore_get_pr_status",
-    "Fetches live PR state from GitHub and returns a derived computed_status (merged | closed | draft | checks-failing | changes-requested | approved | open) plus CI checks and reviews. Use this for the real-time PR/CI/review verdict. Instead: lore_get_pipeline_status for the Lore task's stored status and event timeline.",
-    GET_PR_STATUS_INPUT,
-    prStatusHandler,
-  );
-}
-
-// The live PR verdict, straight from GitHub via the API.
-async function prStatusHandler({
-  repo,
-  pr_number,
-}: {
-  repo: string;
-  pr_number: number;
-}) {
-  try {
-    const params = new URLSearchParams({
-      repo,
-      pr_number: String(pr_number),
-    });
-    const proxied = await proxyGetApi(`/api/pr-status?${params}`);
-
-    return proxied.ok
-      ? textResult(JSON.stringify(JSON.parse(proxied.body), null, 2))
-      : prStatusRefusal(proxied);
-  } catch (err) {
-    return textResult(`Error getting PR status: ${errorMessage(err)}`);
-  }
-}
-
-// A read with no local fallback, so the server's own reason is surfaced plainly rather than the write-oriented "unreachable" copy.
-function prStatusRefusal(
-  proxied: Exclude<Awaited<ReturnType<typeof proxyGetApi>>, { ok: true }>,
-) {
-  if (proxied.reason === "not_configured") {
-    return unconfiguredError("getting PR status");
-  }
-
-  if (proxied.reason === "denied") {
-    return deniedError("lore_get_pr_status", proxied.detail);
-  }
-
-  return textResult(
-    `Could not fetch PR status from the Lore API: ${proxied.detail}`,
-  );
 }

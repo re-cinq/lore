@@ -394,6 +394,7 @@ describe("a red verdict on an Actions job", () => {
       failedJob: async (_repo, jobId) =>
         jobId === 102930584180
           ? {
+              annotations: [],
               steps: ["Lint (--max-warnings 0)"],
               tail: ['6:1  error  Status "shipped" does not match'],
             }
@@ -432,6 +433,7 @@ describe("a red end-of-line verdict on an Actions job", () => {
         },
       ],
       failedJob: async () => ({
+        annotations: [],
         steps: ["Lint (--max-warnings 0)"],
         tail: ['6:1  error  Status "shipped" does not match'],
       }),

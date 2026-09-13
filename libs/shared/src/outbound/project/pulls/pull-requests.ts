@@ -132,6 +132,16 @@ export class PullRequests {
     return this.pulls.failedJob(this.repo, jobId);
   }
 
+  /** A job's raw log on this repo; null when GitHub will not show it. */
+  jobLog(jobId: number): Promise<string | null> {
+    return this.pulls.jobLog(this.repo, jobId);
+  }
+
+  /** The newest `limit` commits on one of this repo's branches, oldest first. */
+  listBranchCommits(branch: string, limit: number): Promise<PullCommit[]> {
+    return this.pulls.listBranchCommits(this.repo, branch, limit);
+  }
+
   listReviewThreads(number: number): Promise<ReviewThread[]> {
     return this.pulls.listReviewThreads(this.repo, number);
   }

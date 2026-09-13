@@ -148,14 +148,20 @@ describe("the implementation-tdd recipe", () => {
     }
   });
 
-  it("tells every delivering recipe to fix and format the files it changed, scoped, before committing", () => {
+  it("tells every delivering recipe to format the files it changed and never to run the linter", () => {
     const parsed = parseTaskTypesFile(COMMITTED);
 
     for (const name of DELIVERING_PROMPT_REFS) {
-      const prompt = parsed.taskTypes[name]?.prompt_template ?? "";
+      const prompt = (parsed.taskTypes[name]?.prompt_template ?? "").replace(
+        /\s+/g,
+        " ",
+      );
 
-      expect(prompt, name).toContain("fix/format step OVER THE");
-      expect(prompt, name).toContain("not the whole repo");
+      expect(prompt, name).toContain(
+        "run the repository's FORMATTER over the files you changed",
+      );
+      expect(prompt, name).toContain("Do NOT run the linter in this pod");
+      expect(prompt, name).not.toContain("npx eslint");
     }
   });
 
@@ -175,14 +181,17 @@ describe("the implementation-tdd recipe", () => {
     ).toContain("run ONLY that");
   });
 
-  it("tells every delivering recipe to typecheck what it touched, since passing tests do not mean it compiles", () => {
+  it("tells every delivering recipe not to typecheck in the pod: CI's build step proves compilation, and tsc on libs/shared peaks near 950 MB against 1Gi", () => {
     const parsed = parseTaskTypesFile(COMMITTED);
 
     for (const name of DELIVERING_PROMPT_REFS) {
-      const prompt = parsed.taskTypes[name]?.prompt_template ?? "";
+      const prompt = (parsed.taskTypes[name]?.prompt_template ?? "").replace(
+        /\s+/g,
+        " ",
+      );
 
-      expect(prompt, name).toContain("TYPECHECK the packages you touched");
-      expect(prompt, name).toContain("does NOT\n  mean the code compiles");
+      expect(prompt, name).toContain("Do NOT typecheck here either");
+      expect(prompt, name).not.toContain("npx tsc --noEmit");
     }
   });
 
