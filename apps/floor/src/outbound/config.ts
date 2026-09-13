@@ -98,26 +98,19 @@ export function fillDescription(template: string, description: string): string {
   return template.replace("{description}", () => description);
 }
 
-/** The prompt for an assembly-line node, resolved STRICTLY (throws on an unknown `prompt_ref`) — a silent fallback once let every push node quietly run the wrong prompt and report success for weeks with no PR opened (#1329). */
-export function buildNodePrompt(
+/** The prompt for an assembly-line node, from the RESOLVED recipe's body (project row → org row → yaml, `agentDefs.resolve`) — STRICT: a ref that resolves to no recipe, or to one with no prompt, throws rather than running another recipe; a silent fallback once let every push node quietly run the wrong prompt and report success for weeks with no PR opened (#1329). */
+export function renderNodePrompt(
   promptRef: string,
+  recipePrompt: string | null | undefined,
   description: string,
 ): string {
-  const cfg = taskTypes.get(promptRef);
-
   enforceTrue(
-    cfg !== undefined,
+    typeof recipePrompt === "string" && recipePrompt.length > 0,
     Error,
-    `no prompt template named "${promptRef}" — an assembly-line node names a recipe that does not exist (known: ${getTaskTypes().join(", ")})`,
+    `no prompt named "${promptRef}" — an assembly-line node names a recipe that does not exist or carries no prompt`,
   );
 
-  enforceTrue(
-    cfg.prompt_template !== undefined,
-    Error,
-    `task type "${promptRef}" declares no prompt_template — the loaded task-types.yaml is older than this code`,
-  );
-
-  return fillDescription(cfg.prompt_template, description);
+  return fillDescription(recipePrompt, description);
 }
 
 /** Return the default target repo for a task type, falling back to "re-cinq/lore". */

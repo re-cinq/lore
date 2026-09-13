@@ -117,6 +117,12 @@ carries the fixed `CONTEXT_BOOTSTRAP` instruction, so a central run and a satell
 recipe produce identical CR parameters. The MCP server, previously the secondary path, is the only
 path.*
 
+*Amended 2026-09-13 (#2051): the LLM AgentDefinition's `prompt` is the single placeholder `{prompt}`
+(plus `{context}`), not the recipe body. The Floor already rendered the recipe and appended the CI
+verdict and failure blocks into the `prompt` parameter, but the template never named that parameter,
+so `renderPrompt` dropped every block on the CR; the recipe body stays on the `lore.agent_definitions`
+row, which the Floor resolves (project → org → yaml) and renders.*
+
 *This also retires the `hydrate: false` station opt-out, which existed because an
 empty-description dispatch assembled an unbounded-query context (~3 MB) that blew the 2 MiB
 apiserver limit on 2026-07-17. That guard is not being weakened — the thing it guarded against no

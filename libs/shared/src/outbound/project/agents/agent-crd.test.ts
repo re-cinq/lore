@@ -54,7 +54,7 @@ describe("agentDefToCrds LLM recipes", () => {
     });
     expect(agentDefinition.spec).toMatchObject({
       model: "claude-sonnet-4-6",
-      prompt: "Implement the task.\n\n{context}",
+      prompt: "{prompt}\n\n{context}",
       permission_mode: "bypass",
       resources: {
         secrets: [{ name: "ANTHROPIC_API_KEY", ref: "ANTHROPIC_API_KEY" }],
@@ -101,7 +101,7 @@ describe("agentDefToCrds LLM recipes", () => {
   it("a satellite's empty options omit the mcp/skills/secret blocks, the http sink AND the {context} placeholder", () => {
     const { agentDefinition } = agentDefToCrds(row(), {});
 
-    expect(agentDefinition.spec?.prompt).toEqual("Implement the task.");
+    expect(agentDefinition.spec?.prompt).toEqual("{prompt}");
     expect(agentDefinition.spec?.resources).toEqual({
       env: expect.arrayContaining([
         { name: "GIT_AUTHOR_NAME", value: "Lore Agent" },

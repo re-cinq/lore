@@ -18,7 +18,7 @@ const impl: AgentCatalogConfig = {
 };
 
 describe("buildAgentDefinition", () => {
-  it("maps a recipe: name, model, prompt (+{context}), permission_mode, max_turns", () => {
+  it("maps a recipe: name, model, a {prompt}+{context} template (the recipe body is rendered by the Floor, not the pod), permission_mode, max_turns", () => {
     expect(buildAgentDefinition("implementation", impl)).toEqual({
       apiVersion: "agents.re-cinq.com/v1alpha1",
       kind: "AgentDefinition",
@@ -29,7 +29,7 @@ describe("buildAgentDefinition", () => {
       spec: {
         description: "Lore implementation task recipe (seeded).",
         model: "claude-sonnet-4-6",
-        prompt: "Implement the spec.\n\nSpec: {description}\n\n{context}",
+        prompt: "{prompt}\n\n{context}",
         permission_mode: "bypass",
         max_turns: 200,
         resources: {

@@ -35,7 +35,7 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
     },
     { loadBuiltinAssemblyLines },
     { projectFor },
-    { buildNodePrompt },
+    { renderNodePrompt },
     { cleanupPerTaskToken },
     { settleTaskForLine },
     { resolveConversation },
@@ -68,8 +68,14 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
 
       return qualifiedStationRef(getPool(), baseRef, repo);
     },
-    // Strict: an unknown prompt_ref fails the node instead of silently running `general` (#1329).
-    resolvePrompt: buildNodePrompt,
+    // Rendered from the RESOLVED recipe (project row → org row → yaml), so an Agents-UI edit reaches the pod; strict on an unknown ref (#1329).
+    resolvePrompt: async (repo, promptRef, description) => {
+      const recipe = await (
+        await projectFor(repo)
+      ).agentDefs.resolve(promptRef);
+
+      return renderNodePrompt(promptRef, recipe?.prompt, description);
+    },
     cleanupToken: cleanupPerTaskToken,
     jobRuns: pipeline().jobRuns,
     notifyFailure: notifyLineFailure,

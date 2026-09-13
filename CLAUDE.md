@@ -479,7 +479,14 @@ now filled with the constant `CONTEXT_BOOTSTRAP`
 (`libs/shared/src/domain/agents/recipe-prompt.ts`) — an instruction to call
 `lore_assemble_context` first. The parameter is always present:
 `renderPrompt` leaves an unmatched placeholder intact, so omitting it
-would ship the literal `{context}` to the model.
+would ship the literal `{context}` to the model. **The LLM template is
+`{prompt}` + `{context}`, never the recipe body** (2026-09-13, #2051): the
+Floor renders the recipe from the resolved `lore.agent_definitions` row
+(`renderNodePrompt`, project → org → yaml) and appends the CI verdict,
+failure and round hand-off blocks into the CR parameter `prompt`; the old
+template rendered `{description}` and silently dropped every block. Assert
+on the pod's view with `podPromptOf` (`apps/floor/src/work/assembly-run/pod-prompt-view.ts`),
+not on `spec.prompt`.
 
 **Live agent MCP access**: this is the only context path now; agent *pods* get a
 **live, scoped** Lore MCP for the whole run via the shared `lore-mcp` HTTP
