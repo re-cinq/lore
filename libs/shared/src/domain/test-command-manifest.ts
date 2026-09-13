@@ -44,20 +44,28 @@ export type TestInterfaceCheck =
 /** Onboard-time: scaffold interface files if no manifest declared; otherwise already configured. */
 export function decideTestInterfaceCheck(sources: {
   manifestFileDeclared: boolean;
+  workflowFileDeclared?: boolean;
   settingsTestCommands?: unknown;
 }): TestInterfaceCheck {
   const declared =
     sources.manifestFileDeclared ||
     isManifestDeclared({ settings: sources.settingsTestCommands });
 
-  if (declared) {
-    return { status: "configured" };
+  if (!declared) {
+    return {
+      status: "scaffold",
+      files: [".lore/test-commands.yml", ".github/workflows/lore-tests.yml"],
+    };
   }
 
-  return {
-    status: "scaffold",
-    files: [".lore/test-commands.yml", ".github/workflows/lore-tests.yml"],
-  };
+  if (!sources.workflowFileDeclared) {
+    return {
+      status: "scaffold",
+      files: [".github/workflows/lore-tests.yml"],
+    };
+  }
+
+  return { status: "configured" };
 }
 
 /** Substitute the runner-native test id into a `run` command's {selector} placeholder. */

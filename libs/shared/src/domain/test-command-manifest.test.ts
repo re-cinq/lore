@@ -159,19 +159,21 @@ describe("decideTestInterfaceCheck", () => {
     });
   });
 
-  it("reports configured when the .lore/test-commands.yml file is declared", () => {
+  it("reports configured when the .lore/test-commands.yml file is declared and the workflow file is present", () => {
     expect(
       decideTestInterfaceCheck({
         manifestFileDeclared: true,
+        workflowFileDeclared: true,
         settingsTestCommands: null,
       }),
     ).toEqual({ status: "configured" });
   });
 
-  it("reports configured when settings declare test_commands without a file", () => {
+  it("reports configured when settings declare test_commands and the workflow file is present", () => {
     expect(
       decideTestInterfaceCheck({
         manifestFileDeclared: false,
+        workflowFileDeclared: true,
         settingsTestCommands: {
           list: "x",
           run: "y {selector}",

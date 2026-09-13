@@ -6,16 +6,16 @@
 
 ## Done when these pass
 
-- [ ] **scaffolds only the workflow file when the manifest is declared but lore-tests.yml is absent** — `decideTestInterfaceCheck({ manifestFileDeclared: true, workflowFileDeclared: false })` returns `{ status: "scaffold", files: [".github/workflows/lore-tests.yml"] }` instead of `{ status: "configured" }`
+- [x] **scaffolds only the workflow file when the manifest is declared but lore-tests.yml is absent** — `decideTestInterfaceCheck({ manifestFileDeclared: true, workflowFileDeclared: false })` returns `{ status: "scaffold", files: [".github/workflows/lore-tests.yml"] }` instead of `{ status: "configured" }`
   `libs/shared/src/domain/test-command-manifest.test.ts`
 
 ## Facets
 
-- [ ] Add `workflowFileDeclared: boolean` to the `sources` parameter of `decideTestInterfaceCheck`
-- [ ] Return `configured` only when BOTH `declared` AND `workflowFileDeclared` are true
-- [ ] When `declared` is true but `workflowFileDeclared` is false, return `scaffold` with `files: [".github/workflows/lore-tests.yml"]`
-- [ ] Update existing callers of `decideTestInterfaceCheck` to pass `workflowFileDeclared` (check `apps/floor/src/work/task/` for onboard usage)
-- [ ] Update the two existing tests at L162 and L171 that currently assert `configured` when only the manifest is present — they must pass `workflowFileDeclared: true` to remain valid, or be updated to reflect the new behavior
+- [x] Add `workflowFileDeclared: boolean` to the `sources` parameter of `decideTestInterfaceCheck`
+- [x] Return `configured` only when BOTH `declared` AND `workflowFileDeclared` are true
+- [x] When `declared` is true but `workflowFileDeclared` is false, return `scaffold` with `files: [".github/workflows/lore-tests.yml"]`
+- [x] Update existing callers of `decideTestInterfaceCheck` to pass `workflowFileDeclared` (check `apps/floor/src/work/task/` for onboard usage)
+- [x] Update the two existing tests at L162 and L171 that currently assert `configured` when only the manifest is present — they must pass `workflowFileDeclared: true` to remain valid, or be updated to reflect the new behavior
 
 ## Out of scope
 
