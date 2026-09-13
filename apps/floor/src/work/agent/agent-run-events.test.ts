@@ -651,12 +651,6 @@ describe("station log-line projection", () => {
   });
 });
 
-// gemini-cli emits a FLAT dialect (no message.content blocks): a top-level `init`,
-// `message` with string content, top-level `tool_use`/`tool_result` keyed by
-// `tool_id` with `parameters`/`output`, an `error`, and a `result` keyed by
-// `status`. These shapes are captured verbatim from assembly run 6cb4b352
-// (the first production gemini review run, 2026-09-02); see the web-ui field
-// reference in apps/web-ui/src/lib/agent-log-gemini-dialect.ts.
 describe("gemini-cli flat dialect projection", () => {
   it("projects the gemini conversation, not only its terminal result line", () => {
     const rows = parseRunEvents(
@@ -691,13 +685,11 @@ describe("gemini-cli flat dialect projection", () => {
       ].join("\n"),
     );
     const types = rows.map((row) => row.eventType);
-
-    expect(types).toContain("init");
-    expect(types).toContain("message");
-    expect(types).toContain("tool_call");
-    expect(types).toContain("tool_result");
     const toolCall = rows.find((row) => row.eventType === "tool_call");
 
+    expect(types).toEqual(
+      expect.arrayContaining(["init", "message", "tool_call", "tool_result"]),
+    );
     expect(toolCall).toMatchObject({
       toolName: "run_shell_command",
       toolUseId: "run_shell_command__call_659048",

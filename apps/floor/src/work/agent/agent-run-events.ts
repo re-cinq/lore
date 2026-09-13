@@ -263,20 +263,6 @@ function logRows(ev: Record<string, unknown>): Partial<AgentRunEventInsert>[] {
 
 // gemini-cli flat dialect: top-level init/message/tool_use/tool_result/error lines.
 
-function geminiInitRows(
-  ev: Record<string, unknown>,
-): Partial<AgentRunEventInsert>[] {
-  const tools = Array.isArray(ev.tools) ? ev.tools.length : 0;
-
-  return [
-    {
-      eventType: "init",
-      summary: cap(`init ${str(ev.model) ?? "unknown"} (${tools} tools)`),
-      payload: {},
-    },
-  ];
-}
-
 function geminiMessageRows(
   ev: Record<string, unknown>,
 ): Partial<AgentRunEventInsert>[] {
@@ -324,19 +310,6 @@ function geminiToolResultRows(
   ];
 }
 
-function geminiErrorRows(
-  ev: Record<string, unknown>,
-): Partial<AgentRunEventInsert>[] {
-  return [
-    {
-      eventType: "message",
-      isError: true,
-      summary: cap(str(ev.message) ?? "error"),
-      payload: {},
-    },
-  ];
-}
-
 type EventRowsHandler = (
   ev: Record<string, unknown>,
 ) => Partial<AgentRunEventInsert>[];
@@ -348,11 +321,18 @@ const EVENT_ROW_HANDLERS: Record<string, EventRowsHandler> = {
   log: logRows,
   result: (ev) => [resultRow(ev)],
   // gemini-cli flat dialect
-  init: geminiInitRows,
+  init: (ev) => [initRow(ev)],
   message: geminiMessageRows,
   tool_use: geminiToolUseRows,
   tool_result: geminiToolResultRows,
-  error: geminiErrorRows,
+  error: (ev) => [
+    {
+      eventType: "message",
+      isError: true,
+      summary: cap(str(ev.message) ?? "error"),
+      payload: {},
+    },
+  ],
 };
 
 export function rowsFromEnvelope(envelope: unknown): AgentRunEventInsert[] {
