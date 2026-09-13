@@ -27,6 +27,8 @@ function loopHarness() {
         emitTick: async (repo) => {
           ticks.push(repo);
         },
+        priorInfraFailures: async () => 0,
+        maxInfraDeferrals: 3,
       }),
   });
 
@@ -206,6 +208,24 @@ describe("implementation-loop acceptance: one ticket, cluster-free, walked throu
     });
     expect(h.ticks).toEqual(["re-cinq/lore"]);
     expect(h.labeled).toEqual([]);
+  });
+
+  it("defers, without a label, a ticket whose first node no cluster-agent claimed inside the queue wait, and re-arms so the next tick picks it again", async () => {
+    const h = loopHarness();
+    const id = await h.start("implementation-loop", {
+      taskId: "task-1",
+      branch: "lore/implementation-loop/issue-77",
+    });
+
+    await h.reap({ minutesLater: 31 });
+
+    expect(h.visits()).toEqual([["dod", "failed"]]);
+    expect(h.labeled).toEqual([]);
+    expect(h.comments[0]?.body).toContain(
+      "deferring this ticket, not parking it (infrastructure attempt 1 of 3)",
+    );
+    expect(h.ticks).toEqual([expect.any(String)]);
+    void id;
   });
 
   it("marks the ticket blocked and still re-arms when review threads stay unresolved", async () => {
