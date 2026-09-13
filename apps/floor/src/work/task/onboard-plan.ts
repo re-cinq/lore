@@ -98,6 +98,7 @@ async function testInterfaceCheck(
 ): Promise<ReturnType<typeof decideTestInterfaceCheck>> {
   return decideTestInterfaceCheck({
     manifestFileDeclared: existingFiles.has(".lore/test-commands.yml"),
+    workflowFileDeclared: existingFiles.has(".github/workflows/lore-tests.yml"),
     settingsTestCommands: await readSettingsTestCommands(targetRepo),
   });
 }
