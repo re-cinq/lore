@@ -259,14 +259,7 @@ function productionDeps(
   return {
     getTaskIssueNumber: (taskId) => taskIssueNumber(taskStore, taskId),
     listStationRuns: (runId) => pipeline().assemblyRuns.listStationRuns(runId),
-    priorInfraFailures: (repo, branch, since, excludeRunId) =>
-      countInfraFailures(pipeline().assemblyRuns, {
-        repo,
-        branch,
-        since,
-        excludeRunId,
-      }),
-    maxInfraDeferrals: infraDeferralsFromEnv(process.env),
+    ...deferralDeps(pipeline),
     addLabel: async (repo, issueNumber, label) =>
       (await projectFor(repo)).issues.addLabel(issueNumber, label),
     comment: async (repo, issueNumber, body) =>
@@ -298,4 +291,20 @@ async function taskIssueNumber(
   const n = Number((task as { issue_number?: unknown } | null)?.issue_number);
 
   return n > 0 ? n : null;
+}
+
+/** The deferral half of the hook's dependencies: the branch's earlier infrastructure failures, and the bound. */
+function deferralDeps(
+  pipeline: LoopQueues["pipeline"],
+): Pick<LoopRunClosedDeps, "priorInfraFailures" | "maxInfraDeferrals"> {
+  return {
+    priorInfraFailures: (repo, branch, since, excludeRunId) =>
+      countInfraFailures(pipeline().assemblyRuns, {
+        repo,
+        branch,
+        since,
+        excludeRunId,
+      }),
+    maxInfraDeferrals: infraDeferralsFromEnv(process.env),
+  };
 }
