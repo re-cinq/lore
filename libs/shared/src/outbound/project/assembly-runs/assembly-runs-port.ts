@@ -24,6 +24,8 @@ export interface AssemblyRunQuery {
   clusterAgentId?: string;
   /** Every run for one subject regardless of blueprint ("what worked on this feature"). */
   subjectKey?: string;
+  /** Every attempt on one branch — the implementation loop mints a task per pick, so the branch is what one ticket's runs share (FR11). */
+  branch?: string;
   createdAfter?: Date;
   /** Defaults to 50. */
   limit?: number;

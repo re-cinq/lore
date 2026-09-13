@@ -1,6 +1,13 @@
 import type { EventProxy } from "@re-cinq/lore-shared/project/events/event-proxy.js";
 import { LORE_BLOCKED_LABEL } from "@re-cinq/lore-shared";
 import type { RunGraph } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
+import {
+  commentDeferral,
+  countInfraFailures,
+  erroredVerdict,
+  infraDeferralsFromEnv,
+  type ParkVerdict,
+} from "./loop-infra-deferral.js";
 
 /** The closed run's slice the hook reads — structurally satisfied by AssemblyRunRecord. */
 export interface ClosedLoopRun {
@@ -8,6 +15,8 @@ export interface ClosedLoopRun {
   repo: string;
   blueprintName: string;
   taskId?: string | null;
+  /** The ticket's branch (FR11) — what every attempt on one ticket shares, so an infrastructure deferral can be counted across runs. */
+  branch?: string | null;
   args: Record<string, unknown>;
   graph: RunGraph | null;
 }
@@ -18,6 +27,8 @@ export interface StationVisit {
   iteration: number;
   outcome: string | null;
   failureDetail?: string | null;
+  /** The shared FailureCategory of a failed visit — `unclaimed`/`infra` mean nothing about the ticket, only about the cluster. */
+  failureClass?: string | null;
 }
 
 export interface LoopRunClosedDeps {
@@ -27,6 +38,15 @@ export interface LoopRunClosedDeps {
   comment(repo: string, issueNumber: number, body: string): Promise<void>;
   /** Re-arm: emit `cron.implementation_loop.tick` scoped to the repo, so the next ticket starts in seconds, not at the next 5-minute safety tick. */
   emitTick(repo: string): Promise<void>;
+  /** How many EARLIER runs on this branch since `since` ended on an infrastructure failure — the deferral count a new failure adds one to. `excludeRunId` is the run that just closed: it is already `failed` in the table, so a count that kept it would report every first failure as the second. */
+  priorInfraFailures(
+    repo: string,
+    branch: string,
+    since: Date,
+    excludeRunId: string,
+  ): Promise<number>;
+  /** Infrastructure failures a ticket may absorb within a day before it parks; `LORE_LOOP_INFRA_DEFERRALS`, default 3. */
+  maxInfraDeferrals: number;
 }
 
 /** Terminal outcomes that are NOT failures — everything else blocks the ticket. */
@@ -61,15 +81,15 @@ async function markBlockedIfNeeded(
 ): Promise<void> {
   const verdict = await parkVerdict(run, outcome, reason, deps);
 
+  if (verdict?.deferral) {
+    await commentDeferral(run, verdict.deferral, deps);
+
+    return;
+  }
+
   if (verdict) {
     await markIssueBlocked(run, verdict, deps);
   }
-}
-
-/** Why a ticket is parked, and whether the comment should ask its author for a rewrite. */
-interface ParkVerdict {
-  why: string;
-  askForRewrite: boolean;
 }
 
 async function parkVerdict(
@@ -79,25 +99,13 @@ async function parkVerdict(
   deps: LoopRunClosedDeps,
 ): Promise<ParkVerdict | null> {
   if (!CLEAN_OUTCOMES.has(outcome)) {
-    return {
-      why: describeUncleanOutcome(outcome, reason),
-      askForRewrite: false,
-    };
+    return await erroredVerdict(run, outcome, reason, deps);
   }
   const routed = await parkedVisit(run, deps);
 
   return routed
     ? { why: describeParked(run, routed), askForRewrite: declined(routed) }
     : null;
-}
-
-function describeUncleanOutcome(
-  outcome: string,
-  reason: string | undefined,
-): string {
-  return reason
-    ? `the run ended ${outcome}: ${reason}`
-    : `the run ended ${outcome}`;
 }
 
 /** How the parking comment names what happened, per node. */
@@ -251,6 +259,7 @@ function productionDeps(
   return {
     getTaskIssueNumber: (taskId) => taskIssueNumber(taskStore, taskId),
     listStationRuns: (runId) => pipeline().assemblyRuns.listStationRuns(runId),
+    ...deferralDeps(pipeline),
     addLabel: async (repo, issueNumber, label) =>
       (await projectFor(repo)).issues.addLabel(issueNumber, label),
     comment: async (repo, issueNumber, body) =>
@@ -282,4 +291,20 @@ async function taskIssueNumber(
   const n = Number((task as { issue_number?: unknown } | null)?.issue_number);
 
   return n > 0 ? n : null;
+}
+
+/** The deferral half of the hook's dependencies: the branch's earlier infrastructure failures, and the bound. */
+function deferralDeps(
+  pipeline: LoopQueues["pipeline"],
+): Pick<LoopRunClosedDeps, "priorInfraFailures" | "maxInfraDeferrals"> {
+  return {
+    priorInfraFailures: (repo, branch, since, excludeRunId) =>
+      countInfraFailures(pipeline().assemblyRuns, {
+        repo,
+        branch,
+        since,
+        excludeRunId,
+      }),
+    maxInfraDeferrals: infraDeferralsFromEnv(process.env),
+  };
 }
