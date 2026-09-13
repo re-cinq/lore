@@ -59,6 +59,35 @@ jobs:
       - name: Apply full baseline + all migrations (real path, as role lore)
         run: bash scripts/infra/setup-local-schema.sh
 
+      # The baseline creates every <team>.chunks table (and its indexes) as the
+      # bootstrap superuser and only GRANTs `lore` DML + CREATE/USAGE — never
+      # ownership. So a lore-owned migration that ALTERs one, or rebuilds its
+      # index, hits "must be owner". That is exactly what wedged the #1933 deploy:
+      # 0070_chunks_search_tsv_strip_links, run as role lore, failed on
+      # `DROP INDEX org_shared.org_shared_chunks_search_idx` with
+      # "must be owner of index org_shared_chunks_search_idx". Reproduce that
+      # operation here, as role lore, on every team schema — it must succeed once
+      # the baseline hands these objects to lore (#1948).
+      - name: Fixture — lore owns every team-schema chunks table (#1948)
+        run: |
+          set -eu
+          docker exec -i "$LORE_PG_CONTAINER" psql -U lore -d lore -v ON_ERROR_STOP=1 <<'SQL'
+          DO $$
+          DECLARE s TEXT;
+          BEGIN
+            FOREACH s IN ARRAY ARRAY['payments', 'platform', 'mobile', 'data', 'org_shared']
+            LOOP
+              -- DROP INDEX needs ownership of the index — the precise #1933 failure.
+              EXECUTE format('DROP INDEX %I.%I_chunks_search_idx', s, s);
+              EXECUTE format('CREATE INDEX %I_chunks_search_idx ON %I.chunks USING GIN (search_tsv)', s, s);
+              -- ALTER TABLE needs ownership of the table; GRANT ALL does not include it.
+              EXECUTE format('ALTER TABLE %I.chunks ADD COLUMN dod_probe_1948 TEXT', s);
+              EXECUTE format('ALTER TABLE %I.chunks DROP COLUMN dod_probe_1948', s);
+            END LOOP;
+          END $$;
+          SQL
+          echo "[migrate] #1948 team-schema chunks ownership fixture OK"
+
       # 0035 runs against an empty lore.repos during the pass above, so its
       # data movement is exercised here: seed the legacy-row shape from issue
       # #979, prove the ungranted runner skips WITHOUT deleting anything, then
