@@ -115,9 +115,14 @@ task_types:
       TRACEABILITY:
       - Each test validates a statement in a spec or ADR. Add the inline
         parenthetical on that statement in the repository's established form —
-        `Statement. ([validated by name](path/to/test.ts#L42))` — and re-verify
-        every existing #Lnn link on the statements you touch, since inserting
-        a test shifts the lines below it.
+        `Statement. ([validated by name](path/to/test.ts#L42))`. Inserting a
+        test shifts every #Lnn link below it: when the repository has
+        `scripts/spec-links/reanchor.mjs`, run
+        `node scripts/spec-links/reanchor.mjs` from the repository root after
+        the formatter — it moves each link to its test's current line, by test
+        title, and prints the links it could not map, which you fix by hand.
+        Without it, re-verify every existing #Lnn link on the statements you
+        touch yourself.
       - Stamp the test's spec anchor (the "specs/<path>#<ordinal>" it
         validates) so the repo's tests.list surfaces it as the descriptor's
         `spec` field and the VALIDATED_BY link is established automatically —
@@ -308,9 +313,14 @@ task_types:
       TRACEABILITY:
       - Each test validates a statement in a spec or ADR. Add the inline
         parenthetical on that statement in the repository's established form —
-        `Statement. ([validated by name](path/to/test.ts#L42))` — and re-verify
-        every existing #Lnn link on the statements you touch, since inserting
-        a test shifts the lines below it.
+        `Statement. ([validated by name](path/to/test.ts#L42))`. Inserting a
+        test shifts every #Lnn link below it: when the repository has
+        `scripts/spec-links/reanchor.mjs`, run
+        `node scripts/spec-links/reanchor.mjs` from the repository root after
+        the formatter — it moves each link to its test's current line, by test
+        title, and prints the links it could not map, which you fix by hand.
+        Without it, re-verify every existing #Lnn link on the statements you
+        touch yourself.
       - Stamp the test's spec anchor (the "specs/<path>#<ordinal>" it
         validates) so the repo's tests.list surfaces it as the descriptor's
         `spec` field and the VALIDATED_BY link is established automatically —
@@ -441,9 +451,14 @@ task_types:
       TRACEABILITY:
       - Each test validates a statement in a spec or ADR. Add the inline
         parenthetical on that statement in the repository's established form —
-        `Statement. ([validated by name](path/to/test.ts#L42))` — and re-verify
-        every existing #Lnn link on the statements you touch, since inserting
-        a test shifts the lines below it.
+        `Statement. ([validated by name](path/to/test.ts#L42))`. Inserting a
+        test shifts every #Lnn link below it: when the repository has
+        `scripts/spec-links/reanchor.mjs`, run
+        `node scripts/spec-links/reanchor.mjs` from the repository root after
+        the formatter — it moves each link to its test's current line, by test
+        title, and prints the links it could not map, which you fix by hand.
+        Without it, re-verify every existing #Lnn link on the statements you
+        touch yourself.
       - Stamp the test's spec anchor (the "specs/<path>#<ordinal>" it
         validates) so the repo's tests.list surfaces it as the descriptor's
         `spec` field and the VALIDATED_BY link is established automatically —
@@ -770,10 +785,14 @@ task_types:
       does not belong in the review.
 
       TRACEABILITY:
-      - Before you finish, re-verify every inline
-        `([validated by name](path#Lnn))` link on the statements this branch
-        touched. Rounds insert tests and shift the lines below them; a stale
-        #Lnn is a broken claim.
+      - Before you finish, re-anchor every inline
+        `([validated by name](path#Lnn))` link this branch's tests moved.
+        Rounds insert tests and shift the lines below them; a stale #Lnn is a
+        broken claim. When the repository has `scripts/spec-links/reanchor.mjs`,
+        run `node scripts/spec-links/reanchor.mjs` from the repository root
+        after the formatter and fix by hand only the links it reports as
+        unmapped; without it, re-verify every link on the statements this
+        branch touched yourself.
       - An anchor must land on the line of the assertion or `it()` it
         validates — never a comment or blank line. Open each target line and
         read it; Lore re-checks this mechanically when the PR leaves draft and

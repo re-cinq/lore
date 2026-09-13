@@ -196,6 +196,23 @@ describe("the implementation-tdd recipe", () => {
     }
   });
 
+  it("tells every recipe that writes tests to run the spec-link re-anchor script after the formatter, when the repository has one", () => {
+    const parsed = parseTaskTypesFile(COMMITTED);
+
+    for (const name of [
+      "implementation-tdd",
+      "acceptance-dod",
+      "tdd-round",
+      "pr-ready",
+    ]) {
+      const prompt = parsed.taskTypes[name]?.prompt_template ?? "";
+
+      expect(prompt, name).toContain("node scripts/spec-links/reanchor.mjs");
+      expect(prompt, name).toMatch(/from the repository root\s+after\s+the formatter/);
+      expect(prompt, name).not.toMatch(/re-verify\s+every existing #Lnn link on the statements you touch,/);
+    }
+  });
+
   it("tells every delivering recipe to bring its branch up to date with the base before it stops", () => {
     const parsed = parseTaskTypesFile(COMMITTED);
 
