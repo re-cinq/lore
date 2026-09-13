@@ -47,7 +47,7 @@ Gap signal goes to Graphiti episodes in Phase 3.
 
 ## Code Conventions
 
-**TypeScript** for the MCP server. ESM modules, strict mode, ES2022
+**TypeScript** for the MCP server. ESM modules, strict mode, ES2023
 target. Zod for input validation on all MCP tools. Return errors as
 text in MCP responses, never throw.
 
