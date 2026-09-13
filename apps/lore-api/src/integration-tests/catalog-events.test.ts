@@ -188,7 +188,6 @@ describe("the catalog-events fan-out, against real Postgres", () => {
     const agent = await register("catalog-itest-org-fanout");
     const snapshot = await poll(agent);
 
-    // Create an org-level definition so the cluster has something to inherit.
     await updateOrgDefinition(pool, {
       name: TASK_TYPE,
       model: "claude-sonnet-4-6",
@@ -200,7 +199,6 @@ describe("the catalog-events fan-out, against real Postgres", () => {
       config: null,
     });
 
-    // Create a project row that inherits the org definition (prompt is null).
     await defs.create(REPO, {
       name: TASK_TYPE,
       model: null,
@@ -212,13 +210,11 @@ describe("the catalog-events fan-out, against real Postgres", () => {
       config: null,
     });
 
-    // Drain past the creation events.
     const afterCreate = await poll(agent, snapshot.cursor);
     const drained = await poll(agent, afterCreate.cursor);
 
     expect(drained).toMatchObject({ mode: "tail", entries: [] });
 
-    // Update the org definition — the fleet must re-render the project-qualified CR.
     await updateOrgDefinition(pool, {
       name: TASK_TYPE,
       model: "claude-sonnet-4-6",
@@ -233,7 +229,6 @@ describe("the catalog-events fan-out, against real Postgres", () => {
     const tail = await poll(agent, drained.cursor);
     const projectEntry = tail.entries.find((e) => e.project_id === repoId);
 
-    // The project-qualified entry must appear so the agent re-renders its CR.
     expect(projectEntry).toMatchObject({ name: TASK_TYPE, project_id: repoId });
   });
 
