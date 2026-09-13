@@ -99,8 +99,6 @@ describe("PgSettings", () => {
   });
 
   it("markOnboardingMergedById does not stamp last_ingested_at", async () => {
-    // The merge is not an ingest. Stamping last_ingested_at here silences the
-    // staleness warning for 7 days on a repo that was never actually read.
     const capture: Array<{ text: string; params?: unknown[] }> = [];
     const store = new PgSettings(fakePool(capture, []), fakeWriter([]));
 
