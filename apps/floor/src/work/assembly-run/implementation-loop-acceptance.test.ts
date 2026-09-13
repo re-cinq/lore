@@ -266,3 +266,56 @@ describe("implementation-loop acceptance: a boot crash is not worth a retry (run
     expect(h.labeled).toEqual([{ issue: 77, label: "lore:blocked" }]);
   });
 });
+
+describe("implementation-loop acceptance: the pod sees the CI block the Floor appended (FR15) — AgentDefinition CR template must pass {prompt} through", () => {
+  it("the pod's view of a tdd-round dispatched after a red build includes what CI said", async () => {
+    const h = loopHarness();
+    const id = await h.start("implementation-loop", { taskId: "task-1" });
+
+    await h.completeAgentNode(id, "dod", { outcome: "success" });
+    await h.completeAgentNode(id, "open-pr", { outcome: "success" });
+    await h.completeAgentNode(id, "tdd-round", { outcome: "success" });
+    await h.resume(id, "await-ci", "changes_requested", {
+      args: {
+        reason: "ci_red",
+        ci_feedback_sha: "deadbeef",
+        ci_failed_checks: "lint",
+        ci_failure_summary: "",
+      },
+    });
+
+    const floorPrompt = h.enqueued.at(-1)?.prompt ?? "";
+
+    expect(floorPrompt).toContain("These checks failed: lint");
+
+    const { agentDefToCrds } =
+      await import("@re-cinq/lore-shared/project/agents/agent-crd.js");
+    const { agentDefinition } = agentDefToCrds(
+      {
+        name: "tdd-round",
+        model: null,
+        prompt: "You are TDD. Ticket: {description}",
+        image: null,
+        execution_mode: "claude-code",
+        review_required: false,
+        project_id: null,
+        config: null,
+        timeout_minutes: 30,
+      },
+      { mcpUrl: "https://mcp.example" },
+    );
+
+    const crTemplate = agentDefinition.spec?.prompt ?? "";
+    const crParams: Record<string, string> = {
+      prompt: floorPrompt,
+      description: "the ticket text",
+      context: "First step: call lore_assemble_context",
+    };
+    const podView = crTemplate.replace(
+      /{(\w+)}/g,
+      (_, key: string) => crParams[key] ?? "",
+    );
+
+    expect(podView).toContain("These checks failed: lint");
+  });
+});
