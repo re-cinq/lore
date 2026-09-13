@@ -41,6 +41,8 @@ export function isManifestDeclared(sources: {
 export type TestInterfaceCheck =
   { status: "configured" } | { status: "scaffold"; files: string[] };
 
+const WORKFLOW_FILE = ".github/workflows/lore-tests.yml";
+
 /** Onboard-time: scaffold interface files if no manifest declared; otherwise already configured. */
 export function decideTestInterfaceCheck(sources: {
   manifestFileDeclared: boolean;
@@ -50,21 +52,15 @@ export function decideTestInterfaceCheck(sources: {
   const declared =
     sources.manifestFileDeclared ||
     isManifestDeclared({ settings: sources.settingsTestCommands });
-
   if (!declared) {
     return {
       status: "scaffold",
-      files: [".lore/test-commands.yml", ".github/workflows/lore-tests.yml"],
+      files: [".lore/test-commands.yml", WORKFLOW_FILE],
     };
   }
-
   if (!sources.workflowFileDeclared) {
-    return {
-      status: "scaffold",
-      files: [".github/workflows/lore-tests.yml"],
-    };
+    return { status: "scaffold", files: [WORKFLOW_FILE] };
   }
-
   return { status: "configured" };
 }
 
