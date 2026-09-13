@@ -142,12 +142,17 @@ const ANSI = /\u001b\[[0-9;]*m/g;
 
 /** Which package's script the failed step ran, from npm's own banner in its output. The LAST banner, because a chained or nested run fails in the script that ran last. A reproduction has to run in that package: the same test command at the repo root discovers every package's suite (run 754cb4fa ran nine with coverage for 43 minutes and hit its deadline). Null when the step printed no banner. */
 export function npmScriptOf(tail: readonly string[]): NpmScript | null {
-  const banner = [...tail]
-    .reverse()
-    .map((line) => NPM_BANNER.exec(line.replace(ANSI, "").trim()))
-    .find((match) => match !== null);
+  // Backwards and stopping at the first match: a failed step's tail runs to thousands of lines, and only the last banner matters.
+  for (let i = tail.length - 1; i >= 0; i--) {
+    const line = tail[i];
+    const banner = NPM_BANNER.exec(line.replace(ANSI, "").trim());
 
-  return banner ? { package: banner[1], script: banner[2] } : null;
+    if (banner) {
+      return { package: banner[1], script: banner[2] };
+    }
+  }
+
+  return null;
 }
 
 /** The verdict's line naming where CI ran the step, or nothing when it did not run through npm. */
