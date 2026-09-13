@@ -14,40 +14,35 @@ interface EventRow {
   op: "upsert" | "delete";
 }
 
+// Org-level upserts fan out to every project row of that name via a UNION.
+const LIST_SQL = `WITH raw AS (
+   SELECT id::text, name, project_id, op
+     FROM lore.catalog_events
+    WHERE id > $1::bigint
+    ORDER BY id ASC
+    LIMIT $2
+ ),
+ expanded AS (
+   SELECT id, name, project_id, op FROM raw
+   UNION ALL
+   SELECT r.id, r.name, d.project_id, r.op
+     FROM raw r
+     JOIN lore.agent_definitions d
+       ON d.name = r.name AND d.project_id IS NOT NULL
+    WHERE r.project_id IS NULL AND r.op = 'upsert'
+ )
+ SELECT id, name, project_id, op FROM expanded ORDER BY id ASC`;
+
+function toEvent(r: EventRow): CatalogEvent {
+  return { id: r.id, name: r.name, projectId: r.project_id, op: r.op };
+}
+
 export class PgCatalogEvents implements CatalogEventsRepository {
   constructor(private readonly pool: PgPool) {}
 
   async listSince(cursor: string, limit: number): Promise<CatalogEvent[]> {
-    const { rows } = await this.pool.query<EventRow>(
-      // Fan out every org-level (project_id IS NULL) upsert event to all
-      // project rows of the same name so cluster-agents re-render the
-      // project-qualified CR pair when the org definition changes.
-      `WITH raw AS (
-         SELECT id::text, name, project_id, op
-           FROM lore.catalog_events
-          WHERE id > $1::bigint
-          ORDER BY id ASC
-          LIMIT $2
-       ),
-       expanded AS (
-         SELECT id, name, project_id, op FROM raw
-         UNION ALL
-         SELECT r.id, r.name, d.project_id, r.op
-           FROM raw r
-           JOIN lore.agent_definitions d
-             ON d.name = r.name AND d.project_id IS NOT NULL
-          WHERE r.project_id IS NULL AND r.op = 'upsert'
-       )
-       SELECT id, name, project_id, op FROM expanded ORDER BY id ASC`,
-      [cursor, limit],
-    );
-
-    return (rows as EventRow[]).map((r) => ({
-      id: r.id,
-      name: r.name,
-      projectId: r.project_id,
-      op: r.op,
-    }));
+    const { rows } = await this.pool.query<EventRow>(LIST_SQL, [cursor, limit]);
+    return (rows as EventRow[]).map(toEvent);
   }
 
   async snapshot(): Promise<{ entries: CatalogEntry[]; cursor: string }> {

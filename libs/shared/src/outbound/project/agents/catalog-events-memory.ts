@@ -18,23 +18,23 @@ export class InMemoryCatalogEvents implements CatalogEventsRepository {
     this.entries = [...entries];
   }
 
+  private fanOutProjectEntries(event: CatalogEvent): CatalogEvent[] {
+    return this.entries
+      .filter((e) => e.name === event.name && e.projectId !== null)
+      .map((e) => ({ ...event, projectId: e.projectId }));
+  }
+
   async listSince(cursor: string, limit: number): Promise<CatalogEvent[]> {
     const raw = this.events
-      .filter((event) => BigInt(event.id) > BigInt(cursor))
+      .filter((e) => BigInt(e.id) > BigInt(cursor))
       .slice(0, limit);
 
     const expanded: CatalogEvent[] = [];
 
     for (const event of raw) {
       expanded.push(event);
-      // An org-level upsert fans out to every project row that inherits it so
-      // cluster-agents re-render the qualified CR pair with the updated content.
       if (event.projectId === null && event.op === "upsert") {
-        for (const entry of this.entries) {
-          if (entry.name === event.name && entry.projectId !== null) {
-            expanded.push({ ...event, projectId: entry.projectId });
-          }
-        }
+        expanded.push(...this.fanOutProjectEntries(event));
       }
     }
 

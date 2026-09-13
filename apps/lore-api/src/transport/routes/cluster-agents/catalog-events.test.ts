@@ -200,15 +200,12 @@ describe("handleCatalogEvents", () => {
       ]),
     );
 
-    // Both rows currently exist; the project row carries no prompt of its own,
-    // so its resolution INHERITS the org prompt.
     events.setEntries([
       { name: "pr-ready", projectId: null },
       { name: "pr-ready", projectId: PROJECT },
     ]);
     await agents.advanceCatalogCursor(agent.id, "0");
 
-    // The org save: one (name, NULL) upsert event.
     events.append("pr-ready", null, "upsert");
 
     const result = await handleCatalogEvents(deps, TOKEN, agent.id);
@@ -216,9 +213,6 @@ describe("handleCatalogEvents", () => {
     enforceTrue(result.code === 200, Error, "expected 200");
     const served = result.body.entries.find((e) => e.project_id === PROJECT);
 
-    // The project-qualified pair must be re-served so its CR is re-rendered
-    // with the new org prompt — otherwise the fleet keeps running the old
-    // recipe under the qualified name dispatch uses.
     expect(served).toEqual({
       name: "pr-ready",
       project_id: PROJECT,
