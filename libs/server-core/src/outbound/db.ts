@@ -8,6 +8,7 @@ import {
   embedderDegraded,
 } from "@re-cinq/lore-shared";
 import { chunkSchemaOrOrgShared } from "@re-cinq/lore-shared/project/chunks/chunk-schema.js";
+import { extractKeyTerms } from "@re-cinq/lore-shared/project/knowledge/context-assembly-items.js";
 
 // Re-exported from shared embedding-service singleton for back-compat.
 export { getQueryEmbedding, embeddingHealth, embedderDegraded };
@@ -79,6 +80,23 @@ export interface SearchResult {
 
 // ── Hybrid search (RRF) ──────────────────────────────────────────────
 
+async function runHybridSQL(
+  embedding: number[],
+  keywordQuery: string,
+  schema: string,
+  limit: number,
+): Promise<SearchResult[]> {
+  const embeddingStr = `[${embedding.join(",")}]`;
+  const sql = buildHybridSearchSQL(schema);
+  const { rows } = await getPool().query(sql, [
+    embeddingStr,
+    keywordQuery,
+    limit,
+  ]);
+
+  return normalizeSearchScores(rows as SearchResult[]);
+}
+
 export async function hybridSearch(
   query: string,
   schema: string,
@@ -88,22 +106,16 @@ export async function hybridSearch(
     return [];
   }
 
-  // Unknown schema falls back to org_shared; provisioned team schemas read directly.
   const resolvedSchema = await chunkSchemaOrOrgShared(getPool(), schema);
-
-  // Get query embedding from Vertex AI
   const embedding = await getQueryEmbedding(query);
 
   if (!embedding) {
     return keywordOnlySearch(query, resolvedSchema, limit);
   }
 
-  // Full hybrid search (vector + keyword)
-  const embeddingStr = `[${embedding.join(",")}]`;
-  const sql = buildHybridSearchSQL(resolvedSchema);
-  const { rows } = await getPool().query(sql, [embeddingStr, query, limit]);
+  const keywordQuery = extractKeyTerms(query).join(" OR ") || query;
 
-  return rows as SearchResult[];
+  return runHybridSQL(embedding, keywordQuery, resolvedSchema, limit);
 }
 
 // Keyword-only, for when no embedding could be obtained. Degraded rather than empty: a repo whose embeddings are unavailable still answers a search, and the caller cannot tell the difference except in ranking.
@@ -126,6 +138,12 @@ async function keywordOnlySearch(
   return rows as SearchResult[];
 }
 
+function normalizeSearchScores(rows: SearchResult[]): SearchResult[] {
+  const max = Math.max(0, ...rows.map((r) => r.rrf_score));
+  if (max <= 0) return rows;
+  return rows.map((r) => ({ ...r, rrf_score: r.rrf_score / max }));
+}
+
 // eslint-disable-next-line max-lines-per-function -- one SQL statement, returned whole: the two CTEs and the RRF join are read together as a query, and cutting them into string fragments would hide the join they exist for
 function buildHybridSearchSQL(schema: string): string {
   return `
@@ -137,9 +155,9 @@ WITH vector_results AS (
 ),
 keyword_results AS (
   SELECT id, content, metadata,
-         ROW_NUMBER() OVER (ORDER BY ts_rank(search_tsv, plainto_tsquery($2)) DESC) AS kw_rank
+         ROW_NUMBER() OVER (ORDER BY ts_rank(search_tsv, websearch_to_tsquery('english', $2)) DESC) AS kw_rank
   FROM ${schema}.chunks
-  WHERE search_tsv @@ plainto_tsquery($2)
+  WHERE search_tsv @@ websearch_to_tsquery('english', $2)
   LIMIT 20
 )
 SELECT
