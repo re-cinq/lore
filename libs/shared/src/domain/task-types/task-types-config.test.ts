@@ -208,8 +208,12 @@ describe("the implementation-tdd recipe", () => {
       const prompt = parsed.taskTypes[name]?.prompt_template ?? "";
 
       expect(prompt, name).toContain("node scripts/spec-links/reanchor.mjs");
-      expect(prompt, name).toMatch(/from the repository root\s+after\s+the formatter/);
-      expect(prompt, name).not.toMatch(/re-verify\s+every existing #Lnn link on the statements you touch,/);
+      expect(prompt, name).toMatch(
+        /from the repository root\s+after\s+the formatter/,
+      );
+      expect(prompt, name).not.toMatch(
+        /re-verify\s+every existing #Lnn link on the statements you touch,/,
+      );
     }
   });
 
