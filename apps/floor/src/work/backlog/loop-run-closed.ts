@@ -38,11 +38,12 @@ export interface LoopRunClosedDeps {
   comment(repo: string, issueNumber: number, body: string): Promise<void>;
   /** Re-arm: emit `cron.implementation_loop.tick` scoped to the repo, so the next ticket starts in seconds, not at the next 5-minute safety tick. */
   emitTick(repo: string): Promise<void>;
-  /** How many EARLIER runs on this branch since `since` ended on an infrastructure failure — the deferral count a new failure adds one to. */
+  /** How many EARLIER runs on this branch since `since` ended on an infrastructure failure — the deferral count a new failure adds one to. `excludeRunId` is the run that just closed: it is already `failed` in the table, so a count that kept it would report every first failure as the second. */
   priorInfraFailures(
     repo: string,
     branch: string,
     since: Date,
+    excludeRunId: string,
   ): Promise<number>;
   /** Infrastructure failures a ticket may absorb within a day before it parks; `LORE_LOOP_INFRA_DEFERRALS`, default 3. */
   maxInfraDeferrals: number;
@@ -258,8 +259,13 @@ function productionDeps(
   return {
     getTaskIssueNumber: (taskId) => taskIssueNumber(taskStore, taskId),
     listStationRuns: (runId) => pipeline().assemblyRuns.listStationRuns(runId),
-    priorInfraFailures: (repo, branch, since) =>
-      countInfraFailures(pipeline().assemblyRuns, repo, branch, since),
+    priorInfraFailures: (repo, branch, since, excludeRunId) =>
+      countInfraFailures(pipeline().assemblyRuns, {
+        repo,
+        branch,
+        since,
+        excludeRunId,
+      }),
     maxInfraDeferrals: infraDeferralsFromEnv(process.env),
     addLabel: async (repo, issueNumber, label) =>
       (await projectFor(repo)).issues.addLabel(issueNumber, label),

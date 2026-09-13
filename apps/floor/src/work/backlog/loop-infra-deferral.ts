@@ -62,7 +62,7 @@ export async function erroredVerdict(
   }
   const since = new Date(Date.now() - DEFERRAL_WINDOW_MS);
   const attempt =
-    (await deps.priorInfraFailures(run.repo, run.branch, since)) + 1;
+    (await deps.priorInfraFailures(run.repo, run.branch, since, run.id)) + 1;
 
   return boundedDeferral(why, attempt, deps.maxInfraDeferrals);
 }
@@ -104,22 +104,28 @@ export async function commentDeferral(
   );
 }
 
-/** Earlier failed runs on the branch whose last visit failed on the cluster; a handful of reads at most, since a ticket sees few runs a day. */
+export interface InfraFailureCountInput {
+  repo: string;
+  branch: string;
+  since: Date;
+  /** The run that just closed — already `failed` in the table, so it must not count as its own precedent. */
+  excludeRunId: string;
+}
+
+/** Earlier runs on the branch whose last visit failed on the cluster; read by visits, not by run status, because a failed run is recorded as `finished`/`failed` by the walk and `failed`/`error` by the reaper. A handful of reads at most, since a ticket sees few runs a day. */
 export async function countInfraFailures(
   assemblyRuns: Pick<AssemblyRunsPort, "list" | "listStationRuns">,
-  repo: string,
-  branch: string,
-  since: Date,
+  input: InfraFailureCountInput,
 ): Promise<number> {
   const runs = await assemblyRuns.list({
-    repo,
+    repo: input.repo,
     blueprintName: "implementation-loop",
-    branch,
-    status: ["failed"],
-    createdAfter: since,
+    branch: input.branch,
+    createdAfter: input.since,
   });
+  const prior = runs.filter((run) => run.id !== input.excludeRunId);
   const visits = await Promise.all(
-    runs.map((run) => assemblyRuns.listStationRuns(run.id)),
+    prior.map((run) => assemblyRuns.listStationRuns(run.id)),
   );
 
   return visits.filter(isInfraFailure).length;

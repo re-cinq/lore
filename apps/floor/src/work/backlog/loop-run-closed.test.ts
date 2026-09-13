@@ -3,7 +3,11 @@ import {
   handleLoopRunClosed,
   type LoopRunClosedDeps,
 } from "./loop-run-closed.js";
-import { infraDeferralsFromEnv } from "./loop-infra-deferral.js";
+import {
+  countInfraFailures,
+  infraDeferralsFromEnv,
+} from "./loop-infra-deferral.js";
+import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
 
 const graph = {
   name: "implementation-loop",
@@ -273,6 +277,45 @@ describe("handleLoopRunClosed", () => {
     await handleLoopRunClosed(run(), "failed", "Authentication failed", d);
 
     expect(labeled).toEqual([{ number: 7, label: "lore:blocked" }]);
+  });
+
+  it("counts the branch's earlier infrastructure failures without the run that just closed, which is already failed in the table", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const branch = "lore/implementation-loop/issue-7";
+    const failUnclaimed = async (id: string) => {
+      const { nodeRowId } = await port.ensureStationRun({
+        assemblyRunId: id,
+        nodeId: "dod",
+        iteration: 1,
+      });
+
+      await port.finishStationRunOnce(nodeRowId, "failed", undefined, {
+        failureClass: "unclaimed",
+      });
+      await port.finish(id, "failed", "no cluster-agent claimed this run");
+    };
+    const earlier = await port.start({
+      blueprintName: "implementation-loop",
+      repo: "acme/widgets",
+      branch,
+    });
+    const current = await port.start({
+      blueprintName: "implementation-loop",
+      repo: "acme/widgets",
+      branch,
+    });
+
+    await failUnclaimed(earlier);
+    await failUnclaimed(current);
+
+    expect(
+      await countInfraFailures(port, {
+        repo: "acme/widgets",
+        branch,
+        since: new Date(0),
+        excludeRunId: current,
+      }),
+    ).toBe(1);
   });
 
   it("reads the deferral bound from LORE_LOOP_INFRA_DEFERRALS and falls back to 3", () => {
