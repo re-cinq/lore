@@ -2556,6 +2556,10 @@ export interface components {
         annotations: string[];
         steps: string[];
         tail: string[];
+        npm_script: {
+          package: string;
+          script: string;
+        } | null;
       }[];
     };
     CiJobLog: {

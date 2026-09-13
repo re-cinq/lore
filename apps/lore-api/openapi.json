@@ -9805,6 +9805,26 @@
                   "items": {
                     "type": "string"
                   }
+                },
+                "npm_script": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "package": {
+                          "type": "string"
+                        },
+                        "script": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["package", "script"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 }
               },
               "required": [
@@ -9813,7 +9833,8 @@
                 "job_id",
                 "annotations",
                 "steps",
-                "tail"
+                "tail",
+                "npm_script"
               ],
               "additionalProperties": false
             }

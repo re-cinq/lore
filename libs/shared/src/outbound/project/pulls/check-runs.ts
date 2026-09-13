@@ -115,15 +115,46 @@ function reportedParts(run: CheckRun): Array<string | null | undefined> {
   ];
 }
 
-/** An Actions job's own account of its failure: where (its failure annotations), then the step that failed, then what it printed. */
+/** An Actions job's own account of its failure: where (its failure annotations), then the step that failed and the npm script it ran, then what it printed. */
 function jobFailureParts(failure: JobFailure | undefined): string[] {
   return failure
     ? [
         failure.annotations.join("\n"),
         `Failed step: ${failure.steps.join(", ")}`,
+        ranAsLine(npmScriptOf(failure.tail)),
         failure.tail.join("\n"),
       ]
     : [];
+}
+
+/** The npm script a failed step ran, as the package and script name npm printed for it. */
+export interface NpmScript {
+  package: string;
+  script: string;
+}
+
+/** npm's banner for a script run: `> <package>@<version> <script>`. The version must look like one, so a test title that merely starts with an arrow and contains an at-sign is not mistaken for it. */
+const NPM_BANNER = /^> ((?:@[^/\s]+\/)?[^@\s]+)@\d+\.\d+\.\d+\S* (\S+)$/;
+
+/** Terminal colour codes, which a job log keeps and a banner may be wrapped in. */
+// eslint-disable-next-line no-control-regex -- matching the ESC byte is the point
+const ANSI = /\u001b\[[0-9;]*m/g;
+
+/** Which package's script the failed step ran, from npm's own banner in its output. The LAST banner, because a chained or nested run fails in the script that ran last. A reproduction has to run in that package: the same test command at the repo root discovers every package's suite (run 754cb4fa ran nine with coverage for 43 minutes and hit its deadline). Null when the step printed no banner. */
+export function npmScriptOf(tail: readonly string[]): NpmScript | null {
+  const banner = [...tail]
+    .reverse()
+    .map((line) => NPM_BANNER.exec(line.replace(ANSI, "").trim()))
+    .find((match) => match !== null);
+
+  return banner ? { package: banner[1], script: banner[2] } : null;
+}
+
+/** The verdict's line naming where CI ran the step, or nothing when it did not run through npm. */
+function ranAsLine(npmScript: NpmScript | null): string {
+  return npmScript
+    ? `Ran as: npm script \`${npmScript.script}\` of package \`${npmScript.package}\``
+    : "";
 }
 
 /** True when this commit message tells GitHub to run nothing for it. */
@@ -204,6 +235,8 @@ export interface CiFailure {
   annotations: string[];
   steps: string[];
   tail: string[];
+  /** The npm script the failed step ran, so a reproduction runs in that package; null when the step did not run through npm. */
+  npm_script: NpmScript | null;
 }
 
 /** What CI says about a branch: the sha it judged, the verdict, and every failed check with its account. */
@@ -242,6 +275,7 @@ function ciFailureOf(run: CheckRun): CiFailure {
     annotations,
     steps,
     tail,
+    npm_script: npmScriptOf(tail),
   };
 }
 
