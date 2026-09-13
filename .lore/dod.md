@@ -6,16 +6,16 @@
 
 ## Done when these pass
 
-- [ ] **keyword leg uses websearch_to_tsquery with extracted key terms, not plainto_tsquery over the whole question** — the hybrid SQL emitted to the pool contains `websearch_to_tsquery` and does not contain `plainto_tsquery`
+- [x] **keyword leg uses websearch_to_tsquery with extracted key terms, not plainto_tsquery over the whole question** — the hybrid SQL emitted to the pool contains `websearch_to_tsquery` and does not contain `plainto_tsquery`
   `libs/server-core/src/outbound/db-hybrid-defects.test.ts`
 
-- [ ] **normalises rrf_score so the highest-ranked result is 1.0 (not a raw 1/61 value)** — when the pool returns rows with raw RRF scores (~1/61), the returned `rrf_score` for the top result is 1.0
+- [x] **normalises rrf_score so the highest-ranked result is 1.0 (not a raw 1/61 value)** — when the pool returns rows with raw RRF scores (~1/61), the returned `rrf_score` for the top result is 1.0
   `libs/server-core/src/outbound/db-hybrid-defects.test.ts`
 
 ## Facets
 
-- [ ] Replace `plainto_tsquery($2)` in `buildHybridSearchSQL` with `websearch_to_tsquery('english', $2)` and pass extracted key terms as `$2` instead of the raw query string
-- [ ] Apply `normalizeScores` to the rows returned by `hybridSearch` before returning (mirrors what `toItems` does in `context-assembly-chunk-search.ts`)
+- [x] Replace `plainto_tsquery($2)` in `buildHybridSearchSQL` with `websearch_to_tsquery('english', $2)` and pass extracted key terms as `$2` instead of the raw query string
+- [x] Apply `normalizeScores` to the rows returned by `hybridSearch` before returning (mirrors what `toItems` does in `context-assembly-chunk-search.ts`)
 - [ ] (Optional convergence) Decide whether `hybridSearch`'s callers can move onto `hybridChunkItems`, or extract a shared core; document the reason if two wrappers remain
 
 ## Out of scope
