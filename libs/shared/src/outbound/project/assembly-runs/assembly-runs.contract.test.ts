@@ -768,6 +768,35 @@ describe.each(IMPLEMENTATIONS)(
       ).toEqual([finalize, planning].sort());
     });
 
+    it("list by branch returns every attempt on that branch and nothing from another", async () => {
+      const { port, repo } = make();
+      const first = await port.start({
+        blueprintName: "implementation-loop",
+        repo,
+        branch: "lore/implementation-loop/issue-7",
+      });
+
+      await port.finish(first, "failed", "no cluster-agent claimed this run");
+
+      const second = await port.start({
+        blueprintName: "implementation-loop",
+        repo,
+        branch: "lore/implementation-loop/issue-7",
+      });
+
+      await port.start({
+        blueprintName: "implementation-loop",
+        repo,
+        branch: "lore/implementation-loop/issue-8",
+      });
+
+      expect(
+        (await port.list({ repo, branch: "lore/implementation-loop/issue-7" }))
+          .map((r) => r.id)
+          .sort(),
+      ).toEqual([first, second].sort());
+    });
+
     it("a fork takes over the subject of the run it forks from", async () => {
       const { port, repo } = make();
       const source = await port.start({
