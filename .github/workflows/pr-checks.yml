@@ -39,6 +39,9 @@ jobs:
           # prettier/eslint run third-party code (#1062) — the push step below
           # re-authenticates explicitly, after all of that has finished.
           persist-credentials: false
+          # Full history: the re-anchor step of `npm run format` scopes itself
+          # to the test files changed against the merge base with main.
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
