@@ -287,7 +287,7 @@ One-line purpose: what CI said about a branch — the judged sha, the verdict, a
 | `branch` | no | checked-out branch of the cwd | Branch to report on. A pod on its own branch passes nothing. |
 | `pr_number` | no | — | Alternative to `branch`: the pull request whose head branch to report on. |
 
-- **Returns:** JSON `{branch, judged_sha, conclusion, failures[]}`; each failure is `{name, app, job_id, annotations[], steps[], tail[]}`. `conclusion` is `success | failure | pending | none`; `judged_sha` is the newest commit not marked `[skip ci]`.
+- **Returns:** JSON `{branch, judged_sha, conclusion, failures[]}`; each failure is `{name, app, job_id, annotations[], steps[], tail[], npm_script}`; `npm_script` is `{package, script}` when the failed step ran through npm — reproduce it as `npm run <script> -w <package>`, never at the repo root. `conclusion` is `success | failure | pending | none`; `judged_sha` is the newest commit not marked `[skip ci]`.
 - **Where it runs:** `GET /api/repos/:o/:r/ci-failures` over `LORE_API_URL`; lore-api reads GitHub with its App credential — no token in the caller.
 - **Cache/mutation:** read-only.
 

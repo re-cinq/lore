@@ -70,7 +70,7 @@ describe("the fix-ci recipe behind repair-build", () => {
     return parsed.task_types["fix-ci"].prompt_template;
   }
 
-  it("tells the node to fix an annotated file:line with an editor, never an install, never the linter, every finding at once, and to ask CI through lore_get_ci_failures and lore_get_ci_job_log rather than rebuild", async () => {
+  it("tells the node to fix an annotated file:line with an editor, never an install, never the linter, every finding at once, a step reproduced where CI ran it, and to ask CI through lore_get_ci_failures and lore_get_ci_job_log rather than rebuild", async () => {
     const prompt = (await fixCiPrompt()).replace(/\s+/g, " ");
     const says = (phrase: string) => prompt.includes(phrase);
 
@@ -90,6 +90,8 @@ describe("the fix-ci recipe behind repair-build", () => {
       fixesEveryFinding: says(
         "Fix EVERY finding the verdict names, in this visit, in the order listed.",
       ),
+      runsWhereCiRan: says("RUN A STEP'S COMMAND WHERE CI RAN IT"),
+      scopesToThePackage: says("run `npm run <script> -w <package>`"),
       scopesToChangedFiles: says("git diff --name-only origin/main...HEAD"),
     }).toEqual({
       editsTheAnnotatedLine: true,
@@ -99,6 +101,8 @@ describe("the fix-ci recipe behind repair-build", () => {
       forbidsRebuild: true,
       forbidsLinter: true,
       fixesEveryFinding: true,
+      runsWhereCiRan: true,
+      scopesToThePackage: true,
       scopesToChangedFiles: true,
     });
   });

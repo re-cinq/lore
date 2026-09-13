@@ -63,6 +63,7 @@ const REPORT = {
       annotations: ["specs/x/spec.md:7 Status draft"],
       steps: ["Lint"],
       tail: ["✖ 1 problem"],
+      npm_script: null,
     },
   ],
 };

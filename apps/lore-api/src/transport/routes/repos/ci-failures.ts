@@ -47,6 +47,9 @@ const CiFailuresSchema = z.object({
       annotations: z.array(z.string()),
       steps: z.array(z.string()),
       tail: z.array(z.string()),
+      npm_script: z
+        .object({ package: z.string(), script: z.string() })
+        .nullable(),
     }),
   ),
 });
