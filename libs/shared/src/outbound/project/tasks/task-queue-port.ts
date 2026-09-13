@@ -212,7 +212,7 @@ export interface TaskQueueRepository {
     prNumber: number,
   ): Promise<{ id: string } | null>;
 
-  /** The active task id for a repo + issue (status NOT IN failed/cancelled), or null. */
+  /** The active task id for a repo + issue (status NOT IN failed/cancelled/retried/completed), or null. */
   activeTaskByIssue(
     repo: string,
     issueNumber: number,

@@ -292,7 +292,7 @@ export class PgTaskQueue implements TaskQueueRepository {
     issueNumber: number,
   ): Promise<{ id: string } | null> {
     const { rows } = await this.pool.query(
-      `SELECT id FROM pipeline.tasks WHERE issue_number = $1 AND target_repo = $2 AND status NOT IN ('failed', 'cancelled')`,
+      `SELECT id FROM pipeline.tasks WHERE issue_number = $1 AND target_repo = $2 AND status NOT IN ('failed', 'cancelled', 'retried', 'completed')`,
       [issueNumber, repo],
     );
 
