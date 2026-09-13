@@ -650,3 +650,101 @@ describe("station log-line projection", () => {
     expect(rows[0].summary).toHaveLength(200);
   });
 });
+
+// gemini-cli emits a FLAT dialect (no message.content blocks): a top-level `init`,
+// `message` with string content, top-level `tool_use`/`tool_result` keyed by
+// `tool_id` with `parameters`/`output`, an `error`, and a `result` keyed by
+// `status`. These shapes are captured verbatim from assembly run 6cb4b352
+// (the first production gemini review run, 2026-09-02); see the web-ui field
+// reference in apps/web-ui/src/lib/agent-log-gemini-dialect.ts.
+describe("gemini-cli flat dialect projection", () => {
+  it("projects the gemini conversation, not only its terminal result line", () => {
+    const rows = parseRunEvents(
+      [
+        line({
+          type: "init",
+          model: "gemini-3.1-pro-preview",
+          session_id: "c8f63789",
+        }),
+        line({
+          role: "user",
+          type: "message",
+          content: "Review pull request #1687 in re-cinq/lore.",
+        }),
+        line({
+          type: "tool_use",
+          tool_id: "run_shell_command__call_659048",
+          tool_name: "run_shell_command",
+          parameters: { command: "git -C /workspace/target diff main...HEAD" },
+        }),
+        line({
+          type: "tool_result",
+          output: "diff output",
+          status: "success",
+          tool_id: "run_shell_command__call_659048",
+        }),
+        line({
+          type: "result",
+          status: "success",
+          stats: { total_tokens: 48211 },
+        }),
+      ].join("\n"),
+    );
+    const types = rows.map((row) => row.eventType);
+
+    expect(types).toContain("init");
+    expect(types).toContain("message");
+    expect(types).toContain("tool_call");
+    expect(types).toContain("tool_result");
+    const toolCall = rows.find((row) => row.eventType === "tool_call");
+
+    expect(toolCall).toMatchObject({
+      toolName: "run_shell_command",
+      toolUseId: "run_shell_command__call_659048",
+    });
+  });
+
+  it("reads a gemini tool_result's error from its status field, not is_error", () => {
+    const rows = parseRunEvents(
+      [
+        line({
+          type: "tool_result",
+          status: "error",
+          error: { type: "ToolError", message: "File not found" },
+          tool_id: "read_file__call_112233",
+        }),
+        line({
+          type: "tool_result",
+          output: "ok",
+          status: "success",
+          tool_id: "read_file__call_112234",
+        }),
+      ].join("\n"),
+    );
+
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({
+      eventType: "tool_result",
+      toolUseId: "read_file__call_112233",
+      isError: true,
+    });
+    expect(rows[1]).toMatchObject({
+      eventType: "tool_result",
+      toolUseId: "read_file__call_112234",
+      isError: false,
+    });
+  });
+
+  it("projects a gemini error line instead of dropping it", () => {
+    const rows = parseRunEvents(
+      line({
+        type: "error",
+        severity: "error",
+        message: "Model gemini-2.5-pro not found for this API key",
+      }),
+    );
+
+    expect(rows).not.toEqual([]);
+    expect(rows[0].isError).toBe(true);
+  });
+});
