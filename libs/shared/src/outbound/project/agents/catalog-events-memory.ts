@@ -18,10 +18,27 @@ export class InMemoryCatalogEvents implements CatalogEventsRepository {
     this.entries = [...entries];
   }
 
+  private fanOutProjectEntries(event: CatalogEvent): CatalogEvent[] {
+    return this.entries
+      .filter((e) => e.name === event.name && e.projectId !== null)
+      .map((e) => ({ ...event, projectId: e.projectId }));
+  }
+
   async listSince(cursor: string, limit: number): Promise<CatalogEvent[]> {
-    return this.events
-      .filter((event) => BigInt(event.id) > BigInt(cursor))
+    const raw = this.events
+      .filter((e) => BigInt(e.id) > BigInt(cursor))
       .slice(0, limit);
+
+    const expanded: CatalogEvent[] = [];
+
+    for (const event of raw) {
+      expanded.push(event);
+      if (event.projectId === null && event.op === "upsert") {
+        expanded.push(...this.fanOutProjectEntries(event));
+      }
+    }
+
+    return expanded;
   }
 
   async snapshot(): Promise<{ entries: CatalogEntry[]; cursor: string }> {

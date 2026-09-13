@@ -190,6 +190,36 @@ describe("handleCatalogEvents", () => {
     expect(result.body.cursor).toEqual("3");
   });
 
+  it("an org-level upsert fans out to the project-qualified CRs that inherit it", async () => {
+    const PROJECT = "r2263bc7a";
+    const inherited = def("pr-ready", PROJECT);
+    const { deps, agent, agents, events } = await harness(
+      new Map([
+        ["pr-ready ", def("pr-ready")],
+        [`pr-ready ${PROJECT}`, inherited],
+      ]),
+    );
+
+    events.setEntries([
+      { name: "pr-ready", projectId: null },
+      { name: "pr-ready", projectId: PROJECT },
+    ]);
+    await agents.advanceCatalogCursor(agent.id, "0");
+
+    events.append("pr-ready", null, "upsert");
+
+    const result = await handleCatalogEvents(deps, TOKEN, agent.id);
+
+    enforceTrue(result.code === 200, Error, "expected 200");
+    const served = result.body.entries.find((e) => e.project_id === PROJECT);
+
+    expect(served).toEqual({
+      name: "pr-ready",
+      project_id: PROJECT,
+      definition: inherited,
+    });
+  });
+
   it("an empty tail answers with the stored cursor and no entries", async () => {
     const { deps, agent, agents } = await harness(new Map());
 

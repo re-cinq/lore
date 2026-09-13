@@ -7,6 +7,7 @@ import { agentDefToCrds } from "@re-cinq/lore-shared/project/agents/agent-crd.js
 import type { ResolvedAgentDefinition } from "@re-cinq/lore-shared/models/agent-definition.js";
 import { buildServer } from "../app/build-server.js";
 import { restoreEnv } from "./restore-env.js";
+import { updateOrgDefinition } from "@re-cinq/lore-shared/project/agents/agent-defs-pg.js";
 
 const REGISTRATION_TOKEN = "test-registration-token";
 const REPO = "test/catalog-repo";
@@ -181,6 +182,54 @@ describe("the catalog-events fan-out, against real Postgres", () => {
       project_id: repoId,
       definition: null,
     });
+  });
+
+  it("updating the org definition fans out to every project-qualified entry that inherits it", async () => {
+    const agent = await register("catalog-itest-org-fanout");
+    const snapshot = await poll(agent);
+
+    await updateOrgDefinition(pool, {
+      name: TASK_TYPE,
+      model: "claude-sonnet-4-6",
+      timeout_minutes: 15,
+      prompt: "Org recipe v1.",
+      image: null,
+      execution_mode: "claude-code",
+      review_required: false,
+      config: null,
+    });
+
+    await defs.create(REPO, {
+      name: TASK_TYPE,
+      model: null,
+      timeout_minutes: null,
+      prompt: null,
+      image: null,
+      execution_mode: "claude-code",
+      review_required: false,
+      config: null,
+    });
+
+    const afterCreate = await poll(agent, snapshot.cursor);
+    const drained = await poll(agent, afterCreate.cursor);
+
+    expect(drained).toMatchObject({ mode: "tail", entries: [] });
+
+    await updateOrgDefinition(pool, {
+      name: TASK_TYPE,
+      model: "claude-sonnet-4-6",
+      timeout_minutes: 15,
+      prompt: "Org recipe v2.",
+      image: null,
+      execution_mode: "claude-code",
+      review_required: false,
+      config: null,
+    });
+
+    const tail = await poll(agent, drained.cursor);
+    const projectEntry = tail.entries.find((e) => e.project_id === repoId);
+
+    expect(projectEntry).toMatchObject({ name: TASK_TYPE, project_id: repoId });
   });
 
   it("refuses a poll presenting another agent's token", async () => {
