@@ -926,9 +926,7 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   screen reads nothing a person typed in. Anthropic's Admin API still exposes
   no credit balance, so what is LEFT stays unfetchable by construction — the
   page reports what was spent, not what remains. The `pipeline.credit_ledger`
-  table (migration 0045) is left in place: it is in no baseline schema script,
-  so a later forward-only migration can drop it once its entries are confirmed
-  unneeded. ([validated by carries no budget block and never reads a credit ledger](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L260))
+  table (migration 0045) is dropped by migration 0078. ([validated by carries no budget block and never reads a credit ledger](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L260))
 
 - FR-19.28: Retired 2026-09-09 with FR-19.27. `/spend` renders no balance
   section, credits card, or top-up form, and with them went the page's one

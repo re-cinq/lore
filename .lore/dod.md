@@ -11,8 +11,8 @@
 
 ## Facets
 
-- [ ] Add `infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/0078_drop_credit_ledger.sql` containing `DROP TABLE IF EXISTS pipeline.credit_ledger;` (idempotent, same pattern as `0008_drop_v2_spec_coverage_tables.sql`).
-- [ ] In `specs/1-lore-platform/spec.md` FR-19.27, replace the sentence "The `pipeline.credit_ledger` table (migration 0045) is left in place: it is in no baseline schema script, so a later forward-only migration can drop it once its entries are confirmed unneeded." with "The `pipeline.credit_ledger` table (migration 0045) is dropped by migration 0078."
+- [x] Add `infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/0078_drop_credit_ledger.sql` containing `DROP TABLE IF EXISTS pipeline.credit_ledger;` (idempotent, same pattern as `0008_drop_v2_spec_coverage_tables.sql`).
+- [x] In `specs/1-lore-platform/spec.md` FR-19.27, replace the sentence "The `pipeline.credit_ledger` table (migration 0045) is left in place: it is in no baseline schema script, so a later forward-only migration can drop it once its entries are confirmed unneeded." with "The `pipeline.credit_ledger` table (migration 0045) is dropped by migration 0078."
 
 ## Out of scope
 
