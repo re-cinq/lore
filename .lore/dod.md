@@ -19,32 +19,32 @@ rows, so they fail today on the absent behaviour, not on wiring.
 
 ## Done when these pass
 
-- [ ] **projects the gemini conversation, not only its terminal result line** —
+- [x] **projects the gemini conversation, not only its terminal result line** —
   a gemini run (init + string message + top-level tool_use + tool_result +
   result) projects `init` / `message` / `tool_call` / `tool_result` rows, and
   the tool_call carries `toolName`/`toolUseId` from `tool_name`/`tool_id`. Today
   the projected set is `[ 'result' ]` — the conversation is empty.
   `apps/floor/src/work/agent/agent-run-events.test.ts`
-- [ ] **reads a gemini tool_result's error from its status field, not is_error**
+- [x] **reads a gemini tool_result's error from its status field, not is_error**
   — a top-level `tool_result` with `status:"error"` projects an error row; one
   with `status:"success"` does not; `toolUseId` comes from `tool_id`.
   `apps/floor/src/work/agent/agent-run-events.test.ts`
-- [ ] **projects a gemini error line instead of dropping it** — a top-level
+- [x] **projects a gemini error line instead of dropping it** — a top-level
   `error` line projects at least one row marked `isError`.
   `apps/floor/src/work/agent/agent-run-events.test.ts`
 
 ## Facets
 
-- [ ] Map gemini `init` → `init` row (model in summary).
-- [ ] Map gemini `message` (string `content`) → `message` row; the delta-chunk
+- [x] Map gemini `init` → `init` row (model in summary).
+- [x] Map gemini `message` (string `content`) → `message` row; the delta-chunk
       fold (`delta:true`) so assistant prose is one row, not one per fragment.
-- [ ] Map top-level gemini `tool_use` (`tool_name`, `tool_id`, `parameters`) →
+- [x] Map top-level gemini `tool_use` (`tool_name`, `tool_id`, `parameters`) →
       `tool_call` row, reusing `filePathsFromToolInput` on `parameters`.
-- [ ] Map top-level gemini `tool_result` (`tool_id`, `output`/`error`,
+- [x] Map top-level gemini `tool_result` (`tool_id`, `output`/`error`,
       `status`) → `tool_result` row, `isError` from `status === "error"`.
-- [ ] Map gemini `error` → a row marked `isError` (no dedicated enum slot;
+- [x] Map gemini `error` → a row marked `isError` (no dedicated enum slot;
       `message` eventType is the natural fit).
-- [ ] Keep FR1.5 intact: a genuinely-unknown `type` still drops silently.
+- [x] Keep FR1.5 intact: a genuinely-unknown `type` still drops silently.
 
 ## Out of scope
 
