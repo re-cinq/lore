@@ -1,9 +1,12 @@
 import { describe, it, expect } from "vitest";
 import {
   ciConclusionOf,
+  ciFailureReport,
   ciJudgedSha,
+  explainFailedChecks,
   externalCheckRuns,
   failureTail,
+  logLines,
   summarizeFailedChecks,
 } from "./check-runs.js";
 import type { CheckRun, PullCommit } from "./pull-requests-port.js";
@@ -235,6 +238,7 @@ describe("summarizeFailedChecks on an Actions job", () => {
           conclusion: "failure",
           output: { title: null, summary: null },
           jobFailure: {
+            annotations: [],
             steps: ["Lint (--max-warnings 0)"],
             tail: [
               "specs/bowman-ui-theming-tokens/spec.md",
@@ -246,5 +250,174 @@ describe("summarizeFailedChecks on an Actions job", () => {
     ).toBe(
       '### build-test (failure)\n\nFailed step: Lint (--max-warnings 0)\n\nspecs/bowman-ui-theming-tokens/spec.md\n6:1  error  Status "shipped" does not match',
     );
+  });
+});
+
+describe("summarizeFailedChecks on an Actions job with annotations", () => {
+  it("renders the failure annotations first, naming the file and line before the failed step and its output", () => {
+    expect(
+      summarizeFailedChecks([
+        check({
+          name: "format",
+          conclusion: "failure",
+          output: { title: null, summary: null },
+          jobFailure: {
+            annotations: [
+              'specs/testing-standards/spec.md:7 Status "draft" does not match this spec\'s test-link coverage',
+            ],
+            steps: ["Prettier + eslint --fix"],
+            tail: ["✖ 10540 problems (1 error, 10539 warnings)"],
+          },
+        }),
+      ]).summary,
+    ).toBe(
+      '### format (failure)\n\nspecs/testing-standards/spec.md:7 Status "draft" does not match this spec\'s test-link coverage\n\nFailed step: Prettier + eslint --fix\n\n✖ 10540 problems (1 error, 10539 warnings)',
+    );
+  });
+});
+
+describe("explainFailedChecks", () => {
+  const silentFailure = check({
+    id: 1,
+    app: "github-actions",
+    name: "format",
+    conclusion: "failure",
+    output: { title: null, summary: null },
+  });
+  const failure = { annotations: [], steps: ["Lint"], tail: ["boom"] };
+
+  it("reads the job only for a failed Actions run that reported nothing itself", async () => {
+    const read: number[] = [];
+    const checks = [
+      silentFailure,
+      check({ id: 2, app: "github-actions", name: "test" }),
+      check({
+        id: 3,
+        app: "github-actions",
+        name: "spoken",
+        conclusion: "failure",
+        output: { title: "t", summary: "said it" },
+      }),
+      check({ id: 4, app: "codecov", name: "coverage", conclusion: "failure" }),
+    ];
+    const explained = await explainFailedChecks(checks, async (jobId) => {
+      read.push(jobId);
+
+      return failure;
+    });
+
+    expect({ read, explained }).toEqual({
+      read: [1],
+      explained: [
+        { ...silentFailure, jobFailure: failure },
+        ...checks.slice(1),
+      ],
+    });
+  });
+
+  it("reads no job at all while the build is green, since each read costs requests", async () => {
+    const read: number[] = [];
+
+    await explainFailedChecks(
+      [check({ id: 1, app: "github-actions" })],
+      async (jobId) => {
+        read.push(jobId);
+
+        return failure;
+      },
+    );
+    expect(read).toEqual([]);
+  });
+
+  it("keeps the run bare when GitHub will not show its job", async () => {
+    expect(
+      await explainFailedChecks([silentFailure], async () => null),
+    ).toEqual([silentFailure]);
+  });
+});
+
+describe("ciFailureReport", () => {
+  it("names each failed check with its job id and account, and the conclusion of the judged sha", () => {
+    expect(
+      ciFailureReport("topic", "deadbeef", [
+        check({ id: 9, app: "github-actions", name: "test" }),
+        check({
+          id: 1,
+          app: "github-actions",
+          name: "format",
+          conclusion: "failure",
+          jobFailure: {
+            annotations: ['specs/x/spec.md:7 Status "draft" does not match'],
+            steps: ["Prettier + eslint --fix"],
+            tail: ["✖ 1 problem"],
+          },
+        }),
+        check({ name: "lore/code-review", conclusion: "failure" }),
+      ]),
+    ).toEqual({
+      branch: "topic",
+      judged_sha: "deadbeef",
+      conclusion: "failure",
+      failures: [
+        {
+          name: "format",
+          app: "github-actions",
+          job_id: 1,
+          annotations: ['specs/x/spec.md:7 Status "draft" does not match'],
+          steps: ["Prettier + eslint --fix"],
+          tail: ["✖ 1 problem"],
+        },
+        {
+          name: "lore/code-review",
+          app: null,
+          job_id: null,
+          annotations: [],
+          steps: [],
+          tail: [],
+        },
+      ],
+    });
+  });
+
+  it("reports none with no failures when the branch has no judgeable commit", () => {
+    expect(ciFailureReport("topic", null, [])).toEqual({
+      branch: "topic",
+      judged_sha: null,
+      conclusion: "none",
+      failures: [],
+    });
+  });
+});
+
+describe("logLines", () => {
+  const log = [
+    "2026-09-09T13:06:58.1Z ##[group]Run npm run format",
+    "2026-09-09T13:06:58.2Z ##[endgroup]",
+    "2026-09-09T13:06:58.3Z specs/x/spec.md",
+    "2026-09-09T13:06:58.4Z ##[error]  7:1  error  Status draft",
+    "2026-09-09T13:06:58.5Z   9:1  warning  something",
+    "2026-09-09T13:06:58.6Z ##[error]Process completed with exit code 1.",
+  ].join("\n");
+
+  it("returns the last N lines without timestamps", () => {
+    expect(logLines(log, { tail: 2 })).toEqual({
+      lines: [
+        "  9:1  warning  something",
+        "##[error]Process completed with exit code 1.",
+      ],
+      total: 6,
+      truncated: true,
+    });
+  });
+
+  it("filters to the lines matching grep before taking the tail, case-insensitively", () => {
+    expect(logLines(log, { tail: 200, grep: "ERROR" })).toEqual({
+      lines: [
+        "##[error]  7:1  error  Status draft",
+        "##[error]Process completed with exit code 1.",
+      ],
+      total: 2,
+      truncated: false,
+    });
   });
 });

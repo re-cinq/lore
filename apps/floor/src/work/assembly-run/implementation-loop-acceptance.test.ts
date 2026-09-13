@@ -133,10 +133,17 @@ describe("implementation-loop acceptance: one ticket, cluster-free, walked throu
     await h.completeAgentNode(id, "open-pr", { outcome: "success" });
     await h.completeAgentNode(id, "tdd-round", { outcome: "success" });
     await h.resume(id, "await-ci", "failed", {
-      args: { reason: "ci_red_unchanged", ci_failed_checks: "lint" },
+      args: {
+        reason: "ci_red_unchanged",
+        ci_feedback_sha: "deadbeef",
+        ci_failed_checks: "lint",
+      },
     });
 
     expect(h.enqueued.at(-1)?.name).toBe(`${short(id)}-repair-build`);
+    expect(h.enqueued.at(-1)?.prompt).toContain(
+      "## CI reported failures on deadbeef\n\nThe build for your last push is red. These checks failed: lint",
+    );
 
     await h.completeAgentNode(id, "repair-build", { outcome: "success" });
 

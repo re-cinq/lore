@@ -48,18 +48,21 @@ task_types:
 
 
       DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
-      - Before you commit, run the repository's own fix/format step OVER THE
-        FILES YOU CHANGED — not the whole repo (`npx eslint --fix <files>`,
-        `gofmt -w <files>`, whichever this repo uses). Scoped it is seconds of
-        work, and it erases the whole class of failures CI would otherwise
-        report as a red build; unscoped it eats the round's budget.
-      - Then TYPECHECK the packages you touched (`npx tsc --noEmit -p <pkg>`,
-        `go build ./...`, whichever this repo uses). Your tests passing does NOT
-        mean the code compiles: vitest transpiles each file without checking
-        types, so a missing import or a wrong signature runs green here and
-        fails the build on CI. That is not hypothetical — it is how a branch
-        reached five rounds and a red build with its whole acceptance suite
-        passing.
+      - Before you commit, run the repository's FORMATTER over the files you
+        changed (`npx prettier --write <files>`, `gofmt -w <files>`, whichever
+        this repo uses) and nothing else from CI's checklist. Do NOT run the
+        linter in this pod: CI runs it on every push, and here it does not
+        fit — in this repository a two-file `eslint` peaks near 800 MB against
+        a 1Gi pod, and runs 112256d9 and 62c1ca5e were OOM-killed on exactly
+        that. A lint finding comes back as a red build naming the file and
+        line, which the next round fixes with an editor.
+      - Do NOT typecheck here either. A green test is not a compiled build —
+        vitest transpiles each file without checking types — but CI's build
+        step is what proves it, and in this repository `tsc --noEmit` on
+        `libs/shared` peaks near 950 MB against the 1Gi pod: run 2a291314's
+        dod pod was OOM-killed on it. A type error comes back as a red build
+        whose failed step and log tail name the file and line; the next
+        round fixes it there. Read your imports and signatures twice instead.
       - When the work is done, `git add` what you changed and commit it with a
         short, factual message. Then `git push origin HEAD`. The clone carries
         its own credentials, so a plain push authenticates; you need no token
@@ -126,18 +129,21 @@ task_types:
 
 
       DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
-      - Before you commit, run the repository's own fix/format step OVER THE
-        FILES YOU CHANGED — not the whole repo (`npx eslint --fix <files>`,
-        `gofmt -w <files>`, whichever this repo uses). Scoped it is seconds of
-        work, and it erases the whole class of failures CI would otherwise
-        report as a red build; unscoped it eats the round's budget.
-      - Then TYPECHECK the packages you touched (`npx tsc --noEmit -p <pkg>`,
-        `go build ./...`, whichever this repo uses). Your tests passing does NOT
-        mean the code compiles: vitest transpiles each file without checking
-        types, so a missing import or a wrong signature runs green here and
-        fails the build on CI. That is not hypothetical — it is how a branch
-        reached five rounds and a red build with its whole acceptance suite
-        passing.
+      - Before you commit, run the repository's FORMATTER over the files you
+        changed (`npx prettier --write <files>`, `gofmt -w <files>`, whichever
+        this repo uses) and nothing else from CI's checklist. Do NOT run the
+        linter in this pod: CI runs it on every push, and here it does not
+        fit — in this repository a two-file `eslint` peaks near 800 MB against
+        a 1Gi pod, and runs 112256d9 and 62c1ca5e were OOM-killed on exactly
+        that. A lint finding comes back as a red build naming the file and
+        line, which the next round fixes with an editor.
+      - Do NOT typecheck here either. A green test is not a compiled build —
+        vitest transpiles each file without checking types — but CI's build
+        step is what proves it, and in this repository `tsc --noEmit` on
+        `libs/shared` peaks near 950 MB against the 1Gi pod: run 2a291314's
+        dod pod was OOM-killed on it. A type error comes back as a red build
+        whose failed step and log tail name the file and line; the next
+        round fixes it there. Read your imports and signatures twice instead.
       - When the work is done, `git add` what you changed and commit it with a
         short, factual message. Then `git push origin HEAD`. The clone carries
         its own credentials, so a plain push authenticates; you need no token
@@ -310,18 +316,21 @@ task_types:
       - Do not edit `| Status |` on any spec. Nothing is implemented yet.
 
       DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
-      - Before you commit, run the repository's own fix/format step OVER THE
-        FILES YOU CHANGED — not the whole repo (`npx eslint --fix <files>`,
-        `gofmt -w <files>`, whichever this repo uses). Scoped it is seconds of
-        work, and it erases the whole class of failures CI would otherwise
-        report as a red build; unscoped it eats the round's budget.
-      - Then TYPECHECK the packages you touched (`npx tsc --noEmit -p <pkg>`,
-        `go build ./...`, whichever this repo uses). Your tests passing does NOT
-        mean the code compiles: vitest transpiles each file without checking
-        types, so a missing import or a wrong signature runs green here and
-        fails the build on CI. That is not hypothetical — it is how a branch
-        reached five rounds and a red build with its whole acceptance suite
-        passing.
+      - Before you commit, run the repository's FORMATTER over the files you
+        changed (`npx prettier --write <files>`, `gofmt -w <files>`, whichever
+        this repo uses) and nothing else from CI's checklist. Do NOT run the
+        linter in this pod: CI runs it on every push, and here it does not
+        fit — in this repository a two-file `eslint` peaks near 800 MB against
+        a 1Gi pod, and runs 112256d9 and 62c1ca5e were OOM-killed on exactly
+        that. A lint finding comes back as a red build naming the file and
+        line, which the next round fixes with an editor.
+      - Do NOT typecheck here either. A green test is not a compiled build —
+        vitest transpiles each file without checking types — but CI's build
+        step is what proves it, and in this repository `tsc --noEmit` on
+        `libs/shared` peaks near 950 MB against the 1Gi pod: run 2a291314's
+        dod pod was OOM-killed on it. A type error comes back as a red build
+        whose failed step and log tail name the file and line; the next
+        round fixes it there. Read your imports and signatures twice instead.
       - When the work is done, `git add` what you changed and commit it with a
         short, factual message. Then `git push origin HEAD`. The clone carries
         its own credentials, so a plain push authenticates; you need no token
@@ -453,23 +462,32 @@ task_types:
         red — that is the ordinary state mid-ticket, and the next round takes
         the next facet.
       - If a `CI reported failures` section is appended below, it is the verdict
-        on the previous push. A red check in code you did not touch is a
-        regression this branch caused: fix it FIRST, before your round. Do not
-        re-run the whole build to find it; the section names the checks.
+        on the previous push, and it outranks `.lore/dod.md`: a red build means
+        the ticket is NOT done, however many facets are ticked. Every finding
+        it lists — each `path:line message` — is work this round owes before
+        anything else. Fix ALL of them in this visit, format, push; there is no
+        local re-run here that would show you the rest, and each finding you
+        leave costs the ticket a pod and a CI cycle. Run 2a291314 spent two
+        rounds reading a ticked dod.md and reporting "nothing left" under a
+        verdict naming three lines; the guard sent it to repair each time. Do
+        not re-run the whole build to find the failures; the section names them.
 
       DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
-      - Before you commit, run the repository's own fix/format step OVER THE
-        FILES YOU CHANGED — not the whole repo (`npx eslint --fix <files>`,
-        `gofmt -w <files>`, whichever this repo uses). Scoped it is seconds of
-        work, and it erases the whole class of failures CI would otherwise
-        report as a red build; unscoped it eats the round's budget.
-      - Then TYPECHECK the packages you touched (`npx tsc --noEmit -p <pkg>`,
-        `go build ./...`, whichever this repo uses). Your tests passing does NOT
-        mean the code compiles: vitest transpiles each file without checking
-        types, so a missing import or a wrong signature runs green here and
-        fails the build on CI. That is not hypothetical — it is how a branch
-        reached five rounds and a red build with its whole acceptance suite
-        passing.
+      - Before you commit, run the repository's FORMATTER over the files you
+        changed (`npx prettier --write <files>`, `gofmt -w <files>`, whichever
+        this repo uses) and nothing else from CI's checklist. Do NOT run the
+        linter in this pod: CI runs it on every push, and here it does not
+        fit — in this repository a two-file `eslint` peaks near 800 MB against
+        a 1Gi pod, and runs 112256d9 and 62c1ca5e were OOM-killed on exactly
+        that. A lint finding comes back as a red build naming the file and
+        line, which the next round fixes with an editor.
+      - Do NOT typecheck here either. A green test is not a compiled build —
+        vitest transpiles each file without checking types — but CI's build
+        step is what proves it, and in this repository `tsc --noEmit` on
+        `libs/shared` peaks near 950 MB against the 1Gi pod: run 2a291314's
+        dod pod was OOM-killed on it. A type error comes back as a red build
+        whose failed step and log tail name the file and line; the next
+        round fixes it there. Read your imports and signatures twice instead.
       - When the work is done, `git add` what you changed and commit it with a
         short, factual message. Then `git push origin HEAD`. The clone carries
         its own credentials, so a plain push authenticates; you need no token
@@ -500,7 +518,9 @@ task_types:
         This is the ordinary outcome, whether or not acceptance tests remain
         red. CI reads the branch next and sends you back if there is more.
       - You wrote nothing because there was nothing left to write — every facet
-        in `.lore/dod.md` is closed and its acceptance tests pass:
+        in `.lore/dod.md` is closed, its acceptance tests pass, AND no
+        `CI reported failures` section is appended (a red verdict IS something
+        left to write; fix its findings and report the line above instead):
         LORE_NODE_RESULT: {"outcome":"success","extras":{"Lore-Tdd-Next":"acceptance green"}}
         SUCCESS, not failure. The branch is already pushed; the build judges it
         next, and a green one sends the ticket to review. Reporting failure for
@@ -522,27 +542,61 @@ task_types:
     skills:
       - tdd-loop
 
-  # The implementation-loop line's `fix-ci` node. Reached only when
-  # pr-ready-check resumed await-pr with changes_requested — that is, the PR's
-  # CI is RED. The pod has no `gh` and cannot read the GitHub run log, so it
-  # reproduces the failure from the repo's own definition of its build.
+  # The implementation-loop line's `fix-ci` and `repair-build` nodes. Reached
+  # only when a CI wait reported the branch RED. The pod has no `gh`: it reads
+  # CI's verdict from the section the Floor appends, or asks for it through the
+  # `lore_get_ci_failures` / `lore_get_ci_job_log` MCP tools. It never
+  # reproduces the build to learn what CI already printed — run 997026f5 did,
+  # and died at 1Gi on a one-line fix.
   fix-ci:
     prompt_template: |
       The pull request for this ticket has a RED build. Your job is to make it
       green, on the branch you are already on, and nothing else.
 
-      The `CI reported failures` section below names the checks that failed.
-      CI is the judge of this branch, and that section is its verdict — start
-      from it, not from a full local build. When it names the failed STEP and
-      what that step printed, that is the whole diagnosis: find that step in
-      `.github/workflows/` and run only that step's command. When it names only
-      a check, map the check name to the job that publishes it, find the
+      CI is the judge of this branch, and the `CI reported failures` section
+      below is its verdict: the sha it judged, the checks that failed, and for
+      each — when CI published them — the annotations (`path:line message`),
+      the step that failed, and what it printed. Start from it, not from a
+      full local build.
+
+      WHEN THE VERDICT NAMES A FILE AND LINE — an annotation such as
+      `specs/x/spec.md:7 Status "draft" does not match ...` — open that file
+      at that line and fix what it says. Do not install dependencies, build
+      the workspace, or run the suite to confirm a finding CI already made
+      about a specific line; a lint or status error on a markdown file needs
+      an editor, not `npm ci`. Run a command only when the FIX needs one: a
+      test you must see fail, a typecheck of a package whose code you changed.
+
+      When it names the failed STEP and what that step printed but no
+      annotation, that is the diagnosis: find that step in
+      `.github/workflows/` and run only that step's command. When it names
+      only a check, map the check name to the job that publishes it, find the
       command that job runs, and run ONLY that. Reproducing the whole build to
       rediscover what you have already been told costs the ticket a pod and
       tells you nothing new.
 
+      NEVER RUN THE LINTER IN THIS POD, scoped or not. CI ran it on a machine
+      sized for it; here a two-file `eslint` peaks near 800 MB against a 1Gi
+      pod, and runs 112256d9 and 62c1ca5e were OOM-killed on it. When the red
+      check is a lint or format job, its findings are what you fix, not what
+      you reproduce: take the file and line from the annotation, or ask CI
+      with `lore_get_ci_failures` and then `lore_get_ci_job_log` with
+      `grep: "error"`. Format only the files this branch changed
+      (`git diff --name-only origin/main...HEAD`); typecheck nothing here —
+      CI's build step already did, and it does not fit this pod.
+
+      IF THE SECTION IS MISSING OR TOO THIN, ASK CI YOURSELF: call
+      `lore_get_ci_failures` with no arguments — it reports on the branch you
+      are on: the judged sha, the conclusion, and each failed check with its
+      annotations, failed steps and log tail. When a failure needs more of its
+      log, call `lore_get_ci_job_log` with that failure's `job_id`, a `grep`
+      for the report's error marker (`error`, `FAIL`, `✖`) and a small `tail`.
+      Never reinstall or rebuild the workspace to learn what CI already
+      printed.
+
       FIRST, check the branch has not moved since CI judged it. The section's
-      heading names the sha CI read; run `git log --format=%s <that sha>..HEAD`.
+      heading names the sha CI read (`judged_sha` from `lore_get_ci_failures`
+      when the section is absent); run `git log --format=%s <that sha>..HEAD`.
       If any commit it lists does not carry `[skip ci]`,
       the branch moved after CI judged it: somebody pushed, and CI has not
       judged the new head yet.
@@ -563,8 +617,11 @@ task_types:
       the obvious fix did not work before, not as a solution to copy.
 
       RULES:
-      - The FIRST failure is the one to fix. Fix it, re-run, repeat. Do not
-        batch speculative fixes for failures you have not seen.
+      - Fix EVERY finding the verdict names, in this visit, in the order
+        listed. There is no local re-run here that would reveal the rest, and
+        each finding you leave costs the ticket a round: run 2a291314's repair
+        fixed one of three and the build came back red twice more. Do not add
+        speculative fixes for failures the verdict did not name.
       - Fix the cause, not the symptom. Never delete, skip, `.only`, `.todo` or
         loosen a test to go green; never widen a type to `any` to silence a
         typecheck error; never add an eslint-disable to pass lint. If the test
@@ -576,18 +633,21 @@ task_types:
         finding, not a fix.
 
       DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
-      - Before you commit, run the repository's own fix/format step OVER THE
-        FILES YOU CHANGED — not the whole repo (`npx eslint --fix <files>`,
-        `gofmt -w <files>`, whichever this repo uses). Scoped it is seconds of
-        work, and it erases the whole class of failures CI would otherwise
-        report as a red build; unscoped it eats the round's budget.
-      - Then TYPECHECK the packages you touched (`npx tsc --noEmit -p <pkg>`,
-        `go build ./...`, whichever this repo uses). Your tests passing does NOT
-        mean the code compiles: vitest transpiles each file without checking
-        types, so a missing import or a wrong signature runs green here and
-        fails the build on CI. That is not hypothetical — it is how a branch
-        reached five rounds and a red build with its whole acceptance suite
-        passing.
+      - Before you commit, run the repository's FORMATTER over the files you
+        changed (`npx prettier --write <files>`, `gofmt -w <files>`, whichever
+        this repo uses) and nothing else from CI's checklist. Do NOT run the
+        linter in this pod: CI runs it on every push, and here it does not
+        fit — in this repository a two-file `eslint` peaks near 800 MB against
+        a 1Gi pod, and runs 112256d9 and 62c1ca5e were OOM-killed on exactly
+        that. A lint finding comes back as a red build naming the file and
+        line, which the next round fixes with an editor.
+      - Do NOT typecheck here either. A green test is not a compiled build —
+        vitest transpiles each file without checking types — but CI's build
+        step is what proves it, and in this repository `tsc --noEmit` on
+        `libs/shared` peaks near 950 MB against the 1Gi pod: run 2a291314's
+        dod pod was OOM-killed on it. A type error comes back as a red build
+        whose failed step and log tail name the file and line; the next
+        round fixes it there. Read your imports and signatures twice instead.
       - When the work is done, `git add` what you changed and commit it with a
         short, factual message. Then `git push origin HEAD`. The clone carries
         its own credentials, so a plain push authenticates; you need no token
@@ -689,18 +749,21 @@ task_types:
         missed it.
 
       DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
-      - Before you commit, run the repository's own fix/format step OVER THE
-        FILES YOU CHANGED — not the whole repo (`npx eslint --fix <files>`,
-        `gofmt -w <files>`, whichever this repo uses). Scoped it is seconds of
-        work, and it erases the whole class of failures CI would otherwise
-        report as a red build; unscoped it eats the round's budget.
-      - Then TYPECHECK the packages you touched (`npx tsc --noEmit -p <pkg>`,
-        `go build ./...`, whichever this repo uses). Your tests passing does NOT
-        mean the code compiles: vitest transpiles each file without checking
-        types, so a missing import or a wrong signature runs green here and
-        fails the build on CI. That is not hypothetical — it is how a branch
-        reached five rounds and a red build with its whole acceptance suite
-        passing.
+      - Before you commit, run the repository's FORMATTER over the files you
+        changed (`npx prettier --write <files>`, `gofmt -w <files>`, whichever
+        this repo uses) and nothing else from CI's checklist. Do NOT run the
+        linter in this pod: CI runs it on every push, and here it does not
+        fit — in this repository a two-file `eslint` peaks near 800 MB against
+        a 1Gi pod, and runs 112256d9 and 62c1ca5e were OOM-killed on exactly
+        that. A lint finding comes back as a red build naming the file and
+        line, which the next round fixes with an editor.
+      - Do NOT typecheck here either. A green test is not a compiled build —
+        vitest transpiles each file without checking types — but CI's build
+        step is what proves it, and in this repository `tsc --noEmit` on
+        `libs/shared` peaks near 950 MB against the 1Gi pod: run 2a291314's
+        dod pod was OOM-killed on it. A type error comes back as a red build
+        whose failed step and log tail name the file and line; the next
+        round fixes it there. Read your imports and signatures twice instead.
       - When the work is done, `git add` what you changed and commit it with a
         short, factual message. Then `git push origin HEAD`. The clone carries
         its own credentials, so a plain push authenticates; you need no token
@@ -766,18 +829,21 @@ task_types:
         change, or leave the code as it is and say plainly why, so the
         reviewer reads a reason rather than silence.
       DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
-      - Before you commit, run the repository's own fix/format step OVER THE
-        FILES YOU CHANGED — not the whole repo (`npx eslint --fix <files>`,
-        `gofmt -w <files>`, whichever this repo uses). Scoped it is seconds of
-        work, and it erases the whole class of failures CI would otherwise
-        report as a red build; unscoped it eats the round's budget.
-      - Then TYPECHECK the packages you touched (`npx tsc --noEmit -p <pkg>`,
-        `go build ./...`, whichever this repo uses). Your tests passing does NOT
-        mean the code compiles: vitest transpiles each file without checking
-        types, so a missing import or a wrong signature runs green here and
-        fails the build on CI. That is not hypothetical — it is how a branch
-        reached five rounds and a red build with its whole acceptance suite
-        passing.
+      - Before you commit, run the repository's FORMATTER over the files you
+        changed (`npx prettier --write <files>`, `gofmt -w <files>`, whichever
+        this repo uses) and nothing else from CI's checklist. Do NOT run the
+        linter in this pod: CI runs it on every push, and here it does not
+        fit — in this repository a two-file `eslint` peaks near 800 MB against
+        a 1Gi pod, and runs 112256d9 and 62c1ca5e were OOM-killed on exactly
+        that. A lint finding comes back as a red build naming the file and
+        line, which the next round fixes with an editor.
+      - Do NOT typecheck here either. A green test is not a compiled build —
+        vitest transpiles each file without checking types — but CI's build
+        step is what proves it, and in this repository `tsc --noEmit` on
+        `libs/shared` peaks near 950 MB against the 1Gi pod: run 2a291314's
+        dod pod was OOM-killed on it. A type error comes back as a red build
+        whose failed step and log tail name the file and line; the next
+        round fixes it there. Read your imports and signatures twice instead.
       - When the work is done, `git add` what you changed and commit it with a
         short, factual message. Then `git push origin HEAD`. The clone carries
         its own credentials, so a plain push authenticates; you need no token

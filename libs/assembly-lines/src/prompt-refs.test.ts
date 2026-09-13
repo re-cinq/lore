@@ -60,3 +60,87 @@ describe("assembly-line prompt_refs", () => {
     );
   });
 });
+
+describe("the fix-ci recipe behind repair-build", () => {
+  async function fixCiPrompt(): Promise<string> {
+    const parsed = parse(await readFile(TASK_TYPES, "utf-8")) as {
+      task_types: Record<string, { prompt_template: string }>;
+    };
+
+    return parsed.task_types["fix-ci"].prompt_template;
+  }
+
+  it("tells the node to fix an annotated file:line with an editor, never an install, never the linter, every finding at once, and to ask CI through lore_get_ci_failures and lore_get_ci_job_log rather than rebuild", async () => {
+    const prompt = (await fixCiPrompt()).replace(/\s+/g, " ");
+    const says = (phrase: string) => prompt.includes(phrase);
+
+    expect({
+      editsTheAnnotatedLine: says(
+        "open that file at that line and fix what it says",
+      ),
+      forbidsInstall: says("needs an editor, not `npm ci`"),
+      asksCi: says("call `lore_get_ci_failures` with no arguments"),
+      readsTheLog: says(
+        "call `lore_get_ci_job_log` with that failure's `job_id`",
+      ),
+      forbidsRebuild: says(
+        "Never reinstall or rebuild the workspace to learn what CI already printed.",
+      ),
+      forbidsLinter: says("NEVER RUN THE LINTER IN THIS POD, scoped or not."),
+      fixesEveryFinding: says(
+        "Fix EVERY finding the verdict names, in this visit, in the order listed.",
+      ),
+      scopesToChangedFiles: says("git diff --name-only origin/main...HEAD"),
+    }).toEqual({
+      editsTheAnnotatedLine: true,
+      forbidsInstall: true,
+      asksCi: true,
+      readsTheLog: true,
+      forbidsRebuild: true,
+      forbidsLinter: true,
+      fixesEveryFinding: true,
+      scopesToChangedFiles: true,
+    });
+  });
+});
+
+describe("every recipe's delivery contract", () => {
+  it("tells no pod to run the linter: CI runs it on every push, and in this repo a two-file eslint peaks near 800 MB against a 1Gi pod", async () => {
+    const parsed = parse(await readFile(TASK_TYPES, "utf-8")) as {
+      task_types: Record<string, { prompt_template?: string }>;
+    };
+    const lintingRecipes = Object.entries(parsed.task_types)
+      .filter(([, recipe]) =>
+        /npx eslint|eslint --fix/.test(recipe.prompt_template ?? ""),
+      )
+      .map(([name]) => name);
+
+    expect(lintingRecipes).toEqual([]);
+  });
+});
+
+describe("the tdd-round recipe under a red verdict", () => {
+  it("tells the round that an appended CI verdict outranks a ticked dod.md, so it never reports nothing-left under a red build", async () => {
+    const parsed = parse(await readFile(TASK_TYPES, "utf-8")) as {
+      task_types: Record<string, { prompt_template: string }>;
+    };
+    const prompt = parsed.task_types["tdd-round"].prompt_template.replace(
+      /\s+/g,
+      " ",
+    );
+
+    expect({
+      outranksDod: prompt.includes(
+        "it outranks `.lore/dod.md`: a red build means the ticket is NOT done, however many facets are ticked",
+      ),
+      fixesAll: prompt.includes("Fix ALL of them in this visit, format, push"),
+      noNothingLeftUnderRed: prompt.includes(
+        "AND no `CI reported failures` section is appended",
+      ),
+    }).toEqual({
+      outranksDod: true,
+      fixesAll: true,
+      noNothingLeftUnderRed: true,
+    });
+  });
+});

@@ -8,6 +8,9 @@ export interface CiFeedback {
 /** How much of a CI report the prompt carries, matching the cap on every other appended failure. */
 const MAX_FEEDBACK_CHARS = 2500;
 
+/** The outcomes a CI wait reports a red build under: `changes_requested` sends the branch back to a round, `failed` (the sha already reported red) sends it to repair-build. Both carry the same feedback args, and gating on the first alone launched run 997026f5's repair-build with no verdict at all — it rebuilt the world to learn one lint error, and died doing it. */
+const RED_BUILD_OUTCOMES = new Set(["changes_requested", "failed"]);
+
 /** The CI verdict this launch should answer for, or null when the run did not arrive here from a red build. Gated on the INCOMING visit rather than on the args alone: the args persist on the run after they are acted on, and a later node must not be handed a verdict that has already been repaired. */
 export function ciFeedbackOf(
   visits: ReadonlyArray<{ nodeId: string; outcome: string | null }>,
@@ -16,7 +19,7 @@ export function ciFeedbackOf(
   const incoming = visits.filter((v) => v.outcome !== null).at(-1);
   const failedChecks = argText(args, "ci_failed_checks");
 
-  if (incoming?.outcome !== "changes_requested" || !failedChecks) {
+  if (!RED_BUILD_OUTCOMES.has(incoming?.outcome ?? "") || !failedChecks) {
     return null;
   }
 

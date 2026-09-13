@@ -1184,6 +1184,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/repos/{owner}/{repo}/ci-failures": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/repos/{owner}/{repo}/ci-failures */
+    get: operations["get_api_repos_owner_repo_ci-failures"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/ci-jobs/{job_id}/log": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/repos/{owner}/{repo}/ci-jobs/{job_id}/log */
+    get: operations["get_api_repos_owner_repo_ci-jobs_job_id_log"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/repos/{owner}/{repo}/commit": {
     parameters: {
       query?: never;
@@ -2509,6 +2543,26 @@ export interface components {
     };
     ChunkTypeList: {
       types: string[];
+    };
+    CiFailures: {
+      branch: string;
+      judged_sha: string | null;
+      /** @enum {string} */
+      conclusion: "success" | "failure" | "pending" | "none";
+      failures: {
+        name: string;
+        app: string | null;
+        job_id: number | null;
+        annotations: string[];
+        steps: string[];
+        tail: string[];
+      }[];
+    };
+    CiJobLog: {
+      job_id: number;
+      lines: string[];
+      total: number;
+      truncated: boolean;
     };
     ClusterAgentCatalogEvents: {
       /** @enum {string} */
@@ -6581,6 +6635,65 @@ export interface operations {
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_repos_owner_repo_ci-failures": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description What CI said about a branch: the judged sha, the verdict, and each failed check with its annotations, failed steps and log tail */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CiFailures"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_repos_owner_repo_ci-jobs_job_id_log": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+        job_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The tail of one GitHub Actions job's log, timestamps stripped, optionally filtered to lines containing grep */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CiJobLog"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };

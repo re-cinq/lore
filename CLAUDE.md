@@ -616,7 +616,12 @@ incidents in `lore_assemble_context` at priority 1.
 
 **Developer tools**: `lore_get_task_logs` MCP tool reads a task's
 execution transcript (no UI needed). `lore_my_usage` shows per-developer
-token usage (today/7-day/30-day).
+token usage (today/7-day/30-day). `lore_get_ci_failures` / `lore_get_ci_job_log`
+(`apps/mcp-server/src/transport/tools/ci-tools.ts`, served to agent pods too)
+report what CI said about the checked-out branch — judged sha, verdict, each
+failed check's annotations/steps/log tail — and one job's log tail, via
+`GET /api/repos/:o/:r/ci-failures` and `/ci-jobs/:job_id/log`; a pod reads
+the verdict instead of reproducing the build (run 997026f5 died at 1Gi doing that).
 
 **Autonomous review loop** (opt-in per repo via `auto_review` setting):
 - After implementation PR is created, watcher auto-creates a review
