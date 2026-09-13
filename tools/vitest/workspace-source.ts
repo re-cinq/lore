@@ -53,13 +53,14 @@ function readManifest(dir: string): PackageManifest {
 }
 
 function targetOf(target: string | { default?: string }): string {
-  const path = typeof target === "string" ? target : target.default;
+  return typeof target === "string"
+    ? target
+    : (target.default ?? unaliasable());
+}
 
-  if (path === undefined) {
-    throw new Error("an export with no default target cannot be aliased");
-  }
-
-  return path;
+/** An export condition with no `default` names nothing a test could import. */
+function unaliasable(): never {
+  throw new Error("an export with no default target cannot be aliased");
 }
 
 /** `./dist/x/y.js` → `./src/x/y.ts`; the wildcard survives the rewrite. */
