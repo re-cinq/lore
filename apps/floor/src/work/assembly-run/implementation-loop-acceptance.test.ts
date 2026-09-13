@@ -1,9 +1,11 @@
 import { describe, it, expect } from "vitest";
+import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 import { handleLoopRunClosed } from "../backlog/loop-run-closed.js";
 import {
   createLineHarness,
   resultEnvelope,
 } from "./line-acceptance-harness.js";
+import { podPromptOf } from "./pod-prompt-view.js";
 
 const short = (id: string) => id.substring(0, 12);
 
@@ -122,6 +124,34 @@ describe("implementation-loop acceptance: one ticket, cluster-free, walked throu
 
     expect(h.enqueued.at(-1)?.prompt).toContain(
       "These checks failed: lint, test:shared",
+    );
+    expect(podPromptOf(h.enqueued.at(-1) as LoreTaskSpec)).toContain(
+      "## CI reported failures on deadbeef",
+    );
+  });
+
+  it("tells the next round what the previous round reported it finished and left for next, so a round does not start cold", async () => {
+    const h = loopHarness();
+    const id = await h.start("implementation-loop", { taskId: "task-1" });
+
+    await h.completeAgentNode(id, "dod", { outcome: "success" });
+    await h.completeAgentNode(id, "open-pr", { outcome: "success" });
+    await h.completeAgentNode(id, "tdd-round", {
+      output: resultEnvelope(
+        'LORE_NODE_RESULT: {"outcome":"success","extras":{"Lore-Tdd-Done":"the cursor binds","Lore-Tdd-Next":"an empty log falls back to 0"}}',
+      ),
+    });
+    await h.resume(id, "await-ci", "changes_requested", {
+      args: {
+        reason: "ci_red",
+        ci_feedback_sha: "deadbeef",
+        ci_failed_checks: "agent",
+      },
+    });
+
+    expect(h.enqueued.at(-1)?.name).toBe(`${short(id)}-tdd-round-2`);
+    expect(podPromptOf(h.enqueued.at(-1) as LoreTaskSpec)).toContain(
+      "## The previous round reported\n\n- Done: the cursor binds\n- Next: an empty log falls back to 0",
     );
   });
 

@@ -10,6 +10,7 @@ import { type Transition } from "@re-cinq/lore-assembly-lines";
 import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import {
   incomingFailureOf,
+  roundHandoffOf,
   priorOutcomeOf,
   resolveNodeDispatch,
   type PriorFailure,
@@ -120,29 +121,39 @@ async function launchTransition(
   await launchNode({ ...step, dispatch, deps });
 }
 
-/** Resolved BEFORE the station_runs row is written, because the row RECORDS the dispatch — otherwise the prompt and round content exist only on an Agent CR that gets pruned. */
+/** Resolved BEFORE the station_runs row is written, because the row RECORDS the dispatch — otherwise the prompt and round content exist only on an Agent CR that gets pruned. The failure, CI and hand-off reads are how a retry learns why it runs again, what the build said about the last push, and what the previous round left for next. */
 async function dispatchForNode(
   step: LaunchStep,
   nodeId: string,
   deps: AdvanceDeps,
 ): ReturnType<typeof resolveNodeDispatch> {
-  const { node, visits } = step;
   const priorFailures = await priorFailuresIfAgent(step, nodeId, deps);
 
   return await resolveNodeDispatch(
-    {
-      node,
-      task: step.task,
-      iteration: step.iteration,
-      priorOutcome: priorOutcomeOf(visits, nodeId),
-      // How a retried node learns why it is running again instead of repeating itself.
-      incomingFailure: incomingFailureOf(visits),
-      // And how a round learns what the build said about the push before it.
-      ciFeedback: ciFeedbackOf(visits, step.task.args ?? {}),
-      priorFailures,
-    },
+    dispatchInput(step, nodeId, priorFailures),
     deps,
   );
+}
+
+/** Everything a dispatch is resolved from: the visit trail read four ways (retry cause, this node's own failures, the build's verdict, the previous round's hand-off). */
+function dispatchInput(
+  step: LaunchStep,
+  nodeId: string,
+  priorFailures: PriorFailure[] | undefined,
+): Parameters<typeof resolveNodeDispatch>[0] {
+  const { node, visits, task } = step;
+  const args = task.args ?? {};
+
+  return {
+    node,
+    task,
+    iteration: step.iteration,
+    priorOutcome: priorOutcomeOf(visits, nodeId),
+    incomingFailure: incomingFailureOf(visits),
+    ciFeedback: ciFeedbackOf(visits, args),
+    roundHandoff: roundHandoffOf(args),
+    priorFailures,
+  };
 }
 
 /** Fork chain included; only an agent's prompt reads it, only a fork pays the source-run reads. */

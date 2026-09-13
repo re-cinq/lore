@@ -2,7 +2,7 @@ import { describe, it, expect, afterAll, afterEach, beforeAll } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { buildNodePrompt, buildPrompt, loadTaskTypes } from "./config.js";
+import { buildPrompt, loadTaskTypes, renderNodePrompt } from "./config.js";
 
 const FIXTURES = mkdtempSync(join(tmpdir(), "lore-task-types-"));
 const CONFIG = join(FIXTURES, "task-types.yaml");
@@ -30,35 +30,29 @@ beforeAll(() => {
   loadTaskTypes(CONFIG);
 });
 
-describe("buildNodePrompt", () => {
-  it("returns the named recipe with the description substituted", () => {
-    expect(buildNodePrompt("push-only", "ship the spec")).toEqual(
+describe("renderNodePrompt", () => {
+  it("returns the resolved recipe with the description substituted", () => {
+    expect(
+      renderNodePrompt(
+        "push-only",
+        "Deliver the work already in the worktree, then git push.\nContext: {description}\n",
+        "ship the spec",
+      ),
+    ).toEqual(
       "Deliver the work already in the worktree, then git push.\nContext: ship the spec\n",
     );
   });
 
-  it("throws naming the missing recipe rather than running another one", () => {
-    expect(() => buildNodePrompt("no-such-recipe", "anything")).toThrow(
-      /no prompt template named "no-such-recipe"/,
+  it("throws naming the ref when the recipe resolved to nothing, rather than running another one", () => {
+    expect(() => renderNodePrompt("no-such-recipe", null, "anything")).toThrow(
+      /no prompt named "no-such-recipe"/,
     );
   });
 
-  it("lists the recipes it does know, so a typo is diagnosable from the error", () => {
-    expect(() => buildNodePrompt("push_only", "anything")).toThrow(
-      /known: general, push-only/,
+  it("throws on a recipe whose prompt is empty, the row shape a half-edited definition leaves", () => {
+    expect(() => renderNodePrompt("tdd-round", "", "anything")).toThrow(
+      /no prompt named "tdd-round"/,
     );
-  });
-
-  it("never substitutes the general recipe for an unknown node ref", () => {
-    let message = "";
-
-    try {
-      buildNodePrompt("missing", "ship the spec");
-    } catch (err) {
-      message = (err as Error).message;
-    }
-
-    expect(message).not.toContain("Complete the following task");
   });
 });
 
@@ -112,10 +106,8 @@ describe("loadTaskTypes drift reporting", () => {
   it("reads an entry with no body as empty rather than as null", () => {
     loadFixture("bodyless.yaml", "task_types:\n  general:\n");
 
-    expect(() => buildNodePrompt("general", "ship it")).toThrow(
-      new Error(
-        'task type "general" declares no prompt_template — the loaded task-types.yaml is older than this code',
-      ),
+    expect(buildPrompt("general", "ship it")).toEqual(
+      "Complete the following task: ship it",
     );
   });
 });
@@ -128,8 +120,8 @@ describe("a task description carrying $-replacement patterns", () => {
   });
 
   it("inserts $& verbatim into a node prompt", () => {
-    expect(buildNodePrompt("general", "match $& here")).toContain(
-      "Task: match $& here",
-    );
+    expect(
+      renderNodePrompt("general", "Task: {description}", "match $& here"),
+    ).toEqual("Task: match $& here");
   });
 });

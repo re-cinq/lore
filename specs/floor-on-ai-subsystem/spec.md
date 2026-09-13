@@ -150,7 +150,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
    name + extraLabels honoured), returns `launched:false` on a 409, runs the Agent on the per-task
    Station the provisioner returns (falling back to the catalog Station, skipping provisioning for a
    repo-less task), and resolves `isActive` by the task-id label (true while any matching Agent is
-   non-terminal, conservatively true when the probe fails). ([validated by `agent-watcher-logic.test.ts:14`](apps/floor/src/domain/agent-watcher-logic.test.ts#L18), [`agent-watcher-logic.test.ts:31`](apps/floor/src/domain/agent-watcher-logic.test.ts#L31), [`agent-backend.test.ts:47`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L47), [`agent-backend.test.ts:70`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L70), [`agent-backend.test.ts:87`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L87), [`agent-backend.test.ts:97`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L97), [`agent-backend.test.ts:118`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L118), [`agent-backend.test.ts:127`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L127), [`agent-backend.test.ts:136`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L136), [`agent-backend.test.ts:166`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L166), [`agent-backend.test.ts:172`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L172), [`agent-backend.test.ts:178`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L178), [`agent-backend.test.ts:184`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L184))
+   non-terminal, conservatively true when the probe fails). ([validated by `agent-watcher-logic.test.ts:14`](apps/floor/src/domain/agent-watcher-logic.test.ts#L18), [`agent-watcher-logic.test.ts:31`](apps/floor/src/domain/agent-watcher-logic.test.ts#L31), [`agent-backend.test.ts:47`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L47), [`agent-backend.test.ts:70`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L70), [`agent-backend.test.ts:87`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L97), [`agent-backend.test.ts:97`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L107), [`agent-backend.test.ts:118`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L128), [`agent-backend.test.ts:127`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L137), [`agent-backend.test.ts:136`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L146), [`agent-backend.test.ts:166`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L176), [`agent-backend.test.ts:172`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L182), [`agent-backend.test.ts:178`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L188), [`agent-backend.test.ts:184`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L194))
 
 6. A `Succeeded` `Agent` with pushed changes results in a PR carrying the `Lore-Task` footer; an
    `Agent` with no changes completes the task with no PR.
@@ -190,7 +190,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     (`success`/`failed`/`changes_requested`) via `stationNodeOutcome` in the Floor's node-event
     handler; a forced Floor restart loses nothing because the walk is derived from the persisted
     `pipeline.assembly_line_nodes` rows, not held in memory — the original lease-heartbeat +
-    stage-trailer-resume mechanics are retired (6-dark-factory FR6.9) ([validated by `node-outcome.test.ts:35`](libs/assembly-lines/src/node-outcome.test.ts#L34), [`advance-line.test.ts:379`](apps/floor/src/work/assembly-run/advance-line.test.ts#L379))
+    stage-trailer-resume mechanics are retired (6-dark-factory FR6.9) ([validated by `node-outcome.test.ts:35`](libs/assembly-lines/src/node-outcome.test.ts#L34), [`advance-line.test.ts:379`](apps/floor/src/work/assembly-run/advance-line.test.ts#L380))
 12. A `github-action` assembly line node dispatches the referenced GitHub Actions run and gates on its
     conclusion.
 13. The cutover is reversible: flipping the cluster gate off routes new tasks back to LoreTask with
@@ -233,7 +233,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
 20. `scripts/task-types.yaml` `stations:` seeds `def-<type>` AgentDefinition/Station pairs (exec
     model, `{station_input}` prompt, lore-station image via `.Values.stationImage`, deadline
     default 15); org rows seeded by migration 0027 (`execution_mode: 'station'`). The catalog
-    builder maps each agent recipe to an AgentDefinition (prompt + `{context}`, `permission_mode`,
+    builder maps each agent recipe to an AgentDefinition (a `{prompt}` + `{context}` template — the recipe body is rendered by the Floor into the `prompt` parameter, #2051 — `permission_mode`,
     `max_turns`, `ANTHROPIC_API_KEY` secret for the model key, the `lore` http `mcp_servers` entry —
     `headers_secret: lore-mcp-auth` — with `lore_create_pipeline_task` in `disallowed_tools` so the
     live run gets scoped Lore tools without a task-recursion vector, agent-events http sink; model
@@ -486,7 +486,7 @@ These statements pin the deterministic Floor glue that wraps the subsystem.
   Deliberate Boom 4xx/503 responses do not hit the channel and are unchanged. ([validated by `agent-logs.test.ts:97`](apps/floor/src/transport/http/routes/agent-logs.test.ts#L98))
 - **Recipe → CRD materialisation.** `agentDefToCrds` maps an `AgentDefinition` recipe to a paired
   Kubernetes `AgentDefinition` + `Station`: an AI recipe carries `permission_mode:"bypass"`,
-  `max_turns` from the shared `AGENT_MAX_TURNS` (200 — 40 capped every test-first implementation mid-task, 2026-08-28), a `{context}`-suffixed prompt, and — when an events URL is supplied — the http
+  `max_turns` from the shared `AGENT_MAX_TURNS` (200 — 40 capped every test-first implementation mid-task, 2026-08-28), a `{prompt}` template suffixed with `{context}` (never the recipe body, which the Floor renders into the `prompt` parameter, #2051), and — when an events URL is supplied — the http
   telemetry sink alongside stdout; model is omitted when the recipe inherits it, a recipe with no
   prompt is rejected outright (the subsystem refuses a promptless AgentDefinition at admission, so
   emitting one only moved the failure to the apply), deadline defaults to 30 and image to

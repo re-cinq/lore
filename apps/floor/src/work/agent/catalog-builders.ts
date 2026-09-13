@@ -1,5 +1,6 @@
 // Catalog seed builders (ADR-031, #698): maps task-types.yaml recipes to AgentDefinition + Station CRs, one Station per task type named by type. Pure + deterministic; the helm rendering lives in agent-catalog.ts and file IO in the gen-catalog CLI.
 
+import { PROMPT_SLOT } from "@re-cinq/lore-shared/project/agents/agent-crd.js";
 import type {
   AgentDefinition,
   Station,
@@ -100,20 +101,19 @@ export function buildAgentDefinition(
     apiVersion: API_VERSION,
     kind: "AgentDefinition",
     metadata: { name: taskType, labels: { ...SEED_LABELS } },
-    spec: agentSpec(taskType, cfg, cfg.prompt_template),
+    spec: agentSpec(taskType, cfg),
   };
 }
 
 function agentSpec(
   taskType: string,
   cfg: AgentCatalogConfig,
-  promptTemplate: string,
 ): NonNullable<AgentDefinition["spec"]> {
   return {
     description: `Lore ${taskType} task recipe (seeded).`,
     ...(cfg.model ? { model: cfg.model } : {}),
-    // Filled per run with CONTEXT_BOOTSTRAP — an instruction to assemble context, since nothing is fetched at dispatch.
-    prompt: `${promptTemplate.trimEnd()}\n\n{context}`,
+    // `{prompt}` is the Floor's fully rendered prompt (recipe + ticket + the CI verdict and failure blocks, #2051); `{context}` is filled per run with CONTEXT_BOOTSTRAP. The recipe body seeds the DB row the Floor renders from, never the template.
+    prompt: `${PROMPT_SLOT}\n\n{context}`,
     permission_mode: "bypass",
     max_turns: AGENT_MAX_TURNS,
     resources: agentResources(cfg),

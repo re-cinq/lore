@@ -1,5 +1,6 @@
 // Layer-3 handler for `kubernetes.agent_node.{succeeded,failed}` (FR6): parse outcome, record (CAS), advance the line. Since FR4's follow-up the event may already carry the CR's status (`params.status`, from cluster-agent); only an older cluster-agent's event falls through to the central read + reaper handoff.
 
+import { roundHandoffArgsOf } from "./launch-spec.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import {
   stationNodeOutcome,
@@ -277,11 +278,10 @@ export async function deliverTerminalArtifacts(
     Pick<NodeEventDeps, "deliveredChangeCount">,
 ): Promise<NodeResult> {
   const { args, missing } = artifactsFromTerminalOutput(rawStatus.output);
-
-  if (Object.keys(args).length > 0) {
-    await deps.assemblyRuns.mergeArgs(row.id, args);
-  }
   const result = stationNodeOutcome(node, normalizeAgentStatus(rawStatus));
+
+  // A round's hand-off rides its extras; merged with the artifacts so the next round's prompt can read it (FR6.17 args are the only channel a later node sees).
+  await mergeNodeArgs(row, args, result.extras, deps);
 
   if (result.outcome === "failed") {
     return result;
@@ -293,6 +293,19 @@ export async function deliverTerminalArtifacts(
 
   // A DELIVERING node that left the branch empty is not a success, whatever it printed — caught here rather than at push, since the next pod's fresh-clone validate would otherwise lint the whole tree for nothing (18/18 impl-loop branches, 2026-08-30). Retryable via the self-retry edge.
   return (await emptyDeliveryFailure(row, node, deps)) ?? result;
+}
+
+async function mergeNodeArgs(
+  row: AssemblyRunRecord,
+  artifacts: Record<string, string>,
+  extras: Readonly<Record<string, string>> | undefined,
+  deps: Pick<AdvanceDeps, "assemblyRuns">,
+): Promise<void> {
+  const args = { ...artifacts, ...roundHandoffArgsOf(extras) };
+
+  if (Object.keys(args).length > 0) {
+    await deps.assemblyRuns.mergeArgs(row.id, args);
+  }
 }
 
 async function emptyDeliveryFailure(

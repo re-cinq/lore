@@ -4,6 +4,7 @@ import type { ReadySpecTask } from "@re-cinq/lore-shared/project/tasks/task-queu
 import { anthropicCreditsExhausted } from "@re-cinq/lore-shared/llm/credit-probe.js";
 import { projectFor } from "../../outbound/project-boot.js";
 import { buildPrompt, getTaskTypeConfig } from "../../outbound/config.js";
+import { agentPrompt } from "../../outbound/agent-invocation.js";
 import { pipeline } from "../../outbound/queues.js";
 import { setStatus, insertEvent } from "./task-helpers.js";
 
@@ -138,12 +139,18 @@ async function runSpecTaskAgent(
   defaults: AgentDispatchDefaults,
 ): Promise<{ started: boolean }> {
   const project = await projectFor(task.target_repo);
+  // The resolved recipe (an Agents-UI edit included) wins over the yaml, as it does for every other dispatch; the pod renders what the Floor sends (#2051).
+  const recipe = await project.agentDefs.resolve("implementation");
 
   return await project.agents.run(task.id, {
     mode: "cluster",
     taskType: "implementation",
     description: brief.description,
-    prompt: buildPrompt("implementation", brief.description),
+    prompt: agentPrompt(
+      recipe?.prompt,
+      brief.description,
+      buildPrompt("implementation", brief.description),
+    ),
     branch: brief.branchName,
     model: defaults.model,
     timeoutMinutes: defaults.timeoutMinutes,

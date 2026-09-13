@@ -104,22 +104,23 @@ function llmSpec(
   };
 }
 
-/** {context} filled per run with CONTEXT_BOOTSTRAP; only true where the pod has a Lore MCP to call (#1629). */
+/** The template renders the `prompt` PARAMETER, not the recipe body: the Floor renders the recipe (resolved row → yaml) and appends the CI verdict and failure blocks, and until 2026-09-13 the template ignored that parameter and every appended block died on the CR (#2051). {context} is filled per run with CONTEXT_BOOTSTRAP; only where the pod has a Lore MCP to call (#1629). */
 function llmPrompt(
   def: ResolvedAgentDefinition,
   opts: CatalogCrdOptions,
 ): string {
-  // Unreachable: agentDefToCrds already ran validateCatalogEntry's promptless refusal; kept for the type narrowing below.
+  // Unreachable: agentDefToCrds already ran validateCatalogEntry's promptless refusal; kept because a row with no recipe body renders no prompt on the Floor either.
   enforceTrue(
     def.prompt,
     Error,
     `recipe ${def.name} has no prompt — the subsystem rejects a promptless AgentDefinition at admission`,
   );
 
-  return opts.mcpUrl
-    ? `${def.prompt.trimEnd()}\n\n{context}`
-    : def.prompt.trimEnd();
+  return opts.mcpUrl ? `${PROMPT_SLOT}\n\n{context}` : PROMPT_SLOT;
 }
+
+/** The one placeholder the Floor fills with the fully rendered prompt (`agentParameters` in agent-backend.ts). */
+export const PROMPT_SLOT = "{prompt}";
 
 function llmResources(
   def: ResolvedAgentDefinition,
