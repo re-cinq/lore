@@ -1,7 +1,10 @@
 import { defineConfig } from "vitest/config";
+import { workspaceSourceAliases } from "../../tools/vitest/workspace-source.js";
 
 // Excludes dist/** (compiled duplicates) so the suite doesn't need `npm run build` first to avoid stale compiled tests — matches shared/agent/mcp configs.
 export default defineConfig({
+  // Tests read workspace packages from source: a test never needs a build (tools/vitest/workspace-source.ts).
+  resolve: { alias: workspaceSourceAliases() },
   test: {
     globals: true,
     environment: "node",

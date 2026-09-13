@@ -359,7 +359,11 @@ resolve inside the worktree instead of escaping to the main checkout's
 runs it automatically, but only when the checkout has no `node_modules` yet —
 first session in a fresh worktree, never again after. After editing
 `libs/*/src`, rerun it yourself so package-level `tsc --noEmit` sees the fresh
-types (vitest reads source, tsc reads `dist`).
+types (tsc reads `dist`). **Tests never need a build**: every package's vitest
+config resolves `@re-cinq/lore-*` imports to the package's `src` through
+`tools/vitest/workspace-source.ts` (aliases derived from each export map), so a
+change in `libs/shared` is visible to a Floor test without rebuilding — the
+rebuild is the 950 MB step that OOM-killed agent pods on 2026-09-13.
 
 ## GKE Deployment
 
