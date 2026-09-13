@@ -39,7 +39,7 @@ performed in #1933 — `DROP INDEX <schema>.<schema>_chunks_search_idx` and
 
 ## Facets
 
-- [ ] Baseline (`scripts/infra/setup-db.sh` for the cluster, and the mirrored
+- [x] Baseline (`scripts/infra/setup-db.sh` for the cluster, and the mirrored
   block + ownership-reconcile loop in `scripts/infra/setup-local-schema.sh`)
   hands each `<team>.chunks` table — and thus its indexes — to `lore`, e.g. by
   extending the ownership-reconcile loop to the team schemas or an explicit
