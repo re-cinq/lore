@@ -1,4 +1,5 @@
 import { defineConfig } from "vitest/config";
+import { workspaceSourceAliases } from "../../tools/vitest/workspace-source.js";
 
 // Probes the local Dgraph the same way the container-gated integration suites do, so the config can react.
 async function dgraphReachable(): Promise<boolean> {
@@ -17,6 +18,8 @@ export default defineConfig(async () => {
   const dgraphUp = await dgraphReachable();
 
   return {
+    // Tests read workspace packages from source: a test never needs a build (tools/vitest/workspace-source.ts).
+    resolve: { alias: workspaceSourceAliases() },
     test: {
       globals: true,
       environment: "node",

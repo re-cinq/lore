@@ -181,7 +181,7 @@ describe("the implementation-tdd recipe", () => {
     ).toContain("run ONLY that");
   });
 
-  it("tells every delivering recipe not to typecheck in the pod: CI's build step proves compilation, and tsc on libs/shared peaks near 950 MB against 1Gi", () => {
+  it("tells every delivering recipe not to typecheck or build in the pod: CI's build step proves compilation, tests read source, and tsc on libs/shared peaks near 950 MB against 1Gi", () => {
     const parsed = parseTaskTypesFile(COMMITTED);
 
     for (const name of DELIVERING_PROMPT_REFS) {
@@ -191,6 +191,7 @@ describe("the implementation-tdd recipe", () => {
       );
 
       expect(prompt, name).toContain("Do NOT typecheck here either");
+      expect(prompt, name).toContain("NEVER run a workspace build in this pod");
       expect(prompt, name).not.toContain("npx tsc --noEmit");
     }
   });
