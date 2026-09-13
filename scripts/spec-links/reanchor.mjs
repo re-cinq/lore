@@ -283,7 +283,7 @@ function applyEdits(markdown, edits) {
   for (const { link, line } of [...edits].sort(
     (a, b) => b.link.start - a.link.start,
   )) {
-    const label = BASENAME_LABEL.test(link.label)
+    const label = BASENAME_LABEL.test(stripPrefix(link.label))
       ? link.label.replace(/:\d+(`?)$/, `:${line}$1`)
       : link.label;
 

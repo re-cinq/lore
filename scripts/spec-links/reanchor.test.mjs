@@ -172,3 +172,19 @@ test("leaves links to test files outside the branch's scope untouched, however s
   assert.equal(content, md);
   assert.deepEqual(changes, []);
 });
+
+test("rewrites the NN of a basename label that carries the validated-by prefix, not only a bare one", () => {
+  const md = "([validated by `y.test.ts:7`](libs/x/y.test.ts#L7))";
+  const hunks = parseHunks("@@ -5,0 +6,4 @@");
+  const base = [{ label: "validated by `y.test.ts:7`", line: 7 }];
+  const { content } = reanchorMarkdown(
+    md,
+    "specs/a/spec.md",
+    io({ baseLinks: () => base, hunksFor: () => hunks }),
+  );
+
+  assert.equal(
+    content,
+    "([validated by `y.test.ts:11`](libs/x/y.test.ts#L11))",
+  );
+});
