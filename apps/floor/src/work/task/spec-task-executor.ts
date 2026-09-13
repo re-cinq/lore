@@ -1,5 +1,6 @@
 /** Every minute, picks up ready spec-tasks and dispatches an Agent CR (ADR-031) to implement each, limited to 3 concurrent dispatches per task_group_id. */
 import type { ReadySpecTask } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
+import type { Project } from "@re-cinq/lore-shared";
 
 import { anthropicCreditsExhausted } from "@re-cinq/lore-shared/llm/credit-probe.js";
 import { projectFor } from "../../outbound/project-boot.js";
@@ -139,23 +140,31 @@ async function runSpecTaskAgent(
   defaults: AgentDispatchDefaults,
 ): Promise<{ started: boolean }> {
   const project = await projectFor(task.target_repo);
-  // The resolved recipe (an Agents-UI edit included) wins over the yaml, as it does for every other dispatch; the pod renders what the Floor sends (#2051).
-  const recipe = await project.agentDefs.resolve("implementation");
 
   return await project.agents.run(task.id, {
     mode: "cluster",
     taskType: "implementation",
     description: brief.description,
-    prompt: agentPrompt(
-      recipe?.prompt,
-      brief.description,
-      buildPrompt("implementation", brief.description),
-    ),
+    prompt: await specTaskPrompt(project, brief.description),
     branch: brief.branchName,
     model: defaults.model,
     timeoutMinutes: defaults.timeoutMinutes,
     extraLabels: specTaskLabels(brief),
   });
+}
+
+/** The resolved recipe (an Agents-UI edit included) wins over the yaml, as it does for every other dispatch; the pod renders what the Floor sends (#2051). */
+async function specTaskPrompt(
+  project: Project,
+  description: string,
+): Promise<string> {
+  const recipe = await project.agentDefs.resolve("implementation");
+
+  return agentPrompt(
+    recipe?.prompt,
+    description,
+    buildPrompt("implementation", description),
+  );
 }
 
 /** The CR's metadata labels. extraLabels is spread last by the agent runner, so task-type here overrides the recipe's "implementation". */
