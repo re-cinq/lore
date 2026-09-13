@@ -198,3 +198,18 @@ describe("substituteSelector", () => {
     ).toBe("vitest run a.test.ts::keeps {selector} --coverage");
   });
 });
+
+describe("decideTestInterfaceCheck — workflow file independence", () => {
+  it("scaffolds only the workflow file when the manifest is declared but lore-tests.yml is absent", () => {
+    expect(
+      decideTestInterfaceCheck({
+        manifestFileDeclared: true,
+        workflowFileDeclared: false,
+        settingsTestCommands: null,
+      }),
+    ).toEqual({
+      status: "scaffold",
+      files: [".github/workflows/lore-tests.yml"],
+    });
+  });
+});
