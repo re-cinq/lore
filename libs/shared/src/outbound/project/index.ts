@@ -125,11 +125,10 @@ export type {
   AgentRunOpts,
 } from "./agents/agent-runner-port.js";
 export { Agents } from "./agents/agents.js";
-export { AgentDefs } from "./agents/agent-defs.js";
+export { AgentDefs, AgentDefsWriter } from "./agents/agent-defs.js";
 export type {
   AgentDefinition,
   AgentDefinitionInput,
-  AgentDefsPort,
   AgentDefsReadPort,
   AgentDefsWritePort,
 } from "./agents/agent-defs-port.js";

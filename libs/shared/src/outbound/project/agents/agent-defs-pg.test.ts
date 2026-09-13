@@ -4,12 +4,12 @@ import {
   qualifiedStationRef,
   updateOrgDefinition,
 } from "./agent-defs-pg.js";
-import type { AgentDefsPort } from "./agent-defs-port.js";
+import type { AgentDefsWritePort } from "./agent-defs-port.js";
 import type { PgPool } from "../../memory-store.js";
 
 type Row = Record<string, unknown>;
 
-const yamlBase: AgentDefsPort = {
+const yamlBase: AgentDefsWritePort = {
   resolve: async (_repo, name) =>
     name === "general"
       ? {

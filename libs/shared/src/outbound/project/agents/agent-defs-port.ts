@@ -44,9 +44,6 @@ export interface AgentDefsWritePort extends AgentDefsReadPort {
   delete(repo: string, name: string): Promise<void>;
 }
 
-/** @deprecated Prefer AgentDefsReadPort (runner adapters) or AgentDefsWritePort (pg adapter). */
-export type AgentDefsPort = AgentDefsWritePort;
-
 const pick = <T>(...layers: (T | null | undefined)[]): T | null => {
   for (const v of layers) {
     if (v !== null && v !== undefined) {
