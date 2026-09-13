@@ -52,15 +52,18 @@ export function decideTestInterfaceCheck(sources: {
   const declared =
     sources.manifestFileDeclared ||
     isManifestDeclared({ settings: sources.settingsTestCommands });
+
   if (!declared) {
     return {
       status: "scaffold",
       files: [".lore/test-commands.yml", WORKFLOW_FILE],
     };
   }
+
   if (!sources.workflowFileDeclared) {
     return { status: "scaffold", files: [WORKFLOW_FILE] };
   }
+
   return { status: "configured" };
 }
 
