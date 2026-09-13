@@ -17,9 +17,11 @@ function fakePool(...results: Array<{ rows: unknown[] }>): {
   const pool = {
     async query(text: string, params?: unknown[]) {
       calls.push({ text, params });
+
       return queue.length > 1 ? queue.shift()! : (queue[0] ?? { rows: [] });
     },
   };
+
   return { pool: pool as unknown as Pool, calls };
 }
 
@@ -33,6 +35,7 @@ describe("hybridSearch defects (not yet fixed — must stay red until ported fro
     await hybridSearch("how does auto-merge decide to squash", ORG_SHARED, 3);
 
     const hybridSql = calls[1]?.text ?? "";
+
     expect(hybridSql).toContain("websearch_to_tsquery");
     expect(hybridSql).not.toContain("plainto_tsquery");
   });

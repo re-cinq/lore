@@ -80,6 +80,23 @@ export interface SearchResult {
 
 // ── Hybrid search (RRF) ──────────────────────────────────────────────
 
+async function runHybridSQL(
+  embedding: number[],
+  keywordQuery: string,
+  schema: string,
+  limit: number,
+): Promise<SearchResult[]> {
+  const embeddingStr = `[${embedding.join(",")}]`;
+  const sql = buildHybridSearchSQL(schema);
+  const { rows } = await getPool().query(sql, [
+    embeddingStr,
+    keywordQuery,
+    limit,
+  ]);
+
+  return normalizeSearchScores(rows as SearchResult[]);
+}
+
 export async function hybridSearch(
   query: string,
   schema: string,
@@ -89,27 +106,16 @@ export async function hybridSearch(
     return [];
   }
 
-  // Unknown schema falls back to org_shared; provisioned team schemas read directly.
   const resolvedSchema = await chunkSchemaOrOrgShared(getPool(), schema);
-
-  // Get query embedding from Vertex AI
   const embedding = await getQueryEmbedding(query);
 
   if (!embedding) {
     return keywordOnlySearch(query, resolvedSchema, limit);
   }
 
-  // Full hybrid search (vector + keyword)
-  const embeddingStr = `[${embedding.join(",")}]`;
   const keywordQuery = extractKeyTerms(query).join(" OR ") || query;
-  const sql = buildHybridSearchSQL(resolvedSchema);
-  const { rows } = await getPool().query(sql, [
-    embeddingStr,
-    keywordQuery,
-    limit,
-  ]);
 
-  return normalizeSearchScores(rows as SearchResult[]);
+  return runHybridSQL(embedding, keywordQuery, resolvedSchema, limit);
 }
 
 // Keyword-only, for when no embedding could be obtained. Degraded rather than empty: a repo whose embeddings are unavailable still answers a search, and the caller cannot tell the difference except in ranking.
