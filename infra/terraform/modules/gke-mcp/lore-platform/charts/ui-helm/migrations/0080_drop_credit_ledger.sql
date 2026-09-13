@@ -1,4 +1,4 @@
--- 0078_drop_credit_ledger: drop pipeline.credit_ledger now that the
+-- 0080_drop_credit_ledger: drop pipeline.credit_ledger now that the
 -- spend-balance feature is retired.
 --
 -- The operator-recorded credit balance was removed from /spend
