@@ -169,6 +169,8 @@ export interface PullRequestsPort {
   ): Promise<void>;
   /** Takes a PR out of draft (starts code review); GraphQL-only (REST has no draft field), idempotent since GitHub errors the mutation on an already-ready PR. */
   markReady(repo: string, number: number): Promise<void>;
+  /** Closes a pull request without merging it. */
+  close(repo: string, number: number): Promise<void>;
   // reads
   getDiff(repo: string, number: number): Promise<string>;
   listReviews(repo: string, number: number): Promise<PullReview[]>;

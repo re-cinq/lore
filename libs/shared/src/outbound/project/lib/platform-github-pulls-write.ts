@@ -185,6 +185,22 @@ export async function update(
   });
 }
 
+export async function close(
+  ok: Octokit,
+  repo: string,
+  number: number,
+): Promise<void> {
+  const [owner, name] = split(repo);
+  const { pulls } = ok.rest;
+
+  await pulls.update({
+    owner,
+    repo: name,
+    pull_number: number,
+    state: "closed",
+  });
+}
+
 export async function markReady(
   ok: Octokit,
   repo: string,

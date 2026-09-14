@@ -373,7 +373,8 @@ task_types:
         dies with it — do NOT report success for one.
       - If you genuinely changed nothing, say why and end your final message
         with the line `LORE_NODE_RESULT: {"outcome":"failed"}` so the line does
-        not validate an empty branch.
+        not validate an empty branch — unless the ticket is already resolved,
+        which has its own line below.
       - Do not open a pull request: you have no `gh` and no GitHub token. Lore
         opens the PR from the branch you push.
 
@@ -393,6 +394,16 @@ task_types:
         ticket and the wrong answer for a hard one. The Lore-Dod-Blocked line is
         posted verbatim on the issue as the request for a rewrite, so write it
         for the ticket's author: what is missing, not what you tried.
+      - The ticket's central claim is ALREADY TRUE on the branch's base: the
+        behaviour it asks for is present on `origin/main` (a merged sibling
+        pull request, a commit naming the issue), so no honest red test
+        exists and nothing is owed. Write no tests and commit nothing. Name
+        what resolved it — the commit or pull request — then:
+        LORE_NODE_RESULT: {"outcome":"changes_requested","extras":{"Lore-Dod-Resolved":"<one line: what already resolved it, naming the commit or PR>"}}
+        This CLOSES the ticket and its draft pull request, with your line
+        posted as the reason, so write it for whoever reads the issue later.
+        A ticket that is partly done is not resolved: that is a DoD for the
+        remaining part, not this line.
 
       Ticket: {description}
     target_repo: null

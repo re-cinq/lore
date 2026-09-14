@@ -18,6 +18,8 @@ export interface ParkVerdict {
   why: string;
   askForRewrite: boolean;
   deferral?: Deferral;
+  /** The definition-of-done step found the ticket's claim already true on the base branch: close, do not park. */
+  resolved?: string;
 }
 
 /** Failure classes that say nothing about the ticket: no pod ever ran, or the pod died under it. Re-running the previous node cannot summon a cluster (#1648), but the NEXT tick can. */

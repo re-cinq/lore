@@ -464,10 +464,10 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 
 ### `libs/shared/src/outbound/project/pulls/pull-requests.test.ts`
 
-- lists only the repo's pull requests. ([validated by](libs/shared/src/outbound/project/pulls/pull-requests.test.ts#L97))
-- merges by number with the requested method bound to the repo. ([validated by](libs/shared/src/outbound/project/pulls/pull-requests.test.ts#L133))
-- exposes PR reads bound to the repo and number. ([validated by](libs/shared/src/outbound/project/pulls/pull-requests.test.ts#L142))
-- delegates listReviewThreads repo-bound and resolveReviewThread by node id. ([validated by](libs/shared/src/outbound/project/pulls/pull-requests.test.ts#L161))
+- lists only the repo's pull requests. ([validated by](libs/shared/src/outbound/project/pulls/pull-requests.test.ts#L106))
+- merges by number with the requested method bound to the repo. ([validated by](libs/shared/src/outbound/project/pulls/pull-requests.test.ts#L142))
+- exposes PR reads bound to the repo and number. ([validated by](libs/shared/src/outbound/project/pulls/pull-requests.test.ts#L151))
+- delegates listReviewThreads repo-bound and resolveReviewThread by node id. ([validated by](libs/shared/src/outbound/project/pulls/pull-requests.test.ts#L170))
 
 ### `libs/shared/src/work/review/review-reply.test.ts`
 
