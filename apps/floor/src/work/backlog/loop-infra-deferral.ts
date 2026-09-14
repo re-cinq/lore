@@ -25,7 +25,7 @@ export interface ParkVerdict {
 /** Failure classes that say nothing about the ticket: no pod ever ran, or the pod died under it. Re-running the previous node cannot summon a cluster (#1648), but the NEXT tick can. */
 const INFRA_CLASSES = new Set(["unclaimed", "infra"]);
 
-/** A run whose failing visit failed on the cluster rather than on the work. The failing visit is the one that routed into the retrospective when the walk reached it (a reaped round routes its failure there, and the retrospective's own success must not hide it — run eb46675f), otherwise the last recorded one. */
+/** A run whose failing visit failed on the cluster rather than on the work. The failing visit is the one that routed into a retrospective that succeeded (a reaped round routes its failure there, and the retrospective's own success must not hide it — run eb46675f), otherwise the last recorded one, a retrospective that itself failed included. */
 export function isInfraFailure(
   run: ClosedLoopRun,
   visits: readonly StationVisit[],
@@ -43,7 +43,8 @@ function failingVisit(
 ): StationVisit | undefined {
   const last = visits.findLast((visit) => visit.outcome !== null);
   const endedInRetrospective =
-    last !== undefined && nodeIdsOfType(run, "retrospective").has(last.nodeId);
+    last?.outcome === "success" &&
+    nodeIdsOfType(run, "retrospective").has(last.nodeId);
 
   return endedInRetrospective
     ? (routedIntoRetrospective(run, visits) ?? undefined)

@@ -328,6 +328,25 @@ describe("handleLoopRunClosed", () => {
     expect(ticks).toEqual(["acme/widgets"]);
   });
 
+  it("defers a ticket whose retrospective itself died on the cluster after a successful round: no label and attempt 1 of 3", async () => {
+    const { d, labeled, comments } = deps([
+      { nodeId: "dod", iteration: 1, outcome: "success" },
+      { nodeId: "tdd-round", iteration: 1, outcome: "success" },
+      {
+        nodeId: "retrospective",
+        iteration: 1,
+        outcome: "failed",
+        failureClass: "infra",
+        failureDetail: "BackoffLimitExceeded",
+      },
+    ]);
+
+    await handleLoopRunClosed(run(), "failed", "pod died", d);
+
+    expect(labeled).toEqual([]);
+    expect(comments[0]?.body).toContain("infrastructure attempt 1 of 3");
+  });
+
   it("parks the ticket on the third infrastructure failure within a day, naming the count", async () => {
     const { d, labeled, comments } = deps(
       [
