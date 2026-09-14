@@ -79,6 +79,79 @@ describe("InMemorySettings.renameRepo", () => {
     ]);
   });
 
+  it("points re-cinq/the-expert-ui's cross-repo link at re-cinq/HALEngine when re-cinq/HAL-engine is renamed in place", async () => {
+    const port = new InMemorySettings([
+      { id: OLD_ID, full_name: "re-cinq/HAL-engine" },
+      {
+        full_name: "re-cinq/the-expert-ui",
+        settings: {
+          cross_repo: true,
+          cross_repo_repos: ["re-cinq/HAL-engine", "re-cinq/the-expert-api"],
+        },
+      },
+    ]);
+
+    await port.renameRepo("re-cinq/HAL-engine", "re-cinq/HALEngine");
+
+    expect(await port.rawSettings("re-cinq/the-expert-ui")).toEqual({
+      cross_repo: true,
+      cross_repo_repos: ["re-cinq/HALEngine", "re-cinq/the-expert-api"],
+    });
+  });
+
+  it("merges re-cinq/HAL-engine's cross-repo settings into a re-cinq/HALEngine row that has none, and repoints the link back to it", async () => {
+    const port = new InMemorySettings([
+      {
+        id: OLD_ID,
+        full_name: "re-cinq/HAL-engine",
+        settings: {
+          cross_repo: true,
+          cross_repo_repos: ["re-cinq/the-expert-ui"],
+        },
+      },
+      { id: NEW_ID, full_name: "re-cinq/HALEngine" },
+      {
+        full_name: "re-cinq/the-expert-ui",
+        settings: {
+          cross_repo: true,
+          cross_repo_repos: ["re-cinq/HAL-engine", "re-cinq/HALEngine"],
+        },
+      },
+    ]);
+
+    await port.renameRepo("re-cinq/HAL-engine", "re-cinq/HALEngine");
+
+    expect(await port.rawSettings("re-cinq/HALEngine")).toEqual({
+      cross_repo: true,
+      cross_repo_repos: ["re-cinq/the-expert-ui"],
+    });
+    expect(await port.rawSettings("re-cinq/the-expert-ui")).toEqual({
+      cross_repo: true,
+      cross_repo_repos: ["re-cinq/HALEngine"],
+    });
+  });
+
+  it("keeps re-cinq/HALEngine's own settings when both rows carry some", async () => {
+    const port = new InMemorySettings([
+      {
+        id: OLD_ID,
+        full_name: "re-cinq/HAL-engine",
+        settings: { cross_repo: true },
+      },
+      {
+        id: NEW_ID,
+        full_name: "re-cinq/HALEngine",
+        settings: { implementation_loop: { enabled: true } },
+      },
+    ]);
+
+    await port.renameRepo("re-cinq/HAL-engine", "re-cinq/HALEngine");
+
+    expect(await port.rawSettings("re-cinq/HALEngine")).toEqual({
+      implementation_loop: { enabled: true },
+    });
+  });
+
   it("returns absent and keeps re-cinq/lore when re-cinq/HAL-engine has no row", async () => {
     const port = new InMemorySettings([{ full_name: "re-cinq/lore" }]);
 
@@ -108,6 +181,10 @@ describe("PgSettings.renameRepo", () => {
         text: expect.stringContaining("UPDATE lore.repos"),
         params: [OLD_ID, "re-cinq", "HALEngine", "re-cinq/HALEngine"],
       },
+      {
+        text: expect.stringContaining("cross_repo_repos"),
+        params: ["re-cinq/HAL-engine", "re-cinq/HALEngine"],
+      },
       { text: "COMMIT" },
     ]);
   });
@@ -132,8 +209,16 @@ describe("PgSettings.renameRepo", () => {
         params: [OLD_ID, NEW_ID],
       },
       {
+        text: expect.stringContaining("SET settings = source.settings"),
+        params: [OLD_ID, NEW_ID],
+      },
+      {
         text: expect.stringContaining("DELETE FROM lore.repos"),
         params: [OLD_ID],
+      },
+      {
+        text: expect.stringContaining("cross_repo_repos"),
+        params: ["re-cinq/HAL-engine", "re-cinq/HALEngine"],
       },
       { text: "COMMIT" },
     ]);

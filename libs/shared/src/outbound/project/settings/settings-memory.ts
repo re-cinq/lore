@@ -13,6 +13,10 @@ import type {
 } from "./settings-port.js";
 
 /** A seeded `lore.repos` row for the in-memory settings double. */
+function hasSettings(settings: SeedRepo["settings"]): boolean {
+  return Boolean(settings) && Object.keys(settings ?? {}).length > 0;
+}
+
 export interface SeedRepo {
   id?: string;
   onboarding_pr_url?: string | null;
@@ -242,21 +246,50 @@ export class InMemorySettings implements SettingsPort {
     if (!source) {
       return "absent";
     }
+    const outcome = target
+      ? this.mergeRepoRows(source, target)
+      : this.renameRowInPlace(source, to);
 
-    if (!target) {
-      source.full_name = to;
+    this.repointCrossRepoLinks(from, to);
 
-      return "renamed";
-    }
+    return outcome;
+  }
+
+  private renameRowInPlace(source: SeedRepo, to: string): RepoRenameOutcome {
+    source.full_name = to;
+
+    return "renamed";
+  }
+
+  private mergeRepoRows(source: SeedRepo, target: SeedRepo): RepoRenameOutcome {
     const targetNames = target.agent_definitions ?? [];
     const moved = (source.agent_definitions ?? []).filter(
       (name) => !targetNames.includes(name),
     );
 
     target.agent_definitions = [...targetNames, ...moved];
+    target.settings = hasSettings(target.settings)
+      ? target.settings
+      : source.settings;
     this.repos.splice(this.repos.indexOf(source), 1);
 
     return "merged";
+  }
+
+  /** Cross-repo links are stored on both sides by name, so every list naming the old repo is pointed at the new one. */
+  private repointCrossRepoLinks(from: string, to: string): void {
+    for (const repo of this.repos) {
+      const links = repo.settings?.cross_repo_repos;
+
+      if (Array.isArray(links) && links.includes(from)) {
+        repo.settings = {
+          ...repo.settings,
+          cross_repo_repos: [
+            ...new Set(links.map((link) => (link === from ? to : link))),
+          ],
+        };
+      }
+    }
   }
 
   async bumpOutcomeStats(

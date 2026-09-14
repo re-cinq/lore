@@ -9,7 +9,11 @@
 -- webhook renames the row in place (or merges it, as here); this folds the
 -- pair that already exists. The old row's per-repo agent definitions move to
 -- the new row unless it already has one of that name; the rest cascade with
--- the old row. A no-op when either row is absent, so re-running is free.
+-- the old row. The new row inherits the old row's settings only when it has
+-- none of its own, which is the case here (the old row carried the cross-repo
+-- link to re-cinq/the-expert-ui), and every cross_repo_repos list naming the
+-- old repo is pointed at the new one, since those links are stored on both
+-- sides. A no-op when either row is absent, so re-running is free.
 
 DO $$
 DECLARE
@@ -30,5 +34,18 @@ BEGIN
                       WHERE kept.project_id = current_id
                         AND kept.name = moved.name);
 
+  UPDATE lore.repos target
+     SET settings = source.settings
+    FROM lore.repos source
+   WHERE source.id = stale_id AND target.id = current_id
+     AND (target.settings IS NULL OR target.settings = '{}'::jsonb);
+
   DELETE FROM lore.repos WHERE id = stale_id;
+
+  UPDATE lore.repos
+     SET settings = jsonb_set(settings, '{cross_repo_repos}',
+           (SELECT jsonb_agg(DISTINCT CASE WHEN link = to_jsonb('re-cinq/HAL-engine'::text)
+                                           THEN to_jsonb('re-cinq/HALEngine'::text) ELSE link END)
+              FROM jsonb_array_elements(settings->'cross_repo_repos') AS link))
+   WHERE settings->'cross_repo_repos' @> jsonb_build_array('re-cinq/HAL-engine'::text);
 END$$;

@@ -33,6 +33,20 @@ const LOCK_RENAME_ROWS_SQL =
 const RENAME_REPO_ROW_SQL =
   "UPDATE lore.repos SET owner = $2, name = $3, full_name = $4 WHERE id = $1";
 
+const INHERIT_EMPTY_SETTINGS_SQL = `UPDATE lore.repos target
+    SET settings = source.settings
+   FROM lore.repos source
+  WHERE source.id = $1 AND target.id = $2
+    AND (target.settings IS NULL OR target.settings = '{}'::jsonb)`;
+
+/** Cross-repo links are stored on both sides by name; each list naming the old repo is rewritten to the new one, without duplicating it. */
+const REPOINT_CROSS_REPO_LINKS_SQL = `UPDATE lore.repos
+    SET settings = jsonb_set(settings, '{cross_repo_repos}',
+          (SELECT jsonb_agg(DISTINCT CASE WHEN link = to_jsonb($1::text)
+                                          THEN to_jsonb($2::text) ELSE link END)
+             FROM jsonb_array_elements(settings->'cross_repo_repos') AS link))
+  WHERE settings->'cross_repo_repos' @> jsonb_build_array($1::text)`;
+
 const MOVE_AGENT_DEFINITIONS_SQL = `UPDATE lore.agent_definitions moved
     SET project_id = $2
   WHERE moved.project_id = $1
@@ -54,10 +68,13 @@ async function renameRepoRow(
   if (!source) {
     return "absent";
   }
+  const outcome = target
+    ? await mergeRepoRows(db, source.id, target.id)
+    : await renameRepoRowInPlace(db, source.id, to);
 
-  return target
-    ? mergeRepoRows(db, source.id, target.id)
-    : renameRepoRowInPlace(db, source.id, to);
+  await db.query(REPOINT_CROSS_REPO_LINKS_SQL, [from, to]);
+
+  return outcome;
 }
 
 async function renameRepoRowInPlace(
@@ -72,13 +89,14 @@ async function renameRepoRowInPlace(
   return "renamed";
 }
 
-/** The new row keeps its own definition where both rows define one name; the old row's leftovers cascade with it. */
+/** The new row keeps its own definition where both rows define one name, and its own settings unless it has none; the old row's leftovers cascade with it. */
 async function mergeRepoRows(
   db: PgPool,
   sourceId: string,
   targetId: string,
 ): Promise<RepoRenameOutcome> {
   await db.query(MOVE_AGENT_DEFINITIONS_SQL, [sourceId, targetId]);
+  await db.query(INHERIT_EMPTY_SETTINGS_SQL, [sourceId, targetId]);
   await db.query("DELETE FROM lore.repos WHERE id = $1", [sourceId]);
 
   return "merged";
