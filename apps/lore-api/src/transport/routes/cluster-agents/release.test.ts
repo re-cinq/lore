@@ -5,7 +5,11 @@ import {
   hashAgentToken,
   mintAgentToken,
 } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agent-token.js";
-import { handleRelease } from "./release.js";
+import type {
+  StationRunRelease,
+  StationRunReleaseResult,
+} from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
+import { handleRelease, launchAttemptsFromEnv } from "./release.js";
 
 const REGISTRATION = (tokenHash: string) => ({
   name: "gpu-box-1",
@@ -24,10 +28,16 @@ async function registered() {
   return { agents, agent, token };
 }
 
-function runs(requeued: string[], { answer = true }: RunsAnswer = {}) {
+function runs(
+  released: Array<{ nodeRowId: string; release: StationRunRelease }>,
+  { answer = "requeued" }: RunsAnswer = {},
+) {
   return {
-    requeueStationRun: async (nodeRowId: string) => {
-      requeued.push(nodeRowId);
+    releaseStationRun: async (
+      nodeRowId: string,
+      release: StationRunRelease,
+    ) => {
+      released.push({ nodeRowId, release });
 
       return answer;
     },
@@ -35,17 +45,61 @@ function runs(requeued: string[], { answer = true }: RunsAnswer = {}) {
 }
 
 describe("handleRelease", () => {
-  it("requeues the visit a claimant could not launch", async () => {
+  it("requeues a visit whose launch error is not permanent, under a bound of 3 attempts", async () => {
     const { agents, agent, token } = await registered();
-    const requeued: string[] = [];
+    const released: Array<{ nodeRowId: string; release: StationRunRelease }> =
+      [];
 
     expect(
-      await handleRelease({ agents, runs: runs(requeued) }, token, agent.id, {
+      await handleRelease({ agents, runs: runs(released) }, token, agent.id, {
         node_row_id: "412",
         reason: "GitHub not configured",
       }),
     ).toEqual({ code: 200, body: { status: "requeued" } });
-    expect(requeued).toEqual(["412"]);
+    expect(released).toEqual([
+      {
+        nodeRowId: "412",
+        release: {
+          reason: "GitHub not configured",
+          failureClass: "unknown",
+          permanent: false,
+          maxAttempts: 3,
+        },
+      },
+    ]);
+  });
+
+  it("fails at once a visit whose installation token was refused, as github-permission", async () => {
+    const { agents, agent, token } = await registered();
+    const released: Array<{ nodeRowId: string; release: StationRunRelease }> =
+      [];
+    const reason =
+      "There is at least one repository that does not exist or is not accessible to the parent installation.";
+
+    expect(
+      await handleRelease(
+        { agents, runs: runs(released, { answer: "failed" }) },
+        token,
+        agent.id,
+        { node_row_id: "412", reason },
+      ),
+    ).toEqual({ code: 200, body: { status: "failed" } });
+    expect(released[0]?.release).toEqual({
+      reason,
+      failureClass: "github-permission",
+      permanent: true,
+      maxAttempts: 3,
+    });
+  });
+
+  it("reads the attempt bound from LORE_STATION_LAUNCH_ATTEMPTS and falls back to 3", () => {
+    expect(launchAttemptsFromEnv({ LORE_STATION_LAUNCH_ATTEMPTS: "5" })).toBe(
+      5,
+    );
+    expect(launchAttemptsFromEnv({ LORE_STATION_LAUNCH_ATTEMPTS: "0" })).toBe(
+      3,
+    );
+    expect(launchAttemptsFromEnv({})).toBe(3);
   });
 
   it("answers settled for a visit that already reached an outcome", async () => {
@@ -53,7 +107,7 @@ describe("handleRelease", () => {
 
     expect(
       await handleRelease(
-        { agents, runs: runs([], { answer: false }) },
+        { agents, runs: runs([], { answer: "settled" }) },
         token,
         agent.id,
         {
@@ -101,5 +155,5 @@ describe("handleRelease", () => {
 });
 
 interface RunsAnswer {
-  answer?: boolean;
+  answer?: StationRunReleaseResult;
 }

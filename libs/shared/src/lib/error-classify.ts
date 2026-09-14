@@ -74,6 +74,11 @@ const CATEGORY_MATCHERS: ((
       ? "github-workflows-permission"
       : undefined,
   resourceNotAccessibleCategory,
+  // The App's installation-token mint for a repository it cannot reach — a renamed or removed repo; no retry reaches it (#2006).
+  (m) =>
+    /not accessible to the parent installation/i.test(m)
+      ? "github-permission"
+      : undefined,
   (m) => (/\b403\b|forbidden/i.test(m) ? "github-permission" : undefined),
   (m) => (/\b401\b|bad credentials|unauthorized/i.test(m) ? "auth" : undefined),
   (m) =>
