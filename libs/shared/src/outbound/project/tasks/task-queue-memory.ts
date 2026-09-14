@@ -325,8 +325,7 @@ export class InMemoryTaskQueue implements TaskQueueRepository {
         t.target_repo === repo &&
         t.status !== "failed" &&
         t.status !== "cancelled" &&
-        t.status !== "retried" &&
-        t.status !== "completed",
+        t.status !== "retried",
     );
 
     return task ? { id: task.id } : null;
