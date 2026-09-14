@@ -22,6 +22,12 @@ const graph = {
       station_inherited: true,
     },
     {
+      id: "tdd-round",
+      type: "agent",
+      station: "agent",
+      station_inherited: true,
+    },
+    {
       id: "await-pr",
       type: "pr_review",
       station: "pr-review",
@@ -297,6 +303,50 @@ describe("handleLoopRunClosed", () => {
     expect(ticks).toEqual(["acme/widgets"]);
   });
 
+  it("defers a ticket whose unclaimed tdd-round routed into a successful retrospective: no label, attempt 1 of 3, and the re-arm", async () => {
+    const { d, labeled, comments, ticks } = deps([
+      { nodeId: "dod", iteration: 1, outcome: "success" },
+      {
+        nodeId: "tdd-round",
+        iteration: 1,
+        outcome: "failed",
+        failureClass: "unclaimed",
+        failureDetail: "no cluster-agent claimed this run within 30m",
+      },
+      { nodeId: "retrospective", iteration: 1, outcome: "success" },
+    ]);
+
+    await handleLoopRunClosed(
+      run(),
+      "failed",
+      "no cluster-agent claimed this run within 30m",
+      d,
+    );
+
+    expect(labeled).toEqual([]);
+    expect(comments[0]?.body).toContain("infrastructure attempt 1 of 3");
+    expect(ticks).toEqual(["acme/widgets"]);
+  });
+
+  it("defers a ticket whose retrospective itself died on the cluster after a successful round: no label and attempt 1 of 3", async () => {
+    const { d, labeled, comments } = deps([
+      { nodeId: "dod", iteration: 1, outcome: "success" },
+      { nodeId: "tdd-round", iteration: 1, outcome: "success" },
+      {
+        nodeId: "retrospective",
+        iteration: 1,
+        outcome: "failed",
+        failureClass: "infra",
+        failureDetail: "BackoffLimitExceeded",
+      },
+    ]);
+
+    await handleLoopRunClosed(run(), "failed", "pod died", d);
+
+    expect(labeled).toEqual([]);
+    expect(comments[0]?.body).toContain("infrastructure attempt 1 of 3");
+  });
+
   it("parks the ticket on the third infrastructure failure within a day, naming the count", async () => {
     const { d, labeled, comments } = deps(
       [
@@ -363,6 +413,45 @@ describe("handleLoopRunClosed", () => {
         branch,
         since: new Date(0),
         excludeRunId: current,
+      }),
+    ).toBe(1);
+  });
+
+  it("counts an earlier run's unclaimed failure that routed into a successful retrospective as 1 infrastructure failure", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const branch = "lore/implementation-loop/issue-7";
+    const recordVisit = async (
+      assemblyRunId: string,
+      nodeId: string,
+      outcome: "failed" | "success",
+      failureClass?: string,
+    ) => {
+      const { nodeRowId } = await port.ensureStationRun({
+        assemblyRunId,
+        nodeId,
+        iteration: 1,
+      });
+
+      await port.finishStationRunOnce(nodeRowId, outcome, undefined, {
+        failureClass,
+      });
+    };
+    const earlier = await port.start({
+      blueprintName: "implementation-loop",
+      repo: "acme/widgets",
+      branch,
+    });
+
+    await recordVisit(earlier, "tdd-round", "failed", "unclaimed");
+    await recordVisit(earlier, "retrospective", "success");
+    await port.finish(earlier, "failed", "no cluster-agent claimed this run");
+
+    expect(
+      await countInfraFailures(port, {
+        repo: "acme/widgets",
+        branch,
+        since: new Date(0),
+        excludeRunId: "run-that-just-closed",
       }),
     ).toBe(1);
   });
