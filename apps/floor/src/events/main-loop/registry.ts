@@ -78,6 +78,7 @@ function githubEntries(): Entry[] {
     ["github.check_suite.completed", github.autoMerge],
     ["github.issue_comment.created", codeReviewOnComment],
     ["github.issues.labeled", github.issuesLabeled],
+    ["github.repository.renamed", github.repositoryRenamed],
   ];
 }
 

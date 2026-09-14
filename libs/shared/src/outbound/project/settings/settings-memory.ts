@@ -9,6 +9,7 @@ import type {
   OnboardedRepo,
   PendingOnboardingRepo,
   RepoRecord,
+  RepoRenameOutcome,
 } from "./settings-port.js";
 
 /** A seeded `lore.repos` row for the in-memory settings double. */
@@ -22,6 +23,8 @@ export interface SeedRepo {
   last_ingested_at?: Date | null;
   onboarding_pr_merged?: boolean;
   onboarded_at?: Date | null;
+  /** Names of the per-repo `lore.agent_definitions` rows keyed to this repo's id. */
+  agent_definitions?: string[];
 }
 
 function toRepoRecord(row: SeedRepo): RepoRecord {
@@ -230,6 +233,30 @@ export class InMemorySettings implements SettingsPort {
       return;
     }
     this.repos.push({ full_name: repo, onboarding_pr_url: url });
+  }
+
+  async renameRepo(from: string, to: string): Promise<RepoRenameOutcome> {
+    const source = this.row(from);
+    const target = this.row(to);
+
+    if (!source) {
+      return "absent";
+    }
+
+    if (!target) {
+      source.full_name = to;
+
+      return "renamed";
+    }
+    const targetNames = target.agent_definitions ?? [];
+    const moved = (source.agent_definitions ?? []).filter(
+      (name) => !targetNames.includes(name),
+    );
+
+    target.agent_definitions = [...targetNames, ...moved];
+    this.repos.splice(this.repos.indexOf(source), 1);
+
+    return "merged";
   }
 
   async bumpOutcomeStats(

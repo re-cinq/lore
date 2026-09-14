@@ -270,3 +270,11 @@ export const specPrMerge: EventHandler = async (params) => {
 
   await syncSpecTasks(repo, branch, specSlug, merge_commit_sha);
 };
+
+/** repository renamed (#2040): the lore.repos row follows the new name, so runs stop minting installation tokens for a name GitHub no longer serves. */
+export const repositoryRenamed: EventHandler = async (params) => {
+  const { from, to } = params as { from: string; to: string };
+  const outcome = await settings().renameRepo(from, to);
+
+  console.log(`[floor] repository ${from} renamed to ${to}: ${outcome}`);
+};

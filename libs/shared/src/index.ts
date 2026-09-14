@@ -174,6 +174,7 @@ export {
   PostgresMemoryStore,
   memoryListScope,
 } from "./outbound/postgres-memory-store.js";
+export { runInTransaction } from "./outbound/db/pg-transaction.js";
 export { ShadowMemoryStore } from "./outbound/shadow-memory-store.js";
 export {
   DgraphMemoryStore,

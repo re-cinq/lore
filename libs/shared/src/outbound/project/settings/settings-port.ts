@@ -20,6 +20,9 @@ export type PendingOnboardingRepo = RepoColumn<"id" | "fullName"> & {
   onboarding_pr_url: string;
 };
 
+/** What renaming a repo's row did: moved it in place, folded it into a row already carrying the new name, or found no row under the old name. */
+export type RepoRenameOutcome = "renamed" | "merged" | "absent";
+
 /** Repo settings port; resolve() returns fully-resolved lore.repos.settings (settings-pg reads the row then calls resolveDarkFactorySettings). Also covers repo config writes and raw lore.repos record ops (relocated from Floor inline SQL). */
 export interface SettingsPort {
   resolve(repo: string): Promise<ResolvedDarkFactorySettings>;
@@ -58,6 +61,8 @@ export interface SettingsPort {
   clearOnboardingPrUrl(id: string): Promise<void>;
   /** Set the onboarding PR url for a repo. */
   setOnboardingPrUrl(repo: string, url: string): Promise<void>;
+  /** Follows a GitHub rename (#2040): the row under `from` takes the name `to`, or, when onboarding already created a `to` row, hands it the agent definitions it lacks and is deleted. */
+  renameRepo(from: string, to: string): Promise<RepoRenameOutcome>;
   /** Increment the repo's outcome_stats (merged_count, total_files_changed, total_hours_to_merge). */
   bumpOutcomeStats(
     repo: string,
