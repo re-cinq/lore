@@ -1269,6 +1269,8 @@ describe.each(IMPLEMENTATIONS)(
         outcome: "failed",
         failureClass: "unknown",
         failureDetail: "attempt 3",
+        clusterAgentId: null,
+        claimedAt: null,
       });
       expect(await nextOwnClaim(port, tag, [nodeRowId])).toBeNull();
     });

@@ -22,7 +22,7 @@ export interface GraphlessSweepContext {
 export async function reapGraphlessRun(
   row: AssemblyRunRecord,
   ctx: GraphlessSweepContext,
-): Promise<"queue-timeout" | "requeued" | "swept" | null> {
+): Promise<"queue-timeout" | "requeued" | "released" | "swept" | null> {
   const { assemblyRuns } = ctx.deps;
   const singleCrNodes = await assemblyRuns.listStationRuns(row.id);
   const singleCrOpen = singleCrNodes.find((n) => n.outcome === null);
@@ -35,8 +35,31 @@ export async function reapGraphlessRun(
   if (queueOutcome !== null) {
     return queueOutcome;
   }
+  const released = singleCrOpen ? undefined : releasedVisit(singleCrNodes);
+
+  if (released) {
+    await finishLine(
+      row,
+      "error",
+      released.failureDetail ?? undefined,
+      ctx.deps,
+    );
+
+    return "released";
+  }
 
   return sweepTerminalSingleCr(row, singleCrOpen, ctx.deps);
+}
+
+/** The last visit, when a claimant released it as unlaunchable: failed with no claim left on it, because a launch that never happened leaves no pod and so no watcher event to close the run (#2006). A visit that ran keeps its claim, and the watcher closes that run. */
+function releasedVisit(
+  visits: readonly StationRunRecord[],
+): StationRunRecord | undefined {
+  const last = visits.at(-1);
+
+  return last?.outcome === "failed" && last.claimedAt === null
+    ? last
+    : undefined;
 }
 
 async function settleUnclaimedSingleCr(

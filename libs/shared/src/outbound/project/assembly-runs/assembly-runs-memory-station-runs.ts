@@ -276,6 +276,7 @@ export class StationRunStore {
     const attempts = this.attemptsOf(nodeRowId) + 1;
 
     this.launchAttempts.set(nodeRowId, attempts);
+    await this.requeueStationRun(nodeRowId);
 
     if (release.permanent || attempts >= release.maxAttempts) {
       this.recordNodeFinish(nodeRowId, "failed", undefined, {
@@ -285,7 +286,6 @@ export class StationRunStore {
 
       return "failed";
     }
-    await this.requeueStationRun(nodeRowId);
 
     return "requeued";
   }
