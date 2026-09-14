@@ -16,9 +16,9 @@ import { zodValidate } from "../../http/zod-validate.js";
 import { withPool } from "../with-pool.js";
 import { authenticateClusterAgent } from "./cluster-agent-auth.js";
 import {
-  classifyError,
-  isPermanentFailure,
-} from "@re-cinq/lore-shared/lib/error-classify.js";
+  launchAttemptsFromEnv,
+  launchReleaseOf,
+} from "@re-cinq/lore-shared/project/assembly-runs/launch-release.js";
 
 /** Release a failed claim: requeues it for another cluster to try, or fails it when no retry can launch it, so one hopeless visit never holds the head of the claim queue (#2006). */
 
@@ -32,21 +32,10 @@ const ReleaseResponse = z.object({
   status: z.enum(["requeued", "failed", "settled"]),
 });
 
-const DEFAULT_LAUNCH_ATTEMPTS = 3;
-
-/** How many hand-backs a visit may absorb before it fails; `LORE_STATION_LAUNCH_ATTEMPTS`, default 3. */
-export function launchAttemptsFromEnv(env: NodeJS.ProcessEnv): number {
-  const parsed = Number(env.LORE_STATION_LAUNCH_ATTEMPTS);
-
-  return Number.isInteger(parsed) && parsed > 0
-    ? parsed
-    : DEFAULT_LAUNCH_ATTEMPTS;
-}
-
 export interface ReleaseDeps {
   agents: ClusterAgentsRepository;
   runs: Pick<AssemblyRunsPort, "releaseStationRun">;
-  maxLaunchAttempts?: number;
+  maxLaunchAttempts: number;
 }
 
 type ReleaseResult =
@@ -117,16 +106,11 @@ async function releaseAndLog(
   agentName: string,
   body: z.infer<typeof ReleaseBody>,
 ): Promise<"requeued" | "failed" | "settled"> {
-  const { category } = classifyError(body.reason);
-  const status = await deps.runs.releaseStationRun(body.node_row_id, {
-    reason: body.reason,
-    failureClass: category,
-    permanent: isPermanentFailure(category),
-    maxAttempts: deps.maxLaunchAttempts ?? DEFAULT_LAUNCH_ATTEMPTS,
-  });
+  const release = launchReleaseOf(body.reason, deps.maxLaunchAttempts);
+  const status = await deps.runs.releaseStationRun(body.node_row_id, release);
 
   console.warn(
-    `[lore-api] cluster-agent ${agentName} could not launch station run row ${body.node_row_id} (${status}, ${category}): ${body.reason}`,
+    `[lore-api] cluster-agent ${agentName} could not launch station run row ${body.node_row_id} (${status}, ${release.failureClass}): ${body.reason}`,
   );
 
   return status;
