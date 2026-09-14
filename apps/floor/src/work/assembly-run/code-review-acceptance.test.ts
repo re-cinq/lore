@@ -103,6 +103,7 @@ describe("a code review whose launch no cluster can perform (#2006: the renamed-
 
   it("fails a review on its third retryable hand-back, and the next reaper tick spends the line's own retry on a fresh review visit", async () => {
     const h = createLineHarness();
+
     await h.start("code-review");
     const statuses: Array<string | undefined> = [];
 

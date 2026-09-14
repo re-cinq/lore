@@ -99,7 +99,6 @@ function releaseOf(reason: string) {
   return { reason, failureClass: "unknown", permanent: false, maxAttempts: 3 };
 }
 
-/** A visit armed under a tag no other test uses, so a shared Postgres queue cannot hand this test someone else's row. */
 async function armedVisit(
   port: AssemblyRunsPort,
   repo: string,
@@ -119,7 +118,6 @@ async function armedVisit(
   return { nodeRowId, runId };
 }
 
-/** The next claim among this test's own rows: an untagged row queued by another test satisfies every claimant, so foreign claims are taken and passed over, as the claim tests above do. */
 async function nextOwnClaim(
   port: AssemblyRunsPort,
   tag: string,

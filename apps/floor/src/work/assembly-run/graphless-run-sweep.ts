@@ -28,27 +28,26 @@ export async function reapGraphlessRun(
   const singleCrOpen = singleCrNodes.find((n) => n.outcome === null);
 
   // A `claimed` row that stops reporting is the WATCHER's to settle — owning its timeout here too would race it.
-  const queueOutcome = singleCrOpen
+  const settled = singleCrOpen
     ? await settleUnclaimedSingleCr(row, singleCrOpen, ctx)
-    : null;
+    : await closeReleasedSingleCr(row, singleCrNodes, ctx);
 
-  if (queueOutcome !== null) {
-    return queueOutcome;
+  return settled ?? sweepTerminalSingleCr(row, singleCrOpen, ctx.deps);
+}
+
+async function closeReleasedSingleCr(
+  row: AssemblyRunRecord,
+  visits: readonly StationRunRecord[],
+  ctx: GraphlessSweepContext,
+): Promise<"released" | null> {
+  const released = releasedVisit(visits);
+
+  if (!released) {
+    return null;
   }
-  const released = singleCrOpen ? undefined : releasedVisit(singleCrNodes);
+  await finishLine(row, "error", released.failureDetail ?? undefined, ctx.deps);
 
-  if (released) {
-    await finishLine(
-      row,
-      "error",
-      released.failureDetail ?? undefined,
-      ctx.deps,
-    );
-
-    return "released";
-  }
-
-  return sweepTerminalSingleCr(row, singleCrOpen, ctx.deps);
+  return "released";
 }
 
 /** The last visit, when a claimant released it as unlaunchable: failed with no claim left on it, because a launch that never happened leaves no pod and so no watcher event to close the run (#2006). A visit that ran keeps its claim, and the watcher closes that run. */
