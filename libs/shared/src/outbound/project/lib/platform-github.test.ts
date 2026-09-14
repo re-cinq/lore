@@ -578,6 +578,17 @@ describe("PlatformGitHub review threads (GraphQL)", () => {
     });
   });
 
+  it("close sets the pull request's state to closed", async () => {
+    await gh().close("re-cinq/lore", 7);
+
+    expect(state.updateCall).toEqual({
+      owner: "re-cinq",
+      repo: "lore",
+      pull_number: 7,
+      state: "closed",
+    });
+  });
+
   it("markReady sends the mutation carrying the pull request node id", async () => {
     state.prNode = { id: "PR_42", isDraft: true };
 

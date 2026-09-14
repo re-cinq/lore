@@ -72,6 +72,8 @@ function deps(
   const labeled: Array<{ number: number; label: string }> = [];
   const comments: Array<{ number: number; body: string }> = [];
   const ticks: string[] = [];
+  const closedIssues: number[] = [];
+  const closedPrs: number[] = [];
   const d: LoopRunClosedDeps = {
     getTaskIssueNumber: async () => 7,
     listStationRuns: async () => rows,
@@ -83,13 +85,29 @@ function deps(
     comment: async (_repo, number, body) => {
       comments.push({ number, body });
     },
+    closeIssue: async (_repo, number) => {
+      closedIssues.push(number);
+    },
+    closePr: async (_repo, number) => {
+      closedPrs.push(number);
+    },
     emitTick: async (repo) => {
       ticks.push(repo);
     },
   };
 
-  return { d, labeled, comments, ticks };
+  return { d, labeled, comments, ticks, closedIssues, closedPrs };
 }
+
+const resolvedWalk: Row[] = [
+  {
+    nodeId: "dod",
+    iteration: 1,
+    outcome: "changes_requested",
+    failureDetail: "already resolved: fixed on main by #2064",
+  },
+  { nodeId: "retrospective", iteration: 1, outcome: "success" },
+];
 
 describe("handleLoopRunClosed", () => {
   it("re-arms the repo after a completed ticket without touching the issue", async () => {
@@ -124,6 +142,37 @@ describe("handleLoopRunClosed", () => {
         ),
       },
     ]);
+  });
+
+  it("closes a ticket the definition-of-done step found already resolved, quoting why, and closes its pull request instead of parking", async () => {
+    const { d, labeled, comments, closedIssues, closedPrs } =
+      deps(resolvedWalk);
+
+    await handleLoopRunClosed(
+      run({ args: { pr_url: "https://gh/pr/12", pr_number: 12 } }),
+      "completed",
+      undefined,
+      d,
+    );
+
+    expect(labeled).toEqual([]);
+    expect(comments).toEqual([
+      {
+        number: 7,
+        body: expect.stringContaining("fixed on main by #2064"),
+      },
+    ]);
+    expect(closedIssues).toEqual([7]);
+    expect(closedPrs).toEqual([12]);
+  });
+
+  it("closes only the issue when the resolved ticket's run opened no pull request", async () => {
+    const { d, closedIssues, closedPrs } = deps(resolvedWalk);
+
+    await handleLoopRunClosed(run({ args: {} }), "completed", undefined, d);
+
+    expect(closedIssues).toEqual([7]);
+    expect(closedPrs).toEqual([]);
   });
 
   it("asks the author for a claim that can be stated as a failing test when the definition of done declined the ticket", async () => {

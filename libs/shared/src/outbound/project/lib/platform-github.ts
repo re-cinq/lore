@@ -356,6 +356,10 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     return pullsWrite.markReady(await this.octo(), repo, number);
   }
 
+  async close(repo: string, number: number): Promise<void> {
+    return pullsWrite.close(await this.octo(), repo, number);
+  }
+
   async resolveReviewThread(threadId: string): Promise<void> {
     return pullsWrite.resolveReviewThread(await this.octo(), threadId);
   }

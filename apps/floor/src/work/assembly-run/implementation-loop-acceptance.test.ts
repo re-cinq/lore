@@ -24,6 +24,8 @@ function loopHarness() {
         comment: async (_repo, issue, body) => {
           comments.push({ issue, body });
         },
+        closeIssue: async () => {},
+        closePr: async () => {},
         emitTick: async (repo) => {
           ticks.push(repo);
         },

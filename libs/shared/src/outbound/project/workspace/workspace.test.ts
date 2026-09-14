@@ -95,6 +95,7 @@ describe("Workspace", () => {
       resolveReviewThread: async () => {},
       update: async () => {},
       markReady: async () => {},
+      close: async () => {},
     });
 
     const pr = await ws.openPr("feat", "Add feature", "body");
