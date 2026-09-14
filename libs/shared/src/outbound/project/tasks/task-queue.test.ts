@@ -613,19 +613,21 @@ describe("activeTaskByIssue", () => {
     expect(await q.activeTaskByIssue("a/b", 85)).toBeNull();
   });
 
-  it("InMemory returns null for a completed task — completed is terminal and must not guard the issue", async () => {
+  it("InMemory returns the completed task t1 for issue 85, since a completed task's pull request still awaits review", async () => {
     const q = new InMemoryTaskQueue([
       { id: "t1", status: "completed", target_repo: "a/b", issue_number: 85 },
     ]);
 
-    expect(await q.activeTaskByIssue("a/b", 85)).toBeNull();
+    expect(await q.activeTaskByIssue("a/b", 85)).toEqual({ id: "t1" });
   });
 
-  it("PgTaskQueue SQL excludes retried from active statuses", async () => {
+  it("PgTaskQueue SQL treats only failed, cancelled and retried tasks as no longer guarding the issue", async () => {
     const { pool, calls } = fakePgPool([{ rows: [] }]);
 
     await new PgTaskQueue(pool).activeTaskByIssue("a/b", 85);
-    expect(calls[0].text).toContain("retried");
+    expect(calls[0].text).toContain(
+      "status NOT IN ('failed', 'cancelled', 'retried')",
+    );
   });
 });
 
