@@ -82,6 +82,16 @@ export interface ClaimedStationRun {
 }
 
 /** Why a visit failed; optional (only "failed" outcomes have one) — avoids a 5th positional arg on every 2-arg caller. */
+/** What a claimant reports when it hands back a visit it could not launch. */
+export interface StationRunRelease {
+  reason: string;
+  failureClass: string;
+  permanent: boolean;
+  maxAttempts: number;
+}
+
+export type StationRunReleaseResult = "requeued" | "failed" | "settled";
+
 export interface StationRunFailure {
   failureClass?: string;
   failureDetail?: string;
@@ -161,6 +171,11 @@ export interface AssemblyRunsPort {
   }): Promise<ClaimedStationRun | null>;
   /** Resets a claimed-but-lost visit to queued on the same row; false if it already reached an outcome. */
   requeueStationRun(nodeRowId: string): Promise<boolean>;
+  /** A claimant could not launch the visit: requeue it, or fail it once the error is permanent or the attempts reach the bound; `settled` when it already had an outcome. */
+  releaseStationRun(
+    nodeRowId: string,
+    release: StationRunRelease,
+  ): Promise<StationRunReleaseResult>;
   /** Open claims per cluster-agent id (registered-clusters page's "currently executing" column, FR7). */
   countOpenClaimsByAgent(): Promise<Record<string, number>>;
   /** Open (`queued`/`running`) lines, oldest first — the reaper's work list. */

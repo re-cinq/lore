@@ -93,6 +93,72 @@ afterAll(async () => {
   }
 });
 
+const AGENT = "44444444-4444-4444-4444-444444444444";
+
+function releaseOf(reason: string) {
+  return { reason, failureClass: "unknown", permanent: false, maxAttempts: 3 };
+}
+
+/** A visit armed under a tag no other test uses, so a shared Postgres queue cannot hand this test someone else's row. */
+async function armedVisit(
+  port: AssemblyRunsPort,
+  repo: string,
+  tag: string,
+): Promise<{ nodeRowId: string; runId: string }> {
+  const runId = await port.start({ blueprintName: "code-review", repo });
+  const { nodeRowId } = await port.ensureStationRun({
+    assemblyRunId: runId,
+    nodeId: "review",
+    iteration: 1,
+    status: "queued",
+    requiredTags: [tag],
+  });
+
+  await port.enqueueStationRunDispatch(nodeRowId, { prompt: "p" });
+
+  return { nodeRowId, runId };
+}
+
+/** The next claim among this test's own rows: an untagged row queued by another test satisfies every claimant, so foreign claims are taken and passed over, as the claim tests above do. */
+async function nextOwnClaim(
+  port: AssemblyRunsPort,
+  tag: string,
+  own: string[],
+): Promise<string | null> {
+  let claimed = await port.claimNextStationRun({
+    clusterAgentId: AGENT,
+    tags: [tag],
+  });
+
+  while (claimed && !own.includes(claimed.nodeRowId)) {
+    claimed = await port.claimNextStationRun({
+      clusterAgentId: AGENT,
+      tags: [tag],
+    });
+  }
+
+  return claimed?.nodeRowId ?? null;
+}
+
+async function visitById(
+  port: AssemblyRunsPort,
+  runId: string,
+  nodeRowId: string,
+) {
+  const visits = await port.listStationRuns(runId);
+
+  return visits.find((visit) => visit.id === nodeRowId);
+}
+
+async function claimedVisit(port: AssemblyRunsPort, repo: string) {
+  const tag = `launch-${randomUUID()}`;
+  const { nodeRowId, runId } = await armedVisit(port, repo, tag);
+
+  await nextOwnClaim(port, tag, [nodeRowId]);
+
+  return { nodeRowId, runId, tag };
+}
+
 const IMPLEMENTATIONS: Array<[string, () => Subject]> = [
   [
     "in-memory",
@@ -1162,6 +1228,95 @@ describe.each(IMPLEMENTATIONS)(
       expect(
         (await port.listStationRuns(runId))[0].startedAt.getTime(),
       ).toBeGreaterThan(enqueuedAt.getTime());
+    });
+
+    it("a release under the attempt bound requeues the visit on the same row", async () => {
+      const { port, repo } = make();
+      const { nodeRowId, runId, tag } = await claimedVisit(port, repo);
+
+      expect(
+        await port.releaseStationRun(
+          nodeRowId,
+          releaseOf("image pull timed out"),
+        ),
+      ).toBe("requeued");
+      expect(await visitById(port, runId, nodeRowId)).toMatchObject({
+        status: "queued",
+        clusterAgentId: null,
+        outcome: null,
+      });
+      expect(await nextOwnClaim(port, tag, [nodeRowId])).toBe(nodeRowId);
+    });
+
+    it("the third release of one visit fails it with the launch error as its detail", async () => {
+      const { port, repo } = make();
+      const { nodeRowId, runId, tag } = await claimedVisit(port, repo);
+
+      for (const attempt of [1, 2]) {
+        expect(
+          await port.releaseStationRun(
+            nodeRowId,
+            releaseOf(`attempt ${attempt}`),
+          ),
+        ).toBe("requeued");
+        await nextOwnClaim(port, tag, [nodeRowId]);
+      }
+
+      expect(
+        await port.releaseStationRun(nodeRowId, releaseOf("attempt 3")),
+      ).toBe("failed");
+      expect(await visitById(port, runId, nodeRowId)).toMatchObject({
+        outcome: "failed",
+        failureClass: "unknown",
+        failureDetail: "attempt 3",
+      });
+      expect(await nextOwnClaim(port, tag, [nodeRowId])).toBeNull();
+    });
+
+    it("a permanent release fails the visit on the first attempt with its failure class", async () => {
+      const { port, repo } = make();
+      const { nodeRowId, runId } = await claimedVisit(port, repo);
+
+      expect(
+        await port.releaseStationRun(nodeRowId, {
+          reason: "not accessible to the parent installation",
+          failureClass: "github-permission",
+          permanent: true,
+          maxAttempts: 3,
+        }),
+      ).toBe("failed");
+      expect(await visitById(port, runId, nodeRowId)).toMatchObject({
+        outcome: "failed",
+        failureClass: "github-permission",
+        failureDetail: "not accessible to the parent installation",
+      });
+    });
+
+    it("a released visit is claimed after a fresh visit queued behind it", async () => {
+      const { port, repo } = make();
+      const { nodeRowId, tag } = await claimedVisit(port, repo);
+
+      await port.releaseStationRun(nodeRowId, releaseOf("launch failed"));
+      const fresh = await armedVisit(port, repo, tag);
+      const own = [nodeRowId, fresh.nodeRowId];
+
+      expect(await nextOwnClaim(port, tag, own)).toBe(fresh.nodeRowId);
+      expect(await nextOwnClaim(port, tag, own)).toBe(nodeRowId);
+    });
+
+    it("releasing a visit that already reached an outcome answers settled and changes nothing", async () => {
+      const { port, repo } = make();
+      const { nodeRowId, runId } = await claimedVisit(port, repo);
+
+      await port.finishStationRunOnce(nodeRowId, "success");
+
+      expect(
+        await port.releaseStationRun(nodeRowId, releaseOf("late hand-back")),
+      ).toBe("settled");
+      expect(await visitById(port, runId, nodeRowId)).toMatchObject({
+        outcome: "success",
+        failureDetail: null,
+      });
     });
 
     it("a fork naming its own subject is refused, not joined, while another run holds that subject", async () => {
