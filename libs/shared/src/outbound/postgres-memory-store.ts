@@ -1,10 +1,9 @@
 /** Postgres implementation of the MemoryStore seam, wrapping an injected pg pool; the only backend today — Dgraph arrives as a sibling implementation without touching callers. */
 
-import { hasConnect } from "../domain/memory-store-types.js";
+import { runInTransaction } from "./db/pg-transaction.js";
 import type {
   MemoryRecord,
   MemoryStore,
-  MemoryTxClient,
   PgPool,
   WriteResult,
 } from "../domain/memory-store-types.js";
@@ -57,42 +56,6 @@ function listMemoriesSql(filter: string, params: unknown[]): string {
        LIMIT $${params.length - 1} OFFSET $${params.length}`;
 }
 
-// The memories row and its version row must land together (#1154): a connect()-capable pool runs the upsert in one transaction; a query-only pool stays sequential.
-async function upsertMemoryTransactionally(
-  pool: PgPool,
-  input: UpsertInput,
-): Promise<{ memoryId: string; version: number }> {
-  const client = hasConnect(pool) ? await pool.connect() : null;
-
-  try {
-    await beginIfClient(client);
-
-    const result = await upsertMemoryWithVersion(client ?? pool, input);
-
-    await commitIfClient(client);
-
-    return result;
-  } catch (err) {
-    // Best-effort: the connection may already be dead, and that failure must not mask the original error.
-    await client?.query("ROLLBACK").catch(() => undefined);
-    throw err;
-  } finally {
-    client?.release();
-  }
-}
-
-async function beginIfClient(client: MemoryTxClient | null): Promise<void> {
-  if (client) {
-    await client.query("BEGIN");
-  }
-}
-
-async function commitIfClient(client: MemoryTxClient | null): Promise<void> {
-  if (client) {
-    await client.query("COMMIT");
-  }
-}
-
 const HISTORY_SQL = `SELECT mv.version, mv.value, mv.created_at
          FROM memory.memory_versions mv
          JOIN memory.memories m ON m.id = mv.memory_id
@@ -117,9 +80,9 @@ export class PostgresMemoryStore implements MemoryStore {
 
   async writeMemory(input: UpsertInput): Promise<WriteResult> {
     const agent = input.agentId;
-    const { memoryId, version } = await upsertMemoryTransactionally(
-      this.pool,
-      input,
+    // The memories row and its version row must land together (#1154).
+    const { memoryId, version } = await runInTransaction(this.pool, (db) =>
+      upsertMemoryWithVersion(db, input),
     );
 
     await this.auditLog(agent, "write", input.key);

@@ -8,6 +8,7 @@ export const REQUIRED_EVENTS = [
   "check_suite",
   "issue_comment",
   "issues",
+  "repository",
 ] as const;
 
 export interface RepoHook {

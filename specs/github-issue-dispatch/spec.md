@@ -49,7 +49,7 @@ HTTP ingress: the GitHub branch of `POST /api/events` on the event-router (ADR-0
 - Validates GitHub webhook signature (HMAC SHA-256)
 - Handles `issues` event with action `labeled` ([validated by `github-map.test.ts:298`](libs/shared/src/outbound/project/events/github-map.test.ts#L298))
 - The event mapper is a guard at the door: it returns nothing when the `repository` is missing or the
-  event type is unhandled. ([validated by `github-map.test.ts:334`](libs/shared/src/outbound/project/events/github-map.test.ts#L334), [`github-map.test.ts:344`](libs/shared/src/outbound/project/events/github-map.test.ts#L344))
+  event type is unhandled. ([validated by `github-map.test.ts:362`](libs/shared/src/outbound/project/events/github-map.test.ts#L362), [`github-map.test.ts:372`](libs/shared/src/outbound/project/events/github-map.test.ts#L372))
 - If label name is `lore` (configurable):
   - Extract: issue title, body, repo full_name, issue number
   - Determine task type from issue labels, from the SAME table onboarding seeds the

@@ -414,8 +414,8 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 ### `libs/shared/src/outbound/project/events/github-map.test.ts`
 
 - returns nothing for a check with no backing PRs. ([validated by](libs/shared/src/outbound/project/events/github-map.test.ts#L286))
-- returns nothing when the repository is missing. ([validated by](libs/shared/src/outbound/project/events/github-map.test.ts#L334))
-- returns nothing for an unhandled event type. ([validated by](libs/shared/src/outbound/project/events/github-map.test.ts#L344))
+- returns nothing when the repository is missing. ([validated by](libs/shared/src/outbound/project/events/github-map.test.ts#L362))
+- returns nothing for an unhandled event type. ([validated by](libs/shared/src/outbound/project/events/github-map.test.ts#L372))
 
 ### `apps/stations/src/work/comment-triage/comment-triage.test.ts`
 
