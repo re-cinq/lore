@@ -4,6 +4,7 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
 import { InMemoryClusterAgents } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-memory.js";
 import { mayClaim } from "@re-cinq/lore-shared/project/cluster-agents/capacity.js";
+import { launchReleaseOf } from "@re-cinq/lore-shared/project/assembly-runs/launch-release.js";
 import { assemblyLineReaperJob } from "./assembly-run-reaper.js";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 import {
@@ -186,6 +187,21 @@ export function createLineHarness(
     });
   }
 
+  /** One poll whose launch throws: claim as the named agent, then hand the visit back through the same decision lore-api's release route makes, with the default bound of 3. */
+  async function claimAndFailLaunchAs(name: string, reason: string) {
+    const claimed = await claimAs(name);
+
+    if (!claimed) {
+      return null;
+    }
+    const status = await runs.releaseStationRun(
+      claimed.nodeRowId,
+      launchReleaseOf(reason, 3),
+    );
+
+    return { assemblyRunId: claimed.assemblyRunId, status };
+  }
+
   /** The operator's switch, as the Clusters page flips it. */
   async function pause(name: string): Promise<void> {
     await ensureFleet();
@@ -292,6 +308,7 @@ export function createLineHarness(
     start,
     completeAgentNode,
     claimAs,
+    claimAndFailLaunchAs,
     pause,
     unpause,
     reap,

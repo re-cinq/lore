@@ -5,6 +5,10 @@ import {
   hashAgentToken,
   mintAgentToken,
 } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agent-token.js";
+import type {
+  StationRunRelease,
+  StationRunReleaseResult,
+} from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { handleRelease } from "./release.js";
 
 const REGISTRATION = (tokenHash: string) => ({
@@ -24,10 +28,16 @@ async function registered() {
   return { agents, agent, token };
 }
 
-function runs(requeued: string[], { answer = true }: RunsAnswer = {}) {
+function runs(
+  released: Array<{ nodeRowId: string; release: StationRunRelease }>,
+  { answer = "requeued" }: RunsAnswer = {},
+) {
   return {
-    requeueStationRun: async (nodeRowId: string) => {
-      requeued.push(nodeRowId);
+    releaseStationRun: async (
+      nodeRowId: string,
+      release: StationRunRelease,
+    ) => {
+      released.push({ nodeRowId, release });
 
       return answer;
     },
@@ -35,17 +45,60 @@ function runs(requeued: string[], { answer = true }: RunsAnswer = {}) {
 }
 
 describe("handleRelease", () => {
-  it("requeues the visit a claimant could not launch", async () => {
+  it("requeues a visit whose launch error is not permanent, under a bound of 3 attempts", async () => {
     const { agents, agent, token } = await registered();
-    const requeued: string[] = [];
+    const released: Array<{ nodeRowId: string; release: StationRunRelease }> =
+      [];
 
     expect(
-      await handleRelease({ agents, runs: runs(requeued) }, token, agent.id, {
-        node_row_id: "412",
-        reason: "GitHub not configured",
-      }),
+      await handleRelease(
+        { agents, runs: runs(released), maxLaunchAttempts: 3 },
+        token,
+        agent.id,
+        {
+          node_row_id: "412",
+          reason: "GitHub not configured",
+        },
+      ),
     ).toEqual({ code: 200, body: { status: "requeued" } });
-    expect(requeued).toEqual(["412"]);
+    expect(released).toEqual([
+      {
+        nodeRowId: "412",
+        release: {
+          reason: "GitHub not configured",
+          failureClass: "unknown",
+          permanent: false,
+          maxAttempts: 3,
+        },
+      },
+    ]);
+  });
+
+  it("fails at once a visit whose installation token was refused, as github-permission", async () => {
+    const { agents, agent, token } = await registered();
+    const released: Array<{ nodeRowId: string; release: StationRunRelease }> =
+      [];
+    const reason =
+      "There is at least one repository that does not exist or is not accessible to the parent installation.";
+
+    expect(
+      await handleRelease(
+        {
+          agents,
+          runs: runs(released, { answer: "failed" }),
+          maxLaunchAttempts: 3,
+        },
+        token,
+        agent.id,
+        { node_row_id: "412", reason },
+      ),
+    ).toEqual({ code: 200, body: { status: "failed" } });
+    expect(released[0]?.release).toEqual({
+      reason,
+      failureClass: "github-permission",
+      permanent: true,
+      maxAttempts: 3,
+    });
   });
 
   it("answers settled for a visit that already reached an outcome", async () => {
@@ -53,7 +106,7 @@ describe("handleRelease", () => {
 
     expect(
       await handleRelease(
-        { agents, runs: runs([], { answer: false }) },
+        { agents, runs: runs([], { answer: "settled" }), maxLaunchAttempts: 3 },
         token,
         agent.id,
         {
@@ -68,10 +121,15 @@ describe("handleRelease", () => {
     const { agents, agent } = await registered();
 
     expect(
-      await handleRelease({ agents, runs: runs([]) }, undefined, agent.id, {
-        node_row_id: "412",
-        reason: "boom",
-      }),
+      await handleRelease(
+        { agents, runs: runs([]), maxLaunchAttempts: 3 },
+        undefined,
+        agent.id,
+        {
+          node_row_id: "412",
+          reason: "boom",
+        },
+      ),
     ).toMatchObject({ code: 401 });
   });
 
@@ -79,10 +137,15 @@ describe("handleRelease", () => {
     const { agents, token } = await registered();
 
     expect(
-      await handleRelease({ agents, runs: runs([]) }, token, "someone-else", {
-        node_row_id: "412",
-        reason: "boom",
-      }),
+      await handleRelease(
+        { agents, runs: runs([]), maxLaunchAttempts: 3 },
+        token,
+        "someone-else",
+        {
+          node_row_id: "412",
+          reason: "boom",
+        },
+      ),
     ).toMatchObject({ code: 403 });
   });
 
@@ -91,7 +154,7 @@ describe("handleRelease", () => {
 
     expect(
       await handleRelease(
-        { agents, runs: runs([]) },
+        { agents, runs: runs([]), maxLaunchAttempts: 3 },
         `lca_${hashAgentToken("nobody")}`,
         agent.id,
         { node_row_id: "412", reason: "boom" },
@@ -101,5 +164,5 @@ describe("handleRelease", () => {
 });
 
 interface RunsAnswer {
-  answer?: boolean;
+  answer?: StationRunReleaseResult;
 }

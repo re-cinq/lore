@@ -29,6 +29,14 @@ describe("classifyError", () => {
     ).toMatchObject({ category: "github-permission" });
   });
 
+  it("returns github-permission for an installation token refused for a repository the App cannot reach", () => {
+    expect(
+      classifyError(
+        "There is at least one repository that does not exist or is not accessible to the parent installation.",
+      ),
+    ).toMatchObject({ category: "github-permission" });
+  });
+
   it("returns github-permission for a bare 403", () => {
     expect(classifyError("403 Forbidden")).toMatchObject({
       category: "github-permission",

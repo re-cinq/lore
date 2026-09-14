@@ -2,10 +2,12 @@ import type { StationRunInput } from "../../../domain/models/station-run.js";
 import { enforceTrue } from "../../../lib/enforce.js";
 import { randomUUID } from "node:crypto";
 import type {
-  StationRunFailure,
-  StationRunStartInput,
   ClaimedStationRun,
+  StationRunFailure,
   StationRunRecord,
+  StationRunRelease,
+  StationRunReleaseResult,
+  StationRunStartInput,
 } from "./assembly-runs-port.js";
 
 export interface SeedAssemblyLineNode {
@@ -114,6 +116,7 @@ function toStationRun(node: SeedAssemblyLineNode): StationRunRecord {
 export class StationRunStore {
   readonly nodes: SeedAssemblyLineNode[] = [];
   private readonly dispatchSpecs = new Map<string, unknown>();
+  private readonly launchAttempts = new Map<string, number>();
 
   constructor(private readonly clock: () => Date) {}
 
@@ -209,15 +212,25 @@ export class StationRunStore {
     }
   }
 
-  /** The first row a cluster agent with these tags may take: queued, unfinished, armed with a dispatch spec, and tag-compatible. */
+  /** The first row a cluster agent with these tags may take: queued, unfinished, armed with a dispatch spec, and tag-compatible — fewest launch attempts first, then oldest (mirrors Pg). */
   private nextClaimable(tags: string[]): SeedAssemblyLineNode | undefined {
-    return this.nodes.find(
+    const claimable = this.nodes.filter(
       (n) =>
         n.status === "queued" &&
         n.outcome === null &&
         this.dispatchSpecs.has(n.id) &&
         (n.requiredTags ?? []).every((tag) => tags.includes(tag)),
     );
+
+    return claimable.sort(
+      (a, b) =>
+        this.attemptsOf(a.id) - this.attemptsOf(b.id) ||
+        Number(a.id) - Number(b.id),
+    )[0];
+  }
+
+  private attemptsOf(nodeRowId: string): number {
+    return this.launchAttempts.get(nodeRowId) ?? 0;
   }
 
   async claimNextStationRun(claimant: {
@@ -249,6 +262,32 @@ export class StationRunStore {
     node.startedAt = this.clock();
 
     return true;
+  }
+
+  async releaseStationRun(
+    nodeRowId: string,
+    release: StationRunRelease,
+  ): Promise<StationRunReleaseResult> {
+    const node = this.nodes.find((n) => n.id === nodeRowId);
+
+    if (!node || node.outcome !== null) {
+      return "settled";
+    }
+    const attempts = this.attemptsOf(nodeRowId) + 1;
+
+    this.launchAttempts.set(nodeRowId, attempts);
+    await this.requeueStationRun(nodeRowId);
+
+    if (release.permanent || attempts >= release.maxAttempts) {
+      this.recordNodeFinish(nodeRowId, "failed", undefined, {
+        failureClass: release.failureClass,
+        failureDetail: release.reason,
+      });
+
+      return "failed";
+    }
+
+    return "requeued";
   }
 
   async finishStationRunOnce(

@@ -1695,7 +1695,7 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Whether the unlaunched visit went back on the queue or had already settled",
+            "description": "Whether the unlaunched visit went back on the queue, failed because no retry can launch it, or had already settled",
             "content": {
               "application/json": {
                 "schema": {
@@ -10258,7 +10258,7 @@
         "properties": {
           "status": {
             "type": "string",
-            "enum": ["requeued", "settled"]
+            "enum": ["requeued", "failed", "settled"]
           }
         },
         "required": ["status"],

@@ -563,6 +563,76 @@ describe("assemblyLineReaperJob", () => {
     );
   });
 
+  it("fails a single-CR run whose only visit the claimant released as unlaunchable, carrying the launch error, since no watcher event will ever close it", async () => {
+    const h = harness();
+    const singleCr = await h.port.start({
+      blueprintName: "runbook",
+      repo: "o/r",
+      taskId: "task-1",
+    });
+
+    await h.port.markRunning(singleCr);
+    const { nodeRowId } = await h.port.ensureStationRun({
+      assemblyRunId: singleCr,
+      nodeId: "agent",
+      iteration: 1,
+      status: "queued",
+      requiredTags: ["node:agent"],
+      dispatchSpec: { taskId: "task-1" },
+    });
+
+    await h.port.claimNextStationRun({
+      clusterAgentId: "a-1",
+      tags: ["node:agent"],
+    });
+    await h.port.releaseStationRun(nodeRowId, {
+      reason: "not accessible to the parent installation",
+      failureClass: "github-permission",
+      permanent: true,
+      maxAttempts: 3,
+    });
+    h.taskStatusById["task-1"] = "running";
+    await assemblyLineReaperJob(h.deps);
+
+    expect(await h.port.getById(singleCr)).toMatchObject({
+      status: "failed",
+      outcome: "error",
+      reason: "not accessible to the parent installation",
+    });
+  });
+
+  it("leaves a single-CR run alone when its failed visit was reported by a claimant that ran it, since the watcher closes that run", async () => {
+    const h = harness();
+    const singleCr = await h.port.start({
+      blueprintName: "runbook",
+      repo: "o/r",
+      taskId: "task-1",
+    });
+
+    await h.port.markRunning(singleCr);
+    const { nodeRowId } = await h.port.ensureStationRun({
+      assemblyRunId: singleCr,
+      nodeId: "agent",
+      iteration: 1,
+      status: "queued",
+      requiredTags: ["node:agent"],
+      dispatchSpec: { taskId: "task-1" },
+    });
+
+    await h.port.claimNextStationRun({
+      clusterAgentId: "a-1",
+      tags: ["node:agent"],
+    });
+    await h.port.finishStationRunOnce(nodeRowId, "failed", undefined, {
+      failureClass: "infra",
+      failureDetail: "BackoffLimitExceeded",
+    });
+    h.taskStatusById["task-1"] = "running";
+    await assemblyLineReaperJob(h.deps);
+
+    expect(await h.port.getById(singleCr)).toMatchObject({ status: "running" });
+  });
+
   it("requeues a single-CR visit whose claiming cluster went offline", async () => {
     const h = harness();
     const singleCr = await h.port.start({

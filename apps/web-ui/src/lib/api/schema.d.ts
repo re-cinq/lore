@@ -2676,7 +2676,7 @@ export interface components {
     };
     ClusterAgentRelease: {
       /** @enum {string} */
-      status: "requeued" | "settled";
+      status: "requeued" | "failed" | "settled";
     };
     ClusterAgentRestart: {
       id: string;
@@ -5422,7 +5422,7 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Whether the unlaunched visit went back on the queue or had already settled */
+      /** @description Whether the unlaunched visit went back on the queue, failed because no retry can launch it, or had already settled */
       200: {
         headers: {
           [name: string]: unknown;

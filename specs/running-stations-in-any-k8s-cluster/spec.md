@@ -74,12 +74,12 @@ rather than smuggled through existing columns:
   Execution timing moves to the new `claimed_at`: the reaper measures the
   node's `timeout_minutes` budget from `claimed_at`, never from `started_at`,
   so time spent waiting for a capable cluster is not charged against
-  execution. ([validated by `assembly-run-reaper.test.ts:156`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L156), [`assembly-run-reaper.test.ts:789`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L789), [`assembly-run-reaper.test.ts:139`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L139))
+  execution. ([validated by `assembly-run-reaper.test.ts:156`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L156), [`assembly-run-reaper.test.ts:859`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L859), [`assembly-run-reaper.test.ts:139`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L139))
 - A run that sits `queued` longer than a configurable queue-wait bound
   (default 30 minutes) is failed terminally with the existing
   `failure_class` mechanics and a detail naming the unmatched
   `required_tags` — a line stalled because no registered cluster carries a
-  tag must say so, not report a generic infra timeout. ([validated by `assembly-run-reaper.test.ts:185`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L185), [`assembly-run-reaper.test.ts:639`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L639), [`assembly-run-reaper.test.ts:435`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L435), [`assembly-run-reaper.test.ts:253`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L253), [`assembly-run-reaper.test.ts:258`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L258), [`assembly-run-reaper.test.ts:179`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L179), [`assembly-run-reaper.test.ts:731`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L731))
+  tag must say so, not report a generic infra timeout. ([validated by `assembly-run-reaper.test.ts:185`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L185), [`assembly-run-reaper.test.ts:709`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L709), [`assembly-run-reaper.test.ts:435`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L435), [`assembly-run-reaper.test.ts:253`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L253), [`assembly-run-reaper.test.ts:258`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L258), [`assembly-run-reaper.test.ts:179`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L179), [`assembly-run-reaper.test.ts:801`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L801))
 
 - The queue-timeout's detail names **why** nobody claimed it, read from the
   registry at the moment the row is failed: nobody registered at all, none
@@ -91,16 +91,16 @@ rather than smuggled through existing columns:
   switched off by an operator (#1648, #1621, #1654). The sentence sent its
   reader hunting a missing agent, which is a different page at 3am from a paused
   one. The read happens AFTER the offline sweep, which mutates the very rows it
-  reads. ([validated by returns capable with the agents that can take the work](libs/shared/src/outbound/project/cluster-agents/capacity.test.ts#L50), [returns registry-empty when nobody has ever registered](libs/shared/src/outbound/project/cluster-agents/capacity.test.ts#L59), [returns none-registered when the registry has agents but none offers the tag](libs/shared/src/outbound/project/cluster-agents/capacity.test.ts#L65), [returns all-unavailable naming the paused agent that is the only provider](libs/shared/src/outbound/project/cluster-agents/capacity.test.ts#L74), [names each unavailable provider and why, when several match](libs/shared/src/outbound/project/cluster-agents/capacity.test.ts#L90), [is capable when one provider is paused and another is not](libs/shared/src/outbound/project/cluster-agents/capacity.test.ts#L106), [requires every tag, not just one of them](libs/shared/src/outbound/project/cluster-agents/capacity.test.ts#L117), [names the paused provider rather than reporting nobody registered](libs/shared/src/outbound/project/cluster-agents/capacity.test.ts#L125), [says a capable agent was active but did not claim, which reads as wedged](libs/shared/src/outbound/project/cluster-agents/capacity.test.ts#L140), [pluralizes when several capable agents all ignored it](libs/shared/src/outbound/project/cluster-agents/capacity.test.ts#L155), [says so plainly when the registry is empty](libs/shared/src/outbound/project/cluster-agents/capacity.test.ts#L170), [names the paused cluster that could have claimed it, rather than blaming an absent one](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L656), [says a capable cluster ignored it when one was up the whole time](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L674), [reads the registry AFTER the offline sweep, so a just-dead cluster reads offline, not wedged](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L687); implemented by [`capacity.ts`](libs/shared/src/outbound/project/cluster-agents/capacity.ts))
+  reads. ([validated by returns capable with the agents that can take the work](libs/shared/src/outbound/project/cluster-agents/capacity.test.ts#L50), [returns registry-empty when nobody has ever registered](libs/shared/src/outbound/project/cluster-agents/capacity.test.ts#L59), [returns none-registered when the registry has agents but none offers the tag](libs/shared/src/outbound/project/cluster-agents/capacity.test.ts#L65), [returns all-unavailable naming the paused agent that is the only provider](libs/shared/src/outbound/project/cluster-agents/capacity.test.ts#L74), [names each unavailable provider and why, when several match](libs/shared/src/outbound/project/cluster-agents/capacity.test.ts#L90), [is capable when one provider is paused and another is not](libs/shared/src/outbound/project/cluster-agents/capacity.test.ts#L106), [requires every tag, not just one of them](libs/shared/src/outbound/project/cluster-agents/capacity.test.ts#L117), [names the paused provider rather than reporting nobody registered](libs/shared/src/outbound/project/cluster-agents/capacity.test.ts#L125), [says a capable agent was active but did not claim, which reads as wedged](libs/shared/src/outbound/project/cluster-agents/capacity.test.ts#L140), [pluralizes when several capable agents all ignored it](libs/shared/src/outbound/project/cluster-agents/capacity.test.ts#L155), [says so plainly when the registry is empty](libs/shared/src/outbound/project/cluster-agents/capacity.test.ts#L170), [names the paused cluster that could have claimed it, rather than blaming an absent one](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L726), [says a capable cluster ignored it when one was up the whole time](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L744), [reads the registry AFTER the offline sweep, so a just-dead cluster reads offline, not wedged](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L757); implemented by [`capacity.ts`](libs/shared/src/outbound/project/cluster-agents/capacity.ts))
 
 - The sweep takes its clock and its queue-wait bound as inputs rather than
   reading `Date.now()` and the environment inside itself, so a walk can be aged
-  past the bound without sleeping through it or mutating `process.env`. ([validated by [bounds the wait by the injected queueWaitMs rather than the ambient env](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L707), [reads the clock through the injected now, so a sweep can be aged without waiting](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L718))
+  past the bound without sleeping through it or mutating `process.env`. ([validated by [bounds the wait by the injected queueWaitMs rather than the ambient env](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L777), [reads the clock through the injected now, so a sweep can be aged without waiting](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L788))
 - Requeueing (FR4) resets the **same row** back to `queued`, clearing
   `cluster_agent_id` and `claimed_at`. No second row is inserted, so the
   row-id-as-visit-order contract the fork replay depends on
   (`assembly-runs-pg.ts`) sees exactly one row per node visit, claimed or
-  not. ([validated by `assembly-run-reaper.test.ts:758`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L758), [`assembly-run-reaper.test.ts:128`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L128), [`assembly-run-reaper.test.ts:116`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L116), [`assembly-runs.contract.test.ts:1007`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1007))
+  not. ([validated by `assembly-run-reaper.test.ts:828`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L828), [`assembly-run-reaper.test.ts:128`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L128), [`assembly-run-reaper.test.ts:116`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L116), [`assembly-runs.contract.test.ts:1071`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1071))
 
 ## FR1 — Cluster-agent registry and identity
 
@@ -203,12 +203,12 @@ one dispatch mechanism, not a special case plus a remote case.
   never become `queued` and are therefore never claimable. Arming is
   queued-only: a row another cluster has already claimed was handed its spec
   with the claim, so re-arming it would leave the row describing something
-  other than the pod being built from it. ([validated by arming a claimed row is a no-op, so a re-dispatch cannot rewrite what a pod is being built from](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1077), [`advance-line.test.ts:1005`](apps/floor/src/work/assembly-run/advance-line.test.ts#L1006), [`advance-line.test.ts:1090`](apps/floor/src/work/assembly-run/advance-line.test.ts#L1091), [`advance-line.test.ts:1103`](apps/floor/src/work/assembly-run/advance-line.test.ts#L1104), [`advance-line.test.ts:1130`](apps/floor/src/work/assembly-run/advance-line.test.ts#L1131))
+  other than the pod being built from it. ([validated by arming a claimed row is a no-op, so a re-dispatch cannot rewrite what a pod is being built from](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1143), [`advance-line.test.ts:1005`](apps/floor/src/work/assembly-run/advance-line.test.ts#L1006), [`advance-line.test.ts:1090`](apps/floor/src/work/assembly-run/advance-line.test.ts#L1091), [`advance-line.test.ts:1103`](apps/floor/src/work/assembly-run/advance-line.test.ts#L1104), [`advance-line.test.ts:1130`](apps/floor/src/work/assembly-run/advance-line.test.ts#L1131))
 - A cluster-agent polls `POST /api/cluster-agents/{id}/claim` on a
   configurable interval (default 15 s); the claim is a single
   `SELECT … FOR UPDATE SKIP LOCKED` CTE that sets `status = 'claimed'`,
   `cluster_agent_id`, and `claimed_at` in one statement, so concurrent
-  claimants are safe. ([validated by `claim.test.ts:107`](apps/lore-api/src/transport/routes/cluster-agents/claim.test.ts#L120), [`assembly-runs.contract.test.ts:915`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L915), [`assembly-runs.contract.test.ts:975`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L975))
+  claimants are safe. ([validated by `claim.test.ts:107`](apps/lore-api/src/transport/routes/cluster-agents/claim.test.ts#L120), [`assembly-runs.contract.test.ts:979`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L979), [`assembly-runs.contract.test.ts:1039`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1039))
 - The central cluster runs the same claim loop: cluster-agent-helm registers
   it as `central` — the name the Floor reaper resolves CR visibility by —
   with the full tag set, including the central-only tags satellites never
@@ -225,15 +225,28 @@ one dispatch mechanism, not a special case plus a remote case.
   a flag whose false value is a silently broken factory is not a choice.)*
   ([validated by refuses to boot when LORE_API_URL is unset, naming it](apps/cluster-agent/src/events/claim/registration.test.ts#L45), [`registration.test.ts:51`](apps/cluster-agent/src/events/claim/registration.test.ts#L51), [`registration.test.ts:60`](apps/cluster-agent/src/events/claim/registration.test.ts#L60), [`registration.test.ts:66`](apps/cluster-agent/src/events/claim/registration.test.ts#L66))
 - A claim the agent then fails to LAUNCH is handed back:
-  `POST /api/cluster-agents/{id}/release` requeues that visit on the same row,
-  naming the cause. The claim CASes the row to `claimed` before any pod exists,
-  so a launch that throws — a recipe the catalog does not hold, a mint refused,
-  a Secret write that lost its race — leaves a claimed row with nothing behind
-  it. Unsaid, that row waits: centrally for the reaper to notice a missing CR,
-  and on a satellite, whose CRs the centre cannot see, for the whole node
-  budget. It requeues rather than fails because the cause is usually about the
-  cluster that claimed, and another may launch it; a row that keeps coming back
-  is for the queue-wait bound to end. ([validated by requeues the visit a claimant could not launch](apps/lore-api/src/transport/routes/cluster-agents/release.test.ts#L38), [`release.test.ts:51`](apps/lore-api/src/transport/routes/cluster-agents/release.test.ts#L51), [`release.test.ts:62`](apps/lore-api/src/transport/routes/cluster-agents/release.test.ts#L67), [`release.test.ts:73`](apps/lore-api/src/transport/routes/cluster-agents/release.test.ts#L78), [`release.test.ts:84`](apps/lore-api/src/transport/routes/cluster-agents/release.test.ts#L89), [hands the visit back under the per-agent token, naming the cause](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L347), [swallows a refused release rather than ending the loop over it](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L371))
+  `POST /api/cluster-agents/{id}/release` names the cause. The claim CASes the
+  row to `claimed` before any pod exists, so a launch that throws — a recipe the
+  catalog does not hold, a mint refused, a Secret write that lost its race —
+  leaves a claimed row with nothing behind it. Unsaid, that row waits:
+  centrally for the reaper to notice a missing CR, and on a satellite, whose
+  CRs the centre cannot see, for the whole node budget. A hand-back is counted
+  on the row *(amended 2026-09-14, #2006)*. A retryable cause requeues the
+  same row, because it is usually about the cluster that claimed and another
+  may launch it; the attempt that reaches `LORE_STATION_LAUNCH_ATTEMPTS`
+  (default 3) fails the visit instead, and a cause no retry can clear — the
+  shared classifier's permanent classes, including an installation token
+  refused for a repository the App cannot reach — fails it on the first
+  hand-back. The failed visit carries the launch error as its detail. The
+  claim takes the fewest-attempts row first, so a visit that has bounced waits
+  behind fresh work. The rule used to leave a returning row "for the
+  queue-wait bound to end", which never happened: every requeue restarts that
+  clock, so on 2026-09-12 and three times on 2026-09-14 one visit for the
+  renamed `re-cinq/HAL-engine` was handed the next poll every fifteen seconds
+  and nothing queued behind it was claimed for hours. A graph run whose visit
+  failed this way takes its failed edge on the next reaper tick; a single-CR
+  run, which has no watcher event to close it, is ended by that tick with the
+  launch error as its reason. ([validated by requeues a visit whose launch error is not permanent, under a bound of 3 attempts](apps/lore-api/src/transport/routes/cluster-agents/release.test.ts#L48), [validated by fails at once a visit whose installation token was refused, as github-permission](apps/lore-api/src/transport/routes/cluster-agents/release.test.ts#L77), [validated by answers settled for a visit that already reached an outcome](apps/lore-api/src/transport/routes/cluster-agents/release.test.ts#L104), [validated by refuses a caller presenting no token](apps/lore-api/src/transport/routes/cluster-agents/release.test.ts#L120), [validated by refuses a registered agent releasing another agent's claim](apps/lore-api/src/transport/routes/cluster-agents/release.test.ts#L136), [validated by refuses a token no registered agent holds](apps/lore-api/src/transport/routes/cluster-agents/release.test.ts#L152), [validated by a release under the attempt bound requeues the visit on the same row](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1233), [validated by the third release of one visit fails it with the launch error as its detail](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1251), [validated by a permanent release fails the visit on the first attempt with its failure class](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1278), [validated by a released visit is claimed after a fresh visit queued behind it](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1297), [validated by releasing a visit that already reached an outcome answers settled and changes nothing](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1309), [validated by marks an installation token refused for an unreachable repository as a permanent github-permission release](libs/shared/src/outbound/project/assembly-runs/launch-release.test.ts#L5), [validated by marks an unrecognised launch error as a retryable unknown release under the given bound](libs/shared/src/outbound/project/assembly-runs/launch-release.test.ts#L17), [validated by reads 5 from LORE_STATION_LAUNCH_ATTEMPTS and falls back to 3 when it is 0 or unset](libs/shared/src/outbound/project/assembly-runs/launch-release.test.ts#L28), [validated by returns github-permission for an installation token refused for a repository the App cannot reach](libs/shared/src/lib/error-classify.test.ts#L32), [validated by fails the unlaunchable review on its first hand-back, and the next poll claims the review queued behind it](apps/floor/src/work/assembly-run/code-review-acceptance.test.ts#L77), [validated by ends the unlaunchable review's run on the next reaper tick, naming the launch error](apps/floor/src/work/assembly-run/code-review-acceptance.test.ts#L89), [validated by fails a review on its third retryable hand-back, and the next reaper tick spends the line's own retry on a fresh review visit](apps/floor/src/work/assembly-run/code-review-acceptance.test.ts#L104), [validated by fails a single-CR run whose only visit the claimant released as unlaunchable, carrying the launch error, since no watcher event will ever close it](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L566), [validated by leaves a single-CR run alone when its failed visit was reported by a claimant that ran it, since the watcher closes that run](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L604), [validated by hands the visit back under the per-agent token, naming the cause](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L347), [validated by swallows a refused release rather than ending the loop over it](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L371))
 - A claim whose CR ALREADY EXISTS is not a fresh launch. A requeued visit
   converges on the name its previous attempt used, and that attempt's CR may
   still be standing — its terminal event has already been consumed, so nothing
@@ -316,7 +329,7 @@ one dispatch mechanism, not a special case plus a remote case.
   unclaimed and the run fails once naming it, an active central claims that same
   node and the walk reaches `push`, and a satellite carrying only `node:agent`
   cannot take it at all — which is why one paused cluster starves the line
-  rather than failing over to the other. ([validated by `assembly-run-reaper.test.ts:1184`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L1185), [`single-cr-dispatch-acceptance.test.ts:188`](apps/floor/src/work/station/single-cr-dispatch-acceptance.test.ts#L188), [`single-cr-dispatch-acceptance.test.ts:175`](apps/floor/src/work/station/single-cr-dispatch-acceptance.test.ts#L175))
+  rather than failing over to the other. ([validated by `assembly-run-reaper.test.ts:1255`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L1255), [`single-cr-dispatch-acceptance.test.ts:188`](apps/floor/src/work/station/single-cr-dispatch-acceptance.test.ts#L188), [`single-cr-dispatch-acceptance.test.ts:175`](apps/floor/src/work/station/single-cr-dispatch-acceptance.test.ts#L175))
 
 ## FR4 — Liveness, recovery, and dead-agent reaping
 
@@ -329,13 +342,13 @@ pull, so recovery splits by who holds the claim:
 - The assembly-run reaper (existing cadence) marks cluster-agents with
   `last_seen_at < now() - 5 minutes` as `offline` — ten missed heartbeats,
   so a transient network blip or one dropped request never requeues live
-  work. ([validated by `cluster-agents.test.ts:218`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L218), [`cluster-agents.test.ts:336`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L336), [`assembly-run-reaper.test.ts:968`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L968))
+  work. ([validated by `cluster-agents.test.ts:218`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L218), [`cluster-agents.test.ts:336`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L336), [`assembly-run-reaper.test.ts:1038`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L1038))
 - The reaper's CR-status recovery arm (`readAgentStatus` → relaunch on null)
   applies **only** to runs claimed by the central cluster's agent — the one
   cluster `CLUSTER_AGENT_URL` can reach. For satellite-claimed runs that arm
   is skipped entirely; their recovery signal is the claiming agent's
   liveness, never a CR read that would come back null and trigger a
-  duplicate central launch. ([validated by `assembly-run-reaper.test.ts:191`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L191), [`assembly-run-reaper.test.ts:204`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L204), [`assembly-run-reaper.test.ts:742`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L742), [`cr-visibility.test.ts:5`](apps/floor/src/work/assembly-run/cr-visibility.test.ts#L5), [`cr-visibility.test.ts:11`](apps/floor/src/work/assembly-run/cr-visibility.test.ts#L11), [`cr-visibility.test.ts:20`](apps/floor/src/work/assembly-run/cr-visibility.test.ts#L20), [`cr-visibility.test.ts:29`](apps/floor/src/work/assembly-run/cr-visibility.test.ts#L29), [`cr-visibility.test.ts:35`](apps/floor/src/work/assembly-run/cr-visibility.test.ts#L35))
+  duplicate central launch. ([validated by `assembly-run-reaper.test.ts:191`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L191), [`assembly-run-reaper.test.ts:204`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L204), [`assembly-run-reaper.test.ts:812`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L812), [`cr-visibility.test.ts:5`](apps/floor/src/work/assembly-run/cr-visibility.test.ts#L5), [`cr-visibility.test.ts:11`](apps/floor/src/work/assembly-run/cr-visibility.test.ts#L11), [`cr-visibility.test.ts:20`](apps/floor/src/work/assembly-run/cr-visibility.test.ts#L20), [`cr-visibility.test.ts:29`](apps/floor/src/work/assembly-run/cr-visibility.test.ts#L29), [`cr-visibility.test.ts:35`](apps/floor/src/work/assembly-run/cr-visibility.test.ts#L35))
 - The same restriction binds the **terminal-event door**, not only the reaper:
   it MUST NOT read a satellite-claimed run's CR back, and MUST NOT treat the
   null it would get as an empty output — this is the fallback path, taken
@@ -380,14 +393,14 @@ pull, so recovery splits by who holds the claim:
   time since `claimed_at`, so another agent picks the run up and the outage
   is attributable. Re-execution resumes on the run's existing branch —
   branch-as-state already makes a node re-run land on whatever commits the
-  dead attempt pushed. ([validated by an offline claimant flips nothing on a queued row](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L950), [`assembly-run-reaper.test.ts:936`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L936), [`assembly-run-reaper.test.ts:950`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L950), [`assembly-run-reaper.test.ts:1027`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L1027))
+  dead attempt pushed. ([validated by an offline claimant flips nothing on a queued row](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L1020), [`assembly-run-reaper.test.ts:1006`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L1006), [`assembly-run-reaper.test.ts:1020`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L1020), [`assembly-run-reaper.test.ts:1097`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L1097))
 - A run whose claiming agent is **alive** but which exceeds its node timeout
   (measured from `claimed_at`) is failed terminally, exactly the reaper's
   timeout semantics today — a live agent past budget is a stuck node, not a
   lost one, and requeueing it would double-execute its side effects.
 - A returning agent re-registers under its persisted identity and resumes
   claiming; its stale claims have already been requeued, and dedupe keys make
-  any late duplicate report safe. ([validated by `heartbeat-loop.test.ts:100`](apps/cluster-agent/src/events/claim/heartbeat-loop.test.ts#L112), [`heartbeat-loop.test.ts:74`](apps/cluster-agent/src/events/claim/heartbeat-loop.test.ts#L74), [`assembly-runs.contract.test.ts:1142`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1142))
+  any late duplicate report safe. ([validated by `heartbeat-loop.test.ts:100`](apps/cluster-agent/src/events/claim/heartbeat-loop.test.ts#L112), [`heartbeat-loop.test.ts:74`](apps/cluster-agent/src/events/claim/heartbeat-loop.test.ts#L74), [`assembly-runs.contract.test.ts:1206`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1206))
 
 - **A cluster forgets what it finished with** *(added 2026-08-30)*. Every run
   leaves an Agent CR plus the per-task `pt-*` AgentDefinition and Station it ran
@@ -617,11 +630,11 @@ they are alive.
 
 - `GET /api/cluster-agents` lists registered agents with `name`, `tags`,
   `status`, `last_seen_at`, and the count of runs each is currently
-  executing. ([validated by `list.test.ts:51`](apps/lore-api/src/transport/routes/cluster-agents/list.test.ts#L51), [`list.test.ts:41`](apps/lore-api/src/transport/routes/cluster-agents/list.test.ts#L41), [`list.test.ts:88`](apps/lore-api/src/transport/routes/cluster-agents/list.test.ts#L88), [`assembly-runs.contract.test.ts:1111`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1111))
+  executing. ([validated by `list.test.ts:51`](apps/lore-api/src/transport/routes/cluster-agents/list.test.ts#L51), [`list.test.ts:41`](apps/lore-api/src/transport/routes/cluster-agents/list.test.ts#L41), [`list.test.ts:88`](apps/lore-api/src/transport/routes/cluster-agents/list.test.ts#L88), [`assembly-runs.contract.test.ts:1175`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1175))
 - A web-ui page renders that list, marking offline agents and linking the
   running-claims count to the assembly-runs list filtered to that agent
   (`/assembly-runs?cluster_agent_id=…`, backed by the port's
-  `clusterAgentId` open-claim filter). ([validated by `assembly-runs.contract.test.ts:945`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1046), [validated by `ClusterAgentsView.test.tsx:65`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L61), [`ClusterAgentsView.test.tsx:89`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L89), [`ClusterAgentsView.test.tsx:107`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L107), [`cluster-agents.test.ts:29`](apps/web-ui/src/lib/api/cluster-agents.test.ts#L29))
+  `clusterAgentId` open-claim filter). ([validated by `assembly-runs.contract.test.ts:1110`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1110), [validated by `ClusterAgentsView.test.tsx:65`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L61), [`ClusterAgentsView.test.tsx:89`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L89), [`ClusterAgentsView.test.tsx:107`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L107), [`cluster-agents.test.ts:29`](apps/web-ui/src/lib/api/cluster-agents.test.ts#L29))
 - The app hands out the connect-a-cluster values it already holds (#1572):
   admin-scoped `GET /api/cluster-agents/install-info` answers the central
   URLs and the registration token (or names exactly what is unconfigured),
@@ -717,7 +730,7 @@ DEFAULT '{}'`, `claimed_at timestamptz`, and `dispatch_spec jsonb` (the
 complete machine contract a claimant runs with, written at enqueue — only
 armed rows are claimable), plus a partial index on `(status) WHERE outcome
 IS NULL` to back the claim scan. A queued visit with no armed dispatch
-contract is never handed to a claimant. ([validated by `assembly-runs.contract.test.ts:855`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L956))
+contract is never handed to a claimant. ([validated by `assembly-runs.contract.test.ts:1020`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1020))
 
 ## Rollout: from push to pull without a flag-day
 
