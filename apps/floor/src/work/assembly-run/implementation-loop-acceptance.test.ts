@@ -230,6 +230,24 @@ describe("implementation-loop acceptance: one ticket, cluster-free, walked throu
     void id;
   });
 
+  it("defers, without a label, a ticket whose tdd-round no cluster-agent claimed and whose failure routed into the retrospective (run eb46675f)", async () => {
+    const h = loopHarness();
+    const id = await h.start("implementation-loop", {
+      taskId: "task-1",
+      branch: "lore/implementation-loop/issue-77",
+    });
+
+    await h.completeAgentNode(id, "dod", { outcome: "success" });
+    await h.completeAgentNode(id, "open-pr", { outcome: "success" });
+    await h.reap({ minutesLater: 31 });
+    await retrospectiveReported(h, id);
+
+    expect(h.labeled).toEqual([]);
+    expect(h.comments[0]?.body).toContain(
+      "deferring this ticket, not parking it (infrastructure attempt 1 of 3)",
+    );
+  });
+
   it("marks the ticket blocked and still re-arms when review threads stay unresolved", async () => {
     const h = loopHarness();
     const id = await parkedOnPr(h);

@@ -7,6 +7,8 @@ import {
   countInfraFailures,
   erroredVerdict,
   infraDeferralsFromEnv,
+  nodeIdsOfType,
+  routedIntoRetrospective,
   type ParkVerdict,
 } from "./loop-infra-deferral.js";
 
@@ -171,32 +173,6 @@ async function parkedVisit(
   );
 
   return routed && routed.outcome !== "success" ? routed : null;
-}
-
-/** The visit that routed into the run's last retrospective — the row written just before it. A blocked ticket is whichever node ended there on anything but success: the review node's two verdicts, the definition-of-done park, a stuck round, a repair that gave up. Null when the walk never reached a retrospective (an errored run is judged by its outcome instead). */
-function routedIntoRetrospective(
-  run: ClosedLoopRun,
-  visits: readonly StationVisit[],
-): StationVisit | null {
-  const retrospectives = nodeIdsOfType(run, "retrospective");
-  const ids = visits.map((visit) => visit.nodeId);
-  const last = ids.lastIndexOf(
-    ids.filter((id) => retrospectives.has(id)).at(-1) ?? "",
-  );
-
-  return last > 0 ? visits[last - 1] : null;
-}
-
-/** Node ids of a given type in the run's graph, falling back to the conventional id when the run carries no graph. */
-function nodeIdsOfType(run: ClosedLoopRun, type: string): Set<string> {
-  const graph = run.graph;
-
-  if (!graph) {
-    return new Set([type]);
-  }
-  const nodesOfType = graph.nodes.filter((n) => n.type === type);
-
-  return new Set(nodesOfType.map((n) => n.id));
 }
 
 function declined(routed: StationVisit): boolean {

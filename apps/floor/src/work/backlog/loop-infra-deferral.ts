@@ -25,13 +25,55 @@ export interface ParkVerdict {
 /** Failure classes that say nothing about the ticket: no pod ever ran, or the pod died under it. Re-running the previous node cannot summon a cluster (#1648), but the NEXT tick can. */
 const INFRA_CLASSES = new Set(["unclaimed", "infra"]);
 
-/** A run whose last recorded visit failed on the cluster rather than on the work. */
-export function isInfraFailure(visits: readonly StationVisit[]): boolean {
-  const last = visits.findLast((visit) => visit.outcome !== null);
+/** A run whose failing visit failed on the cluster rather than on the work. The failing visit is the one that routed into the retrospective when the walk reached it (a reaped round routes its failure there, and the retrospective's own success must not hide it — run eb46675f), otherwise the last recorded one. */
+export function isInfraFailure(
+  run: ClosedLoopRun,
+  visits: readonly StationVisit[],
+): boolean {
+  const judged = failingVisit(run, visits);
 
   return (
-    last?.outcome === "failed" && INFRA_CLASSES.has(last.failureClass ?? "")
+    judged?.outcome === "failed" && INFRA_CLASSES.has(judged.failureClass ?? "")
   );
+}
+
+function failingVisit(
+  run: ClosedLoopRun,
+  visits: readonly StationVisit[],
+): StationVisit | undefined {
+  const last = visits.findLast((visit) => visit.outcome !== null);
+  const endedInRetrospective =
+    last !== undefined && nodeIdsOfType(run, "retrospective").has(last.nodeId);
+
+  return endedInRetrospective
+    ? (routedIntoRetrospective(run, visits) ?? undefined)
+    : last;
+}
+
+/** The visit that routed into the run's last retrospective — the row written just before it. A blocked ticket is whichever node ended there on anything but success: the review node's two verdicts, the definition-of-done park, a stuck round, a repair that gave up. Null when the walk never reached a retrospective (an errored run is judged by its outcome instead). */
+export function routedIntoRetrospective(
+  run: ClosedLoopRun,
+  visits: readonly StationVisit[],
+): StationVisit | null {
+  const retrospectives = nodeIdsOfType(run, "retrospective");
+  const ids = visits.map((visit) => visit.nodeId);
+  const last = ids.lastIndexOf(
+    ids.filter((id) => retrospectives.has(id)).at(-1) ?? "",
+  );
+
+  return last > 0 ? visits[last - 1] : null;
+}
+
+/** Node ids of a given type in the run's graph, falling back to the conventional id when the run carries no graph. */
+export function nodeIdsOfType(run: ClosedLoopRun, type: string): Set<string> {
+  const graph = run.graph;
+
+  if (!graph) {
+    return new Set([type]);
+  }
+  const nodesOfType = graph.nodes.filter((n) => n.type === type);
+
+  return new Set(nodesOfType.map((n) => n.id));
 }
 
 const DEFERRAL_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -59,7 +101,7 @@ export async function erroredVerdict(
     : `the run ended ${outcome}`;
   const visits = await deps.listStationRuns(run.id);
 
-  if (!isInfraFailure(visits) || !run.branch) {
+  if (!isInfraFailure(run, visits) || !run.branch) {
     return { why, askForRewrite: false };
   }
   const since = new Date(Date.now() - DEFERRAL_WINDOW_MS);
@@ -126,9 +168,11 @@ export async function countInfraFailures(
     createdAfter: input.since,
   });
   const prior = runs.filter((run) => run.id !== input.excludeRunId);
-  const visits = await Promise.all(
-    prior.map((run) => assemblyRuns.listStationRuns(run.id)),
+  const infraFailures = await Promise.all(
+    prior.map(async (run) =>
+      isInfraFailure(run, await assemblyRuns.listStationRuns(run.id)),
+    ),
   );
 
-  return visits.filter(isInfraFailure).length;
+  return infraFailures.filter(Boolean).length;
 }
