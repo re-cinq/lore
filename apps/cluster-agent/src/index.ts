@@ -48,6 +48,7 @@ async function main(): Promise<void> {
   const { claimLoop, pruneLoop } = startLoops();
 
   const proxy = buildEventRouterProxy(routerUrl, floorUrl, claimLoop);
+  // todo: the proxy is split across so many parts that its initialisation is hard to read as one thing.
   const agentEvents = agentEventsRelayDeps(proxy, floorUrl);
   const stopServer = await startServer(PORT, agentEvents);
 
@@ -112,6 +113,7 @@ function agentEventsRelayDeps(
 
   return {
     emit: (message: ProxyMessage) => proxy.emit(message),
+    // todo: why are env vars read from the deps in some places and from the process here?
     // The mounted token is read once at boot like every other env read here; only the per-agent token is a thunk, because re-registration rotates it mid-run.
     acceptedTokens: () => [INGEST_TOKEN, agentToken],
   };

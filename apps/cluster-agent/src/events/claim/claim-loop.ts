@@ -146,6 +146,7 @@ function withRunCredential(
     ...spec,
     parameters: {
       ...spec.parameters,
+      //todo: is git_credential still needed?
       git_credential: claim.git_credential,
       git_credential_url: `${apiUrl}/api/github-credentials`,
     },

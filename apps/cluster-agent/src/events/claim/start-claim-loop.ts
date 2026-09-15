@@ -146,6 +146,7 @@ function publishCredential(
   };
 }
 
+// todo: why keep the file store at all? A cluster-agent always runs in a cluster, where the Secret is there.
 /** Through the Kubernetes Secret API, never a file: the chart mounts the container read-only, so a file write would EROFS and strand the identity. */
 function buildIdentityStore(config: IdentityStoreConfig): IdentityStore {
   return new KubeIdentityStore(
