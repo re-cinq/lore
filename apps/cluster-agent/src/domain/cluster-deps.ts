@@ -11,6 +11,7 @@ import type {
   RunningPodInfo,
 } from "@re-cinq/lore-shared";
 
+/// todo: add a linter rule to force all arguments to have explicit types. They should be shared as much as possible.
 export interface ClusterDeps {
   agents: {
     get(name: string): Promise<AgentCr | null>;

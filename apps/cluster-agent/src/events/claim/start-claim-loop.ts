@@ -90,7 +90,9 @@ function rotationSlot(): {
   };
 }
 
-/** Detached on purpose: `startClaimLoop` returns a handle immediately so a caller can stop the agent before it has finished registering. The catch is unreachable by design — register and claim never throw — but a defect here must surface as a log rather than an unhandled rejection that kills the process. */
+/** Detached on purpose: `startClaimLoop` returns a handle immediately so a caller can stop the agent before it has
+ * finished registering. The catch is unreachable by design — register and claim never throw — but a defect here must
+ * surface as a log rather than an unhandled rejection that kills the process. */
 function launchRegistrant(
   storeConfig: IdentityStoreConfig,
   opts: Omit<RegistrantOpts, "store">,
@@ -138,7 +140,10 @@ function publishCredential(
   };
 }
 
-/** In a cluster the identity persists through the Kubernetes Secret API — the chart mounts the container read-only, so a file write would EROFS and strand the identity. File store only for local runs. */
+/** In a cluster the identity persists through the Kubernetes Secret API — the chart mounts the container read-only,
+ * so a file write would EROFS and strand the identity. File store only for local runs. */
+/// todo: I don't understand why we hae the file option. The cluster agent will always run in a kube cluster where the secret will
+/// be available without needing a file-based identity store.
 async function buildIdentityStore(
   config: IdentityStoreConfig,
 ): Promise<IdentityStore> {

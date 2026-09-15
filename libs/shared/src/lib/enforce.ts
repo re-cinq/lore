@@ -16,6 +16,21 @@ export function enforceTrue(
   throw buildError(errorType, errorMessage);
 }
 
+// todo: test this function
+export function enforceIntegerInterval(
+  value: number,
+  min: number,
+  max: number,
+  errorType: ErrorType,
+  errorMessage: string,
+): asserts value is number {
+  enforceTrue(
+    Number.isInteger(value) && value >= min && value <= max,
+    errorType,
+    errorMessage ?? `value must be an integer in ${min}..${max}`,
+  );
+}
+
 // Throws `errorType(result.error)` when a `{ ok }` result is not ok, else narrows `result` to its ok branch.
 export function enforceOk<
   R extends { ok: true } | { ok: false; error: string },

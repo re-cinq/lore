@@ -19,6 +19,7 @@ export interface HeartbeatDeps {
   log?: (line: string) => void;
 }
 
+/// todo: "ok" | "unauthorized" | "error" must be a type add a linter rule so this does not happen anymore.
 /** One beat. Returns "ok" | "unauthorized" | "error"; never throws. */
 export async function heartbeatOnce(
   deps: HeartbeatDeps,
@@ -79,9 +80,12 @@ export async function runHeartbeatLoop(deps: HeartbeatLoopDeps): Promise<void> {
   await runPollLoop<"ok" | "unauthorized" | "error">({
     tick: deps.beat,
     onOutcome: async (outcome) => {
-      if (outcome === "unauthorized") {
-        await deps.reRegister();
+      if (outcome !== "unauthorized") {
+        console.log(`[cluster-agent] heartbeat outcome: ${outcome}`);
+        return;
       }
+
+      await deps.reRegister();
     },
     delayFor: () => deps.intervalMs,
     sleep: deps.sleep,

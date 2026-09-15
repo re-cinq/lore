@@ -28,7 +28,7 @@ export function buildServer(opts: ServerOpts = {}): Hapi.Server {
       deps: clusterDeps,
       bearerToken: process.env.LORE_INGEST_TOKEN,
     }),
-    ...(opts.agentEvents ? agentEventsRoutes(opts.agentEvents) : []),
+    ...agentEventsRoutes(opts.agentEvents),
     healthRoute(),
   ]);
 
@@ -37,6 +37,7 @@ export function buildServer(opts: ServerOpts = {}): Hapi.Server {
 
 export function startServer(
   port: number,
+  // todo: why is this agentEvents not a required argument? It is the core of this application, and it should be mandatory.
   agentEvents?: AgentEventsDeps,
 ): Promise<() => Promise<void>> {
   return startHapiServer(buildServer({ port, agentEvents }), {

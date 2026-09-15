@@ -9,6 +9,7 @@ import { rawBody } from "@re-cinq/lore-shared/http/raw-body.js";
 import type { Emit } from "@re-cinq/lore-shared/project/events/event-input-port.js";
 
 /** Matches the Floor's own sink cap, so this relay refuses exactly what the far end would have refused. */
+/// todo: this must be a shared constant across all routes to ensure consistent enforcement of the maximum body size.
 const MAX_BODY_BYTES = 8 * 1024 * 1024;
 
 export interface AgentEventsDeps {
@@ -17,7 +18,12 @@ export interface AgentEventsDeps {
   acceptedTokens: () => Array<string | undefined>;
 }
 
-export function agentEventsRoutes(deps: AgentEventsDeps): ServerRoute[] {
+export function agentEventsRoutes(deps?: AgentEventsDeps): ServerRoute[] {
+  if (!deps) {
+    return [];
+  }
+
+  /// todo: all route definitions must be defined in their own functions and document what id does and who calls it.
   return [
     {
       method: "POST",
@@ -39,7 +45,8 @@ export function agentEventsRoutes(deps: AgentEventsDeps): ServerRoute[] {
   ];
 }
 
-/** Accept the request only if it presents one of this cluster's credentials; every comparison runs even after a match (same reason `secretEquals` exists). */
+/** Accept the request only if it presents one of this cluster's credentials; every comparison runs even after
+ * a match (same reason `secretEquals` exists). */
 function enforceAnyBearer(
   headers: Record<string, unknown>,
   accepted: Array<string | undefined>,

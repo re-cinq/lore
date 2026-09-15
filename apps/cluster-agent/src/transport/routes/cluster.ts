@@ -7,10 +7,13 @@ import type {
   ServerRoute,
 } from "@hapi/hapi";
 import type { ClusterDeps } from "../../domain/cluster-deps.js";
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { enforceIntegerInterval } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { enforceBearer } from "@re-cinq/lore-shared/http/bearer.js";
 import { isLogUnavailable } from "../../lib/k8s-errors.js";
+
+// todo: in all apps the http routes structure must be reflected to the actual file structure.
+// "/routes" would be the route folder, and the file structure inside should mirror the HTTP route structure.
 
 /** Page ceiling — a caller asking for more is refused rather than quietly served a smaller page (a silent clamp reads as "read everything"). */
 const MAX_PAGE = 100;
@@ -18,6 +21,13 @@ const MAX_PAGE = 100;
 const MAX_TAIL = 10_000;
 
 export type { ClusterDeps };
+
+/// todo: move this to a shared constant for all public GET routes.
+const publicGet: ServerRoute = {
+  method: "GET",
+  options: { auth: false },
+  path: "",
+};
 
 export interface ClusterRoutesDeps {
   /** A thunk: the Kubernetes clients are built lazily, after boot. */
@@ -46,9 +56,8 @@ export function clusterRoutes(opts: ClusterRoutesDeps): ServerRoute[] {
 function agentByNameRoute(opts: ClusterRoutesDeps): ServerRoute {
   return {
     // 200 with `found:false` rather than 404 — "no such CR" is an ordinary answer, and a 404 would be indistinguishable from the route being absent.
-    method: "GET",
+    ...publicGet,
     path: "/api/cluster/agents/{name}",
-    options: { auth: false },
     handler: async (request, h) => {
       guard(opts, request.headers);
       const { agents } = opts.deps();
@@ -61,25 +70,23 @@ function agentByNameRoute(opts: ClusterRoutesDeps): ServerRoute {
 
 function listAgentsRoute(opts: ClusterRoutesDeps): ServerRoute {
   return {
-    method: "GET",
+    ...publicGet,
     path: "/api/cluster/agents",
-    options: { auth: false },
     handler: listAgentsHandler(opts),
   };
 }
 
-// Lists Agent CRs, one bounded page at a time. The ceiling is enforced rather than clamped: a caller asking for more than `MAX_PAGE` is told so, because a larger page is what blew the heap on 2026-07-24 and silently narrowing it would hide the mistake.
+// Lists Agent CRs, one bounded page at a time. The ceiling is enforced rather than clamped: a caller asking for
+// more than `MAX_PAGE` is told so, because a larger page is what blew the heap on 2026-07-24 and silently
+// narrowing it would hide the mistake.
 function listAgentsHandler(opts: ClusterRoutesDeps): Lifecycle.Method {
   return async (request, h) => {
     guard(opts, request.headers);
     const q = request.query as Record<string, string | undefined>;
     const limit = Number(q.limit ?? MAX_PAGE);
 
-    enforceTrue(
-      Number.isInteger(limit) && limit > 0 && limit <= MAX_PAGE,
-      apiError(400),
-      `limit must be an integer in 1..${MAX_PAGE} — a larger page is what blew the heap on 2026-07-24`,
-    );
+    enforceIntegerInterval(limit, 1, MAX_PAGE, apiError(400));
+
     const { agents } = opts.deps();
     const page = await agents.list({
       labelSelector: q.labelSelector,
@@ -159,7 +166,8 @@ function podLogRoute(opts: ClusterRoutesDeps): ServerRoute {
   };
 }
 
-// One pod's log tail. Unlike the page limit above, a bad `tail` is CLAMPED rather than refused — the reader wants logs, and the exact line count is not what they came for.
+// One pod's log tail. Unlike the page limit above, a bad `tail` is CLAMPED rather than refused.
+// The reader wants logs, and the exact line count is not what they came for.
 function podLogHandler(opts: ClusterRoutesDeps): Lifecycle.Method {
   return async (request, h) => {
     guard(opts, request.headers);
@@ -188,6 +196,7 @@ async function respondWithPodLog(
     if (isLogUnavailable(err)) {
       return h.response({ error: "pod log unavailable" }).code(404);
     }
+
     throw err;
   }
 }

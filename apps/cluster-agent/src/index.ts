@@ -44,7 +44,13 @@ async function main(): Promise<void> {
   const floorUrl = process.env.LORE_FLOOR_URL;
 
   const { claimLoop, pruneLoop } = startLoops();
+
+  // todo: this "buildEventProxy" name is too generic. Is this a kubernetes event proxy?
   const proxy = buildEventProxy(routerUrl, floorUrl, claimLoop);
+
+  // todo: buildAgentEvents onlu provides a highorder function and a token list. I
+  // was expecting to read here the initialization of a class that captures the kube events and
+  // forwards it to the proxy. for some random reason, the proxy which should be one instnace is splitted in too many parts.
   const agentEvents = buildAgentEvents(proxy, floorUrl);
   const stopServer = await startServer(PORT, agentEvents);
 
@@ -98,6 +104,7 @@ function buildEventProxy(
   });
 }
 
+/// todo: setup a linter rule to not have comments longer than 120 chars.
 // Mounted only with somewhere to forward telemetry AND a proxy to queue it in — absent either, a 404 beats a 202 that silently drops the batch.
 function buildAgentEvents(
   proxy: EventProxy | null,
@@ -107,9 +114,11 @@ function buildAgentEvents(
     return undefined;
   }
 
+  /// todo: this does not build an instance that captures the agent events... it looks like it is a simple proxy. the "buildAgentEvents" is just confusing.
   return {
     emit: (message: ProxyMessage) => proxy.emit(message),
     // Resolved per request — the per-agent token rotates on every re-registration.
+    // todo: why in some places we read env vars from the deps and here we read them from the global storage?
     acceptedTokens: () => [process.env.LORE_INGEST_TOKEN, agentToken],
   };
 }
