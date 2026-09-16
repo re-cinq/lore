@@ -47,6 +47,28 @@ describe("parseTaskTypesFile", () => {
     expect(parsed.taskTypes.broken).toMatchObject({ timeout_minutes: 5 });
   });
 
+  it("merges the task types of every document in a multi-document stream", () => {
+    const { taskTypes } = parseTaskTypesFile(
+      "task_types:\n  general:\n    prompt_template: g\n---\ntask_types:\n  tdd-round:\n    prompt_template: t\n",
+    );
+
+    expect(taskTypes).toEqual({
+      general: { prompt_template: "g" },
+      "tdd-round": { prompt_template: "t" },
+    });
+  });
+
+  it("keeps the first declaration and reports drift when two documents declare general", () => {
+    const { taskTypes, drift } = parseTaskTypesFile(
+      "task_types:\n  general:\n    prompt_template: first\n---\ntask_types:\n  general:\n    prompt_template: second\n",
+    );
+
+    expect(taskTypes.general).toEqual({ prompt_template: "first" });
+    expect(drift).toContain(
+      "task_types.general: <entry> — declared in more than one document",
+    );
+  });
+
   it("keeps the station fields the agent catalog reads: command, env and pod_labels", () => {
     const { stations } = parseTaskTypesFile(COMMITTED);
 
