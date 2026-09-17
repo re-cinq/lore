@@ -205,11 +205,10 @@ Floor `ci-tests` ingress). Baked into the mcp image + served at
 `GET /dist/lore-code-trace/<os>-<arch>`; each repo's `lore-tests.yml` downloads + runs it.
 (Replaced the old `npm run trace:run-tests` CLI + `buildTestReport`.)
 
-**Onboarding** — the `onboard` task runs a test-interface check
-(`decideTestInterfaceCheck`): when no manifest is declared it scaffolds a
-suggested `.lore/test-commands.yml` + a per-toolchain `.github/workflows/lore-tests.yml`
-(generated from `LORE_TESTS_INSTRUCTION`) in the PR; an already-configured
-repo is left untouched. The web UI + `/lore-test-commands` skill surface the
+**Onboarding** — the onboarding ticket owes a suggested `.lore/test-commands.yml`
++ a per-toolchain `.github/workflows/lore-tests.yml` (authored by the `onboard`
+line's agent from `LORE_TESTS_INSTRUCTION`), each only when absent; an
+already-configured repo is left untouched. The web UI + `/lore-test-commands` skill surface the
 canonical `TEST_COMMAND_SETUP_PROMPT` for developers to run with Claude.
 
 > **Status:** the graph fan-out is **built and live** — `ingestTestReport`
@@ -443,7 +442,7 @@ Task types configured in
 scripts/task-types.yaml:
 
 - **feature-request**: PM describes intent in plain language → agent generates spec.md, data-model.md, tasks.md following repo conventions. Opens a PR for engineer review.
-- **onboard**: inspects repo, generates CLAUDE.md, AGENTS.md, ADRs, spec, CI workflows
+- **onboard**: the Floor enrols the repo (labels, webhook, ingest callback, verbatim workflows + templates on the branch), then the `onboard` assembly line (`libs/assembly-lines/src/assembly-lines/onboard.yaml`, the implementation shape with the `onboard` recipe) authors AGENTS.md, ADRs, spec and PR template from the onboarding ticket (`onboardTicketBody`) and opens the ONE PR; the push node records it as `lore.repos.onboarding_pr_url`
 - **general**: open-ended task with Lore context
 - **runbook**: generates incident runbook
 - **implementation**: implements from a spec file

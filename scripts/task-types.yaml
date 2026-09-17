@@ -848,80 +848,55 @@ task_types:
       event: feature.decomposition
       path: target/decomposition.json
 
+  # The onboard line's `implement` node (specs/4-ux-repo-onboarding FR-2).
+  # The ticket IS the spec: every file owed, its prompt, and the rules ride in
+  # {description}, composed by onboardTicketBody. The pod reads the repository
+  # itself — the pre-fetched top-level tree this recipe used to be handed
+  # missed every nested file (#1201).
   onboard:
     prompt_template: |
-      You are onboarding a repository to the Lore platform. The repo
-      content has been pre-fetched and is provided in the Context section
-      below. DO NOT use git, shell commands, or any tools. Just analyze
-      the provided content and output a JSON object.
+      You are onboarding this repository into Lore. The ticket below names
+      every scaffolding file owed, the prompt each one is written from, and
+      the rules. Read the repository first — its build files, README,
+      existing docs and CI — so each file you author describes THIS repo
+      rather than a generic one.
 
-      Repository: {description}
+      RULES:
+      - Check whether a file exists before writing it; an existing one is
+        left untouched, whatever the ticket says about it
+      - Use your Read tool to read files before writing
+      - Use your Write tool to create the files — do NOT just describe them
+      - Work through files one at a time; start with the first file
+      - Change no source code, tests, or build configuration
 
-      The Context section contains:
-      - repoContext.tree: top-level directory listing
-      - repoContext.files: key config files (README, package.json, etc.)
-      - repoContext.samples: sample source files (first 200 lines)
+      DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
+      - Before you commit, run the repository's FORMATTER over the files you
+        wrote, if it has one, and nothing else from CI's checklist: CI runs
+        the linter and typecheck on every push, and the 1Gi pod does not fit
+        them (runs 112256d9 and 62c1ca5e were OOM-killed on exactly that).
+      - When the work is done, `git add` what you wrote and commit it with a
+        short, factual message. Then `git push origin HEAD`. The clone carries
+        its own credentials, so a plain push authenticates; you need no token
+        and must never look for one.
+      - Then bring the branch up to date with the repository's default branch —
+        `git fetch origin` and merge it in — and push again if that produced
+        anything. A branch that cannot merge cleanly gets NO CI AT ALL.
+      - Confirm it landed: `git status` must report the branch is not ahead of
+        its upstream. An unpushed commit lives only in this container and
+        dies with it — do NOT report success for one.
+      - If every file the ticket owes already exists and nothing needs
+        realigning, say so and finish normally. That is a success: Lore may
+        already have refreshed its own files on this branch, and a setup that
+        is already current needs no pull request at all.
+      - Do not open a pull request: you have no `gh` and no GitHub token. Lore
+        opens the PR from the branch you push.
 
-      Analyze this content and generate onboarding files:
-
-      1. Generate a CLAUDE.md that accurately describes THIS repo:
-         - Architecture: how services communicate, what databases are used,
-           what the entry points are (based on actual code, not guesses)
-         - Code conventions: error handling patterns, logging format, auth
-           approach, testing patterns (inferred from the actual code)
-         - Key services: what each main module/service owns, key constraints
-
-      3. Generate initial ADRs for decisions you can infer:
-         - What language/framework was chosen (and why it makes sense)
-         - What database is used
-         - What deployment approach is used (Docker, K8s, serverless)
-         - Use MADR format with YAML frontmatter (adr_number, title,
-           status: accepted, date, domains)
-         - Put in adrs/ directory. Number starting from 001.
-
-      4. Generate an initial spec describing the existing system:
-         - What the system does (from README + code inspection)
-         - Key components and their responsibilities
-         - Put in .specify/spec.md
-
-      5. Include standard Lore files:
-         - AGENTS.md: task tracking, context loading, workflow commands
-         - .github/PULL_REQUEST_TEMPLATE.md: Why, Alternatives, ADRs, Spec
-         - .github/workflows/pr-description-check.yml: CI for PR quality
-         - .github/workflows/spec-agent.yml: spec PR triggers agent
-         - .github/workflows/lore-ingest.yml: push triggers ingestion
-         - .github/workflows/lore-tests.yml: per-toolchain test runner that runs the .lore/test-commands.yml commands on push/PR and POSTs results to /api/repos/:owner/:repo/test-report (only when the repo declares a .lore/test-commands.yml manifest; one job per detected toolchain, subdir-scoped for monorepos)
-
-      6. Output format — JSON object with ALL files:
-         {
-           "files": {
-             "CLAUDE.md": "# ...",
-             "AGENTS.md": "# ...",
-             "adrs/ADR-001-language-choice.md": "---\nadr_number: 1\n...",
-             "adrs/ADR-002-database.md": "---\nadr_number: 2\n...",
-             ".specify/spec.md": "# Feature Specification: ...",
-             ".github/PULL_REQUEST_TEMPLATE.md": "## Why\n...",
-             ".github/workflows/pr-description-check.yml": "name: ...",
-             ".github/workflows/spec-agent.yml": "name: ...",
-             ".github/workflows/lore-ingest.yml": "name: ..."
-           }
-         }
-
-      CRITICAL RULES:
-      - Your ENTIRE output must be a single valid JSON object. Nothing else.
-      - Do NOT use git, bash, shell commands, or any tools.
-      - Do NOT write any text before or after the JSON.
-      - Be specific. Write what you actually find, not generic placeholders.
-      - If a file already exists in repoContext.files (e.g. CLAUDE.md), skip it.
-      - ADRs should document real decisions visible in the code.
-      - The spec should describe the system as it exists today.
-      - Keep CLAUDE.md under 2 pages. Keep ADRs concise.
+      Ticket: {description}
     target_repo: null
-    timeout_minutes: 15
-    review_required: false
-    # Onboarding generates a first-pass CLAUDE.md / ADRs / spec that
-    # a human always reviews before merge. Haiku is fine for drafts.
-    model: claude-haiku-4-5-20251001
+    timeout_minutes: 30
+    review_required: true
+    execution_mode: claude-code
+    model: claude-sonnet-4-6
 
   # Spec-traceability graph ingestion is CI-driven, not a pipeline task: specs/ADRs
   # project via lore-ingest.yml → /api/repos/:o/:r/ingest-graph (fire-and-forget

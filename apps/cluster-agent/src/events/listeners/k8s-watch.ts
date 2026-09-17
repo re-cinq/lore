@@ -16,6 +16,7 @@ import {
   type WatchDeps,
 } from "./agent-reporting.js";
 import { forEachAgentPage } from "../../outbound/agent-pages.js";
+import { KubePodLogs } from "../../outbound/kube-pod-logs.js";
 
 export type { WatchDeps };
 
@@ -39,7 +40,12 @@ export class AgentWatchInput implements EventInput {
     // No backend gate here — startClaimLoop already refuses to boot unless the backend is k8s, and runs before this input registers.
     this.running = true;
     console.log("[cluster-agent] k8s Agent-CR watch started");
-    void this.watchForever({ emit });
+    const pods = new KubePodLogs();
+
+    void this.watchForever({
+      emit,
+      failureCause: (jobName) => pods.failureCause(jobName),
+    });
   }
 
   stop(): Promise<void> {

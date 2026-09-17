@@ -79,15 +79,6 @@ export function onboardLockKey(repo: string): string {
   return `lore.onboard:${repo}`;
 }
 
-// The pipeline turns this into the filed GitHub Issue's body — a bare repo name (what the UI used to send) produced an Issue reading as an empty request.
-export function onboardTaskDescription(repo: string): string {
-  return (
-    `Onboard ${repo} into Lore: inspect the repo and generate the scaffolding it is ` +
-    `missing (CLAUDE.md, AGENTS.md, PR template, CI workflows), then open a single PR. ` +
-    `Leave files that already exist untouched.`
-  );
-}
-
 // `reonboard` (the repo-page button) may target an already-onboarded repo but still respects the in-flight/open-PR blocks — either bypass would put a second agent on scaffolding one is already writing.
 export function decideOnboard(
   repo: string,

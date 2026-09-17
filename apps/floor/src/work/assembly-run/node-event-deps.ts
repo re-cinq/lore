@@ -150,6 +150,7 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
         pulls: project.pulls,
         assemblyRuns: pipeline().assemblyRuns,
         features: project.features,
+        onboarding: settings(),
       });
     },
     markPrReady: async (row, result) => {

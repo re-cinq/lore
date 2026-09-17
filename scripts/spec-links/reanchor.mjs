@@ -182,12 +182,17 @@ export function reanchorMarkdown(markdown, mdPath, io) {
     const base = io.baseLinks(mdPath, target.path) ?? [];
     const hunks = io.hunksFor(target.path);
     const ordinals = ordinalsOf(group);
+    const occurrences = occurrencesOf(group);
 
     group.forEach((link, index) => {
       const resolved = resolveLink(link, {
         declarations,
         lastLine,
-        baseLine: baseLineFor(link, base, ordinals[index]),
+        baseLine: baseLineFor(link, base, {
+          ordinal: ordinals[index],
+          occurrence: occurrences[index],
+          kindCount: ordinals.filter((ordinal) => ordinal >= 0).length,
+        }),
         hunks,
       });
 
@@ -217,26 +222,40 @@ function ordinalsOf(group) {
   );
 }
 
+/** Which occurrence of its own label each link is within the group: 0 for the first `y.test.ts:7`, 1 for the second. */
+function occurrencesOf(group) {
+  const seen = new Map();
+
+  return group.map((link) => {
+    const occurrence = seen.get(link.label) ?? 0;
+
+    seen.set(link.label, occurrence + 1);
+
+    return occurrence;
+  });
+}
+
 function stripPrefix(label) {
   return label.replace(LABEL_PREFIX, "").trim();
 }
 
-/** The merge-base copy's anchor for this link: the base link carrying the same label (when exactly one does), or, for a `file.test.ts:NN` label whose text changes with every move, the base link of that kind at the same ordinal. Null when the base cannot say. */
-function baseLineFor(link, base, ordinal) {
+/** The merge-base copy's anchor for this link: the base link carrying the same label — its Nth occurrence when the label repeats, as long as the branch kept every repeat — or, for a `file.test.ts:NN` label the base does not carry, the base link of that kind at the same ordinal. The ordinal is the LAST resort: it counts every link of the kind in the file, so relabelling or removing one link anywhere above hands each later link its neighbour's anchor. Null when the base cannot say. */
+function baseLineFor(link, base, { ordinal, occurrence, kindCount }) {
   const sameLabel = base.filter((entry) => entry.label === link.label);
 
-  if (sameLabel.length === 1) {
-    return sameLabel[0].line;
+  if (sameLabel.length > occurrence) {
+    return sameLabel[occurrence].line;
   }
 
-  if (ordinal < 0) {
+  if (ordinal < 0 || sameLabel.length > 0) {
     return null;
   }
   const kind = base.filter((entry) =>
     BASENAME_LABEL.test(stripPrefix(entry.label)),
   );
 
-  return kind[ordinal]?.line ?? null;
+  // An ordinal only pairs two lists of the same length: one link added, removed or relabelled shifts every pairing after it.
+  return kind.length === kindCount ? (kind[ordinal]?.line ?? null) : null;
 }
 
 function resolveLink(link, ctx) {
@@ -276,18 +295,14 @@ function resolveLink(link, ctx) {
     : { line: mapped };
 }
 
-/** Rewrites `#Lnn` (and a `file.test.ts:NN` label) for each edit, last edit first so offsets stay valid. */
+/** Rewrites `#Lnn` for each edit, last edit first so offsets stay valid. The LABEL is never touched: it is the key a link is paired with its base copy by, and rewriting `file.test.ts:3` to the new line made it collide with a different link's base label, so the next run paired the two crosswise and they swapped for ever. */
 function applyEdits(markdown, edits) {
   let out = markdown;
 
   for (const { link, line } of [...edits].sort(
     (a, b) => b.link.start - a.link.start,
   )) {
-    const label = BASENAME_LABEL.test(stripPrefix(link.label))
-      ? link.label.replace(/:\d+(`?)$/, `:${line}$1`)
-      : link.label;
-
-    out = `${out.slice(0, link.start)}[${label}](${link.linkPath}#L${line})${out.slice(link.end)}`;
+    out = `${out.slice(0, link.start)}[${link.label}](${link.linkPath}#L${line})${out.slice(link.end)}`;
   }
 
   return out;
