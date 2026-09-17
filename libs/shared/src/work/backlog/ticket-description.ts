@@ -12,8 +12,8 @@ export function implementationTicketDescription(issue: TicketText): string {
   return body.length === 0 ? issue.title : `${issue.title}\n\n${body}`;
 }
 
-/** A ticket whose text would not fit a task's description. The loop walks past it and the backlog page flags it, rather than cutting the body a DoD node defines done against. */
-export function ticketTooLarge(issue: TicketText): boolean {
+/** A ticket whose title and body are too long to fit a task description — a measure of text, not of how much work the ticket asks for. The loop walks past it and the backlog page flags it, rather than cutting the body a DoD node defines done against. */
+export function ticketTextTooLong(issue: TicketText): boolean {
   return (
     implementationTicketDescription(issue).length > MAX_TASK_DESCRIPTION_CHARS
   );

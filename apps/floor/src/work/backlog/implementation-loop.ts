@@ -4,7 +4,7 @@ import {
   implementationTicketDescription,
   MAX_TASK_DESCRIPTION_CHARS,
   orderBacklog,
-  ticketTooLarge,
+  ticketTextTooLong,
 } from "@re-cinq/lore-shared";
 import {
   backlogSubject,
@@ -121,8 +121,8 @@ async function pickBacklogTicket(
   const guarded: number[] = [];
 
   for (const candidate of ordered) {
-    if (ticketTooLarge(candidate)) {
-      logTooLarge(repo, candidate.number);
+    if (ticketTextTooLong(candidate)) {
+      logTextTooLong(repo, candidate.number);
       continue;
     }
 
@@ -137,10 +137,10 @@ async function pickBacklogTicket(
   return { picked: null, guarded };
 }
 
-/** An oversized ticket is walked past, not minted: task creation would refuse it, and a refusal thrown at the head froze re-cinq/Otto's backlog for two days. */
-function logTooLarge(repo: string, issueNumber: number): void {
+/** A ticket whose text is too long is walked past, not minted: task creation would refuse it, and a refusal thrown at the head froze re-cinq/Otto's backlog for two days. */
+function logTextTooLong(repo: string, issueNumber: number): void {
   console.log(
-    `[implementation-loop] ${repo}: skipped #${issueNumber} — too large: its title and body exceed the ${MAX_TASK_DESCRIPTION_CHARS}-char task description limit`,
+    `[implementation-loop] ${repo}: skipped #${issueNumber} — ticket text too long: its title and body exceed the ${MAX_TASK_DESCRIPTION_CHARS}-char task description limit`,
   );
 }
 

@@ -7,5 +7,5 @@ export {
 } from "./labels.js";
 export {
   implementationTicketDescription,
-  ticketTooLarge,
+  ticketTextTooLong,
 } from "./ticket-description.js";

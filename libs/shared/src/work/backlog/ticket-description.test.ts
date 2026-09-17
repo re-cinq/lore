@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   implementationTicketDescription,
-  ticketTooLarge,
+  ticketTextTooLong,
 } from "./ticket-description.js";
 
 describe("implementationTicketDescription", () => {
@@ -41,13 +41,13 @@ describe("implementationTicketDescription", () => {
   });
 });
 
-describe("ticketTooLarge", () => {
+describe("ticketTextTooLong", () => {
   it("returns true when title and body compose to 32001 chars", () => {
-    expect(ticketTooLarge({ title: "T", body: "x".repeat(31_998) })).toBe(true);
+    expect(ticketTextTooLong({ title: "T", body: "x".repeat(31_998) })).toBe(true);
   });
 
   it("returns false when title and body compose to exactly 32000 chars", () => {
-    expect(ticketTooLarge({ title: "T", body: "x".repeat(31_997) })).toBe(
+    expect(ticketTextTooLong({ title: "T", body: "x".repeat(31_997) })).toBe(
       false,
     );
   });

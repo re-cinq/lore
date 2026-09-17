@@ -333,20 +333,20 @@ describe("a repo whose loop is on but whose onboarding has not merged", () => {
   });
 });
 
-describe("a ticket too large for a task description", () => {
-  const oversizedHead = async () => [
+describe("a ticket whose text is too long for a task description", () => {
+  const longTextHead = async () => [
     { ...issue(5, ["priority:medium"]), body: "x".repeat(32_000) },
     issue(9, ["priority:medium"]),
   ];
 
-  it("walks past an oversized #5 and picks #9, logging why #5 was skipped", async () => {
+  it("walks past #5 with 32000 chars of body text and picks #9, logging why #5 was skipped", async () => {
     const lines: string[] = [];
     const orig = console.log;
 
     console.log = (msg: string) => void lines.push(String(msg));
 
     try {
-      const d = deps({ listIssues: oversizedHead });
+      const d = deps({ listIssues: longTextHead });
 
       await createImplementationLoopTickHandler(d.deps)({});
       expect(d.minted).toMatchObject([
@@ -355,8 +355,8 @@ describe("a ticket too large for a task description", () => {
     } finally {
       console.log = orig;
     }
-    expect(lines.filter((l) => l.includes("too large"))).toEqual([
-      "[implementation-loop] acme/widgets: skipped #5 — too large: its title and body exceed the 32000-char task description limit",
+    expect(lines.filter((l) => l.includes("text too long"))).toEqual([
+      "[implementation-loop] acme/widgets: skipped #5 — ticket text too long: its title and body exceed the 32000-char task description limit",
     ]);
   });
 });
