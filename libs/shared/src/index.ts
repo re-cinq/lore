@@ -310,5 +310,7 @@ export {
   PRIORITY_LABELS,
   LORE_BLOCKED_LABEL,
   BACKLOG_LABEL_SEED,
+  implementationTicketDescription,
+  ticketTooLarge,
   type PriorityLabel,
 } from "./work/backlog/index.js";
