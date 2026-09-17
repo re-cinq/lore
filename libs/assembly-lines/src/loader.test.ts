@@ -653,6 +653,7 @@ describe("loadAssemblyLineDir — bundled assemblyLines", () => {
       "implementation-loop",
       "ingest",
       "merge",
+      "onboard",
       "spec-coverage-backfill",
       "spec-coverage-validate",
       "spec-drift",
