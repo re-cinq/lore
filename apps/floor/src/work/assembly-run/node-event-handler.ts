@@ -59,6 +59,9 @@ export function reportedStatus(status: unknown): AgentNodeStatus | null {
     ...(typeof status.failureReason === "string"
       ? { failureReason: status.failureReason }
       : {}),
+    ...(typeof status.errorText === "string"
+      ? { errorText: status.errorText }
+      : {}),
   };
 }
 

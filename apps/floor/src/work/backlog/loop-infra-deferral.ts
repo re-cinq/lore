@@ -22,8 +22,8 @@ export interface ParkVerdict {
   resolved?: string;
 }
 
-/** Failure classes that say nothing about the ticket: no pod ever ran, or the pod died under it. Re-running the previous node cannot summon a cluster (#1648), but the NEXT tick can. */
-const INFRA_CLASSES = new Set(["unclaimed", "infra"]);
+/** Failure classes that say nothing about the ticket: no pod ever ran, the pod died under it, or it could not clone the repository before the agent started. Re-running the previous node cannot summon a cluster (#1648), but the NEXT tick can; a checkout that keeps failing still parks at the bound. */
+const INFRA_CLASSES = new Set(["unclaimed", "infra", "repo-checkout"]);
 
 /** A run whose failing visit failed on the cluster rather than on the work. The failing visit is the one that routed into a retrospective that succeeded (a reaped round routes its failure there, and the retrospective's own success must not hide it — run eb46675f), otherwise the last recorded one, a retrospective that itself failed included. */
 export function isInfraFailure(

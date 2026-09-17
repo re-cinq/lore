@@ -360,6 +360,30 @@ describe("createNodeEventHandler", () => {
     expect(await h.port.getById(id)).toMatchObject({ status: "finished" });
   });
 
+  it("records the pod's refused clone as the failure instead of BackoffLimitExceeded", async () => {
+    const h = harness();
+    const { id, crName } = await reviewInFlight(h);
+
+    await h.handler({
+      ...params(id, crName, "Failed"),
+      status: {
+        phase: "Failed",
+        output: "",
+        failureReason:
+          "BackoffLimitExceeded: Job has reached the specified backoff limit",
+        errorText:
+          "init container \"init\" exited 128: remote: Repository not found. fatal: repository 'https://github.com/o/r.git/' not found",
+      },
+    });
+
+    expect(h.port.nodes[0]).toMatchObject({
+      outcome: "failed",
+      failureClass: "repo-checkout",
+      failureDetail:
+        "init container \"init\" exited 128: remote: Repository not found. fatal: repository 'https://github.com/o/r.git/' not found",
+    });
+  });
+
   it("uses the reported status even for a CR claimed by an unreachable cluster, the case that stranded PR #1599's review", async () => {
     const h = harness();
     const { id, crName } = await reviewInFlight(h);

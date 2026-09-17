@@ -12,6 +12,8 @@ export { GROUP, VERSION, PLURAL };
 export interface WatchDeps {
   /** Hand the event to the proxy — resolves once QUEUED, blocking while full (the only backpressure the watch has). */
   emit: Emit;
+  /** Why a failed Agent's Job died, in the pod's own words; absent in tests that only watch phases. */
+  failureCause?: (jobName: string) => Promise<string | undefined>;
 }
 
 /** The slice of CustomObjectsApi the paginated list needs; tests fake this. */
@@ -21,7 +23,7 @@ export async function reportForAgent(
   agent: AgentCr,
   deps: WatchDeps,
 ): Promise<void> {
-  const ev = mapAgentToEvent(agent as never);
+  const ev = mapAgentToEvent((await withFailureCause(agent, deps)) as never);
 
   if (!ev) {
     return;
@@ -35,4 +37,26 @@ export async function reportForAgent(
       errorMessage(err),
     );
   }
+}
+
+/** A failed CR carries only the Job's `BackoffLimitExceeded`, which reads as "the pod died" whatever killed it; the pod still holds the real cause, and only this process can read pods. Best-effort: a pod already gone or unreadable leaves the Job reason to speak alone. */
+async function withFailureCause(
+  agent: AgentCr,
+  deps: WatchDeps,
+): Promise<AgentCr> {
+  const jobName = agent.status?.jobName;
+
+  if (agent.status?.phase !== "Failed" || !jobName || !deps.failureCause) {
+    return agent;
+  }
+  const errorText = await deps.failureCause(jobName).catch((err: unknown) => {
+    console.warn(
+      `[cluster-agent] could not read why ${jobName} failed:`,
+      errorMessage(err),
+    );
+
+    return undefined;
+  });
+
+  return errorText ? { ...agent, status: { ...agent.status, errorText } } as AgentCr : agent;
 }

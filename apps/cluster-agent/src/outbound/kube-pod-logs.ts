@@ -9,6 +9,7 @@ import type {
 } from "@kubernetes/client-node";
 import {
   agentsNamespace,
+  redactSecrets,
   type AgentPodInfo,
   type PodSummary,
   type PodLogSource,
@@ -93,6 +94,65 @@ function endedBadly(status: V1ContainerStatus): boolean {
   return terminated !== undefined && terminated.exitCode !== 0;
 }
 
+/** The container that ended the pod badly: a failed init container first, since `agent` never starts after one. */
+function failedContainer(pod: V1Pod): V1ContainerStatus | undefined {
+  const status = pod.status;
+
+  return (
+    (status?.initContainerStatuses ?? []).find(endedBadly) ??
+    (status?.containerStatuses ?? []).find(endedBadly)
+  );
+}
+
+// The step runner echoes the whole command it ran after the step's own output; git's words say why, the echo only says what.
+const STEP_COMMAND_ECHO = /^\[\w+\] .+ failed \(exit \d+\):/;
+const CAUSE_LINES = 3;
+
+/** The log's last plain lines: lifecycle markers and stream-json are the runner talking, not the failing program. */
+function plainCauseLines(log: string): string[] {
+  return log
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("{"))
+    .filter((line) => !STEP_COMMAND_ECHO.test(line))
+    .slice(-CAUSE_LINES);
+}
+
+/** Why a failed Agent's pod died, in its own words — the Job-level `BackoffLimitExceeded` the CR carries says only that it did. Undefined when the pod offers nothing more concrete, so the caller keeps the Job reason and its classification rather than trading it for a bare exit code. */
+export function podFailureCause(pod: V1Pod, log: string): string | undefined {
+  const failed = failedContainer(pod);
+  const terminated = failed?.state?.terminated;
+
+  if (!failed || !terminated) {
+    return undefined;
+  }
+  const isInit = (pod.status?.initContainerStatuses ?? []).includes(failed);
+  const container = `${isInit ? "init container" : "container"} "${failed.name}"`;
+
+  if (terminated.reason === "OOMKilled") {
+    return `${container} was OOMKilled (exit ${terminated.exitCode})`;
+  }
+  const lines = plainCauseLines(log);
+
+  return lines.length === 0
+    ? undefined
+    : redactSecrets(
+        `${container} exited ${terminated.exitCode}: ${lines.join(" ")}`,
+      );
+}
+
+const FAILURE_LOG_TAIL_LINES = 40;
+
+function byCreationDescending(a: V1Pod, b: V1Pod): number {
+  return creationMillis(b) - creationMillis(a);
+}
+
+function creationMillis(pod: V1Pod): number {
+  const created = pod.metadata?.creationTimestamp;
+
+  return created ? new Date(created).getTime() : 0;
+}
+
 function agentPodInfoOf(agent: AgentCr): AgentPodInfo {
   return {
     phase: agent.status?.phase ?? null,
@@ -142,6 +202,28 @@ export class KubePodLogs implements PodLogSource {
         ? new Date(pod.metadata.creationTimestamp).toISOString()
         : undefined,
     }));
+  }
+
+  /** Why a failed Agent's Job died, read off its newest pod — a Job's retry pods are older attempts, not the one the CR's phase reports. */
+  async failureCause(jobName: string): Promise<string | undefined> {
+    const api = this.api();
+    const { items } = await api.listNamespacedPod({
+      namespace: this.namespace(),
+      labelSelector: podSelectorForJob(jobName),
+    });
+    const newest = items.toSorted(byCreationDescending)[0];
+
+    if (!newest) {
+      return undefined;
+    }
+    const log = await api.readNamespacedPodLog({
+      name: podName(newest),
+      namespace: this.namespace(),
+      tailLines: FAILURE_LOG_TAIL_LINES,
+      container: failedContainer(newest)?.name,
+    });
+
+    return podFailureCause(newest, log);
   }
 
   async listRunning(): Promise<RunningPodInfo[]> {
