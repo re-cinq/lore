@@ -1,6 +1,13 @@
 import { describe, it, expect } from "vitest";
 
-import { ONBOARD_STATIC_FILES, ONBOARD_FILES } from "./handle-onboard.js";
+import { LORE_TESTS_INSTRUCTION } from "../lib/lore-tests-instruction.js";
+import {
+  ONBOARD_STATIC_FILES,
+  ONBOARD_FILES,
+  ADR_TOPICS,
+  TEST_COMMAND_MANIFEST_SCAFFOLD_PROMPT,
+  onboardTicketBody,
+} from "./onboard-content.js";
 
 const staticPaths = ONBOARD_STATIC_FILES.map((f) => f.path);
 const llmPaths = ONBOARD_FILES.map((f) => f.path);
@@ -70,5 +77,49 @@ describe("onboarding file-set boundaries", () => {
 
   it("scaffolds no spec-agent.yml", () => {
     expect(allPaths.some((p) => p.includes("spec-agent"))).toBe(false);
+  });
+});
+
+describe("onboardTicketBody", () => {
+  const body = onboardTicketBody("re-cinq/app");
+
+  it("names re-cinq/app as the repository being onboarded", () => {
+    expect(body).toContain("Onboard re-cinq/app into Lore");
+  });
+
+  it("owes every LLM-drafted path with its prompt", () => {
+    for (const file of ONBOARD_FILES) {
+      expect(body).toContain(`\`${file.path}\``);
+      expect(body).toContain(file.prompt);
+    }
+  });
+
+  it("owes the starter ADRs only for a repo with no adrs/ or docs/ directory", () => {
+    expect(body).toContain("adrs/ADR-001-language-choice.md");
+    expect(body).toContain("adrs/ADR-003-deployment.md");
+    expect(body).toContain("no `adrs/` or `docs/` directory");
+    for (const adr of ADR_TOPICS) {
+      expect(body).toContain(adr.prompt);
+    }
+  });
+
+  it("owes the test-command manifest and lore-tests.yml with their own instructions, only when absent", () => {
+    expect(body).toContain("`.lore/test-commands.yml`");
+    expect(body).toContain(TEST_COMMAND_MANIFEST_SCAFFOLD_PROMPT);
+    expect(body).toContain("`.github/workflows/lore-tests.yml`");
+    expect(body).toContain(LORE_TESTS_INSTRUCTION);
+  });
+
+  it("says the deterministic scaffolding is already on the branch and must not be rewritten", () => {
+    expect(body).toContain(".github/workflows/lore-ingest.yml");
+    expect(body).toContain(".github/ISSUE_TEMPLATE");
+    expect(body).toContain("already committed");
+  });
+
+  it("forbids CLAUDE.md, existing-file rewrites and code changes, and leaves the pull request to Lore", () => {
+    expect(body).toContain("Do not author `CLAUDE.md`");
+    expect(body).toContain("left untouched");
+    expect(body).toContain("Change no source code");
+    expect(body).toContain("Lore opens the pull request");
   });
 });

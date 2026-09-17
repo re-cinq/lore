@@ -267,7 +267,6 @@ export {
 export {
   decideOnboard,
   onboardLockKey,
-  onboardTaskDescription,
   toOnboardState,
   IN_FLIGHT_TASK_STATUSES,
   ONBOARD_REPO_STATE_SQL,
@@ -278,6 +277,15 @@ export {
   type OnboardRepoRow,
   type OnboardTaskRow,
 } from "./work/onboard-guard.js";
+export {
+  ONBOARD_STATIC_FILES,
+  ONBOARD_FILES,
+  ONBOARD_DETERMINISTIC_PATHS,
+  ADR_TOPICS,
+  TEST_COMMAND_MANIFEST_SCAFFOLD_PROMPT,
+  onboardTicketBody,
+  starterAdrPaths,
+} from "./work/onboard-content.js";
 // Branch-lease backends (Slice 3) — used by the agent supervisor until it moves to project.leases (Slice 4).
 export {
   DbLeaseBackend,

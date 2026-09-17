@@ -1,4 +1,5 @@
 /** The static and LLM-generated file catalogs onboarding draws from. */
+import { LORE_TESTS_INSTRUCTION } from "../lib/lore-tests-instruction.js";
 
 /** Static files that don't need LLM generation */
 export const ONBOARD_STATIC_FILES: { path: string; content: string }[] = [
@@ -136,3 +137,49 @@ export const ADR_TOPICS = [
       "Write an ADR for the deployment approach. Look at Dockerfile, CI workflows, Kubernetes manifests, serverless configs. Describe what was chosen and why.",
   },
 ];
+
+/** The deterministic files the Floor commits on the onboarding branch before the agent runs; named in the ticket so the agent knows what is already there. */
+export const ONBOARD_DETERMINISTIC_PATHS: readonly string[] = [
+  ".github/workflows/lore-ingest.yml",
+  ".github/workflows/lore-trace-impact.yml",
+  ...ONBOARD_STATIC_FILES.map((file) => file.path),
+];
+
+/** The starter ADR paths, numbered from 1 in ADR_TOPICS order. */
+export function starterAdrPaths(): string[] {
+  return ADR_TOPICS.map(
+    (adr, index) =>
+      `adrs/ADR-${String(index + 1).padStart(3, "0")}-${adr.slug}.md`,
+  );
+}
+
+// The onboarding TICKET: the issue body the onboard assembly line implements. It is the whole spec the agent gets, so it names every file owed, with its prompt, and every rule — a one-line description once let an agent redefine the job (#1745).
+export function onboardTicketBody(repo: string): string {
+  return [
+    `Onboard ${repo} into Lore.`,
+    "",
+    "Lore has already committed the deterministic scaffolding on this branch, so do not rewrite it:",
+    ...ONBOARD_DETERMINISTIC_PATHS.map((path) => `- \`${path}\``),
+    "",
+    "Author the files that need reading this repository. Each one is owed only when it does not exist yet:",
+    ...ONBOARD_FILES.map((file) => `- \`${file.path}\` — ${file.prompt}`),
+    ...adrLines(),
+    `- \`.lore/test-commands.yml\` — only when the repo declares no test-command manifest. ${TEST_COMMAND_MANIFEST_SCAFFOLD_PROMPT}`,
+    `- \`.github/workflows/lore-tests.yml\` — only when absent. ${LORE_TESTS_INSTRUCTION}`,
+    "",
+    "Rules:",
+    "- A file that already exists is left untouched — onboarding adds, it never rewrites.",
+    "- Do not author `CLAUDE.md`: the repository's owners write it.",
+    "- Change no source code, tests, or build configuration.",
+    "- Commit the files, push the branch, and stop. Lore opens the pull request from the branch.",
+  ].join("\n");
+}
+
+function adrLines(): string[] {
+  const paths = starterAdrPaths();
+
+  return [
+    `- Starter ADRs, only when the repo has no \`adrs/\` or \`docs/\` directory yet — MADR format with YAML frontmatter (adr_number, title, status: accepted, date: today, domains). Skip an ADR whose subject the repo shows no evidence of:`,
+    ...ADR_TOPICS.map((adr, index) => `  - \`${paths[index]}\` — ${adr.prompt}`),
+  ];
+}
