@@ -3300,6 +3300,7 @@ export interface components {
               state: string;
             }[]
           | null;
+        text_too_long: boolean;
       } | null;
       current_run_id: string | null;
       next: {
@@ -3318,6 +3319,7 @@ export interface components {
               state: string;
             }[]
           | null;
+        text_too_long: boolean;
       }[];
       recent: {
         issue_number: number;
@@ -3335,6 +3337,7 @@ export interface components {
               state: string;
             }[]
           | null;
+        text_too_long: boolean;
       }[];
     };
     ImplementationLoopToggle: {
