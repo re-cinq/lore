@@ -265,8 +265,26 @@ function TicketTitleCell({ ticket }: { ticket: LoopTicket }) {
       {ticket.priority && (
         <span className={styles.priority}>{ticket.priority}</span>
       )}
+      <TextTooLongPill ticket={ticket} />
       <TicketError ticket={ticket} />
     </td>
+  );
+}
+
+/** Warns that the loop will walk past this ticket: its issue text is longer than a task description may be. Worded about TEXT, so it does not read as a ticket with too much work in it. */
+function TextTooLongPill({ ticket }: { ticket: LoopTicket }) {
+  if (!ticket.text_too_long) {
+    return null;
+  }
+
+  return (
+    <span
+      className={styles.textTooLong}
+      title="The issue's title and body are longer than a task description may be, so the loop will not pick it. Shorten the issue text to queue it."
+      data-testid="ticket-text-too-long"
+    >
+      text too long
+    </span>
   );
 }
 
