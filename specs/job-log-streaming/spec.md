@@ -106,12 +106,12 @@ with the run page.
    the one holding the failure; one that exited 0, one still running, and
    a pod with no init containers name none, so an ordinary run is still
    read from the default container.
-   ([validated by names the init container that exited 1](apps/cluster-agent/src/outbound/kube-pod-logs.test.ts#L44), [`kube-pod-logs.test.ts:50`](apps/cluster-agent/src/outbound/kube-pod-logs.test.ts#L50), [`kube-pod-logs.test.ts:54`](apps/cluster-agent/src/outbound/kube-pod-logs.test.ts#L54), [`kube-pod-logs.test.ts:58`](apps/cluster-agent/src/outbound/kube-pod-logs.test.ts#L58))
+   ([validated by names the init container that exited 1](apps/cluster-agent/src/outbound/kube-pod-logs.test.ts#L44), [validated by returns undefined when the init container exited 0](apps/cluster-agent/src/outbound/kube-pod-logs.test.ts#L50), [validated by returns undefined while the init container is still running](apps/cluster-agent/src/outbound/kube-pod-logs.test.ts#L54), [validated by returns undefined for a pod with no init containers](apps/cluster-agent/src/outbound/kube-pod-logs.test.ts#L58))
 
 2. `podLog` returns the failed init container's log when there is one and
    the default container's otherwise, so the init failure reaches every
    caller of the port without any of them asking for it.
-   ([validated by returns the init container's log when init failed](apps/cluster-agent/src/outbound/kube-pod-logs.test.ts#L74), [`kube-pod-logs.test.ts:82`](apps/cluster-agent/src/outbound/kube-pod-logs.test.ts#L82))
+   ([validated by returns the init container's log when init failed](apps/cluster-agent/src/outbound/kube-pod-logs.test.ts#L74), [validated by returns the default container's log when the init container exited 0](apps/cluster-agent/src/outbound/kube-pod-logs.test.ts#L82))
 
 ## Amendment (2026-09-17, the failure reason quotes the pod)
 
@@ -129,11 +129,11 @@ an OOM, an eviction, or a Job deadline"*, none of which happened.
    is named as such from its terminated state even when its log is only JSON.
    A pod with no failed container, or whose failed container printed no plain
    line, yields nothing, so the Job-level reason and its classification stand.
-   ([validated by names the init container, its exit code and git's own words for a refused clone](../../apps/cluster-agent/src/outbound/kube-pod-logs.test.ts#L111), [validated by names an OOMKilled agent container even when its log is only JSON](../../apps/cluster-agent/src/outbound/kube-pod-logs.test.ts#L117), [validated by returns undefined for a failed container whose log holds no plain line](../../apps/cluster-agent/src/outbound/kube-pod-logs.test.ts#L134), [validated by returns undefined for a pod with no failed container](../../apps/cluster-agent/src/outbound/kube-pod-logs.test.ts#L140), [validated by redacts a token a failing step printed](../../apps/cluster-agent/src/outbound/kube-pod-logs.test.ts#L144))
+   ([validated by names the init container, its exit code and git's own words for a refused clone](../../apps/cluster-agent/src/outbound/kube-pod-logs.test.ts#L110), [validated by names an OOMKilled agent container even when its log is only JSON](../../apps/cluster-agent/src/outbound/kube-pod-logs.test.ts#L116), [validated by returns undefined for a failed container whose log holds no plain line](../../apps/cluster-agent/src/outbound/kube-pod-logs.test.ts#L133), [validated by returns undefined for a pod with no failed container](../../apps/cluster-agent/src/outbound/kube-pod-logs.test.ts#L139), [validated by redacts a token a failing step printed](../../apps/cluster-agent/src/outbound/kube-pod-logs.test.ts#L143))
 
 4. `KubePodLogs.failureCause` reads that cause off the Job's newest pod, and
    yields nothing once the Job's pods are gone.
-   ([validated by reads the newest pod's failed init container and names the refused clone](../../apps/cluster-agent/src/outbound/kube-pod-logs.test.ts#L173), [validated by returns undefined when the Job's pods are already gone](../../apps/cluster-agent/src/outbound/kube-pod-logs.test.ts#L189))
+   ([validated by reads the newest pod's failed init container and names the refused clone](../../apps/cluster-agent/src/outbound/kube-pod-logs.test.ts#L172), [validated by returns undefined when the Job's pods are already gone](../../apps/cluster-agent/src/outbound/kube-pod-logs.test.ts#L188))
 
 5. The cluster-agent's Agent watch attaches the cause to a failed Agent's
    terminal report as `status.errorText`, beside the CR's `failureReason`; a

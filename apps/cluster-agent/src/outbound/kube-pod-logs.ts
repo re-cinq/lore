@@ -94,14 +94,27 @@ function endedBadly(status: V1ContainerStatus): boolean {
   return terminated !== undefined && terminated.exitCode !== 0;
 }
 
-/** The container that ended the pod badly: a failed init container first, since `agent` never starts after one. */
-function failedContainer(pod: V1Pod): V1ContainerStatus | undefined {
-  const status = pod.status;
+/** Why a failed Agent's pod died, in its own words — the Job-level `BackoffLimitExceeded` the CR carries says only that it did. Undefined when the pod offers nothing more concrete, so the caller keeps the Job reason and its classification rather than trading it for a bare exit code. */
+export function podFailureCause(pod: V1Pod, log: string): string | undefined {
+  const ended = endedContainer(pod);
 
-  return (
-    (status?.initContainerStatuses ?? []).find(endedBadly) ??
-    (status?.containerStatuses ?? []).find(endedBadly)
-  );
+  if (!ended) {
+    return undefined;
+  }
+
+  return ended.reason === "OOMKilled"
+    ? `${ended.label} was OOMKilled (exit ${ended.exitCode})`
+    : causeFromLog(ended, log);
+}
+
+function causeFromLog(ended: EndedContainer, log: string): string | undefined {
+  const lines = plainCauseLines(log);
+
+  return lines.length === 0
+    ? undefined
+    : redactSecrets(
+        `${ended.label} exited ${ended.exitCode}: ${lines.join(" ")}`,
+      );
 }
 
 // The step runner echoes the whole command it ran after the step's own output; git's words say why, the echo only says what.
@@ -118,27 +131,42 @@ function plainCauseLines(log: string): string[] {
     .slice(-CAUSE_LINES);
 }
 
-/** Why a failed Agent's pod died, in its own words — the Job-level `BackoffLimitExceeded` the CR carries says only that it did. Undefined when the pod offers nothing more concrete, so the caller keeps the Job reason and its classification rather than trading it for a bare exit code. */
-export function podFailureCause(pod: V1Pod, log: string): string | undefined {
-  const failed = failedContainer(pod);
-  const terminated = failed?.state?.terminated;
+interface EndedContainer {
+  name: string;
+  label: string;
+  exitCode: number;
+  reason?: string;
+}
 
-  if (!failed || !terminated) {
-    return undefined;
-  }
-  const isInit = (pod.status?.initContainerStatuses ?? []).includes(failed);
-  const container = `${isInit ? "init container" : "container"} "${failed.name}"`;
+/** The container that ended the pod badly: a failed init container first, since `agent` never starts after one. */
+function endedContainer(pod: V1Pod): EndedContainer | undefined {
+  return (
+    endedIn("init container", pod.status?.initContainerStatuses) ??
+    endedIn("container", pod.status?.containerStatuses)
+  );
+}
 
-  if (terminated.reason === "OOMKilled") {
-    return `${container} was OOMKilled (exit ${terminated.exitCode})`;
-  }
-  const lines = plainCauseLines(log);
+function endedIn(
+  kind: string,
+  statuses: V1ContainerStatus[] = [],
+): EndedContainer | undefined {
+  const ended = statuses.find(endedBadly);
 
-  return lines.length === 0
-    ? undefined
-    : redactSecrets(
-        `${container} exited ${terminated.exitCode}: ${lines.join(" ")}`,
-      );
+  return ended && describeEnded(kind, ended);
+}
+
+function describeEnded(
+  kind: string,
+  status: V1ContainerStatus,
+): EndedContainer {
+  const terminated = status.state?.terminated;
+
+  return {
+    name: status.name,
+    label: `${kind} "${status.name}"`,
+    exitCode: terminated?.exitCode ?? 0,
+    reason: terminated?.reason,
+  };
 }
 
 const FAILURE_LOG_TAIL_LINES = 40;
@@ -207,11 +235,11 @@ export class KubePodLogs implements PodLogSource {
   /** Why a failed Agent's Job died, read off its newest pod — a Job's retry pods are older attempts, not the one the CR's phase reports. */
   async failureCause(jobName: string): Promise<string | undefined> {
     const api = this.api();
-    const { items } = await api.listNamespacedPod({
+    const { items: pods } = await api.listNamespacedPod({
       namespace: this.namespace(),
       labelSelector: podSelectorForJob(jobName),
     });
-    const newest = items.toSorted(byCreationDescending)[0];
+    const newest = pods.toSorted(byCreationDescending).at(0);
 
     if (!newest) {
       return undefined;
@@ -220,7 +248,7 @@ export class KubePodLogs implements PodLogSource {
       name: podName(newest),
       namespace: this.namespace(),
       tailLines: FAILURE_LOG_TAIL_LINES,
-      container: failedContainer(newest)?.name,
+      container: endedContainer(newest)?.name,
     });
 
     return podFailureCause(newest, log);

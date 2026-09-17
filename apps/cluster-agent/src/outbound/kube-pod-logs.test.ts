@@ -86,7 +86,6 @@ describe("KubePodLogs.podLog", () => {
   });
 });
 
-// Captured verbatim from run 447b8249's tdd-round init container (2026-09-17).
 const CLONE_REFUSED_LOG = [
   '{"kind":"lifecycle","phase":"init","status":"started"}',
   '{"kind":"lifecycle","phase":"init","status":"running","tool":"git"}',

@@ -44,9 +44,9 @@ async function withFailureCause(
   agent: AgentCr,
   deps: WatchDeps,
 ): Promise<AgentCr> {
-  const jobName = agent.status?.jobName;
+  const jobName = failedJobName(agent);
 
-  if (agent.status?.phase !== "Failed" || !jobName || !deps.failureCause) {
+  if (!jobName || !deps.failureCause) {
     return agent;
   }
   const errorText = await deps.failureCause(jobName).catch((err: unknown) => {
@@ -61,4 +61,8 @@ async function withFailureCause(
   return errorText
     ? ({ ...agent, status: { ...agent.status, errorText } } as AgentCr)
     : agent;
+}
+
+function failedJobName(agent: AgentCr): string | undefined {
+  return agent.status?.phase === "Failed" ? agent.status.jobName : undefined;
 }
