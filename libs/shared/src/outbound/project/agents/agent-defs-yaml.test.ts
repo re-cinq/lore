@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { writeFileSync, rmSync, mkdtempSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { AgentDefsYaml } from "./agent-defs-yaml.js";
 import { DECOMPOSITION_INSTRUCTIONS } from "../../../domain/feature-planning/decomposition-instructions.js";
@@ -144,5 +144,15 @@ describe("AgentDefsYaml", () => {
     ).rejects.toThrow(
       new Error("agent definitions are read-only without a database"),
     );
+  });
+
+  it("carries a recipe's test_policy on config, where the CR builder reads it", async () => {
+    const committed = new AgentDefsYaml(
+      resolve(import.meta.dirname, "../../../../../../scripts/task-types.yaml"),
+    );
+
+    expect(await committed.resolve("re-cinq/lore", "review")).toMatchObject({
+      config: { test_policy: "none" },
+    });
   });
 });

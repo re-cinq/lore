@@ -97,6 +97,7 @@ function promptFor(cfg: TaskTypeConfig): string | null {
 function recipeExtras(cfg: TaskTypeConfig): Record<string, unknown> {
   return {
     ...(cfg.skills ? { skills: cfg.skills } : {}),
+    ...(cfg.test_policy ? { test_policy: cfg.test_policy } : {}),
     ...(cfg.disallowed_tools ? { disallowed_tools: cfg.disallowed_tools } : {}),
     ...(cfg.watch ? { watch: cfg.watch } : {}),
     ...(cfg.repo_workdir !== undefined

@@ -408,3 +408,20 @@ describe("the fix-ci recipe when the branch moved", () => {
     expect(fix).toContain("the branch moved after CI judged it");
   });
 });
+
+describe("test_policy", () => {
+  it("declares none on every read-only review recipe, so a review pod cannot run tests, installs or builds at all", () => {
+    const { taskTypes } = parseTaskTypesFile(COMMITTED);
+    const readOnly = [
+      "review",
+      "code-review",
+      "code-review-recheck",
+      "code-review-refine",
+      "pr-ready",
+    ];
+
+    expect(readOnly.map((name) => taskTypes[name]?.test_policy)).toEqual(
+      readOnly.map(() => "none"),
+    );
+  });
+});

@@ -19,8 +19,11 @@ PR history, and task state.
   (image `ghcr.io/re-cinq/lore-mcp`) in the `lore-api` namespace; agent recipes reach
   it via a `resources.mcp_servers` entry (ADR-030/031/032). The gateway also serves the
   **agent-skills registry** (`src/server/skills-registry.ts`) at `/skills/<name>.tar.gz`
-  + `/skills/settings.json` (unauthenticated; bundle baked from `apps/mcp-server/agent-skills/`);
-  the ai-agent-subsystem init fetches these into a run's `$HOME/.claude` via the recipe's
+  + `/skills/hooks/<vendor>.tar.gz` (a per-vendor hook bundle laid out relative to `$HOME`;
+  `hooks/claude/.claude/settings.json` wires the `lore-context` skill's `guard-tests.sh` as
+  the Bash `PreToolUse` guard and is also served as the flat `/skills/settings.json`)
+  (unauthenticated; bundle baked from `apps/mcp-server/agent-skills/`); the
+  ai-agent-subsystem init fetches these into a run's `$HOME` via the recipe's
   `resources.skills` + `skills_source` (ADR-030 skills seam).
 - **`apps/lore-api`** (`src/index.ts` + `src/server/http-server.ts`) — the remote
   HTTPS REST backend (`/api/*`) on GKE. Routes are organized one folder per

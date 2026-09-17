@@ -123,6 +123,8 @@ task_types:
       - RUN them — those, and nothing else. Not the repository's full suite,
         not lint, not the typechecker, not the formatter.
         CI is the judge of this branch and runs all of it on every push.
+        Name the test files you run: the pod's Bash hook refuses a bare
+        `npm test` or a `vitest run` with no path.
         Every acceptance test must fail, and fail for the RIGHT reason — the
         behaviour is absent, not the import path typo'd or a fixture missing.
       - Quote the actual failure output in your final message. A test you did
@@ -342,7 +344,9 @@ task_types:
       Then RUN the acceptance tests it names — those, and the test you are
       about to write. Nothing else. Not the repository's full suite, not lint,
       not the typechecker, not the formatter: CI is the judge of this branch
-      and runs all of it on every push, on hardware sized for it. What the
+      and runs all of it on every push, on hardware sized for it. Name the
+      files you run: the pod's Bash hook refuses a bare `npm test` or a
+      `vitest run` with no path. What the
       acceptance tests say now is where you actually are — not what you
       remember, and not what `.lore/dod.md` predicted.
 
@@ -527,7 +531,9 @@ task_types:
       only a check, map the check name to the job that publishes it, find the
       command that job runs, and run ONLY that. Reproducing the whole build to
       rediscover what you have already been told costs the ticket a pod and
-      tells you nothing new.
+      tells you nothing new. The pod's Bash hook refuses a test runner given
+      no path, no workspace flag and no `cd` into the step's directory, so a
+      repo-wide `vitest run` never starts.
 
       RUN A STEP'S COMMAND WHERE CI RAN IT, never from wherever your shell
       happens to be. When the report says `Ran as: npm script <script> of
@@ -668,7 +674,8 @@ task_types:
       YOU DO NOT NEED TO PROVE IT. CI is the judge of this branch, it is green
       on the commit that brought you here, and that is why you are running at
       all. Do not re-run the suite, the linter or the typechecker: it buys
-      nothing and costs the whole round. Read `.lore/dod.md`'s "Done when
+      nothing and costs the whole round, and the pod's Bash hook refuses
+      test, build and install commands here. Read `.lore/dod.md`'s "Done when
       these pass" list for what the
       ticket meant by done, and read the diff for what actually landed.
 
@@ -782,6 +789,8 @@ task_types:
     timeout_minutes: 20
     review_required: false
     execution_mode: claude-code
+    # The pod's Bash hook refuses every test runner, install and build here: CI is the judge and the disk is 1Gi.
+    test_policy: none
     model: claude-sonnet-4-6
     skills:
       - tdd-loop

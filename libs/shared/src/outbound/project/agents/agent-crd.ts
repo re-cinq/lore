@@ -9,6 +9,7 @@ import type {
 import { enforceTrue } from "../../../lib/enforce.js";
 import { AGENT_MAX_TURNS } from "../../cluster/agent-limits.js";
 import type { ResolvedAgentDefinition } from "../../../domain/models/agent-definition.js";
+import { testPolicyEnv } from "../../../domain/task-types/task-types-config.js";
 import {
   type CatalogCrdOptions,
   catalogCrdName,
@@ -130,7 +131,7 @@ function llmResources(
   return {
     ...llmSecretsBlock(secretKey),
     // Every agent pod commits its own work; git refuses without an identity and a pod has no ambient git config.
-    env: GIT_IDENTITY,
+    env: [...GIT_IDENTITY, ...testPolicyEnv(def.config?.test_policy)],
     ...mcpServersBlock(opts),
     ...skillsBlock(def, opts),
   };

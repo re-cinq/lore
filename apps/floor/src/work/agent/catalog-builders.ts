@@ -8,9 +8,10 @@ import type {
 } from "@re-cinq/agent-contracts";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { AGENT_MAX_TURNS } from "@re-cinq/lore-shared";
-import type {
-  StationRecipe,
-  TaskTypeRecipe,
+import {
+  testPolicyEnv,
+  type StationRecipe,
+  type TaskTypeRecipe,
 } from "@re-cinq/lore-shared/task-types/task-types-config.js";
 
 /** Aliased rather than restated — the field docs live with the `task-types.yaml` schema. */
@@ -133,7 +134,7 @@ function agentResources(
   return {
     secrets: AGENT_SECRETS,
     // Every agent pod must commit with an identity — a pod has no ambient git config and would otherwise fail "Author identity unknown". Same identity the Floor's GitCli defaults to.
-    env: GIT_IDENTITY,
+    env: [...GIT_IDENTITY, ...testPolicyEnv(cfg.test_policy)],
     mcp_servers: AGENT_MCP_SERVERS,
     // Registry-agnostic (ADR-030): fetches `<source>/<name>.tar.gz` + settings.json, empty source ⇒ inert. A recipe's own skills APPEND to lore-context rather than replace it, so it can't lose the skill that makes `lore_assemble_context` automatic.
     skills: [

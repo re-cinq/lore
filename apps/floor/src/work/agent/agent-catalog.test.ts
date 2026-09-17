@@ -474,4 +474,17 @@ describe("a station that makes a model call gets a model credential", () => {
       LLM_SECRET_SENTINEL,
     );
   });
+
+  it("renders a recipe's test_policy as LORE_TEST_POLICY after the git identity", () => {
+    expect(
+      buildAgentDefinition("review", { ...impl, test_policy: "none" }).spec
+        ?.resources?.env,
+    ).toEqual([
+      { name: "GIT_AUTHOR_NAME", value: "Lore Agent" },
+      { name: "GIT_AUTHOR_EMAIL", value: "lore-agent@re-cinq.com" },
+      { name: "GIT_COMMITTER_NAME", value: "Lore Agent" },
+      { name: "GIT_COMMITTER_EMAIL", value: "lore-agent@re-cinq.com" },
+      { name: "LORE_TEST_POLICY", value: "none" },
+    ]);
+  });
 });

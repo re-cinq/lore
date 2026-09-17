@@ -233,7 +233,8 @@ task_types:
 
       Do NOT install dependencies or run builds or tests — the pod has a 1Gi
       disk budget and exceeding it evicts the pod mid-review; CI already runs
-      the suite. Review from the source tree and the diff alone.
+      the suite. The pod's Bash hook refuses test, build and install commands
+      outright. Review from the source tree and the diff alone.
 
       Post specific review comments on the PR using gh pr review. Comment
       only on problems worth acting on — no praise or commentary comments,
@@ -247,6 +248,8 @@ task_types:
     timeout_minutes: 10
     review_required: false
     execution_mode: claude-code
+    # The pod's Bash hook refuses every test runner, install and build here: CI is the judge and the disk is 1Gi.
+    test_policy: none
     # Read-only recipe (#1160): one `npm ci` in the clone exceeds Autopilot's 1Gi
     # ephemeral-storage default and evicts the pod mid-review. The prompt contract
     # plus the omitted workingDir are the operative prevention today — the CLI does
@@ -295,7 +298,9 @@ task_types:
       yourself — Lore posts your findings for you. Do NOT install dependencies
       or run builds or tests (`npm ci`, `npm install`, and friends) — the pod
       has a 1Gi disk budget and exceeding it evicts the pod mid-review; CI
-      already runs the suite. Review from the source tree and the diff alone.
+      already runs the suite. The pod's Bash hook refuses test, build and
+      install commands outright. Review from the source tree and the diff
+      alone.
 
       Emit a fenced REVIEW_FINDINGS block (one finding per point) then the
       verdict. Be liberal with concrete `suggestion` fixes. Each `subject` is
@@ -337,6 +342,8 @@ task_types:
     timeout_minutes: 25
     review_required: false
     execution_mode: claude-code
+    # The pod's Bash hook refuses every test runner, install and build here: CI is the judge and the disk is 1Gi.
+    test_policy: none
     model: claude-sonnet-4-6
     # Read-only recipe (#1160): see the `review` recipe's note.
     repo_workdir: false
@@ -366,8 +373,9 @@ task_types:
       the latest commits introduced. Do NOT edit code and do NOT post comments
       yourself — Lore posts your findings for you. Do NOT install dependencies
       or run builds or tests — the pod has a 1Gi disk budget and exceeding it
-      evicts the pod; CI runs the suite. Re-check from the source tree and the
-      diff alone.
+      evicts the pod; CI runs the suite. The pod's Bash hook refuses test,
+      build and install commands outright. Re-check from the source tree and
+      the diff alone.
 
       Emit a fenced REVIEW_FINDINGS block (it MAY be empty when nothing new is
       wrong) then the verdict. Report only problems worth acting on — never
@@ -389,6 +397,8 @@ task_types:
     timeout_minutes: 10
     review_required: false
     execution_mode: claude-code
+    # The pod's Bash hook refuses every test runner, install and build here: CI is the judge and the disk is 1Gi.
+    test_policy: none
     model: claude-haiku-4-5-20251001
     # Read-only recipe (#1160): see the `review` recipe's note.
     repo_workdir: false
@@ -413,6 +423,7 @@ task_types:
       Do NOT install dependencies or run builds or tests (`npm ci` and friends)
       — the pod has a 1Gi disk budget and exceeding it evicts the pod, taking
       your commit with it. Commit the change and let the PR's CI validate it.
+      The pod's Bash hook refuses test, build and install commands outright.
 
       Emit your reply as a fenced block; Lore posts it in-thread for you:
 
@@ -431,6 +442,8 @@ task_types:
     timeout_minutes: 20
     review_required: false
     execution_mode: claude-code
+    # The pod's Bash hook refuses every test runner, install and build here: CI is the judge and the disk is 1Gi.
+    test_policy: none
     model: claude-sonnet-4-6
     # Commits via `git -C /workspace/target` like before workingDir existed; the
     # install ban still applies — its commits are validated by the PR's CI (#1160).

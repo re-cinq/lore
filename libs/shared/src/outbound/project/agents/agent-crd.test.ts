@@ -444,4 +444,16 @@ describe("validate/render agreement on defaults and merges", () => {
       { name: "CLAUDE_CODE_OAUTH_TOKEN", ref: "CLAUDE_CODE_OAUTH_TOKEN" },
     ]);
   });
+
+  it("config test_policy rides the CR as LORE_TEST_POLICY, and an unknown value rides nothing", () => {
+    const envOf = (test_policy: string) =>
+      agentDefToCrds(row({ config: { test_policy } }), ALL_OPTS).agentDefinition
+        .spec?.resources?.env;
+
+    expect(envOf("none")).toContainEqual({
+      name: "LORE_TEST_POLICY",
+      value: "none",
+    });
+    expect(envOf("yolo")?.map((e) => e.name)).not.toContain("LORE_TEST_POLICY");
+  });
 });
