@@ -45,6 +45,28 @@ describe("EnrollmentSection", () => {
     expect(screen.getByText("1/3 checks passing")).toBeInTheDocument();
   });
 
+  it("offers the standing Update Lore setup trigger even when every check passes, and runs the handler on click", async () => {
+    const reonboardAction = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <EnrollmentSection
+        checks={[checks[0]]}
+        reonboardAction={reonboardAction}
+      />,
+    );
+    screen.getByRole("button", { name: "Update Lore setup" }).click();
+
+    await vi.waitFor(() => expect(reonboardAction).toHaveBeenCalledTimes(1));
+  });
+
+  it("offers no Update Lore setup trigger when no handler is provided", () => {
+    render(<EnrollmentSection checks={checks} />);
+
+    expect(
+      screen.queryByRole("button", { name: "Update Lore setup" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("omits the reonboard button when no handler is provided", () => {
     render(<EnrollmentSection checks={checks} />);
 

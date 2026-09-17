@@ -5,6 +5,7 @@ import {
   LORE_INGEST_WORKFLOW_PATH,
   LORE_INGEST_WORKFLOW_CONTENT,
   ONBOARD_STATIC_FILES,
+  type OnboardFileOwner,
   TRACE_IMPACT_WORKFLOW_PATH,
   TRACE_IMPACT_WORKFLOW_CONTENT,
   type StepFailure,
@@ -12,7 +13,7 @@ import {
 
 /** The slice of `project.repo` the scaffold needs — narrow so tests need no Project. */
 export interface ScaffoldRepo {
-  tree(ref?: string): Promise<string[]>;
+  read(path: string, ref?: string): Promise<string | null>;
   commitFile(
     branch: string,
     path: string,
@@ -28,54 +29,45 @@ export interface OnboardScaffoldResult {
 
 interface ScaffoldFile {
   path: string;
+  owner: OnboardFileOwner;
   content: string;
 }
 
-/** Always reinstalled at the canonical version: a stale workflow is exactly what a re-onboard repairs. */
-const WORKFLOW_FILES: readonly ScaffoldFile[] = [
-  { path: LORE_INGEST_WORKFLOW_PATH, content: LORE_INGEST_WORKFLOW_CONTENT },
-  { path: TRACE_IMPACT_WORKFLOW_PATH, content: TRACE_IMPACT_WORKFLOW_CONTENT },
+/** Every deterministic file: the two workflows are Lore's, the static templates carry their own owner. */
+const SCAFFOLD_FILES: readonly ScaffoldFile[] = [
+  {
+    path: LORE_INGEST_WORKFLOW_PATH,
+    owner: "lore",
+    content: LORE_INGEST_WORKFLOW_CONTENT,
+  },
+  {
+    path: TRACE_IMPACT_WORKFLOW_PATH,
+    owner: "lore",
+    content: TRACE_IMPACT_WORKFLOW_CONTENT,
+  },
+  ...ONBOARD_STATIC_FILES,
 ];
 
-/** Commits the workflows and every static template the branch does not already carry. A failed file is recorded, never thrown: the agent still owes its half, and the ticket comment reports the gap. */
+/** Whether a file is committed, given what the branch holds at its path. A Lore-owned file is committed whenever it differs from the canonical content — that IS the update; a repo-owned one only when absent. An identical file is never committed: GitHub's contents API makes a commit even for identical bytes, and an up-to-date repo would get an empty pull request. */
+export function decideScaffoldCommit(
+  file: Pick<ScaffoldFile, "owner" | "content">,
+  current: string | null,
+): boolean {
+  return file.owner === "lore" ? current !== file.content : current === null;
+}
+
+/** Brings the branch's deterministic files to today's requirements — the same rule for a first onboarding and a hand-triggered update. A failed file is recorded, never thrown: the agent still owes its half, and the ticket comment reports the gap. */
 export async function commitOnboardScaffold(
   repo: ScaffoldRepo,
   branch: string,
 ): Promise<OnboardScaffoldResult> {
   const result: OnboardScaffoldResult = { committed: [], failures: [] };
-  const present = await presentPaths(repo, branch);
 
-  for (const file of scaffoldFilesOwed(present)) {
+  for (const file of SCAFFOLD_FILES) {
     await commitScaffoldFile(repo, branch, file, result);
   }
 
   return result;
-}
-
-/** The workflows, then the static files whose exact path the branch lacks. Exact path, not top-level directory: a repo with a `.github/` still needs its issue templates (#1201). */
-export function scaffoldFilesOwed(
-  present: ReadonlySet<string>,
-): ScaffoldFile[] {
-  return [
-    ...WORKFLOW_FILES,
-    ...ONBOARD_STATIC_FILES.filter((file) => !present.has(file.path)),
-  ];
-}
-
-/** An unreadable tree means nothing can be proven present, so every static file is offered; commitFile upserts, so an existing one is rewritten with its own canonical content rather than lost. */
-async function presentPaths(
-  repo: ScaffoldRepo,
-  branch: string,
-): Promise<Set<string>> {
-  try {
-    return new Set(await repo.tree(branch));
-  } catch (err) {
-    console.warn(
-      `[floor] Onboard: could not list ${branch}: ${errorMessage(err)}`,
-    );
-
-    return new Set();
-  }
 }
 
 async function commitScaffoldFile(
@@ -84,16 +76,16 @@ async function commitScaffoldFile(
   file: ScaffoldFile,
   result: OnboardScaffoldResult,
 ): Promise<void> {
+  const { path, content } = file;
+
   try {
-    await repo.commitFile(
-      branch,
-      file.path,
-      file.content,
-      `lore: add ${file.path}`,
-    );
-    result.committed.push(file.path);
+    if (!decideScaffoldCommit(file, await repo.read(path, branch))) {
+      return;
+    }
+    await repo.commitFile(branch, path, content, `lore: update ${path}`);
+    result.committed.push(path);
   } catch (err) {
-    console.error(`[floor] Onboard: failed ${file.path}: ${errorMessage(err)}`);
-    result.failures.push({ step: file.path, error: errorMessage(err) });
+    console.error(`[floor] Onboard: failed ${path}: ${errorMessage(err)}`);
+    result.failures.push({ step: path, error: errorMessage(err) });
   }
 }

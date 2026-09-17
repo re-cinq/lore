@@ -4,6 +4,7 @@ import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs
 import { InMemoryFeatures } from "@re-cinq/lore-shared/project/features/features-memory.js";
 import type { PullRef } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import {
+  decideEmptyBranchEnding,
   decideMarkReady,
   decidePrDraft,
   decideOnboardingPrRecord,
@@ -297,6 +298,34 @@ describe("stampLinePr onboarding record", () => {
     expect(decideOnboardingPrRecord({ blueprintName: "implementation" })).toBe(
       false,
     );
+  });
+});
+
+describe("decideEmptyBranchEnding", () => {
+  it("completes an onboard line whose push delivered nothing, saying the setup is already current", () => {
+    expect(
+      decideEmptyBranchEnding({
+        blueprintName: "onboard",
+        branch: "lore/onboard/x",
+      }),
+    ).toEqual({
+      outcome: "completed",
+      reason:
+        "the Lore setup is already current — nothing to change, so no pull request was opened",
+    });
+  });
+
+  it("errors a feature-planning line whose push delivered nothing, naming its branch", () => {
+    expect(
+      decideEmptyBranchEnding({
+        blueprintName: "feature-planning",
+        branch: "lore/feature-planning/topic",
+      }),
+    ).toEqual({
+      outcome: "error",
+      reason:
+        "the push node reported success but pushed nothing — lore/feature-planning/topic has no commits, so no spec PR could be opened",
+    });
   });
 });
 

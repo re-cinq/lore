@@ -24,7 +24,7 @@ const ONBOARD_REPO_INPUT = {
     .boolean()
     .optional()
     .describe(
-      "Repair pass over an already-onboarded repo: regenerates only the scaffolding it is missing. Still refused while an onboard task is in flight or its onboarding PR is open.",
+      "Update run over an already-onboarded repo: one assembly run that refreshes Lore's own files wherever they drifted (workflows, lore issue templates), adds any file newly required, realigns the instruction-written workflows, and opens ONE PR — or none when the setup is already current. Still refused while an onboard task is in flight or its onboarding PR is open.",
     ),
 };
 

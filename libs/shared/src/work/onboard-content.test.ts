@@ -6,7 +6,9 @@ import {
   ONBOARD_FILES,
   ADR_TOPICS,
   TEST_COMMAND_MANIFEST_SCAFFOLD_PROMPT,
+  ONBOARD_INSTRUCTED_WORKFLOWS,
   onboardTicketBody,
+  onboardUpdateTicketBody,
 } from "./onboard-content.js";
 
 const staticPaths = ONBOARD_STATIC_FILES.map((f) => f.path);
@@ -138,5 +140,59 @@ describe("onboardTicketBody", () => {
         "Lore opens the pull request",
       ]),
     ).toEqual([]);
+  });
+});
+
+describe("ONBOARD_STATIC_FILES ownership", () => {
+  it("owns the three lore issue templates as lore files and leaves .claude/settings.json and config.yml to the repo", () => {
+    expect(
+      Object.fromEntries(
+        ONBOARD_STATIC_FILES.map((file) => [file.path, file.owner]),
+      ),
+    ).toEqual({
+      ".claude/settings.json": "repo",
+      ".github/ISSUE_TEMPLATE/lore-implementation.yml": "lore",
+      ".github/ISSUE_TEMPLATE/lore-review.yml": "lore",
+      ".github/ISSUE_TEMPLATE/lore-general.yml": "lore",
+      ".github/ISSUE_TEMPLATE/config.yml": "repo",
+    });
+  });
+});
+
+describe("onboardUpdateTicketBody", () => {
+  const body = onboardUpdateTicketBody("re-cinq/app");
+  const missingFrom = (fragments: string[]) =>
+    fragments.filter((fragment) => !body.includes(fragment));
+
+  it("asks to update re-cinq/app's Lore setup rather than onboard it", () => {
+    expect(body).toContain(
+      "Update re-cinq/app's Lore setup to the current requirements",
+    );
+    expect(body).not.toContain("Onboard re-cinq/app into Lore");
+  });
+
+  it("owes every file a first onboarding owes, each only when missing", () => {
+    expect(
+      missingFrom([
+        "Add each of these files that does not exist yet",
+        ...ONBOARD_FILES.map((file) => file.prompt),
+        TEST_COMMAND_MANIFEST_SCAFFOLD_PROMPT,
+        LORE_TESTS_INSTRUCTION,
+      ]),
+    ).toEqual([]);
+  });
+
+  it("realigns only lore-tests.yml and pr-description-check.yml, the workflows written from a Lore instruction", () => {
+    expect(ONBOARD_INSTRUCTED_WORKFLOWS).toEqual([
+      ".github/workflows/lore-tests.yml",
+      ".github/workflows/pr-description-check.yml",
+    ]);
+    expect(body).toContain("Realign these workflows");
+  });
+
+  it("calls an already-current setup a success, not a failure", () => {
+    expect(body).toContain(
+      "a setup that is already current is a success, not a failure",
+    );
   });
 });

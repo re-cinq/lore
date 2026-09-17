@@ -1,10 +1,18 @@
 /** The static and LLM-generated file catalogs onboarding draws from. */
 import { LORE_TESTS_INSTRUCTION } from "../lib/lore-tests-instruction.js";
 
+/** Who may rewrite a static file once it exists: `lore` files are Lore's own templates, refreshed whenever their canonical content changes; `repo` files are seeded once and then belong to the repository. */
+export type OnboardFileOwner = "lore" | "repo";
+
 /** Static files that don't need LLM generation */
-export const ONBOARD_STATIC_FILES: { path: string; content: string }[] = [
+export const ONBOARD_STATIC_FILES: {
+  path: string;
+  owner: OnboardFileOwner;
+  content: string;
+}[] = [
   {
     path: ".claude/settings.json",
+    owner: "repo",
     content: JSON.stringify(
       {
         systemPromptSuffix:
@@ -16,6 +24,7 @@ export const ONBOARD_STATIC_FILES: { path: string; content: string }[] = [
   },
   {
     path: ".github/ISSUE_TEMPLATE/lore-implementation.yml",
+    owner: "lore",
     content: `name: "Lore: Implementation"
 description: "Ask Lore to implement something in this repo"
 labels: ["lore", "lore:implementation"]
@@ -38,6 +47,7 @@ body:
   },
   {
     path: ".github/ISSUE_TEMPLATE/lore-review.yml",
+    owner: "lore",
     content: `name: "Lore: Review"
 description: "Ask Lore to review a PR against conventions"
 labels: ["lore", "lore:review"]
@@ -59,6 +69,7 @@ body:
   },
   {
     path: ".github/ISSUE_TEMPLATE/lore-general.yml",
+    owner: "lore",
     content: `name: "Lore: General Task"
 description: "Ask Lore to do something (docs, runbook, analysis)"
 labels: ["lore"]
@@ -75,6 +86,7 @@ body:
   },
   {
     path: ".github/ISSUE_TEMPLATE/config.yml",
+    owner: "repo",
     content: `blank_issues_enabled: true
 contact_links:
   - name: Lore Dashboard
@@ -162,17 +174,54 @@ export function onboardTicketBody(repo: string): string {
     ...ONBOARD_DETERMINISTIC_PATHS.map((path) => `- \`${path}\``),
     "",
     "Author the files that need reading this repository. Each one is owed only when it does not exist yet:",
+    ...owedFileLines(),
+    "",
+    ...ruleLines(),
+  ].join("\n");
+}
+
+/** The two workflows the agent authored from a Lore instruction, so a changed instruction is a changed requirement for them. */
+export const ONBOARD_INSTRUCTED_WORKFLOWS: readonly string[] = [
+  ".github/workflows/lore-tests.yml",
+  ".github/workflows/pr-description-check.yml",
+];
+
+// The UPDATE ticket: the same line, triggered by hand on a repo that is already onboarded, bringing its setup to today's requirements in one PR. Lore's own files are refreshed by the Floor before the agent runs; the agent adds what is newly owed and realigns only the workflows written from a Lore instruction — everything else the repository has edited since is the repository's.
+export function onboardUpdateTicketBody(repo: string): string {
+  return [
+    `Update ${repo}'s Lore setup to the current requirements.`,
+    "",
+    "Lore has already refreshed its own files on this branch wherever they had drifted, so do not rewrite them:",
+    ...ONBOARD_DETERMINISTIC_PATHS.map((path) => `- \`${path}\``),
+    "",
+    "Add each of these files that does not exist yet:",
+    ...owedFileLines(),
+    "",
+    "Realign these workflows with their instruction above when they exist but no longer follow it, changing only what the instruction requires:",
+    ...ONBOARD_INSTRUCTED_WORKFLOWS.map((path) => `- \`${path}\``),
+    "",
+    ...ruleLines(),
+    "- If nothing needs adding or realigning, say so and finish: a setup that is already current is a success, not a failure.",
+  ].join("\n");
+}
+
+function owedFileLines(): string[] {
+  return [
     ...ONBOARD_FILES.map((file) => `- \`${file.path}\` — ${file.prompt}`),
     ...adrLines(),
     `- \`.lore/test-commands.yml\` — only when the repo declares no test-command manifest. ${TEST_COMMAND_MANIFEST_SCAFFOLD_PROMPT}`,
     `- \`.github/workflows/lore-tests.yml\` — only when absent. ${LORE_TESTS_INSTRUCTION}`,
-    "",
+  ];
+}
+
+function ruleLines(): string[] {
+  return [
     "Rules:",
-    "- A file that already exists is left untouched — onboarding adds, it never rewrites.",
+    "- A file that already exists is left untouched unless this ticket names it for realignment — onboarding adds, it never rewrites.",
     "- Do not author `CLAUDE.md`: the repository's owners write it.",
     "- Change no source code, tests, or build configuration.",
     "- Commit the files, push the branch, and stop. Lore opens the pull request from the branch.",
-  ].join("\n");
+  ];
 }
 
 function adrLines(): string[] {

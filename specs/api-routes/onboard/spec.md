@@ -41,7 +41,7 @@ JSON body:
 | Field | Type | Required | Default | Notes |
 |-------|------|----------|---------|-------|
 | `repo` | string | yes | — | Must be `owner/name` — validated by an `includes("/")` check. |
-| `reonboard` | boolean | no | `false` | Deliberate repair pass over an already-onboarded repo: regenerates only the scaffolding it is missing. Waives only the already-onboarded block — never the in-flight or open-PR one. |
+| `reonboard` | boolean | no | `false` | Hand-triggered UPDATE of an already-onboarded repo's setup (4-ux-repo-onboarding FR-2.11): the task carries the update ticket, and the one run refreshes Lore's own files, adds what is newly required, and opens one PR or none. Waives only the already-onboarded block — never the in-flight or open-PR one. |
 
 ### Response
 
@@ -119,7 +119,7 @@ The route is registered as an exact `POST /api/onboard` match. ([implemented by]
 
 `onboardRepo` creates no task and skips the webhook ensure for an already-onboarded repo, blocks a repo with an onboard task in flight while naming that task, and blocks a repo whose onboarding PR is still open while naming the PR. ([validated by `blocks an already-onboarded repo without creating a task`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L165), [`blocks a repo with an onboard task in flight and names that task`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L176), [`blocks a repo whose onboarding PR is still open`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L187))
 
-A `reonboard` submission is queued for an already-onboarded repo but still refused while an onboard task is in flight. ([validated by `creates a task for an onboarded repo when reonboard is requested`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L219), [`still blocks reonboard while an onboard task is in flight`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L233))
+A `reonboard` submission is queued for an already-onboarded repo but still refused while an onboard task is in flight. ([validated by `creates a task for an onboarded repo when reonboard is requested`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L219), [`still blocks reonboard while an onboard task is in flight`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L252))
 
 `reonboard` waives only the already-onboarded block; a repo whose onboarding PR is still open is refused, because a repair pass there would put a second agent on scaffolding the first one is still writing. ([validated by `blocks reonboard while the onboarding PR is still open`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L204))
 

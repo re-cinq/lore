@@ -4,6 +4,7 @@ import {
   decideOnboard,
   onboardLockKey,
   onboardTicketBody,
+  onboardUpdateTicketBody,
   toOnboardState,
   IN_FLIGHT_TASK_STATUSES,
   ONBOARD_IN_FLIGHT_TASK_SQL,
@@ -228,7 +229,11 @@ async function writeOnboard(
   if (!decision.allowed) {
     return refuseOnboard(client, fullName, decision);
   }
-  const written = await insertRepoAndTask(client, { fullName, owner, name });
+  const written = await insertRepoAndTask(
+    client,
+    { fullName, owner, name },
+    ticketFor(fullName, options),
+  );
 
   await client.query("COMMIT");
 
@@ -281,10 +286,18 @@ async function refuseOnboard(
   return { blocked: block, error: message, task_id: taskId };
 }
 
+/** The ticket the onboard line implements: a hand-triggered re-onboard UPDATES an existing setup, so it gets the update ticket rather than the first-onboarding one. */
+function ticketFor(fullName: string, options: { reonboard?: boolean }): string {
+  return options.reonboard
+    ? onboardUpdateTicketBody(fullName)
+    : onboardTicketBody(fullName);
+}
+
 /** The repo row FIRST, then its task. The order is load-bearing: the task's trust gate reads that row, so a task created before it would be judged against a repo that does not exist yet. Re-onboarding refreshes the timestamp rather than inserting a second row. */
 async function insertRepoAndTask(
   client: PoolClient,
   { fullName, owner, name }: RepoIdentity,
+  ticket: string,
 ): Promise<OnboardWrite> {
   const { rows } = await client.query<{ id: string }>(
     `INSERT INTO lore.repos (owner, name, full_name) VALUES ($1, $2, $3)
@@ -292,7 +305,7 @@ async function insertRepoAndTask(
     [owner, name, fullName],
   );
   const task = await createPipelineTask(client, {
-    description: onboardTicketBody(fullName),
+    description: ticket,
     taskType: "onboard",
     targetRepo: fullName,
     createdBy: "onboard-system",

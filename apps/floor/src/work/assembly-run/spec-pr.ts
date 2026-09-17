@@ -24,6 +24,19 @@ export function emptyBranchReason(branch: string | null): string {
   return `the push node reported success but pushed nothing — ${branch ?? "the run branch"} has no commits, so no spec PR could be opened`;
 }
 
+/** How a line whose push delivered nothing ends. For every line that is an error — a wait node would park forever on a PR that cannot exist (#1330) — except onboarding, where "the Floor had nothing to refresh and the agent nothing to add" is the answer to a hand-triggered update of a setup that is already current. */
+export function decideEmptyBranchEnding(
+  row: Pick<AssemblyRunRecord, "blueprintName" | "branch">,
+): { outcome: "completed" | "error"; reason: string } {
+  return row.blueprintName === "onboard"
+    ? {
+        outcome: "completed",
+        reason:
+          "the Lore setup is already current — nothing to change, so no pull request was opened",
+      }
+    : { outcome: "error", reason: emptyBranchReason(row.branch) };
+}
+
 /** Decide if finished node should stamp PR on line; idempotent for push re-runs after corrections. */
 export function decidePrStamp(input: {
   promptRef?: string | null;

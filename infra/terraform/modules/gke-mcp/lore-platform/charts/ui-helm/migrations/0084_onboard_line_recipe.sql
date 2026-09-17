@@ -39,9 +39,10 @@ DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
 - Confirm it landed: `git status` must report the branch is not ahead of
   its upstream. An unpushed commit lives only in this container and
   dies with it — do NOT report success for one.
-- If every file the ticket owes already exists, say so and end your
-  final message with the line `LORE_NODE_RESULT: {"outcome":"failed"}`
-  so the line does not validate an empty branch.
+- If every file the ticket owes already exists and nothing needs
+  realigning, say so and finish normally. That is a success: Lore may
+  already have refreshed its own files on this branch, and a setup that
+  is already current needs no pull request at all.
 - Do not open a pull request: you have no `gh` and no GitHub token. Lore
   opens the PR from the branch you push.
 

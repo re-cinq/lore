@@ -5,13 +5,15 @@ import {
   LORE_INGEST_WORKFLOW_PATH,
   LORE_INGEST_WORKFLOW_CONTENT,
   TRACE_IMPACT_WORKFLOW_PATH,
+  TRACE_IMPACT_WORKFLOW_CONTENT,
+  ONBOARD_STATIC_FILES,
 } from "@re-cinq/lore-shared";
 
 const fakeRepo = {
   createBranch: vi.fn(),
   branchExists: vi.fn(),
   commitFile: vi.fn(),
-  tree: vi.fn(),
+  read: vi.fn(),
   isConfigured: vi.fn(() => true),
   defaultBranch: vi.fn(),
 };
@@ -66,11 +68,7 @@ beforeEach(() => {
   process.env.LORE_INGEST_URL = "https://lore.example.test";
   process.env.LORE_INGEST_TOKEN = "test-ingest-token";
 
-  fakeRepo.tree.mockResolvedValue([
-    ".github",
-    ".github/CODEOWNERS",
-    "README.md",
-  ]);
+  fakeRepo.read.mockResolvedValue(null);
   fakeRepo.branchExists.mockResolvedValue(false);
   fakeRepo.defaultBranch.mockResolvedValue("develop");
   fakeIssues.createLabels.mockResolvedValue(undefined);
@@ -137,11 +135,12 @@ describe("handleOnboard", () => {
     expect(committedPaths()).toContain(TRACE_IMPACT_WORKFLOW_PATH);
   });
 
-  it("commits the issue templates and .claude/settings.json when the branch lacks them, skipping an exact path it carries", async () => {
-    fakeRepo.tree.mockResolvedValue([
-      ".github",
-      ".github/ISSUE_TEMPLATE/config.yml",
-    ]);
+  it("commits the issue templates and .claude/settings.json when the branch lacks them, leaving a config.yml the repo already has", async () => {
+    fakeRepo.read.mockImplementation(async (path: string) =>
+      path === ".github/ISSUE_TEMPLATE/config.yml"
+        ? "blank_issues_enabled: false\n"
+        : null,
+    );
 
     await onboard();
 
@@ -153,6 +152,50 @@ describe("handleOnboard", () => {
       ]),
     );
     expect(committedPaths()).not.toContain(".github/ISSUE_TEMPLATE/config.yml");
+  });
+
+  it("refreshes a stale ingest workflow and a drifted lore issue template, and commits nothing for a file already at its canonical content", async () => {
+    fakeRepo.read.mockImplementation(async (path: string) => {
+      if (path === LORE_INGEST_WORKFLOW_PATH) {
+        return "# lore-ingest-version: 1\nname: old\n";
+      }
+
+      if (path === TRACE_IMPACT_WORKFLOW_PATH) {
+        return TRACE_IMPACT_WORKFLOW_CONTENT;
+      }
+
+      return path === ".github/ISSUE_TEMPLATE/lore-review.yml"
+        ? "name: drifted\n"
+        : "kept";
+    });
+
+    await onboard();
+
+    expect(committedPaths()).toEqual([
+      LORE_INGEST_WORKFLOW_PATH,
+      ".github/ISSUE_TEMPLATE/lore-implementation.yml",
+      ".github/ISSUE_TEMPLATE/lore-review.yml",
+      ".github/ISSUE_TEMPLATE/lore-general.yml",
+    ]);
+  });
+
+  it("commits nothing at all and still dispatches the line when every deterministic file is current", async () => {
+    const canonical = new Map<string, string>([
+      [LORE_INGEST_WORKFLOW_PATH, LORE_INGEST_WORKFLOW_CONTENT],
+      [TRACE_IMPACT_WORKFLOW_PATH, TRACE_IMPACT_WORKFLOW_CONTENT],
+      ...ONBOARD_STATIC_FILES.map(
+        (file) => [file.path, file.content] as [string, string],
+      ),
+    ]);
+
+    fakeRepo.read.mockImplementation(
+      async (path: string) => canonical.get(path) ?? null,
+    );
+
+    await onboard();
+
+    expect(committedPaths()).toEqual([]);
+    expect(handleClaudeCodeTask).toHaveBeenCalledTimes(1);
   });
 
   it("hands the ticket to the onboard assembly line on the scaffolded branch, off the repo's default branch, after the scaffold landed", async () => {
