@@ -119,7 +119,7 @@ The route is registered as an exact `POST /api/onboard` match. ([implemented by]
 
 `onboardRepo` creates no task and skips the webhook ensure for an already-onboarded repo, blocks a repo with an onboard task in flight while naming that task, and blocks a repo whose onboarding PR is still open while naming the PR. ([validated by `blocks an already-onboarded repo without creating a task`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L164), [`blocks a repo with an onboard task in flight and names that task`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L175), [`blocks a repo whose onboarding PR is still open`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L186))
 
-A `reonboard` submission is queued for an already-onboarded repo but still refused while an onboard task is in flight. ([validated by `creates a task for an onboarded repo when reonboard is requested`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L218), [`still blocks reonboard while an onboard task is in flight`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L252))
+A `reonboard` submission is queued for an already-onboarded repo but still refused while an onboard task is in flight. ([validated by `creates a task for an onboarded repo when reonboard is requested`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L218), [`still blocks reonboard while an onboard task is in flight`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L269))
 
 `reonboard` waives only the already-onboarded block; a repo whose onboarding PR is still open is refused, because a repair pass there would put a second agent on scaffolding the first one is still writing. ([validated by `blocks reonboard while the onboarding PR is still open`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L203))
 

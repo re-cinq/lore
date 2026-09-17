@@ -45,7 +45,7 @@ describe("EnrollmentSection", () => {
     expect(screen.getByText("1/3 checks passing")).toBeInTheDocument();
   });
 
-  it("offers the standing Update Lore setup trigger even when every check passes, and runs the handler on click", async () => {
+  it("offers Open enrolment PR in the box for a repo with no onboarding PR, and runs the handler on click", async () => {
     const reonboardAction = vi.fn().mockResolvedValue(undefined);
 
     render(
@@ -54,16 +54,49 @@ describe("EnrollmentSection", () => {
         reonboardAction={reonboardAction}
       />,
     );
-    screen.getByRole("button", { name: "Update Lore setup" }).click();
+    screen.getByRole("button", { name: "Open enrolment PR" }).click();
 
     await vi.waitFor(() => expect(reonboardAction).toHaveBeenCalledTimes(1));
   });
 
-  it("offers no Update Lore setup trigger when no handler is provided", () => {
-    render(<EnrollmentSection checks={checks} />);
+  it("offers Update Lore setup once the onboarding PR has merged, even with every check passing", () => {
+    render(
+      <EnrollmentSection
+        checks={[
+          checks[0],
+          {
+            id: "onboarding-pr",
+            label: "Onboarding PR merged",
+            status: "pass",
+          },
+        ]}
+        reonboardAction={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
 
     expect(
-      screen.queryByRole("button", { name: "Update Lore setup" }),
+      screen.getByRole("button", { name: "Update Lore setup" }),
+    ).toBeInTheDocument();
+  });
+
+  it("offers neither trigger while the onboarding PR is open, nor without a handler", () => {
+    const { unmount } = render(
+      <EnrollmentSection
+        checks={checks}
+        reonboardAction={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", {
+        name: /Open enrolment PR|Update Lore setup/,
+      }),
+    ).not.toBeInTheDocument();
+    unmount();
+    render(<EnrollmentSection checks={[checks[0]]} />);
+
+    expect(
+      screen.queryByRole("button", { name: "Open enrolment PR" }),
     ).not.toBeInTheDocument();
   });
 

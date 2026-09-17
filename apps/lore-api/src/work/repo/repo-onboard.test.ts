@@ -229,7 +229,7 @@ describe("onboardRepo", () => {
     expect(result).toMatchObject({ task_id: "task-1" });
   });
 
-  it("sends the update ticket, not the onboarding one, when reonboard is requested for o/r", async () => {
+  it("sends the update ticket, not the onboarding one, when o/r's onboarding PR has already merged", async () => {
     vi.mocked(ensureLoreWebhook).mockResolvedValue({
       ok: true,
       hookId: 1,
@@ -246,6 +246,23 @@ describe("onboardRepo", () => {
       description: expect.stringContaining(
         "Update o/r's Lore setup to the current requirements",
       ),
+    });
+  });
+
+  it("sends the onboarding ticket when reonboard is requested for o/r but its onboarding PR never merged", async () => {
+    vi.mocked(ensureLoreWebhook).mockResolvedValue({
+      ok: true,
+      hookId: 1,
+      created: false,
+    });
+    const { pool } = poolWith({
+      repoRows: [{ onboarding_pr_merged: false, onboarding_pr_url: null }],
+    });
+
+    await onboardRepo(pool, "o/r", { reonboard: true });
+
+    expect(vi.mocked(createPipelineTask).mock.calls[0][1]).toMatchObject({
+      description: expect.stringContaining("Onboard o/r into Lore"),
     });
   });
 

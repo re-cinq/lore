@@ -224,7 +224,7 @@ async function writeOnboard(
   { fullName, owner, name }: RepoIdentity,
   options: { reonboard?: boolean },
 ): Promise<OnboardWrite> {
-  const decision = await beginAndDecide(client, fullName, options);
+  const { decision, state } = await beginAndDecide(client, fullName, options);
 
   if (!decision.allowed) {
     return refuseOnboard(client, fullName, decision);
@@ -232,7 +232,7 @@ async function writeOnboard(
   const written = await insertRepoAndTask(
     client,
     { fullName, owner, name },
-    ticketFor(fullName, options),
+    ticketFor(fullName, state),
   );
 
   await client.query("COMMIT");
@@ -245,14 +245,14 @@ async function beginAndDecide(
   client: PoolClient,
   fullName: string,
   options: { reonboard?: boolean },
-): Promise<OnboardDecision> {
+): Promise<{ decision: OnboardDecision; state: OnboardState }> {
   await client.query("BEGIN");
   await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
     onboardLockKey(fullName),
   ]);
   const state = await readOnboardState(client, fullName);
 
-  return decideOnboard(fullName, state, options);
+  return { decision: decideOnboard(fullName, state, options), state };
 }
 
 /** Reads the repo's onboarding state on `client`, which must already hold the per-repo advisory lock. */
@@ -286,9 +286,12 @@ async function refuseOnboard(
   return { blocked: block, error: message, task_id: taskId };
 }
 
-/** The ticket the onboard line implements: a hand-triggered re-onboard UPDATES an existing setup, so it gets the update ticket rather than the first-onboarding one. */
-function ticketFor(fullName: string, options: { reonboard?: boolean }): string {
-  return options.reonboard
+/** The ticket the onboard line implements, chosen by the repo's STATE rather than by the `reonboard` flag: the repo page's button always sends that flag, so a first enrolment raised from it must still get the onboarding ticket, and only a repo whose onboarding PR has merged gets the update one. */
+function ticketFor(
+  fullName: string,
+  state: Pick<OnboardState, "onboardingPrMerged">,
+): string {
+  return state.onboardingPrMerged
     ? onboardUpdateTicketBody(fullName)
     : onboardTicketBody(fullName);
 }

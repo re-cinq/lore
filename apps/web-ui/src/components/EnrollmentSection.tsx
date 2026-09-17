@@ -1,4 +1,9 @@
-import { type Check, type CheckStatus, passSummary } from "@/lib/enrollment";
+import {
+  type Check,
+  type CheckStatus,
+  passSummary,
+  setupTriggerText,
+} from "@/lib/enrollment";
 import EnrollmentHelp from "./EnrollmentHelp";
 import LocalSetupSteps from "./LocalSetupSteps";
 import CopyButton from "./CopyButton";
@@ -40,15 +45,13 @@ export default function EnrollmentSection(props: EnrollmentSectionProps) {
   );
 }
 
-/** The label of the standing trigger: one assembly run that brings the repo's Lore setup to today's requirements in one PR. Standing, because a setup that is complete but OUT OF DATE fails no check — nothing else on the page would offer it. */
-export const UPDATE_SETUP_TEXT = "Update Lore setup";
-
 /** The section title, how many of the checks are green, and the update trigger when the page can act. */
 function EnrollmentHeader({
   checks,
   reonboardAction,
 }: Pick<EnrollmentSectionProps, "checks" | "reonboardAction">) {
   const { passed, total } = passSummary(checks);
+  const triggerText = setupTriggerText(checks);
 
   return (
     <div className={styles.header}>
@@ -57,8 +60,8 @@ function EnrollmentHeader({
       <span className={`meta ${styles.summary}`}>
         {passed}/{total} checks passing
       </span>
-      {reonboardAction ? (
-        <ReonboardButton action={reonboardAction} text={UPDATE_SETUP_TEXT} />
+      {reonboardAction && triggerText ? (
+        <ReonboardButton action={reonboardAction} text={triggerText} />
       ) : null}
     </div>
   );

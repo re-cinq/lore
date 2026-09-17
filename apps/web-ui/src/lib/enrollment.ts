@@ -344,3 +344,14 @@ function applyManualSetupFields(check: Check, w: WebhookCheck): void {
     check.secret = { value: w.secret, label: "and this secret" };
   }
 }
+
+/** The label of the enrolment box's standing trigger, or null when it must not be offered. One run either way — the `onboard` assembly line opening ONE pull request: the first enrolment PR for a repo that has none, an update of the setup once that PR has merged. While the PR is open the guard refuses a second run, and the row's own "review & merge" link is the action. */
+export function setupTriggerText(checks: readonly Check[]): string | null {
+  const onboardingPr = checks.find((check) => check.id === "onboarding-pr");
+
+  if (!onboardingPr) {
+    return "Open enrolment PR";
+  }
+
+  return onboardingPr.status === "pass" ? "Update Lore setup" : null;
+}

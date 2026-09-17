@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   computeEnrollmentChecks,
   passSummary,
+  setupTriggerText,
+  type Check,
   type EnrollmentInput,
 } from "./enrollment";
 
@@ -432,5 +434,29 @@ describe("computeEnrollmentChecks", () => {
       passed: 8,
       total: 8,
     });
+  });
+});
+
+describe("setupTriggerText", () => {
+  const onboardingPr = (status: Check["status"]): Check => ({
+    id: "onboarding-pr",
+    label: "Onboarding PR merged",
+    status,
+  });
+
+  it("reads Open enrolment PR for a repo with no onboarding PR yet", () => {
+    expect(
+      setupTriggerText([
+        { id: "onboarded", label: "Onboarded", status: "fail" },
+      ]),
+    ).toBe("Open enrolment PR");
+  });
+
+  it("reads Update Lore setup once the onboarding PR has merged", () => {
+    expect(setupTriggerText([onboardingPr("pass")])).toBe("Update Lore setup");
+  });
+
+  it("offers nothing while the onboarding PR is still open, where review & merge is the action", () => {
+    expect(setupTriggerText([onboardingPr("warn")])).toBeNull();
   });
 });
