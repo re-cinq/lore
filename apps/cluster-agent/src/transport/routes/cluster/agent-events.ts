@@ -42,8 +42,7 @@ function relayRoute(deps: AgentEventsDeps): ServerRoute {
   };
 }
 
-/** Accept the request only if it presents one of this cluster's credentials; every comparison runs even after
- * a match (same reason `secretEquals` exists). */
+/** Accepts one of this cluster's credentials; every comparison runs even after a match, for the reason `secretEquals` exists. */
 function enforceAnyBearer(
   headers: Record<string, unknown>,
   accepted: Array<string | undefined>,

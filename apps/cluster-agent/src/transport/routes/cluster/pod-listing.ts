@@ -3,6 +3,7 @@
 import type { ServerRoute } from "@hapi/hapi";
 import type { ClusterDeps } from "../../../domain/cluster-deps.js";
 import { guard, type ClusterRoutesDeps } from "./cluster-route-deps.js";
+import { NO_HAPI_AUTH } from "@re-cinq/lore-shared/http/route-options.js";
 
 export function podListRoute(
   opts: ClusterRoutesDeps,
@@ -15,7 +16,7 @@ export function podListRoute(
   return {
     method: "GET",
     path,
-    options: { auth: false },
+    options: NO_HAPI_AUTH,
     handler: async (request, h) => {
       guard(opts, request.headers);
       const { pods } = opts.deps();

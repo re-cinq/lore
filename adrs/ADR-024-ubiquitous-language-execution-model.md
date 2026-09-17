@@ -114,10 +114,10 @@ and lose the update; no `resourceVersion` ever crosses the wire.
   describes the read surface, which callers do still reach over HTTP.)*
   ([validated by reports created:false for code 409, so a redelivered claim is idempotent](apps/cluster-agent/src/outbound/kube-agent-api.test.ts#L26), [`kube-agent-api.test.ts:19`](apps/cluster-agent/src/outbound/kube-agent-api.test.ts#L19), [`kube-agent-api.test.ts:33`](apps/cluster-agent/src/outbound/kube-agent-api.test.ts#L33), [`kube-agent-api.test.ts:39`](apps/cluster-agent/src/outbound/kube-agent-api.test.ts#L39), [`kube-agent-api.test.ts:47`](apps/cluster-agent/src/outbound/kube-agent-api.test.ts#L47))
 - A missing CR is an ordinary answer — `found:false` at 200, not a 404 that
-  would be indistinguishable from the route itself being absent. ([validated by answers 200 with found:false for a missing CR, not 404](apps/cluster-agent/src/transport/routes/cluster.test.ts#L73), [`cluster.test.ts:131`](apps/cluster-agent/src/transport/routes/cluster.test.ts#L131))
+  would be indistinguishable from the route itself being absent. ([validated by answers 200 with found:false for a missing CR, not 404](apps/cluster-agent/src/transport/routes/cluster/cluster-routes.test.ts#L73), [`cluster-routes.test.ts:131`](apps/cluster-agent/src/transport/routes/cluster/cluster-routes.test.ts#L131))
 - The list serves ONE apiserver page per call and the caller drives `continue`.
   A one-shot list is not a convenience: 180 accumulated CRs at ~1.4MB of status
-  each blew Node's heap and crash-looped the Floor on 2026-07-24. ([validated by passes the caller's continue token straight through, one page per call](apps/cluster-agent/src/transport/routes/cluster.test.ts#L84), [`cluster.test.ts:97`](apps/cluster-agent/src/transport/routes/cluster.test.ts#L97), [`cluster.test.ts:228`](apps/cluster-agent/src/transport/routes/cluster.test.ts#L228), [`cluster.test.ts:218`](apps/cluster-agent/src/transport/routes/cluster.test.ts#L218))
+  each blew Node's heap and crash-looped the Floor on 2026-07-24. ([validated by passes the caller's continue token straight through, one page per call](apps/cluster-agent/src/transport/routes/cluster/cluster-routes.test.ts#L84), [`cluster-routes.test.ts:97`](apps/cluster-agent/src/transport/routes/cluster/cluster-routes.test.ts#L97), [`cluster-routes.test.ts:228`](apps/cluster-agent/src/transport/routes/cluster/cluster-routes.test.ts#L228), [`cluster-routes.test.ts:218`](apps/cluster-agent/src/transport/routes/cluster/cluster-routes.test.ts#L218))
 - The paging the route requires is walked by the CLIENT, not pushed onto every
   caller: `listByLabel` follows `continue` to the end and returns the whole
   match. A truncated list is worse than a failed one — it answers, and the
@@ -148,7 +148,7 @@ and lose the update; no `resourceVersion` ever crosses the wire.
 - `DELETE /api/cluster/per-task-tokens/{taskId}` reclaims a terminal task's
   Secret key and catalog clones — the one per-task-token operation that stays
   a route, since a settled task's cleanup runs from the Floor, not the cluster
-  that provisioned. ([validated by reclaims a task's token and catalog clones](apps/cluster-agent/src/transport/routes/cluster.test.ts#L207))
+  that provisioned. ([validated by reclaims a task's token and catalog clones](apps/cluster-agent/src/transport/routes/cluster/cluster-routes.test.ts#L207))
 - One call also means one OUTCOME: a provision whose recipe pair fails to land
   takes back everything it had already provisioned — the Secret key AND any
   catalog object that landed before the failure — before it throws. `cleanup`
@@ -165,9 +165,9 @@ and lose the update; no `resourceVersion` ever crosses the wire.
   from being amputated by a merge split across the network.
   ([validated by writes the station before the agent definition that points at it](apps/cluster-agent/src/outbound/paired-writes.test.ts#L27), [`paired-writes.test.ts:35`](apps/cluster-agent/src/outbound/paired-writes.test.ts#L35), [`paired-writes.test.ts:54`](apps/cluster-agent/src/outbound/paired-writes.test.ts#L54))
 - The log tail is clamped by the AGENT, because the Floor's clamp no longer
-  protects this process's heap. ([validated by clamps the tail server-side rather than trusting the caller](apps/cluster-agent/src/transport/routes/cluster.test.ts#L121), [`cluster.test.ts:187`](apps/cluster-agent/src/transport/routes/cluster.test.ts#L187), [`cluster.test.ts:197`](apps/cluster-agent/src/transport/routes/cluster.test.ts#L197), [`cluster.test.ts:177`](apps/cluster-agent/src/transport/routes/cluster.test.ts#L177))
+  protects this process's heap. ([validated by clamps the tail server-side rather than trusting the caller](apps/cluster-agent/src/transport/routes/cluster/cluster-routes.test.ts#L121), [`cluster-routes.test.ts:187`](apps/cluster-agent/src/transport/routes/cluster/cluster-routes.test.ts#L187), [`cluster-routes.test.ts:197`](apps/cluster-agent/src/transport/routes/cluster/cluster-routes.test.ts#L197), [`cluster-routes.test.ts:177`](apps/cluster-agent/src/transport/routes/cluster/cluster-routes.test.ts#L177))
 - Every route requires the same bearer token every other service-to-service
-  call presents. ([validated by refuses every route without a bearer token](apps/cluster-agent/src/transport/routes/cluster.test.ts#L143), [validated by refuses to restart without a bearer token](apps/cluster-agent/src/transport/routes/cluster.test.ts#L266))
+  call presents. ([validated by refuses every route without a bearer token](apps/cluster-agent/src/transport/routes/cluster/cluster-routes.test.ts#L143), [validated by refuses to restart without a bearer token](apps/cluster-agent/src/transport/routes/cluster/cluster-routes.test.ts#L266))
 - A CR the controller has not stamped yet reads as Pending rather than absent —
   the distinction a watcher acts on. ([validated by a CR the controller has not stamped yet maps to Pending, not absence](libs/shared/src/outbound/cluster/agent-node-status.test.ts#L6), [`agent-node-status.test.ts:12`](libs/shared/src/outbound/cluster/agent-node-status.test.ts#L12))
 - An empty minted token is refused where the cause is legible, rather than
@@ -189,7 +189,7 @@ scoped settling a run to the one cluster this Floor can reach; it now settles
 from the event's own report, which carries the full status. The distinction
 above still governs the READ surface — the reconcile pass, the reaper's status
 probe, the pod-log reads — where a caller genuinely has to ask.*
-  ([validated by answers 200 with found:false for a missing CR, not 404](apps/cluster-agent/src/transport/routes/cluster.test.ts#L73), [`k8s-errors.test.ts:28`](apps/cluster-agent/src/lib/k8s-errors.test.ts#L31), [`k8s-errors.test.ts:44`](apps/cluster-agent/src/lib/k8s-errors.test.ts#L47), [`k8s-errors.test.ts:56`](apps/cluster-agent/src/lib/k8s-errors.test.ts#L59), [`kubernetes.test.ts:21`](apps/floor/src/events/handlers/kubernetes.test.ts#L21), [`kubernetes.test.ts:49`](apps/floor/src/events/handlers/kubernetes.test.ts#L49), [`kubernetes.test.ts:55`](apps/floor/src/events/handlers/kubernetes.test.ts#L55))
+  ([validated by answers 200 with found:false for a missing CR, not 404](apps/cluster-agent/src/transport/routes/cluster/cluster-routes.test.ts#L73), [`k8s-errors.test.ts:28`](apps/cluster-agent/src/lib/k8s-errors.test.ts#L31), [`k8s-errors.test.ts:44`](apps/cluster-agent/src/lib/k8s-errors.test.ts#L47), [`k8s-errors.test.ts:56`](apps/cluster-agent/src/lib/k8s-errors.test.ts#L59), [`kubernetes.test.ts:21`](apps/floor/src/events/handlers/kubernetes.test.ts#L21), [`kubernetes.test.ts:49`](apps/floor/src/events/handlers/kubernetes.test.ts#L49), [`kubernetes.test.ts:55`](apps/floor/src/events/handlers/kubernetes.test.ts#L55))
 
 The reconcile pass keeps paging, and its seam narrowed with the cut: it now
 depends on one page-fetch method rather than a slice of a Kubernetes client, so
@@ -200,7 +200,7 @@ The Role this service carries also closes two gaps the Floor had been silently
 living with: it never held `delete` on `agents` or `agents/status`, yet issued
 both at sites that swallowed the failure — which is why the CR prune could
 never actually shrink the pile it was written to shrink.
-  ([validated by deletes a CR — the verb the Floor's RBAC never granted](apps/cluster-agent/src/transport/routes/cluster.test.ts#L108))
+  ([validated by deletes a CR — the verb the Floor's RBAC never granted](apps/cluster-agent/src/transport/routes/cluster/cluster-routes.test.ts#L108))
 
 Hierarchy: **Factory ⊃ Floor(s) ⊃ AssemblyLines ⊃ Stations ⊃ Agents** — the design
 side; its runtime shadow is **AssemblyRun ⊃ StationRuns ⊃ Agents**.

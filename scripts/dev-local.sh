@@ -117,6 +117,10 @@ export CLUSTER_AGENT_URL="${CLUSTER_AGENT_URL:-http://localhost:3005}"
 #     uses the per-agent token it gets back for everything after.
 export LORE_CLUSTER_AGENT_REGISTRATION_TOKEN="${LORE_CLUSTER_AGENT_REGISTRATION_TOKEN:-lore-local-registration-token}"
 export LORE_CLUSTER_AGENT_NAME="${LORE_CLUSTER_AGENT_NAME:-central}"
+#     The identity it gets back persists in a Secret in minikube, exactly as in a
+#     deployed cluster: the agent only starts under LORE_STATION_BACKEND=k8s.
+export LORE_CLUSTER_AGENT_IDENTITY_SECRET="${LORE_CLUSTER_AGENT_IDENTITY_SECRET:-lore-cluster-agent-identity}"
+export LORE_CLUSTER_AGENT_IDENTITY_NAMESPACE="${LORE_CLUSTER_AGENT_IDENTITY_NAMESPACE:-${LORE_AGENTS_NAMESPACE:-ai-agents}}"
 #     Every tag, as the umbrella chart's central agent carries: on a laptop this
 #     is the only cluster, so anything it cannot claim runs nowhere.
 export LORE_CLUSTER_AGENT_TAGS="${LORE_CLUSTER_AGENT_TAGS:-node:agent,node:validate,node:gate,node:retrospective,node:github_action,node:detect,node:ingest}"

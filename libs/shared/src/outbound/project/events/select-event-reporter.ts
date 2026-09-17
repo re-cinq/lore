@@ -55,9 +55,7 @@ export interface SelectProxyDeps extends SelectReporterDeps {
   telemetry?: Sink;
 }
 
-/** Resolve the {@link EventProxy} (queued emit + synchronous insert) this process reports through; always a
- * proxy so a caller holds one type — local mode retries once since a failed Postgres insert is not a wire blip.
- * Call once at a composition root and memoize. */
+/** The {@link EventProxy} this process reports through — always a proxy so callers hold one type; call once at a composition root and memoize. Local mode retries once, since a failed Postgres insert is not a wire blip. */
 export function selectEventProxy(deps: SelectProxyDeps): EventProxy {
   const reporter = selectEventReporter(deps);
 

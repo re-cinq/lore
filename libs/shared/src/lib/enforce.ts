@@ -17,10 +17,14 @@ export function enforceTrue(
 }
 
 // The message is optional because the bound itself is usually the whole explanation; every caller so far omits it.
+export interface IntegerInterval {
+  min: number;
+  max: number;
+}
+
 export function enforceIntegerInterval(
   value: number,
-  min: number,
-  max: number,
+  { min, max }: IntegerInterval,
   errorType: ErrorType,
   errorMessage?: string,
 ): asserts value is number {

@@ -10,6 +10,7 @@ import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { resolve } from "node:path";
 import { buildMcpServer, type ServerMode } from "./build-mcp-server.js";
 import { handleSkillsRequest } from "./skills-registry.js";
+import { requiredPort } from "@re-cinq/lore-shared/lib/required-env.js";
 
 export interface HttpGatewayOptions {
   port: number;
@@ -70,6 +71,15 @@ interface McpContext {
 interface GatewayWiring {
   skillsRoot: string;
   authorized: (req: IncomingMessage) => boolean;
+}
+
+/** The gateway as the chart configures it: LORE_MCP_PORT is required, LORE_MCP_SERVER_MODE=agent drops the laptop-only tools. */
+export function startHttpGatewayFromEnv(env: NodeJS.ProcessEnv): Server {
+  return startHttpGateway({
+    port: requiredPort(env, "LORE_MCP_PORT"),
+    authToken: env.LORE_MCP_AUTH_TOKEN,
+    serverMode: env.LORE_MCP_SERVER_MODE === "agent" ? "agent" : "full",
+  });
 }
 
 export function startHttpGateway(opts: HttpGatewayOptions): Server {

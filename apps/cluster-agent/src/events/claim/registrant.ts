@@ -84,8 +84,7 @@ export async function runRegistrant(opts: RegistrantOpts): Promise<void> {
   });
 }
 
-/** Registers, and hands back the identity as a GETTER rather than a value: a 401 rotates it mid-run,
- * and every loop must read the current one rather than the one it captured at startup. */
+/** Hands back the identity as a GETTER: a 401 rotates it mid-run, and every loop must read the current one, not the one it captured at startup. */
 async function establishIdentity(opts: RegistrationOpts): Promise<{
   identity: () => ClusterAgentIdentity;
   reRegister: () => Promise<ClusterAgentIdentity | null>;

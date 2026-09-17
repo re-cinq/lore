@@ -2,13 +2,14 @@
 
 import type { ServerRoute } from "@hapi/hapi";
 import { guard, type ClusterRoutesDeps } from "./cluster-route-deps.js";
+import { NO_HAPI_AUTH } from "@re-cinq/lore-shared/http/route-options.js";
 
 /** `DELETE /api/cluster/per-task-tokens/{taskId}` — drops a settled task's credential. Called by the Floor when a task settles; the MINT side is not a route, because every launch is an in-process claim. */
 export function deletePerTaskTokenRoute(opts: ClusterRoutesDeps): ServerRoute {
   return {
     method: "DELETE",
     path: "/api/cluster/per-task-tokens/{taskId}",
-    options: { auth: false },
+    options: NO_HAPI_AUTH,
     handler: async (request, h) => {
       guard(opts, request.headers);
       const { tokens } = opts.deps();

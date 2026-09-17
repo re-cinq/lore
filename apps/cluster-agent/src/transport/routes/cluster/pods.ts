@@ -10,6 +10,7 @@ import type { ClusterDeps } from "../../../domain/cluster-deps.js";
 import { podListRoute } from "./pod-listing.js";
 import { guard, type ClusterRoutesDeps } from "./cluster-route-deps.js";
 import { isLogUnavailable } from "../../../lib/k8s-errors.js";
+import { NO_HAPI_AUTH } from "@re-cinq/lore-shared/http/route-options.js";
 
 /** Log tail ceiling, clamped HERE — the Floor's clamp no longer protects this process's heap. */
 const MAX_TAIL = 10_000;
@@ -28,7 +29,7 @@ function podLogRoute(opts: ClusterRoutesDeps): ServerRoute {
   return {
     method: "GET",
     path: "/api/cluster/pods/{podName}/log",
-    options: { auth: false },
+    options: NO_HAPI_AUTH,
     handler: podLogHandler(opts),
   };
 }

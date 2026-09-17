@@ -216,16 +216,18 @@ export interface SecretMutation {
   data?: Record<string, string>;
 }
 
+export interface NamespacedName {
+  name: string;
+  namespace: string;
+}
+
+export interface SecretReplacement extends NamespacedName {
+  body: SecretMutation;
+}
+
 export interface SecretClient {
-  readNamespacedSecret(args: {
-    name: string;
-    namespace: string;
-  }): Promise<SecretMutation>;
-  replaceNamespacedSecret(args: {
-    name: string;
-    namespace: string;
-    body: SecretMutation;
-  }): Promise<unknown>;
+  readNamespacedSecret(args: NamespacedName): Promise<SecretMutation>;
+  replaceNamespacedSecret(args: SecretReplacement): Promise<unknown>;
 }
 export type SecretClientFactory = () => SecretClient;
 

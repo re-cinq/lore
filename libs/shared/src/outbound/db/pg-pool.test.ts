@@ -46,6 +46,10 @@ describe("the shared pool", () => {
         LORE_DB_NAME: "lore",
         LORE_DB_USER: "lore",
       }),
-    ).toThrow(new Error('LORE_DB_PORT must be a number, got "pick-one"'));
+    ).toThrow(
+      new Error(
+        'LORE_DB_PORT must be a port number in 1..65535, got "pick-one"',
+      ),
+    );
   });
 });

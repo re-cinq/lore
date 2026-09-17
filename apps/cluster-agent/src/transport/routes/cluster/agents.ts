@@ -5,6 +5,7 @@ import { PUBLIC_GET } from "@re-cinq/lore-shared/http/route-options.js";
 import { enforceIntegerInterval } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { guard, type ClusterRoutesDeps } from "./cluster-route-deps.js";
+import { NO_HAPI_AUTH } from "@re-cinq/lore-shared/http/route-options.js";
 
 /** Page ceiling — a caller asking for more is refused rather than quietly served a smaller page (a silent clamp reads as "read everything"). */
 const MAX_PAGE = 100;
@@ -50,7 +51,7 @@ function listAgentsHandler(opts: ClusterRoutesDeps): Lifecycle.Method {
     const q = request.query as Record<string, string | undefined>;
     const limit = Number(q.limit ?? MAX_PAGE);
 
-    enforceIntegerInterval(limit, 1, MAX_PAGE, apiError(400));
+    enforceIntegerInterval(limit, { min: 1, max: MAX_PAGE }, apiError(400));
 
     const { agents } = opts.deps();
     const page = await agents.list({
@@ -68,7 +69,7 @@ function deleteAgentRoute(opts: ClusterRoutesDeps): ServerRoute {
   return {
     method: "DELETE",
     path: "/api/cluster/agents/{name}",
-    options: { auth: false },
+    options: NO_HAPI_AUTH,
     handler: async (request, h) => {
       guard(opts, request.headers);
       const { agents } = opts.deps();
@@ -85,7 +86,7 @@ function podInfoRoute(opts: ClusterRoutesDeps): ServerRoute {
   return {
     method: "GET",
     path: "/api/cluster/agents/{name}/pod-info",
-    options: { auth: false },
+    options: NO_HAPI_AUTH,
     handler: async (request, h) => {
       guard(opts, request.headers);
       const { pods } = opts.deps();

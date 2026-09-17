@@ -83,7 +83,6 @@ export async function runHeartbeatLoop(deps: HeartbeatLoopDeps): Promise<void> {
     tick: deps.beat,
     onOutcome: async (outcome) => {
       if (outcome !== "unauthorized") {
-        console.log(`[cluster-agent] heartbeat outcome: ${outcome}`);
         return;
       }
 
