@@ -66,7 +66,11 @@ beforeEach(() => {
   process.env.LORE_INGEST_URL = "https://lore.example.test";
   process.env.LORE_INGEST_TOKEN = "test-ingest-token";
 
-  fakeRepo.tree.mockResolvedValue([".github", ".github/CODEOWNERS", "README.md"]);
+  fakeRepo.tree.mockResolvedValue([
+    ".github",
+    ".github/CODEOWNERS",
+    "README.md",
+  ]);
   fakeRepo.branchExists.mockResolvedValue(false);
   fakeRepo.defaultBranch.mockResolvedValue("develop");
   fakeIssues.createLabels.mockResolvedValue(undefined);
@@ -87,7 +91,9 @@ const onboard = (issueNumber: number | null = 7) =>
     branchName: "lore/onboard",
     model: undefined,
     issueNumber,
-    project: fakeProject as unknown as Parameters<typeof handleOnboard>[0]["project"],
+    project: fakeProject as unknown as Parameters<
+      typeof handleOnboard
+    >[0]["project"],
     repoSettings: {},
     repoOverrides: undefined,
     agentDef: null,
@@ -118,7 +124,10 @@ describe("handleOnboard", () => {
   it("creates the branch off the default branch and commits the ingest workflow onto it even when the repo already has a .github directory", async () => {
     await onboard();
 
-    expect(fakeRepo.createBranch).toHaveBeenCalledWith("lore/onboard", "develop");
+    expect(fakeRepo.createBranch).toHaveBeenCalledWith(
+      "lore/onboard",
+      "develop",
+    );
     expect(fakeRepo.commitFile).toHaveBeenCalledWith(
       "lore/onboard",
       LORE_INGEST_WORKFLOW_PATH,
@@ -129,7 +138,10 @@ describe("handleOnboard", () => {
   });
 
   it("commits the issue templates and .claude/settings.json when the branch lacks them, skipping an exact path it carries", async () => {
-    fakeRepo.tree.mockResolvedValue([".github", ".github/ISSUE_TEMPLATE/config.yml"]);
+    fakeRepo.tree.mockResolvedValue([
+      ".github",
+      ".github/ISSUE_TEMPLATE/config.yml",
+    ]);
 
     await onboard();
 
@@ -187,9 +199,12 @@ describe("handleOnboard", () => {
   it("keeps the permission hint out when a workflow commit fails for another reason", async () => {
     fakeRepo.commitFile.mockImplementation(async (_branch, path: string) => {
       if (path.startsWith(".github/workflows/")) {
-        throw Object.assign(new Error('Invalid request. "sha" wasn\'t supplied.'), {
-          status: 422,
-        });
+        throw Object.assign(
+          new Error('Invalid request. "sha" wasn\'t supplied.'),
+          {
+            status: 422,
+          },
+        );
       }
     });
 

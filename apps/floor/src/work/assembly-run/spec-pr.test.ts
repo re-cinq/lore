@@ -6,6 +6,7 @@ import type { PullRef } from "@re-cinq/lore-shared/project/pulls/pull-requests-p
 import {
   decideMarkReady,
   decidePrDraft,
+  decideOnboardingPrRecord,
   decidePrStamp,
   decideStampFailure,
   emptyBranchReason,
@@ -77,6 +78,7 @@ async function harness(
     existingPulls?: PullRef[];
     withFeature?: boolean;
     withTask?: boolean;
+    blueprintName?: string;
   } = {},
 ): Promise<Harness> {
   const lines = new InMemoryAssemblyRuns();
@@ -87,7 +89,7 @@ async function harness(
     prompt: "Make rollback one command",
   });
   const lineId = await lines.start({
-    blueprintName: "feature-planning",
+    blueprintName: options.blueprintName ?? "feature-planning",
     repo: REPO,
     ...(options.withTask === false ? {} : { taskId: "task-1" }),
     branch: "feature/dark-factory-rollback",
@@ -254,6 +256,47 @@ describe("stampLinePr", () => {
     expect((await h.lines.getById(h.lineId))?.args).toMatchObject({
       pr_number: 4201,
     });
+  });
+});
+
+describe("stampLinePr onboarding record", () => {
+  it("records an onboard line's PR as the repo's onboarding PR", async () => {
+    const recorded: Array<[string, string]> = [];
+    const h = await harness({ blueprintName: "onboard", withFeature: false });
+
+    await stampLinePr(await lineRow(h), {
+      ...h.ports,
+      onboarding: {
+        setOnboardingPrUrl: async (repo, url) => {
+          recorded.push([repo, url]);
+        },
+      },
+    });
+
+    expect(recorded).toEqual([[REPO, `https://github.com/${REPO}/pull/4201`]]);
+  });
+
+  it("records nothing on the repo row for a feature-planning line's PR", async () => {
+    const recorded: Array<[string, string]> = [];
+    const h = await harness();
+
+    await stampLinePr(await lineRow(h), {
+      ...h.ports,
+      onboarding: {
+        setOnboardingPrUrl: async (repo, url) => {
+          recorded.push([repo, url]);
+        },
+      },
+    });
+
+    expect(recorded).toEqual([]);
+  });
+
+  it("decides the record by the onboard blueprint name alone", () => {
+    expect(decideOnboardingPrRecord({ blueprintName: "onboard" })).toBe(true);
+    expect(decideOnboardingPrRecord({ blueprintName: "implementation" })).toBe(
+      false,
+    );
   });
 });
 

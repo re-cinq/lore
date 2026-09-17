@@ -180,6 +180,8 @@ function adrLines(): string[] {
 
   return [
     `- Starter ADRs, only when the repo has no \`adrs/\` or \`docs/\` directory yet — MADR format with YAML frontmatter (adr_number, title, status: accepted, date: today, domains). Skip an ADR whose subject the repo shows no evidence of:`,
-    ...ADR_TOPICS.map((adr, index) => `  - \`${paths[index]}\` — ${adr.prompt}`),
+    ...ADR_TOPICS.map(
+      (adr, index) => `  - \`${paths[index]}\` — ${adr.prompt}`,
+    ),
   ];
 }

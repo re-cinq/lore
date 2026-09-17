@@ -10,13 +10,14 @@
 | Auth scope | `admin`                                         |
 | Module     | `mcp-server/src/api/routes/ingest.ts` (`handleOnboard`) |
 
-POST /api/onboard brings a repo into Lore by inspecting it, opening a bootstrap PR that adds CLAUDE.md, AGENTS.md, ADRs, and CI workflows, and registering a lore.repos row for nightly ingestion.
+POST /api/onboard brings a repo into Lore: it registers a lore.repos row and queues the onboard task whose ticket the `onboard` assembly line implements into one bootstrap PR (workflows, templates, AGENTS.md, ADRs, spec).
 
 ## Problem Statement
 
-Bringing a repo into Lore is a privileged, side-effecting operation: it inspects
-the repo and opens a PR adding `CLAUDE.md`, `AGENTS.md`, ADRs, a PR template, and
-CI workflows, and registers the repo for nightly ingestion. Because it writes to
+Bringing a repo into Lore is a privileged, side-effecting operation: it queues
+the task that enrols the repo and opens the one PR adding `AGENTS.md`, ADRs, a
+PR template, and CI workflows, and registers the repo so merge-time ingestion
+reaches it. Because it writes to
 an external repo and creates a `lore.repos` row, it must be gated behind the
 strongest token scope. This route is the HTTP surface the `/onboard` UI and the
 `lore_onboard_repo` MCP tool call.
@@ -112,9 +113,9 @@ A throwing `onboardRepo` returns 500. ([validated by `returns 500 when onboardRe
 
 The route is registered as an exact `POST /api/onboard` match. ([implemented by](../../../apps/lore-api/src/app/build-server.ts#L104), [implemented by](../../../apps/lore-api/src/transport/routes/repos/onboard.ts#L22))
 
-`onboardRepo` ensures the Lore webhook (the event-router hook URL) for the onboarded repo and returns the ensure outcome under `webhook` in its result; onboarding still completes (returning `repo_id` + `task_id`) when the ensure is skipped. ([validated by `repo-onboard.test.ts:67`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L66), [`repo-onboard.test.ts:79`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L83))
+`onboardRepo` ensures the Lore webhook (the event-router hook URL) for the onboarded repo and returns the ensure outcome under `webhook` in its result; onboarding still completes (returning `repo_id` + `task_id`) when the ensure is skipped. ([validated by `repo-onboard.test.ts:65`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L65), [`repo-onboard.test.ts:82`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L82))
 
-`onboardRepo` takes the per-repo advisory lock before reading the guard state and gives the task a description rather than the bare repo name. ([validated by `takes the per-repo advisory lock before reading the guard state`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L98), [`sends a described task instead of the bare repo name`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L134))
+`onboardRepo` takes the per-repo advisory lock before reading the guard state and gives the task the onboarding TICKET body (`onboardTicketBody`, `libs/shared/src/work/onboard-content.ts`) rather than the bare repo name — the description becomes the Issue the `onboard` line implements, so it must carry every file owed and every rule. ([validated by `takes the per-repo advisory lock before reading the guard state`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L98), [validated by sends the onboarding ticket body instead of the bare repo name](apps/lore-api/src/work/repo/repo-onboard.test.ts#L133))
 
 `onboardRepo` creates no task and skips the webhook ensure for an already-onboarded repo, blocks a repo with an onboard task in flight while naming that task, and blocks a repo whose onboarding PR is still open while naming the PR. ([validated by `blocks an already-onboarded repo without creating a task`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L165), [`blocks a repo with an onboard task in flight and names that task`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L176), [`blocks a repo whose onboarding PR is still open`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L187))
 
@@ -126,22 +127,16 @@ A `reonboard` submission is queued for an already-onboarded repo but still refus
 
 Onboard tasks are created only here: `POST /api/task` refuses `task_type: "onboard"` and points at this route rather than routing around the guard. ([validated by `refuses task_type onboard and points at the guarded onboard route`](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L333))
 
-### fetchRepoContext
+### What the route no longer does
 
-`fetchRepoContext` (`features/repo/repo-onboard.ts`) rejects a `full_name` without an `owner/repo` slash before any GitHub call. ([validated by `throws for a full_name without an owner/repo slash`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L284))
-
-It lists the top-level tree as entry names, decodes present key files from base64, and silently skips a key file on a 404 or any other fetch error. ([validated by `lists the top-level tree and decodes present key files, skipping 404s`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L290))
-
-A failed top-level listing (non-404) yields an empty tree rather than throwing. ([validated by `returns an empty tree when the top-level listing fails`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L312))
-
-It samples up to 3 source files across `SAMPLE_DIRS`, keeps only the first 200 lines of each, filters directory listings to file-type entries, and stops fetching further entries — in the same directory or the next one — once the cap is reached. ([validated by `collects up to 3 samples across dirs, filters to file entries, and stops mid-directory once full`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L324))
-
-A sample directory listing that 404s or otherwise errors is skipped, moving on to the next directory. ([validated by `skips a sample dir on 404 and on any other listing error, continuing to the next dir`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L370))
-
-A single sample file whose content fetch fails is skipped without affecting the other entries in its directory. ([validated by `skips a sample entry whose content fetch fails, keeping the other entries`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L388))
+*(2026-09-17)* The route used to export `fetchRepoContext` (a top-level tree
+plus a few sampled files handed to an in-process drafting pass) and a
+`checkOnboardingPRs` poll that queued an initial-ingestion task on merge. Both
+are gone: the `onboard` line's pod reads the repository itself, and the merged
+workflows ingest on their own push run.
 
 ## Out of Scope
 
-- The repo inspection / bootstrap-PR generation internals (`onboardRepo`).
+- The enrolment and bootstrap-PR internals (`handleOnboard` on the Floor, the `onboard` assembly line).
 - Nightly ingestion scheduling.
 - Bearer-token validation mechanics (owned by `auth.ts`).

@@ -158,7 +158,7 @@ function proxyFailure(
 function registerOnboardRepoTool(server: McpServer) {
   server.tool(
     "lore_onboard_repo",
-    `Registers a new GitHub repo with Lore and spawns an onboard pipeline task that authors CLAUDE.md/AGENTS.md/PR-template and opens a PR asynchronously; returns { repo_id, task_id, status }. Refuses (HTTP 409) when the repo is already onboarded, still has its onboarding PR open, or already has an onboard task in flight — pass reonboard to regenerate missing scaffolding for an onboarded repo. Instead: to list repos use lore_list_repos; to push files into an already-onboarded repo use lore_ingest_files.`,
+    `Registers a new GitHub repo with Lore and spawns an onboard pipeline task: the Floor enrols the repo (labels, webhook, ingest callback, verbatim workflows) and the onboard assembly line authors AGENTS.md/PR-template/ADRs/spec from the onboarding ticket and opens the ONE PR asynchronously; returns { repo_id, task_id, status }. Refuses (HTTP 409) when the repo is already onboarded, still has its onboarding PR open, or already has an onboard task in flight — pass reonboard to regenerate missing scaffolding for an onboarded repo. Instead: to list repos use lore_list_repos; to push files into an already-onboarded repo use lore_ingest_files.`,
     ONBOARD_REPO_INPUT,
     onboardRepo,
   );

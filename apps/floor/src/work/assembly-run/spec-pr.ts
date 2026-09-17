@@ -126,6 +126,20 @@ export interface SpecPrPorts {
       patch?: FeaturePatch,
     ): Promise<unknown>;
   };
+  /** Where an ONBOARDING's PR is recorded: the repo row the onboard guard and the merge-check sweep read. Optional because most callers stamp no onboarding. */
+  onboarding?: {
+    setOnboardingPrUrl(repo: string, url: string): Promise<void>;
+  };
+}
+
+/** The line whose pull request IS the repo's onboarding PR. */
+const ONBOARD_BLUEPRINT = "onboard";
+
+/** Whether this line's PR must be recorded as the repo's onboarding PR — the guard blocks a second onboarding on it, and the merge-check sweep flips `onboarding_pr_merged` from it. */
+export function decideOnboardingPrRecord(
+  row: Pick<AssemblyRunRecord, "blueprintName">,
+): boolean {
+  return row.blueprintName === ONBOARD_BLUEPRINT;
 }
 
 /** Ensure PR on branch, record on line; stamp before feature transition (safer if transition fails). */
@@ -195,6 +209,10 @@ async function recordOpenedPr(
     pr_number: pr.number,
     pr_url: pr.url,
   });
+
+  if (decideOnboardingPrRecord(row)) {
+    await ports.onboarding?.setOnboardingPrUrl(row.repo, pr.url);
+  }
 
   await markFeaturePrOpen(feature, pr, ports);
 }

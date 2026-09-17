@@ -53,7 +53,9 @@ export async function commitOnboardScaffold(
 }
 
 /** The workflows, then the static files whose exact path the branch lacks. Exact path, not top-level directory: a repo with a `.github/` still needs its issue templates (#1201). */
-export function scaffoldFilesOwed(present: ReadonlySet<string>): ScaffoldFile[] {
+export function scaffoldFilesOwed(
+  present: ReadonlySet<string>,
+): ScaffoldFile[] {
   return [
     ...WORKFLOW_FILES,
     ...ONBOARD_STATIC_FILES.filter((file) => !present.has(file.path)),

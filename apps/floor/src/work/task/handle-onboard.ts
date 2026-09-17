@@ -41,10 +41,15 @@ export async function handleOnboard(input: DispatchInput): Promise<void> {
 /** Everything that went wrong enrolling reaches the audit log and the TICKET — the human surface an onboarding has before its PR exists. Reported before dispatch so a repo that silently never calls back is visible even if the line then dies. */
 async function reportEnrolmentGaps(
   input: DispatchInput,
-  gaps: { failures: Parameters<typeof anyWorkflowsPermissionFailure>[0]; configFailures: string[] },
+  gaps: {
+    failures: Parameters<typeof anyWorkflowsPermissionFailure>[0];
+    configFailures: string[];
+  },
 ): Promise<void> {
   const { task, targetRepo, project, issueNumber } = input;
-  const workflowsPermissionDenied = anyWorkflowsPermissionFailure(gaps.failures);
+  const workflowsPermissionDenied = anyWorkflowsPermissionFailure(
+    gaps.failures,
+  );
 
   await auditOnboardFailuresIfAny({
     task,
@@ -52,7 +57,10 @@ async function reportEnrolmentGaps(
     ...gaps,
     workflowsPermissionDenied,
   });
-  const section = onboardAttentionSection({ ...gaps, workflowsPermissionDenied });
+  const section = onboardAttentionSection({
+    ...gaps,
+    workflowsPermissionDenied,
+  });
 
   if (section === "" || issueNumber === null) {
     return;
