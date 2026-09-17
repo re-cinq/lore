@@ -89,7 +89,7 @@ test("maps a basename:NN label through the diff hunks from the base copy and rew
 
   assert.equal(
     content,
-    "([`y.test.ts:2`](libs/x/y.test.ts#L2), [`y.test.ts:11`](libs/x/y.test.ts#L11))",
+    "([`y.test.ts:2`](libs/x/y.test.ts#L2), [`y.test.ts:7`](libs/x/y.test.ts#L11))",
   );
 });
 
@@ -124,7 +124,7 @@ test("pairs basename labels by ordinal among their kind, so a prose link added a
 
   assert.equal(
     content,
-    "([validated by some prose](libs/x/y.test.ts#L1), [`y.test.ts:11`](libs/x/y.test.ts#L11))",
+    "([validated by some prose](libs/x/y.test.ts#L1), [`y.test.ts:7`](libs/x/y.test.ts#L11))",
   );
 });
 
@@ -185,7 +185,7 @@ test("rewrites the NN of a basename label that carries the validated-by prefix, 
 
   assert.equal(
     content,
-    "([validated by `y.test.ts:11`](libs/x/y.test.ts#L11))",
+    "([validated by `y.test.ts:7`](libs/x/y.test.ts#L11))",
   );
 });
 
@@ -207,7 +207,7 @@ test("pairs a repeated basename label with the same label's occurrence in the ba
 
   assert.equal(
     content,
-    "([validated by listSince caps the batch](libs/x/y.test.ts#L2), [`y.test.ts:11`](libs/x/y.test.ts#L11), [`y.test.ts:3`](libs/x/y.test.ts#L3)) and again ([`y.test.ts:11`](libs/x/y.test.ts#L11))",
+    "([validated by listSince caps the batch](libs/x/y.test.ts#L2), [`y.test.ts:7`](libs/x/y.test.ts#L11), [`y.test.ts:3`](libs/x/y.test.ts#L3)) and again ([`y.test.ts:7`](libs/x/y.test.ts#L11))",
   );
 });
 
@@ -227,4 +227,27 @@ test("reports a basename label the base copy lacks as unmapped when the branch h
 
   assert.equal(content, md);
   assert.equal(unmapped[0].label, "`y.test.ts:99`");
+});
+
+test("keeps a basename label as the base copy spells it, so a second run over its own output moves nothing even when one link's new line is another link's old label", () => {
+  const md =
+    "([`y.test.ts:3`](libs/x/y.test.ts#L3), [`y.test.ts:7`](libs/x/y.test.ts#L7))";
+  const hunks = parseHunks("@@ -2,0 +3,4 @@");
+  const base = [
+    { label: "`y.test.ts:3`", line: 3 },
+    { label: "`y.test.ts:7`", line: 7 },
+  ];
+  const run = (markdown) =>
+    reanchorMarkdown(
+      markdown,
+      "specs/a/spec.md",
+      io({ baseLinks: () => base, hunksFor: () => hunks }),
+    );
+  const first = run(md);
+
+  assert.equal(
+    first.content,
+    "([`y.test.ts:3`](libs/x/y.test.ts#L7), [`y.test.ts:7`](libs/x/y.test.ts#L11))",
+  );
+  assert.deepEqual(run(first.content).changes, []);
 });

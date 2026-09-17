@@ -29,8 +29,9 @@ function RepoIntegrationPoint() {
       <strong>Repo integration</strong> is verified from Lore&apos;s database
       and (where the GitHub App has access) the repo&apos;s files. A missing
       file (e.g. the <code>lore-ingest.yml</code> ingest workflow) can be fixed
-      in place — the <em>create a PR with this file</em> action queues an
-      onboarding task that opens a PR adding only what&apos;s missing.
+      in place — the box&apos;s one button (<em>Open enrolment PR</em>, or{" "}
+      <em>Update Lore setup</em> once that PR has merged) queues a single run
+      that opens one PR covering everything missing or out of date.
     </li>
   );
 }

@@ -70,14 +70,12 @@ function EnrollmentHeader({
 /** Every repo-integration check, each carrying whichever fix action applies to it. */
 function CheckRows({
   checks,
-  reonboardAction,
   setupWebhookAction,
-}: EnrollmentSectionProps) {
+}: Pick<EnrollmentSectionProps, "checks" | "setupWebhookAction">) {
   return checks.map((check) => (
     <CheckRow
       key={check.id}
       check={check}
-      reonboardAction={reonboardAction}
       setupWebhookAction={setupWebhookAction}
     />
   ));
@@ -85,7 +83,6 @@ function CheckRows({
 
 interface CheckRowProps {
   check: Check;
-  reonboardAction?: () => Promise<void>;
   setupWebhookAction?: () => Promise<void>;
 }
 
@@ -98,7 +95,7 @@ function CheckRow(props: CheckRowProps) {
       <span className={styles.label}>{check.label}</span>
       <span className="enroll-dots" />
       <CheckDetail check={check} />
-      <CheckActions {...props} />
+      <SetupWebhookAction {...props} />
       <CheckCopy check={check} />
       <CheckSecret check={check} />
     </div>
@@ -140,23 +137,6 @@ function CheckDetail({ check }: { check: Check }) {
   );
 }
 
-/** Whichever fix actions this check offers; each renders nothing when it does not apply. */
-function CheckActions({
-  check,
-  reonboardAction,
-  setupWebhookAction,
-}: CheckRowProps) {
-  return (
-    <>
-      <ReonboardAction check={check} reonboardAction={reonboardAction} />
-      <SetupWebhookAction
-        check={check}
-        setupWebhookAction={setupWebhookAction}
-      />
-    </>
-  );
-}
-
 function CheckCopy({ check }: { check: Check }) {
   if (!check.copy) {
     return null;
@@ -177,20 +157,6 @@ function CheckSecret({ check }: { check: Check }) {
   }
 
   return <SecretReveal value={check.secret.value} label={check.secret.label} />;
-}
-
-function ReonboardAction({
-  check,
-  reonboardAction,
-}: {
-  check: Check;
-  reonboardAction?: () => Promise<void>;
-}) {
-  if (check.action?.kind !== "reonboard" || !reonboardAction) {
-    return null;
-  }
-
-  return <ReonboardButton action={reonboardAction} text={check.action.text} />;
 }
 
 function SetupWebhookAction({

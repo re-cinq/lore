@@ -295,18 +295,14 @@ function resolveLink(link, ctx) {
     : { line: mapped };
 }
 
-/** Rewrites `#Lnn` (and a `file.test.ts:NN` label) for each edit, last edit first so offsets stay valid. */
+/** Rewrites `#Lnn` for each edit, last edit first so offsets stay valid. The LABEL is never touched: it is the key a link is paired with its base copy by, and rewriting `file.test.ts:3` to the new line made it collide with a different link's base label, so the next run paired the two crosswise and they swapped for ever. */
 function applyEdits(markdown, edits) {
   let out = markdown;
 
   for (const { link, line } of [...edits].sort(
     (a, b) => b.link.start - a.link.start,
   )) {
-    const label = BASENAME_LABEL.test(stripPrefix(link.label))
-      ? link.label.replace(/:\d+(`?)$/, `:${line}$1`)
-      : link.label;
-
-    out = `${out.slice(0, link.start)}[${label}](${link.linkPath}#L${line})${out.slice(link.end)}`;
+    out = `${out.slice(0, link.start)}[${link.label}](${link.linkPath}#L${line})${out.slice(link.end)}`;
   }
 
   return out;

@@ -6,10 +6,8 @@ export interface Check {
   status: CheckStatus;
   detail?: string;
   link?: { href: string; text: string };
-  /** A fixable check the UI can act on directly (open PR or create/repoint webhook). */
-  action?:
-    | { kind: "reonboard"; text: string }
-    | { kind: "setup-webhook"; text: string };
+  /** A fixable check the UI can act on directly (create/repoint the webhook). Missing files carry none: the box's ONE trigger (`setupTriggerText`) opens a single PR covering all of them. */
+  action?: { kind: "setup-webhook"; text: string };
   /** A value to display verbatim with a copy button (e.g. the webhook URL to set by hand). */
   copy?: { value: string; label?: string };
   /** A sensitive value (the webhook signing secret) — rendered masked with reveal + copy. */
@@ -323,7 +321,6 @@ function applyGithubFileDetail(
 
   if (check.status === "fail") {
     check.detail = purpose ? `missing · ${purpose}` : "missing";
-    check.action = { kind: "reonboard", text: "create a PR with this file" };
 
     return;
   }
