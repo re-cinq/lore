@@ -94,6 +94,14 @@ describe("classifyError", () => {
     expect(isPermanentFailure("repo-checkout")).toBe(false);
   });
 
+  it("returns infra for a pod the cluster preempted", () => {
+    expect(
+      classifyError(
+        "pod stopped by Kubernetes (Preempting): Preempted in order to admit critical pod",
+      ),
+    ).toMatchObject({ category: "infra" });
+  });
+
   it("returns unknown for an unrecognized message", () => {
     expect(classifyError("something exploded")).toMatchObject({
       category: "unknown",

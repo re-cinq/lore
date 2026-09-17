@@ -4,6 +4,7 @@ import {
   failedInitContainer,
   KubePodLogs,
   podFailureCause,
+  podLevelCause,
 } from "./kube-pod-logs.js";
 
 function podWithFailedInitAndAgentStillInitializing(): V1Pod {
@@ -168,6 +169,42 @@ function named(pod: V1Pod, name: string, createdAt: string): V1Pod {
   } as V1Pod;
 }
 
+function preemptedPod(): V1Pod {
+  return {
+    status: {
+      phase: "Failed",
+      reason: "Preempting",
+      message: "Preempted in order to admit critical pod",
+      initContainerStatuses: [
+        { name: "init", state: { terminated: { exitCode: 0 } } },
+      ],
+      containerStatuses: [
+        { name: "agent", state: { waiting: { reason: "PodInitializing" } } },
+      ],
+    },
+  } as V1Pod;
+}
+
+describe("podLevelCause", () => {
+  it("names a pod the cluster preempted with Kubernetes' reason and message", () => {
+    expect(podLevelCause(preemptedPod())).toBe(
+      "pod stopped by Kubernetes (Preempting): Preempted in order to admit critical pod",
+    );
+  });
+
+  it("returns undefined for a pod Kubernetes gave no reason", () => {
+    expect(podLevelCause(podWithInitExit(128))).toBeUndefined();
+  });
+});
+
+function apiRefusingLogs(pods: V1Pod[]): CoreV1Api {
+  return {
+    listNamespacedPod: () => Promise.resolve({ items: pods }),
+    readNamespacedPodLog: () =>
+      Promise.reject(new Error("HTTP-Code: 400 container is waiting to start")),
+  } as unknown as CoreV1Api;
+}
+
 describe("KubePodLogs.failureCause", () => {
   it("reads the newest pod's failed init container and names the refused clone", async () => {
     const logs = new KubePodLogs(() =>
@@ -183,6 +220,26 @@ describe("KubePodLogs.failureCause", () => {
     expect(await logs.failureCause("agent-job-x")).toContain(
       'init container "init" exited 128: ',
     );
+  });
+
+  it("names a preempted pod without asking for the log of a container that never started", async () => {
+    const logs = new KubePodLogs(() =>
+      apiRefusingLogs([named(preemptedPod(), "p", "2026-09-17T14:41:45Z")]),
+    );
+
+    expect(await logs.failureCause("agent-job-x")).toBe(
+      "pod stopped by Kubernetes (Preempting): Preempted in order to admit critical pod",
+    );
+  });
+
+  it("returns undefined without reading a log when no container failed", async () => {
+    const logs = new KubePodLogs(() =>
+      apiRefusingLogs([
+        named(podWithSucceededInit(), "p", "2026-09-17T14:41:45Z"),
+      ]),
+    );
+
+    expect(await logs.failureCause("agent-job-x")).toBeUndefined();
   });
 
   it("returns undefined when the Job's pods are already gone", async () => {

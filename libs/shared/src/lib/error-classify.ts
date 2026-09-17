@@ -39,7 +39,7 @@ const HINTS: Record<FailureCategory, string> = {
   "repo-checkout":
     "The pod could not clone the repository, so the agent never started. GitHub answers 'Repository not found' when it refuses the run's token for that repo. If an earlier node of this run cloned it, the token was used before GitHub finished issuing it and re-running is right; if every node fails here, the Lore GitHub App has lost access to the repo (renamed, transferred, or removed from the installation).",
   infra:
-    "The pod died rather than the work failing — a crash, an OOM, an eviction, or a Job deadline. Re-running is the right response; check pod events if it repeats.",
+    "The pod died rather than the work failing — a crash, an OOM, an eviction, a preemption, or a Job deadline. Re-running is the right response; check pod events if it repeats.",
   unclaimed:
     "No cluster-agent claimed the run, so nothing ever ran. The clusters offering these tags are named above: check the registry (Clusters page) for one that is paused, offline, or absent. Re-running cannot help until one is active and un-paused.",
   unknown:
@@ -93,7 +93,7 @@ const CATEGORY_MATCHERS: ((
       : undefined,
   // Anchored to Kubernetes phrasings so a bare "timed out" from the Anthropic API isn't misreported as a pod death.
   (m) =>
-    /backofflimitexceeded|deadlineexceeded|oomkilled|evicted|job .* timed out|timed out waiting/i.test(
+    /backofflimitexceeded|deadlineexceeded|oomkilled|evicted|\bpreempt(?:ed|ing)\b|job .* timed out|timed out waiting/i.test(
       m,
     )
       ? "infra"
