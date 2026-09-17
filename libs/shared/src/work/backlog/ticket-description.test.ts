@@ -43,7 +43,9 @@ describe("implementationTicketDescription", () => {
 
 describe("ticketTextTooLong", () => {
   it("returns true when title and body compose to 32001 chars", () => {
-    expect(ticketTextTooLong({ title: "T", body: "x".repeat(31_998) })).toBe(true);
+    expect(ticketTextTooLong({ title: "T", body: "x".repeat(31_998) })).toBe(
+      true,
+    );
   });
 
   it("returns false when title and body compose to exactly 32000 chars", () => {
