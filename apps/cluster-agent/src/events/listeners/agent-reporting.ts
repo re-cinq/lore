@@ -58,5 +58,7 @@ async function withFailureCause(
     return undefined;
   });
 
-  return errorText ? { ...agent, status: { ...agent.status, errorText } } as AgentCr : agent;
+  return errorText
+    ? ({ ...agent, status: { ...agent.status, errorText } } as AgentCr)
+    : agent;
 }

@@ -151,10 +151,7 @@ describe("podFailureCause", () => {
   });
 });
 
-function apiListing(
-  pods: V1Pod[],
-  logs: Record<string, string>,
-): CoreV1Api {
+function apiListing(pods: V1Pod[], logs: Record<string, string>): CoreV1Api {
   return {
     listNamespacedPod: (req: { labelSelector?: string }) =>
       Promise.resolve({

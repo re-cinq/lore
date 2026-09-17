@@ -65,7 +65,8 @@ describe("reportForAgent", () => {
         status: {
           phase: "Failed",
           jobName: "agent-job-cr-1",
-          failureReason: "BackoffLimitExceeded: Job has reached the specified backoff limit",
+          failureReason:
+            "BackoffLimitExceeded: Job has reached the specified backoff limit",
         },
       } as never,
       {
