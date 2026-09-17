@@ -94,6 +94,18 @@ function endedBadly(status: V1ContainerStatus): boolean {
   return terminated !== undefined && terminated.exitCode !== 0;
 }
 
+/** Why Kubernetes itself stopped the pod — preempted, evicted — which no container log records. Undefined when the pod ended on its own. */
+export function podLevelCause(pod: V1Pod): string | undefined {
+  const reason = pod.status?.reason;
+
+  if (!reason) {
+    return undefined;
+  }
+  const message = pod.status?.message;
+
+  return `pod stopped by Kubernetes (${reason})${message ? `: ${message}` : ""}`;
+}
+
 /** Why a failed Agent's pod died, in its own words — the Job-level `BackoffLimitExceeded` the CR carries says only that it did. Undefined when the pod offers nothing more concrete, so the caller keeps the Job reason and its classification rather than trading it for a bare exit code. */
 export function podFailureCause(pod: V1Pod, log: string): string | undefined {
   const ended = endedContainer(pod);
@@ -241,17 +253,24 @@ export class KubePodLogs implements PodLogSource {
     });
     const newest = pods.toSorted(byCreationDescending).at(0);
 
-    if (!newest) {
+    return newest && (podLevelCause(newest) ?? this.containerCause(newest));
+  }
+
+  // Only a container that ended badly has a log worth reading: asking for one that never started (a preempted pod's `agent`) answers 400.
+  private async containerCause(pod: V1Pod): Promise<string | undefined> {
+    const ended = endedContainer(pod);
+
+    if (!ended) {
       return undefined;
     }
-    const log = await api.readNamespacedPodLog({
-      name: podName(newest),
+    const log = await this.api().readNamespacedPodLog({
+      name: podName(pod),
       namespace: this.namespace(),
       tailLines: FAILURE_LOG_TAIL_LINES,
-      container: endedContainer(newest)?.name,
+      container: ended.name,
     });
 
-    return podFailureCause(newest, log);
+    return podFailureCause(pod, log);
   }
 
   async listRunning(): Promise<RunningPodInfo[]> {
