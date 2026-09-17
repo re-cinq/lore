@@ -232,7 +232,7 @@ One-line purpose: register a new server-side pipeline task (backlog by default; 
 
 | Parameter | Required | Default | Description |
 |---|---|---|---|
-| `description` | yes | — | Primary instruction for the agent; non-empty (whitespace-only rejected); max 10000 chars. |
+| `description` | yes | — | Primary instruction for the agent; non-empty (whitespace-only rejected); max 32000 chars. |
 | `task_type` | no | `general` | One of `feature-request`, `onboard`, `general`, `runbook`, `implementation`, `gap-fill`, `review`. Unknown values fall back to `general`. |
 | `target_repo` | no | auto-detect | Target repo as `owner/repo`; falls back to git remote, then a task-type default. |
 | `priority` | no | `normal` | `normal` = backlog (claimed/run later); `immediate` = GKE agent auto-executes within ~30s. |

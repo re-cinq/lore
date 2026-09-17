@@ -14,6 +14,7 @@ export {
 } from "./domain/pipeline-tasks.js";
 // "./pipeline-task-actions.js" and "./pipeline-task-status.js" ride through pipeline-tasks.js/pipeline-task-core.js re-exports above.
 export * from "./domain/pipeline-task-core.js";
+export * from "./domain/task-description.js";
 export { enforceRepoTrustForTaskType } from "./domain/pipeline-task-trust.js";
 export {
   chunkFile,

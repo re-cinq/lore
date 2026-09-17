@@ -1,16 +1,17 @@
 import { z } from "zod";
+import { MAX_TASK_DESCRIPTION_CHARS } from "@re-cinq/lore-shared";
 
 // Tool input schemas live as data beside their tool: a zod object is a contract, not a step in registering one.
 export const CREATE_PIPELINE_TASK_INPUT = {
   description: z
     .string()
     .min(1)
-    .max(10000)
+    .max(MAX_TASK_DESCRIPTION_CHARS)
     .refine((v) => v.trim().length > 0, {
       message: "description cannot be blank",
     })
     .describe(
-      "Primary natural-language instruction; be specific. Max 10000 chars; non-empty.",
+      `Primary natural-language instruction; be specific. Max ${MAX_TASK_DESCRIPTION_CHARS} chars; non-empty.`,
     ),
   task_type: z
     .string()
