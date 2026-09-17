@@ -328,6 +328,26 @@ describe("handleLoopRunClosed", () => {
     expect(ticks).toEqual(["acme/widgets"]);
   });
 
+  it("defers a ticket whose tdd-round could not clone the repository: no label and attempt 1 of 3", async () => {
+    const { d, labeled, comments } = deps([
+      { nodeId: "dod", iteration: 1, outcome: "success" },
+      {
+        nodeId: "tdd-round",
+        iteration: 1,
+        outcome: "failed",
+        failureClass: "repo-checkout",
+        failureDetail:
+          'init container "init" exited 128: remote: Repository not found.',
+      },
+      { nodeId: "retrospective", iteration: 1, outcome: "success" },
+    ]);
+
+    await handleLoopRunClosed(run(), "failed", "clone refused", d);
+
+    expect(labeled).toEqual([]);
+    expect(comments[0]?.body).toContain("infrastructure attempt 1 of 3");
+  });
+
   it("defers a ticket whose retrospective itself died on the cluster after a successful round: no label and attempt 1 of 3", async () => {
     const { d, labeled, comments } = deps([
       { nodeId: "dod", iteration: 1, outcome: "success" },

@@ -82,6 +82,18 @@ describe("classifyError", () => {
     });
   });
 
+  it("returns repo-checkout for git refusing the run's clone of the repository", () => {
+    expect(
+      classifyError(
+        "init container \"init\" exited 128: remote: Repository not found. fatal: repository 'https://github.com/re-cinq/Otto.git/' not found",
+      ),
+    ).toMatchObject({ category: "repo-checkout" });
+  });
+
+  it("does not count repo-checkout as permanent, since a clone refused once can succeed on the next attempt", () => {
+    expect(isPermanentFailure("repo-checkout")).toBe(false);
+  });
+
   it("returns unknown for an unrecognized message", () => {
     expect(classifyError("something exploded")).toMatchObject({
       category: "unknown",

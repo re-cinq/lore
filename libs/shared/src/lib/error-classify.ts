@@ -6,6 +6,7 @@ export const FAILURE_CATEGORIES = [
   "github-permission",
   "auth",
   "agent-settings-missing",
+  "repo-checkout",
   "infra",
   "unclaimed",
   "unknown",
@@ -35,6 +36,8 @@ const HINTS: Record<FailureCategory, string> = {
   auth: "Authentication failed — the token or credential is invalid or expired.",
   "agent-settings-missing":
     "The AgentDefinition's skills_source is unreachable, so the init never wrote /agent/.claude/settings.json and Claude Code hard-errored. Verify skills_source on the recipe points at a reachable skills registry (see #1125) — every Claude-agent node on the affected cluster fails identically until it does.",
+  "repo-checkout":
+    "The pod could not clone the repository, so the agent never started. GitHub answers 'Repository not found' when it refuses the run's token for that repo. If an earlier node of this run cloned it, the token was used before GitHub finished issuing it and re-running is right; if every node fails here, the Lore GitHub App has lost access to the repo (renamed, transferred, or removed from the installation).",
   infra:
     "The pod died rather than the work failing — a crash, an OOM, an eviction, or a Job deadline. Re-running is the right response; check pod events if it repeats.",
   unclaimed:
@@ -83,6 +86,11 @@ const CATEGORY_MATCHERS: ((
   (m) => (/\b401\b|bad credentials|unauthorized/i.test(m) ? "auth" : undefined),
   (m) =>
     /settings file not found/i.test(m) ? "agent-settings-missing" : undefined,
+  // git's own words for a clone the host refused; anchored to git's phrasing so an agent merely discussing a missing repo is not read as a dead checkout.
+  (m) =>
+    /remote: repository not found|fatal: repository '[^']*' not found/i.test(m)
+      ? "repo-checkout"
+      : undefined,
   // Anchored to Kubernetes phrasings so a bare "timed out" from the Anthropic API isn't misreported as a pod death.
   (m) =>
     /backofflimitexceeded|deadlineexceeded|oomkilled|evicted|job .* timed out|timed out waiting/i.test(
@@ -121,6 +129,7 @@ const CATEGORY_LABELS: Record<FailureCategory, string> = {
   auth: "Authentication failed",
   "agent-settings-missing":
     "Agent settings file missing (skills_source unreachable)",
+  "repo-checkout": "Repository clone refused",
   infra: "Pod or Job infrastructure failure",
   unclaimed: "No cluster-agent claimed the run",
   unknown: "Unknown error",

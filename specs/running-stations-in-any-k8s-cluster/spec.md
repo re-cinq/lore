@@ -360,7 +360,7 @@ pull, so recovery splits by who holds the claim:
   delivery already settled it has no open station-run row, and is dropped
   without any CR read — reading the central cluster for it would turn a
   satellite's null into a phantom re-settlement (#1627, ADR-044 amendment
-  2026-09-09). ([validated by `node-event-handler.test.ts:417`](apps/floor/src/work/assembly-run/node-event-handler.test.ts#L417))
+  2026-09-09). ([validated by `node-event-handler.test.ts:441`](apps/floor/src/work/assembly-run/node-event-handler.test.ts#L441))
 - The same rule routes the live pod-log read (`GET /api/agent-logs/{name}`):
   the central cluster-agent is asked only for a CR whose station-run row it
   claimed, or a legacy row with no claim record; a row a satellite claimed is
@@ -387,7 +387,7 @@ pull, so recovery splits by who holds the claim:
   agent actually produced. An event from an older, not-yet-redeployed
   cluster-agent carries no `status` and falls straight back to the restriction
   above — this is additive, not a replacement, and rolls out in either
-  direction with no coordination required. ([validated by `k8s-map.test.ts:76`](libs/shared/src/outbound/project/events/k8s-map.test.ts#L68), [`k8s-map.test.ts:82`](libs/shared/src/outbound/project/events/k8s-map.test.ts#L82), [`node-event-handler.test.ts:345`](apps/floor/src/work/assembly-run/node-event-handler.test.ts#L345), [`node-event-handler.test.ts:363`](apps/floor/src/work/assembly-run/node-event-handler.test.ts#L363), [`code-review-acceptance.test.ts:43`](apps/floor/src/work/assembly-run/code-review-acceptance.test.ts#L43), [`code-review-acceptance.test.ts:58`](apps/floor/src/work/assembly-run/code-review-acceptance.test.ts#L58))
+  direction with no coordination required. ([validated by `k8s-map.test.ts:76`](libs/shared/src/outbound/project/events/k8s-map.test.ts#L68), [`k8s-map.test.ts:82`](libs/shared/src/outbound/project/events/k8s-map.test.ts#L82), [`node-event-handler.test.ts:345`](apps/floor/src/work/assembly-run/node-event-handler.test.ts#L345), [`node-event-handler.test.ts:387`](apps/floor/src/work/assembly-run/node-event-handler.test.ts#L387), [`code-review-acceptance.test.ts:43`](apps/floor/src/work/assembly-run/code-review-acceptance.test.ts#L43), [`code-review-acceptance.test.ts:58`](apps/floor/src/work/assembly-run/code-review-acceptance.test.ts#L58))
 
 - A run claimed by an **offline** agent is reset to `queued` (same row, per
   the lifecycle section); the reaper — the same process that set the agent
@@ -840,7 +840,7 @@ config flag.
   more than one open row, since an unreadable one is deliberately left for the
   reaper, and an event without an iteration — the older cluster-agent's, the
   only kind needing a read at all — would otherwise let a satellite's open row
-  deny a readable central run its read and strand it. ([validated by settles the row whose CR the event names](apps/floor/src/work/assembly-run/node-event-handler.test.ts#L621))
+  deny a readable central run its read and strand it. ([validated by settles the row whose CR the event names](apps/floor/src/work/assembly-run/node-event-handler.test.ts#L645))
 - An unresolved central cluster-agent id routes the per-task token reclaim to
   central rather than skipping it. Not knowing which cluster claimed a run is
   not evidence a satellite did, and failing closed there stops reclaiming every
