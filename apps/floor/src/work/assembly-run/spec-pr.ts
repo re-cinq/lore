@@ -12,6 +12,9 @@ import type {
 /** Constant prompt_ref for every line's pushing node; by recipe not id keeps it resilient to renames. */
 const PUSH_PROMPT_REF = "push-only";
 
+/** The line whose pull request IS the repo's onboarding PR. */
+const ONBOARD_BLUEPRINT = "onboard";
+
 /** Decide if PR open failure is empty-branch (node pushed nothing, #1330) or transient (retry candidate). */
 export function decideStampFailure(
   message: string,
@@ -28,7 +31,7 @@ export function emptyBranchReason(branch: string | null): string {
 export function decideEmptyBranchEnding(
   row: Pick<AssemblyRunRecord, "blueprintName" | "branch">,
 ): { outcome: "completed" | "error"; reason: string } {
-  return row.blueprintName === "onboard"
+  return row.blueprintName === ONBOARD_BLUEPRINT
     ? {
         outcome: "completed",
         reason:
@@ -144,9 +147,6 @@ export interface SpecPrPorts {
     setOnboardingPrUrl(repo: string, url: string): Promise<void>;
   };
 }
-
-/** The line whose pull request IS the repo's onboarding PR. */
-const ONBOARD_BLUEPRINT = "onboard";
 
 /** Whether this line's PR must be recorded as the repo's onboarding PR — the guard blocks a second onboarding on it, and the merge-check sweep flips `onboarding_pr_merged` from it. */
 export function decideOnboardingPrRecord(
