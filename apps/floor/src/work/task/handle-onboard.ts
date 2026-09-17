@@ -41,12 +41,9 @@ export async function handleOnboard(input: DispatchInput): Promise<void> {
 /** Everything that went wrong enrolling reaches the audit log and the TICKET — the human surface an onboarding has before its PR exists. Reported before dispatch so a repo that silently never calls back is visible even if the line then dies. */
 async function reportEnrolmentGaps(
   input: DispatchInput,
-  gaps: {
-    failures: Parameters<typeof anyWorkflowsPermissionFailure>[0];
-    configFailures: string[];
-  },
+  gaps: EnrolmentGaps,
 ): Promise<void> {
-  const { task, targetRepo, project, issueNumber } = input;
+  const { task, targetRepo } = input;
   const workflowsPermissionDenied = anyWorkflowsPermissionFailure(
     gaps.failures,
   );
@@ -57,14 +54,29 @@ async function reportEnrolmentGaps(
     ...gaps,
     workflowsPermissionDenied,
   });
-  const section = onboardAttentionSection({
-    ...gaps,
-    workflowsPermissionDenied,
-  });
+  await commentGapsOnTicket(
+    input,
+    onboardAttentionSection({ ...gaps, workflowsPermissionDenied }),
+  );
+}
+
+/** What enrolment could not do: files that failed to commit, callback values that failed to set. */
+interface EnrolmentGaps {
+  failures: Parameters<typeof anyWorkflowsPermissionFailure>[0];
+  configFailures: string[];
+}
+
+/** The ticket comment, when there is something to say and a ticket to say it on. */
+async function commentGapsOnTicket(
+  input: DispatchInput,
+  section: string,
+): Promise<void> {
+  const { issueNumber, project } = input;
 
   if (section === "" || issueNumber === null) {
     return;
   }
+  const { issues } = project;
 
-  await project.issues.comment(issueNumber, section);
+  await issues.comment(issueNumber, section);
 }

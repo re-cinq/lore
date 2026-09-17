@@ -82,44 +82,61 @@ describe("onboarding file-set boundaries", () => {
 
 describe("onboardTicketBody", () => {
   const body = onboardTicketBody("re-cinq/app");
+  const missingFrom = (fragments: string[]) =>
+    fragments.filter((fragment) => !body.includes(fragment));
 
   it("names re-cinq/app as the repository being onboarded", () => {
     expect(body).toContain("Onboard re-cinq/app into Lore");
   });
 
   it("owes every LLM-drafted path with its prompt", () => {
-    for (const file of ONBOARD_FILES) {
-      expect(body).toContain(`\`${file.path}\``);
-      expect(body).toContain(file.prompt);
-    }
+    expect(
+      missingFrom(
+        ONBOARD_FILES.flatMap((file) => [`\`${file.path}\``, file.prompt]),
+      ),
+    ).toEqual([]);
   });
 
   it("owes the starter ADRs only for a repo with no adrs/ or docs/ directory", () => {
-    expect(body).toContain("adrs/ADR-001-language-choice.md");
-    expect(body).toContain("adrs/ADR-003-deployment.md");
-    expect(body).toContain("no `adrs/` or `docs/` directory");
-    for (const adr of ADR_TOPICS) {
-      expect(body).toContain(adr.prompt);
-    }
+    expect(
+      missingFrom([
+        "adrs/ADR-001-language-choice.md",
+        "adrs/ADR-003-deployment.md",
+        "no `adrs/` or `docs/` directory",
+        ...ADR_TOPICS.map((adr) => adr.prompt),
+      ]),
+    ).toEqual([]);
   });
 
   it("owes the test-command manifest and lore-tests.yml with their own instructions, only when absent", () => {
-    expect(body).toContain("`.lore/test-commands.yml`");
-    expect(body).toContain(TEST_COMMAND_MANIFEST_SCAFFOLD_PROMPT);
-    expect(body).toContain("`.github/workflows/lore-tests.yml`");
-    expect(body).toContain(LORE_TESTS_INSTRUCTION);
+    expect(
+      missingFrom([
+        "`.lore/test-commands.yml`",
+        TEST_COMMAND_MANIFEST_SCAFFOLD_PROMPT,
+        "`.github/workflows/lore-tests.yml`",
+        LORE_TESTS_INSTRUCTION,
+      ]),
+    ).toEqual([]);
   });
 
   it("says the deterministic scaffolding is already on the branch and must not be rewritten", () => {
-    expect(body).toContain(".github/workflows/lore-ingest.yml");
-    expect(body).toContain(".github/ISSUE_TEMPLATE");
-    expect(body).toContain("already committed");
+    expect(
+      missingFrom([
+        ".github/workflows/lore-ingest.yml",
+        ".github/ISSUE_TEMPLATE",
+        "already committed",
+      ]),
+    ).toEqual([]);
   });
 
   it("forbids CLAUDE.md, existing-file rewrites and code changes, and leaves the pull request to Lore", () => {
-    expect(body).toContain("Do not author `CLAUDE.md`");
-    expect(body).toContain("left untouched");
-    expect(body).toContain("Change no source code");
-    expect(body).toContain("Lore opens the pull request");
+    expect(
+      missingFrom([
+        "Do not author `CLAUDE.md`",
+        "left untouched",
+        "Change no source code",
+        "Lore opens the pull request",
+      ]),
+    ).toEqual([]);
   });
 });
