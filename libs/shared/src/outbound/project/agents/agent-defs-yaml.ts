@@ -1,4 +1,3 @@
-import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   parseTaskTypesFile,
@@ -9,6 +8,7 @@ import {
   type AgentDefinitionInput,
   type AgentDefsPort,
 } from "./agent-defs-port.js";
+import { readTaskTypesSource } from "../../../lib/task-types-source.js";
 import { DECOMPOSITION_INSTRUCTIONS } from "../../../domain/feature-planning/decomposition-instructions.js";
 
 // Read-only AgentDefsPort over task-types.yaml (offline/bootstrap fallback); writes throw.
@@ -155,7 +155,7 @@ export class AgentDefsYaml implements AgentDefsPort {
   }
 
   private definitionsFromFile(p: string): Map<string, AgentDefinition> {
-    const { taskTypes, drift } = parseTaskTypesFile(readFileSync(p, "utf-8"));
+    const { taskTypes, drift } = parseTaskTypesFile(readTaskTypesSource(p));
 
     // Same ConfigMap risk as Floor reader (#866); fallback runs in lore-api and mcp-server.
     warnOnDrift("[agent-defs]", p, drift);

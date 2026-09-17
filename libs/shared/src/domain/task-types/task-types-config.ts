@@ -2,6 +2,7 @@
 
 import { parseAllDocuments } from "yaml";
 import { z } from "zod";
+import { enforceTrue } from "../../lib/enforce.js";
 
 export const TaskTypeConfigSchema = z.object({
   prompt_template: z.string(),
@@ -76,11 +77,11 @@ export function parseTaskTypesFile(text: string): TaskTypesFile {
 /** Every document in the stream as plain data; a malformed document still throws, so a loader moves on to its next candidate path. */
 function parseDocuments(text: string): RawSections[] {
   return parseAllDocuments(text).map((document) => {
-    const [error] = document.errors;
-
-    if (error) {
-      throw error;
-    }
+    enforceTrue(
+      document.errors.length === 0,
+      Error,
+      document.errors.map((error) => error.message).join("; "),
+    );
 
     return document.toJS() as RawSections;
   });
@@ -94,7 +95,9 @@ function mergeSection<T>(
 ): void {
   for (const [name, value] of Object.entries(source)) {
     if (Object.hasOwn(target, name)) {
-      drift.push(`${section}.${name}: <entry> — declared in more than one document`);
+      drift.push(
+        `${section}.${name}: <entry> — declared in more than one document`,
+      );
       continue;
     }
     target[name] = value;

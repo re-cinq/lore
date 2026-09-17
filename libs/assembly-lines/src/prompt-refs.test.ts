@@ -1,16 +1,21 @@
 import { describe, it, expect } from "vitest";
-import { readFile } from "node:fs/promises";
-import { parse } from "yaml";
+import { fileURLToPath } from "node:url";
+import {
+  parseTaskTypesFile,
+  type TaskTypeRecipe,
+} from "@re-cinq/lore-shared/task-types/task-types-config.js";
+import { readTaskTypesSource } from "@re-cinq/lore-shared/lib/task-types-source.js";
 import { loadBuiltinAssemblyLines } from "./builtin-assembly-lines.js";
 
 const TASK_TYPES = new URL("../../../scripts/task-types.yaml", import.meta.url);
 
-async function declaredTaskTypes(): Promise<Set<string>> {
-  const parsed = parse(await readFile(TASK_TYPES, "utf-8")) as {
-    task_types?: Record<string, unknown>;
-  };
+function committedTaskTypes(): Record<string, TaskTypeRecipe> {
+  return parseTaskTypesFile(readTaskTypesSource(fileURLToPath(TASK_TYPES)))
+    .taskTypes;
+}
 
-  return new Set(Object.keys(parsed.task_types ?? {}));
+function declaredTaskTypes(): Set<string> {
+  return new Set(Object.keys(committedTaskTypes()));
 }
 
 async function referencedPrompts(): Promise<Map<string, string[]>> {
@@ -31,7 +36,7 @@ async function referencedPrompts(): Promise<Map<string, string[]>> {
 
 describe("assembly-line prompt_refs", () => {
   it("every agent node resolves to a task type that exists", async () => {
-    const declared = await declaredTaskTypes();
+    const declared = declaredTaskTypes();
     const unresolved = [...(await referencedPrompts())]
       .filter(([ref]) => !declared.has(ref))
       .map(([ref, lines]) => `${ref} (used by ${lines.join(", ")})`);
@@ -40,7 +45,7 @@ describe("assembly-line prompt_refs", () => {
   });
 
   it("push-only and address-feedback are declared — both were phantom refs", async () => {
-    const declared = await declaredTaskTypes();
+    const declared = declaredTaskTypes();
 
     expect([...declared].filter((t) => t === "push-only")).toEqual([
       "push-only",
@@ -51,27 +56,21 @@ describe("assembly-line prompt_refs", () => {
   });
 
   it("the push recipe tells the node to push, which is its whole purpose", async () => {
-    const parsed = parse(await readFile(TASK_TYPES, "utf-8")) as {
-      task_types: Record<string, { prompt_template: string }>;
-    };
+    const taskTypes = committedTaskTypes();
 
-    expect(parsed.task_types["push-only"].prompt_template).toContain(
-      "git push",
-    );
+    expect(taskTypes["push-only"]?.prompt_template).toContain("git push");
   });
 });
 
 describe("the fix-ci recipe behind repair-build", () => {
-  async function fixCiPrompt(): Promise<string> {
-    const parsed = parse(await readFile(TASK_TYPES, "utf-8")) as {
-      task_types: Record<string, { prompt_template: string }>;
-    };
+  function fixCiPrompt(): string {
+    const taskTypes = committedTaskTypes();
 
-    return parsed.task_types["fix-ci"].prompt_template;
+    return taskTypes["fix-ci"]?.prompt_template ?? "";
   }
 
   it("tells the node to fix an annotated file:line with an editor, never an install, never the linter, every finding at once, a step reproduced where CI ran it, and to ask CI through lore_get_ci_failures and lore_get_ci_job_log rather than rebuild", async () => {
-    const prompt = (await fixCiPrompt()).replace(/\s+/g, " ");
+    const prompt = fixCiPrompt().replace(/\s+/g, " ");
     const says = (phrase: string) => prompt.includes(phrase);
 
     expect({
@@ -110,10 +109,8 @@ describe("the fix-ci recipe behind repair-build", () => {
 
 describe("every recipe's delivery contract", () => {
   it("tells no pod to run the linter: CI runs it on every push, and in this repo a two-file eslint peaks near 800 MB against a 1Gi pod", async () => {
-    const parsed = parse(await readFile(TASK_TYPES, "utf-8")) as {
-      task_types: Record<string, { prompt_template?: string }>;
-    };
-    const lintingRecipes = Object.entries(parsed.task_types)
+    const taskTypes = committedTaskTypes();
+    const lintingRecipes = Object.entries(taskTypes)
       .filter(([, recipe]) =>
         /npx eslint|eslint --fix/.test(recipe.prompt_template ?? ""),
       )
@@ -125,10 +122,8 @@ describe("every recipe's delivery contract", () => {
 
 describe("the tdd-round recipe under a red verdict", () => {
   it("tells the round that an appended CI verdict outranks a ticked dod.md, so it never reports nothing-left under a red build", async () => {
-    const parsed = parse(await readFile(TASK_TYPES, "utf-8")) as {
-      task_types: Record<string, { prompt_template: string }>;
-    };
-    const prompt = parsed.task_types["tdd-round"].prompt_template.replace(
+    const taskTypes = committedTaskTypes();
+    const prompt = (taskTypes["tdd-round"]?.prompt_template ?? "").replace(
       /\s+/g,
       " ",
     );

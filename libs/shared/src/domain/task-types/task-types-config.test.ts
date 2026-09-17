@@ -1,20 +1,19 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { DELIVERING_PROMPT_REFS } from "./delivering-recipes.js";
-import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   parseTaskTypesFile,
   warnOnDrift,
   TaskTypeConfigSchema,
 } from "./task-types-config.js";
+import { readTaskTypesSource } from "../../lib/task-types-source.js";
 
-const COMMITTED = readFileSync(
+const COMMITTED = readTaskTypesSource(
   resolve(import.meta.dirname, "../../../../..", "scripts/task-types.yaml"),
-  "utf8",
 );
 
 describe("parseTaskTypesFile", () => {
-  it("accepts the committed scripts/task-types.yaml with no drift", () => {
+  it("accepts the committed scripts/task-types.yaml and its siblings with no drift", () => {
     const parsed = parseTaskTypesFile(COMMITTED);
 
     expect(parsed.drift).toEqual([]);

@@ -2,8 +2,8 @@ import { describe, it, expect } from "vitest";
 import { resolve } from "node:path";
 import { PassThrough } from "node:stream";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { readFile } from "node:fs/promises";
-import { parse } from "yaml";
+import { parseTaskTypesFile } from "@re-cinq/lore-shared/task-types/task-types-config.js";
+import { readTaskTypesSource } from "@re-cinq/lore-shared/lib/task-types-source.js";
 import { handleSkillsRequest } from "./skills-registry.js";
 
 const skillsRoot = resolve(import.meta.dirname, "../../agent-skills");
@@ -112,14 +112,12 @@ describe("handleSkillsRequest", () => {
   });
 
   it("serves every skill the task-type recipes declare, guarding against per-recipe skill drift (specs/floor-on-ai-subsystem FR34)", async () => {
-    const recipes = parse(
-      await readFile(resolve(import.meta.dirname, TASK_TYPES_PATH), "utf8"),
-    ) as { task_types?: Record<string, { skills?: string[] }> };
+    const { taskTypes } = parseTaskTypesFile(
+      readTaskTypesSource(resolve(import.meta.dirname, TASK_TYPES_PATH)),
+    );
 
     const declared = [
-      ...new Set(
-        Object.values(recipes.task_types ?? {}).flatMap((r) => r?.skills ?? []),
-      ),
+      ...new Set(Object.values(taskTypes).flatMap((r) => r.skills ?? [])),
     ].sort();
 
     const served = await Promise.all(

@@ -1,7 +1,7 @@
 /** Standalone task-type configuration loader for the agent: reads YAML task type definitions and exposes prompt building, default repos, and type enumeration. */
 
-import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { readTaskTypesSource } from "@re-cinq/lore-shared/lib/task-types-source.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import {
   parseTaskTypesFile,
@@ -55,7 +55,7 @@ function candidateConfigPaths(configPath?: string): string[] {
 function loadFromPath(path: string): boolean {
   try {
     const { taskTypes: types, drift } = parseTaskTypesFile(
-      readFileSync(path, "utf-8"),
+      readTaskTypesSource(path),
     );
 
     taskTypes.clear();

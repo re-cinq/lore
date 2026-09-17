@@ -5,15 +5,18 @@ import { basename, dirname, extname, join } from "node:path";
 export function readTaskTypesSource(path: string): string {
   const main = readFileSync(path, "utf-8");
 
-  return [main, ...siblingPaths(path).map((p) => readFileSync(p, "utf-8"))].join(
-    "\n---\n",
-  );
+  return [
+    main,
+    ...siblingPaths(path).map((p) => readFileSync(p, "utf-8")),
+  ].join("\n---\n");
 }
 
 function siblingPaths(path: string): string[] {
   const directory = dirname(path);
   const stem = basename(path, extname(path));
-  const fragment = new RegExp(`^${stem.replace(/[.]/g, "\\.")}\\.[^.]+\\.ya?ml$`);
+  const fragment = new RegExp(
+    `^${stem.replace(/[.]/g, "\\.")}\\.[^.]+\\.ya?ml$`,
+  );
 
   return readdirSync(directory)
     .filter((name) => fragment.test(name))

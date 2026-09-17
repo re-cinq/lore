@@ -1,13 +1,10 @@
-// CLI: regenerate the ai-agents-helm seeded catalog from scripts/task-types.yaml (npm run gen:catalog); thin IO shell around agent-catalog.ts, excluded from coverage — a drift check re-runs it and diffs the committed output.
+// CLI: regenerate the ai-agents-helm seeded catalog from scripts/task-types.yaml and its task-types.*.yaml siblings (npm run gen:catalog); thin IO shell around agent-catalog.ts, excluded from coverage — a drift check re-runs it and diffs the committed output.
 
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { parse } from "yaml";
-import {
-  catalogChartYaml,
-  type AgentCatalogConfig,
-  type StationCatalogConfig,
-} from "../work/agent/agent-catalog.js";
+import { parseTaskTypesFile } from "@re-cinq/lore-shared/task-types/task-types-config.js";
+import { readTaskTypesSource } from "@re-cinq/lore-shared/lib/task-types-source.js";
+import { catalogChartYaml } from "../work/agent/agent-catalog.js";
 
 function generateCatalog(): void {
   const repoRoot = resolve(import.meta.dirname, "../../../..");
@@ -17,17 +14,11 @@ function generateCatalog(): void {
     "infra/terraform/modules/gke-mcp/lore-platform/charts/ai-agents-helm/files/catalog-seed.yaml",
   );
 
-  const parsed = parse(readFileSync(src, "utf8")) as {
-    task_types: Record<string, AgentCatalogConfig>;
-    stations?: Record<string, StationCatalogConfig>;
-  };
+  const { taskTypes, stations } = parseTaskTypesFile(readTaskTypesSource(src));
 
   // The generated file lives beside the chart's templates, not among them — a fresh checkout has no files/ dir until this runs.
   mkdirSync(dirname(dest), { recursive: true });
-  writeFileSync(
-    dest,
-    catalogChartYaml(parsed.task_types, parsed.stations ?? {}),
-  );
+  writeFileSync(dest, catalogChartYaml(taskTypes, stations));
   console.log(`[gen-catalog] wrote ${dest}`);
 }
 

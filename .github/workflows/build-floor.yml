@@ -26,7 +26,8 @@ on:
       # task-types.yaml ships to the cluster as the lore-floor-config ConfigMap
       # via deploy-lore-platform.sh --set-file — a prompt edit must redeploy or
       # pods serve stale prompts (incident history in deploy-lore-platform.sh; #866).
-      - 'scripts/task-types.yaml'
+      - 'scripts/task-types*.yaml'
+      - 'scripts/task-types-bundle.sh'
       - 'scripts/ci/deploy-lore-platform.sh'
       - 'scripts/ci/helm-lock-contention.sh'
   workflow_dispatch:

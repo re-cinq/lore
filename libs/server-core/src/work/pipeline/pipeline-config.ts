@@ -1,7 +1,7 @@
 /** Pipeline task-type configuration loader. */
 
-import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { readTaskTypesSource } from "@re-cinq/lore-shared/lib/task-types-source.js";
 import {
   parseTaskTypesFile,
   warnOnDrift,
@@ -44,9 +44,7 @@ function candidatePaths(): string[] {
 // One candidate. A malformed or missing file is skipped so the next path gets a turn — but drift in a file that DID parse is warned about rather than ignored, the same #866 ConfigMap risk the Floor's reader carries.
 function tryLoad(path: string): boolean {
   try {
-    const { taskTypes, drift } = parseTaskTypesFile(
-      readFileSync(path, "utf-8"),
-    );
+    const { taskTypes, drift } = parseTaskTypesFile(readTaskTypesSource(path));
 
     config = taskTypes;
     console.log(

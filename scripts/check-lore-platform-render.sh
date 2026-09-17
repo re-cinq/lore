@@ -55,10 +55,12 @@ if [ "$fail" -ne 0 ]; then
 fi
 
 echo "[lore] helm template (deploy-lore-platform.sh flags)"
+task_types="$(mktemp)"
+bash "$repo/scripts/task-types-bundle.sh" >"$task_types"
 deploy_out="$(helm template lore-platform "$chart" \
 	--namespace lore-floor --include-crds \
-	--set-file lore-floor.taskTypesConfig="$repo/scripts/task-types.yaml" \
-	--set-file lore-api.taskTypesConfig="$repo/scripts/task-types.yaml" \
+	--set-file lore-floor.taskTypesConfig="$task_types" \
+	--set-file lore-api.taskTypesConfig="$task_types" \
 	--set lore-db-helm.ownershipReconciler.enabled=false)"
 
 # --set-file silently sets keys nothing reads (the templates default it to "").
@@ -75,7 +77,8 @@ for sub in lore-floor lore-api; do
 	# Capture first: piping into grep -q would SIGPIPE awk mid-stream and
 	# pipefail would report the successful match as a failure.
 	doc="$(config_map_doc "$sub")"
-	if grep -q "feature-request" <<<"$doc"; then
+	# feature-request lives in task-types.yaml, tdd-round in a sibling file.
+	if grep -q "feature-request" <<<"$doc" && grep -q "tdd-round" <<<"$doc"; then
 		echo "  ok: task-types content reaches the $sub ConfigMap"
 	else
 		echo "  MISSING: task-types content in the $sub ConfigMap (values key drift?)" >&2
