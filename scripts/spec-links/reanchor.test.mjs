@@ -183,10 +183,7 @@ test("rewrites the NN of a basename label that carries the validated-by prefix, 
     io({ baseLinks: () => base, hunksFor: () => hunks }),
   );
 
-  assert.equal(
-    content,
-    "([validated by `y.test.ts:7`](libs/x/y.test.ts#L11))",
-  );
+  assert.equal(content, "([validated by `y.test.ts:7`](libs/x/y.test.ts#L11))");
 });
 
 test("pairs a repeated basename label with the same label's occurrence in the base copy, so relabelling another link by title does not hand each later link its neighbour's anchor", () => {
