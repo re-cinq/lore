@@ -65,7 +65,17 @@ export function resolveAgentConfig(
   const layered: LayeredField = (field) =>
     pick(project?.[field], org?.[field], yamlDefault?.[field]);
 
-  return mergedFields(top.name, projectIdOf(project), layered);
+  return mergedFields(
+    top.name,
+    projectIdOf(project),
+    layered,
+    pick(testPolicyOf(project), testPolicyOf(org), testPolicyOf(yamlDefault)),
+  );
+}
+
+/** The one config key that inherits across layers: a row that sets config for another reason (a skill, pod resources) must not silently switch a recipe's test guard from `none` back to the `scoped` default. */
+function testPolicyOf(def: AgentDefinition | null): unknown {
+  return def?.config?.test_policy;
 }
 
 function projectIdOf(project: AgentDefinition | null): string | null {
@@ -81,6 +91,7 @@ function mergedFields(
   name: string,
   projectId: string | null,
   layered: LayeredField,
+  testPolicy: unknown,
 ): AgentDefinition {
   return {
     name,
@@ -91,7 +102,18 @@ function mergedFields(
     execution_mode: layered("execution_mode") ?? "claude-code",
     review_required: layered("review_required") ?? false,
     project_id: projectId,
-    // Whole-object, not field-merged — a layer that sets config owns all of it, or splicing project skills into org disallowed_tools would produce a recipe nobody wrote.
-    config: layered("config"),
+    // Whole-object, not field-merged — a layer that sets config owns all of it, or splicing project skills into org disallowed_tools would produce a recipe nobody wrote. test_policy is the one exception (a guard, not a recipe field).
+    config: withTestPolicy(layered("config"), testPolicy),
   };
+}
+
+function withTestPolicy(
+  config: AgentDefinition["config"],
+  testPolicy: unknown,
+): AgentDefinition["config"] {
+  if (!config || config.test_policy !== undefined || testPolicy === null) {
+    return config;
+  }
+
+  return { ...config, test_policy: testPolicy };
 }

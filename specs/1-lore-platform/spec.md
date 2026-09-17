@@ -251,9 +251,37 @@ system is performing.
   session settings/hooks, and `GET /skills/<name>.tar.gz` streams a gzip tarball of the
   baked skill directory, rejecting an unsafe/traversing name with `404`. The
   ai-agent-subsystem init fetches these into a run's `$HOME/.claude` (recipe
-  `resources.skills` + `skills_source`, ADR-030). A path only counts as owned on
+  `resources.skills` + `skills_source`, ADR-030). Hooks are per vendor:
+  `GET /skills/hooks/<vendor>.tar.gz` streams that vendor's hook bundle laid out
+  relative to `$HOME` (`hooks/claude/` carries `.claude/settings.json`, which is also
+  the file the flat `settings.json` is served from, so an init that predates bundles
+  reads the same hooks), and a vendor with no bundle 404s like an unsafe name. A path only counts as owned on
   `GET /skills/*`; a bare `/skills/<name>` with no `.tar.gz` suffix (and not
-  `settings.json`) 404s the same as an unsafe name. ([validated by `skills-registry.test.ts:46`](apps/mcp-server/src/transport/skills-registry.test.ts#L46), [`skills-registry.test.ts:54`](apps/mcp-server/src/transport/skills-registry.test.ts#L54), [`skills-registry.test.ts:67`](apps/mcp-server/src/transport/skills-registry.test.ts#L67), [`skills-registry.test.ts:101`](apps/mcp-server/src/transport/skills-registry.test.ts#L101), [`404s a /skills/ path with no recognized suffix`](apps/mcp-server/src/transport/skills-registry.test.ts#L78), [`returns false for a non-GET method even on a /skills/ path`](apps/mcp-server/src/transport/skills-registry.test.ts#L89))
+  `settings.json`) 404s the same as an unsafe name. ([validated by `skills-registry.test.ts:46`](apps/mcp-server/src/transport/skills-registry.test.ts#L46), [`skills-registry.test.ts:54`](apps/mcp-server/src/transport/skills-registry.test.ts#L54), [`skills-registry.test.ts:67`](apps/mcp-server/src/transport/skills-registry.test.ts#L67), [`skills-registry.test.ts:101`](apps/mcp-server/src/transport/skills-registry.test.ts#L101), [`404s a /skills/ path with no recognized suffix`](apps/mcp-server/src/transport/skills-registry.test.ts#L78), [`returns false for a non-GET method even on a /skills/ path`](apps/mcp-server/src/transport/skills-registry.test.ts#L89), [serves hooks/claude.tar.gz laid out relative to HOME, carrying the settings the Bash guard is wired in](apps/mcp-server/src/transport/skills-registry-hooks.test.ts#L36), [serves the flat settings.json from the Claude bundle, so an init that predates bundles reads the same hooks](apps/mcp-server/src/transport/skills-registry-hooks.test.ts#L48), [404s a vendor with no bundle and a traversing vendor name alike](apps/mcp-server/src/transport/skills-registry-hooks.test.ts#L60))
+- The `lore-context` skill ships `guard-tests.sh`, a Claude Code `PreToolUse` hook on
+  the Bash tool that the org `settings.json` wires at the path the tarball unpacks to.
+  It reads the hook event on stdin and exits 2 — the reason on stderr reaches the
+  agent — for any test-runner invocation the recipe forbids: under the default
+  `scoped` policy a bare suite run (`npm test`, `vitest run` with no path,
+  `go test ./...`, bare `pytest`) is refused, a runner naming test files, a workspace
+  package, a Go package path or a `cd` into a subdirectory passes, and commands that
+  are not test runners are never touched; under `none` every runner, dependency
+  install and build is refused; under `any` the guard stands down, as it does for an
+  event carrying no command. The command is judged one segment at a time, quotes
+  count as whitespace and a runner reached through a shell wrapper or a direct
+  `node_modules` binary is still a runner, so a comment, a neighbouring command, an
+  `--exclude` or a watch flag cannot vouch for a bare run, while a `cd` into any
+  subdirectory (relative, quoted or absolute), a directory argument, a Cargo package
+  or a Go sub-tree counts as scope. The hook wiring in the Claude bundle exits 0 when
+  the script is absent and no policy is declared, and blocks every Bash call when a
+  policy is declared but the script is gone. The policy rides each recipe as
+  `test_policy` in `task-types.yaml`, is carried on the definition's config, where it
+  is the one key that inherits across the project, org and yaml layers (a row that
+  sets config for another reason keeps the recipe's guard), and both CR builders
+  render it as the `LORE_TEST_POLICY` env entry (an unrecognised value renders
+  nothing rather than switching the guard off); the read-only review recipes
+  (`review`, `code-review`, `code-review-recheck`, `code-review-refine`, `pr-ready`)
+  declare `none`. ([validated by is wired as the Bash PreToolUse hook in the settings every pod fetches, at the path the lore-context tarball unpacks to](apps/mcp-server/src/transport/guard-tests.test.ts#L31), [refuses a bare suite run with the reason the agent needs](apps/mcp-server/src/transport/guard-tests.test.ts#L61), [refuses every unscoped runner spelling under the default policy](apps/mcp-server/src/transport/guard-tests.test.ts#L70), [lets a runner through when it names files, a workspace, a Go package or a subdirectory](apps/mcp-server/src/transport/guard-tests.test.ts#L120), [ignores commands that are not test runners, installs included, under the default policy](apps/mcp-server/src/transport/guard-tests.test.ts#L144), [refuses named tests, installs and builds alike under policy none](apps/mcp-server/src/transport/guard-tests.test.ts#L159), [stands down under policy any and on an event with no command](apps/mcp-server/src/transport/guard-tests.test.ts#L184), [counts a dot-relative subdirectory as scoped but never the repo root, whether spelled `.`, `./` or absolute](apps/mcp-server/src/transport/guard-tests.test.ts#L194), [sees through a shell wrapper, a quoted command and a direct node_modules binary](apps/mcp-server/src/transport/guard-tests.test.ts#L91), [refuses a runner whose scope is only vouched for by a comment, a neighbouring command, an --exclude or a watch flag](apps/mcp-server/src/transport/guard-tests.test.ts#L106), [blocks every Bash call when the recipe declares a policy but the guard script is gone, and stands down when none was declared](apps/mcp-server/src/transport/guard-tests.test.ts#L209), [inherits config.test_policy from the layer below when a row sets config for another reason, so a review recipe stays at none](libs/shared/src/outbound/project/agents/agent-defs-port.test.ts#L75), [maps a declared policy onto the LORE_TEST_POLICY env the pod's guard reads, and an unknown one onto nothing](libs/shared/src/domain/task-types/test-policy.test.ts#L5), [declares none on every read-only review recipe, so a review pod cannot run tests, installs or builds at all](libs/shared/src/domain/task-types/task-types-config.test.ts#L413), [carries a recipe's test_policy on config, where the CR builder reads it](libs/shared/src/outbound/project/agents/agent-defs-yaml.test.ts#L149), [config test_policy rides the CR as LORE_TEST_POLICY, and an unknown value rides nothing](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L448), [renders a recipe's test_policy as LORE_TEST_POLICY after the git identity](apps/floor/src/work/agent/agent-catalog.test.ts#L478))
 - The gateway's top-level router tries `/healthz`, then `/skills/*`, before
   falling through to `/mcp`: a non-`/mcp` path 404s, an `/mcp` request missing
   the configured bearer token 401s, and on `/mcp` itself POST mints or resumes

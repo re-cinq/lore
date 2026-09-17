@@ -71,4 +71,33 @@ describe("resolveAgentConfig", () => {
       "golang:1.23",
     );
   });
+
+  it("inherits config.test_policy from the layer below when a row sets config for another reason, so a review recipe stays at none", () => {
+    const yamlReview: AgentDefinition = {
+      ...yamlGeneral,
+      name: "review",
+      config: {
+        skills: ["tdd-loop"],
+        test_policy: "none",
+        repo_workdir: false,
+      },
+    };
+    const project: AgentDefinition = {
+      ...yamlReview,
+      config: { skills: ["review-checklist"] },
+      project_id: "33333333-3333-3333-3333-333333333333",
+    };
+
+    expect(resolveAgentConfig(project, null, yamlReview)?.config).toEqual({
+      skills: ["review-checklist"],
+      test_policy: "none",
+    });
+    expect(
+      resolveAgentConfig(
+        { ...project, config: { test_policy: "scoped" } },
+        null,
+        yamlReview,
+      )?.config,
+    ).toEqual({ test_policy: "scoped" });
+  });
 });

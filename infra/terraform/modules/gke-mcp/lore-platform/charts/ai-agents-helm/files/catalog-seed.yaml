@@ -541,6 +541,8 @@ spec:
         value: Lore Agent
       - name: GIT_COMMITTER_EMAIL
         value: lore-agent@re-cinq.com
+      - name: LORE_TEST_POLICY
+        value: none
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -637,6 +639,8 @@ spec:
         value: Lore Agent
       - name: GIT_COMMITTER_EMAIL
         value: lore-agent@re-cinq.com
+      - name: LORE_TEST_POLICY
+        value: none
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -733,6 +737,8 @@ spec:
         value: Lore Agent
       - name: GIT_COMMITTER_EMAIL
         value: lore-agent@re-cinq.com
+      - name: LORE_TEST_POLICY
+        value: none
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -829,6 +835,8 @@ spec:
         value: Lore Agent
       - name: GIT_COMMITTER_EMAIL
         value: lore-agent@re-cinq.com
+      - name: LORE_TEST_POLICY
+        value: none
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -1778,6 +1786,8 @@ spec:
         value: Lore Agent
       - name: GIT_COMMITTER_EMAIL
         value: lore-agent@re-cinq.com
+      - name: LORE_TEST_POLICY
+        value: none
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore

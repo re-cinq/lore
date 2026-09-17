@@ -4,6 +4,8 @@ import { parseAllDocuments } from "yaml";
 import { z } from "zod";
 import { enforceTrue } from "../../lib/enforce.js";
 
+export const TestPolicySchema = z.enum(["scoped", "none", "any"]);
+
 export const TaskTypeConfigSchema = z.object({
   prompt_template: z.string(),
   timeout_minutes: z.number(),
@@ -21,9 +23,22 @@ export const TaskTypeConfigSchema = z.object({
   watch: z.object({ event: z.string(), path: z.string() }).optional(),
   /** Extra agent skills fetched from the gateway's /skills registry, APPENDED to `lore-context` (never replacing it). */
   skills: z.array(z.string()).optional(),
+  /** What the pod's Bash hook lets a test runner do: `scoped` (default) only named files/packages, `none` no tests, installs or builds, `any` hook off. Rides the CR as LORE_TEST_POLICY. */
+  test_policy: TestPolicySchema.optional(),
 });
 
 export type TaskTypeConfig = z.infer<typeof TaskTypeConfigSchema>;
+
+/** The env entry the pod's guard-tests hook reads; empty for an absent or unrecognised policy so a stale row can never switch the guard off by accident. */
+export function testPolicyEnv(
+  policy: unknown,
+): Array<{ name: string; value: string }> {
+  const parsed = TestPolicySchema.safeParse(policy);
+
+  return parsed.success
+    ? [{ name: "LORE_TEST_POLICY", value: parsed.data }]
+    : [];
+}
 
 /** What a READER may actually be handed vs. what a complete entry declares — the parse keeps entries it couldn't fully validate, so any field may be missing. */
 export type TaskTypeRecipe = Partial<TaskTypeConfig>;
