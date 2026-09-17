@@ -113,7 +113,7 @@ A throwing `onboardRepo` returns 500. ([validated by `returns 500 when onboardRe
 
 The route is registered as an exact `POST /api/onboard` match. ([implemented by](../../../apps/lore-api/src/app/build-server.ts#L104), [implemented by](../../../apps/lore-api/src/transport/routes/repos/onboard.ts#L22))
 
-`onboardRepo` ensures the Lore webhook (the event-router hook URL) for the onboarded repo and returns the ensure outcome under `webhook` in its result; onboarding still completes (returning `repo_id` + `task_id`) when the ensure is skipped. ([validated by `repo-onboard.test.ts:65`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L65), [`repo-onboard.test.ts:82`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L82))
+`onboardRepo` ensures the Lore webhook (the event-router hook URL) for the onboarded repo and returns the ensure outcome under `webhook` in its result; onboarding still completes (returning `repo_id` + `task_id`) when the ensure is skipped. ([validated by `repo-onboard.test.ts:67`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L65), [`repo-onboard.test.ts:79`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L82))
 
 `onboardRepo` takes the per-repo advisory lock before reading the guard state and gives the task the onboarding TICKET body (`onboardTicketBody`, `libs/shared/src/work/onboard-content.ts`) rather than the bare repo name — the description becomes the Issue the `onboard` line implements, so it must carry every file owed and every rule. ([validated by `takes the per-repo advisory lock before reading the guard state`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L98), [validated by sends the onboarding ticket body instead of the bare repo name](apps/lore-api/src/work/repo/repo-onboard.test.ts#L133))
 

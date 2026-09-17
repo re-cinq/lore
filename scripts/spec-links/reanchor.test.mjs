@@ -188,3 +188,43 @@ test("rewrites the NN of a basename label that carries the validated-by prefix, 
     "([validated by `y.test.ts:11`](libs/x/y.test.ts#L11))",
   );
 });
+
+test("pairs a repeated basename label with the same label's occurrence in the base copy, so relabelling another link by title does not hand each later link its neighbour's anchor", () => {
+  const md =
+    "([validated by listSince caps the batch](libs/x/y.test.ts#L2), [`y.test.ts:7`](libs/x/y.test.ts#L7), [`y.test.ts:3`](libs/x/y.test.ts#L3)) and again ([`y.test.ts:7`](libs/x/y.test.ts#L7))";
+  const hunks = parseHunks("@@ -5,0 +6,4 @@");
+  const base = [
+    { label: "`y.test.ts:2`", line: 2 },
+    { label: "`y.test.ts:7`", line: 7 },
+    { label: "`y.test.ts:3`", line: 3 },
+    { label: "`y.test.ts:7`", line: 7 },
+  ];
+  const { content } = reanchorMarkdown(
+    md,
+    "specs/a/spec.md",
+    io({ baseLinks: () => base, hunksFor: () => hunks }),
+  );
+
+  assert.equal(
+    content,
+    "([validated by listSince caps the batch](libs/x/y.test.ts#L2), [`y.test.ts:11`](libs/x/y.test.ts#L11), [`y.test.ts:3`](libs/x/y.test.ts#L3)) and again ([`y.test.ts:11`](libs/x/y.test.ts#L11))",
+  );
+});
+
+test("reports a basename label the base copy lacks as unmapped when the branch holds fewer such links than the base, instead of taking a neighbour's anchor by ordinal", () => {
+  const md =
+    "([validated by listSince caps the batch](libs/x/y.test.ts#L2), [`y.test.ts:99`](libs/x/y.test.ts#L7))";
+  const hunks = parseHunks("@@ -5,0 +6,4 @@");
+  const base = [
+    { label: "`y.test.ts:2`", line: 2 },
+    { label: "`y.test.ts:7`", line: 7 },
+  ];
+  const { content, unmapped } = reanchorMarkdown(
+    md,
+    "specs/a/spec.md",
+    io({ baseLinks: () => base, hunksFor: () => hunks }),
+  );
+
+  assert.equal(content, md);
+  assert.equal(unmapped[0].label, "`y.test.ts:99`");
+});
