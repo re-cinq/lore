@@ -261,6 +261,55 @@ function logRows(ev: Record<string, unknown>): Partial<AgentRunEventInsert>[] {
     : [];
 }
 
+// gemini-cli flat dialect: top-level init/message/tool_use/tool_result/error lines.
+
+function geminiMessageRows(
+  ev: Record<string, unknown>,
+): Partial<AgentRunEventInsert>[] {
+  const content = str(ev.content);
+
+  return content !== null
+    ? [{ eventType: "message", summary: cap(content), payload: {} }]
+    : [];
+}
+
+function geminiToolUseRows(
+  ev: Record<string, unknown>,
+): Partial<AgentRunEventInsert>[] {
+  const name = str(ev.tool_name) ?? "unknown";
+  const filePaths = filePathsFromToolInput(ev.parameters);
+
+  return [
+    {
+      eventType: "tool_call",
+      toolName: name,
+      toolUseId: str(ev.tool_id),
+      filePaths,
+      summary: toolCallSummary(name, ev.parameters, filePaths),
+      payload: { input: truncateToolInput(ev.parameters) },
+    },
+  ];
+}
+
+function geminiToolResultRows(
+  ev: Record<string, unknown>,
+): Partial<AgentRunEventInsert>[] {
+  const isError = ev.status === "error";
+  const output = typeof ev.output === "string" ? ev.output : "";
+
+  return [
+    {
+      eventType: "tool_result",
+      toolUseId: str(ev.tool_id),
+      isError,
+      summary: `tool_result ${isError ? "error" : "ok"}`,
+      payload: {
+        content: truncateForStorage(output, TOOL_RESULT_MAX_BYTES),
+      },
+    },
+  ];
+}
+
 type EventRowsHandler = (
   ev: Record<string, unknown>,
 ) => Partial<AgentRunEventInsert>[];
@@ -271,6 +320,19 @@ const EVENT_ROW_HANDLERS: Record<string, EventRowsHandler> = {
   user: userRows,
   log: logRows,
   result: (ev) => [resultRow(ev)],
+  // gemini-cli flat dialect
+  init: (ev) => [initRow(ev)],
+  message: geminiMessageRows,
+  tool_use: geminiToolUseRows,
+  tool_result: geminiToolResultRows,
+  error: (ev) => [
+    {
+      eventType: "message",
+      isError: true,
+      summary: cap(str(ev.message) ?? "error"),
+      payload: {},
+    },
+  ],
 };
 
 export function rowsFromEnvelope(envelope: unknown): AgentRunEventInsert[] {
