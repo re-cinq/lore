@@ -11,7 +11,7 @@ import {
   decideMarkReady,
   decidePrStamp,
   decideStampFailure,
-  emptyBranchReason,
+  decideEmptyBranchEnding,
 } from "./spec-pr.js";
 import type { AdvanceDeps } from "./advance-deps.js";
 import { advanceLine } from "./advance-line.js";
@@ -165,12 +165,9 @@ async function handleStampFailure(
   if (decideStampFailure(message) !== "empty-branch") {
     return;
   }
-  await finishLine(
-    assemblyRun,
-    "error",
-    emptyBranchReason(assemblyRun.branch),
-    deps,
-  );
+  const ending = decideEmptyBranchEnding(assemblyRun);
+
+  await finishLine(assemblyRun, ending.outcome, ending.reason, deps);
 }
 
 async function maybeMarkPrReady(

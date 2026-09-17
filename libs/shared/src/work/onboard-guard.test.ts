@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import {
   decideOnboard,
   onboardLockKey,
-  onboardTaskDescription,
   toOnboardState,
   IN_FLIGHT_TASK_STATUSES,
   type OnboardState,
@@ -134,14 +133,5 @@ describe("onboardLockKey", () => {
   it("keys on the repo full name", () => {
     expect(onboardLockKey("o/r")).toBe("lore.onboard:o/r");
     expect(onboardLockKey("o/other")).not.toBe(onboardLockKey("o/r"));
-  });
-});
-
-describe("onboardTaskDescription", () => {
-  it("names the repo and the work instead of sending a bare repo name", () => {
-    const description = onboardTaskDescription("o/r");
-
-    expect(description).toContain("o/r");
-    expect(description.length).toBeGreaterThan("o/r".length);
   });
 });

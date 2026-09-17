@@ -2,9 +2,9 @@ import type { Pool, PoolClient } from "pg";
 import {
   createPipelineTask,
   decideOnboard,
-  errorMessage,
   onboardLockKey,
-  onboardTaskDescription,
+  onboardTicketBody,
+  onboardUpdateTicketBody,
   toOnboardState,
   IN_FLIGHT_TASK_STATUSES,
   ONBOARD_IN_FLIGHT_TASK_SQL,
@@ -224,12 +224,16 @@ async function writeOnboard(
   { fullName, owner, name }: RepoIdentity,
   options: { reonboard?: boolean },
 ): Promise<OnboardWrite> {
-  const decision = await beginAndDecide(client, fullName, options);
+  const { decision, state } = await beginAndDecide(client, fullName, options);
 
   if (!decision.allowed) {
     return refuseOnboard(client, fullName, decision);
   }
-  const written = await insertRepoAndTask(client, { fullName, owner, name });
+  const written = await insertRepoAndTask(
+    client,
+    { fullName, owner, name },
+    ticketFor(fullName, state),
+  );
 
   await client.query("COMMIT");
 
@@ -241,14 +245,14 @@ async function beginAndDecide(
   client: PoolClient,
   fullName: string,
   options: { reonboard?: boolean },
-): Promise<OnboardDecision> {
+): Promise<{ decision: OnboardDecision; state: OnboardState }> {
   await client.query("BEGIN");
   await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
     onboardLockKey(fullName),
   ]);
   const state = await readOnboardState(client, fullName);
 
-  return decideOnboard(fullName, state, options);
+  return { decision: decideOnboard(fullName, state, options), state };
 }
 
 /** Reads the repo's onboarding state on `client`, which must already hold the per-repo advisory lock. */
@@ -282,10 +286,21 @@ async function refuseOnboard(
   return { blocked: block, error: message, task_id: taskId };
 }
 
+/** The ticket the onboard line implements, chosen by the repo's STATE rather than by the `reonboard` flag: the repo page's button always sends that flag, so a first enrolment raised from it must still get the onboarding ticket, and only a repo whose onboarding PR has merged gets the update one. */
+function ticketFor(
+  fullName: string,
+  state: Pick<OnboardState, "onboardingPrMerged">,
+): string {
+  return state.onboardingPrMerged
+    ? onboardUpdateTicketBody(fullName)
+    : onboardTicketBody(fullName);
+}
+
 /** The repo row FIRST, then its task. The order is load-bearing: the task's trust gate reads that row, so a task created before it would be judged against a repo that does not exist yet. Re-onboarding refreshes the timestamp rather than inserting a second row. */
 async function insertRepoAndTask(
   client: PoolClient,
   { fullName, owner, name }: RepoIdentity,
+  ticket: string,
 ): Promise<OnboardWrite> {
   const { rows } = await client.query<{ id: string }>(
     `INSERT INTO lore.repos (owner, name, full_name) VALUES ($1, $2, $3)
@@ -293,7 +308,7 @@ async function insertRepoAndTask(
     [owner, name, fullName],
   );
   const task = await createPipelineTask(client, {
-    description: onboardTaskDescription(fullName),
+    description: ticket,
     taskType: "onboard",
     targetRepo: fullName,
     createdBy: "onboard-system",
@@ -317,73 +332,5 @@ function logWebhookOutcome(
   }
   console.warn(
     `[onboard] Webhook not configured for ${fullName}: ${webhook.reason}${webhook.detail ? ` (${webhook.detail})` : ""}`,
-  );
-}
-
-export { fetchRepoContext, type RepoContext } from "./repo-onboard-context.js";
-
-// ── Onboarding PR merge detection (T018) ────────────────────────────
-
-export async function checkOnboardingPRs(pool: Pool): Promise<void> {
-  const { rows } = await pool.query(
-    `SELECT id, full_name, onboarding_pr_url FROM lore.repos WHERE onboarding_pr_merged = false AND onboarding_pr_url IS NOT NULL`,
-  );
-
-  for (const repo of rows) {
-    try {
-      await checkOnboardingPr(pool, repo);
-    } catch (err) {
-      console.error(
-        `[repo-onboard] Error checking PR for ${repo.full_name}: ${errorMessage(err)}`,
-      );
-    }
-  }
-}
-
-/** Whether this repo's onboarding PR has merged, and what to do if it has. Failure is per repo: one repo whose PR cannot be read must not stop the sweep for the rest. */
-async function checkOnboardingPr(
-  pool: Pool,
-  repo: { id: string; full_name: string; onboarding_pr_url: string },
-): Promise<void> {
-  const match = /\/pull\/(\d+)/.exec(repo.onboarding_pr_url);
-
-  if (!match) {
-    return;
-  }
-  const [owner, name] = repo.full_name.split("/");
-  const { rest } = await getOctokit();
-  const { data: pr } = await rest.pulls.get({
-    owner,
-    repo: name,
-    pull_number: parseInt(match[1]),
-  });
-
-  if (!pr.merged) {
-    return;
-  }
-
-  await recordMergedOnboarding(pool, repo);
-}
-
-/** Marks the onboarding done and queues the first ingestion. The merge is what makes the repo's conventions readable, so this does not wait for the nightly pass — a freshly onboarded repo whose CLAUDE.md nobody has read yet is exactly the case onboarding exists to fix. */
-async function recordMergedOnboarding(
-  pool: Pool,
-  repo: { id: string; full_name: string },
-): Promise<void> {
-  await pool.query(
-    `UPDATE lore.repos SET onboarding_pr_merged = true, last_ingested_at = now() WHERE id = $1`,
-    [repo.id],
-  );
-  const { createTask } =
-    await import("@re-cinq/lore-server-core/features/pipeline/pipeline.js");
-
-  await createTask({
-    description: `Initial ingestion for ${repo.full_name}: read CLAUDE.md, ADRs, runbooks, code structure`,
-    taskType: "general",
-    targetRepo: repo.full_name,
-    createdBy: "onboard-ingest",
-  });
-  console.log(
-    `[repo-onboard] Onboarding PR merged for ${repo.full_name}, ingestion triggered`,
   );
 }
