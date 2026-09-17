@@ -12639,6 +12639,9 @@
                         "type": "null"
                       }
                     ]
+                  },
+                  "text_too_long": {
+                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -12651,7 +12654,8 @@
                   "created_at",
                   "error",
                   "run_id",
-                  "pipeline"
+                  "pipeline",
+                  "text_too_long"
                 ],
                 "additionalProperties": false
               },
@@ -12719,6 +12723,9 @@
                       "type": "null"
                     }
                   ]
+                },
+                "text_too_long": {
+                  "type": "boolean"
                 }
               },
               "required": [
@@ -12731,7 +12738,8 @@
                 "created_at",
                 "error",
                 "run_id",
-                "pipeline"
+                "pipeline",
+                "text_too_long"
               ],
               "additionalProperties": false
             }
@@ -12792,6 +12800,9 @@
                       "type": "null"
                     }
                   ]
+                },
+                "text_too_long": {
+                  "type": "boolean"
                 }
               },
               "required": [
@@ -12804,7 +12815,8 @@
                 "created_at",
                 "error",
                 "run_id",
-                "pipeline"
+                "pipeline",
+                "text_too_long"
               ],
               "additionalProperties": false
             }

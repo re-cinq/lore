@@ -15,6 +15,7 @@ const ticket = (over: Partial<LoopTicket> = {}): LoopTicket => ({
   error: null,
   run_id: null,
   pipeline: null,
+  text_too_long: false,
   ...over,
 });
 
@@ -314,5 +315,28 @@ describe("ImplementationLoopView when the repo is not onboarded", () => {
       getByRole("heading", { name: "Waiting for onboarding" }),
     ).toBeTruthy();
     expect(queryByRole("heading", { name: "Next up" })).toBeNull();
+  });
+});
+
+describe("ImplementationLoopView with a queued ticket whose text is too long", () => {
+  it("pills #7 with text too long and a hint to shorten the issue, and leaves #8 unpilled", () => {
+    const { getAllByTestId } = renderView({
+      next: [
+        ticket({ text_too_long: true }),
+        ticket({ issue_number: 8, title: "Short issue" }),
+      ],
+    });
+
+    expect(
+      getAllByTestId("ticket-text-too-long").map((pill) => ({
+        text: pill.textContent,
+        hint: pill.getAttribute("title"),
+      })),
+    ).toEqual([
+      {
+        text: "text too long",
+        hint: "The issue's title and body are longer than a task description may be, so the loop will not pick it. Shorten the issue text to queue it.",
+      },
+    ]);
   });
 });

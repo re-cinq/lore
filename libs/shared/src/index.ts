@@ -14,6 +14,7 @@ export {
 } from "./domain/pipeline-tasks.js";
 // "./pipeline-task-actions.js" and "./pipeline-task-status.js" ride through pipeline-tasks.js/pipeline-task-core.js re-exports above.
 export * from "./domain/pipeline-task-core.js";
+export * from "./domain/task-description.js";
 export { enforceRepoTrustForTaskType } from "./domain/pipeline-task-trust.js";
 export {
   chunkFile,
@@ -303,11 +304,4 @@ export {
 } from "./work/repo-validation/repo-validation.js";
 
 // The implementation loop's backlog: pure queue ordering + label taxonomy (FR1).
-export {
-  selectNextIssue,
-  orderBacklog,
-  PRIORITY_LABELS,
-  LORE_BLOCKED_LABEL,
-  BACKLOG_LABEL_SEED,
-  type PriorityLabel,
-} from "./work/backlog/index.js";
+export * from "./work/backlog/index.js";
