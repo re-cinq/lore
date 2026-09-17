@@ -10,12 +10,12 @@ import { Llm } from "@re-cinq/lore-shared/llm/llm.js";
 import { startServer } from "./transport/server.js";
 import { startStationDrain } from "./events/loop-boot.js";
 import { deliveries, eventProxy, usage } from "./outbound/queues.js";
+import { DEFAULT_DRAIN_TIMEOUT_MS } from "@re-cinq/lore-shared/project/events/event-tuning.js";
+import { requiredPort } from "@re-cinq/lore-shared/lib/required-env.js";
 
-const PORT = parseInt(process.env.PORT ?? "8080", 10);
+const PORT = requiredPort(process.env, "PORT");
 
 // How long shutdown waits for the event queue to drain — long enough for a backlog, short enough not to hold a rollout past its grace period.
-const EVENT_DRAIN_TIMEOUT_MS = 5_000;
-
 async function main(): Promise<void> {
   initPool();
   // Module state read by approval-check; the Floor loads the same config for its worker's gate.
@@ -61,7 +61,7 @@ function shutdownHandler(
     clearInterval(drain);
     await stopServer();
 
-    const undrained = await eventProxy().stop(EVENT_DRAIN_TIMEOUT_MS);
+    const undrained = await eventProxy().stop(DEFAULT_DRAIN_TIMEOUT_MS);
 
     if (undrained > 0) {
       console.error(

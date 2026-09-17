@@ -42,6 +42,13 @@ export interface RegistrantOpts {
   running: () => boolean;
 }
 
+/** What registering takes: the triple to register with, where to persist the identity, and how to hand the minted token to the run pods. Named because both `establishIdentity` and the single-flight re-registration take exactly this. */
+export interface RegistrationOpts {
+  config: RegistrationConfig;
+  store: IdentityStore;
+  publishTelemetryCredential: (id: ClusterAgentIdentity) => Promise<void>;
+}
+
 // What both side loops need: where to talk, who this cluster is, and whether the process is still up. One shape because they are started together and stopped together.
 interface SideLoopOpts {
   env: NodeJS.ProcessEnv;
@@ -77,10 +84,8 @@ export async function runRegistrant(opts: RegistrantOpts): Promise<void> {
   });
 }
 
-/** Registers, and hands back the identity as a GETTER rather than a value: a 401 rotates it mid-run, and every loop must read the current one rather than the one it captured at startup. */
-async function establishIdentity(
-  opts: Pick<RegistrantOpts, "config" | "store" | "publishTelemetryCredential">,
-): Promise<{
+/** Hands back the identity as a GETTER: a 401 rotates it mid-run, and every loop must read the current one, not the one it captured at startup. */
+async function establishIdentity(opts: RegistrationOpts): Promise<{
   identity: () => ClusterAgentIdentity;
   reRegister: () => Promise<ClusterAgentIdentity | null>;
 }> {
@@ -100,7 +105,7 @@ async function establishIdentity(
 
 // The first registration, with the line that says this cluster is now claiming. Announced here rather than by the caller because the id only exists once registration has succeeded.
 async function registerAndAnnounce(
-  opts: Pick<RegistrantOpts, "config" | "store" | "publishTelemetryCredential">,
+  opts: RegistrationOpts,
 ): Promise<ClusterAgentIdentity> {
   const identity = await registerWithBackoff({
     config: opts.config,

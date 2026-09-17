@@ -7,9 +7,8 @@ import { secretEquals } from "@re-cinq/lore-shared/lib/secret-equals.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { rawBody } from "@re-cinq/lore-shared/http/raw-body.js";
 import type { Emit } from "@re-cinq/lore-shared/project/events/event-input-port.js";
-
-/** Matches the Floor's own sink cap, so this relay refuses exactly what the far end would have refused. */
-const MAX_BODY_BYTES = 8 * 1024 * 1024;
+import { MAX_AGENT_EVENTS_BODY_BYTES } from "@re-cinq/lore-shared/http/body-limits.js";
+import { unparsedBodyUpTo } from "@re-cinq/lore-shared/http/route-options.js";
 
 export interface AgentEventsDeps {
   emit: Emit;
@@ -17,29 +16,33 @@ export interface AgentEventsDeps {
   acceptedTokens: () => Array<string | undefined>;
 }
 
-export function agentEventsRoutes(deps: AgentEventsDeps): ServerRoute[] {
-  return [
-    {
-      method: "POST",
-      path: "/api/cluster/agent-events",
-      options: {
-        auth: false,
-        // Unparsed NDJSON forwarded verbatim; maxBytes turns an oversized batch into a visible 413 instead of a buffered undeliverable body.
-        payload: { parse: false, maxBytes: MAX_BODY_BYTES },
-      },
-      handler: async (request, h) => {
-        enforceAnyBearer(request.headers, deps.acceptedTokens());
+export function agentEventsRoutes(deps?: AgentEventsDeps): ServerRoute[] {
+  if (!deps) {
+    return [];
+  }
 
-        // Awaited so a full queue applies backpressure to the pod rather than accumulating unsent batches in memory.
-        await deps.emit({ kind: "telemetry", body: rawBody(request) });
-
-        return h.response().code(202);
-      },
-    },
-  ];
+  return [relayRoute(deps)];
 }
 
-/** Accept the request only if it presents one of this cluster's credentials; every comparison runs even after a match (same reason `secretEquals` exists). */
+/** `POST /api/cluster/agent-events` — the NDJSON telemetry relay. Called by this cluster's run pods, which post their claude stream-json here instead of the public ingress; the body is forwarded VERBATIM through the event proxy to the Floor. */
+function relayRoute(deps: AgentEventsDeps): ServerRoute {
+  return {
+    method: "POST",
+    path: "/api/cluster/agent-events",
+    // Unparsed NDJSON forwarded verbatim; the ceiling turns an oversized batch into a visible 413 instead of a buffered undeliverable body.
+    options: unparsedBodyUpTo(MAX_AGENT_EVENTS_BODY_BYTES),
+    handler: async (request, h) => {
+      enforceAnyBearer(request.headers, deps.acceptedTokens());
+
+      // Awaited so a full queue applies backpressure to the pod rather than accumulating unsent batches in memory.
+      await deps.emit({ kind: "telemetry", body: rawBody(request) });
+
+      return h.response().code(202);
+    },
+  };
+}
+
+/** Accepts one of this cluster's credentials; every comparison runs even after a match, for the reason `secretEquals` exists. */
 function enforceAnyBearer(
   headers: Record<string, unknown>,
   accepted: Array<string | undefined>,

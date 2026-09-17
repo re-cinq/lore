@@ -7,8 +7,12 @@ import {
 import { selectEventProxy } from "@re-cinq/lore-shared/project/events/select-event-reporter.js";
 import { selectReporterToken } from "./events/claim/select-reporter-token.js";
 import type { EventProxy } from "@re-cinq/lore-shared/project/events/event-proxy.js";
+import {
+  DEFAULT_DRAIN_TIMEOUT_MS,
+  DEFAULT_REPORT_RETRY,
+} from "@re-cinq/lore-shared/project/events/event-tuning.js";
 import { startServer } from "./transport/server.js";
-import type { AgentEventsDeps } from "./transport/routes/agent-events.js";
+import type { AgentEventsDeps } from "./transport/routes/cluster/agent-events.js";
 import type { ProxyMessage } from "@re-cinq/lore-shared/project/events/event-input-port.js";
 import { AgentWatchInput } from "./events/listeners/k8s-watch.js";
 import {
@@ -24,14 +28,12 @@ import {
   startPruneLoop,
   type PruneLoopHandle,
 } from "./work/reap/start-prune-loop.js";
+import { requiredPort } from "@re-cinq/lore-shared/lib/required-env.js";
 
-const PORT = parseInt(process.env.PORT ?? "8080", 10);
+const PORT = requiredPort(process.env, "PORT");
 
-/** How hard a terminal report tries before the Floor's reconcile cron is the only thing left to catch it. */
-const REPORT_RETRY = { attempts: 5, delayMs: 500 };
-
-/** How long shutdown waits for the queue to drain — long enough for a backlog, short enough a wedged router can't hold a rollout open. */
-const DRAIN_TIMEOUT_MS = 5_000;
+/** The cluster-wide credential this pod mounts; a rotation replaces the pod, so it is read once. */
+const INGEST_TOKEN = process.env.LORE_INGEST_TOKEN;
 
 /** This agent's per-agent token once registered, lived here since the reporter and the claim loop are wired together in this composition root. */
 let agentToken: string | undefined;
@@ -44,8 +46,9 @@ async function main(): Promise<void> {
   const floorUrl = process.env.LORE_FLOOR_URL;
 
   const { claimLoop, pruneLoop } = startLoops();
-  const proxy = buildEventProxy(routerUrl, floorUrl, claimLoop);
-  const agentEvents = buildAgentEvents(proxy, floorUrl);
+
+  const proxy = buildEventRouterProxy(routerUrl, floorUrl, claimLoop);
+  const agentEvents = agentEventsRelayDeps(proxy, floorUrl);
   const stopServer = await startServer(PORT, agentEvents);
 
   logMissingRelays(floorUrl, proxy);
@@ -73,8 +76,8 @@ function startLoops() {
   return { claimLoop, pruneLoop: startPruneLoop(process.env) };
 }
 
-// A THUNK — see currentToken. Absent EVENT_ROUTER_URL there is no reporter to build.
-function buildEventProxy(
+// The ONE queue this process reports through — Agent-CR watch, pod logs and the relay all emit into it. Named for its destination: absent EVENT_ROUTER_URL there is nowhere to report, so there is nothing to build.
+function buildEventRouterProxy(
   routerUrl: string | undefined,
   floorUrl: string | undefined,
   claimLoop: ClaimLoopHandle,
@@ -90,7 +93,7 @@ function buildEventProxy(
       );
     },
     token: currentToken,
-    retry: REPORT_RETRY,
+    retry: DEFAULT_REPORT_RETRY,
     // Telemetry rides the same queue and ladder but lands elsewhere — the Floor projects it, the router has no handler for it.
     telemetry: floorUrl ? new TelemetrySink(floorUrl, currentToken) : undefined,
     // A 401 means the held credential is stale — re-register and retry, as the claim/heartbeat loops do. Retrying with the refused token lost run 595d2b0b's terminal event.
@@ -98,8 +101,8 @@ function buildEventProxy(
   });
 }
 
-// Mounted only with somewhere to forward telemetry AND a proxy to queue it in — absent either, a 404 beats a 202 that silently drops the batch.
-function buildAgentEvents(
+// The relay route's NARROWED VIEW of the one proxy above — an emit and the credentials to accept, not a second event pipeline. Mounted only with somewhere to forward telemetry AND a proxy to queue it in: absent either, a 404 beats a 202 that silently drops the batch.
+function agentEventsRelayDeps(
   proxy: EventProxy | null,
   floorUrl: string | undefined,
 ): AgentEventsDeps | undefined {
@@ -109,8 +112,8 @@ function buildAgentEvents(
 
   return {
     emit: (message: ProxyMessage) => proxy.emit(message),
-    // Resolved per request — the per-agent token rotates on every re-registration.
-    acceptedTokens: () => [process.env.LORE_INGEST_TOKEN, agentToken],
+    // The mounted token is read once at boot like every other env read here; only the per-agent token is a thunk, because re-registration rotates it mid-run.
+    acceptedTokens: () => [INGEST_TOKEN, agentToken],
   };
 }
 
@@ -159,7 +162,7 @@ function makeShutdown(
     await stopServer();
 
     // Before exit, not after — process.exit would take the queue with it, leaving a dropped terminal event's node open until the reaper.
-    const undrained = (await proxy?.stop(DRAIN_TIMEOUT_MS)) ?? 0;
+    const undrained = (await proxy?.stop(DEFAULT_DRAIN_TIMEOUT_MS)) ?? 0;
 
     if (undrained > 0) {
       console.error(

@@ -8,6 +8,10 @@ import { EventSink, UnconfiguredSink } from "./event-sink.js";
 import type { Sink } from "./event-input-port.js";
 import type { EventDeliveriesPort } from "./event-deliveries-port.js";
 import type { EventReporter } from "./event-reporter-port.js";
+import {
+  DEFAULT_QUEUE_CAPACITY,
+  DEFAULT_REPORT_RETRY,
+} from "./event-tuning.js";
 
 export interface SelectReporterDeps {
   /** Pool-backed reporter to fall back to; a THUNK because eager resolution forced lore-api to demand a database even in tests with their own injected one. */
@@ -42,10 +46,6 @@ export function selectEventReporter(deps: SelectReporterDeps): EventReporter {
   );
 }
 
-/** Room for a router blip at the observed peak rate, not a durability budget — the queue is in memory and dies with the process. */
-const DEFAULT_CAPACITY = 256;
-const DEFAULT_RETRY = { attempts: 5, delayMs: 500 };
-
 export interface SelectProxyDeps extends SelectReporterDeps {
   capacity?: number;
   retry?: { attempts: number; delayMs: number };
@@ -55,10 +55,8 @@ export interface SelectProxyDeps extends SelectReporterDeps {
   telemetry?: Sink;
 }
 
-/** Resolve the {@link EventProxy} (queued emit + synchronous insert) this process reports through; always a proxy so a caller holds one type — local mode retries once since a failed Postgres insert is not a wire blip. Call once at a composition root and memoize. */
+/** The {@link EventProxy} this process reports through — always a proxy so callers hold one type; call once at a composition root and memoize. Local mode retries once, since a failed Postgres insert is not a wire blip. */
 export function selectEventProxy(deps: SelectProxyDeps): EventProxy {
-  const env = deps.env ?? process.env;
-  const routed = Boolean(env.EVENT_ROUTER_URL);
   const reporter = selectEventReporter(deps);
 
   return new EventProxy({
@@ -66,8 +64,8 @@ export function selectEventProxy(deps: SelectProxyDeps): EventProxy {
       event: new EventSink(reporter),
       telemetry: deps.telemetry ?? new UnconfiguredSink("telemetry"),
     },
-    capacity: deps.capacity ?? DEFAULT_CAPACITY,
-    retry: deps.retry ?? (routed ? DEFAULT_RETRY : { attempts: 1, delayMs: 0 }),
+    capacity: deps.capacity ?? DEFAULT_QUEUE_CAPACITY,
+    retry: deps.retry ?? DEFAULT_REPORT_RETRY,
     onUnauthorized: deps.onUnauthorized,
   });
 }

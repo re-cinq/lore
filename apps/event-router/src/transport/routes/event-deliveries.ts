@@ -43,6 +43,7 @@ export function eventDeliveryRoutes(
   ];
 }
 
+/** Records which event names a subscriber wants a delivery row for. Called once at boot by the Floor (`outbound/event-store.ts`) and by stations (`events/loop-boot.ts`); a name nobody subscribed to produces no deliveries. */
 function subscribeRoute(deps: EventDeliveryRoutesDeps): ServerRoute {
   return {
     method: "POST",
@@ -63,6 +64,7 @@ function subscribeRoute(deps: EventDeliveryRoutesDeps): ServerRoute {
   };
 }
 
+/** Hands out the next batch of pending deliveries. Called on every poll tick of the Floor main loop and the stations loop. */
 function claimRoute(deps: EventDeliveryRoutesDeps): ServerRoute {
   return {
     method: "POST",
@@ -89,6 +91,7 @@ function claimHandler(deps: EventDeliveryRoutesDeps): Lifecycle.Method {
   };
 }
 
+/** Settles one delivery as handled. Called by the Floor and stations loops after their handler returns. */
 function ackRoute(deps: EventDeliveryRoutesDeps): ServerRoute {
   return {
     method: "POST",
@@ -103,6 +106,7 @@ function ackRoute(deps: EventDeliveryRoutesDeps): ServerRoute {
   };
 }
 
+/** Settles one delivery as retryable, re-hidden for `backoffSeconds`. Called by the Floor and stations loops when a handler throws and the subscriber still has retries left. */
 function failRoute(deps: EventDeliveryRoutesDeps): ServerRoute {
   return {
     method: "POST",
@@ -125,6 +129,7 @@ function failRoute(deps: EventDeliveryRoutesDeps): ServerRoute {
   };
 }
 
+/** Settles one delivery as permanently failed. Called by the Floor and stations loops once a handler has exhausted the subscriber's retry budget. */
 function deadRoute(deps: EventDeliveryRoutesDeps): ServerRoute {
   return {
     // Own route, not a fail flag: subscriber judges delivery budget, not the service.
@@ -142,6 +147,7 @@ function deadRoute(deps: EventDeliveryRoutesDeps): ServerRoute {
   };
 }
 
+/** Returns claimed-but-unsettled deliveries past their visibility timeout to pending. Called by the Floor's reaper tick (`events/main-loop/reaper.ts`). */
 function reapRoute(deps: EventDeliveryRoutesDeps): ServerRoute {
   return {
     // No body: each row has its own visibility timeout, no global one for caller.
@@ -158,6 +164,7 @@ function reapRoute(deps: EventDeliveryRoutesDeps): ServerRoute {
   };
 }
 
+/** Deletes settled deliveries older than `olderThanDays` — the table's only shrink path. Called by the Floor's daily cron handler with a 7-day window. */
 function pruneRoute(deps: EventDeliveryRoutesDeps): ServerRoute {
   return {
     method: "POST",
@@ -176,6 +183,7 @@ function pruneRoute(deps: EventDeliveryRoutesDeps): ServerRoute {
   };
 }
 
+/** Repairs deliveries a crashed subscriber left claimed. Called at boot by the Floor (`index.ts`) and stations (`events/loop-boot.ts`), before either starts claiming again. */
 function reconcileRoute(deps: EventDeliveryRoutesDeps): ServerRoute {
   return {
     method: "POST",
@@ -202,6 +210,7 @@ function reconcileHandler(deps: EventDeliveryRoutesDeps): Lifecycle.Method {
   };
 }
 
+/** Reports events that produced no delivery at all — a subscription gap, not a handler failure. Read-only; called by the Floor's cron report. */
 function orphanedRoute(deps: EventDeliveryRoutesDeps): ServerRoute {
   return {
     method: "POST",
@@ -224,7 +233,7 @@ function orphanedRoute(deps: EventDeliveryRoutesDeps): ServerRoute {
   };
 }
 
-/** The sibling of `orphaned` for the other silent failure: deliveries a handler ran out of retries on. */
+/** The sibling of `orphaned` for the other silent failure: deliveries a handler ran out of retries on. Read-only; called by the Floor's cron report. */
 function deadLetteredRoute(deps: EventDeliveryRoutesDeps): ServerRoute {
   return {
     method: "POST",

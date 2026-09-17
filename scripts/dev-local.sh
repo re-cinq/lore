@@ -117,6 +117,10 @@ export CLUSTER_AGENT_URL="${CLUSTER_AGENT_URL:-http://localhost:3005}"
 #     uses the per-agent token it gets back for everything after.
 export LORE_CLUSTER_AGENT_REGISTRATION_TOKEN="${LORE_CLUSTER_AGENT_REGISTRATION_TOKEN:-lore-local-registration-token}"
 export LORE_CLUSTER_AGENT_NAME="${LORE_CLUSTER_AGENT_NAME:-central}"
+#     The identity it gets back persists in a Secret in minikube, exactly as in a
+#     deployed cluster: the agent only starts under LORE_STATION_BACKEND=k8s.
+export LORE_CLUSTER_AGENT_IDENTITY_SECRET="${LORE_CLUSTER_AGENT_IDENTITY_SECRET:-lore-cluster-agent-identity}"
+export LORE_CLUSTER_AGENT_IDENTITY_NAMESPACE="${LORE_CLUSTER_AGENT_IDENTITY_NAMESPACE:-${LORE_AGENTS_NAMESPACE:-ai-agents}}"
 #     Every tag, as the umbrella chart's central agent carries: on a laptop this
 #     is the only cluster, so anything it cannot claim runs nowhere.
 export LORE_CLUSTER_AGENT_TAGS="${LORE_CLUSTER_AGENT_TAGS:-node:agent,node:validate,node:gate,node:retrospective,node:github_action,node:detect,node:ingest}"
@@ -246,7 +250,7 @@ commands=(
   "npm run dev -w @re-cinq/lore-mcp"
   "LORE_MCP_HTTP=1 LORE_MCP_PORT=3002 LORE_AGENT_SKILLS_DIR=$ROOT/apps/mcp-server/agent-skills npm run start -w @re-cinq/lore-mcp"
   "npm run dev -w @re-cinq/lore-floor"
-  "npm run start:watch -w @re-cinq/lore-floor"
+  "PORT=8080 npm run start:watch -w @re-cinq/lore-floor"
   "npm run dev -w @re-cinq/lore-event-router"
   "PORT=3003 npm run start:watch -w @re-cinq/lore-event-router"
   "npm run dev -w @re-cinq/lore-stations"

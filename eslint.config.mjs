@@ -296,6 +296,27 @@ export default tseslint.config(
   },
 
   // An in-memory double restates the table it stands in for; that is its job.
+  // A contract's parameters name their shape: an inline `opts: { limit: number }`
+  // gets restated by every caller instead of imported. Scoped to cluster-agent,
+  // where it started; the rest of the repo still carries ~290 of them.
+  {
+    files: ["apps/cluster-agent/src/**/*.ts"],
+    ignores: ["**/*.test.ts"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        ...[
+          "TSMethodSignature > :matches(Identifier, ObjectPattern) > TSTypeAnnotation > TSTypeLiteral",
+          "ExportNamedDeclaration > FunctionDeclaration > :matches(Identifier, ObjectPattern) > TSTypeAnnotation > TSTypeLiteral",
+        ].map((selector) => ({
+          selector,
+          message:
+            "Type this parameter with a named, exported type instead of an inline object literal, so callers share one declaration.",
+        })),
+      ],
+    },
+  },
+
   {
     files: ["**/*-memory.ts"],
     rules: { "re-lint/no-row-types-outside-models": "off" },

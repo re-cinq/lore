@@ -1,5 +1,5 @@
 import { buildMcpServer } from "./transport/build-mcp-server.js";
-import { startHttpGateway } from "./transport/http-transport.js";
+import { startHttpGatewayFromEnv } from "./transport/http-transport.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { dumpSessionLog } from "@re-cinq/lore-server-core/platform/session-tracker.js";
 import { loadTaskTypes } from "@re-cinq/lore-server-core/features/pipeline/pipeline-config.js";
@@ -11,7 +11,7 @@ async function main() {
   loadDefaultTemplates();
 
   if (httpGatewayRequested()) {
-    startGatewayFromEnv();
+    startHttpGatewayFromEnv(process.env);
 
     return;
   }
@@ -23,14 +23,6 @@ function httpGatewayRequested(): boolean {
   return (
     process.env.LORE_MCP_HTTP === "1" || process.env.LORE_MCP_HTTP === "true"
   );
-}
-
-function startGatewayFromEnv(): void {
-  startHttpGateway({
-    port: Number.parseInt(process.env.LORE_MCP_PORT ?? "8080", 10),
-    authToken: process.env.LORE_MCP_AUTH_TOKEN,
-    serverMode: process.env.LORE_MCP_SERVER_MODE === "agent" ? "agent" : "full",
-  });
 }
 
 async function startStdioAdapter(): Promise<void> {

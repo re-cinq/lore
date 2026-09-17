@@ -9,6 +9,7 @@ import { PgUsage } from "@re-cinq/lore-shared/project/usage/usage-pg.js";
 import { loadTaskTypes } from "@re-cinq/lore-server-core/features/pipeline/pipeline-config.js";
 import { loadDefaultTemplates } from "@re-cinq/lore-server-core/features/context/context-assembly.js";
 import { startHttpServer } from "./app/http-server.js";
+import { dbConfigFromEnv } from "@re-cinq/lore-shared/db/pg-pool.js";
 
 // Shared mutable state: the DB pool is created in main() and read lazily by route handlers via getPool().
 const state: { pool: Pool | null } = { pool: null };
@@ -35,7 +36,7 @@ async function main() {
 
 /** One pool reaches four consumers: the three server-core module singletons plus the LLM usage sink. */
 function connectDatabase(dbHost: string): Pool {
-  const dbPool = createPool(dbHost);
+  const dbPool = createPool();
 
   setPool(dbPool);
   setMemoryPool(dbPool);
@@ -46,14 +47,8 @@ function connectDatabase(dbHost: string): Pool {
   return dbPool;
 }
 
-function createPool(dbHost: string): Pool {
-  const dbPool = new pg.Pool({
-    host: dbHost,
-    port: parseInt(process.env.LORE_DB_PORT || "5432", 10),
-    database: process.env.LORE_DB_NAME || "lore",
-    user: process.env.LORE_DB_USER || "postgres",
-    password: process.env.LORE_DB_PASSWORD,
-  });
+function createPool(): Pool {
+  const dbPool = new pg.Pool(dbConfigFromEnv());
 
   // An idle client's error surfaces on the pool rather than a query, and unhandled it takes the process down.
   dbPool.on("error", (err) => {

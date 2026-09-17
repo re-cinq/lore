@@ -8,19 +8,17 @@ import {
   UI_MANAGED_BY,
   validateCatalogEntry,
   type CatalogCrdOptions,
+  type CrdPair,
 } from "@re-cinq/lore-shared/project/agents/agent-crd.js";
 import { isPermanentApplyError } from "../../lib/k8s-errors.js";
 import type { CatalogApplyReport } from "@re-cinq/lore-shared/project/agents/catalog-status-port.js";
-import type { AgentDefinition, Station } from "@re-cinq/agent-contracts";
+import type { AgentDefinition } from "@re-cinq/agent-contracts";
 import type { ClusterAgentIdentity } from "../../domain/identity.js";
 import type { CatalogEventsResponse } from "./catalog-sync-loop.js";
 
 /** The three catalog operations a sync needs: applyPair/deletePair plus the read the seed-ownership guard makes. */
 export interface CatalogTarget {
-  applyPair(pair: {
-    agentDefinition: AgentDefinition;
-    station: Station;
-  }): Promise<void>;
+  applyPair(pair: CrdPair): Promise<void>;
   deletePair(name: string): Promise<void>;
   getAgentDefinition(name: string): Promise<AgentDefinition | null>;
 }

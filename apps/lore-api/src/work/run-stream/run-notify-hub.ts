@@ -2,6 +2,7 @@
 
 import pg from "pg";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { dbConfigFromEnv } from "@re-cinq/lore-shared/db/pg-pool.js";
 
 export const NOTIFY_CHANNEL = "lore_run_stream";
 
@@ -287,13 +288,7 @@ export class PgRunNotifier implements RunNotifier {
 
 /** The process-wide notifier, built from the same env the pool reads. */
 export function connectFromEnv(): ListenClient {
-  return new pg.Client({
-    host: process.env.LORE_DB_HOST,
-    port: parseInt(process.env.LORE_DB_PORT || "5432", 10),
-    database: process.env.LORE_DB_NAME || "lore",
-    user: process.env.LORE_DB_USER || "postgres",
-    password: process.env.LORE_DB_PASSWORD,
-  }) as unknown as ListenClient;
+  return new pg.Client(dbConfigFromEnv()) as unknown as ListenClient;
 }
 
 let notifierSingleton: PgRunNotifier | undefined;
