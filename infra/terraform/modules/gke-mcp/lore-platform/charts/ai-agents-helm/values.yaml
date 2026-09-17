@@ -141,19 +141,22 @@ controller:
     # line: informer watch + cache reconcile, /healthz from bind, conversation
     # continuity, tar-free conversation archiving.
     # Digests come from the release's install.yaml
-    # (https://github.com/re-cinq/ai-agent-subsystem/releases/tag/v0.10.13), or:
-    #   skopeo inspect docker://ghcr.io/re-cinq/ai-agent-controller:v0.10.13
-    digest: "sha256:53e53d719384cb79ab1679ec14a757901522a9aff4be320e8e31273255a621de"
+    # (https://github.com/re-cinq/ai-agent-subsystem/releases/tag/v0.10.14), or:
+    #   skopeo inspect docker://ghcr.io/re-cinq/ai-agent-controller:v0.10.14
+    digest: "sha256:292838ac9f58e5db88436b5b8334aabf5e9181f7c0d54473583039519fa13c77"
   # The image whose init container injects the agent runtime + supervisor into each run
-  # pod. Controller + agent ship as a PAIR from the v-tag matrix — pinned to the v0.10.13
+  # pod. Controller + agent ship as a PAIR from the v-tag matrix — pinned to the v0.10.14
   # digest, paired with the controller above. The GeminiSetup installer lives in THIS
   # image (the init container is what installs the vendor CLI), so the pair must move
   # together or a gemini run still boots a pod with no gemini binary in it. The
   # push-token fixes live in this image too — the init writes v0.10.11's token file and
   # v0.10.12's http extraheader. v0.10.13 clones and pushes through lore-api's
   # git-credential broker when the run carries git_credential (#2015, #2016).
-  #   skopeo inspect --no-tags docker://ghcr.io/re-cinq/ai-agent:v0.10.13
-  agentImage: "ghcr.io/re-cinq/ai-agent@sha256:720105399dc19b439a52e1bfe6fbae29dc888c6be368c835897f307b3d75c88e"
+  # v0.10.14's init also fetches the registry's per-vendor hook bundle
+  # (`<skills_source>/hooks/<vendor>.tar.gz`, after the skills) — the Claude bundle
+  # carries the settings.json that wires the Bash test guard (#2080, #2081).
+  #   skopeo inspect --no-tags docker://ghcr.io/re-cinq/ai-agent:v0.10.14
+  agentImage: "ghcr.io/re-cinq/ai-agent@sha256:ef61b9763b1048cab959e5b96f0da9e97d4099f850130e9dfb2026238228f2b4"
   # Tail of run-pod log kept in Agent.status.output (bounds the object under etcd's limit).
   maxOutputBytes: "262144"
   resources:
