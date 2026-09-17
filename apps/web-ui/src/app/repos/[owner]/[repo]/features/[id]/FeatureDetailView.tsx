@@ -10,7 +10,8 @@ import {
 } from "@/components/FeatureAssemblyLine";
 import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
 import { featurePhaseOf } from "@/lib/feature-phase";
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
+import { Alert } from "@/components/Alert";
 import StatusBadge from "../StatusBadge";
 import { isLifecycleActive } from "@/lib/feature-status";
 import PlanningWizard from "./PlanningWizard";
@@ -32,26 +33,43 @@ interface FeatureDetailViewProps {
   refine: (
     userAnswers: SectionAnswers,
     fromIteration?: number,
-  ) => Promise<void>;
-  onCreateSpecFile: (userAnswers: SectionAnswers) => Promise<void>;
-  split: (title: string, prompt: string) => Promise<void>;
-  del: () => Promise<void>;
+  ) => Promise<string | void>;
+  onCreateSpecFile: (userAnswers: SectionAnswers) => Promise<string | void>;
+  split: (title: string, prompt: string) => Promise<string | void>;
+  del: () => Promise<string | void>;
 }
 
 export default function FeatureDetailView(props: FeatureDetailViewProps) {
   const { owner, repo, feature } = props;
   const [pending, startTransition] = useTransition();
+  const [actionError, setActionError] = useState<string | null>(null);
+
   const onCreateDraft = (title: string, prompt: string) =>
-    startTransition(() => props.split(title, prompt));
+    startTransition(async () => {
+      setActionError(null);
+      const refusal = await props.split(title, prompt);
+      if (refusal) setActionError(refusal);
+    });
 
   return (
     <div>
       <FeatureIntro {...props} base={`/repos/${owner}/${repo}`} />
+      {actionError ? (
+        <div className="spec-card">
+          <Alert variant="secondary">{actionError}</Alert>
+        </div>
+      ) : null}
       <LifecycleBody {...props} onCreateDraft={onCreateDraft} />
       <DeleteFeature
         title={feature.title}
         pending={pending}
-        onDelete={() => startTransition(() => props.del())}
+        onDelete={() =>
+          startTransition(async () => {
+            setActionError(null);
+            const refusal = await props.del();
+            if (refusal) setActionError(refusal);
+          })
+        }
       />
     </div>
   );
@@ -137,8 +155,8 @@ interface LifecycleBodyProps {
   refine: (
     userAnswers: SectionAnswers,
     fromIteration?: number,
-  ) => Promise<void>;
-  onCreateSpecFile: (userAnswers: SectionAnswers) => Promise<void>;
+  ) => Promise<string | void>;
+  onCreateSpecFile: (userAnswers: SectionAnswers) => Promise<string | void>;
   onCreateDraft: (title: string, prompt: string) => void;
 }
 

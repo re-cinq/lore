@@ -25,6 +25,8 @@ interface AnalysisViewProps {
   rounds: ReturnType<typeof rewindOptions>;
   continueFrom: number | undefined;
   rewinding: boolean;
+  /** Error message from a server-action refusal (4xx), shown near the submit buttons. */
+  actionError?: string | null;
 }
 
 export function AnalysisView(props: AnalysisViewProps) {
@@ -36,7 +38,14 @@ export function AnalysisView(props: AnalysisViewProps) {
     return failureBlock ?? <EmptyAnalysis />;
   }
 
-  return <AnalysisBody {...props} gap={gap} failureBlock={failureBlock} />;
+  return (
+    <AnalysisBody
+      {...props}
+      gap={gap}
+      failureBlock={failureBlock}
+      showCreateSpec={!props.failed}
+    />
+  );
 }
 
 /** No round has produced an analysis yet. Distinct from a FAILED round, which shows the failure instead — an author who sees this has nothing wrong to fix, only a round still to finish. */
@@ -67,11 +76,19 @@ function RoundFailure(props: AnalysisViewProps) {
 
 type AnalysisBodyProps = Pick<
   AnalysisViewProps,
-  "feedback" | "handlers" | "pending" | "rounds" | "continueFrom" | "rewinding"
+  | "feedback"
+  | "handlers"
+  | "pending"
+  | "rounds"
+  | "continueFrom"
+  | "rewinding"
+  | "actionError"
 > & {
   /** Non-optional here: the caller only renders this once it HAS an analysis. */
   gap: NonNullable<AnalysisViewProps["gap"]>;
   failureBlock: React.ReactNode;
+  /** When false, "Create the spec PR" is hidden — a failed run should not offer it. */
+  showCreateSpec?: boolean;
 };
 
 /** The analysis itself: what the round found, what the author can say back, and what a rewind would do. Separate from AnalysisView, which decides WHETHER there is an analysis to show at all. */
@@ -107,7 +124,11 @@ function AnalysisActions(props: AnalysisBodyProps) {
         onRefine={handlers.onRefine}
         onCreateSpecPr={handlers.onCreateSpecPr}
         onContinueFrom={handlers.onContinueFrom}
+        showCreateSpec={props.showCreateSpec}
       />
+      {props.actionError ? (
+        <Alert variant="secondary">{props.actionError}</Alert>
+      ) : null}
       <RewindNote show={props.rewinding} continueFrom={props.continueFrom} />
     </>
   );
@@ -120,16 +141,19 @@ interface RoundActionsProps {
   onRefine: () => void;
   onCreateSpecPr: () => void;
   onContinueFrom: (iteration: number) => void;
+  showCreateSpec?: boolean;
 }
 
 /** The two ways forward from an analysis, and the picker that decides which round the next one continues from. */
 function RoundActions(props: RoundActionsProps) {
-  const { pending, rounds, continueFrom } = props;
+  const { pending, rounds, continueFrom, showCreateSpec = true } = props;
 
   return (
     <div className={styles.actions}>
       <RefineButton pending={pending} onClick={props.onRefine} />
-      <CreateSpecPrButton disabled={pending} onClick={props.onCreateSpecPr} />
+      {showCreateSpec && (
+        <CreateSpecPrButton disabled={pending} onClick={props.onCreateSpecPr} />
+      )}
       {rounds.length > 1 && (
         <RewindPicker
           rounds={rounds}

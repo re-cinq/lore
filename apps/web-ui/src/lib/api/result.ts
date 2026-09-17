@@ -22,15 +22,30 @@ export async function toApiResult<T>(res: Response): Promise<ApiResult<T>> {
   return { status: "ok", data: body as T };
 }
 
-/** Throws when the result did not succeed — an ignored `ApiResult` return would swallow every 4xx/5xx as a silent no-op refresh. Local, not `enforceTrue` from @re-cinq/lore-shared: web-ui isn't an npm workspace member. */
-export function enforceOk<T>(action: string, result: ApiResult<T>): T {
+/**
+ * Returns data on success. For a lore-api **refusal** (4xx), returns the
+ * formatted error string instead of throwing so a server action can surface it
+ * as rendered state rather than a 500. For a **fault** (5xx / unreachable /
+ * unconfigured), still throws — those are not the caller's concern to handle.
+ */
+export function enforceOk<T>(action: string, result: ApiResult<T>): T | string {
   if (result.status === "ok") {
     return result.data;
   }
 
-  throw new Error(
+  const message =
     result.status === "unconfigured"
       ? `${action} is unavailable: the web UI has no LORE_API_URL plus LORE_ADMIN_TOKEN or LORE_INGEST_TOKEN configured.`
-      : `${action} failed: ${result.message}`,
-  );
+      : `${action} failed: ${result.message}`;
+
+  if (
+    result.status === "error" &&
+    result.code !== undefined &&
+    result.code >= 400 &&
+    result.code < 500
+  ) {
+    return message;
+  }
+
+  throw new Error(message);
 }

@@ -23,8 +23,8 @@ export interface PlanningRoundInput {
   refine: (
     userAnswers: SectionAnswers,
     fromIteration?: number,
-  ) => Promise<void>;
-  onFinalize: (userAnswers: SectionAnswers) => Promise<void>;
+  ) => Promise<string | void>;
+  onFinalize: (userAnswers: SectionAnswers) => Promise<string | void>;
 }
 
 type PollData = ReturnType<typeof useSeededPoll>["data"];
@@ -65,6 +65,7 @@ function useRoundDraft() {
   const [continueFrom, setContinueFrom] = useState<number | undefined>();
   const [pending, startTransition] = useTransition();
   const [finalizing, setFinalizing] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   return {
     feedback,
@@ -75,6 +76,8 @@ function useRoundDraft() {
     startTransition,
     finalizing,
     setFinalizing,
+    actionError,
+    setActionError,
   };
 }
 
@@ -183,7 +186,7 @@ function useRoundSubmits(
   };
 }
 
-/** Refining keeps the round going: it clears the form and the rewind choice, because both belong to the round just submitted. */
+/** Refining keeps the round going: it clears the form and the rewind choice, because both belong to the round just submitted. A 4xx refusal from lore-api is captured as `actionError` rather than thrown. */
 function refineSubmitter(
   draft: RoundDraft,
   actions: RoundActions,
@@ -191,14 +194,22 @@ function refineSubmitter(
 ) {
   return () =>
     draft.startTransition(async () => {
-      await actions.refine(toUserAnswers(draft.feedback), draft.continueFrom);
+      draft.setActionError(null);
+      const refusal = await actions.refine(
+        toUserAnswers(draft.feedback),
+        draft.continueFrom,
+      );
+      if (refusal) {
+        draft.setActionError(refusal);
+        return;
+      }
       draft.setFeedback(emptyFeedback());
       draft.setContinueFrom(undefined);
       await fetchLatest();
     });
 }
 
-/** Finalizing ends planning, so it latches `finalizing` first — that flag is what makes the page refresh once the feature leaves planning. */
+/** Finalizing ends planning, so it latches `finalizing` first — that flag is what makes the page refresh once the feature leaves planning. A 4xx refusal is captured as `actionError`. */
 function finalizeSubmitter(
   draft: RoundDraft,
   actions: RoundActions,
@@ -206,8 +217,14 @@ function finalizeSubmitter(
 ) {
   return () =>
     draft.startTransition(async () => {
+      draft.setActionError(null);
       draft.setFinalizing(true);
-      await actions.onFinalize(toUserAnswers(draft.feedback));
+      const refusal = await actions.onFinalize(toUserAnswers(draft.feedback));
+      if (refusal) {
+        draft.setActionError(refusal);
+        draft.setFinalizing(false);
+        return;
+      }
       draft.setFeedback(emptyFeedback());
       await fetchLatest();
     });
@@ -239,6 +256,7 @@ interface AnalysisState {
   rounds: ReturnType<typeof rewindOptions>;
   continueFrom: number | undefined;
   rewinding: boolean;
+  actionError: string | null;
 }
 
 export function analysisProps(state: AnalysisState) {
@@ -256,6 +274,7 @@ export function analysisProps(state: AnalysisState) {
     rounds: state.rounds,
     continueFrom: state.continueFrom,
     rewinding: state.rewinding,
+    actionError: state.actionError,
   };
 }
 

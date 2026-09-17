@@ -128,6 +128,18 @@ describe("featurePhaseOf — read from the line", () => {
     ).toMatchObject({ kind: "failed" });
   });
 
+  it("reports failed when run status is failed regardless of node outcomes", () => {
+    expect(
+      featurePhaseOf({
+        run: run("failed", [
+          node("analyze", "success"),
+          node("push", "success"),
+        ]),
+        feature: feature("planning"),
+      }),
+    ).toMatchObject({ kind: "failed" });
+  });
+
   it("falls back rather than guessing when a running line has no open node", () => {
     expect(
       featurePhaseOf({

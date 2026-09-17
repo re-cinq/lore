@@ -65,6 +65,10 @@ function phaseFromLine(run: FeaturePhaseInput["run"]): FeaturePhase | null {
     return null;
   }
 
+  if (run.status === "failed") {
+    return { kind: "failed" };
+  }
+
   if (hasFailedNode(run.nodes)) {
     return { kind: "failed" };
   }

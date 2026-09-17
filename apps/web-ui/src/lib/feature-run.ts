@@ -16,6 +16,7 @@ import { graphIsCacheable } from "./run-graph-cache";
 export interface FeatureRunPayload {
   id: string;
   status: string;
+  outcome: string | null;
   startedAt: string | null;
   repo: string;
   reason: string | null;
@@ -90,7 +91,7 @@ export function toFeatureRunPayload(
 
 /** The run columns the payload carries through verbatim. */
 function runFields(run: AssemblyRun) {
-  const { id, status, startedAt, repo, reason } = run;
+  const { id, status, outcome, startedAt, repo, reason } = run;
 
-  return { id, status, startedAt, repo, reason };
+  return { id, status, outcome, startedAt, repo, reason };
 }

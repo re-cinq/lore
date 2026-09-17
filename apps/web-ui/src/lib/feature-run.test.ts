@@ -115,4 +115,19 @@ describe("toFeatureRunPayload", () => {
       reason: 'node "analyze" failed',
     });
   });
+
+  it("carries the run outcome so the feature phase can detect a run-level failure", () => {
+    const failed = {
+      ...planningRun,
+      status: "failed",
+      outcome: "failed",
+      reason:
+        "push node reported success but pushed nothing — branch has no commits",
+    };
+
+    expect(toFeatureRunPayload(failed, [analyzeNode])).toMatchObject({
+      status: "failed",
+      outcome: "failed",
+    });
+  });
 });

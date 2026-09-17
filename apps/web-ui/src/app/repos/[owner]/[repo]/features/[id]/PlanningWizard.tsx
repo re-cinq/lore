@@ -21,8 +21,8 @@ interface PlanningWizardProps {
   refine: (
     userAnswers: SectionAnswers,
     fromIteration?: number,
-  ) => Promise<void>;
-  onFinalize: (userAnswers: SectionAnswers) => Promise<void>;
+  ) => Promise<string | void>;
+  onFinalize: (userAnswers: SectionAnswers) => Promise<string | void>;
   onCreateDraft: (title: string, prompt: string) => void;
   /** Parent owns it for decomposition rows; wizard decides when based on line state. */
   settledView: ReactNode;

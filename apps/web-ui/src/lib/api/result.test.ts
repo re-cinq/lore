@@ -74,9 +74,29 @@ describe("enforceOk", () => {
     ).toThrow(/Create feature is unavailable.*LORE_API_URL/);
   });
 
-  it("throws naming the action and the upstream message, rather than resolving as a silent no-op", () => {
+  it("throws naming the action and the upstream message for an error without an HTTP code", () => {
     expect(() =>
-      enforceOk("Refine", { status: "error", message: "409 round in flight" }),
-    ).toThrow("Refine failed: 409 round in flight");
+      enforceOk("Refine", { status: "error", message: "round in flight" }),
+    ).toThrow("Refine failed: round in flight");
+  });
+
+  it("returns the message for a 4xx refusal instead of throwing, so a server action does not 500", () => {
+    expect(
+      enforceOk("Creating the spec file", {
+        status: "error",
+        message: "no plan is waiting to be accepted",
+        code: 409,
+      }),
+    ).toBe("Creating the spec file failed: no plan is waiting to be accepted");
+  });
+
+  it("still throws for a 5xx fault", () => {
+    expect(() =>
+      enforceOk("Fetch", {
+        status: "error",
+        message: "internal server error",
+        code: 500,
+      }),
+    ).toThrow("Fetch failed: internal server error");
   });
 });
