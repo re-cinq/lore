@@ -14,9 +14,7 @@ import {
   generateOpenApi,
   summarizeCoverage,
 } from "../transport/openapi/build-document.js";
-
-// 1 MB body cap applied to every native route via the server payload default.
-const MAX_BODY_BYTES = 1_048_576;
+import { MAX_JSON_BODY_BYTES } from "@re-cinq/lore-shared/http/body-limits.js";
 
 // `traceHttp` is the metric half the span does not carry — lore-api recorded it per request before the tracing plugin was shared, and still does.
 const TRACING = { tracerName: "lore.api.http", observe: traceHttp };
@@ -27,7 +25,7 @@ export function buildServer(getPool: () => Pool | null, port = 0): Hapi.Server {
     host: "0.0.0.0",
     routes: {
       // ADR-034: parse JSON regardless of Content-Type (preserve pre-hapi agnostic behavior).
-      payload: { maxBytes: MAX_BODY_BYTES, override: "application/json" },
+      payload: { maxBytes: MAX_JSON_BODY_BYTES, override: "application/json" },
       // Zod schemas fail through zodFailAction, shaping every 400 as { error }.
       validate: { failAction: zodFailAction },
     },

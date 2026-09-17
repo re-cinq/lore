@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import Hapi from "@hapi/hapi";
-import { clusterRoutes, type ClusterDeps } from "./cluster.js";
+import { clusterRoutes, type ClusterDeps } from "./cluster-routes.js";
 
 const TOKEN = "tok-1";
 const auth = { authorization: `Bearer ${TOKEN}` };

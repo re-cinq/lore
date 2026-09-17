@@ -16,13 +16,13 @@ export function enforceTrue(
   throw buildError(errorType, errorMessage);
 }
 
-// todo: test this function
+// The message is optional because the bound itself is usually the whole explanation; every caller so far omits it.
 export function enforceIntegerInterval(
   value: number,
   min: number,
   max: number,
   errorType: ErrorType,
-  errorMessage: string,
+  errorMessage?: string,
 ): asserts value is number {
   enforceTrue(
     Number.isInteger(value) && value >= min && value <= max,

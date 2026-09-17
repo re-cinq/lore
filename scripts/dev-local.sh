@@ -246,7 +246,7 @@ commands=(
   "npm run dev -w @re-cinq/lore-mcp"
   "LORE_MCP_HTTP=1 LORE_MCP_PORT=3002 LORE_AGENT_SKILLS_DIR=$ROOT/apps/mcp-server/agent-skills npm run start -w @re-cinq/lore-mcp"
   "npm run dev -w @re-cinq/lore-floor"
-  "npm run start:watch -w @re-cinq/lore-floor"
+  "PORT=8080 npm run start:watch -w @re-cinq/lore-floor"
   "npm run dev -w @re-cinq/lore-event-router"
   "PORT=3003 npm run start:watch -w @re-cinq/lore-event-router"
   "npm run dev -w @re-cinq/lore-stations"

@@ -8,6 +8,10 @@ import { EventSink, UnconfiguredSink } from "./event-sink.js";
 import type { Sink } from "./event-input-port.js";
 import type { EventDeliveriesPort } from "./event-deliveries-port.js";
 import type { EventReporter } from "./event-reporter-port.js";
+import {
+  DEFAULT_QUEUE_CAPACITY,
+  DEFAULT_REPORT_RETRY,
+} from "./event-tuning.js";
 
 export interface SelectReporterDeps {
   /** Pool-backed reporter to fall back to; a THUNK because eager resolution forced lore-api to demand a database even in tests with their own injected one. */
@@ -42,10 +46,6 @@ export function selectEventReporter(deps: SelectReporterDeps): EventReporter {
   );
 }
 
-/** Room for a router blip at the observed peak rate, not a durability budget — the queue is in memory and dies with the process. */
-// todo: those constants must be in a shared configuration file
-const DEFAULT_CAPACITY = 256;
-
 export interface SelectProxyDeps extends SelectReporterDeps {
   capacity?: number;
   retry?: { attempts: number; delayMs: number };
@@ -66,8 +66,8 @@ export function selectEventProxy(deps: SelectProxyDeps): EventProxy {
       event: new EventSink(reporter),
       telemetry: deps.telemetry ?? new UnconfiguredSink("telemetry"),
     },
-    capacity: deps.capacity ?? DEFAULT_CAPACITY,
-    retry: deps.retry ?? { attempts: 5, delayMs: 500 },
+    capacity: deps.capacity ?? DEFAULT_QUEUE_CAPACITY,
+    retry: deps.retry ?? DEFAULT_REPORT_RETRY,
     onUnauthorized: deps.onUnauthorized,
   });
 }

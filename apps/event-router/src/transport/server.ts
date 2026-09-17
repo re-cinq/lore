@@ -10,15 +10,13 @@ import { eventsRoute } from "./routes/events.js";
 import { eventDeliveryRoutes } from "./routes/event-deliveries.js";
 import { dbHealthRoute } from "@re-cinq/lore-shared/http/db-health-route.js";
 import { pipeline, deliveries, clusterAgents } from "../outbound/queues.js";
-
-// GitHub allows 25 MB; hapi default 1 MB would reject large push deliveries.
-const MAX_BODY_BYTES = 25 * 1024 * 1024;
+import { MAX_SERVER_BODY_BYTES } from "@re-cinq/lore-shared/http/body-limits.js";
 
 export function buildServer(opts: { port?: number } = {}): Hapi.Server {
   const server = Hapi.server({
     port: opts.port ?? 0,
     host: "0.0.0.0",
-    routes: { payload: { maxBytes: MAX_BODY_BYTES } },
+    routes: { payload: { maxBytes: MAX_SERVER_BODY_BYTES } },
   });
 
   logRequestErrors(server);

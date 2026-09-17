@@ -19,11 +19,13 @@ export interface HeartbeatDeps {
   log?: (line: string) => void;
 }
 
-/// todo: "ok" | "unauthorized" | "error" must be a type add a linter rule so this does not happen anymore.
-/** One beat. Returns "ok" | "unauthorized" | "error"; never throws. */
+/** What one beat concluded: the cluster answered, refused the credential, or could not be reached. */
+export type HeartbeatOutcome = "ok" | "unauthorized" | "error";
+
+/** One beat; never throws. */
 export async function heartbeatOnce(
   deps: HeartbeatDeps,
-): Promise<"ok" | "unauthorized" | "error"> {
+): Promise<HeartbeatOutcome> {
   const { id, token } = deps.identity();
   const log = heartbeatLog(deps);
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { enforceTrue, enforceOk } from "./enforce.js";
+import { enforceTrue, enforceOk, enforceIntegerInterval } from "./enforce.js";
 
 type Result =
   { ok: true; value: number } | { ok: false; status: number; error: string };
@@ -90,5 +90,46 @@ describe("enforceOk", () => {
     expect(() => enforceOk(result, badRequest)).toThrow(
       new RangeError("400: no repo field"),
     );
+  });
+});
+
+describe("enforceIntegerInterval", () => {
+  it("passes an integer inside the interval", () => {
+    expect(() => enforceIntegerInterval(50, 1, 100, Error)).not.toThrow();
+  });
+
+  it("passes the interval bounds themselves", () => {
+    expect(() => enforceIntegerInterval(1, 1, 100, Error)).not.toThrow();
+    expect(() => enforceIntegerInterval(100, 1, 100, Error)).not.toThrow();
+  });
+
+  it("refuses 101 against a maximum of 100 with the default message", () => {
+    expect(() => enforceIntegerInterval(101, 1, 100, Error)).toThrow(
+      new Error("value must be an integer in 1..100"),
+    );
+  });
+
+  it("refuses 0 against a minimum of 1", () => {
+    expect(() => enforceIntegerInterval(0, 1, 100, Error)).toThrow(
+      new Error("value must be an integer in 1..100"),
+    );
+  });
+
+  it("refuses a non-integer inside the interval", () => {
+    expect(() => enforceIntegerInterval(2.5, 1, 100, Error)).toThrow(
+      new Error("value must be an integer in 1..100"),
+    );
+  });
+
+  it("refuses NaN, which no comparison alone would catch", () => {
+    expect(() => enforceIntegerInterval(Number.NaN, 1, 100, Error)).toThrow(
+      new Error("value must be an integer in 1..100"),
+    );
+  });
+
+  it("uses the caller's message when one is given", () => {
+    expect(() =>
+      enforceIntegerInterval(500, 1, 100, Error, "limit is at most 100"),
+    ).toThrow(new Error("limit is at most 100"));
   });
 });

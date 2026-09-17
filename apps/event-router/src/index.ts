@@ -1,12 +1,13 @@
 /** Event-router process: pool + front door (ADR-044); Kubernetes watch moved to cluster-agent. */
 
-import { initPool, getPool } from "@re-cinq/lore-shared/db/pg-pool.js";
+import { initPool } from "@re-cinq/lore-shared/db/pg-pool.js";
 import { startServer } from "./transport/server.js";
+import { requiredPort } from "@re-cinq/lore-shared/lib/required-env.js";
 
-const PORT = parseInt(process.env.PORT ?? "8080", 10);
+const PORT = requiredPort(process.env, "PORT");
 
 async function main(): Promise<void> {
-  initPool();
+  const pool = initPool();
 
   const stopServer = await startServer(PORT);
 
@@ -14,7 +15,7 @@ async function main(): Promise<void> {
   const shutdown = async (signal: string): Promise<void> => {
     console.log(`[event-router] ${signal} — shutting down`);
     await stopServer();
-    await getPool().end();
+    await pool.end();
     process.exit(0);
   };
 
