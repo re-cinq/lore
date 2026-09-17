@@ -62,6 +62,8 @@ STALE_SECS=300       # a pending revision older than this is from a dead run, no
 # exits on the first successful upgrade.
 ATTEMPTS=24
 ERRLOG="$(mktemp)"
+TASK_TYPES="$(mktemp)"
+bash "$(dirname "$0")/../task-types-bundle.sh" >"$TASK_TYPES"
 
 # Every exit 1 goes through here, so a failed deploy leaves a trace a human
 # will see without re-opening the Actions tab (#1650): an open issue per
@@ -124,8 +126,8 @@ for attempt in $(seq 1 "$ATTEMPTS"); do
       "${repo_set[@]}" \
       "${overlay_flags[@]}" \
       --set lore-db-helm.ownershipReconciler.enabled=false \
-      --set-file lore-floor.taskTypesConfig=scripts/task-types.yaml \
-      --set-file lore-api.taskTypesConfig=scripts/task-types.yaml \
+      --set-file lore-floor.taskTypesConfig="$TASK_TYPES" \
+      --set-file lore-api.taskTypesConfig="$TASK_TYPES" \
       --reset-then-reuse-values \
       --cleanup-on-fail 2>"$ERRLOG"; then
     cat "$ERRLOG" >&2 || true # surface any helm warnings

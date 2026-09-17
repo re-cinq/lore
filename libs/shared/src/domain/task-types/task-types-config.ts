@@ -1,7 +1,8 @@
 /** The one declaration of `scripts/task-types.yaml`, replacing 4 disagreeing readers. Parsing is TOLERANT by design (also ships as a ConfigMap that can lag the code, #866) — it reports `drift` instead of throwing. */
 
-import { parse } from "yaml";
+import { parseAllDocuments } from "yaml";
 import { z } from "zod";
+import { enforceTrue } from "../../lib/enforce.js";
 
 export const TaskTypeConfigSchema = z.object({
   prompt_template: z.string(),
@@ -53,20 +54,59 @@ export interface TaskTypesFile {
   drift: string[];
 }
 
-/** Parse the YAML text into the two sections, reporting rather than raising. */
-export function parseTaskTypesFile(text: string): TaskTypesFile {
-  const parsed = parse(text) as {
-    task_types?: unknown;
-    stations?: unknown;
-  } | null;
-  const drift: string[] = [];
+type RawSections = { task_types?: unknown; stations?: unknown } | null;
 
-  return { ...readSections(parsed, drift), drift };
+/** Parse the YAML text into the two sections, reporting rather than raising. The text may be a multi-document stream — `task-types.yaml` followed by its `task-types.<name>.yaml` siblings, which is how the ConfigMap carries them — and a name two documents both declare keeps its first declaration. */
+export function parseTaskTypesFile(text: string): TaskTypesFile {
+  const drift: string[] = [];
+  const merged: Pick<TaskTypesFile, "taskTypes" | "stations"> = {
+    taskTypes: {},
+    stations: {},
+  };
+
+  for (const document of parseDocuments(text)) {
+    const sections = readSections(document, drift);
+
+    mergeSection("task_types", merged.taskTypes, sections.taskTypes, drift);
+    mergeSection("stations", merged.stations, sections.stations, drift);
+  }
+
+  return { ...merged, drift };
+}
+
+/** Every document in the stream as plain data; a malformed document still throws, so a loader moves on to its next candidate path. */
+function parseDocuments(text: string): RawSections[] {
+  return parseAllDocuments(text).map((document) => {
+    enforceTrue(
+      document.errors.length === 0,
+      Error,
+      document.errors.map((error) => error.message).join("; "),
+    );
+
+    return document.toJS() as RawSections;
+  });
+}
+
+function mergeSection<T>(
+  section: string,
+  target: Record<string, T>,
+  source: Record<string, T>,
+  drift: string[],
+): void {
+  for (const [name, value] of Object.entries(source)) {
+    if (Object.hasOwn(target, name)) {
+      drift.push(
+        `${section}.${name}: <entry> — declared in more than one document`,
+      );
+      continue;
+    }
+    target[name] = value;
+  }
 }
 
 /** Both sections read against one shared drift list, so a single report names every unreadable entry in the file. */
 function readSections(
-  parsed: { task_types?: unknown; stations?: unknown } | null,
+  parsed: RawSections,
   drift: string[],
 ): Pick<TaskTypesFile, "taskTypes" | "stations"> {
   return {

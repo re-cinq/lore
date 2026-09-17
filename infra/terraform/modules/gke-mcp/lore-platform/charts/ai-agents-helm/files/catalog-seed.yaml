@@ -259,434 +259,6 @@ spec:
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: AgentDefinition
 metadata:
-  name: implementation-tdd
-  labels:
-    app.kubernetes.io/managed-by: lore-catalog-seed
-  namespace: {{ .Values.namespace }}
-  annotations:
-    helm.sh/resource-policy: keep
-spec:
-  description: Lore implementation-tdd task recipe (seeded).
-  model: claude-sonnet-4-6
-  prompt: |-
-    {prompt}
-
-{{- if .Values.loreMcpUrl }}
-    {context}
-{{- end }}
-  permission_mode: bypass
-  max_turns: 200
-  resources:
-    secrets:
-      - name: {{ .Values.agentLlmSecretKey }}
-        ref: {{ .Values.agentLlmSecretKey }}
-    env:
-      - name: GIT_AUTHOR_NAME
-        value: Lore Agent
-      - name: GIT_AUTHOR_EMAIL
-        value: lore-agent@re-cinq.com
-      - name: GIT_COMMITTER_NAME
-        value: Lore Agent
-      - name: GIT_COMMITTER_EMAIL
-        value: lore-agent@re-cinq.com
-{{- if .Values.loreMcpUrl }}
-    mcp_servers:
-      - name: lore
-        transport: http
-        url: {{ .Values.loreMcpUrl }}
-        headers_secret: lore-mcp-auth
-{{- end }}
-{{- if .Values.loreSkillsUrl }}
-    skills:
-      - lore-context
-      - tdd-loop
-    skills_source: {{ .Values.loreSkillsUrl }}
-{{- end }}
-  disallowed_tools:
-    - mcp__lore__lore_create_pipeline_task
-  output:
-    sinks:
-      - type: stdout
-{{- if .Values.agentEventsUrl }}
-      - type: http
-        url: {{ .Values.agentEventsUrl }}
-        headers_secret: agent-events-auth
-{{- end }}
----
-apiVersion: agents.re-cinq.com/v1alpha1
-kind: Station
-metadata:
-  name: implementation-tdd
-  labels:
-    app.kubernetes.io/managed-by: lore-catalog-seed
-  namespace: {{ .Values.namespace }}
-  annotations:
-    helm.sh/resource-policy: keep
-spec:
-  agentDefRef: implementation-tdd
-  deadlineMinutes: 90
-  template:
-    spec:
-      containers:
-        - name: agent
-          image: node:22-bookworm
-          workingDir: /workspace/target
-          resources:
-            requests:
-              cpu: 250m
-              memory: 512Mi
-              ephemeral-storage: 2Gi
-            limits:
-              cpu: "1"
-              memory: 1Gi
-              ephemeral-storage: 4Gi
----
-apiVersion: agents.re-cinq.com/v1alpha1
-kind: AgentDefinition
-metadata:
-  name: acceptance-dod
-  labels:
-    app.kubernetes.io/managed-by: lore-catalog-seed
-  namespace: {{ .Values.namespace }}
-  annotations:
-    helm.sh/resource-policy: keep
-spec:
-  description: Lore acceptance-dod task recipe (seeded).
-  model: claude-sonnet-4-6
-  prompt: |-
-    {prompt}
-
-{{- if .Values.loreMcpUrl }}
-    {context}
-{{- end }}
-  permission_mode: bypass
-  max_turns: 200
-  resources:
-    secrets:
-      - name: {{ .Values.agentLlmSecretKey }}
-        ref: {{ .Values.agentLlmSecretKey }}
-    env:
-      - name: GIT_AUTHOR_NAME
-        value: Lore Agent
-      - name: GIT_AUTHOR_EMAIL
-        value: lore-agent@re-cinq.com
-      - name: GIT_COMMITTER_NAME
-        value: Lore Agent
-      - name: GIT_COMMITTER_EMAIL
-        value: lore-agent@re-cinq.com
-{{- if .Values.loreMcpUrl }}
-    mcp_servers:
-      - name: lore
-        transport: http
-        url: {{ .Values.loreMcpUrl }}
-        headers_secret: lore-mcp-auth
-{{- end }}
-{{- if .Values.loreSkillsUrl }}
-    skills:
-      - lore-context
-      - tdd-loop
-      - legacy-characterize
-    skills_source: {{ .Values.loreSkillsUrl }}
-{{- end }}
-  disallowed_tools:
-    - mcp__lore__lore_create_pipeline_task
-  output:
-    sinks:
-      - type: stdout
-{{- if .Values.agentEventsUrl }}
-      - type: http
-        url: {{ .Values.agentEventsUrl }}
-        headers_secret: agent-events-auth
-{{- end }}
----
-apiVersion: agents.re-cinq.com/v1alpha1
-kind: Station
-metadata:
-  name: acceptance-dod
-  labels:
-    app.kubernetes.io/managed-by: lore-catalog-seed
-  namespace: {{ .Values.namespace }}
-  annotations:
-    helm.sh/resource-policy: keep
-spec:
-  agentDefRef: acceptance-dod
-  deadlineMinutes: 60
-  template:
-    spec:
-      containers:
-        - name: agent
-          image: node:22-bookworm
-          workingDir: /workspace/target
-          resources:
-            requests:
-              cpu: 250m
-              memory: 512Mi
-              ephemeral-storage: 2Gi
-            limits:
-              cpu: "1"
-              memory: 1Gi
-              ephemeral-storage: 4Gi
----
-apiVersion: agents.re-cinq.com/v1alpha1
-kind: AgentDefinition
-metadata:
-  name: tdd-round
-  labels:
-    app.kubernetes.io/managed-by: lore-catalog-seed
-  namespace: {{ .Values.namespace }}
-  annotations:
-    helm.sh/resource-policy: keep
-spec:
-  description: Lore tdd-round task recipe (seeded).
-  model: claude-sonnet-4-6
-  prompt: |-
-    {prompt}
-
-{{- if .Values.loreMcpUrl }}
-    {context}
-{{- end }}
-  permission_mode: bypass
-  max_turns: 200
-  resources:
-    secrets:
-      - name: {{ .Values.agentLlmSecretKey }}
-        ref: {{ .Values.agentLlmSecretKey }}
-    env:
-      - name: GIT_AUTHOR_NAME
-        value: Lore Agent
-      - name: GIT_AUTHOR_EMAIL
-        value: lore-agent@re-cinq.com
-      - name: GIT_COMMITTER_NAME
-        value: Lore Agent
-      - name: GIT_COMMITTER_EMAIL
-        value: lore-agent@re-cinq.com
-{{- if .Values.loreMcpUrl }}
-    mcp_servers:
-      - name: lore
-        transport: http
-        url: {{ .Values.loreMcpUrl }}
-        headers_secret: lore-mcp-auth
-{{- end }}
-{{- if .Values.loreSkillsUrl }}
-    skills:
-      - lore-context
-      - tdd-loop
-    skills_source: {{ .Values.loreSkillsUrl }}
-{{- end }}
-  disallowed_tools:
-    - mcp__lore__lore_create_pipeline_task
-  output:
-    sinks:
-      - type: stdout
-{{- if .Values.agentEventsUrl }}
-      - type: http
-        url: {{ .Values.agentEventsUrl }}
-        headers_secret: agent-events-auth
-{{- end }}
----
-apiVersion: agents.re-cinq.com/v1alpha1
-kind: Station
-metadata:
-  name: tdd-round
-  labels:
-    app.kubernetes.io/managed-by: lore-catalog-seed
-  namespace: {{ .Values.namespace }}
-  annotations:
-    helm.sh/resource-policy: keep
-spec:
-  agentDefRef: tdd-round
-  deadlineMinutes: 60
-  template:
-    spec:
-      containers:
-        - name: agent
-          image: node:22-bookworm
-          workingDir: /workspace/target
-          resources:
-            requests:
-              cpu: 250m
-              memory: 512Mi
-              ephemeral-storage: 2Gi
-            limits:
-              cpu: "1"
-              memory: 1Gi
-              ephemeral-storage: 4Gi
----
-apiVersion: agents.re-cinq.com/v1alpha1
-kind: AgentDefinition
-metadata:
-  name: fix-ci
-  labels:
-    app.kubernetes.io/managed-by: lore-catalog-seed
-  namespace: {{ .Values.namespace }}
-  annotations:
-    helm.sh/resource-policy: keep
-spec:
-  description: Lore fix-ci task recipe (seeded).
-  model: claude-sonnet-4-6
-  prompt: |-
-    {prompt}
-
-{{- if .Values.loreMcpUrl }}
-    {context}
-{{- end }}
-  permission_mode: bypass
-  max_turns: 200
-  resources:
-    secrets:
-      - name: {{ .Values.agentLlmSecretKey }}
-        ref: {{ .Values.agentLlmSecretKey }}
-    env:
-      - name: GIT_AUTHOR_NAME
-        value: Lore Agent
-      - name: GIT_AUTHOR_EMAIL
-        value: lore-agent@re-cinq.com
-      - name: GIT_COMMITTER_NAME
-        value: Lore Agent
-      - name: GIT_COMMITTER_EMAIL
-        value: lore-agent@re-cinq.com
-{{- if .Values.loreMcpUrl }}
-    mcp_servers:
-      - name: lore
-        transport: http
-        url: {{ .Values.loreMcpUrl }}
-        headers_secret: lore-mcp-auth
-{{- end }}
-{{- if .Values.loreSkillsUrl }}
-    skills:
-      - lore-context
-    skills_source: {{ .Values.loreSkillsUrl }}
-{{- end }}
-  disallowed_tools:
-    - mcp__lore__lore_create_pipeline_task
-  output:
-    sinks:
-      - type: stdout
-{{- if .Values.agentEventsUrl }}
-      - type: http
-        url: {{ .Values.agentEventsUrl }}
-        headers_secret: agent-events-auth
-{{- end }}
----
-apiVersion: agents.re-cinq.com/v1alpha1
-kind: Station
-metadata:
-  name: fix-ci
-  labels:
-    app.kubernetes.io/managed-by: lore-catalog-seed
-  namespace: {{ .Values.namespace }}
-  annotations:
-    helm.sh/resource-policy: keep
-spec:
-  agentDefRef: fix-ci
-  deadlineMinutes: 45
-  template:
-    spec:
-      containers:
-        - name: agent
-          image: node:22-bookworm
-          workingDir: /workspace/target
-          resources:
-            requests:
-              cpu: 250m
-              memory: 512Mi
-              ephemeral-storage: 2Gi
-            limits:
-              cpu: "1"
-              memory: 1Gi
-              ephemeral-storage: 4Gi
----
-apiVersion: agents.re-cinq.com/v1alpha1
-kind: AgentDefinition
-metadata:
-  name: pr-ready
-  labels:
-    app.kubernetes.io/managed-by: lore-catalog-seed
-  namespace: {{ .Values.namespace }}
-  annotations:
-    helm.sh/resource-policy: keep
-spec:
-  description: Lore pr-ready task recipe (seeded).
-  model: claude-sonnet-4-6
-  prompt: |-
-    {prompt}
-
-{{- if .Values.loreMcpUrl }}
-    {context}
-{{- end }}
-  permission_mode: bypass
-  max_turns: 200
-  resources:
-    secrets:
-      - name: {{ .Values.agentLlmSecretKey }}
-        ref: {{ .Values.agentLlmSecretKey }}
-    env:
-      - name: GIT_AUTHOR_NAME
-        value: Lore Agent
-      - name: GIT_AUTHOR_EMAIL
-        value: lore-agent@re-cinq.com
-      - name: GIT_COMMITTER_NAME
-        value: Lore Agent
-      - name: GIT_COMMITTER_EMAIL
-        value: lore-agent@re-cinq.com
-{{- if .Values.loreMcpUrl }}
-    mcp_servers:
-      - name: lore
-        transport: http
-        url: {{ .Values.loreMcpUrl }}
-        headers_secret: lore-mcp-auth
-{{- end }}
-{{- if .Values.loreSkillsUrl }}
-    skills:
-      - lore-context
-      - tdd-loop
-    skills_source: {{ .Values.loreSkillsUrl }}
-{{- end }}
-  disallowed_tools:
-    - mcp__lore__lore_create_pipeline_task
-  output:
-    sinks:
-      - type: stdout
-{{- if .Values.agentEventsUrl }}
-      - type: http
-        url: {{ .Values.agentEventsUrl }}
-        headers_secret: agent-events-auth
-{{- end }}
-    watch:
-      - event: pr.description
-        path: target/.lore/pr-body.md
----
-apiVersion: agents.re-cinq.com/v1alpha1
-kind: Station
-metadata:
-  name: pr-ready
-  labels:
-    app.kubernetes.io/managed-by: lore-catalog-seed
-  namespace: {{ .Values.namespace }}
-  annotations:
-    helm.sh/resource-policy: keep
-spec:
-  agentDefRef: pr-ready
-  deadlineMinutes: 20
-  template:
-    spec:
-      containers:
-        - name: agent
-          image: node:22-bookworm
-          workingDir: /workspace/target
-          resources:
-            requests:
-              cpu: 250m
-              memory: 512Mi
-              ephemeral-storage: 2Gi
-            limits:
-              cpu: "1"
-              memory: 1Gi
-              ephemeral-storage: 4Gi
----
-apiVersion: agents.re-cinq.com/v1alpha1
-kind: AgentDefinition
-metadata:
   name: address-feedback
   labels:
     app.kubernetes.io/managed-by: lore-catalog-seed
@@ -1817,6 +1389,434 @@ metadata:
 spec:
   agentDefRef: onboard
   deadlineMinutes: 15
+  template:
+    spec:
+      containers:
+        - name: agent
+          image: node:22-bookworm
+          workingDir: /workspace/target
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+              ephemeral-storage: 2Gi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+              ephemeral-storage: 4Gi
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: AgentDefinition
+metadata:
+  name: implementation-tdd
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  description: Lore implementation-tdd task recipe (seeded).
+  model: claude-sonnet-4-6
+  prompt: |-
+    {prompt}
+
+{{- if .Values.loreMcpUrl }}
+    {context}
+{{- end }}
+  permission_mode: bypass
+  max_turns: 200
+  resources:
+    secrets:
+      - name: {{ .Values.agentLlmSecretKey }}
+        ref: {{ .Values.agentLlmSecretKey }}
+    env:
+      - name: GIT_AUTHOR_NAME
+        value: Lore Agent
+      - name: GIT_AUTHOR_EMAIL
+        value: lore-agent@re-cinq.com
+      - name: GIT_COMMITTER_NAME
+        value: Lore Agent
+      - name: GIT_COMMITTER_EMAIL
+        value: lore-agent@re-cinq.com
+{{- if .Values.loreMcpUrl }}
+    mcp_servers:
+      - name: lore
+        transport: http
+        url: {{ .Values.loreMcpUrl }}
+        headers_secret: lore-mcp-auth
+{{- end }}
+{{- if .Values.loreSkillsUrl }}
+    skills:
+      - lore-context
+      - tdd-loop
+    skills_source: {{ .Values.loreSkillsUrl }}
+{{- end }}
+  disallowed_tools:
+    - mcp__lore__lore_create_pipeline_task
+  output:
+    sinks:
+      - type: stdout
+{{- if .Values.agentEventsUrl }}
+      - type: http
+        url: {{ .Values.agentEventsUrl }}
+        headers_secret: agent-events-auth
+{{- end }}
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: Station
+metadata:
+  name: implementation-tdd
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  agentDefRef: implementation-tdd
+  deadlineMinutes: 90
+  template:
+    spec:
+      containers:
+        - name: agent
+          image: node:22-bookworm
+          workingDir: /workspace/target
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+              ephemeral-storage: 2Gi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+              ephemeral-storage: 4Gi
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: AgentDefinition
+metadata:
+  name: acceptance-dod
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  description: Lore acceptance-dod task recipe (seeded).
+  model: claude-sonnet-4-6
+  prompt: |-
+    {prompt}
+
+{{- if .Values.loreMcpUrl }}
+    {context}
+{{- end }}
+  permission_mode: bypass
+  max_turns: 200
+  resources:
+    secrets:
+      - name: {{ .Values.agentLlmSecretKey }}
+        ref: {{ .Values.agentLlmSecretKey }}
+    env:
+      - name: GIT_AUTHOR_NAME
+        value: Lore Agent
+      - name: GIT_AUTHOR_EMAIL
+        value: lore-agent@re-cinq.com
+      - name: GIT_COMMITTER_NAME
+        value: Lore Agent
+      - name: GIT_COMMITTER_EMAIL
+        value: lore-agent@re-cinq.com
+{{- if .Values.loreMcpUrl }}
+    mcp_servers:
+      - name: lore
+        transport: http
+        url: {{ .Values.loreMcpUrl }}
+        headers_secret: lore-mcp-auth
+{{- end }}
+{{- if .Values.loreSkillsUrl }}
+    skills:
+      - lore-context
+      - tdd-loop
+      - legacy-characterize
+    skills_source: {{ .Values.loreSkillsUrl }}
+{{- end }}
+  disallowed_tools:
+    - mcp__lore__lore_create_pipeline_task
+  output:
+    sinks:
+      - type: stdout
+{{- if .Values.agentEventsUrl }}
+      - type: http
+        url: {{ .Values.agentEventsUrl }}
+        headers_secret: agent-events-auth
+{{- end }}
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: Station
+metadata:
+  name: acceptance-dod
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  agentDefRef: acceptance-dod
+  deadlineMinutes: 60
+  template:
+    spec:
+      containers:
+        - name: agent
+          image: node:22-bookworm
+          workingDir: /workspace/target
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+              ephemeral-storage: 2Gi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+              ephemeral-storage: 4Gi
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: AgentDefinition
+metadata:
+  name: tdd-round
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  description: Lore tdd-round task recipe (seeded).
+  model: claude-sonnet-4-6
+  prompt: |-
+    {prompt}
+
+{{- if .Values.loreMcpUrl }}
+    {context}
+{{- end }}
+  permission_mode: bypass
+  max_turns: 200
+  resources:
+    secrets:
+      - name: {{ .Values.agentLlmSecretKey }}
+        ref: {{ .Values.agentLlmSecretKey }}
+    env:
+      - name: GIT_AUTHOR_NAME
+        value: Lore Agent
+      - name: GIT_AUTHOR_EMAIL
+        value: lore-agent@re-cinq.com
+      - name: GIT_COMMITTER_NAME
+        value: Lore Agent
+      - name: GIT_COMMITTER_EMAIL
+        value: lore-agent@re-cinq.com
+{{- if .Values.loreMcpUrl }}
+    mcp_servers:
+      - name: lore
+        transport: http
+        url: {{ .Values.loreMcpUrl }}
+        headers_secret: lore-mcp-auth
+{{- end }}
+{{- if .Values.loreSkillsUrl }}
+    skills:
+      - lore-context
+      - tdd-loop
+    skills_source: {{ .Values.loreSkillsUrl }}
+{{- end }}
+  disallowed_tools:
+    - mcp__lore__lore_create_pipeline_task
+  output:
+    sinks:
+      - type: stdout
+{{- if .Values.agentEventsUrl }}
+      - type: http
+        url: {{ .Values.agentEventsUrl }}
+        headers_secret: agent-events-auth
+{{- end }}
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: Station
+metadata:
+  name: tdd-round
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  agentDefRef: tdd-round
+  deadlineMinutes: 60
+  template:
+    spec:
+      containers:
+        - name: agent
+          image: node:22-bookworm
+          workingDir: /workspace/target
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+              ephemeral-storage: 2Gi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+              ephemeral-storage: 4Gi
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: AgentDefinition
+metadata:
+  name: fix-ci
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  description: Lore fix-ci task recipe (seeded).
+  model: claude-sonnet-4-6
+  prompt: |-
+    {prompt}
+
+{{- if .Values.loreMcpUrl }}
+    {context}
+{{- end }}
+  permission_mode: bypass
+  max_turns: 200
+  resources:
+    secrets:
+      - name: {{ .Values.agentLlmSecretKey }}
+        ref: {{ .Values.agentLlmSecretKey }}
+    env:
+      - name: GIT_AUTHOR_NAME
+        value: Lore Agent
+      - name: GIT_AUTHOR_EMAIL
+        value: lore-agent@re-cinq.com
+      - name: GIT_COMMITTER_NAME
+        value: Lore Agent
+      - name: GIT_COMMITTER_EMAIL
+        value: lore-agent@re-cinq.com
+{{- if .Values.loreMcpUrl }}
+    mcp_servers:
+      - name: lore
+        transport: http
+        url: {{ .Values.loreMcpUrl }}
+        headers_secret: lore-mcp-auth
+{{- end }}
+{{- if .Values.loreSkillsUrl }}
+    skills:
+      - lore-context
+    skills_source: {{ .Values.loreSkillsUrl }}
+{{- end }}
+  disallowed_tools:
+    - mcp__lore__lore_create_pipeline_task
+  output:
+    sinks:
+      - type: stdout
+{{- if .Values.agentEventsUrl }}
+      - type: http
+        url: {{ .Values.agentEventsUrl }}
+        headers_secret: agent-events-auth
+{{- end }}
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: Station
+metadata:
+  name: fix-ci
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  agentDefRef: fix-ci
+  deadlineMinutes: 45
+  template:
+    spec:
+      containers:
+        - name: agent
+          image: node:22-bookworm
+          workingDir: /workspace/target
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+              ephemeral-storage: 2Gi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+              ephemeral-storage: 4Gi
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: AgentDefinition
+metadata:
+  name: pr-ready
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  description: Lore pr-ready task recipe (seeded).
+  model: claude-sonnet-4-6
+  prompt: |-
+    {prompt}
+
+{{- if .Values.loreMcpUrl }}
+    {context}
+{{- end }}
+  permission_mode: bypass
+  max_turns: 200
+  resources:
+    secrets:
+      - name: {{ .Values.agentLlmSecretKey }}
+        ref: {{ .Values.agentLlmSecretKey }}
+    env:
+      - name: GIT_AUTHOR_NAME
+        value: Lore Agent
+      - name: GIT_AUTHOR_EMAIL
+        value: lore-agent@re-cinq.com
+      - name: GIT_COMMITTER_NAME
+        value: Lore Agent
+      - name: GIT_COMMITTER_EMAIL
+        value: lore-agent@re-cinq.com
+{{- if .Values.loreMcpUrl }}
+    mcp_servers:
+      - name: lore
+        transport: http
+        url: {{ .Values.loreMcpUrl }}
+        headers_secret: lore-mcp-auth
+{{- end }}
+{{- if .Values.loreSkillsUrl }}
+    skills:
+      - lore-context
+      - tdd-loop
+    skills_source: {{ .Values.loreSkillsUrl }}
+{{- end }}
+  disallowed_tools:
+    - mcp__lore__lore_create_pipeline_task
+  output:
+    sinks:
+      - type: stdout
+{{- if .Values.agentEventsUrl }}
+      - type: http
+        url: {{ .Values.agentEventsUrl }}
+        headers_secret: agent-events-auth
+{{- end }}
+    watch:
+      - event: pr.description
+        path: target/.lore/pr-body.md
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: Station
+metadata:
+  name: pr-ready
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  agentDefRef: pr-ready
+  deadlineMinutes: 20
   template:
     spec:
       containers:

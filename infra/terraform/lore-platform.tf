@@ -20,6 +20,13 @@
 # --------------------------------------------------------------------------
 
 locals {
+  # scripts/task-types.yaml and its task-types.*.yaml siblings as one multi-document
+  # stream, the shape scripts/task-types-bundle.sh gives the CI deploy.
+  task_types_config = join("\n---\n", concat(
+    [file("${path.module}/../../scripts/task-types.yaml")],
+    [for f in sort(fileset("${path.module}/../../scripts", "task-types.*.yaml")) : file("${path.module}/../../scripts/${f}")],
+  ))
+
   # In-cluster base URL of the lore-mcp gateway (Service `lore-mcp-gateway` in the
   # lore-api namespace, ClusterIP :8080). Agent run pods MUST use this rather than the
   # public host in var.lore_mcp_url: Dataplane V2 short-circuits a VIP whose backend
@@ -59,7 +66,7 @@ resource "helm_release" "lore_platform" {
   values = [yamlencode({
     # ---- Floor (lore-floor namespace) ----
     "lore-floor" = {
-      taskTypesConfig = file("${path.module}/../../scripts/task-types.yaml")
+      taskTypesConfig = local.task_types_config
       gcpProject      = var.project_id
       env = {
         LORE_DB_HOST     = "lore-db-rw.lore-db.svc.cluster.local"
@@ -101,7 +108,7 @@ resource "helm_release" "lore_platform" {
 
     # ---- Lore API (lore-api namespace) ----
     "lore-api" = {
-      taskTypesConfig = file("${path.module}/../../scripts/task-types.yaml")
+      taskTypesConfig = local.task_types_config
       replicaCount    = 1
       gcpProject      = var.project_id
       env = {
