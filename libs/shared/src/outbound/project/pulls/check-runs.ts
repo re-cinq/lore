@@ -17,6 +17,21 @@ const FAILED_CONCLUSIONS = new Set([
 /** Checks Lore itself publishes; the loop's CI verdict ignores them, or a run waits on its own review check while the PR is still a draft. */
 const LORE_CHECK_PREFIX = "lore/";
 
+/** The fast per-push re-check publishes under the deep review's check name so a required `lore/code-review` branch-protection check is refreshed on every push, not stranded under a separate name. */
+const CHECK_NAME_ALIAS: Record<string, string> = {
+  "code-review-recheck": "code-review",
+};
+
+/** The check run name Lore publishes a run of `blueprintName` under, without the `lore/` prefix. */
+export function checkDisplayName(blueprintName: string): string {
+  return CHECK_NAME_ALIAS[blueprintName] ?? blueprintName;
+}
+
+/** The check run a run of `blueprintName` publishes on its pull request. */
+export function loreCheckName(blueprintName: string): string {
+  return `${LORE_CHECK_PREFIX}${checkDisplayName(blueprintName)}`;
+}
+
 /** Markers GitHub honours to skip a workflow run — a commit carrying one gets no checks, so it can never be the sha a verdict is read from. */
 export const SKIP_CI_MARKERS = [
   "[skip ci]",

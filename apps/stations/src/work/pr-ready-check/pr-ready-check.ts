@@ -6,10 +6,11 @@ import {
   type ParkedTarget,
 } from "@re-cinq/lore-shared/project/assembly-runs/parked-node.js";
 import { ciReportForRun, prReportForRun } from "./park-readers.js";
-import type {
-  LoopRunSlice,
-  ParkedReport,
-  PrReadyCheckDeps,
+import {
+  LOOP_BLUEPRINT,
+  type LoopRunSlice,
+  type ParkedReport,
+  type PrReadyCheckDeps,
 } from "./sweep-contract.js";
 
 export type {
@@ -133,7 +134,7 @@ function runReads(
   return {
     listOpenLoopRuns: () =>
       pipeline().assemblyRuns.list({
-        blueprintName: "implementation-loop",
+        blueprintName: LOOP_BLUEPRINT,
         status: OPEN_RUN_STATUS,
       }),
     listStationRuns: (runId) => pipeline().assemblyRuns.listStationRuns(runId),
