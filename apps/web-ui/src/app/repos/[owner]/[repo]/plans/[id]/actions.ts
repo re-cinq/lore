@@ -25,7 +25,9 @@ export async function openPlanSocketAction(
   }
   const minted = await mintCollabToken(fullName, planId, allowed.user, "write");
 
-  return minted.status === "ok" ? { wsUrl, ...minted.data } : { error: "Could not open the plan." };
+  return minted.status === "ok"
+    ? { wsUrl, ...minted.data }
+    : { error: "Could not open the plan." };
 }
 
 export async function approvePlanAction(
@@ -39,12 +41,15 @@ export async function approvePlanAction(
   }
   const approved = await approvePlan(planId, allowed.user.id);
 
-  return approved.status === "ok" ? {} : { error: "The plan is not ready to approve yet." };
+  return approved.status === "ok"
+    ? {}
+    : { error: "The plan is not ready to approve yet." };
 }
 
 // Both actions are bound to one plan of one repo on the server; the person must be signed in and able to see the repo on GitHub.
 async function allowedUser(fullName: string): Promise<Allowed> {
-  const session = (await getSession()) as (PlanSession & { accessToken?: string }) | null;
+  const session = (await getSession()) as
+    (PlanSession & { accessToken?: string }) | null;
   const user = planUserOf(session);
 
   if (!user || !session?.accessToken) {

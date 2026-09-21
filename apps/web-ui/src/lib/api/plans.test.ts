@@ -3,8 +3,14 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-const { listPlans, createPlan, readPlan, approvePlan, mintCollabToken, seedPlan } =
-  await import("./plans");
+const {
+  listPlans,
+  createPlan,
+  readPlan,
+  approvePlan,
+  mintCollabToken,
+  seedPlan,
+} = await import("./plans");
 
 let fetchMock: ReturnType<typeof vi.fn>;
 
@@ -42,19 +48,33 @@ describe("plans client", () => {
   });
 
   it("creates a feature plan for re-cinq/lore written by gedaiu", async () => {
-    await createPlan({ repo: "re-cinq/lore", title: "Faster checkout", type: "feature", createdBy: "gedaiu" });
+    await createPlan({
+      repo: "re-cinq/lore",
+      title: "Faster checkout",
+      type: "feature",
+      createdBy: "gedaiu",
+    });
 
     expect(request()).toEqual({
       url: "http://api:3000/api/plans",
       method: "POST",
-      body: { repo: "re-cinq/lore", title: "Faster checkout", type: "feature", createdBy: "gedaiu" },
+      body: {
+        repo: "re-cinq/lore",
+        title: "Faster checkout",
+        type: "feature",
+        createdBy: "gedaiu",
+      },
     });
   });
 
   it("reads plan p1 from the plans API", async () => {
     await readPlan("p1");
 
-    expect(request()).toEqual({ url: "http://api:3000/api/plans/p1", method: "GET", body: undefined });
+    expect(request()).toEqual({
+      url: "http://api:3000/api/plans/p1",
+      method: "GET",
+      body: undefined,
+    });
   });
 
   it("approves plan p1 in gedaiu's name", async () => {
@@ -68,7 +88,12 @@ describe("plans client", () => {
   });
 
   it("mints a write collab token on plan p1 of re-cinq/lore for gedaiu", async () => {
-    await mintCollabToken("re-cinq/lore", "p1", { id: "gedaiu", name: "Bogdan" }, "write");
+    await mintCollabToken(
+      "re-cinq/lore",
+      "p1",
+      { id: "gedaiu", name: "Bogdan" },
+      "write",
+    );
 
     expect(request()).toEqual({
       url: "http://api:3000/api/repos/re-cinq/lore/plans/p1/collab-token",
@@ -78,14 +103,23 @@ describe("plans client", () => {
   });
 
   it("seeds plan p1's intent with gedaiu's two paragraphs", async () => {
-    await seedPlan("p1", "gedaiu", ["Checkout is slow.", "Mobile users drop off."]);
+    await seedPlan("p1", "gedaiu", [
+      "Checkout is slow.",
+      "Mobile users drop off.",
+    ]);
 
     expect(request()).toEqual({
       url: "http://api:3000/api/plans/p1/agent-edits",
       method: "POST",
       body: {
         actor: "gedaiu",
-        ops: [{ op: "set-section-text", slot: "intent", paragraphs: ["Checkout is slow.", "Mobile users drop off."] }],
+        ops: [
+          {
+            op: "set-section-text",
+            slot: "intent",
+            paragraphs: ["Checkout is slow.", "Mobile users drop off."],
+          },
+        ],
       },
     });
   });

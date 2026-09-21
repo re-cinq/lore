@@ -18,15 +18,19 @@ describe("PlanListView", () => {
   it("invites a first plan with + Plan when the repo has none", () => {
     render(<PlanListView base={BASE} plans={[]} />);
 
-    expect(screen.getByText(/No plans yet/)).toHaveTextContent("No plans yet. Click + Plan to write one with the planning agent.");
+    expect(screen.getByText(/No plans yet/)).toHaveTextContent(
+      "No plans yet. Click + Plan to write one with the planning agent.",
+    );
   });
 
   it("links Faster checkout to its plan page with its Approved status", () => {
     render(<PlanListView base={BASE} plans={[PLAN]} />);
 
-    expect(screen.getByRole("link", { name: /Faster checkout/ })).toMatchObject({
-      href: expect.stringContaining(`${BASE}/p1`),
-      textContent: expect.stringContaining("Approved"),
-    });
+    expect(screen.getByRole("link", { name: /Faster checkout/ })).toMatchObject(
+      {
+        href: expect.stringContaining(`${BASE}/p1`),
+        textContent: expect.stringContaining("Approved"),
+      },
+    );
   });
 });

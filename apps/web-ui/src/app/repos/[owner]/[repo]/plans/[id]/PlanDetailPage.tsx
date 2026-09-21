@@ -26,7 +26,10 @@ export default async function PlanDetailPage({
 }
 
 // A plan is only shown under the repo it belongs to.
-async function repoPlanMeta(fullName: string, planId: string): Promise<PlanMeta> {
+async function repoPlanMeta(
+  fullName: string,
+  planId: string,
+): Promise<PlanMeta> {
   const stored = await readPlan(planId);
   const plan = stored.status === "ok" ? stored.data.json : undefined;
 

@@ -5,7 +5,9 @@ import type { PlanMeta } from "@re-cinq/planning-document";
 import PlanDetailView from "./PlanDetailView";
 
 vi.mock("./PlanWorkspace", () => ({
-  default: ({ user }: { user: { name: string } }) => <p>editor for {user.name}</p>,
+  default: ({ user }: { user: { name: string } }) => (
+    <p>editor for {user.name}</p>
+  ),
 }));
 
 const META: PlanMeta = {
@@ -22,11 +24,20 @@ const META: PlanMeta = {
   updatedAt: "2026-09-21T10:00:00.000Z",
 };
 
-const actions = { openSocket: async () => ({ error: "unused" }), approve: async () => ({}) };
+const actions = {
+  openSocket: async () => ({ error: "unused" }),
+  approve: async () => ({}),
+};
 
 describe("PlanDetailView", () => {
   it("opens the editor for the signed-in Bogdan", () => {
-    render(<PlanDetailView meta={META} user={{ id: "gedaiu", name: "Bogdan", color: "red" }} {...actions} />);
+    render(
+      <PlanDetailView
+        meta={META}
+        user={{ id: "gedaiu", name: "Bogdan", color: "red" }}
+        {...actions}
+      />,
+    );
 
     expect(screen.getByText("editor for Bogdan")).toBeInTheDocument();
   });

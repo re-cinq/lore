@@ -20,11 +20,22 @@ describe("PlanDetailPage", () => {
   it("answers not found for a plan that belongs to another repo", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => new Response(JSON.stringify({ json: { repo: "acme/shop" }, contentHash: "h", version: 1 }))),
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              json: { repo: "acme/shop" },
+              contentHash: "h",
+              version: 1,
+            }),
+          ),
+      ),
     );
 
     await expect(
-      PlanDetailPage({ params: Promise.resolve({ owner: "re-cinq", repo: "lore", id: "p1" }) }),
+      PlanDetailPage({
+        params: Promise.resolve({ owner: "re-cinq", repo: "lore", id: "p1" }),
+      }),
     ).rejects.toMatchObject({ digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
   });
 });

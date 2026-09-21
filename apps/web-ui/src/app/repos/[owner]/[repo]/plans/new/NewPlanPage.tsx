@@ -8,5 +8,7 @@ export default async function NewPlanPage({
 }) {
   const { owner, repo } = await params;
 
-  return <NewPlanView action={createPlanAction.bind(null, `${owner}/${repo}`)} />;
+  return (
+    <NewPlanView action={createPlanAction.bind(null, `${owner}/${repo}`)} />
+  );
 }

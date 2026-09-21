@@ -10,10 +10,18 @@ describe("NewPlanView", () => {
 
     expect({
       value: (template as HTMLSelectElement).value,
-      options: [...(template as HTMLSelectElement).options].map((option) => option.value),
+      options: [...(template as HTMLSelectElement).options].map(
+        (option) => option.value,
+      ),
     }).toEqual({
       value: "feature",
-      options: ["feature", "ui-change", "performance", "refactor", "incident-response"],
+      options: [
+        "feature",
+        "ui-change",
+        "performance",
+        "refactor",
+        "incident-response",
+      ],
     });
   });
 });

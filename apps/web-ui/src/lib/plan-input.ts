@@ -10,7 +10,9 @@ export interface NewPlanInput {
 const isPlanKind = (type: string): type is PlanKind =>
   (PLAN_KINDS as readonly string[]).includes(type);
 
-export function newPlanInput(formData: FormData): NewPlanInput | { error: string } {
+export function newPlanInput(
+  formData: FormData,
+): NewPlanInput | { error: string } {
   const title = field(formData, "title");
   const type = field(formData, "type");
 
@@ -39,7 +41,8 @@ export function planSocketUrl(
 ): string | undefined {
   return (
     env.LORE_PLANS_WS_URL ??
-    (env.LORE_API_URL && `${env.LORE_API_URL.replace(/^http/, "ws")}/api/plans/collab`)
+    (env.LORE_API_URL &&
+      `${env.LORE_API_URL.replace(/^http/, "ws")}/api/plans/collab`)
   );
 }
 

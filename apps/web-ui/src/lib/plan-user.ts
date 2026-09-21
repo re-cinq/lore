@@ -22,7 +22,10 @@ export function planUserOf(session: PlanSession | null): PlanUser | null {
 
 /** A colour derived from the id, so a person keeps theirs between visits. */
 export function colorFor(id: string): string {
-  const hue = [...id].reduce((sum, char) => (sum * 31 + char.charCodeAt(0)) % 360, 7);
+  const hue = [...id].reduce(
+    (sum, char) => (sum * 31 + char.charCodeAt(0)) % 360,
+    7,
+  );
 
   return `hsl(${hue} 65% 45%)`;
 }

@@ -11,20 +11,30 @@ interface PlanDetailViewProps extends PlanActions {
   user: PlanUser | null;
 }
 
-export default function PlanDetailView({ meta, user, ...actions }: PlanDetailViewProps) {
+export default function PlanDetailView({
+  meta,
+  user,
+  ...actions
+}: PlanDetailViewProps) {
   return (
     <div>
-      <div className={styles.header}>
-        <p className="meta">
-          {meta.type} plan · version {meta.version} · by {meta.createdBy}
-        </p>
-        <PlanStatusBadge status={meta.status} />
-      </div>
+      <PlanHeader meta={meta} />
       {user ? (
         <PlanWorkspace meta={meta} user={user} {...actions} />
       ) : (
         <Alert variant="secondary">Sign in to open this plan.</Alert>
       )}
+    </div>
+  );
+}
+
+function PlanHeader({ meta }: { meta: PlanMeta }) {
+  return (
+    <div className={styles.header}>
+      <p className="meta">
+        {meta.type} plan · version {meta.version} · by {meta.createdBy}
+      </p>
+      <PlanStatusBadge status={meta.status} />
     </div>
   );
 }

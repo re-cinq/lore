@@ -3,7 +3,11 @@
 import { redirect } from "next/navigation";
 import { createPlan, seedPlan } from "@/lib/api/plans";
 import type { ApiResult } from "@/lib/api/result";
-import { newPlanInput, paragraphsOf, type NewPlanInput } from "@/lib/plan-input";
+import {
+  newPlanInput,
+  paragraphsOf,
+  type NewPlanInput,
+} from "@/lib/plan-input";
 import { planUserOf, type PlanSession, type PlanUser } from "@/lib/plan-user";
 import { getSession } from "@/lib/session";
 
@@ -22,8 +26,25 @@ export async function createPlanAction(
   if ("error" in request) {
     return request;
   }
-  const { input, user } = request;
-  const created = await createPlan({ repo: fullName, title: input.title, type: input.type, createdBy: user.id });
+  const created = await createSeededPlan(fullName, request);
+
+  if ("error" in created) {
+    return created;
+  }
+  redirect(`/repos/${fullName}/plans/${created.id}`);
+}
+
+// The plan in lore-api, with what the author already knew written into its intent.
+async function createSeededPlan(
+  fullName: string,
+  { input, user }: { input: NewPlanInput; user: PlanUser },
+): Promise<{ id: string } | { error: string }> {
+  const created = await createPlan({
+    repo: fullName,
+    title: input.title,
+    type: input.type,
+    createdBy: user.id,
+  });
 
   if (created.status !== "ok") {
     return { error: failureOf(created) };
@@ -31,7 +52,8 @@ export async function createPlanAction(
   const { id } = created.data.meta;
 
   await seedIntent(id, user.id, input.description);
-  redirect(`/repos/${fullName}/plans/${id}`);
+
+  return { id };
 }
 
 // A valid form from a signed-in person, or what is wrong with it.
@@ -49,7 +71,11 @@ async function planRequest(
 }
 
 // What the author already knew becomes the plan's intent; an empty description leaves the template's own.
-async function seedIntent(planId: string, actor: string, description: string): Promise<void> {
+async function seedIntent(
+  planId: string,
+  actor: string,
+  description: string,
+): Promise<void> {
   const intent = paragraphsOf(description);
 
   if (intent.length > 0) {
@@ -57,7 +83,9 @@ async function seedIntent(planId: string, actor: string, description: string): P
   }
 }
 
-function failureOf(result: Exclude<ApiResult<unknown>, { status: "ok" }>): string {
+function failureOf(
+  result: Exclude<ApiResult<unknown>, { status: "ok" }>,
+): string {
   return result.status === "unconfigured"
     ? "The plans API is not configured (LORE_API_URL / token)."
     : result.message;

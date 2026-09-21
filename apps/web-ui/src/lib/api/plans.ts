@@ -1,5 +1,9 @@
 import "server-only";
-import type { PlanDocument, PlanKind, PlanMeta } from "@re-cinq/planning-document";
+import type {
+  PlanDocument,
+  PlanKind,
+  PlanMeta,
+} from "@re-cinq/planning-document";
 import { apiFetch } from "./client";
 import type { ApiResult } from "./result";
 import type { components } from "./schema";
@@ -54,10 +58,14 @@ export function mintCollabToken(
   user: { id: string; name: string },
   role: "read" | "write",
 ): Promise<ApiResult<CollabToken>> {
-  return apiFetch("lore-api", `/api/repos/${repo}/plans/${planId}/collab-token`, {
-    method: "POST",
-    body: { user, role },
-  });
+  return apiFetch(
+    "lore-api",
+    `/api/repos/${repo}/plans/${planId}/collab-token`,
+    {
+      method: "POST",
+      body: { user, role },
+    },
+  );
 }
 
 /** Writes what the author already knows into the new plan's intent, as an ordinary agent edit people then see in the document. */
@@ -68,6 +76,9 @@ export function seedPlan(
 ): Promise<ApiResult<PlanDocument>> {
   return apiFetch("lore-api", `/api/plans/${planId}/agent-edits`, {
     method: "POST",
-    body: { actor, ops: [{ op: "set-section-text", slot: "intent", paragraphs }] },
+    body: {
+      actor,
+      ops: [{ op: "set-section-text", slot: "intent", paragraphs }],
+    },
   });
 }
