@@ -40,6 +40,16 @@ const NODE_PHASES: Partial<Record<string, PlanRunPhase>> = {
   },
 };
 
+const LAST_PASS_FAILED: PlanRunPhase = {
+  tone: "failed",
+  text: "The planning agent's last pass failed. Refine a section or regenerate the plan to ask again.",
+};
+
+const MOVING_ON: PlanRunPhase = {
+  tone: "working",
+  text: "Moving to the next step.",
+};
+
 const REFINING: PlanRunPhase = {
   tone: "working",
   text: "The planning agent is refining a section.",
@@ -102,14 +112,27 @@ function openVisit(visits: readonly Visit[]): Visit | undefined {
 function openNodePhase(visits: readonly Visit[]): PlanRunPhase {
   const open = openVisit(visits);
 
-  if (open?.nodeId === "analyze" && open.iteration > 1) {
-    return REFINING;
+  return (open && passPhase(open, visits)) ?? nodePhase(open);
+}
+
+// Where the open node alone does not say it: a failed pass parks the line on its people rather than ending it, and analyze revisited is a Refine.
+function passPhase(
+  open: Visit,
+  visits: readonly Visit[],
+): PlanRunPhase | undefined {
+  if (open.nodeId === "author" && lastPassFailed(visits)) {
+    return LAST_PASS_FAILED;
   }
 
-  return (
-    (open && NODE_PHASES[open.nodeId]) ?? {
-      tone: "working",
-      text: "Moving to the next step.",
-    }
-  );
+  return open.nodeId === "analyze" && open.iteration > 1 ? REFINING : undefined;
+}
+
+function nodePhase(open: Visit | undefined): PlanRunPhase {
+  return (open && NODE_PHASES[open.nodeId]) ?? MOVING_ON;
+}
+
+function lastPassFailed(visits: readonly Visit[]): boolean {
+  const passes = visits.filter((visit) => visit.nodeId === "analyze");
+
+  return passes.at(-1)?.outcome === "failed";
 }

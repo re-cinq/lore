@@ -109,6 +109,15 @@ describe("planRunPhase on a run that ended without completing", () => {
   });
 });
 
+describe("planRunPhase after a pass that failed", () => {
+  it("says the agent's last pass failed while the line waits on its people", () => {
+    expect(running(visit("analyze", "failed"), visit("author", null))).toEqual({
+      tone: "failed",
+      text: "The planning agent's last pass failed. Refine a section or regenerate the plan to ask again.",
+    });
+  });
+});
+
 describe("isDraftingPlan", () => {
   const drafting = (status: string, ...nodes: ReturnType<typeof visit>[]) =>
     isDraftingPlan({ status }, nodes);
