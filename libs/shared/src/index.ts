@@ -56,7 +56,6 @@ export {
   HttpAgentApi,
   HttpPodLogSource,
   HttpTokenCleanup,
-  HttpAgentCatalog,
 } from "./outbound/cluster/cluster-agent-client.js";
 export {
   writeEpisode,

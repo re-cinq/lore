@@ -25,8 +25,6 @@ export const MAX_EXPECTS_BASELINE = [
   "apps/floor/src/transport/http/routes/agent-events-turns.test.ts",
   "apps/floor/src/transport/http/routes/agent-events.test.ts",
   "apps/floor/src/transport/http/routes/assembly-line-definitions.test.ts",
-  "apps/floor/src/work/agent/agent-catalog.test.ts",
-  "apps/floor/src/work/agent/catalog-mcp-guard.test.ts",
   "apps/floor/src/work/assembly-run/agent-config-alert.test.ts",
   "apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts",
   "apps/floor/src/work/assembly-run/assembly-run-station-backend.test.ts",

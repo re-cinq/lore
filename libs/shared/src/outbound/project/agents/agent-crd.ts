@@ -1,4 +1,4 @@
-// Catalog row → AgentDefinition+Station CRD pair (dispatch-time render); successor to both prior writers (floor agent-catalog.ts, lore-api's UI-authored agent-crd.ts).
+// Catalog row → AgentDefinition+Station CRD pair (dispatch-time render); the only renderer since the Helm seed and lore-api's push retired.
 
 import type {
   AgentDefinition,
@@ -28,13 +28,11 @@ const API_VERSION = "agents.re-cinq.com/v1alpha1";
 // glibc base; the subsystem's init container injects the claude runtime + supervisor.
 const BASE_IMAGE = "node:22-bookworm";
 
-// One writer, one label — old writers' labels retire with them; the sync loop skips seed-labeled CRs (see catalog-sync-loop).
+// One writer, one label — the sync loop overwrites whatever an older writer labeled.
 export const SYNC_MANAGED_BY = "lore-catalog-sync";
 export const SYNC_LABELS = {
   "app.kubernetes.io/managed-by": SYNC_MANAGED_BY,
 };
-/** lore-api's push-path label — a degraded render meant to die with its writer; the sync loop owns repair until cutover. */
-export const UI_MANAGED_BY = "lore-catalog-ui";
 
 // Only writable dir agent prompts can mean by "working directory"; unset inherits `/`, which is NOT writable (2026-08-10, minikube).
 const REPO_WORKDIR = "/workspace/target";

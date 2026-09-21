@@ -468,9 +468,9 @@ task_types:
     model: claude-haiku-4-5-20251001
 
   feature-planning:
-    # THE WHOLE PROMPT LIVES HERE. It is the only copy that reaches the agent:
-    # gen-catalog renders it into the seeded AgentDefinition recipe, and the pod runs
-    # that. It used to carry only the {description} wrapper while the role + output
+    # THE WHOLE PROMPT LIVES HERE. The org-default lore.agent_definitions row the
+    # cluster-agent renders was seeded from it (migrations 0018/0037), and it is the
+    # resolve fallback beneath that row. It used to carry only the {description} wrapper while the role + output
     # schema sat in a PLANNING_INSTRUCTIONS constant that no cluster path ever read —
     # so the agent was asked for "a valid GapResult" and never told what one is, and
     # produced sections half the time (rounds 10/13 of feature 275343d1 returned none).

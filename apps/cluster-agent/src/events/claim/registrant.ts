@@ -1,6 +1,5 @@
 // What a REGISTERED agent does; how a process becomes one is start-claim-loop.ts.
 
-import { KubeCatalogApi } from "../../outbound/kube-catalog-api.js";
 import { AgentCrBackend } from "@re-cinq/lore-shared/cluster/agent-backend.js";
 import { claimIntervalMs, claimOnce, runClaimLoop } from "./claim-loop.js";
 import {
@@ -211,14 +210,11 @@ function startCatalogSync(opts: SideLoopOpts): Promise<void> {
   return firstSync;
 }
 
-/** What a catalog sync writes through. Reads go direct to Kubernetes while writes go via clusterDeps, because a paired write is atomic there and a read never needs to be. */
+/** What a catalog sync writes through: clusterDeps, where a paired write is atomic. */
 function catalogTarget(): CatalogTarget {
-  const kubeCatalog = new KubeCatalogApi();
-
   return {
     applyPair: (pair) => clusterDeps().catalog.applyPair(pair),
     deletePair: (name) => clusterDeps().catalog.deletePair(name),
-    getAgentDefinition: (name) => kubeCatalog.getAgentDefinition(name),
   };
 }
 
@@ -235,7 +231,6 @@ function firstSyncLatch(): {
   return { firstSync, resolveFirstSync: () => resolveFirstSync() };
 }
 
-/** `ownSeeded` decides whether this cluster maintains the builtin recipes itself; a satellite leaves them to the platform's own agent. */
 function syncOptions(
   env: NodeJS.ProcessEnv,
   config: RegistrationConfig,
@@ -247,7 +242,6 @@ function syncOptions(
     identity,
     catalog,
     crdOptions: crdOptionsFromEnv(env),
-    ownSeeded: env.LORE_CATALOG_SYNC_OWN_SEEDED === "1",
   };
 }
 

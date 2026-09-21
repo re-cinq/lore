@@ -146,13 +146,6 @@ jobs:
           - name: declared-paths
             build: npm run build
             test: node scripts/check-declared-paths.mjs
-          # Catalog drift guard. The seeded ai-agents-helm catalog.yaml is generated
-          # from scripts/task-types.yaml by floor's gen:catalog; this fails the moment
-          # a recipe edit lands without regenerating the catalog. The script builds
-          # floor + regenerates itself, so it only needs shared + assembly-lines prebuilt.
-          - name: catalog-drift
-            build: npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-assembly-lines && npm run build -w @re-cinq/lore-stations
-            test: bash scripts/check-catalog-drift.sh
           # The OpenAPI artifact + the client types generated from it. web-ui's Docker
           # context (apps/web-ui) cannot reach lore-api at build time, so both are
           # COMMITTED rather than generated during the image build — which means only
