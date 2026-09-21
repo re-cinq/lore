@@ -2,7 +2,6 @@ import { notFound } from "next/navigation";
 import { planMetaSchema, type PlanMeta } from "@re-cinq/planning-document";
 import { readPlan } from "@/lib/api/plans";
 import { fetchAssemblyRunNodes, fetchPlanRun } from "@/lib/assembly-runs";
-import { definitionForRun } from "@/lib/run-graph-definition";
 import { planUserOf, type PlanSession } from "@/lib/plan-user";
 import { getSession } from "@/lib/session";
 import PlanDetailView from "./PlanDetailView";
@@ -60,7 +59,7 @@ async function repoPlanMeta(
   return planMetaSchema.parse(plan);
 }
 
-// The plan's planning run with its visits and graph, or null before one has started.
+// The plan's planning run with its visits, or null before one has started.
 async function planRunFor(
   repo: string,
   planId: string,
@@ -71,8 +70,7 @@ async function planRunFor(
     return null;
   }
   const nodes = await fetchAssemblyRunNodes(run.id);
-  const { definition } = definitionForRun(run.blueprintName, nodes, run.graph);
   const { id, status, reason, prUrl, prNumber } = run;
 
-  return { id, status, reason, repo, prUrl, prNumber, definition, nodes };
+  return { id, status, reason, prUrl, prNumber, nodes };
 }

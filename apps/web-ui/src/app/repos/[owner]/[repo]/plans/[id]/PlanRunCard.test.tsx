@@ -1,20 +1,14 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import PlanRunCard, { type PlanRun } from "./PlanRunCard";
-
-vi.mock("@/app/assembly-runs/[id]/RunVisualizationPanel", () => ({
-  default: ({ runId }: { runId: string }) => <p>graph of {runId}</p>,
-}));
 
 const RUN: PlanRun = {
   id: "run-1",
   status: "running",
   reason: null,
-  repo: "re-cinq/lore",
   prUrl: null,
   prNumber: null,
-  definition: null,
   nodes: [
     {
       nodeId: "analyze",
@@ -48,12 +42,6 @@ describe("PlanRunCard", () => {
       phase: "Waiting for you: refine sections or approve the plan.",
       link: "/assembly-runs/run-1",
     });
-  });
-
-  it("draws run-1's live graph", () => {
-    render(<PlanRunCard run={RUN} />);
-
-    expect(screen.getByText("graph of run-1")).toBeInTheDocument();
   });
 
   it("links the spec PR once the run opened one", () => {
