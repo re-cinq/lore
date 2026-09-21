@@ -4,7 +4,6 @@ import { Llm } from "@re-cinq/lore-shared";
 import { getPool, initPool } from "./outbound/db.js";
 import { awaitSoleFloor } from "./outbound/single-instance.js";
 import { eventProxy, usage } from "./outbound/queues.js";
-import { loadTaskTypes } from "./outbound/config.js";
 import { wireProject } from "./app/project-boot.js";
 import { recoverStaleTasks, startWorker } from "./work/task/worker.js";
 import {
@@ -70,22 +69,12 @@ async function bootRuntime(): Promise<void> {
   Llm.configure({ usage: usage() });
   console.log("[floor] Platform: github (via project facade)");
 
-  loadTaskTypesSafely();
-
   await loadApprovalConfig(getPool());
 
   const recovered = await recoverStaleTasks();
 
   if (recovered > 0) {
     console.log(`[floor] Recovered ${recovered} stale tasks`);
-  }
-}
-
-function loadTaskTypesSafely(): void {
-  try {
-    loadTaskTypes();
-  } catch (err) {
-    console.warn("[floor] Could not load task types:", err);
   }
 }
 
