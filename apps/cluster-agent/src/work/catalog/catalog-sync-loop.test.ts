@@ -94,6 +94,15 @@ describe("crdOptionsFromEnv", () => {
     });
     expect(crdOptionsFromEnv({})).toEqual({});
   });
+
+  it("renders pods with LORE_POD_API_URL host.minikube.internal when the agent's own LORE_API_URL is localhost", () => {
+    expect(
+      crdOptionsFromEnv({
+        LORE_API_URL: "http://localhost:3001",
+        LORE_POD_API_URL: "http://host.minikube.internal:3001",
+      }),
+    ).toEqual({ apiUrl: "http://host.minikube.internal:3001" });
+  });
 });
 
 describe("catalogSyncOnce", () => {

@@ -42,6 +42,8 @@ const CRD_OPTION_ENV_MAPPINGS: CrdOptionEnvMapping[] = [
   { envKey: "LORE_MCP_URL", optionKey: "mcpUrl" },
   { envKey: "LORE_SKILLS_URL", optionKey: "skillsUrl" },
   { envKey: "LORE_API_URL", optionKey: "apiUrl" },
+  // Order matters: a later mapping wins. A host-run agent reaches lore-api on localhost, which a pod cannot.
+  { envKey: "LORE_POD_API_URL", optionKey: "apiUrl" },
   { envKey: "LORE_AGENT_LLM_SECRET_KEY", optionKey: "llmSecretKey" },
   { envKey: "LORE_STATION_IMAGE", optionKey: "stationImage" },
   { envKey: "LORE_DGRAPH_HTTP", optionKey: "dgraphUrl" },
