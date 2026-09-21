@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import PlanRunCard, { type PlanRun } from "./PlanRunCard";
 
 const RUN: PlanRun = {
@@ -73,44 +73,77 @@ const refresh = vi.fn();
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 
-describe("PlanRunCard draft again", () => {
-  it("offers a fresh draft when the run failed on its first node, and refreshes once it starts", async () => {
+describe("PlanRunCard regenerate", () => {
+  const failed = {
+    ...RUN,
+    status: "failed",
+    reason: "no cluster-agent claimed this run",
+  };
+
+  it("regenerates the failed plan only after the confirmation popup, then refreshes", async () => {
     const draftAgain = vi.fn(async () => ({}));
 
-    render(
-      <PlanRunCard
-        run={{
-          ...RUN,
-          status: "failed",
-          reason: "no cluster-agent claimed this run",
-        }}
-        draftAgain={draftAgain}
-      />,
-    );
+    render(<PlanRunCard run={failed} draftAgain={draftAgain} />);
+    fireEvent.click(screen.getByRole("button", { name: "Regenerate plan" }));
+    const asked = draftAgain.mock.calls.length;
+
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Draft again" }));
+      fireEvent.click(
+        within(screen.getByRole("dialog")).getByRole("button", {
+          name: "Regenerate",
+        }),
+      );
     });
 
     expect({
-      asked: draftAgain.mock.calls.length,
+      asked,
+      regenerated: draftAgain.mock.calls.length,
       refreshed: refresh.mock.calls.length,
     }).toEqual({
-      asked: 1,
+      asked: 0,
+      regenerated: 1,
       refreshed: 1,
     });
   });
 
-  it("offers a draft for a plan no run was ever started for", () => {
+  it("closes the popup without regenerating when cancelled", () => {
+    const draftAgain = vi.fn(async () => ({}));
+
+    render(<PlanRunCard run={failed} draftAgain={draftAgain} />);
+    fireEvent.click(screen.getByRole("button", { name: "Regenerate plan" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect({
+      dialog: screen.queryByRole("dialog"),
+      calls: draftAgain.mock.calls.length,
+    }).toEqual({
+      dialog: null,
+      calls: 0,
+    });
+  });
+
+  it("warns in the popup that the agent's draft can replace what the plan's sections say", () => {
+    render(<PlanRunCard run={failed} draftAgain={async () => ({})} />);
+    fireEvent.click(screen.getByRole("button", { name: "Regenerate plan" }));
+
+    expect(screen.getByRole("dialog")).toHaveTextContent(
+      "can replace what its sections say",
+    );
+  });
+
+  it("offers a regeneration for a plan no run was ever started for", () => {
     render(<PlanRunCard run={null} draftAgain={async () => ({})} />);
 
     expect(
-      screen.getByRole("button", { name: "Draft again" }),
+      screen.getByRole("button", { name: "Regenerate plan" }),
     ).toBeInTheDocument();
   });
 
-  it("offers no fresh draft while the run is waiting on its people", () => {
+  it("offers no regeneration while the run is waiting on its people", () => {
     render(<PlanRunCard run={RUN} draftAgain={async () => ({})} />);
 
-    expect(screen.queryByRole("button", { name: "Draft again" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Regenerate plan" }),
+    ).toBeNull();
   });
 });

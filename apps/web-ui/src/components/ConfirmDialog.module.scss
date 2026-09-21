@@ -1,0 +1,24 @@
+.dialog {
+  max-width: 28rem;
+  padding: var(--space-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-surface);
+  color: var(--text);
+
+  h2 {
+    margin: 0 0 var(--space-3);
+    font-size: var(--fs-md);
+  }
+
+  &::backdrop {
+    background: color-mix(in srgb, var(--black) 50%, transparent);
+  }
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+}
