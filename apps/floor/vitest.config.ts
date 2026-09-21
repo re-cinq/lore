@@ -13,8 +13,6 @@ export default defineConfig({
       provider: "v8",
       // 100% gate on the pure mapping/decision logic of ai-agent-subsystem backend files (ADR-031, #683); IO adapters, composition roots, and other legacy floor files are excluded and not retroactively gated.
       include: [
-        "src/work/agent/agent-catalog.ts",
-        "src/work/agent/catalog-builders.ts",
         "src/work/agent/agent-events.ts",
         "src/work/agent/agent-run-events.ts",
         "src/work/assembly-run/floor-assembly-run.ts",

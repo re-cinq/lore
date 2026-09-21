@@ -55,7 +55,7 @@ require() {
 # fail CI, not ship.
 refuse() {
 	if grep -qi -- "$1" <<<"$out"; then
-		echo "  UNEXPECTED: $1 (the satellite reaches the world only through loreApiUrl + eventRouterUrl)" >&2
+		echo "  UNEXPECTED: $1" >&2
 		fail=1
 	else
 		echo "  ok: absent — $1"
@@ -89,58 +89,31 @@ refuse "LORE_DB_HOST"
 refuse "DATABASE_URL"
 refuse "pgvector"
 
-# #1575: the seeded catalog's http telemetry sink needs a bus-wide credential
-# (agent-events-auth, backed by LORE_AGENT_INTERNAL_TOKEN) this chart never
-# ships — it must not appear anywhere in the vendored ai-agents catalog seed.
-# Unguarded, this was a hard CreateContainerConfigError on every satellite
-# pod regardless of node type (found live, 2026-08-26).
+# The catalog is not rendered by any chart: this cluster-agent's sync loop
+# writes it from lore.agent_definitions. A seeded CR reappearing here would be
+# a second writer, the #2010 flap.
+refuse "lore-catalog-seed"
+
+# FR5: LORE_INGEST_TOKEN never leaves the central cluster, in any template.
+refuse "LORE_INGEST_TOKEN"
+
+# #1575: the http telemetry sink needs a credential this chart never ships, so
+# by default the sync gets no events URL and renders no sink. The same default
+# holds for MCP and skills: an unset URL omits the block it feeds.
 refuse "agent-events-auth"
+refuse "name: LORE_AGENT_EVENTS_URL"
+refuse "name: LORE_MCP_URL"
+refuse "name: LORE_SKILLS_URL"
+# What the sync always needs: a declared profile, and the one LLM key this
+# chart writes into agent-secrets.
+require 'name: LORE_CATALOG_PROFILE'
+require 'value: "bare"'
+require "name: LORE_AGENT_LLM_SECRET_KEY"
 
-# FR5: LORE_INGEST_TOKEN never leaves the central cluster. The chart's OWN
-# templates must not reference it (the vendored ai-agents catalog seed does,
-# for its station recipes, so the assertion is scoped to this chart's docs).
-own="$(awk '/^# Source: /{p = ($0 ~ /^# Source: lore-cluster-agent-standalone\/templates\//)} p' <<<"$out")"
-if grep -q "LORE_INGEST_TOKEN" <<<"$own"; then
-	echo "  UNEXPECTED: LORE_INGEST_TOKEN in the satellite's own templates (FR5: it never leaves the central cluster)" >&2
-	fail=1
-else
-	echo "  ok: absent — LORE_INGEST_TOKEN in the chart's own templates"
-fi
-
-# The telemetry opt-in: with a sink URL set, the seeded recipes MUST carry the
-# http sink and its credential key again. Guarding the sink (#1575) is only
-# correct if the guard also OPENS — a satellite that configures a reachable
-# Floor gets live per-tool-call telemetry, authenticated by the per-agent token
-# the cluster-agent publishes into agent-secrets.
-echo "[lore] helm template (telemetry opted in)"
-with_telemetry="$(helm template lore-satellite "$chart" \
-	--namespace lore-cluster-agent --include-crds \
-	--set loreApiUrl=https://lore-api.example.com \
-	--set eventRouterUrl=https://lore-events.example.com \
-	--set registrationToken=dummy-registration-token \
-	--set name=render-check \
-	--set 'tags={node:agent,node:validate}' \
-	--set ghcr.username=dummy \
-	--set ghcr.token=dummy \
-	--set llm.credential=dummy \
-	--set agentEventsUrl=https://lore-agent-events.example.com/api/agent-events \
-	--set ai-agents.agentEventsUrl=https://lore-agent-events.example.com/api/agent-events)"
-
-for needle in "agent-events-auth" "https://lore-agent-events.example.com/api/agent-events"; do
-	if grep -q -- "$needle" <<<"$with_telemetry"; then
-		echo "  ok: present when opted in — $needle"
-	else
-		echo "  MISSING when opted in: $needle" >&2
-		fail=1
-	fi
-done
-
-# The MCP opt-in: with loreMcpUrl set, every seeded Claude-agent recipe MUST
-# carry an mcp_servers block and the lore-mcp-auth credential reference.
-# This guards against the regression where the block was guarded but never
-# opened for satellites (ticket #1629).
-echo "[lore] helm template (MCP opted in)"
-with_mcp="$(helm template lore-satellite "$chart" \
+# Each opt-in must reach the cluster-agent's env, or the guard never OPENS —
+# the regression #1629 caught for MCP. Rendered with every catalog URL set.
+echo "[lore] helm template (telemetry, MCP and skills opted in)"
+out="$(helm template lore-satellite "$chart" \
 	--namespace lore-cluster-agent --include-crds \
 	--set loreApiUrl=https://lore-api.example.com \
 	--set eventRouterUrl=https://lore-events.example.com \
@@ -150,19 +123,19 @@ with_mcp="$(helm template lore-satellite "$chart" \
 	--set ghcr.username=dummy \
 	--set ghcr.token=dummy \
 	--set llm.credential=dummy \
-	--set ai-agents.loreMcpUrl=https://lore-mcp.example.com/mcp)"
+	--set catalog.eventsUrl=https://lore-agent-events.example.com/api/agent-events \
+	--set catalog.mcpUrl=https://lore-mcp.example.com/mcp \
+	--set catalog.skillsUrl=https://lore-mcp.example.com/skills)"
 
-for needle in "mcp_servers" "lore-mcp-auth"; do
-	if grep -q -- "$needle" <<<"$with_mcp"; then
-		echo "  ok: present when MCP opted in — $needle"
-	else
-		echo "  MISSING when MCP opted in: $needle" >&2
-		fail=1
-	fi
-done
+require "name: LORE_AGENT_EVENTS_URL"
+require "https://lore-agent-events.example.com/api/agent-events"
+require "name: LORE_MCP_URL"
+require "https://lore-mcp.example.com/mcp"
+require "name: LORE_SKILLS_URL"
+require "https://lore-mcp.example.com/skills"
 
 if [ "$fail" -ne 0 ]; then
 	echo "[lore] cluster-agent-standalone chart render check FAILED" >&2
 	exit 1
 fi
-echo "[lore] cluster-agent-standalone chart renders with all expected resources and no Postgres reference."
+echo "[lore] cluster-agent-standalone chart renders with all expected resources, no Postgres reference and no seeded catalog."
