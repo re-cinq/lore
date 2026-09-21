@@ -359,8 +359,12 @@ layers:
   # them into micro-tiers is a separate step, not a prerequisite for naming what
   # this package is.
   apps/web-ui:
+    # The plan contract (@re-cinq/planning-document) is data and logic, so lib
+    # may read it; the editor (@re-cinq/planning-editor) is UI, so only the
+    # routes that mount it may (ADR-047).
     lib:
       - "@re-cinq/lore-shared"
+      - "@re-cinq/planning-document"
     components:
       - lib
       - "@re-cinq/lore-shared"
@@ -368,6 +372,8 @@ layers:
       - components
       - lib
       - "@re-cinq/lore-shared"
+      - "@re-cinq/planning-document"
+      - "@re-cinq/planning-editor"
 
 # A package that imports through a tsconfig path alias needs it declared, or the
 # rule sees a bare specifier and skips it — 639 of web-ui's imports look like

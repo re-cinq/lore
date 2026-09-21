@@ -173,6 +173,9 @@ resource "helm_release" "lore_platform" {
         NEXTAUTH_URL       = var.lore_ui_url
         LORE_LOG_BUCKET    = "lore-task-logs-${var.project_id}"
         LORE_API_URL       = local.lore_api_in_cluster
+        # The plan editor's socket is opened by the BROWSER, so it needs
+        # lore-api's public address, not the in-cluster one above (ADR-047).
+        LORE_PLANS_WS_URL = "wss://${local.lore_api_hostname}/api/plans/collab"
       }
       dbPasswordSecret  = { name = "lore-db-password", key = "password" }
       ingestTokenSecret = { name = "lore-ingest-token", key = "token" }
