@@ -7,7 +7,7 @@ import {
   CatalogConfigSchema,
   type ResolvedAgentDefinition,
 } from "../models/agent-definition.js";
-import { TestPolicySchema } from "../task-types/task-types-config.js";
+import { TestPolicySchema } from "../task-types/test-policy.js";
 
 const ROW_FIELDS = [
   "model",

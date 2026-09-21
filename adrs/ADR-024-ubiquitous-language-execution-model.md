@@ -41,7 +41,7 @@ commits the platform to the manufacturing metaphor; this names the rest of it.
 | **Station** | the unit that runs one piece of work — an LLM Agent, a deterministic station run (validate/detect/…, ADR-031 amendment), a **human station** whose worker is a person and whose `route` names the page they work on, or a **service station** reached by name over HTTP (amendment 2026-08-23) | per node, or standalone |
 | **StationRun** | one **visit** to a Station within an AssemblyRun — `(run, node, iteration)`, identified by a `station_run_id` (amendment 2026-08-14) | per node-run |
 | **Agent** | one ephemeral run of the Claude CLI/API + a prompt (context + task) | per Station |
-| **Agent definition** | the stored *config* an Agent runs from — model, timeout, prompt, execution image — resolved per repo (project row → org default → `task-types.yaml`) | per task-type (× repo) |
+| **Agent definition** | the stored *config* an Agent runs from — model, timeout, prompt, execution image — resolved per repo (project row → org default, seeded from `libs/shared/src/agent-defaults`) | per task-type (× repo) |
 
 ### A Station's execution forms (amendment 2026-08-23)
 
@@ -353,6 +353,23 @@ only through the Project facade port **`project.agentDefs`** (the config side;
   rather than a reviewed source change; org-level editing UI is secondary.
 - The existing `task_overrides` JSONB is migrated into project rows (migration
   0015) and left in place but no longer read.
+
+### Amendment (2026-09-21): the database is the only runtime source
+
+The yaml base layer hid drift instead of preventing it. An org row with a NULL
+field silently inherited the yaml's, while every prompt-tuning migration
+(`UPDATE … WHERE prompt LIKE …`) no-opped on exactly those rows, so production
+and the checked-in text diverged with nothing to show it. The shipped defaults
+now live as one markdown file per agent in `libs/shared/src/agent-defaults/`
+(frontmatter for the settings, body for the prompt), and lore-api seeds them into
+the org rows at boot (specs/lore-agents FR26/FR27): a field still equal to the
+default last seeded follows a new one, an edited field stays, a NULL field fills.
+`resolveAgentConfig` merges two layers, project row → org row; `AgentDefsYaml`
+became `AgentDefsFiles`, the read-only adapter a process with neither a database
+nor the API falls back to. `scripts/task-types.yaml`, its sibling file, the
+ConfigMaps that shipped them and every reader of them are deleted. Retuning a
+default is a pull request to its md file; retuning a repo's agent is still an
+edit in the Agents tab.
 - The web UI's Agents tab shows two distinct things side by side — **Agent
   definitions** (this config) and **Sessions** (`agent_id` activity) — so the page
   never uses the bare word "Agents" to mean both.

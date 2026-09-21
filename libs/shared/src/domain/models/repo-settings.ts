@@ -6,7 +6,7 @@ import {
 
 /** The lore.repos.settings JSONB column; SNAKE_CASE keys; unknown keys pass through; every key is optional. */
 
-/** Per-task-type overrides merged over `task-types.yaml`; repo values win. */
+/** Per-task-type overrides layered under the resolved agent definition (model, timeout); repo values fill what the definition leaves unset. */
 export const TaskOverrideSchema = z
   .object({
     model: z.string().optional(),

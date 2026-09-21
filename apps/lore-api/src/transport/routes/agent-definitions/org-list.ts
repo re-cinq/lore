@@ -24,7 +24,7 @@ export function orgAgentDefinitionsRoute(
     options: zodResponse(bearerScope("read"), OrgAgentsResponse, {
       name: "OrgAgentDefinitions",
       description:
-        "Every org-default agent definition — org rows overlaid on the task-types.yaml fallback, no per-repo layer",
+        "Every org-default agent definition — the org rows, no per-repo layer",
     }),
     handler: async (_request, h) => {
       const pool = getPool();

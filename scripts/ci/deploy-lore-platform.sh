@@ -62,8 +62,6 @@ STALE_SECS=300       # a pending revision older than this is from a dead run, no
 # exits on the first successful upgrade.
 ATTEMPTS=24
 ERRLOG="$(mktemp)"
-TASK_TYPES="$(mktemp)"
-bash "$(dirname "$0")/../task-types-bundle.sh" >"$TASK_TYPES"
 
 # Every exit 1 goes through here, so a failed deploy leaves a trace a human
 # will see without re-opening the Actions tab (#1650): an open issue per
@@ -112,12 +110,8 @@ for attempt in $(seq 1 "$ATTEMPTS"); do
   # --reset-then-reuse-values keeps the other subcharts' tags + terraform config.
   # Disable the lore-db ownership-reconciler hook: CI's SA can't manage lore-db
   # RBAC, and an image bump never needs to reconcile DB ownership (terraform does).
-  # taskTypesConfig is re-sent from the repo on EVERY deploy: it used to be set
-  # only by terraform apply, so the floor/lore-api ConfigMaps froze at whatever
-  # scripts/task-types.yaml said back then (2026-07-17: every code-review ran
-  # with the pre-#840 gh-based prompt and posted nothing).
   # No --wait (Autopilot wedges on it); rollout is gated by kubectl below.
-  # Keep the --set/--set-file flags in sync with
+  # Keep the --set flags in sync with
   # scripts/check-lore-platform-render.sh, which renders with these exact
   # flags in CI so template breakage surfaces before deploy.
   if helm upgrade --install lore-platform "$CHART" \
@@ -126,8 +120,6 @@ for attempt in $(seq 1 "$ATTEMPTS"); do
       "${repo_set[@]}" \
       "${overlay_flags[@]}" \
       --set lore-db-helm.ownershipReconciler.enabled=false \
-      --set-file lore-floor.taskTypesConfig="$TASK_TYPES" \
-      --set-file lore-api.taskTypesConfig="$TASK_TYPES" \
       --reset-then-reuse-values \
       --cleanup-on-fail 2>"$ERRLOG"; then
     cat "$ERRLOG" >&2 || true # surface any helm warnings

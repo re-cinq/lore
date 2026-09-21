@@ -16,8 +16,6 @@ on:
       - 'scripts/check-lore-platform-render.sh'
       - 'scripts/ci/deploy-lore-platform.sh'
       - 'scripts/ci/helm-lock-contention.sh'
-      - 'scripts/task-types*.yaml'
-      - 'scripts/task-types-bundle.sh'
       - 'scripts/infra/setup-memory-dgraph-schema.sh'
       - 'scripts/infra/setup-spec-trace-schema.sh'
       - '.github/workflows/helm-render.yml'
