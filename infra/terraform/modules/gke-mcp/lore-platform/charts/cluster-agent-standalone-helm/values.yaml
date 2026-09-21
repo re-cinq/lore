@@ -37,39 +37,51 @@ ghcr:
   username: ""
   token: ""
 
-# The agent LLM credential. Mirrors how ai-agents-helm takes it: the run pods
-# mount agent-secrets[<agentLlmSecretKey>]; on GKE ESO writes that Secret, on
-# a satellite THIS chart does. `secretKey` must match
-# `ai-agents.agentLlmSecretKey` below — change them together (use
+# The agent LLM credential. The run pods mount agent-secrets[<secretKey>]; on
+# GKE ESO writes that Secret, on a satellite THIS chart does, and the catalog
+# sync renders the same key into every recipe it applies (use
 # CLAUDE_CODE_OAUTH_TOKEN on a laptop to bill a subscription instead of org
 # API credit).
 llm:
   secretKey: ANTHROPIC_API_KEY
   credential: ""
 
-# Optional public URL of the central Floor's agent-telemetry ingress
-# (lore-agent-events.tf's hostname + /api/agent-events). Set it and this
-# cluster's run pods stream live per-tool-call telemetry — cost rows and the
-# run view — authenticating with the per-agent token this cluster-agent
-# publishes into `agent-secrets` after it registers. Leave it empty and the
-# seeded recipes carry no http sink at all: runs still execute and still
-# report their terminal outcome, they are just not visible live.
-#
-# The central cluster does not use this; its pods reach the Floor over
-# in-cluster DNS.
-#
-# Two shapes work. Pointed at the PUBLIC lore-agent-events ingress, pods post
-# straight out (FR8, what shipped first). Pointed at this cluster-agent's own
-# Service — what setting floorUrl selects — pods post in-cluster and the relay
-# forwards onward, which queues and retries the batch and lets the cluster close
-# its run pods' public egress entirely. The relay costs one hop; the direct path
-# loses a batch to any blip.
-agentEventsUrl: http://lore-cluster-agent.lore-cluster-agent.svc.cluster.local:8080/api/cluster/agent-events
+# The per-cluster values this cluster-agent's catalog sync renders into the
+# AgentDefinition/Station CRs it applies from lore.agent_definitions — this
+# cluster's catalog has no other writer. Every empty value OMITS the block it
+# feeds, which is the satellite default: a recipe must never point at a URL
+# its pod cannot reach.
+catalog:
+  # `bare` is declared, never inferred (the 2026-09-01 incident); `full`
+  # refuses to boot unless eventsUrl, mcpUrl and skillsUrl are all set.
+  profile: bare
+  # Live per-tool-call telemetry for this cluster's run pods — cost rows and
+  # the run view — authenticated with the per-agent token this cluster-agent
+  # publishes into `agent-secrets` after it registers. Empty = no http sink:
+  # runs still execute and report their outcome, just not live. Two shapes
+  # work: the PUBLIC lore-agent-events ingress (pods post straight out), or
+  # this cluster-agent's own relay Service, which install-satellite.sh picks
+  # when floorUrl is set — it queues and retries and lets the run pods' public
+  # egress close. Keep ai-agents.floorSink below in agreement with it.
+  eventsUrl: ""
+  # The central lore-mcp gateway's public /mcp and /skills endpoints. Without
+  # skillsUrl every Claude-agent recipe dies at startup ("Settings file not
+  # found"), so leave it empty only on a cluster that claims non-agent
+  # stations alone.
+  mcpUrl: ""
+  skillsUrl: ""
+  # The image station-mode recipes (def-*) run.
+  stationImage: ghcr.io/re-cinq/lore-station:latest
+  # Repoints the ingest station's Dgraph env; empty keeps the recipe's own.
+  dgraphUrl: ""
+  # Credential keys for model families beyond anthropic, e.g.
+  # {gemini: GEMINI_API_KEY}; a model whose family is absent is refused.
+  modelSecretKeys: {}
 
 # PUBLIC base URL of the central Floor. THE SWITCH for live run telemetry on
 # this satellite, and the only knob an operator needs: set it and
 # install-satellite.sh points this cluster's run pods at the local relay
-# (`agentEventsUrl`, both copies), which forwards their NDJSON onward with the
+# (`catalog.eventsUrl`), which forwards their NDJSON onward with the
 # per-agent token this process already holds.
 #
 # Off by default, and deliberately not derived from any other value: a chart
@@ -168,18 +180,9 @@ identity:
 
 # Subchart values (the ai-agents subsystem installed beside the agent).
 ai-agents:
-  # Keep in sync with llm.secretKey above — Helm cannot template one from the
-  # other across the subchart boundary.
-  agentLlmSecretKey: ANTHROPIC_API_KEY
-  # Set by install-satellite.sh from the top-level `agentEventsUrl` above (Helm
-  # does not thread a parent value into a subchart; the script sets both keys,
-  # exactly as it already does for loreApiUrl). Empty leaves the seeded
-  # catalog's http sink omitted entirely by agent-catalog.ts's guard, which is
-  # what a satellite needs when it has nowhere to report to (#1575).
-  agentEventsUrl: ""
-  # The run-pod NetworkPolicy hole for that sink. Centrally it points at the
-  # Floor; here it must point at the local cluster-agent, or the policy drops
-  # exactly the traffic the sink needs. Must agree with agentEventsUrl above.
+  # The run-pod NetworkPolicy hole for the telemetry sink. Centrally it points
+  # at the Floor; here it must point at the local cluster-agent, or the policy
+  # drops exactly the traffic the sink needs. Must agree with catalog.eventsUrl.
   floorSink:
     namespace: lore-cluster-agent
     port: 8080
