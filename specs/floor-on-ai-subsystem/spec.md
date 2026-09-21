@@ -230,37 +230,26 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     gap-fill runs on the Floor AssemblyLine and runbook as a single Agent CR, both via
     `handleClaudeCodeTask` with no Floor-side clone or App token. ([validated by every non-agent node dispatches a station CR](apps/floor/src/work/assembly-run/floor-assembly-run.test.ts#L119))
 
-20. `scripts/task-types.yaml` `stations:` seeds `def-<type>` AgentDefinition/Station pairs (exec
-    model, `{station_input}` prompt, lore-station image via `.Values.stationImage`, deadline
-    default 15); org rows seeded by migration 0027 (`execution_mode: 'station'`). The catalog
-    builder maps each agent recipe to an AgentDefinition (a `{prompt}` + `{context}` template — the recipe body is rendered by the Floor into the `prompt` parameter, #2051 — `permission_mode`,
-    `max_turns`, `ANTHROPIC_API_KEY` secret for the model key, the `lore` http `mcp_servers` entry —
+20. Each cluster-agent's catalog sync renders every `lore.agent_definitions` row into an
+    AgentDefinition/Station pair (`agentDefToCrds`, specs/catalog-db-sync FR5); no chart seeds
+    any. An agent row becomes an AgentDefinition (a `{prompt}` + `{context}` template — the recipe
+    body is rendered by the Floor into the `prompt` parameter, #2051 — `permission_mode`,
+    `max_turns`, the cluster's LLM secret, the `lore` http `mcp_servers` entry —
     `headers_secret: lore-mcp-auth` — with `lore_create_pipeline_task` in `disallowed_tools` so the
-    live run gets scoped Lore tools without a task-recursion vector, agent-events http sink; model
-    omitted when the recipe has none) and Station (agentDefRef, deadline default 30, agent container), and
-    each station recipe to a `def-<name>` exec pair (`model: exec`, `{station_input}` prompt,
-    `tool_config.command`, station image, deadline default 15, RFC-1123-sanitised name, no ANTHROPIC
-    secret — station recipes instead carry the `LORE_API_URL` env + `LORE_INGEST_TOKEN` secret every
-    lore-station pod needs for its HTTP reads/writes); `buildCatalog` emits both kinds per type in
-    order and `catalogChartYaml` emits them for the `catalog-seed` PRE-UPGRADE HOOK
-    (`files/catalog-seed.yaml`, applied `--server-side --force-conflicts` AFTER the
-    CRD hook so a lagging schema cannot prune a field on the way in). They were plain
-    templates until #1468: helm patches a custom resource by diffing the PREVIOUS
-    rendered manifest against the new one and never reads live state, so two recipes
-    that lost `output.watch` to a stale CRD schema stayed pruned through every later
-    deploy — their rendered text had not changed, so the patch was empty. While
-    `.Values.seedCatalog` is true the chart therefore OWNS the seeded recipes and
-    re-asserts them each deploy (an operator who wants the UI to own them sets it
-    false; per-repo override recipes are separate objects and untouched)
-    (`resource-policy: keep`) and templates the sink URL / API URL / namespace /
-    image / LLM-credential key from helm values (no sentinel leaks). An agent recipe
-    declares exactly ONE LLM credential — `.Values.agentLlmSecretKey` as both the
-    `agent-secrets` key and the env var the pod sees — because the controller renders
-    each declared secret as a non-optional `secretKeyRef`: a second, absent key would
-    fail every run pod at container creation rather than acting as a fallback. GKE
-    supplies `ANTHROPIC_API_KEY` (the values.yaml default), a laptop minikube supplies
-    `CLAUDE_CODE_OAUTH_TOKEN`, and the `claude` CLI accepts either from its
-    environment. ([validated by station catalog tests](apps/floor/src/work/agent/agent-catalog.test.ts#L280), [`agent-catalog.test.ts:21`](apps/floor/src/work/agent/agent-catalog.test.ts#L21), [`agent-catalog.test.ts:69`](apps/floor/src/work/agent/agent-catalog.test.ts#L69), [`agent-catalog.test.ts:122`](apps/floor/src/work/agent/agent-catalog.test.ts#L122), [`agent-catalog.test.ts:154`](apps/floor/src/work/agent/agent-catalog.test.ts#L154), [`agent-catalog.test.ts:162`](apps/floor/src/work/agent/agent-catalog.test.ts#L162), [`agent-catalog.test.ts:190`](apps/floor/src/work/agent/agent-catalog.test.ts#L190), [`agent-catalog.test.ts:198`](apps/floor/src/work/agent/agent-catalog.test.ts#L198), [`agent-catalog.test.ts:216`](apps/floor/src/work/agent/agent-catalog.test.ts#L216), [`agent-catalog.test.ts:231`](apps/floor/src/work/agent/agent-catalog.test.ts#L231), [`agent-catalog.test.ts:227`](apps/floor/src/work/agent/agent-catalog.test.ts#L227), [`agent-catalog.test.ts:241`](apps/floor/src/work/agent/agent-catalog.test.ts#L241), [`agent-catalog.test.ts:250`](apps/floor/src/work/agent/agent-catalog.test.ts#L250), [`agent-catalog.test.ts:263`](apps/floor/src/work/agent/agent-catalog.test.ts#L263), [`agent-catalog.test.ts:267`](apps/floor/src/work/agent/agent-catalog.test.ts#L267), [`agent-catalog.test.ts:280`](apps/floor/src/work/agent/agent-catalog.test.ts#L280), [`agent-catalog.test.ts:313`](apps/floor/src/work/agent/agent-catalog.test.ts#L313), [`agent-catalog.test.ts:380`](apps/floor/src/work/agent/agent-catalog.test.ts#L380), [`agent-catalog.test.ts:395`](apps/floor/src/work/agent/agent-catalog.test.ts#L395))
+    live run gets scoped Lore tools without a task-recursion vector, agent-events http sink) and a
+    Station (agentDefRef, the row's timeout as deadline, agent container). A station-mode row
+    (`def-<type>`, `execution_mode: 'station'`, first seeded by migration 0027) becomes an exec pair
+    (`model: exec`, `{station_input}` prompt, `tool_config.command`, the cluster's lore-station
+    image, no LLM secret unless `needs_model` — station recipes instead carry the `LORE_API_URL`
+    env + `LORE_INGEST_TOKEN` secret every lore-station pod needs for its HTTP reads/writes). The
+    per-cluster values (URLs, image, credential key) come from the cluster-agent's own env, and an
+    agent recipe declares exactly ONE LLM credential per model family — the controller renders
+    each declared secret as a non-optional `secretKeyRef`, so a second, absent key would fail
+    every run pod at container creation rather than acting as a fallback. GKE supplies
+    `ANTHROPIC_API_KEY`, a laptop minikube supplies `CLAUDE_CODE_OAUTH_TOKEN`, and the `claude`
+    CLI accepts either from its environment. *(Amended 2026-09-21: this used to be a Helm
+    pre-upgrade hook applying a catalog generated from `scripts/task-types.yaml`; it re-seeded
+    on every deploy and reverted `/agents` edits, #2010.)* ([validated by renders the full recipe when every per-cluster value is set](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L48), [renders the exec-vendor shape on the lore-station image with the ingest token](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L263), [a needs_model station additionally carries the cluster's LLM secret](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L292), [a station row without a command falls back to lore-station plus the def-stripped name](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L317), [the legacy llmSecretKey stays the anthropic fallback when no map is given](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L405); implemented by [`agent-crd.ts`](libs/shared/src/outbound/project/agents/agent-crd.ts))
 
 21. Custom station images honor [station-contract.md](../6-dark-factory/contracts/station-contract.md).
 
@@ -296,17 +285,17 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     tracker at all, returning an error line and exit code 1. ([validated by `main.test.ts:43`](apps/stations/src/transport/cli/main.test.ts#L43), [`main.test.ts:77`](apps/stations/src/transport/cli/main.test.ts#L77), [`main.test.ts:110`](apps/stations/src/transport/cli/main.test.ts#L110), [`main.test.ts:134`](apps/stations/src/transport/cli/main.test.ts#L134), [`main.test.ts:149`](apps/stations/src/transport/cli/main.test.ts#L149), [`main.test.ts:163`](apps/stations/src/transport/cli/main.test.ts#L163), [`carries no usage on an infrastructure-failure line when a UsagePort is configured`](apps/stations/src/transport/cli/main.test.ts#L209), [`reports an error line and exit code 1 for an unregistered station type`](apps/stations/src/transport/cli/main.test.ts#L26); implemented by [`llm-usage-tracker.ts:17`](apps/stations/src/work/lib/llm-usage-tracker.ts#L17))
 
 26. *(added 2026-08-10)* A seeded recipe MUST NOT declare `skills` without a
-    `skills_source` to fetch them from. The generated catalog omits the whole skills
-    block when the registry URL (`.Values.loreSkillsUrl`) is unset, exactly as it
-    already does for `mcp_servers`. Rendering the pair as `skills: [...]` beside
+    `skills_source` to fetch them from. The rendered recipe omits the whole skills
+    block when the cluster's registry URL (the cluster-agent's `LORE_SKILLS_URL`) is
+    unset, exactly as it already does for `mcp_servers`. Rendering the pair as `skills: [...]` beside
     `skills_source: null` is not the harmless no-op it was assumed to be: the
     subsystem's init runs its skills step, fetches nothing, reports **success**, and
     the agent container then dies with `Settings file not found:
     $HOME/.claude/settings.json` — the file that step fetches from
     `<source>/settings.json`. A laptop minikube therefore points the value at the mcp
     adapter running in HTTP-gateway mode on the host
-    (`http://host.minikube.internal:3002/skills`, served by `npm start`) rather than
-    leaving it empty ([validated by `agent-catalog.test.ts:255`](apps/floor/src/work/agent/agent-catalog.test.ts#L255); implemented by [`agent-catalog.ts:363`](apps/floor/src/work/agent/agent-catalog.ts#L363))
+    (`http://host.minikube.internal:3002/skills`, served by `npm start`, handed to the
+    host-run cluster-agent by `dev-local.sh`) rather than leaving it empty ([validated by a satellite's empty options omit the mcp/skills/secret blocks, the http sink AND the {context} placeholder](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L101); implemented by [`agent-crd.ts`](libs/shared/src/outbound/project/agents/agent-crd.ts))
 
 27. *(added 2026-08-10)* The agent container MUST run in the cloned repo
     (`/workspace/target`), not the base image's default directory. Left unset, the
@@ -318,7 +307,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     so the run reported success while the round it existed for failed with no result
     posted. Read-only recipes (the review family) opt out via `repo_workdir: false` —
     see statement 31 (#1160)
-    ([validated by `agent-catalog.test.ts:180`](apps/floor/src/work/agent/agent-catalog.test.ts#L180); implemented by [`agent-catalog.ts:211`](apps/floor/src/work/agent/agent-catalog.ts#L212))
+    ([validated by renders the full recipe when every per-cluster value is set](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L48), [repo_workdir false omits workingDir for read-only recipes](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L145); implemented by [`agent-crd.ts`](libs/shared/src/outbound/project/agents/agent-crd.ts))
 
 28. *(added 2026-08-10)* A run whose deliverable is a **file** MUST declare it, so the
     artifact can leave the pod. The subsystem streams what an agent *says*
@@ -330,7 +319,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     delivery path. `feature-planning` declares `planning.result` →
     `target/result.json`; the path resolves against `WORKSPACE_DIR`, not the agent's
     cwd. A recipe whose deliverable is its own output declares nothing
-    ([validated by `agent-catalog.test.ts:136`](apps/floor/src/work/agent/agent-catalog.test.ts#L136), [`agent-catalog.test.ts:147`](apps/floor/src/work/agent/agent-catalog.test.ts#L147); implemented by [`agent-catalog.ts:173`](apps/floor/src/work/agent/agent-catalog.ts#L174))
+    ([validated by config disallowed_tools append after the pipeline deny and watch rides output](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L125); implemented by [`agent-crd.ts`](libs/shared/src/outbound/project/agents/agent-crd.ts))
 
 29. *(added 2026-08-10)* The Floor MUST project those artifact events off the
     telemetry sink. The sink carries every run's events, so a file event with no name
@@ -355,7 +344,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     declares none keeps the base deny alone. The declared denies are dormant under
     the current `permission_mode: "bypass"` (the CLI skips deny-rule evaluation in
     that mode) and become enforced when the family moves to an enforcing mode
-    ([validated by `agent-catalog.test.ts:418`](apps/floor/src/work/agent/agent-catalog.test.ts#L418), [`agent-catalog.test.ts:428`](apps/floor/src/work/agent/agent-catalog.test.ts#L428), [`agent-catalog.test.ts:434`](apps/floor/src/work/agent/agent-catalog.test.ts#L434); implemented by [`agent-catalog.ts:166`](apps/floor/src/work/agent/agent-catalog.ts#L167), [`agent-catalog.ts:209`](apps/floor/src/work/agent/agent-catalog.ts#L210))
+    ([validated by config disallowed_tools append after the pipeline deny and watch rides output](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L125), [repo_workdir false omits workingDir for read-only recipes](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L145); implemented by [`agent-crd.ts`](libs/shared/src/outbound/project/agents/agent-crd.ts))
 
 32. *(added 2026-08-28)* Every agent run opens with the same instruction in the CR
     parameter the assembled context used to occupy: `CONTEXT_BOOTSTRAP` names
@@ -366,14 +355,14 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     would reach the model verbatim
     ([validated by `recipe-prompt.test.ts:5`](libs/shared/src/domain/agents/recipe-prompt.test.ts#L5), [`recipe-prompt.test.ts:11`](libs/shared/src/domain/agents/recipe-prompt.test.ts#L11), [`recipe-prompt.test.ts:15`](libs/shared/src/domain/agents/recipe-prompt.test.ts#L15); implemented by [`recipe-prompt.ts:16`](libs/shared/src/domain/agents/recipe-prompt.ts#L16))
 
-33. *(added 2026-08-28, #1629)* The `{context}` placeholder is guarded on
-    `.Values.loreMcpUrl`, the same value as the `mcp_servers` block it points at, so
+33. *(added 2026-08-28, #1629)* The `{context}` placeholder is guarded on the
+    cluster's MCP URL, the same value as the `mcp_servers` block it points at, so
     the two cannot drift apart. What fills the slot is an instruction to call
     `lore_assemble_context`; that is only true where the pod has a Lore MCP to call.
     A satellite renders no `mcp_servers` block — the gateway authenticates with
     `LORE_INGEST_TOKEN` and FR5 keeps that credential central — and telling such a pod
     to call a tool it does not have would burn a turn on a guaranteed failure
-    ([validated by `agent-catalog.test.ts:221`](apps/floor/src/work/agent/agent-catalog.test.ts#L221); implemented by [`agent-catalog.ts:424`](apps/floor/src/work/agent/agent-catalog.ts#L424))
+    ([validated by a satellite's empty options omit the mcp/skills/secret blocks, the http sink AND the {context} placeholder](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L101); implemented by [`agent-crd.ts`](libs/shared/src/outbound/project/agents/agent-crd.ts))
 
 34. *(added 2026-08-30)* A recipe MAY declare its own `skills`, and they are APPENDED
     to `lore-context` rather than replacing it. A recipe that named its own would
@@ -389,7 +378,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     one-entry list and a four-entry list survive by the identical path. A recipe MUST NOT name a skill the
     gateway's bundle does not carry: the init fetches it as a 404 and the run
     proceeds without the contract the recipe asked for, which is FR26's failure
-    one level down and just as silent. ([validated by `agent-catalog.test.ts:104`](apps/floor/src/work/agent/agent-catalog.test.ts#L104), [`agent-catalog.test.ts:113`](apps/floor/src/work/agent/agent-catalog.test.ts#L113), [`skills-registry.test.ts:118`](apps/mcp-server/src/transport/skills-registry.test.ts#L118); implemented by [`agent-catalog.ts:141`](apps/floor/src/work/agent/agent-catalog.ts#L142))
+    one level down and just as silent. ([validated by config skills append after lore-context without duplicating it](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L113), [`skills-registry.test.ts:118`](apps/mcp-server/src/transport/skills-registry.test.ts#L118); implemented by [`agent-crd.ts`](libs/shared/src/outbound/project/agents/agent-crd.ts))
 
 35. *(added 2026-09-04)* `GET /api/repos/{owner}/{repo}/chunks/{kind}` is the pod-side chunk read
     named by D7: one route dispatching by `{kind}` (`spec`, `code-symbols`, `spec-ingest`,

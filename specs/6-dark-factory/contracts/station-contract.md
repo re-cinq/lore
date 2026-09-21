@@ -146,5 +146,5 @@ nodes:
     timeout_minutes: 20
 ```
 
-Builtins resolve to `def-<node type>` (seeded by gen-catalog from
+Builtins resolve to `def-<node type>` (a `lore.agent_definitions` row each cluster-agent renders; first seeded from
 `scripts/task-types.yaml` `stations:`).

@@ -518,16 +518,16 @@ execution node.
 - The local dev flow gains a flag that installs the standalone chart against
   minikube, making "laptop cluster registers, claims a run, PR appears" the
   acceptance walk for the whole feature.
-- The seeded catalog's http telemetry sink (`agent-events-auth`, a bus-wide
+- The rendered catalog's http telemetry sink (`agent-events-auth`, a bus-wide
   `LORE_AGENT_INTERNAL_TOKEN`-backed credential every recipe declares) is
-  guarded behind `.Values.agentEventsUrl`: the standalone chart leaves it
+  guarded behind the cluster-agent's `catalog.eventsUrl`: the standalone chart leaves it
   unset, so the sink is omitted from every recipe entirely rather than
   rendered pointed at an unreachable URL with a secret no satellite can
   hold. Unguarded, this was a hard `CreateContainerConfigError` on every
   satellite pod, of every node type — the first real satellite's every
   claimed run failed at init (#1575, found live 2026-08-26). Unset stays the
   default: a satellite reports its terminal outcome and nothing live, which
-  is the honest state for a cluster with nowhere to report to. ([validated by `agent-catalog.test.ts:235`](apps/floor/src/work/agent/agent-catalog.test.ts#L235))
+  is the honest state for a cluster with nowhere to report to. ([validated by a satellite's empty options omit the mcp/skills/secret blocks, the http sink AND the {context} placeholder](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L101))
 - The installer's default tags advertise `node:agent` only *(2026-08-28)*.
   Every seeded station recipe (`def-validate`, `def-gate`, `def-detect`)
   mounts `LORE_INGEST_TOKEN`, which FR5 keeps on the
