@@ -4,7 +4,10 @@ import { z } from "zod";
 import { docName } from "@re-cinq/planning-document";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
-import { listPlanMetas, pgPlanStore } from "../../../outbound/plans/plan-store-pg.js";
+import {
+  listPlanMetas,
+  pgPlanStore,
+} from "../../../outbound/plans/plan-store-pg.js";
 import { mintCollabToken } from "../../../work/plans/collab-tokens.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
@@ -30,9 +33,13 @@ const CollabTokenBody = z.object({
   role: z.enum(["read", "write"]),
 });
 
-const CollabTokenSchema = z.object({ token: z.string(), documentName: z.string() });
+const CollabTokenSchema = z.object({
+  token: z.string(),
+  documentName: z.string(),
+});
 
-const repoOf = (request: Request): string => `${request.params.owner}/${request.params.repo}`;
+const repoOf = (request: Request): string =>
+  `${request.params.owner}/${request.params.repo}`;
 
 /** Lore's own plan routes beside the library's /api/plans: a repo's plan list, and the collab token the web tier mints for a signed-in person. */
 export function plansRoutes(getPool: () => Pool | null): ServerRoute[] {
@@ -43,7 +50,9 @@ function listPlansRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
     path: BASE,
-    options: zodResponse(bearerScope("read"), PlanListSchema, { name: "PlanList" }),
+    options: zodResponse(bearerScope("read"), PlanListSchema, {
+      name: "PlanList",
+    }),
     handler: withPool(getPool, async (pool, request, h) =>
       h.response({ plans: await listPlanMetas(() => pool, repoOf(request)) }),
     ),
@@ -56,19 +65,29 @@ function collabTokenRoute(getPool: () => Pool | null): ServerRoute {
     method: "POST",
     path: `${BASE}/{id}/collab-token`,
     options: zodResponse(
-      { ...bearerScope("write"), validate: { payload: zodValidate(CollabTokenBody) } },
+      {
+        ...bearerScope("write"),
+        validate: { payload: zodValidate(CollabTokenBody) },
+      },
       CollabTokenSchema,
       {
         name: "PlanCollabToken",
-        description: "A short-lived token that opens this plan's collaboration socket as one person",
+        description:
+          "A short-lived token that opens this plan's collaboration socket as one person",
         errors: [404],
       },
     ),
-    handler: withPool(getPool, (pool, request, h) => serveCollabToken(() => pool, request, h)),
+    handler: withPool(getPool, (pool, request, h) =>
+      serveCollabToken(() => pool, request, h),
+    ),
   };
 }
 
-async function serveCollabToken(pool: () => Pool, request: Request, h: ResponseToolkit) {
+async function serveCollabToken(
+  pool: () => Pool,
+  request: Request,
+  h: ResponseToolkit,
+) {
   const repo = repoOf(request);
   const planId = String(request.params.id);
   const meta = await pgPlanStore(pool).getMeta(planId);

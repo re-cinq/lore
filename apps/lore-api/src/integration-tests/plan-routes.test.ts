@@ -9,7 +9,12 @@ import { collabAuthenticator } from "../work/plans/collab-tokens.js";
 const TOKEN = "test-plan-routes-token";
 const READ_TOKEN = "test-plan-routes-read-token";
 const REPO = "acme/plan-routes";
-const NEW_PLAN = { repo: REPO, title: "Faster checkout", type: "feature", createdBy: "ana" };
+const NEW_PLAN = {
+  repo: REPO,
+  title: "Faster checkout",
+  type: "feature",
+  createdBy: "ana",
+};
 
 describe("/api/plans on lore-api", () => {
   let pool: pg.Pool;
@@ -17,9 +22,18 @@ describe("/api/plans on lore-api", () => {
   const prevToken = process.env.LORE_INGEST_TOKEN;
 
   const createPlan = async () =>
-    ((await call("POST", "/api/plans", TOKEN, NEW_PLAN)).body as { meta: { id: string } }).meta.id;
+    (
+      (await call("POST", "/api/plans", TOKEN, NEW_PLAN)).body as {
+        meta: { id: string };
+      }
+    ).meta.id;
 
-  const call = async (method: string, url: string, token?: string, payload?: object) => {
+  const call = async (
+    method: string,
+    url: string,
+    token?: string,
+    payload?: object,
+  ) => {
     const res = await server.inject({
       method,
       url,
@@ -49,17 +63,24 @@ describe("/api/plans on lore-api", () => {
 
   afterAll(async () => {
     await pool.query("DELETE FROM lore.plans WHERE repo = $1", [REPO]);
-    await pool.query("DELETE FROM pipeline.api_tokens WHERE name = 'plan-routes-read'");
+    await pool.query(
+      "DELETE FROM pipeline.api_tokens WHERE name = 'plan-routes-read'",
+    );
     await pool.end();
     restoreEnv("LORE_INGEST_TOKEN", prevToken);
   });
 
   it("answers 401 to a plan read without a bearer token", async () => {
-    expect((await call("GET", "/api/plans/00000000-0000-0000-0000-000000000000")).status).toBe(401);
+    expect(
+      (await call("GET", "/api/plans/00000000-0000-0000-0000-000000000000"))
+        .status,
+    ).toBe(401);
   });
 
   it("answers 403 to a plan created with a read-only token", async () => {
-    expect((await call("POST", "/api/plans", READ_TOKEN, NEW_PLAN)).status).toBe(403);
+    expect(
+      (await call("POST", "/api/plans", READ_TOKEN, NEW_PLAN)).status,
+    ).toBe(403);
   });
 
   it("creates a plan with a write token and reads back its feature sections", async () => {
@@ -69,7 +90,14 @@ describe("/api/plans on lore-api", () => {
 
     expect(read).toMatchObject({
       status: 200,
-      body: { json: { title: "Faster checkout", sections: expect.arrayContaining([expect.objectContaining({ slot: "intent" })]) } },
+      body: {
+        json: {
+          title: "Faster checkout",
+          sections: expect.arrayContaining([
+            expect.objectContaining({ slot: "intent" }),
+          ]),
+        },
+      },
     });
   });
 
@@ -79,19 +107,37 @@ describe("/api/plans on lore-api", () => {
 
     expect(listed).toMatchObject({
       status: 200,
-      body: { plans: expect.arrayContaining([expect.objectContaining({ id: planId, type: "feature", status: "draft" })]) },
+      body: {
+        plans: expect.arrayContaining([
+          expect.objectContaining({
+            id: planId,
+            type: "feature",
+            status: "draft",
+          }),
+        ]),
+      },
     });
   });
 
   it("mints a collab token that opens the plan as Ana", async () => {
     const planId = await createPlan();
-    const minted = await call("POST", `/api/repos/${REPO}/plans/${planId}/collab-token`, TOKEN, {
-      user: { id: "ana", name: "Ana" },
-      role: "write",
-    });
+    const minted = await call(
+      "POST",
+      `/api/repos/${REPO}/plans/${planId}/collab-token`,
+      TOKEN,
+      {
+        user: { id: "ana", name: "Ana" },
+        role: "write",
+      },
+    );
     const { token } = minted.body as { token: string };
 
-    expect(await collabAuthenticator(() => pool).authenticate(token, { repo: REPO, planId })).toEqual({
+    expect(
+      await collabAuthenticator(() => pool).authenticate(token, {
+        repo: REPO,
+        planId,
+      }),
+    ).toEqual({
       id: "ana",
       name: "Ana",
       role: "write",
@@ -100,10 +146,15 @@ describe("/api/plans on lore-api", () => {
 
   it("answers 404 to a collab token for the plan under another repo", async () => {
     const planId = await createPlan();
-    const minted = await call("POST", `/api/repos/acme/other/plans/${planId}/collab-token`, TOKEN, {
-      user: { id: "ana", name: "Ana" },
-      role: "write",
-    });
+    const minted = await call(
+      "POST",
+      `/api/repos/acme/other/plans/${planId}/collab-token`,
+      TOKEN,
+      {
+        user: { id: "ana", name: "Ana" },
+        role: "write",
+      },
+    );
 
     expect(minted.status).toBe(404);
   });

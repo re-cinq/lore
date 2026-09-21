@@ -11,7 +11,10 @@ import type { TokenScope } from "../transport/http/auth.js";
 export const PLANS_PREFIX = "/api/plans";
 
 /** Plans hosted in this process (@re-cinq/planning-sync): REST under /api/plans and the collaboration socket at /api/plans/collab, on lore-api's own listener. */
-export function registerPlanning(server: Server, getPool: () => Pool | null): void {
+export function registerPlanning(
+  server: Server,
+  getPool: () => Pool | null,
+): void {
   const pool = (): Pool => {
     const live = getPool();
 
@@ -31,17 +34,19 @@ export function registerPlanning(server: Server, getPool: () => Pool | null): vo
 const planRouteGuard =
   (server: Server): Lifecycle.Method =>
   async (request, h) => {
-  if (!request.path.startsWith(PLANS_PREFIX)) {
+    if (!request.path.startsWith(PLANS_PREFIX)) {
+      return h.continue;
+    }
+    const { credentials } = await server.auth.test("bearer-scope", request);
+    const scopes = credentials.scope as TokenScope[];
+
+    enforceTrue(
+      request.method === "get" ||
+        scopes.includes("write") ||
+        scopes.includes("admin"),
+      apiError(403),
+      "insufficient scope",
+    );
+
     return h.continue;
-  }
-  const { credentials } = await server.auth.test("bearer-scope", request);
-  const scopes = credentials.scope as TokenScope[];
-
-  enforceTrue(
-    request.method === "get" || scopes.includes("write") || scopes.includes("admin"),
-    apiError(403),
-    "insufficient scope",
-  );
-
-  return h.continue;
-};
+  };
