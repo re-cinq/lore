@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import PlanRunCard, { type PlanRun } from "./PlanRunCard";
 
 const RUN: PlanRun = {
@@ -31,7 +31,7 @@ const RUN: PlanRun = {
 
 describe("PlanRunCard", () => {
   it("says the plan waits for its people and links run-1's page", () => {
-    render(<PlanRunCard run={RUN} />);
+    render(<PlanRunCard run={RUN} draftAgain={async () => ({})} />);
 
     expect({
       phase: screen.getByText(/Waiting for you/).textContent,
@@ -52,6 +52,7 @@ describe("PlanRunCard", () => {
           prUrl: "https://github.com/re-cinq/lore/pull/7",
           prNumber: 7,
         }}
+        draftAgain={async () => ({})}
       />,
     );
 
@@ -62,8 +63,54 @@ describe("PlanRunCard", () => {
   });
 
   it("says no run has started for a plan without one", () => {
-    render(<PlanRunCard run={null} />);
+    render(<PlanRunCard run={null} draftAgain={async () => ({})} />);
 
     expect(screen.getByText("No planning run yet.")).toBeInTheDocument();
+  });
+});
+
+const refresh = vi.fn();
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
+
+describe("PlanRunCard draft again", () => {
+  it("offers a fresh draft when the run failed on its first node, and refreshes once it starts", async () => {
+    const draftAgain = vi.fn(async () => ({}));
+
+    render(
+      <PlanRunCard
+        run={{
+          ...RUN,
+          status: "failed",
+          reason: "no cluster-agent claimed this run",
+        }}
+        draftAgain={draftAgain}
+      />,
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Draft again" }));
+    });
+
+    expect({
+      asked: draftAgain.mock.calls.length,
+      refreshed: refresh.mock.calls.length,
+    }).toEqual({
+      asked: 1,
+      refreshed: 1,
+    });
+  });
+
+  it("offers a draft for a plan no run was ever started for", () => {
+    render(<PlanRunCard run={null} draftAgain={async () => ({})} />);
+
+    expect(
+      screen.getByRole("button", { name: "Draft again" }),
+    ).toBeInTheDocument();
+  });
+
+  it("offers no fresh draft while the run is waiting on its people", () => {
+    render(<PlanRunCard run={RUN} draftAgain={async () => ({})} />);
+
+    expect(screen.queryByRole("button", { name: "Draft again" })).toBeNull();
   });
 });

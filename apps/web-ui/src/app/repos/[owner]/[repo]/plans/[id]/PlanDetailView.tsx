@@ -11,18 +11,20 @@ interface PlanDetailViewProps extends PlanActions {
   meta: PlanMeta;
   run: PlanRun | null;
   user: PlanUser | null;
+  draftAgain: () => Promise<{ error?: string }>;
 }
 
 export default function PlanDetailView({
   meta,
   run,
   user,
+  draftAgain,
   ...actions
 }: PlanDetailViewProps) {
   return (
     <div>
       <PlanHeader meta={meta} />
-      <PlanRunCard run={run} />
+      <PlanRunCard run={run} draftAgain={draftAgain} />
       {user ? (
         <PlanWorkspace meta={meta} user={user} {...actions} />
       ) : (

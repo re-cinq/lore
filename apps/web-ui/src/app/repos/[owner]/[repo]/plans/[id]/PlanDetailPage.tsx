@@ -8,6 +8,7 @@ import PlanDetailView from "./PlanDetailView";
 import type { PlanRun } from "./PlanRunCard";
 import {
   approvePlanAction,
+  draftAgainAction,
   openPlanSocketAction,
   refinePlanAction,
 } from "./actions";
@@ -29,6 +30,7 @@ export default async function PlanDetailPage({
       openSocket={openPlanSocketAction.bind(null, fullName, id)}
       approve={approvePlanAction.bind(null, fullName, id)}
       refine={refinePlanAction.bind(null, fullName, id)}
+      draftAgain={draftAgainAction.bind(null, fullName, id)}
     />
   );
 }

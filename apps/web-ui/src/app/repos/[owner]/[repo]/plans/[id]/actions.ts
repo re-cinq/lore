@@ -4,6 +4,7 @@ import {
   approvePlan,
   askRefine,
   mintCollabToken,
+  startDrafting,
   type RefineAsk,
 } from "@/lib/api/plans";
 import { planSocketUrl } from "@/lib/plan-input";
@@ -66,6 +67,23 @@ export async function refinePlanAction(
   return asked.status === "ok"
     ? {}
     : { error: "The planning agent is still working on this plan." };
+}
+
+/** A fresh draft for a plan whose planning run failed or never started — the run page cannot retry a run that failed on its first node. */
+export async function draftAgainAction(
+  fullName: string,
+  planId: string,
+): Promise<{ error?: string }> {
+  const allowed = await allowedUser(fullName);
+
+  if ("error" in allowed) {
+    return allowed;
+  }
+  const started = await startDrafting(fullName, planId, "", allowed.user.id);
+
+  return started.status === "ok"
+    ? {}
+    : { error: "Could not start a new draft." };
 }
 
 // Every action is bound to one plan of one repo on the server; the person must be signed in and able to see the repo on GitHub.

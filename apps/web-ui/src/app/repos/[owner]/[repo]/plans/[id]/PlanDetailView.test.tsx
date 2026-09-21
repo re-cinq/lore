@@ -26,6 +26,7 @@ const META: PlanMeta = {
 
 const actions = {
   refine: async () => ({}),
+  draftAgain: async () => ({}),
   openSocket: async () => ({ error: "unused" }),
   approve: async () => ({}),
 };
@@ -50,3 +51,7 @@ describe("PlanDetailView", () => {
     expect(screen.getByText("Sign in to open this plan.")).toBeInTheDocument();
   });
 });
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: () => {} }),
+}));
