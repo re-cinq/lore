@@ -144,7 +144,8 @@
     }
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && npm run copy:agent-defaults",
+    "copy:agent-defaults": "rm -rf dist/agent-defaults && mkdir -p dist/agent-defaults && cp -f src/agent-defaults/*.md dist/agent-defaults/",
     "dev": "tsc --watch",
     "test": "LORE_SKIP_DGRAPH_TESTS=1 vitest run",
     "test:dgraph": "vitest run",

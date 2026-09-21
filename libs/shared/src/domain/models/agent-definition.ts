@@ -26,6 +26,35 @@ export const CatalogConfigSchema = z
 
 export type CatalogConfig = z.infer<typeof CatalogConfigSchema>;
 
+// The RESOLVED (project→org→YAML-merged) wire shape; no id/timestamps (may come from YAML), keys stay snake_case since the station runner reads it from a separate image.
+export const ResolvedAgentDefinitionSchema = z.object({
+  name: z.string(),
+  model: z.string().nullable(),
+  timeout_minutes: z.number().nullable(),
+  prompt: z.string().nullable(),
+  image: z.string().nullable(),
+  execution_mode: z.string(),
+  review_required: z.boolean(),
+  project_id: z.string().nullable(),
+  config: CatalogConfigSchema.nullable(),
+});
+
+export type ResolvedAgentDefinition = z.infer<
+  typeof ResolvedAgentDefinitionSchema
+>;
+
+// The fields a shipped default sets on an org row; lore.agent_definitions.shipped_default stores the last one seeded.
+export const ShippedFieldsSchema = ResolvedAgentDefinitionSchema.pick({
+  model: true,
+  timeout_minutes: true,
+  prompt: true,
+  execution_mode: true,
+  review_required: true,
+  config: true,
+});
+
+export type ShippedFields = z.infer<typeof ShippedFieldsSchema>;
+
 export const AgentDefinitionSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -37,6 +66,7 @@ export const AgentDefinitionSchema = z.object({
   executionMode: z.string(),
   reviewRequired: z.boolean(),
   config: CatalogConfigSchema.nullable(),
+  shippedDefault: ShippedFieldsSchema.nullable(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
@@ -54,25 +84,9 @@ export const AGENT_DEFINITION_COLUMNS = {
   executionMode: "execution_mode",
   reviewRequired: "review_required",
   config: "config",
+  shippedDefault: "shipped_default",
   createdAt: "created_at",
   updatedAt: "updated_at",
 } as const satisfies ColumnMap<AgentDefinition>;
 
 export const AGENT_DEFINITION_TABLE = "lore.agent_definitions";
-
-// The RESOLVED (project→org→YAML-merged) wire shape; no id/timestamps (may come from YAML), keys stay snake_case since the station runner reads it from a separate image.
-export const ResolvedAgentDefinitionSchema = z.object({
-  name: z.string(),
-  model: z.string().nullable(),
-  timeout_minutes: z.number().nullable(),
-  prompt: z.string().nullable(),
-  image: z.string().nullable(),
-  execution_mode: z.string(),
-  review_required: z.boolean(),
-  project_id: z.string().nullable(),
-  config: CatalogConfigSchema.nullable(),
-});
-
-export type ResolvedAgentDefinition = z.infer<
-  typeof ResolvedAgentDefinitionSchema
->;
