@@ -29,12 +29,7 @@ export function mergeShippedDefault(
       Object.assign(patch, { [field]: next[field] });
     }
   }
-  const config = mergedConfig(
-    row.config,
-    previous?.config,
-    next.config,
-    previous,
-  );
+  const config = mergedConfig(row.config, next.config);
 
   return config === undefined ? patch : { ...patch, config };
 }
@@ -55,19 +50,14 @@ function takesDefault(
   );
 }
 
-// pod_resources belongs to the UI (the /agents editor), so it is compared on neither side and always survives an adopted default.
+// Only pod_resources is writable from the /agents editor (agents-schema.ts), so the rest of config is code-owned and always follows the shipped default; pod_resources always survives.
 function mergedConfig(
   current: CatalogConfig | null,
-  previous: CatalogConfig | null | undefined,
   next: CatalogConfig | null,
-  previousDefault: ShippedFields | null,
 ): CatalogConfig | null | undefined {
   const shipped = recipeOf(next);
-  const live = recipeOf(current);
 
-  if (
-    !takesDefault(live, recipeOf(previous ?? null), shipped, previousDefault)
-  ) {
+  if (isDeepStrictEqual(recipeOf(current), shipped)) {
     return undefined;
   }
   const podResources = current?.pod_resources;
@@ -87,4 +77,46 @@ function recipeOf(config: CatalogConfig | null): CatalogConfig | null {
   const { pod_resources: _podResources, ...recipe } = config;
 
   return Object.keys(recipe).length > 0 ? recipe : null;
+}
+
+export interface SeedPlan {
+  write: "insert" | "rewrite" | "remember" | "none";
+  fields: ShippedFields;
+  // Left differing from the shipped default after the merge: a kept edit, or a first-contact row the seed could not tell from one.
+  diverged: boolean;
+}
+
+// What one boot does to one org row; `current` absent means no row exists yet.
+export function planSeed(
+  current: ShippedFields | undefined,
+  remembered: ShippedFields | null,
+  next: ShippedFields,
+): SeedPlan {
+  if (current === undefined) {
+    return { write: "insert", fields: next, diverged: false };
+  }
+  const patch = mergeShippedDefault(current, remembered, next);
+  const fields = { ...current, ...patch };
+
+  return {
+    write: rowWrite(patch, remembered, next),
+    fields,
+    diverged: !isDeepStrictEqual(recipeFields(fields), recipeFields(next)),
+  };
+}
+
+function rowWrite(
+  patch: Partial<ShippedFields>,
+  remembered: ShippedFields | null,
+  next: ShippedFields,
+): SeedPlan["write"] {
+  if (Object.keys(patch).length > 0) {
+    return "rewrite";
+  }
+
+  return isDeepStrictEqual(remembered, next) ? "none" : "remember";
+}
+
+function recipeFields(fields: ShippedFields): ShippedFields {
+  return { ...fields, config: recipeOf(fields.config) };
 }

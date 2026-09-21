@@ -62,6 +62,18 @@ describe("mergeShippedDefault", () => {
     });
   });
 
+  it("adopts test_policy none onto code-review's config on first contact, since no write path edits config beyond pod_resources", () => {
+    const row = { ...review, config: { repo_workdir: false } };
+    const next = {
+      ...review,
+      config: { repo_workdir: false, test_policy: "none" },
+    };
+
+    expect(mergeShippedDefault(row, null, next)).toEqual({
+      config: { repo_workdir: false, test_policy: "none" },
+    });
+  });
+
   it("changes nothing when the review row already equals the shipped default", () => {
     expect(mergeShippedDefault(review, review, review)).toEqual({});
   });

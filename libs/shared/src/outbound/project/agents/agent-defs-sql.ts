@@ -113,3 +113,39 @@ export const DELETE_DEF_SQL = `WITH removed AS (
        )
        INSERT INTO lore.catalog_events (name, project_id, op)
        SELECT name, project_id, 'delete' FROM removed`;
+
+// Boot seeding of the shipped defaults (specs/lore-agents FR27). One advisory lock serializes every replica's boot.
+export const SEED_LOCK_SQL = `SELECT pg_advisory_xact_lock(hashtext('lore.agent-defaults-seed'))`;
+
+export const SEED_ROWS_SQL = `SELECT name, model, timeout_minutes, prompt, execution_mode, review_required, config, shipped_default
+         FROM lore.agent_definitions
+        WHERE project_id IS NULL AND name = ANY($1::text[])
+          FOR UPDATE`;
+
+export const SEED_INSERT_SQL = `WITH written AS (
+         INSERT INTO lore.agent_definitions
+           (name, model, timeout_minutes, prompt, execution_mode, review_required, config, shipped_default, project_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, NULL)
+         RETURNING name, project_id
+       ), event AS (
+         INSERT INTO lore.catalog_events (name, project_id, op)
+         SELECT name, project_id, 'upsert' FROM written
+       )
+       SELECT name FROM written`;
+
+export const SEED_UPDATE_SQL = `WITH written AS (
+         UPDATE lore.agent_definitions
+            SET model = $2, timeout_minutes = $3, prompt = $4, execution_mode = $5,
+                review_required = $6, config = $7::jsonb, shipped_default = $8::jsonb,
+                updated_at = now()
+          WHERE name = $1 AND project_id IS NULL
+          RETURNING name, project_id
+       ), event AS (
+         INSERT INTO lore.catalog_events (name, project_id, op)
+         SELECT name, project_id, 'upsert' FROM written
+       )
+       SELECT name FROM written`;
+
+// Remembering a new default changes no rendered field, so it writes no catalog event.
+export const SEED_REMEMBER_SQL = `UPDATE lore.agent_definitions SET shipped_default = $2::jsonb
+        WHERE name = $1 AND project_id IS NULL`;
