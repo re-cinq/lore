@@ -35,6 +35,7 @@ describe("PlanDetailView", () => {
     render(
       <PlanDetailView
         meta={META}
+        run={null}
         user={{ id: "gedaiu", name: "Bogdan", color: "red" }}
         {...actions}
       />,
@@ -44,7 +45,7 @@ describe("PlanDetailView", () => {
   });
 
   it("asks a visitor without a session to sign in instead of opening the editor", () => {
-    render(<PlanDetailView meta={META} user={null} {...actions} />);
+    render(<PlanDetailView meta={META} run={null} user={null} {...actions} />);
 
     expect(screen.getByText("Sign in to open this plan.")).toBeInTheDocument();
   });

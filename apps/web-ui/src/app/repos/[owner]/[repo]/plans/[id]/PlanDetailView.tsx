@@ -2,23 +2,27 @@ import type { PlanMeta } from "@re-cinq/planning-document";
 import { Alert } from "@/components/Alert";
 import type { PlanUser } from "@/lib/plan-user";
 import PlanStatusBadge from "../PlanStatusBadge";
+import PlanRunCard, { type PlanRun } from "./PlanRunCard";
 import PlanWorkspace from "./PlanWorkspace";
 import type { PlanActions } from "./plan-actions";
 import styles from "./PlanDetailView.module.scss";
 
 interface PlanDetailViewProps extends PlanActions {
   meta: PlanMeta;
+  run: PlanRun | null;
   user: PlanUser | null;
 }
 
 export default function PlanDetailView({
   meta,
+  run,
   user,
   ...actions
 }: PlanDetailViewProps) {
   return (
     <div>
       <PlanHeader meta={meta} />
+      <PlanRunCard run={run} />
       {user ? (
         <PlanWorkspace meta={meta} user={user} {...actions} />
       ) : (
