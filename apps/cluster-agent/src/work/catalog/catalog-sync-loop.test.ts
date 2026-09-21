@@ -29,7 +29,7 @@ const def = (name: string): ResolvedAgentDefinition => ({
   config: null,
 });
 
-function recordingCatalog(live: Record<string, AgentDefinition> = {}) {
+function recordingCatalog() {
   const applied: string[] = [];
   const deletedNames: string[] = [];
   const catalog: CatalogTarget = {
@@ -42,7 +42,6 @@ function recordingCatalog(live: Record<string, AgentDefinition> = {}) {
     deletePair: async (name: string) => {
       deletedNames.push(name);
     },
-    getAgentDefinition: async (name: string) => live[name] ?? null,
   };
 
   return { catalog, applied, deletedNames };
@@ -64,7 +63,6 @@ const tickDeps = (
   identity,
   catalog,
   crdOptions: {},
-  ownSeeded: false,
   fetchFn,
   ...over,
 });
@@ -131,7 +129,6 @@ describe("catalogSyncOnce", () => {
         kind: "synced",
         applied: 1,
         deleted: 0,
-        skipped: [],
         refused: [],
       },
       ack: "7",
@@ -184,60 +181,9 @@ describe("catalogSyncOnce", () => {
       kind: "synced",
       applied: 0,
       deleted: 1,
-      skipped: [],
       refused: [],
     });
     expect(deletedNames).toEqual(["implementation--r123e4567"]);
-  });
-
-  it("skips a seed-owned CR until ownSeeded is flipped, then applies over it", async () => {
-    const seedOwned: AgentDefinition = {
-      apiVersion: "agents.re-cinq.com/v1alpha1",
-      kind: "AgentDefinition",
-      metadata: {
-        name: "implementation",
-        labels: { "app.kubernetes.io/managed-by": "lore-catalog-seed" },
-      },
-    };
-    const body = {
-      mode: "tail",
-      cursor: "5",
-      entries: [
-        {
-          name: "implementation",
-          project_id: null,
-          definition: def("implementation"),
-        },
-      ],
-    };
-    const guarded = recordingCatalog({ implementation: seedOwned });
-    const guardedResult = await catalogSyncOnce(
-      tickDeps(guarded.catalog, respondWith(200, body)),
-      undefined,
-    );
-
-    expect(guardedResult.outcome).toEqual({
-      kind: "synced",
-      applied: 0,
-      deleted: 0,
-      skipped: ["implementation (lore-catalog-seed)"],
-      refused: [],
-    });
-    expect(guarded.applied).toEqual([]);
-
-    const owning = recordingCatalog({ implementation: seedOwned });
-    const owningResult = await catalogSyncOnce(
-      tickDeps(owning.catalog, respondWith(200, body), { ownSeeded: true }),
-      undefined,
-    );
-
-    expect(owningResult.outcome).toEqual({
-      kind: "synced",
-      applied: 1,
-      deleted: 0,
-      skipped: [],
-      refused: [],
-    });
   });
 
   it("an empty batch is idle but still advances the ack so an empty snapshot lands in tail mode", async () => {
@@ -419,54 +365,6 @@ describe("catalogSyncOnce", () => {
       outcome: { kind: "error" },
     });
   });
-
-  it("the loop owns UI-labeled CRs (repairing the push path's degraded render) but never an unlabeled hand-applied one", async () => {
-    const label = (managedBy?: string): AgentDefinition => ({
-      apiVersion: "agents.re-cinq.com/v1alpha1",
-      kind: "AgentDefinition",
-      metadata: {
-        name: "code-review",
-        ...(managedBy
-          ? { labels: { "app.kubernetes.io/managed-by": managedBy } }
-          : {}),
-      },
-    });
-    const body = {
-      mode: "tail",
-      cursor: "5",
-      entries: [
-        {
-          name: "code-review",
-          project_id: null,
-          definition: def("code-review"),
-        },
-      ],
-    };
-
-    const uiOwned = recordingCatalog({
-      "code-review": label("lore-catalog-ui"),
-    });
-    const repaired = await catalogSyncOnce(
-      tickDeps(uiOwned.catalog, respondWith(200, body)),
-      undefined,
-    );
-
-    expect(repaired.outcome).toMatchObject({ kind: "synced", applied: 1 });
-    expect(uiOwned.applied).toEqual(["code-review"]);
-
-    const handApplied = recordingCatalog({ "code-review": label() });
-    const respected = await catalogSyncOnce(
-      tickDeps(handApplied.catalog, respondWith(200, body)),
-      undefined,
-    );
-
-    expect(respected.outcome).toMatchObject({
-      kind: "synced",
-      applied: 0,
-      skipped: ["code-review (unlabeled)"],
-    });
-    expect(handApplied.applied).toEqual([]);
-  });
 });
 
 describe("parseModelSecretKeys", () => {
@@ -552,7 +450,6 @@ describe("runCatalogSyncLoop", () => {
           kind: "synced" as const,
           applied: 1,
           deleted: 0,
-          skipped: [],
           refused: [],
         },
         ack: "4",
@@ -589,7 +486,7 @@ describe("runCatalogSyncLoop", () => {
     expect(firstSyncs).toEqual(1);
   });
 
-  it("warns on an error outcome and logs each skipped and refused entry, without stopping the loop", async () => {
+  it("warns on an error outcome and logs each refused entry, without stopping the loop", async () => {
     const outcomes = [
       { outcome: { kind: "error" as const, message: "boom" }, ack: undefined },
       {
@@ -597,7 +494,6 @@ describe("runCatalogSyncLoop", () => {
           kind: "synced" as const,
           applied: 0,
           deleted: 0,
-          skipped: ["a (owner)"],
           refused: ["b: bad"],
         },
         ack: "1",
@@ -616,9 +512,6 @@ describe("runCatalogSyncLoop", () => {
     });
 
     expect(warnSpy).toHaveBeenCalledWith("[cluster-agent] catalog sync: boom");
-    expect(logSpy).toHaveBeenCalledWith(
-      "[cluster-agent] catalog sync skipped a (owner) — not this loop's to write",
-    );
     expect(warnSpy).toHaveBeenCalledWith(
       "[cluster-agent] catalog sync REFUSED b: bad",
     );

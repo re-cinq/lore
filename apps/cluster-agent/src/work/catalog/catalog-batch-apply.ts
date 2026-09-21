@@ -1,51 +1,41 @@
-// Per-entry catalog apply: ownership checks, one entry's verdict, and tallying a batch of verdicts.
+// Per-entry catalog apply: one entry's verdict, and tallying a batch of verdicts.
 
 import { errorMessage } from "@re-cinq/lore-shared";
 import {
   agentDefToCrds,
   catalogCrdName,
-  SYNC_MANAGED_BY,
-  UI_MANAGED_BY,
   validateCatalogEntry,
   type CatalogCrdOptions,
   type CrdPair,
 } from "@re-cinq/lore-shared/project/agents/agent-crd.js";
 import { isPermanentApplyError } from "../../lib/k8s-errors.js";
 import type { CatalogApplyReport } from "@re-cinq/lore-shared/project/agents/catalog-status-port.js";
-import type { AgentDefinition } from "@re-cinq/agent-contracts";
 import type { ClusterAgentIdentity } from "../../domain/identity.js";
 import type { CatalogEventsResponse } from "./catalog-sync-loop.js";
 
-/** The three catalog operations a sync needs: applyPair/deletePair plus the read the seed-ownership guard makes. */
+/** The two catalog operations a sync needs. The loop is the catalog's only writer, so it never asks who owns a live CR. */
 export interface CatalogTarget {
   applyPair(pair: CrdPair): Promise<void>;
   deletePair(name: string): Promise<void>;
-  getAgentDefinition(name: string): Promise<AgentDefinition | null>;
 }
-
-type CrdOwnership =
-  { writable: true } | { writable: false; managedBy: string | undefined };
 
 export interface CatalogSyncTickDeps {
   apiUrl: string;
   identity: () => ClusterAgentIdentity;
   catalog: CatalogTarget;
   crdOptions: CatalogCrdOptions;
-  // Transition guard: skips seed-labeled CRs until LORE_CATALOG_SYNC_OWN_SEEDED=1 at cutover, else two writers would flap.
-  ownSeeded: boolean;
   fetchFn?: typeof fetch;
 }
 
 /** What one entry did. `transient` is the only verdict that stops the batch: the ack stays put so the whole batch re-serves. */
 type EntryVerdict =
   | { state: "applied" | "deleted" }
-  | { state: "skipped" | "refused"; detail: string; reason: string }
+  | { state: "refused"; detail: string; reason: string }
   | { state: "transient"; message: string };
 
 export interface BatchTally {
   applied: number;
   deleted: number;
-  skipped: string[];
   refused: string[];
   // Structured verdicts for the status report — a log line dies with the pod (2026-09-01).
   reports: CatalogApplyReport[];
@@ -75,7 +65,7 @@ export async function applyBatchEntries(
 
 // A tally that has seen nothing yet.
 function emptyTally(): BatchTally {
-  return { applied: 0, deleted: 0, skipped: [], refused: [], reports: [] };
+  return { applied: 0, deleted: 0, refused: [], reports: [] };
 }
 
 async function applyCatalogEntry(
@@ -90,18 +80,12 @@ async function applyCatalogEntry(
   }
 }
 
-// The write itself: skip what this cluster does not own, delete what the row cleared, refuse what it will not take, otherwise land the pair. Throws — the caller classifies, because whether a failure is transient decides if the loop acks past it.
+// The write itself: delete what the row cleared, refuse what it will not take, otherwise land the pair. Throws — the caller classifies, because whether a failure is transient decides if the loop acks past it.
 async function writeCatalogEntry(
   deps: CatalogSyncTickDeps,
   entry: CatalogEventsResponse["entries"][number],
   crdName: string,
 ): Promise<EntryVerdict> {
-  const ownership = await resolveCrdOwnership(deps, crdName);
-
-  if (!ownership.writable) {
-    return skippedVerdict(crdName, ownership.managedBy);
-  }
-
   if (entry.definition === null) {
     await deps.catalog.deletePair(crdName);
 
@@ -109,54 +93,6 @@ async function writeCatalogEntry(
   }
 
   return landPair(deps, entry.definition, crdName);
-}
-
-// Ownership check FIRST, for deletes too — a null-definition event must never remove a seed-owned or hand-applied CR.
-async function resolveCrdOwnership(
-  deps: CatalogSyncTickDeps,
-  crdName: string,
-): Promise<CrdOwnership> {
-  return deps.ownSeeded
-    ? { writable: true as const }
-    : checkCrdOwnership(deps.catalog, crdName);
-}
-
-/** A live CR labeled by neither the sync loop nor the UI belongs to someone else. */
-async function checkCrdOwnership(
-  catalog: CatalogTarget,
-  crdName: string,
-): Promise<CrdOwnership> {
-  const live = await catalog.getAgentDefinition(crdName);
-
-  if (live === null) {
-    return { writable: true };
-  }
-  const managedBy = managedByLabelOf(live);
-
-  if (managedBy === SYNC_MANAGED_BY || managedBy === UI_MANAGED_BY) {
-    return { writable: true };
-  }
-
-  return { writable: false, managedBy };
-}
-
-function managedByLabelOf(live: AgentDefinition): string | undefined {
-  const labels = live.metadata?.labels;
-
-  return labels?.["app.kubernetes.io/managed-by"];
-}
-
-function skippedVerdict(
-  crdName: string,
-  managedBy: string | undefined,
-): EntryVerdict {
-  const owner = managedBy ?? "an unlabeled writer";
-
-  return {
-    state: "skipped",
-    detail: `${crdName} (${managedBy ?? "unlabeled"})`,
-    reason: `owned by ${owner}`,
-  };
 }
 
 /** Land one catalog entry as a CRD pair. */
@@ -221,7 +157,7 @@ function recordVerdict(
   });
 }
 
-// Counts one verdict. Applied and deleted are tallied as numbers while skipped and refused keep their DETAIL — a count of refusals tells nobody which entries this cluster will not take.
+// Counts one verdict. Applied and deleted are tallied as numbers while refused keeps its DETAIL — a count of refusals tells nobody which entries this cluster will not take.
 function countVerdict(
   tally: BatchTally,
   verdict: Exclude<EntryVerdict, { state: "transient" }>,
@@ -232,10 +168,6 @@ function countVerdict(
 
   if (verdict.state === "deleted") {
     tally.deleted += 1;
-  }
-
-  if (verdict.state === "skipped") {
-    tally.skipped.push(verdict.detail);
   }
 
   if (verdict.state === "refused") {

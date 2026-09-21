@@ -156,8 +156,6 @@ export type CatalogSyncOutcome =
       kind: "synced";
       applied: number;
       deleted: number;
-      /** CRs another writer owns (label named per entry), left untouched. */
-      skipped: string[];
       /** Entries render contract/apiserver refused permanently (with reasons, surfaced instead of looping). */
       refused: string[];
     }
@@ -216,13 +214,12 @@ async function applyBatch(
   return { outcome: syncedOutcome(result.tally), ack: body.cursor };
 }
 
-// What landed, as the loop reports it. Skipped and refused carry their details rather than counts — the log line is where an operator learns WHICH entries this cluster would not take.
+// What landed, as the loop reports it. Refusals carry their details rather than counts — the log line is where an operator learns WHICH entries this cluster would not take.
 function syncedOutcome(tally: BatchTally): CatalogSyncOutcome {
   return {
     kind: "synced",
     applied: tally.applied,
     deleted: tally.deleted,
-    skipped: tally.skipped,
     refused: tally.refused,
   };
 }
@@ -320,14 +317,8 @@ function logSyncedOutcome(
   outcome: Extract<CatalogSyncOutcome, { kind: "synced" }>,
 ): void {
   console.log(
-    `[cluster-agent] catalog sync landed ${outcome.applied} applied, ${outcome.deleted} deleted, ${outcome.skipped.length} not-owned skipped, ${outcome.refused.length} refused`,
+    `[cluster-agent] catalog sync landed ${outcome.applied} applied, ${outcome.deleted} deleted, ${outcome.refused.length} refused`,
   );
-
-  for (const name of outcome.skipped) {
-    console.log(
-      `[cluster-agent] catalog sync skipped ${name} — not this loop's to write`,
-    );
-  }
 
   for (const refusal of outcome.refused) {
     console.warn(`[cluster-agent] catalog sync REFUSED ${refusal}`);

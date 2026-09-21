@@ -62,7 +62,7 @@ Usage:
       key: {{ .Values.claim.registrationTokenSecret.key }}
 # The per-cluster values the catalog sync loop renders into the CRs it applies
 # (agent-crd.ts CatalogCrdOptions). Empty values are omitted entirely — an
-# unset env var omits the block it feeds, the seed's guard rule.
+# unset env var omits the block it feeds.
 {{- if .Values.catalog.eventsUrl }}
 - name: LORE_AGENT_EVENTS_URL
   value: {{ .Values.catalog.eventsUrl | quote }}
@@ -86,10 +86,6 @@ Usage:
 {{- if .Values.catalog.dgraphUrl }}
 - name: LORE_DGRAPH_HTTP
   value: {{ .Values.catalog.dgraphUrl | quote }}
-{{- end }}
-{{- if .Values.catalog.ownSeeded }}
-- name: LORE_CATALOG_SYNC_OWN_SEEDED
-  value: "1"
 {{- end }}
 - name: LORE_CATALOG_PROFILE
   value: {{ .Values.catalog.profile | quote }}
