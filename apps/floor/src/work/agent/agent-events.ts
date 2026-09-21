@@ -230,29 +230,38 @@ function costRowFrom({ taskId, source, ev, tokens }: CostRowParts): LlmCallRow {
   };
 }
 
-// Primary model: first key of `modelUsage` (Claude Code) or `stats.models` (Gemini, confirmed against a real CLI run), else flat `model`, else "unknown".
+// Primary model: the one that wrote the most output under `modelUsage` (Claude Code) or `stats.models` (Gemini). Both CLIs list their side calls there too — a classifier, a compression pass — and often first, so the first key named gemini-3-flash-preview for a review gemini-3.1-pro-preview wrote (run a8fe5dde); the sort is stable, so models reporting no output keep the CLI's order. Else flat `model`, else "unknown".
 function resultModel(ev: Record<string, unknown>): string {
-  const fromModelUsage = firstModelKey(ev.modelUsage);
+  const fallback = typeof ev.model === "string" ? ev.model : "unknown";
 
-  if (fromModelUsage !== null) {
-    return fromModelUsage;
-  }
-  const fromStats = isRecord(ev.stats) ? firstModelKey(ev.stats.models) : null;
-
-  if (fromStats !== null) {
-    return fromStats;
-  }
-
-  return typeof ev.model === "string" ? ev.model : "unknown";
+  return (
+    busiestModel(ev.modelUsage) ?? busiestModel(statsModels(ev)) ?? fallback
+  );
 }
 
-function firstModelKey(perModelUsage: unknown): string | null {
+function statsModels(ev: Record<string, unknown>): unknown {
+  return isRecord(ev.stats) ? ev.stats.models : undefined;
+}
+
+function busiestModel(perModelUsage: unknown): string | null {
   if (!isRecord(perModelUsage)) {
     return null;
   }
-  const keys = Object.keys(perModelUsage);
+  const ranked = Object.entries(perModelUsage).sort(
+    ([, a], [, b]) => modelOutputTokens(b) - modelOutputTokens(a),
+  );
 
-  return keys.length > 0 ? keys[0] : null;
+  return ranked.at(0)?.[0] ?? null;
+}
+
+// Claude Code spells it `outputTokens`, Gemini `output_tokens`; an entry carries one or the other.
+function modelOutputTokens(usage: unknown): number {
+  return usageCount(usage, "outputTokens") + usageCount(usage, "output_tokens");
+}
+
+/** One count off a per-model usage entry, zero when the entry is not an object. */
+function usageCount(usage: unknown, key: string): number {
+  return isRecord(usage) ? num(usage[key]) : 0;
 }
 
 function sourceAgentCrName(
@@ -271,9 +280,34 @@ function resultCostUsd(
     return ev.total_cost_usd;
   }
 
-  return model.startsWith("gemini-")
-    ? computeGeminiCost(model, tokens.inputTokens, tokens.outputTokens)
-    : 0;
+  if (!model.startsWith("gemini-")) {
+    return 0;
+  }
+
+  return (
+    perModelGeminiCost(statsModels(ev)) ??
+    computeGeminiCost(model, tokens.inputTokens, tokens.outputTokens)
+  );
+}
+
+/** Each model at its own rate: pricing a run's every token at the primary model's rate bills a flash side call as pro. Null when the result names no models. */
+function perModelGeminiCost(perModelUsage: unknown): number | null {
+  if (!isRecord(perModelUsage) || Object.keys(perModelUsage).length === 0) {
+    return null;
+  }
+
+  return Object.entries(perModelUsage).reduce(
+    (sum, [model, usage]) => sum + modelGeminiCost(model, usage),
+    0,
+  );
+}
+
+function modelGeminiCost(model: string, usage: unknown): number {
+  return computeGeminiCost(
+    model,
+    usageCount(usage, "input_tokens"),
+    usageCount(usage, "output_tokens"),
+  );
 }
 
 // Claude Code/Codex report `duration_ms` at the top level; Gemini reports it under `stats`.

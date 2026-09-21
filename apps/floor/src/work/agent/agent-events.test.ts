@@ -69,6 +69,79 @@ describe("parseAgentEvents", () => {
     ]);
   });
 
+  describe("a gemini result whose side call to gemini-3-flash-preview is listed before gemini-3.1-pro-preview (run a8fe5dde)", () => {
+    const ndjson = line(
+      src,
+      result({
+        status: "success",
+        stats: {
+          input_tokens: 2678312,
+          output_tokens: 3443,
+          duration_ms: 245418,
+          models: {
+            "gemini-3-flash-preview": {
+              input_tokens: 19911,
+              output_tokens: 275,
+            },
+            "gemini-3.1-pro-preview": {
+              input_tokens: 2658401,
+              output_tokens: 3168,
+            },
+          },
+        },
+      }),
+    );
+
+    it("names gemini-3.1-pro-preview, which wrote 3168 of the 3443 output tokens", () => {
+      expect(parseAgentEvents(ndjson)[0]?.model).toBe("gemini-3.1-pro-preview");
+    });
+
+    it("prices each model's own tokens at that model's rate", () => {
+      expect(parseAgentEvents(ndjson)[0]?.costUsd).toBeCloseTo(
+        computeGeminiCost("gemini-3.1-pro-preview", 2658401, 3168) +
+          computeGeminiCost("gemini-3-flash-preview", 19911, 275),
+        9,
+      );
+    });
+  });
+
+  it("counts a model entry that is not an object as zero, naming and pricing gemini-3.1-pro-preview alone", () => {
+    const ndjson = line(
+      src,
+      result({
+        stats: {
+          input_tokens: 10,
+          output_tokens: 5,
+          models: {
+            "gemini-3-flash-preview": null,
+            "gemini-3.1-pro-preview": { input_tokens: 10, output_tokens: 5 },
+          },
+        },
+      }),
+    );
+
+    expect(parseAgentEvents(ndjson)[0]).toMatchObject({
+      model: "gemini-3.1-pro-preview",
+      costUsd: computeGeminiCost("gemini-3.1-pro-preview", 10, 5),
+    });
+  });
+
+  it("names claude-sonnet-4-6, which wrote 900 output tokens, over a claude-haiku-4-5 side call listed first with 40", () => {
+    const ndjson = line(
+      src,
+      result({
+        modelUsage: {
+          "claude-haiku-4-5": { outputTokens: 40 },
+          "claude-sonnet-4-6": { outputTokens: 900 },
+        },
+        usage: { input_tokens: 1200, output_tokens: 940 },
+        total_cost_usd: 0.02,
+      }),
+    );
+
+    expect(parseAgentEvents(ndjson)[0]?.model).toBe("claude-sonnet-4-6");
+  });
+
   it("prices a gemini result at zero tokens as zero cost, not a thrown error", () => {
     const ndjson = line(
       src,
