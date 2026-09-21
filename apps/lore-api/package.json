@@ -1,7 +1,7 @@
 {
   "name": "@re-cinq/lore-api",
   "version": "0.1.0",
-  "description": "Lore API \u2014 HTTPS REST backend serving org context, ingest, tasks, and webhooks",
+  "description": "Lore API — HTTPS REST backend serving org context, ingest, tasks, and webhooks",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
@@ -32,12 +32,15 @@
     "@re-cinq/lore-assembly-lines": "*",
     "@re-cinq/lore-server-core": "*",
     "@re-cinq/lore-shared": "*",
+    "@re-cinq/planning-document": "github:re-cinq/planning-station#planning-document-dist-v0.1.0",
+    "@re-cinq/planning-sync": "github:re-cinq/planning-station#planning-sync-dist-v0.1.0",
     "minimatch": "^10.2.6",
     "octokit": "^5.0.5",
     "pg": "^8.23.0",
     "tree-sitter-wasms": "^0.1.11",
     "web-tree-sitter": "^0.24.7",
     "yaml": "^2.7.0",
+    "yjs": "^13.6.32",
     "zod": "^4.5.4",
     "zod-to-json-schema": "^3.25.1"
   },

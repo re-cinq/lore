@@ -301,6 +301,7 @@ layers:
       - "@re-cinq/lore-assembly-lines"
       - "@re-cinq/lore-server-core"
       - "@re-cinq/lore-shared"
+      - "@re-cinq/planning-sync"
     # Routes, the HTTP plumbing they share (auth, rate-limit, zod), and the
     # OpenAPI document generated from them. `tests` is what a *.test.ts here may
     # ALSO reach: 54 route tests inject through the built server, which is the
@@ -312,21 +313,32 @@ layers:
         - "@re-cinq/lore-assembly-lines"
         - "@re-cinq/lore-server-core"
         - "@re-cinq/lore-shared"
+        - "@re-cinq/planning-document"
       tests:
         - app
         - integration-tests
+    # Plans are hosted by the published @re-cinq/planning-* packages
+    # (planning-station); the ports and the plan contract are ordinary imports.
     work:
       - outbound
       - "@re-cinq/lore-server-core"
       - "@re-cinq/lore-shared"
+      - "@re-cinq/planning-sync"
     outbound:
       - "@re-cinq/lore-server-core"
       - "@re-cinq/lore-shared"
+      - "@re-cinq/planning-document"
+      - "@re-cinq/planning-sync"
+    # A store adapter is proven against a real database, so its contract test
+    # lives here and reaches the adapter directly.
     integration-tests:
       - transport
       - app
+      - work
+      - outbound
       - "@re-cinq/lore-server-core"
       - "@re-cinq/lore-shared"
+      - "@re-cinq/planning-sync"
 
   # The deliberately-wrong fixture package behind scripts/check-eslint-canaries.sh.
   # `kernel` is a leaf here so that src/kernel/a.ts importing ../jobs/ MUST be

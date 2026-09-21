@@ -1579,6 +1579,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/repos/{owner}/{repo}/plans": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/repos/{owner}/{repo}/plans */
+    get: operations["get_api_repos_owner_repo_plans"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/plans/{id}/collab-token": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/plans/{id}/collab-token */
+    post: operations["post_api_repos_owner_repo_plans_id_collab-token"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/repos/{owner}/{repo}/pulls": {
     parameters: {
       query?: never;
@@ -3625,6 +3659,21 @@ export interface components {
     };
     PipelineAnalytics: {
       [key: string]: unknown;
+    };
+    PlanCollabToken: {
+      token: string;
+      documentName: string;
+    };
+    PlanList: {
+      plans: {
+        id: string;
+        title: string;
+        type: string;
+        status: string;
+        version: number;
+        createdBy: string;
+        updatedAt: string;
+      }[];
     };
     PlatformLlmStatus: {
       degraded: boolean;
@@ -6054,6 +6103,7 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
+          /** Format: includes */
           repo: string;
           reonboard?: boolean;
         };
@@ -7526,6 +7576,75 @@ export interface operations {
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  get_api_repos_owner_repo_plans: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PlanList"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "post_api_repos_owner_repo_plans_id_collab-token": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          user: {
+            id: string;
+            name: string;
+          };
+          /** @enum {string} */
+          role: "read" | "write";
+        };
+      };
+    };
+    responses: {
+      /** @description A short-lived token that opens this plan's collaboration socket as one person */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PlanCollabToken"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };
