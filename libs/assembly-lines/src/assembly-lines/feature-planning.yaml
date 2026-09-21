@@ -226,16 +226,12 @@ edges:
     to: done
     on: failed
 
-  # One retry for a node that genuinely failed — a crashed pod, a non-zero exit, a
-  # timeout. Planning is a single expensive LLM pass with no partial state to lose,
-  # so re-running it is cheaper than making the author click Retry. A second failure
-  # exhausts the budget and fails the line (selectEdge does not fall through), which
-  # settle-task then reports on the round with the line's reason.
-  #
-  # Note this cannot catch the other shape: an agent that exits 0 having produced no
-  # usable artifact leaves the node `success`, so the line completes and the round is
-  # failed by the delivery check rather than retried here.
+  # A pass that died — a crashed pod, a non-zero exit, a timeout — hands the plan
+  # back to its people rather than retrying on its own. Every pass is asked for by
+  # a person (the first draft, Regenerate, each Refine), so there is no runaway to
+  # bound: a budgeted self-retry counted failures over the run's whole life, and the
+  # second one, in whatever round, ended the line and left the plan unrefinable.
+  # Parked on the author, the page names the failure and they ask again.
   - from: analyze
-    to: analyze
+    to: author
     on: failed
-    iteration_max: 1

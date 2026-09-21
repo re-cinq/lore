@@ -289,6 +289,41 @@ describe("getNextTransition", () => {
     expect(t).toMatchObject({ kind: "fail", outcome: "error" });
   });
 
+  it("counts only the visits since a person last acted toward maxNodes (a person gates every pass of a human loop, so its length is not a runaway)", () => {
+    const humanLoop = {
+      name: "human-loop",
+      entry: "draft",
+      exit: "done",
+      nodes: [
+        { id: "draft", type: "agent" },
+        { id: "review", type: "feature_review" },
+      ],
+      edges: [
+        { from: "draft", to: "review", on: "success" },
+        { from: "review", to: "draft", on: "changes_requested" },
+        { from: "review", to: "done", on: "success" },
+      ],
+    };
+    const visits = [
+      visit("draft", 1, "success"),
+      visit("review", 1, "changes_requested"),
+      visit("draft", 2, "success"),
+      visit("review", 2, "changes_requested"),
+    ];
+
+    expect([
+      getNextTransition(humanLoop, visits, 2),
+      getNextTransition(
+        humanLoop,
+        [...visits, visit("draft", 3, "success")],
+        1,
+      ),
+    ]).toMatchObject([
+      { kind: "launch", nodeId: "draft", iteration: 3 },
+      { kind: "fail", outcome: "error" },
+    ]);
+  });
+
   it("fails when a recorded node's iteration diverges from the recomputed walk (implement@1 succeeded but next row persisted as validate@2)", () => {
     const visits = [
       visit("implement", 1, "success"),

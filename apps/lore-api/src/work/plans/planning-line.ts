@@ -37,13 +37,33 @@ export interface DraftingInput {
   createdBy: string;
 }
 
-/** Starts the plan's line with the agent's first draft; the run's args carry what its route and its PR are named from. */
+/** Drafts the plan: a line parked on its people is sent back to the agent with the draft brief (a plan has one open line, so a new run would only join it and do nothing); otherwise a new line starts. The run's args carry what its route and its PR are named from. */
 export async function startDrafting(
-  deps: { createTask(task: NewPlanningTask): Promise<string> },
+  deps: ResumeDeps & { createTask(task: NewPlanningTask): Promise<string> },
   { plan, projection, known, createdBy }: DraftingInput,
 ): Promise<string> {
-  return deps.createTask({
-    description: draftBrief(projection, known),
+  const brief = draftBrief(projection, known);
+  const { parked } = await findParkedAuthorNode(deps.runs, plan.id);
+
+  if (parked) {
+    await reportToParkedNode(deps.reporter, parked, {
+      outcome: "changes_requested",
+      args: { description: brief, round_feedback: brief },
+    });
+
+    return parked.lineId;
+  }
+
+  return deps.createTask(planningTask(plan, brief, createdBy));
+}
+
+function planningTask(
+  plan: DraftingInput["plan"],
+  description: string,
+  createdBy: string,
+): NewPlanningTask {
+  return {
+    description,
     taskType: PLANNING_DEFINITION,
     targetRepo: plan.repo,
     createdBy,
@@ -52,7 +72,7 @@ export async function startDrafting(
       line_args: { repo: plan.repo, plan_title: plan.title },
     },
     priority: "immediate",
-  });
+  };
 }
 
 /** Sends one section back to the agent; refused while the agent is still at work, so the editor withdraws the ask. */

@@ -47,7 +47,11 @@ describe("startDrafting", () => {
     const created: NewPlanningTask[] = [];
 
     await startDrafting(
-      { createTask: async (task) => (created.push(task), "t1") },
+      {
+        createTask: async (task) => (created.push(task), "t1"),
+        runs: runWith([]),
+        reporter: new InMemoryEventReporter(),
+      },
       {
         plan: PLAN,
         projection: { title: "Faster checkout" },
@@ -69,6 +73,43 @@ describe("startDrafting", () => {
         },
       },
     ]);
+  });
+});
+
+describe("startDrafting on a plan whose line waits on its people", () => {
+  it("sends the parked author node back to the agent with a fresh draft brief, creating no task", async () => {
+    const created: NewPlanningTask[] = [];
+    const reporter = new InMemoryEventReporter();
+
+    await startDrafting(
+      {
+        createTask: async (task) => (created.push(task), "t1"),
+        runs: parkedOnAuthor,
+        reporter,
+      },
+      {
+        plan: PLAN,
+        projection: { title: "Faster checkout" },
+        known: "",
+        createdBy: "gedaiu",
+      },
+    );
+
+    expect({ created, resumed: resumes(reporter) }).toMatchObject({
+      created: [],
+      resumed: [
+        {
+          assemblyLineId: "run-1",
+          nodeId: "author",
+          outcome: "changes_requested",
+          args: {
+            round_feedback: expect.stringContaining(
+              'Draft the plan "Faster checkout"',
+            ),
+          },
+        },
+      ],
+    });
   });
 });
 
