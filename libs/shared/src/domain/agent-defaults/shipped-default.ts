@@ -40,14 +40,25 @@ function takesDefault(
   next: unknown,
   previousDefault: ShippedFields | null,
 ): boolean {
-  if (next === null || isDeepStrictEqual(current, next)) {
+  if (next === null || equivalent(current, next)) {
     return false;
   }
 
   return (
     current === null ||
-    (previousDefault !== null && isDeepStrictEqual(current, previous))
+    (previousDefault !== null && equivalent(current, previous))
   );
+}
+
+// The /agents form saves a textarea with CRLF line ends and no trailing newline; a prompt differing only so was not edited.
+function equivalent(a: unknown, b: unknown): boolean {
+  return typeof a === "string" && typeof b === "string"
+    ? normalizedText(a) === normalizedText(b)
+    : isDeepStrictEqual(a, b);
+}
+
+function normalizedText(text: string): string {
+  return text.replace(/\r\n/g, "\n").trimEnd();
 }
 
 // Only pod_resources is writable from the /agents editor (agents-schema.ts), so the rest of config is code-owned and always follows the shipped default; pod_resources always survives.
@@ -118,5 +129,9 @@ function rowWrite(
 }
 
 function recipeFields(fields: ShippedFields): ShippedFields {
-  return { ...fields, config: recipeOf(fields.config) };
+  return {
+    ...fields,
+    prompt: fields.prompt === null ? null : normalizedText(fields.prompt),
+    config: recipeOf(fields.config),
+  };
 }
