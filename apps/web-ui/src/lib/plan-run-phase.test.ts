@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { planRunPhase } from "./plan-run-phase";
+import { isDraftingPlan, planRunPhase } from "./plan-run-phase";
 
 const visit = (nodeId: string, outcome: string | null, iteration = 1) => ({
   nodeId,
@@ -83,5 +83,31 @@ describe("planRunPhase", () => {
       tone: "done",
       text: "Done: the plan's spec-tasks are filed.",
     });
+  });
+});
+
+describe("isDraftingPlan", () => {
+  const drafting = (status: string, ...nodes: ReturnType<typeof visit>[]) =>
+    isDraftingPlan({ status }, nodes);
+
+  it("holds the plan while the run is queued, started or on its first analyze", () => {
+    expect([
+      drafting("queued"),
+      drafting("running"),
+      drafting("running", visit("analyze", null)),
+    ]).toEqual([true, true, true]);
+  });
+
+  it("opens the plan once the draft is written, while a section is refined, and when the run failed", () => {
+    expect([
+      drafting("running", visit("analyze", "success"), visit("author", null)),
+      drafting(
+        "running",
+        visit("analyze", "success"),
+        visit("author", "changes_requested"),
+        visit("analyze", null, 2),
+      ),
+      drafting("failed", visit("analyze", "failed")),
+    ]).toEqual([false, false, false]);
   });
 });

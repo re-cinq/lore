@@ -45,6 +45,29 @@ describe("PlanDetailView", () => {
     expect(screen.getByText("editor for Bogdan")).toBeInTheDocument();
   });
 
+  it("holds the editor back while the planning agent is drafting the plan", () => {
+    render(
+      <PlanDetailView
+        meta={META}
+        run={{
+          id: "r1",
+          status: "queued",
+          reason: null,
+          prUrl: null,
+          prNumber: null,
+          nodes: [],
+        }}
+        user={{ id: "gedaiu", name: "Bogdan", color: "red" }}
+        {...actions}
+      />,
+    );
+
+    expect({
+      editor: screen.queryByText("editor for Bogdan"),
+      drafting: screen.queryByText(/writing this plan/) !== null,
+    }).toEqual({ editor: null, drafting: true });
+  });
+
   it("asks a visitor without a session to sign in instead of opening the editor", () => {
     render(<PlanDetailView meta={META} run={null} user={null} {...actions} />);
 

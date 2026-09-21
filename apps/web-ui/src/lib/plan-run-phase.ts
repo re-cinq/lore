@@ -65,9 +65,27 @@ export function planRunPhase(
     : openNodePhase(visits);
 }
 
+/** Whether the planning agent is still writing the first draft, which replaces whatever the plan holds now; a Refine only proposes one section, so the plan stays open then. */
+export function isDraftingPlan(
+  run: { status: string },
+  visits: readonly Visit[],
+): boolean {
+  const open = openVisit(visits);
+  const firstDraft = open?.nodeId === "analyze" && open.iteration === 1;
+
+  return (
+    run.status === "queued" ||
+    (run.status === "running" && (visits.length === 0 || firstDraft))
+  );
+}
+
 // The newest visit with no outcome yet is the node the run is on.
+function openVisit(visits: readonly Visit[]): Visit | undefined {
+  return visits.filter((visit) => visit.outcome === null).at(-1);
+}
+
 function openNodePhase(visits: readonly Visit[]): PlanRunPhase {
-  const open = visits.filter((visit) => visit.outcome === null).at(-1);
+  const open = openVisit(visits);
 
   if (open?.nodeId === "analyze" && open.iteration > 1) {
     return REFINING;

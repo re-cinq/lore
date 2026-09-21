@@ -1,6 +1,8 @@
 import type { PlanMeta } from "@re-cinq/planning-document";
 import { Alert } from "@/components/Alert";
+import { isDraftingPlan } from "@/lib/plan-run-phase";
 import type { PlanUser } from "@/lib/plan-user";
+import DraftingPlan from "./DraftingPlan";
 import PlanStatusBadge from "../PlanStatusBadge";
 import PlanRunCard, { type PlanRun } from "./PlanRunCard";
 import PlanWorkspace from "./PlanWorkspace";
@@ -25,12 +27,23 @@ export default function PlanDetailView({
     <div>
       <PlanHeader meta={meta} />
       <PlanRunCard run={run} draftAgain={draftAgain} />
-      {user ? (
-        <PlanWorkspace meta={meta} user={user} {...actions} />
-      ) : (
-        <Alert variant="secondary">Sign in to open this plan.</Alert>
-      )}
+      <PlanBody meta={meta} run={run} user={user} {...actions} />
     </div>
+  );
+}
+
+type PlanBodyProps = Omit<PlanDetailViewProps, "draftAgain">;
+
+// The draft being written would replace anything typed into it, so the editor waits for it.
+function PlanBody({ meta, run, user, ...actions }: PlanBodyProps) {
+  if (run && isDraftingPlan(run, run.nodes)) {
+    return <DraftingPlan />;
+  }
+
+  return user ? (
+    <PlanWorkspace meta={meta} user={user} {...actions} />
+  ) : (
+    <Alert variant="secondary">Sign in to open this plan.</Alert>
   );
 }
 
