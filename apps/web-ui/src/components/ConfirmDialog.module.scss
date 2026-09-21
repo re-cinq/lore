@@ -1,4 +1,6 @@
+// The global `* { margin: 0 }` reset strips the auto margin a modal dialog centres itself with.
 .dialog {
+  margin: auto;
   max-width: 28rem;
   padding: var(--space-5);
   border: 1px solid var(--border);
