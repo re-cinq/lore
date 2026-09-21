@@ -3,18 +3,10 @@
 import { isDeepStrictEqual } from "node:util";
 import type {
   CatalogConfig,
-  ResolvedAgentDefinition,
+  ShippedFields,
 } from "../models/agent-definition.js";
 
-export type ShippedFields = Pick<
-  ResolvedAgentDefinition,
-  | "model"
-  | "timeout_minutes"
-  | "prompt"
-  | "execution_mode"
-  | "review_required"
-  | "config"
->;
+export type { ShippedFields };
 
 const SCALAR_FIELDS = [
   "model",
