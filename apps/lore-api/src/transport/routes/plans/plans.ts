@@ -64,24 +64,26 @@ function collabTokenRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
     path: `${BASE}/{id}/collab-token`,
-    options: zodResponse(
-      {
-        ...bearerScope("write"),
-        validate: { payload: zodValidate(CollabTokenBody) },
-      },
-      CollabTokenSchema,
-      {
-        name: "PlanCollabToken",
-        description:
-          "A short-lived token that opens this plan's collaboration socket as one person",
-        errors: [404],
-      },
-    ),
+    options: COLLAB_TOKEN_OPTIONS,
     handler: withPool(getPool, (pool, request, h) =>
       serveCollabToken(() => pool, request, h),
     ),
   };
 }
+
+const COLLAB_TOKEN_OPTIONS = zodResponse(
+  {
+    ...bearerScope("write"),
+    validate: { payload: zodValidate(CollabTokenBody) },
+  },
+  CollabTokenSchema,
+  {
+    name: "PlanCollabToken",
+    description:
+      "A short-lived token that opens this plan's collaboration socket as one person",
+    errors: [404],
+  },
+);
 
 async function serveCollabToken(
   pool: () => Pool,
