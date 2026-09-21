@@ -400,6 +400,18 @@ the cluster path ever recorded a cause.
 - FR-13.3: A failed round links to its run, so the full transcript is one click away; a round with no run shows no link. ([validated by FailureBlock links to the run transcript when the round has a run](apps/web-ui/src/app/repos/[owner]/[repo]/features/[id]/FailureBlock.test.tsx#L100), [`FailureBlock.test.tsx:116`](apps/web-ui/src/app/repos/[owner]/[repo]/features/[id]/FailureBlock.test.tsx#L116))
 - FR-13.4: A per-task GitHub token that mints empty MUST fail at the mint, naming the repo and the App variables to check. An empty token writes a present-but-useless Secret key, so the pod starts and then dies in its init container on `git clone` with GitHub's deliberately uninformative "Repository not found" — a cause visible only in pod logs. ([validated by GithubTokenMinter throws naming the repo and the App vars when the token comes back empty](apps/cluster-agent/src/outbound/kube-token-provisioner.test.ts#L19), [`kube-token-provisioner.test.ts:11`](apps/cluster-agent/src/outbound/kube-token-provisioner.test.ts#L11), [impl](apps/cluster-agent/src/outbound/kube-token-provisioner.ts))
 
+### FR-17: Plans hosted by lore-api (planning-station)
+
+The drafting half of a feature moves onto the collaborative plan document of
+[re-cinq/planning-station](https://github.com/re-cinq/planning-station): people
+and the planning agent write one plan together, in a fixed template, until it is
+approved. lore-api hosts it with `@re-cinq/planning-sync`, on its own listener ([validated by](../../apps/lore-api/src/integration-tests/plan-routes.test.ts#L65)).
+
+- lore-api keeps plans in `lore.plans`, `lore.plan_state` and `lore.plan_versions`, and its store passes every check of planning-sync's own `PlanStore` contract ([validated by](../../apps/lore-api/src/integration-tests/plan-store.test.ts#L24)).
+- Every `/api/plans` call carries a Lore bearer token: without one it answers 401, a write with a read-only token answers 403, and a write token creates a plan any token can read back with its template's sections ([validated by](../../apps/lore-api/src/integration-tests/plan-routes.test.ts#L57), [validated by](../../apps/lore-api/src/integration-tests/plan-routes.test.ts#L61), [validated by](../../apps/lore-api/src/integration-tests/plan-routes.test.ts#L65)).
+- A repo's plans are listed at `GET /api/repos/{owner}/{repo}/plans` ([validated by](../../apps/lore-api/src/integration-tests/plan-routes.test.ts#L76)).
+- The collaboration socket opens only with a collab token lore-api minted for one person on one plan of one repo; it opens no other plan, lapses after ten minutes, and is refused with 404 for a plan under another repo ([validated by](../../apps/lore-api/src/integration-tests/plan-routes.test.ts#L86), [validated by](../../apps/lore-api/src/integration-tests/plan-collab-tokens.test.ts#L45), [validated by](../../apps/lore-api/src/integration-tests/plan-collab-tokens.test.ts#L65), [validated by](../../apps/lore-api/src/integration-tests/plan-collab-tokens.test.ts#L81), [validated by](../../apps/lore-api/src/integration-tests/plan-routes.test.ts#L101)).
+
 ### Scenario 6: A merged spec decomposes into stories + tasks
 
 **Actor:** Developer / pipeline

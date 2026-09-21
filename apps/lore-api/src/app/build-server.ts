@@ -15,6 +15,7 @@ import {
   summarizeCoverage,
 } from "../transport/openapi/build-document.js";
 import { MAX_JSON_BODY_BYTES } from "@re-cinq/lore-shared/http/body-limits.js";
+import { registerPlanning } from "./register-planning.js";
 
 // `traceHttp` is the metric half the span does not carry — lore-api recorded it per request before the tracing plugin was shared, and still does.
 const TRACING = { tracerName: "lore.api.http", observe: traceHttp };
@@ -38,6 +39,7 @@ export function buildServer(getPool: () => Pool | null, port = 0): Hapi.Server {
   const routes = routeList(getPool);
 
   server.route(routes);
+  registerPlanning(server, getPool);
 
   // Surface OpenAPI coverage at boot (FR7, drift-guard test enforces via CI).
   if (!process.env.VITEST) {
