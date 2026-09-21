@@ -22,7 +22,6 @@ describe("loadAgentDefaults", () => {
     }).toEqual({ count: 26, review: "claude-code", station: "station" });
   });
 
-  // Temporary (B2 deletes it with the yaml): the files must resolve exactly as the yaml fallback does today.
   it("resolves every claude-code agent exactly as the task-types.yaml fallback does", async () => {
     const fromYaml = await new AgentDefsYaml(TASK_TYPES).list("re-cinq/lore");
     const fromFiles = loadAgentDefaults().filter(
