@@ -6,7 +6,6 @@ import { setMemoryPool } from "@re-cinq/lore-server-core/features/memory/memory.
 import { setPipelinePool } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
 import { Llm } from "@re-cinq/lore-shared";
 import { PgUsage } from "@re-cinq/lore-shared/project/usage/usage-pg.js";
-import { loadTaskTypes } from "@re-cinq/lore-server-core/features/pipeline/pipeline-config.js";
 import { loadDefaultTemplates } from "@re-cinq/lore-server-core/features/context/context-assembly.js";
 import { startHttpServer } from "./app/http-server.js";
 import { dbConfigFromEnv } from "@re-cinq/lore-shared/db/pg-pool.js";
@@ -30,7 +29,6 @@ async function main() {
 
   state.pool = dbHost ? connectDatabase(dbHost) : null;
 
-  loadTaskTypes();
   loadDefaultTemplates();
 
   if (state.pool) {

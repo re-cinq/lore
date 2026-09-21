@@ -13,12 +13,6 @@ vi.mock("@re-cinq/lore-server-core/features/pipeline/pipeline.js", () => ({
   listTasks: vi.fn(),
   retryTask: vi.fn(),
 }));
-vi.mock(
-  "@re-cinq/lore-server-core/features/pipeline/pipeline-config.js",
-  () => ({
-    getTaskTypes: vi.fn(() => ["review", "general", "implementation"]),
-  }),
-);
 
 import {
   createTask,
@@ -36,6 +30,28 @@ describe("POST /api/task", () => {
     process.env = { ...originalEnv };
     vi.clearAllMocks();
   });
+
+  function poolWithDefinition(name: string, executionMode: string) {
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({
+      rows: [
+        {
+          name,
+          model: "claude-sonnet-4-6",
+          timeout_minutes: 30,
+          prompt: "Do it.",
+          image: null,
+          execution_mode: executionMode,
+          review_required: false,
+          project_id: null,
+          config: null,
+        },
+      ],
+    });
+
+    return pool;
+  }
 
   function post(body: unknown, pool: unknown = makePool()) {
     const payload = typeof body === "string" ? body : JSON.stringify(body);
@@ -243,9 +259,12 @@ describe("POST /api/task", () => {
     expect(res.statusCode).toBe(400);
   });
 
-  it("creates a task with a known type", async () => {
+  it("creates a review task when lore.agent_definitions holds a review row", async () => {
     vi.mocked(createTask).mockResolvedValue({ task_id: "c1" } as any);
-    await post({ description: "do it", task_type: "review" });
+    await post(
+      { description: "do it", task_type: "review" },
+      poolWithDefinition("review", "claude-code"),
+    );
     expect(createTask).toHaveBeenCalledWith({
       description: "do it",
       taskType: "review",
@@ -278,20 +297,40 @@ describe("POST /api/task", () => {
     });
   });
 
-  it("falls back to general for an unknown type", async () => {
+  it("falls back to general for a zzz type no definition row names", async () => {
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({ rows: [] });
     vi.mocked(createTask).mockResolvedValue({ task_id: "c2" } as any);
-    await post({
-      description: "do it",
-      task_type: "zzz",
-      context: { a: 1 },
-      priority: "immediate",
-    });
+    await post(
+      {
+        description: "do it",
+        task_type: "zzz",
+        context: { a: 1 },
+        priority: "immediate",
+      },
+      pool,
+    );
     expect(createTask).toHaveBeenCalledWith({
       description: "do it",
       taskType: "general",
       createdBy: "remote-mcp",
       contextBundle: { a: 1 },
       priority: "immediate",
+    });
+  });
+
+  it("falls back to general for def-validate, a station recipe no task can run as", async () => {
+    vi.mocked(createTask).mockResolvedValue({ task_id: "c5" } as any);
+    await post(
+      { description: "do it", task_type: "def-validate" },
+      poolWithDefinition("def-validate", "station"),
+    );
+    expect(createTask).toHaveBeenCalledWith({
+      description: "do it",
+      taskType: "general",
+      createdBy: "remote-mcp",
+      priority: "normal",
     });
   });
 
