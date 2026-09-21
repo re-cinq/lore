@@ -297,16 +297,14 @@ function perModelGeminiCost(perModelUsage: unknown): number | null {
   }
 
   return Object.entries(perModelUsage).reduce(
-    (sum, [model, usage]) => sum + modelGeminiCost(model, usage),
+    (sum, [model, usage]) =>
+      sum +
+      computeGeminiCost(
+        model,
+        usageCount(usage, "input_tokens"),
+        usageCount(usage, "output_tokens"),
+      ),
     0,
-  );
-}
-
-function modelGeminiCost(model: string, usage: unknown): number {
-  return computeGeminiCost(
-    model,
-    usageCount(usage, "input_tokens"),
-    usageCount(usage, "output_tokens"),
   );
 }
 
