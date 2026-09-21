@@ -28,6 +28,8 @@ export interface AdvanceDeps {
     outcome: string,
     reason?: string,
   ): Promise<void>;
+  /** Refresh the run's check on its pull request — after every launch and once by the winning finisher, so the PR's checks list follows the walk. Never throws; optional seam. */
+  publishRunCheck?: (assemblyRunId: string) => Promise<void>;
   /** Reclaim the run's per-task token once the line is terminal. */
   cleanupToken: (runTaskId: string) => Promise<void>;
   /** React to a node FINISHING (CR event, reaper resolve, or `assembly_run.resume`), passed RESOLVED so a reaction can read its TYPE rather than compare hardcoded ids. Injected so this module keeps importing only its own folder. */

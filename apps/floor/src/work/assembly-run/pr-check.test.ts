@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { assemblyLineCheck } from "./pr-check.js";
+import {
+  assemblyLineCheck,
+  publishPrCheck,
+  supersededCheck,
+} from "./pr-check.js";
+import type { CheckRunInput } from "@re-cinq/lore-shared/project/lib/github-port.js";
+import type { RunGraph } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import type {
   StationRunRecord,
   AssemblyRunRecord,
@@ -168,7 +174,7 @@ describe("assemblyLineCheck", () => {
 
   it("adds a details_url to the Lore UI when a uiUrl is given", () => {
     expect(
-      assemblyLineCheck(line({}), [], "https://lore.example.com"),
+      assemblyLineCheck(line({}), [], { uiUrl: "https://lore.example.com" }),
     ).toMatchObject({
       detailsUrl: "https://lore.example.com/assembly-runs/al-1",
     });
@@ -192,5 +198,185 @@ describe("assemblyLineCheck check-name alias", () => {
         [],
       ),
     ).toMatchObject({ name: "lore/code-review", title: "Lore code-review" });
+  });
+});
+
+const loopGraph: RunGraph = {
+  name: "implementation-loop",
+  entry: "tdd-round",
+  exit: "done",
+  nodes: [
+    {
+      id: "tdd-round",
+      type: "agent",
+      station: "tdd-round",
+      station_inherited: false,
+      description: "ONE red-green-refactor round.",
+    },
+    {
+      id: "await-ci",
+      type: "ci_check",
+      station: null,
+      station_inherited: false,
+      description: "Waiting on CI for the round just pushed.",
+    },
+  ],
+  edges: [],
+};
+
+function loopRun(over: Partial<AssemblyRunRecord>): AssemblyRunRecord {
+  return line({
+    id: "694a406f",
+    blueprintName: "implementation-loop",
+    graph: loopGraph,
+    args: { pr_number: 241 },
+    ...over,
+  });
+}
+
+describe("assemblyLineCheck for an implementation-loop run", () => {
+  it("puts lore/implementation-loop on the pull request's live head sha 9dcdcc5", () => {
+    expect(
+      assemblyLineCheck(loopRun({}), [], { liveHeadSha: "9dcdcc5" }),
+    ).toMatchObject({ headSha: "9dcdcc5", name: "lore/implementation-loop" });
+  });
+
+  it("returns null while the pull request's head is unknown", () => {
+    expect(
+      assemblyLineCheck(loopRun({}), [], { liveHeadSha: null }),
+    ).toBeNull();
+  });
+
+  it("ignores a stale args.head_sha in favour of the live head", () => {
+    expect(
+      assemblyLineCheck(
+        loopRun({ args: { pr_number: 241, head_sha: "old" } }),
+        [],
+        { liveHeadSha: "new" },
+      ),
+    ).toMatchObject({ headSha: "new" });
+  });
+
+  it("titles a running check with the description of await-ci, the step in flight", () => {
+    expect(
+      assemblyLineCheck(
+        loopRun({}),
+        [
+          nodeRow({ nodeId: "tdd-round", iteration: 3, outcome: "success" }),
+          nodeRow({ id: "n-2", nodeId: "await-ci", iteration: 3 }),
+        ],
+        { liveHeadSha: "9dcdcc5" },
+      ),
+    ).toMatchObject({
+      status: "in_progress",
+      title: "Waiting on CI for the round just pushed.",
+      summary: expect.stringContaining("`await-ci` (visit 3)"),
+    });
+  });
+
+  it("links the check to the run page /assembly-runs/694a406f", () => {
+    expect(
+      assemblyLineCheck(loopRun({}), [], {
+        uiUrl: "https://lore.example.com",
+        liveHeadSha: "9dcdcc5",
+      }),
+    ).toMatchObject({
+      detailsUrl: "https://lore.example.com/assembly-runs/694a406f",
+    });
+  });
+
+  it("maps a completed run to success even though a round recorded changes_requested", () => {
+    expect(
+      assemblyLineCheck(
+        loopRun({ status: "finished", outcome: "completed" }),
+        [nodeRow({ nodeId: "tdd-round", outcome: "changes_requested" })],
+        { liveHeadSha: "9dcdcc5" },
+      ),
+    ).toMatchObject({ status: "completed", conclusion: "success" });
+  });
+});
+
+describe("supersededCheck", () => {
+  const check = {
+    headSha: "new",
+    name: "lore/implementation-loop",
+    status: "in_progress" as const,
+    title: "Waiting on CI.",
+    summary: "Running.",
+  };
+
+  it("closes the check left on the previous head old as neutral once the head moves to new", () => {
+    expect(
+      supersededCheck(loopRun({ args: { pr_check_sha: "old" } }), check),
+    ).toMatchObject({
+      headSha: "old",
+      name: "lore/implementation-loop",
+      status: "completed",
+      conclusion: "neutral",
+      summary: expect.stringContaining("new"),
+    });
+  });
+
+  it("returns null while the check is still on the head it was last published to", () => {
+    expect(
+      supersededCheck(loopRun({ args: { pr_check_sha: "new" } }), check),
+    ).toBeNull();
+  });
+
+  it("returns null for a run that has never published a check", () => {
+    expect(supersededCheck(loopRun({}), check)).toBeNull();
+  });
+});
+
+describe("publishPrCheck for an implementation-loop run whose head moved from old to new", () => {
+  async function publishedAfterHeadMove() {
+    const upserted: CheckRunInput[] = [];
+    const merged: Array<Record<string, unknown>> = [];
+
+    await publishPrCheck(
+      {
+        repo: {
+          upsertCheckRun: async (input) => {
+            upserted.push(input);
+          },
+        },
+        pulls: {
+          get: async (number) => ({
+            repo: "re-cinq/lore",
+            number,
+            title: "t",
+            branch: "feat/x",
+            state: "open",
+            labels: [],
+            url: "u",
+            headSha: "new",
+          }),
+        },
+        assemblyRuns: {
+          mergeArgs: async (_id, patch) => {
+            merged.push(patch);
+          },
+        },
+      },
+      loopRun({ args: { pr_number: 241, pr_check_sha: "old" } }),
+      [],
+    );
+
+    return { upserted, merged };
+  }
+
+  it("closes the check on old as superseded, then publishes the running check on new", async () => {
+    const { upserted } = await publishedAfterHeadMove();
+
+    expect(upserted).toMatchObject([
+      { headSha: "old", status: "completed", conclusion: "neutral" },
+      { headSha: "new", status: "in_progress" },
+    ]);
+  });
+
+  it("records new as the head the check now lives on", async () => {
+    const { merged } = await publishedAfterHeadMove();
+
+    expect(merged).toEqual([{ pr_check_sha: "new" }]);
   });
 });

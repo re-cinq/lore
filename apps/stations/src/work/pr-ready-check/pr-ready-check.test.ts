@@ -333,6 +333,23 @@ describe("prReadyCheckSweep", () => {
     expect(d.reported).toMatchObject([{ outcome: "success" }]);
   });
 
+  it("resumes a green await-pr run whose only unfinished check is the loop's own lore/implementation-loop", async () => {
+    const d = deps({
+      listChecks: async () => [
+        { name: "test", status: "completed", conclusion: "success" },
+        {
+          name: "lore/implementation-loop",
+          status: "in_progress",
+          conclusion: null,
+        },
+      ],
+    });
+
+    await prReadyCheckSweep(d.deps);
+
+    expect(d.reported).toMatchObject([{ outcome: "success" }]);
+  });
+
   it("sends a conflicted pull request back to a round instead of waiting on a build GitHub will never run", async () => {
     const d = deps({
       listStationRuns: async () => parkedAtCi,

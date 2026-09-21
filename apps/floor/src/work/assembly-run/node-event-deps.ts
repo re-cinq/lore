@@ -77,6 +77,11 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
       return renderNodePrompt(promptRef, recipe?.prompt, description);
     },
     cleanupToken: cleanupPerTaskToken,
+    publishRunCheck: async (assemblyRunId) => {
+      const { publishRunCheck } = await import("./pr-check.js");
+
+      await publishRunCheck(assemblyRunId, pipeline().assemblyRuns);
+    },
     jobRuns: pipeline().jobRuns,
     notifyFailure: notifyLineFailure,
     onRunClosed: async (run, outcome, reason) => {
