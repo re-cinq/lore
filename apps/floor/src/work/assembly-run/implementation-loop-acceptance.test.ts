@@ -10,7 +10,9 @@ import type { AdvanceDeps } from "./advance-deps.js";
 
 const short = (id: string) => id.substring(0, 12);
 
-function loopHarness(extra: Partial<Pick<AdvanceDeps, "publishRunCheck">> = {}) {
+function loopHarness(
+  extra: Partial<Pick<AdvanceDeps, "publishRunCheck">> = {},
+) {
   const labeled: Array<{ issue: number; label: string }> = [];
   const comments: Array<{ issue: number; body: string }> = [];
   const ticks: string[] = [];
@@ -51,7 +53,6 @@ async function parkedOnPr(h: ReturnType<typeof loopHarness>) {
   return id;
 }
 
-/** What a check published right now would describe: the step in flight, or how the run ended. */
 async function stepInFlight(
   h: ReturnType<typeof loopHarness>,
   runId: string,

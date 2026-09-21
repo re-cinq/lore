@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { assemblyLineCheck, supersededCheck } from "./pr-check.js";
+import {
+  assemblyLineCheck,
+  publishPrCheck,
+  supersededCheck,
+} from "./pr-check.js";
+import type { CheckRunInput } from "@re-cinq/lore-shared/project/lib/github-port.js";
 import type { RunGraph } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import type {
   StationRunRecord,
@@ -320,5 +325,58 @@ describe("supersededCheck", () => {
 
   it("returns null for a run that has never published a check", () => {
     expect(supersededCheck(loopRun({}), check)).toBeNull();
+  });
+});
+
+describe("publishPrCheck for an implementation-loop run whose head moved from old to new", () => {
+  async function publishedAfterHeadMove() {
+    const upserted: CheckRunInput[] = [];
+    const merged: Array<Record<string, unknown>> = [];
+
+    await publishPrCheck(
+      {
+        repo: {
+          upsertCheckRun: async (input) => {
+            upserted.push(input);
+          },
+        },
+        pulls: {
+          get: async (number) => ({
+            repo: "re-cinq/lore",
+            number,
+            title: "t",
+            branch: "feat/x",
+            state: "open",
+            labels: [],
+            url: "u",
+            headSha: "new",
+          }),
+        },
+        assemblyRuns: {
+          mergeArgs: async (_id, patch) => {
+            merged.push(patch);
+          },
+        },
+      },
+      loopRun({ args: { pr_number: 241, pr_check_sha: "old" } }),
+      [],
+    );
+
+    return { upserted, merged };
+  }
+
+  it("closes the check on old as superseded, then publishes the running check on new", async () => {
+    const { upserted } = await publishedAfterHeadMove();
+
+    expect(upserted).toMatchObject([
+      { headSha: "old", status: "completed", conclusion: "neutral" },
+      { headSha: "new", status: "in_progress" },
+    ]);
+  });
+
+  it("records new as the head the check now lives on", async () => {
+    const { merged } = await publishedAfterHeadMove();
+
+    expect(merged).toEqual([{ pr_check_sha: "new" }]);
   });
 });

@@ -29,10 +29,6 @@ export interface CheckPorts {
 /** Runs whose pull request outlives any one commit: every round pushes, so the check follows the PR's live head instead of an `args.head_sha` stamped at start. */
 const HEAD_FOLLOWING_BLUEPRINTS = new Set(["implementation-loop"]);
 
-function followsPrHead(line: AssemblyRunRecord): boolean {
-  return HEAD_FOLLOWING_BLUEPRINTS.has(line.blueprintName);
-}
-
 /** Where a check lands and what it links to. */
 export interface CheckContext {
   uiUrl?: string;
@@ -106,15 +102,23 @@ function runningText(
   if (!step) {
     return { summary: running };
   }
-  const description = line.graph?.nodes.find(
-    (node) => node.id === step.nodeId,
-  )?.description;
+  const description = stepDescription(line, step.nodeId);
   const at = `Now at \`${step.nodeId}\` (visit ${step.iteration})`;
 
   return {
     ...(description ? { title: description } : {}),
     summary: `${running}\n\n${at}${description ? `: ${description}` : "."}`,
   };
+}
+
+/** What the run's graph says step `nodeId` does. */
+function stepDescription(
+  line: AssemblyRunRecord,
+  nodeId: string,
+): string | undefined {
+  const graphNodes = line.graph?.nodes ?? [];
+
+  return graphNodes.find((graphNode) => graphNode.id === nodeId)?.description;
 }
 
 type TerminalResult = {
@@ -136,10 +140,16 @@ function terminal(
     return { conclusion: "cancelled", summary: "PR closed." };
   }
 
-  if (!isReviewDefinition(line.blueprintName)) {
-    return { conclusion: "success", summary: "Finished." };
-  }
+  return isReviewDefinition(line.blueprintName)
+    ? reviewVerdict(line, nodes)
+    : { conclusion: "success", summary: "Finished." };
+}
 
+/** A review that finished: its verdict, read off the node rows. */
+function reviewVerdict(
+  line: AssemblyRunRecord,
+  nodes: readonly StationRunRecord[],
+): TerminalResult {
   if (hasChangesRequested(line, nodes)) {
     return {
       conclusion: "neutral",
@@ -213,37 +223,48 @@ export function supersededCheck(
   };
 }
 
+/** What publishing a run's check reads and records on the run. */
+type RunCheckReads = Pick<
+  AssemblyRunsPort,
+  "getById" | "listStationRuns" | "mergeArgs"
+>;
+
 /** Publishes the run's check on its pull request, if it has one. Never throws: the check is a view of the walk, not part of it. */
 export async function publishRunCheck(
   assemblyRunId: string,
-  assemblyRuns: Pick<
-    AssemblyRunsPort,
-    "getById" | "listStationRuns" | "mergeArgs"
-  >,
+  assemblyRuns: RunCheckReads,
 ): Promise<void> {
   try {
-    const [line, nodes] = await Promise.all([
-      assemblyRuns.getById(assemblyRunId),
-      assemblyRuns.listStationRuns(assemblyRunId),
-    ]);
-
-    if (!line || !(Number(line.args.pr_number) > 0)) {
-      return;
-    }
-    const project = await projectFor(line.repo);
-
-    await publishPrCheck(
-      { repo: project.repo, pulls: project.pulls, assemblyRuns },
-      line,
-      nodes,
-      process.env.LORE_UI_URL,
-    );
+    await publishLoadedRunCheck(assemblyRunId, assemblyRuns);
   } catch (err) {
     console.warn(
       `[pr-check] run ${assemblyRunId} not published:`,
       (err as Error).message,
     );
   }
+}
+
+/** Reads the run and its visits, and publishes when it has a pull request. */
+async function publishLoadedRunCheck(
+  assemblyRunId: string,
+  assemblyRuns: RunCheckReads,
+): Promise<void> {
+  const [line, nodes] = await Promise.all([
+    assemblyRuns.getById(assemblyRunId),
+    assemblyRuns.listStationRuns(assemblyRunId),
+  ]);
+
+  if (!line || !(Number(line.args.pr_number) > 0)) {
+    return;
+  }
+  const project = await projectFor(line.repo);
+
+  await publishPrCheck(
+    { repo: project.repo, pulls: project.pulls, assemblyRuns },
+    line,
+    nodes,
+    process.env.LORE_UI_URL,
+  );
 }
 
 /** Best-effort publish — a check failure (e.g. missing `checks: write`) never fails the line. */
@@ -319,4 +340,8 @@ async function recordPublishFailure(
       error: err.message,
     },
   });
+}
+
+function followsPrHead(line: AssemblyRunRecord): boolean {
+  return HEAD_FOLLOWING_BLUEPRINTS.has(line.blueprintName);
 }
