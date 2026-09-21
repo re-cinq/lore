@@ -110,3 +110,20 @@ describe("authOptions.callbacks.signIn", () => {
     expect(result).toBe(false);
   });
 });
+
+describe("authOptions.callbacks session", () => {
+  it("carries the GitHub login gedaiu from the sign-in profile into the session", async () => {
+    const callbacks = authOptions.callbacks!;
+    const token = await callbacks.jwt!({
+      token: {},
+      account,
+      profile: { login: "gedaiu" },
+    } as unknown as Parameters<NonNullable<typeof callbacks.jwt>>[0]);
+    const session = await callbacks.session!({
+      session: { user: { name: "Bogdan" }, expires: "" },
+      token,
+    } as unknown as Parameters<NonNullable<typeof callbacks.session>>[0]);
+
+    expect(session).toMatchObject({ login: "gedaiu", accessToken: "gh-token" });
+  });
+});

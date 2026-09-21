@@ -34,6 +34,7 @@ function repoTabs(base: string) {
     { href: `${base}/context`, label: "Context" },
     { href: `${base}/assembled`, label: "Assembled" },
     { href: `${base}/specs`, label: "Specs" },
+    { href: `${base}/plans`, label: "Plans" },
     { href: `${base}/features`, label: "Features" },
     { href: `${base}/implementation-loop`, label: "Backlog" },
     { href: `${base}/adrs`, label: "ADRs" },
