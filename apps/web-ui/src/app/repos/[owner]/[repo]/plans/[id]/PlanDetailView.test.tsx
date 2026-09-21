@@ -52,6 +52,7 @@ describe("PlanDetailView", () => {
         run={{
           id: "r1",
           status: "queued",
+          outcome: null,
           reason: null,
           prUrl: null,
           prNumber: null,

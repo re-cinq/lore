@@ -72,7 +72,7 @@ async function planRunFor(
     return null;
   }
   const nodes = await fetchAssemblyRunNodes(run.id);
-  const { id, status, reason, prUrl, prNumber } = run;
+  const { id, status, outcome, reason, prUrl, prNumber } = run;
 
-  return { id, status, reason, prUrl, prNumber, nodes };
+  return { id, status, outcome, reason, prUrl, prNumber, nodes };
 }

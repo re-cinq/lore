@@ -45,11 +45,18 @@ const REFINING: PlanRunPhase = {
   text: "The planning agent is refining a section.",
 };
 
+interface RunState {
+  status: string;
+  /** How a finished run ended: `completed`, or the verdict that stopped it (`failed`, `iteration_max`, …). */
+  outcome?: string | null;
+  reason: string | null;
+}
+
 export function planRunPhase(
-  run: { status: string; reason: string | null },
+  run: RunState,
   visits: readonly Visit[],
 ): PlanRunPhase {
-  if (run.status === "failed") {
+  if (endedInFailure(run)) {
     return {
       tone: "failed",
       text: `The run failed: ${run.reason ?? "no reason was recorded"}`,
@@ -63,6 +70,14 @@ export function planRunPhase(
   return run.status === "queued"
     ? { tone: "waiting", text: "Waiting for a runner to pick up the draft." }
     : openNodePhase(visits);
+}
+
+// `status` only says the walk ended; a finished run failed unless its outcome says it completed.
+function endedInFailure(run: RunState): boolean {
+  return (
+    run.status === "failed" ||
+    (run.status === "finished" && (run.outcome ?? "completed") !== "completed")
+  );
 }
 
 /** Whether the planning agent is still writing the first draft, which replaces whatever the plan holds now; a Refine only proposes one section, so the plan stays open then. */

@@ -6,6 +6,7 @@ import PlanRunCard, { type PlanRun } from "./PlanRunCard";
 const RUN: PlanRun = {
   id: "run-1",
   status: "running",
+  outcome: null,
   reason: null,
   prUrl: null,
   prNumber: null,

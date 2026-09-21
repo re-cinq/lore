@@ -79,9 +79,32 @@ describe("planRunPhase", () => {
   });
 
   it("says a finished run filed the plan's spec-tasks", () => {
-    expect(planRunPhase({ status: "finished", reason: null }, [])).toEqual({
+    expect(
+      planRunPhase(
+        { status: "finished", outcome: "completed", reason: null },
+        [],
+      ),
+    ).toEqual({
       tone: "done",
       text: "Done: the plan's spec-tasks are filed.",
+    });
+  });
+});
+
+describe("planRunPhase on a run that ended without completing", () => {
+  it("names the reason of a run finished as iteration_max", () => {
+    expect(
+      planRunPhase(
+        {
+          status: "finished",
+          outcome: "iteration_max",
+          reason: "analyze timed out twice",
+        },
+        [],
+      ),
+    ).toEqual({
+      tone: "failed",
+      text: "The run failed: analyze timed out twice",
     });
   });
 });

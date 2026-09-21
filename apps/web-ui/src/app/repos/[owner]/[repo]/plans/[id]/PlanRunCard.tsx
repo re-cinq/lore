@@ -8,6 +8,7 @@ import styles from "./PlanRunCard.module.scss";
 export interface PlanRun {
   id: string;
   status: string;
+  outcome: string | null;
   reason: string | null;
   prUrl: string | null;
   prNumber: number | null;
