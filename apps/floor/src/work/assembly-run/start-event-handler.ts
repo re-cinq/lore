@@ -159,11 +159,6 @@ export const assemblyLineStart: EventHandler = async (params) => {
   const handler = await productionStartHandler();
 
   await handler(params);
-
-  // Publish check immediately so lore/code-review blocks merge for the whole window (best-effort).
-  await publishStartCheck(
-    String(params.assemblyRunId ?? params.assemblyLineId ?? ""),
-  );
 };
 
 /** Every seam the handler needs, resolved lazily so importing this module forces no DB pool or K8s client. */
@@ -195,55 +190,4 @@ function advanceSeam(
       assemblyLineId,
       await nodeEvents.productionNodeEventDeps(),
     );
-}
-
-async function publishStartCheck(assemblyLineId: string): Promise<void> {
-  if (!assemblyLineId) {
-    return;
-  }
-
-  try {
-    await publishCheckForRun(assemblyLineId);
-  } catch (err) {
-    console.warn("[pr-check] start publish failed:", (err as Error).message);
-  }
-}
-
-/** Reads the run and, once finished, its node rows, then stamps the PR check. */
-async function publishCheckForRun(assemblyLineId: string): Promise<void> {
-  const [{ pipeline }, { projectFor }, { publishPrCheck }] = await Promise.all([
-    import("../../outbound/queues.js"),
-    import("../../outbound/project-boot.js"),
-    import("./pr-check.js"),
-  ]);
-  const row = await pipeline().assemblyRuns.getById(assemblyLineId);
-
-  if (!hasPrNumber(row)) {
-    return;
-  }
-  const nodes = await nodesForStartCheck(row, assemblyLineId, (id) =>
-    pipeline().assemblyRuns.listStationRuns(id),
-  );
-  const project = await projectFor(row.repo);
-
-  await publishPrCheck(project.repo, row, nodes, process.env.LORE_UI_URL);
-}
-
-function hasPrNumber(row: AssemblyRunRecord | null): row is AssemblyRunRecord {
-  return row !== null && Number(row.args.pr_number) > 0;
-}
-
-/** Skip the node query on normal starts; include it after finish to avoid overwriting correct checks. */
-async function nodesForStartCheck(
-  row: AssemblyRunRecord,
-  assemblyLineId: string,
-  listStationRuns: (
-    id: string,
-  ) => ReturnType<AssemblyRunsPort["listStationRuns"]>,
-): Promise<Awaited<ReturnType<AssemblyRunsPort["listStationRuns"]>>> {
-  if (row.status === "queued" || row.status === "running") {
-    return [];
-  }
-
-  return listStationRuns(assemblyLineId);
 }

@@ -6,10 +6,11 @@ import {
   resultEnvelope,
 } from "./line-acceptance-harness.js";
 import { podPromptOf } from "./pod-prompt-view.js";
+import type { AdvanceDeps } from "./advance-deps.js";
 
 const short = (id: string) => id.substring(0, 12);
 
-function loopHarness() {
+function loopHarness(extra: Partial<Pick<AdvanceDeps, "publishRunCheck">> = {}) {
   const labeled: Array<{ issue: number; label: string }> = [];
   const comments: Array<{ issue: number; body: string }> = [];
   const ticks: string[] = [];
@@ -32,6 +33,7 @@ function loopHarness() {
         priorInfraFailures: async () => 0,
         maxInfraDeferrals: 3,
       }),
+    ...extra,
   });
 
   return { ...h, labeled, comments, ticks };
@@ -47,6 +49,21 @@ async function parkedOnPr(h: ReturnType<typeof loopHarness>) {
   await h.completeAgentNode(id, "ready-for-review", { outcome: "success" });
 
   return id;
+}
+
+/** What a check published right now would describe: the step in flight, or how the run ended. */
+async function stepInFlight(
+  h: ReturnType<typeof loopHarness>,
+  runId: string,
+): Promise<string> {
+  const run = await h.runs.getById(runId);
+
+  if (run?.status === "finished") {
+    return `finished:${run.outcome}`;
+  }
+  const visits = await h.runs.listStationRuns(runId);
+
+  return visits.filter((visit) => visit.outcome === null).at(-1)?.nodeId ?? "";
 }
 
 async function retrospectiveReported(
@@ -195,6 +212,30 @@ describe("implementation-loop acceptance: one ticket, cluster-free, walked throu
 
     expect(h.visits().at(-1)).toEqual(["await-pr", null]);
     expect(h.labeled).toEqual([]);
+  });
+
+  it("publishes the PR check as the run enters dod, open-pr, tdd-round, await-ci, ready-for-review, await-pr and retrospective, then once more when it finishes completed", async () => {
+    const published: string[] = [];
+    const h = loopHarness({
+      publishRunCheck: async (runId) => {
+        published.push(await stepInFlight(h, runId));
+      },
+    });
+    const id = await parkedOnPr(h);
+
+    await h.resume(id, "await-pr", "success");
+    await retrospectiveReported(h, id);
+
+    expect(published).toEqual([
+      "dod",
+      "open-pr",
+      "tdd-round",
+      "await-ci",
+      "ready-for-review",
+      "await-pr",
+      "retrospective",
+      "finished:completed",
+    ]);
   });
 
   it("completes the run and re-arms the repo tick when the PR reports green", async () => {

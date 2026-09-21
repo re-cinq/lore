@@ -49,6 +49,8 @@ export async function advanceLine(
   if (node) {
     await launchTransition(node, transition, state, deps);
   }
+  // Also when the gate held the launch: the run is still in flight, and a required check must be there to block the merge.
+  await deps.publishRunCheck?.(assemblyLineId);
 }
 
 /** Close the run when the walk is over. `await` means a node is still running, so nothing settles. A `finish` reads its outcome back off the visits, because a line whose last node succeeded can still have failed earlier. */
