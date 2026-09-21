@@ -2560,6 +2560,7 @@ export interface components {
           package: string;
           script: string;
         } | null;
+        unreadable: string[];
       }[];
     };
     CiJobLog: {
@@ -6658,7 +6659,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description What CI said about a branch: the judged sha, the verdict, and each failed check with its annotations, failed steps and log tail */
+      /** @description What CI said about a branch: the judged sha, the verdict, and each failed check with its annotations, failed steps and log tail, plus the reads GitHub refused (unreadable) so an empty part is not mistaken for a silent job */
       200: {
         headers: {
           [name: string]: unknown;

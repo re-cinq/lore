@@ -4193,7 +4193,7 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "What CI said about a branch: the judged sha, the verdict, and each failed check with its annotations, failed steps and log tail",
+            "description": "What CI said about a branch: the judged sha, the verdict, and each failed check with its annotations, failed steps and log tail, plus the reads GitHub refused (unreadable) so an empty part is not mistaken for a silent job",
             "content": {
               "application/json": {
                 "schema": {
@@ -9825,6 +9825,12 @@
                       "type": "null"
                     }
                   ]
+                },
+                "unreadable": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
                 }
               },
               "required": [
@@ -9834,7 +9840,8 @@
                 "annotations",
                 "steps",
                 "tail",
-                "npm_script"
+                "npm_script",
+                "unreadable"
               ],
               "additionalProperties": false
             }
