@@ -90,7 +90,7 @@ function warnUnreadable(
   jobId: number,
   err: unknown,
 ): number | "error" {
-  const status = (err as { status?: number }).status ?? "error";
+  const status = (err as { status?: number } | null)?.status ?? "error";
 
   console.warn(`[github] ${what} ${jobId} on ${repo} unreadable (${status})`);
 
