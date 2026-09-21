@@ -90,6 +90,8 @@ export interface JobFailure {
   annotations: string[];
   steps: string[];
   tail: string[];
+  /** The reads GitHub refused, each as `what (status)` — so an empty part reads as "could not be read", not as "said nothing". */
+  unreadable?: string[];
 }
 
 /** One inline comment inside a review thread — the GraphQL node, REST-mappable. */

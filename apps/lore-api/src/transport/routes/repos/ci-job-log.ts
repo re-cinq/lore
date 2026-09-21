@@ -1,6 +1,7 @@
 import { zodResponse } from "../../http/zod-response.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
+import { apiError, rethrowBoom } from "@re-cinq/lore-shared/http/api-error.js";
+import { errorMessage } from "@re-cinq/lore-shared";
 // Server-side because the Actions log read needs GitHub App credentials; `lore_get_ci_job_log` proxies here.
 
 import type {
@@ -14,7 +15,7 @@ import { projectFor } from "../../../outbound/project-boot.js";
 import { readCiJobLog } from "../../../work/ci/ci-job-log.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
-import { githubFailureResponse } from "./github-read.js";
+import { githubFailureResponse, httpStatusOf } from "./github-read.js";
 
 const JobParams = z.object({
   owner: z.string().min(1),
@@ -67,7 +68,7 @@ export function ciJobLogRoute(): ServerRoute {
   };
 }
 
-/** One job's log, bounded; a 404 when GitHub will not show it. */
+/** One job's log, bounded; a 404 when GitHub has no such job, and a 424 carrying GitHub's status and message when it refuses the read. 424 because the MCP proxy passes a non-retriable 4xx through with its body: a 5xx is retried and its body dropped, a 403 reads as the caller's own token, and a 404 reads as a job that does not exist. */
 async function serveCiJobLog(
   request: Request,
   h: ResponseToolkit,
@@ -83,6 +84,31 @@ async function serveCiJobLog(
 
     return h.response(log);
   } catch (err) {
-    return githubFailureResponse(err, h, "job");
+    return jobLogFailure(err, h);
   }
+}
+
+/** A failed log read as an HTTP answer: GitHub's own refusal as a 424, everything else as the shared GitHub response. */
+function jobLogFailure(err: unknown, h: ResponseToolkit): ResponseObject {
+  rethrowBoom(err);
+  // An error carrying no GitHub status (unconfigured, network) is answered by the shared GitHub response, as a 404 is.
+  const status = httpStatusOf(err) ?? 404;
+
+  enforceTrue(
+    status === 404,
+    apiError(424),
+    refusalMessage(status, errorMessage(err)),
+  );
+
+  return githubFailureResponse(err, h, "job");
+}
+
+const ACTIONS_READ_HINT =
+  " — a 403 naming the integration means the GitHub App lacks Actions read permission on this repository";
+
+/** GitHub's refusal in its own words, with its status. A 403 is also how GitHub rate-limits, so the permission hint is only a reading of the message, never a replacement for it. */
+function refusalMessage(status: number, said: string): string {
+  const hint = status === 403 ? ACTIONS_READ_HINT : "";
+
+  return `GitHub would not serve the job log (${status}): ${said}${hint}`;
 }

@@ -680,6 +680,7 @@ describe("PlatformGitHub failedJob", () => {
         "/home/runner/work/bowman-ui/bowman-ui/specs/bowman-ui-theming-tokens/spec.md",
         '6:1  error  Status "shipped" does not match',
       ],
+      unreadable: [],
     });
   });
 
@@ -707,6 +708,7 @@ describe("PlatformGitHub failedJob", () => {
       ],
       steps: ["Lint"],
       tail: [],
+      unreadable: [],
     });
   });
 });
@@ -718,12 +720,28 @@ describe("PlatformGitHub failedJob when GitHub refuses", () => {
     state.job = undefined;
     state.jobLog = undefined;
     state.jobError = undefined;
+    state.annotations = undefined;
   });
 
-  it("failedJob returns null when GitHub refuses the job read, so the verdict still goes out with the check names", async () => {
+  it("failedJob keeps the annotations and names the job and log reads GitHub refused with 403", async () => {
     state.jobError = { status: 403 };
+    state.annotations = [
+      {
+        path: "apps/api/src/configuration/config.ts",
+        start_line: 23,
+        annotation_level: "failure",
+        message: "Function 'getConfig' has too many lines (33)",
+      },
+    ];
 
-    expect(await gh().failedJob("re-cinq/bowman-ui", 102930584180)).toBe(null);
+    expect(await gh().failedJob("acme/widgets", 102930584180)).toEqual({
+      annotations: [
+        "apps/api/src/configuration/config.ts:23 Function 'getConfig' has too many lines (33)",
+      ],
+      steps: [],
+      tail: [],
+      unreadable: ["job (403)", "log (403)"],
+    });
   });
 });
 
@@ -763,8 +781,15 @@ describe("PlatformGitHub branch reads for the CI tools", () => {
     );
   });
 
-  it("jobLog returns null when GitHub refuses the log read", async () => {
-    state.jobError = { status: 403 };
+  it("jobLog returns null when GitHub has no such job (404)", async () => {
+    state.jobError = { status: 404 };
     expect(await gh().jobLog("re-cinq/lore", 102476456760)).toBe(null);
+  });
+
+  it("jobLog rejects with GitHub's 403 when the log read is refused", async () => {
+    state.jobError = { status: 403 };
+    await expect(
+      gh().jobLog("re-cinq/lore", 102476456760),
+    ).rejects.toMatchObject({ status: 403 });
   });
 });

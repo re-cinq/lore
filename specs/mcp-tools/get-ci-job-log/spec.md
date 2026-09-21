@@ -33,6 +33,7 @@ Registered via `server.tool` ([registration + handler](../../../apps/mcp-server/
 
 - It proxies `GET /api/repos/{owner}/{repo}/ci-jobs/{job_id}/log` ([route spec](../../api-routes/ci-job-log/spec.md)) with the tail and grep given, URL-encoded, and returns the slice as pretty JSON. ([validated by asks for the job's tail with the grep and tail given, encoded](../../../apps/mcp-server/src/transport/tools/ci-tools.test.ts#L130))
 - With no tail it asks for 200 lines. ([validated by asks for 200 lines when no tail is given](../../../apps/mcp-server/src/transport/tools/ci-tools.test.ts#L161))
+- When GitHub will not serve the log, the API relays GitHub's status and its own message as a 424, and the tool answers with that text — a missing Actions read permission reads as GitHub's refusal, never as a job that does not exist. ([validated by answers with GitHub's own 403 refusal when the API relays it as a 424, never as a missing job](../../../apps/mcp-server/src/transport/tools/ci-tools.test.ts#L172))
 
 ## Output
 

@@ -33,6 +33,7 @@ const fakePulls = {
     annotations: ["specs/x/spec.md:7 Status draft"],
     steps: ["Lint"],
     tail: ["✖ 1 problem"],
+    unreadable: ["log (403)"],
   }),
 };
 
@@ -64,6 +65,7 @@ const REPORT = {
       steps: ["Lint"],
       tail: ["✖ 1 problem"],
       npm_script: null,
+      unreadable: ["log (403)"],
     },
   ],
 };

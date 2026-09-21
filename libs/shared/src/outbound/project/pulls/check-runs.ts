@@ -120,11 +120,24 @@ function jobFailureParts(failure: JobFailure | undefined): string[] {
   return failure
     ? [
         failure.annotations.join("\n"),
-        `Failed step: ${failure.steps.join(", ")}`,
+        failedStepLine(failure.steps),
         ranAsLine(npmScriptOf(failure.tail)),
         failure.tail.join("\n"),
+        refusedReadsLine(failure.unreadable ?? []),
       ]
     : [];
+}
+
+/** The steps that failed, or nothing when the job could not be read — an empty `Failed step:` would read as a job with no failing step. */
+function failedStepLine(steps: readonly string[]): string {
+  return steps.length === 0 ? "" : `Failed step: ${steps.join(", ")}`;
+}
+
+/** The reads GitHub refused, said out loud: without it a refused log reads as a job that printed nothing, and an agent goes looking for a failure it was never shown. */
+function refusedReadsLine(unreadable: readonly string[]): string {
+  return unreadable.length === 0
+    ? ""
+    : `GitHub refused: ${unreadable.join(", ")}`;
 }
 
 /** The npm script a failed step ran, as the package and script name npm printed for it. */
@@ -242,6 +255,8 @@ export interface CiFailure {
   tail: string[];
   /** The npm script the failed step ran, so a reproduction runs in that package; null when the step did not run through npm. */
   npm_script: NpmScript | null;
+  /** The reads GitHub refused, each as `what (status)`: an empty part beside an entry here was not readable, which is not the same as empty. */
+  unreadable: string[];
 }
 
 /** What CI says about a branch: the sha it judged, the verdict, and every failed check with its account. */
@@ -271,7 +286,12 @@ const UNEXPLAINED: JobFailure = { annotations: [], steps: [], tail: [] };
 
 /** One failed run flattened for the wire: the ids a follow-up read needs beside the account already in hand. */
 function ciFailureOf(run: CheckRun): CiFailure {
-  const { annotations, steps, tail } = run.jobFailure ?? UNEXPLAINED;
+  const {
+    annotations,
+    steps,
+    tail,
+    unreadable = [],
+  } = run.jobFailure ?? UNEXPLAINED;
 
   return {
     name: run.name,
@@ -281,6 +301,7 @@ function ciFailureOf(run: CheckRun): CiFailure {
     steps,
     tail,
     npm_script: npmScriptOf(tail),
+    unreadable,
   };
 }
 
