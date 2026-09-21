@@ -74,6 +74,19 @@ describe("mergeShippedDefault", () => {
     });
   });
 
+  it("treats a prompt the /agents form saved with CRLF and no trailing newline as untouched, so it follows the new default", () => {
+    const formSaved = { ...review, prompt: "Review\r\nthe pull request." };
+    const seeded = { ...review, prompt: "Review\nthe pull request.\n" };
+    const next = {
+      ...review,
+      prompt: "Review\nthe pull request, then reply.\n",
+    };
+
+    expect(mergeShippedDefault(formSaved, seeded, next)).toEqual({
+      prompt: "Review\nthe pull request, then reply.\n",
+    });
+  });
+
   it("changes nothing when the review row already equals the shipped default", () => {
     expect(mergeShippedDefault(review, review, review)).toEqual({});
   });

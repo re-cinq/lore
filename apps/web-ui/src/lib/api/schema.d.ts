@@ -4567,7 +4567,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Every org-default agent definition — org rows overlaid on the task-types.yaml fallback, no per-repo layer */
+      /** @description Every org-default agent definition — the org rows, no per-repo layer */
       200: {
         headers: {
           [name: string]: unknown;

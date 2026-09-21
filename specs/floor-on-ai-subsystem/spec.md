@@ -371,14 +371,14 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     invisible in exactly the same way, because a run with no context still completes.
     `lore-context` is therefore emitted first and de-duplicated, so a recipe naming it
     explicitly is a no-op rather than a doubled fetch. The declaration lives on the
-    recipe in `scripts/task-types.yaml`, so the skills a task type needs are stated
+    recipe's shipped file (`libs/shared/src/agent-defaults/<name>.md`), so the skills a task type needs are stated
     where its prompt is, and a per-repo override saved from the /agents editor keeps
     them: the editor renders `resources.mcp_servers` only, and `preserveUnownedFields`
     carries every key it does not render — `skills` is copied as a whole array, so a
     one-entry list and a four-entry list survive by the identical path. A recipe MUST NOT name a skill the
     gateway's bundle does not carry: the init fetches it as a 404 and the run
     proceeds without the contract the recipe asked for, which is FR26's failure
-    one level down and just as silent. ([validated by config skills append after lore-context without duplicating it](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L113), [`skills-registry.test.ts:118`](apps/mcp-server/src/transport/skills-registry.test.ts#L118); implemented by [`agent-crd.ts`](libs/shared/src/outbound/project/agents/agent-crd.ts))
+    one level down and just as silent. ([validated by config skills append after lore-context without duplicating it](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L113), [serves every skill the task-type recipes declare, guarding against per-recipe skill drift (specs/floor-on-ai-subsystem FR34)](apps/mcp-server/src/transport/skills-registry.test.ts#L111); implemented by [`agent-crd.ts`](libs/shared/src/outbound/project/agents/agent-crd.ts))
 
 35. *(added 2026-09-04)* `GET /api/repos/{owner}/{repo}/chunks/{kind}` is the pod-side chunk read
     named by D7: one route dispatching by `{kind}` (`spec`, `code-symbols`, `spec-ingest`,

@@ -438,8 +438,9 @@ Pipeline tools: lore_create_pipeline_task, lore_get_pipeline_status,
 lore_list_pipeline_tasks, lore_cancel_task, lore_retry_task, lore_list_task_group,
 lore_get_task_logs, lore_my_usage. Local runner tools: lore_run_task_locally,
 lore_list_local_tasks, lore_cancel_local_task.
-Task types configured in
-scripts/task-types.yaml:
+Task types are the rows of `lore.agent_definitions`; their shipped defaults
+are `libs/shared/src/agent-defaults/<name>.md` (frontmatter = settings,
+body = prompt), which lore-api seeds into the org rows at boot:
 
 - **feature-request**: PM describes intent in plain language → agent generates spec.md, data-model.md, tasks.md following repo conventions. Opens a PR for engineer review.
 - **onboard**: the Floor enrols the repo (labels, webhook, ingest callback, verbatim workflows + templates on the branch), then the `onboard` assembly line (`libs/assembly-lines/src/assembly-lines/onboard.yaml`, the implementation shape with the `onboard` recipe) authors AGENTS.md, ADRs, spec and PR template from the onboarding ticket (`onboardTicketBody`) and opens the ONE PR; the push node records it as `lore.repos.onboarding_pr_url`
@@ -563,20 +564,21 @@ context. Links are bidirectional — adding repo B from repo A's
 settings auto-adds repo A to repo B's list.
 
 **Per-repo customization**: `settings.task_overrides` allows per-repo
-overrides for any task type: `model`, `timeout_minutes`,
-`system_prompt_suffix`, `review_required`. Merged with global
-`task-types.yaml` at task creation time. Repo overrides win.
+overrides for any task type (`model`, `timeout_minutes`), read by the Floor
+under the resolved agent definition at task creation time.
 
 **Agent definitions** (`lore.agent_definitions`): per-task-type config
 (`prompt`, `model`, `timeout_minutes`, `image`) resolved by name via
 `project.agentDefs.resolve(name)` — `project` row (per-repo override) →
-`project_id IS NULL` row (org default) → `task-types.yaml`/code. Edited in
-the `/repos/[owner]/[repo]/agents` UI (the global `/agents` page is a
-read-only activity list). `feature-planning` is a first-class agent here: its prompt
-is the `PLANNING_INSTRUCTIONS` constant (the offline/code fallback, served by
-`AgentDefsYaml`) and the org-default row's prompt is seeded from it by
-migration `0018`; both `runner-cli` and `handle-feature-planning` resolve it
-by name rather than hardcoding.
+`project_id IS NULL` row (org default); there is no third layer. The org rows
+are seeded at lore-api boot from `libs/shared/src/agent-defaults/*.md`
+(`seedAgentDefaults`, specs/lore-agents FR26/FR27): a field still equal to the
+default last seeded (`shipped_default`, migration 0086) follows a new file, an
+edited field stays, a NULL one fills; `config` other than `pod_resources` always
+follows the file. Change a default with a PR to its md file — prompt tuning is
+never a migration. Per-repo overrides and org defaults are edited in the
+`/repos/[owner]/[repo]/agents` and `/agents` UIs. A process with neither a DB
+nor the API reads the files read-only through `AgentDefsFiles`.
 
 **Progressive trust**: `settings.trust.level` controls which task
 types are allowed per repo: docs (gap-fill/runbook/onboard +

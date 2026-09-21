@@ -47,7 +47,7 @@ export function parseDarkFactorySettings(raw: unknown): DarkFactorySettings {
   return DarkFactorySettingsSchema.parse(raw) as DarkFactorySettings;
 }
 
-/** Per-task-type overrides (merged over task-types.yaml); execution.image is two-key gated (ADR-025). */
+/** Per-task-type overrides (layered under the resolved agent definition); execution.image is two-key gated (ADR-025). */
 const TaskOverrideSchema = z.object({
   model: z.string().min(1).max(128).optional(),
   timeout_minutes: z.number().int().positive().max(1440).optional(),

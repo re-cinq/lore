@@ -9,7 +9,7 @@ import type {
 import { enforceTrue } from "../../../lib/enforce.js";
 import { AGENT_MAX_TURNS } from "../../cluster/agent-limits.js";
 import type { ResolvedAgentDefinition } from "../../../domain/models/agent-definition.js";
-import { testPolicyEnv } from "../../../domain/task-types/task-types-config.js";
+import { testPolicyEnv } from "../../../domain/task-types/test-policy.js";
 import {
   type CatalogCrdOptions,
   catalogCrdName,

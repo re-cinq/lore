@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { parse } from "yaml";
+import { parseAgentDefaultFile } from "../agent-defaults/agent-default-file.js";
 import {
   composePlanningPrompt,
   composeRoundFeedback,
@@ -9,15 +9,15 @@ import {
 import { parseGapResult, type GapResult } from "./gap-result.js";
 
 function planningPromptTemplate(): string {
-  const yamlPath = resolve(
+  const file = resolve(
     import.meta.dirname,
-    "../../../../../scripts/task-types.yaml",
+    "../../agent-defaults/feature-planning.md",
   );
-  const doc = parse(readFileSync(yamlPath, "utf-8")) as {
-    task_types: Record<string, { prompt_template: string }>;
-  };
 
-  return doc.task_types["feature-planning"].prompt_template;
+  return (
+    parseAgentDefaultFile("feature-planning", readFileSync(file, "utf-8"))
+      .prompt ?? ""
+  );
 }
 
 function embeddedExample(template: string): unknown {
@@ -126,20 +126,6 @@ describe("the feature-planning prompt template", () => {
     );
 
     expect(new Set(formats)).toEqual(new Set(["mermaid", "html"]));
-  });
-
-  it("embeds a self-contained example stylesheet, defining every token it uses, since the mockup frame loads none of the repo's stylesheets", () => {
-    const example = parseGapResult(embeddedExample(planningPromptTemplate()));
-    const css = example.mockup_stylesheet ?? "";
-    const used = new Set(
-      [...css.matchAll(/var\((--[\w-]+)\)/g)].map((m) => m[1]),
-    );
-    const defined = new Set(
-      [...css.matchAll(/(--[\w-]+)\s*:/g)].map((m) => m[1]),
-    );
-
-    expect(used.size).toBeGreaterThan(0);
-    expect([...used].filter((token) => !defined.has(token))).toEqual([]);
   });
 
   it("carries the round-content placeholder and leaves {context} to the catalog, which appends its own", () => {

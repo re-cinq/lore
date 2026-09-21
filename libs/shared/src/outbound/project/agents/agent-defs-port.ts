@@ -1,5 +1,5 @@
 import type { ResolvedAgentDefinition } from "../../../domain/models/agent-definition.js";
-// Agent definitions port (configuration side, project.agentDefs — distinct from AgentRunnerPort's execution side, project.agents.run()). project_id=null is the org default, a set project_id is that repo's override; resolution merges project → org → task-types.yaml.
+// Agent definitions port (configuration side, project.agentDefs — distinct from AgentRunnerPort's execution side, project.agents.run()). project_id=null is the org default, a set project_id is that repo's override; resolution merges project → org (lore-api seeds the org rows from libs/shared/src/agent-defaults).
 
 /** The resolved per-task-type config; shape lives with the table in models/agent-definition.ts — this is the merged projection, so no id or timestamps. */
 export type AgentDefinition = ResolvedAgentDefinition;
@@ -24,9 +24,9 @@ export const KNOWN_MODELS: ReadonlyArray<{ id: string; label: string }> = [
   { id: "gemini-2.5-flash-lite", label: "Gemini 2.5 Flash Lite" },
 ];
 
-/** The configuration surface of project.agents — read + write agent definitions; read adapters (yaml, http) implement resolve/list and throw on writes. */
+/** The configuration surface of project.agents — read + write agent definitions; read adapters (files, http) implement resolve/list and throw on writes. */
 export interface AgentDefsPort {
-  /** The effective definition for a task type in a repo (project → org → yaml), or null. */
+  /** The effective definition for a task type in a repo (project → org), or null. */
   resolve(repo: string, name: string): Promise<AgentDefinition | null>;
   /** Every effective definition for a repo (org defaults overlaid with project rows). */
   list(repo: string): Promise<AgentDefinition[]>;
@@ -50,26 +50,24 @@ const pick = <T>(...layers: (T | null | undefined)[]): T | null => {
   return null;
 };
 
-/** Field-merges the precedence layers (project beats org beats yaml default); a null nullable field means "inherit the next layer down". Returns null only when every layer is absent. */
+/** Field-merges the precedence layers (project beats org); a null nullable field means "inherit the org row's". Returns null only when both layers are absent. */
 export function resolveAgentConfig(
   project: AgentDefinition | null,
   org: AgentDefinition | null,
-  yamlDefault: AgentDefinition | null,
 ): AgentDefinition | null {
-  const top = pick(project, org, yamlDefault);
+  const top = pick(project, org);
 
   if (!top) {
     return null;
   }
   // Per FIELD, not per layer: the topmost layer that sets a field wins it, so a project row overriding only the model still inherits the org prompt.
-  const layered: LayeredField = (field) =>
-    pick(project?.[field], org?.[field], yamlDefault?.[field]);
+  const layered: LayeredField = (field) => pick(project?.[field], org?.[field]);
 
   return mergedFields(
     top.name,
     projectIdOf(project),
     layered,
-    pick(testPolicyOf(project), testPolicyOf(org), testPolicyOf(yamlDefault)),
+    pick(testPolicyOf(project), testPolicyOf(org)),
   );
 }
 

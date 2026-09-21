@@ -12,7 +12,7 @@ import { enforceDescriptionFits } from "./task-description.js";
 export interface CreateTaskInput {
   description: string;
   taskType?: string;
-  /** Already resolved by the caller (mcp applies getDefaultRepo). */
+  /** Already resolved by the caller (mcp applies the default repo). */
   targetRepo?: string;
   createdBy?: string;
   contextBundle?: Record<string, unknown>;

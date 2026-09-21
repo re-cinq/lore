@@ -1,17 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { fileURLToPath } from "node:url";
-import {
-  parseTaskTypesFile,
-  type TaskTypeRecipe,
-} from "@re-cinq/lore-shared/task-types/task-types-config.js";
-import { readTaskTypesSource } from "@re-cinq/lore-shared/lib/task-types-source.js";
+import { loadAgentDefaults } from "@re-cinq/lore-shared/project/agents/agent-defaults-files.js";
+import type { ResolvedAgentDefinition } from "@re-cinq/lore-shared/models/agent-definition.js";
 import { loadBuiltinAssemblyLines } from "./builtin-assembly-lines.js";
 
-const TASK_TYPES = new URL("../../../scripts/task-types.yaml", import.meta.url);
-
-function committedTaskTypes(): Record<string, TaskTypeRecipe> {
-  return parseTaskTypesFile(readTaskTypesSource(fileURLToPath(TASK_TYPES)))
-    .taskTypes;
+function committedTaskTypes(): Record<string, ResolvedAgentDefinition> {
+  return Object.fromEntries(
+    loadAgentDefaults()
+      .filter((def) => def.execution_mode !== "station")
+      .map((def) => [def.name, def]),
+  );
 }
 
 function declaredTaskTypes(): Set<string> {
@@ -58,7 +55,7 @@ describe("assembly-line prompt_refs", () => {
   it("the push recipe tells the node to push, which is its whole purpose", async () => {
     const taskTypes = committedTaskTypes();
 
-    expect(taskTypes["push-only"]?.prompt_template).toContain("git push");
+    expect(taskTypes["push-only"]?.prompt).toContain("git push");
   });
 });
 
@@ -66,7 +63,7 @@ describe("the fix-ci recipe behind repair-build", () => {
   function fixCiPrompt(): string {
     const taskTypes = committedTaskTypes();
 
-    return taskTypes["fix-ci"]?.prompt_template ?? "";
+    return taskTypes["fix-ci"]?.prompt ?? "";
   }
 
   it("tells the node to fix an annotated file:line with an editor, never an install, never the linter, every finding at once, a step reproduced where CI ran it, and to ask CI through lore_get_ci_failures and lore_get_ci_job_log rather than rebuild", async () => {
@@ -112,7 +109,7 @@ describe("every recipe's delivery contract", () => {
     const taskTypes = committedTaskTypes();
     const lintingRecipes = Object.entries(taskTypes)
       .filter(([, recipe]) =>
-        /npx eslint|eslint --fix/.test(recipe.prompt_template ?? ""),
+        /npx eslint|eslint --fix/.test(recipe.prompt ?? ""),
       )
       .map(([name]) => name);
 
@@ -123,10 +120,7 @@ describe("every recipe's delivery contract", () => {
 describe("the tdd-round recipe under a red verdict", () => {
   it("tells the round that an appended CI verdict outranks a ticked dod.md, so it never reports nothing-left under a red build", async () => {
     const taskTypes = committedTaskTypes();
-    const prompt = (taskTypes["tdd-round"]?.prompt_template ?? "").replace(
-      /\s+/g,
-      " ",
-    );
+    const prompt = (taskTypes["tdd-round"]?.prompt ?? "").replace(/\s+/g, " ");
 
     expect({
       outranksDod: prompt.includes(

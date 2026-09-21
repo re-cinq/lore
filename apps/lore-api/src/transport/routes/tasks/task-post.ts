@@ -16,7 +16,7 @@ import type {
 } from "@hapi/hapi";
 import { z } from "zod";
 import { createTask } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
-import { getTaskTypes } from "@re-cinq/lore-server-core/features/pipeline/pipeline-config.js";
+import { PgAgentDefs } from "@re-cinq/lore-shared/project/agents/agent-defs-pg.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { withPool } from "../with-pool.js";
@@ -76,7 +76,7 @@ async function serveTaskPost(
 
     return (
       (await actOnExistingTask(pool, h, parsed)) ??
-      (await createTaskFromBody(h, parsed))
+      (await createTaskFromBody(pool, h, parsed))
     );
   } catch (err) {
     // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
@@ -271,11 +271,19 @@ function statusSetClauses({ status, prUrl, error }: RunnerStatusUpdate): {
 
 /** The default: a body with no task id creates one. */
 async function createTaskFromBody(
+  pool: Pool,
   h: ResponseToolkit,
   parsed: TaskBody,
 ): Promise<ResponseObject> {
-  const { description, task_type } = parsed;
+  const description = creatableDescription(parsed);
+  const taskType = await resolvedTaskType(pool, parsed);
 
+  return h.response(
+    await createTask(createTaskArgs(parsed, description, taskType)),
+  );
+}
+
+function creatableDescription({ description, task_type }: TaskBody): string {
   // `typeof` first so the assertion narrows `description` itself — an optional-chained CALL isn't a reference TS can narrow on.
   enforceTrue(
     typeof description === "string" && description.trim() !== "",
@@ -289,13 +297,17 @@ async function createTaskFromBody(
     "onboard tasks are created via POST /api/onboard, which guards against duplicates",
   );
 
-  return h.response(await createTask(createTaskArgs(parsed, description)));
+  return description;
 }
 
-function createTaskArgs(parsed: TaskBody, description: string) {
+function createTaskArgs(
+  parsed: TaskBody,
+  description: string,
+  taskType: string,
+) {
   return {
     description,
-    taskType: resolvedTaskType(parsed.task_type),
+    taskType,
     targetRepo: parsed.target_repo,
     createdBy: parsed.created_by || "remote-mcp",
     contextBundle:
@@ -305,10 +317,15 @@ function createTaskArgs(parsed: TaskBody, description: string) {
   };
 }
 
-function resolvedTaskType(taskType: string | undefined): string {
-  if (taskType && getTaskTypes().includes(taskType)) {
-    return taskType;
+// A task type is one lore.agent_definitions resolves for the repo, org default or the repo's own; a station recipe is not a task.
+async function resolvedTaskType(pool: Pool, parsed: TaskBody): Promise<string> {
+  if (!parsed.task_type) {
+    return "general";
   }
+  const def = await new PgAgentDefs(pool).resolve(
+    parsed.target_repo ?? "",
+    parsed.task_type,
+  );
 
-  return "general";
+  return def && def.execution_mode !== "station" ? parsed.task_type : "general";
 }

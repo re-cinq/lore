@@ -1,34 +1,5 @@
-import { describe, it, expect, afterAll, afterEach, beforeAll } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { buildPrompt, loadTaskTypes, renderNodePrompt } from "./config.js";
-
-const FIXTURES = mkdtempSync(join(tmpdir(), "lore-task-types-"));
-const CONFIG = join(FIXTURES, "task-types.yaml");
-
-afterAll(() => {
-  rmSync(FIXTURES, { recursive: true, force: true });
-});
-
-beforeAll(() => {
-  writeFileSync(
-    CONFIG,
-    [
-      "task_types:",
-      "  general:",
-      "    prompt_template: |",
-      "      Complete the following task.",
-      "      Task: {description}",
-      "  push-only:",
-      "    prompt_template: |",
-      "      Deliver the work already in the worktree, then git push.",
-      "      Context: {description}",
-      "",
-    ].join("\n"),
-  );
-  loadTaskTypes(CONFIG);
-});
+import { describe, it, expect } from "vitest";
+import { defaultTaskPrompt, renderNodePrompt } from "./config.js";
 
 describe("renderNodePrompt", () => {
   it("returns the resolved recipe with the description substituted", () => {
@@ -56,66 +27,10 @@ describe("renderNodePrompt", () => {
   });
 });
 
-describe("buildPrompt", () => {
-  it("keeps falling back to general for an unknown TASK type", () => {
-    expect(buildPrompt("unknown-task-type", "do a thing")).toEqual(
-      "Complete the following task.\nTask: do a thing\n",
-    );
-  });
-});
-
-describe("loadTaskTypes drift reporting", () => {
-  const warnings: string[] = [];
-  const realWarn = console.warn;
-
-  afterEach(() => {
-    console.warn = realWarn;
-    warnings.length = 0;
-    loadTaskTypes(CONFIG);
-  });
-
-  const loadFixture = (name: string, yaml: string) => {
-    const path = join(FIXTURES, name);
-
-    writeFileSync(path, yaml);
-    console.warn = (message: string) => warnings.push(message);
-    loadTaskTypes(path);
-
-    return warnings.join("\n");
-  };
-
-  it("warns naming the fields a lagging task-types.yaml omits", () => {
-    const warned = loadFixture(
-      "partial.yaml",
-      "task_types:\n  general:\n    prompt_template: Do {description}\n",
-    );
-
-    expect(warned).toContain(
-      "task_types.general: timeout_minutes — Invalid input: expected number, received undefined",
-    );
-  });
-
-  it("names the entry itself when an entry has no body at all", () => {
-    const warned = loadFixture("bodyless.yaml", "task_types:\n  general:\n");
-
-    expect(warned).toContain(
-      "task_types.general: <entry> — Invalid input: expected object",
-    );
-  });
-
-  it("reads an entry with no body as empty rather than as null", () => {
-    loadFixture("bodyless.yaml", "task_types:\n  general:\n");
-
-    expect(buildPrompt("general", "ship it")).toEqual(
-      "Complete the following task: ship it",
-    );
-  });
-});
-
 describe("a task description carrying $-replacement patterns", () => {
-  it("inserts $` and $1 verbatim into the general template", () => {
-    expect(buildPrompt("general", "use $` then $1")).toContain(
-      "Task: use $` then $1",
+  it("inserts $` and $1 verbatim into the default task prompt", () => {
+    expect(defaultTaskPrompt("use $` then $1")).toEqual(
+      "Complete the following task: use $` then $1",
     );
   });
 
