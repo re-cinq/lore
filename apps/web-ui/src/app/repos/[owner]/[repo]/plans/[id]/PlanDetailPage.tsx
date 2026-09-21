@@ -4,7 +4,11 @@ import { readPlan } from "@/lib/api/plans";
 import { planUserOf, type PlanSession } from "@/lib/plan-user";
 import { getSession } from "@/lib/session";
 import PlanDetailView from "./PlanDetailView";
-import { approvePlanAction, openPlanSocketAction } from "./actions";
+import {
+  approvePlanAction,
+  openPlanSocketAction,
+  refinePlanAction,
+} from "./actions";
 
 export default async function PlanDetailPage({
   params,
@@ -21,6 +25,7 @@ export default async function PlanDetailPage({
       user={planUserOf((await getSession()) as PlanSession | null)}
       openSocket={openPlanSocketAction.bind(null, fullName, id)}
       approve={approvePlanAction.bind(null, fullName, id)}
+      refine={refinePlanAction.bind(null, fullName, id)}
     />
   );
 }

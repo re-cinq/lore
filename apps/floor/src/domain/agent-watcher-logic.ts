@@ -2,7 +2,6 @@
 
 import type { Agent as AgentCr } from "@re-cinq/agent-contracts";
 import { parseReviewVerdict } from "@re-cinq/lore-assembly-lines";
-import { isFeatureLifecycleType } from "./task-lifecycle-type.js";
 
 export const TASK_ID_LABEL = "lore.re-cinq.com/task-id";
 export const TASK_TYPE_LABEL = "lore.re-cinq.com/task-type";
@@ -78,18 +77,6 @@ export function runOutcomeFromTaskStatus(
 
   // Un-advanced task: no post-handler set a terminal status, so the CR phase decides — a Failed CR must not close its row as completed.
   return phase === "Failed" ? "failed" : "completed";
-}
-
-// The feature a completed run's PR belongs to, or null; keyed on the task carrying a feature (not on task type being `feature-finalize`) — the old type-based check silently stopped linking once FR6.26 merged a feature's life under one `feature-planning` task, leaving the wizard stuck on "Creating the spec PR…" forever.
-export function decideFeatureLink(
-  taskType: string,
-  contextBundle: { feature_id?: string; slug?: string } | undefined,
-): { featureId: string; slug: string | undefined } | null {
-  if (!isFeatureLifecycleType(taskType) || !contextBundle?.feature_id) {
-    return null;
-  }
-
-  return { featureId: contextBundle.feature_id, slug: contextBundle.slug };
 }
 
 // The web-ui task page — the canonical log surface (#1294); undefined when no UI base URL is configured, so callers drop the link rather than fabricate one.

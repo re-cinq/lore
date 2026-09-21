@@ -5,6 +5,7 @@ import pg from "pg";
 import { buildServer } from "../app/build-server.js";
 import { restoreEnv } from "./restore-env.js";
 import { collabAuthenticator } from "../work/plans/collab-tokens.js";
+import { setPipelinePool } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
 
 const TOKEN = "test-plan-routes-token";
 const READ_TOKEN = "test-plan-routes-read-token";
@@ -58,11 +59,19 @@ describe("/api/plans on lore-api", () => {
        VALUES ('plan-routes-read', $1, '{read}', 'test') ON CONFLICT (token_hash) DO NOTHING`,
       [createHash("sha256").update(READ_TOKEN).digest("hex")],
     );
+    setPipelinePool(pool);
     server = buildServer(() => pool);
   });
 
   afterAll(async () => {
     await pool.query("DELETE FROM lore.plans WHERE repo = $1", [REPO]);
+    await pool.query(
+      "DELETE FROM pipeline.task_events WHERE task_id IN (SELECT id FROM pipeline.tasks WHERE target_repo = $1)",
+      [REPO],
+    );
+    await pool.query("DELETE FROM pipeline.tasks WHERE target_repo = $1", [
+      REPO,
+    ]);
     await pool.query(
       "DELETE FROM pipeline.api_tokens WHERE name = 'plan-routes-read'",
     );
@@ -157,5 +166,49 @@ describe("/api/plans on lore-api", () => {
     );
 
     expect(minted.status).toBe(404);
+  });
+
+  it("starts the planning agent's draft of Ana's plan as a feature-planning task", async () => {
+    const planId = await createPlan();
+    const started = await call(
+      "POST",
+      `/api/repos/${REPO}/plans/${planId}/drafting`,
+      TOKEN,
+      {
+        known: "Checkout is slow.",
+        createdBy: "ana",
+      },
+    );
+    const { rows } = await pool.query(
+      "SELECT task_type, created_by, context_bundle FROM pipeline.tasks WHERE id = $1",
+      [(started.body as { task_id: string }).task_id],
+    );
+
+    expect({ status: started.status, task: rows[0] }).toMatchObject({
+      status: 202,
+      task: {
+        task_type: "feature-planning",
+        created_by: "ana",
+        context_bundle: { plan_id: planId },
+      },
+    });
+  });
+
+  it("answers 409 to a Refine while no planning line waits on the plan", async () => {
+    const planId = await createPlan();
+    const refused = await call(
+      "POST",
+      `/api/repos/${REPO}/plans/${planId}/refine`,
+      TOKEN,
+      {
+        slot: "intent",
+        title: "Intent",
+        baseHash: "3f9a",
+        inputs: {},
+        uses: {},
+      },
+    );
+
+    expect(refused.status).toBe(409);
   });
 });

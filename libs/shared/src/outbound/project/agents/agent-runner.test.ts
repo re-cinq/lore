@@ -75,13 +75,13 @@ describe("AgentRunner", () => {
 
     await runner.run("re-cinq/lore", "task-9", {
       mode: "cluster",
-      featureId: "feature-9",
+      planId: "plan-9",
       roundFeedback: '<RoundFeedback round="4"/>',
       resumeFromTask: "task-round-2",
     });
 
     expect(created[0]).toMatchObject({
-      featureId: "feature-9",
+      planId: "plan-9",
       roundFeedback: '<RoundFeedback round="4"/>',
       resumeFromTask: "task-round-2",
     });

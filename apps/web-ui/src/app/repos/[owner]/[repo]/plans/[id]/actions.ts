@@ -1,6 +1,11 @@
 "use server";
 
-import { approvePlan, mintCollabToken } from "@/lib/api/plans";
+import {
+  approvePlan,
+  askRefine,
+  mintCollabToken,
+  type RefineAsk,
+} from "@/lib/api/plans";
 import { planSocketUrl } from "@/lib/plan-input";
 import { planUserOf, type PlanSession, type PlanUser } from "@/lib/plan-user";
 import { getSession } from "@/lib/session";
@@ -46,7 +51,24 @@ export async function approvePlanAction(
     : { error: "The plan is not ready to approve yet." };
 }
 
-// Both actions are bound to one plan of one repo on the server; the person must be signed in and able to see the repo on GitHub.
+export async function refinePlanAction(
+  fullName: string,
+  planId: string,
+  refine: RefineAsk,
+): Promise<{ error?: string }> {
+  const allowed = await allowedUser(fullName);
+
+  if ("error" in allowed) {
+    return allowed;
+  }
+  const asked = await askRefine(fullName, planId, refine);
+
+  return asked.status === "ok"
+    ? {}
+    : { error: "The planning agent is still working on this plan." };
+}
+
+// Every action is bound to one plan of one repo on the server; the person must be signed in and able to see the repo on GitHub.
 async function allowedUser(fullName: string): Promise<Allowed> {
   const session = (await getSession()) as
     (PlanSession & { accessToken?: string }) | null;

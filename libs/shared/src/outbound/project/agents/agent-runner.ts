@@ -46,7 +46,7 @@ function passthroughOpts(runOpts: AgentRunOpts) {
     extraLabels: runOpts.extraLabels,
     darkFactory: runOpts.darkFactory,
     image: runOpts.image,
-    featureId: runOpts.featureId,
+    planId: runOpts.planId,
     roundFeedback: runOpts.roundFeedback,
     resumeFromTask: runOpts.resumeFromTask,
     lineArgs: runOpts.lineArgs,

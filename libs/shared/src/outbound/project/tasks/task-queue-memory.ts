@@ -83,7 +83,7 @@ function toMergeableTask(t: SeedTask): MergeableTask {
 function mergeableBundle(t: SeedTask) {
   return orNull(
     t.context_bundle as {
-      feature_id?: string;
+      spec_path?: string;
       slug?: string;
       spec_slug?: string;
     } | null,

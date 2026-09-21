@@ -1,9 +1,6 @@
 // Closing the books on an assembly line's backing task: `finishLine` reclaims the token but never wrote pipeline.tasks, leaving it stuck `running` (the wizard's endless-spinner bug); this is the cluster-path twin of finalizeStationRun's checks, pure decision + CAS writes so a losing racer is a no-op.
 
 import type { PipelineTask } from "@re-cinq/lore-shared";
-import type { Features } from "@re-cinq/lore-shared/project/features/features.js";
-import type { FeatureWithIterations } from "@re-cinq/lore-shared/project/features/features-port.js";
-import { revertFeatureAfterFailure } from "../task/finalize-station-run.js";
 
 /** Task statuses a terminal line may still settle; anything else is already decided by a path that knows more than the walk does. */
 const SETTLEABLE = new Set(["pending", "queued", "running"]);
@@ -29,7 +26,6 @@ export interface SettleTaskDeps {
       meta?: Record<string, unknown>,
     ): Promise<void>;
   };
-  featuresFor(repo: string): Promise<{ features: Features }>;
 }
 
 /** What a terminal line means for its task; null = leave it alone (past settling, or deferred to the run holding the branch). */
@@ -51,10 +47,6 @@ export function decideTaskSettlement(input: {
     failureReason: input.reason ?? `assembly line ${input.outcome}`,
   };
 }
-
-/** Mirrors the synchronous Docker path's wording (finalizeStationRun) so a round reads the same however it ran. */
-export const NO_RESULT_REASON =
-  "The planning run finished but posted no result — the agent did not produce a result.json the container could POST.";
 
 /** The slice of an assembly-run row a settlement reads. */
 export interface SettleRow {
@@ -98,12 +90,17 @@ async function settle(
     return;
   }
   const context = { task, previousStatus: task.status, outcome, reason };
-  const settlement = await resolveSettlement(context, deps);
+  const settlement = settlementOf(context);
 
-  if (!settlement) {
-    return;
+  if (settlement) {
+    await applySettlement({ ...context, settlement, row }, deps);
   }
-  await applySettlement({ ...context, settlement, row }, deps);
+}
+
+function settlementOf(context: SettlementContext): TaskSettlement | null {
+  const { outcome, reason, previousStatus: taskStatus } = context;
+
+  return decideTaskSettlement({ outcome, reason, taskStatus });
 }
 
 interface SettlementContext {
@@ -111,77 +108,6 @@ interface SettlementContext {
   previousStatus: string;
   outcome: string;
   reason: string | undefined;
-}
-
-/** Decides the task's settlement, folding in the planning-round check: whether the round produced a result decides the task's own outcome, so the wizard shows the cause instead of a canned guess (idempotent if a losing racer repeats it). */
-async function resolveSettlement(
-  context: SettlementContext,
-  deps: SettleTaskDeps,
-): Promise<TaskSettlement | null> {
-  const { task, previousStatus: taskStatus, outcome, reason } = context;
-  const settlement = decideTaskSettlement({ outcome, reason, taskStatus });
-
-  if (!settlement) {
-    return null;
-  }
-
-  const planningNoResult =
-    task.task_type === "feature-planning" &&
-    (await settlePlanningRound(task, deps));
-
-  if (planningNoResult && settlement.status === "completed") {
-    return { status: "failed", failureReason: NO_RESULT_REASON };
-  }
-
-  return settlement;
-}
-
-/** A planning round is only finished when its GapResult landed (the pod POSTs it); a line that ended without one leaves the iteration stuck `running`, so mark it failed and revert the feature. Returns true when the round produced nothing usable, so the caller fails the TASK too rather than leaving no failure_reason to show. */
-async function settlePlanningRound(
-  task: PipelineTask,
-  deps: SettleTaskDeps,
-): Promise<boolean> {
-  const context = planningRoundContext(task);
-
-  if (!context) {
-    return false;
-  }
-  const { featureId, iteration } = context;
-  const { features } = await deps.featuresFor(task.target_repo);
-  const feature = await features.get(featureId);
-
-  if (roundAlreadyReady(feature, iteration)) {
-    return false;
-  }
-
-  await features
-    .setIterationResult(featureId, iteration, null, "failed")
-    .catch(() => {});
-  await revertFeatureAfterFailure({ features }, featureId);
-
-  return true;
-}
-
-function planningRoundContext(
-  task: PipelineTask,
-): { featureId: string; iteration: number } | null {
-  const featureId = task.context_bundle?.feature_id as string | undefined;
-  const iteration = task.context_bundle?.iteration as number | undefined;
-
-  if (!featureId || iteration == null) {
-    return null;
-  }
-
-  return { featureId, iteration };
-}
-
-function roundAlreadyReady(
-  feature: FeatureWithIterations | null | undefined,
-  iteration: number,
-): boolean {
-  const round = feature?.iterations.find((i) => i.iteration === iteration);
-
-  return round?.status === "ready" && Boolean(round.gap_result);
 }
 
 interface ApplySettlementContext extends SettlementContext {

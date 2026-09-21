@@ -27,7 +27,6 @@ export const CRON_EMITTERS: CronEmitter[] = [
     schedule: "43 3 * * *",
     note: "14-day reap of agent_run_events + pod_log_chunks; the ADR-037 window existed with no caller until pod_log_chunks needed one too",
   },
-  { name: "feature_planning_reaper", schedule: "*/1 * * * *" },
   {
     name: "assembly_line_reaper",
     schedule: "*/1 * * * *",

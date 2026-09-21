@@ -6,7 +6,7 @@ import type {
 } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { parseAgentSink, type AgentFileEvent } from "./agent-events.js";
 
-/** The features API owns this one — see deliverPlanningResult. */
+/** Written into its plan, not the line — see deliverPlanningResult. */
 const OWNED_ELSEWHERE = new Set(["planning.result"]);
 
 export interface ArtifactArgsDeps {
@@ -19,6 +19,45 @@ export type ArtifactDelivery =
 /** `spec.plan` → `spec_plan`; every separator flattens, so no arg key ever needs quoting or JSON-path escaping. */
 export function argNameForEvent(event: string): string {
   return event.replace(/[^a-zA-Z0-9]+/g, "_");
+}
+
+/** The args one artifact lands as: itself under its event's name, plus the spec a spec plan is chiefly about (`spec_path`), which the issues station stamps onto every spec-task so the merge-check knows which spec's status to flip. */
+export function argsForArtifact(
+  event: string,
+  content: string,
+): Record<string, string> {
+  const own = { [argNameForEvent(event)]: content };
+
+  return event === SPEC_PLAN_EVENT ? { ...own, ...specPathOf(content) } : own;
+}
+
+const SPEC_PLAN_EVENT = "spec.plan";
+
+// The first spec the plan creates, else the first it updates; nothing when the plan does not parse.
+function specPathOf(content: string): { spec_path?: string } {
+  const plan = parseSpecPlan(content);
+  const path = firstPath(plan?.creates) ?? firstPath(plan?.updates);
+
+  return path ? { spec_path: path } : {};
+}
+
+function firstPath(entries: SpecPlanPaths["creates"]): string | undefined {
+  const path = entries?.[0]?.path;
+
+  return typeof path === "string" ? path : undefined;
+}
+
+interface SpecPlanPaths {
+  creates?: Array<{ path?: unknown }>;
+  updates?: Array<{ path?: unknown }>;
+}
+
+function parseSpecPlan(content: string): SpecPlanPaths | null {
+  try {
+    return JSON.parse(content) as SpecPlanPaths;
+  } catch {
+    return null;
+  }
 }
 
 /** Merge one declared artifact into its line's args; skips silently for an event owned elsewhere, an artifact never produced, or a run with no assembly line behind it. */
@@ -40,11 +79,11 @@ export async function deliverArtifact(
   if (!line) {
     return { outcome: "skipped", error: "no assembly line for this run" };
   }
-  const arg = argNameForEvent(fileEvent.event);
+  const args = argsForArtifact(fileEvent.event, fileEvent.content);
 
-  await deps.assemblyRuns.mergeArgs(line.id, { [arg]: fileEvent.content });
+  await deps.assemblyRuns.mergeArgs(line.id, args);
 
-  return { outcome: "merged", arg };
+  return { outcome: "merged", arg: argNameForEvent(fileEvent.event) };
 }
 
 /** The line a fresh artifact belongs to: the most recently started one for the task, since a crash-redispatched task has more than one and the artifact came from the run still going. */
@@ -77,7 +116,7 @@ export function artifactsFromTerminalOutput(
     }
 
     if (fileEvent.content !== null) {
-      args[argNameForEvent(fileEvent.event)] = fileEvent.content;
+      Object.assign(args, argsForArtifact(fileEvent.event, fileEvent.content));
       continue;
     }
     missing.push(`${fileEvent.event} (${fileEvent.reason ?? "not produced"})`);

@@ -1,8 +1,8 @@
 // What a run WORKS ON, spelled once — subject_key is a wire format between the Floor and lore-api, and a mismatched spelling wouldn't fail to compile, it would just silently find nothing in flight.
 
-/** One run per feature — planning, finalize and decomposition all share it. */
-export function featureSubject(featureId: string): string {
-  return `feature:${featureId}`;
+/** One run per plan — drafting, the spec PR and decomposition all share it. */
+export function planSubject(planId: string): string {
+  return `plan:${planId}`;
 }
 
 /** One detection run per blueprint per repo. */

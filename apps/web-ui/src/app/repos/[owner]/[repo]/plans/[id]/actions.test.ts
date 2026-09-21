@@ -11,7 +11,8 @@ vi.mock("@/lib/user-repo-access", () => ({
   userCanAccessRepo: () => canAccess(),
 }));
 
-const { approvePlanAction, openPlanSocketAction } = await import("./actions");
+const { approvePlanAction, openPlanSocketAction, refinePlanAction } =
+  await import("./actions");
 
 const GEDAIU = {
   login: "gedaiu",
@@ -98,6 +99,36 @@ describe("approvePlanAction", () => {
 
     expect(await approvePlanAction("re-cinq/lore", "p1")).toEqual({
       error: "The plan is not ready to approve yet.",
+    });
+  });
+});
+
+describe("refinePlanAction", () => {
+  const REFINE = {
+    slot: "intent",
+    title: "Intent",
+    baseHash: "3f9a",
+    inputs: {},
+    uses: {},
+  };
+
+  it("asks the planning agent to refine the intent section of plan p1", async () => {
+    answer(202, { ok: true });
+
+    expect({
+      result: await refinePlanAction("re-cinq/lore", "p1", REFINE),
+      url: String(fetchMock.mock.calls[0][0]),
+    }).toEqual({
+      result: {},
+      url: "http://api:3000/api/repos/re-cinq/lore/plans/p1/refine",
+    });
+  });
+
+  it("reports a Refine lore-api refuses while the agent is still drafting", async () => {
+    answer(409, { error: "the planning agent is still working on this plan" });
+
+    expect(await refinePlanAction("re-cinq/lore", "p1", REFINE)).toEqual({
+      error: "The planning agent is still working on this plan.",
     });
   });
 });

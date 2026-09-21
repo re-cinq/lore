@@ -2,7 +2,6 @@
 
 import { specTaskExecutorJob } from "../../work/task/spec-task-executor.js";
 import { staleTaskCheckJob } from "../../work/task/stale-task-check.js";
-import { featurePlanningReaperJob } from "../../work/task/feature-planning-reaper.js";
 import { leaseReaperJob } from "../../work/lease/lease-reaper.js";
 import {
   pruneHandled,
@@ -63,8 +62,6 @@ export const approvalCheck = fromStation("approval-check");
 export const specCoverageBackfill = fromStation("backfill-scan");
 export const specTaskExecutor = fromJob(specTaskExecutorJob);
 export const staleTaskCheck = fromJob(staleTaskCheckJob);
-export const featurePlanningReaper = fromJob(featurePlanningReaperJob);
-
 /** Delete leases >5min past expiry, writing a `lease_expired` audit entry per row. */
 export const leaseReaper = fromJob(() => leaseReaperJob());
 

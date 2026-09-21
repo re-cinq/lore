@@ -10,6 +10,8 @@ const {
   approvePlan,
   mintCollabToken,
   seedPlan,
+  startDrafting,
+  askRefine,
 } = await import("./plans");
 
 let fetchMock: ReturnType<typeof vi.fn>;
@@ -121,6 +123,34 @@ describe("plans client", () => {
           },
         ],
       },
+    });
+  });
+
+  it("asks for the planning agent's draft of plan p1, handing over what gedaiu knows", async () => {
+    await startDrafting("re-cinq/lore", "p1", "Checkout is slow.", "gedaiu");
+
+    expect(request()).toEqual({
+      url: "http://api:3000/api/repos/re-cinq/lore/plans/p1/drafting",
+      method: "POST",
+      body: { known: "Checkout is slow.", createdBy: "gedaiu" },
+    });
+  });
+
+  it("asks the planning agent to refine the intent section of plan p1", async () => {
+    const refine = {
+      slot: "intent",
+      title: "Intent",
+      baseHash: "3f9a",
+      inputs: {},
+      uses: {},
+    };
+
+    await askRefine("re-cinq/lore", "p1", refine);
+
+    expect(request()).toEqual({
+      url: "http://api:3000/api/repos/re-cinq/lore/plans/p1/refine",
+      method: "POST",
+      body: refine,
     });
   });
 });

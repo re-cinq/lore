@@ -85,8 +85,7 @@ export const commentTriageDefinition: AssemblyLineDefinition = {
 export const featurePlanningDefinition: AssemblyLineDefinition = {
   name: "feature-planning",
   description:
-    "One interactive planning round: analyze the feature request against the project (with the prior feature timeline in context) and emit a structured GapResult. No commit, no PR — the run declares result.json as a produced artifact (`output.watch`), the subsystem raises it as a `planning.result` event, and the Floor persists it as the round's result.",
-  // eslint-disable-next-line re-lint/no-duplicate-code -- a blueprint fixture whose literal shape is what feature-run.test.ts asserts against; the test restating it is the assertion, not a copy to be removed
+    "A plan from its first draft to its spec-tasks: the agent drafts the plan people write together, each Refine sends one section back to it, and approval moves the plan on to its spec PR and decomposition.",
   version: 1,
   entry: "analyze",
   exit: "done",
@@ -95,7 +94,7 @@ export const featurePlanningDefinition: AssemblyLineDefinition = {
     {
       id: "author",
       type: "feature_review",
-      route: "/repos/{args.repo}/features/{args.feature_id}",
+      route: "/repos/{args.repo}/plans/{args.plan_id}",
     },
     { id: "analyse-specs", type: "agent" },
     { id: "write", type: "agent" },

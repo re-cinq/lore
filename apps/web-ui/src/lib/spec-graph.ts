@@ -19,9 +19,6 @@ export type SpecGraphNode = {
   line?: number;
   endLine?: number;
   detail?: string;
-  // Feature lifecycle status (from lore.features row, ADR-027).
-  status?: string;
-  featureId?: string;
 };
 
 export type SpecGraphLink = {

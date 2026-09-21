@@ -43,7 +43,7 @@ export default function PlanEditorPanel(props: PlanEditorPanelProps) {
 
 function ConnectedPlan(props: ConnectedPlanProps) {
   const [canApprove, setCanApprove] = useState(false);
-  const { meta, user, transport, approve } = props;
+  const { meta, user, transport, approve, refine } = props;
 
   return (
     <div className={styles.panel}>
@@ -57,6 +57,7 @@ function ConnectedPlan(props: ConnectedPlanProps) {
         user={user}
         validationPhase="approval"
         onValidation={(report) => setCanApprove(report.passed)}
+        onRefine={(request) => askOrWithdraw(refine, request)}
       />
     </div>
   );
@@ -142,4 +143,16 @@ function useApprove(approve: PlanActions["approve"]) {
     );
 
   return { error, run };
+}
+
+// The editor withdraws a Refine whose promise rejects, so a refused ask must throw.
+async function askOrWithdraw(
+  refine: PlanActions["refine"],
+  request: Parameters<PlanActions["refine"]>[0],
+): Promise<void> {
+  const asked = await refine(request);
+
+  if (asked.error) {
+    throw new Error(asked.error);
+  }
 }

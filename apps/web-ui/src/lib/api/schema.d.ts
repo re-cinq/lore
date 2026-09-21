@@ -1252,161 +1252,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/repos/{owner}/{repo}/features": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/repos/{owner}/{repo}/features */
-    get: operations["get_api_repos_owner_repo_features"];
-    put?: never;
-    /** POST /api/repos/{owner}/{repo}/features */
-    post: operations["post_api_repos_owner_repo_features"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/repos/{owner}/{repo}/features/{id}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/repos/{owner}/{repo}/features/{id} */
-    get: operations["get_api_repos_owner_repo_features_id"];
-    put?: never;
-    post?: never;
-    /** DELETE /api/repos/{owner}/{repo}/features/{id} */
-    delete: operations["delete_api_repos_owner_repo_features_id"];
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/repos/{owner}/{repo}/features/{id}/create-spec-file": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** POST /api/repos/{owner}/{repo}/features/{id}/create-spec-file */
-    post: operations["post_api_repos_owner_repo_features_id_create-spec-file"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/repos/{owner}/{repo}/features/{id}/decomposition": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/repos/{owner}/{repo}/features/{id}/decomposition */
-    get: operations["get_api_repos_owner_repo_features_id_decomposition"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/repos/{owner}/{repo}/features/{id}/finalize": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** POST /api/repos/{owner}/{repo}/features/{id}/finalize */
-    post: operations["post_api_repos_owner_repo_features_id_finalize"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/repos/{owner}/{repo}/features/{id}/iterations": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** POST /api/repos/{owner}/{repo}/features/{id}/iterations */
-    post: operations["post_api_repos_owner_repo_features_id_iterations"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/repos/{owner}/{repo}/features/{id}/iterations/{n}/result": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** POST /api/repos/{owner}/{repo}/features/{id}/iterations/{n}/result */
-    post: operations["post_api_repos_owner_repo_features_id_iterations_n_result"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/repos/{owner}/{repo}/features/{id}/split": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** POST /api/repos/{owner}/{repo}/features/{id}/split */
-    post: operations["post_api_repos_owner_repo_features_id_split"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/repos/{owner}/{repo}/features/{id}/status": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/repos/{owner}/{repo}/features/{id}/status */
-    get: operations["get_api_repos_owner_repo_features_id_status"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   "/api/repos/{owner}/{repo}/impact": {
     parameters: {
       query?: never;
@@ -1607,6 +1452,40 @@ export interface paths {
     put?: never;
     /** POST /api/repos/{owner}/{repo}/plans/{id}/collab-token */
     post: operations["post_api_repos_owner_repo_plans_id_collab-token"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/plans/{id}/drafting": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/plans/{id}/drafting */
+    post: operations["post_api_repos_owner_repo_plans_id_drafting"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/plans/{id}/refine": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/plans/{id}/refine */
+    post: operations["post_api_repos_owner_repo_plans_id_refine"];
     delete?: never;
     options?: never;
     head?: never;
@@ -2857,388 +2736,6 @@ export interface components {
     EventPayload: {
       [key: string]: unknown;
     };
-    Feature: {
-      id: string;
-      repo: string;
-      title: string;
-      slug: string;
-      path: string;
-      original_prompt: string;
-      /** @enum {string} */
-      status:
-        | "draft"
-        | "planning"
-        | "awaiting-input"
-        | "spec-ready"
-        | "pr-open"
-        | "implemented";
-      current_iteration: number;
-      draft_spec_md: string | null;
-      parent_feature_id: string | null;
-      spec_path: string | null;
-      spec_pr_url: string | null;
-      spec_pr_number: number | null;
-      issue_number: number | null;
-      issue_url: string | null;
-      created_by: string;
-      created_at: string;
-      updated_at: string;
-    };
-    FeatureCreated: {
-      id: string;
-      task_id: string;
-    };
-    FeatureDecomposition: {
-      tasks: {
-        description: string;
-        status: string;
-        context_bundle:
-          | ({
-              story_issue?: number | null;
-              spec_task_id?: string;
-              phase?: number;
-            } & {
-              [key: string]: unknown;
-            })
-          | null;
-      }[];
-    };
-    FeatureList: {
-      features: {
-        id: string;
-        repo: string;
-        title: string;
-        slug: string;
-        path: string;
-        original_prompt: string;
-        /** @enum {string} */
-        status:
-          | "draft"
-          | "planning"
-          | "awaiting-input"
-          | "spec-ready"
-          | "pr-open"
-          | "implemented";
-        current_iteration: number;
-        draft_spec_md: string | null;
-        parent_feature_id: string | null;
-        spec_path: string | null;
-        spec_pr_url: string | null;
-        spec_pr_number: number | null;
-        issue_number: number | null;
-        issue_url: string | null;
-        created_by: string;
-        created_at: string;
-        updated_at: string;
-      }[];
-    };
-    FeaturePoll: {
-      feature: {
-        id: string;
-        repo: string;
-        title: string;
-        slug: string;
-        path: string;
-        original_prompt: string;
-        /** @enum {string} */
-        status:
-          | "draft"
-          | "planning"
-          | "awaiting-input"
-          | "spec-ready"
-          | "pr-open"
-          | "implemented";
-        current_iteration: number;
-        draft_spec_md: string | null;
-        parent_feature_id: string | null;
-        spec_path: string | null;
-        spec_pr_url: string | null;
-        spec_pr_number: number | null;
-        issue_number: number | null;
-        issue_url: string | null;
-        created_by: string;
-        created_at: string;
-        updated_at: string;
-      };
-      latest_iteration: {
-        id: string;
-        feature_id: string;
-        iteration: number;
-        task_id: string | null;
-        /** @enum {string} */
-        status: "running" | "ready" | "failed";
-        user_answers: {
-          sections?: {
-            [key: string]: {
-              comment?: string;
-              /** @enum {string} */
-              direction?: "keep" | "refine" | "redirect";
-            };
-          };
-          questions?: {
-            [key: string]: string;
-          };
-          free_form?: string;
-        } | null;
-        gap_result: {
-          sections?: {
-            title: string;
-            content?: string;
-            mockups?: {
-              title?: string;
-              /** @enum {string} */
-              format?: "svg" | "mermaid" | "html";
-              markup: string;
-              section?: string;
-              height?: number;
-            }[];
-            questions?: {
-              id: string;
-              question: string;
-              why?: string;
-              /** @enum {string} */
-              kind?: "text" | "choice";
-              options?: string[];
-            }[];
-          }[];
-          mockup_stylesheet?: string;
-          architecture?: {
-            summary: string;
-            components: {
-              name: string;
-              responsibility: string;
-              touchpoints: string[];
-            }[];
-          };
-          user_flows?: {
-            name: string;
-            steps: string[];
-          }[];
-          mockups?: {
-            title?: string;
-            /** @enum {string} */
-            format?: "svg" | "mermaid" | "html";
-            markup: string;
-            section?: string;
-            height?: number;
-          }[];
-          questions?: {
-            id: string;
-            question: string;
-            why?: string;
-            /** @enum {string} */
-            kind?: "text" | "choice";
-            options?: string[];
-          }[];
-          split_suggestion?: {
-            rationale: string;
-            proposed_features: {
-              title: string;
-              scope: string;
-            }[];
-          };
-          draft_spec_markdown?: string;
-        } | null;
-        parent_iteration: number | null;
-        created_at: string;
-        updated_at: string;
-      } | null;
-      last_ready_iteration: {
-        id: string;
-        feature_id: string;
-        iteration: number;
-        task_id: string | null;
-        /** @enum {string} */
-        status: "running" | "ready" | "failed";
-        user_answers: {
-          sections?: {
-            [key: string]: {
-              comment?: string;
-              /** @enum {string} */
-              direction?: "keep" | "refine" | "redirect";
-            };
-          };
-          questions?: {
-            [key: string]: string;
-          };
-          free_form?: string;
-        } | null;
-        gap_result: {
-          sections?: {
-            title: string;
-            content?: string;
-            mockups?: {
-              title?: string;
-              /** @enum {string} */
-              format?: "svg" | "mermaid" | "html";
-              markup: string;
-              section?: string;
-              height?: number;
-            }[];
-            questions?: {
-              id: string;
-              question: string;
-              why?: string;
-              /** @enum {string} */
-              kind?: "text" | "choice";
-              options?: string[];
-            }[];
-          }[];
-          mockup_stylesheet?: string;
-          architecture?: {
-            summary: string;
-            components: {
-              name: string;
-              responsibility: string;
-              touchpoints: string[];
-            }[];
-          };
-          user_flows?: {
-            name: string;
-            steps: string[];
-          }[];
-          mockups?: {
-            title?: string;
-            /** @enum {string} */
-            format?: "svg" | "mermaid" | "html";
-            markup: string;
-            section?: string;
-            height?: number;
-          }[];
-          questions?: {
-            id: string;
-            question: string;
-            why?: string;
-            /** @enum {string} */
-            kind?: "text" | "choice";
-            options?: string[];
-          }[];
-          split_suggestion?: {
-            rationale: string;
-            proposed_features: {
-              title: string;
-              scope: string;
-            }[];
-          };
-          draft_spec_markdown?: string;
-        } | null;
-        parent_iteration: number | null;
-        created_at: string;
-        updated_at: string;
-      } | null;
-      assembly_run_id: string | null;
-      assembly_line_id: string | null;
-    };
-    FeatureWithIterations: {
-      id: string;
-      repo: string;
-      title: string;
-      slug: string;
-      path: string;
-      original_prompt: string;
-      /** @enum {string} */
-      status:
-        | "draft"
-        | "planning"
-        | "awaiting-input"
-        | "spec-ready"
-        | "pr-open"
-        | "implemented";
-      current_iteration: number;
-      draft_spec_md: string | null;
-      parent_feature_id: string | null;
-      spec_path: string | null;
-      spec_pr_url: string | null;
-      spec_pr_number: number | null;
-      issue_number: number | null;
-      issue_url: string | null;
-      created_by: string;
-      created_at: string;
-      updated_at: string;
-      iterations: {
-        id: string;
-        feature_id: string;
-        iteration: number;
-        task_id: string | null;
-        /** @enum {string} */
-        status: "running" | "ready" | "failed";
-        user_answers: {
-          sections?: {
-            [key: string]: {
-              comment?: string;
-              /** @enum {string} */
-              direction?: "keep" | "refine" | "redirect";
-            };
-          };
-          questions?: {
-            [key: string]: string;
-          };
-          free_form?: string;
-        } | null;
-        gap_result: {
-          sections?: {
-            title: string;
-            content?: string;
-            mockups?: {
-              title?: string;
-              /** @enum {string} */
-              format?: "svg" | "mermaid" | "html";
-              markup: string;
-              section?: string;
-              height?: number;
-            }[];
-            questions?: {
-              id: string;
-              question: string;
-              why?: string;
-              /** @enum {string} */
-              kind?: "text" | "choice";
-              options?: string[];
-            }[];
-          }[];
-          mockup_stylesheet?: string;
-          architecture?: {
-            summary: string;
-            components: {
-              name: string;
-              responsibility: string;
-              touchpoints: string[];
-            }[];
-          };
-          user_flows?: {
-            name: string;
-            steps: string[];
-          }[];
-          mockups?: {
-            title?: string;
-            /** @enum {string} */
-            format?: "svg" | "mermaid" | "html";
-            markup: string;
-            section?: string;
-            height?: number;
-          }[];
-          questions?: {
-            id: string;
-            question: string;
-            why?: string;
-            /** @enum {string} */
-            kind?: "text" | "choice";
-            options?: string[];
-          }[];
-          split_suggestion?: {
-            rationale: string;
-            proposed_features: {
-              title: string;
-              scope: string;
-            }[];
-          };
-          draft_spec_markdown?: string;
-        } | null;
-        parent_iteration: number | null;
-        created_at: string;
-        updated_at: string;
-      }[];
-    };
     GitCredential: {
       username: string;
       password: string;
@@ -3498,10 +2995,6 @@ export interface components {
         [key: string]: unknown;
       }[];
     };
-    Ok: {
-      /** @constant */
-      ok: true;
-    };
     OnboardResult:
       | {
           repo_id: string;
@@ -3664,6 +3157,9 @@ export interface components {
       token: string;
       documentName: string;
     };
+    PlanDraftingStarted: {
+      task_id: string;
+    };
     PlanList: {
       plans: {
         id: string;
@@ -3674,6 +3170,9 @@ export interface components {
         createdBy: string;
         updatedAt: string;
       }[];
+    };
+    PlanRefineAsked: {
+      slot: string;
     };
     PlatformLlmStatus: {
       degraded: boolean;
@@ -3997,12 +3496,6 @@ export interface components {
       lastCode?: number | null;
       reason?: string;
     };
-    RoundStarted: {
-      iteration: number;
-      task_id?: string | null;
-      assembly_run_id?: string;
-      assembly_line_id?: string;
-    };
     RunStreamFrame:
       | {
           /** @constant */
@@ -4161,11 +3654,6 @@ export interface components {
       response_type?: string;
       text?: string;
       blocks?: unknown[];
-    };
-    SpecFileStarted: {
-      task_id?: string;
-      assembly_run_id?: string;
-      assembly_line_id?: string;
     };
     SpecList: {
       specs: {
@@ -6823,374 +6311,6 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
-  get_api_repos_owner_repo_features: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        owner: string;
-        repo: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["FeatureList"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  post_api_repos_owner_repo_features: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        owner: string;
-        repo: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          [key: string]: unknown;
-        };
-      };
-    };
-    responses: {
-      /** @description Successful response */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["FeatureCreated"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  get_api_repos_owner_repo_features_id: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        owner: string;
-        repo: string;
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["FeatureWithIterations"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      404: components["responses"]["NotFound"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  delete_api_repos_owner_repo_features_id: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        owner: string;
-        repo: string;
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["Ok"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      404: components["responses"]["NotFound"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "post_api_repos_owner_repo_features_id_create-spec-file": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        owner: string;
-        repo: string;
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          [key: string]: unknown;
-        };
-      };
-    };
-    responses: {
-      /** @description Successful response */
-      202: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["SpecFileStarted"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      404: components["responses"]["NotFound"];
-      409: components["responses"]["Conflict"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  get_api_repos_owner_repo_features_id_decomposition: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        owner: string;
-        repo: string;
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["FeatureDecomposition"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      404: components["responses"]["NotFound"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  post_api_repos_owner_repo_features_id_finalize: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        owner: string;
-        repo: string;
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          [key: string]: unknown;
-        };
-      };
-    };
-    responses: {
-      /** @description Successful response */
-      202: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["SpecFileStarted"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      404: components["responses"]["NotFound"];
-      409: components["responses"]["Conflict"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  post_api_repos_owner_repo_features_id_iterations: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        owner: string;
-        repo: string;
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          [key: string]: unknown;
-        };
-      };
-    };
-    responses: {
-      /** @description Successful response */
-      202: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["RoundStarted"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      404: components["responses"]["NotFound"];
-      409: components["responses"]["Conflict"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  post_api_repos_owner_repo_features_id_iterations_n_result: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        owner: string;
-        repo: string;
-        id: string;
-        n: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          [key: string]: unknown;
-        };
-      };
-    };
-    responses: {
-      /** @description Successful response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["Ok"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      404: components["responses"]["NotFound"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  post_api_repos_owner_repo_features_id_split: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        owner: string;
-        repo: string;
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          [key: string]: unknown;
-        };
-      };
-    };
-    responses: {
-      /** @description Successful response */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["Feature"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      404: components["responses"]["NotFound"];
-      409: components["responses"]["Conflict"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  get_api_repos_owner_repo_features_id_status: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        owner: string;
-        repo: string;
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["FeaturePoll"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      404: components["responses"]["NotFound"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
   post_api_repos_owner_repo_impact: {
     parameters: {
       query?: never;
@@ -7644,6 +6764,86 @@ export interface operations {
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
       404: components["responses"]["NotFound"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_repos_owner_repo_plans_id_drafting: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          known: string;
+          createdBy: string;
+        };
+      };
+    };
+    responses: {
+      /** @description The planning agent's first draft of the plan has been asked for */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PlanDraftingStarted"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_repos_owner_repo_plans_id_refine: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          slot: string;
+          title: string;
+          baseHash: string;
+          inputs: unknown;
+          uses: unknown;
+        };
+      };
+    };
+    responses: {
+      /** @description The planning agent has been asked to refine one section */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PlanRefineAsked"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
       413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];

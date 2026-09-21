@@ -38,18 +38,6 @@ export const DOMAIN_BODIES: Record<string, DomainBody> = {
 
   // tokens — a plain TS interface + residual checks; no single zod schema.
   "POST /api/tokens": { freeform: true },
-
-  // features — hand-rolled (enforceFeatureInput / parseSectionAnswers / parseGapResult).
-  "POST /api/repos/{owner}/{repo}/features": { freeform: true },
-  "POST /api/repos/{owner}/{repo}/features/{id}/iterations": { freeform: true },
-  "POST /api/repos/{owner}/{repo}/features/{id}/create-spec-file": {
-    freeform: true,
-  },
-  "POST /api/repos/{owner}/{repo}/features/{id}/finalize": { freeform: true },
-  "POST /api/repos/{owner}/{repo}/features/{id}/iterations/{n}/result": {
-    freeform: true,
-  },
-  "POST /api/repos/{owner}/{repo}/features/{id}/split": { freeform: true },
 };
 
 /** Write routes with no request body: action driven by path params + server state. */

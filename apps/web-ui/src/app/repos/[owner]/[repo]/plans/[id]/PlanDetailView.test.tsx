@@ -25,6 +25,7 @@ const META: PlanMeta = {
 };
 
 const actions = {
+  refine: async () => ({}),
   openSocket: async () => ({ error: "unused" }),
   approve: async () => ({}),
 };

@@ -19,9 +19,9 @@ planning-station ships that drafting step as four packages. `planning-document` 
 
 ## Decision
 
-- lore-api hosts plans: it registers `@re-cinq/planning-sync` on its own hapi server, so `/api/plans/*` and the collaboration socket at `/api/plans/collab` share lore-api's process, port and ingress ([validated by](../apps/lore-api/src/integration-tests/plan-routes.test.ts#L86)).
+- lore-api hosts plans: it registers `@re-cinq/planning-sync` on its own hapi server, so `/api/plans/*` and the collaboration socket at `/api/plans/collab` share lore-api's process, port and ingress ([validated by](../apps/lore-api/src/integration-tests/plan-routes.test.ts#L95)).
 - Plans are stored in `lore.plans`, `lore.plan_state` and `lore.plan_versions` by lore-api's `pgPlanStore`, which must pass planning-sync's own `checkPlanStore` ([validated by](../apps/lore-api/src/integration-tests/plan-store.test.ts#L24)).
-- The library's routes carry no auth of their own, so lore-api holds every `/api/plans` call to its bearer tokens: any valid token reads, and a write needs `write` ([validated by](../apps/lore-api/src/integration-tests/plan-routes.test.ts#L73), [validated by](../apps/lore-api/src/integration-tests/plan-routes.test.ts#L80)).
+- The library's routes carry no auth of their own, so lore-api holds every `/api/plans` call to its bearer tokens: any valid token reads, and a write needs `write` ([validated by](../apps/lore-api/src/integration-tests/plan-routes.test.ts#L82), [validated by](../apps/lore-api/src/integration-tests/plan-routes.test.ts#L89)).
 - A browser opens the socket with an opaque collab token. lore-api mints it at the web tier's request, after the web tier has checked the person's session and repo access. Only its sha256 is stored, bound to one plan of one repo, and it expires after ten minutes. No signing secret is shared between web-ui and lore-api ([validated by](../apps/lore-api/src/integration-tests/plan-collab-tokens.test.ts#L45), [validated by](../apps/lore-api/src/integration-tests/plan-collab-tokens.test.ts#L81)).
 
 ## Consequences

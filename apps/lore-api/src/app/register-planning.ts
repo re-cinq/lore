@@ -5,6 +5,11 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { pgPlanStore } from "../outbound/plans/plan-store-pg.js";
 import { collabAuthenticator } from "../work/plans/collab-tokens.js";
+import { handOverApproved } from "../work/plans/planning-line.js";
+import {
+  projectionOf,
+  resumeDepsFor,
+} from "../transport/routes/plans/plan-line-deps.js";
 import { DB_UNAVAILABLE } from "../transport/routes/common-schemas.js";
 import type { TokenScope } from "../transport/http/auth.js";
 
@@ -15,19 +20,37 @@ export function registerPlanning(
   server: Server,
   getPool: () => Pool | null,
 ): void {
-  const pool = (): Pool => {
+  const pool = livePool(getPool);
+
+  registerPlanningSync(server, {
+    store: pgPlanStore(pool),
+    authenticator: collabAuthenticator(pool),
+    onApproved: (meta) => startSpecWork(pool, meta),
+  });
+  server.ext("onPreHandler", planRouteGuard(server));
+}
+
+// The pool, answering 503 while the database is away.
+function livePool(getPool: () => Pool | null): () => Pool {
+  return () => {
     const live = getPool();
 
     enforceTrue(live, apiError(503), DB_UNAVAILABLE);
 
     return live;
   };
+}
 
-  registerPlanningSync(server, {
-    store: pgPlanStore(pool),
-    authenticator: collabAuthenticator(pool),
-  });
-  server.ext("onPreHandler", planRouteGuard(server));
+// Approval ends the plan and starts its spec work on the same planning line.
+async function startSpecWork(
+  pool: () => Pool,
+  meta: { id: string; repo: string },
+): Promise<void> {
+  await handOverApproved(
+    resumeDepsFor(meta.repo, pool()),
+    meta.id,
+    await projectionOf(pool, meta.id),
+  );
 }
 
 // The library's routes carry no hapi auth of their own, so every /api/plans call is held to lore's bearer tokens here: any valid token reads, a write needs the `write` scope. The socket is an upgrade, not a route, and answers to its collab token instead.

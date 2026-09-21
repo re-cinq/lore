@@ -415,19 +415,18 @@ LOCKED` — atomically prevents duplicate work without versioning
 
 ### FR-5: Spec-Driven Feature Workflow
 
-The system MUST provide an end-to-end feature workflow via platform
-skills. ([validated by wraps title and user prompt and omits the draft spec on round one](libs/shared/src/domain/feature-planning/planning-prompt.test.ts#L46))
-
-- FR-5.1: `/lore-feature` skill guides the full loop: constitution
-  generation → specification → task breakdown → pipeline task wiring. ([validated by states the contract the agent is measured on](libs/shared/src/domain/feature-planning/planning-prompt.test.ts#L138), [wraps title and user prompt and omits the draft spec on round one](libs/shared/src/domain/feature-planning/planning-prompt.test.ts#L46))
 - FR-5.2: `/lore-pr` skill drafts PR descriptions from spec, task
   context, and changed files. ([validated by `pr-body.test.ts:5`](libs/shared/src/domain/pr-body.test.ts#L5), [`pr-body.test.ts:11`](libs/shared/src/domain/pr-body.test.ts#L11))
 - Decision: constitution generation (the `lore-gen-constitution` glue script)
   calls `lore_assemble_context` to populate `.specify/constitution.md` with
   real ADRs and team conventions.
-- FR-5.4: Claude Code does mechanical work; developer confirms only
-  at decision points (constitution review, spec review, task
-  breakdown review). ([validated by renders a section's question with its asked text and the author's answer](libs/shared/src/domain/feature-planning/planning-prompt.test.ts#L84), [marks an unanswered question](libs/shared/src/domain/feature-planning/planning-prompt.test.ts#L96))
+
+#### Rationale
+
+The platform's skills carry a feature end to end: `/lore-feature` guides the full
+loop — constitution generation → specification → task breakdown → pipeline task
+wiring — while Claude Code does the mechanical work and the developer confirms
+only at decision points (constitution review, spec review, task breakdown review).
 
 ### FR-6: PR Quality Enforcement
 
@@ -1105,10 +1104,10 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   state guards; `transition` keeps `claimed_by` via COALESCE; and the
   dedup reads (`findOpenLike` with LIKE-wildcard semantics,
   `driftTasksForSpec` keyed on the bundle's spec_path), `list` paging, and
-  `getWithEvents` mirror the SQL. ([validated by `task-store-memory.test.ts:38`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L38), [`task-store-memory.test.ts:48`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L48), [`task-store-memory.test.ts:69`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L69), [`task-store-memory.test.ts:90`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L90), [`task-store-memory.test.ts:100`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L100), [`task-store-memory.test.ts:125`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L125), [`task-store-memory.test.ts:137`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L137), [`task-store-memory.test.ts:149`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L149), [`task-store-memory.test.ts:157`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L157), [`task-store-memory.test.ts:171`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L171), [`task-store-memory.test.ts:194`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L194), [`task-store-memory.test.ts:226`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L226), [`task-store-memory.test.ts:274`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L274), [`task-store-memory.test.ts:362`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L362), [`task-store-memory.test.ts:376`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L376), [`task-store-memory.test.ts:392`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L392))
+  `getWithEvents` mirror the SQL. ([validated by `task-store-memory.test.ts:38`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L38), [`task-store-memory.test.ts:48`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L48), [`task-store-memory.test.ts:69`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L69), [`task-store-memory.test.ts:90`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L90), [`task-store-memory.test.ts:100`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L100), [`task-store-memory.test.ts:125`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L125), [`task-store-memory.test.ts:137`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L137), [`task-store-memory.test.ts:149`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L149), [`task-store-memory.test.ts:157`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L157), [`task-store-memory.test.ts:171`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L171), [`task-store-memory.test.ts:194`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L194), [`task-store-memory.test.ts:226`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L212), [`task-store-memory.test.ts:274`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L260), [`task-store-memory.test.ts:362`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L294), [`task-store-memory.test.ts:376`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L308), [`task-store-memory.test.ts:392`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L324))
 - FR-20.4: The task-list surface returns the repo's pending tasks as
   typed `Task` wrappers and reflects the new status after `cancel()`.
-  ([validated by `task-list.test.ts:114`](libs/shared/src/outbound/project/tasks/task-list.test.ts#L109), [`task-list.test.ts:126`](libs/shared/src/outbound/project/tasks/task-list.test.ts#L126))
+  ([validated by `task-list.test.ts:114`](libs/shared/src/outbound/project/tasks/task-list.test.ts#L96), [`task-list.test.ts:126`](libs/shared/src/outbound/project/tasks/task-list.test.ts#L113))
 - FR-20.5: The `EventReporter` port is the produce side of `pipeline.events`
   and nothing more: `insert` writes through the shared idempotent statement
   and collapses a redelivery sharing a dedupe key. Claiming, acking,
@@ -1131,21 +1130,6 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   chunks with embeddings) from the repo-scoped API with a bearer token,
   maps `hasChunk` to its query endpoint, and throws
   on a non-ok response and on the Floor-only write surface. ([validated by `chunks-http.test.ts:28`](libs/shared/src/outbound/project/chunks/chunks-http.test.ts#L28), [`chunks-http.test.ts:43`](libs/shared/src/outbound/project/chunks/chunks-http.test.ts#L43), [`chunks-http.test.ts:60`](libs/shared/src/outbound/project/chunks/chunks-http.test.ts#L57), [`chunks-http.test.ts:94`](libs/shared/src/outbound/project/chunks/chunks-http.test.ts#L91))
-- FR-20.8: The `Features` store persists feature planning bound to its
-  repo: it lists by repo ordered by `updated_at` (with an optional status
-  filter), attaches a `task_id` to an iteration, updates an iteration's
-  `gap_result`/status, sets status alone or alongside a column patch, and
-  deletes a feature scoped to its repo (returning whether a row was
-  removed); the facade stamps the bound repo on every call, and the pure
-  helpers gate finalizing to a settled planning state and return the gap
-  of the highest-numbered ready iteration (null when none). ([validated by `features-pg.test.ts:47`](libs/shared/src/outbound/project/features/features-pg.test.ts#L47), [`features-pg.test.ts:57`](libs/shared/src/outbound/project/features/features-pg.test.ts#L57), [`features-pg.test.ts:93`](libs/shared/src/outbound/project/features/features-pg.test.ts#L93), [`features-pg.test.ts:110`](libs/shared/src/outbound/project/features/features-pg.test.ts#L110), [`features-pg.test.ts:134`](libs/shared/src/outbound/project/features/features-pg.test.ts#L134), [`features-pg.test.ts:143`](libs/shared/src/outbound/project/features/features-pg.test.ts#L143), [`features-pg.test.ts:163`](libs/shared/src/outbound/project/features/features-pg.test.ts#L163), [`features-pg.test.ts:173`](libs/shared/src/outbound/project/features/features-pg.test.ts#L173), [`features.test.ts:45`](libs/shared/src/outbound/project/features/features.test.ts#L45), [`features.test.ts:52`](libs/shared/src/outbound/project/features/features.test.ts#L52), [`features.test.ts:62`](libs/shared/src/outbound/project/features/features.test.ts#L62), [`features.test.ts:72`](libs/shared/src/outbound/project/features/features.test.ts#L72), [`features-port.test.ts:35`](libs/shared/src/outbound/project/features/features-port.test.ts#L35), [`features-port.test.ts:41`](libs/shared/src/outbound/project/features/features-port.test.ts#L41), [`features-port.test.ts:54`](libs/shared/src/outbound/project/features/features-port.test.ts#L54), [`features-port.test.ts:64`](libs/shared/src/outbound/project/features/features-port.test.ts#L64), [`features-port.test.ts:74`](libs/shared/src/outbound/project/features/features-port.test.ts#L74))
-- FR-20.9: Feature planning recovery orphans a running round older than
-  the window (even while the runtime reports active), leaves a recent
-  active round alone, no-ops when a ready round already moved the feature
-  out of `planning` or there are no iterations, and keys on the latest
-  iteration so a newer ready round supersedes an older running one; the
-  round-in-flight helper returns a recent running iteration and null when
-  the only running one is orphaned or none is running. ([validated by `planning-recovery.test.ts:49`](libs/shared/src/outbound/project/features/planning-recovery.test.ts#L50), [`planning-recovery.test.ts:69`](libs/shared/src/outbound/project/features/planning-recovery.test.ts#L69), [`planning-recovery.test.ts:99`](libs/shared/src/outbound/project/features/planning-recovery.test.ts#L99), [`planning-recovery.test.ts:112`](libs/shared/src/outbound/project/features/planning-recovery.test.ts#L112), [`planning-recovery.test.ts:132`](libs/shared/src/outbound/project/features/planning-recovery.test.ts#L132), [`round-in-flight.test.ts:27`](libs/shared/src/outbound/project/features/round-in-flight.test.ts#L27), [`round-in-flight.test.ts:39`](libs/shared/src/outbound/project/features/round-in-flight.test.ts#L39), [`round-in-flight.test.ts:49`](libs/shared/src/outbound/project/features/round-in-flight.test.ts#L49))
 - FR-20.10: The `AgentRunner` port launches a Station via the injected
   `StationBackend` in cluster mode (passing the execution image, throwing
   when no provider is supplied) and calls the injected `LlmPort` in

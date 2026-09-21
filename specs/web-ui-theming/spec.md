@@ -184,7 +184,7 @@ bold ([compact Classic scale](apps/web-ui/src/app/theme-tokens.test.ts#L136)).
   hues). `SpecGraphD3` resolves tokens to literals per render for canvas and
   `d3.interpolateRgb` (which cannot consume `var()`); SVG keeps raw `var()`
   references. The lifecycle palette in `feature-status.ts` now returns token
-  strings. ([validated by `feature-status.test.ts:10`](apps/web-ui/src/lib/feature-status.test.ts#L10), [chart tokens per family](apps/web-ui/src/app/theme-tokens.test.ts#L81), [canvas literal resolution](apps/web-ui/src/lib/theme-token-resolve.test.ts#L23))
+  strings. ([chart tokens per family](apps/web-ui/src/app/theme-tokens.test.ts#L81), [canvas literal resolution](apps/web-ui/src/lib/theme-token-resolve.test.ts#L23))
 - **2026-08-05 — Classic (Chicago) family.** Added a third theme family,
   `chicago` — a Windows-98 look (per [98.css](https://jdan.github.io/98.css/)):
   silver `#c0c0c0` beveled surfaces, navy `#000080` title bars, Tahoma / MS Sans

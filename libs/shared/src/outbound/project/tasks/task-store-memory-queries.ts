@@ -7,29 +7,8 @@ import {
   type TaskListResult,
   type FindOpenLikeInput,
   type DriftTaskRow,
-  type FeatureTaskRow,
 } from "./task-store-port.js";
 import type { SeedStoreTask, StoredTaskEvent } from "./task-store-memory.js";
-
-/** A spec-task of `repo` whose bundle names `featureId` — `context_bundle->>'feature_id'` extracts text, and a NULL bundle matches nothing. */
-function belongsToFeature(
-  t: SeedStoreTask,
-  repo: string,
-  featureId: string,
-): boolean {
-  return (
-    t.target_repo === repo &&
-    t.task_type === "spec-task" &&
-    t.context_bundle?.["feature_id"] != null &&
-    String(t.context_bundle["feature_id"]) === featureId
-  );
-}
-
-function bySpecTaskId(a: FeatureTaskRow, b: FeatureTaskRow): number {
-  return String(a.context_bundle?.["spec_task_id"] ?? "").localeCompare(
-    String(b.context_bundle?.["spec_task_id"] ?? ""),
-  );
-}
 
 /** listTasks selects the 10-column TaskListRow subset, not SELECT * — fields outside it (context_bundle, priority, …) are absent in Pg too. */
 function toListRow(t: SeedStoreTask) {
@@ -164,19 +143,5 @@ export class TaskQueryStore {
         created_at: t.created_at ?? "",
         issue_number: t.issue_number ?? null,
       }));
-  }
-
-  async specTasksForFeature(
-    repo: string,
-    featureId: string,
-  ): Promise<FeatureTaskRow[]> {
-    return this.tasks
-      .filter((t) => belongsToFeature(t, repo, featureId))
-      .map((t) => ({
-        description: t.description ?? "",
-        status: t.status ?? "",
-        context_bundle: t.context_bundle ?? null,
-      }))
-      .sort(bySpecTaskId);
   }
 }

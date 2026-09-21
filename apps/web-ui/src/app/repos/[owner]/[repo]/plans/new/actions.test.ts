@@ -98,6 +98,10 @@ describe("createPlanAction", () => {
           ],
         },
       },
+      {
+        url: "http://api:3000/api/repos/re-cinq/lore/plans/p1/drafting",
+        body: { known: "Checkout is slow.", createdBy: "gedaiu" },
+      },
     ]);
   });
 
@@ -111,6 +115,7 @@ describe("createPlanAction", () => {
     ).rejects.toThrow(new Error("redirect /repos/re-cinq/lore/plans/p1"));
     expect(calls().map((call) => call.url)).toEqual([
       "http://api:3000/api/plans",
+      "http://api:3000/api/repos/re-cinq/lore/plans/p1/drafting",
     ]);
   });
 });

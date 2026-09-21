@@ -50,7 +50,7 @@ flowchart LR
         direction TB
         J1["merge_check · 1m · approval_check · 1m<br/>(tick only — the work runs in the stations service)"]
         J4["agent_watcher_reconcile · 1m (k8s-watch safety net)"]
-        J5["spec_task_executor · 1m · feature_planning_reaper · 1m"]
+        J5["spec_task_executor · 1m"]
         J8["assembly_line_reaper · 1m (walk liveness bound)<br/>lease_reaper · 1m · llm_credit_probe · 5m"]
         J6["stale_task_check · hourly · events_prune · hourly"]
         J7["detection family (fan out per-repo assembly lines):<br/>gap-detection · Mon · spec-drift · Mon<br/>spec-coverage validate · daily · backfill · Mon"]

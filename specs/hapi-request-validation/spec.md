@@ -28,7 +28,7 @@ its request body **by hand, inside the handler**:
   `if (!description?.trim())` in
   [`task-post.ts`](../../apps/lore-api/src/transport/routes/tasks/task-post.ts#L59),
   `enforceFeatureInput(...)` in
-  [`feature-round-routes.ts`](../../apps/lore-api/src/transport/routes/features/feature-round-routes.ts#L78).
+  `feature-round-routes.ts`.
   There is no single declaration of "what a valid request to this route looks
   like."
 - The domain logic is buried under `try { JSON.parse ... } catch { 500 }`

@@ -9,7 +9,6 @@ import { generateArtifactCopy } from "../../outbound/artifact-copy.js";
 import { maybeStartAutoReview } from "./agent-watcher-auto-review.js";
 import {
   decideCiGate,
-  decideFeatureLink,
   taskPageUrl,
   stampPrOnOpenRuns,
 } from "../../domain/agent-watcher-logic.js";
@@ -158,57 +157,18 @@ async function recordPrOpened(
   });
 }
 
-/** Issue cross-link, feature-row link, and the completion episode/notification — every write a freshly opened PR needs told about it. */
+/** Issue cross-link and the completion episode/notification — every write a freshly opened PR needs told about it. */
 async function linkPrArtifacts(
   ctx: AgentContext,
   opened: OpenedPr,
 ): Promise<void> {
-  const { pr, targetRepo, issueNumber, prProject } = opened;
+  const { pr, targetRepo, issueNumber } = opened;
 
   await linkPrToIssue(targetRepo, issueNumber, pr.url);
-  await linkFeatureRow(ctx, pr, prProject);
 
   console.log(`[agent-watcher] Task ${ctx.taskId} → PR ${pr.url}`);
   await notifyTaskUpdate(ctx.taskId, targetRepo, "pr", pr.url);
   recordPrEpisode(ctx, opened);
-}
-
-/** Links a spec PR back to its feature row (ADR-027). Warned rather than thrown: the PR is open either way. */
-async function linkFeatureRow(
-  ctx: AgentContext,
-  pr: OpenedPr["pr"],
-  prProject: Awaited<ReturnType<typeof projectFor>>,
-): Promise<void> {
-  try {
-    await transitionFeatureToPrOpen(ctx, pr, prProject);
-  } catch (err) {
-    console.warn(
-      `[agent-watcher] feature link failed for ${ctx.taskId}: ${errorMessage(err)}`,
-    );
-  }
-}
-
-/** Keyed on the task CARRYING a feature rather than on its type (FR6.26) — a task type is not evidence of a feature, and the context bundle is. */
-async function transitionFeatureToPrOpen(
-  ctx: AgentContext,
-  pr: OpenedPr["pr"],
-  prProject: Awaited<ReturnType<typeof projectFor>>,
-): Promise<void> {
-  const link = decideFeatureLink(
-    ctx.taskType,
-    (await taskStore().getById(ctx.taskId))?.context_bundle as
-      { feature_id?: string; slug?: string } | undefined,
-  );
-
-  if (!link) {
-    return;
-  }
-
-  await prProject.features.transitionStatus(link.featureId, "pr-open", {
-    spec_pr_url: pr.url,
-    spec_pr_number: pr.number,
-    ...(link.slug ? { spec_path: `specs/${link.slug}/spec.md` } : {}),
-  });
 }
 
 /** The PR is worth remembering with its size and intent — curated so a later task can find what this change already covered. */

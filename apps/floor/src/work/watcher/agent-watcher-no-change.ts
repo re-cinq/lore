@@ -11,10 +11,8 @@ import {
   tailOutput,
 } from "./agent-watcher-notify.js";
 
-/** feature-planning posts its result straight to the features API (ADR-027). */
-export async function completeFeaturePlanningTask(
-  taskId: string,
-): Promise<void> {
+/** feature-planning writes its result into its plan (ADR-047), never a PR or an Issue. */
+export async function completePlanningTask(taskId: string): Promise<void> {
   try {
     await taskStore().setStatus(taskId, "completed");
     await taskStore().recordEvent(taskId, "running", "completed", {
@@ -34,7 +32,7 @@ export async function completeNoChangeTask(
   logsRef: string,
 ): Promise<void> {
   if (ctx.taskType === "feature-planning") {
-    await completeFeaturePlanningTask(ctx.taskId);
+    await completePlanningTask(ctx.taskId);
 
     return;
   }

@@ -144,17 +144,13 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
         },
       ),
     settleTask: (row, outcome, reason) =>
-      settleTaskForLine(row, outcome, reason, {
-        tasks: taskStore(),
-        featuresFor: projectFor,
-      }),
+      settleTaskForLine(row, outcome, reason, { tasks: taskStore() }),
     stampPr: async (row) => {
       const project = await projectFor(row.repo);
 
       await stampLinePr(row, {
         pulls: project.pulls,
         assemblyRuns: pipeline().assemblyRuns,
-        features: project.features,
         onboarding: settings(),
       });
     },

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   detectSubject,
-  featureSubject,
+  planSubject,
   ingestSubject,
   reviewSubject,
   backlogSubject,
@@ -9,9 +9,9 @@ import {
 } from "./subject-keys.js";
 
 describe("subject keys", () => {
-  it("featureSubject spells a feature as feature:<id>", () => {
-    expect(featureSubject("02abbd59-b4af-45ab-99f3-b4e86fb672f7")).toBe(
-      "feature:02abbd59-b4af-45ab-99f3-b4e86fb672f7",
+  it("planSubject spells a plan as plan:<id>", () => {
+    expect(planSubject("02abbd59-b4af-45ab-99f3-b4e86fb672f7")).toBe(
+      "plan:02abbd59-b4af-45ab-99f3-b4e86fb672f7",
     );
   });
 
@@ -35,9 +35,9 @@ describe("subject keys", () => {
     );
   });
 
-  it("a feature subject never collides with another subject family", () => {
+  it("a plan subject never collides with another subject family", () => {
     const keys = [
-      featureSubject("1406"),
+      planSubject("1406"),
       detectSubject("spec-drift", "1406"),
       reviewSubject(1406),
       ingestSubject("specs", "1406"),

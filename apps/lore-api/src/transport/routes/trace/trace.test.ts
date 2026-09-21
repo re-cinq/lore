@@ -123,10 +123,7 @@ describe("GET /api/repos/:owner/:repo/trace/:kind — per-kind dispatch", () => 
     expect(res.result).toEqual({ error: NO_DGRAPH_ERROR });
   });
 
-  it("dispatches graph, with a clean project.features.list() read, and surfaces the no-op Dgraph failure as 500", async () => {
-    setPool({
-      query: vi.fn().mockResolvedValue({ rows: [] }),
-    } as unknown as Pool);
+  it("dispatches graph and surfaces the no-op Dgraph failure as 500", async () => {
     const res = await get("/api/repos/o/r/trace/graph", AUTH);
 
     expect(res.statusCode).toBe(500);

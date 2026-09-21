@@ -15,7 +15,10 @@ export const CATEGORY_ORDER: Array<{ name: string; description: string }> = [
     name: "Repositories",
     description: "Onboarded repositories and their status.",
   },
-  { name: "Features", description: "Feature-planning iterations." },
+  {
+    name: "Plans",
+    description: "Plans written together with the planning agent (ADR-047).",
+  },
   { name: "Agents", description: "Per-repo agent definitions." },
   {
     name: "Cluster Agents",
@@ -67,7 +70,7 @@ const TAG_RULES: Array<[RegExp, string]> = [
   ],
   // Platform health (model access status) tagged analytics: same audience, same question.
   [/^\/api\/platform\//, "Analytics"],
-  [/\/features\b/, "Features"],
+  [/\/plans\b/, "Plans"],
   [/\/agent-definitions\b/, "Agents"],
   [/^\/api\/cluster-agents\b/, "Cluster Agents"],
   // The git-credential broker serves the pods that cluster-agent dispatch launches.

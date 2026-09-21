@@ -1,10 +1,10 @@
 name: feature-planning
 description: >
-  One interactive planning round: analyze the feature request against the project
-  (with the prior feature timeline in context) and emit a structured GapResult.
-  No commit, no PR — the run declares result.json as a produced artifact
-  (`output.watch`), the subsystem raises it as a `planning.result` event, and the
-  Floor persists it as the round's result.
+  A plan from its first draft to its spec-tasks (ADR-047): the agent drafts the
+  plan people write together in lore-api, each Refine sends one section back to
+  it, and approval moves the plan on to its spec PR and decomposition. The agent's
+  result.json is a declared artifact (`output.watch`) the Floor writes into the
+  plan — agent edits for a draft, a proposal for a Refine.
 version: 1
 entry: analyze
 exit: done
@@ -14,29 +14,26 @@ nodes:
     type: agent
     prompt_ref: feature-planning
     model: claude-sonnet-4-6
-    # Each round continues the previous round's conversation for the SAME feature, so
+    # Each Refine continues the previous round's conversation for the SAME plan, so
     # the agent keeps what it read and decided instead of being re-briefed. Keyed by
-    # an arg rather than a built-in: the engine never learns what a feature is.
+    # an arg rather than a built-in: the engine never learns what a plan is.
     continues:
       node: analyze
-      key: args.feature_id
-    description: Produce the GapResult JSON for this round (written to result.json).
+      key: args.plan_id
+    description: Draft the plan, or answer one section's Refine (written to result.json).
 
-  # The author reading the round IS a station — the wizard is its worker, reporting
-  # over `assembly_line.resume` instead of stdout. Modelling the pause as a node is
-  # what lets one line span a whole feature: the moments a person acts stop being
-  # gaps between runs and become steps you can see in the graph.
+  # The plan's people ARE a station — the plan editor is its worker, reporting over
+  # `assembly_line.resume` (a Refine, or the approval) instead of stdout. Modelling
+  # the pause as a node is what lets one line span a whole plan: the moments people
+  # act stop being gaps between runs and become steps you can see in the graph.
   - id: author
     type: feature_review
-    # The wizard is this station's worker, and the route says so outright. Before
-    # this, the interface kept its own map of which node id meant which screen —
-    # the blueprint's knowledge, transcribed into a view, silently missing any
-    # node nobody remembered to add.
-    route: /repos/{args.repo}/features/{args.feature_id}
-    description: The author reviews the round — refine, accept, or abandon.
+    # The plan page is this station's worker, and the route says so outright.
+    route: /repos/{args.repo}/plans/{args.plan_id}
+    description: People write the plan, refine sections, and approve it.
 
-  # Accepting the plan starts the spec work on the SAME line: the author's accept is
-  # a station outcome like any other, so what follows it is an edge, not a new run.
+  # Approving the plan starts the spec work on the SAME line: the approval is a
+  # station outcome like any other, so what follows it is an edge, not a new run.
   - id: analyse-specs
     type: agent
     prompt_ref: spec-analysis

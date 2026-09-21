@@ -1,5 +1,7 @@
 # Implementation Plan: Smart Feature Planning
 
+> Superseded 2026-09-21: the wizard over `lore.features` below was replaced by plans written together in lore-api (ADR-047); `data-model.md` describes the tables that replaced these.
+
 Spec-first, TDD. Acceptance criteria in `spec.md` are the test checklist; as each
 test goes green, append its inline `([validated by …](path/to/test.ts#Lnn))` link
 to the satisfied criterion and re-verify the other links on that statement.

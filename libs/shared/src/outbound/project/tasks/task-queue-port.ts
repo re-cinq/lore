@@ -84,7 +84,7 @@ export type MergeableTask = TaskColumn<
   pr_url: string;
   pr_number: number;
   context_bundle: {
-    feature_id?: string;
+    spec_path?: string;
     slug?: string;
     spec_slug?: string;
   } | null;

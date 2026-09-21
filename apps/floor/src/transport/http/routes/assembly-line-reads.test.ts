@@ -99,7 +99,7 @@ describe("GET /api/assembly-runs/{id}", () => {
 
   it("reports a human station with no Station and a resolved route", async () => {
     getById.mockResolvedValue(
-      line({ args: { repo: "re-cinq/lore", feature_id: "feat-1" } }),
+      line({ args: { repo: "re-cinq/lore", plan_id: "plan-1" } }),
     );
     listStationRuns.mockResolvedValue([node("author", null)]);
 
@@ -110,7 +110,7 @@ describe("GET /api/assembly-runs/{id}", () => {
     ).toMatchObject({
       type: "feature_review",
       station: null,
-      route: "/repos/re-cinq/lore/features/feat-1",
+      route: "/repos/re-cinq/lore/plans/plan-1",
     });
   });
 

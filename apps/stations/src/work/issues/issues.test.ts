@@ -141,7 +141,7 @@ describe("runIssuesStation", () => {
     });
   });
 
-  it("stamps the feature a spec-task belongs to — the join key the whole decomposition view hangs on (its absence left context_bundle->>'feature_id' matching zero rows and merge-check's spec-status flip never firing)", async () => {
+  it("stamps the plan and the spec a spec-task belongs to, so merge-check can flip that spec's status once its group merges", async () => {
     const fake = fakeProject([
       "area:web-ui",
       "area:floor",
@@ -152,13 +152,17 @@ describe("runIssuesStation", () => {
     await runIssuesStation(
       input({
         feature_decomposition: DECOMPOSITION,
-        feature_id: "1cc0d9de-2b7f-4a35-9d1f-8f6f0a2f4e21",
+        plan_id: "1cc0d9de-2b7f-4a35-9d1f-8f6f0a2f4e21",
+        spec_path: "specs/checkout/spec.md",
       }),
       { project: fake.project },
     );
 
     expect(fake.tasks[0]).toMatchObject({
-      contextBundle: { feature_id: "1cc0d9de-2b7f-4a35-9d1f-8f6f0a2f4e21" },
+      contextBundle: {
+        plan_id: "1cc0d9de-2b7f-4a35-9d1f-8f6f0a2f4e21",
+        spec_path: "specs/checkout/spec.md",
+      },
     });
   });
 
@@ -179,7 +183,7 @@ describe("runIssuesStation", () => {
     });
   });
 
-  it("omits the feature id when the line carries none", async () => {
+  it("omits the plan id when the line carries none", async () => {
     const fake = fakeProject([
       "area:web-ui",
       "area:floor",
@@ -192,7 +196,7 @@ describe("runIssuesStation", () => {
     });
 
     expect(
-      (fake.tasks[0].contextBundle as Record<string, unknown>).feature_id,
+      (fake.tasks[0].contextBundle as Record<string, unknown>).plan_id,
     ).toBeUndefined();
   });
 });

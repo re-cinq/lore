@@ -82,3 +82,36 @@ export function seedPlan(
     },
   });
 }
+
+/** Starts the planning agent's first draft of the plan, from what its author already knows. */
+export function startDrafting(
+  repo: string,
+  planId: string,
+  known: string,
+  createdBy: string,
+): Promise<ApiResult<{ task_id: string }>> {
+  return apiFetch("lore-api", `/api/repos/${repo}/plans/${planId}/drafting`, {
+    method: "POST",
+    body: { known, createdBy },
+  });
+}
+
+/** The editor's Refine ask for one section; lore-api answers 409 while the agent is still at work. */
+export interface RefineAsk {
+  slot: string;
+  title: string;
+  baseHash: string;
+  inputs: unknown;
+  uses: unknown;
+}
+
+export function askRefine(
+  repo: string,
+  planId: string,
+  refine: RefineAsk,
+): Promise<ApiResult<{ ok: true }>> {
+  return apiFetch("lore-api", `/api/repos/${repo}/plans/${planId}/refine`, {
+    method: "POST",
+    body: refine,
+  });
+}

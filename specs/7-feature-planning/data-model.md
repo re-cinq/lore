@@ -1,87 +1,47 @@
-# Data Model: Smart Feature Planning
+# Data Model: Planning a Feature Together
 
-## Persistence — `lore` schema (migration `0017_feature_planning.sql`)
+A plan lives in lore-api's database, written by `pgPlanStore` for
+`@re-cinq/planning-sync` (ADR-047, migration `0087_plans.sql`). The Yjs document is
+the truth; the JSON beside it is its projection (planning-station ADR-002).
+`lore.features` and `lore.feature_iterations` are gone (migration
+`0088_drop_features.sql`).
 
-Tables live in the `lore` schema (owned unconditionally by the migration runner
-`lore`), so `CREATE`/`GRANT`/FK never hit the `must be owner` wall. See
-`specs/7-feature-planning/spec.md` FR-9 and the migration's header for the
-single-transaction / idempotency rules.
-
-### `lore.features`
-
-The lifecycle home and draft store. `path` (`specs/<slug>`) is the join key
-against the computed Dgraph Feature node (graph integration, FR-8).
+## `lore.plans` — one plan's workflow meta
 
 | Column | Type | Notes |
 |---|---|---|
-| `id` | `uuid` PK | `DEFAULT gen_random_uuid()` (core PG13+) |
-| `repo` | `text` | `owner/repo`, matches `lore.repos.full_name` |
-| `title` | `text` | |
-| `slug` | `text` | slugified title; `specs/<slug>/` on finalize |
-| `path` | `text` | `specs/<slug>` — graph join key |
-| `original_prompt` | `text` | the author's seed prompt |
-| `status` | `text` | CHECK: `draft`, `planning`, `awaiting-input`, `spec-ready`, `pr-open`, `implemented`, `split` |
-| `current_iteration` | `int` | |
-| `draft_spec_md` | `text` | working spec, uncommitted until finalize |
-| `parent_feature_id` | `uuid` | `REFERENCES lore.features(id)` (split linkage) |
-| `spec_path` | `text` | set on finalize |
-| `spec_pr_url` / `spec_pr_number` | `text` / `int` | |
-| `issue_number` / `issue_url` | `int` / `text` | user-story Issue, if created |
-| `created_by` | `text` | |
-| `created_at` / `updated_at` | `timestamptz` | |
+| `id` | UUID PK | the plan id every route and the planning line key on |
+| `repo` | TEXT | `owner/repo` |
+| `title` | TEXT | the plan's H1, renamed with it |
+| `type` | TEXT | the template: `feature`, `ui-change`, `performance`, `refactor`, `incident-response` |
+| `template_version` | INT | the template's version the plan was seeded from |
+| `status` | TEXT | `draft`, `in-review`, `approved`, `superseded` |
+| `approval` | JSONB | who approved which version, when |
+| `current_version` | INT | the newest version number |
+| `created_by`, `created_at`, `updated_at` | | |
 
-`UNIQUE (repo, slug)`. Indexes: `(repo, updated_at desc)`, `(repo, status)`, `(parent_feature_id)`.
-
-### `lore.feature_iterations`
-
-One row per planning round, 1:1 with the planning task/pod.
+## `lore.plan_state` — the live document
 
 | Column | Type | Notes |
 |---|---|---|
-| `id` | `uuid` PK | |
-| `feature_id` | `uuid` | `REFERENCES lore.features(id) ON DELETE CASCADE` |
-| `iteration` | `int` | |
-| `task_id` | `uuid` | **plain UUID, no FK** (soft ref to `pipeline.tasks`) |
-| `status` | `text` | `running`, `ready`, `failed` |
-| `user_answers` | `jsonb` | feedback that *seeded* this round (shape below) |
-| `gap_result` | `jsonb` | the `GapResult` the pod POSTed (shape below) |
-| `created_at` / `updated_at` | `timestamptz` | |
+| `plan_id` | UUID PK → `lore.plans` | |
+| `state` | BYTEA | the Yjs document |
+| `json` | JSONB | the projection lore-api answers |
+| `content_hash` | TEXT | unchanged content cuts no version |
 
-`UNIQUE (feature_id, iteration)`.
+## `lore.plan_versions` — every content change
 
-## `user_answers` JSONB
+Keyed `(plan_id, version)`; each row keeps the plan's `json` and Yjs `state` as
+they were, with the `reason` and author of the change.
 
-```jsonc
-{
-  "sections": {
-    "architecture": { "comment": "…", "direction": "refine" },   // keep | refine | redirect
-    "user_flows":   { "comment": "…", "direction": "keep" }
-  },
-  "questions": { "<questionId>": "answer text" },
-  "free_form": "anything else the author wants to steer"
-}
-```
+## `lore.plan_collab_tokens` — who may open the socket
 
-## `GapResult` contract (`libs/shared/src/domain/feature-planning/gap-result.ts`)
+Short-lived tokens lore-api mints for one person on one plan of one repo; only the
+token's sha256 is stored, and a token lapses after ten minutes.
 
-Wire shape (snake_case), validated by `gapResultSchema` (Zod), parsed by
-`parseGapResult`. `sanitizeSvg` runs over each mockup before persistence;
-`decideFeatureStatus` maps a result to `awaiting-input` (questions/split present)
-or `spec-ready`.
+## Where the planning line keeps the rest
 
-```jsonc
-{
-  "architecture": { "summary": "…", "components": [ { "name": "…", "responsibility": "…", "touchpoints": ["…"] } ] },
-  "user_flows":   [ { "name": "…", "steps": ["…"] } ],
-  "mockups":      [ { "title": "…", "format": "svg", "markup": "<svg …>…</svg>" } ],
-  "questions":    [ { "id": "q1", "question": "…", "why": "…", "kind": "text", "options": ["…"] } ],
-  "split_suggestion": { "rationale": "…", "proposed_features": [ { "title": "…", "scope": "…" } ] },
-  "draft_spec_markdown": "# Feature Specification: …"
-}
-```
-
-## Project port types (`libs/shared/src/outbound/project/features/`)
-
-`FeaturesPort` (interface) + `Feature` / `Iteration` value types, backed by
-`PgFeatures` (Postgres adapter over the tables above) and exposed through the
-`Features` facade as `project.features`.
+What used to be feature columns rides the planning line instead: the run's args
+carry `plan_id`, `repo` and `plan_title` from the start and `spec_path` once the
+spec analysis names it, and every spec-task the decomposition files carries
+`plan_id` and `spec_path` in its `context_bundle`.

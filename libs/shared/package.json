@@ -66,14 +66,6 @@
       "types": "./dist/domain/feature-planning/decomposition-result.d.ts",
       "default": "./dist/domain/feature-planning/decomposition-result.js"
     },
-    "./feature-planning/gap-result.js": {
-      "types": "./dist/domain/feature-planning/gap-result.d.ts",
-      "default": "./dist/domain/feature-planning/gap-result.js"
-    },
-    "./feature-planning/planning-prompt.js": {
-      "types": "./dist/domain/feature-planning/planning-prompt.d.ts",
-      "default": "./dist/domain/feature-planning/planning-prompt.js"
-    },
     "./feature-planning/decomposition-instructions.js": {
       "types": "./dist/domain/feature-planning/decomposition-instructions.d.ts",
       "default": "./dist/domain/feature-planning/decomposition-instructions.js"

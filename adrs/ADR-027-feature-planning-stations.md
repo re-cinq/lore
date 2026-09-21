@@ -45,6 +45,11 @@ This ADR runs feature planning and finalize as interactive Stations, persists fe
 > [agent-watcher.ts](../apps/floor/src/work/watcher/agent-watcher.ts), which returns early
 > for every assembly-line node CR.
 
+
+## Amendment 2026-09-21: plans replace the wizard
+
+The wizard, the `lore.features` / `lore.feature_iterations` tables, the `Features` Project port and the graph merge of persistent Feature nodes are gone. A feature is planned as a plan written together in lore-api (ADR-047); the `feature-planning` line survives, keyed on `args.plan_id`, its agent writing into the live plan instead of emitting a GapResult, and the spec graph shows only the computed Feature nodes.
+
 ## Context
 
 Spec authoring is the most context-dependent step in the Lore pipeline and the
@@ -92,7 +97,7 @@ of truth in the graph.**
   `specs/<slug>/spec.md` and the existing watcher opens the PR + conditional Issue.
 - **Feature lifecycle is a Project port.** `lore.features` / `lore.feature_iterations`
   (the `lore` schema, owned by the migration runner) are reached only through a
-  `features` port on the Project facade ([libs/shared/src/outbound/project/features/](../libs/shared/src/outbound/project/features/)),
+  `features` port on the Project facade (libs/shared/src/outbound/project/features/),
   mirroring [task-store-pg.ts](../libs/shared/src/outbound/project/tasks/task-store-pg.ts).
   The draft spec stays uncommitted in `draft_spec_md` until the author finalizes;
   even then it ships as a PR, never a direct `main` commit.
@@ -108,7 +113,7 @@ of truth in the graph.**
 - **Generated mockups are untrusted.** `GapResult.mockups` carry LLM-generated SVG.
   Two layers defend it: (1) `sanitizeSvg()` strips script/foreignObject/handlers/
   external refs on every write path before persistence, and (2) the web UI
-  ([MockupSection.tsx](../apps/web-ui/src/app/repos/[owner]/[repo]/features/[id]/MockupSection.tsx))
+  (MockupSection.tsx)
   re-sanitizes with **DOMPurify** (SVG profile) on the client and injects the result
   via `innerHTML` after mount — never through the unsanitized `rehype-raw` path used
   elsewhere. Mockups render **inline** (responsive, theme-aware, downloadable) rather

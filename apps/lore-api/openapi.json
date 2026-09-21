@@ -28,8 +28,8 @@
       "description": "Onboarded repositories and their status."
     },
     {
-      "name": "Features",
-      "description": "Feature-planning iterations."
+      "name": "Plans",
+      "description": "Plans written together with the planning agent (ADR-047)."
     },
     {
       "name": "Agents",
@@ -4468,839 +4468,6 @@
         ]
       }
     },
-    "/api/repos/{owner}/{repo}/features": {
-      "get": {
-        "operationId": "get_api_repos_owner_repo_features",
-        "summary": "GET /api/repos/{owner}/{repo}/features",
-        "tags": ["Features"],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "x-rate-limit-bucket": "default",
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FeatureList"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          },
-          "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
-          }
-        },
-        "x-required-scope": "read",
-        "parameters": [
-          {
-            "name": "owner",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "repo",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ]
-      },
-      "post": {
-        "operationId": "post_api_repos_owner_repo_features",
-        "summary": "POST /api/repos/{owner}/{repo}/features",
-        "tags": ["Features"],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "x-rate-limit-bucket": "default",
-        "responses": {
-          "201": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FeatureCreated"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "413": {
-            "$ref": "#/components/responses/PayloadTooLarge"
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          },
-          "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
-          }
-        },
-        "x-required-scope": "write",
-        "parameters": [
-          {
-            "name": "owner",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "repo",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "additionalProperties": true
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/repos/{owner}/{repo}/features/{id}": {
-      "get": {
-        "operationId": "get_api_repos_owner_repo_features_id",
-        "summary": "GET /api/repos/{owner}/{repo}/features/{id}",
-        "tags": ["Features"],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "x-rate-limit-bucket": "default",
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FeatureWithIterations"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          },
-          "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
-          }
-        },
-        "x-required-scope": "read",
-        "parameters": [
-          {
-            "name": "owner",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "repo",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ]
-      },
-      "delete": {
-        "operationId": "delete_api_repos_owner_repo_features_id",
-        "summary": "DELETE /api/repos/{owner}/{repo}/features/{id}",
-        "tags": ["Features"],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "x-rate-limit-bucket": "default",
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Ok"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          },
-          "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
-          }
-        },
-        "x-required-scope": "write",
-        "parameters": [
-          {
-            "name": "owner",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "repo",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ]
-      }
-    },
-    "/api/repos/{owner}/{repo}/features/{id}/create-spec-file": {
-      "post": {
-        "operationId": "post_api_repos_owner_repo_features_id_create-spec-file",
-        "summary": "POST /api/repos/{owner}/{repo}/features/{id}/create-spec-file",
-        "tags": ["Features"],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "x-rate-limit-bucket": "default",
-        "responses": {
-          "202": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SpecFileStarted"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
-          "409": {
-            "$ref": "#/components/responses/Conflict"
-          },
-          "413": {
-            "$ref": "#/components/responses/PayloadTooLarge"
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          },
-          "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
-          }
-        },
-        "x-required-scope": "write",
-        "parameters": [
-          {
-            "name": "owner",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "repo",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "additionalProperties": true
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/repos/{owner}/{repo}/features/{id}/decomposition": {
-      "get": {
-        "operationId": "get_api_repos_owner_repo_features_id_decomposition",
-        "summary": "GET /api/repos/{owner}/{repo}/features/{id}/decomposition",
-        "tags": ["Features"],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "x-rate-limit-bucket": "default",
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FeatureDecomposition"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          },
-          "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
-          }
-        },
-        "x-required-scope": "read",
-        "parameters": [
-          {
-            "name": "owner",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "repo",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ]
-      }
-    },
-    "/api/repos/{owner}/{repo}/features/{id}/finalize": {
-      "post": {
-        "operationId": "post_api_repos_owner_repo_features_id_finalize",
-        "summary": "POST /api/repos/{owner}/{repo}/features/{id}/finalize",
-        "tags": ["Features"],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "x-rate-limit-bucket": "default",
-        "responses": {
-          "202": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SpecFileStarted"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
-          "409": {
-            "$ref": "#/components/responses/Conflict"
-          },
-          "413": {
-            "$ref": "#/components/responses/PayloadTooLarge"
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          },
-          "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
-          }
-        },
-        "x-required-scope": "write",
-        "parameters": [
-          {
-            "name": "owner",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "repo",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "additionalProperties": true
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/repos/{owner}/{repo}/features/{id}/iterations": {
-      "post": {
-        "operationId": "post_api_repos_owner_repo_features_id_iterations",
-        "summary": "POST /api/repos/{owner}/{repo}/features/{id}/iterations",
-        "tags": ["Features"],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "x-rate-limit-bucket": "default",
-        "responses": {
-          "202": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RoundStarted"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
-          "409": {
-            "$ref": "#/components/responses/Conflict"
-          },
-          "413": {
-            "$ref": "#/components/responses/PayloadTooLarge"
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          },
-          "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
-          }
-        },
-        "x-required-scope": "write",
-        "parameters": [
-          {
-            "name": "owner",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "repo",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "additionalProperties": true
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/repos/{owner}/{repo}/features/{id}/iterations/{n}/result": {
-      "post": {
-        "operationId": "post_api_repos_owner_repo_features_id_iterations_n_result",
-        "summary": "POST /api/repos/{owner}/{repo}/features/{id}/iterations/{n}/result",
-        "tags": ["Features"],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "x-rate-limit-bucket": "default",
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Ok"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
-          "413": {
-            "$ref": "#/components/responses/PayloadTooLarge"
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          },
-          "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
-          }
-        },
-        "x-required-scope": "write",
-        "parameters": [
-          {
-            "name": "owner",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "repo",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "n",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "additionalProperties": true
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/repos/{owner}/{repo}/features/{id}/split": {
-      "post": {
-        "operationId": "post_api_repos_owner_repo_features_id_split",
-        "summary": "POST /api/repos/{owner}/{repo}/features/{id}/split",
-        "tags": ["Features"],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "x-rate-limit-bucket": "default",
-        "responses": {
-          "201": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Feature"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
-          "409": {
-            "$ref": "#/components/responses/Conflict"
-          },
-          "413": {
-            "$ref": "#/components/responses/PayloadTooLarge"
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          },
-          "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
-          }
-        },
-        "x-required-scope": "write",
-        "parameters": [
-          {
-            "name": "owner",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "repo",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "additionalProperties": true
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/repos/{owner}/{repo}/features/{id}/status": {
-      "get": {
-        "operationId": "get_api_repos_owner_repo_features_id_status",
-        "summary": "GET /api/repos/{owner}/{repo}/features/{id}/status",
-        "tags": ["Features"],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "x-rate-limit-bucket": "default",
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FeaturePoll"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          },
-          "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
-          }
-        },
-        "x-required-scope": "read",
-        "parameters": [
-          {
-            "name": "owner",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "repo",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ]
-      }
-    },
     "/api/repos/{owner}/{repo}/impact": {
       "post": {
         "operationId": "post_api_repos_owner_repo_impact",
@@ -6186,7 +5353,7 @@
       "get": {
         "operationId": "get_api_repos_owner_repo_plans",
         "summary": "GET /api/repos/{owner}/{repo}/plans",
-        "tags": ["Repositories"],
+        "tags": ["Plans"],
         "security": [
           {
             "bearerAuth": []
@@ -6242,7 +5409,7 @@
       "post": {
         "operationId": "post_api_repos_owner_repo_plans_id_collab-token",
         "summary": "POST /api/repos/{owner}/{repo}/plans/{id}/collab-token",
-        "tags": ["Repositories"],
+        "tags": ["Plans"],
         "security": [
           {
             "bearerAuth": []
@@ -6337,6 +5504,203 @@
                   }
                 },
                 "required": ["user", "role"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/repos/{owner}/{repo}/plans/{id}/drafting": {
+      "post": {
+        "operationId": "post_api_repos_owner_repo_plans_id_drafting",
+        "summary": "POST /api/repos/{owner}/{repo}/plans/{id}/drafting",
+        "tags": ["Plans"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "202": {
+            "description": "The planning agent's first draft of the plan has been asked for",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanDraftingStarted"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "write",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "known": {
+                    "type": "string"
+                  },
+                  "createdBy": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["known", "createdBy"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/repos/{owner}/{repo}/plans/{id}/refine": {
+      "post": {
+        "operationId": "post_api_repos_owner_repo_plans_id_refine",
+        "summary": "POST /api/repos/{owner}/{repo}/plans/{id}/refine",
+        "tags": ["Plans"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "202": {
+            "description": "The planning agent has been asked to refine one section",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanRefineAsked"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "write",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "slot": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "baseHash": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "inputs": {},
+                  "uses": {}
+                },
+                "required": ["slot", "title", "baseHash", "inputs", "uses"],
                 "additionalProperties": false
               }
             }
@@ -10945,1515 +10309,6 @@
         },
         "additionalProperties": {}
       },
-      "Feature": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "repo": {
-            "type": "string"
-          },
-          "title": {
-            "type": "string"
-          },
-          "slug": {
-            "type": "string"
-          },
-          "path": {
-            "type": "string"
-          },
-          "original_prompt": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "draft",
-              "planning",
-              "awaiting-input",
-              "spec-ready",
-              "pr-open",
-              "implemented"
-            ]
-          },
-          "current_iteration": {
-            "type": "integer",
-            "minimum": -9007199254740991,
-            "maximum": 9007199254740991
-          },
-          "draft_spec_md": {
-            "type": ["string", "null"]
-          },
-          "parent_feature_id": {
-            "type": ["string", "null"]
-          },
-          "spec_path": {
-            "type": ["string", "null"]
-          },
-          "spec_pr_url": {
-            "type": ["string", "null"]
-          },
-          "spec_pr_number": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "minimum": -9007199254740991,
-                "maximum": 9007199254740991
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "issue_number": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "minimum": -9007199254740991,
-                "maximum": 9007199254740991
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "issue_url": {
-            "type": ["string", "null"]
-          },
-          "created_by": {
-            "type": "string"
-          },
-          "created_at": {
-            "type": "string"
-          },
-          "updated_at": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "repo",
-          "title",
-          "slug",
-          "path",
-          "original_prompt",
-          "status",
-          "current_iteration",
-          "draft_spec_md",
-          "parent_feature_id",
-          "spec_path",
-          "spec_pr_url",
-          "spec_pr_number",
-          "issue_number",
-          "issue_url",
-          "created_by",
-          "created_at",
-          "updated_at"
-        ],
-        "additionalProperties": false
-      },
-      "FeatureCreated": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "task_id": {
-            "type": "string"
-          }
-        },
-        "required": ["id", "task_id"],
-        "additionalProperties": false
-      },
-      "FeatureDecomposition": {
-        "type": "object",
-        "properties": {
-          "tasks": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "description": {
-                  "type": "string"
-                },
-                "status": {
-                  "type": "string"
-                },
-                "context_bundle": {
-                  "anyOf": [
-                    {
-                      "type": "object",
-                      "properties": {
-                        "story_issue": {
-                          "type": ["number", "null"]
-                        },
-                        "spec_task_id": {
-                          "type": "string"
-                        },
-                        "phase": {
-                          "type": "number"
-                        }
-                      },
-                      "additionalProperties": {}
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                }
-              },
-              "required": ["description", "status", "context_bundle"],
-              "additionalProperties": false
-            }
-          }
-        },
-        "required": ["tasks"],
-        "additionalProperties": false
-      },
-      "FeatureList": {
-        "type": "object",
-        "properties": {
-          "features": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "repo": {
-                  "type": "string"
-                },
-                "title": {
-                  "type": "string"
-                },
-                "slug": {
-                  "type": "string"
-                },
-                "path": {
-                  "type": "string"
-                },
-                "original_prompt": {
-                  "type": "string"
-                },
-                "status": {
-                  "type": "string",
-                  "enum": [
-                    "draft",
-                    "planning",
-                    "awaiting-input",
-                    "spec-ready",
-                    "pr-open",
-                    "implemented"
-                  ]
-                },
-                "current_iteration": {
-                  "type": "integer",
-                  "minimum": -9007199254740991,
-                  "maximum": 9007199254740991
-                },
-                "draft_spec_md": {
-                  "type": ["string", "null"]
-                },
-                "parent_feature_id": {
-                  "type": ["string", "null"]
-                },
-                "spec_path": {
-                  "type": ["string", "null"]
-                },
-                "spec_pr_url": {
-                  "type": ["string", "null"]
-                },
-                "spec_pr_number": {
-                  "anyOf": [
-                    {
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "issue_number": {
-                  "anyOf": [
-                    {
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "issue_url": {
-                  "type": ["string", "null"]
-                },
-                "created_by": {
-                  "type": "string"
-                },
-                "created_at": {
-                  "type": "string"
-                },
-                "updated_at": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "id",
-                "repo",
-                "title",
-                "slug",
-                "path",
-                "original_prompt",
-                "status",
-                "current_iteration",
-                "draft_spec_md",
-                "parent_feature_id",
-                "spec_path",
-                "spec_pr_url",
-                "spec_pr_number",
-                "issue_number",
-                "issue_url",
-                "created_by",
-                "created_at",
-                "updated_at"
-              ],
-              "additionalProperties": false
-            }
-          }
-        },
-        "required": ["features"],
-        "additionalProperties": false
-      },
-      "FeaturePoll": {
-        "type": "object",
-        "properties": {
-          "feature": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string"
-              },
-              "repo": {
-                "type": "string"
-              },
-              "title": {
-                "type": "string"
-              },
-              "slug": {
-                "type": "string"
-              },
-              "path": {
-                "type": "string"
-              },
-              "original_prompt": {
-                "type": "string"
-              },
-              "status": {
-                "type": "string",
-                "enum": [
-                  "draft",
-                  "planning",
-                  "awaiting-input",
-                  "spec-ready",
-                  "pr-open",
-                  "implemented"
-                ]
-              },
-              "current_iteration": {
-                "type": "integer",
-                "minimum": -9007199254740991,
-                "maximum": 9007199254740991
-              },
-              "draft_spec_md": {
-                "type": ["string", "null"]
-              },
-              "parent_feature_id": {
-                "type": ["string", "null"]
-              },
-              "spec_path": {
-                "type": ["string", "null"]
-              },
-              "spec_pr_url": {
-                "type": ["string", "null"]
-              },
-              "spec_pr_number": {
-                "anyOf": [
-                  {
-                    "type": "integer",
-                    "minimum": -9007199254740991,
-                    "maximum": 9007199254740991
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
-              },
-              "issue_number": {
-                "anyOf": [
-                  {
-                    "type": "integer",
-                    "minimum": -9007199254740991,
-                    "maximum": 9007199254740991
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
-              },
-              "issue_url": {
-                "type": ["string", "null"]
-              },
-              "created_by": {
-                "type": "string"
-              },
-              "created_at": {
-                "type": "string"
-              },
-              "updated_at": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "id",
-              "repo",
-              "title",
-              "slug",
-              "path",
-              "original_prompt",
-              "status",
-              "current_iteration",
-              "draft_spec_md",
-              "parent_feature_id",
-              "spec_path",
-              "spec_pr_url",
-              "spec_pr_number",
-              "issue_number",
-              "issue_url",
-              "created_by",
-              "created_at",
-              "updated_at"
-            ],
-            "additionalProperties": false
-          },
-          "latest_iteration": {
-            "anyOf": [
-              {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string"
-                  },
-                  "feature_id": {
-                    "type": "string"
-                  },
-                  "iteration": {
-                    "type": "integer",
-                    "minimum": -9007199254740991,
-                    "maximum": 9007199254740991
-                  },
-                  "task_id": {
-                    "type": ["string", "null"]
-                  },
-                  "status": {
-                    "type": "string",
-                    "enum": ["running", "ready", "failed"]
-                  },
-                  "user_answers": {
-                    "anyOf": [
-                      {
-                        "type": "object",
-                        "properties": {
-                          "sections": {
-                            "type": "object",
-                            "propertyNames": {
-                              "type": "string"
-                            },
-                            "additionalProperties": {
-                              "type": "object",
-                              "properties": {
-                                "comment": {
-                                  "type": "string"
-                                },
-                                "direction": {
-                                  "type": "string",
-                                  "enum": ["keep", "refine", "redirect"]
-                                }
-                              },
-                              "additionalProperties": false
-                            }
-                          },
-                          "questions": {
-                            "type": "object",
-                            "propertyNames": {
-                              "type": "string"
-                            },
-                            "additionalProperties": {
-                              "type": "string"
-                            }
-                          },
-                          "free_form": {
-                            "type": "string"
-                          }
-                        },
-                        "additionalProperties": false
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "gap_result": {
-                    "anyOf": [
-                      {
-                        "type": "object",
-                        "properties": {
-                          "sections": {
-                            "type": "array",
-                            "items": {
-                              "type": "object",
-                              "properties": {
-                                "title": {
-                                  "type": "string"
-                                },
-                                "content": {
-                                  "type": "string"
-                                },
-                                "mockups": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "object",
-                                    "properties": {
-                                      "title": {
-                                        "type": "string"
-                                      },
-                                      "format": {
-                                        "type": "string",
-                                        "enum": ["svg", "mermaid", "html"]
-                                      },
-                                      "markup": {
-                                        "type": "string"
-                                      },
-                                      "section": {
-                                        "type": "string"
-                                      },
-                                      "height": {
-                                        "type": "number"
-                                      }
-                                    },
-                                    "required": ["markup"],
-                                    "additionalProperties": false
-                                  }
-                                },
-                                "questions": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "object",
-                                    "properties": {
-                                      "id": {
-                                        "type": "string"
-                                      },
-                                      "question": {
-                                        "type": "string"
-                                      },
-                                      "why": {
-                                        "type": "string"
-                                      },
-                                      "kind": {
-                                        "type": "string",
-                                        "enum": ["text", "choice"]
-                                      },
-                                      "options": {
-                                        "type": "array",
-                                        "items": {
-                                          "type": "string"
-                                        }
-                                      }
-                                    },
-                                    "required": ["id", "question"],
-                                    "additionalProperties": false
-                                  }
-                                }
-                              },
-                              "required": ["title"],
-                              "additionalProperties": false
-                            }
-                          },
-                          "mockup_stylesheet": {
-                            "type": "string"
-                          },
-                          "architecture": {
-                            "type": "object",
-                            "properties": {
-                              "summary": {
-                                "type": "string"
-                              },
-                              "components": {
-                                "type": "array",
-                                "items": {
-                                  "type": "object",
-                                  "properties": {
-                                    "name": {
-                                      "type": "string"
-                                    },
-                                    "responsibility": {
-                                      "type": "string"
-                                    },
-                                    "touchpoints": {
-                                      "type": "array",
-                                      "items": {
-                                        "type": "string"
-                                      }
-                                    }
-                                  },
-                                  "required": [
-                                    "name",
-                                    "responsibility",
-                                    "touchpoints"
-                                  ],
-                                  "additionalProperties": false
-                                }
-                              }
-                            },
-                            "required": ["summary", "components"],
-                            "additionalProperties": false
-                          },
-                          "user_flows": {
-                            "type": "array",
-                            "items": {
-                              "type": "object",
-                              "properties": {
-                                "name": {
-                                  "type": "string"
-                                },
-                                "steps": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "string"
-                                  }
-                                }
-                              },
-                              "required": ["name", "steps"],
-                              "additionalProperties": false
-                            }
-                          },
-                          "mockups": {
-                            "type": "array",
-                            "items": {
-                              "type": "object",
-                              "properties": {
-                                "title": {
-                                  "type": "string"
-                                },
-                                "format": {
-                                  "type": "string",
-                                  "enum": ["svg", "mermaid", "html"]
-                                },
-                                "markup": {
-                                  "type": "string"
-                                },
-                                "section": {
-                                  "type": "string"
-                                },
-                                "height": {
-                                  "type": "number"
-                                }
-                              },
-                              "required": ["markup"],
-                              "additionalProperties": false
-                            }
-                          },
-                          "questions": {
-                            "type": "array",
-                            "items": {
-                              "type": "object",
-                              "properties": {
-                                "id": {
-                                  "type": "string"
-                                },
-                                "question": {
-                                  "type": "string"
-                                },
-                                "why": {
-                                  "type": "string"
-                                },
-                                "kind": {
-                                  "type": "string",
-                                  "enum": ["text", "choice"]
-                                },
-                                "options": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "string"
-                                  }
-                                }
-                              },
-                              "required": ["id", "question"],
-                              "additionalProperties": false
-                            }
-                          },
-                          "split_suggestion": {
-                            "type": "object",
-                            "properties": {
-                              "rationale": {
-                                "type": "string"
-                              },
-                              "proposed_features": {
-                                "type": "array",
-                                "items": {
-                                  "type": "object",
-                                  "properties": {
-                                    "title": {
-                                      "type": "string"
-                                    },
-                                    "scope": {
-                                      "type": "string"
-                                    }
-                                  },
-                                  "required": ["title", "scope"],
-                                  "additionalProperties": false
-                                }
-                              }
-                            },
-                            "required": ["rationale", "proposed_features"],
-                            "additionalProperties": false
-                          },
-                          "draft_spec_markdown": {
-                            "type": "string"
-                          }
-                        },
-                        "additionalProperties": false
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "parent_iteration": {
-                    "anyOf": [
-                      {
-                        "type": "integer",
-                        "minimum": -9007199254740991,
-                        "maximum": 9007199254740991
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "created_at": {
-                    "type": "string"
-                  },
-                  "updated_at": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "id",
-                  "feature_id",
-                  "iteration",
-                  "task_id",
-                  "status",
-                  "user_answers",
-                  "gap_result",
-                  "parent_iteration",
-                  "created_at",
-                  "updated_at"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "last_ready_iteration": {
-            "anyOf": [
-              {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string"
-                  },
-                  "feature_id": {
-                    "type": "string"
-                  },
-                  "iteration": {
-                    "type": "integer",
-                    "minimum": -9007199254740991,
-                    "maximum": 9007199254740991
-                  },
-                  "task_id": {
-                    "type": ["string", "null"]
-                  },
-                  "status": {
-                    "type": "string",
-                    "enum": ["running", "ready", "failed"]
-                  },
-                  "user_answers": {
-                    "anyOf": [
-                      {
-                        "type": "object",
-                        "properties": {
-                          "sections": {
-                            "type": "object",
-                            "propertyNames": {
-                              "type": "string"
-                            },
-                            "additionalProperties": {
-                              "type": "object",
-                              "properties": {
-                                "comment": {
-                                  "type": "string"
-                                },
-                                "direction": {
-                                  "type": "string",
-                                  "enum": ["keep", "refine", "redirect"]
-                                }
-                              },
-                              "additionalProperties": false
-                            }
-                          },
-                          "questions": {
-                            "type": "object",
-                            "propertyNames": {
-                              "type": "string"
-                            },
-                            "additionalProperties": {
-                              "type": "string"
-                            }
-                          },
-                          "free_form": {
-                            "type": "string"
-                          }
-                        },
-                        "additionalProperties": false
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "gap_result": {
-                    "anyOf": [
-                      {
-                        "type": "object",
-                        "properties": {
-                          "sections": {
-                            "type": "array",
-                            "items": {
-                              "type": "object",
-                              "properties": {
-                                "title": {
-                                  "type": "string"
-                                },
-                                "content": {
-                                  "type": "string"
-                                },
-                                "mockups": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "object",
-                                    "properties": {
-                                      "title": {
-                                        "type": "string"
-                                      },
-                                      "format": {
-                                        "type": "string",
-                                        "enum": ["svg", "mermaid", "html"]
-                                      },
-                                      "markup": {
-                                        "type": "string"
-                                      },
-                                      "section": {
-                                        "type": "string"
-                                      },
-                                      "height": {
-                                        "type": "number"
-                                      }
-                                    },
-                                    "required": ["markup"],
-                                    "additionalProperties": false
-                                  }
-                                },
-                                "questions": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "object",
-                                    "properties": {
-                                      "id": {
-                                        "type": "string"
-                                      },
-                                      "question": {
-                                        "type": "string"
-                                      },
-                                      "why": {
-                                        "type": "string"
-                                      },
-                                      "kind": {
-                                        "type": "string",
-                                        "enum": ["text", "choice"]
-                                      },
-                                      "options": {
-                                        "type": "array",
-                                        "items": {
-                                          "type": "string"
-                                        }
-                                      }
-                                    },
-                                    "required": ["id", "question"],
-                                    "additionalProperties": false
-                                  }
-                                }
-                              },
-                              "required": ["title"],
-                              "additionalProperties": false
-                            }
-                          },
-                          "mockup_stylesheet": {
-                            "type": "string"
-                          },
-                          "architecture": {
-                            "type": "object",
-                            "properties": {
-                              "summary": {
-                                "type": "string"
-                              },
-                              "components": {
-                                "type": "array",
-                                "items": {
-                                  "type": "object",
-                                  "properties": {
-                                    "name": {
-                                      "type": "string"
-                                    },
-                                    "responsibility": {
-                                      "type": "string"
-                                    },
-                                    "touchpoints": {
-                                      "type": "array",
-                                      "items": {
-                                        "type": "string"
-                                      }
-                                    }
-                                  },
-                                  "required": [
-                                    "name",
-                                    "responsibility",
-                                    "touchpoints"
-                                  ],
-                                  "additionalProperties": false
-                                }
-                              }
-                            },
-                            "required": ["summary", "components"],
-                            "additionalProperties": false
-                          },
-                          "user_flows": {
-                            "type": "array",
-                            "items": {
-                              "type": "object",
-                              "properties": {
-                                "name": {
-                                  "type": "string"
-                                },
-                                "steps": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "string"
-                                  }
-                                }
-                              },
-                              "required": ["name", "steps"],
-                              "additionalProperties": false
-                            }
-                          },
-                          "mockups": {
-                            "type": "array",
-                            "items": {
-                              "type": "object",
-                              "properties": {
-                                "title": {
-                                  "type": "string"
-                                },
-                                "format": {
-                                  "type": "string",
-                                  "enum": ["svg", "mermaid", "html"]
-                                },
-                                "markup": {
-                                  "type": "string"
-                                },
-                                "section": {
-                                  "type": "string"
-                                },
-                                "height": {
-                                  "type": "number"
-                                }
-                              },
-                              "required": ["markup"],
-                              "additionalProperties": false
-                            }
-                          },
-                          "questions": {
-                            "type": "array",
-                            "items": {
-                              "type": "object",
-                              "properties": {
-                                "id": {
-                                  "type": "string"
-                                },
-                                "question": {
-                                  "type": "string"
-                                },
-                                "why": {
-                                  "type": "string"
-                                },
-                                "kind": {
-                                  "type": "string",
-                                  "enum": ["text", "choice"]
-                                },
-                                "options": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "string"
-                                  }
-                                }
-                              },
-                              "required": ["id", "question"],
-                              "additionalProperties": false
-                            }
-                          },
-                          "split_suggestion": {
-                            "type": "object",
-                            "properties": {
-                              "rationale": {
-                                "type": "string"
-                              },
-                              "proposed_features": {
-                                "type": "array",
-                                "items": {
-                                  "type": "object",
-                                  "properties": {
-                                    "title": {
-                                      "type": "string"
-                                    },
-                                    "scope": {
-                                      "type": "string"
-                                    }
-                                  },
-                                  "required": ["title", "scope"],
-                                  "additionalProperties": false
-                                }
-                              }
-                            },
-                            "required": ["rationale", "proposed_features"],
-                            "additionalProperties": false
-                          },
-                          "draft_spec_markdown": {
-                            "type": "string"
-                          }
-                        },
-                        "additionalProperties": false
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "parent_iteration": {
-                    "anyOf": [
-                      {
-                        "type": "integer",
-                        "minimum": -9007199254740991,
-                        "maximum": 9007199254740991
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "created_at": {
-                    "type": "string"
-                  },
-                  "updated_at": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "id",
-                  "feature_id",
-                  "iteration",
-                  "task_id",
-                  "status",
-                  "user_answers",
-                  "gap_result",
-                  "parent_iteration",
-                  "created_at",
-                  "updated_at"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "assembly_run_id": {
-            "type": ["string", "null"]
-          },
-          "assembly_line_id": {
-            "type": ["string", "null"]
-          }
-        },
-        "required": [
-          "feature",
-          "latest_iteration",
-          "last_ready_iteration",
-          "assembly_run_id",
-          "assembly_line_id"
-        ],
-        "additionalProperties": false
-      },
-      "FeatureWithIterations": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "repo": {
-            "type": "string"
-          },
-          "title": {
-            "type": "string"
-          },
-          "slug": {
-            "type": "string"
-          },
-          "path": {
-            "type": "string"
-          },
-          "original_prompt": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "draft",
-              "planning",
-              "awaiting-input",
-              "spec-ready",
-              "pr-open",
-              "implemented"
-            ]
-          },
-          "current_iteration": {
-            "type": "integer",
-            "minimum": -9007199254740991,
-            "maximum": 9007199254740991
-          },
-          "draft_spec_md": {
-            "type": ["string", "null"]
-          },
-          "parent_feature_id": {
-            "type": ["string", "null"]
-          },
-          "spec_path": {
-            "type": ["string", "null"]
-          },
-          "spec_pr_url": {
-            "type": ["string", "null"]
-          },
-          "spec_pr_number": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "minimum": -9007199254740991,
-                "maximum": 9007199254740991
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "issue_number": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "minimum": -9007199254740991,
-                "maximum": 9007199254740991
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "issue_url": {
-            "type": ["string", "null"]
-          },
-          "created_by": {
-            "type": "string"
-          },
-          "created_at": {
-            "type": "string"
-          },
-          "updated_at": {
-            "type": "string"
-          },
-          "iterations": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "feature_id": {
-                  "type": "string"
-                },
-                "iteration": {
-                  "type": "integer",
-                  "minimum": -9007199254740991,
-                  "maximum": 9007199254740991
-                },
-                "task_id": {
-                  "type": ["string", "null"]
-                },
-                "status": {
-                  "type": "string",
-                  "enum": ["running", "ready", "failed"]
-                },
-                "user_answers": {
-                  "anyOf": [
-                    {
-                      "type": "object",
-                      "properties": {
-                        "sections": {
-                          "type": "object",
-                          "propertyNames": {
-                            "type": "string"
-                          },
-                          "additionalProperties": {
-                            "type": "object",
-                            "properties": {
-                              "comment": {
-                                "type": "string"
-                              },
-                              "direction": {
-                                "type": "string",
-                                "enum": ["keep", "refine", "redirect"]
-                              }
-                            },
-                            "additionalProperties": false
-                          }
-                        },
-                        "questions": {
-                          "type": "object",
-                          "propertyNames": {
-                            "type": "string"
-                          },
-                          "additionalProperties": {
-                            "type": "string"
-                          }
-                        },
-                        "free_form": {
-                          "type": "string"
-                        }
-                      },
-                      "additionalProperties": false
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "gap_result": {
-                  "anyOf": [
-                    {
-                      "type": "object",
-                      "properties": {
-                        "sections": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "title": {
-                                "type": "string"
-                              },
-                              "content": {
-                                "type": "string"
-                              },
-                              "mockups": {
-                                "type": "array",
-                                "items": {
-                                  "type": "object",
-                                  "properties": {
-                                    "title": {
-                                      "type": "string"
-                                    },
-                                    "format": {
-                                      "type": "string",
-                                      "enum": ["svg", "mermaid", "html"]
-                                    },
-                                    "markup": {
-                                      "type": "string"
-                                    },
-                                    "section": {
-                                      "type": "string"
-                                    },
-                                    "height": {
-                                      "type": "number"
-                                    }
-                                  },
-                                  "required": ["markup"],
-                                  "additionalProperties": false
-                                }
-                              },
-                              "questions": {
-                                "type": "array",
-                                "items": {
-                                  "type": "object",
-                                  "properties": {
-                                    "id": {
-                                      "type": "string"
-                                    },
-                                    "question": {
-                                      "type": "string"
-                                    },
-                                    "why": {
-                                      "type": "string"
-                                    },
-                                    "kind": {
-                                      "type": "string",
-                                      "enum": ["text", "choice"]
-                                    },
-                                    "options": {
-                                      "type": "array",
-                                      "items": {
-                                        "type": "string"
-                                      }
-                                    }
-                                  },
-                                  "required": ["id", "question"],
-                                  "additionalProperties": false
-                                }
-                              }
-                            },
-                            "required": ["title"],
-                            "additionalProperties": false
-                          }
-                        },
-                        "mockup_stylesheet": {
-                          "type": "string"
-                        },
-                        "architecture": {
-                          "type": "object",
-                          "properties": {
-                            "summary": {
-                              "type": "string"
-                            },
-                            "components": {
-                              "type": "array",
-                              "items": {
-                                "type": "object",
-                                "properties": {
-                                  "name": {
-                                    "type": "string"
-                                  },
-                                  "responsibility": {
-                                    "type": "string"
-                                  },
-                                  "touchpoints": {
-                                    "type": "array",
-                                    "items": {
-                                      "type": "string"
-                                    }
-                                  }
-                                },
-                                "required": [
-                                  "name",
-                                  "responsibility",
-                                  "touchpoints"
-                                ],
-                                "additionalProperties": false
-                              }
-                            }
-                          },
-                          "required": ["summary", "components"],
-                          "additionalProperties": false
-                        },
-                        "user_flows": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "name": {
-                                "type": "string"
-                              },
-                              "steps": {
-                                "type": "array",
-                                "items": {
-                                  "type": "string"
-                                }
-                              }
-                            },
-                            "required": ["name", "steps"],
-                            "additionalProperties": false
-                          }
-                        },
-                        "mockups": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "title": {
-                                "type": "string"
-                              },
-                              "format": {
-                                "type": "string",
-                                "enum": ["svg", "mermaid", "html"]
-                              },
-                              "markup": {
-                                "type": "string"
-                              },
-                              "section": {
-                                "type": "string"
-                              },
-                              "height": {
-                                "type": "number"
-                              }
-                            },
-                            "required": ["markup"],
-                            "additionalProperties": false
-                          }
-                        },
-                        "questions": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "id": {
-                                "type": "string"
-                              },
-                              "question": {
-                                "type": "string"
-                              },
-                              "why": {
-                                "type": "string"
-                              },
-                              "kind": {
-                                "type": "string",
-                                "enum": ["text", "choice"]
-                              },
-                              "options": {
-                                "type": "array",
-                                "items": {
-                                  "type": "string"
-                                }
-                              }
-                            },
-                            "required": ["id", "question"],
-                            "additionalProperties": false
-                          }
-                        },
-                        "split_suggestion": {
-                          "type": "object",
-                          "properties": {
-                            "rationale": {
-                              "type": "string"
-                            },
-                            "proposed_features": {
-                              "type": "array",
-                              "items": {
-                                "type": "object",
-                                "properties": {
-                                  "title": {
-                                    "type": "string"
-                                  },
-                                  "scope": {
-                                    "type": "string"
-                                  }
-                                },
-                                "required": ["title", "scope"],
-                                "additionalProperties": false
-                              }
-                            }
-                          },
-                          "required": ["rationale", "proposed_features"],
-                          "additionalProperties": false
-                        },
-                        "draft_spec_markdown": {
-                          "type": "string"
-                        }
-                      },
-                      "additionalProperties": false
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "parent_iteration": {
-                  "anyOf": [
-                    {
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "created_at": {
-                  "type": "string"
-                },
-                "updated_at": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "id",
-                "feature_id",
-                "iteration",
-                "task_id",
-                "status",
-                "user_answers",
-                "gap_result",
-                "parent_iteration",
-                "created_at",
-                "updated_at"
-              ],
-              "additionalProperties": false
-            }
-          }
-        },
-        "required": [
-          "id",
-          "repo",
-          "title",
-          "slug",
-          "path",
-          "original_prompt",
-          "status",
-          "current_iteration",
-          "draft_spec_md",
-          "parent_feature_id",
-          "spec_path",
-          "spec_pr_url",
-          "spec_pr_number",
-          "issue_number",
-          "issue_url",
-          "created_by",
-          "created_at",
-          "updated_at",
-          "iterations"
-        ],
-        "additionalProperties": false
-      },
       "GitCredential": {
         "type": "object",
         "properties": {
@@ -13447,17 +11302,6 @@
         "required": ["results"],
         "additionalProperties": false
       },
-      "Ok": {
-        "type": "object",
-        "properties": {
-          "ok": {
-            "type": "boolean",
-            "const": true
-          }
-        },
-        "required": ["ok"],
-        "additionalProperties": false
-      },
       "OnboardResult": {
         "anyOf": [
           {
@@ -14001,6 +11845,16 @@
         "required": ["token", "documentName"],
         "additionalProperties": false
       },
+      "PlanDraftingStarted": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "string"
+          }
+        },
+        "required": ["task_id"],
+        "additionalProperties": false
+      },
       "PlanList": {
         "type": "object",
         "properties": {
@@ -14045,6 +11899,16 @@
           }
         },
         "required": ["plans"],
+        "additionalProperties": false
+      },
+      "PlanRefineAsked": {
+        "type": "object",
+        "properties": {
+          "slot": {
+            "type": "string"
+          }
+        },
+        "required": ["slot"],
         "additionalProperties": false
       },
       "PlatformLlmStatus": {
@@ -15110,27 +12974,6 @@
         "required": ["state", "canonicalUrl"],
         "additionalProperties": false
       },
-      "RoundStarted": {
-        "type": "object",
-        "properties": {
-          "iteration": {
-            "type": "integer",
-            "minimum": -9007199254740991,
-            "maximum": 9007199254740991
-          },
-          "task_id": {
-            "type": ["string", "null"]
-          },
-          "assembly_run_id": {
-            "type": "string"
-          },
-          "assembly_line_id": {
-            "type": "string"
-          }
-        },
-        "required": ["iteration"],
-        "additionalProperties": false
-      },
       "RunStreamFrame": {
         "oneOf": [
           {
@@ -15689,21 +13532,6 @@
           "blocks": {
             "type": "array",
             "items": {}
-          }
-        },
-        "additionalProperties": false
-      },
-      "SpecFileStarted": {
-        "type": "object",
-        "properties": {
-          "task_id": {
-            "type": "string"
-          },
-          "assembly_run_id": {
-            "type": "string"
-          },
-          "assembly_line_id": {
-            "type": "string"
           }
         },
         "additionalProperties": false

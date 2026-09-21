@@ -58,6 +58,9 @@ env:
   # Empty would make the URL RELATIVE inside the pod, so every resume fetch fails and
   # conversation continuity silently never happens.
   LORE_FLOOR_POD_URL: http://lore-floor.lore-floor.svc.cluster.local:8080
+  # Where the Floor writes a planning agent's result into its plan (ADR-047):
+  # lore-api hosts plans, and the pod carries no token to post there itself.
+  LORE_API_URL: http://lore-api.lore-api.svc.cluster.local:3000
   LORE_LOG_BUCKET: ""
   # Web-UI base url. When set, task UUIDs in PR/issue bodies link to the
   # pipeline page (lore-api/agent linkify). Empty → UUIDs stay plain text.

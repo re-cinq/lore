@@ -38,13 +38,6 @@ export const NEXT_STATUS: Record<TaskAction, string> = {
 };
 
 /** Dedup lookup: open (per `statuses`) tasks of one type whose description starts with a prefix. */
-/** A spec-task as the feature-detail decomposition view reads it: the three columns it needs, not the whole task row. */
-export interface FeatureTaskRow {
-  description: string;
-  status: string;
-  context_bundle: Record<string, unknown> | null;
-}
-
 export interface FindOpenLikeInput {
   repo: string;
   taskType: string;
@@ -89,11 +82,6 @@ export interface TaskStorePort {
     taskType: string,
     specPath: string,
   ): Promise<DriftTaskRow[]>;
-  /** Spec-tasks a feature's merged spec decomposed into (ADR-029), in spec-task-id order; keyed on context_bundle->>'feature_id' (stamped by the issues station). */
-  specTasksForFeature(
-    repo: string,
-    featureId: string,
-  ): Promise<FeatureTaskRow[]>;
   // writes
   create(input: CreateTaskInput): Promise<CreatedTask>;
   retry(id: string): Promise<RetriedTask>;

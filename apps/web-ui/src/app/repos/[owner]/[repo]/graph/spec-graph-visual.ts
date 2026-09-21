@@ -1,6 +1,5 @@
 import * as d3 from "d3";
 import type { SpecGraphNode } from "@/lib/spec-graph";
-import { featureStatusColor } from "@/lib/feature-status";
 
 /** Static visual config for the graph: node colors/radii/labels, focus-opacity levels, force-tuning constants. */
 
@@ -71,14 +70,9 @@ export const RADIUS: Record<SpecGraphNode["type"], number> = {
   ADR: 13,
 };
 
-// Feature node color by lifecycle status (ADR-027): single-source palette from feature-status.ts.
 export const radiusOf = (type: SpecGraphNode["type"]): number => RADIUS[type];
 export const colorOf = (type: SpecGraphNode["type"]): string => COLORS[type];
-// Node fill: status-colored when a Feature carries a persistent lifecycle status.
-export const nodeColor = (node: SpecGraphNode): string =>
-  node.type === "Feature" && node.status
-    ? (featureStatusColor(node.status) ?? colorOf(node.type))
-    : colorOf(node.type);
+export const nodeColor = (node: SpecGraphNode): string => colorOf(node.type);
 export const isLeafCanvas = (type: SpecGraphNode["type"]): boolean =>
   LEAF_CANVAS_TYPES.has(type);
 
