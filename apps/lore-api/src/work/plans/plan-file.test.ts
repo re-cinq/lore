@@ -129,7 +129,11 @@ describe("applyPlanFile", () => {
       {
         actor: "planning-agent",
         markdown: edited,
-        refine: { slot: "intent", baseHash: "3f9a", uses: { questions: ["q1"] } },
+        refine: {
+          slot: "intent",
+          baseHash: "3f9a",
+          uses: { questions: ["q1"] },
+        },
       },
       ports,
     );
