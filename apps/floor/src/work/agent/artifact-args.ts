@@ -111,16 +111,33 @@ export function artifactsFromTerminalOutput(
 
   for (const fileEvent of parseAgentSink(rawOutput ?? "", projections)
     .fileEvents) {
-    if (OWNED_ELSEWHERE.has(fileEvent.event)) {
-      continue;
-    }
-
-    if (fileEvent.content !== null) {
-      Object.assign(args, argsForArtifact(fileEvent.event, fileEvent.content));
-      continue;
-    }
-    missing.push(`${fileEvent.event} (${fileEvent.reason ?? "not produced"})`);
+    collect(fileEvent, { args, missing });
   }
 
   return { args, missing };
+}
+
+// A failure fails the node whoever owns the file: a planning pass whose plan.md never landed did not do its work.
+function collect(fileEvent: AgentFileEvent, found: TerminalArtifacts): void {
+  if (!delivered(fileEvent)) {
+    found.missing.push(
+      `${fileEvent.event} (${fileEvent.reason ?? "not produced"})`,
+    );
+
+    return;
+  }
+
+  if (fileEvent.content !== null && !OWNED_ELSEWHERE.has(fileEvent.event)) {
+    Object.assign(
+      found.args,
+      argsForArtifact(fileEvent.event, fileEvent.content),
+    );
+  }
+}
+
+// Produced and handed over: inline content, or uploaded to the endpoint that owns it.
+function delivered(fileEvent: AgentFileEvent): boolean {
+  return (
+    !fileEvent.reason && (fileEvent.content !== null || fileEvent.uploaded)
+  );
 }

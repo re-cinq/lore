@@ -146,6 +146,32 @@ describe("artifactsFromTerminalOutput", () => {
     ).toEqual({ args: {}, missing: [] });
   });
 
+  it("fails the pass whose plan.md upload failed, though the planning file is written by another handler", () => {
+    expect(
+      artifactsFromTerminalOutput(
+        fileLine({
+          event: "planning.result",
+          path: "plan.md",
+          content: null,
+          reason: "upload-failed",
+        }),
+      ),
+    ).toEqual({ args: {}, missing: ["planning.result (upload-failed)"] });
+  });
+
+  it("counts an uploaded file as delivered, carrying no content of its own", () => {
+    expect(
+      artifactsFromTerminalOutput(
+        fileLine({
+          event: "planning.result",
+          path: "plan.md",
+          content: null,
+          uploaded: true,
+        }),
+      ),
+    ).toEqual({ args: {}, missing: [] });
+  });
+
   it("finds nothing in a status that carries no artifacts at all", () => {
     expect(artifactsFromTerminalOutput(undefined)).toEqual({
       args: {},
