@@ -1,24 +1,18 @@
 /** The cluster surface this agent exposes: what the Kubernetes clients in `outbound` provide and what the `transport` routes call — a contract owned by neither side. */
 
-import type {
-  Agent as AgentCr,
-  AgentDefinition,
-  Station,
-} from "@re-cinq/agent-contracts";
+import type { Agent as AgentCr } from "@re-cinq/agent-contracts";
 import type {
   AgentPodInfo,
   PodSummary,
   RunningPodInfo,
 } from "@re-cinq/lore-shared";
+import type { Page, PageRequest } from "@re-cinq/lore-shared/lib/paginate.js";
+import type { CrdPair } from "@re-cinq/lore-shared/project/agents/agent-crd.js";
 
 export interface ClusterDeps {
   agents: {
     get(name: string): Promise<AgentCr | null>;
-    list(opts: {
-      labelSelector?: string;
-      limit: number;
-      continue?: string;
-    }): Promise<{ items: AgentCr[]; continueToken?: string }>;
+    list(request: PageRequest): Promise<Page<AgentCr>>;
     remove(name: string): Promise<void>;
   };
   pods: {
@@ -32,10 +26,7 @@ export interface ClusterDeps {
     cleanup(taskId: string): Promise<void>;
   };
   catalog: {
-    applyPair(pair: {
-      agentDefinition: AgentDefinition;
-      station: Station;
-    }): Promise<void>;
+    applyPair(pair: CrdPair): Promise<void>;
     deletePair(name: string): Promise<void>;
   };
 }

@@ -1,7 +1,6 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-/** Pipeline task CRUD with mcp-specific policy (trust-gate + getDefaultRepo). */
+/** Pipeline task CRUD with mcp-specific policy (trust-gate + the default repo). */
 
-import { getDefaultRepo } from "./pipeline-config.js";
 import {
   createPipelineTask,
   retryPipelineTask,
@@ -65,6 +64,9 @@ export const markTaskMerged = (taskId: string) =>
 // createTask single-sourced in shared; mcp adds trust-gate + default repo resolve.
 export type { CreateTaskInput } from "@re-cinq/lore-shared";
 
+// Where a task that names no repo goes; every task type shared this one default.
+const DEFAULT_TARGET_REPO = "re-cinq/lore";
+
 export function createTask(
   input: CreateTaskInput,
 ): Promise<Awaited<ReturnType<typeof createPipelineTask>>> {
@@ -73,8 +75,8 @@ export function createTask(
   return createPipelineTask(getPool(), {
     ...input,
     taskType,
-    // A task with no repo of its own goes to the task type's default — the pipeline cannot dispatch one that names no repo at all.
-    targetRepo: input.targetRepo || getDefaultRepo(taskType),
+    // The pipeline cannot dispatch a task that names no repo at all.
+    targetRepo: input.targetRepo || DEFAULT_TARGET_REPO,
     createdBy: input.createdBy ?? "ui",
     priority: input.priority ?? "normal",
   });

@@ -14,6 +14,7 @@ export {
 } from "./node-result-schema.js";
 
 export {
+  dodResolvedReason,
   stationNodeOutcome,
   parseNodeResult,
   parseReviewVerdict,

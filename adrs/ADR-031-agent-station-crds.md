@@ -117,6 +117,12 @@ carries the fixed `CONTEXT_BOOTSTRAP` instruction, so a central run and a satell
 recipe produce identical CR parameters. The MCP server, previously the secondary path, is the only
 path.*
 
+*Amended 2026-09-13 (#2051): the LLM AgentDefinition's `prompt` is the single placeholder `{prompt}`
+(plus `{context}`), not the recipe body. The Floor already rendered the recipe and appended the CI
+verdict and failure blocks into the `prompt` parameter, but the template never named that parameter,
+so `renderPrompt` dropped every block on the CR; the recipe body stays on the `lore.agent_definitions`
+row, which the Floor resolves (project → org → yaml) and renders.*
+
 *This also retires the `hydrate: false` station opt-out, which existed because an
 empty-description dispatch assembled an unbounded-query context (~3 MB) that blew the 2 MiB
 apiserver limit on 2026-07-17. That guard is not being weakened — the thing it guarded against no
@@ -158,7 +164,7 @@ generalizing D4 from agent-only to all node types. No new CRD, no `@re-cinq/agen
   non-LLM adapter that spawns the recipe's `tool_config.command` argv with the rendered prompt appended.
   `tool_config` is an existing preserve-unknown-fields passthrough, so the contracts package is untouched.
 - **Station recipes** are `AgentDefinition` / `Station` pairs named `def-<node type>`, seeded from
-  `scripts/task-types.yaml` `stations:` by gen-catalog (org rows in `lore.agent_definitions` with
+  `scripts/task-types.yaml` `stations:` into org rows in `lore.agent_definitions` (with
   `execution_mode: 'station'`, image two-key gated). The prompt template is literally `{station_input}`;
   the Floor's `nodeStationSpec` puts the node's JSON input in `Agent.spec.parameters.station_input`, so
   the pod's argv ends with it. Builtins ship in ONE image (`ghcr.io/re-cinq/lore-station`,
@@ -367,12 +373,21 @@ The catalog therefore becomes DB-first (`specs/catalog-db-sync`):
 
 D2's "the CRDs are the source of truth" narrows accordingly: the CRDs remain
 the subsystem's dispatch-time read model, but their content is a projection of
-the DB row, owned by the sync loop (`lore-catalog-sync` label). While
-`seedCatalog` is still true the loop defers to seed-labeled objects
-(`LORE_CATALOG_SYNC_OWN_SEEDED` flips ownership at cutover); once the pull
-path is verified, the seed hook, `gen-catalog`, the committed
-`catalog-seed.yaml`, `check-catalog-drift.sh` and lore-api's synchronous
-push are deleted.
+the DB row, owned by the sync loop (`lore-catalog-sync` label).
+
+## Amendment (2026-09-21): the seed is deleted, the sync is the only writer
+
+The 2026-09-01 cutover left the seed hook alive for satellites, and
+`deploy-ai-agents.yml` overlaid the subchart's `seedCatalog: true` above
+terraform's `false`, so every umbrella deploy re-seeded central too and
+reverted the models chosen in `/agents` (#2010). The hook, the generated
+`catalog-seed.yaml`, `gen-catalog` and its builders, `check-catalog-drift.sh`
+and lore-api's push client are deleted, and with no second writer left the
+sync loop's ownership guard (`LORE_CATALOG_SYNC_OWN_SEEDED`) goes too: the
+loop applies over whatever CR is live. The per-cluster render values reach
+every cluster-agent through its own chart values (the standalone satellite
+chart gained a `catalog:` block), so the `ai-agents` chart ships CRDs,
+controller and network fences, and no recipe.
 
 ## Amendment (2026-09-10): git credentials come from a broker, not the pod
 
@@ -408,7 +423,7 @@ sits in a Secret at all.
 - The broker grants a git credential only for the repo the run credential
   names, and only while the station run it names is still open. ([validated by grants re-cinq/bowman-ui to the still-open station run its credential names](libs/shared/src/domain/github-credential/grant.test.ts#L11), [refuses the station run that already finished with success as run-closed](libs/shared/src/domain/github-credential/grant.test.ts#L21), [refuses re-cinq/lore to a credential issued for re-cinq/bowman-ui as repo-mismatch](libs/shared/src/domain/github-credential/grant.test.ts#L31))
 - The broker looks the station run up by the id its credential names, and
-  both stores answer that lookup the same way. ([validated by findStationRunById returns the open review visit its station run id names](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1178))
+  both stores answer that lookup the same way. ([validated by findStationRunById returns the open review visit its station run id names](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1364))
 - `POST /api/github-credentials` hands an open run a token for its repo in the
   git credential-helper shape (`x-access-token` plus the token), minted at the
   moment git asks. ([validated by hands the open fix-ci visit a fresh token for re-cinq/bowman-ui as the git username/password pair](apps/lore-api/src/transport/routes/github-credentials/github-credentials.test.ts#L50))

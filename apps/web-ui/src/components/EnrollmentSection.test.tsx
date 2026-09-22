@@ -24,32 +24,96 @@ const checks: Check[] = [
     label: ".github/workflows/lore-ingest.yml on GitHub",
     status: "fail",
     detail: "missing",
-    action: { kind: "reonboard", text: "create a PR with this file" },
   },
 ];
 
 describe("EnrollmentSection", () => {
-  it("renders the reonboard button, the link, and the pass summary when a handler is provided", () => {
-    const reonboardAction = vi.fn().mockResolvedValue(undefined);
+  it("renders the review & merge link and the pass summary", () => {
+    render(<EnrollmentSection checks={checks} />);
 
-    render(
-      <EnrollmentSection checks={checks} reonboardAction={reonboardAction} />,
-    );
-
-    expect(
-      screen.getByRole("button", { name: "create a PR with this file" }),
-    ).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "review & merge" }),
     ).toHaveAttribute("href", "https://gh/pr/1");
     expect(screen.getByText("1/3 checks passing")).toBeInTheDocument();
   });
 
-  it("omits the reonboard button when no handler is provided", () => {
-    render(<EnrollmentSection checks={checks} />);
+  it("shows exactly one button for a repo missing two files: Open enrolment PR, never one per file", () => {
+    const missing = (path: string): Check => ({
+      id: `gh:${path}`,
+      label: `${path} on GitHub`,
+      status: "fail",
+      detail: "missing",
+    });
+
+    render(
+      <EnrollmentSection
+        checks={[
+          missing("AGENTS.md"),
+          missing(".github/workflows/lore-ingest.yml"),
+        ]}
+        reonboardAction={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
 
     expect(
-      screen.queryByRole("button", { name: "create a PR with this file" }),
+      screen
+        .getAllByRole("button", { name: /PR|Lore setup/ })
+        .map((button) => button.textContent),
+    ).toEqual(["Open enrolment PR"]);
+  });
+
+  it("offers Open enrolment PR in the box for a repo with no onboarding PR, and runs the handler on click", async () => {
+    const reonboardAction = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <EnrollmentSection
+        checks={[checks[0]]}
+        reonboardAction={reonboardAction}
+      />,
+    );
+    screen.getByRole("button", { name: "Open enrolment PR" }).click();
+
+    await vi.waitFor(() => expect(reonboardAction).toHaveBeenCalledTimes(1));
+  });
+
+  it("offers Update Lore setup once the onboarding PR has merged, even with every check passing", () => {
+    render(
+      <EnrollmentSection
+        checks={[
+          checks[0],
+          {
+            id: "onboarding-pr",
+            label: "Onboarding PR merged",
+            status: "pass",
+          },
+        ]}
+        reonboardAction={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Update Lore setup" }),
+    ).toBeInTheDocument();
+  });
+
+  it("offers neither trigger while the onboarding PR is open, nor without a handler", () => {
+    const { unmount } = render(
+      <EnrollmentSection
+        checks={checks}
+        reonboardAction={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", {
+        name: /Open enrolment PR|Update Lore setup/,
+      }),
+    ).not.toBeInTheDocument();
+    unmount();
+    render(<EnrollmentSection checks={[checks[0]]} />);
+
+    expect(
+      screen.queryByRole("button", { name: "Open enrolment PR" }),
     ).not.toBeInTheDocument();
   });
 

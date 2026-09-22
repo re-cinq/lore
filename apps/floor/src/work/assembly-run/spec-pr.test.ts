@@ -4,8 +4,10 @@ import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs
 import { InMemoryFeatures } from "@re-cinq/lore-shared/project/features/features-memory.js";
 import type { PullRef } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import {
+  decideEmptyBranchEnding,
   decideMarkReady,
   decidePrDraft,
+  decideOnboardingPrRecord,
   decidePrStamp,
   decideStampFailure,
   emptyBranchReason,
@@ -77,6 +79,7 @@ async function harness(
     existingPulls?: PullRef[];
     withFeature?: boolean;
     withTask?: boolean;
+    blueprintName?: string;
   } = {},
 ): Promise<Harness> {
   const lines = new InMemoryAssemblyRuns();
@@ -87,7 +90,7 @@ async function harness(
     prompt: "Make rollback one command",
   });
   const lineId = await lines.start({
-    blueprintName: "feature-planning",
+    blueprintName: options.blueprintName ?? "feature-planning",
     repo: REPO,
     ...(options.withTask === false ? {} : { taskId: "task-1" }),
     branch: "feature/dark-factory-rollback",
@@ -253,6 +256,75 @@ describe("stampLinePr", () => {
 
     expect((await h.lines.getById(h.lineId))?.args).toMatchObject({
       pr_number: 4201,
+    });
+  });
+});
+
+describe("stampLinePr onboarding record", () => {
+  it("records an onboard line's PR as the repo's onboarding PR", async () => {
+    const recorded: Array<[string, string]> = [];
+    const h = await harness({ blueprintName: "onboard", withFeature: false });
+
+    await stampLinePr(await lineRow(h), {
+      ...h.ports,
+      onboarding: {
+        setOnboardingPrUrl: async (repo, url) => {
+          recorded.push([repo, url]);
+        },
+      },
+    });
+
+    expect(recorded).toEqual([[REPO, `https://github.com/${REPO}/pull/4201`]]);
+  });
+
+  it("records nothing on the repo row for a feature-planning line's PR", async () => {
+    const recorded: Array<[string, string]> = [];
+    const h = await harness();
+
+    await stampLinePr(await lineRow(h), {
+      ...h.ports,
+      onboarding: {
+        setOnboardingPrUrl: async (repo, url) => {
+          recorded.push([repo, url]);
+        },
+      },
+    });
+
+    expect(recorded).toEqual([]);
+  });
+
+  it("decides the record by the onboard blueprint name alone", () => {
+    expect(decideOnboardingPrRecord({ blueprintName: "onboard" })).toBe(true);
+    expect(decideOnboardingPrRecord({ blueprintName: "implementation" })).toBe(
+      false,
+    );
+  });
+});
+
+describe("decideEmptyBranchEnding", () => {
+  it("completes an onboard line whose push delivered nothing, saying the setup is already current", () => {
+    expect(
+      decideEmptyBranchEnding({
+        blueprintName: "onboard",
+        branch: "lore/onboard/x",
+      }),
+    ).toEqual({
+      outcome: "completed",
+      reason:
+        "the Lore setup is already current — nothing to change, so no pull request was opened",
+    });
+  });
+
+  it("errors a feature-planning line whose push delivered nothing, naming its branch", () => {
+    expect(
+      decideEmptyBranchEnding({
+        blueprintName: "feature-planning",
+        branch: "lore/feature-planning/topic",
+      }),
+    ).toEqual({
+      outcome: "error",
+      reason:
+        "the push node reported success but pushed nothing — lore/feature-planning/topic has no commits, so no spec PR could be opened",
     });
   });
 });

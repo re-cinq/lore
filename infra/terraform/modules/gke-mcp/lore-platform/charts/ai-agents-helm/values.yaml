@@ -16,31 +16,19 @@ crdUpgrade:
   #   curl -sIL https://registry.k8s.io/v2/kubectl/manifests/<tag>
   image: registry.k8s.io/kubectl:v1.31.0
 
-# Seed the AgentDefinition/Station catalog generated from scripts/task-types.yaml
-# (files/catalog-seed.yaml, server-side-applied by the catalog-seed pre-upgrade
-# hook). While true the CHART owns the seeded recipes and re-asserts every field
-# each deploy, which is what stops a pruned or hand-edited field surviving one
-# (#1468); set false to hand ownership to the web UI (re-cinq/lore#698). Per-repo
-# override recipes are separate objects and are never touched either way.
-seedCatalog: true
-
-# Where seeded agents stream their NDJSON run output for cost accounting (D8, #687):
-# the Floor's in-cluster /api/agent-events endpoint. The recipes carry an
-# `agent-events-auth` headers_secret for the Authorization header.
-agentEventsUrl: http://lore-floor.lore-floor.svc.cluster.local:8080/api/agent-events
-
-# In-cluster egress target for the agent-events sink — must match the host:port in
-# agentEventsUrl above. The run-pod NetworkPolicy denies all RFC1918 egress except
-# this one ClusterIP:port (templates/networkpolicy.yaml).
+# In-cluster egress target for the agent-events sink — must match the host:port of
+# the events URL the cluster-agent renders into recipes (its `catalog.eventsUrl`).
+# The run-pod NetworkPolicy denies all RFC1918 egress except this one ClusterIP:port
+# (templates/networkpolicy.yaml).
 floorSink:
   namespace: lore-floor
   port: 8080
   # Which workload actually receives the sink traffic. Centrally that is the
-  # Floor itself; a SATELLITE points agentEventsUrl at its own cluster-agent,
+  # Floor itself; a SATELLITE points its events URL at its own cluster-agent,
   # which relays the batch onward through its event proxy — the Floor is not
   # reachable from a satellite's run pods, and the credential for it is one FR5
   # keeps central. Overridden together with namespace/port by the standalone
-  # chart; the three must agree with agentEventsUrl or the policy drops exactly
+  # chart; the three must agree with that URL or the policy drops exactly
   # the traffic the sink needs.
   app: lore-floor
 
@@ -61,54 +49,21 @@ networkPolicy:
 # at 169.254.169.254 stays blocked). Empty string omits the rule for clusters without it.
 nodeLocalDnsIp: 169.254.20.10
 
-# The image the seeded `def-*` station recipes run (non-LLM assembly-line nodes,
-# ADR-031 amendment). CI bumps the tag alongside the other service images.
-stationImage: ghcr.io/re-cinq/lore-station:latest
-
-# Lore API base URL the seeded station recipes call (createStationProject reads,
-# apiEmbed, payload-by-reference fetches). IN-CLUSTER on purpose: the external LB
-# VIP is useless from a run pod — Dataplane V2 short-circuits a VIP whose backend
-# lives in this cluster (DNAT to the backend pod IP), and the post-DNAT 10.x
-# address hits the egress policy's RFC1918 except-list, so the connection just
-# times out (proven live 2026-07-17: api.anthropic.com answered while both Lore
-# VIPs dropped). The run-pod NetworkPolicy opens exactly this service via apiSink.
-loreApiUrl: http://lore-api.lore-api.svc.cluster.local:3000
-
-# PUBLIC HTTPS URL of the shared lore-mcp gateway that agent recipes point at
-# (resources.mcp_servers). IN-CLUSTER, for exactly the reason loreApiUrl documents
-# above — this was PUBLIC :443 until 2026-08-10 and never worked. Dataplane V2
-# short-circuits a VIP whose backend lives in this cluster, and the post-DNAT 10.x
-# address hits the egress policy's RFC1918 except-list, so a run pod reaching the
-# public gateway host just hangs. Observed in an agent init as
-#   curl: (28) Failed to connect to lore-mcp.gcp.re-cinq.com port 443 after 135111 ms
-# after which the init reported success and left the agent without its settings file
-# (#1126). agentEventsUrl is not a counter-example: it is in-cluster too, with its own
-# floorSink hole. Anything hosted in this cluster is reached in-cluster and opened
-# explicitly via a *Sink below. Empty = agent MCP off until the gateway is deployed AND
-# the ai-agent-subsystem wires mcp_servers (ADR-030).
-loreMcpUrl: ""
-
-# IN-CLUSTER base URL of the gateway's /skills registry the agent init fetches skills +
-# settings from (resources.skills_source). Same host and same reason as loreMcpUrl.
-# Empty = skills off (the init skips the fetch). Normally `<loreMcpUrl host>/skills`.
-loreSkillsUrl: ""
-
-# In-cluster egress target for the station API calls — must match the host:port in
-# loreApiUrl above (same pattern as floorSink/agentEventsUrl).
+# In-cluster egress target for the station API calls — must match the host:port of
+# the Lore API URL the cluster-agent renders into station recipes. IN-CLUSTER on
+# purpose: Dataplane V2 short-circuits a VIP whose backend lives in this cluster, and
+# the post-DNAT 10.x address hits the egress policy's RFC1918 except-list, so a run
+# pod dialing a public Lore host just times out (proven live 2026-07-17, #1126).
 apiSink:
   namespace: lore-api
   port: 3000
 
-# In-cluster egress target for the lore-mcp gateway — must match the host:port in
-# loreMcpUrl / loreSkillsUrl above. Covers both the agents' MCP transport and the
-# init's skills+settings fetch; they are the same service.
+# In-cluster egress target for the lore-mcp gateway — must match the host:port of the
+# cluster-agent's `catalog.mcpUrl` / `catalog.skillsUrl`. Covers both the agents' MCP
+# transport and the init's skills+settings fetch; they are the same service.
 mcpSink:
   namespace: lore-api
   port: 8080
-
-# The spec-traceability graph the ingest-station recipes project into. In-cluster for
-# the same reason as loreApiUrl; ingest-station-egress opens exactly this service.
-dgraphUrl: http://lore-dgraph-alpha.lore-dgraph.svc.cluster.local:8080
 
 controller:
   replicas: 1
@@ -188,13 +143,3 @@ imagePullSecrets:
 # CLUSTER AGENT PATCHes short-lived per-task GitHub tokens into it (see
 # re-cinq/lore#685); it used to be the Floor.
 agentSecretsName: agent-secrets
-
-# The agent-secrets key holding the agent's LLM credential, used as BOTH the secret key
-# and the env var the run pod sees. The controller renders it as a non-optional
-# secretKeyRef, so this key must exist in agent-secrets or every run pod fails
-# CreateContainerConfigError — change it only together with what writes that Secret (ESO
-# here, scripts/infra/setup-minikube-agents.sh on a laptop). The `claude` CLI accepts
-# either credential from its environment; values.minikube.yaml swaps in
-# CLAUDE_CODE_OAUTH_TOKEN so a laptop run bills a developer's subscription instead of
-# org API credit.
-agentLlmSecretKey: ANTHROPIC_API_KEY

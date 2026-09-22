@@ -3,7 +3,8 @@ import {
   createPipelineTask,
   decideOnboard,
   onboardLockKey,
-  onboardTaskDescription,
+  onboardTicketBody,
+  onboardUpdateTicketBody,
   toOnboardState,
   IN_FLIGHT_TASK_STATUSES,
   ONBOARD_IN_FLIGHT_TASK_SQL,
@@ -223,12 +224,16 @@ async function writeOnboard(
   { fullName, owner, name }: RepoIdentity,
   options: { reonboard?: boolean },
 ): Promise<OnboardWrite> {
-  const decision = await beginAndDecide(client, fullName, options);
+  const { decision, state } = await beginAndDecide(client, fullName, options);
 
   if (!decision.allowed) {
     return refuseOnboard(client, fullName, decision);
   }
-  const written = await insertRepoAndTask(client, { fullName, owner, name });
+  const written = await insertRepoAndTask(
+    client,
+    { fullName, owner, name },
+    ticketFor(fullName, state),
+  );
 
   await client.query("COMMIT");
 
@@ -240,14 +245,14 @@ async function beginAndDecide(
   client: PoolClient,
   fullName: string,
   options: { reonboard?: boolean },
-): Promise<OnboardDecision> {
+): Promise<{ decision: OnboardDecision; state: OnboardState }> {
   await client.query("BEGIN");
   await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
     onboardLockKey(fullName),
   ]);
   const state = await readOnboardState(client, fullName);
 
-  return decideOnboard(fullName, state, options);
+  return { decision: decideOnboard(fullName, state, options), state };
 }
 
 /** Reads the repo's onboarding state on `client`, which must already hold the per-repo advisory lock. */
@@ -281,10 +286,21 @@ async function refuseOnboard(
   return { blocked: block, error: message, task_id: taskId };
 }
 
+/** The ticket the onboard line implements, chosen by the repo's STATE rather than by the `reonboard` flag: the repo page's button always sends that flag, so a first enrolment raised from it must still get the onboarding ticket, and only a repo whose onboarding PR has merged gets the update one. */
+function ticketFor(
+  fullName: string,
+  state: Pick<OnboardState, "onboardingPrMerged">,
+): string {
+  return state.onboardingPrMerged
+    ? onboardUpdateTicketBody(fullName)
+    : onboardTicketBody(fullName);
+}
+
 /** The repo row FIRST, then its task. The order is load-bearing: the task's trust gate reads that row, so a task created before it would be judged against a repo that does not exist yet. Re-onboarding refreshes the timestamp rather than inserting a second row. */
 async function insertRepoAndTask(
   client: PoolClient,
   { fullName, owner, name }: RepoIdentity,
+  ticket: string,
 ): Promise<OnboardWrite> {
   const { rows } = await client.query<{ id: string }>(
     `INSERT INTO lore.repos (owner, name, full_name) VALUES ($1, $2, $3)
@@ -292,7 +308,7 @@ async function insertRepoAndTask(
     [owner, name, fullName],
   );
   const task = await createPipelineTask(client, {
-    description: onboardTaskDescription(fullName),
+    description: ticket,
     taskType: "onboard",
     targetRepo: fullName,
     createdBy: "onboard-system",
@@ -318,5 +334,3 @@ function logWebhookOutcome(
     `[onboard] Webhook not configured for ${fullName}: ${webhook.reason}${webhook.detail ? ` (${webhook.detail})` : ""}`,
   );
 }
-
-export { fetchRepoContext, type RepoContext } from "./repo-onboard-context.js";

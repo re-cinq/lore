@@ -4,7 +4,6 @@ import { Llm } from "@re-cinq/lore-shared";
 import { getPool, initPool } from "./outbound/db.js";
 import { awaitSoleFloor } from "./outbound/single-instance.js";
 import { eventProxy, usage } from "./outbound/queues.js";
-import { loadTaskTypes } from "./outbound/config.js";
 import { wireProject } from "./app/project-boot.js";
 import { recoverStaleTasks, startWorker } from "./work/task/worker.js";
 import {
@@ -28,16 +27,15 @@ import { subscribe, reconcileDeliveries } from "./outbound/event-store.js";
 import { RECONCILE_WINDOW_MINUTES } from "@re-cinq/lore-shared/project/events/event-deliveries-port.js";
 import { registerCronEmitter } from "./events/listeners/scheduler-emitter.js";
 import { CRON_EMITTERS } from "./events/listeners/cron-emitters.js";
-
-/** How long shutdown waits for the event queue to drain — long enough to clear a backlog, short enough not to hold a rollout open past its termination grace period. */
-const EVENT_DRAIN_TIMEOUT_MS = 5_000;
+import { DEFAULT_DRAIN_TIMEOUT_MS } from "@re-cinq/lore-shared/project/events/event-tuning.js";
+import { requiredPort } from "@re-cinq/lore-shared/lib/required-env.js";
 
 async function main(): Promise<void> {
   console.log("[floor] Lore Floor Service starting...");
 
   await bootRuntime();
 
-  const port = parseInt(process.env.PORT || "8080", 10);
+  const port = requiredPort(process.env, "PORT");
   // Awaited: the stop function is half of the shutdown contract — a fire-and-forgotten start left a late failure with nowhere to surface.
   const stopServing = await startHealthServer(port, getJobStatus);
 
@@ -46,7 +44,7 @@ async function main(): Promise<void> {
 
   const shutdown = createShutdown({
     stopServing,
-    flushEvents: () => eventProxy().stop(EVENT_DRAIN_TIMEOUT_MS),
+    flushEvents: () => eventProxy().stop(DEFAULT_DRAIN_TIMEOUT_MS),
     flushTelemetry: shutdownOtel,
     exit: (code) => process.exit(code),
   });
@@ -71,22 +69,12 @@ async function bootRuntime(): Promise<void> {
   Llm.configure({ usage: usage() });
   console.log("[floor] Platform: github (via project facade)");
 
-  loadTaskTypesSafely();
-
   await loadApprovalConfig(getPool());
 
   const recovered = await recoverStaleTasks();
 
   if (recovered > 0) {
     console.log(`[floor] Recovered ${recovered} stale tasks`);
-  }
-}
-
-function loadTaskTypesSafely(): void {
-  try {
-    loadTaskTypes();
-  } catch (err) {
-    console.warn("[floor] Could not load task types:", err);
   }
 }
 

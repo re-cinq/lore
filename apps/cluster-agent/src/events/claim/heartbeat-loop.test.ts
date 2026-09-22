@@ -3,6 +3,7 @@ import {
   heartbeatIntervalMs,
   heartbeatOnce,
   runHeartbeatLoop,
+  type HeartbeatOutcome,
 } from "./heartbeat-loop.js";
 
 const IDENTITY = { id: "agent-1", token: "lca_tok" };
@@ -110,11 +111,7 @@ describe("heartbeatOnce", () => {
 
 describe("runHeartbeatLoop", () => {
   it("beats at the fixed interval and re-registers on an unauthorized beat", async () => {
-    const outcomes: Array<"ok" | "unauthorized" | "error"> = [
-      "ok",
-      "unauthorized",
-      "error",
-    ];
+    const outcomes: HeartbeatOutcome[] = ["ok", "unauthorized", "error"];
     const sleeps: number[] = [];
     let reRegistered = 0;
     let ticks = 0;

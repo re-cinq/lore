@@ -5,6 +5,7 @@ import {
   type CostIngestSummary,
 } from "./agent-events-cost.js";
 import { errorMessage } from "@re-cinq/lore-shared";
+import { MAX_AGENT_EVENTS_BODY_BYTES } from "@re-cinq/lore-shared/http/body-limits.js";
 // POST /api/agent-events — ai-agent-subsystem (ADR-031 D8) run-output NDJSON; terminal `result` line feeds pipeline.llm_calls (uncorrelated/failed rows surfaced via metric+audit_log, not dropped, #945), and auth is dual (bus-wide LORE_AGENT_INTERNAL_TOKEN or a satellite's per-agent token, FR5 of specs/running-stations-in-any-k8s-cluster) checked inside the handler since a hapi strategy can only hold one expected token.
 
 import type {
@@ -31,7 +32,7 @@ import type {
 } from "@re-cinq/lore-shared";
 
 // Above this body size, run-viz + turn transcript are skipped (cost accounting still recorded) to keep a pathological report from OOM-ing the single (replicaCount: 1) Floor replica — the pod's stdout in Cloud Logging is the sole remaining copy of an oversized stream (#1109).
-const MAX_VIZ_BODY_BYTES = 8 * 1024 * 1024;
+const MAX_VIZ_BODY_BYTES = MAX_AGENT_EVENTS_BODY_BYTES;
 
 export interface AgentEventsRouteDeps {
   // The registry lookup that lets a satellite's own token in; absent means only the bus-wide token opens the door (pre-satellite behavior).

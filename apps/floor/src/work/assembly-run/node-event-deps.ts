@@ -35,7 +35,7 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
     },
     { loadBuiltinAssemblyLines },
     { projectFor },
-    { buildNodePrompt },
+    { renderNodePrompt },
     { cleanupPerTaskToken },
     { settleTaskForLine },
     { resolveConversation },
@@ -68,9 +68,20 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
 
       return qualifiedStationRef(getPool(), baseRef, repo);
     },
-    // Strict: an unknown prompt_ref fails the node instead of silently running `general` (#1329).
-    resolvePrompt: buildNodePrompt,
+    // Rendered from the RESOLVED recipe (project row → org row → yaml), so an Agents-UI edit reaches the pod; strict on an unknown ref (#1329).
+    resolvePrompt: async (repo, promptRef, description) => {
+      const recipe = await (
+        await projectFor(repo)
+      ).agentDefs.resolve(promptRef);
+
+      return renderNodePrompt(promptRef, recipe?.prompt, description);
+    },
     cleanupToken: cleanupPerTaskToken,
+    publishRunCheck: async (assemblyRunId) => {
+      const { publishRunCheck } = await import("./pr-check.js");
+
+      await publishRunCheck(assemblyRunId, pipeline().assemblyRuns);
+    },
     jobRuns: pipeline().jobRuns,
     notifyFailure: notifyLineFailure,
     onRunClosed: async (run, outcome, reason) => {
@@ -144,6 +155,7 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
         pulls: project.pulls,
         assemblyRuns: pipeline().assemblyRuns,
         features: project.features,
+        onboarding: settings(),
       });
     },
     markPrReady: async (row, result) => {

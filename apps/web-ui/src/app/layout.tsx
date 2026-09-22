@@ -11,6 +11,7 @@ import "./theme.css";
 import "highlight.js/styles/github.css";
 import "./globals.css";
 import "./chicago.css";
+import "@re-cinq/planning-editor/style.css";
 
 export const metadata: Metadata = {
   title: "Lore",

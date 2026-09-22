@@ -312,25 +312,25 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 
 ### `apps/floor/src/work/assembly-run/pr-check.test.ts`
 
-- returns null when the line carries no pr_number. ([validated by](apps/floor/src/work/assembly-run/pr-check.test.ts#L56))
-- returns null when the line carries no head_sha. ([validated by](apps/floor/src/work/assembly-run/pr-check.test.ts#L62))
-- maps a running line to an in_progress check named lore/<definition>. ([validated by](apps/floor/src/work/assembly-run/pr-check.test.ts#L66))
-- keeps a running line in_progress even when a node already recorded changes_requested. ([validated by](apps/floor/src/work/assembly-run/pr-check.test.ts#L74))
-- maps a changes_requested line outcome to a neutral conclusion. ([validated by](apps/floor/src/work/assembly-run/pr-check.test.ts#L82))
-- maps a completed line whose review node recorded changes_requested to a neutral conclusion — the walk routes `changes_requested → done`, so only the node walk row carries the verdict. ([validated by](apps/floor/src/work/assembly-run/pr-check.test.ts#L91))
-- reads the latest iteration of a node, so a re-reviewed success wins over an earlier changes_requested. ([validated by](apps/floor/src/work/assembly-run/pr-check.test.ts#L100))
-- maps a completed line to a success conclusion. ([validated by](apps/floor/src/work/assembly-run/pr-check.test.ts#L109))
-- maps a failed line to a failure conclusion. ([validated by](apps/floor/src/work/assembly-run/pr-check.test.ts#L115))
-- maps a failed line with a changes_requested node to a failure conclusion. ([validated by](apps/floor/src/work/assembly-run/pr-check.test.ts#L121))
-- maps a pr_closed outcome to a cancelled conclusion. ([validated by](apps/floor/src/work/assembly-run/pr-check.test.ts#L155))
-- maps a pr_closed line with a changes_requested node to a cancelled conclusion. ([validated by](apps/floor/src/work/assembly-run/pr-check.test.ts#L161))
-- adds a details_url to the Lore UI when a uiUrl is given. ([validated by](apps/floor/src/work/assembly-run/pr-check.test.ts#L169))
-- maps an iteration_max outcome to a failure conclusion. ([validated by](apps/floor/src/work/assembly-run/pr-check.test.ts#L177))
-- publishes a code-review-recheck line under the aliased `lore/code-review` check name so a required branch-protection check is refreshed on every push, not stranded under a separate name. ([validated by](apps/floor/src/work/assembly-run/pr-check.test.ts#L188))
+- returns null when the line carries no pr_number. ([validated by](apps/floor/src/work/assembly-run/pr-check.test.ts#L62))
+- returns null when the line carries no head_sha. ([validated by](apps/floor/src/work/assembly-run/pr-check.test.ts#L68))
+- maps a running line to an in_progress check named lore/<definition>. ([validated by](apps/floor/src/work/assembly-run/pr-check.test.ts#L72))
+- keeps a running line in_progress even when a node already recorded changes_requested. ([validated by](apps/floor/src/work/assembly-run/pr-check.test.ts#L80))
+- maps a changes_requested line outcome to a neutral conclusion. ([validated by](apps/floor/src/work/assembly-run/pr-check.test.ts#L88))
+- maps a completed line whose review node recorded changes_requested to a neutral conclusion — the walk routes `changes_requested → done`, so only the node walk row carries the verdict. ([validated by](apps/floor/src/work/assembly-run/pr-check.test.ts#L97))
+- reads the latest iteration of a node, so a re-reviewed success wins over an earlier changes_requested. ([validated by](apps/floor/src/work/assembly-run/pr-check.test.ts#L106))
+- maps a completed line to a success conclusion. ([validated by](apps/floor/src/work/assembly-run/pr-check.test.ts#L115))
+- maps a failed line to a failure conclusion. ([validated by](apps/floor/src/work/assembly-run/pr-check.test.ts#L121))
+- maps a failed line with a changes_requested node to a failure conclusion. ([validated by](apps/floor/src/work/assembly-run/pr-check.test.ts#L127))
+- maps a pr_closed outcome to a cancelled conclusion. ([validated by](apps/floor/src/work/assembly-run/pr-check.test.ts#L161))
+- maps a pr_closed line with a changes_requested node to a cancelled conclusion. ([validated by](apps/floor/src/work/assembly-run/pr-check.test.ts#L167))
+- adds a details_url to the Lore UI when a uiUrl is given. ([validated by](apps/floor/src/work/assembly-run/pr-check.test.ts#L175))
+- maps an iteration_max outcome to a failure conclusion. ([validated by](apps/floor/src/work/assembly-run/pr-check.test.ts#L183))
+- publishes a code-review-recheck line under the aliased `lore/code-review` check name so a required branch-protection check is refreshed on every push, not stranded under a separate name. ([validated by](apps/floor/src/work/assembly-run/pr-check.test.ts#L194))
 
 ### `apps/floor/src/work/assembly-run/advance-line.test.ts`
 
-- A code-review-recheck line opts out of the branch-overlap guard, so a push landing while a review or reply line still holds the PR branch is not silently dropped as `lease_held` (the verdict update always runs). ([validated by](apps/floor/src/work/assembly-run/advance-line.test.ts#L823))
+- A code-review-recheck line opts out of the branch-overlap guard, so a push landing while a review or reply line still holds the PR branch is not silently dropped as `lease_held` (the verdict update always runs). ([validated by](apps/floor/src/work/assembly-run/advance-line.test.ts#L824))
 
 ### `apps/floor/src/work/merge/auto-merge.test.ts`
 
@@ -414,8 +414,8 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 ### `libs/shared/src/outbound/project/events/github-map.test.ts`
 
 - returns nothing for a check with no backing PRs. ([validated by](libs/shared/src/outbound/project/events/github-map.test.ts#L286))
-- returns nothing when the repository is missing. ([validated by](libs/shared/src/outbound/project/events/github-map.test.ts#L334))
-- returns nothing for an unhandled event type. ([validated by](libs/shared/src/outbound/project/events/github-map.test.ts#L344))
+- returns nothing when the repository is missing. ([validated by](libs/shared/src/outbound/project/events/github-map.test.ts#L362))
+- returns nothing for an unhandled event type. ([validated by](libs/shared/src/outbound/project/events/github-map.test.ts#L372))
 
 ### `apps/stations/src/work/comment-triage/comment-triage.test.ts`
 
@@ -430,9 +430,9 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 ### `libs/assembly-lines/src/loader.test.ts`
 
 - code-review is a suggestion-only review→done graph (no refine/auto-commit). ([validated by](libs/assembly-lines/src/loader.test.ts#L638))
-- gap-fill is a linear flow with retrospective + done as exit pair. ([validated by](libs/assembly-lines/src/loader.test.ts#L684))
-- assemblyLinesDir actually exists on disk (sanity check). ([validated by](libs/assembly-lines/src/loader.test.ts#L738))
-- code-review-recheck is a fast Haiku recheck→done graph routing every verdict to done. ([validated by](libs/assembly-lines/src/loader.test.ts#L938))
+- gap-fill is a linear flow with retrospective + done as exit pair. ([validated by](libs/assembly-lines/src/loader.test.ts#L685))
+- assemblyLinesDir actually exists on disk (sanity check). ([validated by](libs/assembly-lines/src/loader.test.ts#L739))
+- code-review-recheck is a fast Haiku recheck→done graph routing every verdict to done. ([validated by](libs/assembly-lines/src/loader.test.ts#L939))
 
 ### `libs/shared/src/outbound/project/assembly-runs/assembly-runs.test.ts`
 
@@ -464,10 +464,10 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 
 ### `libs/shared/src/outbound/project/pulls/pull-requests.test.ts`
 
-- lists only the repo's pull requests. ([validated by](libs/shared/src/outbound/project/pulls/pull-requests.test.ts#L97))
-- merges by number with the requested method bound to the repo. ([validated by](libs/shared/src/outbound/project/pulls/pull-requests.test.ts#L133))
-- exposes PR reads bound to the repo and number. ([validated by](libs/shared/src/outbound/project/pulls/pull-requests.test.ts#L142))
-- delegates listReviewThreads repo-bound and resolveReviewThread by node id. ([validated by](libs/shared/src/outbound/project/pulls/pull-requests.test.ts#L161))
+- lists only the repo's pull requests. ([validated by](libs/shared/src/outbound/project/pulls/pull-requests.test.ts#L106))
+- merges by number with the requested method bound to the repo. ([validated by](libs/shared/src/outbound/project/pulls/pull-requests.test.ts#L142))
+- exposes PR reads bound to the repo and number. ([validated by](libs/shared/src/outbound/project/pulls/pull-requests.test.ts#L151))
+- delegates listReviewThreads repo-bound and resolveReviewThread by node id. ([validated by](libs/shared/src/outbound/project/pulls/pull-requests.test.ts#L170))
 
 ### `libs/shared/src/work/review/review-reply.test.ts`
 

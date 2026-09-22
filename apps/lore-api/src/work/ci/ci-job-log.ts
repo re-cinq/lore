@@ -9,7 +9,7 @@ export interface CiJobLog {
   truncated: boolean;
 }
 
-/** The job's log, bounded to a tail and optionally filtered — a reader asks for the part it needs, never the 10,000-line dump. Null when GitHub will not show the job. */
+/** The job's log, bounded to a tail and optionally filtered — a reader asks for the part it needs, never the 10,000-line dump. Null when GitHub has no such job; a read GitHub refuses is thrown, for the route to answer. */
 export async function readCiJobLog(
   pulls: Pick<PullRequests, "jobLog">,
   jobId: number,

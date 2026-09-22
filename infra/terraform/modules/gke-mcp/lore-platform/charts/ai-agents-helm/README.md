@@ -5,7 +5,7 @@ The **agent execution subsystem** — the external controller that turns an
 **`ai-agents`** namespace. The controller's source lives in its own repository
 and ships as `ghcr.io/re-cinq/ai-agent-controller`, pinned **by digest** in
 `values.yaml`; this chart is the piece of it that Lore owns — the CRDs, the
-controller Deployment, the seeded recipe catalog, and the network fences. See
+controller Deployment, and the network fences. See
 [ADR-031](../../../../../../../adrs/ADR-031-agent-station-crds.md) for why
 Agent / Station / AgentDefinition are Kubernetes CRDs in a standalone
 subsystem.
@@ -22,16 +22,15 @@ subsystem.
 - **The controller** (`templates/controller.yaml` + RBAC): watches `Agent`
   CRs and stamps one Job pod per run. Pods run as non-root with dropped
   capabilities.
-- **The seeded catalog** (`files/catalog-seed.yaml`, applied by the
-  catalog-seed `pre-upgrade` hook): the builtin `AgentDefinition`/`Station`
-  recipes **generated** from [`scripts/task-types.yaml`](../../../../../../../scripts/task-types.yaml)
-  by gen-catalog — never edit the seed by hand. While `seedCatalog: true` the
-  chart owns every field of the seeded recipes and re-asserts them each deploy,
-  so a pruned or hand-edited field cannot survive one (#1468). Per-repo
-  override recipes are separate objects and are never touched.
+- **No catalog.** The `AgentDefinition`/`Station` recipes are rows in
+  `lore.agent_definitions`; each cluster's cluster-agent renders them into CRs
+  with its sync loop ([catalog-db-sync](../../../../../../../specs/catalog-db-sync/spec.md)).
+  The chart used to seed them from a generated file on every deploy, which
+  reverted UI edits (#2010), so it no longer writes any.
 - **Network fences** (`templates/networkpolicy.yaml`): run pods get only
   public `:443` egress plus exactly one RFC1918 exception — the Floor's
-  `/api/agent-events` NDJSON sink (`agentEventsUrl` / `floorSink` must agree).
+  `/api/agent-events` NDJSON sink (`floorSink` must agree with the events URL
+  the cluster-agent renders).
 
 ## How a run reaches it
 

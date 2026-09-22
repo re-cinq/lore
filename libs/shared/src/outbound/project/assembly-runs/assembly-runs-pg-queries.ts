@@ -150,6 +150,7 @@ async function selectList(
     query.limit ?? 50,
     orNull(query.subjectKey),
     orNull(query.clusterAgentId),
+    orNull(query.branch),
   ]);
 
   return rows;
@@ -166,6 +167,7 @@ function listSql(columns: string): string {
         AND ($5::int    IS NULL OR (args->>'pr_number')::int = $5)
         AND ($6::timestamptz IS NULL OR created_at >= $6)
         AND ($8::text   IS NULL OR subject_key = $8)
+        AND ($10::text  IS NULL OR branch = $10)
         AND ($9::uuid   IS NULL OR EXISTS (
               SELECT 1 FROM pipeline.station_runs claims
                WHERE claims.assembly_run_id = pipeline.assembly_runs.id

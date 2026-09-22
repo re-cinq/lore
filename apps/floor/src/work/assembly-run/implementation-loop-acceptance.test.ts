@@ -1,13 +1,18 @@
 import { describe, it, expect } from "vitest";
+import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 import { handleLoopRunClosed } from "../backlog/loop-run-closed.js";
 import {
   createLineHarness,
   resultEnvelope,
 } from "./line-acceptance-harness.js";
+import { podPromptOf } from "./pod-prompt-view.js";
+import type { AdvanceDeps } from "./advance-deps.js";
 
 const short = (id: string) => id.substring(0, 12);
 
-function loopHarness() {
+function loopHarness(
+  extra: Partial<Pick<AdvanceDeps, "publishRunCheck">> = {},
+) {
   const labeled: Array<{ issue: number; label: string }> = [];
   const comments: Array<{ issue: number; body: string }> = [];
   const ticks: string[] = [];
@@ -22,10 +27,15 @@ function loopHarness() {
         comment: async (_repo, issue, body) => {
           comments.push({ issue, body });
         },
+        closeIssue: async () => {},
+        closePr: async () => {},
         emitTick: async (repo) => {
           ticks.push(repo);
         },
+        priorInfraFailures: async () => 0,
+        maxInfraDeferrals: 3,
       }),
+    ...extra,
   });
 
   return { ...h, labeled, comments, ticks };
@@ -41,6 +51,20 @@ async function parkedOnPr(h: ReturnType<typeof loopHarness>) {
   await h.completeAgentNode(id, "ready-for-review", { outcome: "success" });
 
   return id;
+}
+
+async function stepInFlight(
+  h: ReturnType<typeof loopHarness>,
+  runId: string,
+): Promise<string> {
+  const run = await h.runs.getById(runId);
+
+  if (run?.status === "finished") {
+    return `finished:${run.outcome}`;
+  }
+  const visits = await h.runs.listStationRuns(runId);
+
+  return visits.filter((visit) => visit.outcome === null).at(-1)?.nodeId ?? "";
 }
 
 async function retrospectiveReported(
@@ -123,6 +147,34 @@ describe("implementation-loop acceptance: one ticket, cluster-free, walked throu
     expect(h.enqueued.at(-1)?.prompt).toContain(
       "These checks failed: lint, test:shared",
     );
+    expect(podPromptOf(h.enqueued.at(-1) as LoreTaskSpec)).toContain(
+      "## CI reported failures on deadbeef",
+    );
+  });
+
+  it("tells the next round what the previous round reported it finished and left for next, so a round does not start cold", async () => {
+    const h = loopHarness();
+    const id = await h.start("implementation-loop", { taskId: "task-1" });
+
+    await h.completeAgentNode(id, "dod", { outcome: "success" });
+    await h.completeAgentNode(id, "open-pr", { outcome: "success" });
+    await h.completeAgentNode(id, "tdd-round", {
+      output: resultEnvelope(
+        'LORE_NODE_RESULT: {"outcome":"success","extras":{"Lore-Tdd-Done":"the cursor binds","Lore-Tdd-Next":"an empty log falls back to 0"}}',
+      ),
+    });
+    await h.resume(id, "await-ci", "changes_requested", {
+      args: {
+        reason: "ci_red",
+        ci_feedback_sha: "deadbeef",
+        ci_failed_checks: "agent",
+      },
+    });
+
+    expect(h.enqueued.at(-1)?.name).toBe(`${short(id)}-tdd-round-2`);
+    expect(podPromptOf(h.enqueued.at(-1) as LoreTaskSpec)).toContain(
+      "## The previous round reported\n\n- Done: the cursor binds\n- Next: an empty log falls back to 0",
+    );
   });
 
   it("repairs a build the rounds stopped moving instead of ending the run, and returns it to the wait", async () => {
@@ -163,6 +215,30 @@ describe("implementation-loop acceptance: one ticket, cluster-free, walked throu
     expect(h.labeled).toEqual([]);
   });
 
+  it("publishes the PR check as the run enters dod, open-pr, tdd-round, await-ci, ready-for-review, await-pr and retrospective, then once more when it finishes completed", async () => {
+    const published: string[] = [];
+    const h = loopHarness({
+      publishRunCheck: async (runId) => {
+        published.push(await stepInFlight(h, runId));
+      },
+    });
+    const id = await parkedOnPr(h);
+
+    await h.resume(id, "await-pr", "success");
+    await retrospectiveReported(h, id);
+
+    expect(published).toEqual([
+      "dod",
+      "open-pr",
+      "tdd-round",
+      "await-ci",
+      "ready-for-review",
+      "await-pr",
+      "retrospective",
+      "finished:completed",
+    ]);
+  });
+
   it("completes the run and re-arms the repo tick when the PR reports green", async () => {
     const h = loopHarness();
     const id = await parkedOnPr(h);
@@ -176,6 +252,42 @@ describe("implementation-loop acceptance: one ticket, cluster-free, walked throu
     });
     expect(h.ticks).toEqual(["re-cinq/lore"]);
     expect(h.labeled).toEqual([]);
+  });
+
+  it("defers, without a label, a ticket whose first node no cluster-agent claimed inside the queue wait, and re-arms so the next tick picks it again", async () => {
+    const h = loopHarness();
+    const id = await h.start("implementation-loop", {
+      taskId: "task-1",
+      branch: "lore/implementation-loop/issue-77",
+    });
+
+    await h.reap({ minutesLater: 31 });
+
+    expect(h.visits()).toEqual([["dod", "failed"]]);
+    expect(h.labeled).toEqual([]);
+    expect(h.comments[0]?.body).toContain(
+      "deferring this ticket, not parking it (infrastructure attempt 1 of 3)",
+    );
+    expect(h.ticks).toEqual([expect.any(String)]);
+    void id;
+  });
+
+  it("defers, without a label, a ticket whose tdd-round no cluster-agent claimed and whose failure routed into the retrospective (run eb46675f)", async () => {
+    const h = loopHarness();
+    const id = await h.start("implementation-loop", {
+      taskId: "task-1",
+      branch: "lore/implementation-loop/issue-77",
+    });
+
+    await h.completeAgentNode(id, "dod", { outcome: "success" });
+    await h.completeAgentNode(id, "open-pr", { outcome: "success" });
+    await h.reap({ minutesLater: 31 });
+    await retrospectiveReported(h, id);
+
+    expect(h.labeled).toEqual([]);
+    expect(h.comments[0]?.body).toContain(
+      "deferring this ticket, not parking it (infrastructure attempt 1 of 3)",
+    );
   });
 
   it("marks the ticket blocked and still re-arms when review threads stay unresolved", async () => {

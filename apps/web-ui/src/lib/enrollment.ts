@@ -6,10 +6,8 @@ export interface Check {
   status: CheckStatus;
   detail?: string;
   link?: { href: string; text: string };
-  /** A fixable check the UI can act on directly (open PR or create/repoint webhook). */
-  action?:
-    | { kind: "reonboard"; text: string }
-    | { kind: "setup-webhook"; text: string };
+  /** A fixable check the UI can act on directly (create/repoint the webhook). Missing files carry none: the box's ONE trigger (`setupTriggerText`) opens a single PR covering all of them. */
+  action?: { kind: "setup-webhook"; text: string };
   /** A value to display verbatim with a copy button (e.g. the webhook URL to set by hand). */
   copy?: { value: string; label?: string };
   /** A sensitive value (the webhook signing secret) — rendered masked with reveal + copy. */
@@ -323,7 +321,6 @@ function applyGithubFileDetail(
 
   if (check.status === "fail") {
     check.detail = purpose ? `missing · ${purpose}` : "missing";
-    check.action = { kind: "reonboard", text: "create a PR with this file" };
 
     return;
   }
@@ -343,4 +340,15 @@ function applyManualSetupFields(check: Check, w: WebhookCheck): void {
   if (w.secret) {
     check.secret = { value: w.secret, label: "and this secret" };
   }
+}
+
+/** The label of the enrolment box's standing trigger, or null when it must not be offered. One run either way — the `onboard` assembly line opening ONE pull request: the first enrolment PR for a repo that has none, an update of the setup once that PR has merged. While the PR is open the guard refuses a second run, and the row's own "review & merge" link is the action. */
+export function setupTriggerText(checks: readonly Check[]): string | null {
+  const onboardingPr = checks.find((check) => check.id === "onboarding-pr");
+
+  if (!onboardingPr) {
+    return "Open enrolment PR";
+  }
+
+  return onboardingPr.status === "pass" ? "Update Lore setup" : null;
 }

@@ -9,6 +9,7 @@ import type {
 } from "@kubernetes/client-node";
 import {
   agentsNamespace,
+  redactSecrets,
   type AgentPodInfo,
   type PodSummary,
   type PodLogSource,
@@ -93,6 +94,105 @@ function endedBadly(status: V1ContainerStatus): boolean {
   return terminated !== undefined && terminated.exitCode !== 0;
 }
 
+/** Why Kubernetes itself stopped the pod — preempted, evicted — which no container log records. Undefined when the pod ended on its own. */
+export function podLevelCause(pod: V1Pod): string | undefined {
+  const reason = pod.status?.reason;
+
+  if (!reason) {
+    return undefined;
+  }
+  const message = pod.status?.message;
+
+  return `pod stopped by Kubernetes (${reason})${message ? `: ${message}` : ""}`;
+}
+
+/** Why a failed Agent's pod died, in its own words — the Job-level `BackoffLimitExceeded` the CR carries says only that it did. Undefined when the pod offers nothing more concrete, so the caller keeps the Job reason and its classification rather than trading it for a bare exit code. */
+export function podFailureCause(pod: V1Pod, log: string): string | undefined {
+  const ended = endedContainer(pod);
+
+  if (!ended) {
+    return undefined;
+  }
+
+  return ended.reason === "OOMKilled"
+    ? `${ended.label} was OOMKilled (exit ${ended.exitCode})`
+    : causeFromLog(ended, log);
+}
+
+function causeFromLog(ended: EndedContainer, log: string): string | undefined {
+  const lines = plainCauseLines(log);
+
+  return lines.length === 0
+    ? undefined
+    : redactSecrets(
+        `${ended.label} exited ${ended.exitCode}: ${lines.join(" ")}`,
+      );
+}
+
+// The step runner echoes the whole command it ran after the step's own output; git's words say why, the echo only says what.
+const STEP_COMMAND_ECHO = /^\[\w+\] .+ failed \(exit \d+\):/;
+const CAUSE_LINES = 3;
+
+/** The log's last plain lines: lifecycle markers and stream-json are the runner talking, not the failing program. */
+function plainCauseLines(log: string): string[] {
+  return log
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("{"))
+    .filter((line) => !STEP_COMMAND_ECHO.test(line))
+    .slice(-CAUSE_LINES);
+}
+
+interface EndedContainer {
+  name: string;
+  label: string;
+  exitCode: number;
+  reason?: string;
+}
+
+/** The container that ended the pod badly: a failed init container first, since `agent` never starts after one. */
+function endedContainer(pod: V1Pod): EndedContainer | undefined {
+  return (
+    endedIn("init container", pod.status?.initContainerStatuses) ??
+    endedIn("container", pod.status?.containerStatuses)
+  );
+}
+
+function endedIn(
+  kind: string,
+  statuses: V1ContainerStatus[] = [],
+): EndedContainer | undefined {
+  const ended = statuses.find(endedBadly);
+
+  return ended && describeEnded(kind, ended);
+}
+
+function describeEnded(
+  kind: string,
+  status: V1ContainerStatus,
+): EndedContainer {
+  const terminated = status.state?.terminated;
+
+  return {
+    name: status.name,
+    label: `${kind} "${status.name}"`,
+    exitCode: terminated?.exitCode ?? 0,
+    reason: terminated?.reason,
+  };
+}
+
+const FAILURE_LOG_TAIL_LINES = 40;
+
+function byCreationDescending(a: V1Pod, b: V1Pod): number {
+  return creationMillis(b) - creationMillis(a);
+}
+
+function creationMillis(pod: V1Pod): number {
+  const created = pod.metadata?.creationTimestamp;
+
+  return created ? new Date(created).getTime() : 0;
+}
+
 function agentPodInfoOf(agent: AgentCr): AgentPodInfo {
   return {
     phase: agent.status?.phase ?? null,
@@ -142,6 +242,35 @@ export class KubePodLogs implements PodLogSource {
         ? new Date(pod.metadata.creationTimestamp).toISOString()
         : undefined,
     }));
+  }
+
+  /** Why a failed Agent's Job died, read off its newest pod — a Job's retry pods are older attempts, not the one the CR's phase reports. */
+  async failureCause(jobName: string): Promise<string | undefined> {
+    const api = this.api();
+    const { items: pods } = await api.listNamespacedPod({
+      namespace: this.namespace(),
+      labelSelector: podSelectorForJob(jobName),
+    });
+    const newest = pods.toSorted(byCreationDescending).at(0);
+
+    return newest && (podLevelCause(newest) ?? this.containerCause(newest));
+  }
+
+  // Only a container that ended badly has a log worth reading: asking for one that never started (a preempted pod's `agent`) answers 400.
+  private async containerCause(pod: V1Pod): Promise<string | undefined> {
+    const ended = endedContainer(pod);
+
+    if (!ended) {
+      return undefined;
+    }
+    const log = await this.api().readNamespacedPodLog({
+      name: podName(pod),
+      namespace: this.namespace(),
+      tailLines: FAILURE_LOG_TAIL_LINES,
+      container: ended.name,
+    });
+
+    return podFailureCause(pod, log);
   }
 
   async listRunning(): Promise<RunningPodInfo[]> {

@@ -1,6 +1,8 @@
-export const TOTALS_SQL = `SELECT count(*)::int AS calls, coalesce(sum(cost_usd), 0)::float AS usd,
+export const TOTALS_SQL = `SELECT count(*)::int AS calls, coalesce(sum(cost_usd), 0)::float AS total_usd,
             coalesce(sum(input_tokens), 0)::float AS input_tokens,
-            coalesce(sum(output_tokens), 0)::float AS output_tokens
+            coalesce(sum(output_tokens), 0)::float AS output_tokens,
+            coalesce(sum(cache_read_tokens), 0)::float AS cache_read_tokens,
+            coalesce(sum(cache_write_tokens), 0)::float AS cache_write_tokens
        FROM pipeline.llm_calls
       WHERE created_at >= $1 AND created_at < $2`;
 

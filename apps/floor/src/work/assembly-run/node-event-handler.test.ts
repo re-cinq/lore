@@ -57,7 +57,7 @@ function harness() {
     assemblyRuns: port,
     definitions: async () => new Map([["code-review", line]]),
     repoSettings: async () => null,
-    resolvePrompt: (ref: string) => `prompt:${ref}`,
+    resolvePrompt: async (_repo: string, ref: string) => `prompt:${ref}`,
     cleanupToken: async () => {},
     jobRuns: { complete: async () => {}, fail: async () => {} },
     readAgentStatus: async (name: string) => statusByName[name] ?? null,
@@ -88,7 +88,7 @@ function alertingHarness() {
     assemblyRuns: port,
     definitions: async () => new Map([["code-review", line]]),
     repoSettings: async () => null,
-    resolvePrompt: (ref) => `prompt:${ref}`,
+    resolvePrompt: async (_repo, ref) => `prompt:${ref}`,
     cleanupToken: async () => {},
     jobRuns: { complete: async () => {}, fail: async () => {} },
     readAgentStatus: async (name) => statusByName[name] ?? null,
@@ -358,6 +358,30 @@ describe("createNodeEventHandler", () => {
 
     expect(h.port.nodes[0]).toMatchObject({ outcome: "success" });
     expect(await h.port.getById(id)).toMatchObject({ status: "finished" });
+  });
+
+  it("records the pod's refused clone as the failure instead of BackoffLimitExceeded", async () => {
+    const h = harness();
+    const { id, crName } = await reviewInFlight(h);
+
+    await h.handler({
+      ...params(id, crName, "Failed"),
+      status: {
+        phase: "Failed",
+        output: "",
+        failureReason:
+          "BackoffLimitExceeded: Job has reached the specified backoff limit",
+        errorText:
+          "init container \"init\" exited 128: remote: Repository not found. fatal: repository 'https://github.com/o/r.git/' not found",
+      },
+    });
+
+    expect(h.port.nodes[0]).toMatchObject({
+      outcome: "failed",
+      failureClass: "repo-checkout",
+      failureDetail:
+        "init container \"init\" exited 128: remote: Repository not found. fatal: repository 'https://github.com/o/r.git/' not found",
+    });
   });
 
   it("uses the reported status even for a CR claimed by an unreachable cluster, the case that stranded PR #1599's review", async () => {

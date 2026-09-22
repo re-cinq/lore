@@ -76,6 +76,7 @@ export function taskTicket(
     ...ticketTaskFields(row),
     ...runSummary(run),
     pipeline: pipelineOf(run, nodeRows),
+    text_too_long: false,
   };
 }
 

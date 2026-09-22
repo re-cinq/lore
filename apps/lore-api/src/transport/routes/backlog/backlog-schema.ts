@@ -27,6 +27,8 @@ export const TicketSchema = z.object({
   run_id: z.string().nullable(),
   /** Node states in graph order; null when no run exists yet. */
   pipeline: z.array(PipelineNodeSchema).nullable(),
+  /** The issue's title and body are longer than a task description may be, so the loop walks past it until someone shortens the issue text. Always false once a task was minted. */
+  text_too_long: z.boolean(),
 });
 
 /** Why the loop may not be picking. It never picks for a repo whose onboarding PR has not merged, so the page needs whether it merged, the open onboarding PR if there is one, and the newest onboard task with why it failed. */

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { resolveAgentConfig, type AgentDefinition } from "./agent-defs-port.js";
 
-const yamlGeneral: AgentDefinition = {
+const orgGeneral: AgentDefinition = {
   name: "general",
   model: "claude-sonnet-4-6",
   timeout_minutes: 30,
@@ -14,28 +14,16 @@ const yamlGeneral: AgentDefinition = {
 };
 
 describe("resolveAgentConfig", () => {
-  it("returns the yaml default when no org or project row exists", () => {
-    expect(resolveAgentConfig(null, null, yamlGeneral)).toEqual(yamlGeneral);
+  it("returns the org row as stored when no project row exists", () => {
+    expect(resolveAgentConfig(null, orgGeneral)).toEqual(orgGeneral);
   });
 
   it("returns null when every layer is null", () => {
-    expect(resolveAgentConfig(null, null, null)).toBeNull();
-  });
-
-  it("lets an org row override the yaml default", () => {
-    const org: AgentDefinition = {
-      ...yamlGeneral,
-      model: "claude-opus-4-8",
-      project_id: null,
-    };
-
-    expect(resolveAgentConfig(null, org, yamlGeneral)?.model).toBe(
-      "claude-opus-4-8",
-    );
+    expect(resolveAgentConfig(null, null)).toBeNull();
   });
 
   it("lets a project row's set fields beat the org row", () => {
-    const org: AgentDefinition = { ...yamlGeneral, model: "claude-opus-4-8" };
+    const org: AgentDefinition = { ...orgGeneral, model: "claude-opus-4-8" };
     const project: AgentDefinition = {
       name: "general",
       model: "claude-haiku-4-5-20251001",
@@ -48,7 +36,7 @@ describe("resolveAgentConfig", () => {
       project_id: "11111111-1111-1111-1111-111111111111",
     };
 
-    const resolved = resolveAgentConfig(project, org, yamlGeneral);
+    const resolved = resolveAgentConfig(project, org);
 
     expect(resolved).toMatchObject({
       name: "general",
@@ -60,15 +48,41 @@ describe("resolveAgentConfig", () => {
   });
 
   it("inherits a nullable field from org when the project row leaves it null", () => {
-    const org: AgentDefinition = { ...yamlGeneral, image: "golang:1.23" };
+    const org: AgentDefinition = { ...orgGeneral, image: "golang:1.23" };
     const project: AgentDefinition = {
-      ...yamlGeneral,
+      ...orgGeneral,
       image: null,
       project_id: "22222222-2222-2222-2222-222222222222",
     };
 
-    expect(resolveAgentConfig(project, org, yamlGeneral)?.image).toBe(
-      "golang:1.23",
-    );
+    expect(resolveAgentConfig(project, org)?.image).toBe("golang:1.23");
+  });
+
+  it("inherits config.test_policy from the layer below when a row sets config for another reason, so a review recipe stays at none", () => {
+    const orgReview: AgentDefinition = {
+      ...orgGeneral,
+      name: "review",
+      config: {
+        skills: ["tdd-loop"],
+        test_policy: "none",
+        repo_workdir: false,
+      },
+    };
+    const project: AgentDefinition = {
+      ...orgReview,
+      config: { skills: ["review-checklist"] },
+      project_id: "33333333-3333-3333-3333-333333333333",
+    };
+
+    expect(resolveAgentConfig(project, orgReview)?.config).toEqual({
+      skills: ["review-checklist"],
+      test_policy: "none",
+    });
+    expect(
+      resolveAgentConfig(
+        { ...project, config: { test_policy: "scoped" } },
+        orgReview,
+      )?.config,
+    ).toEqual({ test_policy: "scoped" });
   });
 });

@@ -34,7 +34,7 @@ infra/       deploy & runtime           terraform (the `lore-platform` umbrella 
 specs/       speckit specs (spec/plan/tasks/contracts) — first-class, links into code
 adrs/        architecture decision records (MADR)
 runbooks/    incident & operational runbooks        teams/  per-team CLAUDE.md
-scripts/     install.sh · lore-doctor · task-types.yaml · infra & glue scripts
+scripts/     install.sh · lore-doctor · infra & glue scripts
 docs/        guides & longer-form docs
 ```
 

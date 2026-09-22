@@ -65,15 +65,23 @@ export const authOptions: NextAuthOptions = {
 
       return isMember;
     },
-    async jwt({ token, account }) {
+    async jwt({ token, account, profile }) {
       if (account?.access_token) {
         token.accessToken = account.access_token;
+      }
+
+      // The login is who a person is in a plan; the display name can change or be empty.
+      if (profile) {
+        token.login = loginOf(profile);
       }
 
       return token;
     },
     async session({ session, token }) {
-      (session as { accessToken?: unknown }).accessToken = token.accessToken;
+      Object.assign(session, {
+        accessToken: token.accessToken,
+        login: token.login,
+      });
 
       return session;
     },

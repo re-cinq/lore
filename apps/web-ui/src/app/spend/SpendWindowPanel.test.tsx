@@ -4,6 +4,15 @@ import { render, screen, act, fireEvent } from "@testing-library/react";
 import SpendWindowPanel from "./SpendWindowPanel";
 import type { SpendWindow } from "./SpendView";
 
+const NO_UNITS = {
+  count: 0,
+  total_usd: 0,
+  avg_usd: 0,
+  median_usd: 0,
+  most: [],
+  least: [],
+};
+
 const WINDOW: SpendWindow = {
   interval: { from: "2026-08-26", to: "2026-09-02" },
   llm: {
@@ -11,6 +20,8 @@ const WINDOW: SpendWindow = {
     calls: 42,
     input_tokens: 12345,
     output_tokens: 735021,
+    cache_read_tokens: 4200000,
+    cache_write_tokens: 180000,
     by_blueprint: [{ blueprint: "implementation-loop", runs: 15, usd: 27.47 }],
     by_repo: [{ repo: "re-cinq/lore", usd: 80.1 }],
     by_model: [
@@ -69,6 +80,11 @@ const WINDOW: SpendWindow = {
       },
     ],
     live_usd_per_hour: 0.07,
+  },
+  unit_costs: {
+    tickets: NO_UNITS,
+    reviews: { per_pr: NO_UNITS, by_line: [], by_model: [] },
+    nodes: [],
   },
 };
 

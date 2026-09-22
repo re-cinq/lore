@@ -19,10 +19,13 @@ export interface HeartbeatDeps {
   log?: (line: string) => void;
 }
 
-/** One beat. Returns "ok" | "unauthorized" | "error"; never throws. */
+/** What one beat concluded: the cluster answered, refused the credential, or could not be reached. */
+export type HeartbeatOutcome = "ok" | "unauthorized" | "error";
+
+/** One beat; never throws. */
 export async function heartbeatOnce(
   deps: HeartbeatDeps,
-): Promise<"ok" | "unauthorized" | "error"> {
+): Promise<HeartbeatOutcome> {
   const { id, token } = deps.identity();
   const log = heartbeatLog(deps);
 
@@ -79,9 +82,11 @@ export async function runHeartbeatLoop(deps: HeartbeatLoopDeps): Promise<void> {
   await runPollLoop<"ok" | "unauthorized" | "error">({
     tick: deps.beat,
     onOutcome: async (outcome) => {
-      if (outcome === "unauthorized") {
-        await deps.reRegister();
+      if (outcome !== "unauthorized") {
+        return;
       }
+
+      await deps.reRegister();
     },
     delayFor: () => deps.intervalMs,
     sleep: deps.sleep,

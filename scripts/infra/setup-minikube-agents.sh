@@ -162,16 +162,16 @@ fi
 # that has been used before is the normal case, not the exception. Anything an earlier
 # install left behind — the subsystem's own `deploy/` manifests, a catalog someone
 # kubectl-applied, a release that was uninstalled while `resource-policy: keep` held its
-# CRs — carries no Helm ownership metadata, and helm's default is to abort on the first
+# CRs, the old Helm catalog seed's objects — carries no Helm ownership metadata, and helm's default is to abort on the first
 # such object with a wall of label/annotation text that never names the cause. Adopting
 # is also the better end state: the adopted object is immediately overwritten with this
 # chart's version, which is the whole point of running the bootstrap. Without it a
-# developer clears one class of object per run (controller, then RBAC, then 26 catalog
-# CRs …) with no way to see how many rounds are left.
+# developer clears one class of object per run (controller, then RBAC, …) with no way
+# to see how many rounds are left. The catalog CRs are not this chart's: the host-run
+# cluster-agent's sync writes them once it registers (scripts/dev-local.sh).
 helm upgrade --install ai-agents "$CHART_DIR" \
   --namespace "$NAMESPACE" \
   -f "$CHART_DIR/values.minikube.yaml" \
-  --set-string "agentLlmSecretKey=$LLM_SECRET_KEY" \
   --take-ownership \
   --wait --timeout 5m \
   || fail "helm upgrade failed — check 'kubectl -n $NAMESPACE get pods'"

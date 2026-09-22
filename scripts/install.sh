@@ -25,8 +25,21 @@ require_cmd() {
 # --- Pre-flight checks -------------------------------------------------------
 CURRENT_STEP="pre-flight checks"
 require_cmd git "Install git from https://git-scm.com"
-require_cmd node "Install Node.js >= 18 from https://nodejs.org"
+require_cmd node "Install Node.js >= 22 from https://nodejs.org"
 require_cmd npm "npm ships with Node.js – check your Node.js installation"
+
+# The MCP server is compiled for ES2023 and package.json requires Node >= 22; an older Node would start and then crash on the first ES2023 method.
+require_node_major() {
+  local min="$1"
+  local major
+  major="$(node -p 'process.versions.node.split(".")[0]')"
+  if [ "$major" -lt "$min" ]; then
+    echo "[lore] Error: Node.js >= $min is required, found $(node -v)."
+    echo "  Hint: install Node.js $min or newer from https://nodejs.org"
+    return 1
+  fi
+}
+require_node_major 22
 
 LORE_DIR="$HOME/.re-cinq/lore"
 LORE_REPO_URL="${LORE_REPO_URL:-git@github.com:re-cinq/lore.git}"

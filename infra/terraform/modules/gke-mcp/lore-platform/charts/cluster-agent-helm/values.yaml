@@ -77,11 +77,10 @@ claim:
   identitySecretName: lore-cluster-agent-identity
 
 # The per-cluster values the catalog sync loop renders into AgentDefinition/
-# Station CRs — everything the retired Helm catalog-seed hook used to template
-# into the committed seed (agent-crd.ts CatalogCrdOptions). Empty OMITS the
-# block it feeds, which is exactly right on a satellite that has no MCP
-# gateway, events sink or skills registry (the standalone chart leaves them
-# empty). Defaults mirror the ai-agents-helm values the seed rendered with.
+# Station CRs (agent-crd.ts CatalogCrdOptions). The loop is the cluster's only
+# catalog writer; there is no chart-side seed. Empty OMITS the block it feeds,
+# which is exactly right on a satellite that has no MCP gateway, events sink or
+# skills registry (the standalone chart's `catalog:` defaults).
 catalog:
   # Declared, never inferred: `full` REFUSES TO BOOT unless eventsUrl, mcpUrl
   # and skillsUrl are all set — a full cluster rendering the bare (satellite)
@@ -111,15 +110,6 @@ catalog:
   # the deploy script may override the tag alongside the stations image).
   stationImage: ghcr.io/re-cinq/lore-station:latest
   dgraphUrl: http://lore-dgraph-alpha.lore-dgraph.svc.cluster.local:8080
-  # CUTOVER (2026-09-01): the ai-agents chart's catalog-seed hook is off
-  # (seedCatalog: false), so this loop now owns every catalog CR — including
-  # the ones the seed left labeled `lore-catalog-seed`. Verified before the
-  # flip by rendering all 28 org definitions with this cluster's env and
-  # diffing against the live seed CRs: the only differences were the
-  # description wording and one newline before {context} (a Helm `{{-` chomp
-  # artifact in the seed; the sync render matches the generator's intent).
-  # Set back to false only alongside re-enabling seedCatalog.
-  ownSeeded: true
 
 # Stream run-pod stdout to the bus as it happens (LORE_POD_LOG_STREAMING). OFF
 # by default: this is the input that puts log VOLUME on pipeline.events. The

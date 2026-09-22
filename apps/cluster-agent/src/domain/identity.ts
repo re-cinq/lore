@@ -10,7 +10,9 @@ export interface IdentityStore {
   save(identity: ClusterAgentIdentity): Promise<void>;
 }
 
-/** Where the identity persists — decided at boot so a half-configured Secret store refuses to start instead of idling behind a green /healthz. */
-export type IdentityStoreConfig =
-  | { kind: "file"; path: string }
-  | { kind: "secret"; name: string; namespace: string; key: string };
+/** The Secret the identity persists in — decided at boot so a half-configured store refuses to start instead of idling behind a green /healthz. */
+export interface IdentityStoreConfig {
+  name: string;
+  namespace: string;
+  key: string;
+}

@@ -2,7 +2,6 @@
 
 import type { PipelineTask } from "@re-cinq/lore-shared";
 import type { Project } from "@re-cinq/lore-shared";
-import { getTaskTypeConfig } from "../../outbound/config.js";
 import { settings } from "../../outbound/queues.js";
 import { slugify } from "./task-helpers.js";
 import { projectFor } from "../../outbound/project-boot.js";
@@ -39,7 +38,7 @@ export async function resolveTaskPlan(
     repoOverrides,
     agentDef,
     branchName: resolveBranchName(task, contextBundle),
-    model: resolveModel(agentDef, repoOverrides, task.task_type),
+    model: resolveModel(agentDef, repoOverrides),
     darkFactoryEnabled: repoSettings.dark_factory?.enabled === true,
   };
 }
@@ -77,20 +76,15 @@ function resolveBranchName(
   );
 }
 
-/** The resolved agent definition wins, then legacy per-repo overrides, then the task-type config. */
+/** The resolved agent definition wins, then legacy per-repo overrides. */
 function resolveModel(
   agentDef: Awaited<ReturnType<Project["agentDefs"]["resolve"]>> | null,
   repoOverrides: { model?: string } | undefined,
-  taskType: string,
 ): string | undefined {
-  return (
-    agentDef?.model ||
-    repoOverrides?.model ||
-    getTaskTypeConfig(taskType)?.model
-  );
+  return agentDef?.model || repoOverrides?.model;
 }
 
-/** Resolved project → org → yaml through the one project.agentDefs seam; an unreadable definition is a missing one, not a failed task. */
+/** Resolved project → org through the one project.agentDefs seam; an unreadable definition is a missing one, not a failed task. */
 async function resolveAgentDef(
   project: Awaited<ReturnType<typeof projectFor>>,
   taskType: string,

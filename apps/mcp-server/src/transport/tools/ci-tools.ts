@@ -83,7 +83,7 @@ export function registerCiTools(server: McpServer) {
 function registerGetCiFailuresTool(server: McpServer) {
   server.tool(
     "lore_get_ci_failures",
-    "What CI said about a branch: the sha it judged (the newest commit not marked [skip ci]), the conclusion (success | failure | pending | none), and every failed check with its annotations (path:line message — the file to open), the steps that failed, and the failing step's log tail. Call this before reproducing any build: CI already ran it. Instead: lore_get_ci_job_log for more of one job's log; lore_get_pr_status for the pull request's review state.",
+    "What CI said about a branch: the sha it judged (the newest commit not marked [skip ci]), the conclusion (success | failure | pending | none), and every failed check with its annotations (path:line message — the file to open), the steps that failed, and the failing step's log tail. A failure's `unreadable` lists the reads GitHub refused, as `what (status)`: an empty part beside an entry there could not be read, which is a permission gap to report and not a silent job. Call this before reproducing any build: CI already ran it. Instead: lore_get_ci_job_log for more of one job's log; lore_get_pr_status for the pull request's review state.",
     CI_FAILURES_INPUT,
     ciFailuresHandler,
   );

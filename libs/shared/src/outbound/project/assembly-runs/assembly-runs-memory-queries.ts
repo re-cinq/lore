@@ -36,10 +36,20 @@ function matchesTaskAndTiming(
   query: AssemblyRunQuery,
 ): boolean {
   return (
-    (query.taskId === undefined || row.taskId === query.taskId) &&
+    matchesTaskAndBranch(row, query) &&
     (query.prNumber === undefined ||
       Number(row.args.pr_number) === query.prNumber) &&
     (query.createdAfter === undefined || row.createdAt >= query.createdAfter)
+  );
+}
+
+function matchesTaskAndBranch(
+  row: AssemblyRunRecord,
+  query: AssemblyRunQuery,
+): boolean {
+  return (
+    (query.taskId === undefined || row.taskId === query.taskId) &&
+    (query.branch === undefined || row.branch === query.branch)
   );
 }
 

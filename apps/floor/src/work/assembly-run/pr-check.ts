@@ -1,62 +1,82 @@
-/** Maps an assembly-line row + node walk rows to a GitHub check run (generic, keyed off `args.pr_number`+`args.head_sha`), which also blocks merge while `in_progress` if the repo makes it a required status check. */
+/** Maps an assembly-line row + node walk rows to a GitHub check run on its pull request (keyed off `args.pr_number`), which also blocks merge while `in_progress` if the repo makes it a required status check. */
 
 import type {
+  AssemblyRunsPort,
   StationRunRecord,
   AssemblyRunRecord,
 } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import type { CheckRunInput } from "@re-cinq/lore-shared/project/lib/github-port.js";
+import type { PullRef } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
+import {
+  checkDisplayName,
+  loreCheckName,
+} from "@re-cinq/lore-shared/project/pulls/check-runs.js";
 import { writeAuditLog } from "../../outbound/audit.js";
+import { projectFor } from "../../outbound/project-boot.js";
 import { isFailureOutcome } from "./notify-failure.js";
 import {
   isReviewDefinition,
   REVIEW_RERUN_HINT,
 } from "@re-cinq/lore-shared/review/review-definitions.js";
 
-/** The repo-bound surface the publisher writes through (project.repo). */
-export interface CheckPublisher {
-  upsertCheckRun(input: CheckRunInput): Promise<void>;
+/** The repo-bound surfaces a publish reads and writes through. */
+export interface CheckPorts {
+  repo: { upsertCheckRun(input: CheckRunInput): Promise<void> };
+  pulls: { get(number: number): Promise<PullRef | null> };
+  assemblyRuns: Pick<AssemblyRunsPort, "mergeArgs">;
 }
 
-/** The fast per-push re-check publishes under the deep review's check name so a required `lore/code-review` branch-protection check is refreshed on every push, not stranded under a separate name. */
-const CHECK_NAME_ALIAS: Record<string, string> = {
-  "code-review-recheck": "code-review",
-};
+/** Runs whose pull request outlives any one commit: every round pushes, so the check follows the PR's live head instead of an `args.head_sha` stamped at start. */
+const HEAD_FOLLOWING_BLUEPRINTS = new Set(["implementation-loop"]);
 
-export function checkName(blueprintName: string): string {
-  return CHECK_NAME_ALIAS[blueprintName] ?? blueprintName;
+/** Where a check lands and what it links to. */
+export interface CheckContext {
+  uiUrl?: string;
+  /** The pull request's current head, read only for runs that follow it. */
+  liveHeadSha?: string | null;
 }
 
 export function assemblyLineCheck(
   line: AssemblyRunRecord,
   nodes: readonly StationRunRecord[],
-  uiUrl?: string,
+  context: CheckContext = {},
 ): CheckRunInput | null {
   const prNumber = Number(line.args.pr_number);
+  const headSha = checkHeadSha(line, context.liveHeadSha);
 
-  if (!prNumber || !headShaArg(line)) {
+  if (!prNumber || !headSha) {
     return null;
   }
 
-  return { ...checkIdentity(line, uiUrl), ...checkState(line, nodes) };
+  return {
+    ...checkIdentity(line, headSha, context.uiUrl),
+    ...checkState(line, nodes),
+  };
+}
+
+function checkHeadSha(
+  line: AssemblyRunRecord,
+  liveHeadSha: string | null | undefined,
+): string {
+  if (followsPrHead(line)) {
+    return liveHeadSha ?? "";
+  }
+
+  return typeof line.args.head_sha === "string" ? line.args.head_sha : "";
 }
 
 /** The fields that name the check run and point back at the run page. */
 function checkIdentity(
   line: AssemblyRunRecord,
+  headSha: string,
   uiUrl?: string,
 ): Pick<CheckRunInput, "headSha" | "name" | "title" | "detailsUrl"> {
-  const displayName = checkName(line.blueprintName);
-
   return {
-    headSha: headShaArg(line),
-    name: `lore/${displayName}`,
-    title: `Lore ${displayName}`,
+    headSha,
+    name: loreCheckName(line.blueprintName),
+    title: `Lore ${checkDisplayName(line.blueprintName)}`,
     ...(uiUrl ? { detailsUrl: `${uiUrl}/assembly-runs/${line.id}` } : {}),
   };
-}
-
-function headShaArg(line: AssemblyRunRecord): string {
-  return typeof line.args.head_sha === "string" ? line.args.head_sha : "";
 }
 
 /** Whether the check is still running, and what it concluded once it is not. */
@@ -65,13 +85,40 @@ function checkState(
   nodes: readonly StationRunRecord[],
 ): Pick<CheckRunInput, "status" | "conclusion" | "summary"> {
   if (line.status === "queued" || line.status === "running") {
-    return {
-      status: "in_progress",
-      summary: `Running — ${line.blueprintName}.`,
-    };
+    return { ...runningText(line, nodes), status: "in_progress" };
   }
 
   return { ...terminal(line, nodes), status: "completed" };
+}
+
+/** A running check names the step in flight, so the PR's checks list reads as the run's progress. */
+function runningText(
+  line: AssemblyRunRecord,
+  nodes: readonly StationRunRecord[],
+): Pick<CheckRunInput, "summary"> & Partial<Pick<CheckRunInput, "title">> {
+  const running = `Running — ${line.blueprintName}.`;
+  const step = nodes.filter((node) => node.outcome === null).at(-1);
+
+  if (!step) {
+    return { summary: running };
+  }
+  const description = stepDescription(line, step.nodeId);
+  const at = `Now at \`${step.nodeId}\` (visit ${step.iteration})`;
+
+  return {
+    ...(description ? { title: description } : {}),
+    summary: `${running}\n\n${at}${description ? `: ${description}` : "."}`,
+  };
+}
+
+/** What the run's graph says step `nodeId` does. */
+function stepDescription(
+  line: AssemblyRunRecord,
+  nodeId: string,
+): string | undefined {
+  const graphNodes = line.graph?.nodes ?? [];
+
+  return graphNodes.find((graphNode) => graphNode.id === nodeId)?.description;
 }
 
 type TerminalResult = {
@@ -93,6 +140,16 @@ function terminal(
     return { conclusion: "cancelled", summary: "PR closed." };
   }
 
+  return isReviewDefinition(line.blueprintName)
+    ? reviewVerdict(line, nodes)
+    : { conclusion: "success", summary: "Finished." };
+}
+
+/** A review that finished: its verdict, read off the node rows. */
+function reviewVerdict(
+  line: AssemblyRunRecord,
+  nodes: readonly StationRunRecord[],
+): TerminalResult {
   if (hasChangesRequested(line, nodes)) {
     return {
       conclusion: "neutral",
@@ -145,24 +202,125 @@ function latestNodeOutcomes(nodes: readonly StationRunRecord[]): string[] {
   return [...latest.values()].map((node) => node.outcome ?? "");
 }
 
+/** The check a run left on the head it last published to, closed now that the pull request has moved on — otherwise every earlier commit keeps a check in progress forever. */
+export function supersededCheck(
+  line: AssemblyRunRecord,
+  check: CheckRunInput,
+): CheckRunInput | null {
+  const previous = line.args.pr_check_sha;
+
+  if (typeof previous !== "string" || previous === check.headSha) {
+    return null;
+  }
+
+  return {
+    ...check,
+    headSha: previous,
+    status: "completed",
+    conclusion: "neutral",
+    title: "Superseded",
+    summary: `The pull request moved on to ${check.headSha}; this run reports there now.`,
+  };
+}
+
+/** What publishing a run's check reads and records on the run. */
+type RunCheckReads = Pick<
+  AssemblyRunsPort,
+  "getById" | "listStationRuns" | "mergeArgs"
+>;
+
+/** Publishes the run's check on its pull request, if it has one. Never throws: the check is a view of the walk, not part of it. */
+export async function publishRunCheck(
+  assemblyRunId: string,
+  assemblyRuns: RunCheckReads,
+): Promise<void> {
+  try {
+    await publishLoadedRunCheck(assemblyRunId, assemblyRuns);
+  } catch (err) {
+    console.warn(
+      `[pr-check] run ${assemblyRunId} not published:`,
+      (err as Error).message,
+    );
+  }
+}
+
+/** Reads the run and its visits, and publishes when it has a pull request. */
+async function publishLoadedRunCheck(
+  assemblyRunId: string,
+  assemblyRuns: RunCheckReads,
+): Promise<void> {
+  const [line, nodes] = await Promise.all([
+    assemblyRuns.getById(assemblyRunId),
+    assemblyRuns.listStationRuns(assemblyRunId),
+  ]);
+
+  if (!line || !(Number(line.args.pr_number) > 0)) {
+    return;
+  }
+  const project = await projectFor(line.repo);
+
+  await publishPrCheck(
+    { repo: project.repo, pulls: project.pulls, assemblyRuns },
+    line,
+    nodes,
+    process.env.LORE_UI_URL,
+  );
+}
+
 /** Best-effort publish — a check failure (e.g. missing `checks: write`) never fails the line. */
 export async function publishPrCheck(
-  repo: CheckPublisher,
+  ports: CheckPorts,
   line: AssemblyRunRecord,
   nodes: readonly StationRunRecord[],
   uiUrl?: string,
 ): Promise<void> {
-  const check = assemblyLineCheck(line, nodes, uiUrl);
+  try {
+    await publishCurrentCheck(ports, line, nodes, uiUrl);
+  } catch (err) {
+    await recordPublishFailure(
+      line,
+      loreCheckName(line.blueprintName),
+      err as Error,
+    );
+  }
+}
+
+/** Closes the previous head's check when the head moved, publishes on the current one, and remembers which head that was. */
+async function publishCurrentCheck(
+  ports: CheckPorts,
+  line: AssemblyRunRecord,
+  nodes: readonly StationRunRecord[],
+  uiUrl?: string,
+): Promise<void> {
+  const liveHeadSha = await liveHeadShaOf(ports, line);
+  const check = assemblyLineCheck(line, nodes, { uiUrl, liveHeadSha });
 
   if (!check) {
     return;
   }
+  const superseded = supersededCheck(line, check);
 
-  try {
-    await repo.upsertCheckRun(check);
-  } catch (err) {
-    await recordPublishFailure(line, check.name, err as Error);
+  if (superseded) {
+    await ports.repo.upsertCheckRun(superseded);
   }
+  await ports.repo.upsertCheckRun(check);
+
+  if (liveHeadSha && line.args.pr_check_sha !== liveHeadSha) {
+    await ports.assemblyRuns.mergeArgs(line.id, { pr_check_sha: liveHeadSha });
+  }
+}
+
+/** The pull request's head right now — read only for runs whose check follows it. */
+async function liveHeadShaOf(
+  ports: CheckPorts,
+  line: AssemblyRunRecord,
+): Promise<string | null> {
+  if (!followsPrHead(line)) {
+    return null;
+  }
+  const pr = await ports.pulls.get(Number(line.args.pr_number));
+
+  return pr?.headSha ?? null;
 }
 
 /** Non-fatal but never silent: "Resource not accessible by integration" means the App is missing `checks`, so the merge gate is absent, not clean. */
@@ -182,4 +340,8 @@ async function recordPublishFailure(
       error: err.message,
     },
   });
+}
+
+function followsPrHead(line: AssemblyRunRecord): boolean {
+  return HEAD_FOLLOWING_BLUEPRINTS.has(line.blueprintName);
 }

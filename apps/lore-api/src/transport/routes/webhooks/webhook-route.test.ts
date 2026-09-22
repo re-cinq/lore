@@ -31,6 +31,7 @@ const goodHook = {
     "check_suite",
     "issue_comment",
     "issues",
+    "repository",
   ],
   config: { url: URL },
   last_response: { code: 200, status: "ok" },

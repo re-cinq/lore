@@ -1,7 +1,7 @@
 import type { PipelineTask } from "@re-cinq/lore-shared";
 
 import { projectFor } from "../../outbound/project-boot.js";
-import { buildPrompt, getTaskTypeConfig } from "../../outbound/config.js";
+import { defaultTaskPrompt } from "../../outbound/config.js";
 import { agentPrompt } from "../../outbound/agent-invocation.js";
 import { ensureTaskBranch } from "./ensure-task-branch.js";
 import type {
@@ -53,7 +53,7 @@ function agentRunSpec(input: ClaudeCodeTaskInput): AgentRunOpts {
     prompt: agentPrompt(
       promptOverride(agentDef),
       task.description,
-      buildPrompt(task.task_type, task.description),
+      defaultTaskPrompt(task.description),
     ),
     branch: branchName,
     ...runSettings(input),
@@ -118,30 +118,24 @@ function promptOverride(
 
 /** The knobs a repo can turn: model, timeout, image, and the dark-factory block. The default model is named here rather than in a recipe, so a task type with no agent-definition row still dispatches. */
 function runSettings(input: ClaudeCodeTaskInput) {
-  const { task, model, repoOverrides, darkFactory, image, agentDef } = input;
+  const { model, repoOverrides, darkFactory, image, agentDef } = input;
 
   return {
     model: model || "claude-sonnet-4-6",
-    timeoutMinutes: resolveTimeoutMinutes(
-      agentDef,
-      repoOverrides,
-      task.task_type,
-    ),
+    timeoutMinutes: resolveTimeoutMinutes(agentDef, repoOverrides),
     ...optionalImage(image),
     ...optionalDarkFactory(darkFactory),
   };
 }
 
-/** Agent-definition timeout wins, then the repo override, then the task-type default, then a flat fallback. */
+/** Agent-definition timeout wins, then the repo override, then a flat fallback. */
 function resolveTimeoutMinutes(
   agentDef: ClaudeCodeTaskInput["agentDef"],
   repoOverrides: ClaudeCodeTaskInput["repoOverrides"],
-  taskType: string,
 ): number {
   const candidates: (number | null | undefined)[] = [
     agentDef?.timeout_minutes,
     repoOverrides?.timeout_minutes as number | undefined,
-    getTaskTypeConfig(taskType)?.timeout_minutes,
   ];
 
   return candidates.find((value) => Boolean(value)) ?? 30;
