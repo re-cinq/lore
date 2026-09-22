@@ -92,26 +92,21 @@ describe("specToAgent", () => {
     expect(agent.spec?.parameters?.prompt).toBe("Review PR #7 on this branch.");
   });
 
-  it("hands the pod plan.md to download from the Floor with the sink's credential, and no files field when there is none", () => {
-    const withFile = specToAgent({
+  it("hands the pod plan.md to download from this cluster's files endpoint with the sink's credential, and no files without an endpoint", () => {
+    const spec = {
       ...baseSpec,
-      files: [
-        {
-          path: "plan.md",
-          url: "https://floor.example/api/agent-files/run-1/plan.md",
-          headersSecret: "agent-events-auth",
-        },
-      ],
-    });
+      files: [{ path: "plan.md", ref: "runs/run-1/plan" }],
+    };
 
     expect({
-      files: withFile.spec?.files,
-      none: "files" in (specToAgent(baseSpec).spec ?? {}),
+      files: specToAgent(spec, undefined, "http://floor:8080/api/agent-files")
+        .spec?.files,
+      none: "files" in (specToAgent(spec).spec ?? {}),
     }).toEqual({
       files: [
         {
           path: "plan.md",
-          url: "https://floor.example/api/agent-files/run-1/plan.md",
+          url: "http://floor:8080/api/agent-files/runs/run-1/plan",
           headers_secret: "agent-events-auth",
         },
       ],

@@ -117,7 +117,11 @@ function registrantOpts(
   return {
     env,
     config,
-    backend: new AgentCrBackend(new KubeAgentApi(), kubeTokenProvisioner()),
+    backend: new AgentCrBackend(
+      new KubeAgentApi(),
+      kubeTokenProvisioner(),
+      env.LORE_AGENT_FILES_URL,
+    ),
     publishTelemetryCredential: publishCredential(env, opts),
     onReRegister: hooks.onReRegister,
     running: hooks.running,

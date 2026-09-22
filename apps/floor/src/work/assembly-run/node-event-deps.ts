@@ -79,10 +79,6 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
         inputs: recipe?.config?.inputs,
       };
     },
-    // The URL the POD must reach, like the conversation registry below: the same host it posts telemetry to.
-    agentFilesUrl: process.env.LORE_FLOOR_POD_URL
-      ? `${process.env.LORE_FLOOR_POD_URL}/api/agent-files`
-      : undefined,
     cleanupToken: cleanupPerTaskToken,
     publishRunCheck: async (assemblyRunId) => {
       const { publishRunCheck } = await import("./pr-check.js");

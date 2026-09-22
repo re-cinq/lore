@@ -35,7 +35,11 @@ import {
 export { renderPodPrompt };
 
 /** Maps a LoreTaskSpec to an `Agent` CR body; the recipe (model/prompt/tools) lives on the resolved Station, per-run carries only parameters (incl. the `{context}` fetch-instruction slot). */
-export function specToAgent(spec: LoreTaskSpec, stationRef?: string): AgentCr {
+export function specToAgent(
+  spec: LoreTaskSpec,
+  stationRef?: string,
+  filesUrl?: string,
+): AgentCr {
   return {
     metadata: {
       name: spec.name || agentCrName(spec.taskId),
@@ -51,18 +55,22 @@ export function specToAgent(spec: LoreTaskSpec, stationRef?: string): AgentCr {
       targetRepo: spec.targetRepo,
       branch: spec.branch,
       parameters: agentParameters(spec),
-      ...inputFiles(spec),
+      ...inputFiles(spec, filesUrl),
     },
   };
 }
 
-function inputFiles(spec: LoreTaskSpec): Pick<AgentSpec, "files"> {
-  return spec.files?.length
+/** The pod's downloads from THIS cluster's agent-files endpoint, with the credential its event sink already uses; a cluster with no endpoint sends none, and its planning file then travels inline. */
+function inputFiles(
+  spec: LoreTaskSpec,
+  filesUrl: string | undefined,
+): Pick<AgentSpec, "files"> {
+  return filesUrl && spec.files?.length
     ? {
-        files: spec.files.map(({ path, url, headersSecret }) => ({
+        files: spec.files.map(({ path, ref }) => ({
           path,
-          url,
-          ...(headersSecret ? { headers_secret: headersSecret } : {}),
+          url: `${filesUrl}/${ref}`,
+          headers_secret: "agent-events-auth",
         })),
       }
     : {};
@@ -102,6 +110,8 @@ export class AgentCrBackend implements StationBackend {
   constructor(
     private readonly api: AgentApi,
     private readonly tokens?: TokenProvisioner,
+    /** This cluster's agent-files endpoint as its pods reach it; unset sends no input files. */
+    private readonly filesUrl?: string,
   ) {}
 
   async launch(spec: LoreTaskSpec): Promise<StationLaunchResult> {
@@ -110,7 +120,7 @@ export class AgentCrBackend implements StationBackend {
         ? await this.tokens.provision(spec)
         : undefined;
     const { name, created } = await this.api.create(
-      specToAgent(spec, stationRef),
+      specToAgent(spec, stationRef, this.filesUrl),
     );
 
     return { ref: name, launched: created };

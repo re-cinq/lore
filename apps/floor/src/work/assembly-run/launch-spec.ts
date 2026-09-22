@@ -39,8 +39,6 @@ export type ResolveRecipeFn = (
 export interface NodeLaunchDeps {
   resolveRecipe: ResolveRecipeFn;
   resolveConversation?: ResolveConversationFn;
-  /** The Floor's agent-files endpoint as a POD reaches it; absent sends no input files. */
-  agentFilesUrl?: string;
 }
 
 export interface NodeLaunchInput {
@@ -285,11 +283,7 @@ export async function resolveNodeDispatch(
     conversation,
     content,
     prompt: recipe?.prompt ?? null,
-    files: inputFilesFor(
-      recipe?.inputs,
-      input.task.assemblyLineId,
-      deps.agentFilesUrl,
-    ),
+    files: inputFilesFor(recipe?.inputs, input.task.assemblyLineId),
   };
 }
 

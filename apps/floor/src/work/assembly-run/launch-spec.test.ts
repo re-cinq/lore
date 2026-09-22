@@ -172,30 +172,22 @@ describe("the files an agent node's pod downloads", () => {
     priorOutcome: null,
   };
 
-  it("hands the analyze pod the run's plan as plan.md from the Floor, with the sink's credential", async () => {
+  it("hands the analyze pod a reference to the run's plan as plan.md", async () => {
     const dispatch = await resolveNodeDispatch(launch, {
       resolveRecipe: async () => ({
         prompt: "Edit plan.md.",
         inputs: [{ path: "plan.md", source: "plan" }],
       }),
-      agentFilesUrl: "http://floor:8080/api/agent-files",
     });
 
     expect(
       nodeLaunchSpec(dispatch, { ...launch, stationRunId: "sr-1" }).files,
-    ).toEqual([
-      {
-        path: "plan.md",
-        url: "http://floor:8080/api/agent-files/runs/run-1/plan",
-        headersSecret: "agent-events-auth",
-      },
-    ]);
+    ).toEqual([{ path: "plan.md", ref: "runs/run-1/plan" }]);
   });
 
   it("hands no files to a pod whose recipe declares none", async () => {
     const dispatch = await resolveNodeDispatch(launch, {
       resolveRecipe: async () => ({ prompt: "Edit plan.md." }),
-      agentFilesUrl: "http://floor:8080/api/agent-files",
     });
 
     expect(

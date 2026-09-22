@@ -18,8 +18,6 @@ export interface AdvanceDeps {
   qualifyStationRef?: (baseRef: string, repo: string) => Promise<string>;
   /** The prompt an agent node's pod renders and the files it downloads, from the RESOLVED recipe for `repo` (project row → org row → yaml) so an Agents-UI edit reaches the pod; strict on an unknown ref (#1329). */
   resolveRecipe: ResolveRecipeFn;
-  /** The Floor's agent-files endpoint as a POD reaches it; absent sends no input files. */
-  agentFilesUrl?: string;
   /** Post-close hook for the implementation loop's driver; winning finisher only, best-effort, optional seam like notifyFailure. */
   onRunClosed?(
     run: AssemblyRunRecord,
