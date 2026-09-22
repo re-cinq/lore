@@ -25,7 +25,7 @@
     "@opentelemetry/sdk-metrics": "^2.11.0",
     "@opentelemetry/sdk-node": "^0.222.0",
     "@opentelemetry/sdk-trace-node": "^2.11.0",
-    "@re-cinq/agent-contracts": "^0.10.11",
+    "@re-cinq/agent-contracts": "^0.11.0",
     "@re-cinq/lore-assembly-lines": "*",
     "@re-cinq/lore-shared": "*",
     "cron-parser": "^5.10.0",

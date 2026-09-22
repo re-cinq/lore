@@ -15,6 +15,7 @@ const fileEvent = (over: Partial<AgentFileEvent> = {}): AgentFileEvent => ({
   path: "target/spec-plan.json",
   content: '{"changes":[]}',
   reason: null,
+  uploaded: false,
   ...over,
 });
 
