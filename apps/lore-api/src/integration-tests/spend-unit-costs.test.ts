@@ -65,12 +65,12 @@ describe("the spend window's unit costs, against real Postgres", () => {
     restoreEnv("LORE_INGEST_TOKEN", prevToken);
   });
 
-  it("sums 3 tickets to 8 USD with a 1.50 USD median, keyed by issue url, loop branch, then description", () => {
+  it("sums 4 tickets to 8.25 USD with a 1 USD median, keyed by issue url, loop branch, then description", () => {
     expect(body.unit_costs.tickets).toEqual({
-      count: 3,
-      total_usd: 8,
-      avg_usd: expect.closeTo(2.6667, 3),
-      median_usd: 1.5,
+      count: 4,
+      total_usd: 8.25,
+      avg_usd: 2.0625,
+      median_usd: 1,
       most: [
         {
           label: "test/spend-units#11",
@@ -85,8 +85,20 @@ describe("the spend window's unit costs, against real Postgres", () => {
           runs: 1,
           cost_usd: 0.5,
         },
+        {
+          label: "Guard against test suites",
+          url: null,
+          runs: 1,
+          cost_usd: 0.25,
+        },
       ],
       least: [
+        {
+          label: "Guard against test suites",
+          url: null,
+          runs: 1,
+          cost_usd: 0.25,
+        },
         {
           label: "test/spend-units#12",
           url: "https://github.com/test/spend-units/issues/12",
@@ -181,10 +193,10 @@ describe("the spend window's unit costs, against real Postgres", () => {
     ]);
   });
 
-  it("totals 9 calls' 8100 cache-read and 360 cache-write tokens", () => {
+  it("totals 10 calls' 9000 cache-read and 400 cache-write tokens", () => {
     expect(body.llm).toMatchObject({
-      cache_read_tokens: 8100,
-      cache_write_tokens: 360,
+      cache_read_tokens: 9000,
+      cache_write_tokens: 400,
     });
   });
 });
@@ -241,6 +253,22 @@ async function seedLaterTickets(fx: Fixture, issued: string): Promise<void> {
     runId: old,
     model: "claude-opus-4-7",
     costUsd: 1.5,
+  });
+  await seedTasklessTicket(fx);
+}
+
+async function seedTasklessTicket(fx: Fixture): Promise<void> {
+  const taskless = await insertRun(fx, {
+    blueprint: "implementation-loop",
+    taskId: null,
+    branch: "lore/implementation-loop/guard-against-test-suites-52ad0e28",
+    args: { description: "Guard against test suites" },
+  });
+
+  await insertCall(fx.pool, {
+    runId: taskless,
+    model: "claude-opus-4-7",
+    costUsd: 0.25,
   });
 }
 

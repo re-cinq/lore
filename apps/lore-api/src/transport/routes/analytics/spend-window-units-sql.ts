@@ -18,13 +18,13 @@ function rankedSlice(direction: "ASC" | "DESC"): string {
                        ORDER BY cost_usd ${direction}, label LIMIT 5) u), '[]'::json)`;
 }
 
-// A ticket is its Issue: the task's issue_url, else the issue-<n> the loop branch names (the same url, so both merge), else the description older runs carry. A call reaches its run by assembly_line_id, or its task alone when it was never attributed to a run.
+// A ticket is its Issue: the task's issue_url, else the issue-<n> the loop branch names (the same url, so both merge), else the description older runs carry — on the task, or in the run's args when it has none. A call reaches its run by assembly_line_id, or its task alone when it was never attributed to a run.
 export const TICKET_COSTS_SQL = rankedUnitsSql(`ticket_calls AS (
   SELECT l.cost_usd, ar.id AS run_id,
          COALESCE(t.issue_url, 'https://github.com/' || COALESCE(ar.repo, t.target_repo)
                   || '/issues/' || substring(ar.branch FROM 'issue-([0-9]+)$')) AS url,
          COALESCE(ar.repo, t.target_repo) AS repo,
-         COALESCE(t.description, 'run ' || ar.id) AS title
+         COALESCE(t.description, ar.args->>'description', ar.branch, 'run ' || ar.id) AS title
     FROM pipeline.llm_calls l
     LEFT JOIN pipeline.assembly_runs ar ON ar.id = l.assembly_line_id
     LEFT JOIN pipeline.tasks t ON t.id = COALESCE(ar.task_id, l.task_id)

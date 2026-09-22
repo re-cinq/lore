@@ -1049,24 +1049,25 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   `pipeline.llm_calls` because it prices the Gemini runs the agent
   transcripts do not. A ticket is the task's `issue_url`, else the
   `issue-<n>` its `implementation-loop` branch names (the same Issue URL, so
-  the two merge), else the task description older runs carry, and it sums
+  the two merge), else the description older runs carry — the task's, or
+  the run's own `args.description` when it has no task — and it sums
   every run of the ticket; the tickets carry their count, total, average and
   median (computed in SQL with `percentile_cont`), plus the five dearest and
-  five cheapest, each linked to its Issue. ([validated by sums 3 tickets to 8 USD with a 1.50 USD median, keyed by issue url, loop branch, then description](apps/lore-api/src/integration-tests/spend-unit-costs.test.ts#L68), [carries what a ticket, a PR review and a node visit cost, lore issue 1648 dearest at 70.27 USD](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L260))
+  five cheapest, each linked to its Issue. ([validated by sums 4 tickets to 8.25 USD with a 1 USD median, keyed by issue url, loop branch, then description](apps/lore-api/src/integration-tests/spend-unit-costs.test.ts#L68), [carries what a ticket, a PR review and a node visit cost, lore issue 1648 dearest at 70.27 USD](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L260))
 
 - **FR-19i.1** A PR review is keyed by repo plus `args.pr_number` and covers every
   `code-review`, `code-review-recheck` and `code-review-reply` run of that
   PR; the reviews carry the same ranked summary per PR, linked to the pull
   request, the average per run of each of the three lines, and their cost
-  by model. ([validated by puts review, recheck and reply of PR 7 on one 1.50 USD PR beside PR 8 at 0.40 USD](apps/lore-api/src/integration-tests/spend-unit-costs.test.ts#L107))
+  by model. ([validated by puts review, recheck and reply of PR 7 on one 1.50 USD PR beside PR 8 at 0.40 USD](apps/lore-api/src/integration-tests/spend-unit-costs.test.ts#L119))
 
 - **FR-19i.2** Per node, each assembly line's nodes carry their visits (one
   `station_runs` row each, reached through `llm_calls.station_run_id`),
-  total, cost per visit and the models that ran them. ([validated by counts tdd-round as 2 visits at 2 USD each on two models, per assembly line](apps/lore-api/src/integration-tests/spend-unit-costs.test.ts#L163))
+  total, cost per visit and the models that ran them. ([validated by counts tdd-round as 2 visits at 2 USD each on two models, per assembly line](apps/lore-api/src/integration-tests/spend-unit-costs.test.ts#L175))
 
 - **FR-19i.3** The metered totals carry the window's prompt-cache reads and writes
   (FR5.1d of the dark-factory spec) beside the uncached input, since a
-  Claude run reads most of its input from the cache. ([validated by totals 9 calls' 8100 cache-read and 360 cache-write tokens](apps/lore-api/src/integration-tests/spend-unit-costs.test.ts#L184), [carries 9000000 cache-read and 250000 cache-write tokens beside the metered totals](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L251))
+  Claude run reads most of its input from the cache. ([validated by totals 10 calls' 9000 cache-read and 400 cache-write tokens](apps/lore-api/src/integration-tests/spend-unit-costs.test.ts#L196), [carries 9000000 cache-read and 250000 cache-write tokens beside the metered totals](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L251))
 
 - **FR-19i.4** `/spend` renders the unit costs in their own "Cost per unit
   of work" band, pilled as an estimate since they are summed from the same
