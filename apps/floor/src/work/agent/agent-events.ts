@@ -42,7 +42,6 @@ export interface LlmCallRow {
   durationMs: number;
 }
 
-
 /** A file declared under `output.watch`, raised by the subsystem on agent exit (`{"kind":"file"}`); `content`/`reason` are mutually exclusive — an undelivered declared artifact still reports, carrying why. */
 export interface AgentFileEvent {
   taskId: string;
