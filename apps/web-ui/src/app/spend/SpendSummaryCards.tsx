@@ -49,6 +49,11 @@ function LoreComputedCards({ llm }: Pick<SummaryCardsProps, "llm">) {
       <StatCard label="API calls" figure={num(llm.calls)} />
       <StatCard label="Input tokens" figure={num(llm.input_tokens)} />
       <StatCard label="Output tokens" figure={num(llm.output_tokens)} />
+      <StatCard label="Cache read tokens" figure={num(llm.cache_read_tokens)} />
+      <StatCard
+        label="Cache write tokens"
+        figure={num(llm.cache_write_tokens)}
+      />
     </>
   );
 }

@@ -64,7 +64,7 @@ day-old data.
    `pipeline.anthropic_cost_daily`; everything current-day comes from
    `pipeline.llm_calls`, which is the only source that can cover today at
    all — and the only one with kind attribution (Anthropic reports by model
-   only). ([validated by `SpendView.test.tsx:270`](apps/web-ui/src/app/spend/SpendView.test.tsx#L338), [`SpendView.test.tsx:352`](apps/web-ui/src/app/spend/SpendView.test.tsx#L352))
+   only). ([validated by `SpendView.test.tsx:270`](apps/web-ui/src/app/spend/SpendView.test.tsx#L365), [`SpendView.test.tsx:352`](apps/web-ui/src/app/spend/SpendView.test.tsx#L379))
 3. **Everything Anthropic has not billed yet is shown as a labeled computed
    line on the billed card** ("billed through 8/18 — + $47.74 over 2 days
    since (Lore-computed)"), never silently summed into the authoritative
@@ -72,7 +72,7 @@ day-old data.
    day: the consequence below makes a cron outage surface as staleness, and
    a line hardcoded to "yesterday — + today" reported a one-day gap through
    an outage of any length, quietly stranding whole days of spend between
-   the two figures. ([validated by `SpendView.test.tsx:329`](apps/web-ui/src/app/spend/SpendView.test.tsx#L381), [`SpendView.test.tsx:390`](apps/web-ui/src/app/spend/SpendView.test.tsx#L390), [`SpendView.test.tsx:396`](apps/web-ui/src/app/spend/SpendView.test.tsx#L396))
+   the two figures. ([validated by `SpendView.test.tsx:329`](apps/web-ui/src/app/spend/SpendView.test.tsx#L408), [`SpendView.test.tsx:390`](apps/web-ui/src/app/spend/SpendView.test.tsx#L417), [`SpendView.test.tsx:396`](apps/web-ui/src/app/spend/SpendView.test.tsx#L423))
 
 ## Consequences
 
@@ -173,4 +173,4 @@ same export the sync reads.
   export has closed through) and by-service/daily tables only when available,
   hiding them entirely until the export has synced; the estimate card stays
   regardless, because the export lags a day or more and the estimate is the
-  only figure that covers "now". ([validated by [`SpendView.test.tsx:241`](apps/web-ui/src/app/spend/SpendView.test.tsx#L241), [`SpendView.test.tsx:252`](apps/web-ui/src/app/spend/SpendView.test.tsx#L252), [`SpendView.test.tsx:277`](apps/web-ui/src/app/spend/SpendView.test.tsx#L277))
+  only figure that covers "now". ([validated by [`SpendView.test.tsx:241`](apps/web-ui/src/app/spend/SpendView.test.tsx#L268), [`SpendView.test.tsx:252`](apps/web-ui/src/app/spend/SpendView.test.tsx#L279), [`SpendView.test.tsx:277`](apps/web-ui/src/app/spend/SpendView.test.tsx#L304))
