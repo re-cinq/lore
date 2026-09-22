@@ -7,6 +7,7 @@ import type {
 import type { AssemblyLine, NodeResult } from "@re-cinq/lore-assembly-lines";
 import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import type { ResolveConversationFn } from "./launch-spec.js";
+import type { ResolveRecipeFn } from "./input-files.js";
 
 export interface AdvanceDeps {
   assemblyRuns: AssemblyRunsPort;
@@ -16,12 +17,8 @@ export interface AdvanceDeps {
   repoSettings: (repo: string) => Promise<Record<string, unknown> | null>;
   /** Catalog base name, project-qualified when the repo overrides it (bare-name collision let repos replace each other's recipe); optional seam, absent means bare/org-default. */
   qualifyStationRef?: (baseRef: string, repo: string) => Promise<string>;
-  /** The prompt an agent node's pod renders, built from the RESOLVED recipe for `repo` (project row → org row → yaml) so an Agents-UI edit reaches the pod; strict on an unknown ref (#1329). */
-  resolvePrompt: (
-    repo: string,
-    promptRef: string,
-    description: string,
-  ) => Promise<string>;
+  /** The prompt an agent node's pod renders and the files it downloads, from the RESOLVED recipe for `repo` (project row → org row → yaml) so an Agents-UI edit reaches the pod; strict on an unknown ref (#1329). */
+  resolveRecipe: ResolveRecipeFn;
   /** Post-close hook for the implementation loop's driver; winning finisher only, best-effort, optional seam like notifyFailure. */
   onRunClosed?(
     run: AssemblyRunRecord,

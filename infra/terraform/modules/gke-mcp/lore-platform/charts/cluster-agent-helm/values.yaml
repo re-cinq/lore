@@ -89,6 +89,11 @@ catalog:
   # the only correct profile here; the standalone satellite chart is bare.
   profile: full
   eventsUrl: http://lore-floor.lore-floor.svc.cluster.local:8080/api/agent-events
+  # The Floor's agent-files endpoint: run pods download their input files from
+  # it (a planning pod's plan.md) and upload watched files to it, with the same
+  # credential as eventsUrl. Empty sends no input files and keeps watched files
+  # inline in the event.
+  filesUrl: http://lore-floor.lore-floor.svc.cluster.local:8080/api/agent-files
   # In-cluster URLs (same host the retired Helm seed rendered): the run-pod
   # NetworkPolicy's gateway carve-out must keep matching these.
   mcpUrl: http://lore-mcp-gateway.lore-api.svc.cluster.local:8080/mcp

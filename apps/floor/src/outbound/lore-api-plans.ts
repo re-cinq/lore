@@ -1,29 +1,36 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { PlanWriter } from "../domain/plan-writer.js";
 
-const TIMEOUT_MS = 30_000;
+// A multi-megabyte plan moves in both directions, so the budget is a transfer's, not a JSON call's.
+const TIMEOUT_MS = 120_000;
 
-/** lore-api's plan writes (ADR-047) with the Floor's service token; a refusal throws with lore-api's own problem detail. */
+/** lore-api's plan file routes (ADR-047) with the Floor's service token; a refusal throws with lore-api's own problem detail. */
 export function loreApiPlans(baseUrl: string, token: string): PlanWriter {
-  const post = (path: string, body: object) =>
-    postToPlans(baseUrl, token, path, body);
+  const request = (path: string, init: RequestInit) =>
+    requestPlans(baseUrl, token, path, init);
 
   return {
-    applyOps: (planId, body) => post(`${planId}/agent-edits`, body),
-    propose: (planId, body) => post(`${planId}/proposals`, body),
+    markdownOf: async (planId) =>
+      (await request(`${planId}/markdown`, { method: "GET" })).text(),
+    submitFile: async (planId, body) => {
+      await request(`${planId}/agent-file`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    },
   };
 }
 
-async function postToPlans(
+async function requestPlans(
   baseUrl: string,
   token: string,
   path: string,
-  body: object,
-): Promise<void> {
+  init: RequestInit,
+): Promise<Response> {
   const res = await fetch(`${baseUrl}/api/plans/${path}`, {
-    method: "POST",
-    headers: jsonHeaders(token),
-    body: JSON.stringify(body),
+    ...init,
+    headers: { ...init.headers, authorization: `Bearer ${token}` },
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
   const refusal = res.ok ? "" : await res.text();
@@ -33,11 +40,6 @@ async function postToPlans(
     Error,
     `lore-api answered ${res.status} to ${path}: ${refusal}`,
   );
-}
 
-function jsonHeaders(token: string): Record<string, string> {
-  return {
-    authorization: `Bearer ${token}`,
-    "content-type": "application/json",
-  };
+  return res;
 }

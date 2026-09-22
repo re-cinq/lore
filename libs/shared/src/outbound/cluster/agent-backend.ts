@@ -1,6 +1,10 @@
 // AgentCrBackend (ADR-031): a StationBackend running a task as an `Agent` CR on the ai-agent-subsystem; K8s IO is behind AgentApi (pure/testable mapping). Async: `launch` omits `completion` — agent-watcher (#684) resolves it later; re-launch of the same task id is idempotent.
 
-import { isTerminal, type Agent as AgentCr } from "@re-cinq/agent-contracts";
+import {
+  isTerminal,
+  type Agent as AgentCr,
+  type AgentSpec,
+} from "@re-cinq/agent-contracts";
 import type { LoreTaskSpec } from "../project/agents/k8s-port.js";
 import type {
   StationBackend,
@@ -31,24 +35,49 @@ import {
 export { renderPodPrompt };
 
 /** Maps a LoreTaskSpec to an `Agent` CR body; the recipe (model/prompt/tools) lives on the resolved Station, per-run carries only parameters (incl. the `{context}` fetch-instruction slot). */
-export function specToAgent(spec: LoreTaskSpec, stationRef?: string): AgentCr {
+export function specToAgent(
+  spec: LoreTaskSpec,
+  stationRef?: string,
+  filesUrl?: string,
+): AgentCr {
   return {
-    metadata: {
-      name: spec.name || agentCrName(spec.taskId),
-      labels: {
-        [TASK_ID_LABEL]: spec.taskId,
-        [TASK_TYPE_LABEL]: spec.taskType,
-        ...spec.extraLabels,
-      },
-    },
+    metadata: agentMetadata(spec),
     spec: {
       stationRef: resolveStationRef(spec, stationRef),
       taskId: spec.taskId,
       targetRepo: spec.targetRepo,
       branch: spec.branch,
       parameters: agentParameters(spec),
+      ...inputFiles(spec, filesUrl),
     },
   };
+}
+
+function agentMetadata(spec: LoreTaskSpec): AgentCr["metadata"] {
+  return {
+    name: spec.name || agentCrName(spec.taskId),
+    labels: {
+      [TASK_ID_LABEL]: spec.taskId,
+      [TASK_TYPE_LABEL]: spec.taskType,
+      ...spec.extraLabels,
+    },
+  };
+}
+
+/** The pod's downloads from THIS cluster's agent-files endpoint, with the credential its event sink already uses; a cluster with no endpoint sends none, and its planning file then travels inline. */
+function inputFiles(
+  spec: LoreTaskSpec,
+  filesUrl: string | undefined,
+): Pick<AgentSpec, "files"> {
+  return filesUrl && spec.files?.length
+    ? {
+        files: spec.files.map(({ path, ref }) => ({
+          path,
+          url: `${filesUrl}/${ref}`,
+          headers_secret: "agent-events-auth",
+        })),
+      }
+    : {};
 }
 
 /** Deterministic per-task Agent name, so a re-launch is idempotent (409). */
@@ -85,6 +114,8 @@ export class AgentCrBackend implements StationBackend {
   constructor(
     private readonly api: AgentApi,
     private readonly tokens?: TokenProvisioner,
+    /** This cluster's agent-files endpoint as its pods reach it; unset sends no input files. */
+    private readonly filesUrl?: string,
   ) {}
 
   async launch(spec: LoreTaskSpec): Promise<StationLaunchResult> {
@@ -93,7 +124,7 @@ export class AgentCrBackend implements StationBackend {
         ? await this.tokens.provision(spec)
         : undefined;
     const { name, created } = await this.api.create(
-      specToAgent(spec, stationRef),
+      specToAgent(spec, stationRef, this.filesUrl),
     );
 
     return { ref: name, launched: created };

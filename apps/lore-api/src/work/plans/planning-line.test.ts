@@ -106,6 +106,7 @@ describe("startDrafting on a plan whose line waits on its people", () => {
             round_feedback: expect.stringContaining(
               'Draft the plan "Faster checkout"',
             ),
+            refine: null,
           },
         },
       ],
@@ -131,8 +132,9 @@ describe("askRefine", () => {
         outcome: "changes_requested",
         args: {
           round_feedback: expect.stringContaining(
-            "Refine only the section intent",
+            'Refine only the section "Intent"',
           ),
+          refine: { slot: "intent", baseHash: "3f9a", uses: {} },
         },
       },
     ]);
@@ -170,6 +172,7 @@ describe("handOverApproved", () => {
             'The approved plan "Faster checkout"',
           ),
           round_feedback: null,
+          refine: null,
         },
       },
     ]);

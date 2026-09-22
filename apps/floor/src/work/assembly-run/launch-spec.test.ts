@@ -1,11 +1,14 @@
 import { describe, it, expect } from "vitest";
 import {
   incomingFailureOf,
+  nodeLaunchSpec,
   priorFailuresOf,
   priorOutcomeOf,
+  resolveNodeDispatch,
   withIncomingFailure,
   withPriorFailures,
 } from "./launch-spec.js";
+import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 
 const visit = (
   nodeId: string,
@@ -146,5 +149,52 @@ describe("withPriorFailures", () => {
     expect(out).toContain("attempt-4:");
     expect(out).toContain("...(truncated)");
     expect(out.length).toBeLessThan(3 * 2700 + 600);
+  });
+});
+
+describe("the files an agent node's pod downloads", () => {
+  const analyze: RunGraphNode = {
+    id: "analyze",
+    type: "agent",
+    station: "feature-planning",
+    station_inherited: true,
+    prompt_ref: "feature-planning",
+  };
+  const launch = {
+    node: analyze,
+    task: {
+      taskId: "t1",
+      pipelineTaskId: "t1",
+      assemblyLineId: "run-1",
+      taskType: "feature-planning",
+      description: "Draft the plan.",
+      targetRepo: "re-cinq/lore",
+      branch: "lore/feature-planning/p1",
+    },
+    iteration: 1,
+    priorOutcome: null,
+  };
+
+  it("hands the analyze pod a reference to the run's plan as plan.md", async () => {
+    const dispatch = await resolveNodeDispatch(launch, {
+      resolveRecipe: async () => ({
+        prompt: "Edit plan.md.",
+        inputs: [{ path: "plan.md", source: "plan" }],
+      }),
+    });
+
+    expect(
+      nodeLaunchSpec(dispatch, { ...launch, stationRunId: "sr-1" }).files,
+    ).toEqual([{ path: "plan.md", ref: "runs/run-1/plan" }]);
+  });
+
+  it("hands no files to a pod whose recipe declares none", async () => {
+    const dispatch = await resolveNodeDispatch(launch, {
+      resolveRecipe: async () => ({ prompt: "Edit plan.md." }),
+    });
+
+    expect(
+      nodeLaunchSpec(dispatch, { ...launch, stationRunId: "sr-1" }).files,
+    ).toBeUndefined();
   });
 });

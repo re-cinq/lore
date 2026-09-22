@@ -29,6 +29,8 @@ export interface LoreTaskSpec {
   roundFeedback?: string;
   /** The task whose run this one continues (rewind); absent means "continue the newest". */
   resumeFromTask?: string;
+  /** Files the pod downloads into its workspace before the agent starts, as refs relative to the executing cluster's agent-files endpoint — references only, so an input of any size never rides the Agent object. */
+  files?: Array<{ path: string; ref: string }>;
   /** A previous run this one continues (ai-agent-subsystem#188), resolved at dispatch from the node's `continues` declaration; absent when none or a retry. */
   conversation?: {
     source: string;

@@ -162,8 +162,9 @@ function makeDeps(port: InMemoryAssemblyRuns) {
         ["push-then-wait", pushThenWait],
       ]),
     repoSettings: async () => null,
-    resolvePrompt: async (_repo, promptRef, description) =>
-      `${promptRef}::${description}`,
+    resolveRecipe: async (_repo, promptRef, description) => ({
+      prompt: `${promptRef}::${description}`,
+    }),
     cleanupToken: async (runTaskId) => {
       cleaned.push(runTaskId);
     },

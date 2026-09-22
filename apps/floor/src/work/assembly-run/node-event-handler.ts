@@ -1,6 +1,6 @@
 // Layer-3 handler for `kubernetes.agent_node.{succeeded,failed}` (FR6): parse outcome, record (CAS), advance the line. Since FR4's follow-up the event may already carry the CR's status (`params.status`, from cluster-agent); only an older cluster-agent's event falls through to the central read + reaper handoff.
 
-import { roundHandoffArgsOf } from "./launch-spec.js";
+import { roundHandoffArgsOf } from "./round-handoff.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import {
   stationNodeOutcome,

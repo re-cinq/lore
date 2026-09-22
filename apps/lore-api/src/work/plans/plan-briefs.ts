@@ -1,6 +1,6 @@
-/** What the planning line's agents are told about a plan: the plan's own JSON projection, framed for the step that reads it. Output formats live in the recipes, not here. */
+/** What the planning line's agents are told about a plan. The plan itself reaches them as the plan.md their pod downloads, so a brief names the file and never carries its content — a plan of any size keeps the prompt small. Output formats live in the recipes, not here. */
 
-/** The plan as the agents see it: the planning-sync JSON projection. */
+/** The plan as the briefs name it. */
 export interface PlanView {
   title: string;
 }
@@ -14,47 +14,23 @@ export interface RefineRequest {
   uses: unknown;
 }
 
-/** The first draft: what the author already knows, and the template it lands in. */
+/** The first draft: what the author already knows. */
 export function draftBrief(plan: PlanView, known: string): string {
   return [
-    `Draft the plan "${plan.title}".`,
+    `Draft the plan "${plan.title}" in plan.md.`,
     "",
     "What the author already knows:",
     known.trim() ||
       "(nothing yet — draft from the title and ask what you need)",
-    "",
-    ...asJson("The plan as it stands:", plan),
   ].join("\n");
 }
 
-/** One section's Refine: answered as a proposal the plan's people accept, never a direct write. */
+/** One section's Refine, named by the marker the agent finds it by; the run carries its hash and uses, so the agent copies nothing. */
 export function refineBrief(plan: PlanView, request: RefineRequest): string {
-  return [
-    `Refine only the section ${request.slot} (${request.title}) of "${plan.title}" and answer with a proposal.`,
-    "",
-    ...asJson(
-      "The refine request (copy its slot, baseHash and uses into your proposal):",
-      request,
-    ),
-    "",
-    ...asJson("The plan as it stands:", plan),
-  ].join("\n");
+  return `Refine only the section "${request.title}" (<!-- slot:${request.slot} -->) of plan.md for "${plan.title}". Build on its answered questions and resolved comments, and leave every other section as it is.`;
 }
 
 /** The approved plan, handed to the spec work that follows approval. */
 export function approvedBrief(plan: PlanView): string {
-  return [
-    `The approved plan "${plan.title}". It is settled: map it onto this repository's specs; do not re-open it.`,
-    "",
-    ...asJson(null, plan),
-  ].join("\n");
-}
-
-function asJson(label: string | null, value: unknown): string[] {
-  return [
-    ...(label ? [label] : []),
-    "```json",
-    JSON.stringify(value, null, 2),
-    "```",
-  ];
+  return `The approved plan "${plan.title}" is in plan.md. It is settled: map it onto this repository's specs; do not re-open it.`;
 }

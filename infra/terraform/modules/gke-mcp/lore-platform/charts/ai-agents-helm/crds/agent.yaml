@@ -60,6 +60,25 @@ spec:
                   description: "Per-run values; fill the prompt {placeholder} tokens and pass to the agent."
                   additionalProperties:
                     type: string
+                files:
+                  type: array
+                  description: "Files downloaded into the workspace before the agent starts; only references travel."
+                  items:
+                    type: object
+                    required:
+                      - path
+                      - url
+                    properties:
+                      path:
+                        type: string
+                        description: "Destination, relative to WORKSPACE_DIR; must stay inside it."
+                      url:
+                        type: string
+                        pattern: "^https?://"
+                        description: "http(s) URL the file is downloaded from."
+                      headers_secret:
+                        type: string
+                        description: "Secret key holding the header block sent with the download."
             status:
               type: object
               properties:

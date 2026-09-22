@@ -4,6 +4,8 @@ import { registerPlanningSync } from "@re-cinq/planning-sync/hapi";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { pgPlanStore } from "../outbound/plans/plan-store-pg.js";
+import { livePlanOf } from "../outbound/plans/live-plan.js";
+import { planFileRoutes } from "../transport/routes/plans/plan-file.js";
 import { collabAuthenticator } from "../work/plans/collab-tokens.js";
 import { handOverApproved } from "../work/plans/planning-line.js";
 import {
@@ -22,11 +24,15 @@ export function registerPlanning(
 ): void {
   const pool = livePool(getPool);
 
-  registerPlanningSync(server, {
+  const sync = registerPlanningSync(server, {
     store: pgPlanStore(pool),
     authenticator: collabAuthenticator(pool),
     onApproved: (meta) => startSpecWork(pool, meta),
   });
+
+  server.route(
+    planFileRoutes({ livePlan: livePlanOf(sync), writer: sync.writer }),
+  );
   server.ext("onPreHandler", planRouteGuard(server));
 }
 

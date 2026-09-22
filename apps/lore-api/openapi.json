@@ -8218,10 +8218,30 @@
                           },
                           "path": {
                             "type": "string"
+                          },
+                          "upload": {
+                            "type": "boolean"
                           }
                         },
                         "required": ["event", "path"],
                         "additionalProperties": false
+                      },
+                      "inputs": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "path": {
+                              "type": "string"
+                            },
+                            "source": {
+                              "type": "string",
+                              "enum": ["plan"]
+                            }
+                          },
+                          "required": ["path", "source"],
+                          "additionalProperties": false
+                        }
                       },
                       "repo_workdir": {
                         "type": "boolean"
@@ -8356,10 +8376,30 @@
                                 },
                                 "path": {
                                   "type": "string"
+                                },
+                                "upload": {
+                                  "type": "boolean"
                                 }
                               },
                               "required": ["event", "path"],
                               "additionalProperties": false
+                            },
+                            "inputs": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "path": {
+                                    "type": "string"
+                                  },
+                                  "source": {
+                                    "type": "string",
+                                    "enum": ["plan"]
+                                  }
+                                },
+                                "required": ["path", "source"],
+                                "additionalProperties": false
+                              }
                             },
                             "repo_workdir": {
                               "type": "boolean"
@@ -8568,10 +8608,30 @@
                           },
                           "path": {
                             "type": "string"
+                          },
+                          "upload": {
+                            "type": "boolean"
                           }
                         },
                         "required": ["event", "path"],
                         "additionalProperties": false
+                      },
+                      "inputs": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "path": {
+                              "type": "string"
+                            },
+                            "source": {
+                              "type": "string",
+                              "enum": ["plan"]
+                            }
+                          },
+                          "required": ["path", "source"],
+                          "additionalProperties": false
+                        }
                       },
                       "repo_workdir": {
                         "type": "boolean"
@@ -9498,10 +9558,30 @@
                                     },
                                     "path": {
                                       "type": "string"
+                                    },
+                                    "upload": {
+                                      "type": "boolean"
                                     }
                                   },
                                   "required": ["event", "path"],
                                   "additionalProperties": false
+                                },
+                                "inputs": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "path": {
+                                        "type": "string"
+                                      },
+                                      "source": {
+                                        "type": "string",
+                                        "enum": ["plan"]
+                                      }
+                                    },
+                                    "required": ["path", "source"],
+                                    "additionalProperties": false
+                                  }
                                 },
                                 "repo_workdir": {
                                   "type": "boolean"
@@ -11593,10 +11673,30 @@
                           },
                           "path": {
                             "type": "string"
+                          },
+                          "upload": {
+                            "type": "boolean"
                           }
                         },
                         "required": ["event", "path"],
                         "additionalProperties": false
+                      },
+                      "inputs": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "path": {
+                              "type": "string"
+                            },
+                            "source": {
+                              "type": "string",
+                              "enum": ["plan"]
+                            }
+                          },
+                          "required": ["path", "source"],
+                          "additionalProperties": false
+                        }
                       },
                       "repo_workdir": {
                         "type": "boolean"
@@ -11735,10 +11835,30 @@
                             },
                             "path": {
                               "type": "string"
+                            },
+                            "upload": {
+                              "type": "boolean"
                             }
                           },
                           "required": ["event", "path"],
                           "additionalProperties": false
+                        },
+                        "inputs": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "path": {
+                                "type": "string"
+                              },
+                              "source": {
+                                "type": "string",
+                                "enum": ["plan"]
+                              }
+                            },
+                            "required": ["path", "source"],
+                            "additionalProperties": false
+                          }
                         },
                         "repo_workdir": {
                           "type": "boolean"

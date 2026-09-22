@@ -291,8 +291,9 @@ function harness() {
     assemblyRuns: port,
     definitions: async () => new Map([["code-review", line]]),
     repoSettings: async () => null,
-    resolvePrompt: async (_repo: string, ref: string, description: string) =>
-      `prompt:${ref}::${description}`,
+    resolveRecipe: async (_repo: string, ref: string, description: string) => ({
+      prompt: `prompt:${ref}::${description}`,
+    }),
     cleanupToken: async () => {},
     jobRuns: { complete: async () => {}, fail: async () => {} },
     readAgentStatus: async (name: string) => {

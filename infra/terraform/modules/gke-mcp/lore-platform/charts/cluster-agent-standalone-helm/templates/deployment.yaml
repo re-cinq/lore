@@ -98,6 +98,10 @@ spec:
             - name: LORE_AGENT_EVENTS_URL
               value: {{ .Values.catalog.eventsUrl | quote }}
             {{- end }}
+            {{- if .Values.catalog.filesUrl }}
+            - name: LORE_AGENT_FILES_URL
+              value: {{ .Values.catalog.filesUrl | quote }}
+            {{- end }}
             {{- if .Values.catalog.mcpUrl }}
             - name: LORE_MCP_URL
               value: {{ .Values.catalog.mcpUrl | quote }}

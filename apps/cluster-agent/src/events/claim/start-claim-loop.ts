@@ -117,11 +117,20 @@ function registrantOpts(
   return {
     env,
     config,
-    backend: new AgentCrBackend(new KubeAgentApi(), kubeTokenProvisioner()),
+    backend: agentBackend(env),
     publishTelemetryCredential: publishCredential(env, opts),
     onReRegister: hooks.onReRegister,
     running: hooks.running,
   };
+}
+
+// The Agent CRs this cluster creates, with its pods' file downloads pointed at the endpoint THIS cluster's pods reach.
+function agentBackend(env: NodeJS.ProcessEnv): AgentCrBackend {
+  return new AgentCrBackend(
+    new KubeAgentApi(),
+    kubeTokenProvisioner(),
+    env.LORE_AGENT_FILES_URL,
+  );
 }
 
 // Republishes the identity wherever a run pod will read it. Writes through the SAME Secret writer the per-task GitHub provisioner uses — a merge into `agent-secrets`, not a replace, since both write to it.
