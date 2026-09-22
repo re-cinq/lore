@@ -222,12 +222,14 @@ interface TranscriptSetters {
 function useDisposedRef() {
   const disposedRef = useRef(false);
 
-  useEffect(
-    () => () => {
+  // Set live on EVERY mount: React Strict Mode unmounts and remounts once in development, and a ref left disposed made the walk that survived the remount drop its result, pinning the panel on Loading.
+  useEffect(() => {
+    disposedRef.current = false;
+
+    return () => {
       disposedRef.current = true;
-    },
-    [],
-  );
+    };
+  }, []);
 
   return disposedRef;
 }
