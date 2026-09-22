@@ -16,13 +16,20 @@ export interface AdvanceDeps {
   repoSettings: (repo: string) => Promise<Record<string, unknown> | null>;
   /** Catalog base name, project-qualified when the repo overrides it (bare-name collision let repos replace each other's recipe); optional seam, absent means bare/org-default. */
   qualifyStationRef?: (baseRef: string, repo: string) => Promise<string>;
-  resolvePrompt: (promptRef: string, description: string) => string;
+  /** The prompt an agent node's pod renders, built from the RESOLVED recipe for `repo` (project row → org row → yaml) so an Agents-UI edit reaches the pod; strict on an unknown ref (#1329). */
+  resolvePrompt: (
+    repo: string,
+    promptRef: string,
+    description: string,
+  ) => Promise<string>;
   /** Post-close hook for the implementation loop's driver; winning finisher only, best-effort, optional seam like notifyFailure. */
   onRunClosed?(
     run: AssemblyRunRecord,
     outcome: string,
     reason?: string,
   ): Promise<void>;
+  /** Refresh the run's check on its pull request — after every launch and once by the winning finisher, so the PR's checks list follows the walk. Never throws; optional seam. */
+  publishRunCheck?: (assemblyRunId: string) => Promise<void>;
   /** Reclaim the run's per-task token once the line is terminal. */
   cleanupToken: (runTaskId: string) => Promise<void>;
   /** React to a node FINISHING (CR event, reaper resolve, or `assembly_run.resume`), passed RESOLVED so a reaction can read its TYPE rather than compare hardcoded ids. Injected so this module keeps importing only its own folder. */

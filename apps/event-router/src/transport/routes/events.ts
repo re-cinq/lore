@@ -43,7 +43,7 @@ export function eventsRoute(deps: EventsRouteDeps): ServerRoute {
   };
 }
 
-// Captures one delivery, from either branch. The inserts are SEQUENTIAL on purpose: a partial failure surfaces as a 5xx so the sender retries the whole delivery, and every insert is idempotent, so a retry costs nothing.
+// Inserts run SEQUENTIALLY so a partial failure is a 5xx the sender retries whole; every insert is idempotent, so the retry is free.
 function captureHandler(deps: EventsRouteDeps): Lifecycle.Method {
   return async (request, h) => {
     const raw = rawBody(request);

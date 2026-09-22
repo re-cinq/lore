@@ -330,6 +330,34 @@ describe("mapGitHubEvent — issues.labeled", () => {
   });
 });
 
+describe("mapGitHubEvent — repository", () => {
+  it("maps a renamed re-cinq/HAL-engine to github.repository.renamed from re-cinq/HAL-engine to re-cinq/HALEngine", () => {
+    const payload = {
+      action: "renamed",
+      changes: { repository: { name: { from: "HAL-engine" } } },
+      repository: {
+        full_name: "re-cinq/HALEngine",
+        owner: { login: "re-cinq" },
+      },
+    };
+
+    expect(mapGitHubEvent("repository", payload, "d13")).toEqual([
+      {
+        eventName: "github.repository.renamed",
+        source: "github",
+        params: { from: "re-cinq/HAL-engine", to: "re-cinq/HALEngine" },
+        dedupeKey: "github:d13",
+      },
+    ]);
+  });
+
+  it("returns nothing for an archived repository", () => {
+    expect(
+      mapGitHubEvent("repository", { ...REPO, action: "archived" }, "d14"),
+    ).toEqual([]);
+  });
+});
+
 describe("mapGitHubEvent — guards", () => {
   it("returns nothing when the repository is missing", () => {
     expect(

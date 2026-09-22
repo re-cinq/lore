@@ -55,6 +55,7 @@ describe("ensureLoreWebhook", () => {
         "pull_request_review",
         "check_run",
         "issues",
+        "repository",
       ]),
     );
   });

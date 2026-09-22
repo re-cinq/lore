@@ -38,7 +38,7 @@ Registered via `server.tool` ([registration + handler](../../../apps/mcp-server/
 
 ## Output
 
-One MCP text block: the `CiFailureReport` JSON (`branch`, `judged_sha`, `conclusion`, `failures[]` of `{name, app, job_id, annotations[], steps[], tail[], npm_script}` — `npm_script` names the package and script a failed step ran, so a reproduction runs in that package), a "specify branch / repo" line, or the API's refusal. **Never throws.**
+One MCP text block: the `CiFailureReport` JSON (`branch`, `judged_sha`, `conclusion`, `failures[]` of `{name, app, job_id, annotations[], steps[], tail[], npm_script, unreadable[]}` — `unreadable` names the reads GitHub refused as `what (status)`, so an empty part beside an entry there could not be read rather than said nothing; `npm_script` names the package and script a failed step ran, so a reproduction runs in that package), a "specify branch / repo" line, or the API's refusal. **Never throws.**
 
 ## Out of Scope
 

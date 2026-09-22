@@ -99,6 +99,7 @@ import { stationDataRoutes } from "./routes/repos/station-data.js";
 import { traceAdrsRoute } from "./routes/trace/trace-adrs.js";
 import { traceSpecsRoute } from "./routes/trace/trace-specs.js";
 import { featuresRoutes } from "./routes/features/features.js";
+import { plansRoutes } from "./routes/plans/plans.js";
 import { implementationLoopRoutes } from "./routes/backlog/backlog.js";
 import { openApiJsonRoute, docsRoute } from "./routes/openapi/openapi.js";
 import { githubCredentialsRoute } from "./routes/github-credentials/github-credentials.js";
@@ -194,6 +195,7 @@ function specTaskRoutes(getPool: PoolGetter): ServerRoute[] {
     taskLogsPostRoute(),
     taskTurnsPostRoute(getPool),
     ...featuresRoutes(getPool),
+    ...plansRoutes(getPool),
     ...implementationLoopRoutes(getPool),
   ];
 }

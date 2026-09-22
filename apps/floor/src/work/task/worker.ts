@@ -5,18 +5,14 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 /** Core task processing worker: polls pipeline.tasks, dispatches to the LLM, creates branches + PRs. */
 
 import { projectFor } from "../../outbound/project-boot.js";
-import {
-  classifyError,
-  TaskFailure,
-  resolveExecutionImage,
-} from "@re-cinq/lore-shared";
+import { classifyError, TaskFailure } from "@re-cinq/lore-shared";
 import type { Project } from "@re-cinq/lore-shared";
 import { setStatus, insertEvent } from "./task-helpers.js";
 import { pipeline } from "../../outbound/queues.js";
 import type { TaskQueueRepository } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
 import { handleFeatureRequest } from "./handle-feature-request.js";
-import { handleClaudeCodeTask } from "./handle-claude-code-task.js";
 import { handleOnboard } from "./handle-onboard.js";
+import { dispatchAgentCr, type DispatchInput } from "./dispatch-agent-cr.js";
 import {
   awaitApprovalIfRequired,
   commentTaskFailureOnIssue,
@@ -258,20 +254,6 @@ async function dispatchTask(input: TaskDispatch): Promise<void> {
   await dispatchByTaskType(routeTask(task.task_type), { ...input, ...plan });
 }
 
-interface DispatchInput {
-  task: PipelineTask;
-  targetRepo: string;
-  branchName: string;
-  model: string | undefined;
-  issueNumber: number | null;
-  project: Awaited<ReturnType<typeof projectFor>>;
-  repoSettings: Record<string, unknown>;
-  repoOverrides: Record<string, unknown> | undefined;
-  agentDef: Awaited<ReturnType<Project["agentDefs"]["resolve"]>> | null;
-  darkFactoryEnabled: boolean;
-  isFeaturePlanningType: boolean;
-}
-
 async function dispatchByTaskType(
   handler: TaskHandler,
   input: DispatchInput,
@@ -279,7 +261,7 @@ async function dispatchByTaskType(
   const { task, targetRepo, branchName, model, issueNumber } = input;
 
   if (handler === "handleOnboard") {
-    return handleOnboard({ task, targetRepo, branchName, model, issueNumber });
+    return handleOnboard(input);
   }
 
   if (handler === "handleFeatureRequest") {
@@ -293,66 +275,6 @@ async function dispatchByTaskType(
   }
 
   return dispatchAgentCr(input);
-}
-
-/** Dark-mode repos and feature-planning/finalize run the Floor-side graph, one Agent CR per node (ADR-028). */
-async function dispatchAgentCr(input: DispatchInput): Promise<void> {
-  const { task, targetRepo, project } = input;
-  const assemblyLine = assemblyLineFor(input);
-  // The real default branch, never a hardcoded "main": that 422'd on master/develop repos.
-  const baseBranch = await lookupDarkFactoryBaseBranch(
-    project,
-    targetRepo,
-    assemblyLine,
-  );
-
-  await handleClaudeCodeTask({
-    task,
-    targetRepo,
-    branchName: input.branchName,
-    model: input.model,
-    repoOverrides: input.repoOverrides,
-    ...(assemblyLine ? { darkFactory: { assemblyLine, baseBranch } } : {}),
-    image: executionImageFor(input),
-    agentDef: input.agentDef,
-  });
-}
-
-/** The assembly line this dispatch should walk, or undefined for a plain single-Agent run. */
-function assemblyLineFor(input: DispatchInput): string | undefined {
-  return input.isFeaturePlanningType || input.darkFactoryEnabled
-    ? input.task.task_type
-    : undefined;
-}
-
-async function lookupDarkFactoryBaseBranch(
-  project: Project,
-  targetRepo: string,
-  darkFactoryAssemblyLine: string | undefined,
-): Promise<string | undefined> {
-  if (!darkFactoryAssemblyLine) {
-    return undefined;
-  }
-
-  try {
-    return await project.repo.defaultBranch();
-  } catch (err) {
-    console.warn(
-      `[floor] default-branch lookup failed for ${targetRepo}: ${errorMessage(err)}`,
-    );
-
-    return undefined;
-  }
-}
-
-/** BYO execution container (ADR-025): default → per-repo → per-task-type; unset means the controller's default. */
-function executionImageFor(
-  input: DispatchInput,
-): ReturnType<typeof resolveExecutionImage> {
-  return resolveExecutionImage(
-    input.repoSettings as Parameters<typeof resolveExecutionImage>[0],
-    input.task.task_type,
-  );
 }
 
 async function handleProcessTaskFailure(

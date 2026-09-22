@@ -15,7 +15,6 @@ import type {
 } from "@re-cinq/lore-shared/project/agents/catalog-events-port.js";
 import { PgCatalogEvents } from "@re-cinq/lore-shared/project/agents/catalog-events-pg.js";
 import { resolveCatalogEntry } from "@re-cinq/lore-shared/project/agents/agent-defs-pg.js";
-import { AgentDefsYaml } from "@re-cinq/lore-shared/project/agents/agent-defs-yaml.js";
 import type { ResolvedAgentDefinition } from "@re-cinq/lore-shared/models/agent-definition.js";
 import { ResolvedAgentDefinitionSchema } from "@re-cinq/lore-shared/models/agent-definition.js";
 import type { ClusterAgent } from "@re-cinq/lore-shared/models/cluster-agent.js";
@@ -93,15 +92,13 @@ async function serveCatalogEvents(
   return h.response(result.body).code(result.code);
 }
 
-/** The live repositories the route reads through, with catalog entries resolved against the YAML fallback. */
+/** The live repositories the route reads through. */
 function catalogEventsDeps(pool: Pool): CatalogEventsDeps {
-  const yaml = new AgentDefsYaml();
-
   return {
     agents: new PgClusterAgents(pool),
     events: new PgCatalogEvents(pool),
     resolveEntry: (name, projectId) =>
-      resolveCatalogEntry(pool, yaml, name, projectId),
+      resolveCatalogEntry(pool, name, projectId),
   };
 }
 

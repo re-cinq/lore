@@ -5,3 +5,7 @@ export {
   BACKLOG_LABEL_SEED,
   type PriorityLabel,
 } from "./labels.js";
+export {
+  implementationTicketDescription,
+  ticketTextTooLong,
+} from "./ticket-description.js";

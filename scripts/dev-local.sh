@@ -117,6 +117,10 @@ export CLUSTER_AGENT_URL="${CLUSTER_AGENT_URL:-http://localhost:3005}"
 #     uses the per-agent token it gets back for everything after.
 export LORE_CLUSTER_AGENT_REGISTRATION_TOKEN="${LORE_CLUSTER_AGENT_REGISTRATION_TOKEN:-lore-local-registration-token}"
 export LORE_CLUSTER_AGENT_NAME="${LORE_CLUSTER_AGENT_NAME:-central}"
+#     The identity it gets back persists in a Secret in minikube, exactly as in a
+#     deployed cluster: the agent only starts under LORE_STATION_BACKEND=k8s.
+export LORE_CLUSTER_AGENT_IDENTITY_SECRET="${LORE_CLUSTER_AGENT_IDENTITY_SECRET:-lore-cluster-agent-identity}"
+export LORE_CLUSTER_AGENT_IDENTITY_NAMESPACE="${LORE_CLUSTER_AGENT_IDENTITY_NAMESPACE:-${LORE_AGENTS_NAMESPACE:-ai-agents}}"
 #     Every tag, as the umbrella chart's central agent carries: on a laptop this
 #     is the only cluster, so anything it cannot claim runs nowhere.
 export LORE_CLUSTER_AGENT_TAGS="${LORE_CLUSTER_AGENT_TAGS:-node:agent,node:validate,node:gate,node:retrospective,node:github_action,node:detect,node:ingest}"
@@ -149,6 +153,23 @@ export LORE_AGENT_INTERNAL_TOKEN="${LORE_AGENT_INTERNAL_TOKEN:-lore-local-agent-
 # indistinguishable from continuity that remembered nothing.
 export LORE_FLOOR_POD_URL="${LORE_FLOOR_POD_URL:-http://host.minikube.internal:8080}"
 export LORE_ARCHIVE_DIR="${LORE_ARCHIVE_DIR:-$ROOT/.lore-archive}"
+
+# The cluster-agent's catalog sync is the only writer of minikube's
+# AgentDefinition/Station CRs: it renders lore.agent_definitions with these, the
+# host as the PODS see it. Scoped to the cluster-agent's own command, because
+# LORE_DGRAPH_HTTP means localhost to every other process here. `bare` because
+# pods get no MCP gateway URL locally; skills still resolve, which is what keeps
+# Claude agents booting. The LLM key follows setup-minikube-agents.sh's
+# precedence — the two must agree or run pods mount a key agent-secrets lacks.
+catalog_llm_key="CLAUDE_CODE_OAUTH_TOKEN"
+[ -n "${ANTHROPIC_API_KEY:-}" ] && catalog_llm_key="ANTHROPIC_API_KEY"
+cluster_agent_catalog_env="LORE_CATALOG_PROFILE=bare"
+cluster_agent_catalog_env+=" LORE_AGENT_LLM_SECRET_KEY=$catalog_llm_key"
+cluster_agent_catalog_env+=" LORE_POD_API_URL=http://host.minikube.internal:3001"
+cluster_agent_catalog_env+=" LORE_AGENT_EVENTS_URL=http://host.minikube.internal:8080/api/agent-events"
+cluster_agent_catalog_env+=" LORE_SKILLS_URL=http://host.minikube.internal:3002/skills"
+cluster_agent_catalog_env+=" LORE_DGRAPH_HTTP=http://host.minikube.internal:8081"
+cluster_agent_catalog_env+=" LORE_STATION_IMAGE=ghcr.io/re-cinq/lore-station:latest"
 
 if [ "$LORE_STATION_BACKEND" = "k8s" ]; then
   log "Station backend is k8s — bootstrapping the ai-agent-subsystem on minikube"
@@ -246,7 +267,7 @@ commands=(
   "npm run dev -w @re-cinq/lore-mcp"
   "LORE_MCP_HTTP=1 LORE_MCP_PORT=3002 LORE_AGENT_SKILLS_DIR=$ROOT/apps/mcp-server/agent-skills npm run start -w @re-cinq/lore-mcp"
   "npm run dev -w @re-cinq/lore-floor"
-  "npm run start:watch -w @re-cinq/lore-floor"
+  "PORT=8080 npm run start:watch -w @re-cinq/lore-floor"
   "npm run dev -w @re-cinq/lore-event-router"
   "PORT=3003 npm run start:watch -w @re-cinq/lore-event-router"
   "npm run dev -w @re-cinq/lore-stations"
@@ -263,7 +284,7 @@ if [ "$LORE_STATION_BACKEND" = "k8s" ]; then
   colors="$colors,yellowBright,yellowBright"
   commands+=(
     "npm run dev -w @re-cinq/lore-cluster-agent"
-    "PORT=3005 npm run start:watch -w @re-cinq/lore-cluster-agent"
+    "$cluster_agent_catalog_env PORT=3005 npm run start:watch -w @re-cinq/lore-cluster-agent"
   )
 else
   log "LORE_STATION_BACKEND=$LORE_STATION_BACKEND — cluster-agent not started (it needs a cluster to claim into)"

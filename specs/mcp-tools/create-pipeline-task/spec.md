@@ -39,7 +39,7 @@ Enqueues a new server-side pipeline task and returns its UUID and a pickup hint.
 
 | Param | Type | Required | Default | Constraint / notes |
 |-------|------|----------|---------|--------------------|
-| `description` | string | yes | — | Primary natural-language instruction; max 10000 chars, non-empty. |
+| `description` | string | yes | — | Primary natural-language instruction; max 32000 chars, non-empty. |
 | `task_type` | string | no | `"general"` | `feature-request` \| `onboard` \| `general` \| `runbook` \| `implementation` \| `gap-fill` \| `review`. Unknown → falls back to `general`. |
 | `target_repo` | string | no | — | `owner/repo`. Auto-detected from git remote when omitted. |
 | `priority` | enum | no | `"normal"` | `normal` = backlog; `immediate` = GKE agent auto-executes within ~30s. |
@@ -49,7 +49,7 @@ Enqueues a new server-side pipeline task and returns its UUID and a pickup hint.
 ## Behavior
 
 1. **Schema validation** — `description` must be non-blank (Zod `.min(1)` plus a
-   trim `.refine`) and at most 10000 chars (`.max(10000)`); the MCP input schema
+   trim `.refine`) and at most 32000 chars (`.max(MAX_TASK_DESCRIPTION_CHARS)`); the MCP input schema
    rejects an empty, whitespace-only, or over-length value before the handler runs
    (no insert).
 2. **Repo resolution** — `resolvedRepo = target_repo || detectCurrentRepo() || undefined`.
@@ -68,7 +68,7 @@ Enqueues a new server-side pipeline task and returns its UUID and a pickup hint.
      Call `createTask(desc, resolvedType, resolvedRepo, "mcp", context || undefined, priority, group_id)`
      ([handler wrapper](../../../libs/server-core/src/work/pipeline/pipeline.ts#L71)).
 4. **Shared CRUD** ([`createTask`](../../../libs/shared/src/domain/pipeline-task-core.ts#L114)) — rejects descriptions
-   over 10000 chars; when a repo is set, `SELECT settings FROM lore.repos WHERE full_name = $1`
+   over 32000 chars; when a repo is set, `SELECT settings FROM lore.repos WHERE full_name = $1`
    and enforce the trust gate (`settings.trust.level` → allowed task types; a
    disallowed type throws `Task type "{t}" not allowed at trust level "{level}" for {repo}. Allowed: …`,
    non-trust query errors are swallowed). Then `INSERT INTO pipeline.tasks
@@ -115,9 +115,9 @@ explicit value wins.
 A task type outside the known catalogue falls back to `general`.
 *(untested: the fallback is inline in the handler closure and not separately exported.)*
 
-A description over 10000 chars is rejected by the input schema (and, on the DB
+A description over 32000 chars (`MAX_TASK_DESCRIPTION_CHARS`, one shared constant) is rejected by the input schema (and, on the DB
 path, by the shared CRUD).
-([validated by `rejects a task description over 10000 chars`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L156))
+([validated by `rejects a task description over 32000 chars`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L156))
 
 `task_type: "onboard"` is refused before the local/remote split and the caller is
 pointed at `lore_onboard_repo`, whose transaction holds the duplicate-onboard

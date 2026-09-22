@@ -58,7 +58,7 @@ curl -fsS -X DELETE -H "authorization: Bearer $ADMIN_TOKEN" \
 
 - `model` accepts the curated ids (`claude-opus-4-8`, `claude-sonnet-4-6`,
   `claude-haiku-4-5-20251001`, `claude-fable-5`) or any custom model id.
-- A null/absent field **inherits** the next layer (org default → task-types.yaml).
+- A null/absent field on a repo override **inherits** the org default. The org defaults are seeded from `libs/shared/src/agent-defaults/*.md`; change a default with a PR to its file.
   To clear an override, DELETE the row rather than sending nulls.
 - **`image` is two-key gated.** Setting a non-empty execution image returns
   `403 two_key_required` unless you pass an `x-lore-approval-pr: owner/repo#N`

@@ -168,6 +168,22 @@ describe("lore_get_ci_job_log", () => {
       "/api/repos/re-cinq/lore/ci-jobs/7/log?tail=200",
     );
   });
+
+  it("answers with GitHub's own 403 refusal when the API relays it as a 424, never as a missing job", async () => {
+    vi.mocked(detectCurrentRepo).mockReturnValue("re-cinq/lore");
+    proxy.mockResolvedValue({
+      ok: false,
+      reason: "unreachable",
+      detail:
+        "HTTP 424 Failed Dependency: GitHub would not serve the job log (403): Resource not accessible by integration",
+    });
+
+    const result = await handlerFor("lore_get_ci_job_log")({ job_id: 9 });
+
+    expect(result.content[0].text).toBe(
+      "Could not read the CI job log from the Lore API: HTTP 424 Failed Dependency: GitHub would not serve the job log (403): Resource not accessible by integration",
+    );
+  });
 });
 
 describe("lore_get_pr_status", () => {

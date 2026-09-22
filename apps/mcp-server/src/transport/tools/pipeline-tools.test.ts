@@ -153,10 +153,10 @@ describe("lore_list_pending_tasks API path", () => {
 });
 
 describe("zod schema bounds", () => {
-  it("rejects a task description over 10000 chars", () => {
+  it("rejects a task description over 32000 chars", () => {
     const result = z
       .object(schemas["lore_create_pipeline_task"])
-      .safeParse({ description: "a".repeat(10001) });
+      .safeParse({ description: "a".repeat(32001) });
 
     expect(result.success).toBe(false);
   });

@@ -13,7 +13,12 @@ describe("initPool", () => {
   it("logs an emitted pool error instead of crashing the process on an idle-client failure (#1044)", () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    pool = initPool();
+    pool = initPool({
+      LORE_DB_HOST: "db.internal",
+      LORE_DB_PORT: "5432",
+      LORE_DB_NAME: "lore",
+      LORE_DB_USER: "lore",
+    });
     const backendDeath = new Error(
       "terminating connection due to administrator command",
     );

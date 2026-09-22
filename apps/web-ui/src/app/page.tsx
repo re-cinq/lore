@@ -15,6 +15,7 @@ import {
   getWorkflowStatuses,
 } from "@/lib/ingest-status-cache";
 import { fixIngestWorkflows, fixTraceImpactWorkflows } from "./actions";
+import { reposNeedingWorkflowFix } from "@/lib/workflow-fix";
 import HomeView, { type Repo } from "./HomeView";
 
 const HOME_REPO_LIMIT = 100;
@@ -26,8 +27,8 @@ export default async function HomePage() {
   const repos: Repo[] = repoList.repos.slice(0, HOME_REPO_LIMIT);
 
   const { ingestStatus, impactStatus } = await readWorkflowStatuses(repos);
-  const misaligned = needsFix(repos, ingestStatus);
-  const impactMisaligned = needsFix(repos, impactStatus);
+  const misaligned = reposNeedingWorkflowFix(repos, ingestStatus);
+  const impactMisaligned = reposNeedingWorkflowFix(repos, impactStatus);
 
   return (
     <HomeView
@@ -69,15 +70,4 @@ function noWorkflowStatuses() {
     ingestStatus: new Map<string, IngestWorkflowStatus>(),
     impactStatus: new Map<string, IngestWorkflowStatus>(),
   };
-}
-
-/** The repos whose workflow is missing or stale. A stale spec-impact workflow suppresses that repo's findings, so it is offered for fixing exactly like a missing one. */
-function needsFix(repos: Repo[], status: Map<string, IngestWorkflowStatus>) {
-  return repos
-    .filter((r) => {
-      const s = status.get(r.full_name);
-
-      return s === "missing" || s === "stale";
-    })
-    .map((r) => r.full_name);
 }

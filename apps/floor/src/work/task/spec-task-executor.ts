@@ -3,7 +3,8 @@ import type { ReadySpecTask } from "@re-cinq/lore-shared/project/tasks/task-queu
 
 import { anthropicCreditsExhausted } from "@re-cinq/lore-shared/llm/credit-probe.js";
 import { projectFor } from "../../outbound/project-boot.js";
-import { buildPrompt, getTaskTypeConfig } from "../../outbound/config.js";
+import { defaultTaskPrompt } from "../../outbound/config.js";
+import { agentPrompt } from "../../outbound/agent-invocation.js";
 import { pipeline } from "../../outbound/queues.js";
 import { setStatus, insertEvent } from "./task-helpers.js";
 
@@ -35,11 +36,10 @@ async function dispatchReadyTasks(
   readyTasks: ReadySpecTask[],
 ): Promise<number> {
   const runningByGroup = await runningCountsByGroup();
-  const dispatch = agentDispatchDefaults();
   let dispatched = 0;
 
   for (const task of readyTasks) {
-    if (await dispatchSpecTask(task, runningByGroup, dispatch)) {
+    if (await dispatchSpecTask(task, runningByGroup)) {
       dispatched++;
     }
   }
@@ -58,25 +58,10 @@ async function runningCountsByGroup(): Promise<Map<string, number>> {
   return runningByGroup;
 }
 
-interface AgentDispatchDefaults {
-  model: string;
-  timeoutMinutes: number;
-}
-
-function agentDispatchDefaults(): AgentDispatchDefaults {
-  const implConfig = getTaskTypeConfig("implementation");
-
-  return {
-    model: implConfig?.model || "claude-sonnet-4-6",
-    timeoutMinutes: implConfig?.timeout_minutes || 90,
-  };
-}
-
 /** Claim one ready spec-task and dispatch its Agent CR; returns whether a CR actually started. A failure after the claim returns the task to `pending` so the next tick retries it. */
 async function dispatchSpecTask(
   task: ReadySpecTask,
   runningByGroup: Map<string, number>,
-  defaults: AgentDispatchDefaults,
 ): Promise<boolean> {
   const runningInGroup = runningCountForGroup(
     runningByGroup,
@@ -94,7 +79,7 @@ async function dispatchSpecTask(
     claimed_by: "spec-task-executor",
   });
 
-  return runClaimed(task, runningByGroup, defaults);
+  return runClaimed(task, runningByGroup);
 }
 
 /** Currently-running count for one task group, or 0 when the task has no group. */
@@ -109,12 +94,11 @@ function runningCountForGroup(
 async function runClaimed(
   task: ReadySpecTask,
   runningByGroup: Map<string, number>,
-  defaults: AgentDispatchDefaults,
 ): Promise<boolean> {
   const brief = specTaskBrief(task);
 
   try {
-    const result = await runSpecTaskAgent(task, brief, defaults);
+    const result = await runSpecTaskAgent(task, brief);
 
     return result.started
       ? recordDispatch(task, brief, runningByGroup)
@@ -135,20 +119,35 @@ type SpecTaskBrief = ReturnType<typeof specTaskBrief>;
 async function runSpecTaskAgent(
   task: ReadySpecTask,
   brief: SpecTaskBrief,
-  defaults: AgentDispatchDefaults,
 ): Promise<{ started: boolean }> {
   const project = await projectFor(task.target_repo);
+  const recipe = await project.agentDefs.resolve("implementation");
 
-  return await project.agents.run(task.id, {
-    mode: "cluster",
+  return await project.agents.run(task.id, specTaskRunOpts(recipe, brief));
+}
+
+type ImplementationRecipe = Awaited<
+  ReturnType<Awaited<ReturnType<typeof projectFor>>["agentDefs"]["resolve"]>
+>;
+
+/** The resolved implementation recipe drives prompt, model and timeout; the literal defaults only cover a repo with no such row. */
+function specTaskRunOpts(recipe: ImplementationRecipe, brief: SpecTaskBrief) {
+  const { description } = brief;
+
+  return {
+    mode: "cluster" as const,
     taskType: "implementation",
-    description: brief.description,
-    prompt: buildPrompt("implementation", brief.description),
+    description,
+    prompt: agentPrompt(
+      recipe?.prompt,
+      description,
+      defaultTaskPrompt(description),
+    ),
     branch: brief.branchName,
-    model: defaults.model,
-    timeoutMinutes: defaults.timeoutMinutes,
+    model: recipe?.model || "claude-sonnet-4-6",
+    timeoutMinutes: recipe?.timeout_minutes || 90,
     extraLabels: specTaskLabels(brief),
-  });
+  };
 }
 
 /** The CR's metadata labels. extraLabels is spread last by the agent runner, so task-type here overrides the recipe's "implementation". */

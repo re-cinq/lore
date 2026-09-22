@@ -132,7 +132,7 @@ carries a `dedupeKey`, which is what makes repeating one safe.
 - The watch hands each observed CR to that proxy rather than delivering it
   itself, and a failed hand-off is swallowed here, unlike everywhere else this
   repo reports events: the caller is a watch callback with nobody to return a
-  status to, so throwing would end the stream over one CR. ([validated by swallows a failed emit so one bad CR cannot end the watch](apps/cluster-agent/src/events/listeners/agent-reporting.test.ts#L59))
+  status to, so throwing would end the stream over one CR. ([validated by swallows a failed emit so one bad CR cannot end the watch](apps/cluster-agent/src/events/listeners/agent-reporting.test.ts#L120))
 - The catch-up pass walks the namespace one page at a time. 180 accumulated CRs
   in a single unpaginated LIST blew Node's heap and crash-looped the Floor on
   2026-07-24. ([validated by walks every page rather than holding the namespace at once](apps/cluster-agent/src/outbound/agent-pages.test.ts#L21), [reads the raw `continue` token too, which is what the API actually sends](apps/cluster-agent/src/outbound/agent-pages.test.ts#L41), [reports no resourceVersion when a page carries none](apps/cluster-agent/src/outbound/agent-pages.test.ts#L66))
@@ -536,7 +536,7 @@ done here.
   take the same test. ([validated by `agent-logs.test.ts:143`](../apps/floor/src/transport/http/routes/agent-logs.test.ts#L143), [`agent-logs.test.ts:154`](../apps/floor/src/transport/http/routes/agent-logs.test.ts#L154), [`per-task-token.test.ts:27`](../apps/floor/src/work/watcher/per-task-token.test.ts#L27))
 - A duplicate terminal delivery for an already-settled node is dropped rather
   than re-read; the walk advances on the first delivery and the second has
-  nothing to add. ([validated by `node-event-handler.test.ts:417`](../apps/floor/src/work/assembly-run/node-event-handler.test.ts#L417))
+  nothing to add. ([validated by `node-event-handler.test.ts:441`](../apps/floor/src/work/assembly-run/node-event-handler.test.ts#L441))
 - The remaining central reads are enumerated above, and a new read of a
   cluster from the Floor is a design change to this table rather than a local
   decision.

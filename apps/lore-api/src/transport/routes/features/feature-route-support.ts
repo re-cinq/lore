@@ -3,12 +3,13 @@
 import type { ResponseToolkit, ResponseObject } from "@hapi/hapi";
 import { rethrowBoom } from "@re-cinq/lore-shared/http/api-error.js";
 import { ValidationError } from "@re-cinq/lore-shared/feature-planning/feature-input.js";
+import { MAX_DOCUMENT_BODY_BYTES } from "@re-cinq/lore-shared/http/body-limits.js";
 
 export const BASE = "/api/repos/{owner}/{repo}/features";
 
 export const repoOf = (p: Record<string, string>) => `${p.owner}/${p.repo}`;
 // hapi parses the payload natively (ADR-034); the 2 MB cap surfaces as a 413.
-export const WRITE_PAYLOAD = { maxBytes: 2 * 1_048_576 } as const;
+export const WRITE_PAYLOAD = { maxBytes: MAX_DOCUMENT_BODY_BYTES } as const;
 
 /** ValidationError → 400, else → 500; Boom passes through with its guard's status. */
 export async function run(

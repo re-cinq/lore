@@ -2,14 +2,12 @@
 
 import { preserveUnownedFields } from "@re-cinq/lore-shared";
 import type { AgentDefinition, Station } from "@re-cinq/agent-contracts";
+import type { CrdPair } from "@re-cinq/lore-shared/project/agents/agent-crd.js";
 
 /** The catalog half of a recipe, applied Station FIRST (mirror of `deletePair`) — writing the AgentDefinition last means a recipe is never visible pointing at a missing station. */
 export async function applyCatalogPair(
   catalog: CatalogWriter,
-  {
-    agentDefinition,
-    station,
-  }: { agentDefinition: AgentDefinition; station: Station },
+  { agentDefinition, station }: CrdPair,
 ): Promise<void> {
   // Both reads together — only the WRITE order is load-bearing; neither write depends on the other's read result.
   const [liveStation, liveDefinition] = await Promise.all([

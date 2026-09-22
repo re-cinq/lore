@@ -1,0 +1,86 @@
+# Onboarding as an implementation line (specs/4-ux-repo-onboarding FR-2). The
+# Floor enrols the repo first — labels, the ingest callback, the verbatim
+# workflows and templates committed on the branch — then this line authors the
+# repo-specific files from the onboarding ticket and opens the ONE pull request
+# an onboarding produces. Same shape as implementation.yaml: the implement node
+# just carries the onboard recipe.
+name: onboard
+description: Onboard a repository — author its Lore scaffolding from the onboarding ticket, validate, push, review. On changes_requested, address feedback up to 2 iterations.
+version: 1
+entry: implement
+exit: done
+
+nodes:
+  - id: implement
+    type: agent
+    prompt_ref: onboard
+    model: claude-sonnet-4-6
+    description: Author the repo-specific onboarding files the ticket owes.
+
+  - id: validate
+    type: validate
+    description: Run lint + typecheck on changed files.
+
+  - id: push
+    type: agent
+    prompt_ref: push-only
+    description: Open or update the PR.
+
+  - id: review
+    type: agent
+    prompt_ref: review
+    model: claude-haiku-4-5-20251001
+    description: Bot review — posts inline comments + verdict.
+
+  - id: address
+    type: agent
+    prompt_ref: address-feedback
+    model: claude-sonnet-4-6
+    description: Address review feedback in the scaffolding.
+
+  - id: retrospective
+    type: retrospective
+    description: Episode + curated memory.
+
+  - id: done
+    type: retrospective
+    description: Terminal marker.
+
+edges:
+  - from: implement
+    to: validate
+    on: success
+  - from: implement
+    to: implement
+    on: failed
+    iteration_max: 1
+  - from: implement
+    to: retrospective
+    on: changes_requested
+  - from: validate
+    to: push
+    on: success
+  - from: validate
+    to: implement
+    on: failed
+    iteration_max: 1
+  - from: push
+    to: review
+    on: always
+  - from: review
+    to: retrospective
+    on: success
+  - from: review
+    to: address
+    on: changes_requested
+    iteration_max: 2
+  - from: address
+    to: validate
+    on: always
+    iteration_max: 2
+  - from: review
+    to: retrospective
+    on: failed
+  - from: retrospective
+    to: done
+    on: always

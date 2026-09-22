@@ -81,6 +81,16 @@ describe("specToAgent", () => {
     );
     expect(agent.spec?.parameters?.pr_number).toBe("7");
   });
+
+  it("fills a {pr_number} the recipe carries into the prompt parameter itself, since the template renders {prompt} in one pass and never re-scans what it inserted", () => {
+    const agent = specToAgent({
+      ...baseSpec,
+      prompt: "Review PR #{pr_number} on this branch.",
+      prNumber: 7,
+    });
+
+    expect(agent.spec?.parameters?.prompt).toBe("Review PR #7 on this branch.");
+  });
 });
 
 describe("AgentCrBackend.launch", () => {

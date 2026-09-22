@@ -167,16 +167,15 @@ function ledgerModules() {
   ]);
 }
 
-// Agent definitions port, three-way seam by environment: DB present -> PgAgentDefs, API only -> AgentDefsHttp, neither -> AgentDefsYaml.
+// Agent definitions port, three-way seam by environment: DB present -> PgAgentDefs, API only -> AgentDefsHttp, neither -> the shipped files, read-only.
 async function agentDefsForEnv(
   env: NodeJS.ProcessEnv,
   pgPool: PgPool,
 ): Promise<unknown> {
   if (env.LORE_DB_HOST) {
     const { PgAgentDefs } = await import("../agents/agent-defs-pg.js");
-    const { AgentDefsYaml } = await import("../agents/agent-defs-yaml.js");
 
-    return new PgAgentDefs(pgPool, new AgentDefsYaml(undefined, env));
+    return new PgAgentDefs(pgPool);
   }
 
   if (env.LORE_API_URL) {
@@ -184,9 +183,9 @@ async function agentDefsForEnv(
 
     return new AgentDefsHttp(env.LORE_API_URL, env.LORE_INGEST_TOKEN);
   }
-  const { AgentDefsYaml } = await import("../agents/agent-defs-yaml.js");
+  const { AgentDefsFiles } = await import("../agents/agent-defs-files.js");
 
-  return new AgentDefsYaml(undefined, env);
+  return new AgentDefsFiles();
 }
 
 /** The org-wide pipeline bundle's adapter, when the caller already built one — else a fresh per-repo instance. */

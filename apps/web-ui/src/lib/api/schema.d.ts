@@ -1579,6 +1579,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/repos/{owner}/{repo}/plans": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/repos/{owner}/{repo}/plans */
+    get: operations["get_api_repos_owner_repo_plans"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/plans/{id}/collab-token": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/plans/{id}/collab-token */
+    post: operations["post_api_repos_owner_repo_plans_id_collab-token"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/repos/{owner}/{repo}/pulls": {
     parameters: {
       query?: never;
@@ -2560,6 +2594,7 @@ export interface components {
           package: string;
           script: string;
         } | null;
+        unreadable: string[];
       }[];
     };
     CiJobLog: {
@@ -2676,7 +2711,7 @@ export interface components {
     };
     ClusterAgentRelease: {
       /** @enum {string} */
-      status: "requeued" | "settled";
+      status: "requeued" | "failed" | "settled";
     };
     ClusterAgentRestart: {
       id: string;
@@ -3300,6 +3335,7 @@ export interface components {
               state: string;
             }[]
           | null;
+        text_too_long: boolean;
       } | null;
       current_run_id: string | null;
       next: {
@@ -3318,6 +3354,7 @@ export interface components {
               state: string;
             }[]
           | null;
+        text_too_long: boolean;
       }[];
       recent: {
         issue_number: number;
@@ -3335,6 +3372,7 @@ export interface components {
               state: string;
             }[]
           | null;
+        text_too_long: boolean;
       }[];
     };
     ImplementationLoopToggle: {
@@ -3621,6 +3659,21 @@ export interface components {
     };
     PipelineAnalytics: {
       [key: string]: unknown;
+    };
+    PlanCollabToken: {
+      token: string;
+      documentName: string;
+    };
+    PlanList: {
+      plans: {
+        id: string;
+        title: string;
+        type: string;
+        status: string;
+        version: number;
+        createdBy: string;
+        updatedAt: string;
+      }[];
     };
     PlatformLlmStatus: {
       degraded: boolean;
@@ -4147,6 +4200,8 @@ export interface components {
         calls: number;
         input_tokens: number;
         output_tokens: number;
+        cache_read_tokens: number;
+        cache_write_tokens: number;
         by_blueprint: {
           blueprint: string;
           runs: number;
@@ -4250,6 +4305,65 @@ export interface components {
           station_run_id: string | null;
         }[];
         live_usd_per_hour: number;
+      };
+      unit_costs: {
+        tickets: {
+          count: number;
+          total_usd: number;
+          avg_usd: number;
+          median_usd: number;
+          most: {
+            label: string;
+            url: string | null;
+            runs: number;
+            cost_usd: number;
+          }[];
+          least: {
+            label: string;
+            url: string | null;
+            runs: number;
+            cost_usd: number;
+          }[];
+        };
+        reviews: {
+          per_pr: {
+            count: number;
+            total_usd: number;
+            avg_usd: number;
+            median_usd: number;
+            most: {
+              label: string;
+              url: string | null;
+              runs: number;
+              cost_usd: number;
+            }[];
+            least: {
+              label: string;
+              url: string | null;
+              runs: number;
+              cost_usd: number;
+            }[];
+          };
+          by_line: {
+            blueprint: string;
+            runs: number;
+            total_usd: number;
+            avg_usd: number;
+          }[];
+          by_model: {
+            model: string;
+            calls: number;
+            cost_usd: number;
+          }[];
+        };
+        nodes: {
+          blueprint: string;
+          node_id: string;
+          visits: number;
+          total_usd: number;
+          per_visit_usd: number;
+          models: string[];
+        }[];
       };
     };
     StationRunList: {
@@ -4563,7 +4677,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Every org-default agent definition — org rows overlaid on the task-types.yaml fallback, no per-repo layer */
+      /** @description Every org-default agent definition — the org rows, no per-repo layer */
       200: {
         headers: {
           [name: string]: unknown;
@@ -5422,7 +5536,7 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Whether the unlaunched visit went back on the queue or had already settled */
+      /** @description Whether the unlaunched visit went back on the queue, failed because no retry can launch it, or had already settled */
       200: {
         headers: {
           [name: string]: unknown;
@@ -6050,6 +6164,7 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
+          /** Format: includes */
           repo: string;
           reonboard?: boolean;
         };
@@ -6655,7 +6770,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description What CI said about a branch: the judged sha, the verdict, and each failed check with its annotations, failed steps and log tail */
+      /** @description What CI said about a branch: the judged sha, the verdict, and each failed check with its annotations, failed steps and log tail, plus the reads GitHub refused (unreadable) so an empty part is not mistaken for a silent job */
       200: {
         headers: {
           [name: string]: unknown;
@@ -7522,6 +7637,75 @@ export interface operations {
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  get_api_repos_owner_repo_plans: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PlanList"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "post_api_repos_owner_repo_plans_id_collab-token": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          user: {
+            id: string;
+            name: string;
+          };
+          /** @enum {string} */
+          role: "read" | "write";
+        };
+      };
+    };
+    responses: {
+      /** @description A short-lived token that opens this plan's collaboration socket as one person */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PlanCollabToken"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };

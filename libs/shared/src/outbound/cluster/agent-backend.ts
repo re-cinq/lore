@@ -22,7 +22,13 @@ import type {
   AgentLister,
   TokenProvisioner,
 } from "./cluster-ports.js";
-import { CONTEXT_BOOTSTRAP } from "../../domain/agents/recipe-prompt.js";
+import {
+  CONTEXT_BOOTSTRAP,
+  renderPodPrompt,
+} from "../../domain/agents/recipe-prompt.js";
+
+/** How the pod renders the parameters built below; exported beside them so a test can hold the two together. */
+export { renderPodPrompt };
 
 /** Maps a LoreTaskSpec to an `Agent` CR body; the recipe (model/prompt/tools) lives on the resolved Station, per-run carries only parameters (incl. the `{context}` fetch-instruction slot). */
 export function specToAgent(spec: LoreTaskSpec, stationRef?: string): AgentCr {
@@ -59,22 +65,20 @@ function resolveStationRef(spec: LoreTaskSpec, stationRef?: string): string {
   return spec.stationRef || spec.taskType;
 }
 
-/** Provisions a per-task GitHub token (ADR-031 D6, #697) and materializes the per-task AgentDefinition+Station pair; returns the per-task Station name, or undefined to fall back to the catalog Station. */
+/** The Agent CR's parameters: what the AgentDefinition template's placeholders are filled from. `prompt` is the Floor's fully rendered prompt and is what the LLM template renders (`PROMPT_SLOT`); `description` stays for the station and review templates that read it. */
+export function agentParameters(spec: LoreTaskSpec): Record<string, string> {
+  const prNumber: Record<string, string> =
+    spec.prNumber === undefined ? {} : { pr_number: String(spec.prNumber) };
 
-function agentParameters(spec: LoreTaskSpec): Record<string, string> {
-  const parameters: Record<string, string> = {
+  return {
     description: spec.description,
-    prompt: spec.prompt,
+    // The review recipe's `{pr_number}` used to be filled by the pod from the parameter below; the template now renders `{prompt}` in one pass, so the Floor fills it here, where the parameter is minted.
+    prompt: renderPodPrompt(spec.prompt, prNumber),
     // Always present: renderPrompt leaves an unmatched placeholder intact (so typos surface), so omitting this would ship the literal `{context}` token to the model.
     context: CONTEXT_BOOTSTRAP,
     ...spec.parameters,
+    ...prNumber,
   };
-
-  if (spec.prNumber !== undefined) {
-    parameters.pr_number = String(spec.prNumber);
-  }
-
-  return parameters;
 }
 
 export class AgentCrBackend implements StationBackend {

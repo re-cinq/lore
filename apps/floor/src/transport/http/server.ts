@@ -33,9 +33,7 @@ import type {
   PodLogArchive,
   LiveReadable,
 } from "../../work/station/agent-pod-logs.js";
-
-// GitHub caps payloads at 25 MB; bound generously to support large push deliveries.
-const MAX_BODY_BYTES = 25 * 1024 * 1024;
+import { MAX_SERVER_BODY_BYTES } from "@re-cinq/lore-shared/http/body-limits.js";
 
 /** The read side: an assembly run's events, turns, definitions and catalog. */
 const RUN_READ_ROUTES: Hapi.ServerRoute[] = [
@@ -63,7 +61,7 @@ export function buildServer(
   const server = Hapi.server({
     port: opts.port ?? 0,
     host: "0.0.0.0",
-    routes: { payload: { maxBytes: MAX_BODY_BYTES } },
+    routes: { payload: { maxBytes: MAX_SERVER_BODY_BYTES } },
   });
 
   registerRequestTracing(server, { tracerName: "lore.floor.http" });

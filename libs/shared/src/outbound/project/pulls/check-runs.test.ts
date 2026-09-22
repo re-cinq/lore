@@ -368,6 +368,7 @@ describe("ciFailureReport", () => {
           steps: ["Prettier + eslint --fix"],
           tail: ["✖ 1 problem"],
           npm_script: null,
+          unreadable: [],
         },
         {
           name: "lore/code-review",
@@ -377,6 +378,7 @@ describe("ciFailureReport", () => {
           steps: [],
           tail: [],
           npm_script: null,
+          unreadable: [],
         },
       ],
     });
@@ -481,5 +483,38 @@ describe("summarizeFailedChecks on an npm-run step", () => {
     ).toBe(
       "### agent (failure)\n\nFailed step: Run tests\n\nRan as: npm script `test:coverage` of package `@re-cinq/lore-floor`\n\n> @re-cinq/lore-floor@0.1.0 test:coverage\n> vitest run --coverage",
     );
+  });
+});
+
+describe("a failed Actions job GitHub refused to show in full", () => {
+  const refused = check({
+    id: 105414171440,
+    app: "github-actions",
+    name: "verify",
+    conclusion: "failure",
+    output: { title: null, summary: null },
+    jobFailure: {
+      annotations: [
+        "apps/api/src/configuration/config.ts:23 Function 'getConfig' has too many lines (33)",
+      ],
+      steps: [],
+      tail: [],
+      unreadable: ["job (403)", "log (403)"],
+    },
+  });
+
+  it("summarizeFailedChecks names the refused reads after the annotations and omits the failed-step line it could not read", () => {
+    expect(summarizeFailedChecks([refused]).summary).toBe(
+      "### verify (failure)\n\napps/api/src/configuration/config.ts:23 Function 'getConfig' has too many lines (33)\n\nGitHub refused: job (403), log (403)",
+    );
+  });
+
+  it("ciFailureReport carries job (403) and log (403) as the failure's unreadable reads", () => {
+    expect(
+      ciFailureReport("topic", "1852d4a6c", [refused]).failures[0],
+    ).toMatchObject({
+      job_id: 105414171440,
+      unreadable: ["job (403)", "log (403)"],
+    });
   });
 });

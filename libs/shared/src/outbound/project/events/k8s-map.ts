@@ -25,7 +25,13 @@ export const AGENT_EVENT_NAMES: string[] = Object.values(
 
 export interface AgentLike {
   metadata?: { name?: string; labels?: Record<string, string> };
-  status?: { phase?: string; output?: string; failureReason?: string };
+  status?: {
+    phase?: string;
+    output?: string;
+    failureReason?: string;
+    /** The failed pod's own words, attached by the reporter that can read pods; not a CR field. */
+    errorText?: string;
+  };
 }
 
 interface TerminalAgentPhase {
@@ -92,6 +98,7 @@ function agentStatus(agent: AgentLike, phase: TerminalPhase) {
     phase,
     output: agent.status?.output,
     failureReason: agent.status?.failureReason,
+    ...(agent.status?.errorText ? { errorText: agent.status.errorText } : {}),
   };
 }
 

@@ -1,5 +1,9 @@
 import type { RunGraph } from "../../../domain/run-graph.js";
-import type { AssemblyRunQuery } from "./assembly-runs-port.js";
+import type {
+  AssemblyRunQuery,
+  StationRunRelease,
+  StationRunReleaseResult,
+} from "./assembly-runs-port.js";
 import type { PgPool } from "../../memory-store.js";
 import type {
   AssemblyRunsPort,
@@ -79,6 +83,13 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
 
   async requeueStationRun(nodeRowId: string): Promise<boolean> {
     return stationRuns.requeueStationRun(this.pool, nodeRowId);
+  }
+
+  async releaseStationRun(
+    nodeRowId: string,
+    release: StationRunRelease,
+  ): Promise<StationRunReleaseResult> {
+    return stationRuns.releaseStationRun(this.pool, nodeRowId, release);
   }
 
   async countOpenClaimsByAgent(): Promise<Record<string, number>> {

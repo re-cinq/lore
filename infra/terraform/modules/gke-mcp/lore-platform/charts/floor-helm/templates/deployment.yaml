@@ -14,10 +14,6 @@ spec:
     metadata:
       labels:
         app: lore-floor
-      annotations:
-        # Roll the pods whenever the mounted task-types.yaml content changes —
-        # without this a ConfigMap update leaves running pods on the old file.
-        checksum/task-types: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
     spec:
       serviceAccountName: lore-floor
       {{- if .Values.imagePullSecrets }}
@@ -34,10 +30,6 @@ spec:
               protocol: TCP
           env:
             {{- include "lore-floor.env" . | nindent 12 }}
-          volumeMounts:
-            - name: config
-              mountPath: /config
-              readOnly: true
           livenessProbe:
             httpGet:
               path: /healthz
@@ -52,7 +44,3 @@ spec:
             periodSeconds: 10
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-      volumes:
-        - name: config
-          configMap:
-            name: {{ .Values.configMap.name }}

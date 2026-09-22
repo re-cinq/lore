@@ -20,6 +20,7 @@ import { z } from "zod";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { failureReason } from "./impact-failure.js";
+import { MAX_DOCUMENT_BODY_BYTES } from "@re-cinq/lore-shared/http/body-limits.js";
 
 // Fail-soft: unknown files degrade to []; missing body coerces to {}.
 const ImpactBody = z.preprocess(
@@ -55,7 +56,7 @@ export function impactRoute(): ServerRoute {
     options: zodResponse(
       {
         ...bearerScope("write"),
-        payload: { maxBytes: 2 * 1_048_576 },
+        payload: { maxBytes: MAX_DOCUMENT_BODY_BYTES },
         validate: { payload: zodValidate(ImpactBody) },
       },
       ImpactReportSchema,

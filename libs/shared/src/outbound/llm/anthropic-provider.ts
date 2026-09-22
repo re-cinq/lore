@@ -114,6 +114,8 @@ function callOutcome(
   return {
     inputTokens: usage.inputTokens,
     outputTokens: usage.outputTokens,
+    cacheReadTokens: usage.cacheReadTokens,
+    cacheWriteTokens: usage.cacheCreationTokens,
     costUsd,
     durationMs,
   };
@@ -168,7 +170,7 @@ export class AnthropicProvider implements LlmProvider {
   private async logCall(
     req: { taskId?: string; jobName?: string },
     model: string,
-    { inputTokens, outputTokens, costUsd, durationMs }: LlmCallOutcome,
+    outcome: LlmCallOutcome,
   ): Promise<void> {
     await this.recordUsage(
       req,
@@ -176,10 +178,7 @@ export class AnthropicProvider implements LlmProvider {
         taskId: req.taskId || null,
         jobName: req.jobName || null,
         model,
-        inputTokens,
-        outputTokens,
-        costUsd,
-        durationMs,
+        ...outcome,
       },
       "cost",
     );

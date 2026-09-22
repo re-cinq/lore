@@ -37,6 +37,6 @@ export function githubFailureResponse(
   return h.response({ error: errorMessage(err) }).code(500);
 }
 
-function httpStatusOf(err: unknown): number | undefined {
+export function httpStatusOf(err: unknown): number | undefined {
   return (err as { status?: number } | null)?.status;
 }

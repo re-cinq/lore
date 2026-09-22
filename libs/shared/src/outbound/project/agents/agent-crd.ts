@@ -1,4 +1,4 @@
-// Catalog row → AgentDefinition+Station CRD pair (dispatch-time render); successor to both prior writers (floor agent-catalog.ts, lore-api's UI-authored agent-crd.ts).
+// Catalog row → AgentDefinition+Station CRD pair (dispatch-time render); the only renderer since the Helm seed and lore-api's push retired.
 
 import type {
   AgentDefinition,
@@ -9,6 +9,7 @@ import type {
 import { enforceTrue } from "../../../lib/enforce.js";
 import { AGENT_MAX_TURNS } from "../../cluster/agent-limits.js";
 import type { ResolvedAgentDefinition } from "../../../domain/models/agent-definition.js";
+import { testPolicyEnv } from "../../../domain/task-types/test-policy.js";
 import {
   type CatalogCrdOptions,
   catalogCrdName,
@@ -27,13 +28,11 @@ const API_VERSION = "agents.re-cinq.com/v1alpha1";
 // glibc base; the subsystem's init container injects the claude runtime + supervisor.
 const BASE_IMAGE = "node:22-bookworm";
 
-// One writer, one label — old writers' labels retire with them; the sync loop skips seed-labeled CRs (see catalog-sync-loop).
+// One writer, one label — the sync loop overwrites whatever an older writer labeled.
 export const SYNC_MANAGED_BY = "lore-catalog-sync";
 export const SYNC_LABELS = {
   "app.kubernetes.io/managed-by": SYNC_MANAGED_BY,
 };
-/** lore-api's push-path label — a degraded render meant to die with its writer; the sync loop owns repair until cutover. */
-export const UI_MANAGED_BY = "lore-catalog-ui";
 
 // Only writable dir agent prompts can mean by "working directory"; unset inherits `/`, which is NOT writable (2026-08-10, minikube).
 const REPO_WORKDIR = "/workspace/target";
@@ -104,22 +103,23 @@ function llmSpec(
   };
 }
 
-/** {context} filled per run with CONTEXT_BOOTSTRAP; only true where the pod has a Lore MCP to call (#1629). */
+/** The template renders the `prompt` PARAMETER, not the recipe body: the Floor renders the recipe (resolved row → yaml) and appends the CI verdict and failure blocks, and until 2026-09-13 the template ignored that parameter and every appended block died on the CR (#2051). {context} is filled per run with CONTEXT_BOOTSTRAP; only where the pod has a Lore MCP to call (#1629). */
 function llmPrompt(
   def: ResolvedAgentDefinition,
   opts: CatalogCrdOptions,
 ): string {
-  // Unreachable: agentDefToCrds already ran validateCatalogEntry's promptless refusal; kept for the type narrowing below.
+  // Unreachable: agentDefToCrds already ran validateCatalogEntry's promptless refusal; kept because a row with no recipe body renders no prompt on the Floor either.
   enforceTrue(
     def.prompt,
     Error,
     `recipe ${def.name} has no prompt — the subsystem rejects a promptless AgentDefinition at admission`,
   );
 
-  return opts.mcpUrl
-    ? `${def.prompt.trimEnd()}\n\n{context}`
-    : def.prompt.trimEnd();
+  return opts.mcpUrl ? `${PROMPT_SLOT}\n\n{context}` : PROMPT_SLOT;
 }
+
+/** The one placeholder the Floor fills with the fully rendered prompt (`agentParameters` in agent-backend.ts). */
+export const PROMPT_SLOT = "{prompt}";
 
 function llmResources(
   def: ResolvedAgentDefinition,
@@ -129,7 +129,7 @@ function llmResources(
   return {
     ...llmSecretsBlock(secretKey),
     // Every agent pod commits its own work; git refuses without an identity and a pod has no ambient git config.
-    env: GIT_IDENTITY,
+    env: [...GIT_IDENTITY, ...testPolicyEnv(def.config?.test_policy)],
     ...mcpServersBlock(opts),
     ...skillsBlock(def, opts),
   };

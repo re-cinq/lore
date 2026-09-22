@@ -13,8 +13,6 @@ import { finishNodeAndAdvance } from "./finish-node.js";
 import type { AdvanceDeps } from "./advance-deps.js";
 import { budgetSkipBody } from "@re-cinq/lore-shared/review/review-summary.js";
 import { usage } from "../../outbound/queues.js";
-import { publishPrCheck } from "./pr-check.js";
-import { projectFor } from "../../outbound/project-boot.js";
 import { writeAuditLog } from "../../outbound/audit.js";
 import {
   prNumberFromRow,
@@ -69,7 +67,7 @@ export interface NodeTerminalInput {
   output?: string;
 }
 
-/** Post the review, record the outcome + advance, then publish the PR check. */
+/** Post the review, then record the outcome and advance — the walk refreshes the PR check. */
 export async function finishNodeTerminal(
   input: NodeTerminalInput,
   deps: AdvanceDeps,
@@ -90,8 +88,6 @@ export async function finishNodeTerminal(
     },
     deps,
   );
-
-  await publishCheck(input.row.id, deps);
 }
 
 /** The model(s) that actually billed against this visit, read back from `llm_calls`: the dispatch spec snapshots the yaml default while the agent-definition row overrides it at run time, so the disclosure must name the reviewer that really judged the diff. Falls back to the node's declared model when nothing billed. */
@@ -212,7 +208,7 @@ async function auditBudgetSkip(
   );
 }
 
-/** Records the visit as SUCCESS and publishes the check, so the run moves on instead of spending its remaining iterations re-hitting the same wall. */
+/** Records the visit as SUCCESS, so the run moves on instead of spending its remaining iterations re-hitting the same wall. */
 async function finishAsSuccess(
   input: NodeTerminalInput,
   deps: AdvanceDeps,
@@ -226,7 +222,6 @@ async function finishAsSuccess(
     },
     deps,
   );
-  await publishCheck(input.row.id, deps);
 }
 
 /** Posts both PR artifacts a terminal node can carry — the review and the in-thread reply — returning what the review post did, since that alone can override the node outcome. */
@@ -244,22 +239,4 @@ async function postNodeArtifacts(
   });
 
   return post;
-}
-
-// Publish the line's current state as a PR check (in_progress while running, terminal once finished); best-effort — a missing `checks: write` never blocks.
-export async function publishCheck(
-  assemblyLineId: string,
-  deps: AdvanceDeps,
-): Promise<void> {
-  const [row, nodes] = await Promise.all([
-    deps.assemblyRuns.getById(assemblyLineId),
-    deps.assemblyRuns.listStationRuns(assemblyLineId),
-  ]);
-
-  if (!row || !(Number(row.args.pr_number) > 0)) {
-    return;
-  }
-  const project = await projectFor(row.repo);
-
-  await publishPrCheck(project.repo, row, nodes, process.env.LORE_UI_URL);
 }

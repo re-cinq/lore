@@ -22,7 +22,7 @@ but not self-correcting.
 Two convention layers already exist (shipped alongside this draft): the
 repo CLAUDE.md instructs sessions to flip the header in the same branch
 that completes a spec, and the `implementation` task prompt in
-`scripts/task-types.yaml` carries the same rule. Conventions rot without
+The shipped agent prompts (`libs/shared/src/agent-defaults/`) carry the same rule. Conventions rot without
 enforcement; the three mechanisms below close the loop.
 
 ## The status ladder

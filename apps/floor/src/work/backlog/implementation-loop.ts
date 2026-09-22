@@ -1,12 +1,16 @@
 import type { Project } from "@re-cinq/lore-shared";
 import type { IssueRef } from "@re-cinq/lore-shared";
-import { orderBacklog } from "@re-cinq/lore-shared";
+import {
+  implementationTicketDescription,
+  MAX_TASK_DESCRIPTION_CHARS,
+  orderBacklog,
+  ticketTextTooLong,
+} from "@re-cinq/lore-shared";
 import {
   backlogSubject,
   implementationLoopBranch,
 } from "@re-cinq/lore-shared/project/assembly-runs/subject-keys.js";
 import { decideBranchResume } from "./resume-branch.js";
-import { implementationTicketDescription } from "./ticket-description.js";
 import type { EventHandler } from "../../domain/event-types.js";
 import { implementationLoopEnabled } from "./implementation-loop-enabled.js";
 
@@ -117,6 +121,11 @@ async function pickBacklogTicket(
   const guarded: number[] = [];
 
   for (const candidate of ordered) {
+    if (ticketTextTooLong(candidate)) {
+      logTextTooLong(repo, candidate.number);
+      continue;
+    }
+
     if (await deps.activeTaskByIssue(repo, candidate.number)) {
       guarded.push(candidate.number);
       continue;
@@ -126,6 +135,13 @@ async function pickBacklogTicket(
   }
 
   return { picked: null, guarded };
+}
+
+/** A ticket whose text is too long is walked past, not minted: task creation would refuse it, and a refusal thrown at the head froze re-cinq/Otto's backlog for two days. */
+function logTextTooLong(repo: string, issueNumber: number): void {
+  console.log(
+    `[implementation-loop] ${repo}: skipped #${issueNumber} — ticket text too long: its title and body exceed the ${MAX_TASK_DESCRIPTION_CHARS}-char task description limit`,
+  );
 }
 
 /** A backlog that EXISTS but can't be picked must say so — silence here once ate a morning of diagnosis. */

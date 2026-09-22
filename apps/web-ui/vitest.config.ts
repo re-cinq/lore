@@ -56,6 +56,9 @@ export default defineConfig({
         "src/app/repos/[owner]/[repo]/graph/spec-graph-simulation.ts",
         "src/app/repos/[owner]/[repo]/graph/spec-graph-spacing.ts",
         "src/app/repos/[owner]/[repo]/graph/spec-graph-visual.ts",
+        // The plan editor's socket + BlockNote shell (the editor needs a real browser; pure logic in plan-input/plan-user/plan-status).
+        "src/app/repos/[owner]/[repo]/plans/[[]id]/PlanEditorPanel.tsx",
+        "src/app/repos/[owner]/[repo]/plans/[[]id]/PlanWorkspace.tsx",
         // Feature-planning UI shells (interactive/IO like graph shells; pure logic in feature-status.ts).
         "src/app/repos/[owner]/[repo]/features/**/*.tsx",
         // Infinite-scroll pager (IntersectionObserver + fetch shell; query logic in events/pagination.ts).

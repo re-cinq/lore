@@ -26,7 +26,7 @@ const catalogDef: AgentDefinition = {
   kind: "AgentDefinition",
   metadata: {
     name: "implementation",
-    labels: { "app.kubernetes.io/managed-by": "lore-catalog-seed" },
+    labels: { "app.kubernetes.io/managed-by": "lore-catalog-sync" },
   },
   spec: {
     description: "impl recipe",
@@ -42,7 +42,7 @@ const catalogStation: Station = {
   kind: "Station",
   metadata: {
     name: "implementation",
-    labels: { "app.kubernetes.io/managed-by": "lore-catalog-seed" },
+    labels: { "app.kubernetes.io/managed-by": "lore-catalog-sync" },
   },
   spec: {
     agentDefRef: "implementation",
@@ -93,7 +93,7 @@ describe("injectRepoToken", () => {
     expect(def.metadata).toEqual({
       name: "pt-abc12345",
       labels: {
-        "app.kubernetes.io/managed-by": "lore-catalog-seed",
+        "app.kubernetes.io/managed-by": "lore-catalog-sync",
         "lore.re-cinq.com/task-id": spec.taskId,
       },
     });
@@ -181,7 +181,7 @@ describe("perTaskStation", () => {
     expect(station.metadata).toEqual({
       name: "pt-abc12345",
       labels: {
-        "app.kubernetes.io/managed-by": "lore-catalog-seed",
+        "app.kubernetes.io/managed-by": "lore-catalog-sync",
         "lore.re-cinq.com/task-id": spec.taskId,
       },
     });

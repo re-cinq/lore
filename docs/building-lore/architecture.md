@@ -114,7 +114,7 @@ Key capabilities:
 
 ## Agent execution modes
 
-The Floor chooses an execution mode based on the task type configured in `task-types.yaml`.
+The Floor chooses an execution mode from the task type's resolved agent definition (`lore.agent_definitions`, seeded from `libs/shared/src/agent-defaults/`).
 
 | Mode | When | How |
 |------|------|-----|

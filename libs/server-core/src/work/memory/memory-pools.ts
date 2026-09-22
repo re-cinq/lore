@@ -1,9 +1,8 @@
 import type { PgPool } from "@re-cinq/lore-shared";
-import { resolveAgentId } from "@re-cinq/lore-shared";
+import { resolveAgentId, runInTransaction } from "@re-cinq/lore-shared";
 import {
   getMemoryPool,
   firstRow,
-  runInTransaction,
   toEmbeddingParam,
   auditLog,
   type MemoryWriteInput,

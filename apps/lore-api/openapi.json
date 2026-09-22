@@ -124,7 +124,7 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Every org-default agent definition — org rows overlaid on the task-types.yaml fallback, no per-repo layer",
+            "description": "Every org-default agent definition — the org rows, no per-repo layer",
             "content": {
               "application/json": {
                 "schema": {
@@ -1695,7 +1695,7 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Whether the unlaunched visit went back on the queue or had already settled",
+            "description": "Whether the unlaunched visit went back on the queue, failed because no retry can launch it, or had already settled",
             "content": {
               "application/json": {
                 "schema": {
@@ -2918,6 +2918,7 @@
                 "properties": {
                   "repo": {
                     "type": "string",
+                    "format": "includes",
                     "pattern": "\\/"
                   },
                   "reonboard": {
@@ -4193,7 +4194,7 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "What CI said about a branch: the judged sha, the verdict, and each failed check with its annotations, failed steps and log tail",
+            "description": "What CI said about a branch: the judged sha, the verdict, and each failed check with its annotations, failed steps and log tail, plus the reads GitHub refused (unreadable) so an empty part is not mistaken for a silent job",
             "content": {
               "application/json": {
                 "schema": {
@@ -6179,6 +6180,168 @@
             }
           }
         ]
+      }
+    },
+    "/api/repos/{owner}/{repo}/plans": {
+      "get": {
+        "operationId": "get_api_repos_owner_repo_plans",
+        "summary": "GET /api/repos/{owner}/{repo}/plans",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/repos/{owner}/{repo}/plans/{id}/collab-token": {
+      "post": {
+        "operationId": "post_api_repos_owner_repo_plans_id_collab-token",
+        "summary": "POST /api/repos/{owner}/{repo}/plans/{id}/collab-token",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "A short-lived token that opens this plan's collaboration socket as one person",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanCollabToken"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "write",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "user": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "name": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": ["id", "name"],
+                    "additionalProperties": false
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": ["read", "write"]
+                  }
+                },
+                "required": ["user", "role"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
       }
     },
     "/api/repos/{owner}/{repo}/pulls": {
@@ -9825,6 +9988,12 @@
                       "type": "null"
                     }
                   ]
+                },
+                "unreadable": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
                 }
               },
               "required": [
@@ -9834,7 +10003,8 @@
                 "annotations",
                 "steps",
                 "tail",
-                "npm_script"
+                "npm_script",
+                "unreadable"
               ],
               "additionalProperties": false
             }
@@ -10258,7 +10428,7 @@
         "properties": {
           "status": {
             "type": "string",
-            "enum": ["requeued", "settled"]
+            "enum": ["requeued", "failed", "settled"]
           }
         },
         "required": ["status"],
@@ -12639,6 +12809,9 @@
                         "type": "null"
                       }
                     ]
+                  },
+                  "text_too_long": {
+                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -12651,7 +12824,8 @@
                   "created_at",
                   "error",
                   "run_id",
-                  "pipeline"
+                  "pipeline",
+                  "text_too_long"
                 ],
                 "additionalProperties": false
               },
@@ -12719,6 +12893,9 @@
                       "type": "null"
                     }
                   ]
+                },
+                "text_too_long": {
+                  "type": "boolean"
                 }
               },
               "required": [
@@ -12731,7 +12908,8 @@
                 "created_at",
                 "error",
                 "run_id",
-                "pipeline"
+                "pipeline",
+                "text_too_long"
               ],
               "additionalProperties": false
             }
@@ -12792,6 +12970,9 @@
                       "type": "null"
                     }
                   ]
+                },
+                "text_too_long": {
+                  "type": "boolean"
                 }
               },
               "required": [
@@ -12804,7 +12985,8 @@
                 "created_at",
                 "error",
                 "run_id",
-                "pipeline"
+                "pipeline",
+                "text_too_long"
               ],
               "additionalProperties": false
             }
@@ -13805,6 +13987,65 @@
           "type": "string"
         },
         "additionalProperties": {}
+      },
+      "PlanCollabToken": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "documentName": {
+            "type": "string"
+          }
+        },
+        "required": ["token", "documentName"],
+        "additionalProperties": false
+      },
+      "PlanList": {
+        "type": "object",
+        "properties": {
+          "plans": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "version": {
+                  "type": "number"
+                },
+                "createdBy": {
+                  "type": "string"
+                },
+                "updatedAt": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "type",
+                "status",
+                "version",
+                "createdBy",
+                "updatedAt"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["plans"],
+        "additionalProperties": false
       },
       "PlatformLlmStatus": {
         "type": "object",
@@ -15571,6 +15812,12 @@
               "output_tokens": {
                 "type": "number"
               },
+              "cache_read_tokens": {
+                "type": "number"
+              },
+              "cache_write_tokens": {
+                "type": "number"
+              },
               "by_blueprint": {
                 "type": "array",
                 "items": {
@@ -15738,6 +15985,8 @@
               "calls",
               "input_tokens",
               "output_tokens",
+              "cache_read_tokens",
+              "cache_write_tokens",
               "by_blueprint",
               "by_repo",
               "by_model",
@@ -16000,9 +16249,249 @@
               "live_usd_per_hour"
             ],
             "additionalProperties": false
+          },
+          "unit_costs": {
+            "type": "object",
+            "properties": {
+              "tickets": {
+                "type": "object",
+                "properties": {
+                  "count": {
+                    "type": "number"
+                  },
+                  "total_usd": {
+                    "type": "number"
+                  },
+                  "avg_usd": {
+                    "type": "number"
+                  },
+                  "median_usd": {
+                    "type": "number"
+                  },
+                  "most": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "label": {
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": ["string", "null"]
+                        },
+                        "runs": {
+                          "type": "number"
+                        },
+                        "cost_usd": {
+                          "type": "number"
+                        }
+                      },
+                      "required": ["label", "url", "runs", "cost_usd"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "least": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "label": {
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": ["string", "null"]
+                        },
+                        "runs": {
+                          "type": "number"
+                        },
+                        "cost_usd": {
+                          "type": "number"
+                        }
+                      },
+                      "required": ["label", "url", "runs", "cost_usd"],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "count",
+                  "total_usd",
+                  "avg_usd",
+                  "median_usd",
+                  "most",
+                  "least"
+                ],
+                "additionalProperties": false
+              },
+              "reviews": {
+                "type": "object",
+                "properties": {
+                  "per_pr": {
+                    "type": "object",
+                    "properties": {
+                      "count": {
+                        "type": "number"
+                      },
+                      "total_usd": {
+                        "type": "number"
+                      },
+                      "avg_usd": {
+                        "type": "number"
+                      },
+                      "median_usd": {
+                        "type": "number"
+                      },
+                      "most": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "label": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": ["string", "null"]
+                            },
+                            "runs": {
+                              "type": "number"
+                            },
+                            "cost_usd": {
+                              "type": "number"
+                            }
+                          },
+                          "required": ["label", "url", "runs", "cost_usd"],
+                          "additionalProperties": false
+                        }
+                      },
+                      "least": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "label": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": ["string", "null"]
+                            },
+                            "runs": {
+                              "type": "number"
+                            },
+                            "cost_usd": {
+                              "type": "number"
+                            }
+                          },
+                          "required": ["label", "url", "runs", "cost_usd"],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "count",
+                      "total_usd",
+                      "avg_usd",
+                      "median_usd",
+                      "most",
+                      "least"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "by_line": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "blueprint": {
+                          "type": "string"
+                        },
+                        "runs": {
+                          "type": "number"
+                        },
+                        "total_usd": {
+                          "type": "number"
+                        },
+                        "avg_usd": {
+                          "type": "number"
+                        }
+                      },
+                      "required": ["blueprint", "runs", "total_usd", "avg_usd"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "by_model": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "model": {
+                          "type": "string"
+                        },
+                        "calls": {
+                          "type": "number"
+                        },
+                        "cost_usd": {
+                          "type": "number"
+                        }
+                      },
+                      "required": ["model", "calls", "cost_usd"],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": ["per_pr", "by_line", "by_model"],
+                "additionalProperties": false
+              },
+              "nodes": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "blueprint": {
+                      "type": "string"
+                    },
+                    "node_id": {
+                      "type": "string"
+                    },
+                    "visits": {
+                      "type": "number"
+                    },
+                    "total_usd": {
+                      "type": "number"
+                    },
+                    "per_visit_usd": {
+                      "type": "number"
+                    },
+                    "models": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "blueprint",
+                    "node_id",
+                    "visits",
+                    "total_usd",
+                    "per_visit_usd",
+                    "models"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": ["tickets", "reviews", "nodes"],
+            "additionalProperties": false
           }
         },
-        "required": ["interval", "llm", "billed", "gcp", "compute"],
+        "required": [
+          "interval",
+          "llm",
+          "billed",
+          "gcp",
+          "compute",
+          "unit_costs"
+        ],
         "additionalProperties": false
       },
       "StationRunList": {

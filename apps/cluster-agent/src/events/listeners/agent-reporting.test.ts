@@ -56,6 +56,67 @@ describe("reportForAgent", () => {
     expect(reported).toEqual([]);
   });
 
+  it("carries the failed pod's own words as errorText beside the Job-level reason", async () => {
+    const reported: ProxyMessage[] = [];
+
+    await reportForAgent(
+      {
+        metadata: { name: "cr-1", labels: { [TASK]: "task-1" } },
+        status: {
+          phase: "Failed",
+          jobName: "agent-job-cr-1",
+          failureReason:
+            "BackoffLimitExceeded: Job has reached the specified backoff limit",
+        },
+      } as never,
+      {
+        emit: async (message) => {
+          reported.push(message);
+        },
+        failureCause: async (jobName) =>
+          jobName === "agent-job-cr-1"
+            ? 'init container "init" exited 128: remote: Repository not found.'
+            : undefined,
+      },
+    );
+
+    expect(reported[0]).toMatchObject({
+      event: {
+        params: {
+          status: {
+            failureReason:
+              "BackoffLimitExceeded: Job has reached the specified backoff limit",
+            errorText:
+              'init container "init" exited 128: remote: Repository not found.',
+          },
+        },
+      },
+    });
+  });
+
+  it("still reports a failed Agent whose pod cannot be read", async () => {
+    const reported: ProxyMessage[] = [];
+
+    await reportForAgent(
+      {
+        metadata: { name: "cr-1", labels: { [TASK]: "task-1" } },
+        status: { phase: "Failed", jobName: "agent-job-cr-1" },
+      } as never,
+      {
+        emit: async (message) => {
+          reported.push(message);
+        },
+        failureCause: async () => {
+          throw new Error("pods is forbidden");
+        },
+      },
+    );
+
+    expect(reported).toMatchObject([
+      { event: { params: { status: { phase: "Failed" } } } },
+    ]);
+  });
+
   it("swallows a failed emit so one bad CR cannot end the watch", async () => {
     const failing = {
       emit: async (): Promise<void> => {

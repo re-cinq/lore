@@ -22,6 +22,7 @@ export const GITHUB_EVENT_NAMES: string[] = [
   "github.check_suite.completed",
   "github.issue_comment.created",
   "github.issues.labeled",
+  "github.repository.renamed",
 ];
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- GitHub webhook payload; shape varies by event type and is navigated defensively below
@@ -43,6 +44,7 @@ const EVENT_MAPPERS: Record<string, EventMapper | undefined> = {
   issue_comment: mapIssueComment,
   pull_request_review_comment: mapReviewComment,
   issues: mapIssueLabeled,
+  repository: mapRepositoryRenamed,
 };
 
 export function mapGitHubEvent(
@@ -196,6 +198,25 @@ function mapIssueLabeled(
   );
 }
 
+function mapRepositoryRenamed(
+  payload: GitHubPayload,
+  repo: string,
+  key: string,
+): EventInput[] {
+  const previousName = previousNameOf(payload.changes?.repository);
+
+  if (payload.action !== "renamed" || !previousName) {
+    return [];
+  }
+  const [owner] = repo.split("/");
+
+  return oneEvent(
+    "github.repository.renamed",
+    { from: `${owner}/${previousName}`, to: repo },
+    key,
+  );
+}
+
 function closedPrEvent(
   pr: GitHubPayload,
   prNumber: number,
@@ -292,6 +313,12 @@ function issueSummary(issue: GitHubPayload): {
     html_url: issue.html_url ?? "",
     labels: labelNames(issue.labels),
   };
+}
+
+function previousNameOf(change?: {
+  name?: { from?: string };
+}): string | undefined {
+  return change?.name?.from;
 }
 
 function commentAuthor(user?: { login?: string }): string {

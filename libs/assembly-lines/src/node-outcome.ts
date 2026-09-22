@@ -190,15 +190,39 @@ function stationOutputOutcome(
     : { outcome: "success" };
 }
 
-// The definition-of-done step's one-line verdict rides extras too; lift it into failureDetail so the terminal hook can quote it on the issue (implementation-loop FR8) — nothing later reads failureDetail off a changes_requested row, so it cannot leak into a prompt.
+// The definition-of-done step's one-line verdict rides extras too; lift it into failureDetail so the terminal hook can quote it on the issue (implementation-loop FR8) — nothing later reads failureDetail off a changes_requested row, so it cannot leak into a prompt. Two verdicts share the outcome: blocked (a park) and resolved (the ticket is already done), told apart by the prefix the resolved one carries.
 function withDodBlockedDetail(stationResult: NodeResult): NodeResult {
-  const verdict = stationResult.extras?.["Lore-Dod-Blocked"];
-  const lifts =
-    stationResult.outcome === "changes_requested" &&
-    !stationResult.failureDetail &&
-    isDodVerdict(verdict);
+  if (
+    stationResult.outcome !== "changes_requested" ||
+    stationResult.failureDetail
+  ) {
+    return stationResult;
+  }
+  const failureDetail = liftedDodVerdict(stationResult);
 
-  return lifts ? { ...stationResult, failureDetail: verdict } : stationResult;
+  return failureDetail ? { ...stationResult, failureDetail } : stationResult;
+}
+
+const DOD_RESOLVED_PREFIX = "already resolved: ";
+
+function liftedDodVerdict(stationResult: NodeResult): string | null {
+  const resolved = stationResult.extras?.["Lore-Dod-Resolved"];
+
+  if (isDodVerdict(resolved)) {
+    return `${DOD_RESOLVED_PREFIX}${resolved}`;
+  }
+  const blocked = stationResult.extras?.["Lore-Dod-Blocked"];
+
+  return isDodVerdict(blocked) ? blocked : null;
+}
+
+// The resolved verdict's reason, read back off a row's failure_detail; null for a blocked verdict or no verdict at all.
+export function dodResolvedReason(
+  failureDetail: string | null | undefined,
+): string | null {
+  return failureDetail?.startsWith(DOD_RESOLVED_PREFIX)
+    ? failureDetail.slice(DOD_RESOLVED_PREFIX.length)
+    : null;
 }
 
 function isDodVerdict(verdict: unknown): verdict is string {

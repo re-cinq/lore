@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { enforceTrue } from "../../../lib/enforce.js";
 import type { PipelineTask } from "../../../domain/types.js";
+import { enforceDescriptionFits } from "../../../domain/task-description.js";
 import {
   enforceTrustAllowsTaskType,
   type CreateTaskInput,
@@ -160,11 +161,7 @@ export class InMemoryTaskStore implements TaskStorePort {
     repo: string | undefined,
     taskType: string,
   ): void {
-    enforceTrue(
-      input.description.length <= 10000,
-      Error,
-      "Description too long (max 10000 chars)",
-    );
+    enforceDescriptionFits(input.description);
     this.enforceTrustGate(repo, taskType);
   }
 
