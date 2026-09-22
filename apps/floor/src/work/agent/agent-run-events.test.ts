@@ -581,6 +581,8 @@ describe("run-event projection through parseAgentSink", () => {
         model: "claude-opus-4",
         inputTokens: 10,
         outputTokens: 2,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
         costUsd: 0.5,
         durationMs: 99,
       },

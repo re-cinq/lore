@@ -32,9 +32,31 @@ describe("parseAgentEvents", () => {
         model: "claude-sonnet-4-6",
         inputTokens: 1200,
         outputTokens: 340,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
         costUsd: 0.0185,
         durationMs: 42000,
       },
+    ]);
+  });
+
+  it("records 16918 cache-read and 16531 cache-write tokens from a claude result's usage", () => {
+    const ndjson = line(
+      src,
+      result({
+        modelUsage: { "claude-sonnet-4-6": {} },
+        usage: {
+          input_tokens: 3,
+          output_tokens: 7,
+          cache_read_input_tokens: 16918,
+          cache_creation_input_tokens: 16531,
+        },
+        total_cost_usd: 0.07,
+      }),
+    );
+
+    expect(parseAgentEvents(ndjson)).toMatchObject([
+      { inputTokens: 3, cacheReadTokens: 16918, cacheWriteTokens: 16531 },
     ]);
   });
 
@@ -63,6 +85,8 @@ describe("parseAgentEvents", () => {
         model: "gemini-2.5-flash",
         inputTokens: 10,
         outputTokens: 5,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
         costUsd: computeGeminiCost("gemini-2.5-flash", 10, 5),
         durationMs: 900,
       },
@@ -194,6 +218,8 @@ describe("parseAgentEvents", () => {
       {
         inputTokens: 0,
         outputTokens: 0,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
         costUsd: 0,
         durationMs: 0,
       },
@@ -251,6 +277,8 @@ describe("parseAgentEvents", () => {
         model: "claude-sonnet-4-6",
         inputTokens: 1200,
         outputTokens: 340,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
         costUsd: 0.0185,
         durationMs: 42000,
       },
@@ -327,6 +355,8 @@ describe("parseAgentEvents on a station terminal line", () => {
         model: "claude-haiku-4-5-20251001",
         inputTokens: 812,
         outputTokens: 41,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
         costUsd: 0.0008,
         durationMs: 950,
       },

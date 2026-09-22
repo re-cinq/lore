@@ -4,6 +4,7 @@ import { LlmBreakdowns } from "./SpendLlmBreakdowns";
 import { BilledBreakdowns, ComputeBreakdowns } from "./SpendBilledAndCompute";
 import { SpendSection } from "./SpendSection";
 import { SpendCompareBars, type ComparePairInput } from "./SpendCompareBars";
+import { UnitCosts } from "./SpendUnitCosts";
 
 // Rows are aliases over OpenAPI /api/analytics/spend-window contract (ADR-035)
 export type SpendWindow = components["schemas"]["SpendWindow"];
@@ -20,6 +21,7 @@ export default function SpendView({ spend }: SpendViewProps) {
       <SummaryCards {...spend} />
       <SpendCompareBars pairs={comparePairs(spend)} />
       <LoreComputedSection llm={llm} />
+      <UnitCostsSection unitCosts={spend.unit_costs} />
       {(billed.available || gcp.available) && (
         <VendorInvoicesSection billed={billed} gcp={gcp} />
       )}
@@ -65,6 +67,22 @@ function LoreComputedSection({ llm }: { llm: SpendWindow["llm"] }) {
       caption="Metered from token counts (input/output × per-model pricing, cache-adjusted). The vendor invoice is the authority; this is the live estimate beside it."
     >
       <LlmBreakdowns llm={llm} />
+    </SpendSection>
+  );
+}
+
+function UnitCostsSection({
+  unitCosts,
+}: {
+  unitCosts: SpendWindow["unit_costs"];
+}) {
+  return (
+    <SpendSection
+      title="Cost per unit of work"
+      kind="estimate"
+      caption="What one ticket, one PR's reviews and one node visit cost over this window, summed from the same metered calls. A ticket sums every run of it; a PR sums its review, rechecks and replies."
+    >
+      <UnitCosts unitCosts={unitCosts} />
     </SpendSection>
   );
 }

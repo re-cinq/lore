@@ -18,7 +18,13 @@ import {
   MAX_RUN_TURNS_PER_BATCH,
 } from "./agent-run-turns.js";
 import { isRecord } from "@re-cinq/lore-shared/lib/is-record.js";
-import { computeGeminiCost } from "@re-cinq/lore-shared/llm/gemini-provider.js";
+import {
+  resultTokens,
+  resultModel,
+  resultCostUsd,
+  resultDurationMs,
+  type ResultTokens,
+} from "./agent-result-usage.js";
 
 export interface LlmCallRow {
   /** Always non-empty — rowFromEnvelope returns null for a taskId-less envelope. */
@@ -30,11 +36,11 @@ export interface LlmCallRow {
   model: string;
   inputTokens: number;
   outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
   costUsd: number;
   durationMs: number;
 }
-
-const num = (value: unknown): number => (typeof value === "number" ? value : 0);
 
 /** A file declared under `output.watch`, raised by the subsystem on agent exit (`{"kind":"file"}`); `content`/`reason` are mutually exclusive — an undelivered declared artifact still reports, carrying why. */
 export interface AgentFileEvent {
@@ -184,30 +190,6 @@ function sourceTaskId(source: { task?: unknown } | undefined | null): string {
   return typeof source?.task === "string" ? source.task : "";
 }
 
-interface ResultTokens {
-  inputTokens: number;
-  outputTokens: number;
-}
-
-// Claude Code/Codex carry cumulative usage under `usage`, Gemini under `stats`; null (not zero-filled) when neither is present so the line stays skipped.
-function resultTokens(ev: Record<string, unknown>): ResultTokens | null {
-  if (isRecord(ev.usage)) {
-    return {
-      inputTokens: num(ev.usage.input_tokens),
-      outputTokens: num(ev.usage.output_tokens),
-    };
-  }
-
-  if (isRecord(ev.stats)) {
-    return {
-      inputTokens: num(ev.stats.input_tokens),
-      outputTokens: num(ev.stats.output_tokens),
-    };
-  }
-
-  return null;
-}
-
 interface CostRowParts {
   taskId: string;
   source: ReturnType<typeof unwrapAttribution>["source"];
@@ -223,98 +205,16 @@ function costRowFrom({ taskId, source, ev, tokens }: CostRowParts): LlmCallRow {
     agentCrName: sourceAgentCrName(source),
     carried: parseCarriedRunIdentity(source),
     model,
-    inputTokens: tokens.inputTokens,
-    outputTokens: tokens.outputTokens,
+    ...tokens,
     costUsd: resultCostUsd(ev, model, tokens),
     durationMs: resultDurationMs(ev),
   };
-}
-
-// Primary model: the one that wrote the most output under `modelUsage` (Claude Code) or `stats.models` (Gemini). Both CLIs list their side calls there too — a classifier, a compression pass — and often first, so the first key named gemini-3-flash-preview for a review gemini-3.1-pro-preview wrote (run a8fe5dde); the sort is stable, so models reporting no output keep the CLI's order. Else flat `model`, else "unknown".
-function resultModel(ev: Record<string, unknown>): string {
-  const fallback = typeof ev.model === "string" ? ev.model : "unknown";
-
-  return (
-    busiestModel(ev.modelUsage) ?? busiestModel(statsModels(ev)) ?? fallback
-  );
-}
-
-function statsModels(ev: Record<string, unknown>): unknown {
-  return isRecord(ev.stats) ? ev.stats.models : undefined;
-}
-
-function busiestModel(perModelUsage: unknown): string | null {
-  if (!isRecord(perModelUsage)) {
-    return null;
-  }
-  const ranked = Object.entries(perModelUsage).sort(
-    ([, a], [, b]) => modelOutputTokens(b) - modelOutputTokens(a),
-  );
-
-  return ranked.at(0)?.[0] ?? null;
-}
-
-// Claude Code spells it `outputTokens`, Gemini `output_tokens`; an entry carries one or the other.
-function modelOutputTokens(usage: unknown): number {
-  return usageCount(usage, "outputTokens") + usageCount(usage, "output_tokens");
-}
-
-/** One count off a per-model usage entry, zero when the entry is not an object. */
-function usageCount(usage: unknown, key: string): number {
-  return isRecord(usage) ? num(usage[key]) : 0;
 }
 
 function sourceAgentCrName(
   source: { agent?: unknown } | undefined | null,
 ): string | null {
   return typeof source?.agent === "string" ? source.agent : null;
-}
-
-// Gemini reports no `total_cost_usd` (quota-based billing) so we price it from tokens; keyed on the "gemini-" model prefix since the envelope carries no vendor field.
-function resultCostUsd(
-  ev: Record<string, unknown>,
-  model: string,
-  tokens: ResultTokens,
-): number {
-  if (typeof ev.total_cost_usd === "number") {
-    return ev.total_cost_usd;
-  }
-
-  if (!model.startsWith("gemini-")) {
-    return 0;
-  }
-
-  return (
-    perModelGeminiCost(statsModels(ev)) ??
-    computeGeminiCost(model, tokens.inputTokens, tokens.outputTokens)
-  );
-}
-
-/** Each model at its own rate: pricing a run's every token at the primary model's rate bills a flash side call as pro. Null when the result names no models. */
-function perModelGeminiCost(perModelUsage: unknown): number | null {
-  if (!isRecord(perModelUsage) || Object.keys(perModelUsage).length === 0) {
-    return null;
-  }
-
-  return Object.entries(perModelUsage).reduce(
-    (sum, [model, usage]) =>
-      sum +
-      computeGeminiCost(
-        model,
-        usageCount(usage, "input_tokens"),
-        usageCount(usage, "output_tokens"),
-      ),
-    0,
-  );
-}
-
-// Claude Code/Codex report `duration_ms` at the top level; Gemini reports it under `stats`.
-function resultDurationMs(ev: Record<string, unknown>): number {
-  if (typeof ev.duration_ms === "number") {
-    return ev.duration_ms;
-  }
-
-  return isRecord(ev.stats) ? num(ev.stats.duration_ms) : 0;
 }
 
 /** Project a `kind:"file"` envelope; null for any other line, a nameless artifact, or one with no task attribution (skip-don't-throw, same rule the cost projection uses). */

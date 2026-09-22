@@ -14,6 +14,8 @@ export interface StoredLlmCall {
   model: string;
   input_tokens: number;
   output_tokens: number;
+  cache_read_tokens: number;
+  cache_write_tokens: number;
   cost_usd: number;
   duration_ms: number;
   status: "success" | "failed";
@@ -97,13 +99,22 @@ function toStoredCall(
     ...correlationColumns(correlation),
     job_name: defaults.jobName,
     model: record.model,
-    input_tokens: record.inputTokens,
-    output_tokens: record.outputTokens,
+    ...tokenColumns(record),
     cost_usd: defaults.costUsd,
     duration_ms: record.durationMs,
     status: defaults.status,
     error: defaults.error,
     created_at: createdAt,
+  };
+}
+
+/** The four token counts, cache reads and writes defaulting to 0 as the Pg columns do. */
+function tokenColumns(record: LlmCallRecord) {
+  return {
+    input_tokens: record.inputTokens,
+    output_tokens: record.outputTokens,
+    cache_read_tokens: record.cacheReadTokens ?? 0,
+    cache_write_tokens: record.cacheWriteTokens ?? 0,
   };
 }
 
