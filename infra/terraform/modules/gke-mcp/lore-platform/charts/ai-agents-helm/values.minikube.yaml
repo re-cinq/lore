@@ -19,21 +19,7 @@ networkPolicy:
 # cluster-agent's sync loop renders it from lore.agent_definitions with the
 # host.minikube.internal URLs scripts/dev-local.sh scopes to its command.
 
-# v0.10.3 controller + agent, pinned by digest as the PAIR the shared values.yaml
-# insists on. Both halves are load-bearing for every capability here: the recipe
-# fields (output.watch, resources.conversation) are read by the controller, and the
-# files they name are read and written by the supervisor, which rides in the AGENT
-# image. A half-bump renders the recipe field inert — a mismatch that presents as
-# "the feature does nothing" rather than as an error. Local-only on purpose; the
-# shared values.yaml still pins v0.8.1 for GKE, so bumping prod stays a deliberate,
-# separate decision.
-#   docker buildx imagetools inspect ghcr.io/re-cinq/ai-agent-controller:v0.10.3
-controller:
-  image:
-    digest: "sha256:6ad1473fb975aaf93017aa477df596ed16619bafa6bda8e2df5903eb4fcd66a5"
-  # Nested under `controller` because that is where the template reads it
-  # (.Values.controller.agentImage). A top-level key here is silently ignored and
-  # falls back to the shared v0.8.1 digest — which injects a supervisor with no
-  # file-watch, so the artifact event is never raised and the round dies exactly as
-  # it did before the feature existed.
-  agentImage: "ghcr.io/re-cinq/ai-agent@sha256:4a026231f20b38308e6302a858ed43270d069b2b46b669a653ff0f719cb33d44"
+# The controller + agent image PAIR comes from the shared values.yaml, so a laptop
+# runs the release production runs. A local override here drifted to v0.10.3 while
+# production moved on, and a recipe field the older pair does not read presents as
+# "the feature does nothing" rather than as an error.
