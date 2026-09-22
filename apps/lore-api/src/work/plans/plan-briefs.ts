@@ -25,9 +25,9 @@ export function draftBrief(plan: PlanView, known: string): string {
   ].join("\n");
 }
 
-/** One section's Refine, named by the marker the agent finds it by; the run carries its hash and uses, so the agent copies nothing. */
+/** One section's Refine, named by the marker the agent finds it by; the run carries its hash and uses, so the agent copies nothing. An answer is a fact about the plan, not about one section, so the pass may follow it into the sections it contradicts. */
 export function refineBrief(plan: PlanView, request: RefineRequest): string {
-  return `Refine only the section "${request.title}" (<!-- slot:${request.slot} -->) of plan.md for "${plan.title}". Build on its answered questions and resolved comments, and leave every other section as it is.`;
+  return `Refine the section "${request.title}" (<!-- slot:${request.slot} -->) of plan.md for "${plan.title}", building on its answered questions and resolved comments. Change another section ONLY where one of those settled answers makes what it says wrong — each section you touch is proposed on its own, for a person to accept or refuse. Leave every other section exactly as it is.`;
 }
 
 /** The approved plan, handed to the spec work that follows approval. */

@@ -15,7 +15,7 @@ describe("plan briefs", () => {
     );
   });
 
-  it("asks to refine only the Intent section of plan.md, by its slot marker", () => {
+  it("asks to refine the Intent section by its slot marker, and to follow a settled answer into the sections it makes wrong", () => {
     const request = {
       slot: "intent",
       title: "Intent",
@@ -25,7 +25,7 @@ describe("plan briefs", () => {
     };
 
     expect(refineBrief(PLAN, request)).toEqual(
-      'Refine only the section "Intent" (<!-- slot:intent -->) of plan.md for "Faster checkout". Build on its answered questions and resolved comments, and leave every other section as it is.',
+      'Refine the section "Intent" (<!-- slot:intent -->) of plan.md for "Faster checkout", building on its answered questions and resolved comments. Change another section ONLY where one of those settled answers makes what it says wrong — each section you touch is proposed on its own, for a person to accept or refuse. Leave every other section exactly as it is.',
     );
   });
 

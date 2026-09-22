@@ -132,7 +132,7 @@ describe("askRefine", () => {
         outcome: "changes_requested",
         args: {
           round_feedback: expect.stringContaining(
-            'Refine only the section "Intent"',
+            'Refine the section "Intent"',
           ),
           refine: { slot: "intent", baseHash: "3f9a", uses: {} },
         },

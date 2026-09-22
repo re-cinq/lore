@@ -26,8 +26,10 @@ function recordingPorts() {
       applyOps: async (request) => {
         writes.push({ call: "applyOps", request });
       },
-      propose: async (request) => {
-        writes.push({ call: "propose", request });
+      proposePass: async (request) => {
+        writes.push({ call: "proposePass", request });
+
+        return { proposed: [], skipped: [] };
       },
     },
   };
@@ -98,40 +100,6 @@ describe("applyPlanFile", () => {
     ]);
   });
 
-  it("proposes only the intent section's ops for a Refine of intent, reporting the scope edit it drops", async () => {
-    const { writes, ports } = recordingPorts();
-
-    const outcome = await applyPlanFile(
-      "p1",
-      {
-        actor: "planning-agent",
-        markdown: edited,
-        refine: {
-          slot: "intent",
-          baseHash: "3f9a",
-          uses: { questions: ["q1"] },
-        },
-      },
-      ports,
-    );
-
-    expect({ writes, problems: outcome.problems }).toMatchObject({
-      writes: [
-        {
-          call: "propose",
-          request: {
-            planId: "p1",
-            slot: "intent",
-            baseHash: "3f9a",
-            uses: { questions: ["q1"], comments: [] },
-            ops: [{ op: "set-section-prose", slot: "intent" }],
-          },
-        },
-      ],
-      problems: [{ code: "outside-refine", slot: "scope" }],
-    });
-  });
-
   it("proposes no change for a Refine the agent answered by leaving its section as it was", async () => {
     const { writes, ports } = recordingPorts();
 
@@ -146,7 +114,39 @@ describe("applyPlanFile", () => {
     );
 
     expect(writes).toMatchObject([
-      { call: "propose", request: { slot: "intent", ops: [] } },
+      {
+        call: "proposePass",
+        request: { asked: { slot: "intent" }, ops: [] },
+      },
+    ]);
+  });
+
+  it("proposes the Refine's own section and the scope an answer forced, each as its own proposal", async () => {
+    const { writes, ports } = recordingPorts();
+
+    await applyPlanFile(
+      "p1",
+      {
+        actor: "planning-agent",
+        markdown: edited,
+        refine: { slot: "intent", baseHash: "3f9a", uses: { questions: ["q1"] } },
+      },
+      ports,
+    );
+
+    expect(writes).toMatchObject([
+      {
+        call: "proposePass",
+        request: {
+          planId: "p1",
+          asked: { slot: "intent", baseHash: "3f9a" },
+          uses: { questions: ["q1"], comments: [] },
+          ops: [
+            { op: "set-section-prose", slot: "intent" },
+            { op: "set-section-prose", slot: "scope" },
+          ],
+        },
+      },
     ]);
   });
 

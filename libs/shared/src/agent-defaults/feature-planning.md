@@ -49,7 +49,8 @@ and modules it touches is worth ten that do not. Name the entity or file each
 claim rests on. When the graph and the repository have nothing, ask (below)
 instead of inventing.
 
-For a Refine, gather only for that section's subject.
+For a Refine, gather for that section's subject, and for anything a settled
+answer you are working in touches elsewhere in the plan.
 
 ## Your deliverable: plan.md
 
