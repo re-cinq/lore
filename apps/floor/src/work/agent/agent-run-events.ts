@@ -6,36 +6,19 @@ import type {
   AgentRunEventInsert,
   AgentRunEventType,
 } from "@re-cinq/lore-shared";
-import { truncateForStorage } from "../../lib/truncate-for-storage.js";
 import { isRecord } from "@re-cinq/lore-shared/lib/is-record.js";
-
-const SUMMARY_MAX_CHARS = 200;
-const TOOL_RESULT_MAX_BYTES = 2048;
-const TOOL_INPUT_VALUE_MAX_BYTES = 1024;
-const TOOL_INPUT_TOTAL_MAX_BYTES = 4096;
-const BASH_COMMAND_SUMMARY_CHARS = 120;
-
-/** Tool input keys naming files (exclude bash commands: too noisy). */
-const FILE_PATH_KEYS = ["file_path", "path", "notebook_path"] as const;
-
-const str = (value: unknown): string | null =>
-  typeof value === "string" ? value : null;
-
-const num = (value: unknown): number => (typeof value === "number" ? value : 0);
-
-const cap = (text: string): string => text.slice(0, SUMMARY_MAX_CHARS);
-
-/** File paths named by a tool call's input, in key order, deduplicated. */
-export function filePathsFromToolInput(input: unknown): string[] {
-  if (!isRecord(input)) {
-    return [];
-  }
-  const paths = FILE_PATH_KEYS.map((key) => str(input[key])).filter(
-    (path): path is string => path !== null,
-  );
-
-  return [...new Set(paths)];
-}
+import {
+  cap,
+  num,
+  str,
+  toolCallRow,
+  toolResultRowOf,
+} from "./agent-run-tool-rows.js";
+import {
+  geminiErrorRows,
+  geminiMessageRows,
+  geminiToolResultRows,
+} from "./gemini-run-events.js";
 
 function systemRows(
   ev: Record<string, unknown>,
@@ -77,14 +60,16 @@ function hookRow(
   };
 }
 
+// Claude keys the verdict by subtype/is_error; gemini-cli by status, with its duration under stats.
 function resultRow(ev: Record<string, unknown>): Partial<AgentRunEventInsert> {
-  const subtype = str(ev.subtype) ?? "unknown";
-  const durationMs = num(ev.duration_ms);
+  const subtype = str(ev.subtype) ?? str(ev.status) ?? "unknown";
+  const stats = isRecord(ev.stats) ? ev.stats : {};
+  const durationMs = num(ev.duration_ms ?? stats.duration_ms);
   const costUsd = num(ev.total_cost_usd);
 
   return {
     eventType: "result",
-    isError: ev.is_error === true,
+    isError: ev.is_error === true || ev.status === "error",
     summary: cap(`result ${subtype} in ${durationMs}ms ($${costUsd})`),
     payload: { subtype, durationMs, costUsd },
   };
@@ -121,7 +106,9 @@ function assistantBlockRow(
     return thinkingBlockRow(block);
   }
 
-  return block.type === "tool_use" ? toolUseBlockRow(block) : null;
+  return block.type === "tool_use"
+    ? toolCallRow({ name: block.name, id: block.id, input: block.input })
+    : null;
 }
 
 function textBlockRow(
@@ -144,75 +131,6 @@ function thinkingBlockRow(
   };
 }
 
-function toolUseBlockRow(
-  block: Record<string, unknown>,
-): Partial<AgentRunEventInsert> {
-  const name = str(block.name) ?? "unknown";
-  const filePaths = filePathsFromToolInput(block.input);
-
-  return {
-    eventType: "tool_call",
-    toolName: name,
-    toolUseId: str(block.id),
-    filePaths,
-    summary: toolCallSummary(name, block.input, filePaths),
-    payload: { input: truncateToolInput(block.input) },
-  };
-}
-
-function toolCallSummary(
-  name: string,
-  input: unknown,
-  filePaths: readonly string[],
-): string {
-  if (filePaths.length > 0) {
-    return cap(`${name} ${filePaths[0]}`);
-  }
-  const command = isRecord(input) ? str(input.command) : null;
-
-  return command
-    ? cap(`${name} ${command.slice(0, BASH_COMMAND_SUMMARY_CHARS)}`)
-    : cap(name);
-}
-
-/** Per-value and whole-input byte caps; dropped keys' count recorded. */
-function truncateToolInput(input: unknown): Record<string, unknown> {
-  if (!isRecord(input)) {
-    return {};
-  }
-  const kept: Record<string, unknown> = {};
-  const entries = Object.entries(input);
-  let used = 0;
-
-  for (const [index, [key, value]] of entries.entries()) {
-    const { stored, byteSize } = truncatedInputValue(value);
-
-    if (used + byteSize > TOOL_INPUT_TOTAL_MAX_BYTES) {
-      kept.__truncated__ = `${entries.length - index} input keys omitted`;
-      break;
-    }
-    kept[key] = stored;
-    used += byteSize;
-  }
-
-  return kept;
-}
-
-interface TruncatedInputValue {
-  stored: unknown;
-  byteSize: number;
-}
-
-// Values arrive from JSON.parse, so JSON.stringify always returns a string; stored as a string once truncated so accounting matches the written size.
-function truncatedInputValue(value: unknown): TruncatedInputValue {
-  const encoded = typeof value === "string" ? value : JSON.stringify(value);
-  const trimmed = truncateForStorage(encoded, TOOL_INPUT_VALUE_MAX_BYTES);
-  const stored =
-    typeof value === "string" || trimmed !== encoded ? trimmed : value;
-
-  return { stored, byteSize: Buffer.byteLength(trimmed, "utf8") };
-}
-
 function userRows(ev: Record<string, unknown>): Partial<AgentRunEventInsert>[] {
   return contentBlocks(ev).map(toolResultRow).filter(isPresent);
 }
@@ -221,20 +139,12 @@ function toolResultRow(block: unknown): Partial<AgentRunEventInsert> | null {
   if (!isRecord(block) || block.type !== "tool_result") {
     return null;
   }
-  const isError = block.is_error === true;
 
-  return {
-    eventType: "tool_result",
-    toolUseId: str(block.tool_use_id),
-    isError,
-    summary: `tool_result ${isError ? "error" : "ok"}`,
-    payload: {
-      content: truncateForStorage(
-        toolResultContent(block.content),
-        TOOL_RESULT_MAX_BYTES,
-      ),
-    },
-  };
+  return toolResultRowOf({
+    id: block.tool_use_id,
+    isError: block.is_error === true,
+    content: toolResultContent(block.content),
+  });
 }
 
 /** A tool_result's content arrives either as a string or as content blocks. */
@@ -261,55 +171,6 @@ function logRows(ev: Record<string, unknown>): Partial<AgentRunEventInsert>[] {
     : [];
 }
 
-// gemini-cli flat dialect: top-level init/message/tool_use/tool_result/error lines.
-
-function geminiMessageRows(
-  ev: Record<string, unknown>,
-): Partial<AgentRunEventInsert>[] {
-  const content = str(ev.content);
-
-  return content !== null
-    ? [{ eventType: "message", summary: cap(content), payload: {} }]
-    : [];
-}
-
-function geminiToolUseRows(
-  ev: Record<string, unknown>,
-): Partial<AgentRunEventInsert>[] {
-  const name = str(ev.tool_name) ?? "unknown";
-  const filePaths = filePathsFromToolInput(ev.parameters);
-
-  return [
-    {
-      eventType: "tool_call",
-      toolName: name,
-      toolUseId: str(ev.tool_id),
-      filePaths,
-      summary: toolCallSummary(name, ev.parameters, filePaths),
-      payload: { input: truncateToolInput(ev.parameters) },
-    },
-  ];
-}
-
-function geminiToolResultRows(
-  ev: Record<string, unknown>,
-): Partial<AgentRunEventInsert>[] {
-  const isError = ev.status === "error";
-  const output = typeof ev.output === "string" ? ev.output : "";
-
-  return [
-    {
-      eventType: "tool_result",
-      toolUseId: str(ev.tool_id),
-      isError,
-      summary: `tool_result ${isError ? "error" : "ok"}`,
-      payload: {
-        content: truncateForStorage(output, TOOL_RESULT_MAX_BYTES),
-      },
-    },
-  ];
-}
-
 type EventRowsHandler = (
   ev: Record<string, unknown>,
 ) => Partial<AgentRunEventInsert>[];
@@ -320,19 +181,13 @@ const EVENT_ROW_HANDLERS: Record<string, EventRowsHandler> = {
   user: userRows,
   log: logRows,
   result: (ev) => [resultRow(ev)],
-  // gemini-cli flat dialect
   init: (ev) => [initRow(ev)],
   message: geminiMessageRows,
-  tool_use: geminiToolUseRows,
-  tool_result: geminiToolResultRows,
-  error: (ev) => [
-    {
-      eventType: "message",
-      isError: true,
-      summary: cap(str(ev.message) ?? "error"),
-      payload: {},
-    },
+  tool_use: (ev) => [
+    toolCallRow({ name: ev.tool_name, id: ev.tool_id, input: ev.parameters }),
   ],
+  tool_result: geminiToolResultRows,
+  error: geminiErrorRows,
 };
 
 export function rowsFromEnvelope(envelope: unknown): AgentRunEventInsert[] {

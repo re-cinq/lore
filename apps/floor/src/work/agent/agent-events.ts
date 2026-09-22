@@ -13,6 +13,7 @@ import {
   rowsFromEnvelope,
   MAX_RUN_EVENTS_PER_BATCH,
 } from "./agent-run-events.js";
+import { foldedDelta } from "./gemini-run-events.js";
 import {
   turnFromEnvelope,
   MAX_RUN_TURNS_PER_BATCH,
@@ -269,6 +270,13 @@ function collectRunEventsUpToCap(
   envelope: unknown,
 ): void {
   for (const runEvent of rowsFromEnvelope(envelope)) {
+    const folded = foldedDelta(runEvents.at(-1), runEvent);
+
+    if (folded) {
+      runEvents[runEvents.length - 1] = folded;
+      continue;
+    }
+
     if (runEvents.length >= MAX_RUN_EVENTS_PER_BATCH) {
       return;
     }
