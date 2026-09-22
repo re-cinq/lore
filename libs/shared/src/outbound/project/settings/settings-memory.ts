@@ -216,7 +216,6 @@ export class InMemorySettings implements SettingsPort {
 
     if (row) {
       row.onboarding_pr_merged = true;
-      row.last_ingested_at = new Date();
     }
   }
 
