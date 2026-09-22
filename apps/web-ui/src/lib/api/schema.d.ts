@@ -3724,6 +3724,8 @@ export interface components {
         calls: number;
         input_tokens: number;
         output_tokens: number;
+        cache_read_tokens: number;
+        cache_write_tokens: number;
         by_blueprint: {
           blueprint: string;
           runs: number;
@@ -3827,6 +3829,65 @@ export interface components {
           station_run_id: string | null;
         }[];
         live_usd_per_hour: number;
+      };
+      unit_costs: {
+        tickets: {
+          count: number;
+          total_usd: number;
+          avg_usd: number;
+          median_usd: number;
+          most: {
+            label: string;
+            url: string | null;
+            runs: number;
+            cost_usd: number;
+          }[];
+          least: {
+            label: string;
+            url: string | null;
+            runs: number;
+            cost_usd: number;
+          }[];
+        };
+        reviews: {
+          per_pr: {
+            count: number;
+            total_usd: number;
+            avg_usd: number;
+            median_usd: number;
+            most: {
+              label: string;
+              url: string | null;
+              runs: number;
+              cost_usd: number;
+            }[];
+            least: {
+              label: string;
+              url: string | null;
+              runs: number;
+              cost_usd: number;
+            }[];
+          };
+          by_line: {
+            blueprint: string;
+            runs: number;
+            total_usd: number;
+            avg_usd: number;
+          }[];
+          by_model: {
+            model: string;
+            calls: number;
+            cost_usd: number;
+          }[];
+        };
+        nodes: {
+          blueprint: string;
+          node_id: string;
+          visits: number;
+          total_usd: number;
+          per_visit_usd: number;
+          models: string[];
+        }[];
       };
     };
     StationRunList: {

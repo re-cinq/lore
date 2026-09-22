@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { StrictMode } from "react";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, act, fireEvent } from "@testing-library/react";
 import FullTranscriptPanel from "./FullTranscriptPanel";
@@ -547,5 +548,18 @@ describe("FullTranscriptPanel as a terminal conversation", () => {
     expect(container.querySelector("[data-task-event]")).toHaveTextContent(
       "task Running → PR created",
     );
+  });
+});
+
+describe("FullTranscriptPanel under React Strict Mode", () => {
+  it("shows the run's turns rather than Loading after the development double mount", async () => {
+    stubFetch(turnsResponse([wireTurn("1", "implement")]));
+    render(
+      <StrictMode>
+        <FullTranscriptPanel runId="run-1" nodeId="implement" />
+      </StrictMode>,
+    );
+
+    expect(await screen.findByText(/full text of turn 1/)).toBeTruthy();
   });
 });

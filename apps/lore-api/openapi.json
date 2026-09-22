@@ -13760,6 +13760,12 @@
               "output_tokens": {
                 "type": "number"
               },
+              "cache_read_tokens": {
+                "type": "number"
+              },
+              "cache_write_tokens": {
+                "type": "number"
+              },
               "by_blueprint": {
                 "type": "array",
                 "items": {
@@ -13927,6 +13933,8 @@
               "calls",
               "input_tokens",
               "output_tokens",
+              "cache_read_tokens",
+              "cache_write_tokens",
               "by_blueprint",
               "by_repo",
               "by_model",
@@ -14189,9 +14197,249 @@
               "live_usd_per_hour"
             ],
             "additionalProperties": false
+          },
+          "unit_costs": {
+            "type": "object",
+            "properties": {
+              "tickets": {
+                "type": "object",
+                "properties": {
+                  "count": {
+                    "type": "number"
+                  },
+                  "total_usd": {
+                    "type": "number"
+                  },
+                  "avg_usd": {
+                    "type": "number"
+                  },
+                  "median_usd": {
+                    "type": "number"
+                  },
+                  "most": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "label": {
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": ["string", "null"]
+                        },
+                        "runs": {
+                          "type": "number"
+                        },
+                        "cost_usd": {
+                          "type": "number"
+                        }
+                      },
+                      "required": ["label", "url", "runs", "cost_usd"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "least": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "label": {
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": ["string", "null"]
+                        },
+                        "runs": {
+                          "type": "number"
+                        },
+                        "cost_usd": {
+                          "type": "number"
+                        }
+                      },
+                      "required": ["label", "url", "runs", "cost_usd"],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "count",
+                  "total_usd",
+                  "avg_usd",
+                  "median_usd",
+                  "most",
+                  "least"
+                ],
+                "additionalProperties": false
+              },
+              "reviews": {
+                "type": "object",
+                "properties": {
+                  "per_pr": {
+                    "type": "object",
+                    "properties": {
+                      "count": {
+                        "type": "number"
+                      },
+                      "total_usd": {
+                        "type": "number"
+                      },
+                      "avg_usd": {
+                        "type": "number"
+                      },
+                      "median_usd": {
+                        "type": "number"
+                      },
+                      "most": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "label": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": ["string", "null"]
+                            },
+                            "runs": {
+                              "type": "number"
+                            },
+                            "cost_usd": {
+                              "type": "number"
+                            }
+                          },
+                          "required": ["label", "url", "runs", "cost_usd"],
+                          "additionalProperties": false
+                        }
+                      },
+                      "least": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "label": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": ["string", "null"]
+                            },
+                            "runs": {
+                              "type": "number"
+                            },
+                            "cost_usd": {
+                              "type": "number"
+                            }
+                          },
+                          "required": ["label", "url", "runs", "cost_usd"],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "count",
+                      "total_usd",
+                      "avg_usd",
+                      "median_usd",
+                      "most",
+                      "least"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "by_line": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "blueprint": {
+                          "type": "string"
+                        },
+                        "runs": {
+                          "type": "number"
+                        },
+                        "total_usd": {
+                          "type": "number"
+                        },
+                        "avg_usd": {
+                          "type": "number"
+                        }
+                      },
+                      "required": ["blueprint", "runs", "total_usd", "avg_usd"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "by_model": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "model": {
+                          "type": "string"
+                        },
+                        "calls": {
+                          "type": "number"
+                        },
+                        "cost_usd": {
+                          "type": "number"
+                        }
+                      },
+                      "required": ["model", "calls", "cost_usd"],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": ["per_pr", "by_line", "by_model"],
+                "additionalProperties": false
+              },
+              "nodes": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "blueprint": {
+                      "type": "string"
+                    },
+                    "node_id": {
+                      "type": "string"
+                    },
+                    "visits": {
+                      "type": "number"
+                    },
+                    "total_usd": {
+                      "type": "number"
+                    },
+                    "per_visit_usd": {
+                      "type": "number"
+                    },
+                    "models": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "blueprint",
+                    "node_id",
+                    "visits",
+                    "total_usd",
+                    "per_visit_usd",
+                    "models"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": ["tickets", "reviews", "nodes"],
+            "additionalProperties": false
           }
         },
-        "required": ["interval", "llm", "billed", "gcp", "compute"],
+        "required": [
+          "interval",
+          "llm",
+          "billed",
+          "gcp",
+          "compute",
+          "unit_costs"
+        ],
         "additionalProperties": false
       },
       "StationRunList": {

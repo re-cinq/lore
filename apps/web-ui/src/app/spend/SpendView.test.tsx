@@ -3,6 +3,15 @@ import { describe, it, expect } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import SpendView, { anthropicEstimate, type SpendWindow } from "./SpendView";
 
+const NO_UNITS = {
+  count: 0,
+  total_usd: 0,
+  avg_usd: 0,
+  median_usd: 0,
+  most: [],
+  least: [],
+};
+
 const usd = (n: number) =>
   Number(n).toLocaleString(undefined, { style: "currency", currency: "USD" });
 
@@ -30,6 +39,8 @@ const loreOnly: SpendWindow = {
     calls: 85,
     input_tokens: 12345,
     output_tokens: 735021,
+    cache_read_tokens: 4200000,
+    cache_write_tokens: 180000,
     by_blueprint: [{ blueprint: "implementation-loop", runs: 15, usd: 27.47 }],
     by_repo: [{ repo: "re-cinq/lore", usd: 80.1 }],
     by_model: [
@@ -98,6 +109,11 @@ const loreOnly: SpendWindow = {
       },
     ],
     live_usd_per_hour: 0.07,
+  },
+  unit_costs: {
+    tickets: NO_UNITS,
+    reviews: { per_pr: NO_UNITS, by_line: [], by_model: [] },
+    nodes: [],
   },
 };
 
@@ -208,6 +224,17 @@ describe("SpendView", () => {
     expect(screen.getByText(num(85))).toBeInTheDocument();
     expect(screen.getByText(num(12345))).toBeInTheDocument();
     expect(screen.getByText(num(735021))).toBeInTheDocument();
+  });
+
+  it("headlines 4200000 cache-read and 180000 cache-write tokens beside the input tokens", () => {
+    render(<SpendView spend={loreOnly} />);
+
+    expect({
+      read: screen.getByText("Cache read tokens").nextElementSibling
+        ?.textContent,
+      write:
+        screen.getByText("Cache write tokens").nextElementSibling?.textContent,
+    }).toEqual({ read: num(4200000), write: num(180000) });
   });
 
   it("renders the Kubernetes estimate card with the live burn rate", () => {
@@ -517,6 +544,18 @@ describe("SpendView redesign layout", () => {
     expect(within(computed).getByText("estimate")).toBeInTheDocument();
     expect(within(invoices).getByText("billed")).toBeInTheDocument();
     expect(within(compute).getByText("estimate")).toBeInTheDocument();
+  });
+
+  it("gives the cost per ticket, PR review and node its own estimate section", () => {
+    render(<SpendView spend={loreOnly} />);
+
+    const units = screen.getByRole("region", { name: "Cost per unit of work" });
+
+    expect({
+      pill: within(units).getByText("estimate").textContent,
+      ticket: within(units).getByRole("heading", { name: "Cost per Ticket" })
+        .textContent,
+    }).toEqual({ pill: "estimate", ticket: "Cost per Ticket" });
   });
 
   it("omits the vendor-invoices section until a vendor has synced", () => {

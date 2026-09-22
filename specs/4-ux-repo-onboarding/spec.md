@@ -227,6 +227,12 @@ post-merge ingestion task — could leave three PRs open for one onboarding. ([v
   raised while the previous pass is still running lands on that in-flight
   task instead of
   queueing a duplicate. ([validated by `actions.test.ts:22`](apps/web-ui/src/app/repos/[owner]/[repo]/actions.test.ts#L22), [`actions.test.ts:33`](apps/web-ui/src/app/repos/[owner]/[repo]/actions.test.ts#L33), [`actions.test.ts:46`](apps/web-ui/src/app/repos/[owner]/[repo]/actions.test.ts#L46), [`FixIngestButton.test.tsx:11`](apps/web-ui/src/components/FixIngestButton.test.tsx#L11), [`FixIngestButton.test.tsx:19`](apps/web-ui/src/components/FixIngestButton.test.tsx#L19), [`FixIngestButton.test.tsx:40`](apps/web-ui/src/components/FixIngestButton.test.tsx#L40), [`FixIngestButton.test.tsx:54`](apps/web-ui/src/components/FixIngestButton.test.tsx#L54))
+- FR-2.6.1 *(added 2026-09-22, #2027)*: Flipping the repo to onboarded does
+  not stamp `last_ingested_at`; only an ingest does. The stamp used to be set
+  on merge although nothing had read the repo, which silenced the
+  seven-day staleness warning on a repo no ingest had reached.
+  ([validated by marks repo-42's onboarding merged without stamping last_ingested_at](libs/shared/src/outbound/project/settings/settings-pg.test.ts#L101),
+  [validated by marks the onboarding merged and leaves a never-ingested repo's last_ingested_at unset](libs/shared/src/outbound/project/settings/settings.test.ts#L63))
 - FR-2.7: When enrolment leaves gaps — a file that could not be committed,
   a callback value that could not be set — the onboarding still proceeds and
   the gaps are COMMENTED ON THE TICKET, the human surface an onboarding has
@@ -479,7 +485,7 @@ every repo. ([validated by `AuditView.test.tsx:31`](apps/web-ui/src/app/audit/Au
   covering every day after it, worded "today" only when that really is one
   day and "over N days since" when the sync has fallen further behind,
   shown only when billed data is present and the unbilled spend is
-  non-zero. ([validated by [`SpendView.test.tsx:174`](apps/web-ui/src/app/spend/SpendView.test.tsx#L174), [`SpendView.test.tsx:295`](apps/web-ui/src/app/spend/SpendView.test.tsx#L295), [`SpendView.test.tsx:306`](apps/web-ui/src/app/spend/SpendView.test.tsx#L306), [`SpendView.test.tsx:318`](apps/web-ui/src/app/spend/SpendView.test.tsx#L318), [`SpendView.test.tsx:327`](apps/web-ui/src/app/spend/SpendView.test.tsx#L327), [`SpendView.test.tsx:338`](apps/web-ui/src/app/spend/SpendView.test.tsx#L338), [`SpendView.test.tsx:352`](apps/web-ui/src/app/spend/SpendView.test.tsx#L352), [`SpendView.test.tsx:373`](apps/web-ui/src/app/spend/SpendView.test.tsx#L373), [`SpendView.test.tsx:381`](apps/web-ui/src/app/spend/SpendView.test.tsx#L381), [`SpendView.test.tsx:390`](apps/web-ui/src/app/spend/SpendView.test.tsx#L390), [`SpendView.test.tsx:402`](apps/web-ui/src/app/spend/SpendView.test.tsx#L402), [`SpendView.test.tsx:412`](apps/web-ui/src/app/spend/SpendView.test.tsx#L412), [`SpendView.test.tsx:420`](apps/web-ui/src/app/spend/SpendView.test.tsx#L420), [`SpendView.test.tsx:203`](apps/web-ui/src/app/spend/SpendView.test.tsx#L203), [`SpendView.test.tsx:396`](apps/web-ui/src/app/spend/SpendView.test.tsx#L396))
+  non-zero. ([validated by [`SpendView.test.tsx:174`](apps/web-ui/src/app/spend/SpendView.test.tsx#L190), [`SpendView.test.tsx:295`](apps/web-ui/src/app/spend/SpendView.test.tsx#L322), [`SpendView.test.tsx:306`](apps/web-ui/src/app/spend/SpendView.test.tsx#L333), [`SpendView.test.tsx:318`](apps/web-ui/src/app/spend/SpendView.test.tsx#L345), [`SpendView.test.tsx:327`](apps/web-ui/src/app/spend/SpendView.test.tsx#L354), [`SpendView.test.tsx:338`](apps/web-ui/src/app/spend/SpendView.test.tsx#L365), [`SpendView.test.tsx:352`](apps/web-ui/src/app/spend/SpendView.test.tsx#L379), [`SpendView.test.tsx:373`](apps/web-ui/src/app/spend/SpendView.test.tsx#L400), [`SpendView.test.tsx:381`](apps/web-ui/src/app/spend/SpendView.test.tsx#L408), [`SpendView.test.tsx:390`](apps/web-ui/src/app/spend/SpendView.test.tsx#L417), [`SpendView.test.tsx:402`](apps/web-ui/src/app/spend/SpendView.test.tsx#L429), [`SpendView.test.tsx:412`](apps/web-ui/src/app/spend/SpendView.test.tsx#L439), [`SpendView.test.tsx:420`](apps/web-ui/src/app/spend/SpendView.test.tsx#L447), [`SpendView.test.tsx:203`](apps/web-ui/src/app/spend/SpendView.test.tsx#L219), [`SpendView.test.tsx:396`](apps/web-ui/src/app/spend/SpendView.test.tsx#L423))
 - FR-6.7: The knowledge-graph force layout (`lib/graph-layout`) seeds
   feature positions within a radius at distinct spots (larger features
   further out), partitions links into connected components, places
@@ -566,6 +572,14 @@ The app is built from a shared set of presentational components. ([validated by 
   configured org is absent (including on a failed or throwing GitHub
   API call) — unset, every authenticated user is allowed through.
   ([validated by `auth-options.test.ts:28`](apps/web-ui/src/lib/auth-options.test.ts#L28), [`auth-options.test.ts:38`](apps/web-ui/src/lib/auth-options.test.ts#L38), [`auth-options.test.ts:54`](apps/web-ui/src/lib/auth-options.test.ts#L54), [`auth-options.test.ts:69`](apps/web-ui/src/lib/auth-options.test.ts#L69), [`auth-options.test.ts:84`](apps/web-ui/src/lib/auth-options.test.ts#L84), [`auth-options.test.ts:98`](apps/web-ui/src/lib/auth-options.test.ts#L98))
+- FR-7.10: A session keeps working past its GitHub token's lifetime. A GitHub
+  App's user token expires after eight hours, so sign-in keeps its refresh
+  token and expiry, and a request that finds the token (nearly) expired trades
+  the refresh token for a new pair through GitHub's refresh grant; a classic
+  OAuth token, which never expires, is left alone. When GitHub refuses the
+  refresh the session drops its token and the middleware counts it as signed
+  out, so the person is asked to sign in again rather than told they have no access to a repo they can see.
+  ([validated by `github-session-token.test.ts:25`](apps/web-ui/src/lib/github-session-token.test.ts#L25), [`github-session-token.test.ts:39`](apps/web-ui/src/lib/github-session-token.test.ts#L39), [`github-session-token.test.ts:47`](apps/web-ui/src/lib/github-session-token.test.ts#L47), [`github-session-token.test.ts:59`](apps/web-ui/src/lib/github-session-token.test.ts#L59), [`github-session-token.test.ts:70`](apps/web-ui/src/lib/github-session-token.test.ts#L70), [`github-session-token.test.ts:95`](apps/web-ui/src/lib/github-session-token.test.ts#L95), [`auth-options.test.ts:132`](apps/web-ui/src/lib/auth-options.test.ts#L132), [`github-session-token.test.ts:108`](apps/web-ui/src/lib/github-session-token.test.ts#L108), [`github-session-token.test.ts:112`](apps/web-ui/src/lib/github-session-token.test.ts#L112), [`github-session-token.test.ts:116`](apps/web-ui/src/lib/github-session-token.test.ts#L116))
 
 ### FR-8: Connect GitHub
 

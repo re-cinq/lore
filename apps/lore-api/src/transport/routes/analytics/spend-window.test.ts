@@ -59,8 +59,59 @@ function poolWith(
   } as never;
 }
 
+const LORE_1648 = {
+  label: "re-cinq/lore#1648",
+  url: "https://github.com/re-cinq/lore/issues/1648",
+  runs: 4,
+  cost_usd: 70.27,
+};
+
+const UNIT_COST_ROWS: unknown[][] = [
+  [
+    {
+      count: 71,
+      total_usd: 872,
+      avg_usd: 12.28,
+      median_usd: 5.99,
+      most: [LORE_1648],
+      least: [],
+    },
+  ],
+  [
+    {
+      count: 2,
+      total_usd: 15.22,
+      avg_usd: 7.61,
+      median_usd: 7.61,
+      most: [],
+      least: [],
+    },
+  ],
+  [{ blueprint: "code-review", runs: 10, total_usd: 11.8, avg_usd: 1.18 }],
+  [{ model: "gemini-3.1-pro-preview", calls: 12, cost_usd: 14.1 }],
+  [
+    {
+      blueprint: "implementation-loop",
+      node_id: "tdd-round",
+      visits: 10,
+      total_usd: 14,
+      per_visit_usd: 1.4,
+      models: ["claude-opus-4-7"],
+    },
+  ],
+];
+
 const BASE_ROWS: unknown[][] = [
-  [{ calls: 42, usd: 82.5, input_tokens: 12345, output_tokens: 735021 }],
+  [
+    {
+      calls: 42,
+      total_usd: 82.5,
+      input_tokens: 12345,
+      output_tokens: 735021,
+      cache_read_tokens: 9000000,
+      cache_write_tokens: 250000,
+    },
+  ],
   [{ blueprint: "implementation-loop", runs: 15, usd: 27.47 }],
   [{ repo: "re-cinq/lore", usd: 80.1 }],
   [
@@ -105,6 +156,7 @@ const BASE_ROWS: unknown[][] = [
   [{ service: "Kubernetes Engine", cost_usd: 180.2 }],
   [{ bucket_date: "2026-09-01", cost_usd: 30.5 }],
   [{ blueprint: "implementation-loop", pods: 9, hours: 6.5 }],
+  ...UNIT_COST_ROWS,
 ];
 
 const get = (server: Hapi.Server, url = "/api/analytics/spend-window") =>
@@ -193,6 +245,36 @@ describe("GET /api/analytics/spend-window", () => {
     expect(body.gcp.daily[0]).toEqual({
       bucket_date: "2026-09-01",
       cost_usd: 30.5,
+    });
+  });
+
+  it("carries 9000000 cache-read and 250000 cache-write tokens beside the metered totals", async () => {
+    const body = JSON.parse((await get(await serverWith(BASE_ROWS))).payload);
+
+    expect(body.llm).toMatchObject({
+      cache_read_tokens: 9000000,
+      cache_write_tokens: 250000,
+    });
+  });
+
+  it("carries what a ticket, a PR review and a node visit cost, lore issue 1648 dearest at 70.27 USD", async () => {
+    const body = JSON.parse((await get(await serverWith(BASE_ROWS))).payload);
+
+    expect(body.unit_costs).toEqual({
+      tickets: {
+        count: 71,
+        total_usd: 872,
+        avg_usd: 12.28,
+        median_usd: 5.99,
+        most: [LORE_1648],
+        least: [],
+      },
+      reviews: {
+        per_pr: UNIT_COST_ROWS[1][0],
+        by_line: UNIT_COST_ROWS[2],
+        by_model: UNIT_COST_ROWS[3],
+      },
+      nodes: UNIT_COST_ROWS[4],
     });
   });
 

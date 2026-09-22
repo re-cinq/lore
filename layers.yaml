@@ -361,6 +361,9 @@ layers:
   # them into micro-tiers is a separate step, not a prerequisite for naming what
   # this package is.
   apps/web-ui:
+    # Next.js pins the middleware to the source root; it reads the session rules from lib.
+    ".":
+      - lib
     # The plan contract (@re-cinq/planning-document) is data and logic, so lib
     # may read it; the editor (@re-cinq/planning-editor) is UI, so only the
     # routes that mount it may (ADR-047).

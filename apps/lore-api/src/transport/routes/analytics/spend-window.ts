@@ -17,6 +17,7 @@ import type { SpendWindow } from "./spend-window-db.js";
 import { readLlmSpend } from "./spend-window-llm.js";
 import { readAnthropicSpend } from "./spend-window-anthropic.js";
 import { readGcpSpend } from "./spend-window-gcp.js";
+import { readUnitCosts } from "./spend-window-units.js";
 import {
   readComputeSpend,
   type SpendWindowDeps,
@@ -116,5 +117,6 @@ async function spendWindowBody(
     billed: await readAnthropicSpend(pool, win),
     gcp: await readGcpSpend(pool, win),
     compute: await readComputeSpend(pool, win, deps),
+    unit_costs: await readUnitCosts(pool, win),
   };
 }
