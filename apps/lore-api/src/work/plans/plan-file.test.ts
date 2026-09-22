@@ -54,7 +54,7 @@ describe("planMarkdown", () => {
 });
 
 describe("applyPlanFile", () => {
-  it("applies a draft's edited intent and scope as the planning agent's edits", async () => {
+  it("applies a draft's edited intent and scope as the planning agent's edits, one block each", async () => {
     const { writes, ports } = recordingPorts();
 
     await applyPlanFile(
@@ -71,28 +71,24 @@ describe("applyPlanFile", () => {
           actor: "planning-agent",
           ops: [
             {
-              op: "set-section-prose",
+              op: "replace-block",
               slot: "intent",
-              blocks: [
-                {
-                  type: "paragraph",
-                  content: [
-                    {
-                      text: "Checkout p95 is 450 ms; carts are abandoned at payment.",
-                    },
-                  ],
-                },
-              ],
+              block: {
+                type: "paragraph",
+                content: [
+                  {
+                    text: "Checkout p95 is 450 ms; carts are abandoned at payment.",
+                  },
+                ],
+              },
             },
             {
-              op: "set-section-prose",
+              op: "replace-block",
               slot: "scope",
-              blocks: [
-                {
-                  type: "paragraph",
-                  content: [{ text: "Web and mobile checkout." }],
-                },
-              ],
+              block: {
+                type: "paragraph",
+                content: [{ text: "Web and mobile checkout." }],
+              },
             },
           ],
         },
@@ -146,8 +142,8 @@ describe("applyPlanFile", () => {
           asked: { slot: "intent", baseHash: "3f9a" },
           uses: { questions: ["q1"], comments: [] },
           ops: [
-            { op: "set-section-prose", slot: "intent" },
-            { op: "set-section-prose", slot: "scope" },
+            { op: "replace-block", slot: "intent" },
+            { op: "replace-block", slot: "scope" },
           ],
         },
       },
