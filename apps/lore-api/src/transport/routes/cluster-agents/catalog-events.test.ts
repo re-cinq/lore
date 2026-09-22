@@ -190,13 +190,12 @@ describe("handleCatalogEvents", () => {
     expect(result.body.cursor).toEqual("3");
   });
 
-  it("an org-level upsert fans out to the project-qualified CRs that inherit it", async () => {
+  it("an org-level upsert of pr-ready serves the org entry and the inheriting project r2263bc7a entry, cursor 1", async () => {
     const PROJECT = "r2263bc7a";
-    const inherited = def("pr-ready", PROJECT);
     const { deps, agent, agents, events } = await harness(
       new Map([
         ["pr-ready ", def("pr-ready")],
-        [`pr-ready ${PROJECT}`, inherited],
+        [`pr-ready ${PROJECT}`, def("pr-ready", PROJECT)],
       ]),
     );
 
@@ -205,18 +204,22 @@ describe("handleCatalogEvents", () => {
       { name: "pr-ready", projectId: PROJECT },
     ]);
     await agents.advanceCatalogCursor(agent.id, "0");
-
     events.append("pr-ready", null, "upsert");
 
-    const result = await handleCatalogEvents(deps, TOKEN, agent.id);
-
-    enforceTrue(result.code === 200, Error, "expected 200");
-    const served = result.body.entries.find((e) => e.project_id === PROJECT);
-
-    expect(served).toEqual({
-      name: "pr-ready",
-      project_id: PROJECT,
-      definition: inherited,
+    expect(await handleCatalogEvents(deps, TOKEN, agent.id)).toEqual({
+      code: 200,
+      body: {
+        mode: "tail",
+        cursor: "1",
+        entries: [
+          { name: "pr-ready", project_id: null, definition: def("pr-ready") },
+          {
+            name: "pr-ready",
+            project_id: PROJECT,
+            definition: def("pr-ready", PROJECT),
+          },
+        ],
+      },
     });
   });
 

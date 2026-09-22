@@ -14,9 +14,9 @@ interface EventRow {
   op: "upsert" | "delete";
 }
 
-// Org-level upserts fan out to every project row of that name via a UNION.
+// An org-level (project_id NULL) event also re-serves every project row of that name: each one's resolution inherits the org row. `id` stays bigint until the final projection so the ordering is numeric.
 const LIST_SQL = `WITH raw AS (
-   SELECT id::text, name, project_id, op
+   SELECT id, name, project_id, op
      FROM lore.catalog_events
     WHERE id > $1::bigint
     ORDER BY id ASC
@@ -25,13 +25,15 @@ const LIST_SQL = `WITH raw AS (
  expanded AS (
    SELECT id, name, project_id, op FROM raw
    UNION ALL
-   SELECT r.id, r.name, d.project_id, r.op
+   SELECT r.id, r.name, d.project_id, 'upsert'
      FROM raw r
      JOIN lore.agent_definitions d
        ON d.name = r.name AND d.project_id IS NOT NULL
-    WHERE r.project_id IS NULL AND r.op = 'upsert'
+    WHERE r.project_id IS NULL
  )
- SELECT id, name, project_id, op FROM expanded ORDER BY id ASC`;
+ SELECT id::text, name, project_id, op
+   FROM expanded
+  ORDER BY expanded.id ASC, expanded.project_id ASC NULLS FIRST`;
 
 function toEvent(r: EventRow): CatalogEvent {
   return { id: r.id, name: r.name, projectId: r.project_id, op: r.op };
@@ -42,6 +44,7 @@ export class PgCatalogEvents implements CatalogEventsRepository {
 
   async listSince(cursor: string, limit: number): Promise<CatalogEvent[]> {
     const { rows } = await this.pool.query<EventRow>(LIST_SQL, [cursor, limit]);
+
     return (rows as EventRow[]).map(toEvent);
   }
 

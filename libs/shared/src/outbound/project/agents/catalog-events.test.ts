@@ -75,55 +75,39 @@ describe("InMemoryCatalogEvents", () => {
     expect(await log.snapshot()).toEqual({ entries: [], cursor: "0" });
   });
 
-  it("listSince expands an org-level upsert to every project entry sharing the name", async () => {
+  it("listSince serves an org-level upsert of implementation followed by one upsert per project entry, p-1 and p-2", async () => {
     const log = new InMemoryCatalogEvents();
 
     log.setEntries([
       { name: "implementation", projectId: null },
       { name: "implementation", projectId: "p-1" },
       { name: "implementation", projectId: "p-2" },
+      { name: "review", projectId: "p-3" },
     ]);
     log.append("implementation", null, "upsert");
 
-    const events = await log.listSince("0", 10);
-
-    // Org event first, then the two project-qualified expansions (same id — serve-time synthesis).
-    expect(events).toHaveLength(3);
-    expect(events[0]).toEqual({
-      id: "1",
-      name: "implementation",
-      projectId: null,
-      op: "upsert",
-    });
-    expect(events[1]).toEqual({
-      id: "1",
-      name: "implementation",
-      projectId: "p-1",
-      op: "upsert",
-    });
-    expect(events[2]).toEqual({
-      id: "1",
-      name: "implementation",
-      projectId: "p-2",
-      op: "upsert",
-    });
+    expect(await log.listSince("0", 10)).toEqual([
+      { id: "1", name: "implementation", projectId: null, op: "upsert" },
+      { id: "1", name: "implementation", projectId: "p-1", op: "upsert" },
+      { id: "1", name: "implementation", projectId: "p-2", op: "upsert" },
+    ]);
   });
 
-  it("fan-out does not trigger for project-level appends or delete events", async () => {
+  it("listSince serves a project-level upsert and delete of review as exactly those two events", async () => {
     const log = new InMemoryCatalogEvents();
 
     log.setEntries([
       { name: "review", projectId: null },
       { name: "review", projectId: "p-1" },
+      { name: "review", projectId: "p-2" },
     ]);
     log.append("review", "p-1", "upsert");
-    log.append("review", null, "delete");
+    log.append("review", "p-1", "delete");
 
-    const events = await log.listSince("0", 10);
-
-    expect(events).toHaveLength(2);
-    expect(events[0]).toMatchObject({ projectId: "p-1", op: "upsert" });
-    expect(events[1]).toMatchObject({ projectId: null, op: "delete" });
+    expect(await log.listSince("0", 10)).toEqual([
+      { id: "1", name: "review", projectId: "p-1", op: "upsert" },
+      { id: "2", name: "review", projectId: "p-1", op: "delete" },
+    ]);
   });
 });
 
@@ -174,28 +158,5 @@ describe("PgCatalogEvents", () => {
     );
 
     expect(await repo.snapshot()).toEqual({ entries: [], cursor: "0" });
-  });
-
-  it("listSince uses a CTE JOIN on agent_definitions to fan out org-level upserts, and maps both rows correctly", async () => {
-    const capture: Array<{ text: string; params?: unknown[] }> = [];
-    const repo = new PgCatalogEvents(
-      fakePool(
-        () => [
-          { id: "5", name: "impl", project_id: null, op: "upsert" },
-          { id: "5", name: "impl", project_id: "p-99", op: "upsert" },
-        ],
-        capture,
-      ),
-    );
-
-    const events = await repo.listSince("3", 100);
-
-    expect(events).toEqual([
-      { id: "5", name: "impl", projectId: null, op: "upsert" },
-      { id: "5", name: "impl", projectId: "p-99", op: "upsert" },
-    ]);
-    expect(capture[0]?.params).toEqual(["3", 100]);
-    expect(capture[0]?.text).toContain("id > $1::bigint");
-    expect(capture[0]?.text).toContain("lore.agent_definitions");
   });
 });
