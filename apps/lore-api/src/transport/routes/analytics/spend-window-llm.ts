@@ -1,4 +1,6 @@
 import type { Pool } from "pg";
+import type { z } from "zod";
+import type { SpendWindowSchema } from "./spend-window-schema.js";
 import { vendorSplit } from "../../../work/analytics/vendor-split.js";
 import { optionalTableRows, type SpendWindow } from "./spend-window-db.js";
 import {
@@ -11,15 +13,23 @@ import {
   BY_TASK_TYPE_SQL,
 } from "./spend-window-llm-sql.js";
 
+/** The window's metered totals, prompt-cache reads and writes beside the uncached input — the response's own fields, as TOTALS_SQL names them. */
+type LlmTotals = Pick<
+  z.infer<typeof SpendWindowSchema>["llm"],
+  | "calls"
+  | "total_usd"
+  | "input_tokens"
+  | "output_tokens"
+  | "cache_read_tokens"
+  | "cache_write_tokens"
+>;
+
 /** What Lore metered itself, from pipeline.llm_calls: one total and seven cuts of it. */
 export async function readLlmSpend(pool: Pool, win: SpendWindow) {
   const b = await llmBreakdowns(pool, win);
 
   return {
-    total_usd: b.totals.usd,
-    calls: b.totals.calls,
-    input_tokens: b.totals.input_tokens,
-    output_tokens: b.totals.output_tokens,
+    ...b.totals,
     by_blueprint: b.byBlueprint,
     by_repo: b.byRepo,
     by_model: b.byModel,
@@ -41,12 +51,7 @@ async function llmBreakdowns(pool: Pool, win: SpendWindow) {
     await breakdownQueries(pool, [fromTs, toTs]);
 
   return {
-    totals: totals.rows[0] as {
-      calls: number;
-      usd: number;
-      input_tokens: number;
-      output_tokens: number;
-    },
+    totals: totals.rows[0] as LlmTotals,
     byBlueprint: byBlueprint.rows,
     byRepo: byRepo.rows,
     byModel: byModel.rows,

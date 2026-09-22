@@ -1,5 +1,50 @@
 import { z } from "zod";
 
+/** One ticket or PR, named and linked to its Issue or pull request (null when only a description names it). */
+const CostUnitSchema = z.object({
+  label: z.string(),
+  url: z.string().nullable(),
+  runs: z.number(),
+  cost_usd: z.number(),
+});
+
+const RankedUnitsSchema = z.object({
+  count: z.number(),
+  total_usd: z.number(),
+  avg_usd: z.number(),
+  median_usd: z.number(),
+  most: z.array(CostUnitSchema),
+  least: z.array(CostUnitSchema),
+});
+
+const UnitCostsSchema = z.object({
+  tickets: RankedUnitsSchema,
+  reviews: z.object({
+    per_pr: RankedUnitsSchema,
+    by_line: z.array(
+      z.object({
+        blueprint: z.string(),
+        runs: z.number(),
+        total_usd: z.number(),
+        avg_usd: z.number(),
+      }),
+    ),
+    by_model: z.array(
+      z.object({ model: z.string(), calls: z.number(), cost_usd: z.number() }),
+    ),
+  }),
+  nodes: z.array(
+    z.object({
+      blueprint: z.string(),
+      node_id: z.string(),
+      visits: z.number(),
+      total_usd: z.number(),
+      per_visit_usd: z.number(),
+      models: z.array(z.string()),
+    }),
+  ),
+});
+
 const LiveSchema = z.object({
   name: z.string(),
   phase: z.string(),
@@ -17,6 +62,8 @@ export const SpendWindowSchema = z.object({
     calls: z.number(),
     input_tokens: z.number(),
     output_tokens: z.number(),
+    cache_read_tokens: z.number(),
+    cache_write_tokens: z.number(),
     by_blueprint: z.array(
       z.object({
         blueprint: z.string(),
@@ -123,4 +170,6 @@ export const SpendWindowSchema = z.object({
     live_pods: z.array(LiveSchema),
     live_usd_per_hour: z.number(),
   }),
+  // What a unit of work costs (#2116): per ticket, per PR review, per node visit.
+  unit_costs: UnitCostsSchema,
 });
