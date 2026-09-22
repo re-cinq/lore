@@ -18,7 +18,11 @@ import { enforceRegistryOrSharedToken } from "@re-cinq/lore-shared/http/registry
 import type { RegistryOrSharedTokenDeps } from "@re-cinq/lore-shared/http/registry-or-shared-token.js";
 import { pipeline } from "../../../outbound/queues.js";
 import { loreApiPlans } from "../../../outbound/lore-api-plans.js";
-import { deliverPlanningResults } from "../../../work/agent/planning-result.js";
+import {
+  deliverPlanningResults,
+  planRunRefOf,
+  type PlanRunRef,
+} from "../../../work/agent/planning-result.js";
 import { deliverArtifact } from "../../../work/agent/artifact-args.js";
 import {
   parseAgentSink,
@@ -200,7 +204,7 @@ async function recordPlanningResults(
 
   try {
     return await deliverPlanningResults(fileEvents, {
-      planOf: openPlanOfTask,
+      planRunOfTask: openPlanRunOfTask,
       plans: loreApiPlans(
         process.env.LORE_API_URL ?? "",
         process.env.LORE_INGEST_TOKEN ?? "",
@@ -214,14 +218,15 @@ async function recordPlanningResults(
 }
 
 // The plan the task's newest open run drafts — a Refine resumes the same line, so the run, not the task, is what is still working on the plan.
-async function openPlanOfTask(taskId: string): Promise<string | undefined> {
+async function openPlanRunOfTask(
+  taskId: string,
+): Promise<PlanRunRef | undefined> {
   const open = (await pipeline().assemblyRuns.listForTask(taskId)).filter(
     (line) => line.status === "running" || line.status === "queued",
   );
   const newest = open.at(0);
-  const planId = newest?.args.plan_id;
 
-  return typeof planId === "string" ? planId : undefined;
+  return newest ? planRunRefOf(newest.args) : undefined;
 }
 
 // Every OTHER declared artifact becomes the next node's input, merged into its line's args; best-effort — a run that produced its file has already succeeded, so losing the handoff must not retroactively fail it (the consuming node reports the missing input itself).

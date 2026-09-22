@@ -9,6 +9,11 @@ import {
   type FloorAssemblyRunTask,
 } from "./floor-assembly-run.js";
 import { resolveRoundContent } from "./round-content.js";
+import {
+  inputFilesFor,
+  type InputFiles,
+  type RecipeInput,
+} from "./input-files.js";
 
 /** Resolve a node's `continues` declaration into the conversation this run resumes and saves as. Optional seam — a composition without it never continues. */
 export type ResolveConversationFn = (
@@ -18,14 +23,24 @@ export type ResolveConversationFn = (
   priorOutcome: string | null,
 ) => Promise<LoreTaskSpec["conversation"] | undefined>;
 
+/** What a dispatch takes from an agent node's RESOLVED recipe: the prompt its pod renders, and the files it downloads first. */
+export interface NodeRecipe {
+  prompt: string;
+  inputs?: readonly RecipeInput[];
+}
+
+/** Resolves the recipe for `repo` (project row → org row → yaml) in one read, so an Agents-UI edit reaches the pod; strict on an unknown ref (#1329). */
+export type ResolveRecipeFn = (
+  repo: string,
+  promptRef: string,
+  description: string,
+) => Promise<NodeRecipe>;
+
 export interface NodeLaunchDeps {
-  /** The prompt an agent node's pod renders, built from the RESOLVED recipe for `repo` (project row → org row → yaml) so an Agents-UI edit reaches the pod; strict on an unknown ref (#1329). */
-  resolvePrompt: (
-    repo: string,
-    promptRef: string,
-    description: string,
-  ) => Promise<string>;
+  resolveRecipe: ResolveRecipeFn;
   resolveConversation?: ResolveConversationFn;
+  /** The Floor's agent-files endpoint as a POD reaches it; absent sends no input files. */
+  agentFilesUrl?: string;
 }
 
 export interface NodeLaunchInput {
@@ -247,6 +262,7 @@ export interface NodeDispatch {
   conversation: LoreTaskSpec["conversation"] | undefined;
   content: string;
   prompt: string | null;
+  files: InputFiles;
 }
 
 interface ConversationResolutionInput {
@@ -263,11 +279,17 @@ export async function resolveNodeDispatch(
 ): Promise<NodeDispatch> {
   const conversation = await resolveConversationFor(input, deps);
   const content = resolveRoundContent(input.task, conversation);
+  const recipe = await resolvedRecipeFor(promptInput(input, content), deps);
 
   return {
     conversation,
     content,
-    prompt: await resolvedPromptFor(promptInput(input, content), deps),
+    prompt: recipe?.prompt ?? null,
+    files: inputFilesFor(
+      recipe?.inputs,
+      input.task.assemblyLineId,
+      deps.agentFilesUrl,
+    ),
   };
 }
 
@@ -328,22 +350,22 @@ interface PromptResolutionInput {
   roundHandoff: RoundHandoff | null;
 }
 
-async function resolvedPromptFor(
+async function resolvedRecipeFor(
   input: PromptResolutionInput,
   deps: NodeLaunchDeps,
-): Promise<string | null> {
+): Promise<NodeRecipe | null> {
   const { node, repo, content } = input;
 
   if (node.type !== "agent") {
     return null;
   }
-  const recipe = await deps.resolvePrompt(
+  const recipe = await deps.resolveRecipe(
     repo,
     node.prompt_ref ?? node.type,
     content,
   );
 
-  return withDispatchBlocks(recipe, input);
+  return { ...recipe, prompt: withDispatchBlocks(recipe.prompt, input) };
 }
 
 /** The blocks appended to a rendered recipe, in the order the pod reads them; CI's verdict comes LAST: it is about the push this node is being launched to repair, where the blocks above it are about attempts that came before. */
@@ -381,6 +403,10 @@ export function nodeLaunchSpec(
 
   if (dispatch.conversation) {
     spec.conversation = dispatch.conversation;
+  }
+
+  if (dispatch.files.length > 0) {
+    spec.files = dispatch.files;
   }
 
   return spec;

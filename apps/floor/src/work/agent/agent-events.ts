@@ -45,6 +45,8 @@ export interface AgentFileEvent {
   path: string;
   content: string | null;
   reason: string | null;
+  /** The supervisor sent the file's bytes to the Floor's agent-files endpoint instead of inlining them; the event is then only the notice. */
+  uploaded: boolean;
 }
 
 const str = (value: unknown): string | null =>
@@ -338,6 +340,7 @@ function fileEventFromEnvelope(envelope: unknown): AgentFileEvent | null {
     path: str(ev.path) ?? "",
     content: str(ev.content),
     reason: str(ev.reason),
+    uploaded: ev.uploaded === true,
   };
 }
 

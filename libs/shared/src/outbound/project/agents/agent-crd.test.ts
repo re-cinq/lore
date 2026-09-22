@@ -25,6 +25,7 @@ const row = (
 
 const ALL_OPTS = {
   eventsUrl: "https://floor.example/api/agent-events",
+  filesUrl: "https://floor.example/api/agent-files",
   mcpUrl: "https://mcp.example",
   skillsUrl: "https://mcp.example/skills",
   apiUrl: "https://api.example",
@@ -139,6 +140,43 @@ describe("agentDefToCrds LLM recipes", () => {
     ]);
     expect(agentDefinition.spec?.output?.watch).toEqual([
       { event: "result", path: "/workspace/result.json" },
+    ]);
+  });
+
+  it("renders an uploading watch as an upload to the files endpoint, with the sink's credential", () => {
+    const { agentDefinition } = agentDefToCrds(
+      row({
+        config: {
+          watch: { event: "planning.result", path: "plan.md", upload: true },
+        },
+      }),
+      ALL_OPTS,
+    );
+
+    expect(agentDefinition.spec?.output?.watch).toEqual([
+      {
+        event: "planning.result",
+        path: "plan.md",
+        upload: {
+          url: "https://floor.example/api/agent-files/{agent}/{event}",
+          headers_secret: "agent-events-auth",
+        },
+      },
+    ]);
+  });
+
+  it("inlines an uploading watch on a cluster with no files endpoint", () => {
+    const { agentDefinition } = agentDefToCrds(
+      row({
+        config: {
+          watch: { event: "planning.result", path: "plan.md", upload: true },
+        },
+      }),
+      { ...ALL_OPTS, filesUrl: undefined },
+    );
+
+    expect(agentDefinition.spec?.output?.watch).toEqual([
+      { event: "planning.result", path: "plan.md" },
     ]);
   });
 

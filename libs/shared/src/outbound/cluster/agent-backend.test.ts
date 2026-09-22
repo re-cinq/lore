@@ -91,6 +91,33 @@ describe("specToAgent", () => {
 
     expect(agent.spec?.parameters?.prompt).toBe("Review PR #7 on this branch.");
   });
+
+  it("hands the pod plan.md to download from the Floor with the sink's credential, and no files field when there is none", () => {
+    const withFile = specToAgent({
+      ...baseSpec,
+      files: [
+        {
+          path: "plan.md",
+          url: "https://floor.example/api/agent-files/run-1/plan.md",
+          headersSecret: "agent-events-auth",
+        },
+      ],
+    });
+
+    expect({
+      files: withFile.spec?.files,
+      none: "files" in (specToAgent(baseSpec).spec ?? {}),
+    }).toEqual({
+      files: [
+        {
+          path: "plan.md",
+          url: "https://floor.example/api/agent-files/run-1/plan.md",
+          headers_secret: "agent-events-auth",
+        },
+      ],
+      none: false,
+    });
+  });
 });
 
 describe("AgentCrBackend.launch", () => {

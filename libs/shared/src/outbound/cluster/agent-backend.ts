@@ -1,6 +1,10 @@
 // AgentCrBackend (ADR-031): a StationBackend running a task as an `Agent` CR on the ai-agent-subsystem; K8s IO is behind AgentApi (pure/testable mapping). Async: `launch` omits `completion` — agent-watcher (#684) resolves it later; re-launch of the same task id is idempotent.
 
-import { isTerminal, type Agent as AgentCr } from "@re-cinq/agent-contracts";
+import {
+  isTerminal,
+  type Agent as AgentCr,
+  type AgentSpec,
+} from "@re-cinq/agent-contracts";
 import type { LoreTaskSpec } from "../project/agents/k8s-port.js";
 import type {
   StationBackend,
@@ -47,8 +51,21 @@ export function specToAgent(spec: LoreTaskSpec, stationRef?: string): AgentCr {
       targetRepo: spec.targetRepo,
       branch: spec.branch,
       parameters: agentParameters(spec),
+      ...inputFiles(spec),
     },
   };
+}
+
+function inputFiles(spec: LoreTaskSpec): Pick<AgentSpec, "files"> {
+  return spec.files?.length
+    ? {
+        files: spec.files.map(({ path, url, headersSecret }) => ({
+          path,
+          url,
+          ...(headersSecret ? { headers_secret: headersSecret } : {}),
+        })),
+      }
+    : {};
 }
 
 /** Deterministic per-task Agent name, so a re-launch is idempotent (409). */

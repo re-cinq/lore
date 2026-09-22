@@ -6,6 +6,8 @@ import type { ResolvedAgentDefinition } from "../../../domain/models/agent-defin
 export interface CatalogCrdOptions {
   /** Telemetry sink URL (D8); unset omits the http sink AND its secret ref. */
   eventsUrl?: string;
+  /** The Floor's agent-files endpoint pods download inputs from and upload watched files to; unset keeps watched files inline. */
+  filesUrl?: string;
   /** Live Lore MCP gateway; unset omits mcp_servers + the {context} placeholder (#1629, guarded together). */
   mcpUrl?: string;
   /** The gateway's /skills registry; unset omits skills + skills_source. */

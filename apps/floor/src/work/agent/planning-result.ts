@@ -1,13 +1,17 @@
-// Delivers the planning agent's result.json to the plan it drafts (ADR-047): the pod carries no API token, so the Floor posts its artifact to lore-api — a draft as agent edits into the live plan, a Refine as a proposal for one section.
+// Moves the planning agent's plan.md between lore-api and its pod (ADR-047): the pod downloads the live plan before it starts and hands the edited file back, and the Floor carries both because the pod holds no API token. The refine context comes from the run, never from the agent.
 
 import type { AgentFileEvent } from "./agent-events.js";
 import type {
-  AgentEditsBody,
+  PlanRunRef,
   PlanWriter,
-  ProposalBody,
+  RefineContext,
 } from "../../domain/plan-writer.js";
 
-export type { PlanWriter } from "../../domain/plan-writer.js";
+export type {
+  PlanRunRef,
+  PlanWriter,
+  RefineContext,
+} from "../../domain/plan-writer.js";
 
 /** The event name the feature-planning recipe declares in `output.watch`; must match the recipe since the Floor routes on it. */
 export const PLANNING_RESULT_EVENT = "planning.result";
@@ -16,23 +20,74 @@ export const PLANNING_RESULT_EVENT = "planning.result";
 export const PLANNING_ACTOR = "planning-agent";
 
 export interface PlanningResultDeps {
-  /** The plan the task's open planning run works on, when it names one. */
-  planOf(taskId: string): Promise<string | undefined>;
+  /** The plan the task's open planning run works on, and the Refine it answers when it answers one. */
+  planRunOfTask(taskId: string): Promise<PlanRunRef | undefined>;
   plans: PlanWriter;
 }
 
-/** What the DELIVERY did, never the round's verdict; `failed` = the agent's artifact could not be written, `skipped` = not this handler's event. */
+export interface PlanUploadDeps {
+  /** The plan run of the pod an Agent CR name belongs to. */
+  planRunOfAgent(agentCrName: string): Promise<PlanRunRef | undefined>;
+  plans: PlanWriter;
+}
+
+export interface PlanFileDeps {
+  planOfRun(assemblyRunId: string): Promise<string | undefined>;
+  plans: PlanWriter;
+}
+
+/** What the DELIVERY did, never the round's verdict; `failed` = the agent's file could not be written, `skipped` = not this handler's to write. */
 export type PlanningDelivery =
   | { outcome: "ready" }
   | { outcome: "failed"; error: string }
   | { outcome: "skipped"; error: string };
 
-type Parsed =
-  | { kind: "ops"; body: AgentEditsBody }
-  | { kind: "proposal"; body: ProposalBody }
-  | { kind: "failed"; error: string };
+const NO_PLAN: PlanningDelivery = {
+  outcome: "skipped",
+  error: "the run names no plan",
+};
 
-/** Write one planning artifact into its plan; skips every other event the sink carries. */
+/** The plan and Refine a planning run's args carry; undefined for a run that drafts no plan. A malformed refine reads as a draft rather than a proposal nobody asked for. */
+export function planRunRefOf(
+  args: Readonly<Record<string, unknown>>,
+): PlanRunRef | undefined {
+  const planId = args.plan_id;
+
+  return typeof planId === "string"
+    ? { planId, refine: refineOf(args.refine) }
+    : undefined;
+}
+
+function refineOf(value: unknown): RefineContext | null {
+  const refine = (value ?? {}) as Partial<RefineContext>;
+
+  return typeof refine.slot === "string" && typeof refine.baseHash === "string"
+    ? { slot: refine.slot, baseHash: refine.baseHash, uses: refine.uses }
+    : null;
+}
+
+/** The plan.md a pod downloads for its run, rendered from the live plan at the moment it asks; null when the run drafts no plan. */
+export async function planFileOf(
+  assemblyRunId: string,
+  deps: PlanFileDeps,
+): Promise<string | null> {
+  const planId = await deps.planOfRun(assemblyRunId);
+
+  return planId ? deps.plans.markdownOf(planId) : null;
+}
+
+/** A plan.md the supervisor uploaded: written into the plan the agent's run drafts, as a draft or as its Refine's proposal. */
+export async function receivePlanUpload(
+  agentCrName: string,
+  markdown: string,
+  deps: PlanUploadDeps,
+): Promise<PlanningDelivery> {
+  const run = await deps.planRunOfAgent(agentCrName);
+
+  return run ? submit(run, markdown, deps.plans) : NO_PLAN;
+}
+
+/** A planning file event from the sink. An uploaded file was already written by its upload, so its event is only the notice; an inline one (a cluster with no files endpoint) is written here. */
 export async function deliverPlanningResult(
   fileEvent: AgentFileEvent,
   deps: PlanningResultDeps,
@@ -40,83 +95,36 @@ export async function deliverPlanningResult(
   if (fileEvent.event !== PLANNING_RESULT_EVENT) {
     return { outcome: "skipped", error: "not a planning result" };
   }
-  const planId = await deps.planOf(fileEvent.taskId);
 
-  if (!planId) {
-    return { outcome: "skipped", error: "the run names no plan" };
+  if (fileEvent.uploaded) {
+    return { outcome: "skipped", error: "delivered by upload" };
+  }
+  const run = await deps.planRunOfTask(fileEvent.taskId);
+
+  if (!run) {
+    return NO_PLAN;
   }
 
-  return writeResult(planId, parseResult(fileEvent), deps.plans);
+  return fileEvent.content === null
+    ? {
+        outcome: "failed",
+        error: `the agent produced no plan.md (${fileEvent.reason ?? "no reason"})`,
+      }
+    : submit(run, fileEvent.content, deps.plans);
 }
 
-async function writeResult(
-  planId: string,
-  parsed: Parsed,
+async function submit(
+  run: PlanRunRef,
+  markdown: string,
   plans: PlanWriter,
 ): Promise<PlanningDelivery> {
-  if (parsed.kind === "failed") {
-    return { outcome: "failed", error: parsed.error };
-  }
-  await (parsed.kind === "ops"
-    ? plans.applyOps(planId, parsed.body)
-    : plans.propose(planId, parsed.body));
+  await plans.submitFile(run.planId, {
+    actor: PLANNING_ACTOR,
+    markdown,
+    refine: run.refine,
+  });
 
   return { outcome: "ready" };
-}
-
-// lore-api validates the ops themselves; the Floor only tells a draft from a Refine's answer.
-function parseResult(fileEvent: AgentFileEvent): Parsed {
-  if (fileEvent.reason) {
-    return {
-      kind: "failed",
-      error: `the agent produced no result.json (${fileEvent.reason})`,
-    };
-  }
-  const result = parseJson(fileEvent.content);
-
-  return "error" in result
-    ? { kind: "failed", ...result }
-    : shapeOf(result.value);
-}
-
-function shapeOf(value: unknown): Parsed {
-  const result = (value ?? {}) as Partial<ProposalBody>;
-
-  if (!Array.isArray(result.ops)) {
-    return {
-      kind: "failed",
-      error: "result.json holds neither ops nor a section proposal",
-    };
-  }
-  const ops = { actor: PLANNING_ACTOR, ops: result.ops };
-
-  return typeof result.slot === "string" && typeof result.baseHash === "string"
-    ? { kind: "proposal", body: proposalOf(ops, result) }
-    : { kind: "ops", body: ops };
-}
-
-function proposalOf(
-  ops: AgentEditsBody,
-  result: Partial<ProposalBody>,
-): ProposalBody {
-  return {
-    ...ops,
-    slot: String(result.slot),
-    baseHash: String(result.baseHash),
-    uses: result.uses,
-  };
-}
-
-function parseJson(
-  content: string | null,
-): { value: unknown } | { error: string } {
-  try {
-    return { value: JSON.parse(content ?? "") };
-  } catch (err) {
-    return {
-      error: `result.json is not valid JSON: ${err instanceof Error ? err.message : String(err)}`,
-    };
-  }
 }
 
 /** Deliver every planning artifact in one sink batch; never throws, since a delivery failure must not 500 the telemetry ingest that also carries unrelated cost/run-viz rows. Returns how many it wrote. */

@@ -39,6 +39,7 @@ interface CrdOptionEnvMapping {
 
 const CRD_OPTION_ENV_MAPPINGS: CrdOptionEnvMapping[] = [
   { envKey: "LORE_AGENT_EVENTS_URL", optionKey: "eventsUrl" },
+  { envKey: "LORE_AGENT_FILES_URL", optionKey: "filesUrl" },
   { envKey: "LORE_MCP_URL", optionKey: "mcpUrl" },
   { envKey: "LORE_SKILLS_URL", optionKey: "skillsUrl" },
   { envKey: "LORE_API_URL", optionKey: "apiUrl" },

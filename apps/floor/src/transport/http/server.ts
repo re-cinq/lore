@@ -15,6 +15,10 @@ import {
   agentConversationFetchRoute,
   agentConversationSaveRoute,
 } from "./routes/agent-conversations.js";
+import {
+  agentFileDownloadRoute,
+  agentFileUploadRoute,
+} from "./routes/agent-files.js";
 import { agentLogsRoute } from "./routes/agent-logs.js";
 import { agentEventsHistoryRoute } from "./routes/agent-events-history.js";
 import { agentTurnsHistoryRoute } from "./routes/agent-turns-history.js";
@@ -39,6 +43,8 @@ import { MAX_SERVER_BODY_BYTES } from "@re-cinq/lore-shared/http/body-limits.js"
 const RUN_READ_ROUTES: Hapi.ServerRoute[] = [
   agentConversationSaveRoute,
   agentConversationFetchRoute,
+  agentFileDownloadRoute,
+  agentFileUploadRoute,
   agentEventsHistoryRoute(),
   agentTurnsHistoryRoute(),
   agentTurnsByTaskRoute(),

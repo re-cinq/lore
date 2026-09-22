@@ -48,7 +48,7 @@ export async function startDrafting(
   if (parked) {
     await reportToParkedNode(deps.reporter, parked, {
       outcome: "changes_requested",
-      args: { description: brief, round_feedback: brief },
+      args: { description: brief, round_feedback: brief, refine: null },
     });
 
     return parked.lineId;
@@ -89,12 +89,22 @@ export async function askRefine(
     apiError(409),
     "the planning agent is still working on this plan",
   );
-  const brief = refineBrief(projection, request);
-
   await reportToParkedNode(deps.reporter, parked, {
     outcome: "changes_requested",
-    args: { description: brief, round_feedback: brief },
+    args: refineArgs(projection, request),
   });
+}
+
+// The run records which Refine this pass answers, so the edited plan.md comes back as that section's proposal without the agent copying anything.
+function refineArgs(projection: PlanView, request: RefineRequest) {
+  const brief = refineBrief(projection, request);
+  const { slot, baseHash, uses } = request;
+
+  return {
+    description: brief,
+    round_feedback: brief,
+    refine: { slot, baseHash, uses },
+  };
 }
 
 /** Moves an approved plan on to its spec work; a plan whose line is not waiting (none started, or already past approval) moves nothing. */
@@ -108,7 +118,11 @@ export async function handOverApproved(
   if (parked) {
     await reportToParkedNode(deps.reporter, parked, {
       outcome: "success",
-      args: { description: approvedBrief(projection), round_feedback: null },
+      args: {
+        description: approvedBrief(projection),
+        round_feedback: null,
+        refine: null,
+      },
     });
   }
 }

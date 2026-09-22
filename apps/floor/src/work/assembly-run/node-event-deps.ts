@@ -69,13 +69,20 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
       return qualifiedStationRef(getPool(), baseRef, repo);
     },
     // Rendered from the RESOLVED recipe (project row → org row → yaml), so an Agents-UI edit reaches the pod; strict on an unknown ref (#1329).
-    resolvePrompt: async (repo, promptRef, description) => {
+    resolveRecipe: async (repo, promptRef, description) => {
       const recipe = await (
         await projectFor(repo)
       ).agentDefs.resolve(promptRef);
 
-      return renderNodePrompt(promptRef, recipe?.prompt, description);
+      return {
+        prompt: renderNodePrompt(promptRef, recipe?.prompt, description),
+        inputs: recipe?.config?.inputs,
+      };
     },
+    // The URL the POD must reach, like the conversation registry below: the same host it posts telemetry to.
+    agentFilesUrl: process.env.LORE_FLOOR_POD_URL
+      ? `${process.env.LORE_FLOOR_POD_URL}/api/agent-files`
+      : undefined,
     cleanupToken: cleanupPerTaskToken,
     publishRunCheck: async (assemblyRunId) => {
       const { publishRunCheck } = await import("./pr-check.js");

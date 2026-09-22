@@ -1,8 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
   incomingFailureOf,
+  nodeLaunchSpec,
   priorFailuresOf,
   priorOutcomeOf,
+  resolveNodeDispatch,
   withIncomingFailure,
   withPriorFailures,
 } from "./launch-spec.js";
@@ -146,5 +148,58 @@ describe("withPriorFailures", () => {
     expect(out).toContain("attempt-4:");
     expect(out).toContain("...(truncated)");
     expect(out.length).toBeLessThan(3 * 2700 + 600);
+  });
+});
+
+describe("the files an agent node's pod downloads", () => {
+  const analyze = {
+    id: "analyze",
+    type: "agent",
+    prompt_ref: "feature-planning",
+  };
+  const launch = {
+    node: analyze,
+    task: {
+      taskId: "t1",
+      pipelineTaskId: "t1",
+      assemblyLineId: "run-1",
+      taskType: "feature-planning",
+      description: "Draft the plan.",
+      targetRepo: "re-cinq/lore",
+      branch: "lore/feature-planning/p1",
+    },
+    iteration: 1,
+    priorOutcome: null,
+  };
+
+  it("hands the analyze pod the run's plan as plan.md from the Floor, with the sink's credential", async () => {
+    const dispatch = await resolveNodeDispatch(launch, {
+      resolveRecipe: async () => ({
+        prompt: "Edit plan.md.",
+        inputs: [{ path: "plan.md", source: "plan" }],
+      }),
+      agentFilesUrl: "http://floor:8080/api/agent-files",
+    });
+
+    expect(
+      nodeLaunchSpec(dispatch, { ...launch, stationRunId: "sr-1" }).files,
+    ).toEqual([
+      {
+        path: "plan.md",
+        url: "http://floor:8080/api/agent-files/runs/run-1/plan",
+        headersSecret: "agent-events-auth",
+      },
+    ]);
+  });
+
+  it("hands no files to a pod whose recipe declares none", async () => {
+    const dispatch = await resolveNodeDispatch(launch, {
+      resolveRecipe: async () => ({ prompt: "Edit plan.md." }),
+      agentFilesUrl: "http://floor:8080/api/agent-files",
+    });
+
+    expect(
+      nodeLaunchSpec(dispatch, { ...launch, stationRunId: "sr-1" }).files,
+    ).toBeUndefined();
   });
 });

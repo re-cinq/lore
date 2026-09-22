@@ -2,51 +2,54 @@ import { describe, it, expect } from "vitest";
 import type { AgentFileEvent } from "./agent-events.js";
 import {
   deliverPlanningResult,
+  planFileOf,
+  planRunRefOf,
+  receivePlanUpload,
   PLANNING_RESULT_EVENT,
+  type PlanRunRef,
   type PlanWriter,
 } from "./planning-result.js";
 
-const OPS = [
-  {
-    op: "set-section-text",
-    slot: "intent",
-    paragraphs: ["Checkout is slow."],
-  },
-];
+const PLAN_MD =
+  "# Faster checkout\n\n## What we want and why <!-- slot:intent -->\n\nCheckout is slow.\n";
+const DRAFTING: PlanRunRef = { planId: "p1", refine: null };
+const REFINING: PlanRunRef = {
+  planId: "p1",
+  refine: { slot: "intent", baseHash: "3f9a", uses: { questions: ["q1"] } },
+};
 
-function fileEvent(
-  content: unknown,
-  over: Partial<AgentFileEvent> = {},
-): AgentFileEvent {
+function fileEvent(over: Partial<AgentFileEvent> = {}): AgentFileEvent {
   return {
     taskId: "t1",
     agentCrName: "abc-analyze",
     event: PLANNING_RESULT_EVENT,
-    path: "/workspace/target/result.json",
-    content: typeof content === "string" ? content : JSON.stringify(content),
+    path: "plan.md",
+    content: PLAN_MD,
     reason: null,
+    uploaded: false,
     ...over,
   };
 }
 
 function recordingWriter() {
-  const writes: Array<{ call: string; planId: string; body: unknown }> = [];
+  const writes: Array<{ planId: string; body: unknown }> = [];
   const writer: PlanWriter = {
-    applyOps: async (planId, body) => {
-      writes.push({ call: "agent-edits", planId, body });
-    },
-    propose: async (planId, body) => {
-      writes.push({ call: "proposals", planId, body });
+    markdownOf: async (planId) => `# plan ${planId}\n`,
+    submitFile: async (planId, body) => {
+      writes.push({ planId, body });
     },
   };
 
   return { writes, writer };
 }
 
-const deliver = async (event: AgentFileEvent, planId: string | null = "p1") => {
+const deliver = async (
+  event: AgentFileEvent,
+  run: PlanRunRef | null = DRAFTING,
+) => {
   const { writes, writer } = recordingWriter();
   const delivery = await deliverPlanningResult(event, {
-    planOf: async () => planId ?? undefined,
+    planRunOfTask: async () => run ?? undefined,
     plans: writer,
   });
 
@@ -54,82 +57,149 @@ const deliver = async (event: AgentFileEvent, planId: string | null = "p1") => {
 };
 
 describe("deliverPlanningResult", () => {
-  it("writes a draft's ops into plan p1 as the planning agent", async () => {
-    expect(await deliver(fileEvent({ ops: OPS }))).toEqual({
+  it("writes the edited plan.md into plan p1 as the planning agent's draft", async () => {
+    expect(await deliver(fileEvent())).toEqual({
       delivery: { outcome: "ready" },
       writes: [
         {
-          call: "agent-edits",
           planId: "p1",
-          body: { actor: "planning-agent", ops: OPS },
+          body: { actor: "planning-agent", markdown: PLAN_MD, refine: null },
         },
       ],
     });
   });
 
-  it("proposes a Refine's ops for the intent section of plan p1", async () => {
-    const proposal = {
-      slot: "intent",
-      baseHash: "3f9a",
-      ops: OPS,
-      uses: { questions: ["q1"], comments: [] },
-    };
+  it("sends a Refine's plan.md with the intent section's refine context from the run", async () => {
+    const { writes } = await deliver(fileEvent(), REFINING);
 
-    expect(await deliver(fileEvent(proposal))).toEqual({
-      delivery: { outcome: "ready" },
-      writes: [
-        {
-          call: "proposals",
-          planId: "p1",
-          body: { actor: "planning-agent", ...proposal },
+    expect(writes).toEqual([
+      {
+        planId: "p1",
+        body: {
+          actor: "planning-agent",
+          markdown: PLAN_MD,
+          refine: {
+            slot: "intent",
+            baseHash: "3f9a",
+            uses: { questions: ["q1"] },
+          },
         },
-      ],
-    });
+      },
+    ]);
+  });
+
+  it("leaves an uploaded plan.md to its upload, writing nothing from the notice", async () => {
+    expect(await deliver(fileEvent({ content: null, uploaded: true }))).toEqual(
+      {
+        delivery: { outcome: "skipped", error: "delivered by upload" },
+        writes: [],
+      },
+    );
   });
 
   it("skips an event that is not a planning result", async () => {
-    expect(
-      await deliver(fileEvent({ ops: OPS }, { event: "spec.plan" })),
-    ).toEqual({
+    expect(await deliver(fileEvent({ event: "gap.result" }))).toEqual({
       delivery: { outcome: "skipped", error: "not a planning result" },
       writes: [],
     });
   });
 
   it("skips a run that names no plan", async () => {
-    expect(await deliver(fileEvent({ ops: OPS }), null)).toEqual({
+    expect(await deliver(fileEvent(), null)).toEqual({
       delivery: { outcome: "skipped", error: "the run names no plan" },
       writes: [],
     });
   });
 
-  it("fails a result.json that is not JSON and writes nothing", async () => {
-    expect(await deliver(fileEvent("{not json"))).toMatchObject({
+  it("fails a run that produced no plan.md and writes nothing", async () => {
+    expect(
+      await deliver(fileEvent({ content: null, reason: "missing" })),
+    ).toEqual({
       delivery: {
         outcome: "failed",
-        error: expect.stringContaining("result.json is not valid JSON"),
+        error: "the agent produced no plan.md (missing)",
       },
       writes: [],
     });
   });
+});
 
-  it("fails a result that is neither agent ops nor a section proposal", async () => {
-    expect(await deliver(fileEvent({ sections: [] }))).toEqual({
-      delivery: {
-        outcome: "failed",
-        error: "result.json holds neither ops nor a section proposal",
-      },
-      writes: [],
+describe("receivePlanUpload", () => {
+  it("writes a 2 MB uploaded plan.md into the plan its agent's run drafts", async () => {
+    const { writes, writer } = recordingWriter();
+    const markdown = `${PLAN_MD}${"More context. ".repeat(150_000)}`;
+
+    const delivery = await receivePlanUpload("abc-analyze", markdown, {
+      planRunOfAgent: async (agent) =>
+        agent === "abc-analyze" ? REFINING : undefined,
+      plans: writer,
+    });
+
+    expect({ delivery, writes }).toEqual({
+      delivery: { outcome: "ready" },
+      writes: [
+        {
+          planId: "p1",
+          body: { actor: "planning-agent", markdown, refine: REFINING.refine },
+        },
+      ],
     });
   });
 
-  it("fails a run that produced no result.json", async () => {
-    expect(await deliver(fileEvent("", { reason: "missing" }))).toEqual({
-      delivery: {
-        outcome: "failed",
-        error: "the agent produced no result.json (missing)",
-      },
+  it("writes nothing for an upload from an agent no planning run knows", async () => {
+    const { writes, writer } = recordingWriter();
+    const delivery = await receivePlanUpload("stranger", PLAN_MD, {
+      planRunOfAgent: async () => undefined,
+      plans: writer,
+    });
+
+    expect({ delivery, writes }).toEqual({
+      delivery: { outcome: "skipped", error: "the run names no plan" },
       writes: [],
     });
+  });
+});
+
+describe("planFileOf", () => {
+  it("serves run-1's plan p1 as the markdown the pod downloads", async () => {
+    const { writer } = recordingWriter();
+
+    expect(
+      await planFileOf("run-1", {
+        planOfRun: async (runId) => (runId === "run-1" ? "p1" : undefined),
+        plans: writer,
+      }),
+    ).toBe("# plan p1\n");
+  });
+
+  it("serves nothing for a run that names no plan", async () => {
+    const { writer } = recordingWriter();
+
+    expect(
+      await planFileOf("run-9", {
+        planOfRun: async () => undefined,
+        plans: writer,
+      }),
+    ).toBeNull();
+  });
+});
+
+describe("planRunRefOf", () => {
+  it("reads plan p1 and the intent Refine from a planning run's args, and nothing from a run with no plan", () => {
+    expect([
+      planRunRefOf({
+        plan_id: "p1",
+        refine: { slot: "intent", baseHash: "3f9a", uses: { questions: [] } },
+      }),
+      planRunRefOf({ plan_id: "p1", refine: null }),
+      planRunRefOf({ description: "no plan here" }),
+    ]).toEqual([
+      {
+        planId: "p1",
+        refine: { slot: "intent", baseHash: "3f9a", uses: { questions: [] } },
+      },
+      { planId: "p1", refine: null },
+      undefined,
+    ]);
   });
 });

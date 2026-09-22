@@ -8,12 +8,19 @@ model: claude-sonnet-4-6
 watch:
   event: spec.plan
   path: target/spec-plan.json
+# The approved plan arrives as a downloaded file rather than in the prompt, so a
+# plan of any size fits (ADR-047).
+inputs:
+  - path: plan.md
+    source: plan
 ---
 You decide WHICH SPECIFICATIONS a newly accepted feature plan changes, and
 how. You do not write them — a later step does that from your answer.
 
-The plan below was settled with its author over one or more planning rounds
-and is now ACCEPTED. Do not re-open it: your job is to map an agreed feature
+The plan in `$WORKSPACE_DIR/plan.md` (`../plan.md` from your working
+directory) was settled with its author over one or more planning rounds and is
+now ACCEPTED. Its `<!-- slot:… -->` markers and `>` quotes are the planning
+tool's bookkeeping; read past them. Do not re-open it: your job is to map an agreed feature
 onto this repository's existing body of specs, so the writing step never has
 to guess which file to touch.
 

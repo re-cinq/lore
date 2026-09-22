@@ -235,3 +235,36 @@ describe("test_policy", () => {
     ).toEqual(readOnly.map(() => "none"));
   });
 });
+
+describe("the feature-planning recipe", () => {
+  it("tells the planning agent to gather from lore_assemble_context and the lore_query_graph knowledge graph before it writes", () => {
+    const prompt = promptOf("feature-planning");
+    const gather = prompt.indexOf("## Gather before you write");
+
+    expect({
+      gatherFirst:
+        gather >= 0 && gather < prompt.indexOf("## Your deliverable"),
+      context: prompt.includes("`lore_assemble_context`"),
+      graph: prompt.includes("`lore_query_graph`"),
+      trace: prompt.includes("`query_trace`"),
+    }).toEqual({ gatherFirst: true, context: true, graph: true, trace: true });
+  });
+
+  it("gives the planning agent its plan as a downloaded plan.md and takes the edited file back by upload", () => {
+    expect(SHIPPED.get("feature-planning")?.config).toMatchObject({
+      inputs: [{ path: "plan.md", source: "plan" }],
+      watch: { event: "planning.result", path: "plan.md", upload: true },
+    });
+  });
+
+  it("gives the spec steps after approval the approved plan as plan.md rather than in their prompt", () => {
+    expect(
+      ["spec-analysis", "spec-write"].map(
+        (name) => SHIPPED.get(name)?.config?.inputs,
+      ),
+    ).toEqual([
+      [{ path: "plan.md", source: "plan" }],
+      [{ path: "plan.md", source: "plan" }],
+    ]);
+  });
+});
