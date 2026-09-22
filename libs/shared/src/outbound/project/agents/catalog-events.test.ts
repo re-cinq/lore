@@ -74,6 +74,41 @@ describe("InMemoryCatalogEvents", () => {
 
     expect(await log.snapshot()).toEqual({ entries: [], cursor: "0" });
   });
+
+  it("listSince serves an org-level upsert of implementation followed by one upsert per project entry, p-1 and p-2", async () => {
+    const log = new InMemoryCatalogEvents();
+
+    log.setEntries([
+      { name: "implementation", projectId: null },
+      { name: "implementation", projectId: "p-1" },
+      { name: "implementation", projectId: "p-2" },
+      { name: "review", projectId: "p-3" },
+    ]);
+    log.append("implementation", null, "upsert");
+
+    expect(await log.listSince("0", 10)).toEqual([
+      { id: "1", name: "implementation", projectId: null, op: "upsert" },
+      { id: "1", name: "implementation", projectId: "p-1", op: "upsert" },
+      { id: "1", name: "implementation", projectId: "p-2", op: "upsert" },
+    ]);
+  });
+
+  it("listSince serves a project-level upsert and delete of review as exactly those two events", async () => {
+    const log = new InMemoryCatalogEvents();
+
+    log.setEntries([
+      { name: "review", projectId: null },
+      { name: "review", projectId: "p-1" },
+      { name: "review", projectId: "p-2" },
+    ]);
+    log.append("review", "p-1", "upsert");
+    log.append("review", "p-1", "delete");
+
+    expect(await log.listSince("0", 10)).toEqual([
+      { id: "1", name: "review", projectId: "p-1", op: "upsert" },
+      { id: "2", name: "review", projectId: "p-1", op: "delete" },
+    ]);
+  });
 });
 
 describe("PgCatalogEvents", () => {
