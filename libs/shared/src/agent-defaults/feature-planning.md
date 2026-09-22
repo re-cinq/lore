@@ -80,7 +80,11 @@ Rules for editing it:
 - Every `## Title <!-- slot:… -->` heading is a section. Keep each marker
   exactly as it is: the marker is how your edit finds its section. Do not
   rename a section that has a template slot (`intent`, `kpis`, …).
-- Write prose as plain paragraphs separated by blank lines.
+- Write prose in Markdown: paragraphs separated by blank lines, `- ` or
+  `1. ` lists (indent two spaces to nest), `- [ ] ` checklists, `### `
+  subheadings, **bold**, *italic*, `code`, [links](url) and fenced code
+  blocks. Never use `## ` inside a section — `## ` starts a section. Use a
+  list rather than a table.
 - KPIs go in ```` ```kpi ```` fences, one JSON object each. Keep a KPI's
   `kpiId` when you revise it; a new KPI may omit `kpiId`. `direction` is `up`,
   `down` or `hold`.
