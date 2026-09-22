@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { filePathsFromToolInput } from "./agent-run-events.js";
+import { filePathsFromToolInput } from "./agent-run-tool-rows.js";
 import { parseAgentSink } from "./agent-events.js";
 import type { AgentRunEventInsert } from "@re-cinq/lore-shared";
 
@@ -650,5 +650,224 @@ describe("station log-line projection", () => {
     );
 
     expect(rows[0].summary).toHaveLength(200);
+  });
+});
+
+const GEMINI_INIT = {
+  type: "init",
+  model: "gemini-3.1-pro-preview",
+  timestamp: "2026-09-02T07:09:20.459Z",
+  session_id: "c8f63789-c5d5-4844-a11d-009f61886864",
+};
+
+const GEMINI_USER_MESSAGE = {
+  role: "user",
+  type: "message",
+  content: "Review pull request #1687 in re-cinq/lore.",
+  timestamp: "2026-09-02T07:09:20.464Z",
+};
+
+const GEMINI_TOOL_USE = {
+  type: "tool_use",
+  tool_id: "run_shell_command__call_659048",
+  timestamp: "2026-09-02T07:09:23.523Z",
+  tool_name: "run_shell_command",
+  parameters: { command: "git -C /workspace/target diff main...HEAD" },
+};
+
+const GEMINI_TOOL_RESULT_OK = {
+  type: "tool_result",
+  output: "diff --git a/spec.md b/spec.md",
+  status: "success",
+  tool_id: "run_shell_command__call_659048",
+  timestamp: "2026-09-02T07:09:23.683Z",
+};
+
+const GEMINI_DELTA_FIRST = {
+  type: "message",
+  role: "assistant",
+  content: "The PR adds a traceability",
+  delta: true,
+  timestamp: "2026-09-02T07:10:02.000Z",
+};
+
+const GEMINI_DELTA_LAST = {
+  type: "message",
+  role: "assistant",
+  content: " link to the Rollout section.",
+  delta: true,
+  timestamp: "2026-09-02T07:10:02.400Z",
+};
+
+const geminiRows = (events: unknown[]): AgentRunEventInsert[] =>
+  parseRunEvents(events.map((event) => line(event)).join("\n"));
+
+describe("gemini-cli flat dialect projection", () => {
+  it("maps a gemini init, tool_use, tool_result and result to init, tool_call, tool_result and result rows", () => {
+    const rows = geminiRows([
+      GEMINI_INIT,
+      GEMINI_TOOL_USE,
+      GEMINI_TOOL_RESULT_OK,
+      { type: "result", status: "success", stats: { total_tokens: 48211 } },
+    ]);
+
+    expect(rows.map((row) => row.eventType)).toEqual([
+      "init",
+      "tool_call",
+      "tool_result",
+      "result",
+    ]);
+    expect(rows[1]).toMatchObject({
+      toolName: "run_shell_command",
+      toolUseId: "run_shell_command__call_659048",
+      summary: "run_shell_command git -C /workspace/target diff main...HEAD",
+    });
+  });
+
+  it("drops a gemini user-role message as the claude path drops user text", () => {
+    expect(geminiRows([GEMINI_USER_MESSAGE])).toEqual([]);
+  });
+
+  it("projects a whole gemini assistant message as one message row with its text", () => {
+    const rows = geminiRows([
+      { type: "message", role: "assistant", content: "Approved." },
+    ]);
+
+    expect(rows).toMatchObject([
+      { eventType: "message", summary: "Approved." },
+    ]);
+  });
+
+  it("folds two consecutive gemini delta chunks into one message row with the joined sentence", () => {
+    const rows = geminiRows([GEMINI_DELTA_FIRST, GEMINI_DELTA_LAST]);
+
+    expect(rows).toMatchObject([
+      {
+        eventType: "message",
+        summary: "The PR adds a traceability link to the Rollout section.",
+      },
+    ]);
+  });
+
+  it("keeps gemini delta chunks split by a tool_use as two message rows around the tool_call", () => {
+    const rows = geminiRows([
+      GEMINI_DELTA_FIRST,
+      GEMINI_TOOL_USE,
+      GEMINI_DELTA_LAST,
+    ]);
+
+    expect(rows.map((row) => row.eventType)).toEqual([
+      "message",
+      "tool_call",
+      "message",
+    ]);
+  });
+
+  it("keeps delta chunks from two agents as two message rows", () => {
+    const rows = parseRunEvents(
+      [
+        line(GEMINI_DELTA_FIRST),
+        line(GEMINI_DELTA_LAST, {
+          task: "task-uuid-1",
+          agent: "ef567890-plan",
+        }),
+      ].join("\n"),
+    );
+
+    expect(rows.map((row) => row.agentCrName)).toEqual([
+      "abcd1234-review",
+      "ef567890-plan",
+    ]);
+  });
+
+  it("caps a folded delta message row at 200 characters", () => {
+    const chunk = { ...GEMINI_DELTA_FIRST, content: "x".repeat(150) };
+    const rows = geminiRows([chunk, chunk, chunk]);
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].summary).toHaveLength(200);
+  });
+
+  it("maps a gemini tool_result with status error to an error row carrying the error message", () => {
+    const rows = geminiRows([
+      {
+        type: "tool_result",
+        status: "error",
+        error: { type: "ToolError", message: "File not found" },
+        tool_id: "read_file__call_112233",
+      },
+      { ...GEMINI_TOOL_RESULT_OK, tool_id: "read_file__call_112234" },
+    ]);
+
+    expect(rows).toMatchObject([
+      {
+        toolUseId: "read_file__call_112233",
+        isError: true,
+        payload: { content: "File not found" },
+      },
+      { toolUseId: "read_file__call_112234", isError: false },
+    ]);
+  });
+
+  it("projects a gemini error line with severity error as an error message row", () => {
+    const rows = geminiRows([
+      {
+        type: "error",
+        severity: "error",
+        message: "Model gemini-2.5-pro not found for this API key",
+      },
+    ]);
+
+    expect(rows).toMatchObject([
+      {
+        eventType: "message",
+        isError: true,
+        summary: "Model gemini-2.5-pro not found for this API key",
+      },
+    ]);
+  });
+
+  it("projects a gemini error line with severity warning as a non-error message row", () => {
+    const rows = geminiRows([
+      {
+        type: "error",
+        severity: "warning",
+        message: "retrying after a transient failure",
+      },
+    ]);
+
+    expect(rows).toMatchObject([{ eventType: "message", isError: false }]);
+  });
+
+  it("maps a gemini result with status error to an error result row with subtype error", () => {
+    const rows = geminiRows([
+      {
+        type: "result",
+        status: "error",
+        error: { type: "QuotaError", message: "Resource has been exhausted" },
+      },
+    ]);
+
+    expect(rows).toMatchObject([
+      { eventType: "result", isError: true, payload: { subtype: "error" } },
+    ]);
+  });
+
+  it("summarises a gemini result with stats.duration_ms 5321 as result success in 5321ms", () => {
+    const rows = geminiRows([
+      {
+        type: "result",
+        status: "success",
+        stats: { total_tokens: 48211, duration_ms: 5321 },
+      },
+    ]);
+
+    expect(rows).toMatchObject([
+      {
+        isError: false,
+        summary: "result success in 5321ms ($0)",
+        payload: { subtype: "success", durationMs: 5321 },
+      },
+    ]);
   });
 });
