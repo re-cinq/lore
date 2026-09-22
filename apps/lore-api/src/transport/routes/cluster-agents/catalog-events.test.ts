@@ -190,6 +190,39 @@ describe("handleCatalogEvents", () => {
     expect(result.body.cursor).toEqual("3");
   });
 
+  it("an org-level upsert of pr-ready serves the org entry and the inheriting project r2263bc7a entry, cursor 1", async () => {
+    const PROJECT = "r2263bc7a";
+    const { deps, agent, agents, events } = await harness(
+      new Map([
+        ["pr-ready ", def("pr-ready")],
+        [`pr-ready ${PROJECT}`, def("pr-ready", PROJECT)],
+      ]),
+    );
+
+    events.setEntries([
+      { name: "pr-ready", projectId: null },
+      { name: "pr-ready", projectId: PROJECT },
+    ]);
+    await agents.advanceCatalogCursor(agent.id, "0");
+    events.append("pr-ready", null, "upsert");
+
+    expect(await handleCatalogEvents(deps, TOKEN, agent.id)).toEqual({
+      code: 200,
+      body: {
+        mode: "tail",
+        cursor: "1",
+        entries: [
+          { name: "pr-ready", project_id: null, definition: def("pr-ready") },
+          {
+            name: "pr-ready",
+            project_id: PROJECT,
+            definition: def("pr-ready", PROJECT),
+          },
+        ],
+      },
+    });
+  });
+
   it("an empty tail answers with the stored cursor and no entries", async () => {
     const { deps, agent, agents } = await harness(new Map());
 

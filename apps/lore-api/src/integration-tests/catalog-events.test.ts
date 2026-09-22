@@ -1,7 +1,10 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { Server } from "@hapi/hapi";
 import pg from "pg";
-import { PgAgentDefs } from "@re-cinq/lore-shared/project/agents/agent-defs-pg.js";
+import {
+  PgAgentDefs,
+  updateOrgDefinition,
+} from "@re-cinq/lore-shared/project/agents/agent-defs-pg.js";
 import { agentDefToCrds } from "@re-cinq/lore-shared/project/agents/agent-crd.js";
 import type { ResolvedAgentDefinition } from "@re-cinq/lore-shared/models/agent-definition.js";
 import { buildServer } from "../app/build-server.js";
@@ -10,6 +13,26 @@ import { restoreEnv } from "./restore-env.js";
 const REGISTRATION_TOKEN = "test-registration-token";
 const REPO = "test/catalog-repo";
 const TASK_TYPE = "catalog-itest-implementation";
+
+const INHERITING = {
+  name: TASK_TYPE,
+  model: null,
+  timeout_minutes: null,
+  prompt: null,
+  image: null,
+  execution_mode: "claude-code",
+  review_required: false,
+  config: null,
+} as const;
+
+function orgRecipe(prompt: string) {
+  return {
+    ...INHERITING,
+    model: "claude-sonnet-4-6",
+    timeout_minutes: 15,
+    prompt,
+  };
+}
 
 interface Registered {
   id: string;
@@ -180,6 +203,29 @@ describe("the catalog-events fan-out, against real Postgres", () => {
       project_id: repoId,
       definition: null,
     });
+  });
+
+  it("updating the org prompt to v2 re-serves the inheriting project entry with prompt v2", async () => {
+    const agent = await register("catalog-itest-org-fanout");
+    const snapshot = await poll(agent);
+
+    await updateOrgDefinition(pool, orgRecipe("Org recipe v1."));
+    await defs.create(REPO, INHERITING);
+    const drained = await poll(
+      agent,
+      (await poll(agent, snapshot.cursor)).cursor,
+    );
+
+    await updateOrgDefinition(pool, orgRecipe("Org recipe v2."));
+    const tail = await poll(agent, drained.cursor);
+
+    expect(tail.entries.filter((e) => e.name === TASK_TYPE)).toMatchObject([
+      { project_id: null, definition: { prompt: "Org recipe v2." } },
+      {
+        project_id: repoId,
+        definition: { prompt: "Org recipe v2.", project_id: repoId },
+      },
+    ]);
   });
 
   it("refuses a poll presenting another agent's token", async () => {

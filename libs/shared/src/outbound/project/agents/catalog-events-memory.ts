@@ -21,7 +21,19 @@ export class InMemoryCatalogEvents implements CatalogEventsRepository {
   async listSince(cursor: string, limit: number): Promise<CatalogEvent[]> {
     return this.events
       .filter((event) => BigInt(event.id) > BigInt(cursor))
-      .slice(0, limit);
+      .slice(0, limit)
+      .flatMap((event) => [event, ...this.dependentsOf(event)]);
+  }
+
+  /** An org-level event re-serves every project entry of that name, since each one's resolution inherits the org row. */
+  private dependentsOf(event: CatalogEvent): CatalogEvent[] {
+    if (event.projectId !== null) {
+      return [];
+    }
+
+    return this.entries
+      .filter((entry) => entry.name === event.name && entry.projectId !== null)
+      .map((entry) => ({ ...event, projectId: entry.projectId, op: "upsert" }));
   }
 
   async snapshot(): Promise<{ entries: CatalogEntry[]; cursor: string }> {
