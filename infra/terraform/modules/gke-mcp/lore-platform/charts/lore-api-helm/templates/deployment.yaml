@@ -14,12 +14,11 @@ spec:
     metadata:
       labels:
         app: lore-api
-      annotations:
-        # Roll the pods whenever the mounted task-types.yaml content changes —
-        # without this a ConfigMap update leaves running pods on the old file.
-        checksum/task-types: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
     spec:
       serviceAccountName: lore-api
+      # Plan edits are debounced in memory (planning-sync flushes them on
+      # hapi's onPreStop), so give a rollout time to write the last keystrokes.
+      terminationGracePeriodSeconds: 45
       {{- if .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml .Values.imagePullSecrets | nindent 8 }}
@@ -122,10 +121,6 @@ spec:
                   key: {{ .Values.slackBotTokenSecret.key }}
                   optional: true
             {{- end }}
-          volumeMounts:
-            - name: config
-              mountPath: /config
-              readOnly: true
           livenessProbe:
             tcpSocket:
               port: http
@@ -138,7 +133,3 @@ spec:
             periodSeconds: 10
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-      volumes:
-        - name: config
-          configMap:
-            name: {{ .Values.configMap.name }}

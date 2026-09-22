@@ -2,12 +2,14 @@ import type { Pool } from "pg";
 import { buildServer } from "./build-server.js";
 import { shutdownOtel } from "../outbound/otel-init.js";
 import { drainEventProxies } from "../transport/routes/event-reporter.js";
+import { DEFAULT_DRAIN_TIMEOUT_MS } from "@re-cinq/lore-shared/project/events/event-tuning.js";
+import { requiredPort } from "@re-cinq/lore-shared/lib/required-env.js";
 
 /** Start the Lore API (/api/*); MCP proxies to these routes via buildServer factory. */
 export async function startHttpServer(
   getPool: () => Pool | null,
 ): Promise<void> {
-  const port = parseInt(process.env.PORT || "3000", 10);
+  const port = requiredPort(process.env, "PORT");
   const server = buildServer(getPool, port);
 
   // Flush telemetry on SIGTERM (was dropping on rollouts before #1051).
@@ -17,9 +19,6 @@ export async function startHttpServer(
   await server.start();
   console.log(`Lore API listening on :${port}`);
 }
-
-/** How long shutdown waits for the event queue to drain. */
-const EVENT_DRAIN_TIMEOUT_MS = 5_000;
 
 /** What `shutdownGracefully` needs of the server — `Server` satisfies it. */
 export interface Stoppable {
@@ -48,7 +47,7 @@ export async function shutdownGracefully(
 async function drainEvents(
   flushEvents: (timeoutMs: number) => Promise<number>,
 ): Promise<void> {
-  const undrained = await flushEvents(EVENT_DRAIN_TIMEOUT_MS).catch((err) => {
+  const undrained = await flushEvents(DEFAULT_DRAIN_TIMEOUT_MS).catch((err) => {
     console.warn(`[lore-api] event drain failed: ${(err as Error).message}`);
 
     return 0;

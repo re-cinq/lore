@@ -1,6 +1,5 @@
 /** Core pipeline-task CRUD (create/read/record-event/update-status) — split out so pipeline-task-actions.ts (retry/cancel/escalate/revise/mark-merged) can depend on it without pipeline-tasks.ts importing back from pipeline-task-actions.ts. */
 
-import { enforceTrue } from "../lib/enforce.js";
 import type { PgPool } from "./memory-store-types.js";
 import { selectList } from "../lib/row.js";
 import { PIPELINE_TASK_COLUMNS } from "./models/pipeline-task.js";
@@ -8,11 +7,12 @@ import { TASK_EVENT_COLUMNS } from "./models/task-event.js";
 import type { PipelineTask } from "./types.js";
 import { enforceRepoTrustForTaskType } from "./pipeline-task-trust.js";
 import { setTaskStatus } from "./pipeline-task-status.js";
+import { enforceDescriptionFits } from "./task-description.js";
 
 export interface CreateTaskInput {
   description: string;
   taskType?: string;
-  /** Already resolved by the caller (mcp applies getDefaultRepo). */
+  /** Already resolved by the caller (mcp applies the default repo). */
   targetRepo?: string;
   createdBy?: string;
   contextBundle?: Record<string, unknown>;
@@ -102,11 +102,7 @@ async function enforceCreatable(
   input: CreateTaskInput,
   taskType: string,
 ): Promise<void> {
-  enforceTrue(
-    input.description.length <= 10000,
-    Error,
-    "Description too long (max 10000 chars)",
-  );
+  enforceDescriptionFits(input.description);
 
   if (input.targetRepo) {
     await enforceRepoTrustForTaskType(pool, input.targetRepo, taskType);

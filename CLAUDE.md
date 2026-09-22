@@ -19,8 +19,11 @@ PR history, and task state.
   (image `ghcr.io/re-cinq/lore-mcp`) in the `lore-api` namespace; agent recipes reach
   it via a `resources.mcp_servers` entry (ADR-030/031/032). The gateway also serves the
   **agent-skills registry** (`src/server/skills-registry.ts`) at `/skills/<name>.tar.gz`
-  + `/skills/settings.json` (unauthenticated; bundle baked from `apps/mcp-server/agent-skills/`);
-  the ai-agent-subsystem init fetches these into a run's `$HOME/.claude` via the recipe's
+  + `/skills/hooks/<vendor>.tar.gz` (a per-vendor hook bundle laid out relative to `$HOME`;
+  `hooks/claude/.claude/settings.json` wires the `lore-context` skill's `guard-tests.sh` as
+  the Bash `PreToolUse` guard and is also served as the flat `/skills/settings.json`)
+  (unauthenticated; bundle baked from `apps/mcp-server/agent-skills/`); the
+  ai-agent-subsystem init fetches these into a run's `$HOME` via the recipe's
   `resources.skills` + `skills_source` (ADR-030 skills seam).
 - **`apps/lore-api`** (`src/index.ts` + `src/server/http-server.ts`) — the remote
   HTTPS REST backend (`/api/*`) on GKE. Routes are organized one folder per
@@ -47,7 +50,7 @@ Gap signal goes to Graphiti episodes in Phase 3.
 
 ## Code Conventions
 
-**TypeScript** for the MCP server. ESM modules, strict mode, ES2022
+**TypeScript** for the MCP server. ESM modules, strict mode, ES2023
 target. Zod for input validation on all MCP tools. Return errors as
 text in MCP responses, never throw.
 
@@ -89,7 +92,7 @@ status pill — a stale header misreports the org's backlog.
 - `libs/assembly-lines/src/loader.ts` — Zod schema for assembly line YAML, cycle detection (DFS coloring; back-edges require `iteration_max`), reachability check; nodes carry optional `station_ref` (custom station image) + `timeout_minutes`, and detect nodes require `job_ref`
 - `libs/assembly-lines/src/assembly-lines/*.yaml` — declarative assembly line definitions (gap-fill, general, implementation, feature-planning, ingest, the detection lines spec-drift/gap-detect/spec-coverage-{validate,backfill}, and the PR-review family code-review/code-review-reply/comment-triage; more extensible). `code-review.yaml` (`review → refine → done`) is the PR-review line: started per PR-lifecycle webhook by the code-review choreography (`apps/floor/src/work/review/code-review.ts`), not by a task — opened→review-pass+started-comment, human reply→`mode:reply` pass (decide-per-reply: answer or commit), closed→finish; gated on `auto_review`, bot-authored PRs/comments skipped (loop guard)
 - `libs/assembly-lines/src/node-outcome.ts` — `stationNodeOutcome()` + `parseNodeResult()`/`parseReviewVerdict()` for the station contract's `LORE_NODE_RESULT` line; outcome precedence LORE_NODE_RESULT → REVIEW_RESULT → success, CR `Failed` → `<kind>-failed`. Consumed by the Floor's node-event handler + reaper (`apps/floor/src/work/assembly-run/`) and by the `lore-station` pods. Node-execution types (`StageOutcome`/`NodeResult`/`NodeContext`) live in `node-types.ts`. (The old `station-node-handler.ts` poll loop retired with the in-process walk.)
-- `apps/lore-station/` — the station pod entrypoint image (`ghcr.io/re-cinq/lore-station`, `lore-station <type> '<station_input json>'`): runs one non-agent node per pod (validate/gate/github_action/detect/ingest) via the subsystem's `exec` vendor; service-runtime node types (retrospective, merge_step, issues, escalation steps, and since 2026-09 comment-triage — one enum-constrained Haiku call needs no pod) run in the pooled `lore-stations` service instead, published over the bus. Reads/writes over HTTP through `createStationProject(repo)` (no Postgres/App creds in the pod, D7); the detector cores live in `@re-cinq/lore-shared/detect` (facade-driven, shared by Floor + station). Contract in `specs/6-dark-factory/contracts/station-contract.md`. **Cutover complete** (ADR-031 amendment): every non-agent Floor-assembly-line node dispatches a station — the `LORE_STATION_NODES` flag + in-process node handlers are gone. The last in-process execution path (the gap-fill/runbook JSON-supervisor, `processTaskViaSupervisor`) was also removed: gap-fill now runs on the Floor AssemblyLine (per-node Agent CRs, same as implementation) and runbook (no assembly-line YAML) runs as a single Agent CR — both via `handleClaudeCodeTask`, no Floor-side clone or App token. Builtin `def-<type>` recipes seeded from `scripts/task-types.yaml` `stations:` by gen-catalog + migrations 0027/0028; custom stations register via an `execution_mode: 'station'` agent-definitions row.
+- `apps/lore-station/` — the station pod entrypoint image (`ghcr.io/re-cinq/lore-station`, `lore-station <type> '<station_input json>'`): runs one non-agent node per pod (validate/gate/github_action/detect/ingest) via the subsystem's `exec` vendor; service-runtime node types (retrospective, merge_step, issues, escalation steps, and since 2026-09 comment-triage — one enum-constrained Haiku call needs no pod) run in the pooled `lore-stations` service instead, published over the bus. Reads/writes over HTTP through `createStationProject(repo)` (no Postgres/App creds in the pod, D7); the detector cores live in `@re-cinq/lore-shared/detect` (facade-driven, shared by Floor + station). Contract in `specs/6-dark-factory/contracts/station-contract.md`. **Cutover complete** (ADR-031 amendment): every non-agent Floor-assembly-line node dispatches a station — the `LORE_STATION_NODES` flag + in-process node handlers are gone. The last in-process execution path (the gap-fill/runbook JSON-supervisor, `processTaskViaSupervisor`) was also removed: gap-fill now runs on the Floor AssemblyLine (per-node Agent CRs, same as implementation) and runbook (no assembly-line YAML) runs as a single Agent CR — both via `handleClaudeCodeTask`, no Floor-side clone or App token. Builtin `def-<type>` recipes are `lore.agent_definitions` rows (migrations 0027/0028/0054) that each cluster-agent's catalog sync renders into CRs; custom stations register via an `execution_mode: 'station'` agent-definitions row.
 - `apps/floor/src/work/merge/auto-merge.ts` — pure `evaluateAutoMerge()` decision + `evaluateAndMerge()` end-to-end with backoff. Outcome enum captures all 7 deferral reasons + `merged`. OTEL span `lore.auto_merge.decision` carries the rule trace
 - `apps/floor/src/work/merge/merge-check.ts` — `handleMergedTask` also runs the **spec-status-upkeep FR1** hook (`specs/spec-status-upkeep/`): when a merged `spec-task` leaves no unmerged siblings in its `task_group_id` (via `taskQueue().countUnmergedInGroup`), the pure `decideSpecStatusFlip()` gate resolves the owning feature and `openSpecStatusFlipPr` (`@re-cinq/lore-shared`) opens a deterministic one-line `lore-managed`+`spec-status-upkeep` PR flipping the spec's `| Status |` row to `Implemented` (mirrors the spec-coverage-backfill PR plumbing; `rewriteSpecStatusRow` is the idempotent pure rewriter), then transitions `lore.features` → `implemented`. No LLM. Human-review PRs (no auto-merge wiring). FR2 (weekly `status-staleness` detect line) is a pending follow-up
 - `apps/floor/src/events/main-loop/lease/lease-reaper.ts` — 60s tick deletes leases >5min past expiry, writes `lease_expired` audit entries
@@ -134,7 +137,7 @@ status pill — a stale header misreports the org's backlog.
 - `libs/shared/src/lib/business-hours.ts` — IANA-TZ-aware gate used by safety crons
 - `apps/floor/src/transport/http/server.ts` (+ `routes/health.ts`) — the Floor HTTP server: the `/api/agent-events` NDJSON cost sink (the live fan-out is the Postgres NOTIFY trigger on the insert, not a Floor publish — the SSE stream itself moved to lore-api on 2026-09-09), `GET /api/agent-events/{assemblyRunId}` (run-event history), `GET /api/assembly-line-definitions/{name}`, and `/healthz`. GitHub webhooks no longer land on the Floor: the ingress is the event-router's `POST /api/events` (ADR-044, cutover 2026-09-08), and the legacy `/api/webhook/github` path on the Floor host is rewritten onto it by the ingress. The old `/api/trigger/*` fan-out endpoints were replaced by the event bus (`apps/floor/src/{listeners,main-loop,jobs}/`): listeners insert into `pipeline.events`, the loop dispatches to handlers. spec-coverage validate / spec-trace now run as `internal.ingest.*` event handlers (mcp-server inserts the events post-ingest via the shared `insertEvent`).
 - **`spec-test-coverage` v3 (2026-06-02):** source of truth for spec→test links is markdown inside `spec.md` — `Statement. ([validated by name](path/to/test.ts#L42))` at end of each statement. The web UI renders them from the traceability graph: `lib/trace-api.ts` fetches the `/trace` document, `lib/trace-statement-info.ts` adapts its statements, and `SpecDetails.tsx` colors them (the parsing itself lives in `libs/shared/src/spec-{segment,link-parser}.ts`); no DB linker tables (`spec_statements` / `spec_test_links` / `spec_coverage_runs` dropped in migration 0008). Three write-paths:
-  - **Authors hand-write the links** (free; just edit `spec.md`).
+  - **Authors hand-write the links** (free; just edit `spec.md`). Line anchors drift when tests are inserted above them: `npm run format` ends with `scripts/spec-links/reanchor.mjs`, which moves every `#Lnn` whose test moved (by test title, then by diff hunk) for the test files the branch changed — `--all` sweeps the whole corpus — and the CI `format` job commits the result back to the PR branch.
   - **`/lore-suggest-links`** (subscription-billed, on-demand, single-spec) — Claude Code skill that walks through the same judge pipeline locally and opens a PR against the spec's repo. See `specs/local-link-suggester/`. Subscription tokens, no API spend.
   - **`spec-coverage-backfill`** (`ANTHROPIC_API_KEY`-billed, weekly Mon 11:00 UTC via `cron.spec_coverage_backfill.tick` → one per-repo assembly line; ADR-019 amendment) — finds testable un-linked statements via the v2 judge pipeline, opens a PR per spec with `proposeLinkInsertions` adding the inline parentheticals.
 
@@ -202,11 +205,10 @@ Floor `ci-tests` ingress). Baked into the mcp image + served at
 `GET /dist/lore-code-trace/<os>-<arch>`; each repo's `lore-tests.yml` downloads + runs it.
 (Replaced the old `npm run trace:run-tests` CLI + `buildTestReport`.)
 
-**Onboarding** — the `onboard` task runs a test-interface check
-(`decideTestInterfaceCheck`): when no manifest is declared it scaffolds a
-suggested `.lore/test-commands.yml` + a per-toolchain `.github/workflows/lore-tests.yml`
-(generated from `LORE_TESTS_INSTRUCTION`) in the PR; an already-configured
-repo is left untouched. The web UI + `/lore-test-commands` skill surface the
+**Onboarding** — the onboarding ticket owes a suggested `.lore/test-commands.yml`
++ a per-toolchain `.github/workflows/lore-tests.yml` (authored by the `onboard`
+line's agent from `LORE_TESTS_INSTRUCTION`), each only when absent; an
+already-configured repo is left untouched. The web UI + `/lore-test-commands` skill surface the
 canonical `TEST_COMMAND_SETUP_PROMPT` for developers to run with Claude.
 
 > **Status:** the graph fan-out is **built and live** — `ingestTestReport`
@@ -436,11 +438,12 @@ Pipeline tools: lore_create_pipeline_task, lore_get_pipeline_status,
 lore_list_pipeline_tasks, lore_cancel_task, lore_retry_task, lore_list_task_group,
 lore_get_task_logs, lore_my_usage. Local runner tools: lore_run_task_locally,
 lore_list_local_tasks, lore_cancel_local_task.
-Task types configured in
-scripts/task-types.yaml:
+Task types are the rows of `lore.agent_definitions`; their shipped defaults
+are `libs/shared/src/agent-defaults/<name>.md` (frontmatter = settings,
+body = prompt), which lore-api seeds into the org rows at boot:
 
 - **feature-request**: PM describes intent in plain language → agent generates spec.md, data-model.md, tasks.md following repo conventions. Opens a PR for engineer review.
-- **onboard**: inspects repo, generates CLAUDE.md, AGENTS.md, ADRs, spec, CI workflows
+- **onboard**: the Floor enrols the repo (labels, webhook, ingest callback, verbatim workflows + templates on the branch), then the `onboard` assembly line (`libs/assembly-lines/src/assembly-lines/onboard.yaml`, the implementation shape with the `onboard` recipe) authors AGENTS.md, ADRs, spec and PR template from the onboarding ticket (`onboardTicketBody`) and opens the ONE PR; the push node records it as `lore.repos.onboarding_pr_url`
 - **general**: open-ended task with Lore context
 - **runbook**: generates incident runbook
 - **implementation**: implements from a spec file
@@ -479,11 +482,18 @@ now filled with the constant `CONTEXT_BOOTSTRAP`
 (`libs/shared/src/domain/agents/recipe-prompt.ts`) — an instruction to call
 `lore_assemble_context` first. The parameter is always present:
 `renderPrompt` leaves an unmatched placeholder intact, so omitting it
-would ship the literal `{context}` to the model.
+would ship the literal `{context}` to the model. **The LLM template is
+`{prompt}` + `{context}`, never the recipe body** (2026-09-13, #2051): the
+Floor renders the recipe from the resolved `lore.agent_definitions` row
+(`renderNodePrompt`, project → org → yaml) and appends the CI verdict,
+failure and round hand-off blocks into the CR parameter `prompt`; the old
+template rendered `{description}` and silently dropped every block. Assert
+on the pod's view with `podPromptOf` (`apps/floor/src/work/assembly-run/pod-prompt-view.ts`),
+not on `spec.prompt`.
 
 **Live agent MCP access**: this is the only context path now; agent *pods* get a
 **live, scoped** Lore MCP for the whole run via the shared `lore-mcp` HTTP
-gateway. The seeded agent recipe (`buildAgentDefinition`, `agent-catalog.ts`)
+gateway. The rendered agent recipe (`agentDefToCrds`, `libs/shared/src/outbound/project/agents/agent-crd.ts`)
 carries `resources.mcp_servers: [{ name: lore, transport: http, headers_secret:
 lore-mcp-auth }]` and drops `lore_create_pipeline_task`; the ai-agent-subsystem
 controller renders it into `claude --mcp-config`. The pod can search
@@ -554,20 +564,21 @@ context. Links are bidirectional — adding repo B from repo A's
 settings auto-adds repo A to repo B's list.
 
 **Per-repo customization**: `settings.task_overrides` allows per-repo
-overrides for any task type: `model`, `timeout_minutes`,
-`system_prompt_suffix`, `review_required`. Merged with global
-`task-types.yaml` at task creation time. Repo overrides win.
+overrides for any task type (`model`, `timeout_minutes`), read by the Floor
+under the resolved agent definition at task creation time.
 
 **Agent definitions** (`lore.agent_definitions`): per-task-type config
 (`prompt`, `model`, `timeout_minutes`, `image`) resolved by name via
 `project.agentDefs.resolve(name)` — `project` row (per-repo override) →
-`project_id IS NULL` row (org default) → `task-types.yaml`/code. Edited in
-the `/repos/[owner]/[repo]/agents` UI (the global `/agents` page is a
-read-only activity list). `feature-planning` is a first-class agent here: its prompt
-is the `PLANNING_INSTRUCTIONS` constant (the offline/code fallback, served by
-`AgentDefsYaml`) and the org-default row's prompt is seeded from it by
-migration `0018`; both `runner-cli` and `handle-feature-planning` resolve it
-by name rather than hardcoding.
+`project_id IS NULL` row (org default); there is no third layer. The org rows
+are seeded at lore-api boot from `libs/shared/src/agent-defaults/*.md`
+(`seedAgentDefaults`, specs/lore-agents FR26/FR27): a field still equal to the
+default last seeded (`shipped_default`, migration 0086) follows a new file, an
+edited field stays, a NULL one fills; `config` other than `pod_resources` always
+follows the file. Change a default with a PR to its md file — prompt tuning is
+never a migration. Per-repo overrides and org defaults are edited in the
+`/repos/[owner]/[repo]/agents` and `/agents` UIs. A process with neither a DB
+nor the API reads the files read-only through `AgentDefsFiles`.
 
 **Progressive trust**: `settings.trust.level` controls which task
 types are allowed per repo: docs (gap-fill/runbook/onboard +

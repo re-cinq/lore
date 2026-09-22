@@ -1,9 +1,9 @@
 # The satellite cluster-agent. Note what is ABSENT: no database env, none of
 # the central bus-wide ingest credential (FR5 keeps that central — the
 # satellite reports with the per-agent token it received at registration),
-# and no agent-events telemetry sink (ai-agents.agentEventsUrl is left unset
-# in values.yaml, which the catalog's guard omits entirely — that sink's
-# secret is the same class of bus-wide credential, #1575). The GitHub
+# and no agent-events telemetry sink by default (catalog.eventsUrl is left
+# unset, so the catalog sync renders no http sink — that sink's secret is the
+# same class of bus-wide credential, #1575). The GitHub
 # credential below is the one exception: it is per-satellite-operator, not
 # bus-wide, so it is an explicit opt-in rather than something this chart
 # withholds by design.
@@ -88,6 +88,36 @@ spec:
               value: "k8s"
             - name: LORE_AGENTS_NAMESPACE
               value: {{ .Values.agentsNamespace | quote }}
+            # What the catalog sync renders into this cluster's CRs; an unset
+            # value omits the block it feeds (values.yaml `catalog:`).
+            - name: LORE_CATALOG_PROFILE
+              value: {{ .Values.catalog.profile | quote }}
+            - name: LORE_AGENT_LLM_SECRET_KEY
+              value: {{ .Values.llm.secretKey | quote }}
+            {{- if .Values.catalog.eventsUrl }}
+            - name: LORE_AGENT_EVENTS_URL
+              value: {{ .Values.catalog.eventsUrl | quote }}
+            {{- end }}
+            {{- if .Values.catalog.mcpUrl }}
+            - name: LORE_MCP_URL
+              value: {{ .Values.catalog.mcpUrl | quote }}
+            {{- end }}
+            {{- if .Values.catalog.skillsUrl }}
+            - name: LORE_SKILLS_URL
+              value: {{ .Values.catalog.skillsUrl | quote }}
+            {{- end }}
+            {{- if .Values.catalog.stationImage }}
+            - name: LORE_STATION_IMAGE
+              value: {{ .Values.catalog.stationImage | quote }}
+            {{- end }}
+            {{- if .Values.catalog.dgraphUrl }}
+            - name: LORE_DGRAPH_HTTP
+              value: {{ .Values.catalog.dgraphUrl | quote }}
+            {{- end }}
+            {{- if .Values.catalog.modelSecretKeys }}
+            - name: LORE_MODEL_SECRET_KEYS
+              value: {{ .Values.catalog.modelSecretKeys | toJson | quote }}
+            {{- end }}
             # Identity persists through the Kubernetes Secret API (the
             # lore-cluster-agent-identity Role) — the container is read-only,
             # so a file path here would EROFS on the first save.

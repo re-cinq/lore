@@ -47,6 +47,10 @@ const CiFailuresSchema = z.object({
       annotations: z.array(z.string()),
       steps: z.array(z.string()),
       tail: z.array(z.string()),
+      npm_script: z
+        .object({ package: z.string(), script: z.string() })
+        .nullable(),
+      unreadable: z.array(z.string()),
     }),
   ),
 });
@@ -63,7 +67,7 @@ const ROUTE_OPTIONS = zodResponse(
   {
     name: "CiFailures",
     description:
-      "What CI said about a branch: the judged sha, the verdict, and each failed check with its annotations, failed steps and log tail",
+      "What CI said about a branch: the judged sha, the verdict, and each failed check with its annotations, failed steps and log tail, plus the reads GitHub refused (unreadable) so an empty part is not mistaken for a silent job",
     errors: [400, 404],
   },
 );

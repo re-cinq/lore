@@ -29,6 +29,7 @@ export type ReapOutcome =
   | "queue-timeout"
   | "requeued"
   | "swept"
+  | "released"
   | "resolved"
   | "timeout"
   | "failed-queued"

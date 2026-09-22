@@ -49,7 +49,6 @@ env:
   # `log_retention_days` terraform variable (also 30 by default).
   # LORE_AGENT_RUN_TURN_RETENTION_DAYS: "30"
   ANTHROPIC_MODEL: claude-haiku-4-5-20251001
-  TASK_TYPES_PATH: /config/task-types.yaml
   PORT: "8080"
   LORE_INGEST_URL: ""
   # The Floor's address AS A RUN POD REACHES IT — the base a pod fetches its prior
@@ -110,9 +109,6 @@ githubAppSecret:
 internalTokenSecret:
   name: lore-agent-internal-token
   key: token
-
-configMap:
-  name: lore-floor-config
 
 # Slack integration (optional — for PR/failure notifications back to Slack)
 slackBotTokenSecret:

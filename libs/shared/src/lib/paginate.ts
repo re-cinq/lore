@@ -5,6 +5,13 @@ export interface Page<T> {
   continueToken?: string;
 }
 
+/** One page asked for: at most `limit` items, resuming from a previous page's `continueToken`. */
+export interface PageRequest {
+  limit: number;
+  continue?: string;
+  labelSelector?: string;
+}
+
 /** Fetch every page, handing each to `onPage` as it arrives. */
 export async function forEachPage<T>(
   fetchPage: (continueToken?: string) => Promise<Page<T>>,

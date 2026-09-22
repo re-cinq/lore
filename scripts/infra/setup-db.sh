@@ -128,6 +128,11 @@ kubectl exec -n "$NAMESPACE" lore-db-1 -- psql -U postgres -d lore -c "
       -- moment a repo's team resolves there.
       EXECUTE format('
         GRANT SELECT, INSERT, UPDATE, DELETE ON %I.chunks TO lore', s);
+      -- Migrations run as 'lore'; ALTER TABLE/INDEX needs ownership, not just
+      -- GRANT ALL. Hand the table (and its indexes) to lore at creation time
+      -- so a migration like 0070 (DROP INDEX … chunks_search_idx) never hits
+      -- "must be owner".
+      EXECUTE format('ALTER TABLE %I.chunks OWNER TO lore', s);
     END LOOP;
   END\$\$;
 

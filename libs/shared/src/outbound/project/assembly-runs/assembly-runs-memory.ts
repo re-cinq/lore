@@ -19,16 +19,18 @@ import {
 } from "./assembly-runs-memory-rows.js";
 import type {
   AssemblyRunQuery,
+  AssemblyRunRecord,
   AssemblyRunsPort,
   AssemblyRunStartInput,
-  StationRunFailure,
-  StationRunStartInput,
-  ClaimedStationRun,
-  AssemblyRunRecord,
   AssemblyRunSummary,
-  StationRunRecord,
-  OpenRunSummary,
+  ClaimedStationRun,
   ClosedRunRef,
+  OpenRunSummary,
+  StationRunFailure,
+  StationRunRecord,
+  StationRunRelease,
+  StationRunReleaseResult,
+  StationRunStartInput,
 } from "./assembly-runs-port.js";
 
 export type { SeedAssemblyLineNode } from "./assembly-runs-memory-station-runs.js";
@@ -235,6 +237,13 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
 
   requeueStationRun(nodeRowId: string): Promise<boolean> {
     return this.stationRuns.requeueStationRun(nodeRowId);
+  }
+
+  releaseStationRun(
+    nodeRowId: string,
+    release: StationRunRelease,
+  ): Promise<StationRunReleaseResult> {
+    return this.stationRuns.releaseStationRun(nodeRowId, release);
   }
 
   finishStationRunOnce(

@@ -1,10 +1,6 @@
 // Reaching this cluster through its agent: one transport, then one adapter per existing port, so the Floor's call sites keep their shape.
 
-import type {
-  Agent as AgentCr,
-  AgentDefinition,
-  Station,
-} from "@re-cinq/agent-contracts";
+import type { Agent as AgentCr } from "@re-cinq/agent-contracts";
 import { collectPages, type Page } from "../../lib/paginate.js";
 import type { AgentNodeStatus } from "./agent-node-status.js";
 import type {
@@ -169,25 +165,6 @@ export class HttpTokenCleanup implements TokenCleanup {
     await this.client.call(
       "DELETE",
       `/per-task-tokens/${encodeURIComponent(taskId)}`,
-    );
-  }
-}
-
-/** The UI-authored catalog, over the agent — lore-api's only cluster need. */
-export class HttpAgentCatalog {
-  constructor(private readonly client: ClusterAgentClient) {}
-
-  async applyPair(pair: {
-    agentDefinition: AgentDefinition;
-    station: Station;
-  }): Promise<void> {
-    await this.client.call("POST", "/catalog/pairs", pair);
-  }
-
-  async deletePair(name: string): Promise<void> {
-    await this.client.call(
-      "DELETE",
-      `/catalog/pairs/${encodeURIComponent(name)}`,
     );
   }
 }

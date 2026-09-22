@@ -15,7 +15,6 @@ const checks: Check[] = [
     id: "ingest-workflow",
     label: "Ingest workflow",
     status: "fail",
-    action: { kind: "reonboard", text: "create a PR with this file" },
   },
   {
     id: "webhook",
@@ -87,13 +86,13 @@ describe("RepoOverviewView", () => {
     expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
   });
 
-  it("renders the enrollment section and wires the reonboard + webhook action buttons", () => {
+  it("renders the enrollment section and wires the one enrolment trigger + the webhook action button", () => {
     render(<RepoOverviewView {...baseProps} />);
     expect(
       screen.getByRole("heading", { level: 3, name: "Enrollment" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "create a PR with this file" }),
+      screen.getByRole("button", { name: "Open enrolment PR" }),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "set up" })).toBeInTheDocument();
     expect(

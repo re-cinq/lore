@@ -4,6 +4,7 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
 import { InMemoryClusterAgents } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-memory.js";
 import { mayClaim } from "@re-cinq/lore-shared/project/cluster-agents/capacity.js";
+import { launchReleaseOf } from "@re-cinq/lore-shared/project/assembly-runs/launch-release.js";
 import { assemblyLineReaperJob } from "./assembly-run-reaper.js";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 import {
@@ -92,7 +93,9 @@ export function fileArtifactEnvelope(input: {
 
 // eslint-disable-next-line max-lines-per-function -- acceptance-test harness: every closure shares one in-memory fleet, run store and status map, and threading that state through arguments would make the doubles harder to read than the thing they double.
 export function createLineHarness(
-  overrides: Partial<Pick<AdvanceDeps, "onRunClosed" | "stampPr">> = {},
+  overrides: Partial<
+    Pick<AdvanceDeps, "onRunClosed" | "stampPr" | "publishRunCheck">
+  > = {},
 ) {
   const runs = new InMemoryAssemblyRuns();
   // The registry the claim reads: central (every tag) + satellite (`node:agent` only), so a paused central starves a line rather than failing over.
@@ -119,7 +122,8 @@ export function createLineHarness(
     assemblyRuns: runs,
     definitions: loadBuiltinAssemblyLines,
     repoSettings: async () => null,
-    resolvePrompt: (promptRef, description) => `${promptRef}::${description}`,
+    resolvePrompt: async (_repo, promptRef, description) =>
+      `${promptRef}::${description}`,
     cleanupToken: async () => {},
     jobRuns: { complete: async () => {}, fail: async () => {} },
     publishNode: async (event) => {
@@ -183,6 +187,21 @@ export function createLineHarness(
       clusterAgentId: agent.id,
       tags: agent.tags,
     });
+  }
+
+  /** One poll whose launch throws: claim as the named agent, then hand the visit back through the same decision lore-api's release route makes, with the default bound of 3. */
+  async function claimAndFailLaunchAs(name: string, reason: string) {
+    const claimed = await claimAs(name);
+
+    if (!claimed) {
+      return null;
+    }
+    const status = await runs.releaseStationRun(
+      claimed.nodeRowId,
+      launchReleaseOf(reason, 3),
+    );
+
+    return { assemblyRunId: claimed.assemblyRunId, status };
   }
 
   /** The operator's switch, as the Clusters page flips it. */
@@ -291,6 +310,7 @@ export function createLineHarness(
     start,
     completeAgentNode,
     claimAs,
+    claimAndFailLaunchAs,
     pause,
     unpause,
     reap,

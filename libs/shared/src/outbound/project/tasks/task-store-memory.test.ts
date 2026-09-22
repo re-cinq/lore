@@ -87,12 +87,12 @@ describe("InMemoryTaskStore.create", () => {
     ).resolves.toMatchObject({ status: "pending" });
   });
 
-  it("rejects a description longer than 10000 chars", async () => {
+  it("rejects a description longer than 32000 chars", async () => {
     const store = new InMemoryTaskStore();
 
     await expect(
-      store.create({ description: "x".repeat(10001) }),
-    ).rejects.toThrow(new Error("Description too long (max 10000 chars)"));
+      store.create({ description: "x".repeat(32001) }),
+    ).rejects.toThrow(new Error("Description too long (max 32000 chars)"));
   });
 });
 

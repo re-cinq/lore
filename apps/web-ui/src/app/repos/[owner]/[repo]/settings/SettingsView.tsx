@@ -44,8 +44,8 @@ function SettingsHelp() {
   return (
     <HelpPopover label="How settings are applied">
       <p>
-        Per-repo configuration, merged over the global{" "}
-        <code>task-types.yaml</code> defaults — repo values win.
+        Per-repo configuration, applied over the org-wide defaults — repo values
+        win.
       </p>
       <SettingsHelpPoints />
     </HelpPopover>

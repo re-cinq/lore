@@ -1,6 +1,5 @@
 // What a REGISTERED agent does; how a process becomes one is start-claim-loop.ts.
 
-import { KubeCatalogApi } from "../../outbound/kube-catalog-api.js";
 import { AgentCrBackend } from "@re-cinq/lore-shared/cluster/agent-backend.js";
 import { claimIntervalMs, claimOnce, runClaimLoop } from "./claim-loop.js";
 import {
@@ -42,6 +41,13 @@ export interface RegistrantOpts {
   running: () => boolean;
 }
 
+/** What registering takes: the triple to register with, where to persist the identity, and how to hand the minted token to the run pods. Named because both `establishIdentity` and the single-flight re-registration take exactly this. */
+export interface RegistrationOpts {
+  config: RegistrationConfig;
+  store: IdentityStore;
+  publishTelemetryCredential: (id: ClusterAgentIdentity) => Promise<void>;
+}
+
 // What both side loops need: where to talk, who this cluster is, and whether the process is still up. One shape because they are started together and stopped together.
 interface SideLoopOpts {
   env: NodeJS.ProcessEnv;
@@ -77,10 +83,8 @@ export async function runRegistrant(opts: RegistrantOpts): Promise<void> {
   });
 }
 
-/** Registers, and hands back the identity as a GETTER rather than a value: a 401 rotates it mid-run, and every loop must read the current one rather than the one it captured at startup. */
-async function establishIdentity(
-  opts: Pick<RegistrantOpts, "config" | "store" | "publishTelemetryCredential">,
-): Promise<{
+/** Hands back the identity as a GETTER: a 401 rotates it mid-run, and every loop must read the current one, not the one it captured at startup. */
+async function establishIdentity(opts: RegistrationOpts): Promise<{
   identity: () => ClusterAgentIdentity;
   reRegister: () => Promise<ClusterAgentIdentity | null>;
 }> {
@@ -100,7 +104,7 @@ async function establishIdentity(
 
 // The first registration, with the line that says this cluster is now claiming. Announced here rather than by the caller because the id only exists once registration has succeeded.
 async function registerAndAnnounce(
-  opts: Pick<RegistrantOpts, "config" | "store" | "publishTelemetryCredential">,
+  opts: RegistrationOpts,
 ): Promise<ClusterAgentIdentity> {
   const identity = await registerWithBackoff({
     config: opts.config,
@@ -206,14 +210,11 @@ function startCatalogSync(opts: SideLoopOpts): Promise<void> {
   return firstSync;
 }
 
-/** What a catalog sync writes through. Reads go direct to Kubernetes while writes go via clusterDeps, because a paired write is atomic there and a read never needs to be. */
+/** What a catalog sync writes through: clusterDeps, where a paired write is atomic. */
 function catalogTarget(): CatalogTarget {
-  const kubeCatalog = new KubeCatalogApi();
-
   return {
     applyPair: (pair) => clusterDeps().catalog.applyPair(pair),
     deletePair: (name) => clusterDeps().catalog.deletePair(name),
-    getAgentDefinition: (name) => kubeCatalog.getAgentDefinition(name),
   };
 }
 
@@ -230,7 +231,6 @@ function firstSyncLatch(): {
   return { firstSync, resolveFirstSync: () => resolveFirstSync() };
 }
 
-/** `ownSeeded` decides whether this cluster maintains the builtin recipes itself; a satellite leaves them to the platform's own agent. */
 function syncOptions(
   env: NodeJS.ProcessEnv,
   config: RegistrationConfig,
@@ -242,7 +242,6 @@ function syncOptions(
     identity,
     catalog,
     crdOptions: crdOptionsFromEnv(env),
-    ownSeeded: env.LORE_CATALOG_SYNC_OWN_SEEDED === "1",
   };
 }
 

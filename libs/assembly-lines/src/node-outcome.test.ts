@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { AssemblyLineNode } from "./loader.js";
 import {
+  dodResolvedReason,
   malformedNodeResultLine,
   parseNodeResult,
   parseReviewVerdict,
@@ -120,6 +121,32 @@ describe("stationNodeOutcome", () => {
       extras: { "Lore-Dod-Blocked": "asks for a decision, not a behaviour" },
       failureDetail: "asks for a decision, not a behaviour",
     });
+  });
+
+  it("lifts the definition-of-done resolved verdict into the row as an already-resolved detail", () => {
+    const status: AgentNodeStatus = {
+      phase: "Succeeded",
+      output: resultLine({
+        outcome: "changes_requested",
+        extras: { "Lore-Dod-Resolved": "fixed on main by #2064" },
+      }),
+    };
+
+    expect(stationNodeOutcome(detectNode, status)).toEqual({
+      outcome: "changes_requested",
+      extras: { "Lore-Dod-Resolved": "fixed on main by #2064" },
+      failureDetail: "already resolved: fixed on main by #2064",
+    });
+  });
+
+  it("reads the resolved reason back out of a lifted detail, and nothing out of a blocked one", () => {
+    expect(dodResolvedReason("already resolved: fixed on main by #2064")).toBe(
+      "fixed on main by #2064",
+    );
+    expect(
+      dodResolvedReason("asks for a decision, not a behaviour"),
+    ).toBeNull();
+    expect(dodResolvedReason(null)).toBeNull();
   });
 
   it("leaves a changes_requested without a definition-of-done verdict untouched", () => {

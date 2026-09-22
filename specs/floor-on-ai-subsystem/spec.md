@@ -150,7 +150,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
    name + extraLabels honoured), returns `launched:false` on a 409, runs the Agent on the per-task
    Station the provisioner returns (falling back to the catalog Station, skipping provisioning for a
    repo-less task), and resolves `isActive` by the task-id label (true while any matching Agent is
-   non-terminal, conservatively true when the probe fails). ([validated by `agent-watcher-logic.test.ts:14`](apps/floor/src/domain/agent-watcher-logic.test.ts#L18), [`agent-watcher-logic.test.ts:31`](apps/floor/src/domain/agent-watcher-logic.test.ts#L31), [`agent-backend.test.ts:47`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L47), [`agent-backend.test.ts:70`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L70), [`agent-backend.test.ts:87`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L87), [`agent-backend.test.ts:97`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L97), [`agent-backend.test.ts:118`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L118), [`agent-backend.test.ts:127`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L127), [`agent-backend.test.ts:136`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L136), [`agent-backend.test.ts:166`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L166), [`agent-backend.test.ts:172`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L172), [`agent-backend.test.ts:178`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L178), [`agent-backend.test.ts:184`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L184))
+   non-terminal, conservatively true when the probe fails). ([validated by `agent-watcher-logic.test.ts:14`](apps/floor/src/domain/agent-watcher-logic.test.ts#L18), [`agent-watcher-logic.test.ts:31`](apps/floor/src/domain/agent-watcher-logic.test.ts#L31), [`agent-backend.test.ts:47`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L47), [`agent-backend.test.ts:70`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L70), [`agent-backend.test.ts:87`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L97), [`agent-backend.test.ts:97`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L107), [`agent-backend.test.ts:118`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L128), [`agent-backend.test.ts:127`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L137), [`agent-backend.test.ts:136`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L146), [`agent-backend.test.ts:166`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L176), [`agent-backend.test.ts:172`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L182), [`agent-backend.test.ts:178`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L188), [`agent-backend.test.ts:184`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L194))
 
 6. A `Succeeded` `Agent` with pushed changes results in a PR carrying the `Lore-Task` footer; an
    `Agent` with no changes completes the task with no PR.
@@ -184,13 +184,13 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     double-wrapped `{source, event: {source, event}}` lines observed on this sink — one further
     level, merging the two `source` objects with outer precedence so the terminal result at
     `.event.event` still yields its cost row. That peel MUST be bounded at two levels rather than
-    looping, so a third envelope layer is left intact as the event and yields no row. ([validated by `agent-events.test.ts:16`](apps/floor/src/work/agent/agent-events.test.ts#L16), [`agent-events.test.ts:107`](apps/floor/src/work/agent/agent-events.test.ts#L107), [`agent-events.test.ts:119`](apps/floor/src/work/agent/agent-events.test.ts#L119), [`agent-events.test.ts:130`](apps/floor/src/work/agent/agent-events.test.ts#L130), [`agent-events.test.ts:140`](apps/floor/src/work/agent/agent-events.test.ts#L140), [`agent-events.test.ts:147`](apps/floor/src/work/agent/agent-events.test.ts#L147), [`agent-events.test.ts:211`](apps/floor/src/work/agent/agent-events.test.ts#L211), [`agent-events.test.ts:80`](apps/floor/src/transport/http/routes/agent-events.test.ts#L80), [`agent-events.test.ts:80`](apps/floor/src/transport/http/routes/agent-events.test.ts#L80), [`agent-events.test.ts:211`](apps/floor/src/work/agent/agent-events.test.ts#L211), [`agent-events.test.ts:199`](apps/floor/src/work/agent/agent-events.test.ts#L199), [`agent-output.test.ts:182`](libs/assembly-lines/src/agent-output.test.ts#L182), [`agent-output.test.ts:188`](libs/assembly-lines/src/agent-output.test.ts#L188), [`agent-output.test.ts:197`](libs/assembly-lines/src/agent-output.test.ts#L197), [`agent-output.test.ts:212`](libs/assembly-lines/src/agent-output.test.ts#L212), [`agent-output.test.ts:221`](libs/assembly-lines/src/agent-output.test.ts#L221), [`agent-output.test.ts:230`](libs/assembly-lines/src/agent-output.test.ts#L230), [`agent-output.test.ts:241`](libs/assembly-lines/src/agent-output.test.ts#L241), [`agent-output.test.ts:252`](libs/assembly-lines/src/agent-output.test.ts#L252), [`agent-output.test.ts:258`](libs/assembly-lines/src/agent-output.test.ts#L258), [`agent-events.test.ts:159`](apps/floor/src/work/agent/agent-events.test.ts#L159), [`agent-events.test.ts:187`](apps/floor/src/work/agent/agent-events.test.ts#L187); implemented by [`agent-output.ts:80`](libs/assembly-lines/src/agent-output.ts#L113))
+    looping, so a third envelope layer is left intact as the event and yields no row. ([validated by `agent-events.test.ts:16`](apps/floor/src/work/agent/agent-events.test.ts#L16), [`agent-events.test.ts:107`](apps/floor/src/work/agent/agent-events.test.ts#L204), [`agent-events.test.ts:119`](apps/floor/src/work/agent/agent-events.test.ts#L216), [`agent-events.test.ts:130`](apps/floor/src/work/agent/agent-events.test.ts#L229), [`agent-events.test.ts:140`](apps/floor/src/work/agent/agent-events.test.ts#L239), [`agent-events.test.ts:147`](apps/floor/src/work/agent/agent-events.test.ts#L246), [`agent-events.test.ts:211`](apps/floor/src/work/agent/agent-events.test.ts#L312), [`agent-events.test.ts:80`](apps/floor/src/transport/http/routes/agent-events.test.ts#L80), [`agent-events.test.ts:80`](apps/floor/src/transport/http/routes/agent-events.test.ts#L80), [`agent-events.test.ts:211`](apps/floor/src/work/agent/agent-events.test.ts#L312), [`agent-events.test.ts:199`](apps/floor/src/work/agent/agent-events.test.ts#L300), [`agent-output.test.ts:182`](libs/assembly-lines/src/agent-output.test.ts#L182), [`agent-output.test.ts:188`](libs/assembly-lines/src/agent-output.test.ts#L188), [`agent-output.test.ts:197`](libs/assembly-lines/src/agent-output.test.ts#L197), [`agent-output.test.ts:212`](libs/assembly-lines/src/agent-output.test.ts#L212), [`agent-output.test.ts:221`](libs/assembly-lines/src/agent-output.test.ts#L221), [`agent-output.test.ts:230`](libs/assembly-lines/src/agent-output.test.ts#L230), [`agent-output.test.ts:241`](libs/assembly-lines/src/agent-output.test.ts#L241), [`agent-output.test.ts:252`](libs/assembly-lines/src/agent-output.test.ts#L252), [`agent-output.test.ts:258`](libs/assembly-lines/src/agent-output.test.ts#L258), [`agent-events.test.ts:159`](apps/floor/src/work/agent/agent-events.test.ts#L258), [`agent-events.test.ts:187`](apps/floor/src/work/agent/agent-events.test.ts#L288); implemented by [`agent-output.ts:80`](libs/assembly-lines/src/agent-output.ts#L113))
 
 11. *(restated late 2026-07)* A node CR's terminal status maps to a node outcome
     (`success`/`failed`/`changes_requested`) via `stationNodeOutcome` in the Floor's node-event
     handler; a forced Floor restart loses nothing because the walk is derived from the persisted
     `pipeline.assembly_line_nodes` rows, not held in memory — the original lease-heartbeat +
-    stage-trailer-resume mechanics are retired (6-dark-factory FR6.9) ([validated by `node-outcome.test.ts:35`](libs/assembly-lines/src/node-outcome.test.ts#L34), [`advance-line.test.ts:379`](apps/floor/src/work/assembly-run/advance-line.test.ts#L379))
+    stage-trailer-resume mechanics are retired (6-dark-factory FR6.9) ([validated by `node-outcome.test.ts:35`](libs/assembly-lines/src/node-outcome.test.ts#L35), [`advance-line.test.ts:379`](apps/floor/src/work/assembly-run/advance-line.test.ts#L380))
 12. A `github-action` assembly line node dispatches the referenced GitHub Actions run and gates on its
     conclusion.
 13. The cutover is reversible: flipping the cluster gate off routes new tasks back to LoreTask with
@@ -222,7 +222,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     `is_error:true` so the CR fails, and MUST refuse (enforce-throw) to wrap a payload that is
     already a wrapped agent output line — the envelope is applied exactly once, never nested.
     `eventLine` emits the non-terminal log events the result scan skips over.
-    ([validated by parseNodeResult tests](libs/assembly-lines/src/node-outcome.test.ts#L20), [`agent-output.test.ts:269`](libs/assembly-lines/src/agent-output.test.ts#L269), [`agent-output.test.ts:280`](libs/assembly-lines/src/agent-output.test.ts#L280), [`agent-output.test.ts:292`](libs/assembly-lines/src/agent-output.test.ts#L292), [`agent-output.test.ts:300`](libs/assembly-lines/src/agent-output.test.ts#L300), [`agent-output.test.ts:310`](libs/assembly-lines/src/agent-output.test.ts#L310), [`agent-output.test.ts:318`](libs/assembly-lines/src/agent-output.test.ts#L318), [`agent-output.test.ts:328`](libs/assembly-lines/src/agent-output.test.ts#L328); implemented by [`agent-output.ts:180`](libs/assembly-lines/src/agent-output.ts#L177), [validated by reassembles the final assistant message when the result line carries no text](libs/assembly-lines/src/agent-output.test.ts#L493), [validated by stops at the first non-assistant event, so a marker mentioned in an earlier turn cannot shadow the block actually written](libs/assembly-lines/src/agent-output.test.ts#L501), [validated by falls back to the raw output when a text-less result has no assistant chunks before it](libs/assembly-lines/src/agent-output.test.ts#L512), [validated by still prefers the claude-style result text when both shapes appear](libs/assembly-lines/src/agent-output.test.ts#L518))
+    ([validated by parseNodeResult tests](libs/assembly-lines/src/node-outcome.test.ts#L21), [`agent-output.test.ts:269`](libs/assembly-lines/src/agent-output.test.ts#L269), [`agent-output.test.ts:280`](libs/assembly-lines/src/agent-output.test.ts#L280), [`agent-output.test.ts:292`](libs/assembly-lines/src/agent-output.test.ts#L292), [`agent-output.test.ts:300`](libs/assembly-lines/src/agent-output.test.ts#L300), [`agent-output.test.ts:310`](libs/assembly-lines/src/agent-output.test.ts#L310), [`agent-output.test.ts:318`](libs/assembly-lines/src/agent-output.test.ts#L318), [`agent-output.test.ts:328`](libs/assembly-lines/src/agent-output.test.ts#L328); implemented by [`agent-output.ts:180`](libs/assembly-lines/src/agent-output.ts#L177), [validated by reassembles the final assistant message when the result line carries no text](libs/assembly-lines/src/agent-output.test.ts#L493), [validated by stops at the first non-assistant event, so a marker mentioned in an earlier turn cannot shadow the block actually written](libs/assembly-lines/src/agent-output.test.ts#L501), [validated by falls back to the raw output when a text-less result has no assistant chunks before it](libs/assembly-lines/src/agent-output.test.ts#L512), [validated by still prefers the claude-style result text when both shapes appear](libs/assembly-lines/src/agent-output.test.ts#L518))
 
 19. Cutover complete: every non-agent node on the Floor-assembly-line path dispatches a station
     (no `LORE_STATION_NODES` flag, no in-process node handlers on that path); the in-process
@@ -230,37 +230,26 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     gap-fill runs on the Floor AssemblyLine and runbook as a single Agent CR, both via
     `handleClaudeCodeTask` with no Floor-side clone or App token. ([validated by every non-agent node dispatches a station CR](apps/floor/src/work/assembly-run/floor-assembly-run.test.ts#L119))
 
-20. `scripts/task-types.yaml` `stations:` seeds `def-<type>` AgentDefinition/Station pairs (exec
-    model, `{station_input}` prompt, lore-station image via `.Values.stationImage`, deadline
-    default 15); org rows seeded by migration 0027 (`execution_mode: 'station'`). The catalog
-    builder maps each agent recipe to an AgentDefinition (prompt + `{context}`, `permission_mode`,
-    `max_turns`, `ANTHROPIC_API_KEY` secret for the model key, the `lore` http `mcp_servers` entry —
+20. Each cluster-agent's catalog sync renders every `lore.agent_definitions` row into an
+    AgentDefinition/Station pair (`agentDefToCrds`, specs/catalog-db-sync FR5); no chart seeds
+    any. An agent row becomes an AgentDefinition (a `{prompt}` + `{context}` template — the recipe
+    body is rendered by the Floor into the `prompt` parameter, #2051 — `permission_mode`,
+    `max_turns`, the cluster's LLM secret, the `lore` http `mcp_servers` entry —
     `headers_secret: lore-mcp-auth` — with `lore_create_pipeline_task` in `disallowed_tools` so the
-    live run gets scoped Lore tools without a task-recursion vector, agent-events http sink; model
-    omitted when the recipe has none) and Station (agentDefRef, deadline default 30, agent container), and
-    each station recipe to a `def-<name>` exec pair (`model: exec`, `{station_input}` prompt,
-    `tool_config.command`, station image, deadline default 15, RFC-1123-sanitised name, no ANTHROPIC
-    secret — station recipes instead carry the `LORE_API_URL` env + `LORE_INGEST_TOKEN` secret every
-    lore-station pod needs for its HTTP reads/writes); `buildCatalog` emits both kinds per type in
-    order and `catalogChartYaml` emits them for the `catalog-seed` PRE-UPGRADE HOOK
-    (`files/catalog-seed.yaml`, applied `--server-side --force-conflicts` AFTER the
-    CRD hook so a lagging schema cannot prune a field on the way in). They were plain
-    templates until #1468: helm patches a custom resource by diffing the PREVIOUS
-    rendered manifest against the new one and never reads live state, so two recipes
-    that lost `output.watch` to a stale CRD schema stayed pruned through every later
-    deploy — their rendered text had not changed, so the patch was empty. While
-    `.Values.seedCatalog` is true the chart therefore OWNS the seeded recipes and
-    re-asserts them each deploy (an operator who wants the UI to own them sets it
-    false; per-repo override recipes are separate objects and untouched)
-    (`resource-policy: keep`) and templates the sink URL / API URL / namespace /
-    image / LLM-credential key from helm values (no sentinel leaks). An agent recipe
-    declares exactly ONE LLM credential — `.Values.agentLlmSecretKey` as both the
-    `agent-secrets` key and the env var the pod sees — because the controller renders
-    each declared secret as a non-optional `secretKeyRef`: a second, absent key would
-    fail every run pod at container creation rather than acting as a fallback. GKE
-    supplies `ANTHROPIC_API_KEY` (the values.yaml default), a laptop minikube supplies
-    `CLAUDE_CODE_OAUTH_TOKEN`, and the `claude` CLI accepts either from its
-    environment. ([validated by station catalog tests](apps/floor/src/work/agent/agent-catalog.test.ts#L280), [`agent-catalog.test.ts:21`](apps/floor/src/work/agent/agent-catalog.test.ts#L21), [`agent-catalog.test.ts:69`](apps/floor/src/work/agent/agent-catalog.test.ts#L69), [`agent-catalog.test.ts:122`](apps/floor/src/work/agent/agent-catalog.test.ts#L122), [`agent-catalog.test.ts:154`](apps/floor/src/work/agent/agent-catalog.test.ts#L154), [`agent-catalog.test.ts:162`](apps/floor/src/work/agent/agent-catalog.test.ts#L162), [`agent-catalog.test.ts:190`](apps/floor/src/work/agent/agent-catalog.test.ts#L190), [`agent-catalog.test.ts:198`](apps/floor/src/work/agent/agent-catalog.test.ts#L198), [`agent-catalog.test.ts:216`](apps/floor/src/work/agent/agent-catalog.test.ts#L216), [`agent-catalog.test.ts:231`](apps/floor/src/work/agent/agent-catalog.test.ts#L231), [`agent-catalog.test.ts:227`](apps/floor/src/work/agent/agent-catalog.test.ts#L227), [`agent-catalog.test.ts:241`](apps/floor/src/work/agent/agent-catalog.test.ts#L241), [`agent-catalog.test.ts:250`](apps/floor/src/work/agent/agent-catalog.test.ts#L250), [`agent-catalog.test.ts:263`](apps/floor/src/work/agent/agent-catalog.test.ts#L263), [`agent-catalog.test.ts:267`](apps/floor/src/work/agent/agent-catalog.test.ts#L267), [`agent-catalog.test.ts:280`](apps/floor/src/work/agent/agent-catalog.test.ts#L280), [`agent-catalog.test.ts:313`](apps/floor/src/work/agent/agent-catalog.test.ts#L313), [`agent-catalog.test.ts:380`](apps/floor/src/work/agent/agent-catalog.test.ts#L380), [`agent-catalog.test.ts:395`](apps/floor/src/work/agent/agent-catalog.test.ts#L395))
+    live run gets scoped Lore tools without a task-recursion vector, agent-events http sink) and a
+    Station (agentDefRef, the row's timeout as deadline, agent container). A station-mode row
+    (`def-<type>`, `execution_mode: 'station'`, first seeded by migration 0027) becomes an exec pair
+    (`model: exec`, `{station_input}` prompt, `tool_config.command`, the cluster's lore-station
+    image, no LLM secret unless `needs_model` — station recipes instead carry the `LORE_API_URL`
+    env + `LORE_INGEST_TOKEN` secret every lore-station pod needs for its HTTP reads/writes). The
+    per-cluster values (URLs, image, credential key) come from the cluster-agent's own env, and an
+    agent recipe declares exactly ONE LLM credential per model family — the controller renders
+    each declared secret as a non-optional `secretKeyRef`, so a second, absent key would fail
+    every run pod at container creation rather than acting as a fallback. GKE supplies
+    `ANTHROPIC_API_KEY`, a laptop minikube supplies `CLAUDE_CODE_OAUTH_TOKEN`, and the `claude`
+    CLI accepts either from its environment. *(Amended 2026-09-21: this used to be a Helm
+    pre-upgrade hook applying a catalog generated from `scripts/task-types.yaml`; it re-seeded
+    on every deploy and reverted `/agents` edits, #2010.)* ([validated by renders the full recipe when every per-cluster value is set](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L48), [renders the exec-vendor shape on the lore-station image with the ingest token](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L263), [a needs_model station additionally carries the cluster's LLM secret](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L292), [a station row without a command falls back to lore-station plus the def-stripped name](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L317), [the legacy llmSecretKey stays the anthropic fallback when no map is given](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L405); implemented by [`agent-crd.ts`](libs/shared/src/outbound/project/agents/agent-crd.ts))
 
 21. Custom station images honor [station-contract.md](../6-dark-factory/contracts/station-contract.md).
 
@@ -280,7 +269,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     assembly-line attempt via the CR name — which is how the run list's Cost column covers
     station-only lines. The usage rides the envelope only, never the `LORE_NODE_RESULT` payload; a
     usage-less terminal line stays byte-identical to the pre-usage envelope, and a failed
-    classification reports no usage. ([validated by `agent-output.test.ts:353`](libs/assembly-lines/src/agent-output.test.ts#L353), [`agent-output.test.ts:368`](libs/assembly-lines/src/agent-output.test.ts#L368), [`agent-output.test.ts:379`](libs/assembly-lines/src/agent-output.test.ts#L379), [`agent-events.test.ts:229`](apps/floor/src/work/agent/agent-events.test.ts#L229), [`agent-events.test.ts:263`](apps/floor/src/work/agent/agent-events.test.ts#L263), [`comment-triage.test.ts:51`](apps/stations/src/work/comment-triage/comment-triage.test.ts#L51), [`comment-triage.test.ts:49`](libs/shared/src/work/review/comment-triage.test.ts#L49), [`comment-triage.test.ts:71`](libs/shared/src/work/review/comment-triage.test.ts#L71); implemented by [`agent-output.ts:180`](libs/assembly-lines/src/agent-output.ts#L177))
+    classification reports no usage. ([validated by `agent-output.test.ts:353`](libs/assembly-lines/src/agent-output.test.ts#L353), [`agent-output.test.ts:368`](libs/assembly-lines/src/agent-output.test.ts#L368), [`agent-output.test.ts:379`](libs/assembly-lines/src/agent-output.test.ts#L379), [`agent-events.test.ts:229`](apps/floor/src/work/agent/agent-events.test.ts#L330), [`agent-events.test.ts:263`](apps/floor/src/work/agent/agent-events.test.ts#L366), [`comment-triage.test.ts:51`](apps/stations/src/work/comment-triage/comment-triage.test.ts#L51), [`comment-triage.test.ts:49`](libs/shared/src/work/review/comment-triage.test.ts#L49), [`comment-triage.test.ts:71`](libs/shared/src/work/review/comment-triage.test.ts#L71); implemented by [`agent-output.ts:180`](libs/assembly-lines/src/agent-output.ts#L177))
 
 24. *(added 2026-07-31)* Station LLM usage is captured **generically**: `runStation` wraps the
     process-wide `Llm` in a usage-tracking decorator around every runner, so a station whose model
@@ -296,17 +285,17 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     tracker at all, returning an error line and exit code 1. ([validated by `main.test.ts:43`](apps/stations/src/transport/cli/main.test.ts#L43), [`main.test.ts:77`](apps/stations/src/transport/cli/main.test.ts#L77), [`main.test.ts:110`](apps/stations/src/transport/cli/main.test.ts#L110), [`main.test.ts:134`](apps/stations/src/transport/cli/main.test.ts#L134), [`main.test.ts:149`](apps/stations/src/transport/cli/main.test.ts#L149), [`main.test.ts:163`](apps/stations/src/transport/cli/main.test.ts#L163), [`carries no usage on an infrastructure-failure line when a UsagePort is configured`](apps/stations/src/transport/cli/main.test.ts#L209), [`reports an error line and exit code 1 for an unregistered station type`](apps/stations/src/transport/cli/main.test.ts#L26); implemented by [`llm-usage-tracker.ts:17`](apps/stations/src/work/lib/llm-usage-tracker.ts#L17))
 
 26. *(added 2026-08-10)* A seeded recipe MUST NOT declare `skills` without a
-    `skills_source` to fetch them from. The generated catalog omits the whole skills
-    block when the registry URL (`.Values.loreSkillsUrl`) is unset, exactly as it
-    already does for `mcp_servers`. Rendering the pair as `skills: [...]` beside
+    `skills_source` to fetch them from. The rendered recipe omits the whole skills
+    block when the cluster's registry URL (the cluster-agent's `LORE_SKILLS_URL`) is
+    unset, exactly as it already does for `mcp_servers`. Rendering the pair as `skills: [...]` beside
     `skills_source: null` is not the harmless no-op it was assumed to be: the
     subsystem's init runs its skills step, fetches nothing, reports **success**, and
     the agent container then dies with `Settings file not found:
     $HOME/.claude/settings.json` — the file that step fetches from
     `<source>/settings.json`. A laptop minikube therefore points the value at the mcp
     adapter running in HTTP-gateway mode on the host
-    (`http://host.minikube.internal:3002/skills`, served by `npm start`) rather than
-    leaving it empty ([validated by `agent-catalog.test.ts:255`](apps/floor/src/work/agent/agent-catalog.test.ts#L255); implemented by [`agent-catalog.ts:363`](apps/floor/src/work/agent/agent-catalog.ts#L363))
+    (`http://host.minikube.internal:3002/skills`, served by `npm start`, handed to the
+    host-run cluster-agent by `dev-local.sh`) rather than leaving it empty ([validated by a satellite's empty options omit the mcp/skills/secret blocks, the http sink AND the {context} placeholder](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L101); implemented by [`agent-crd.ts`](libs/shared/src/outbound/project/agents/agent-crd.ts))
 
 27. *(added 2026-08-10)* The agent container MUST run in the cloned repo
     (`/workspace/target`), not the base image's default directory. Left unset, the
@@ -318,7 +307,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     so the run reported success while the round it existed for failed with no result
     posted. Read-only recipes (the review family) opt out via `repo_workdir: false` —
     see statement 31 (#1160)
-    ([validated by `agent-catalog.test.ts:180`](apps/floor/src/work/agent/agent-catalog.test.ts#L180); implemented by [`agent-catalog.ts:211`](apps/floor/src/work/agent/agent-catalog.ts#L212))
+    ([validated by renders the full recipe when every per-cluster value is set](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L48), [repo_workdir false omits workingDir for read-only recipes](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L145); implemented by [`agent-crd.ts`](libs/shared/src/outbound/project/agents/agent-crd.ts))
 
 28. *(added 2026-08-10)* A run whose deliverable is a **file** MUST declare it, so the
     artifact can leave the pod. The subsystem streams what an agent *says*
@@ -330,12 +319,12 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     delivery path. `feature-planning` declares `planning.result` →
     `target/result.json`; the path resolves against `WORKSPACE_DIR`, not the agent's
     cwd. A recipe whose deliverable is its own output declares nothing
-    ([validated by `agent-catalog.test.ts:136`](apps/floor/src/work/agent/agent-catalog.test.ts#L136), [`agent-catalog.test.ts:147`](apps/floor/src/work/agent/agent-catalog.test.ts#L147); implemented by [`agent-catalog.ts:173`](apps/floor/src/work/agent/agent-catalog.ts#L174))
+    ([validated by config disallowed_tools append after the pipeline deny and watch rides output](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L125); implemented by [`agent-crd.ts`](libs/shared/src/outbound/project/agents/agent-crd.ts))
 
 29. *(added 2026-08-10)* The Floor MUST project those artifact events off the
     telemetry sink. The sink carries every run's events, so a file event with no name
     (nothing could route it) or no task attribution (nothing to act on) is skipped
-    exactly like an uncorrelated cost row ([validated by `agent-events.test.ts:273`](apps/floor/src/work/agent/agent-events.test.ts#L273), [`agent-events.test.ts:295`](apps/floor/src/work/agent/agent-events.test.ts#L295), [`agent-events.test.ts:308`](apps/floor/src/work/agent/agent-events.test.ts#L308), [`agent-events.test.ts:317`](apps/floor/src/work/agent/agent-events.test.ts#L317), [`agent-events.test.ts:331`](apps/floor/src/work/agent/agent-events.test.ts#L331), [`agent-events.test.ts:344`](apps/floor/src/work/agent/agent-events.test.ts#L344); implemented by [`agent-events.ts:96`](apps/floor/src/work/agent/agent-events.ts#L96))
+    exactly like an uncorrelated cost row ([validated by `agent-events.test.ts:273`](apps/floor/src/work/agent/agent-events.test.ts#L376), [`agent-events.test.ts:295`](apps/floor/src/work/agent/agent-events.test.ts#L398), [`agent-events.test.ts:308`](apps/floor/src/work/agent/agent-events.test.ts#L411), [`agent-events.test.ts:317`](apps/floor/src/work/agent/agent-events.test.ts#L420), [`agent-events.test.ts:331`](apps/floor/src/work/agent/agent-events.test.ts#L434), [`agent-events.test.ts:344`](apps/floor/src/work/agent/agent-events.test.ts#L447); implemented by [`agent-events.ts:96`](apps/floor/src/work/agent/agent-events.ts#L96))
 
 30. *(added 2026-08-10)* Settling a round from an artifact event is skip-not-fail: an
     artifact raised under another event name, a task that is not a planning round, and
@@ -355,7 +344,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     declares none keeps the base deny alone. The declared denies are dormant under
     the current `permission_mode: "bypass"` (the CLI skips deny-rule evaluation in
     that mode) and become enforced when the family moves to an enforcing mode
-    ([validated by `agent-catalog.test.ts:418`](apps/floor/src/work/agent/agent-catalog.test.ts#L418), [`agent-catalog.test.ts:428`](apps/floor/src/work/agent/agent-catalog.test.ts#L428), [`agent-catalog.test.ts:434`](apps/floor/src/work/agent/agent-catalog.test.ts#L434); implemented by [`agent-catalog.ts:166`](apps/floor/src/work/agent/agent-catalog.ts#L167), [`agent-catalog.ts:209`](apps/floor/src/work/agent/agent-catalog.ts#L210))
+    ([validated by config disallowed_tools append after the pipeline deny and watch rides output](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L125), [repo_workdir false omits workingDir for read-only recipes](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L145); implemented by [`agent-crd.ts`](libs/shared/src/outbound/project/agents/agent-crd.ts))
 
 32. *(added 2026-08-28)* Every agent run opens with the same instruction in the CR
     parameter the assembled context used to occupy: `CONTEXT_BOOTSTRAP` names
@@ -366,14 +355,14 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     would reach the model verbatim
     ([validated by `recipe-prompt.test.ts:5`](libs/shared/src/domain/agents/recipe-prompt.test.ts#L5), [`recipe-prompt.test.ts:11`](libs/shared/src/domain/agents/recipe-prompt.test.ts#L11), [`recipe-prompt.test.ts:15`](libs/shared/src/domain/agents/recipe-prompt.test.ts#L15); implemented by [`recipe-prompt.ts:16`](libs/shared/src/domain/agents/recipe-prompt.ts#L16))
 
-33. *(added 2026-08-28, #1629)* The `{context}` placeholder is guarded on
-    `.Values.loreMcpUrl`, the same value as the `mcp_servers` block it points at, so
+33. *(added 2026-08-28, #1629)* The `{context}` placeholder is guarded on the
+    cluster's MCP URL, the same value as the `mcp_servers` block it points at, so
     the two cannot drift apart. What fills the slot is an instruction to call
     `lore_assemble_context`; that is only true where the pod has a Lore MCP to call.
     A satellite renders no `mcp_servers` block — the gateway authenticates with
     `LORE_INGEST_TOKEN` and FR5 keeps that credential central — and telling such a pod
     to call a tool it does not have would burn a turn on a guaranteed failure
-    ([validated by `agent-catalog.test.ts:221`](apps/floor/src/work/agent/agent-catalog.test.ts#L221); implemented by [`agent-catalog.ts:424`](apps/floor/src/work/agent/agent-catalog.ts#L424))
+    ([validated by a satellite's empty options omit the mcp/skills/secret blocks, the http sink AND the {context} placeholder](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L101); implemented by [`agent-crd.ts`](libs/shared/src/outbound/project/agents/agent-crd.ts))
 
 34. *(added 2026-08-30)* A recipe MAY declare its own `skills`, and they are APPENDED
     to `lore-context` rather than replacing it. A recipe that named its own would
@@ -382,14 +371,14 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     invisible in exactly the same way, because a run with no context still completes.
     `lore-context` is therefore emitted first and de-duplicated, so a recipe naming it
     explicitly is a no-op rather than a doubled fetch. The declaration lives on the
-    recipe in `scripts/task-types.yaml`, so the skills a task type needs are stated
+    recipe's shipped file (`libs/shared/src/agent-defaults/<name>.md`), so the skills a task type needs are stated
     where its prompt is, and a per-repo override saved from the /agents editor keeps
     them: the editor renders `resources.mcp_servers` only, and `preserveUnownedFields`
     carries every key it does not render — `skills` is copied as a whole array, so a
     one-entry list and a four-entry list survive by the identical path. A recipe MUST NOT name a skill the
     gateway's bundle does not carry: the init fetches it as a 404 and the run
     proceeds without the contract the recipe asked for, which is FR26's failure
-    one level down and just as silent. ([validated by `agent-catalog.test.ts:104`](apps/floor/src/work/agent/agent-catalog.test.ts#L104), [`agent-catalog.test.ts:113`](apps/floor/src/work/agent/agent-catalog.test.ts#L113), [`skills-registry.test.ts:118`](apps/mcp-server/src/transport/skills-registry.test.ts#L118); implemented by [`agent-catalog.ts:141`](apps/floor/src/work/agent/agent-catalog.ts#L142))
+    one level down and just as silent. ([validated by config skills append after lore-context without duplicating it](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L113), [serves every skill the task-type recipes declare, guarding against per-recipe skill drift (specs/floor-on-ai-subsystem FR34)](apps/mcp-server/src/transport/skills-registry.test.ts#L111); implemented by [`agent-crd.ts`](libs/shared/src/outbound/project/agents/agent-crd.ts))
 
 35. *(added 2026-09-04)* `GET /api/repos/{owner}/{repo}/chunks/{kind}` is the pod-side chunk read
     named by D7: one route dispatching by `{kind}` (`spec`, `code-symbols`, `spec-ingest`,
@@ -486,7 +475,7 @@ These statements pin the deterministic Floor glue that wraps the subsystem.
   Deliberate Boom 4xx/503 responses do not hit the channel and are unchanged. ([validated by `agent-logs.test.ts:97`](apps/floor/src/transport/http/routes/agent-logs.test.ts#L98))
 - **Recipe → CRD materialisation.** `agentDefToCrds` maps an `AgentDefinition` recipe to a paired
   Kubernetes `AgentDefinition` + `Station`: an AI recipe carries `permission_mode:"bypass"`,
-  `max_turns` from the shared `AGENT_MAX_TURNS` (200 — 40 capped every test-first implementation mid-task, 2026-08-28), a `{context}`-suffixed prompt, and — when an events URL is supplied — the http
+  `max_turns` from the shared `AGENT_MAX_TURNS` (200 — 40 capped every test-first implementation mid-task, 2026-08-28), a `{prompt}` template suffixed with `{context}` (never the recipe body, which the Floor renders into the `prompt` parameter, #2051), and — when an events URL is supplied — the http
   telemetry sink alongside stdout; model is omitted when the recipe inherits it, a recipe with no
   prompt is rejected outright (the subsystem refuses a promptless AgentDefinition at admission, so
   emitting one only moved the failure to the apply), deadline defaults to 30 and image to

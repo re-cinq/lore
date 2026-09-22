@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   computeEnrollmentChecks,
   passSummary,
+  setupTriggerText,
+  type Check,
   type EnrollmentInput,
 } from "./enrollment";
 
@@ -166,7 +168,7 @@ describe("computeEnrollmentChecks", () => {
     });
   });
 
-  it("missing github file explains its purpose and offers to open a PR with it", () => {
+  it("missing github file explains its purpose", () => {
     expect(
       byId(
         computeEnrollmentChecks(
@@ -180,11 +182,10 @@ describe("computeEnrollmentChecks", () => {
       status: "fail",
       detail:
         "missing · push-triggered context ingestion — keeps Lore fresh on every push",
-      action: { kind: "reonboard", text: "create a PR with this file" },
     });
   });
 
-  it("missing unknown github file falls back to a generic missing detail with the PR action", () => {
+  it("missing unknown github file falls back to a generic missing detail", () => {
     expect(
       byId(
         computeEnrollmentChecks(
@@ -195,8 +196,23 @@ describe("computeEnrollmentChecks", () => {
     ).toMatchObject({
       status: "fail",
       detail: "missing",
-      action: { kind: "reonboard", text: "create a PR with this file" },
     });
+  });
+
+  it("carries no per-file PR action on a missing github file: the box's one trigger covers every missing file", () => {
+    const missing = computeEnrollmentChecks(
+      input({
+        githubFiles: {
+          ".github/workflows/lore-ingest.yml": false,
+          "AGENTS.md": false,
+        },
+      }),
+    ).filter((check) => check.id.startsWith("gh:"));
+
+    expect(missing.map((check) => check.action)).toEqual([
+      undefined,
+      undefined,
+    ]);
   });
 
   it("local MCP passes with developer count when sessions exist", () => {
@@ -432,5 +448,29 @@ describe("computeEnrollmentChecks", () => {
       passed: 8,
       total: 8,
     });
+  });
+});
+
+describe("setupTriggerText", () => {
+  const onboardingPr = (status: Check["status"]): Check => ({
+    id: "onboarding-pr",
+    label: "Onboarding PR merged",
+    status,
+  });
+
+  it("reads Open enrolment PR for a repo with no onboarding PR yet", () => {
+    expect(
+      setupTriggerText([
+        { id: "onboarded", label: "Onboarded", status: "fail" },
+      ]),
+    ).toBe("Open enrolment PR");
+  });
+
+  it("reads Update Lore setup once the onboarding PR has merged", () => {
+    expect(setupTriggerText([onboardingPr("pass")])).toBe("Update Lore setup");
+  });
+
+  it("offers nothing while the onboarding PR is still open, where review & merge is the action", () => {
+    expect(setupTriggerText([onboardingPr("warn")])).toBeNull();
   });
 });

@@ -10,6 +10,9 @@ import type {
   ParkedTarget,
 } from "@re-cinq/lore-shared/project/assembly-runs/parked-node.js";
 
+/** The one blueprint this sweep judges. */
+export const LOOP_BLUEPRINT = "implementation-loop";
+
 /** The slice of one open implementation-loop run the sweep reads. */
 export interface LoopRunSlice {
   id: string;

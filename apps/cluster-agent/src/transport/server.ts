@@ -6,11 +6,11 @@ import {
   logRequestErrors,
   startHapiServer,
 } from "@re-cinq/lore-shared/http/server-boot.js";
-import { agentEventsRoutes } from "./routes/agent-events.js";
-import { clusterRoutes } from "./routes/cluster.js";
+import { agentEventsRoutes } from "./routes/cluster/agent-events.js";
+import { clusterRoutes } from "./routes/cluster/cluster-routes.js";
 import { healthRoute } from "./routes/health.js";
 import { clusterDeps } from "../outbound/deps.js";
-import type { AgentEventsDeps } from "./routes/agent-events.js";
+import type { AgentEventsDeps } from "./routes/cluster/agent-events.js";
 
 export interface ServerOpts {
   port?: number;
@@ -28,16 +28,17 @@ export function buildServer(opts: ServerOpts = {}): Hapi.Server {
       deps: clusterDeps,
       bearerToken: process.env.LORE_INGEST_TOKEN,
     }),
-    ...(opts.agentEvents ? agentEventsRoutes(opts.agentEvents) : []),
+    ...agentEventsRoutes(opts.agentEvents),
     healthRoute(),
   ]);
 
   return server;
 }
 
+// `agentEvents` is required but nullable: a cluster with nowhere to forward telemetry must 404 rather than 202-and-drop, and making the caller pass the absence keeps that a decision instead of a forgotten argument.
 export function startServer(
   port: number,
-  agentEvents?: AgentEventsDeps,
+  agentEvents: AgentEventsDeps | undefined,
 ): Promise<() => Promise<void>> {
   return startHapiServer(buildServer({ port, agentEvents }), {
     label: "cluster-agent",

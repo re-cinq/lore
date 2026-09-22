@@ -18,7 +18,13 @@ import {
   MAX_RUN_TURNS_PER_BATCH,
 } from "./agent-run-turns.js";
 import { isRecord } from "@re-cinq/lore-shared/lib/is-record.js";
-import { computeGeminiCost } from "@re-cinq/lore-shared/llm/gemini-provider.js";
+import {
+  resultTokens,
+  resultModel,
+  resultCostUsd,
+  resultDurationMs,
+  type ResultTokens,
+} from "./agent-result-usage.js";
 
 export interface LlmCallRow {
   /** Always non-empty — rowFromEnvelope returns null for a taskId-less envelope. */
@@ -30,11 +36,11 @@ export interface LlmCallRow {
   model: string;
   inputTokens: number;
   outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
   costUsd: number;
   durationMs: number;
 }
-
-const num = (value: unknown): number => (typeof value === "number" ? value : 0);
 
 /** A file declared under `output.watch`, raised by the subsystem on agent exit (`{"kind":"file"}`); `content`/`reason` are mutually exclusive — an undelivered declared artifact still reports, carrying why. */
 export interface AgentFileEvent {
@@ -184,30 +190,6 @@ function sourceTaskId(source: { task?: unknown } | undefined | null): string {
   return typeof source?.task === "string" ? source.task : "";
 }
 
-interface ResultTokens {
-  inputTokens: number;
-  outputTokens: number;
-}
-
-// Claude Code/Codex carry cumulative usage under `usage`, Gemini under `stats`; null (not zero-filled) when neither is present so the line stays skipped.
-function resultTokens(ev: Record<string, unknown>): ResultTokens | null {
-  if (isRecord(ev.usage)) {
-    return {
-      inputTokens: num(ev.usage.input_tokens),
-      outputTokens: num(ev.usage.output_tokens),
-    };
-  }
-
-  if (isRecord(ev.stats)) {
-    return {
-      inputTokens: num(ev.stats.input_tokens),
-      outputTokens: num(ev.stats.output_tokens),
-    };
-  }
-
-  return null;
-}
-
 interface CostRowParts {
   taskId: string;
   source: ReturnType<typeof unwrapAttribution>["source"];
@@ -223,66 +205,16 @@ function costRowFrom({ taskId, source, ev, tokens }: CostRowParts): LlmCallRow {
     agentCrName: sourceAgentCrName(source),
     carried: parseCarriedRunIdentity(source),
     model,
-    inputTokens: tokens.inputTokens,
-    outputTokens: tokens.outputTokens,
+    ...tokens,
     costUsd: resultCostUsd(ev, model, tokens),
     durationMs: resultDurationMs(ev),
   };
-}
-
-// Primary model: first key of `modelUsage` (Claude Code) or `stats.models` (Gemini, confirmed against a real CLI run), else flat `model`, else "unknown".
-function resultModel(ev: Record<string, unknown>): string {
-  const fromModelUsage = firstModelKey(ev.modelUsage);
-
-  if (fromModelUsage !== null) {
-    return fromModelUsage;
-  }
-  const fromStats = isRecord(ev.stats) ? firstModelKey(ev.stats.models) : null;
-
-  if (fromStats !== null) {
-    return fromStats;
-  }
-
-  return typeof ev.model === "string" ? ev.model : "unknown";
-}
-
-function firstModelKey(perModelUsage: unknown): string | null {
-  if (!isRecord(perModelUsage)) {
-    return null;
-  }
-  const keys = Object.keys(perModelUsage);
-
-  return keys.length > 0 ? keys[0] : null;
 }
 
 function sourceAgentCrName(
   source: { agent?: unknown } | undefined | null,
 ): string | null {
   return typeof source?.agent === "string" ? source.agent : null;
-}
-
-// Gemini reports no `total_cost_usd` (quota-based billing) so we price it from tokens; keyed on the "gemini-" model prefix since the envelope carries no vendor field.
-function resultCostUsd(
-  ev: Record<string, unknown>,
-  model: string,
-  tokens: ResultTokens,
-): number {
-  if (typeof ev.total_cost_usd === "number") {
-    return ev.total_cost_usd;
-  }
-
-  return model.startsWith("gemini-")
-    ? computeGeminiCost(model, tokens.inputTokens, tokens.outputTokens)
-    : 0;
-}
-
-// Claude Code/Codex report `duration_ms` at the top level; Gemini reports it under `stats`.
-function resultDurationMs(ev: Record<string, unknown>): number {
-  if (typeof ev.duration_ms === "number") {
-    return ev.duration_ms;
-  }
-
-  return isRecord(ev.stats) ? num(ev.stats.duration_ms) : 0;
 }
 
 /** Project a `kind:"file"` envelope; null for any other line, a nameless artifact, or one with no task attribution (skip-don't-throw, same rule the cost projection uses). */

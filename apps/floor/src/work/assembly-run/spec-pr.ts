@@ -12,6 +12,9 @@ import type {
 /** Constant prompt_ref for every line's pushing node; by recipe not id keeps it resilient to renames. */
 const PUSH_PROMPT_REF = "push-only";
 
+/** The line whose pull request IS the repo's onboarding PR. */
+const ONBOARD_BLUEPRINT = "onboard";
+
 /** Decide if PR open failure is empty-branch (node pushed nothing, #1330) or transient (retry candidate). */
 export function decideStampFailure(
   message: string,
@@ -22,6 +25,19 @@ export function decideStampFailure(
 /** Reason for empty branch failure; names the node that should have delivered commits. */
 export function emptyBranchReason(branch: string | null): string {
   return `the push node reported success but pushed nothing — ${branch ?? "the run branch"} has no commits, so no spec PR could be opened`;
+}
+
+/** How a line whose push delivered nothing ends. For every line that is an error — a wait node would park forever on a PR that cannot exist (#1330) — except onboarding, where "the Floor had nothing to refresh and the agent nothing to add" is the answer to a hand-triggered update of a setup that is already current. */
+export function decideEmptyBranchEnding(
+  row: Pick<AssemblyRunRecord, "blueprintName" | "branch">,
+): { outcome: "completed" | "error"; reason: string } {
+  return row.blueprintName === ONBOARD_BLUEPRINT
+    ? {
+        outcome: "completed",
+        reason:
+          "the Lore setup is already current — nothing to change, so no pull request was opened",
+      }
+    : { outcome: "error", reason: emptyBranchReason(row.branch) };
 }
 
 /** Decide if finished node should stamp PR on line; idempotent for push re-runs after corrections. */
@@ -126,6 +142,17 @@ export interface SpecPrPorts {
       patch?: FeaturePatch,
     ): Promise<unknown>;
   };
+  /** Where an ONBOARDING's PR is recorded: the repo row the onboard guard and the merge-check sweep read. Optional because most callers stamp no onboarding. */
+  onboarding?: {
+    setOnboardingPrUrl(repo: string, url: string): Promise<void>;
+  };
+}
+
+/** Whether this line's PR must be recorded as the repo's onboarding PR — the guard blocks a second onboarding on it, and the merge-check sweep flips `onboarding_pr_merged` from it. */
+export function decideOnboardingPrRecord(
+  row: Pick<AssemblyRunRecord, "blueprintName">,
+): boolean {
+  return row.blueprintName === ONBOARD_BLUEPRINT;
 }
 
 /** Ensure PR on branch, record on line; stamp before feature transition (safer if transition fails). */
@@ -195,6 +222,10 @@ async function recordOpenedPr(
     pr_number: pr.number,
     pr_url: pr.url,
   });
+
+  if (decideOnboardingPrRecord(row)) {
+    await ports.onboarding?.setOnboardingPrUrl(row.repo, pr.url);
+  }
 
   await markFeaturePrOpen(feature, pr, ports);
 }

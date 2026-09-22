@@ -83,6 +83,7 @@ async function runWinnerHooks(
   }
 
   await callOnRunClosed(assemblyRun, outcome, reason, deps);
+  await deps.publishRunCheck?.(assemblyRun.id);
   await notifyFailureIfApplicable(assemblyRun, outcome, reason, deps);
 }
 

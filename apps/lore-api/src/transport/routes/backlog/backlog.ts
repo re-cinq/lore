@@ -5,7 +5,11 @@ import type {
   ResponseToolkit,
   ServerRoute,
 } from "@hapi/hapi";
-import { orderBacklog, BACKLOG_LABEL_SEED } from "@re-cinq/lore-shared";
+import {
+  orderBacklog,
+  BACKLOG_LABEL_SEED,
+  ticketTextTooLong,
+} from "@re-cinq/lore-shared";
 import { selectList } from "@re-cinq/lore-shared/lib/row.js";
 import { OPEN_TASK_STATES } from "@re-cinq/lore-shared/project/tasks/task-store-port.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
@@ -247,6 +251,7 @@ function queuedTicket(issue: OpenIssues[number]) {
     error: null,
     run_id: null,
     pipeline: null,
+    text_too_long: ticketTextTooLong(issue),
   };
 }
 

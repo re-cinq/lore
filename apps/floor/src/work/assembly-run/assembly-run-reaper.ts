@@ -79,7 +79,7 @@ export async function assemblyLineReaperJob(
   }
   const count = (outcome: ReapOutcome): number => tally.get(outcome) ?? 0;
 
-  return `resolved ${count("resolved")}, requeued ${count("requeued")}, timed out ${count("timeout")}, queue-timed-out ${count("queue-timeout")}, failed-queued ${count("failed-queued")}, re-advanced ${count("advanced")}, swept-single-cr ${count("swept")} across ${open.length} open line(s)`;
+  return `resolved ${count("resolved")}, requeued ${count("requeued")}, timed out ${count("timeout")}, queue-timed-out ${count("queue-timeout")}, failed-queued ${count("failed-queued")}, re-advanced ${count("advanced")}, swept-single-cr ${count("swept")}, closed-released-single-cr ${count("released")} across ${open.length} open line(s)`;
 }
 
 /** Everything one tick reads once and every line then shares: the clock, the queue budget, which clusters are dead, and the capacity picture that explains an unclaimed node. */

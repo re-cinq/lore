@@ -14,6 +14,7 @@ export {
 } from "./domain/pipeline-tasks.js";
 // "./pipeline-task-actions.js" and "./pipeline-task-status.js" ride through pipeline-tasks.js/pipeline-task-core.js re-exports above.
 export * from "./domain/pipeline-task-core.js";
+export * from "./domain/task-description.js";
 export { enforceRepoTrustForTaskType } from "./domain/pipeline-task-trust.js";
 export {
   chunkFile,
@@ -55,7 +56,6 @@ export {
   HttpAgentApi,
   HttpPodLogSource,
   HttpTokenCleanup,
-  HttpAgentCatalog,
 } from "./outbound/cluster/cluster-agent-client.js";
 export {
   writeEpisode,
@@ -174,6 +174,7 @@ export {
   PostgresMemoryStore,
   memoryListScope,
 } from "./outbound/postgres-memory-store.js";
+export { runInTransaction } from "./outbound/db/pg-transaction.js";
 export { ShadowMemoryStore } from "./outbound/shadow-memory-store.js";
 export {
   DgraphMemoryStore,
@@ -265,7 +266,6 @@ export {
 export {
   decideOnboard,
   onboardLockKey,
-  onboardTaskDescription,
   toOnboardState,
   IN_FLIGHT_TASK_STATUSES,
   ONBOARD_REPO_STATE_SQL,
@@ -276,6 +276,7 @@ export {
   type OnboardRepoRow,
   type OnboardTaskRow,
 } from "./work/onboard-guard.js";
+export * from "./work/onboard-content.js";
 // Branch-lease backends (Slice 3) — used by the agent supervisor until it moves to project.leases (Slice 4).
 export {
   DbLeaseBackend,
@@ -302,11 +303,4 @@ export {
 } from "./work/repo-validation/repo-validation.js";
 
 // The implementation loop's backlog: pure queue ordering + label taxonomy (FR1).
-export {
-  selectNextIssue,
-  orderBacklog,
-  PRIORITY_LABELS,
-  LORE_BLOCKED_LABEL,
-  BACKLOG_LABEL_SEED,
-  type PriorityLabel,
-} from "./work/backlog/index.js";
+export * from "./work/backlog/index.js";

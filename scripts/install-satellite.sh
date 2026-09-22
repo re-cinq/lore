@@ -29,15 +29,15 @@
 #   visible live.
 # Optional: LORE_SKILLS_URL (--skills-url) — the central lore-mcp gateway's
 #   public /skills registry (e.g. https://lore-mcp.example.com/skills;
-#   unauthenticated by design). Set it and the catalog seed renders every
-#   Claude-agent recipe with resources.skills_source, so the agent init can
-#   fetch skills + write /agent/.claude/settings.json. Unset, the seed omits
-#   the skills block entirely — and because the adapter passes --settings
+#   unauthenticated by design). Set it and this cluster's catalog sync renders
+#   every Claude-agent recipe with resources.skills_source, so the agent init
+#   can fetch skills + write /agent/.claude/settings.json. Unset, the sync
+#   omits the skills block entirely — and because the adapter passes --settings
 #   unconditionally, every Claude-agent node on this satellite then dies at
 #   startup with "Settings file not found". Set it unless this satellite
 #   only ever claims non-agent stations (validate, gate, detect).
 # Optional: LORE_MCP_URL (--mcp-url) — the central lore-mcp gateway's MCP
-#   endpoint (e.g. https://lore-mcp.example.com/mcp). Set it and every seeded
+#   endpoint (e.g. https://lore-mcp.example.com/mcp). Set it and every synced
 #   Claude-agent recipe carries a live resources.mcp_servers entry, giving agent
 #   pods access to lore_assemble_context and the full org context path. Unset,
 #   the recipes omit the mcp_servers block and pods have no context path at all.
@@ -89,7 +89,7 @@ kubectl version >/dev/null 2>&1 || die "cannot reach the cluster behind context 
 [ -n "${GHCR_TOKEN:-}" ] || die "GHCR_TOKEN is not set (GHCR pull credentials)"
 
 name="${LORE_CLUSTER_AGENT_NAME:-satellite-$context}"
-# Only the Claude-agent node type by default. Every seeded STATION recipe
+# Only the Claude-agent node type by default. Every STATION recipe
 # (def-validate, def-gate, def-detect, …) mounts
 # LORE_INGEST_TOKEN, and FR5 keeps that credential on the central cluster —
 # so a satellite that advertises node:validate claims the node and then dies
@@ -130,10 +130,6 @@ if [ -n "${GITHUB_TOKEN:-}" ]; then
 	github_args=(--set-string "github.token=$GITHUB_TOKEN")
 fi
 
-# Both keys, same value: Helm does not thread a parent value into a subchart,
-# so the chart's own value and the ai-agents one are set independently — the
-# pattern loreApiUrl already follows below.
-#
 # Two ways to opt in, and LORE_AGENT_EVENTS_URL still wins if both are set:
 #   LORE_AGENT_EVENTS_URL — pods post STRAIGHT to that address, normally the
 #     public lore-agent-events ingress (FR8, the original shape)
@@ -147,26 +143,21 @@ if [ -z "$events_url" ] && [ -n "${LORE_FLOOR_URL:-}" ]; then
 	events_url="$relay_url"
 fi
 if [ -n "$events_url" ]; then
-	telemetry_args=(
-		--set-string "agentEventsUrl=$events_url"
-		--set-string "ai-agents.agentEventsUrl=$events_url"
-	)
+	telemetry_args=(--set-string "catalog.eventsUrl=$events_url")
 fi
 if [ -n "${LORE_FLOOR_URL:-}" ]; then
 	telemetry_args+=(--set-string "floorUrl=$LORE_FLOOR_URL")
 fi
 
-# Skills live only in the ai-agents subchart (the cluster-agent itself never
-# fetches them), so unlike agentEventsUrl there is no parent-chart twin.
 skills_args=()
 if [ -n "${LORE_SKILLS_URL:-}" ]; then
-	skills_args=(--set-string "ai-agents.loreSkillsUrl=$LORE_SKILLS_URL")
+	skills_args=(--set-string "catalog.skillsUrl=$LORE_SKILLS_URL")
 fi
 
 # MCP live context path for agent pods — same gateway as skills, different path.
 mcp_args=()
 if [ -n "${LORE_MCP_URL:-}" ]; then
-	mcp_args=(--set-string "ai-agents.loreMcpUrl=$LORE_MCP_URL")
+	mcp_args=(--set-string "catalog.mcpUrl=$LORE_MCP_URL")
 fi
 
 say "installing release lore-satellite into context '$context' (name=$name tags=$tags llm=$llm_key github=${GITHUB_TOKEN:+set} telemetry=${LORE_AGENT_EVENTS_URL:-off} skills=${LORE_SKILLS_URL:-off} mcp=${LORE_MCP_URL:-off})"
@@ -182,9 +173,7 @@ helm upgrade --install lore-satellite "$chart" \
 	--set-string ghcr.token="$GHCR_TOKEN" \
 	--set-string llm.secretKey="$llm_key" \
 	--set-string llm.credential="$llm_credential" \
-	--set-string ai-agents.agentLlmSecretKey="$llm_key" \
 	--set ai-agents.networkPolicy.enabled="$network_policy" \
-	--set-string ai-agents.loreApiUrl="$LORE_API_URL" \
 	"${github_args[@]}" \
 	"${telemetry_args[@]}" \
 	"${skills_args[@]}" \

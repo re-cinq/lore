@@ -83,7 +83,7 @@ probe the apiserver.
 | `LORE_AGENTS_NAMESPACE` | Namespace it acts on (default `ai-agents`) |
 | `LORE_AGENT_SECRETS_NAME` | Secret holding per-task token keys (default `agent-secrets`) |
 | `GITHUB_APP_ID` / `GITHUB_APP_PRIVATE_KEY` / `GITHUB_APP_INSTALLATION_ID` | The GitHub App triple used to mint per-task installation tokens |
-| `LORE_CLUSTER_AGENT_IDENTITY_SECRET` / `_NAMESPACE` / `_KEY` | Where the registered `{id, token}` persists; local runs fall back to `LORE_CLUSTER_AGENT_IDENTITY_FILE` |
+| `LORE_CLUSTER_AGENT_IDENTITY_SECRET` / `_NAMESPACE` / `_KEY` | Required. The Kubernetes Secret the registered `{id, token}` persists in (`_KEY` defaults to `identity.json`); `npm start` points it at minikube |
 
 The first three have no defaults and no off switch: the process exits naming
 whichever are missing.

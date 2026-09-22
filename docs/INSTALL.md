@@ -99,7 +99,6 @@ This creates:
   the lore-mcp gateway (also `lore-api`), the stations service (`lore-stations`),
   Web UI (`lore-ui`), lore-db (`lore-db`), and the ai-agent-subsystem — the
   `Agent` / `Station` / `AgentDefinition` CRDs plus agent-controller (`ai-agents`)
-- ConfigMaps for task-types.yaml
 
 ## Step 4: Set Up Database
 

@@ -1,11 +1,20 @@
 import { describe, it, expect } from "vitest";
-import {
-  DECOMPOSITION_INSTRUCTIONS,
-  DECOMPOSITION_EXAMPLE,
-} from "./decomposition-instructions.js";
+import { DECOMPOSITION_EXAMPLE } from "./decomposition-instructions.js";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { parseAgentDefaultFile } from "../agent-defaults/agent-default-file.js";
 import { parseDecomposition } from "./decomposition-result.js";
 
-describe("DECOMPOSITION_INSTRUCTIONS", () => {
+const DECOMPOSITION_INSTRUCTIONS =
+  parseAgentDefaultFile(
+    "feature-decompose",
+    readFileSync(
+      resolve(import.meta.dirname, "../../agent-defaults/feature-decompose.md"),
+      "utf-8",
+    ),
+  ).prompt ?? "";
+
+describe("the shipped feature-decompose prompt", () => {
   it("documents the output contract — stories, acceptance criteria, and task dependencies", () => {
     for (const token of [
       "stories",

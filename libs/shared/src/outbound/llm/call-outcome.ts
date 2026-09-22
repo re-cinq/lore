@@ -2,6 +2,8 @@
 export interface LlmCallOutcome {
   inputTokens: number;
   outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
   costUsd: number;
   durationMs: number;
 }

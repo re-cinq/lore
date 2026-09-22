@@ -108,7 +108,7 @@ describe("assembly_run.* params accept assemblyRunId with assemblyLineId fallbac
       assemblyRuns: port,
       definitions: async () => new Map([["implementation", twoNodeLine]]),
       repoSettings: async () => null,
-      resolvePrompt: (ref) => `prompt:${ref}`,
+      resolvePrompt: async (_repo, ref) => `prompt:${ref}`,
       cleanupToken: async () => {},
       jobRuns: { complete: async () => {}, fail: async () => {} },
       readAgentStatus: async () => ({ phase: "Succeeded", output: "" }),

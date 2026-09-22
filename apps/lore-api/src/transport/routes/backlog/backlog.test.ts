@@ -225,6 +225,7 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
           { node_id: "validate", state: "running" },
           { node_id: "await-pr", state: "pending" },
         ],
+        text_too_long: false,
       },
       next: [
         {
@@ -238,6 +239,7 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
           state: "queued",
           run_id: null,
           pipeline: null,
+          text_too_long: false,
         },
         {
           created_at: "2026-08-02T00:00:00.000Z",
@@ -250,6 +252,7 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
           state: "queued",
           run_id: null,
           pipeline: null,
+          text_too_long: false,
         },
       ],
       recent: [
@@ -264,6 +267,7 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
           state: "completed",
           run_id: null,
           pipeline: null,
+          text_too_long: false,
         },
       ],
     });
@@ -604,5 +608,42 @@ describe("GET on a repo with no loop tasks yet", () => {
     );
 
     expect(anyCalls).toHaveLength(0);
+  });
+});
+
+describe("GET with a queued ticket whose text is too long", () => {
+  it("marks #4 with a 32000-char body text_too_long and #6 not", async () => {
+    process.env.LORE_INGEST_TOKEN = LEGACY_TOKEN;
+    const pool = makePool();
+
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ settings: { implementation_loop: { enabled: true } } }],
+      })
+      .mockResolvedValue({ rows: [] });
+    vi.mocked(projectFor).mockResolvedValue({
+      issues: {
+        list: async () => [
+          {
+            ...openIssue(4, ["priority:high"], "2026-08-01T00:00:00Z"),
+            body: "x".repeat(32_000),
+          },
+          openIssue(6, ["priority:high"], "2026-08-02T00:00:00Z"),
+        ],
+      },
+    } as never);
+
+    const res = await buildServer(() => pool as never).inject({
+      method: "GET",
+      url: "/api/repos/re-cinq/lore/implementation-loop",
+      headers: AUTH,
+    });
+
+    expect(JSON.parse(res.payload)).toMatchObject({
+      next: [
+        { issue_number: 4, text_too_long: true },
+        { issue_number: 6, text_too_long: false },
+      ],
+    });
   });
 });

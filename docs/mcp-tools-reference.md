@@ -232,7 +232,7 @@ One-line purpose: register a new server-side pipeline task (backlog by default; 
 
 | Parameter | Required | Default | Description |
 |---|---|---|---|
-| `description` | yes | — | Primary instruction for the agent; non-empty (whitespace-only rejected); max 10000 chars. |
+| `description` | yes | — | Primary instruction for the agent; non-empty (whitespace-only rejected); max 32000 chars. |
 | `task_type` | no | `general` | One of `feature-request`, `onboard`, `general`, `runbook`, `implementation`, `gap-fill`, `review`. Unknown values fall back to `general`. |
 | `target_repo` | no | auto-detect | Target repo as `owner/repo`; falls back to git remote, then a task-type default. |
 | `priority` | no | `normal` | `normal` = backlog (claimed/run later); `immediate` = GKE agent auto-executes within ~30s. |
@@ -287,7 +287,7 @@ One-line purpose: what CI said about a branch — the judged sha, the verdict, a
 | `branch` | no | checked-out branch of the cwd | Branch to report on. A pod on its own branch passes nothing. |
 | `pr_number` | no | — | Alternative to `branch`: the pull request whose head branch to report on. |
 
-- **Returns:** JSON `{branch, judged_sha, conclusion, failures[]}`; each failure is `{name, app, job_id, annotations[], steps[], tail[]}`. `conclusion` is `success | failure | pending | none`; `judged_sha` is the newest commit not marked `[skip ci]`.
+- **Returns:** JSON `{branch, judged_sha, conclusion, failures[]}`; each failure is `{name, app, job_id, annotations[], steps[], tail[], npm_script, unreadable[]}`; `unreadable` names the reads GitHub refused as `what (status)` (e.g. `log (403)` when the GitHub App lacks Actions read), so an empty part beside an entry there was not readable rather than silent; `npm_script` is `{package, script}` when the failed step ran through npm — reproduce it as `npm run <script> -w <package>`, never at the repo root. `conclusion` is `success | failure | pending | none`; `judged_sha` is the newest commit not marked `[skip ci]`.
 - **Where it runs:** `GET /api/repos/:o/:r/ci-failures` over `LORE_API_URL`; lore-api reads GitHub with its App credential — no token in the caller.
 - **Cache/mutation:** read-only.
 

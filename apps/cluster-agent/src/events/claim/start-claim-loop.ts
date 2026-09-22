@@ -10,10 +10,7 @@ import { writeAgentEventsAuth } from "./agent-events-secret.js";
 import { stopLatch } from "../../lib/stop-latch.js";
 import { runRegistrant, type RegistrantOpts } from "./registrant.js";
 import { enforceCatalogProfile } from "../../work/catalog/catalog-sync-loop.js";
-import {
-  FileIdentityStore,
-  identityStoreConfig,
-} from "../../outbound/identity-store.js";
+import { identityStoreConfig } from "../../outbound/identity-store.js";
 import type {
   ClusterAgentIdentity,
   IdentityStore,
@@ -90,13 +87,15 @@ function rotationSlot(): {
   };
 }
 
-/** Detached on purpose: `startClaimLoop` returns a handle immediately so a caller can stop the agent before it has finished registering. The catch is unreachable by design — register and claim never throw — but a defect here must surface as a log rather than an unhandled rejection that kills the process. */
+/** Detached so a caller can stop the agent before it registers; register and claim never throw, so the catch only turns a defect into a log instead of a process-killing unhandled rejection. */
 function launchRegistrant(
   storeConfig: IdentityStoreConfig,
   opts: Omit<RegistrantOpts, "store">,
 ): void {
-  void buildIdentityStore(storeConfig)
-    .then((store) => runRegistrant({ ...opts, store }))
+  void Promise.resolve(storeConfig)
+    .then((config) =>
+      runRegistrant({ ...opts, store: buildIdentityStore(config) }),
+    )
     .catch((err) => {
       console.error(
         "[cluster-agent] claim loop crashed — this agent will not register or claim until restarted:",
@@ -138,14 +137,8 @@ function publishCredential(
   };
 }
 
-/** In a cluster the identity persists through the Kubernetes Secret API — the chart mounts the container read-only, so a file write would EROFS and strand the identity. File store only for local runs. */
-async function buildIdentityStore(
-  config: IdentityStoreConfig,
-): Promise<IdentityStore> {
-  if (config.kind === "file") {
-    return new FileIdentityStore(config.path);
-  }
-
+/** Through the Kubernetes Secret API, never a file: the chart mounts the container read-only, so a file write would EROFS and strand the identity. */
+function buildIdentityStore(config: IdentityStoreConfig): IdentityStore {
   return new KubeIdentityStore(
     kubeIdentitySecretsApi(config.namespace),
     config.name,

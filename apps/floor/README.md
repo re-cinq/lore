@@ -61,7 +61,7 @@ src/
   index.ts        the process entry — boots the loop + worker + health
   app/            project-boot.ts — the wiring root (the one place impls are wired)
   transport/      ways in: http/ (webhook/CI ingress, run-viz SSE, health) and
-                  two CLI entrypoints, job-runner + gen-catalog. The compiled
+                  the job-runner CLI entrypoint. The compiled
                   `dist/transport/job-runner.js` is a DEPLOY CONTRACT — the Helm
                   CronJob template invokes that exact path.
   events/         receive and route (the 3 event-bus layers, ADR-015):

@@ -54,7 +54,7 @@ describe("agentDefToCrds LLM recipes", () => {
     });
     expect(agentDefinition.spec).toMatchObject({
       model: "claude-sonnet-4-6",
-      prompt: "Implement the task.\n\n{context}",
+      prompt: "{prompt}\n\n{context}",
       permission_mode: "bypass",
       resources: {
         secrets: [{ name: "ANTHROPIC_API_KEY", ref: "ANTHROPIC_API_KEY" }],
@@ -101,7 +101,7 @@ describe("agentDefToCrds LLM recipes", () => {
   it("a satellite's empty options omit the mcp/skills/secret blocks, the http sink AND the {context} placeholder", () => {
     const { agentDefinition } = agentDefToCrds(row(), {});
 
-    expect(agentDefinition.spec?.prompt).toEqual("Implement the task.");
+    expect(agentDefinition.spec?.prompt).toEqual("{prompt}");
     expect(agentDefinition.spec?.resources).toEqual({
       env: expect.arrayContaining([
         { name: "GIT_AUTHOR_NAME", value: "Lore Agent" },
@@ -443,5 +443,17 @@ describe("validate/render agreement on defaults and merges", () => {
     expect(agentDefinition.spec?.resources?.secrets).toEqual([
       { name: "CLAUDE_CODE_OAUTH_TOKEN", ref: "CLAUDE_CODE_OAUTH_TOKEN" },
     ]);
+  });
+
+  it("config test_policy rides the CR as LORE_TEST_POLICY, and an unknown value rides nothing", () => {
+    const envOf = (test_policy: string) =>
+      agentDefToCrds(row({ config: { test_policy } }), ALL_OPTS).agentDefinition
+        .spec?.resources?.env;
+
+    expect(envOf("none")).toContainEqual({
+      name: "LORE_TEST_POLICY",
+      value: "none",
+    });
+    expect(envOf("yolo")?.map((e) => e.name)).not.toContain("LORE_TEST_POLICY");
   });
 });

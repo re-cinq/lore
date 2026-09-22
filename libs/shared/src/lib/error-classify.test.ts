@@ -29,6 +29,14 @@ describe("classifyError", () => {
     ).toMatchObject({ category: "github-permission" });
   });
 
+  it("returns github-permission for an installation token refused for a repository the App cannot reach", () => {
+    expect(
+      classifyError(
+        "There is at least one repository that does not exist or is not accessible to the parent installation.",
+      ),
+    ).toMatchObject({ category: "github-permission" });
+  });
+
   it("returns github-permission for a bare 403", () => {
     expect(classifyError("403 Forbidden")).toMatchObject({
       category: "github-permission",
@@ -72,6 +80,26 @@ describe("classifyError", () => {
     expect(classifyError("Pod was Evicted: ephemeral storage")).toMatchObject({
       category: "infra",
     });
+  });
+
+  it("returns repo-checkout for git refusing the run's clone of the repository", () => {
+    expect(
+      classifyError(
+        "init container \"init\" exited 128: remote: Repository not found. fatal: repository 'https://github.com/re-cinq/Otto.git/' not found",
+      ),
+    ).toMatchObject({ category: "repo-checkout" });
+  });
+
+  it("does not count repo-checkout as permanent, since a clone refused once can succeed on the next attempt", () => {
+    expect(isPermanentFailure("repo-checkout")).toBe(false);
+  });
+
+  it("returns infra for a pod the cluster preempted", () => {
+    expect(
+      classifyError(
+        "pod stopped by Kubernetes (Preempting): Preempted in order to admit critical pod",
+      ),
+    ).toMatchObject({ category: "infra" });
   });
 
   it("returns unknown for an unrecognized message", () => {

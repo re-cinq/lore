@@ -7,6 +7,7 @@ import {
   externalCheckRuns,
   failureTail,
   logLines,
+  npmScriptOf,
   summarizeFailedChecks,
 } from "./check-runs.js";
 import type { CheckRun, PullCommit } from "./pull-requests-port.js";
@@ -366,6 +367,8 @@ describe("ciFailureReport", () => {
           annotations: ['specs/x/spec.md:7 Status "draft" does not match'],
           steps: ["Prettier + eslint --fix"],
           tail: ["✖ 1 problem"],
+          npm_script: null,
+          unreadable: [],
         },
         {
           name: "lore/code-review",
@@ -374,6 +377,8 @@ describe("ciFailureReport", () => {
           annotations: [],
           steps: [],
           tail: [],
+          npm_script: null,
+          unreadable: [],
         },
       ],
     });
@@ -418,6 +423,98 @@ describe("logLines", () => {
       ],
       total: 2,
       truncated: false,
+    });
+  });
+});
+
+describe("npmScriptOf", () => {
+  const vitestTail = [
+    "> @re-cinq/lore-floor@0.1.0 test:coverage",
+    "> vitest run --coverage",
+    "\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv5.0.0 \u001b[39m\u001b[90m/home/runner/work/lore/lore/apps/floor\u001b[39m",
+    "stdout | src/work/assembly-run/advance-line.test.ts > advanceLine job_runs bookkeeping > parks an agent node",
+    "ERROR: Coverage for branches (99.2%) does not meet global threshold (100%)",
+  ];
+
+  it("recovers the package and script npm printed for the failed step (run 754cb4fa: test:coverage of @re-cinq/lore-floor)", () => {
+    expect(npmScriptOf(vitestTail)).toEqual({
+      package: "@re-cinq/lore-floor",
+      script: "test:coverage",
+    });
+  });
+
+  it("takes the last banner, since a chained or nested npm run fails in the script that ran last", () => {
+    expect(
+      npmScriptOf([
+        "> lore@0.1.0 check",
+        "> npm run lint -w @re-cinq/lore-api",
+        "\u001b[36m> @re-cinq/lore-api@0.1.0 lint\u001b[39m",
+        "> eslint src",
+      ]),
+    ).toEqual({ package: "@re-cinq/lore-api", script: "lint" });
+  });
+
+  it("returns null when no npm banner is printed, including for a test title that contains an arrow and an at-sign", () => {
+    expect({
+      none: npmScriptOf(["go: build failed", "exit status 1"]),
+      lookalike: npmScriptOf(["> notifies ops@example.com on failure"]),
+    }).toEqual({ none: null, lookalike: null });
+  });
+});
+
+describe("summarizeFailedChecks on an npm-run step", () => {
+  it("says which package and script CI ran, after the failed step, so a reproduction runs in that package and not at the repo root", () => {
+    expect(
+      summarizeFailedChecks([
+        check({
+          name: "agent",
+          conclusion: "failure",
+          output: { title: null, summary: null },
+          jobFailure: {
+            annotations: [],
+            steps: ["Run tests"],
+            tail: [
+              "> @re-cinq/lore-floor@0.1.0 test:coverage",
+              "> vitest run --coverage",
+            ],
+          },
+        }),
+      ]).summary,
+    ).toBe(
+      "### agent (failure)\n\nFailed step: Run tests\n\nRan as: npm script `test:coverage` of package `@re-cinq/lore-floor`\n\n> @re-cinq/lore-floor@0.1.0 test:coverage\n> vitest run --coverage",
+    );
+  });
+});
+
+describe("a failed Actions job GitHub refused to show in full", () => {
+  const refused = check({
+    id: 105414171440,
+    app: "github-actions",
+    name: "verify",
+    conclusion: "failure",
+    output: { title: null, summary: null },
+    jobFailure: {
+      annotations: [
+        "apps/api/src/configuration/config.ts:23 Function 'getConfig' has too many lines (33)",
+      ],
+      steps: [],
+      tail: [],
+      unreadable: ["job (403)", "log (403)"],
+    },
+  });
+
+  it("summarizeFailedChecks names the refused reads after the annotations and omits the failed-step line it could not read", () => {
+    expect(summarizeFailedChecks([refused]).summary).toBe(
+      "### verify (failure)\n\napps/api/src/configuration/config.ts:23 Function 'getConfig' has too many lines (33)\n\nGitHub refused: job (403), log (403)",
+    );
+  });
+
+  it("ciFailureReport carries job (403) and log (403) as the failure's unreadable reads", () => {
+    expect(
+      ciFailureReport("topic", "1852d4a6c", [refused]).failures[0],
+    ).toMatchObject({
+      job_id: 105414171440,
+      unreadable: ["job (403)", "log (403)"],
     });
   });
 });

@@ -4,7 +4,6 @@ import type { ServerRoute } from "@hapi/hapi";
 import type { Pool } from "pg";
 import { z } from "zod";
 import { updateOrgDefinition } from "@re-cinq/lore-shared/project/agents/agent-defs-pg.js";
-import { AgentDefsYaml } from "@re-cinq/lore-shared/project/agents/agent-defs-yaml.js";
 import { ResolvedAgentDefinitionSchema } from "@re-cinq/lore-shared/models/agent-definition.js";
 import { apiError, rethrowBoom } from "@re-cinq/lore-shared/http/api-error.js";
 import { bearerScope } from "../../http/bearer-scope.js";
@@ -107,7 +106,7 @@ async function applyOrgPatch(
   const agent = await updateOrgDefinition(
     pool,
     orgDefinitionFields(name, fields),
-    await resolveOrgPodResourcesUpdate(name, pod_resources),
+    orgPodResourcesUpdate(pod_resources),
   );
 
   await audit(pool, "agent_org_updated", { name });
@@ -135,20 +134,13 @@ function orDefault<T>(value: T | undefined, fallback: T): T {
   return value ?? fallback;
 }
 
-// Merge happens inside the upsert (atomic under the row lock); yaml is only the fallback for a configless org row, so it never orphans the seed's skills.
-async function resolveOrgPodResourcesUpdate(
-  name: string,
+// Merged inside the upsert over the org row's own config (atomic under the row lock); every shipped row is seeded with one, so nothing is inherited.
+function orgPodResourcesUpdate(
   podResources: ReturnType<typeof parseAgentPatch>["pod_resources"],
 ) {
-  if (podResources === undefined) {
-    return undefined;
-  }
-
-  return {
-    podResources,
-    inheritedConfig:
-      (await new AgentDefsYaml().resolve("", name))?.config ?? null,
-  };
+  return podResources === undefined
+    ? undefined
+    : { podResources, inheritedConfig: null };
 }
 
 async function audit(

@@ -2,7 +2,6 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { Server } from "@hapi/hapi";
 import pg from "pg";
 import { PgAgentDefs } from "@re-cinq/lore-shared/project/agents/agent-defs-pg.js";
-import { AgentDefsYaml } from "@re-cinq/lore-shared/project/agents/agent-defs-yaml.js";
 import { agentDefToCrds } from "@re-cinq/lore-shared/project/agents/agent-crd.js";
 import type { ResolvedAgentDefinition } from "@re-cinq/lore-shared/models/agent-definition.js";
 import { buildServer } from "../app/build-server.js";
@@ -80,7 +79,7 @@ describe("the catalog-events fan-out, against real Postgres", () => {
     );
 
     repoId = rows[0].id;
-    defs = new PgAgentDefs(pool, new AgentDefsYaml());
+    defs = new PgAgentDefs(pool);
     server = buildServer(() => pool);
   });
 

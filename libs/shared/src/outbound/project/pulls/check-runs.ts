@@ -17,6 +17,21 @@ const FAILED_CONCLUSIONS = new Set([
 /** Checks Lore itself publishes; the loop's CI verdict ignores them, or a run waits on its own review check while the PR is still a draft. */
 const LORE_CHECK_PREFIX = "lore/";
 
+/** The fast per-push re-check publishes under the deep review's check name so a required `lore/code-review` branch-protection check is refreshed on every push, not stranded under a separate name. */
+const CHECK_NAME_ALIAS: Record<string, string> = {
+  "code-review-recheck": "code-review",
+};
+
+/** The check run name Lore publishes a run of `blueprintName` under, without the `lore/` prefix. */
+export function checkDisplayName(blueprintName: string): string {
+  return CHECK_NAME_ALIAS[blueprintName] ?? blueprintName;
+}
+
+/** The check run a run of `blueprintName` publishes on its pull request. */
+export function loreCheckName(blueprintName: string): string {
+  return `${LORE_CHECK_PREFIX}${checkDisplayName(blueprintName)}`;
+}
+
 /** Markers GitHub honours to skip a workflow run — a commit carrying one gets no checks, so it can never be the sha a verdict is read from. */
 export const SKIP_CI_MARKERS = [
   "[skip ci]",
@@ -115,15 +130,64 @@ function reportedParts(run: CheckRun): Array<string | null | undefined> {
   ];
 }
 
-/** An Actions job's own account of its failure: where (its failure annotations), then the step that failed, then what it printed. */
+/** An Actions job's own account of its failure: where (its failure annotations), then the step that failed and the npm script it ran, then what it printed. */
 function jobFailureParts(failure: JobFailure | undefined): string[] {
   return failure
     ? [
         failure.annotations.join("\n"),
-        `Failed step: ${failure.steps.join(", ")}`,
+        failedStepLine(failure.steps),
+        ranAsLine(npmScriptOf(failure.tail)),
         failure.tail.join("\n"),
+        refusedReadsLine(failure.unreadable ?? []),
       ]
     : [];
+}
+
+/** The steps that failed, or nothing when the job could not be read — an empty `Failed step:` would read as a job with no failing step. */
+function failedStepLine(steps: readonly string[]): string {
+  return steps.length === 0 ? "" : `Failed step: ${steps.join(", ")}`;
+}
+
+/** The reads GitHub refused, said out loud: without it a refused log reads as a job that printed nothing, and an agent goes looking for a failure it was never shown. */
+function refusedReadsLine(unreadable: readonly string[]): string {
+  return unreadable.length === 0
+    ? ""
+    : `GitHub refused: ${unreadable.join(", ")}`;
+}
+
+/** The npm script a failed step ran, as the package and script name npm printed for it. */
+export interface NpmScript {
+  package: string;
+  script: string;
+}
+
+/** npm's banner for a script run: `> <package>@<version> <script>`. The version must look like one, so a test title that merely starts with an arrow and contains an at-sign is not mistaken for it. */
+const NPM_BANNER = /^> ((?:@[^/\s]+\/)?[^@\s]+)@\d+\.\d+\.\d+\S* (\S+)$/;
+
+/** Terminal colour codes, which a job log keeps and a banner may be wrapped in. */
+// eslint-disable-next-line no-control-regex -- matching the ESC byte is the point
+const ANSI = /\u001b\[[0-9;]*m/g;
+
+/** Which package's script the failed step ran, from npm's own banner in its output. The LAST banner, because a chained or nested run fails in the script that ran last. A reproduction has to run in that package: the same test command at the repo root discovers every package's suite (run 754cb4fa ran nine with coverage for 43 minutes and hit its deadline). Null when the step printed no banner. */
+export function npmScriptOf(tail: readonly string[]): NpmScript | null {
+  // Backwards and stopping at the first match: a failed step's tail runs to thousands of lines, and only the last banner matters.
+  for (let i = tail.length - 1; i >= 0; i--) {
+    const line = tail[i];
+    const banner = NPM_BANNER.exec(line.replace(ANSI, "").trim());
+
+    if (banner) {
+      return { package: banner[1], script: banner[2] };
+    }
+  }
+
+  return null;
+}
+
+/** The verdict's line naming where CI ran the step, or nothing when it did not run through npm. */
+function ranAsLine(npmScript: NpmScript | null): string {
+  return npmScript
+    ? `Ran as: npm script \`${npmScript.script}\` of package \`${npmScript.package}\``
+    : "";
 }
 
 /** True when this commit message tells GitHub to run nothing for it. */
@@ -204,6 +268,10 @@ export interface CiFailure {
   annotations: string[];
   steps: string[];
   tail: string[];
+  /** The npm script the failed step ran, so a reproduction runs in that package; null when the step did not run through npm. */
+  npm_script: NpmScript | null;
+  /** The reads GitHub refused, each as `what (status)`: an empty part beside an entry here was not readable, which is not the same as empty. */
+  unreadable: string[];
 }
 
 /** What CI says about a branch: the sha it judged, the verdict, and every failed check with its account. */
@@ -233,7 +301,12 @@ const UNEXPLAINED: JobFailure = { annotations: [], steps: [], tail: [] };
 
 /** One failed run flattened for the wire: the ids a follow-up read needs beside the account already in hand. */
 function ciFailureOf(run: CheckRun): CiFailure {
-  const { annotations, steps, tail } = run.jobFailure ?? UNEXPLAINED;
+  const {
+    annotations,
+    steps,
+    tail,
+    unreadable = [],
+  } = run.jobFailure ?? UNEXPLAINED;
 
   return {
     name: run.name,
@@ -242,6 +315,8 @@ function ciFailureOf(run: CheckRun): CiFailure {
     annotations,
     steps,
     tail,
+    npm_script: npmScriptOf(tail),
+    unreadable,
   };
 }
 

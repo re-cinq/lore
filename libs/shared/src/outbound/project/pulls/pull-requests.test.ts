@@ -14,12 +14,18 @@ interface RecordedWrites {
     fields: { title?: string; body?: string };
   }>;
   readied?: Array<{ repo: string; number: number }>;
+  closed?: Array<{ repo: string; number: number }>;
 }
 
 function fakePulls(
   pulls: PullRef[],
   merged: Array<{ number: number; method?: MergeMethod }>,
-  { resolutions = [], updates = [], readied = [] }: RecordedWrites = {},
+  {
+    resolutions = [],
+    updates = [],
+    readied = [],
+    closed = [],
+  }: RecordedWrites = {},
 ): PullRequestsPort {
   return {
     list: async (repo) => pulls.filter((p) => p.repo === repo),
@@ -31,6 +37,9 @@ function fakePulls(
     },
     markReady: async (repo, number) => {
       readied.push({ repo, number });
+    },
+    close: async (repo, number) => {
+      closed.push({ repo, number });
     },
     createReview: async () => {},
     replyToReviewComment: async () => {},
@@ -198,6 +207,15 @@ describe("PullRequests review threads", () => {
       { repo: "re-cinq/lore", number: 7, fields: { body: "rewritten" } },
     ]);
     expect(readied).toEqual([{ repo: "re-cinq/lore", number: 7 }]);
+  });
+
+  it("delegates close with the repo it was bound to", async () => {
+    const closed: Array<{ repo: string; number: number }> = [];
+    const pr = new PullRequests("re-cinq/lore", fakePulls([], [], { closed }));
+
+    await pr.close(7);
+
+    expect(closed).toEqual([{ repo: "re-cinq/lore", number: 7 }]);
   });
 });
 

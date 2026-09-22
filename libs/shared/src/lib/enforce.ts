@@ -16,6 +16,25 @@ export function enforceTrue(
   throw buildError(errorType, errorMessage);
 }
 
+// The message is optional because the bound itself is usually the whole explanation; every caller so far omits it.
+export interface IntegerInterval {
+  min: number;
+  max: number;
+}
+
+export function enforceIntegerInterval(
+  value: number,
+  { min, max }: IntegerInterval,
+  errorType: ErrorType,
+  errorMessage?: string,
+): asserts value is number {
+  enforceTrue(
+    Number.isInteger(value) && value >= min && value <= max,
+    errorType,
+    errorMessage ?? `value must be an integer in ${min}..${max}`,
+  );
+}
+
 // Throws `errorType(result.error)` when a `{ ok }` result is not ok, else narrows `result` to its ok branch.
 export function enforceOk<
   R extends { ok: true } | { ok: false; error: string },

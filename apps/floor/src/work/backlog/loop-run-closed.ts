@@ -1,6 +1,16 @@
 import type { EventProxy } from "@re-cinq/lore-shared/project/events/event-proxy.js";
 import { LORE_BLOCKED_LABEL } from "@re-cinq/lore-shared";
 import type { RunGraph } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
+import { dodResolvedReason } from "@re-cinq/lore-assembly-lines";
+import {
+  commentDeferral,
+  countInfraFailures,
+  erroredVerdict,
+  infraDeferralsFromEnv,
+  nodeIdsOfType,
+  routedIntoRetrospective,
+  type ParkVerdict,
+} from "./loop-infra-deferral.js";
 
 /** The closed run's slice the hook reads — structurally satisfied by AssemblyRunRecord. */
 export interface ClosedLoopRun {
@@ -8,6 +18,8 @@ export interface ClosedLoopRun {
   repo: string;
   blueprintName: string;
   taskId?: string | null;
+  /** The ticket's branch (FR11) — what every attempt on one ticket shares, so an infrastructure deferral can be counted across runs. */
+  branch?: string | null;
   args: Record<string, unknown>;
   graph: RunGraph | null;
 }
@@ -18,6 +30,8 @@ export interface StationVisit {
   iteration: number;
   outcome: string | null;
   failureDetail?: string | null;
+  /** The shared FailureCategory of a failed visit — `unclaimed`/`infra` mean nothing about the ticket, only about the cluster. */
+  failureClass?: string | null;
 }
 
 export interface LoopRunClosedDeps {
@@ -25,14 +39,25 @@ export interface LoopRunClosedDeps {
   listStationRuns(runId: string): Promise<StationVisit[]>;
   addLabel(repo: string, issueNumber: number, label: string): Promise<void>;
   comment(repo: string, issueNumber: number, body: string): Promise<void>;
+  closeIssue(repo: string, issueNumber: number): Promise<void>;
+  closePr(repo: string, prNumber: number): Promise<void>;
   /** Re-arm: emit `cron.implementation_loop.tick` scoped to the repo, so the next ticket starts in seconds, not at the next 5-minute safety tick. */
   emitTick(repo: string): Promise<void>;
+  /** How many EARLIER runs on this branch since `since` ended on an infrastructure failure — the deferral count a new failure adds one to. `excludeRunId` is the run that just closed: it is already `failed` in the table, so a count that kept it would report every first failure as the second. */
+  priorInfraFailures(
+    repo: string,
+    branch: string,
+    since: Date,
+    excludeRunId: string,
+  ): Promise<number>;
+  /** Infrastructure failures a ticket may absorb within a day before it parks; `LORE_LOOP_INFRA_DEFERRALS`, default 3. */
+  maxInfraDeferrals: number;
 }
 
 /** Terminal outcomes that are NOT failures — everything else blocks the ticket. */
 const CLEAN_OUTCOMES = new Set(["completed", "lease_held"]);
 
-/** The loop's terminal hook (FR2 re-arm + FR8 blocked tickets): a blocked/errored ticket gets `lore:blocked` (ineligible under FR1) plus a comment naming the failure, PR left open; the re-arm always happens even when the issue write fails, so one bad ticket never freezes the backlog. */
+/** The loop's terminal hook (FR2 re-arm + FR8 blocked tickets): a blocked/errored ticket gets `lore:blocked` (ineligible under FR1) plus a comment naming the failure, PR left open; a ticket the definition-of-done step found already resolved is closed with the reason, PR included; the re-arm always happens even when the issue write fails, so one bad ticket never freezes the backlog. */
 export async function handleLoopRunClosed(
   run: ClosedLoopRun,
   outcome: string,
@@ -44,16 +69,16 @@ export async function handleLoopRunClosed(
   }
 
   try {
-    await markBlockedIfNeeded(run, outcome, reason, deps);
+    await settleIssue(run, outcome, reason, deps);
   } catch (err) {
     console.error(
-      `[implementation-loop] blocked-marking for ${run.id} failed: ${(err as Error).message}`,
+      `[implementation-loop] issue settling for ${run.id} failed: ${(err as Error).message}`,
     );
   }
   await deps.emitTick(run.repo);
 }
 
-async function markBlockedIfNeeded(
+async function settleIssue(
   run: ClosedLoopRun,
   outcome: string,
   reason: string | undefined,
@@ -61,15 +86,22 @@ async function markBlockedIfNeeded(
 ): Promise<void> {
   const verdict = await parkVerdict(run, outcome, reason, deps);
 
-  if (verdict) {
-    await markIssueBlocked(run, verdict, deps);
+  if (!verdict) {
+    return;
   }
-}
 
-/** Why a ticket is parked, and whether the comment should ask its author for a rewrite. */
-interface ParkVerdict {
-  why: string;
-  askForRewrite: boolean;
+  if (verdict.deferral) {
+    await commentDeferral(run, verdict.deferral, deps);
+
+    return;
+  }
+
+  if (verdict.resolved) {
+    await closeResolvedIssue(run, verdict.resolved, deps);
+
+    return;
+  }
+  await markIssueBlocked(run, verdict, deps);
 }
 
 async function parkVerdict(
@@ -79,25 +111,17 @@ async function parkVerdict(
   deps: LoopRunClosedDeps,
 ): Promise<ParkVerdict | null> {
   if (!CLEAN_OUTCOMES.has(outcome)) {
-    return {
-      why: describeUncleanOutcome(outcome, reason),
-      askForRewrite: false,
-    };
+    return await erroredVerdict(run, outcome, reason, deps);
   }
   const routed = await parkedVisit(run, deps);
 
   return routed
-    ? { why: describeParked(run, routed), askForRewrite: declined(routed) }
+    ? {
+        why: describeParked(run, routed),
+        askForRewrite: declined(routed),
+        resolved: dodResolvedReason(routed.failureDetail) ?? undefined,
+      }
     : null;
-}
-
-function describeUncleanOutcome(
-  outcome: string,
-  reason: string | undefined,
-): string {
-  return reason
-    ? `the run ended ${outcome}: ${reason}`
-    : `the run ended ${outcome}`;
 }
 
 /** How the parking comment names what happened, per node. */
@@ -151,32 +175,6 @@ async function parkedVisit(
   return routed && routed.outcome !== "success" ? routed : null;
 }
 
-/** The visit that routed into the run's last retrospective — the row written just before it. A blocked ticket is whichever node ended there on anything but success: the review node's two verdicts, the definition-of-done park, a stuck round, a repair that gave up. Null when the walk never reached a retrospective (an errored run is judged by its outcome instead). */
-function routedIntoRetrospective(
-  run: ClosedLoopRun,
-  visits: readonly StationVisit[],
-): StationVisit | null {
-  const retrospectives = nodeIdsOfType(run, "retrospective");
-  const ids = visits.map((visit) => visit.nodeId);
-  const last = ids.lastIndexOf(
-    ids.filter((id) => retrospectives.has(id)).at(-1) ?? "",
-  );
-
-  return last > 0 ? visits[last - 1] : null;
-}
-
-/** Node ids of a given type in the run's graph, falling back to the conventional id when the run carries no graph. */
-function nodeIdsOfType(run: ClosedLoopRun, type: string): Set<string> {
-  const graph = run.graph;
-
-  if (!graph) {
-    return new Set([type]);
-  }
-  const nodesOfType = graph.nodes.filter((n) => n.type === type);
-
-  return new Set(nodesOfType.map((n) => n.id));
-}
-
 function declined(routed: StationVisit): boolean {
   return routed.nodeId === "dod" && routed.outcome === "changes_requested";
 }
@@ -186,20 +184,63 @@ async function markIssueBlocked(
   verdict: ParkVerdict,
   deps: LoopRunClosedDeps,
 ): Promise<void> {
+  const issueNumber = await issueNumberOf(run, deps);
+
+  if (!issueNumber) {
+    return;
+  }
+
+  await deps.addLabel(run.repo, issueNumber, LORE_BLOCKED_LABEL);
+  await deps.comment(run.repo, issueNumber, blockedComment(run, verdict));
+}
+
+// Nothing to implement: the ticket closes with the reason instead of parking for a human, and the draft PR — an empty branch — goes with it (FR8). Run e0b9e349 parked #1948 as failed fourteen minutes after #2064 had merged its fix.
+async function closeResolvedIssue(
+  run: ClosedLoopRun,
+  resolved: string,
+  deps: LoopRunClosedDeps,
+): Promise<void> {
+  const issueNumber = await issueNumberOf(run, deps);
+
+  if (!issueNumber) {
+    return;
+  }
+
+  await deps.comment(run.repo, issueNumber, resolvedComment(run, resolved));
+  await deps.closeIssue(run.repo, issueNumber);
+
+  if (typeof run.args.pr_number === "number") {
+    await deps.closePr(run.repo, run.args.pr_number);
+  }
+}
+
+async function issueNumberOf(
+  run: ClosedLoopRun,
+  deps: LoopRunClosedDeps,
+): Promise<number | null> {
   const issueNumber = run.taskId
     ? await deps.getTaskIssueNumber(run.taskId)
     : null;
 
   if (!issueNumber) {
     console.warn(
-      `[implementation-loop] run ${run.id} blocked but no issue to mark`,
+      `[implementation-loop] run ${run.id} ended with a verdict but no issue to mark`,
     );
-
-    return;
   }
 
-  await deps.addLabel(run.repo, issueNumber, LORE_BLOCKED_LABEL);
-  await deps.comment(run.repo, issueNumber, blockedComment(run, verdict));
+  return issueNumber;
+}
+
+function resolvedComment(run: ClosedLoopRun, resolved: string): string {
+  const prLine =
+    typeof run.args.pr_url === "string"
+      ? `\n\nIts pull request is closed unmerged, since the branch carries no change: ${run.args.pr_url}`
+      : "";
+
+  return (
+    `Lore's implementation loop is closing this ticket as already resolved: ${resolved}.` +
+    `${prLine}\n\nReopen it if the claim still holds. Run: \`${run.id}\``
+  );
 }
 
 /** What a loop-ready ticket needs, said once, only when the definition-of-done step is the one that declined. */
@@ -251,10 +292,15 @@ function productionDeps(
   return {
     getTaskIssueNumber: (taskId) => taskIssueNumber(taskStore, taskId),
     listStationRuns: (runId) => pipeline().assemblyRuns.listStationRuns(runId),
+    ...deferralDeps(pipeline),
     addLabel: async (repo, issueNumber, label) =>
       (await projectFor(repo)).issues.addLabel(issueNumber, label),
     comment: async (repo, issueNumber, body) =>
       (await projectFor(repo)).issues.comment(issueNumber, body),
+    closeIssue: async (repo, issueNumber) =>
+      (await projectFor(repo)).issues.close(issueNumber, "completed"),
+    closePr: async (repo, prNumber) =>
+      (await projectFor(repo)).pulls.close(prNumber),
     emitTick: (repo) => queueLoopTick(repo, eventProxy),
   };
 }
@@ -282,4 +328,20 @@ async function taskIssueNumber(
   const n = Number((task as { issue_number?: unknown } | null)?.issue_number);
 
   return n > 0 ? n : null;
+}
+
+/** The deferral half of the hook's dependencies: the branch's earlier infrastructure failures, and the bound. */
+function deferralDeps(
+  pipeline: LoopQueues["pipeline"],
+): Pick<LoopRunClosedDeps, "priorInfraFailures" | "maxInfraDeferrals"> {
+  return {
+    priorInfraFailures: (repo, branch, since, excludeRunId) =>
+      countInfraFailures(pipeline().assemblyRuns, {
+        repo,
+        branch,
+        since,
+        excludeRunId,
+      }),
+    maxInfraDeferrals: infraDeferralsFromEnv(process.env),
+  };
 }

@@ -3,6 +3,11 @@ import {
   handleLoopRunClosed,
   type LoopRunClosedDeps,
 } from "./loop-run-closed.js";
+import {
+  countInfraFailures,
+  infraDeferralsFromEnv,
+} from "./loop-infra-deferral.js";
+import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
 
 const graph = {
   name: "implementation-loop",
@@ -12,6 +17,12 @@ const graph = {
     { id: "dod", type: "agent", station: "agent", station_inherited: true },
     {
       id: "implement",
+      type: "agent",
+      station: "agent",
+      station_inherited: true,
+    },
+    {
+      id: "tdd-round",
       type: "agent",
       station: "agent",
       station_inherited: true,
@@ -39,6 +50,7 @@ const run = (
   repo: "acme/widgets",
   blueprintName: "implementation-loop",
   taskId: "task-1",
+  branch: "lore/implementation-loop/issue-7",
   args: { pr_url: "https://gh/pr/12" },
   graph,
   ...over,
@@ -49,6 +61,7 @@ type Row = {
   iteration: number;
   outcome: string | null;
   failureDetail?: string;
+  failureClass?: string;
 };
 
 const walkEndingAtReview = (awaitPrOutcome: string | null): Row[] => [
@@ -58,26 +71,49 @@ const walkEndingAtReview = (awaitPrOutcome: string | null): Row[] => [
   { nodeId: "retrospective", iteration: 1, outcome: "success" },
 ];
 
-function deps(rows: Row[] = walkEndingAtReview("success")) {
+function deps(
+  rows: Row[] = walkEndingAtReview("success"),
+  priorInfraFailures = 0,
+) {
   const labeled: Array<{ number: number; label: string }> = [];
   const comments: Array<{ number: number; body: string }> = [];
   const ticks: string[] = [];
+  const closedIssues: number[] = [];
+  const closedPrs: number[] = [];
   const d: LoopRunClosedDeps = {
     getTaskIssueNumber: async () => 7,
     listStationRuns: async () => rows,
+    priorInfraFailures: async () => priorInfraFailures,
+    maxInfraDeferrals: 3,
     addLabel: async (_repo, number, label) => {
       labeled.push({ number, label });
     },
     comment: async (_repo, number, body) => {
       comments.push({ number, body });
     },
+    closeIssue: async (_repo, number) => {
+      closedIssues.push(number);
+    },
+    closePr: async (_repo, number) => {
+      closedPrs.push(number);
+    },
     emitTick: async (repo) => {
       ticks.push(repo);
     },
   };
 
-  return { d, labeled, comments, ticks };
+  return { d, labeled, comments, ticks, closedIssues, closedPrs };
 }
+
+const resolvedWalk: Row[] = [
+  {
+    nodeId: "dod",
+    iteration: 1,
+    outcome: "changes_requested",
+    failureDetail: "already resolved: fixed on main by #2064",
+  },
+  { nodeId: "retrospective", iteration: 1, outcome: "success" },
+];
 
 describe("handleLoopRunClosed", () => {
   it("re-arms the repo after a completed ticket without touching the issue", async () => {
@@ -112,6 +148,37 @@ describe("handleLoopRunClosed", () => {
         ),
       },
     ]);
+  });
+
+  it("closes a ticket the definition-of-done step found already resolved, quoting why, and closes its pull request instead of parking", async () => {
+    const { d, labeled, comments, closedIssues, closedPrs } =
+      deps(resolvedWalk);
+
+    await handleLoopRunClosed(
+      run({ args: { pr_url: "https://gh/pr/12", pr_number: 12 } }),
+      "completed",
+      undefined,
+      d,
+    );
+
+    expect(labeled).toEqual([]);
+    expect(comments).toEqual([
+      {
+        number: 7,
+        body: expect.stringContaining("fixed on main by #2064"),
+      },
+    ]);
+    expect(closedIssues).toEqual([7]);
+    expect(closedPrs).toEqual([12]);
+  });
+
+  it("closes only the issue when the resolved ticket's run opened no pull request", async () => {
+    const { d, closedIssues, closedPrs } = deps(resolvedWalk);
+
+    await handleLoopRunClosed(run({ args: {} }), "completed", undefined, d);
+
+    expect(closedIssues).toEqual([7]);
+    expect(closedPrs).toEqual([]);
   });
 
   it("asks the author for a claim that can be stated as a failing test when the definition of done declined the ticket", async () => {
@@ -209,6 +276,212 @@ describe("handleLoopRunClosed", () => {
 
     expect(labeled).toEqual([{ number: 7, label: "lore:blocked" }]);
     expect(ticks).toEqual(["acme/widgets"]);
+  });
+
+  it("defers a ticket whose run no cluster-agent claimed: no label, a comment naming the attempt, and the re-arm", async () => {
+    const { d, labeled, comments, ticks } = deps([
+      {
+        nodeId: "dod",
+        iteration: 1,
+        outcome: "failed",
+        failureClass: "unclaimed",
+        failureDetail: "no cluster-agent claimed this run within 30m",
+      },
+    ]);
+
+    await handleLoopRunClosed(
+      run(),
+      "failed",
+      "no cluster-agent claimed this run (required_tags: [node:agent]) within 30m",
+      d,
+    );
+
+    expect(labeled).toEqual([]);
+    expect(comments[0]?.body).toContain(
+      "deferring this ticket, not parking it (infrastructure attempt 1 of 3)",
+    );
+    expect(ticks).toEqual(["acme/widgets"]);
+  });
+
+  it("defers a ticket whose unclaimed tdd-round routed into a successful retrospective: no label, attempt 1 of 3, and the re-arm", async () => {
+    const { d, labeled, comments, ticks } = deps([
+      { nodeId: "dod", iteration: 1, outcome: "success" },
+      {
+        nodeId: "tdd-round",
+        iteration: 1,
+        outcome: "failed",
+        failureClass: "unclaimed",
+        failureDetail: "no cluster-agent claimed this run within 30m",
+      },
+      { nodeId: "retrospective", iteration: 1, outcome: "success" },
+    ]);
+
+    await handleLoopRunClosed(
+      run(),
+      "failed",
+      "no cluster-agent claimed this run within 30m",
+      d,
+    );
+
+    expect(labeled).toEqual([]);
+    expect(comments[0]?.body).toContain("infrastructure attempt 1 of 3");
+    expect(ticks).toEqual(["acme/widgets"]);
+  });
+
+  it("defers a ticket whose tdd-round could not clone the repository: no label and attempt 1 of 3", async () => {
+    const { d, labeled, comments } = deps([
+      { nodeId: "dod", iteration: 1, outcome: "success" },
+      {
+        nodeId: "tdd-round",
+        iteration: 1,
+        outcome: "failed",
+        failureClass: "repo-checkout",
+        failureDetail:
+          'init container "init" exited 128: remote: Repository not found.',
+      },
+      { nodeId: "retrospective", iteration: 1, outcome: "success" },
+    ]);
+
+    await handleLoopRunClosed(run(), "failed", "clone refused", d);
+
+    expect(labeled).toEqual([]);
+    expect(comments[0]?.body).toContain("infrastructure attempt 1 of 3");
+  });
+
+  it("defers a ticket whose retrospective itself died on the cluster after a successful round: no label and attempt 1 of 3", async () => {
+    const { d, labeled, comments } = deps([
+      { nodeId: "dod", iteration: 1, outcome: "success" },
+      { nodeId: "tdd-round", iteration: 1, outcome: "success" },
+      {
+        nodeId: "retrospective",
+        iteration: 1,
+        outcome: "failed",
+        failureClass: "infra",
+        failureDetail: "BackoffLimitExceeded",
+      },
+    ]);
+
+    await handleLoopRunClosed(run(), "failed", "pod died", d);
+
+    expect(labeled).toEqual([]);
+    expect(comments[0]?.body).toContain("infrastructure attempt 1 of 3");
+  });
+
+  it("parks the ticket on the third infrastructure failure within a day, naming the count", async () => {
+    const { d, labeled, comments } = deps(
+      [
+        {
+          nodeId: "dod",
+          iteration: 1,
+          outcome: "failed",
+          failureClass: "infra",
+        },
+      ],
+      2,
+    );
+
+    await handleLoopRunClosed(run(), "failed", "pod died", d);
+
+    expect(labeled).toEqual([{ number: 7, label: "lore:blocked" }]);
+    expect(comments[0]?.body).toContain(
+      "infrastructure failure 3 of 3 on this ticket within a day, so the loop stops deferring it",
+    );
+  });
+
+  it("parks, never defers, a run that failed on the work rather than on the cluster", async () => {
+    const { d, labeled } = deps([
+      { nodeId: "dod", iteration: 1, outcome: "failed", failureClass: "auth" },
+    ]);
+
+    await handleLoopRunClosed(run(), "failed", "Authentication failed", d);
+
+    expect(labeled).toEqual([{ number: 7, label: "lore:blocked" }]);
+  });
+
+  it("counts the branch's earlier infrastructure failures without the run that just closed, which is already failed in the table", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const branch = "lore/implementation-loop/issue-7";
+    const failUnclaimed = async (id: string) => {
+      const { nodeRowId } = await port.ensureStationRun({
+        assemblyRunId: id,
+        nodeId: "dod",
+        iteration: 1,
+      });
+
+      await port.finishStationRunOnce(nodeRowId, "failed", undefined, {
+        failureClass: "unclaimed",
+      });
+      await port.finish(id, "failed", "no cluster-agent claimed this run");
+    };
+    const earlier = await port.start({
+      blueprintName: "implementation-loop",
+      repo: "acme/widgets",
+      branch,
+    });
+    const current = await port.start({
+      blueprintName: "implementation-loop",
+      repo: "acme/widgets",
+      branch,
+    });
+
+    await failUnclaimed(earlier);
+    await failUnclaimed(current);
+
+    expect(
+      await countInfraFailures(port, {
+        repo: "acme/widgets",
+        branch,
+        since: new Date(0),
+        excludeRunId: current,
+      }),
+    ).toBe(1);
+  });
+
+  it("counts an earlier run's unclaimed failure that routed into a successful retrospective as 1 infrastructure failure", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const branch = "lore/implementation-loop/issue-7";
+    const recordVisit = async (
+      assemblyRunId: string,
+      nodeId: string,
+      outcome: "failed" | "success",
+      failureClass?: string,
+    ) => {
+      const { nodeRowId } = await port.ensureStationRun({
+        assemblyRunId,
+        nodeId,
+        iteration: 1,
+      });
+
+      await port.finishStationRunOnce(nodeRowId, outcome, undefined, {
+        failureClass,
+      });
+    };
+    const earlier = await port.start({
+      blueprintName: "implementation-loop",
+      repo: "acme/widgets",
+      branch,
+    });
+
+    await recordVisit(earlier, "tdd-round", "failed", "unclaimed");
+    await recordVisit(earlier, "retrospective", "success");
+    await port.finish(earlier, "failed", "no cluster-agent claimed this run");
+
+    expect(
+      await countInfraFailures(port, {
+        repo: "acme/widgets",
+        branch,
+        since: new Date(0),
+        excludeRunId: "run-that-just-closed",
+      }),
+    ).toBe(1);
+  });
+
+  it("reads the deferral bound from LORE_LOOP_INFRA_DEFERRALS and falls back to 3", () => {
+    expect(infraDeferralsFromEnv({ LORE_LOOP_INFRA_DEFERRALS: "5" })).toBe(5);
+    expect(infraDeferralsFromEnv({ LORE_LOOP_INFRA_DEFERRALS: "lots" })).toBe(
+      3,
+    );
+    expect(infraDeferralsFromEnv({})).toBe(3);
   });
 
   it("ignores a run of any other blueprint", async () => {

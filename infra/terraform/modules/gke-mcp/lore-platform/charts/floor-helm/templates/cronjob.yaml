@@ -57,15 +57,7 @@ spec:
               command: ["node", "dist/transport/job-runner.js", {{ .job | quote }}]
               env:
                 {{- include "lore-floor.env" $root | nindent 16 }}
-              volumeMounts:
-                - name: config
-                  mountPath: /config
-                  readOnly: true
               resources:
                 {{- $merged := merge (deepCopy (default (dict) .resources)) $defaults.resources -}}
                 {{- toYaml $merged | nindent 16 }}
-          volumes:
-            - name: config
-              configMap:
-                name: {{ $root.Values.configMap.name }}
 {{- end }}

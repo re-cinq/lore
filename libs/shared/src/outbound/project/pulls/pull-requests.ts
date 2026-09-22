@@ -75,6 +75,10 @@ export class PullRequests {
     return this.pulls.markReady(this.repo, number);
   }
 
+  close(number: number): Promise<void> {
+    return this.pulls.close(this.repo, number);
+  }
+
   getDiff(number: number): Promise<string> {
     return this.pulls.getDiff(this.repo, number);
   }
