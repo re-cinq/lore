@@ -52,7 +52,9 @@ export function registrationConfig(env: NodeJS.ProcessEnv): RegistrationConfig {
 function offeredTags(env: NodeJS.ProcessEnv): string[] {
   const tags = parseTags(env.LORE_CLUSTER_AGENT_TAGS);
 
-  return env.LORE_AGENT_FILES_URL ? [...new Set([...tags, AGENT_FILES_TAG])] : tags;
+  return env.LORE_AGENT_FILES_URL
+    ? [...new Set([...tags, AGENT_FILES_TAG])]
+    : tags;
 }
 
 // Which of the three are unset. Named ALL at once rather than failing on the first: a deployment missing two variables should learn both from one boot, not from two.

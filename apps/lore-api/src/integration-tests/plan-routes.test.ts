@@ -255,6 +255,31 @@ describe("/api/plans on lore-api", () => {
     });
   });
 
+  it("writes a 3 MB draft of short paragraphs into Ana's live plan and serves it back whole", async () => {
+    const planId = await createPlan();
+    const paragraphs = Array.from(
+      { length: 100_000 },
+      (_, n) => `Finding ${n}: "p95" is 450 ms.`,
+    ).join("\n\n");
+    const markdown = (await planMd(planId)).replace(
+      "## What we want and why <!-- slot:intent -->\n",
+      `## What we want and why <!-- slot:intent -->\n\n${paragraphs}\n`,
+    );
+    const written = await call(
+      "POST",
+      `/api/plans/${planId}/agent-file`,
+      TOKEN,
+      { actor: "planning-agent", markdown, refine: null },
+    );
+    const after = await planMd(planId);
+
+    expect({
+      bytes: markdown.length > 3_000_000,
+      status: written.status,
+      last: after.includes('Finding 99999: "p95" is 450 ms.'),
+    }).toEqual({ bytes: true, status: 200, last: true });
+  });
+
   it("answers 400 to a plan.md whose only change names no section of Ana's plan", async () => {
     const planId = await createPlan();
     const markdown = `${await planMd(planId)}\n## Rollout <!-- slot:custom-nowhere -->\n\nWaves.\n`;

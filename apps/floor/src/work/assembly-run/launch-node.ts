@@ -109,8 +109,7 @@ async function podClaimFields(
 
   return {
     status: "queued",
-    requiredTags:
-      dispatch.files.length > 0 ? [...tags, AGENT_FILES_TAG] : tags,
+    requiredTags: dispatch.files.length > 0 ? [...tags, AGENT_FILES_TAG] : tags,
   };
 }
 

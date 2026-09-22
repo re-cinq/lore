@@ -64,7 +64,7 @@ function agentMetadata(spec: LoreTaskSpec): AgentCr["metadata"] {
   };
 }
 
-/** The pod's downloads from THIS cluster's agent-files endpoint, with the credential its event sink already uses; a cluster with no endpoint sends none, and its planning file then travels inline. */
+/** The pod's downloads from THIS cluster's agent-files endpoint, with the credential its event sink already uses; a cluster with no endpoint sends none, and never claims a pass that needs one (it offers no `agent-files` tag). */
 function inputFiles(
   spec: LoreTaskSpec,
   filesUrl: string | undefined,

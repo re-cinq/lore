@@ -10,8 +10,8 @@ import {
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 
-/** A plan outgrows hapi's 1 MB default long before it outgrows a pod. */
-const MAX_PLAN_FILE_BYTES = 64 * 1024 * 1024;
+/** Twice the Floor's 64 MiB upload cap: the file arrives here JSON-escaped, and a newline escapes to two bytes. */
+const MAX_PLAN_FILE_BYTES = 128 * 1024 * 1024;
 
 const PlanFileBody = z.object({
   actor: z.string().min(1),
