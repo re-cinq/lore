@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isDraftingPlan, planRunPhase } from "./plan-run-phase";
+import { canRegenerate, isDraftingPlan, planRunPhase } from "./plan-run-phase";
 
 const visit = (nodeId: string, outcome: string | null, iteration = 1) => ({
   nodeId,
@@ -140,6 +140,30 @@ describe("isDraftingPlan", () => {
         visit("analyze", null, 2),
       ),
       drafting("failed", visit("analyze", "failed")),
+    ]).toEqual([false, false, false]);
+  });
+});
+
+describe("canRegenerate", () => {
+  const regenerable = (status: string, ...nodes: ReturnType<typeof visit>[]) =>
+    canRegenerate({ status, reason: null }, nodes);
+
+  it("offers a fresh draft while the line waits on its people at author, and after a failed run", () => {
+    expect([
+      regenerable(
+        "running",
+        visit("analyze", "success"),
+        visit("author", null),
+      ),
+      regenerable("failed", visit("analyze", "failed")),
+    ]).toEqual([true, true]);
+  });
+
+  it("offers no fresh draft while the agent works or once the plan is past approval", () => {
+    expect([
+      regenerable("running", visit("analyze", null)),
+      regenerable("running", visit("author", "success"), visit("write", null)),
+      regenerable("running", visit("push", "success"), visit("merged", null)),
     ]).toEqual([false, false, false]);
   });
 });

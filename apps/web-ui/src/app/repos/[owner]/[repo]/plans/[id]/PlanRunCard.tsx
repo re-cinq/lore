@@ -1,7 +1,7 @@
 import Link from "next/link";
 import ConfirmedActionButton from "@/components/ConfirmedActionButton";
 import type { AssemblyRunNode } from "@/lib/assembly-run-rows";
-import { planRunPhase } from "@/lib/plan-run-phase";
+import { canRegenerate, planRunPhase } from "@/lib/plan-run-phase";
 import styles from "./PlanRunCard.module.scss";
 
 /** The plan's planning run, as the page summarizes it. */
@@ -46,7 +46,9 @@ export default function PlanRunCard({ run, draftAgain }: PlanRunCardProps) {
     <div className={`meta ${styles.summary}`}>
       <span>{phase.text}</span>
       <RunLinks run={run} />
-      {phase.tone === "failed" && <RegeneratePlan draftAgain={draftAgain} />}
+      {canRegenerate(run, run.nodes) && (
+        <RegeneratePlan draftAgain={draftAgain} />
+      )}
     </div>
   );
 }

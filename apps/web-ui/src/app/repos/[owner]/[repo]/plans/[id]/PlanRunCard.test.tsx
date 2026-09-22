@@ -140,11 +140,11 @@ describe("PlanRunCard regenerate", () => {
     ).toBeInTheDocument();
   });
 
-  it("offers no regeneration while the run is waiting on its people", () => {
+  it("offers a regeneration while the run waits on its people at author", () => {
     render(<PlanRunCard run={RUN} draftAgain={async () => ({})} />);
 
     expect(
-      screen.queryByRole("button", { name: "Regenerate plan" }),
-    ).toBeNull();
+      screen.getByRole("button", { name: "Regenerate plan" }),
+    ).toBeInTheDocument();
   });
 });

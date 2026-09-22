@@ -90,6 +90,14 @@ function endedInFailure(run: RunState): boolean {
   );
 }
 
+/** Whether a person may ask for a fresh draft: after a failure, or while the line waits on them at `author` — never while the agent is at work, nor once the plan is past approval, where a redraft would only race the spec work. */
+export function canRegenerate(
+  run: RunState,
+  visits: readonly Visit[],
+): boolean {
+  return endedInFailure(run) || openVisit(visits)?.nodeId === "author";
+}
+
 /** Whether the planning agent is still writing the first draft, which replaces whatever the plan holds now; a Refine only proposes one section, so the plan stays open then. */
 export function isDraftingPlan(
   run: { status: string },
