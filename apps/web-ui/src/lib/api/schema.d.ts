@@ -2168,7 +2168,13 @@ export interface components {
                 watch?: {
                   event: string;
                   path: string;
+                  upload?: boolean;
                 };
+                inputs?: {
+                  path: string;
+                  /** @enum {string} */
+                  source: "plan";
+                }[];
                 repo_workdir?: boolean;
                 command?: string[];
                 env?: {
@@ -2208,7 +2214,13 @@ export interface components {
                   watch?: {
                     event: string;
                     path: string;
+                    upload?: boolean;
                   };
+                  inputs?: {
+                    path: string;
+                    /** @enum {string} */
+                    source: "plan";
+                  }[];
                   repo_workdir?: boolean;
                   command?: string[];
                   env?: {
@@ -2269,7 +2281,13 @@ export interface components {
               watch?: {
                 event: string;
                 path: string;
+                upload?: boolean;
               };
+              inputs?: {
+                path: string;
+                /** @enum {string} */
+                source: "plan";
+              }[];
               repo_workdir?: boolean;
               command?: string[];
               env?: {
@@ -2513,7 +2531,13 @@ export interface components {
                 watch?: {
                   event: string;
                   path: string;
+                  upload?: boolean;
                 };
+                inputs?: {
+                  path: string;
+                  /** @enum {string} */
+                  source: "plan";
+                }[];
                 repo_workdir?: boolean;
                 command?: string[];
                 env?: {
@@ -3083,7 +3107,13 @@ export interface components {
               watch?: {
                 event: string;
                 path: string;
+                upload?: boolean;
               };
+              inputs?: {
+                path: string;
+                /** @enum {string} */
+                source: "plan";
+              }[];
               repo_workdir?: boolean;
               command?: string[];
               env?: {
@@ -3124,7 +3154,13 @@ export interface components {
               watch?: {
                 event: string;
                 path: string;
+                upload?: boolean;
               };
+              inputs?: {
+                path: string;
+                /** @enum {string} */
+                source: "plan";
+              }[];
               repo_workdir?: boolean;
               command?: string[];
               env?: {

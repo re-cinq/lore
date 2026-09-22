@@ -330,7 +330,7 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 
 ### `apps/floor/src/work/assembly-run/advance-line.test.ts`
 
-- A code-review-recheck line opts out of the branch-overlap guard, so a push landing while a review or reply line still holds the PR branch is not silently dropped as `lease_held` (the verdict update always runs). ([validated by](apps/floor/src/work/assembly-run/advance-line.test.ts#L824))
+- A code-review-recheck line opts out of the branch-overlap guard, so a push landing while a review or reply line still holds the PR branch is not silently dropped as `lease_held` (the verdict update always runs). ([validated by](apps/floor/src/work/assembly-run/advance-line.test.ts#L825))
 
 ### `apps/floor/src/work/merge/auto-merge.test.ts`
 

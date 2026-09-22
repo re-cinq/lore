@@ -92,12 +92,10 @@ export async function deliverPlanningResult(
   fileEvent: AgentFileEvent,
   deps: PlanningResultDeps,
 ): Promise<PlanningDelivery> {
-  if (fileEvent.event !== PLANNING_RESULT_EVENT) {
-    return { outcome: "skipped", error: "not a planning result" };
-  }
+  const skipped = skipReason(fileEvent);
 
-  if (fileEvent.uploaded) {
-    return { outcome: "skipped", error: "delivered by upload" };
+  if (skipped) {
+    return skipped;
   }
   const run = await deps.planRunOfTask(fileEvent.taskId);
 
@@ -111,6 +109,17 @@ export async function deliverPlanningResult(
         error: `the agent produced no plan.md (${fileEvent.reason ?? "no reason"})`,
       }
     : submit(run, fileEvent.content, deps.plans);
+}
+
+// Why this handler leaves the event alone: another artifact entirely, or an uploaded file its upload already wrote.
+function skipReason(fileEvent: AgentFileEvent): PlanningDelivery | null {
+  if (fileEvent.event !== PLANNING_RESULT_EVENT) {
+    return { outcome: "skipped", error: "not a planning result" };
+  }
+
+  return fileEvent.uploaded
+    ? { outcome: "skipped", error: "delivered by upload" }
+    : null;
 }
 
 async function submit(

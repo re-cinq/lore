@@ -41,14 +41,7 @@ export function specToAgent(
   filesUrl?: string,
 ): AgentCr {
   return {
-    metadata: {
-      name: spec.name || agentCrName(spec.taskId),
-      labels: {
-        [TASK_ID_LABEL]: spec.taskId,
-        [TASK_TYPE_LABEL]: spec.taskType,
-        ...spec.extraLabels,
-      },
-    },
+    metadata: agentMetadata(spec),
     spec: {
       stationRef: resolveStationRef(spec, stationRef),
       taskId: spec.taskId,
@@ -56,6 +49,17 @@ export function specToAgent(
       branch: spec.branch,
       parameters: agentParameters(spec),
       ...inputFiles(spec, filesUrl),
+    },
+  };
+}
+
+function agentMetadata(spec: LoreTaskSpec): AgentCr["metadata"] {
+  return {
+    name: spec.name || agentCrName(spec.taskId),
+    labels: {
+      [TASK_ID_LABEL]: spec.taskId,
+      [TASK_TYPE_LABEL]: spec.taskType,
+      ...spec.extraLabels,
     },
   };
 }

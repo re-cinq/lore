@@ -1,6 +1,8 @@
 // Plan files between the Floor and a planning pod (ADR-047): GET is what the pod's init downloads before its agent starts, POST is the edited file its supervisor uploads on exit. Both authenticate with the credential the pod already holds for its event sink, and neither carries the plan through the event stream.
 
 import type { Request, ResponseToolkit, ServerRoute } from "@hapi/hapi";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { pipeline } from "../../../outbound/queues.js";
 import { loreApiPlans } from "../../../outbound/lore-api-plans.js";
 import {
@@ -48,9 +50,11 @@ export const agentFileUploadRoute: ServerRoute = {
 };
 
 async function receiveUpload(request: Request, h: ResponseToolkit) {
-  if (request.params.event !== PLANNING_RESULT_EVENT) {
-    return h.response({ error: "no handler for this file event" }).code(404);
-  }
+  enforceTrue(
+    request.params.event === PLANNING_RESULT_EVENT,
+    apiError(404),
+    "no handler for this file event",
+  );
   const delivery = await receivePlanUpload(
     request.params.agent,
     rawBytes(request).toString("utf8"),

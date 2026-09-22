@@ -6,7 +6,8 @@ import type {
 } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import type { AssemblyLine, NodeResult } from "@re-cinq/lore-assembly-lines";
 import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
-import type { ResolveConversationFn, ResolveRecipeFn } from "./launch-spec.js";
+import type { ResolveConversationFn } from "./launch-spec.js";
+import type { ResolveRecipeFn } from "./input-files.js";
 
 export interface AdvanceDeps {
   assemblyRuns: AssemblyRunsPort;

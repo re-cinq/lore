@@ -31,3 +31,15 @@ planning-station ships that drafting step as four packages. `planning-document` 
 - A rollout waits up to 45 s (`terminationGracePeriodSeconds`), so planning-sync's `onPreStop` can store debounced keystrokes before the pod goes.
 - Lore installs the packages as git dependencies on built-artifact tags (`<package>-dist-v<version>`, made by planning-station's `dist-tags` workflow). planning-station is a public repository, so CI and image builds need no credentials to fetch them.
 - A new planning-station release reaches lore by bumping the tag in `package.json`. npm records the dependency as `git+ssh://` in the lockfile either way; a public repo installs anyway through GitHub's tarball endpoint.
+
+## Amendment (2026-09-22): the agent edits the plan as a file, moved by reference
+
+The planning agent no longer answers in a `result.json` of agent ops. The agent kept getting that grammar wrong: a stale prompt had it answer in the old wizard's shape, and every draft was dropped. The ops also could not add a question or a section. The plan itself rode the prompt as JSON, and a plan outgrows every inline channel: an env var or argv string (128 KiB), the Agent object (~1.5 MB), and the event stream (128 KiB inline, 1 MB per sink request).
+
+- **The pod edits `plan.md`.** planning-document renders the plan as Markdown: one `## Title <!-- slot:… -->` per section, fenced JSON for KPIs, the prototype and new questions, and the section's conversation as read-only quotes. It turns an edited file back into ops for only what changed.
+- **The file moves by reference, never inline.** The Floor hands each planning pod a reference, `runs/<run>/plan`. The executing cluster-agent resolves it against its own `LORE_AGENT_FILES_URL`, since only it knows an address its pods reach. The init downloads the file before the agent starts (ai-agent-subsystem `spec.files`), and the supervisor uploads it on exit (`output.watch[].upload`). The Floor carries both directions at `/api/agent-files` and relays them to lore-api's `/api/plans/{id}/markdown` and `/agent-file`, because the pod holds no API token.
+- **A Refine's context lives on the run**, not in the agent's answer. lore-api records slot, hash and uses in the run's args when the Refine is asked for, and proposes only that section's ops when the file comes back.
+- **Sections are open, but only the agent changes them.** A plan may carry `custom-<id>` sections the template lacks, added and retitled by the agent's ops. People write inside sections but never add, rename or remove one.
+- **The agent gathers before it writes**: `lore_assemble_context`, the `lore_query_graph` knowledge graph, and `query_trace`, through the Lore MCP gateway its pod already has.
+
+A cluster with no files endpoint gets no download and inlines the watched file. The plan then works up to the inline event size, which is the price of a cluster its pods cannot reach the Floor from.

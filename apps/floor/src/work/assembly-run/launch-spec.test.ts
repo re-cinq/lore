@@ -8,6 +8,7 @@ import {
   withIncomingFailure,
   withPriorFailures,
 } from "./launch-spec.js";
+import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 
 const visit = (
   nodeId: string,
@@ -152,9 +153,11 @@ describe("withPriorFailures", () => {
 });
 
 describe("the files an agent node's pod downloads", () => {
-  const analyze = {
+  const analyze: RunGraphNode = {
     id: "analyze",
     type: "agent",
+    station: "feature-planning",
+    station_inherited: true,
     prompt_ref: "feature-planning",
   };
   const launch = {

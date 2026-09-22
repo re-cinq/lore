@@ -10,6 +10,19 @@ export interface RecipeInput {
 
 export type InputFiles = NonNullable<LoreTaskSpec["files"]>;
 
+/** What a dispatch takes from an agent node's RESOLVED recipe: the prompt its pod renders, and the files it downloads first. */
+export interface NodeRecipe {
+  prompt: string;
+  inputs?: readonly RecipeInput[];
+}
+
+/** Resolves the recipe for `repo` (project row → org row → yaml) in one read, so an Agents-UI edit reaches the pod; strict on an unknown ref (#1329). */
+export type ResolveRecipeFn = (
+  repo: string,
+  promptRef: string,
+  description: string,
+) => Promise<NodeRecipe>;
+
 /** A run's inputs keyed by its assembly run, since the Floor resolves what a source means (e.g. `plan` → the run's plan) at the moment the pod asks. */
 export function inputFilesFor(
   inputs: readonly RecipeInput[] | undefined,

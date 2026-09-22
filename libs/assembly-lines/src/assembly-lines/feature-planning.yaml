@@ -2,9 +2,10 @@ name: feature-planning
 description: >
   A plan from its first draft to its spec-tasks (ADR-047): the agent drafts the
   plan people write together in lore-api, each Refine sends one section back to
-  it, and approval moves the plan on to its spec PR and decomposition. The agent's
-  result.json is a declared artifact (`output.watch`) the Floor writes into the
-  plan — agent edits for a draft, a proposal for a Refine.
+  it, and approval moves the plan on to its spec PR and decomposition. The agent
+  edits the plan as plan.md, which its pod downloads before the pass and uploads
+  after it; lore-api turns what changed into agent edits for a draft, a proposal
+  for a Refine.
 version: 1
 entry: analyze
 exit: done
@@ -20,7 +21,7 @@ nodes:
     continues:
       node: analyze
       key: args.plan_id
-    description: Draft the plan, or answer one section's Refine (written to result.json).
+    description: Draft the plan, or answer one section's Refine, by editing plan.md.
 
   # The plan's people ARE a station — the plan editor is its worker, reporting over
   # `assembly_line.resume` (a Refine, or the approval) instead of stdout. Modelling
@@ -60,7 +61,7 @@ nodes:
     # No `push-only` Station exists; the retired finalize line reached this node
     # with its task type's recipe, and naming `spec-write` keeps that exact one.
     # Left inherited, the merged line would run the PLANNING recipe here — the node
-    # meant to commit and push running a prompt that writes result.json.
+    # meant to commit and push running a prompt that edits plan.md.
     station_ref: spec-write
     description: Commit + open/update the PR branch.
 

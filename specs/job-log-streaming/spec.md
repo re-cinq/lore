@@ -143,7 +143,7 @@ an OOM, an eviction, or a Job deadline"*, none of which happened.
 6. The Floor keeps the reported `errorText`, which already outranks
    `failureReason` as the node's failure detail, so the station run records
    the refused clone and classifies it `repo-checkout` rather than `infra`.
-   ([validated by records the pod's refused clone as the failure instead of BackoffLimitExceeded](../../apps/floor/src/work/assembly-run/node-event-handler.test.ts#L363))
+   ([validated by records the pod's refused clone as the failure instead of BackoffLimitExceeded](../../apps/floor/src/work/assembly-run/node-event-handler.test.ts#L365))
 
 7. Kubernetes' own reason for stopping the pod — preempted, evicted — is
    read off the pod's status first and named as

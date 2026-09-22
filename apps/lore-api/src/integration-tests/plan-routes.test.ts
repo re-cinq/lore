@@ -211,4 +211,62 @@ describe("/api/plans on lore-api", () => {
 
     expect(refused.status).toBe(409);
   });
+
+  const planMd = async (planId: string) =>
+    (
+      await server.inject({
+        method: "GET",
+        url: `/api/plans/${planId}/markdown`,
+        headers: { authorization: `Bearer ${READ_TOKEN}` },
+      })
+    ).payload;
+
+  it("serves Ana's plan as the plan.md a planning pod edits, one marked heading per section", async () => {
+    const planId = await createPlan();
+
+    expect(await planMd(planId)).toContain(
+      "## What we want and why <!-- slot:intent -->",
+    );
+  });
+
+  it("writes a draft's plan.md into Ana's live plan as the planning agent's edits", async () => {
+    const planId = await createPlan();
+    const markdown = (await planMd(planId)).replace(
+      "## What we want and why <!-- slot:intent -->\n",
+      "## What we want and why <!-- slot:intent -->\n\nCheckout p95 is 450 ms.\n",
+    );
+    const written = await call(
+      "POST",
+      `/api/plans/${planId}/agent-file`,
+      TOKEN,
+      {
+        actor: "planning-agent",
+        markdown,
+        refine: null,
+      },
+    );
+
+    expect({
+      written,
+      after: (await planMd(planId)).includes("Checkout p95 is 450 ms."),
+    }).toMatchObject({
+      written: { status: 200, body: { written: 1, problems: [] } },
+      after: true,
+    });
+  });
+
+  it("answers 400 to a plan.md whose only change names no section of Ana's plan", async () => {
+    const planId = await createPlan();
+    const markdown = `${await planMd(planId)}\n## Rollout <!-- slot:custom-nowhere -->\n\nWaves.\n`;
+
+    expect(
+      (
+        await call("POST", `/api/plans/${planId}/agent-file`, TOKEN, {
+          actor: "planning-agent",
+          markdown,
+          refine: null,
+        })
+      ).status,
+    ).toBe(400);
+  });
 });
