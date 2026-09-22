@@ -97,6 +97,20 @@ describe("PgSettings", () => {
       params: ["repo-7"],
     });
   });
+
+  it("marks repo-42's onboarding merged without stamping last_ingested_at", async () => {
+    const capture: Array<{ text: string; params?: unknown[] }> = [];
+    const store = new PgSettings(fakePool(capture, []), fakeWriter([]));
+
+    await store.markOnboardingMergedById("repo-42");
+
+    expect(capture).toEqual([
+      {
+        text: expect.not.stringContaining("last_ingested_at"),
+        params: ["repo-42"],
+      },
+    ]);
+  });
 });
 
 describe("PgSettings.allRepos", () => {

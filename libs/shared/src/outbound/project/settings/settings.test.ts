@@ -59,6 +59,20 @@ describe("InMemorySettings.onboardedRepos", () => {
   });
 });
 
+describe("InMemorySettings.markOnboardingMergedById", () => {
+  it("marks the onboarding merged and leaves a never-ingested repo's last_ingested_at unset", async () => {
+    const port = new InMemorySettings([
+      { id: "repo-42", full_name: "re-cinq/Otto", onboarding_pr_merged: false },
+    ]);
+
+    await port.markOnboardingMergedById("repo-42");
+
+    expect(port.repos).toEqual([
+      { id: "repo-42", full_name: "re-cinq/Otto", onboarding_pr_merged: true },
+    ]);
+  });
+});
+
 describe("InMemorySettings.allRepos", () => {
   it("lists every repo, onboarded or not", async () => {
     const port = new InMemorySettings([

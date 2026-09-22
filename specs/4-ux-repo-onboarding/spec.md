@@ -227,6 +227,12 @@ post-merge ingestion task — could leave three PRs open for one onboarding. ([v
   raised while the previous pass is still running lands on that in-flight
   task instead of
   queueing a duplicate. ([validated by `actions.test.ts:22`](apps/web-ui/src/app/repos/[owner]/[repo]/actions.test.ts#L22), [`actions.test.ts:33`](apps/web-ui/src/app/repos/[owner]/[repo]/actions.test.ts#L33), [`actions.test.ts:46`](apps/web-ui/src/app/repos/[owner]/[repo]/actions.test.ts#L46), [`FixIngestButton.test.tsx:11`](apps/web-ui/src/components/FixIngestButton.test.tsx#L11), [`FixIngestButton.test.tsx:19`](apps/web-ui/src/components/FixIngestButton.test.tsx#L19), [`FixIngestButton.test.tsx:40`](apps/web-ui/src/components/FixIngestButton.test.tsx#L40), [`FixIngestButton.test.tsx:54`](apps/web-ui/src/components/FixIngestButton.test.tsx#L54))
+- FR-2.6.1 *(added 2026-09-22, #2027)*: Flipping the repo to onboarded does
+  not stamp `last_ingested_at`; only an ingest does. The stamp used to be set
+  on merge although nothing had read the repo, which silenced the
+  seven-day staleness warning on a repo no ingest had reached.
+  ([validated by marks repo-42's onboarding merged without stamping last_ingested_at](libs/shared/src/outbound/project/settings/settings-pg.test.ts#L101),
+  [validated by marks the onboarding merged and leaves a never-ingested repo's last_ingested_at unset](libs/shared/src/outbound/project/settings/settings.test.ts#L63))
 - FR-2.7: When enrolment leaves gaps — a file that could not be committed,
   a callback value that could not be set — the onboarding still proceeds and
   the gaps are COMMENTED ON THE TICKET, the human surface an onboarding has
