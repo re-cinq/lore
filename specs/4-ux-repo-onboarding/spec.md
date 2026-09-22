@@ -575,9 +575,9 @@ The app is built from a shared set of presentational components. ([validated by 
   token and expiry, and a request that finds the token (nearly) expired trades
   the refresh token for a new pair through GitHub's refresh grant; a classic
   OAuth token, which never expires, is left alone. When GitHub refuses the
-  refresh the session drops its token, so the person is asked to sign in again
-  rather than told they have no access to a repo they can see.
-  ([validated by `github-session-token.test.ts:24`](apps/web-ui/src/lib/github-session-token.test.ts#L24), [`github-session-token.test.ts:38`](apps/web-ui/src/lib/github-session-token.test.ts#L38), [`github-session-token.test.ts:46`](apps/web-ui/src/lib/github-session-token.test.ts#L46), [`github-session-token.test.ts:58`](apps/web-ui/src/lib/github-session-token.test.ts#L58), [`github-session-token.test.ts:69`](apps/web-ui/src/lib/github-session-token.test.ts#L69), [`github-session-token.test.ts:94`](apps/web-ui/src/lib/github-session-token.test.ts#L94), [`auth-options.test.ts:132`](apps/web-ui/src/lib/auth-options.test.ts#L132))
+  refresh the session drops its token and the middleware counts it as signed
+  out, so the person is asked to sign in again rather than told they have no access to a repo they can see.
+  ([validated by `github-session-token.test.ts:25`](apps/web-ui/src/lib/github-session-token.test.ts#L25), [`github-session-token.test.ts:39`](apps/web-ui/src/lib/github-session-token.test.ts#L39), [`github-session-token.test.ts:47`](apps/web-ui/src/lib/github-session-token.test.ts#L47), [`github-session-token.test.ts:59`](apps/web-ui/src/lib/github-session-token.test.ts#L59), [`github-session-token.test.ts:70`](apps/web-ui/src/lib/github-session-token.test.ts#L70), [`github-session-token.test.ts:95`](apps/web-ui/src/lib/github-session-token.test.ts#L95), [`auth-options.test.ts:132`](apps/web-ui/src/lib/auth-options.test.ts#L132), [`github-session-token.test.ts:108`](apps/web-ui/src/lib/github-session-token.test.ts#L108), [`github-session-token.test.ts:112`](apps/web-ui/src/lib/github-session-token.test.ts#L112), [`github-session-token.test.ts:116`](apps/web-ui/src/lib/github-session-token.test.ts#L116))
 
 ### FR-8: Connect GitHub
 

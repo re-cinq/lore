@@ -3,6 +3,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   sessionTokenOf,
   freshSessionToken,
+  isSignedIn,
   type SessionToken,
 } from "./github-session-token";
 
@@ -100,5 +101,19 @@ describe("freshSessionToken", () => {
     expect(await freshSessionToken(signedIn, CLIENT, NOW)).toEqual({
       error: "RefreshAccessTokenError",
     });
+  });
+});
+
+describe("isSignedIn", () => {
+  it("returns true for a session carrying a GitHub token", () => {
+    expect(isSignedIn(signedIn)).toBe(true);
+  });
+
+  it("returns false for a session whose refresh GitHub refused, so the middleware sends the person to sign in", () => {
+    expect(isSignedIn({ error: "RefreshAccessTokenError" })).toBe(false);
+  });
+
+  it("returns false without a session", () => {
+    expect(isSignedIn(null)).toBe(false);
   });
 });

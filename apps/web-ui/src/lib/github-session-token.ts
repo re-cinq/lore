@@ -43,6 +43,11 @@ export function sessionTokenOf(account: SignInAccount): SessionToken {
   };
 }
 
+/** True while the session carries a token; a refused refresh counts as signed out, so the person is asked to sign in again. */
+export function isSignedIn(token: SessionToken | null): boolean {
+  return !!token && !token.error;
+}
+
 /** The session's token, renewed through GitHub's refresh grant once it has (nearly) expired. */
 export async function freshSessionToken(
   token: SessionToken,
