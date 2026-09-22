@@ -192,6 +192,7 @@ export function reanchorMarkdown(markdown, mdPath, io) {
           ordinal: ordinals[index],
           occurrence: occurrences[index],
           kindCount: ordinals.filter((ordinal) => ordinal >= 0).length,
+          labelCount: group.filter((each) => each.label === link.label).length,
         }),
         hunks,
       });
@@ -239,11 +240,19 @@ function stripPrefix(label) {
   return label.replace(LABEL_PREFIX, "").trim();
 }
 
-/** The merge-base copy's anchor for this link: the base link carrying the same label — its Nth occurrence when the label repeats, as long as the branch kept every repeat — or, for a `file.test.ts:NN` label the base does not carry, the base link of that kind at the same ordinal. The ordinal is the LAST resort: it counts every link of the kind in the file, so relabelling or removing one link anywhere above hands each later link its neighbour's anchor. Null when the base cannot say. */
-function baseLineFor(link, base, { ordinal, occurrence, kindCount }) {
+/** The merge-base copy's anchor for this link: the base link carrying the same label and the same anchor, so an unchanged link is its own base; else its Nth occurrence when the label repeats, only while the branch holds exactly the base's repeats (a bare `[validated by]` label repeats across every link, and one link added mid-list paired each later one with its neighbour's anchor); a link this branch added is left where its author put it — or, for a `file.test.ts:NN` label the base does not carry, the base link of that kind at the same ordinal. The ordinal is the LAST resort: it counts every link of the kind in the file, so relabelling or removing one link anywhere above hands each later link its neighbour's anchor. Null when the base cannot say. */
+function baseLineFor(
+  link,
+  base,
+  { ordinal, occurrence, kindCount, labelCount },
+) {
   const sameLabel = base.filter((entry) => entry.label === link.label);
 
-  if (sameLabel.length > occurrence) {
+  if (sameLabel.some((entry) => entry.line === link.line)) {
+    return link.line;
+  }
+
+  if (sameLabel.length === labelCount) {
     return sameLabel[occurrence].line;
   }
 

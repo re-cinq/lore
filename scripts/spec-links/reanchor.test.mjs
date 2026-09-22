@@ -248,3 +248,23 @@ test("keeps a basename label as the base copy spells it, so a second run over it
   );
   assert.deepEqual(run(first.content).changes, []);
 });
+
+test("leaves a bare link this branch added alone, and pairs the others by their own base anchors, so one added link hands no later link its neighbour's anchor", () => {
+  const md =
+    "([validated by](libs/x/y.test.ts#L2), [validated by](libs/x/y.test.ts#L8), [validated by](libs/x/y.test.ts#L10))";
+  const hunks = parseHunks("@@ -5,0 +6,4 @@");
+  const base = [
+    { label: "validated by", line: 2 },
+    { label: "validated by", line: 10 },
+  ];
+  const { content } = reanchorMarkdown(
+    md,
+    "specs/a/spec.md",
+    io({ baseLinks: () => base, hunksFor: () => hunks }),
+  );
+
+  assert.equal(
+    content,
+    "([validated by](libs/x/y.test.ts#L2), [validated by](libs/x/y.test.ts#L8), [validated by](libs/x/y.test.ts#L14))",
+  );
+});
