@@ -10,6 +10,9 @@ export function nodeTypeTag(nodeType: string): string {
   return `node:${nodeType}`;
 }
 
+/** Offered by a cluster whose pods can download their input files from it, and required of the one claiming a pod that does: without it the pod starts with no plan.md. */
+export const AGENT_FILES_TAG = "agent-files";
+
 /** The tags a station run is enqueued with: node-type tag ALWAYS required (#1576), then repo defaults. */
 export function resolveRequiredTags(
   nodeType: string,

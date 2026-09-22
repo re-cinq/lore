@@ -110,21 +110,21 @@ A new `pipeline.cluster_agents` table is the registry of execution clusters.
   lore-api (all `/api/cluster-agents/*` endpoints live in
   `apps/lore-api/src/transport/routes/cluster-agents/`), authenticating with a
   pre-shared registration token (`LORE_CLUSTER_AGENT_REGISTRATION_TOKEN`),
-  and receives a durable id and a per-agent bearer token. ([validated by `register.test.ts:44`](apps/lore-api/src/transport/routes/cluster-agents/register.test.ts#L44), [`register.test.ts:14`](apps/lore-api/src/transport/routes/cluster-agents/register.test.ts#L14), [`register.test.ts:31`](apps/lore-api/src/transport/routes/cluster-agents/register.test.ts#L31), [`registration.test.ts:113`](apps/cluster-agent/src/events/claim/registration.test.ts#L113), [`registration.test.ts:146`](apps/cluster-agent/src/events/claim/registration.test.ts#L146), [`registration.test.ts:81`](apps/cluster-agent/src/events/claim/registration.test.ts#L81), [`registration.test.ts:167`](apps/cluster-agent/src/events/claim/registration.test.ts#L167), [`registration.test.ts:234`](apps/cluster-agent/src/events/claim/registration.test.ts#L234))
+  and receives a durable id and a per-agent bearer token. ([validated by `register.test.ts:44`](apps/lore-api/src/transport/routes/cluster-agents/register.test.ts#L44), [`register.test.ts:14`](apps/lore-api/src/transport/routes/cluster-agents/register.test.ts#L14), [`register.test.ts:31`](apps/lore-api/src/transport/routes/cluster-agents/register.test.ts#L31), [`registration.test.ts:113`](apps/cluster-agent/src/events/claim/registration.test.ts#L123), [`registration.test.ts:146`](apps/cluster-agent/src/events/claim/registration.test.ts#L156), [`registration.test.ts:81`](apps/cluster-agent/src/events/claim/registration.test.ts#L91), [`registration.test.ts:167`](apps/cluster-agent/src/events/claim/registration.test.ts#L177), [`registration.test.ts:234`](apps/cluster-agent/src/events/claim/registration.test.ts#L244))
 - The per-agent token is stored SHA-256-hashed in
   `pipeline.cluster_agents.token_hash`, following the existing
   `pipeline.api_tokens` pattern; every subsequent lore-api call from that
   agent authenticates with it. ([validated by `cluster-agents.test.ts:68`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L70), [`cluster-agents.test.ts:78`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L78))
 - A failed registration attempt is retried on a 30-second schedule doubling
   to a 5-minute cap, and never crashes the process — the agent's other
-  duties (the watch, the inbound routes) do not depend on it. ([validated by `registration.test.ts:234`](apps/cluster-agent/src/events/claim/registration.test.ts#L234), [`registration.test.ts:261`](apps/cluster-agent/src/events/claim/registration.test.ts#L261))
+  duties (the watch, the inbound routes) do not depend on it. ([validated by `registration.test.ts:234`](apps/cluster-agent/src/events/claim/registration.test.ts#L244), [`registration.test.ts:261`](apps/cluster-agent/src/events/claim/registration.test.ts#L271))
 - "Failed" means every way an attempt can fail, not only a refused HTTP status:
   a 200 carrying an ingress error page, a body without `{id, token}`, and an
   identity Secret the Role can neither read nor write are all answered `null`
   and retried. A throw here has no catch above it — `pollUntil` ends, the boot
   registrant dies, and the pod goes on answering `/healthz` 200 while claiming
   nothing; through the shared re-registration the same throw ends the claim
-  loop, the heartbeat loop or the proxy's drain instead. ([validated by `registration.test.ts:303`](apps/cluster-agent/src/events/claim/registration.test.ts#L303), [`registration.test.ts:317`](apps/cluster-agent/src/events/claim/registration.test.ts#L317), [`registration.test.ts:325`](apps/cluster-agent/src/events/claim/registration.test.ts#L325), [`registration.test.ts:336`](apps/cluster-agent/src/events/claim/registration.test.ts#L336), [`registration.test.ts:353`](apps/cluster-agent/src/events/claim/registration.test.ts#L353))
+  loop, the heartbeat loop or the proxy's drain instead. ([validated by `registration.test.ts:303`](apps/cluster-agent/src/events/claim/registration.test.ts#L313), [`registration.test.ts:317`](apps/cluster-agent/src/events/claim/registration.test.ts#L327), [`registration.test.ts:325`](apps/cluster-agent/src/events/claim/registration.test.ts#L335), [`registration.test.ts:336`](apps/cluster-agent/src/events/claim/registration.test.ts#L346), [`registration.test.ts:353`](apps/cluster-agent/src/events/claim/registration.test.ts#L363))
 - Where the identity persists is decided at boot, beside the registration
   triple: the identity Secret and its namespace are both required, and a
   missing one refuses to start, naming the variable. Resolved later — inside
@@ -142,7 +142,7 @@ A new `pipeline.cluster_agents` table is the registry of execution clusters.
   creation, so a rollout silently 401'd every in-flight run's telemetry for the
   rest of its life. The rotation bought no recovery either: a token that does
   not match is rejected `409` either way, so the only case that rotated was the
-  one that needed no new token at all.)* ([validated by `register.test.ts:67`](apps/lore-api/src/transport/routes/cluster-agents/register.test.ts#L67), [`register.test.ts:93`](apps/lore-api/src/transport/routes/cluster-agents/register.test.ts#L93), [`cluster-agents.test.ts:44`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L44), [`cluster-agents.test.ts:48`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L48), [`cluster-agents.test.ts:58`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L58), [`cluster-agents.test.ts:62`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L62), [`registration.test.ts:159`](apps/cluster-agent/src/events/claim/registration.test.ts#L159))
+  one that needed no new token at all.)* ([validated by `register.test.ts:67`](apps/lore-api/src/transport/routes/cluster-agents/register.test.ts#L67), [`register.test.ts:93`](apps/lore-api/src/transport/routes/cluster-agents/register.test.ts#L93), [`cluster-agents.test.ts:44`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L44), [`cluster-agents.test.ts:48`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L48), [`cluster-agents.test.ts:58`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L58), [`cluster-agents.test.ts:62`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L62), [`registration.test.ts:159`](apps/cluster-agent/src/events/claim/registration.test.ts#L169))
 - Two concurrent first registrations of the same name resolve to one
   identity: the insert is conflict-safe, and the loser receives the same
   `409` as any other taken name — never a 500. ([validated by `register.test.ts:122`](apps/lore-api/src/transport/routes/cluster-agents/register.test.ts#L122), [`cluster-agents.test.ts:120`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L120))
@@ -158,7 +158,7 @@ A new `pipeline.cluster_agents` table is the registry of execution clusters.
   read-only, so a file write could never persist it) — so pod restarts do not
   re-register; re-registration presents the persisted token. There is no file
   store: the agent only ever runs against a cluster, so a second backend was a
-  path nothing deployed exercised. ([validated by `kube-identity-store.test.ts:37`](apps/cluster-agent/src/outbound/kube-identity-store.test.ts#L37), [`kube-identity-store.test.ts:41`](apps/cluster-agent/src/outbound/kube-identity-store.test.ts#L41), [`kube-identity-store.test.ts:51`](apps/cluster-agent/src/outbound/kube-identity-store.test.ts#L51), [`kube-identity-store.test.ts:64`](apps/cluster-agent/src/outbound/kube-identity-store.test.ts#L64), [`registration.test.ts:133`](apps/cluster-agent/src/events/claim/registration.test.ts#L133), [validated by starts empty and round-trips a saved identity](apps/cluster-agent/src/outbound/identity-store.test.ts#L8))
+  path nothing deployed exercised. ([validated by `kube-identity-store.test.ts:37`](apps/cluster-agent/src/outbound/kube-identity-store.test.ts#L37), [`kube-identity-store.test.ts:41`](apps/cluster-agent/src/outbound/kube-identity-store.test.ts#L41), [`kube-identity-store.test.ts:51`](apps/cluster-agent/src/outbound/kube-identity-store.test.ts#L51), [`kube-identity-store.test.ts:64`](apps/cluster-agent/src/outbound/kube-identity-store.test.ts#L64), [`registration.test.ts:133`](apps/cluster-agent/src/events/claim/registration.test.ts#L143), [validated by starts empty and round-trips a saved identity](apps/cluster-agent/src/outbound/identity-store.test.ts#L8))
 - The registry ships as the next migration in sequence
   (`NNNN_cluster_agent_registry.sql`) under
   `infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/`:
@@ -174,7 +174,7 @@ Capabilities are a flat tag set, matched by inclusion — no scheduler, no
 scoring.
 
 - A cluster-agent declares `tags: text[]` at registration (for example
-  `["node:agent", "node:validate", "gpu"]`). ([validated by `register.test.ts:44`](apps/lore-api/src/transport/routes/cluster-agents/register.test.ts#L44), [`registration.test.ts:92`](apps/cluster-agent/src/events/claim/registration.test.ts#L92), [`registration.test.ts:100`](apps/cluster-agent/src/events/claim/registration.test.ts#L100), [`registration.test.ts:72`](apps/cluster-agent/src/events/claim/registration.test.ts#L72))
+  `["node:agent", "node:validate", "gpu"]`). ([validated by `register.test.ts:44`](apps/lore-api/src/transport/routes/cluster-agents/register.test.ts#L44), [`registration.test.ts:92`](apps/cluster-agent/src/events/claim/registration.test.ts#L102), [`registration.test.ts:100`](apps/cluster-agent/src/events/claim/registration.test.ts#L110), [`registration.test.ts:72`](apps/cluster-agent/src/events/claim/registration.test.ts#L72))
 - Every station run carries `required_tags: text[]`; a cluster-agent may
   claim a run only when `required_tags <@ tags`. The node type's own tag
   (`node:<type>`) is ALWAYS required — a run is claimable only by an agent
@@ -191,6 +191,12 @@ scoring.
   `definitionHash`. ([validated by `required-tags.test.ts:49`](libs/shared/src/outbound/project/cluster-agents/required-tags.test.ts#L49), [`required-tags.test.ts:63`](libs/shared/src/outbound/project/cluster-agents/required-tags.test.ts#L63), [validated by `loader.test.ts:1001`](libs/assembly-lines/src/loader.test.ts#L1024), [`loader.test.ts:1019`](libs/assembly-lines/src/loader.test.ts#L1042), [`loader.test.ts:1027`](libs/assembly-lines/src/loader.test.ts#L1050), [`snapshot-graph.test.ts:88`](libs/assembly-lines/src/snapshot-graph.test.ts#L88), [`advance-line.test.ts:1063`](apps/floor/src/work/assembly-run/advance-line.test.ts#L1065), [`required-tags.test.ts:33`](libs/shared/src/outbound/project/cluster-agents/required-tags.test.ts#L33), [`required-tags.test.ts:41`](libs/shared/src/outbound/project/cluster-agents/required-tags.test.ts#L41), [`required-tags.test.ts:49`](libs/shared/src/outbound/project/cluster-agents/required-tags.test.ts#L49))
 - Only a run whose stored `required_tags` are `{}` (rows enqueued before the
   type-tag invariant) is claimable by every registered cluster-agent. ([validated by `required-tags.test.ts:19`](libs/shared/src/outbound/project/cluster-agents/required-tags.test.ts#L19))
+- A pod that downloads an input file (a planning pod's `plan.md`) fetches it
+  from its own cluster's agent-files endpoint, which only a cluster-agent
+  configured with `LORE_AGENT_FILES_URL` serves. Such a run also requires
+  `agent-files`, and a cluster-agent offers that tag exactly when the URL is
+  set — derived at registration, never configured — so a satellite without the
+  endpoint never claims a pass that would start with no file. ([validated by requires agent-files of the cluster that claims a pod downloading plan.md, so a cluster that cannot serve it never takes the pass](apps/floor/src/work/assembly-run/advance-line.test.ts#L1092), [offers agent-files beside node:agent when LORE_AGENT_FILES_URL is set, so it claims the passes whose pods download a file](apps/cluster-agent/src/events/claim/registration.test.ts#L81))
 
 ## FR3 — Claim-based dispatch
 
@@ -206,7 +212,7 @@ one dispatch mechanism, not a special case plus a remote case.
   never become `queued` and are therefore never claimable. Arming is
   queued-only: a row another cluster has already claimed was handed its spec
   with the claim, so re-arming it would leave the row describing something
-  other than the pod being built from it. ([validated by arming a claimed row is a no-op, so a re-dispatch cannot rewrite what a pod is being built from](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1143), [`advance-line.test.ts:1005`](apps/floor/src/work/assembly-run/advance-line.test.ts#L1007), [`advance-line.test.ts:1090`](apps/floor/src/work/assembly-run/advance-line.test.ts#L1092), [`advance-line.test.ts:1103`](apps/floor/src/work/assembly-run/advance-line.test.ts#L1105), [`advance-line.test.ts:1130`](apps/floor/src/work/assembly-run/advance-line.test.ts#L1132))
+  other than the pod being built from it. ([validated by arming a claimed row is a no-op, so a re-dispatch cannot rewrite what a pod is being built from](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1143), [`advance-line.test.ts:1005`](apps/floor/src/work/assembly-run/advance-line.test.ts#L1007), [`advance-line.test.ts:1090`](apps/floor/src/work/assembly-run/advance-line.test.ts#L1112), [`advance-line.test.ts:1103`](apps/floor/src/work/assembly-run/advance-line.test.ts#L1125), [`advance-line.test.ts:1130`](apps/floor/src/work/assembly-run/advance-line.test.ts#L1152))
 - A cluster-agent polls `POST /api/cluster-agents/{id}/claim` on a
   configurable interval (default 15 s); the claim is a single
   `SELECT … FOR UPDATE SKIP LOCKED` CTE that sets `status = 'claimed'`,
@@ -564,7 +570,7 @@ that.
   written after EVERY successful registration, not only the first: a rotation
   mints a new token, and the pods' copy must never outlive it. A write
   failure is logged and swallowed — telemetry is not worth failing a
-  registration over. ([validated by `agent-events-secret.test.ts:25`](apps/cluster-agent/src/events/claim/agent-events-secret.test.ts#L26), [`agent-events-secret.test.ts:34`](apps/cluster-agent/src/events/claim/agent-events-secret.test.ts#L34), [`agent-events-secret.test.ts:48`](apps/cluster-agent/src/events/claim/agent-events-secret.test.ts#L48), [`registration.test.ts:179`](apps/cluster-agent/src/events/claim/registration.test.ts#L179), [`registration.test.ts:197`](apps/cluster-agent/src/events/claim/registration.test.ts#L197), [`registration.test.ts:216`](apps/cluster-agent/src/events/claim/registration.test.ts#L216))
+  registration over. ([validated by `agent-events-secret.test.ts:25`](apps/cluster-agent/src/events/claim/agent-events-secret.test.ts#L26), [`agent-events-secret.test.ts:34`](apps/cluster-agent/src/events/claim/agent-events-secret.test.ts#L34), [`agent-events-secret.test.ts:48`](apps/cluster-agent/src/events/claim/agent-events-secret.test.ts#L48), [`registration.test.ts:179`](apps/cluster-agent/src/events/claim/registration.test.ts#L189), [`registration.test.ts:197`](apps/cluster-agent/src/events/claim/registration.test.ts#L207), [`registration.test.ts:216`](apps/cluster-agent/src/events/claim/registration.test.ts#L226))
 - The SATELLITE publishes it; a cluster inside the platform does not. There ESO
   templates the same key from `LORE_AGENT_INTERNAL_TOKEN` and rewrites it every
   hour, so an agent writing it too makes two writers of one key, alternating,

@@ -1089,6 +1089,26 @@ edges:
     ).toMatchObject({ nodeId: "review" });
   });
 
+  it("requires agent-files of the cluster that claims a pod downloading plan.md, so a cluster that cannot serve it never takes the pass", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const id = await runningLine(port);
+    const { deps } = makeDeps(port);
+
+    deps.resolveRecipe = async () => ({
+      prompt: "Edit plan.md.",
+      inputs: [{ path: "plan.md", source: "plan" }],
+    });
+    await advanceLine(id, deps);
+
+    expect({
+      tags: port.nodes[0].requiredTags,
+      satellite: await port.claimNextStationRun({
+        clusterAgentId: "satellite",
+        tags: ["node:agent"],
+      }),
+    }).toEqual({ tags: ["node:agent", "agent-files"], satellite: null });
+  });
+
   it("inherits the repo's station_default_tags [linux] when the node names none", async () => {
     const port = new InMemoryAssemblyRuns();
     const id = await runningLine(port);

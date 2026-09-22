@@ -66,8 +66,9 @@ catalog:
   eventsUrl: ""
   # The central Floor's agent-files endpoint (download inputs such as a
   # planning pod's plan.md, upload watched files), reached the same way as
-  # eventsUrl. Empty = no input files and watched files stay inline, which
-  # caps a planning pass's plan at the inline event size.
+  # eventsUrl. Set, the cluster also offers the `agent-files` tag; empty, it
+  # never claims a pass whose pod downloads a file (every planning pass), so
+  # those stay central.
   filesUrl: ""
   # The central lore-mcp gateway's public /mcp and /skills endpoints. Without
   # skillsUrl every Claude-agent recipe dies at startup ("Settings file not
