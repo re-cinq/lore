@@ -69,16 +69,28 @@ describe("applyPlanFile", () => {
           actor: "planning-agent",
           ops: [
             {
-              op: "set-section-text",
+              op: "set-section-prose",
               slot: "intent",
-              paragraphs: [
-                "Checkout p95 is 450 ms; carts are abandoned at payment.",
+              blocks: [
+                {
+                  type: "paragraph",
+                  content: [
+                    {
+                      text: "Checkout p95 is 450 ms; carts are abandoned at payment.",
+                    },
+                  ],
+                },
               ],
             },
             {
-              op: "set-section-text",
+              op: "set-section-prose",
               slot: "scope",
-              paragraphs: ["Web and mobile checkout."],
+              blocks: [
+                {
+                  type: "paragraph",
+                  content: [{ text: "Web and mobile checkout." }],
+                },
+              ],
             },
           ],
         },
@@ -112,7 +124,7 @@ describe("applyPlanFile", () => {
             slot: "intent",
             baseHash: "3f9a",
             uses: { questions: ["q1"], comments: [] },
-            ops: [{ op: "set-section-text", slot: "intent" }],
+            ops: [{ op: "set-section-prose", slot: "intent" }],
           },
         },
       ],
