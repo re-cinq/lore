@@ -120,6 +120,7 @@ function draftingRoute(getPool: () => Pool | null): ServerRoute {
       const body = request.payload as z.infer<typeof DraftingBody>;
       const taskId = await startDrafting(
         {
+          ...resumeDepsFor(plan.repo, pool),
           createTask: async (task) => String((await createTask(task)).task_id),
         },
         { plan, projection: await projectionOf(() => pool, plan.id), ...body },
