@@ -295,6 +295,45 @@ describe("/api/plans on lore-api", () => {
     });
   });
 
+  it("deletes Ana's plan with its versions, so it no longer reads back", async () => {
+    const planId = await createPlan();
+    const deleted = await call(
+      "DELETE",
+      `/api/repos/${REPO}/plans/${planId}`,
+      TOKEN,
+    );
+    const read = await call("GET", `/api/plans/${planId}`, READ_TOKEN);
+    const versions = await pool.query(
+      "SELECT 1 FROM lore.plan_versions WHERE plan_id = $1",
+      [planId],
+    );
+
+    expect({
+      deleted,
+      read: read.status,
+      versions: versions.rowCount,
+    }).toEqual({
+      deleted: { status: 200, body: { id: planId } },
+      read: 404,
+      versions: 0,
+    });
+  });
+
+  it("answers 404 to deleting Ana's plan under another repo, and keeps it", async () => {
+    const planId = await createPlan();
+    const deleted = await call(
+      "DELETE",
+      `/api/repos/acme/elsewhere/plans/${planId}`,
+      TOKEN,
+    );
+    const read = await call("GET", `/api/plans/${planId}`, READ_TOKEN);
+
+    expect({ deleted: deleted.status, read: read.status }).toEqual({
+      deleted: 404,
+      read: 200,
+    });
+  });
+
   const planMd = async (planId: string) =>
     (
       await server.inject({

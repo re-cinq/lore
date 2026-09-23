@@ -5,6 +5,7 @@ import { docName } from "@re-cinq/planning-document";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import {
+  deletePlan,
   listPlanMetas,
   pgPlanStore,
 } from "../../../outbound/plans/plan-store-pg.js";
@@ -37,10 +38,11 @@ const PlanListSchema = z.object({ plans: z.array(PlanSummarySchema) });
 const repoOf = (request: Request): string =>
   `${request.params.owner}/${request.params.repo}`;
 
-/** Lore's own plan routes beside the library's /api/plans: a repo's plan list, the collab token the web tier mints for a signed-in person, and the planning line's drafting and Refine. */
+/** Lore's own plan routes beside the library's /api/plans: a repo's plan list, deleting a plan, the collab token the web tier mints for a signed-in person, and the planning line's drafting and Refine. */
 export function plansRoutes(getPool: () => Pool | null): ServerRoute[] {
   return [
     listPlansRoute(getPool),
+    deletePlanRoute(getPool),
     collabTokenRoute(getPool),
     draftingRoute(getPool),
     refineRoute(getPool),
@@ -59,6 +61,28 @@ function listPlansRoute(getPool: () => Pool | null): ServerRoute {
     ),
   };
 }
+
+function deletePlanRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "DELETE",
+    path: `${BASE}/{id}`,
+    options: zodResponse(bearerScope("write"), PlanDeletedSchema, {
+      name: "PlanDeleted",
+      description:
+        "The plan is gone for good, with its document, versions and collab tokens",
+      errors: [404],
+    }),
+    handler: withPool(getPool, async (pool, request, h) => {
+      const plan = await repoPlan(() => pool, request);
+
+      await deletePlan(() => pool, plan.id);
+
+      return h.response({ id: plan.id });
+    }),
+  };
+}
+
+const PlanDeletedSchema = z.object({ id: z.string() });
 
 // The web tier has already checked the person's session and repo access; lore-api only binds the token to this plan of this repo.
 function collabTokenRoute(getPool: () => Pool | null): ServerRoute {
