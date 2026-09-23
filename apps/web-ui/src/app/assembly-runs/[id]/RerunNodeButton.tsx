@@ -2,6 +2,7 @@
 
 // "Retry from this node" (specs/fork-rerun-from-node): posts via fetch (a native form POST navigated the whole page into a bare JSON screen) and navigates to the new run on success; `*Button.tsx` name keeps this exempt from no-io-in-view.
 import { useState } from "react";
+import { settleStart } from "./settle-start";
 
 interface RerunNodeButtonProps {
   runId: string;
@@ -19,7 +20,7 @@ export function RerunNodeButton(props: RerunNodeButtonProps) {
     event.stopPropagation();
     setPending(true);
     setError(null);
-    settleRerun(await startRerun(props), setError, setPending);
+    settleStart(await startRerun(props), setError, setPending);
   }
 
   return (
@@ -29,18 +30,6 @@ export function RerunNodeButton(props: RerunNodeButtonProps) {
       onClick={(event) => void rerun(event)}
     />
   );
-}
-
-/** Records a failed retry. Only a FAILURE settles here: success navigates away, so clearing `pending` on that path would flash the idle label over a page that is already leaving. */
-function settleRerun(
-  failure: string | null,
-  setError: (error: string | null) => void,
-  setPending: (pending: boolean) => void,
-): void {
-  if (failure !== null) {
-    setError(failure);
-    setPending(false);
-  }
 }
 
 /** Starts the rerun and navigates to the new run, or returns the message to show. Nothing is returned on success because the page is already leaving. */

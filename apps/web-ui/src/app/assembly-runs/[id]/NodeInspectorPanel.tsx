@@ -12,6 +12,7 @@ import NodeLogPanel from "./NodeLogPanel";
 import NodeInputCard from "./NodeInputCard";
 import RunNodeDetail from "./RunNodeDetail";
 import { RerunNodeButton } from "./RerunNodeButton";
+import { RunStationButton, type RunState } from "./RunStationButton";
 import styles from "./RunVisualizationPanel.module.css";
 
 /** Everything shown about the currently selected node — or the hint to pick one when nothing is selected. */
@@ -27,6 +28,8 @@ interface SelectedNodeSectionProps {
   selectedAttempts: Parameters<typeof RunNodeDetail>[0]["attempts"];
   nodeInputs: Parameters<typeof NodeInputCard>[0]["inputs"];
   retrySource: { nodeId: string; iteration: number } | null;
+  /** Whether the run is still open; a station run then retires it first. */
+  runState: RunState;
   agentEditHrefs?: Record<string, string>;
   nodeModels?: Record<string, NodeModel>;
   taskEvents?: readonly TaskRuntimeEvent[];
@@ -78,6 +81,7 @@ interface NodeInspectorProps {
   state: Parameters<typeof RunNodeDetail>[0]["state"];
   row: Parameters<typeof RunNodeDetail>[0]["row"];
   rows: readonly AssemblyRunNode[];
+  runState: RunState;
   attempts: Parameters<typeof RunNodeDetail>[0]["attempts"];
   inputs: Parameters<typeof NodeInputCard>[0]["inputs"];
   retrySource: { nodeId: string; iteration: number } | null;
@@ -99,7 +103,7 @@ function NodeInspector(props: NodeInspectorProps) {
         repo={props.repo}
         attempts={props.attempts}
         model={props.model}
-        actions={nodeActions(runId, retrySource, agentEditHref)}
+        actions={nodeActions(props)}
       />
       <NodeInputCard inputs={props.inputs} />
       <AttemptLogPanels runId={runId} rows={rows} />
@@ -124,6 +128,7 @@ function inspectorPropsFor(
     attempts: props.selectedAttempts,
     inputs: props.nodeInputs,
     retrySource: props.retrySource,
+    runState: props.runState,
     agentEditHref: props.agentEditHrefs?.[nodeId],
     model: props.nodeModels?.[nodeId] ?? null,
   };
@@ -131,20 +136,19 @@ function inspectorPropsFor(
 
 type RetrySource = { nodeId: string; iteration: number };
 
-/** What a viewer can DO to this node. Both controls sit inside a <summary>, so each stops propagation — without it the card toggles shut behind the click. Returns undefined when there is nothing to offer, so the detail card renders no empty action row. */
-function nodeActions(
-  runId: string,
-  retrySource: RetrySource | null,
-  agentEditHref: string | undefined,
-): React.ReactNode {
-  if (retrySource === null && agentEditHref === undefined) {
-    return undefined;
-  }
-
+/** What a viewer can DO to this node: run it, retry from it when an exact fork exists, edit its agent. Every control sits inside a <summary>, so each stops propagation — without it the card toggles shut behind the click. */
+function nodeActions({
+  runId,
+  nodeId,
+  runState,
+  retrySource,
+  agentEditHref,
+}: NodeInspectorProps): React.ReactNode {
   return (
     <>
       <EditAgentSlot href={agentEditHref} />
       <RerunSlot runId={runId} retrySource={retrySource} />
+      <RunStationButton runId={runId} nodeId={nodeId} runState={runState} />
     </>
   );
 }

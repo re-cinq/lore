@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
-import { userCanAccessRepo } from "@/lib/user-repo-access";
+import { readAuthorizedSourceRun, unconfigured } from "@/lib/run-proxy";
 import { resolveSessionAccessToken } from "@/lib/session-access-token";
 import { resolveLoreApiConfig } from "@/lib/lore-api-config";
 import { serverError } from "@/lib/api-error";
@@ -105,37 +105,6 @@ function iterationError(iteration: number | undefined): NextResponse | null {
   );
 }
 
-/** The deployment is missing its lore-api credentials. A 500 rather than a 502: nothing upstream was asked, and the fix is on this side. */
-function unconfigured() {
-  return NextResponse.json(
-    { error: "LORE_API_URL/LORE_INGEST_TOKEN not configured" },
-    { status: 500 },
-  );
-}
-
-/** Resolves the source run, then authorizes against ITS repo (not form input). */
-async function readAuthorizedSourceRun(
-  apiUrl: string,
-  headers: Record<string, string>,
-  accessToken: string,
-  runId: string,
-): Promise<{ repo: string; blueprintName: string } | NextResponse> {
-  const line = await readSourceRun(apiUrl, headers, runId);
-
-  if (line instanceof Response) {
-    return line;
-  }
-
-  if (!(await userCanAccessRepo(accessToken, line.repo))) {
-    return NextResponse.json(
-      { error: "Access denied — you do not have access to this repo" },
-      { status: 403 },
-    );
-  }
-
-  return line;
-}
-
 /** Start the fork. A refusal comes back as 4xx with a reason in `error`, passed through verbatim; only a reasonless answer degrades to 502. */
 async function startFork(
   apiUrl: string,
@@ -157,30 +126,6 @@ async function startFork(
 
   // JSON, not a redirect — the button's fetch navigates itself; a 303 would make fetch swallow the run page as an opaque response.
   return NextResponse.json({ id });
-}
-
-/** The run being forked, so its repo can be access-checked and its definition reused. A 404 upstream is a 404 here; anything else is this route failing to reach lore-api. */
-async function readSourceRun(
-  apiUrl: string,
-  headers: Record<string, string>,
-  runId: string,
-): Promise<{ repo: string; blueprintName: string } | NextResponse> {
-  const runRes = await fetch(
-    `${apiUrl}/api/assembly-runs/${encodeURIComponent(runId)}`,
-    { signal: AbortSignal.timeout(30_000), headers },
-  );
-
-  if (!runRes.ok) {
-    return NextResponse.json(
-      { error: `assembly run not found (${runRes.status})` },
-      { status: runRes.status === 404 ? 404 : 502 },
-    );
-  }
-  const { line } = (await runRes.json()) as {
-    line: { repo: string; blueprintName: string };
-  };
-
-  return line;
 }
 
 /** What the fork asks lore-api for. `iteration` is omitted rather than sent as null when the reader picked a node instead of one of its attempts — an absent key means "the latest", which a null would not. */

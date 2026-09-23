@@ -26,6 +26,7 @@ import {
 } from "./run-visualization-hooks";
 import { RunFilesSection } from "./RunFilesSection";
 import { NodeInspectorPanel } from "./NodeInspectorPanel";
+import { runStateOf } from "./RunStationButton";
 import { RunGraphSection } from "./RunGraphSection";
 import { RunWorkbenchLayout } from "./RunWorkbenchLayout";
 
@@ -117,6 +118,7 @@ function RunGraph({ view, definition }: RunGraphProps) {
 type RunDetailPage = Pick<
   RunVisualizationPanelProps,
   | "runId"
+  | "runStatus"
   | "repo"
   | "reason"
   | "definition"
@@ -138,6 +140,7 @@ function inspectorProps(view: RunView, page: RunDetailPage) {
     selectedAttempts: view.node.selectedAttempts,
     nodeInputs: view.node.nodeInputs,
     retrySource: view.graph.retrySource,
+    runState: runStateOf(page.runStatus),
     agentEditHrefs: page.agentEditHrefs,
     nodeModels: page.nodeModels,
     taskEvents: page.taskEvents,
