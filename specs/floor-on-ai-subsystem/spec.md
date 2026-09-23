@@ -355,7 +355,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     would reach the model verbatim. It names them as the Lore MCP server's tools,
     because a CLI that reads its MCP servers from settings (gemini-cli) lists every
     tool under the server's prefix and would not find a bare `lore_assemble_context`
-    ([validated by `recipe-prompt.test.ts:5`](libs/shared/src/domain/agents/recipe-prompt.test.ts#L5), [`recipe-prompt.test.ts:11`](libs/shared/src/domain/agents/recipe-prompt.test.ts#L11), [`recipe-prompt.test.ts:15`](libs/shared/src/domain/agents/recipe-prompt.test.ts#L15), [validated by names the tools as the Lore MCP server's, so a CLI that prefixes them with the server still finds them](libs/shared/src/domain/agents/recipe-prompt.test.ts#L19); implemented by [`recipe-prompt.ts:16`](libs/shared/src/domain/agents/recipe-prompt.ts#L16))
+    ([validated by `recipe-prompt.test.ts:5`](libs/shared/src/domain/agents/recipe-prompt.test.ts#L5), [`recipe-prompt.test.ts:11`](libs/shared/src/domain/agents/recipe-prompt.test.ts#L11), [`recipe-prompt.test.ts:15`](libs/shared/src/domain/agents/recipe-prompt.test.ts#L15), [`recipe-prompt.test.ts:19`](libs/shared/src/domain/agents/recipe-prompt.test.ts#L19); implemented by [`recipe-prompt.ts:16`](libs/shared/src/domain/agents/recipe-prompt.ts#L16))
 
 33. *(added 2026-08-28, #1629)* The `{context}` placeholder is guarded on the
     cluster's MCP URL, the same value as the `mcp_servers` block it points at, so
