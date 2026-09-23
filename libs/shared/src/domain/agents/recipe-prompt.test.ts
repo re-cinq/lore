@@ -15,6 +15,10 @@ describe("CONTEXT_BOOTSTRAP", () => {
   it("carries no {placeholder} the subsystem would ship to the model verbatim", () => {
     expect(CONTEXT_BOOTSTRAP).not.toMatch(/\{[A-Za-z0-9_.-]+\}/);
   });
+
+  it("names the tools as the Lore MCP server's, so a CLI that prefixes them with the server still finds them", () => {
+    expect(CONTEXT_BOOTSTRAP).toContain("Lore MCP server");
+  });
 });
 
 describe("renderPodPrompt", () => {
