@@ -122,8 +122,16 @@ function planTransport(
   token: () => Promise<string>,
 ): ProviderTransport {
   const plan = planProvider(client, documentName, token);
+  const transport = transportFor(plan.provider, meta);
 
-  return { ...transportFor(plan.provider, meta), destroy: plan.destroy };
+  // The editor's own teardown first (its subscriptions on the provider), then the provider and its channel; Hocuspocus's destroy tolerates the second call.
+  return {
+    ...transport,
+    destroy: () => {
+      transport.destroy();
+      plan.destroy();
+    },
+  };
 }
 
 // The editor withdraws a Refine whose promise rejects, so a refused ask must throw.
