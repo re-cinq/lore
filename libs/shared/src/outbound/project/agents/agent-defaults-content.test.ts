@@ -236,6 +236,20 @@ describe("test_policy", () => {
   });
 });
 
+describe("the review recipes' findings block", () => {
+  it("shows a whole finding with path, line, label, decoration and subject in every recipe that asks for REVIEW_FINDINGS, so no model guesses the shape (#2143's recheck lost every finding)", () => {
+    const shapes = ["code-review", "code-review-recheck"].map((name) => {
+      const prompt = promptOf(name);
+
+      return ['"path"', '"line"', '"label"', '"decoration"', '"subject"'].every(
+        (field) => prompt.includes(field),
+      );
+    });
+
+    expect(shapes).toEqual([true, true]);
+  });
+});
+
 describe("the feature-planning recipe", () => {
   it("tells the planning agent to gather from lore_assemble_context and the lore_query_graph knowledge graph before it writes", () => {
     const prompt = promptOf("feature-planning");

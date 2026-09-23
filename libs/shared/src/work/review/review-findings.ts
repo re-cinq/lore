@@ -70,24 +70,39 @@ function normalizeAliases(value: unknown): unknown {
 }
 
 function normalizeFinding(finding: Record<string, unknown>): unknown {
-  const str = (v: unknown): string | undefined =>
-    typeof v === "string" && v.length > 0 ? v : undefined;
-  const label = findingLabel(finding);
-  const joined = [str(finding.summary), str(finding.failure_scenario)]
-    .filter((part): part is string => part !== undefined)
-    .join("\n\n");
-  const discussion = str(finding.discussion) ?? str(joined);
+  const discussion = findingDiscussion(finding);
 
   return {
     ...finding,
-    path: str(finding.path) ?? str(finding.file),
-    subject:
-      str(finding.subject) ??
-      str(finding.short_summary) ??
-      str(finding.summary),
-    label,
+    path: text(finding.path) ?? text(finding.file),
+    subject: findingSubject(finding),
+    label: findingLabel(finding),
     ...(discussion === undefined ? {} : { discussion }),
   };
+}
+
+function text(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+// A model that writes one `message` (Gemini on #2143's recheck) gives its opening sentence as the subject and the whole text as the discussion.
+function findingSubject(finding: Record<string, unknown>): string | undefined {
+  return (
+    text(finding.subject) ??
+    text(finding.short_summary) ??
+    text(finding.summary) ??
+    text(finding.message)?.split(/(?<=[.!?])\s|\n/)[0]
+  );
+}
+
+function findingDiscussion(
+  finding: Record<string, unknown>,
+): string | undefined {
+  const joined = [text(finding.summary), text(finding.failure_scenario)]
+    .filter((part): part is string => part !== undefined)
+    .join("\n\n");
+
+  return text(finding.discussion) ?? text(joined) ?? text(finding.message);
 }
 
 // A present label is left as-written even if invalid (rejecting a typo is deliberate); only a missing label is defaulted, from `category` when valid, else `issue`.
