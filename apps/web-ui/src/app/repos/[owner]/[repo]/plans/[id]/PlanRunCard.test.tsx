@@ -227,53 +227,72 @@ describe("PlanRunCard on an approved plan", () => {
     });
   });
 
-  it("quotes the spec analysis's question without its verdict word, and offers Reopen plan beside it", () => {
+  const asked = {
+    ...RUN,
+    specPlanSummary:
+      "CHANGES REQUESTED. Should spec-writing proceed on the SQL-cron scope?",
+  };
+
+  it("explains that spec writing paused on a question, quotes it without its verdict word, and says to Reopen, answer, then Approve", () => {
     render(
       <PlanRunCard
-        run={{
-          ...RUN,
-          specPlanSummary:
-            "CHANGES REQUESTED. Should spec-writing proceed on the SQL-cron scope?",
-        }}
+        run={asked}
         state="question"
         draftAgain={async () => ({})}
         reopen={async () => ({})}
       />,
     );
+    const panel = screen.getByRole("region", {
+      name: "The spec writer has a question for you",
+    });
 
     expect({
-      banner: screen.getByText(/has a question for you/) !== null,
-      quote: screen.getByRole("blockquote").textContent,
-      reopen: screen.getByRole("button", { name: "Reopen plan" }) !== null,
+      why: within(panel).getByText(/You approved this plan/).textContent,
+      quote: within(panel).getByRole("blockquote").textContent,
+      steps: within(panel)
+        .getAllByRole("listitem")
+        .map((step) => step.textContent),
+      reopen: within(panel).getByRole("button", { name: "Reopen plan" }) !== null,
     }).toEqual({
-      banner: true,
+      why: "You approved this plan, so an agent started turning it into spec files. Before writing them it checked the plan and found a decision it cannot make on its own, so it stopped and waits for your answer.",
       quote: "Should spec-writing proceed on the SQL-cron scope?",
+      steps: [
+        "Click Reopen plan. This unlocks the approved plan so you can edit it again.",
+        "Write your answer into the plan, in the section the question is about.",
+        "Click Approve plan. The agent reads your answer and goes on writing the specs.",
+      ],
       reopen: true,
     });
   });
 
-  it("quotes the spec analysis's question in the plan it reopened, asking for an answer and approval instead of a Reopen", () => {
+  it("tells the people of a plan its line already reopened to answer in the plan and Approve, with no Reopen", () => {
     render(
       <PlanRunCard
-        run={{
-          ...RUN,
-          specPlanSummary:
-            "CHANGES REQUESTED. Should spec-writing proceed on the SQL-cron scope?",
-        }}
+        run={asked}
         state="answering"
         draftAgain={async () => ({})}
         reopen={async () => ({})}
       />,
     );
+    const panel = screen.getByRole("region", {
+      name: "The spec writer has a question for you",
+    });
 
     expect({
-      banner: screen.getByText(/has a question for you/).textContent,
-      quote: screen.getByRole("blockquote").textContent,
+      summary: screen.getByText(/Paused/).textContent,
+      quote: within(panel).getByRole("blockquote").textContent,
+      steps: within(panel)
+        .getAllByRole("listitem")
+        .map((step) => step.textContent),
       buttons: screen.queryAllByRole("button"),
     }).toEqual({
-      banner:
-        "The spec work has a question for you: answer it in the plan, then approve it again.",
+      summary: "Paused: the spec writing waits for your answer.",
       quote: "Should spec-writing proceed on the SQL-cron scope?",
+      steps: [
+        "The plan is already open again, so you can edit it.",
+        "Write your answer into the plan, in the section the question is about.",
+        "Click Approve plan. The agent reads your answer and goes on writing the specs.",
+      ],
       buttons: [],
     });
   });
