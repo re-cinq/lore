@@ -274,9 +274,13 @@ h2 {
   color: var(--text-muted);
 }
 
+/* A surface background always brings its own foreground: code inherits text color
+   otherwise, and inside a container that sets a light-scheme color (the plan
+   editor) it rendered dark text on a dark surface. */
 code {
   font-family: var(--font-mono);
   background: var(--bg-surface);
+  color: var(--text);
   padding: var(--space-1) var(--space-3);
   border-radius: var(--radius-sm);
   font-size: var(--fs-sm);
@@ -284,6 +288,7 @@ code {
 
 pre {
   background: var(--bg-surface);
+  color: var(--text);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: var(--space-4) var(--space-5);
