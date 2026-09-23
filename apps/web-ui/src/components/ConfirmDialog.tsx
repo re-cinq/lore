@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import styles from "./ConfirmDialog.module.scss";
 
 /** What a confirmation asks, and how loudly its confirm button says it. */
@@ -9,6 +9,8 @@ export interface ConfirmQuestion {
   body: string;
   confirmLabel: string;
   tone: "danger" | "accent";
+  /** A name the person must type before confirm turns on, so a stray click cannot confirm. */
+  typeToConfirm?: string;
 }
 
 interface ConfirmDialogProps {
@@ -22,6 +24,7 @@ interface ConfirmDialogProps {
 export default function ConfirmDialog(props: ConfirmDialogProps) {
   const dialogRef = useModal();
   const titleId = useId();
+  const typedName = useTypedName(props.question.typeToConfirm);
 
   return (
     <dialog
@@ -32,12 +35,36 @@ export default function ConfirmDialog(props: ConfirmDialogProps) {
     >
       <h2 id={titleId}>{props.question.title}</h2>
       <p className="meta">{props.question.body}</p>
-      <DialogActions {...props} />
+      {props.question.typeToConfirm !== undefined && (
+        <TypedName name={props.question.typeToConfirm} {...typedName} />
+      )}
+      <DialogActions {...props} confirmable={typedName.confirmable} />
     </dialog>
   );
 }
 
-function DialogActions(props: ConfirmDialogProps) {
+function TypedName(props: {
+  name: string;
+  typed: string;
+  onType: (typed: string) => void;
+}) {
+  return (
+    <label className={styles.typedName}>
+      Type <strong>{props.name}</strong> to confirm
+      <input
+        type="text"
+        value={props.typed}
+        autoComplete="off"
+        spellCheck={false}
+        onChange={(event) => props.onType(event.target.value)}
+      />
+    </label>
+  );
+}
+
+type DialogActionsProps = ConfirmDialogProps & { confirmable: boolean };
+
+function DialogActions(props: DialogActionsProps) {
   return (
     <div className={styles.actions}>
       <button type="button" className="btn-secondary" onClick={props.onCancel}>
@@ -48,12 +75,17 @@ function DialogActions(props: ConfirmDialogProps) {
   );
 }
 
-function ConfirmButton({ question, pending, onConfirm }: ConfirmDialogProps) {
+function ConfirmButton({
+  question,
+  pending,
+  confirmable,
+  onConfirm,
+}: DialogActionsProps) {
   return (
     <button
       type="button"
       className={toneClass(question.tone)}
-      disabled={pending}
+      disabled={pending || !confirmable}
       onClick={onConfirm}
     >
       {question.confirmLabel}
@@ -63,6 +95,13 @@ function ConfirmButton({ question, pending, onConfirm }: ConfirmDialogProps) {
 
 export function toneClass(tone: ConfirmQuestion["tone"]): string | undefined {
   return tone === "danger" ? "danger" : undefined;
+}
+
+function useTypedName(typeToConfirm: string | undefined) {
+  const [typed, onType] = useState("");
+  const confirmable = [undefined, typed].includes(typeToConfirm);
+
+  return { typed, onType, confirmable };
 }
 
 function useModal() {

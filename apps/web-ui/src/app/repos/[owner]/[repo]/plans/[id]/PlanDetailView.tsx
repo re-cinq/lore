@@ -95,6 +95,7 @@ function deleteQuestion(title: string) {
     body: `${title} is removed for good, with every version of it. This cannot be undone.`,
     confirmLabel: "Delete",
     tone: "danger",
+    typeToConfirm: title,
   } as const;
 }
 
