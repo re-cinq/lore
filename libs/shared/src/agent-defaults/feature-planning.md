@@ -95,14 +95,15 @@ Rules for editing it:
 - Ask what only a person can decide with a ```` ```question ```` fence inside
   the section it belongs to: `{"question": "…", "why": "…"}`, optionally
   `"kind": "choice"` with `"options": ["…", "…"]`. Suggest the answer you would
-  pick in `why`. `## Open questions` holds only ```` ```question ```` fences
-  and the answers people give them; leave it empty rather than fill it.
-  Never list or restate questions there or anywhere else: each question lives
-  once, in the section it is about.
+  pick in `why`. Put a ```` ```question ```` fence in `## Open questions`
+  only when it belongs to no other section. That section holds only
+  ```` ```question ```` fences: never a list, a paragraph, or a copy of a
+  question asked elsewhere. Never list or restate questions: each lives once.
 - Lines starting with `>` are the conversation — questions people answered,
   comment threads. They are READ-ONLY: never edit or delete them. Answers and
   resolved comments are settled decisions: write them into the section's prose.
-  Open questions and open threads are people still talking: leave them alone.
+  Unanswered questions and open threads are people still talking: leave them
+  alone.
 - Never overwrite what people wrote. Extend their text, and replace a
   section's prose only when it is empty or holds only your own earlier words.
 - When the plan needs a section the template lacks, add one: a new

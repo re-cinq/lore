@@ -255,7 +255,7 @@ describe("the feature-planning recipe", () => {
 
     expect({
       onlyFences: prompt.includes(
-        "`## Open questions` holds only ```` ```question ```` fences",
+        "only when it belongs to no other section. That section holds only",
       ),
       noRestating: prompt.includes("Never list or restate questions"),
     }).toEqual({ onlyFences: true, noRestating: true });
