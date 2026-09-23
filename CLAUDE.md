@@ -497,7 +497,10 @@ not on `spec.prompt`.
 gateway. The rendered agent recipe (`agentDefToCrds`, `libs/shared/src/outbound/project/agents/agent-crd.ts`)
 carries `resources.mcp_servers: [{ name: lore, transport: http, headers_secret:
 lore-mcp-auth }]` and drops `lore_create_pipeline_task`; the ai-agent-subsystem
-controller renders it into `claude --mcp-config`. The pod can search
+controller renders it into `claude --mcp-config`; for a Gemini run the init merges
+them into gemini-cli's user settings (`/agent/.gemini/settings.json`, subsystem v0.11.3:
+the system-scope file v0.11.2 used is refused for a uid-1000 directory, so every Gemini
+pod before 2026-09-23 ran with 0 tools). The pod can search
 memory/context and record targeted memory throughout the run. The
 gateway is reachable at a public `:443` host because the `agent-job-egress`
 NetworkPolicy allows only public `:443` egress.
