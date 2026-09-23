@@ -4,9 +4,12 @@ import {
   approvePlan,
   askRefine,
   mintCollabToken,
+  reopenPlan,
   startDrafting,
+  startSpecWork,
   type RefineAsk,
 } from "@/lib/api/plans";
+import type { ApiResult } from "@/lib/api/result";
 import { planSocketUrl } from "@/lib/plan-input";
 import { planUserOf, type PlanSession, type PlanUser } from "@/lib/plan-user";
 import { getSession } from "@/lib/session";
@@ -45,11 +48,57 @@ export async function approvePlanAction(
   if ("error" in allowed) {
     return allowed;
   }
-  const approved = await approvePlan(planId, allowed.user.id);
+  const approved = await approvePlan(fullName, planId, allowed.user.id);
 
-  return approved.status === "ok"
-    ? {}
-    : { error: "The plan is not ready to approve yet." };
+  return approved.status === "ok" ? {} : { error: approvalRefusal(approved) };
+}
+
+// A refusal carrying the validation report is the outline's job to explain; any other reason is lore-api's own sentence.
+function approvalRefusal(result: ApiResult<unknown>): string {
+  const problems =
+    result.status === "error" &&
+    (result.body as { problems?: unknown }).problems;
+
+  return problems ? "The plan is not ready to approve yet." : refusalOf(result);
+}
+
+// lore-api's reasons are lower-case clauses; the page shows them as sentences.
+function refusalOf(result: ApiResult<unknown>): string {
+  const reason = result.status === "error" ? result.message : "";
+
+  return reason
+    ? `${reason[0].toUpperCase()}${reason.slice(1)}.`
+    : "Something went wrong.";
+}
+
+/** An approved plan back to writing; an open spec PR is sent back to the author, and approving again updates it. */
+export async function reopenPlanAction(
+  fullName: string,
+  planId: string,
+): Promise<{ error?: string }> {
+  const allowed = await allowedUser(fullName);
+
+  if ("error" in allowed) {
+    return allowed;
+  }
+  const reopened = await reopenPlan(fullName, planId, allowed.user.id);
+
+  return reopened.status === "ok" ? {} : { error: refusalOf(reopened) };
+}
+
+/** A fresh spec pass for an approved plan whose spec work failed, or whose merged specs it revises. */
+export async function retrySpecWorkAction(
+  fullName: string,
+  planId: string,
+): Promise<{ error?: string }> {
+  const allowed = await allowedUser(fullName);
+
+  if ("error" in allowed) {
+    return allowed;
+  }
+  const started = await startSpecWork(fullName, planId, allowed.user.id);
+
+  return started.status === "ok" ? {} : { error: refusalOf(started) };
 }
 
 export async function refinePlanAction(

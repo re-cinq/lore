@@ -5,13 +5,17 @@ import type { PlanMeta } from "@re-cinq/planning-document";
 import { PlanEditor, type ProviderTransport } from "@re-cinq/planning-editor";
 import { createHocuspocusTransport } from "@re-cinq/planning-editor/transports/hocuspocus";
 import { FormError } from "@/components/FormError";
+import type { PlanPageState } from "@/lib/plan-page-state";
 import type { PlanUser } from "@/lib/plan-user";
 import type { PlanActions } from "./plan-actions";
-import ApprovePlanButton from "./ApprovePlanButton";
+import PlanOutlineActions from "./PlanOutlineActions";
 
 interface PlanEditorPanelProps extends PlanActions {
   meta: PlanMeta;
   user: PlanUser;
+  state: PlanPageState;
+  prUrl: string | null;
+  prNumber: number | null;
 }
 
 interface ConnectedPlanProps extends PlanEditorPanelProps {
@@ -34,21 +38,21 @@ export default function PlanEditorPanel(props: PlanEditorPanelProps) {
   );
 }
 
+// An approved plan is read-only: lore-api's socket refuses writes to it already, and the editor says so instead of swallowing them.
 function ConnectedPlan(props: ConnectedPlanProps) {
   const [canApprove, setCanApprove] = useState(false);
-  const { meta, user, transport, approve, refine } = props;
+  const { meta, user, transport, refine, ...actions } = props;
 
   return (
     <PlanEditor
       transport={transport}
       user={user}
+      readOnly={meta.status === "approved"}
       validationPhase="approval"
       onValidation={(report) => setCanApprove(report.passed)}
       onRefine={(request) => askOrWithdraw(refine, request)}
       outlineFooter={
-        meta.status !== "approved" && (
-          <ApprovePlanButton canApprove={canApprove} approve={approve} />
-        )
+        <PlanOutlineActions {...actions} canApprove={canApprove} />
       }
     />
   );

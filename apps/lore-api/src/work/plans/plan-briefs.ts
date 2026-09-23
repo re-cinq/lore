@@ -34,3 +34,8 @@ export function refineBrief(plan: PlanView, request: RefineRequest): string {
 export function approvedBrief(plan: PlanView): string {
   return `The approved plan "${plan.title}" is in plan.md. It is settled: map it onto this repository's specs; do not re-open it.`;
 }
+
+/** The plan changed after its specs merged: the fresh spec pass amends what is on main rather than writing it again. */
+export function revisedBrief(plan: PlanView, prNumber: number): string {
+  return `${approvedBrief(plan)} The specs on main were written from an earlier version of this plan (spec PR #${prNumber}); amend them to say what the plan says now, and leave what still holds alone.`;
+}

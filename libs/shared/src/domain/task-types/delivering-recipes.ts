@@ -8,6 +8,8 @@ export const DELIVERING_PROMPT_REFS = [
   "tdd-round",
   "fix-ci",
   "pr-ready",
+  // The planning line: write commits the specs and the push node is another pod, so an unpushed write reached push as an empty branch (plan b5ec0e24, 2026-09-23).
+  "spec-write",
 ] as const;
 
 export function isDeliveringRecipe(

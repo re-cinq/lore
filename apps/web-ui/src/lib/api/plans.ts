@@ -41,13 +41,39 @@ export function readPlan(planId: string): Promise<ApiResult<StoredPlan>> {
   return apiFetch("lore-api", `/api/plans/${planId}`);
 }
 
+/** Lore's own approve: refused before the status flips while the planning agent is still writing. */
 export function approvePlan(
+  repo: string,
   planId: string,
   approvedBy: string,
 ): Promise<ApiResult<PlanMeta>> {
-  return apiFetch("lore-api", `/api/plans/${planId}/approve`, {
+  return apiFetch("lore-api", `/api/repos/${repo}/plans/${planId}/approve`, {
     method: "POST",
     body: { approvedBy },
+  });
+}
+
+/** Reopens an approved plan for writing; an open spec PR is sent back to the author. */
+export function reopenPlan(
+  repo: string,
+  planId: string,
+  reopenedBy: string,
+): Promise<ApiResult<PlanMeta>> {
+  return apiFetch("lore-api", `/api/repos/${repo}/plans/${planId}/reopen`, {
+    method: "POST",
+    body: { reopenedBy },
+  });
+}
+
+/** A fresh spec pass for an approved plan whose spec work failed, or whose specs merged and need revising. */
+export function startSpecWork(
+  repo: string,
+  planId: string,
+  createdBy: string,
+): Promise<ApiResult<{ task_id: string }>> {
+  return apiFetch("lore-api", `/api/repos/${repo}/plans/${planId}/spec-work`, {
+    method: "POST",
+    body: { createdBy },
   });
 }
 

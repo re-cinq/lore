@@ -16,6 +16,8 @@ const {
   openPlanSocketAction,
   refinePlanAction,
   draftAgainAction,
+  reopenPlanAction,
+  retrySpecWorkAction,
 } = await import("./actions");
 
 const GEDAIU = {
@@ -87,22 +89,91 @@ describe("openPlanSocketAction", () => {
 });
 
 describe("approvePlanAction", () => {
-  it("approves plan p1 in gedaiu's name", async () => {
+  it("approves plan p1 in gedaiu's name through lore's route", async () => {
     answer(200, { id: "p1", status: "approved" });
 
     expect({
       result: await approvePlanAction("re-cinq/lore", "p1"),
+      url: String(fetchMock.mock.calls[0][0]),
       body: JSON.parse(
         String((fetchMock.mock.calls[0][1] as RequestInit).body),
       ) as unknown,
-    }).toEqual({ result: {}, body: { approvedBy: "gedaiu" } });
+    }).toEqual({
+      result: {},
+      url: "http://api:3000/api/repos/re-cinq/lore/plans/p1/approve",
+      body: { approvedBy: "gedaiu" },
+    });
   });
 
   it("reports a plan lore-api refuses to approve as not ready", async () => {
-    answer(409, { type: "urn:planning:plan-not-approvable" });
+    answer(409, { error: "plan p1 is not ready for approval", problems: [] });
 
     expect(await approvePlanAction("re-cinq/lore", "p1")).toEqual({
       error: "The plan is not ready to approve yet.",
+    });
+  });
+
+  it("reports lore-api's reason when the planning agent is still refining a section", async () => {
+    answer(409, { error: "the planning agent is still refining a section" });
+
+    expect(await approvePlanAction("re-cinq/lore", "p1")).toEqual({
+      error: "The planning agent is still refining a section.",
+    });
+  });
+});
+
+describe("reopenPlanAction", () => {
+  it("reopens plan p1 in gedaiu's name", async () => {
+    answer(200, { id: "p1", status: "draft" });
+
+    expect({
+      result: await reopenPlanAction("re-cinq/lore", "p1"),
+      url: String(fetchMock.mock.calls[0][0]),
+      body: JSON.parse(
+        String((fetchMock.mock.calls[0][1] as RequestInit).body),
+      ) as unknown,
+    }).toEqual({
+      result: {},
+      url: "http://api:3000/api/repos/re-cinq/lore/plans/p1/reopen",
+      body: { reopenedBy: "gedaiu" },
+    });
+  });
+
+  it("reports lore-api's reason for refusing to reopen while the specs are being written", async () => {
+    answer(409, { error: "the specs are being written; wait for the spec PR" });
+
+    expect(await reopenPlanAction("re-cinq/lore", "p1")).toEqual({
+      error: "The specs are being written; wait for the spec PR.",
+    });
+  });
+});
+
+describe("retrySpecWorkAction", () => {
+  it("starts a fresh spec pass for plan p1 in gedaiu's name", async () => {
+    answer(202, { task_id: "t3" });
+
+    expect({
+      result: await retrySpecWorkAction("re-cinq/lore", "p1"),
+      url: String(fetchMock.mock.calls[0][0]),
+      body: JSON.parse(
+        String((fetchMock.mock.calls[0][1] as RequestInit).body),
+      ) as unknown,
+    }).toEqual({
+      result: {},
+      url: "http://api:3000/api/repos/re-cinq/lore/plans/p1/spec-work",
+      body: { createdBy: "gedaiu" },
+    });
+  });
+
+  it("starts nothing for someone GitHub does not let see the repo", async () => {
+    canAccess.mockResolvedValue(false);
+
+    expect({
+      result: await retrySpecWorkAction("re-cinq/lore", "p1"),
+      calls: fetchMock.mock.calls.length,
+    }).toEqual({
+      result: { error: "You do not have access to this repo." },
+      calls: 0,
     });
   });
 });

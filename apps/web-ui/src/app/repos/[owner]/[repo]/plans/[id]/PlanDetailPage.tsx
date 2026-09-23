@@ -11,6 +11,8 @@ import {
   draftAgainAction,
   openPlanSocketAction,
   refinePlanAction,
+  reopenPlanAction,
+  retrySpecWorkAction,
 } from "./actions";
 
 export default async function PlanDetailPage({
@@ -27,12 +29,21 @@ export default async function PlanDetailPage({
       meta={meta}
       run={run}
       user={user}
-      openSocket={openPlanSocketAction.bind(null, fullName, id)}
-      approve={approvePlanAction.bind(null, fullName, id)}
-      refine={refinePlanAction.bind(null, fullName, id)}
-      draftAgain={draftAgainAction.bind(null, fullName, id)}
+      {...boundActions(fullName, id)}
     />
   );
+}
+
+// Every action bound to this plan of this repo on the server, so the client never names either.
+function boundActions(fullName: string, id: string) {
+  return {
+    openSocket: openPlanSocketAction.bind(null, fullName, id),
+    approve: approvePlanAction.bind(null, fullName, id),
+    refine: refinePlanAction.bind(null, fullName, id),
+    draftAgain: draftAgainAction.bind(null, fullName, id),
+    reopen: reopenPlanAction.bind(null, fullName, id),
+    retrySpecWork: retrySpecWorkAction.bind(null, fullName, id),
+  };
 }
 
 // The plan, its run and who is looking — the plan first, so a plan under another repo is not found before anything else is read.

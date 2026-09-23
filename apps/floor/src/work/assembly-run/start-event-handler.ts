@@ -7,9 +7,11 @@ import type {
 } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import {
   definitionHash,
+  entryNodeProblem,
   snapshotGraph,
   type AssemblyLine,
 } from "@re-cinq/lore-assembly-lines";
+import type { RunGraph } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import type { EventHandler } from "../../domain/event-types.js";
 
 export interface StartEventHandlerDeps {
@@ -136,22 +138,56 @@ async function startResolvedBlueprint(
   params: StartEvent & { definition: AssemblyLine },
   deps: StartEventHandlerDeps,
 ): Promise<void> {
-  const { assemblyLineId, blueprintName, taskId, resumedFrom, definition } =
-    params;
+  const { assemblyLineId, definition } = params;
+  const graph = await enteredGraph(params, deps);
 
+  if (!graph) {
+    return;
+  }
   await deps.assemblyRuns.stampBlueprint(
     assemblyLineId,
     definitionHash(definition),
-    snapshotGraph(definition, blueprintName),
+    graph,
   );
   await deps.assemblyRuns.markRunning(assemblyLineId);
+  await reopenForkedTask(params, deps);
+  await deps.advance(assemblyLineId);
+}
 
-  // FORK: reopen task before walk so task-keyed surfaces show resumption not verdict.
+// FORK: reopen task before walk so task-keyed surfaces show resumption not verdict.
+async function reopenForkedTask(
+  { assemblyLineId, taskId, resumedFrom }: Omit<StartEvent, "blueprintName">,
+  deps: StartEventHandlerDeps,
+): Promise<void> {
   if (resumedFrom != null && taskId && deps.reopenTask) {
     await deps.reopenTask({ id: assemblyLineId, taskId });
   }
+}
 
-  await deps.advance(assemblyLineId);
+/** The clone this run walks, entered where the row's `args.entry_node` says (a revision re-runs the tail of a settled line) or at the blueprint's own entry. A name that is no node is a config error, closed like an unknown definition: no retry produces the node. */
+async function enteredGraph(
+  {
+    assemblyLineId,
+    blueprintName,
+    definition,
+  }: StartEvent & { definition: AssemblyLine },
+  deps: StartEventHandlerDeps,
+): Promise<RunGraph | null> {
+  const row = await deps.assemblyRuns.getById(assemblyLineId);
+  const entry = row?.args.entry_node;
+
+  if (typeof entry !== "string") {
+    return snapshotGraph(definition, blueprintName);
+  }
+  const problem = entryNodeProblem(definition, entry);
+
+  if (problem) {
+    await closeUnknownDefinitionRun(assemblyLineId, problem, deps);
+
+    return null;
+  }
+
+  return snapshotGraph(definition, blueprintName, { entry });
 }
 
 /** Composed production handler. */

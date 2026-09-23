@@ -1,6 +1,7 @@
 import Link from "next/link";
 import ConfirmedActionButton from "@/components/ConfirmedActionButton";
 import type { AssemblyRunNode } from "@/lib/assembly-run-rows";
+import type { PlanPageState } from "@/lib/plan-page-state";
 import { canRegenerate, planRunPhase } from "@/lib/plan-run-phase";
 import styles from "./PlanRunCard.module.scss";
 
@@ -19,6 +20,7 @@ type DraftAgain = () => Promise<{ error?: string }>;
 
 interface PlanRunCardProps {
   run: PlanRun | null;
+  state: PlanPageState;
   /** A fresh planning run, offered when there is none or the last one failed. */
   draftAgain: DraftAgain;
 }
@@ -30,27 +32,40 @@ const REGENERATE = {
   tone: "danger",
 } as const;
 
+// Where the run's own phase does not say what the PLAN's people should do next.
+const STATE_TEXT: Partial<Record<PlanPageState, string>> = {
+  question:
+    "The spec work has a question for you: reopen the plan to answer it, then approve it again.",
+  reopened:
+    "Reopened: refine or edit the plan, then approve it again to update the spec PR.",
+  "spec-work-failed":
+    "The spec work did not deliver. Retry it from the approved plan, or reopen the plan to change it first.",
+};
+
 /** What the plan's run is doing, and where to look closer — the run page draws the line itself. */
-export default function PlanRunCard({ run, draftAgain }: PlanRunCardProps) {
-  if (!run) {
-    return (
-      <div className={`meta ${styles.summary}`}>
-        <span>No planning run yet.</span>
-        <RegeneratePlan draftAgain={draftAgain} />
-      </div>
-    );
-  }
-  const phase = planRunPhase(run, run.nodes);
+export default function PlanRunCard({
+  run,
+  state,
+  draftAgain,
+}: PlanRunCardProps) {
+  const regenerate =
+    state === "writing" && (!run || canRegenerate(run, run.nodes));
 
   return (
     <div className={`meta ${styles.summary}`}>
-      <span>{phase.text}</span>
-      <RunLinks run={run} />
-      {canRegenerate(run, run.nodes) && (
-        <RegeneratePlan draftAgain={draftAgain} />
-      )}
+      <span>{summaryOf(run, state)}</span>
+      {run && <RunLinks run={run} />}
+      {regenerate && <RegeneratePlan draftAgain={draftAgain} />}
     </div>
   );
+}
+
+function summaryOf(run: PlanRun | null, state: PlanPageState): string {
+  if (!run) {
+    return "No planning run yet.";
+  }
+
+  return STATE_TEXT[state] ?? planRunPhase(run, run.nodes).text;
 }
 
 function RunLinks({ run }: { run: PlanRun }) {

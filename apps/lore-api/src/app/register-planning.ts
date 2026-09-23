@@ -1,16 +1,18 @@
 import type { Lifecycle, Server } from "@hapi/hapi";
 import type { Pool } from "pg";
 import { registerPlanningSync } from "@re-cinq/planning-sync/hapi";
+import type { PlanLifecycleHooks } from "@re-cinq/planning-sync";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { pgPlanStore } from "../outbound/plans/plan-store-pg.js";
 import { livePlanOf } from "../outbound/plans/live-plan.js";
 import { planFileRoutes } from "../transport/routes/plans/plan-file.js";
+import { planLifecycleRoutes } from "../transport/routes/plans/plan-lifecycle.js";
 import { collabAuthenticator } from "../work/plans/collab-tokens.js";
 import { handOverApproved } from "../work/plans/planning-line.js";
 import {
   projectionOf,
-  resumeDepsFor,
+  specWorkDepsFor,
 } from "../transport/routes/plans/plan-line-deps.js";
 import { DB_UNAVAILABLE } from "../transport/routes/common-schemas.js";
 import type { TokenScope } from "../transport/http/auth.js";
@@ -33,6 +35,7 @@ export function registerPlanning(
   server.route(
     planFileRoutes({ livePlan: livePlanOf(sync), writer: sync.writer }),
   );
+  server.route(planLifecycleRoutes({ service: sync.service, getPool }));
   server.ext("onPreHandler", planRouteGuard(server));
 }
 
@@ -47,15 +50,16 @@ function livePool(getPool: () => Pool | null): () => Pool {
   };
 }
 
-// Approval ends the plan and starts its spec work on the same planning line.
+// Approval ends the plan and starts its spec work on the same planning line — or, with no line waiting, on a fresh one entered at the spec analysis.
 async function startSpecWork(
   pool: () => Pool,
-  meta: { id: string; repo: string },
+  meta: Parameters<NonNullable<PlanLifecycleHooks["onApproved"]>>[0],
 ): Promise<void> {
   await handOverApproved(
-    resumeDepsFor(meta.repo, pool()),
-    meta.id,
+    specWorkDepsFor(meta.repo, pool()),
+    meta,
     await projectionOf(pool, meta.id),
+    meta.approval?.approvedBy ?? meta.createdBy,
   );
 }
 

@@ -2,14 +2,20 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import {
   findParkedAuthorNode,
+  planLineState,
   PLANNING_DEFINITION,
+  type PlanLine,
   type PlanningRunPort,
 } from "@re-cinq/lore-shared/project/plans/plan-run.js";
-import { reportToParkedNode } from "@re-cinq/lore-shared/project/assembly-runs/parked-node.js";
+import {
+  reportToParkedNode,
+  type ParkedTarget,
+} from "@re-cinq/lore-shared/project/assembly-runs/parked-node.js";
 import {
   approvedBrief,
   draftBrief,
   refineBrief,
+  revisedBrief,
   type PlanView,
   type RefineRequest,
 } from "./plan-briefs.js";
@@ -30,16 +36,29 @@ export interface ResumeDeps {
   reporter: Parameters<typeof reportToParkedNode>[0];
 }
 
+export type SpecWorkDeps = ResumeDeps & {
+  createTask(task: NewPlanningTask): Promise<string>;
+};
+
+export interface PlanRef {
+  id: string;
+  repo: string;
+  title: string;
+}
+
 export interface DraftingInput {
-  plan: { id: string; repo: string; title: string };
+  plan: PlanRef;
   projection: PlanView;
   known: string;
   createdBy: string;
 }
 
+/** The node the spec work enters when a plan is approved with no line waiting on its author: the draft is settled, so the line skips it. */
+const SPEC_WORK_ENTRY = "analyse-specs";
+
 /** Drafts the plan: a line parked on its people is sent back to the agent with the draft brief (a plan has one open line, so a new run would only join it and do nothing); otherwise a new line starts. The run's args carry what its route and its PR are named from. */
 export async function startDrafting(
-  deps: ResumeDeps & { createTask(task: NewPlanningTask): Promise<string> },
+  deps: SpecWorkDeps,
   { plan, projection, known, createdBy }: DraftingInput,
 ): Promise<string> {
   const brief = draftBrief(projection, known);
@@ -58,20 +77,27 @@ export async function startDrafting(
 }
 
 function planningTask(
-  plan: DraftingInput["plan"],
+  plan: PlanRef,
   description: string,
   createdBy: string,
+  entryNode?: string,
 ): NewPlanningTask {
   return {
     description,
     taskType: PLANNING_DEFINITION,
     targetRepo: plan.repo,
     createdBy,
-    contextBundle: {
-      plan_id: plan.id,
-      line_args: { repo: plan.repo, plan_title: plan.title },
-    },
+    contextBundle: { plan_id: plan.id, line_args: lineArgs(plan, entryNode) },
     priority: "immediate",
+  };
+}
+
+// The run's args: what its route and PR are named from, and where it enters the blueprint when the draft is already settled.
+function lineArgs(plan: PlanRef, entryNode?: string) {
+  return {
+    repo: plan.repo,
+    plan_title: plan.title,
+    ...(entryNode ? { entry_node: entryNode } : {}),
   };
 }
 
@@ -107,22 +133,114 @@ function refineArgs(projection: PlanView, request: RefineRequest) {
   };
 }
 
-/** Moves an approved plan on to its spec work; a plan whose line is not waiting (none started, or already past approval) moves nothing. */
-export async function handOverApproved(
-  deps: ResumeDeps,
-  planId: string,
-  projection: PlanView,
-): Promise<void> {
-  const { parked } = await findParkedAuthorNode(deps.runs, planId);
+/** What approving the plan does to its line. */
+export type ApprovalDecision =
+  | { kind: "hand-over" }
+  | { kind: "start-spec-work" }
+  | { kind: "refused"; reason: string };
 
-  if (parked) {
-    await reportToParkedNode(deps.reporter, parked, {
-      outcome: "success",
-      args: {
-        description: approvedBrief(projection),
-        round_feedback: null,
-        refine: null,
-      },
+const STILL_REFINING = "the planning agent is still refining a section";
+const WRITING_SPECS = "the specs are being written";
+
+/** Approval resumes a line waiting on its author; a plan with no open line (none yet, its spec work failed, or its specs already merged) gets a fresh spec pass; a line the agent is on is refused, since the approval would strand the plan. */
+export async function decideApproval(
+  runs: PlanningRunPort,
+  planId: string,
+): Promise<ApprovalDecision> {
+  const line = await planLineState(runs, planId);
+
+  if (line?.parkedAuthor) {
+    return { kind: "hand-over" };
+  }
+
+  if (!line || line.open === null) {
+    return { kind: "start-spec-work" };
+  }
+
+  return {
+    kind: "refused",
+    reason: line.open === "analyze" ? STILL_REFINING : WRITING_SPECS,
+  };
+}
+
+/** Moves an approved plan on to its spec work: the parked author node resumes with the approved brief, or, with no line waiting, a fresh line starts at the spec analysis. A line the agent is on moves nothing. */
+export async function handOverApproved(
+  deps: SpecWorkDeps,
+  plan: PlanRef,
+  projection: PlanView,
+  approvedBy: string,
+): Promise<void> {
+  const line = await planLineState(deps.runs, plan.id);
+
+  if (line?.parkedAuthor) {
+    return resumeAuthor(deps, line.parkedAuthor, approvedBrief(projection));
+  }
+
+  if (!line || line.open === null) {
+    await startSpecWork(deps, {
+      plan,
+      projection,
+      createdBy: approvedBy,
+      line,
     });
   }
+}
+
+async function resumeAuthor(
+  deps: ResumeDeps,
+  parked: ParkedTarget,
+  brief: string,
+): Promise<void> {
+  await reportToParkedNode(deps.reporter, parked, {
+    outcome: "success",
+    args: { description: brief, round_feedback: null, refine: null },
+  });
+}
+
+/** What a fresh spec pass is for: the approved plan, or one whose specs merged already. */
+export interface SpecWorkInput {
+  plan: PlanRef;
+  projection: PlanView;
+  createdBy: string;
+  line: PlanLine | null;
+}
+
+/** A fresh spec pass for an approved plan whose line is not open, entered at the spec analysis; after a merged spec PR it is briefed as an amendment. */
+export async function startSpecWork(
+  deps: SpecWorkDeps,
+  { plan, projection, createdBy, line }: SpecWorkInput,
+): Promise<string> {
+  const brief =
+    line?.merged && line.prNumber !== null
+      ? revisedBrief(projection, line.prNumber)
+      : approvedBrief(projection);
+
+  return deps.createTask(planningTask(plan, brief, createdBy, SPEC_WORK_ENTRY));
+}
+
+/** Reopening an approved plan sends its open spec PR back to the author (the `merged → author` edge's only reporter); a line already waiting on the author, ended, or never started needs no report. A line the spec work is on is refused, since reopening would race it. */
+export async function reopenPlan(
+  deps: ResumeDeps,
+  planId: string,
+  actor: string,
+): Promise<void> {
+  const line = await planLineState(deps.runs, planId);
+
+  if (!line || line.open === null || line.parkedAuthor) {
+    return;
+  }
+  enforceTrue(line.parkedMerged, apiError(409), reopenRefusal(line));
+  await reportToParkedNode(deps.reporter, line.parkedMerged, {
+    outcome: "changes_requested",
+    args: {
+      round_feedback: `${actor} reopened the plan to revise it`,
+      refine: null,
+    },
+  });
+}
+
+function reopenRefusal(line: PlanLine): string {
+  return line.merged
+    ? "wait until the spec-tasks are filed"
+    : "the specs are being written; wait for the spec PR";
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { findParkedAuthorNode } from "./plan-run.js";
+import { findParkedAuthorNode, planLineState } from "./plan-run.js";
 import type { PlanningRunPort } from "./plan-run.js";
 
 const PLANNING = "feature-planning";
@@ -9,6 +9,8 @@ const port = (
     id: string;
     blueprintName: string;
     status: string;
+    outcome?: string | null;
+    args?: object;
     graph?: unknown;
   }>,
   visits: Array<{
@@ -71,5 +73,93 @@ describe("findParkedAuthorNode", () => {
     );
 
     expect(result.parked).toMatchObject({ nodeId: "author", lineId: "r-1" });
+  });
+});
+
+const GRAPH = {
+  nodes: [
+    { id: "analyze", type: "agent" },
+    { id: "author", type: "feature_review" },
+    { id: "analyse-specs", type: "agent" },
+    { id: "merged", type: "pr_review" },
+    { id: "decompose", type: "agent" },
+  ],
+  edges: [],
+  entry: "analyze",
+  exit: "decompose",
+};
+
+const line = (status: string, args: object = {}) => ({
+  id: "r-1",
+  blueprintName: PLANNING,
+  status,
+  outcome: null,
+  graph: GRAPH,
+  args,
+});
+
+describe("planLineState", () => {
+  it("answers null for a plan with no planning line", async () => {
+    expect(await planLineState(port([]), "p-1")).toBeNull();
+  });
+
+  it("names the parked merged node and the spec PR while the line waits on the PR", async () => {
+    const state = await planLineState(
+      port(
+        [line("running", { pr_number: 7 })],
+        [
+          { nodeId: "author", iteration: 1, outcome: "success" },
+          { nodeId: "merged", iteration: 1, outcome: null },
+        ],
+      ),
+      "p-1",
+    );
+
+    expect(state).toEqual({
+      lineId: "r-1",
+      status: "running",
+      outcome: null,
+      prNumber: 7,
+      open: "merged",
+      parkedAuthor: null,
+      parkedMerged: { lineId: "r-1", nodeId: "merged", iteration: 1 },
+      merged: false,
+    });
+  });
+
+  it("reports the specs merged once the merged node succeeded, with nothing open on a finished line", async () => {
+    const state = await planLineState(
+      port(
+        [{ ...line("finished", { pr_number: 7 }), outcome: "completed" }],
+        [
+          { nodeId: "merged", iteration: 1, outcome: "success" },
+          { nodeId: "decompose", iteration: 1, outcome: "success" },
+        ],
+      ),
+      "p-1",
+    );
+
+    expect(state).toMatchObject({
+      status: "finished",
+      outcome: "completed",
+      open: null,
+      merged: true,
+      parkedMerged: null,
+    });
+  });
+
+  it("names the open agent node while the specs are being analysed after approval", async () => {
+    const state = await planLineState(
+      port(
+        [line("running")],
+        [
+          { nodeId: "author", iteration: 1, outcome: "success" },
+          { nodeId: "analyse-specs", iteration: 1, outcome: null },
+        ],
+      ),
+      "p-1",
+    );
+
+    expect(state).toMatchObject({ open: "analyse-specs", prNumber: null });
   });
 });

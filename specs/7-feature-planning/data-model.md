@@ -44,4 +44,6 @@ token's sha256 is stored, and a token lapses after ten minutes.
 What used to be feature columns rides the planning line instead: the run's args
 carry `plan_id`, `repo` and `plan_title` from the start and `spec_path` once the
 spec analysis names it, and every spec-task the decomposition files carries
-`plan_id` and `spec_path` in its `context_bundle`.
+`plan_id` and `spec_path` in its `context_bundle`. A fresh spec pass for an
+already-approved plan (a retry, or a revision after its specs merged) carries
+`entry_node: analyse-specs` too, and the run's cloned graph enters there.
