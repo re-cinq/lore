@@ -1,8 +1,10 @@
 "use server";
 
+import { redirect } from "next/navigation";
 import {
   approvePlan,
   askRefine,
+  deletePlan,
   mintCollabToken,
   reopenPlan,
   startDrafting,
@@ -78,6 +80,24 @@ export async function reopenPlanAction(
   const reopened = await reopenPlan(fullName, planId, allowed.user.id);
 
   return reopened.status === "ok" ? {} : { error: refusalOf(reopened) };
+}
+
+/** Deletes the plan for good and goes back to the repo's plans. */
+export async function deletePlanAction(
+  fullName: string,
+  planId: string,
+): Promise<{ error?: string }> {
+  const allowed = await allowedUser(fullName);
+
+  if ("error" in allowed) {
+    return allowed;
+  }
+  const deleted = await deletePlan(fullName, planId);
+
+  if (deleted.status !== "ok") {
+    return { error: refusalOf(deleted) };
+  }
+  redirect(`/repos/${fullName}/plans`);
 }
 
 /** A fresh spec pass for an approved plan whose spec work failed, or whose merged specs it revises. */

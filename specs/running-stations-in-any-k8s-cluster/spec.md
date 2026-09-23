@@ -212,7 +212,7 @@ one dispatch mechanism, not a special case plus a remote case.
   never become `queued` and are therefore never claimable. Arming is
   queued-only: a row another cluster has already claimed was handed its spec
   with the claim, so re-arming it would leave the row describing something
-  other than the pod being built from it. ([validated by arming a claimed row is a no-op, so a re-dispatch cannot rewrite what a pod is being built from](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1143), [`advance-line.test.ts:1005`](apps/floor/src/work/assembly-run/advance-line.test.ts#L1007), [`advance-line.test.ts:1090`](apps/floor/src/work/assembly-run/advance-line.test.ts#L1112), [`advance-line.test.ts:1103`](apps/floor/src/work/assembly-run/advance-line.test.ts#L1125), [`advance-line.test.ts:1130`](apps/floor/src/work/assembly-run/advance-line.test.ts#L1152))
+  other than the pod being built from it. ([validated by arming a claimed row is a no-op, so a re-dispatch cannot rewrite what a pod is being built from](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1143), [`advance-line.test.ts:1005`](apps/floor/src/work/assembly-run/advance-line.test.ts#L1007), [`advance-line.test.ts:1090`](apps/floor/src/work/assembly-run/advance-line.test.ts#L1112), [`advance-line.test.ts:1103`](apps/floor/src/work/assembly-run/advance-line.test.ts#L1125), [`advance-line.test.ts:1130`](apps/floor/src/work/assembly-run/advance-line.test.ts#L1226))
 - A cluster-agent polls `POST /api/cluster-agents/{id}/claim` on a
   configurable interval (default 15 s); the claim is a single
   `SELECT … FOR UPDATE SKIP LOCKED` CTE that sets `status = 'claimed'`,

@@ -7,12 +7,18 @@ const session = vi.fn();
 const canAccess = vi.fn();
 
 vi.mock("@/lib/session", () => ({ getSession: () => session() }));
+vi.mock("next/navigation", () => ({
+  redirect: (url: string) => {
+    throw new Error(`redirect ${url}`);
+  },
+}));
 vi.mock("@/lib/user-repo-access", () => ({
   userCanAccessRepo: () => canAccess(),
 }));
 
 const {
   approvePlanAction,
+  deletePlanAction,
   openPlanSocketAction,
   refinePlanAction,
   draftAgainAction,
@@ -132,6 +138,43 @@ describe("reopenPlanAction", () => {
 
     expect(await reopenPlanAction("re-cinq/lore", "p1")).toEqual({
       error: "The specs are being written; wait for the spec PR.",
+    });
+  });
+});
+
+describe("deletePlanAction", () => {
+  it("deletes plan p1 of re-cinq/lore and goes back to the repo's plans", async () => {
+    answer(200, { id: "p1" });
+
+    await expect(deletePlanAction("re-cinq/lore", "p1")).rejects.toThrow(
+      new Error("redirect /repos/re-cinq/lore/plans"),
+    );
+    expect({
+      url: String(fetchMock.mock.calls[0][0]),
+      method: (fetchMock.mock.calls[0][1] as RequestInit).method,
+    }).toEqual({
+      url: "http://api:3000/api/repos/re-cinq/lore/plans/p1",
+      method: "DELETE",
+    });
+  });
+
+  it("deletes nothing for someone GitHub does not let see the repo", async () => {
+    canAccess.mockResolvedValue(false);
+
+    expect({
+      result: await deletePlanAction("re-cinq/lore", "p1"),
+      calls: fetchMock.mock.calls.length,
+    }).toEqual({
+      result: { error: "You do not have access to this repo." },
+      calls: 0,
+    });
+  });
+
+  it("reports lore-api's reason when plan p1 is not found", async () => {
+    answer(404, { error: "plan not found" });
+
+    expect(await deletePlanAction("re-cinq/lore", "p1")).toEqual({
+      error: "Plan not found.",
     });
   });
 });

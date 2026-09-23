@@ -35,6 +35,11 @@ export interface AdvanceDeps {
     node: RunGraphNode,
     result: NodeResult,
   ) => Promise<void>;
+  /** React to the walk PARKING on a human station, once its row is recorded — whatever sent it there (an edge, a resume, an `entry_node`). Resolved node, so a reaction reads its TYPE. Best-effort: a throw is logged and the node stays parked. Optional seam. */
+  onHumanNodeParked?: (
+    row: AssemblyRunRecord,
+    node: RunGraphNode,
+  ) => Promise<void>;
   /** Publish a `runtime: "service"` node for the pooled service to claim instead of a pod; it reports back over `assembly_run.resume`. Optional seam — a composition without it never dispatches a service node, and the reaper times it out. */
   publishNode?: (event: {
     eventName: string;

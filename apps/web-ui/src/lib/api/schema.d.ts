@@ -277,6 +277,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/assembly-runs/{id}/run-station": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/assembly-runs/{id}/run-station */
+    post: operations["post_api_assembly-runs_id_run-station"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/assembly-runs/{id}/stream-token": {
     parameters: {
       query?: never;
@@ -1441,6 +1458,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/repos/{owner}/{repo}/plans/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** DELETE /api/repos/{owner}/{repo}/plans/{id} */
+    delete: operations["delete_api_repos_owner_repo_plans_id"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/repos/{owner}/{repo}/plans/{id}/collab-token": {
     parameters: {
       query?: never;
@@ -2378,6 +2412,7 @@ export interface components {
       started_at: string | null;
       finished_at: string | null;
       args_pr_number: number | null;
+      spec_plan_summary: string | null;
       pr_url: string | null;
       task_pr_number: number | null;
       issue_url: string | null;
@@ -2402,6 +2437,7 @@ export interface components {
         started_at: string | null;
         finished_at: string | null;
         args_pr_number: number | null;
+        spec_plan_summary: string | null;
         pr_url: string | null;
         task_pr_number: number | null;
         issue_url: string | null;
@@ -2420,6 +2456,9 @@ export interface components {
       }[];
     };
     AssemblyRunStarted: {
+      id: string;
+    };
+    AssemblyRunStationStarted: {
       id: string;
     };
     AssemblyRunTokenUsage: {
@@ -3367,6 +3406,9 @@ export interface components {
     PlanCollabToken: {
       token: string;
       documentName: string;
+    };
+    PlanDeleted: {
+      id: string;
     };
     PlanDraftingStarted: {
       task_id: string;
@@ -4816,6 +4858,43 @@ export interface operations {
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "post_api_assembly-runs_id_run-station": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          node_id: string;
+          actor: string;
+        };
+      };
+    };
+    responses: {
+      /** @description A fresh line on the same work, entered at the named station; an open source line is retired first */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AssemblyRunStationStarted"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };
@@ -7011,6 +7090,35 @@ export interface operations {
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  delete_api_repos_owner_repo_plans_id: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The plan is gone for good, with its document, versions and collab tokens */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PlanDeleted"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };

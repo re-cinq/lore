@@ -3,6 +3,7 @@
 import ConfirmedActionButton from "@/components/ConfirmedActionButton";
 import type { PlanPageState } from "@/lib/plan-page-state";
 import ApprovePlanButton from "./ApprovePlanButton";
+import ReopenPlanButton from "./ReopenPlanButton";
 import type { PlanActions } from "./plan-actions";
 import styles from "./PlanOutlineActions.module.scss";
 
@@ -17,18 +18,14 @@ interface PlanOutlineActionsProps extends Pick<
   prNumber: number | null;
 }
 
-const STILL_REFINING = "The planning agent is still refining a section";
+const APPROVABLE: ReadonlySet<PlanPageState> = new Set([
+  "writing",
+  "reopened",
+  "refining",
+  "answering",
+]);
 
-const REOPEN_BODY: Partial<Record<PlanPageState, string>> = {
-  "spec-pr-open":
-    "The spec PR goes back to the author and the plan opens for writing. Approve it again to update the same PR.",
-  question:
-    "The plan opens for writing so you can answer the question. Approve it again to continue the spec work.",
-  "spec-work-failed":
-    "The plan opens for writing. Approve it again to start a fresh spec pass.",
-  delivered:
-    "The plan opens for writing. Approving it again opens a NEW spec PR that revises the merged specs.",
-};
+const STILL_REFINING = "The planning agent is still refining a section";
 
 const RETRY = {
   title: "Retry the spec work?",
@@ -56,7 +53,7 @@ export default function PlanOutlineActions(props: PlanOutlineActionsProps) {
 function StateAction(props: PlanOutlineActionsProps) {
   const { state, canApprove, approve, prNumber } = props;
 
-  if (state === "writing" || state === "reopened" || state === "refining") {
+  if (APPROVABLE.has(state)) {
     return (
       <ApprovePlanButton
         canApprove={canApprove}
@@ -75,8 +72,6 @@ function ApprovedActions({
   reopen,
   retrySpecWork,
 }: PlanOutlineActionsProps) {
-  const reopenBody = REOPEN_BODY[state];
-
   return (
     <>
       {state === "spec-work-failed" && (
@@ -86,25 +81,7 @@ function ApprovedActions({
           question={RETRY}
         />
       )}
-      {reopenBody && <ReopenPlan reopen={reopen} body={reopenBody} />}
+      <ReopenPlanButton state={state} reopen={reopen} />
     </>
-  );
-}
-
-function ReopenPlan({
-  reopen,
-  body,
-}: Pick<PlanActions, "reopen"> & { body: string }) {
-  return (
-    <ConfirmedActionButton
-      action={reopen}
-      label="Reopen plan"
-      question={{
-        title: "Reopen the plan?",
-        body,
-        confirmLabel: "Reopen",
-        tone: "danger",
-      }}
-    />
   );
 }

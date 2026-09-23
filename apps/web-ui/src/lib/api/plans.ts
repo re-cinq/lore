@@ -65,6 +65,16 @@ export function reopenPlan(
   });
 }
 
+/** Removes the plan for good, with its document and versions. */
+export function deletePlan(
+  repo: string,
+  planId: string,
+): Promise<ApiResult<{ id: string }>> {
+  return apiFetch("lore-api", `/api/repos/${repo}/plans/${planId}`, {
+    method: "DELETE",
+  });
+}
+
 /** A fresh spec pass for an approved plan whose spec work failed, or whose specs merged and need revising. */
 export function startSpecWork(
   repo: string,

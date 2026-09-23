@@ -1,5 +1,5 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import type { PlanWriter } from "../domain/plan-writer.js";
+import type { PlanOpener, PlanWriter } from "../domain/plan-writer.js";
 
 // A multi-megabyte plan moves in both directions, so the budget is a transfer's, not a JSON call's.
 const TIMEOUT_MS = 120_000;
@@ -7,7 +7,7 @@ const TIMEOUT_MS = 120_000;
 /** lore-api's plan file routes (ADR-047) with the Floor's service token; a refusal throws with lore-api's own problem detail. */
 export function loreApiPlans(baseUrl: string, token: string): PlanWriter {
   const request = (path: string, init: RequestInit) =>
-    requestPlans(baseUrl, token, path, init);
+    requestLoreApi(baseUrl, token, `/api/plans/${path}`, init);
 
   return {
     markdownOf: async (planId) =>
@@ -22,13 +22,27 @@ export function loreApiPlans(baseUrl: string, token: string): PlanWriter {
   };
 }
 
-async function requestPlans(
+/** lore-api's `author-waiting` route: it reopens an approved plan whose line waits on its author, and leaves any other plan as it is. */
+export function loreApiPlanOpener(baseUrl: string, token: string): PlanOpener {
+  return {
+    openForAuthor: async (repo, planId) => {
+      await requestLoreApi(
+        baseUrl,
+        token,
+        `/api/repos/${repo}/plans/${planId}/author-waiting`,
+        { method: "POST" },
+      );
+    },
+  };
+}
+
+async function requestLoreApi(
   baseUrl: string,
   token: string,
   path: string,
   init: RequestInit,
 ): Promise<Response> {
-  const res = await fetch(`${baseUrl}/api/plans/${path}`, {
+  const res = await fetch(`${baseUrl}${path}`, {
     ...init,
     headers: { ...init.headers, authorization: `Bearer ${token}` },
     signal: AbortSignal.timeout(TIMEOUT_MS),

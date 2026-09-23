@@ -59,6 +59,7 @@ const SELECT_VERSION = `SELECT ${VERSION_SELECT} FROM ${PLAN_VERSION_TABLE}
   WHERE plan_id = $1 AND version = $2`;
 const SELECT_REPO_PLANS = `SELECT ${PLAN_SELECT} FROM ${PLAN_TABLE}
   WHERE repo = $1 ORDER BY updated_at DESC`;
+const DELETE_PLAN = `DELETE FROM ${PLAN_TABLE} WHERE id = $1`;
 
 // The columns a MetaPatch field is stored in.
 const PATCH_COLUMNS: Record<keyof MetaPatch, string> = {
@@ -88,6 +89,11 @@ export function pgPlanStore(db: Db): PlanStore {
 /** The plans of one repo, most recently changed first. */
 export async function listPlanMetas(db: Db, repo: string): Promise<PlanMeta[]> {
   return (await rows(db, SELECT_REPO_PLANS, [repo])).map(metaOf);
+}
+
+/** Removes the plan for good; its state, versions and collab tokens go with it (ON DELETE CASCADE). */
+export async function deletePlan(db: Db, planId: string): Promise<void> {
+  await planRows(db, planId, DELETE_PLAN);
 }
 
 async function createPlan(db: Db, input: NewPlan): Promise<PlanMeta> {

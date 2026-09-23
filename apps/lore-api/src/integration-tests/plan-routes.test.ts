@@ -64,6 +64,13 @@ describe("/api/plans on lore-api", () => {
   });
 
   afterAll(async () => {
+    await pool.query(
+      "DELETE FROM pipeline.station_runs WHERE assembly_run_id IN (SELECT id FROM pipeline.assembly_runs WHERE repo = $1)",
+      [REPO],
+    );
+    await pool.query("DELETE FROM pipeline.assembly_runs WHERE repo = $1", [
+      REPO,
+    ]);
     await pool.query("DELETE FROM lore.plans WHERE repo = $1", [REPO]);
     await pool.query(
       "DELETE FROM pipeline.task_events WHERE task_id IN (SELECT id FROM pipeline.tasks WHERE target_repo = $1)",
@@ -293,6 +300,96 @@ describe("/api/plans on lore-api", () => {
       reopened: { status: 200, body: { status: "draft", approval: null } },
       again: 409,
     });
+  });
+
+  it("deletes Ana's plan with its versions, so it no longer reads back", async () => {
+    const planId = await createPlan();
+    const deleted = await call(
+      "DELETE",
+      `/api/repos/${REPO}/plans/${planId}`,
+      TOKEN,
+    );
+    const read = await call("GET", `/api/plans/${planId}`, READ_TOKEN);
+    const versions = await pool.query(
+      "SELECT 1 FROM lore.plan_versions WHERE plan_id = $1",
+      [planId],
+    );
+
+    expect({
+      deleted,
+      read: read.status,
+      versions: versions.rowCount,
+    }).toEqual({
+      deleted: { status: 200, body: { id: planId } },
+      read: 404,
+      versions: 0,
+    });
+  });
+
+  it("answers 404 to deleting Ana's plan under another repo, and keeps it", async () => {
+    const planId = await createPlan();
+    const deleted = await call(
+      "DELETE",
+      `/api/repos/acme/elsewhere/plans/${planId}`,
+      TOKEN,
+    );
+    const read = await call("GET", `/api/plans/${planId}`, READ_TOKEN);
+
+    expect({ deleted: deleted.status, read: read.status }).toEqual({
+      deleted: 404,
+      read: 200,
+    });
+  });
+
+  const lineParkedOnAuthor = async (planId: string) => {
+    const run = await pool.query<{ id: string }>(
+      `INSERT INTO pipeline.assembly_runs (blueprint_name, repo, args, status, subject_key)
+       VALUES ('feature-planning', $1, '{}'::jsonb, 'running', $2) RETURNING id`,
+      [REPO, `plan:${planId}`],
+    );
+
+    await pool.query(
+      `INSERT INTO pipeline.station_runs (assembly_run_id, node_id, iteration, started_at)
+       VALUES ($1, 'author', 1, now())`,
+      [run.rows[0].id],
+    );
+  };
+
+  it("reopens Ana's approved plan when its planning line waits on the author, and leaves it be once reopened", async () => {
+    const planId = await approvedPlan();
+
+    await lineParkedOnAuthor(planId);
+    const opened = await call(
+      "POST",
+      `/api/repos/${REPO}/plans/${planId}/author-waiting`,
+      TOKEN,
+    );
+    const again = await call(
+      "POST",
+      `/api/repos/${REPO}/plans/${planId}/author-waiting`,
+      TOKEN,
+    );
+    const { rows } = await pool.query(
+      "SELECT status FROM lore.plans WHERE id = $1",
+      [planId],
+    );
+
+    expect({ opened, again, plan: rows[0] }).toEqual({
+      opened: { status: 200, body: { reopened: true } },
+      again: { status: 200, body: { reopened: false } },
+      plan: { status: "draft" },
+    });
+  });
+
+  it("leaves Ana's approved plan approved when no planning line waits on its author", async () => {
+    const planId = await approvedPlan();
+    const answered = await call(
+      "POST",
+      `/api/repos/${REPO}/plans/${planId}/author-waiting`,
+      TOKEN,
+    );
+
+    expect(answered).toEqual({ status: 200, body: { reopened: false } });
   });
 
   const planMd = async (planId: string) =>

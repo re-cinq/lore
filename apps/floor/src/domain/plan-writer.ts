@@ -23,3 +23,8 @@ export interface PlanWriter {
   markdownOf(planId: string): Promise<string>;
   submitFile(planId: string, body: PlanFileBody): Promise<void>;
 }
+
+/** lore-api's answer to a planning line parked on its author: an approved plan is reopened for writing, any other plan is left as it is. */
+export interface PlanOpener {
+  openForAuthor(repo: string, planId: string): Promise<void>;
+}

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import type { PlanMeta } from "@re-cinq/planning-document";
 import PlanDetailView from "./PlanDetailView";
 
@@ -31,6 +31,7 @@ const actions = {
   approve: async () => ({}),
   reopen: async () => ({}),
   retrySpecWork: async () => ({}),
+  deletePlan: vi.fn(async () => ({})),
 };
 
 describe("PlanDetailView", () => {
@@ -58,6 +59,7 @@ describe("PlanDetailView", () => {
           reason: null,
           prUrl: null,
           prNumber: null,
+          specPlanSummary: null,
           nodes: [],
         }}
         user={{ id: "gedaiu", name: "Bogdan", color: "red" }}
@@ -93,6 +95,54 @@ describe("PlanDetailView", () => {
     expect(screen.getByText(/approved by gedaiu on/).textContent).toContain(
       new Date("2026-09-23T10:00:00.000Z").toLocaleDateString(),
     );
+  });
+
+  it("asks before deleting the plan, saying it cannot be undone", () => {
+    render(<PlanDetailView meta={META} run={null} user={null} {...actions} />);
+    fireEvent.click(screen.getByRole("button", { name: "Delete plan" }));
+
+    expect(screen.getByRole("dialog")).toHaveTextContent(
+      "Faster checkout is removed for good",
+    );
+  });
+
+  it("keeps Delete off until the plan's name Faster checkout is typed in full", () => {
+    render(<PlanDetailView meta={META} run={null} user={null} {...actions} />);
+    fireEvent.click(screen.getByRole("button", { name: "Delete plan" }));
+    const nameField = screen.getByRole("textbox", {
+      name: "Type Faster checkout to confirm",
+    });
+    const deleteButton = screen.getByRole("button", { name: "Delete" });
+    const offBeforeTyping = deleteButton.hasAttribute("disabled");
+
+    fireEvent.change(nameField, { target: { value: "Faster" } });
+    const offOnPartialName = deleteButton.hasAttribute("disabled");
+
+    fireEvent.change(nameField, { target: { value: "Faster checkout" } });
+
+    expect({
+      offBeforeTyping,
+      offOnPartialName,
+      offOnFullName: deleteButton.hasAttribute("disabled"),
+    }).toEqual({
+      offBeforeTyping: true,
+      offOnPartialName: true,
+      offOnFullName: false,
+    });
+  });
+
+  it("deletes the plan once its name is typed and the delete is confirmed", async () => {
+    render(<PlanDetailView meta={META} run={null} user={null} {...actions} />);
+    fireEvent.click(screen.getByRole("button", { name: "Delete plan" }));
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Type Faster checkout to confirm" }),
+      { target: { value: "Faster checkout" } },
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    });
+
+    expect(actions.deletePlan).toHaveBeenCalledTimes(1);
   });
 
   it("asks a visitor without a session to sign in instead of opening the editor", () => {

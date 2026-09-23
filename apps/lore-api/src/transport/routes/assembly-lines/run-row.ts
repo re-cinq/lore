@@ -48,6 +48,8 @@ export const RunRowSchema = z.object({
   started_at: z.string().nullable(),
   finished_at: z.string().nullable(),
   args_pr_number: z.number().nullable(),
+  /** The spec analysis's summary from `args.spec_plan`: while a planning line waits on its author after `analyse-specs` asked for changes, this is the question the author must answer. */
+  spec_plan_summary: z.string().nullable(),
   pr_url: z.string().nullable(),
   task_pr_number: z.number().nullable(),
   issue_url: z.string().nullable(),
@@ -124,6 +126,7 @@ function runRow(
     ...graphField,
     ...lifecycle(run),
     args_pr_number: argsPrNumber(run.args["pr_number"]),
+    spec_plan_summary: specPlanSummary(run.args["spec_plan"]),
     ...enrichedFields(enrichment, run.args["actor"]),
   };
 }
@@ -170,6 +173,22 @@ function argsPrNumber(raw: unknown): number | null {
   const parsed = Number(raw);
 
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+// The artifact lands in args as the JSON text the pod wrote (or, in tests, as an object); either way the summary is its only line a person reads.
+function specPlanSummary(raw: unknown): string | null {
+  const plan = typeof raw === "string" ? parsedJson(raw) : raw;
+  const summary = (plan as { summary?: unknown } | null)?.summary;
+
+  return typeof summary === "string" && summary.trim() ? summary : null;
+}
+
+function parsedJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
 }
 
 /** What a run with no task (or no matching enrichment row) carries. */

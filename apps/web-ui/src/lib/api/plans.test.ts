@@ -9,6 +9,7 @@ const {
   readPlan,
   approvePlan,
   reopenPlan,
+  deletePlan,
   startSpecWork,
   mintCollabToken,
   seedPlan,
@@ -98,6 +99,16 @@ describe("plans client", () => {
       url: "http://api:3000/api/repos/re-cinq/lore/plans/p1/reopen",
       method: "POST",
       body: { reopenedBy: "gedaiu" },
+    });
+  });
+
+  it("deletes plan p1 of re-cinq/lore through lore's own route", async () => {
+    await deletePlan("re-cinq/lore", "p1");
+
+    expect(request()).toEqual({
+      url: "http://api:3000/api/repos/re-cinq/lore/plans/p1",
+      method: "DELETE",
+      body: undefined,
     });
   });
 

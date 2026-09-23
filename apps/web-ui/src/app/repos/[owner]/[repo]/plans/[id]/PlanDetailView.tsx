@@ -1,5 +1,6 @@
 import type { PlanMeta } from "@re-cinq/planning-document";
 import { Alert } from "@/components/Alert";
+import ConfirmedActionButton from "@/components/ConfirmedActionButton";
 import { planPageState, type PlanPageState } from "@/lib/plan-page-state";
 import type { PlanUser } from "@/lib/plan-user";
 import DraftingPlan from "./DraftingPlan";
@@ -14,6 +15,7 @@ interface PlanDetailViewProps extends PlanActions {
   run: PlanRun | null;
   user: PlanUser | null;
   draftAgain: () => Promise<{ error?: string }>;
+  deletePlan: () => Promise<{ error?: string }>;
 }
 
 export default function PlanDetailView({
@@ -21,20 +23,22 @@ export default function PlanDetailView({
   run,
   user,
   draftAgain,
+  deletePlan,
   ...actions
 }: PlanDetailViewProps) {
   const state = planPageState(meta.status, run);
+  const card = { run, state, draftAgain, reopen: actions.reopen };
 
   return (
     <div>
-      <PlanHeader meta={meta} />
-      <PlanRunCard run={run} state={state} draftAgain={draftAgain} />
+      <PlanHeader meta={meta} deletePlan={deletePlan} />
+      <PlanRunCard {...card} />
       <PlanBody meta={meta} run={run} user={user} state={state} {...actions} />
     </div>
   );
 }
 
-type PlanBodyProps = Omit<PlanDetailViewProps, "draftAgain"> & {
+type PlanBodyProps = Omit<PlanDetailViewProps, "draftAgain" | "deletePlan"> & {
   state: PlanPageState;
 };
 
@@ -63,7 +67,9 @@ function specPrOf(run: PlanRun | null): Pick<PlanRun, "prUrl" | "prNumber"> {
   return { prUrl: run?.prUrl ?? null, prNumber: run?.prNumber ?? null };
 }
 
-function PlanHeader({ meta }: { meta: PlanMeta }) {
+type PlanHeaderProps = Pick<PlanDetailViewProps, "meta" | "deletePlan">;
+
+function PlanHeader({ meta, deletePlan }: PlanHeaderProps) {
   return (
     <div className={styles.header}>
       <p className="meta">
@@ -71,9 +77,26 @@ function PlanHeader({ meta }: { meta: PlanMeta }) {
         {meta.approval &&
           ` · approved by ${meta.approval.approvedBy} on ${approvedOn(meta.approval.approvedAt)}`}
       </p>
-      <PlanStatusBadge status={meta.status} />
+      <div className={styles.headerActions}>
+        <PlanStatusBadge status={meta.status} />
+        <ConfirmedActionButton
+          action={deletePlan}
+          label="Delete plan"
+          question={deleteQuestion(meta.title)}
+        />
+      </div>
     </div>
   );
+}
+
+function deleteQuestion(title: string) {
+  return {
+    title: "Delete the plan?",
+    body: `${title} is removed for good, with every version of it. This cannot be undone.`,
+    confirmLabel: "Delete",
+    tone: "danger",
+    typeToConfirm: title,
+  } as const;
 }
 
 function approvedOn(iso: string): string {
