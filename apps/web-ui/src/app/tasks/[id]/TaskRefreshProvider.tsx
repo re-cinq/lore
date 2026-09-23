@@ -133,10 +133,10 @@ function useRefreshContextValue(
 /** Chooses how this page stays current and keeps it that way. The stream is preferred; falling back to POLLING is a one-way move within a mount — once the stream has proved unavailable, retrying it per render would reconnect on every refresh. Discovery keeps looking for a live run while the task is unfinished, because a run can start after the page loaded. */
 function useRefreshDriver({ taskId, taskStatus, runs }: RefreshDriverOptions) {
   const state = useDriverState(runs);
-  const { liveRunId, streamUnavailable, connection } = state;
+  const { connection } = state;
   const { register, setActive, refreshAll, anyPanelActive } =
     usePanelRegistry();
-  const driver = pickDriver(state, anyPanelActive, useLiveSocket() !== null);
+  const driver = useDriver({ ...state, anyPanelActive });
   const onEvent = useCoalescedRefresh(refreshAll, state.setAfterId);
 
   useDriverSubscriptions({
@@ -222,12 +222,15 @@ function useLiveRunFound(options: StreamCallbackOptions) {
 }
 
 /** Stream or poll. The live socket is asked for rather than assumed: there is none without a configured address or a provider above the page, and a page that assumed it would never fall back to polling there. */
-function pickDriver(
-  state: { liveRunId: string | null; streamUnavailable: boolean },
-  anyPanelActive: boolean,
-  socketAvailable: boolean,
-) {
-  return resolveRefreshDriver({ ...state, anyPanelActive, socketAvailable });
+function useDriver(input: {
+  liveRunId: string | null;
+  streamUnavailable: boolean;
+  anyPanelActive: boolean;
+}) {
+  return resolveRefreshDriver({
+    ...input,
+    socketAvailable: useLiveSocket() !== null,
+  });
 }
 
 /** Both ways of staying current, subscribed together. Neither is conditional: the stream hook is disabled rather than unmounted, and the ticker takes a null interval rather than being skipped, because a hook that comes and goes with the driver would break the rules of hooks the moment the fallback fires. */
