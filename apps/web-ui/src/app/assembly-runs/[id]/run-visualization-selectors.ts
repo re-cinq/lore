@@ -1,6 +1,7 @@
 // Pure derivations for RunVisualizationPanel: no JSX, no hooks — just "given this state, what should the panel show".
 import type { AssemblyRunNode } from "@/lib/assembly-runs";
-import type { NodeRunState } from "@/lib/run-event-reducer";
+import type { NodeRunState, RunLiveState } from "@/lib/run-event-reducer";
+import type { TaskRuntimeEvent } from "@/lib/task-runtime";
 import type { RunData } from "@/lib/graph-view-model";
 import { isTerminalRunStatus } from "@/lib/run-stream-presenter";
 
@@ -74,4 +75,12 @@ export function buildRunData(input: BuildRunDataInput): RunData {
     taken: takenEdges,
     result: runResult(rows, runStatus),
   };
+}
+
+/** What the selected node's transcript folds in from the live run: the task's transitions, and the newest agent event, whose every change pulls the turns stored since. */
+export function transcriptFeed(
+  state: Pick<RunLiveState, "lastEventId">,
+  taskEvents: readonly TaskRuntimeEvent[] | undefined,
+) {
+  return { taskEvents, liveEventId: state.lastEventId ?? undefined };
 }

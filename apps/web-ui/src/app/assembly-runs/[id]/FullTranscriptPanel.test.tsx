@@ -563,3 +563,24 @@ describe("FullTranscriptPanel under React Strict Mode", () => {
     expect(await screen.findByText(/full text of turn 1/)).toBeTruthy();
   });
 });
+
+describe("FullTranscriptPanel following a live run", () => {
+  it("fetches only the turns after the newest one when a live event arrives, and shows them", async () => {
+    const fetchMock = stubFetch(
+      turnsResponse([wireTurn("1", "implement")]),
+      turnsResponse([wireTurn("2", "implement")]),
+    );
+    const { container, rerender } = render(
+      <FullTranscriptPanel runId="run-1" nodeId="implement" liveEventId="10" />,
+    );
+
+    await openPanel(container);
+    await screen.findByText(/full text of turn 1/);
+    rerender(
+      <FullTranscriptPanel runId="run-1" nodeId="implement" liveEventId="11" />,
+    );
+
+    expect(await screen.findByText(/full text of turn 2/)).toBeTruthy();
+    expect(String(fetchMock.mock.calls[1][0])).toContain("after=1");
+  });
+});

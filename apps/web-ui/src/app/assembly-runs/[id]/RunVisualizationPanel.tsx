@@ -26,6 +26,7 @@ import {
 } from "./run-visualization-hooks";
 import { RunFilesSection } from "./RunFilesSection";
 import { NodeInspectorPanel } from "./NodeInspectorPanel";
+import { transcriptFeed } from "./run-visualization-selectors";
 import { runStateOf } from "./RunStationButton";
 import { RunGraphSection } from "./RunGraphSection";
 import { RunWorkbenchLayout } from "./RunWorkbenchLayout";
@@ -143,7 +144,7 @@ function inspectorProps(view: RunView, page: RunDetailPage) {
     runState: runStateOf(page.runStatus),
     agentEditHrefs: page.agentEditHrefs,
     nodeModels: page.nodeModels,
-    taskEvents: page.taskEvents,
+    ...transcriptFeed(view.state, page.taskEvents),
     selectedState: view.node.selected,
     visibleNodeCount: visibleNodeCount(view),
   };

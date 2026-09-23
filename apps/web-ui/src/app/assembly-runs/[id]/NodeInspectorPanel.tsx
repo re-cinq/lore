@@ -33,6 +33,8 @@ interface SelectedNodeSectionProps {
   agentEditHrefs?: Record<string, string>;
   nodeModels?: Record<string, NodeModel>;
   taskEvents?: readonly TaskRuntimeEvent[];
+  /** The newest agent event the run's channel delivered; the transcript follows it. */
+  liveEventId?: string;
   visibleNodeCount: number;
 }
 
@@ -55,6 +57,7 @@ export function NodeInspectorPanel(props: NodeInspectorPanelProps) {
         nodeId={selectedNodeId}
         taskEvents={props.taskEvents}
         rows={props.selectedRows}
+        liveEventId={props.liveEventId}
       />
     </>
   );
