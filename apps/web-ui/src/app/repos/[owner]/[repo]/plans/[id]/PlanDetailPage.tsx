@@ -12,6 +12,7 @@ import PlanDetailView from "./PlanDetailView";
 import type { PlanRun } from "./PlanRunCard";
 import {
   approvePlanAction,
+  deletePlanAction,
   draftAgainAction,
   openPlanSocketAction,
   refinePlanAction,
@@ -47,6 +48,7 @@ function boundActions(fullName: string, id: string) {
     draftAgain: draftAgainAction.bind(null, fullName, id),
     reopen: reopenPlanAction.bind(null, fullName, id),
     retrySpecWork: retrySpecWorkAction.bind(null, fullName, id),
+    deletePlan: deletePlanAction.bind(null, fullName, id),
   };
 }
 
