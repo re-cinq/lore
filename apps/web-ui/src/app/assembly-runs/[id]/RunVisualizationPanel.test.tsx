@@ -810,7 +810,7 @@ describe("retry from node", () => {
   }
 
   it("offers Run this station on a node the run never visited, while the run is still live", async () => {
-    stubHistory([]); // eslint-disable-line re-lint/declare-near-use -- the history stub must be installed before the render it serves
+    stubHistory([]);
 
     useFakeSocket();
     renderRun("running", [retryRow({ nodeId: "implement", outcome: null })]);
