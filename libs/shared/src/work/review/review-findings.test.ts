@@ -218,4 +218,54 @@ describe("the other findings schema this repo defines", () => {
 
     expect(parseReviewFindings(neither)).toBeNull();
   });
+
+  it("reads message as the subject's first sentence and the whole discussion, verbatim from PR #2143's recheck run 859b5d18 (2026-09-23) whose findings were all lost", () => {
+    const messageShape = `\`\`\`REVIEW_FINDINGS
+{
+  "verdict": "changes_requested",
+  "summary": "Dual package hazard: multiple versions of @re-cinq/planning-document will be installed.",
+  "findings": [
+    {
+      "file": "apps/lore-api/package.json",
+      "line": 35,
+      "message": "Updating the pin while leaving lore-api behind installs two copies. Align both apps on one tag.",
+      "decoration": "blocking"
+    }
+  ]
+}
+\`\`\``;
+
+    expect(parseReviewFindings(messageShape)?.findings).toMatchObject([
+      {
+        path: "apps/lore-api/package.json",
+        line: 35,
+        label: "issue",
+        decoration: "blocking",
+        subject:
+          "Updating the pin while leaving lore-api behind installs two copies.",
+        discussion:
+          "Updating the pin while leaving lore-api behind installs two copies. Align both apps on one tag.",
+      },
+    ]);
+  });
+
+  it("never reads a message into an empty or clipped subject: a leading newline is skipped, and an abbreviation keeps the whole first line", () => {
+    const withMessages = (...messages: string[]) =>
+      "```REVIEW_FINDINGS\n" +
+      JSON.stringify({
+        verdict: "changes_requested",
+        findings: messages.map((message) => ({
+          file: "a.ts",
+          line: 1,
+          message,
+        })),
+      }) +
+      "\n```";
+
+    expect(
+      parseReviewFindings(
+        withMessages("\nLeading newline. More.", "e.g. foo is wrong. Fix it."),
+      )?.findings.map((finding) => finding.subject),
+    ).toEqual(["Leading newline.", "e.g. foo is wrong. Fix it."]);
+  });
 });
