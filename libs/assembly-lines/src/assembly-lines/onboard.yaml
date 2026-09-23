@@ -29,7 +29,7 @@ nodes:
   - id: review
     type: agent
     prompt_ref: review
-    model: claude-haiku-4-5-20251001
+    model: gemini-3.1-pro-preview
     description: Bot review — posts inline comments + verdict.
 
   - id: address

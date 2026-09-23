@@ -6,7 +6,7 @@ review_required: false
 execution_mode: claude-code
 # The pod's Bash hook refuses every test runner, install and build here: CI is the judge and the disk is 1Gi.
 test_policy: none
-model: claude-sonnet-4-6
+model: gemini-3.1-pro-preview
 # Commits via `git -C /workspace/target` like before workingDir existed; the
 # install ban still applies — its commits are validated by the PR's CI (#1160).
 repo_workdir: false

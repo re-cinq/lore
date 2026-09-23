@@ -25,11 +25,12 @@ disallowed_tools:
   - Bash(make:*)
   - Bash(bash:*)
   - Bash(sh:*)
-# Review reads diff + spec and posts comments — no codegen. Haiku
-# is sufficient. If the structured REVIEW_RESULT marker goes
-# missing, the runner parser defaults to changes-requested which
-# is the safe fallback. Monitor parse-success rate for a week.
-model: claude-haiku-4-5-20251001
+# Review reads diff + spec and posts comments — no codegen. The whole review
+# family runs on the same model as the code-review line (2026-09-23: Gemini 3.1
+# Pro reviews found the must-fixes the cheaper tiers approved past). If the
+# structured REVIEW_RESULT marker goes missing, the runner parser defaults to
+# changes-requested, which is the safe fallback.
+model: gemini-3.1-pro-preview
 ---
 Review PR #{pr_number} on this branch. The PR branch is checked out at
 /workspace/target — read the spec, conventions, and code from there
