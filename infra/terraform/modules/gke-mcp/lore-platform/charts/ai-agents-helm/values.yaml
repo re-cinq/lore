@@ -69,7 +69,11 @@ controller:
   replicas: 1
   image:
     repository: ghcr.io/re-cinq/ai-agent-controller
-    # Pinned by digest (never a floating tag) — v0.11.3: a Gemini run's MCP servers
+    # Pinned by digest (never a floating tag) — v0.11.4: a continued Gemini conversation
+    # resumes `latest` instead of the caller's id, which gemini-cli never issued, so every
+    # resumed Gemini pass exited 42 before its first turn (ai-agent-subsystem#250); a
+    # watched file's upload carries X-Agent-Exit-Code, so the Floor can tell a failed
+    # pass's untouched plan.md from an answer (#251). v0.11.3: a Gemini run's MCP servers
     # reach the CLI — v0.11.2 wrote them to gemini-cli's system settings, which the CLI
     # refuses unless the directory is root-owned (the pod is uid 1000), so every Gemini
     # pod still started with 0 tools; the init now merges them into the user settings
@@ -108,11 +112,11 @@ controller:
     # line: informer watch + cache reconcile, /healthz from bind, conversation
     # continuity, tar-free conversation archiving.
     # Digests come from the release's install.yaml
-    # (https://github.com/re-cinq/ai-agent-subsystem/releases/tag/v0.11.3), or:
-    #   skopeo inspect docker://ghcr.io/re-cinq/ai-agent-controller:v0.11.3
-    digest: "sha256:7730775126e43856f0101ff17d3f0e5c4f784dcc1aece9c464401913349e9c8a"
+    # (https://github.com/re-cinq/ai-agent-subsystem/releases/tag/v0.11.4), or:
+    #   skopeo inspect docker://ghcr.io/re-cinq/ai-agent-controller:v0.11.4
+    digest: "sha256:a6b3dea5d5c707bb98af17e5bf2078949853200aca1a0f3367faf6f81b99112e"
   # The image whose init container injects the agent runtime + supervisor into each run
-  # pod. Controller + agent ship as a PAIR from the v-tag matrix — pinned to the v0.11.3
+  # pod. Controller + agent ship as a PAIR from the v-tag matrix — pinned to the v0.11.4
   # digest, paired with the controller above. The GeminiSetup installer lives in THIS
   # image (the init container is what installs the vendor CLI), so the pair must move
   # together or a gemini run still boots a pod with no gemini binary in it. The
@@ -122,9 +126,10 @@ controller:
   # v0.11.0 downloads a run's input files and copies the baked Claude CLI; v0.11.1
   # retries a watched file's upload; v0.11.2 writes a Gemini run's MCP settings;
   # v0.11.3 writes them where gemini-cli reads them as uid 1000 (the user settings,
-  # merged by `ai-agent-init mcp-settings`).
-  #   skopeo inspect --no-tags docker://ghcr.io/re-cinq/ai-agent:v0.11.3
-  agentImage: "ghcr.io/re-cinq/ai-agent@sha256:56ce7fa583033915bbfdb42862079658a52ba3387373edfb6a29d5083092bd43"
+  # merged by `ai-agent-init mcp-settings`); v0.11.4 resumes a Gemini conversation by
+  # `latest` and sends the agent's exit code with each upload.
+  #   skopeo inspect --no-tags docker://ghcr.io/re-cinq/ai-agent:v0.11.4
+  agentImage: "ghcr.io/re-cinq/ai-agent@sha256:6fd75759aba15ce50a3d7b1fd6c2ec243ddb0af368ff12467430aabd1fbd9038"
   # Tail of run-pod log kept in Agent.status.output (bounds the object under etcd's limit).
   maxOutputBytes: "262144"
   resources:
