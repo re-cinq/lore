@@ -9,6 +9,7 @@ import type {
 import type { Page, PageRequest } from "@re-cinq/lore-shared/lib/paginate.js";
 import type { CrdPair } from "@re-cinq/lore-shared/project/agents/agent-crd.js";
 
+/// todo: add a linter rule to force all arguments to have explicit types. They should be shared as much as possible.
 export interface ClusterDeps {
   agents: {
     get(name: string): Promise<AgentCr | null>;

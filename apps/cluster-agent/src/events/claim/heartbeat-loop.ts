@@ -19,6 +19,7 @@ export interface HeartbeatDeps {
   log?: (line: string) => void;
 }
 
+// todo: a lint rule, so an outcome union is never spelled out inline again.
 /** What one beat concluded: the cluster answered, refused the credential, or could not be reached. */
 export type HeartbeatOutcome = "ok" | "unauthorized" | "error";
 
@@ -69,7 +70,7 @@ async function postHeartbeat(
 }
 
 export interface HeartbeatLoopDeps {
-  beat: () => Promise<"ok" | "unauthorized" | "error">;
+  beat: () => Promise<HeartbeatOutcome>;
   /** Re-registration shared with the claim loop; null when it also failed. */
   reRegister: () => Promise<unknown>;
   sleep: (ms: number) => Promise<void>;
@@ -79,10 +80,12 @@ export interface HeartbeatLoopDeps {
 
 /** Beat forever at the fixed interval; an unauthorized beat re-registers. */
 export async function runHeartbeatLoop(deps: HeartbeatLoopDeps): Promise<void> {
-  await runPollLoop<"ok" | "unauthorized" | "error">({
+  await runPollLoop<HeartbeatOutcome>({
     tick: deps.beat,
     onOutcome: async (outcome) => {
       if (outcome !== "unauthorized") {
+        console.log(`[cluster-agent] heartbeat outcome: ${outcome}`);
+
         return;
       }
 
