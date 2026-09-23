@@ -1,4 +1,4 @@
-// The plan as the file its planning pod edits (ADR-047): rendered from the live document when the pod asks, and turned back into agent ops when the edited file returns — a draft's written straight in, and a Refine is proposed for the section it asked about and for every other section the settled answers forced.
+// The plan as the file its planning pod edits (ADR-047): rendered from the live document when the pod asks, and turned back into agent ops when the edited file returns — a draft's written straight in, and a Refine is proposed one paragraph at a time, each read and taken under the paragraph it is about.
 
 import {
   markdownToOps,
@@ -19,8 +19,8 @@ export interface PlanFilePorts {
   /** The agent's writes into the live document; what they return is not this module's to read. */
   writer: {
     applyOps(request: OpsRequest): Promise<unknown>;
-    /** One pass's proposals: the asked section, and each other section the settled answers forced. */
-    proposePass(request: PassRequest): Promise<{ skipped: string[] }>;
+    /** One pass's proposals, one per paragraph it changed: each is read and taken where it lands. */
+    proposeChanges(request: PassRequest): Promise<unknown>;
   };
 }
 
@@ -31,14 +31,7 @@ export interface PlanFileSubmission {
   refine: { slot: string; baseHash: string; uses?: unknown } | null;
 }
 
-/** A section the pass changed whose proposal someone is already reviewing, so this pass left it alone. */
-export interface PendingProposalProblem {
-  code: "proposal-pending";
-  slot: string;
-  message: string;
-}
-
-export type PlanFileProblem = MarkdownProblem | PendingProposalProblem;
+export type PlanFileProblem = MarkdownProblem;
 
 export interface PlanFileOutcome {
   written: number;
@@ -68,13 +61,13 @@ export async function applyPlanFile(
     apiError(400, { problems: read.problems }),
     "plan.md holds nothing that could be written",
   );
-  const pending = await write(
+  await write(
     { planId, actor: submission.actor, ops },
     submission.refine,
     ports.writer,
   );
 
-  return { written: ops.length, problems: [...read.problems, ...pending] };
+  return { written: ops.length, problems: read.problems };
 }
 
 async function readFile(
@@ -101,38 +94,28 @@ async function write(
   fileWrite: FileWrite,
   refine: Refine | null,
   writer: PlanFilePorts["writer"],
-): Promise<PendingProposalProblem[]> {
+): Promise<void> {
   if (refine) {
-    return pendingProblems(await propose(fileWrite, refine, writer));
+    await propose(fileWrite, refine, writer);
+
+    return;
   }
 
   if (fileWrite.ops.length > 0) {
     await writer.applyOps(fileWrite);
   }
-
-  return [];
 }
 
 async function propose(
   { planId, actor, ops }: FileWrite,
   { slot, baseHash, uses }: Refine,
   writer: PlanFilePorts["writer"],
-): Promise<string[]> {
-  const { skipped } = await writer.proposePass({
+): Promise<void> {
+  await writer.proposeChanges({
     planId,
     actor,
     asked: { slot, baseHash },
     uses: refineUsesSchema.parse(uses ?? {}),
     ops,
   });
-
-  return skipped;
-}
-
-function pendingProblems(skipped: string[]): PendingProposalProblem[] {
-  return skipped.map((slot) => ({
-    code: "proposal-pending" as const,
-    slot,
-    message: `${slot} already has a proposal waiting, so this pass left it alone`,
-  }));
 }

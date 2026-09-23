@@ -26,10 +26,10 @@ function recordingPorts() {
       applyOps: async (request) => {
         writes.push({ call: "applyOps", request });
       },
-      proposePass: async (request) => {
-        writes.push({ call: "proposePass", request });
+      proposeChanges: async (request) => {
+        writes.push({ call: "proposeChanges", request });
 
-        return { proposed: [], skipped: [] };
+        return [];
       },
     },
   };
@@ -111,13 +111,13 @@ describe("applyPlanFile", () => {
 
     expect(writes).toMatchObject([
       {
-        call: "proposePass",
+        call: "proposeChanges",
         request: { asked: { slot: "intent" }, ops: [] },
       },
     ]);
   });
 
-  it("proposes the Refine's own section and the scope an answer forced, each as its own proposal", async () => {
+  it("proposes each paragraph the pass changed as its own change, for a person to take where it lands", async () => {
     const { writes, ports } = recordingPorts();
 
     await applyPlanFile(
@@ -136,7 +136,7 @@ describe("applyPlanFile", () => {
 
     expect(writes).toMatchObject([
       {
-        call: "proposePass",
+        call: "proposeChanges",
         request: {
           planId: "p1",
           asked: { slot: "intent", baseHash: "3f9a" },

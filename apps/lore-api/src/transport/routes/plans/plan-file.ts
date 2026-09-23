@@ -61,7 +61,7 @@ const AGENT_FILE_OPTIONS = {
   ...zodResponse({}, PlanFileOutcomeSchema, {
     name: "PlanFileWritten",
     description:
-      "The edited plan.md, written as agent edits (a draft) or proposed for the Refine's section",
+      "The edited plan.md, written as agent edits (a draft) or proposed one change per paragraph for the Refine to take where each lands",
     errors: [400, 404],
   }),
   validate: { payload: zodValidate(PlanFileBody) },
