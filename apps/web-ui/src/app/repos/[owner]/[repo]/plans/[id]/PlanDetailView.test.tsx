@@ -106,9 +106,38 @@ describe("PlanDetailView", () => {
     );
   });
 
-  it("deletes the plan once the delete is confirmed", async () => {
+  it("keeps Delete off until the plan's name Faster checkout is typed in full", () => {
     render(<PlanDetailView meta={META} run={null} user={null} {...actions} />);
     fireEvent.click(screen.getByRole("button", { name: "Delete plan" }));
+    const nameField = screen.getByRole("textbox", {
+      name: "Type Faster checkout to confirm",
+    });
+    const deleteButton = screen.getByRole("button", { name: "Delete" });
+    const offBeforeTyping = deleteButton.hasAttribute("disabled");
+
+    fireEvent.change(nameField, { target: { value: "Faster" } });
+    const offOnPartialName = deleteButton.hasAttribute("disabled");
+
+    fireEvent.change(nameField, { target: { value: "Faster checkout" } });
+
+    expect({
+      offBeforeTyping,
+      offOnPartialName,
+      offOnFullName: deleteButton.hasAttribute("disabled"),
+    }).toEqual({
+      offBeforeTyping: true,
+      offOnPartialName: true,
+      offOnFullName: false,
+    });
+  });
+
+  it("deletes the plan once its name is typed and the delete is confirmed", async () => {
+    render(<PlanDetailView meta={META} run={null} user={null} {...actions} />);
+    fireEvent.click(screen.getByRole("button", { name: "Delete plan" }));
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Type Faster checkout to confirm" }),
+      { target: { value: "Faster checkout" } },
+    );
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Delete" }));
     });
