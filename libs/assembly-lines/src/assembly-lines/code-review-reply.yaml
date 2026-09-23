@@ -9,7 +9,7 @@ nodes:
     type: agent
     prompt_ref: code-review-refine
     station_ref: code-review-refine
-    model: claude-sonnet-4-6
+    model: gemini-3.1-pro-preview
     description: Intent-aware — answer in the thread, or implement the approved fix and commit to the PR branch.
 
   - id: done

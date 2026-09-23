@@ -11,7 +11,7 @@ review_required: false
 execution_mode: claude-code
 # The pod's Bash hook refuses every test runner, install and build here: CI is the judge and the disk is 1Gi.
 test_policy: none
-model: claude-sonnet-4-6
+model: gemini-3.1-pro-preview
 # Read-only recipe (#1160): see the `review` recipe's note.
 repo_workdir: false
 disallowed_tools:
