@@ -129,6 +129,19 @@ describe("the live socket on lore-api", () => {
     }
   };
 
+  const nextFrameOfType = async (
+    c: ReturnType<typeof queuedClient>,
+    type: string,
+  ) => {
+    for (;;) {
+      const m = await c.next();
+
+      if (m.type === "frame" && m.frame.type === type) {
+        return m;
+      }
+    }
+  };
+
   const untilCatchup = async (c: ReturnType<typeof queuedClient>) => {
     const types: string[] = [];
 
@@ -222,7 +235,7 @@ describe("the live socket on lore-api", () => {
       [runId],
     );
 
-    expect(await c.next()).toMatchObject({
+    expect(await nextFrameOfType(c, "agent_event")).toMatchObject({
       type: "frame",
       channel: "r",
       frame: { type: "agent_event", event: { summary: "Edit src/foo.ts" } },

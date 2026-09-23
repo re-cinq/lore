@@ -15,8 +15,22 @@ import type { RunChannelDeps } from "./run-channel.js";
 export function runChannelDepsFromPool(
   getPool: () => Pool | null,
 ): RunChannelDeps {
+  const resolve = boundOnce(getPool);
+
+  return {
+    verifyToken: (token, claim) => resolve().verifyToken(token, claim),
+    runs: { getById: (id) => resolve().runs.getById(id) },
+    feeds: {
+      join: (run, sink, after) => resolve().feeds.join(run, sink, after),
+    },
+  };
+}
+
+/** Binds to the pool on first use and keeps that binding: one feed registry and one verifier per process. */
+function boundOnce(getPool: () => Pool | null): () => RunChannelDeps {
   let bound: RunChannelDeps | undefined;
-  const resolve = (): RunChannelDeps => {
+
+  return () => {
     if (bound) {
       return bound;
     }
@@ -26,14 +40,6 @@ export function runChannelDepsFromPool(
     bound = bind(pool);
 
     return bound;
-  };
-
-  return {
-    verifyToken: (token, claim) => resolve().verifyToken(token, claim),
-    runs: { getById: (id) => resolve().runs.getById(id) },
-    feeds: {
-      join: (run, sink, after) => resolve().feeds.join(run, sink, after),
-    },
   };
 }
 

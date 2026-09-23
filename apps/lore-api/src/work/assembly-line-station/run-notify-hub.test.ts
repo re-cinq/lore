@@ -176,12 +176,37 @@ describe("PgRunNotifier", () => {
 
     hub.subscribe(filter, () => {}, onResync);
     await flush();
+    onResync.mockClear();
     clients[0].emit("error", new Error("terminated"));
     scheduled.shift()?.();
     await flush();
 
     expect(clients[1].queries).toEqual(["LISTEN lore_run_stream"]);
     expect(onResync).toHaveBeenCalledTimes(1);
+  });
+
+  it("resyncs a subscriber that joined before the first LISTEN was in place, so a row written in that gap is not missed", async () => {
+    let finishConnect: () => void = () => {};
+    const client = fakeClient(
+      () =>
+        new Promise<void>((resolve) => {
+          finishConnect = resolve;
+        }),
+    );
+    const hub = new PgRunNotifier({ connect: () => client, log: () => {} });
+    const onResync = vi.fn();
+
+    hub.subscribe(filter, () => {}, onResync);
+    await flush();
+    const beforeListen = onResync.mock.calls.length;
+
+    finishConnect();
+    await flush();
+
+    expect({ beforeListen, afterListen: onResync.mock.calls.length }).toEqual({
+      beforeListen: 0,
+      afterListen: 1,
+    });
   });
 
   it("backs off and retries when the connection attempt itself fails", async () => {

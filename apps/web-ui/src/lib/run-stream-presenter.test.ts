@@ -103,7 +103,7 @@ describe("connectionLabel", () => {
 });
 
 describe("resolveStreamMode", () => {
-  it("returns live for a running run when EventSource is available", () => {
+  it("returns live for a running run when a live socket is available", () => {
     expect(
       resolveStreamMode({
         runStatus: "running",
@@ -113,7 +113,7 @@ describe("resolveStreamMode", () => {
     ).toBe("live");
   });
 
-  it("returns history-only when EventSource is unavailable", () => {
+  it("returns history-only when no live socket is available", () => {
     expect(
       resolveStreamMode({
         runStatus: "running",
@@ -123,7 +123,7 @@ describe("resolveStreamMode", () => {
     ).toBe("history-only");
   });
 
-  it("returns history-only for a finished run even when EventSource is available", () => {
+  it("returns history-only for a finished run even when a live socket is available", () => {
     expect(
       resolveStreamMode({
         runStatus: "finished",

@@ -85,20 +85,15 @@ function onChannelRequested(
   event: Extract<MachineEvent, { type: "channel_requested" }>,
 ): Transition {
   const notify: Effect = { type: "notify", id: event.id, state: "connecting" };
+  const phase = state.socket === "open" ? "opening" : "pending";
+  const added = withChannel(state, event.id, { kind: event.kind, phase });
 
   if (state.socket === "open") {
     return {
-      state: withChannel(state, event.id, {
-        kind: event.kind,
-        phase: "opening",
-      }),
+      state: added,
       effects: [notify, { type: "send_open", id: event.id }],
     };
   }
-  const added = withChannel(state, event.id, {
-    kind: event.kind,
-    phase: "pending",
-  });
 
   return needsSocket(state)
     ? {

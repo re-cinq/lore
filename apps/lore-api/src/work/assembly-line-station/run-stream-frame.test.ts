@@ -38,9 +38,11 @@ describe("run stream frames", () => {
   });
 
   it("serializes createdAt as an ISO string inside the agent event", () => {
-    expect(JSON.parse(JSON.stringify(agentEventFrame(event("42"))))).toMatchObject(
-      { event: { id: "42", createdAt: "2026-07-20T10:00:00.000Z" } },
-    );
+    expect(
+      JSON.parse(JSON.stringify(agentEventFrame(event("42")))),
+    ).toMatchObject({
+      event: { id: "42", createdAt: "2026-07-20T10:00:00.000Z" },
+    });
   });
 
   it("frames the run's facts as run_status", () => {
@@ -100,8 +102,8 @@ describe("run stream frames", () => {
     ];
 
     expect(frames[0]).toEqual({ type: "catchup_complete", last_id: "9" });
-    expect(frames.map((f) => RunStreamFrameSchema.safeParse(f).success)).toEqual(
-      [true, true, true],
-    );
+    expect(
+      frames.map((f) => RunStreamFrameSchema.safeParse(f).success),
+    ).toEqual([true, true, true]);
   });
 });

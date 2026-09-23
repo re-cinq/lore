@@ -70,7 +70,7 @@ introduced for this feature must not collide with that name.
 
 Run observability is delivered over Server-Sent Events at
 `GET /api/agent-events/stream/{assemblyLineId}`, with catch-up-then-live
-semantics keyed on a row-id cursor. ([validated by `live-socket.test.ts:136`](apps/lore-api/src/work/assembly-line-station/live-socket.test.ts#L159), [`run-stream-session.test.ts:130`](apps/lore-api/src/work/assembly-line-station/run-stream-session.test.ts#L130), [`run-feed.test.ts:153`](apps/lore-api/src/work/assembly-line-station/run-feed.test.ts#L155))
+semantics keyed on a row-id cursor. ([validated by `live-socket.test.ts:136`](apps/lore-api/src/work/assembly-line-station/live-socket.test.ts#L159), [`run-stream-session.test.ts:130`](apps/lore-api/src/work/assembly-line-station/run-stream-session.test.ts#L130), [`run-feed.test.ts:153`](apps/lore-api/src/work/assembly-line-station/run-feed.test.ts#L185))
 
 The POST handler and the SSE subscribers are joined by an in-process pub/sub. ([validated by `run-notify-hub.test.ts:73`](apps/lore-api/src/work/assembly-line-station/run-notify-hub.test.ts#L73)) A
 subscriber registers against an assembly-line id; the ingest path publishes each
@@ -78,12 +78,12 @@ projected row to matching subscribers after the write commits. ([validated by `r
 
 Reconnection is lossless by construction rather than by buffering: the browser
 resends `Last-Event-ID`, and the server replays from the database before
-attaching to the live tail. ([validated by `run-feed.test.ts:224`](apps/lore-api/src/work/assembly-line-station/run-feed.test.ts#L226), [`run-event-reducer.test.ts:223`](apps/web-ui/src/lib/run-event-reducer.test.ts#L223)) The bus is therefore best-effort and holds no
-backlog — durability lives in `pipeline.agent_run_events`, not in memory. ([validated by `run-feed.test.ts:278`](apps/lore-api/src/work/assembly-line-station/run-feed.test.ts#L282))
+attaching to the live tail. ([validated by `run-feed.test.ts:224`](apps/lore-api/src/work/assembly-line-station/run-feed.test.ts#L256), [`run-event-reducer.test.ts:223`](apps/web-ui/src/lib/run-event-reducer.test.ts#L223)) The bus is therefore best-effort and holds no
+backlog — durability lives in `pipeline.agent_run_events`, not in memory. ([validated by `run-feed.test.ts:278`](apps/lore-api/src/work/assembly-line-station/run-feed.test.ts#L312))
 
 A subscriber that cannot keep up is disconnected rather than allowed to apply
 back-pressure to the ingest path, which shares a process with the cost sink and
-the Floor's job loops. ([validated by `run-feed.test.ts:256`](apps/lore-api/src/work/assembly-line-station/run-feed.test.ts#L260))
+the Floor's job loops. ([validated by `run-feed.test.ts:256`](apps/lore-api/src/work/assembly-line-station/run-feed.test.ts#L290))
 
 Both hops set `Cache-Control: no-cache, no-transform` and `X-Accel-Buffering: no`. _(Retired 2026-09-23: there are no HTTP hops on the live socket; ADR-048's ping/pong is what keeps a quiet connection alive.)_
 
@@ -301,7 +301,7 @@ frame contract is a generated type, and the drift guard is deleted.
   other families are STATE, re-sent as a snapshot on every connect and after a
   resync, and applied idempotently. A composite cursor was rejected: it makes
   `Last-Event-ID` opaque, needs a parser on both ends, and buys nothing because
-  a snapshot is bounded by the run's node count. _(The `id:` line went with SSE; on the socket the cursor is the `after` field of the channel's open, still an agent-event row id.)_ ([carries an agent event under its type with the row id the cursor reads](apps/lore-api/src/work/assembly-line-station/run-stream-frame.test.ts#L33), [re-sends every viewer's snapshot when the notifier resyncs after a lost connection](apps/lore-api/src/work/assembly-line-station/run-feed.test.ts#L243))
+  a snapshot is bounded by the run's node count. _(The `id:` line went with SSE; on the socket the cursor is the `after` field of the channel's open, still an agent-event row id.)_ ([carries an agent event under its type with the row id the cursor reads](apps/lore-api/src/work/assembly-line-station/run-stream-frame.test.ts#L33), [re-sends every viewer's snapshot when the notifier resyncs after a lost connection](apps/lore-api/src/work/assembly-line-station/run-feed.test.ts#L273))
 - The fan-out is Postgres `NOTIFY` from AFTER triggers (migration 0070), not an
   app-level publish in each writer: `pipeline.station_runs` has eight writers in
   two processes, and a publish every writer must remember is the invariant this
@@ -311,7 +311,7 @@ frame contract is a generated type, and the drift guard is deleted.
 - lore-api holds one dedicated `LISTEN` client per process, outside the query
   pool, opened on the first subscriber; a lost connection reconnects with capped
   backoff and then tells every subscriber to resync, because notifications
-  during the gap are gone by design. ([reconnects after the connection errors and tells every subscriber to resync](apps/lore-api/src/work/assembly-line-station/run-notify-hub.test.ts#L166), [backs off and retries when the connection attempt itself fails](apps/lore-api/src/work/assembly-line-station/run-notify-hub.test.ts#L187))
+  during the gap are gone by design. ([reconnects after the connection errors and tells every subscriber to resync](apps/lore-api/src/work/assembly-line-station/run-notify-hub.test.ts#L166), [backs off and retries when the connection attempt itself fails](apps/lore-api/src/work/assembly-line-station/run-notify-hub.test.ts#L212))
 - The "no `node_status` event type" rejection under Alternatives is reversed on
   narrower grounds than it was made: the table is still the only source of node
   truth, and the frame is that table's row pushed to the page rather than a

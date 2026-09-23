@@ -44,10 +44,12 @@ export interface Membership {
 const later = (frame: RunStreamFrame, cursor: string): boolean =>
   frame.type !== "agent_event" || BigInt(frame.event.id) > BigInt(cursor);
 
-/** One registered viewer: its sink, its own agent-event cursor, and the drop when it falls behind. */
+/** One registered viewer: its sink, its own agent-event cursor, whether it has caught up yet, and the drop when it falls behind. */
 class Member implements Subscriber {
   private position: string;
   private gone = false;
+  /** False until the viewer's own catch-up has run; a live broadcast in flight before then must not reach it, or its cursor would jump past history it has not replayed. */
+  private caughtUp = false;
 
   constructor(
     private readonly sink: FrameSink,
@@ -64,6 +66,15 @@ class Member implements Subscriber {
 
   closed(): boolean {
     return this.gone;
+  }
+
+  /** Live frames go only to a viewer that has its history. */
+  get live(): boolean {
+    return this.caughtUp && !this.gone;
+  }
+
+  markCaughtUp(): void {
+    this.caughtUp = true;
   }
 
   /** Delivers a frame this viewer has not seen; a replayed agent event at or below its cursor is skipped. */
@@ -165,6 +176,7 @@ class RunFeed {
 
   private async catchUpMember(member: Member): Promise<void> {
     await catchUp(this.deps, this.run, member);
+    member.markCaughtUp();
     this.advanceCursor(member.cursor());
   }
 
@@ -258,8 +270,9 @@ class RunFeed {
     }
   }
 
+  /** Only viewers that have caught up receive live frames; a viewer still waiting for its turn on the chain replays these rows from the database instead. */
   private broadcast(frame: RunStreamFrame): void {
-    for (const member of [...this.members]) {
+    for (const member of [...this.members].filter((m) => m.live)) {
       member.emit(frame);
     }
   }

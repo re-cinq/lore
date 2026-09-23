@@ -214,9 +214,12 @@ describe("live re-reads", () => {
 
     await seed.runs.finishStationRunOnce(seed.nodeRowId, "success");
 
-    expect(await readNode(readDeps(seed), seed.run, seed.nodeRowId)).toMatchObject(
-      { type: "node_status", node: { node_id: "implement", outcome: "success" } },
-    );
+    expect(
+      await readNode(readDeps(seed), seed.run, seed.nodeRowId),
+    ).toMatchObject({
+      type: "node_status",
+      node: { node_id: "implement", outcome: "success" },
+    });
   });
 
   it("reads nothing for a visit that is not there yet", async () => {
@@ -234,11 +237,15 @@ describe("live re-reads", () => {
       metadata: null,
     });
 
-    expect(await readTaskEvent(readDeps(seed), seed.run, added.id)).toMatchObject(
-      { type: "task_event", event: { to_status: "pr_created" } },
-    );
     expect(
-      await readTaskEvent(readDeps(seed), { ...seed.run, taskId: null }, added.id),
+      await readTaskEvent(readDeps(seed), seed.run, added.id),
+    ).toMatchObject({ type: "task_event", event: { to_status: "pr_created" } });
+    expect(
+      await readTaskEvent(
+        readDeps(seed),
+        { ...seed.run, taskId: null },
+        added.id,
+      ),
     ).toBeNull();
   });
 });

@@ -136,7 +136,11 @@ export async function replayAgentEvents(
   let drained = false;
 
   while (!drained && !subscriber.closed()) {
-    const page = await deps.events.listSince(run.id, subscriber.cursor(), pageSize);
+    const page = await deps.events.listSince(
+      run.id,
+      subscriber.cursor(),
+      pageSize,
+    );
 
     drained = page.length < pageSize;
 
@@ -146,7 +150,10 @@ export async function replayAgentEvents(
   }
 }
 
-function emitPage(subscriber: Subscriber, page: readonly AgentRunEvent[]): void {
+function emitPage(
+  subscriber: Subscriber,
+  page: readonly AgentRunEvent[],
+): void {
   for (const row of page) {
     subscriber.emit(agentEventFrame(row));
   }

@@ -215,14 +215,7 @@ class LiveConnection {
     const outlet = this.outletFor(message.channel);
 
     try {
-      return message.kind === "plan"
-        ? openPlanChannel(
-            message.channel,
-            webRequest(this.request),
-            outlet,
-            this.deps.collab,
-          )
-        : await openRunChannel(message, outlet, this.deps.run);
+      return await this.handlerFor(message, outlet);
     } catch (err) {
       this.log(`open ${message.kind} failed: ${(err as Error).message}`);
       outlet.send({
@@ -233,6 +226,21 @@ class LiveConnection {
 
       return null;
     }
+  }
+
+  private handlerFor(
+    message: OpenMessage,
+    outlet: ChannelOutlet,
+  ): Promise<ChannelHandle | null> {
+    if (message.kind === "plan") {
+      const request = webRequest(this.request);
+
+      return Promise.resolve(
+        openPlanChannel(message.channel, request, outlet, this.deps.collab),
+      );
+    }
+
+    return openRunChannel(message, outlet, this.deps.run);
   }
 
   private outletFor(channel: string): ChannelOutlet {

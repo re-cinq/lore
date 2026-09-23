@@ -122,6 +122,36 @@ describe("RunFeedRegistry catch-up", () => {
 });
 
 describe("RunFeedRegistry live tail", () => {
+  it("delivers no live frame to a viewer that joined while a live read was in flight, so its replay still covers every row once", async () => {
+    const seed = await seedRun();
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const listSince = async (runId: string, after: string, limit: number) => {
+      await held;
+
+      return seed.events.listSince(runId, after, limit);
+    };
+    const { feeds, notifier } = registry(seed, { events: { listSince } });
+    const early = new RecordingSink();
+    const late = new RecordingSink();
+
+    release();
+    await feeds.join(seed.run, early, "0").ready;
+    await insertAgentEvents(seed.events, 2);
+    notifier.publish({ kind: "agent_event", run: seed.run.id });
+    const joined = feeds.join(seed.run, late, "0");
+
+    await flush();
+    await joined.ready;
+
+    expect({ early: early.agentIds, late: late.agentIds }).toEqual({
+      early: ["1", "2"],
+      late: ["1", "2"],
+    });
+  });
+
   it("re-reads a notification once and forwards the frame to every registered viewer", async () => {
     const seed = await seedRun();
     const listStationRuns = vi.fn(seed.runs.listStationRuns.bind(seed.runs));

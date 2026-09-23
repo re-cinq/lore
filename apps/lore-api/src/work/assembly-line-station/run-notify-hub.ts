@@ -204,7 +204,7 @@ export class PgRunNotifier implements RunNotifier {
     return unsubscribe;
   }
 
-  /** True once the LISTEN is in place; false when the attempt failed (a reconnect is already scheduled) or another attempt is in flight. */
+  /** True once the LISTEN is in place; false when the attempt failed (a reconnect is already scheduled) or another attempt is in flight. Every subscriber resyncs once listening starts: whoever subscribed while the connection was still being opened — the first viewer of a process included — may have missed a notification in that gap. */
   private async ensureListening(): Promise<boolean> {
     if (this.state !== "idle") {
       return false;
@@ -213,6 +213,8 @@ export class PgRunNotifier implements RunNotifier {
 
     try {
       await this.listen();
+      this.attempts = 0;
+      this.set.resyncAll();
 
       return true;
     } catch (err) {
@@ -261,11 +263,7 @@ export class PgRunNotifier implements RunNotifier {
     if (this.state !== "idle" || this.set.size === 0) {
       return;
     }
-
-    if (await this.ensureListening()) {
-      this.attempts = 0;
-      this.set.resyncAll();
-    }
+    await this.ensureListening();
   }
 
   private log(message: string): void {
