@@ -35,17 +35,6 @@ export function paragraphsOf(text: string): string[] {
     .filter(Boolean);
 }
 
-/** Where the browser opens a plan's socket: the deployment's public address, or next to lore-api when it runs on this machine. */
-export function planSocketUrl(
-  env: Record<string, string | undefined>,
-): string | undefined {
-  return (
-    env.LORE_PLANS_WS_URL ??
-    (env.LORE_API_URL &&
-      `${env.LORE_API_URL.replace(/^http/, "ws")}/api/plans/collab`)
-  );
-}
-
 function field(formData: FormData, key: string): string {
   const raw = formData.get(key);
 

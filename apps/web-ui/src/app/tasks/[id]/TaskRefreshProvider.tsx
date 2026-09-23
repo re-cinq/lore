@@ -15,7 +15,8 @@ import {
 import type { ReactNode } from "react";
 import type { ConnectionState } from "@/lib/run-stream-presenter";
 import type { RunStreamEvent } from "@/lib/run-stream-types";
-import { useRunEventStream } from "@/app/assembly-runs/[id]/useRunEventStream";
+import { useRunChannel } from "@/app/assembly-runs/[id]/useRunChannel";
+import { useLiveSocket } from "@/lib/live-socket/LiveSocketProvider";
 import {
   pickLiveRun,
   refreshIntervalMs,
@@ -135,7 +136,13 @@ function useRefreshDriver({ taskId, taskStatus, runs }: RefreshDriverOptions) {
   const { liveRunId, streamUnavailable, connection } = state;
   const { register, setActive, refreshAll, anyPanelActive } =
     usePanelRegistry();
-  const driver = pickDriver({ liveRunId, streamUnavailable, anyPanelActive });
+  const socketAvailable = useLiveSocket() !== null;
+  const driver = pickDriver({
+    liveRunId,
+    streamUnavailable,
+    anyPanelActive,
+    socketAvailable,
+  });
   const onEvent = useCoalescedRefresh(refreshAll, state.setAfterId);
 
   useDriverSubscriptions({
@@ -220,16 +227,14 @@ function useLiveRunFound(options: StreamCallbackOptions) {
   );
 }
 
-/** Stream or poll. `EventSource` is probed rather than assumed: it is absent under SSR and in the test environment, and a page that assumed it would never fall back to polling there. */
+/** Stream or poll. The live socket is asked for rather than assumed: there is none without a configured address or a provider above the page, and a page that assumed it would never fall back to polling there. */
 function pickDriver(input: {
   liveRunId: string | null;
   streamUnavailable: boolean;
   anyPanelActive: boolean;
+  socketAvailable: boolean;
 }) {
-  return resolveRefreshDriver({
-    ...input,
-    eventSourceAvailable: typeof EventSource !== "undefined",
-  });
+  return resolveRefreshDriver(input);
 }
 
 /** Both ways of staying current, subscribed together. Neither is conditional: the stream hook is disabled rather than unmounted, and the ticker takes a null interval rather than being skipped, because a hook that comes and goes with the driver would break the rules of hooks the moment the fallback fires. */
@@ -241,7 +246,7 @@ function useDriverSubscriptions(opts: DriverSubscriptionOptions) {
 function useStreamSubscription(opts: DriverSubscriptionOptions) {
   const { driver, liveRunId } = opts;
 
-  useRunEventStream({
+  useRunChannel({
     runId: liveRunId ?? "",
     afterId: opts.afterId,
     enabled: driver === "stream" && liveRunId !== null,

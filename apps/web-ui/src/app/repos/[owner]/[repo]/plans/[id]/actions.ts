@@ -10,7 +10,6 @@ import {
   type RefineAsk,
 } from "@/lib/api/plans";
 import type { ApiResult } from "@/lib/api/result";
-import { planSocketUrl } from "@/lib/plan-input";
 import { planUserOf, type PlanSession, type PlanUser } from "@/lib/plan-user";
 import { getSession } from "@/lib/session";
 import { userCanAccessRepo } from "@/lib/user-repo-access";
@@ -23,19 +22,14 @@ export async function openPlanSocketAction(
   planId: string,
 ): Promise<PlanSocket | { error: string }> {
   const allowed = await allowedUser(fullName);
-  const wsUrl = planSocketUrl(process.env);
 
   if ("error" in allowed) {
     return allowed;
   }
-
-  if (!wsUrl) {
-    return { error: "The plan socket is not configured (LORE_PLANS_WS_URL)." };
-  }
   const minted = await mintCollabToken(fullName, planId, allowed.user, "write");
 
   return minted.status === "ok"
-    ? { wsUrl, ...minted.data }
+    ? minted.data
     : { error: "Could not open the plan." };
 }
 

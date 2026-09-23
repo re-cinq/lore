@@ -5,6 +5,8 @@ import SidebarNav from "./SidebarNav";
 import SessionWrapper from "./SessionWrapper";
 import UserMenu from "./UserMenu";
 import { ThemeProvider } from "@/lib/theme/ThemeProvider";
+import { LiveSocketProvider } from "@/lib/live-socket/LiveSocketProvider";
+import { liveSocketUrl } from "@/lib/live-socket-url";
 import { inter, ibmPlexMono, gohu } from "@/lib/theme/fonts";
 import { THEME_SCRIPT } from "@/lib/theme/theme-script";
 import "./theme.css";
@@ -39,7 +41,9 @@ export default function RootLayout({ children }: RootLayoutProps) {
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
         <ThemeProvider>
           <SessionWrapper>
-            <AppShell sidebar={<Sidebar />}>{children}</AppShell>
+            <LiveSocketProvider url={liveSocketUrl(process.env)}>
+              <AppShell sidebar={<Sidebar />}>{children}</AppShell>
+            </LiveSocketProvider>
           </SessionWrapper>
         </ThemeProvider>
       </body>

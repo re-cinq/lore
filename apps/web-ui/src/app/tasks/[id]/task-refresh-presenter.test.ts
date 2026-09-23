@@ -93,7 +93,7 @@ describe("resolveRefreshDriver", () => {
     expect(
       resolveRefreshDriver({
         liveRunId: "run-1",
-        eventSourceAvailable: true,
+        socketAvailable: true,
         streamUnavailable: false,
         anyPanelActive: false,
       }),
@@ -104,7 +104,7 @@ describe("resolveRefreshDriver", () => {
     expect(
       resolveRefreshDriver({
         liveRunId: null,
-        eventSourceAvailable: true,
+        socketAvailable: true,
         streamUnavailable: false,
         anyPanelActive: true,
       }),
@@ -115,7 +115,7 @@ describe("resolveRefreshDriver", () => {
     expect(
       resolveRefreshDriver({
         liveRunId: "run-1",
-        eventSourceAvailable: false,
+        socketAvailable: false,
         streamUnavailable: false,
         anyPanelActive: true,
       }),
@@ -126,7 +126,7 @@ describe("resolveRefreshDriver", () => {
     expect(
       resolveRefreshDriver({
         liveRunId: "run-1",
-        eventSourceAvailable: true,
+        socketAvailable: true,
         streamUnavailable: true,
         anyPanelActive: true,
       }),
@@ -137,7 +137,7 @@ describe("resolveRefreshDriver", () => {
     expect(
       resolveRefreshDriver({
         liveRunId: "run-1",
-        eventSourceAvailable: true,
+        socketAvailable: true,
         streamUnavailable: false,
         anyPanelActive: true,
       }),

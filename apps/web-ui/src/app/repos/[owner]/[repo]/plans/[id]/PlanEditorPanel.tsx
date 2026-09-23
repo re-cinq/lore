@@ -2,9 +2,19 @@
 
 import { useEffect, useState } from "react";
 import type { PlanMeta } from "@re-cinq/planning-document";
-import { PlanEditor, type ProviderTransport } from "@re-cinq/planning-editor";
-import { createHocuspocusTransport } from "@re-cinq/planning-editor/transports/hocuspocus";
+import {
+  PlanEditor,
+  transportFor,
+  type ProviderTransport,
+} from "@re-cinq/planning-editor";
+import {
+  HocuspocusProvider,
+  HocuspocusProviderWebsocket,
+} from "@hocuspocus/provider";
 import { FormError } from "@/components/FormError";
+import type { LiveSocketClient } from "@/lib/live-socket/client";
+import { channelWebSocketFor } from "@/lib/live-socket/channel-websocket";
+import { useLiveSocket } from "@/lib/live-socket/LiveSocketProvider";
 import type { PlanPageState } from "@/lib/plan-page-state";
 import type { PlanUser } from "@/lib/plan-user";
 import type { PlanActions } from "./plan-actions";
@@ -58,16 +68,17 @@ function ConnectedPlan(props: ConnectedPlanProps) {
   );
 }
 
-// One socket per mounted page, closed on unmount.
+// One plan channel per mounted page on the tab's shared socket (ADR-048), closed on unmount; the socket itself outlives the page.
 function usePlanConnection(
   meta: PlanMeta,
   openSocket: PlanActions["openSocket"],
 ): Connection | null {
+  const client = useLiveSocket();
   const [connection, setConnection] = useState<Connection | null>(null);
 
   useEffect(() => {
     let closed = false;
-    const opening = connectPlan(meta, openSocket);
+    const opening = connectPlan(meta, openSocket, client);
 
     void opening.then((opened) => !closed && setConnection(opened));
 
@@ -77,33 +88,68 @@ function usePlanConnection(
         (opened) => "transport" in opened && opened.transport.destroy(),
       );
     };
-  }, [meta, openSocket]);
+  }, [meta, openSocket, client]);
 
   return connection;
 }
 
-// Every (re)connect asks the server for a fresh token, so a socket outlives its ten-minute token.
+const NO_SOCKET = "The live socket is not configured (LORE_WS_URL).";
+
+// Every (re)connect asks the server for a fresh token, so a channel outlives its ten-minute token.
 async function connectPlan(
   meta: PlanMeta,
   openSocket: PlanActions["openSocket"],
+  client: LiveSocketClient | null,
 ): Promise<Connection> {
+  if (client === null) {
+    return { error: NO_SOCKET };
+  }
   const socket = await openSocket();
+
+  if ("error" in socket) {
+    return socket;
+  }
   const token = async () => {
     const again = await openSocket();
 
     return "token" in again ? again.token : "";
   };
 
-  return "error" in socket
-    ? socket
-    : {
-        transport: createHocuspocusTransport({
-          url: socket.wsUrl,
-          name: socket.documentName,
-          meta,
-          token,
-        }),
-      };
+  return { transport: planTransport(client, socket.documentName, meta, token) };
+}
+
+/** The Hocuspocus provider on a channel of the shared socket: its websocket "polyfill" is the channel, so it reconnects by asking the client for a new one. */
+function planTransport(
+  client: LiveSocketClient,
+  documentName: string,
+  meta: PlanMeta,
+  token: () => Promise<string>,
+): ProviderTransport {
+  const websocketProvider = new HocuspocusProviderWebsocket({
+    url: "channel://plan",
+    WebSocketPolyfill: channelWebSocketFor(client, documentName),
+  });
+  const provider = new HocuspocusProvider({
+    websocketProvider,
+    name: documentName,
+    token,
+  });
+
+  return withSocketTeardown(transportFor(provider, meta), websocketProvider);
+}
+
+/** Destroying the transport destroys its provider; the provider's socket wrapper needs its own destroy, or its channel would linger. */
+function withSocketTeardown(
+  transport: ProviderTransport,
+  websocketProvider: HocuspocusProviderWebsocket,
+): ProviderTransport {
+  return {
+    ...transport,
+    destroy: () => {
+      transport.destroy();
+      websocketProvider.destroy();
+    },
+  };
 }
 
 // The editor withdraws a Refine whose promise rejects, so a refused ask must throw.

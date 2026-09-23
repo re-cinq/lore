@@ -34,7 +34,6 @@ const answer = (status: number, body: object) =>
 beforeEach(() => {
   process.env.LORE_API_URL = "http://api:3000";
   process.env.LORE_ADMIN_TOKEN = "admin";
-  process.env.LORE_PLANS_WS_URL = "wss://lore-api.example/api/plans/collab";
   session.mockResolvedValue(GEDAIU);
   canAccess.mockResolvedValue(true);
   fetchMock = vi.fn();
@@ -44,15 +43,13 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
   delete process.env.LORE_ADMIN_TOKEN;
-  delete process.env.LORE_PLANS_WS_URL;
 });
 
 describe("openPlanSocketAction", () => {
-  it("hands gedaiu the public socket and a token minted for plan p1", async () => {
+  it("hands gedaiu a token minted for plan p1 and the plan's document name", async () => {
     answer(200, { token: "t1", documentName: "plan:re-cinq/lore:p1" });
 
     expect(await openPlanSocketAction("re-cinq/lore", "p1")).toEqual({
-      wsUrl: "wss://lore-api.example/api/plans/collab",
       token: "t1",
       documentName: "plan:re-cinq/lore:p1",
     });
@@ -67,15 +64,6 @@ describe("openPlanSocketAction", () => {
     }).toEqual({
       result: { error: "You do not have access to this repo." },
       fetched: 0,
-    });
-  });
-
-  it("names the missing LORE_PLANS_WS_URL when no socket address is configured", async () => {
-    delete process.env.LORE_PLANS_WS_URL;
-    delete process.env.LORE_API_URL;
-
-    expect(await openPlanSocketAction("re-cinq/lore", "p1")).toEqual({
-      error: "The plan socket is not configured (LORE_PLANS_WS_URL).",
     });
   });
 

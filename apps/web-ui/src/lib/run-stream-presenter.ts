@@ -1,13 +1,14 @@
-// Every decision the live-run panel makes, as pure functions — the panel/EventSource hook are IO shells that open sockets and set state, never choose.
+// Every decision the live-run panel makes, as pure functions — the panel and the channel hook are IO shells that open channels and set state, never choose.
 
 /** Matches the Floor's DEFAULT_LIMIT (agent-events-history.ts). */
 export const HISTORY_PAGE_LIMIT = 1000;
 
-const RECONNECT_BASE_MS = 1000;
-const RECONNECT_CAP_MS = 30000;
-
-/** Consecutive stream failures tolerated before the session gives up on SSE. */
-export const STREAM_MAX_ATTEMPTS = 5;
+export {
+  reconnectAction,
+  reconnectDelayMs,
+  STREAM_MAX_ATTEMPTS,
+  type ReconnectAction,
+} from "./live-socket/backoff";
 
 /** Cadence of the history-poll fallback once the stream has given up. */
 export const HISTORY_POLL_MS = 15000;
@@ -36,14 +37,6 @@ export function historyUrl(runId: string, afterId: string): string {
     : `${base}&after=${encodeURIComponent(afterId)}`;
 }
 
-export function streamUrl(runId: string, afterId: string): string {
-  const base = `/api/assembly-runs/${encodeURIComponent(runId)}/events/stream`;
-
-  return afterId === "0"
-    ? base
-    : `${base}?after=${encodeURIComponent(afterId)}`;
-}
-
 export function isTerminalRunStatus(status: string): boolean {
   return TERMINAL_RUN_STATUSES.has(status);
 }
@@ -53,24 +46,6 @@ export function nextPageCursor(page: readonly { id: string }[]): string | null {
   return page.length < HISTORY_PAGE_LIMIT
     ? null
     : (page[page.length - 1]?.id ?? null);
-}
-
-/** Exponential backoff, capped. Belt to the browser's own EventSource retry. */
-export function reconnectDelayMs(attempt: number): number {
-  return Math.min(
-    RECONNECT_CAP_MS,
-    RECONNECT_BASE_MS * 2 ** Math.max(0, attempt - 1),
-  );
-}
-
-export type ReconnectAction =
-  { kind: "retry"; delayMs: number } | { kind: "give-up" };
-
-// Retries with backoff up to STREAM_MAX_ATTEMPTS then gives up for good — EventSource can't read the proxy's status, so a bounded count stops a forever-retry.
-export function reconnectAction(attempt: number): ReconnectAction {
-  return attempt > STREAM_MAX_ATTEMPTS
-    ? { kind: "give-up" }
-    : { kind: "retry", delayMs: reconnectDelayMs(attempt) };
 }
 
 export function connectionLabel(state: ChipState): string {
@@ -105,14 +80,14 @@ export function resolveChipState(input: {
   return input.connection;
 }
 
-// One degradation gate — a terminal run, no EventSource, or a 404/503 stream proxy all collapse to the same answer, so there's one no-live-stream path.
+// One degradation gate — a terminal run, no live socket, or a channel the server would not open all collapse to the same answer, so there's one no-live-stream path.
 export function resolveStreamMode(input: {
   runStatus: string;
-  eventSourceAvailable: boolean;
+  socketAvailable: boolean;
   streamUnavailable: boolean;
 }): StreamMode {
   if (
-    !input.eventSourceAvailable ||
+    !input.socketAvailable ||
     input.streamUnavailable ||
     isTerminalRunStatus(input.runStatus)
   ) {

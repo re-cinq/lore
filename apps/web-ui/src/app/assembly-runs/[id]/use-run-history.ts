@@ -12,7 +12,8 @@ import {
   type ChipState,
   type ConnectionState,
 } from "@/lib/run-stream-presenter";
-import { useRunEventStream } from "./useRunEventStream";
+import { useRunChannel } from "./useRunChannel";
+import { useLiveSocket } from "@/lib/live-socket/LiveSocketProvider";
 import {
   dispatchParsedRows,
   fetchPage,
@@ -61,7 +62,7 @@ export function useRunStream(input: RunStreamInput): RunStreamWiring {
   const history = useRunHistory(runId, dispatch);
   const mode = resolveStreamMode({
     runStatus,
-    eventSourceAvailable: typeof EventSource !== "undefined",
+    socketAvailable: useLiveSocket() !== null,
     streamUnavailable: history.streamUnavailable,
   });
   // Both transports wait for the history fold to finish: dispatching a live event before the run's past is in would fold it into a timeline missing everything before it.
@@ -109,7 +110,7 @@ function useTransports(
 ): void {
   const { runId, lastEventId, dispatch, onFrame } = target;
 
-  useRunEventStream({
+  useRunChannel({
     runId,
     afterId: lastEventId,
     enabled: enabled.live,

@@ -4,32 +4,13 @@ import { render, screen, act } from "@testing-library/react";
 import RunLiveShell, { type RunLiveShellProps } from "./RunLiveShell";
 import type { AssemblyRun } from "@/lib/assembly-runs";
 import { implementationDefinition } from "@/lib/definition-fixtures";
+import { LiveSocketProvider } from "@/lib/live-socket/LiveSocketProvider";
+import { FakeWebSocket } from "@/lib/live-socket/fake-web-socket";
+import type { RunStreamFrame } from "@/lib/run-stream-types";
 
-class FakeEventSource {
-  static instances: FakeEventSource[] = [];
-  readonly listeners = new Map<string, (e: MessageEvent) => void>();
-  onerror: ((e: Event) => void) | null = null;
-
-  constructor(readonly url: string) {
-    FakeEventSource.instances.push(this);
-  }
-
-  addEventListener(name: string, fn: (e: MessageEvent) => void) {
-    this.listeners.set(name, fn);
-  }
-
-  removeEventListener(name: string) {
-    this.listeners.delete(name);
-  }
-
-  close() {}
-
-  emit(name: string, payload: unknown) {
-    this.listeners.get(name)?.({
-      data: JSON.stringify(payload),
-    } as MessageEvent);
-  }
-}
+vi.mock("./live-actions", () => ({
+  openRunChannelAction: async () => ({ token: "tok" }),
+}));
 
 const run: AssemblyRun = {
   id: "run-1",
@@ -61,8 +42,7 @@ async function settle() {
 }
 
 function renderShell(extra: Partial<RunLiveShellProps> = {}) {
-  FakeEventSource.instances = [];
-  vi.stubGlobal("EventSource", FakeEventSource);
+  FakeWebSocket.reset();
   vi.stubGlobal(
     "fetch",
     vi.fn().mockResolvedValue({
@@ -73,20 +53,29 @@ function renderShell(extra: Partial<RunLiveShellProps> = {}) {
   );
 
   return render(
-    <RunLiveShell
-      run={run}
-      nodes={[]}
-      definition={implementationDefinition}
-      taskEvents={[]}
-      llmCalls={[]}
-      {...extra}
-    />,
+    <LiveSocketProvider url="ws://test/api/ws" socket={FakeWebSocket}>
+      <RunLiveShell
+        run={run}
+        nodes={[]}
+        definition={implementationDefinition}
+        taskEvents={[]}
+        llmCalls={[]}
+        {...extra}
+      />
+    </LiveSocketProvider>,
   );
 }
 
-async function emit(name: string, payload: unknown) {
+async function emit(_name: string, payload: unknown) {
   await act(async () => {
-    FakeEventSource.instances[0].emit(name, payload);
+    await FakeWebSocket.latest.acceptAndOpenAll();
+  });
+  await act(async () => {
+    FakeWebSocket.latest.receive({
+      type: "frame",
+      channel: FakeWebSocket.latest.opens[0].channel,
+      frame: payload as RunStreamFrame,
+    });
   });
 }
 

@@ -10,38 +10,49 @@ import {
   type LiveRunCandidate,
 } from "./task-refresh-presenter";
 
-class FakeEventSource {
-  static instances: FakeEventSource[] = [];
-  readonly listeners = new Map<string, (e: MessageEvent) => void>();
-  closed = false;
-  onerror: ((e: Event) => void) | null = null;
+import { LiveSocketProvider } from "@/lib/live-socket/LiveSocketProvider";
+import { FakeWebSocket } from "@/lib/live-socket/fake-web-socket";
+import type { RunStreamFrame } from "@/lib/run-stream-types";
 
-  constructor(readonly url: string) {
-    FakeEventSource.instances.push(this);
-  }
+vi.mock("@/app/assembly-runs/[id]/live-actions", () => ({
+  openRunChannelAction: async () => ({ token: "tok" }),
+}));
 
-  addEventListener(name: string, fn: (e: MessageEvent) => void) {
-    this.listeners.set(name, fn);
-  }
-
-  removeEventListener(name: string) {
-    this.listeners.delete(name);
-  }
-
-  close() {
-    this.closed = true;
-  }
-
-  emit(name: string, payload: unknown) {
-    this.listeners.get(name)?.({
-      data: JSON.stringify(payload),
-    } as MessageEvent);
-  }
+function useFakeSocket() {
+  FakeWebSocket.reset();
 }
 
-function useFakeEventSource() {
-  FakeEventSource.instances = [];
-  vi.stubGlobal("EventSource", FakeEventSource);
+async function openChannels() {
+  await act(async () => {
+    FakeWebSocket.latest.accept();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+  await act(async () => {
+    for (const open of FakeWebSocket.latest.opens) {
+      FakeWebSocket.latest.receive({ type: "opened", channel: open.channel });
+    }
+  });
+}
+
+async function acceptSocket() {
+  await act(async () => {
+    FakeWebSocket.latest.accept();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+}
+
+async function emitFrame(frame: RunStreamFrame) {
+  await act(async () => {
+    FakeWebSocket.latest.receive({
+      type: "frame",
+      channel: FakeWebSocket.latest.opens[0].channel,
+      frame,
+    });
+  });
 }
 
 function streamEvent(id: string) {
@@ -92,15 +103,17 @@ function renderProvider(input: {
   probes: { refresh: () => void; active: boolean; label: string }[];
 }) {
   const tree = (probes: typeof input.probes) => (
-    <TaskRefreshProvider
-      taskId="task-1"
-      taskStatus={input.taskStatus ?? "running"}
-      runs={input.runs ?? []}
-    >
-      {probes.map((p) => (
-        <Probe key={p.label} {...p} />
-      ))}
-    </TaskRefreshProvider>
+    <LiveSocketProvider url="ws://test/api/ws" socket={FakeWebSocket}>
+      <TaskRefreshProvider
+        taskId="task-1"
+        taskStatus={input.taskStatus ?? "running"}
+        runs={input.runs ?? []}
+      >
+        {probes.map((p) => (
+          <Probe key={p.label} {...p} />
+        ))}
+      </TaskRefreshProvider>
+    </LiveSocketProvider>
   );
   const result = render(tree(input.probes));
 
@@ -215,44 +228,44 @@ describe("coordinated polling", () => {
 });
 
 describe("stream lifecycle", () => {
-  it("constructs one EventSource for a running run", async () => {
-    useFakeEventSource();
+  it("opens one run channel on the tab's socket for a running run", async () => {
+    useFakeSocket();
     renderProvider({
       runs: [liveRun()],
       probes: [{ refresh: vi.fn(), active: true, label: "a" }],
     });
     await flush();
+    await openChannels();
 
-    expect(FakeEventSource.instances).toHaveLength(1);
-    expect(FakeEventSource.instances[0].url).toBe(
-      "/api/assembly-runs/run-1/events/stream",
-    );
+    expect(FakeWebSocket.latest.opens).toMatchObject([
+      { kind: "run", subject: "run-1" },
+    ]);
   });
 
-  it("constructs no EventSource when every run is terminal", async () => {
-    useFakeEventSource();
+  it("opens no channel when every run is terminal", async () => {
+    useFakeSocket();
     renderProvider({
       runs: [liveRun({ status: "finished" })],
       probes: [{ refresh: vi.fn(), active: true, label: "a" }],
     });
     await flush();
 
-    expect(FakeEventSource.instances).toHaveLength(0);
+    expect(FakeWebSocket.instances).toHaveLength(0);
   });
 
-  it("constructs no EventSource when no panel is active", async () => {
-    useFakeEventSource();
+  it("opens no channel when no panel is active", async () => {
+    useFakeSocket();
     renderProvider({
       runs: [liveRun()],
       probes: [{ refresh: vi.fn(), active: false, label: "a" }],
     });
     await flush();
 
-    expect(FakeEventSource.instances).toHaveLength(0);
+    expect(FakeWebSocket.instances).toHaveLength(0);
   });
 
-  it("closes the stream when the last panel goes inactive", async () => {
-    useFakeEventSource();
+  it("closes the channel when the last panel goes inactive", async () => {
+    useFakeSocket();
     const refresh = vi.fn();
     const view = renderProvider({
       runs: [liveRun()],
@@ -260,14 +273,18 @@ describe("stream lifecycle", () => {
     });
 
     await flush();
+    await openChannels();
     view.rerenderProbes([{ refresh, active: false, label: "a" }]);
     await flush();
 
-    expect(FakeEventSource.instances[0].closed).toBe(true);
+    expect(FakeWebSocket.latest.sent.at(-1)).toEqual({
+      type: "close",
+      channel: "c1",
+    });
   });
 
-  it("reports live to panels after catchup completes", async () => {
-    useFakeEventSource();
+  it("reports live to panels once the server opens the channel", async () => {
+    useFakeSocket();
     const view = renderProvider({
       runs: [liveRun()],
       probes: [{ refresh: vi.fn(), active: true, label: "a" }],
@@ -276,12 +293,7 @@ describe("stream lifecycle", () => {
     await flush();
     expect(view.getByTestId("live-a").textContent).toBe("false");
 
-    await act(async () => {
-      FakeEventSource.instances[0].emit("catchup_complete", {
-        type: "catchup_complete",
-        last_id: "0",
-      });
-    });
+    await openChannels();
 
     expect(view.getByTestId("live-a").textContent).toBe("true");
   });
@@ -289,7 +301,7 @@ describe("stream lifecycle", () => {
 
 describe("event-triggered refreshes", () => {
   it("does not refresh on the catch-up replay burst at mount", async () => {
-    useFakeEventSource();
+    useFakeSocket();
     const refresh = vi.fn();
 
     renderProvider({
@@ -297,23 +309,20 @@ describe("event-triggered refreshes", () => {
       probes: [{ refresh, active: true, label: "a" }],
     });
     await flush();
+    await openChannels();
 
-    await act(async () => {
-      const source = FakeEventSource.instances[0];
-
-      for (let i = 1; i <= 5; i++) {
-        source.emit("agent_event", {
-          type: "agent_event",
-          event: streamEvent(String(i)),
-        });
-      }
-    });
+    for (let i = 1; i <= 5; i++) {
+      await emitFrame({
+        type: "agent_event",
+        event: streamEvent(String(i)) as never,
+      });
+    }
 
     expect(refresh).not.toHaveBeenCalled();
   });
 
   it("refreshes immediately past the gap and coalesces a burst into one trailing refresh", async () => {
-    useFakeEventSource();
+    useFakeSocket();
     const refresh = vi.fn();
 
     renderProvider({
@@ -321,27 +330,15 @@ describe("event-triggered refreshes", () => {
       probes: [{ refresh, active: true, label: "a" }],
     });
     await flush();
+    await openChannels();
 
     await advance(3_000);
-    await act(async () => {
-      FakeEventSource.instances[0].emit("agent_event", {
-        type: "agent_event",
-        event: streamEvent("1"),
-      });
-    });
+    await emitFrame({ type: "agent_event", event: streamEvent("1") as never });
     expect(refresh).toHaveBeenCalledTimes(1);
 
     await advance(1_000);
-    await act(async () => {
-      FakeEventSource.instances[0].emit("agent_event", {
-        type: "agent_event",
-        event: streamEvent("2"),
-      });
-      FakeEventSource.instances[0].emit("agent_event", {
-        type: "agent_event",
-        event: streamEvent("3"),
-      });
-    });
+    await emitFrame({ type: "agent_event", event: streamEvent("2") as never });
+    await emitFrame({ type: "agent_event", event: streamEvent("3") as never });
     expect(refresh).toHaveBeenCalledTimes(1);
 
     await advance(2_000);
@@ -349,7 +346,7 @@ describe("event-triggered refreshes", () => {
   });
 
   it("slows the interval to the heartbeat cadence while the stream is live", async () => {
-    useFakeEventSource();
+    useFakeSocket();
     const refresh = vi.fn();
 
     renderProvider({
@@ -357,13 +354,7 @@ describe("event-triggered refreshes", () => {
       probes: [{ refresh, active: true, label: "a" }],
     });
     await flush();
-
-    await act(async () => {
-      FakeEventSource.instances[0].emit("catchup_complete", {
-        type: "catchup_complete",
-        last_id: "0",
-      });
-    });
+    await openChannels();
 
     await advance(COORDINATED_POLL_MS);
     expect(refresh).not.toHaveBeenCalled();
@@ -372,8 +363,8 @@ describe("event-triggered refreshes", () => {
     expect(refresh).toHaveBeenCalledTimes(1);
   });
 
-  it("falls back to coordinated polling after the stream gives up", async () => {
-    useFakeEventSource();
+  it("falls back to coordinated polling after the socket gives up", async () => {
+    useFakeSocket();
     const refresh = vi.fn();
 
     renderProvider({
@@ -384,12 +375,12 @@ describe("event-triggered refreshes", () => {
 
     for (const delayMs of [1_000, 2_000, 4_000, 8_000, 16_000]) {
       await act(async () => {
-        FakeEventSource.instances.at(-1)?.onerror?.(new Event("error"));
+        FakeWebSocket.latest.drop();
       });
-      await advance(delayMs);
+      await advance(delayMs * 2);
     }
     await act(async () => {
-      FakeEventSource.instances.at(-1)?.onerror?.(new Event("error"));
+      FakeWebSocket.latest.drop();
     });
     await flush();
 
@@ -397,13 +388,13 @@ describe("event-triggered refreshes", () => {
 
     await advance(COORDINATED_POLL_MS);
     expect(refresh.mock.calls.length).toBe(callsAtOffline + 1);
-    expect(FakeEventSource.instances.length).toBe(6);
+    expect(FakeWebSocket.instances.length).toBe(6);
   });
 });
 
 describe("run discovery", () => {
-  it("discovers a run minted after mount and attaches the stream", async () => {
-    useFakeEventSource();
+  it("discovers a run minted after mount and opens its channel", async () => {
+    useFakeSocket();
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -417,22 +408,20 @@ describe("run discovery", () => {
       probes: [{ refresh: vi.fn(), active: true, label: "a" }],
     });
     await flush();
-    expect(FakeEventSource.instances).toHaveLength(0);
+    expect(FakeWebSocket.instances).toHaveLength(0);
 
     await advance(COORDINATED_POLL_MS);
+    await openChannels();
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/tasks/task-1/runs",
       expect.objectContaining({ signal: expect.anything() }),
     );
-    expect(FakeEventSource.instances).toHaveLength(1);
-    expect(FakeEventSource.instances[0].url).toBe(
-      "/api/assembly-runs/run-9/events/stream",
-    );
+    expect(FakeWebSocket.latest.opens).toMatchObject([{ subject: "run-9" }]);
   });
 
   it("detaches and returns to coordinated polling when the attached run turns terminal", async () => {
-    useFakeEventSource();
+    useFakeSocket();
     const refresh = vi.fn();
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
@@ -446,19 +435,23 @@ describe("run discovery", () => {
       probes: [{ refresh, active: true, label: "a" }],
     });
     await flush();
-    expect(FakeEventSource.instances).toHaveLength(1);
+    await acceptSocket();
+    expect(FakeWebSocket.latest.opens).toHaveLength(1);
 
     await advance(COORDINATED_POLL_MS);
-    expect(FakeEventSource.instances[0].closed).toBe(true);
+    expect(FakeWebSocket.latest.sent.at(-1)).toEqual({
+      type: "close",
+      channel: "c1",
+    });
     expect(refresh).toHaveBeenCalledTimes(1);
 
     await advance(COORDINATED_POLL_MS);
     expect(refresh).toHaveBeenCalledTimes(2);
-    expect(FakeEventSource.instances).toHaveLength(1);
+    expect(FakeWebSocket.latest.opens).toHaveLength(1);
   });
 
   it("attaches a retry's fresh run in place of a finished one", async () => {
-    useFakeEventSource();
+    useFakeSocket();
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -476,15 +469,19 @@ describe("run discovery", () => {
       probes: [{ refresh: vi.fn(), active: true, label: "a" }],
     });
     await flush();
-    expect(FakeEventSource.instances).toHaveLength(1);
+    await acceptSocket();
+    expect(FakeWebSocket.latest.opens).toHaveLength(1);
 
     await advance(COORDINATED_POLL_MS);
+    await acceptSocket();
 
-    expect(FakeEventSource.instances[0].closed).toBe(true);
-    expect(FakeEventSource.instances).toHaveLength(2);
-    expect(FakeEventSource.instances[1].url).toBe(
-      "/api/assembly-runs/run-2/events/stream",
+    expect(FakeWebSocket.latest.sent.filter((m) => m.type === "close")).toEqual(
+      [{ type: "close", channel: "c1" }],
     );
+    expect(FakeWebSocket.latest.opens.map((o) => o.subject)).toEqual([
+      "run-1",
+      "run-2",
+    ]);
   });
 
   it("does not discover for a task in a terminal status", async () => {

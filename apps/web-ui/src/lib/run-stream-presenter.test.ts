@@ -10,7 +10,6 @@ import {
   reconnectDelayMs,
   resolveChipState,
   resolveStreamMode,
-  streamUrl,
 } from "./run-stream-presenter";
 
 describe("historyUrl", () => {
@@ -28,20 +27,6 @@ describe("historyUrl", () => {
 
   it("encodes a run id containing a slash", () => {
     expect(historyUrl("a/b", "0")).toContain("a%2Fb");
-  });
-});
-
-describe("streamUrl", () => {
-  it("returns the stream path with after for cursor 42", () => {
-    expect(streamUrl("run-1", "42")).toBe(
-      "/api/assembly-runs/run-1/events/stream?after=42",
-    );
-  });
-
-  it("omits the after param from the stream path for cursor 0", () => {
-    expect(streamUrl("run-1", "0")).toBe(
-      "/api/assembly-runs/run-1/events/stream",
-    );
   });
 });
 
@@ -122,7 +107,7 @@ describe("resolveStreamMode", () => {
     expect(
       resolveStreamMode({
         runStatus: "running",
-        eventSourceAvailable: true,
+        socketAvailable: true,
         streamUnavailable: false,
       }),
     ).toBe("live");
@@ -132,7 +117,7 @@ describe("resolveStreamMode", () => {
     expect(
       resolveStreamMode({
         runStatus: "running",
-        eventSourceAvailable: false,
+        socketAvailable: false,
         streamUnavailable: false,
       }),
     ).toBe("history-only");
@@ -142,7 +127,7 @@ describe("resolveStreamMode", () => {
     expect(
       resolveStreamMode({
         runStatus: "finished",
-        eventSourceAvailable: true,
+        socketAvailable: true,
         streamUnavailable: false,
       }),
     ).toBe("history-only");
@@ -152,7 +137,7 @@ describe("resolveStreamMode", () => {
     expect(
       resolveStreamMode({
         runStatus: "running",
-        eventSourceAvailable: true,
+        socketAvailable: true,
         streamUnavailable: true,
       }),
     ).toBe("history-only");

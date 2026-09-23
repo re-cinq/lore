@@ -6,6 +6,13 @@ import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
 import type { AssemblyRunNode } from "@/lib/assembly-runs";
 import { codeReviewDefinition } from "@/lib/definition-fixtures";
 import { HISTORY_PAGE_LIMIT } from "@/lib/run-stream-presenter";
+import { LiveSocketProvider } from "@/lib/live-socket/LiveSocketProvider";
+import { FakeWebSocket } from "@/lib/live-socket/fake-web-socket";
+import type { RunStreamFrame } from "@/lib/run-stream-types";
+
+vi.mock("./live-actions", () => ({
+  openRunChannelAction: async () => ({ token: "tok" }),
+}));
 
 const definition: AssemblyLineDefinition = {
   name: "implementation",
@@ -19,35 +26,6 @@ const definition: AssemblyLineDefinition = {
   ],
   edges: [{ from: "implement", to: "validate", on: "success" }],
 };
-
-class FakeEventSource {
-  static instances: FakeEventSource[] = [];
-  readonly listeners = new Map<string, (e: MessageEvent) => void>();
-  closed = false;
-  onerror: ((e: Event) => void) | null = null;
-
-  constructor(readonly url: string) {
-    FakeEventSource.instances.push(this);
-  }
-
-  addEventListener(name: string, fn: (e: MessageEvent) => void) {
-    this.listeners.set(name, fn);
-  }
-
-  removeEventListener(name: string) {
-    this.listeners.delete(name);
-  }
-
-  close() {
-    this.closed = true;
-  }
-
-  emit(name: string, payload: unknown) {
-    this.listeners.get(name)?.({
-      data: JSON.stringify(payload),
-    } as MessageEvent);
-  }
-}
 
 function eventRow(over: Record<string, unknown> = {}) {
   return {
@@ -89,9 +67,24 @@ function stubHistory(...pages: unknown[][]) {
   return fetchMock;
 }
 
-function useFakeEventSource() {
-  FakeEventSource.instances = [];
-  vi.stubGlobal("EventSource", FakeEventSource);
+function useFakeSocket() {
+  FakeWebSocket.reset();
+}
+
+async function openChannels() {
+  await act(async () => {
+    await FakeWebSocket.latest.acceptAndOpenAll();
+  });
+}
+
+async function emitFrame(frame: RunStreamFrame) {
+  await act(async () => {
+    FakeWebSocket.latest.receive({
+      type: "frame",
+      channel: FakeWebSocket.latest.opens[0].channel,
+      frame,
+    });
+  });
 }
 
 async function settle() {
@@ -104,6 +97,18 @@ async function settle() {
 
 function renderPanel(runStatus: string) {
   return render(
+    <LiveSocketProvider url="ws://test/api/ws" socket={FakeWebSocket}>
+      {panel(runStatus)}
+    </LiveSocketProvider>,
+  );
+}
+
+function renderPanelWithoutSocket(runStatus: string) {
+  return render(panel(runStatus));
+}
+
+function panel(runStatus: string) {
+  return (
     <RunVisualizationPanel
       runId="run-1"
       runStatus={runStatus}
@@ -111,7 +116,7 @@ function renderPanel(runStatus: string) {
       nodes={[]}
       repo="re-cinq/lore"
       reason={null}
-    />,
+    />
   );
 }
 
@@ -121,64 +126,71 @@ afterEach(() => {
 });
 
 describe("stream lifecycle", () => {
-  it("constructs no EventSource for a finished run", async () => {
+  it("opens no channel for a finished run", async () => {
     stubHistory([]);
-    useFakeEventSource();
+    useFakeSocket();
 
     renderPanel("finished");
     await settle();
 
-    expect(FakeEventSource.instances).toHaveLength(0);
+    expect(FakeWebSocket.instances).toHaveLength(0);
   });
 
-  it("constructs one EventSource for a running run", async () => {
+  it("opens one run channel on the tab's socket for a running run", async () => {
     stubHistory([]);
-    useFakeEventSource();
+    useFakeSocket();
 
     renderPanel("running");
     await settle();
+    await openChannels();
 
-    expect(FakeEventSource.instances).toHaveLength(1);
+    expect(FakeWebSocket.latest.opens).toMatchObject([
+      { kind: "run", subject: "run-1", token: "tok" },
+    ]);
   });
 
-  it("opens the EventSource only after the history fold sets lastEventId", async () => {
+  it("opens the channel only after the history fold sets lastEventId", async () => {
     stubHistory([eventRow({ id: "7" })]);
-    useFakeEventSource();
+    useFakeSocket();
 
     renderPanel("running");
     await settle();
+    await openChannels();
 
-    expect(FakeEventSource.instances[0].url).toContain("after=7");
+    expect(FakeWebSocket.latest.opens[0]).toMatchObject({ after: "7" });
   });
 
-  it("closes the EventSource on unmount", async () => {
+  it("closes the channel on unmount and leaves the socket open", async () => {
     stubHistory([]);
-    useFakeEventSource();
+    useFakeSocket();
 
     const view = renderPanel("running");
 
     await settle();
+    await openChannels();
     view.unmount();
 
-    expect(FakeEventSource.instances[0].closed).toBe(true);
+    expect({
+      sent: FakeWebSocket.latest.sent.at(-1),
+      closed: FakeWebSocket.latest.closed,
+    }).toEqual({ sent: { type: "close", channel: "c1" }, closed: false });
   });
 
-  it("constructs no EventSource when globalThis.EventSource is undefined", async () => {
+  it("opens no channel when no live socket is configured", async () => {
     stubHistory([]);
-    FakeEventSource.instances = [];
-    vi.stubGlobal("EventSource", undefined);
+    useFakeSocket();
 
-    renderPanel("running");
+    renderPanelWithoutSocket("running");
     await settle();
 
-    expect(FakeEventSource.instances).toHaveLength(0);
+    expect(FakeWebSocket.instances).toHaveLength(0);
   });
 });
 
 describe("history fold", () => {
   it("renders the node status from a folded history event", async () => {
     stubHistory([eventRow({ id: "3", eventType: "init" })]);
-    useFakeEventSource();
+    useFakeSocket();
 
     renderPanel("running");
     await settle();
@@ -192,7 +204,7 @@ describe("history fold", () => {
     );
     const fetchMock = stubHistory(fullPage, [eventRow({ id: "1001" })]);
 
-    useFakeEventSource();
+    useFakeSocket();
 
     renderPanel("running");
     await settle();
@@ -205,11 +217,11 @@ describe("history fold", () => {
     expect(String(historyCalls[1][0])).toContain(`after=${HISTORY_PAGE_LIMIT}`);
   });
 
-  it("renders the graph and folded history when EventSource is undefined", async () => {
+  it("renders the graph and folded history without a live socket", async () => {
     stubHistory([eventRow({ id: "3" })]);
-    vi.stubGlobal("EventSource", undefined);
+    useFakeSocket();
 
-    renderPanel("running");
+    renderPanelWithoutSocket("running");
     await settle();
 
     expect(screen.getByText("Implement")).toBeInTheDocument();
@@ -220,7 +232,7 @@ describe("history fold", () => {
 describe("degradation", () => {
   it("renders the seeded graph with an offline label when the history fetch rejects", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network")));
-    useFakeEventSource();
+    useFakeSocket();
 
     renderPanel("running");
     await settle();
@@ -229,7 +241,7 @@ describe("degradation", () => {
     expect(screen.getByText("Offline")).toBeInTheDocument();
   });
 
-  it("renders the graph without a rejected promise when the stream proxy returns 404", async () => {
+  it("renders the graph and opens no channel when the history read returns 404", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
@@ -238,49 +250,54 @@ describe("degradation", () => {
         json: async () => ({ error: "Run not found" }),
       }),
     );
-    useFakeEventSource();
+    useFakeSocket();
 
     renderPanel("running");
     await settle();
 
     expect(screen.getByText("Implement")).toBeInTheDocument();
-    expect(FakeEventSource.instances).toHaveLength(0);
+    expect(FakeWebSocket.instances).toHaveLength(0);
   });
 });
 
 describe("live events", () => {
   it("applies an agent_event frame to the graph", async () => {
     stubHistory([]);
-    useFakeEventSource();
+    useFakeSocket();
 
     renderPanel("running");
     await settle();
-
-    await act(async () => {
-      FakeEventSource.instances[0].emit("agent_event", {
-        type: "agent_event",
-        event: eventRow({ id: "9", nodeId: "validate", eventType: "init" }),
-      });
+    await openChannels();
+    await emitFrame({
+      type: "agent_event",
+      event: eventRow({
+        id: "9",
+        nodeId: "validate",
+        eventType: "init",
+      }) as never,
     });
 
     expect(screen.getAllByText("Running").length).toBeGreaterThan(0);
   });
 
-  it("does not rebuild the EventSource when a live event updates afterId", async () => {
+  it("does not reopen the channel when a live event updates afterId", async () => {
     stubHistory([]);
-    useFakeEventSource();
+    useFakeSocket();
 
     renderPanel("running");
     await settle();
-
-    await act(async () => {
-      FakeEventSource.instances[0].emit("agent_event", {
-        type: "agent_event",
-        event: eventRow({ id: "42", nodeId: "implement", eventType: "init" }),
-      });
+    await openChannels();
+    await emitFrame({
+      type: "agent_event",
+      event: eventRow({
+        id: "42",
+        nodeId: "implement",
+        eventType: "init",
+      }) as never,
     });
+    await settle();
 
-    expect(FakeEventSource.instances).toHaveLength(1);
+    expect(FakeWebSocket.latest.opens).toHaveLength(1);
   });
 });
 
@@ -296,7 +313,7 @@ describe("heatmap wiring and the live clock", () => {
         filePaths: ["src/a.ts"],
       }),
     ]);
-    useFakeEventSource();
+    useFakeSocket();
 
     const { container } = renderPanel("running");
 
@@ -305,17 +322,16 @@ describe("heatmap wiring and the live clock", () => {
     expect(container.querySelectorAll("[data-path]")).toHaveLength(1);
     expect(screen.getAllByText("src/a.ts").length).toBeGreaterThan(0);
 
-    await act(async () => {
-      FakeEventSource.instances[0].emit("agent_event", {
-        type: "agent_event",
-        event: eventRow({
-          id: "9",
-          nodeId: "implement",
-          eventType: "tool_call",
-          toolName: "Edit",
-          filePaths: ["src/b.ts"],
-        }),
-      });
+    await openChannels();
+    await emitFrame({
+      type: "agent_event",
+      event: eventRow({
+        id: "9",
+        nodeId: "implement",
+        eventType: "tool_call",
+        toolName: "Edit",
+        filePaths: ["src/b.ts"],
+      }) as never,
     });
 
     expect(container.querySelectorAll("[data-path]")).toHaveLength(2);
@@ -368,7 +384,7 @@ describe("run-graph verdict on a finished run (regression)", () => {
         isError: false,
       }),
     ]);
-    useFakeEventSource();
+    useFakeSocket();
 
     const { container } = render(
       <RunVisualizationPanel
@@ -409,14 +425,11 @@ describe("run-graph verdict on a finished run (regression)", () => {
 });
 
 describe("stream give-up and history polling", () => {
-  async function failStream(times: number) {
+  async function dropSocket(times: number) {
     for (let i = 0; i < times; i++) {
-      const source =
-        FakeEventSource.instances[FakeEventSource.instances.length - 1];
-
       await act(async () => {
-        source.onerror?.(new Event("error"));
-        vi.advanceTimersByTime(16000);
+        FakeWebSocket.latest.drop();
+        vi.advanceTimersByTime(30000);
       });
     }
   }
@@ -425,26 +438,23 @@ describe("stream give-up and history polling", () => {
     vi.useRealTimers();
   });
 
-  it("gives up the stream after six consecutive errors and degrades to Polling", async () => {
+  it("gives up the socket after six consecutive drops and degrades to Polling", async () => {
     vi.useFakeTimers();
     stubHistory([]);
-    useFakeEventSource();
+    useFakeSocket();
 
     renderPanel("running");
     await settle();
-    await failStream(6);
+    await dropSocket(6);
 
-    expect(FakeEventSource.instances).toHaveLength(6);
-    expect(
-      FakeEventSource.instances[FakeEventSource.instances.length - 1].closed,
-    ).toBe(true);
+    expect(FakeWebSocket.instances).toHaveLength(6);
     expect(screen.getByText("Polling")).toBeInTheDocument();
 
     await act(async () => {
       vi.advanceTimersByTime(60000);
     });
 
-    expect(FakeEventSource.instances).toHaveLength(6);
+    expect(FakeWebSocket.instances).toHaveLength(6);
   });
 
   it("polls the history proxy from the reducer cursor after giving up and applies new rows", async () => {
@@ -453,12 +463,12 @@ describe("stream give-up and history polling", () => {
       eventRow({ id: "5", nodeId: "implement", eventType: "init" }),
     ]);
 
-    useFakeEventSource();
+    useFakeSocket();
 
     const { container } = renderPanel("running");
 
     await settle();
-    await failStream(6);
+    await dropSocket(6);
 
     const validate = container.querySelector('[data-node="validate"]');
 
@@ -524,7 +534,7 @@ describe("node inspector", () => {
 
   it("shows the select-a-node hint while every node is idle, and opens the inspector on a click", async () => {
     stubHistory([]);
-    useFakeEventSource();
+    useFakeSocket();
 
     renderPanel("running");
     await settle();
@@ -545,7 +555,7 @@ describe("node inspector", () => {
     stubHistory([
       eventRow({ id: "1", nodeId: "implement", eventType: "init" }),
     ]);
-    useFakeEventSource();
+    useFakeSocket();
 
     const { container } = renderPanel("running");
 
@@ -566,17 +576,19 @@ describe("node inspector", () => {
     stubHistory([
       eventRow({ id: "1", nodeId: "implement", eventType: "init" }),
     ]);
-    useFakeEventSource();
+    useFakeSocket();
 
     renderPanel("running");
     await settle();
     await selectNode("validate");
-
-    await act(async () => {
-      FakeEventSource.instances[0].emit("agent_event", {
-        type: "agent_event",
-        event: eventRow({ id: "2", nodeId: "implement", eventType: "init" }),
-      });
+    await openChannels();
+    await emitFrame({
+      type: "agent_event",
+      event: eventRow({
+        id: "2",
+        nodeId: "implement",
+        eventType: "init",
+      }) as never,
     });
 
     expect(
@@ -588,7 +600,7 @@ describe("node inspector", () => {
     stubHistory([
       eventRow({ id: "1", nodeId: "implement", eventType: "init" }),
     ]);
-    useFakeEventSource();
+    useFakeSocket();
 
     const { container } = render(
       <RunVisualizationPanel
@@ -613,7 +625,7 @@ describe("node inspector", () => {
 
   it("shows the selected node's pod logs inside the inspector, one panel per attempt", async () => {
     stubHistory([]);
-    useFakeEventSource();
+    useFakeSocket();
 
     renderWithNodes([
       walkRow({ outcome: "implement-failed", agentCrName: "run1-implement" }),
@@ -635,7 +647,7 @@ describe("node inspector", () => {
 
   it("renders the attempts history inside the inspector for a node that looped", async () => {
     stubHistory([]);
-    useFakeEventSource();
+    useFakeSocket();
 
     renderWithNodes([
       walkRow({ outcome: "implement-failed" }),
@@ -649,7 +661,7 @@ describe("node inspector", () => {
 
   it("renders the no-node-executions empty state instead of the hint for a run with no graph", async () => {
     stubHistory([]);
-    useFakeEventSource();
+    useFakeSocket();
 
     render(
       <RunVisualizationPanel
@@ -695,7 +707,7 @@ describe("a node's input opens its transcript", () => {
     stubHistory([
       eventRow({ id: "1", nodeId: "implement", eventType: "init" }),
     ]);
-    useFakeEventSource();
+    useFakeSocket();
     render(
       <RunVisualizationPanel
         runId="run-1"
@@ -720,7 +732,7 @@ describe("a node's input opens its transcript", () => {
 
   it("shows a dispatched-but-silent node's input card", async () => {
     stubHistory([]);
-    useFakeEventSource();
+    useFakeSocket();
     render(
       <RunVisualizationPanel
         runId="run-1"
@@ -745,7 +757,7 @@ describe("a node's input opens its transcript", () => {
 
   it("renders no Input card for a pre-migration row that recorded none", async () => {
     stubHistory([]);
-    useFakeEventSource();
+    useFakeSocket();
     render(
       <RunVisualizationPanel
         runId="run-1"
@@ -800,7 +812,7 @@ describe("retry from node", () => {
   it("offers retry in the node card's header on a finished run, posting the implement fork source", async () => {
     const fetchMock = stubHistory([]); // eslint-disable-line re-lint/declare-near-use -- the history stub must be installed before the render it serves
 
-    useFakeEventSource();
+    useFakeSocket();
 
     const { container } = renderRun("finished", [
       retryRow({ nodeId: "implement" }),
@@ -838,7 +850,7 @@ describe("retry from node", () => {
   it("offers retry on a looping run's validate node, posting implement@2 as the fork source", async () => {
     const fetchMock = stubHistory([]);
 
-    useFakeEventSource();
+    useFakeSocket();
 
     renderRun("failed", [
       retryRow({ nodeId: "implement", iteration: 1 }),
@@ -870,7 +882,7 @@ describe("retry from node", () => {
 
   it("offers no retry while the run is still running", async () => {
     stubHistory([]);
-    useFakeEventSource();
+    useFakeSocket();
 
     renderRun("running", [
       retryRow({ nodeId: "implement" }),
@@ -887,7 +899,7 @@ describe("retry from node", () => {
 
   it("offers no retry on the entry node — there is no prefix to fork from", async () => {
     stubHistory([]);
-    useFakeEventSource();
+    useFakeSocket();
 
     renderRun("finished", [
       retryRow({ nodeId: "implement", outcome: "failed" }),
@@ -938,7 +950,7 @@ describe("agent edit link", () => {
 
   it("links an agent node's card header to its resolved agents editor, live run included", async () => {
     stubHistory([]);
-    useFakeEventSource();
+    useFakeSocket();
 
     const { container } = renderWithHrefs([row("implement")]);
 
@@ -958,7 +970,7 @@ describe("agent edit link", () => {
 
   it("offers no edit link on a node the href map does not name", async () => {
     stubHistory([]);
-    useFakeEventSource();
+    useFakeSocket();
 
     renderWithHrefs([row("implement"), row("validate")]);
 
@@ -982,7 +994,7 @@ describe("file diff drawer", () => {
         filePaths: ["src/a.ts"],
       }),
     ]);
-    useFakeEventSource();
+    useFakeSocket();
 
     const { container } = render(
       <RunVisualizationPanel

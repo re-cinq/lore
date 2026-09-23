@@ -1,8 +1,7 @@
 import type { RefineAsk } from "@/lib/api/plans";
 
-/** Where the browser opens this plan's socket, and the token it opens it with. */
+/** The plan's document on the tab's live socket, and the token that opens it. */
 export interface PlanSocket {
-  wsUrl: string;
   documentName: string;
   token: string;
 }
