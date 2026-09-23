@@ -252,7 +252,8 @@ describe("PlanRunCard on an approved plan", () => {
       steps: within(panel)
         .getAllByRole("listitem")
         .map((step) => step.textContent),
-      reopen: within(panel).getByRole("button", { name: "Reopen plan" }) !== null,
+      reopen:
+        within(panel).getByRole("button", { name: "Reopen plan" }) !== null,
     }).toEqual({
       why: "You approved this plan, so an agent started turning it into spec files. Before writing them it checked the plan and found a decision it cannot make on its own, so it stopped and waits for your answer.",
       quote: "Should spec-writing proceed on the SQL-cron scope?",
