@@ -155,7 +155,7 @@ function useTranscriptData(runId: string, watch: TranscriptWatch) {
   const [capped, setCapped] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const disposedRef = useDisposedRef();
-  const tail = useTranscriptTail({ runId, disposedRef, setTurns });
+  const tail = useTranscriptTail({ runId, disposedRef, setTurns, setCapped });
 
   useFirstWalk(
     { runId, open: watch.open, disposedRef },

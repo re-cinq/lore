@@ -10,11 +10,13 @@ import {
 } from "react";
 import type { AgentRunTurn } from "@/lib/run-turn-types";
 import { walkTurns } from "./transcript-walk";
+import { MAX_TURNS_LOADED } from "./turn-transcript-presenter";
 
 type TurnsSetter = Dispatch<SetStateAction<AgentRunTurn[] | null>>;
 
 interface TailCursor {
   newest: string;
+  held: number;
   pulling: boolean;
   queued: boolean;
 }
@@ -23,30 +25,32 @@ export interface TailWiring {
   runId: string;
   disposedRef: { current: boolean };
   setTurns: TurnsSetter;
+  setCapped: (capped: boolean) => void;
 }
 
 interface TailSink {
   isDisposed: () => boolean;
   append: (fresh: AgentRunTurn[]) => void;
+  cap: () => void;
 }
 
 /** `seed` takes the full walk's turns and remembers the newest; `follow` appends whatever was stored after it. */
-export function useTranscriptTail({
-  runId,
-  disposedRef,
-  setTurns,
-}: TailWiring) {
+export function useTranscriptTail(wiring: TailWiring) {
+  const { runId, disposedRef, setTurns, setCapped } = wiring;
   const cursorRef = useRef<TailCursor>(idleCursor());
   const seed = useCallback(
     (loaded: AgentRunTurn[]) => {
       cursorRef.current.newest = newestId(loaded, "0");
+      cursorRef.current.held = loaded.length;
       setTurns(loaded);
     },
     [setTurns],
   );
   const follow = useCallback(() => {
-    void followTail(runId, cursorRef.current, tailSink(disposedRef, setTurns));
-  }, [runId, disposedRef, setTurns]);
+    const sink = tailSink({ disposedRef, setTurns, setCapped });
+
+    void followTail(runId, cursorRef.current, sink);
+  }, [runId, disposedRef, setTurns, setCapped]);
 
   return { seed, follow };
 }
@@ -92,26 +96,50 @@ async function pullUntilSettled(
     if (fresh === null || sink.isDisposed()) {
       return;
     }
-    cursor.newest = newestId(fresh.turns, cursor.newest);
 
-    if (fresh.turns.length > 0) {
-      sink.append(fresh.turns);
+    if (!keepWithinCap(cursor, fresh, sink)) {
+      return;
     }
   } while (takeQueued(cursor));
 }
 
-function tailSink(
-  disposedRef: { current: boolean },
-  setTurns: TurnsSetter,
-): TailSink {
+/** Appends what still fits under the load cap the first walk honors; false once the cap is reached, which ends the following and raises the cap notice. */
+function keepWithinCap(
+  cursor: TailCursor,
+  fresh: { turns: AgentRunTurn[]; hitCap: boolean },
+  sink: TailSink,
+): boolean {
+  const kept = fresh.turns.slice(0, MAX_TURNS_LOADED - cursor.held);
+
+  cursor.newest = newestId(kept, cursor.newest);
+  cursor.held += kept.length;
+
+  if (kept.length > 0) {
+    sink.append(kept);
+  }
+  const capped = fresh.hitCap || cursor.held >= MAX_TURNS_LOADED;
+
+  if (capped) {
+    sink.cap();
+  }
+
+  return !capped;
+}
+
+function tailSink({
+  disposedRef,
+  setTurns,
+  setCapped,
+}: Omit<TailWiring, "runId">): TailSink {
   return {
     isDisposed: () => disposedRef.current,
     append: (fresh) => setTurns((held) => [...(held ?? []), ...fresh]),
+    cap: () => setCapped(true),
   };
 }
 
 function idleCursor(): TailCursor {
-  return { newest: "0", pulling: false, queued: false };
+  return { newest: "0", held: 0, pulling: false, queued: false };
 }
 
 function takeQueued(cursor: TailCursor): boolean {
