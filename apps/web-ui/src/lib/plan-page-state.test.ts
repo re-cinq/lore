@@ -60,6 +60,21 @@ describe("planPageState for a draft plan", () => {
   });
 });
 
+describe("planPageState for a plan reopened by its line", () => {
+  it("is answering while the reopened plan's line waits on the author after the spec analysis's question", () => {
+    expect(
+      planPageState(
+        "draft",
+        run("running", [
+          visit("author", "success"),
+          visit("analyse-specs", "changes_requested"),
+          visit("author", null, 2),
+        ]),
+      ),
+    ).toBe("answering");
+  });
+});
+
 describe("planPageState for an approved plan", () => {
   it("is spec-work while analyse-specs, write or push runs", () => {
     expect(

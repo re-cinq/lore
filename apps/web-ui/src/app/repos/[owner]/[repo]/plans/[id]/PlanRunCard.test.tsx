@@ -252,6 +252,32 @@ describe("PlanRunCard on an approved plan", () => {
     });
   });
 
+  it("quotes the spec analysis's question in the plan it reopened, asking for an answer and approval instead of a Reopen", () => {
+    render(
+      <PlanRunCard
+        run={{
+          ...RUN,
+          specPlanSummary:
+            "CHANGES REQUESTED. Should spec-writing proceed on the SQL-cron scope?",
+        }}
+        state="answering"
+        draftAgain={async () => ({})}
+        reopen={async () => ({})}
+      />,
+    );
+
+    expect({
+      banner: screen.getByText(/has a question for you/).textContent,
+      quote: screen.getByRole("blockquote").textContent,
+      buttons: screen.queryAllByRole("button"),
+    }).toEqual({
+      banner:
+        "The spec work has a question for you: answer it in the plan, then approve it again.",
+      quote: "Should spec-writing proceed on the SQL-cron scope?",
+      buttons: [],
+    });
+  });
+
   it("says a reopened plan updates its spec PR on the next approval", () => {
     render(
       <PlanRunCard
