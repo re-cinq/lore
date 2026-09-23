@@ -8,6 +8,8 @@ const {
   createPlan,
   readPlan,
   approvePlan,
+  reopenPlan,
+  startSpecWork,
   mintCollabToken,
   seedPlan,
   startDrafting,
@@ -79,13 +81,33 @@ describe("plans client", () => {
     });
   });
 
-  it("approves plan p1 in gedaiu's name", async () => {
-    await approvePlan("p1", "gedaiu");
+  it("approves plan p1 of re-cinq/lore in gedaiu's name through lore's own route", async () => {
+    await approvePlan("re-cinq/lore", "p1", "gedaiu");
 
     expect(request()).toEqual({
-      url: "http://api:3000/api/plans/p1/approve",
+      url: "http://api:3000/api/repos/re-cinq/lore/plans/p1/approve",
       method: "POST",
       body: { approvedBy: "gedaiu" },
+    });
+  });
+
+  it("reopens plan p1 of re-cinq/lore in gedaiu's name", async () => {
+    await reopenPlan("re-cinq/lore", "p1", "gedaiu");
+
+    expect(request()).toEqual({
+      url: "http://api:3000/api/repos/re-cinq/lore/plans/p1/reopen",
+      method: "POST",
+      body: { reopenedBy: "gedaiu" },
+    });
+  });
+
+  it("starts a fresh spec pass for plan p1 of re-cinq/lore in gedaiu's name", async () => {
+    await startSpecWork("re-cinq/lore", "p1", "gedaiu");
+
+    expect(request()).toEqual({
+      url: "http://api:3000/api/repos/re-cinq/lore/plans/p1/spec-work",
+      method: "POST",
+      body: { createdBy: "gedaiu" },
     });
   });
 

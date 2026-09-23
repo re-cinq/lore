@@ -60,7 +60,7 @@ export {
   type HumanStationType,
 } from "./human-station.js";
 // The graph type itself is `RunGraph` from `@re-cinq/lore-shared` — import it from there (the persisted wire format lives with the port that stores it).
-export { snapshotGraph } from "./snapshot-graph.js";
+export { snapshotGraph, entryNodeProblem } from "./snapshot-graph.js";
 
 // The BYO toolchain relay is NOT exported (ADR-025 phase 2, built but deliberately not wired until phase 3 runs detectTooling in the repo's sidecar) — reachable at `./relay/`, goes public when phase 3 wires it; Floor lines already use the lore-station image instead (ADR-025 amendment).
 

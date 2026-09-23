@@ -108,6 +108,18 @@ describe("snapshotGraph", () => {
     });
   });
 
+  it("enters the clone at check when the start names it, so a revision line skips the nodes already settled", () => {
+    expect(
+      snapshotGraph(parseAssemblyLine(YAML), "demo", { entry: "check" }),
+    ).toMatchObject({ entry: "check", exit: "done" });
+  });
+
+  it("refuses an entry naming no node of the blueprint", () => {
+    expect(() =>
+      snapshotGraph(parseAssemblyLine(YAML), "demo", { entry: "nope" }),
+    ).toThrow('entry node "nope" is not a node of demo');
+  });
+
   it("round-trips through JSON, since the clone is stored as jsonb", () => {
     expect(JSON.parse(JSON.stringify(graph()))).toEqual(graph());
   });

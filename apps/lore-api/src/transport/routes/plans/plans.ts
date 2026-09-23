@@ -10,8 +10,11 @@ import {
 } from "../../../outbound/plans/plan-store-pg.js";
 import { mintCollabToken } from "../../../work/plans/collab-tokens.js";
 import { askRefine, startDrafting } from "../../../work/plans/planning-line.js";
-import { createTask } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
-import { projectionOf, resumeDepsFor } from "./plan-line-deps.js";
+import {
+  projectionOf,
+  resumeDepsFor,
+  specWorkDepsFor,
+} from "./plan-line-deps.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
@@ -118,13 +121,11 @@ function draftingRoute(getPool: () => Pool | null): ServerRoute {
     handler: withPool(getPool, async (pool, request, h) => {
       const plan = await repoPlan(() => pool, request);
       const body = request.payload as z.infer<typeof DraftingBody>;
-      const taskId = await startDrafting(
-        {
-          ...resumeDepsFor(plan.repo, pool),
-          createTask: async (task) => String((await createTask(task)).task_id),
-        },
-        { plan, projection: await projectionOf(() => pool, plan.id), ...body },
-      );
+      const taskId = await startDrafting(specWorkDepsFor(plan.repo, pool), {
+        plan,
+        projection: await projectionOf(() => pool, plan.id),
+        ...body,
+      });
 
       return h.response({ task_id: taskId }).code(202);
     }),

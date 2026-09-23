@@ -212,6 +212,89 @@ describe("/api/plans on lore-api", () => {
     expect(refused.status).toBe(409);
   });
 
+  const approvedPlan = async () => {
+    const planId = await createPlan();
+
+    await pool.query(
+      "UPDATE lore.plans SET status = 'approved', approval = $2 WHERE id = $1",
+      [
+        planId,
+        {
+          mode: "manual",
+          approvedBy: "ana",
+          approvedAt: "2026-09-23T10:00:00.000Z",
+          version: 1,
+        },
+      ],
+    );
+
+    return planId;
+  };
+
+  it("answers 409 to approving Ana's plan while its sections are still empty, naming what it lacks", async () => {
+    const planId = await createPlan();
+    const refused = await call(
+      "POST",
+      `/api/repos/${REPO}/plans/${planId}/approve`,
+      TOKEN,
+      { approvedBy: "ana" },
+    );
+
+    expect(refused).toMatchObject({
+      status: 409,
+      body: { problems: expect.arrayContaining([expect.any(Object)]) },
+    });
+  });
+
+  it("starts a fresh spec pass at analyse-specs for Ana's approved plan whose line is not running", async () => {
+    const planId = await approvedPlan();
+    const started = await call(
+      "POST",
+      `/api/repos/${REPO}/plans/${planId}/spec-work`,
+      TOKEN,
+      { createdBy: "ana" },
+    );
+    const { rows } = await pool.query(
+      "SELECT task_type, context_bundle FROM pipeline.tasks WHERE id = $1",
+      [(started.body as { task_id: string }).task_id],
+    );
+
+    expect({ status: started.status, task: rows[0] }).toMatchObject({
+      status: 202,
+      task: {
+        task_type: "feature-planning",
+        context_bundle: {
+          plan_id: planId,
+          line_args: {
+            entry_node: "analyse-specs",
+            plan_title: "Faster checkout",
+          },
+        },
+      },
+    });
+  });
+
+  it("reopens Ana's approved plan as a draft, and refuses to reopen it twice", async () => {
+    const planId = await approvedPlan();
+    const reopened = await call(
+      "POST",
+      `/api/repos/${REPO}/plans/${planId}/reopen`,
+      TOKEN,
+      { reopenedBy: "ana" },
+    );
+    const again = await call(
+      "POST",
+      `/api/repos/${REPO}/plans/${planId}/reopen`,
+      TOKEN,
+      { reopenedBy: "ana" },
+    );
+
+    expect({ reopened, again: again.status }).toMatchObject({
+      reopened: { status: 200, body: { status: "draft", approval: null } },
+      again: 409,
+    });
+  });
+
   const planMd = async (planId: string) =>
     (
       await server.inject({

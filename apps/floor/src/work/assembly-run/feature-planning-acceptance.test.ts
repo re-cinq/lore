@@ -129,6 +129,20 @@ describe("feature-planning acceptance: the spec PR and decomposition", () => {
     expect(h.enqueued.at(-1)?.name).toBe(`${short(id)}-decompose`);
   });
 
+  it("starts at analyse-specs when the run's args name it, so a re-approved plan gets a new spec pass without a new draft", async () => {
+    const h = createLineHarness();
+    const id = await h.start("feature-planning", {
+      args: {
+        repo: "re-cinq/lore",
+        plan_id: "plan-1",
+        entry_node: "analyse-specs",
+      },
+    });
+
+    expect(h.enqueued.at(-1)?.name).toBe(`${short(id)}-analyse-specs`);
+    expect(h.visits()).toEqual([["analyse-specs", null]]);
+  });
+
   it("returns a spec PR review objection to the author, not to an agent", async () => {
     const h = createLineHarness();
     const id = await acceptedThroughSpecPlan(h);

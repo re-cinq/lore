@@ -29,6 +29,8 @@ const actions = {
   draftAgain: async () => ({}),
   openSocket: async () => ({ error: "unused" }),
   approve: async () => ({}),
+  reopen: async () => ({}),
+  retrySpecWork: async () => ({}),
 };
 
 describe("PlanDetailView", () => {
@@ -67,6 +69,30 @@ describe("PlanDetailView", () => {
       editor: screen.queryByText("editor for Bogdan"),
       drafting: screen.queryByText(/writing this plan/) !== null,
     }).toEqual({ editor: null, drafting: true });
+  });
+
+  it("says gedaiu approved the plan on 2026-09-23 in the header", () => {
+    render(
+      <PlanDetailView
+        meta={{
+          ...META,
+          status: "approved",
+          approval: {
+            mode: "manual",
+            approvedBy: "gedaiu",
+            approvedAt: "2026-09-23T10:00:00.000Z",
+            version: 2,
+          },
+        }}
+        run={null}
+        user={{ id: "gedaiu", name: "Bogdan", color: "red" }}
+        {...actions}
+      />,
+    );
+
+    expect(screen.getByText(/approved by gedaiu on/).textContent).toContain(
+      new Date("2026-09-23T10:00:00.000Z").toLocaleDateString(),
+    );
   });
 
   it("asks a visitor without a session to sign in instead of opening the editor", () => {

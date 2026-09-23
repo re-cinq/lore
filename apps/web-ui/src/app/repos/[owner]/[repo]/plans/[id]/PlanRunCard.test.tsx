@@ -32,7 +32,9 @@ const RUN: PlanRun = {
 
 describe("PlanRunCard", () => {
   it("says the plan waits for its people and links run-1's page", () => {
-    render(<PlanRunCard run={RUN} draftAgain={async () => ({})} />);
+    render(
+      <PlanRunCard run={RUN} state="writing" draftAgain={async () => ({})} />,
+    );
 
     expect({
       phase: screen.getByText(/Waiting for you/).textContent,
@@ -53,6 +55,7 @@ describe("PlanRunCard", () => {
           prUrl: "https://github.com/re-cinq/lore/pull/7",
           prNumber: 7,
         }}
+        state="spec-pr-open"
         draftAgain={async () => ({})}
       />,
     );
@@ -64,7 +67,9 @@ describe("PlanRunCard", () => {
   });
 
   it("says no run has started for a plan without one", () => {
-    render(<PlanRunCard run={null} draftAgain={async () => ({})} />);
+    render(
+      <PlanRunCard run={null} state="writing" draftAgain={async () => ({})} />,
+    );
 
     expect(screen.getByText("No planning run yet.")).toBeInTheDocument();
   });
@@ -84,7 +89,9 @@ describe("PlanRunCard regenerate", () => {
   it("regenerates the failed plan only after the confirmation popup, then refreshes", async () => {
     const draftAgain = vi.fn(async () => ({}));
 
-    render(<PlanRunCard run={failed} draftAgain={draftAgain} />);
+    render(
+      <PlanRunCard run={failed} state="writing" draftAgain={draftAgain} />,
+    );
     fireEvent.click(screen.getByRole("button", { name: "Regenerate plan" }));
     const asked = draftAgain.mock.calls.length;
 
@@ -110,7 +117,9 @@ describe("PlanRunCard regenerate", () => {
   it("closes the popup without regenerating when cancelled", () => {
     const draftAgain = vi.fn(async () => ({}));
 
-    render(<PlanRunCard run={failed} draftAgain={draftAgain} />);
+    render(
+      <PlanRunCard run={failed} state="writing" draftAgain={draftAgain} />,
+    );
     fireEvent.click(screen.getByRole("button", { name: "Regenerate plan" }));
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
 
@@ -124,7 +133,13 @@ describe("PlanRunCard regenerate", () => {
   });
 
   it("warns in the popup that the agent's draft can replace what the plan's sections say", () => {
-    render(<PlanRunCard run={failed} draftAgain={async () => ({})} />);
+    render(
+      <PlanRunCard
+        run={failed}
+        state="writing"
+        draftAgain={async () => ({})}
+      />,
+    );
     fireEvent.click(screen.getByRole("button", { name: "Regenerate plan" }));
 
     expect(screen.getByRole("dialog")).toHaveTextContent(
@@ -133,7 +148,9 @@ describe("PlanRunCard regenerate", () => {
   });
 
   it("offers a regeneration for a plan no run was ever started for", () => {
-    render(<PlanRunCard run={null} draftAgain={async () => ({})} />);
+    render(
+      <PlanRunCard run={null} state="writing" draftAgain={async () => ({})} />,
+    );
 
     expect(
       screen.getByRole("button", { name: "Regenerate plan" }),
@@ -141,10 +158,56 @@ describe("PlanRunCard regenerate", () => {
   });
 
   it("offers a regeneration while the run waits on its people at author", () => {
-    render(<PlanRunCard run={RUN} draftAgain={async () => ({})} />);
+    render(
+      <PlanRunCard run={RUN} state="writing" draftAgain={async () => ({})} />,
+    );
 
     expect(
       screen.getByRole("button", { name: "Regenerate plan" }),
     ).toBeInTheDocument();
+  });
+});
+
+describe("PlanRunCard on an approved plan", () => {
+  const failedSpecWork = {
+    ...RUN,
+    status: "failed",
+    reason: "the push node reported success but pushed nothing",
+  };
+
+  it("offers no regeneration once the spec work failed, and says to retry or reopen instead", () => {
+    render(
+      <PlanRunCard
+        run={failedSpecWork}
+        state="spec-work-failed"
+        draftAgain={async () => ({})}
+      />,
+    );
+
+    expect({
+      regenerate: screen.queryByRole("button", { name: "Regenerate plan" }),
+      text: screen.getByText(/did not deliver/).textContent,
+    }).toEqual({
+      regenerate: null,
+      text: "The spec work did not deliver. Retry it from the approved plan, or reopen the plan to change it first.",
+    });
+  });
+
+  it("says the spec work has a question while the line is back on the author", () => {
+    render(
+      <PlanRunCard run={RUN} state="question" draftAgain={async () => ({})} />,
+    );
+
+    expect(screen.getByText(/has a question for you/)).toBeInTheDocument();
+  });
+
+  it("says a reopened plan updates its spec PR on the next approval", () => {
+    render(
+      <PlanRunCard run={RUN} state="reopened" draftAgain={async () => ({})} />,
+    );
+
+    expect(screen.getByText(/Reopened:/).textContent).toContain(
+      "approve it again to update the spec PR",
+    );
   });
 });

@@ -290,6 +290,48 @@ describe("createStartEventHandler definition hashing (specs/fork-rerun-from-node
     });
   });
 
+  it("stamps the clone entered at the node args.entry_node names, so the walk launches there instead of the blueprint's entry", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const assemblyLineId = await port.start({
+      blueprintName: "implementation",
+      repo: "re-cinq/lore",
+      branch: "lore/x",
+      args: { description: "revise the specs", entry_node: "n1" },
+    });
+    const { deps } = makeDeps(port);
+
+    await createStartEventHandler(deps)(
+      params(assemblyLineId, "implementation", null),
+    );
+
+    expect((await port.getById(assemblyLineId))?.graph).toMatchObject({
+      entry: "n1",
+    });
+  });
+
+  it("closes the row as a config error when args.entry_node names no node, launching nothing", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const assemblyLineId = await port.start({
+      blueprintName: "implementation",
+      repo: "re-cinq/lore",
+      branch: "lore/x",
+      args: { description: "revise the specs", entry_node: "nope" },
+    });
+    const { deps, calls } = makeDeps(port);
+
+    await createStartEventHandler(deps)(
+      params(assemblyLineId, "implementation", null),
+    );
+
+    expect({ row: await port.getById(assemblyLineId), calls }).toMatchObject({
+      row: {
+        status: "failed",
+        reason: 'entry node "nope" is not a node of implementation',
+      },
+      calls: { advanced: [] },
+    });
+  });
+
   it("stamps nothing when the definition does not resolve", async () => {
     const { port, assemblyLineId } = await seededPort("onboard");
     const { deps } = makeDeps(port);
