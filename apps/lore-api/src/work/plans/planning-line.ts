@@ -239,6 +239,22 @@ export async function reopenPlan(
   });
 }
 
+/** A line waiting on its author means the plan is open for writing: an approved plan whose line came back to the author (the spec analysis asked something, or someone ran the station by hand) is reopened, since its read-only editor would leave nobody able to answer. True when it reopened the plan. */
+export async function openForAuthor(
+  runs: PlanningRunPort,
+  plan: { id: string; status: string },
+  reopen: (planId: string) => Promise<unknown>,
+): Promise<boolean> {
+  const line = await planLineState(runs, plan.id);
+  const locked = plan.status === "approved" && Boolean(line?.parkedAuthor);
+
+  if (locked) {
+    await reopen(plan.id);
+  }
+
+  return locked;
+}
+
 function reopenRefusal(line: PlanLine): string {
   return line.merged
     ? "wait until the spec-tasks are filed"

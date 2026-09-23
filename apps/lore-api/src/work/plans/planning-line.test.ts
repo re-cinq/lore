@@ -5,6 +5,7 @@ import {
   askRefine,
   decideApproval,
   handOverApproved,
+  openForAuthor,
   reopenPlan,
   startDrafting,
   type NewPlanningTask,
@@ -413,5 +414,48 @@ describe("reopenPlan", () => {
       message: "wait until the spec-tasks are filed",
     });
     expect(reporter.rows).toEqual([]);
+  });
+});
+
+describe("openForAuthor", () => {
+  const questionAsked = lineWith({ status: "running" }, [
+    v("author", "success"),
+    v("analyse-specs", "changes_requested"),
+    v("author", null, 2),
+  ]);
+
+  it("reopens approved plan p1 when the spec analysis sent its line back to the author", async () => {
+    const reopened: string[] = [];
+
+    const answer = await openForAuthor(
+      questionAsked,
+      { id: "p1", status: "approved" },
+      async (planId) => void reopened.push(planId),
+    );
+
+    expect({ answer, reopened }).toEqual({ answer: true, reopened: ["p1"] });
+  });
+
+  it("reopens nothing for a draft plan, nor an approved one whose line is not on the author", async () => {
+    const reopened: string[] = [];
+    const reopen = async (planId: string) => void reopened.push(planId);
+    const cases = [
+      { runs: parkedOnAuthor, status: "draft" },
+      { runs: writingSpecs, status: "approved" },
+      { runs: specPrOpen, status: "approved" },
+      { runs: specWorkFailed, status: "approved" },
+      { runs: runWith([]), status: "approved" },
+    ];
+
+    const answers = await Promise.all(
+      cases.map(({ runs, status }) =>
+        openForAuthor(runs, { id: "p1", status }, reopen),
+      ),
+    );
+
+    expect({ answers, reopened }).toEqual({
+      answers: [false, false, false, false, false],
+      reopened: [],
+    });
   });
 });
