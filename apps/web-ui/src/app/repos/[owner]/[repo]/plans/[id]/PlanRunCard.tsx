@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import ConfirmedActionButton from "@/components/ConfirmedActionButton";
 import type { AssemblyRunNode } from "@/lib/assembly-run-rows";
 import type { PlanPageState } from "@/lib/plan-page-state";
@@ -39,10 +40,8 @@ const REGENERATE = {
 
 // Where the run's own phase does not say what the PLAN's people should do next.
 const STATE_TEXT: Partial<Record<PlanPageState, string>> = {
-  question:
-    "The spec work has a question for you: reopen the plan to answer it, then approve it again.",
-  answering:
-    "The spec work has a question for you: answer it in the plan, then approve it again.",
+  question: "Paused: the spec writing waits for your answer.",
+  answering: "Paused: the spec writing waits for your answer.",
   reopened:
     "Reopened: refine or edit the plan, then approve it again to update the spec PR.",
   "spec-work-failed":
@@ -77,7 +76,31 @@ const QUESTION_STATES: ReadonlySet<PlanPageState> = new Set([
   "answering",
 ]);
 
-// Answered in the plan the line reopened; Reopen sits beside it only when that reopen never landed and the plan is still approved.
+const QUESTION_TITLE = "The spec writer has a question for you";
+
+const WHY_PAUSED =
+  "You approved this plan, so an agent started turning it into spec files. Before writing them it checked the plan and found a decision it cannot make on its own, so it stopped and waits for your answer.";
+
+const ANSWER_STEPS = [
+  "Write your answer into the plan, in the section the question is about.",
+  <>
+    Click <strong>Approve plan</strong>. The agent reads your answer and goes on
+    writing the specs.
+  </>,
+];
+
+// Only a plan still approved needs the Reopen step; one its line reopened is already editable.
+const FIRST_STEP: Partial<Record<PlanPageState, ReactNode>> = {
+  question: (
+    <>
+      Click <strong>Reopen plan</strong>. This unlocks the approved plan so you
+      can edit it again.
+    </>
+  ),
+  answering: "The plan is already open again, so you can edit it.",
+};
+
+// Someone who never saw the spec step reads this cold: say what paused, quote the question, then the clicks that answer it.
 function AuthorQuestion({
   run,
   state,
@@ -88,12 +111,25 @@ function AuthorQuestion({
   }
 
   return (
-    <div className={styles.question}>
+    <section className={styles.question} aria-labelledby="plan-question-title">
+      <h3 id="plan-question-title">{QUESTION_TITLE}</h3>
+      <p>{WHY_PAUSED}</p>
       <QuestionQuote run={run} />
+      <AnswerSteps state={state} />
       {state === "question" && (
         <ReopenPlanButton state="question" reopen={reopen} />
       )}
-    </div>
+    </section>
+  );
+}
+
+function AnswerSteps({ state }: { state: PlanPageState }) {
+  return (
+    <ol>
+      {[FIRST_STEP[state], ...ANSWER_STEPS].map((step, index) => (
+        <li key={index}>{step}</li>
+      ))}
+    </ol>
   );
 }
 

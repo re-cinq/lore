@@ -33,16 +33,35 @@
 .question {
   display: flex;
   flex: 1 1 100%;
-  flex-wrap: wrap;
+  flex-direction: column;
   align-items: flex-start;
   gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--warning);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+
+  h3 {
+    margin: 0;
+    font-size: var(--fs-md);
+    font-weight: var(--fw-semibold);
+  }
+
+  p,
+  ol {
+    margin: 0;
+  }
+
+  ol {
+    padding-left: var(--space-5);
+  }
 
   blockquote {
-    flex: 1 1 24rem;
     margin: 0;
     padding-left: var(--space-3);
-    border-left: 3px solid var(--warning);
-    color: var(--text);
+    border-left: 3px solid var(--border);
+    color: var(--text-muted);
     white-space: pre-wrap;
   }
 }
