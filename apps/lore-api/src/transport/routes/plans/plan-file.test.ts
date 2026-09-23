@@ -30,7 +30,11 @@ describe("POST /api/plans/{id}/refine-failed", () => {
     const res = await server.inject({
       method: "POST",
       url: "/api/plans/p1/refine-failed",
-      payload: { slot: "scope", reason: "the planning agent stopped with exit code 42 before it answered" },
+      payload: {
+        slot: "scope",
+        reason:
+          "the planning agent stopped with exit code 42 before it answered",
+      },
     });
 
     expect({ status: res.statusCode, body: res.result, failed }).toEqual({
@@ -40,7 +44,8 @@ describe("POST /api/plans/{id}/refine-failed", () => {
         {
           planId: "p1",
           slot: "scope",
-          reason: "the planning agent stopped with exit code 42 before it answered",
+          reason:
+            "the planning agent stopped with exit code 42 before it answered",
         },
       ],
     });

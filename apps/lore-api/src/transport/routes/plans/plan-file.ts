@@ -37,7 +37,11 @@ const PlanFileOutcomeSchema = z.object({
 });
 
 export function planFileRoutes(ports: PlanFilePorts): ServerRoute[] {
-  return [markdownRoute(ports), agentFileRoute(ports), refineFailedRoute(ports)];
+  return [
+    markdownRoute(ports),
+    agentFileRoute(ports),
+    refineFailedRoute(ports),
+  ];
 }
 
 function markdownRoute(ports: PlanFilePorts): ServerRoute {

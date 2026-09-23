@@ -152,7 +152,8 @@ describe("POST /api/agent-files/{agent}/planning.result", () => {
           planId: "p1",
           refine: {
             slot: "intent",
-            reason: "the planning agent stopped with exit code 42 before it answered",
+            reason:
+              "the planning agent stopped with exit code 42 before it answered",
           },
         },
       ],
