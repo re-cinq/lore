@@ -23,6 +23,7 @@ const baseRow: AssemblyRunRow = {
   started_at: "2026-07-14T10:00:05Z",
   finished_at: "2026-07-14T10:12:00Z",
   args_pr_number: null,
+  spec_plan_summary: null,
   pr_url: "https://github.com/re-cinq/lore/pull/42",
   task_pr_number: 42,
   issue_url: null,

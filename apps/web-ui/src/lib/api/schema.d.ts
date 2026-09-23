@@ -2378,6 +2378,7 @@ export interface components {
       started_at: string | null;
       finished_at: string | null;
       args_pr_number: number | null;
+      spec_plan_summary: string | null;
       pr_url: string | null;
       task_pr_number: number | null;
       issue_url: string | null;
@@ -2402,6 +2403,7 @@ export interface components {
         started_at: string | null;
         finished_at: string | null;
         args_pr_number: number | null;
+        spec_plan_summary: string | null;
         pr_url: string | null;
         task_pr_number: number | null;
         issue_url: string | null;

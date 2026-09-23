@@ -24,11 +24,12 @@ export default function PlanDetailView({
   ...actions
 }: PlanDetailViewProps) {
   const state = planPageState(meta.status, run);
+  const card = { run, state, draftAgain, reopen: actions.reopen };
 
   return (
     <div>
       <PlanHeader meta={meta} />
-      <PlanRunCard run={run} state={state} draftAgain={draftAgain} />
+      <PlanRunCard {...card} />
       <PlanBody meta={meta} run={run} user={user} state={state} {...actions} />
     </div>
   );

@@ -58,6 +58,7 @@ describe("PlanDetailView", () => {
           reason: null,
           prUrl: null,
           prNumber: null,
+          specPlanSummary: null,
           nodes: [],
         }}
         user={{ id: "gedaiu", name: "Bogdan", color: "red" }}

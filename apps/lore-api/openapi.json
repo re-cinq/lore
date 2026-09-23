@@ -8995,6 +8995,9 @@
           "args_pr_number": {
             "type": ["number", "null"]
           },
+          "spec_plan_summary": {
+            "type": ["string", "null"]
+          },
           "pr_url": {
             "type": ["string", "null"]
           },
@@ -9029,6 +9032,7 @@
           "started_at",
           "finished_at",
           "args_pr_number",
+          "spec_plan_summary",
           "pr_url",
           "task_pr_number",
           "issue_url",
@@ -9089,6 +9093,9 @@
                 "args_pr_number": {
                   "type": ["number", "null"]
                 },
+                "spec_plan_summary": {
+                  "type": ["string", "null"]
+                },
                 "pr_url": {
                   "type": ["string", "null"]
                 },
@@ -9123,6 +9130,7 @@
                 "started_at",
                 "finished_at",
                 "args_pr_number",
+                "spec_plan_summary",
                 "pr_url",
                 "task_pr_number",
                 "issue_url",

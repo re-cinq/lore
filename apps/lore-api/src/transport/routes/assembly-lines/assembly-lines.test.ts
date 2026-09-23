@@ -318,6 +318,36 @@ describe("assembly-line reads", () => {
       });
     });
 
+    it("serves the spec plan's summary from args, whether the pod wrote it as JSON text or an object, and null without one", async () => {
+      const runs = new InMemoryAssemblyRuns();
+      const question =
+        "CHANGES REQUESTED. Should spec-writing proceed on the SQL-cron scope?";
+
+      await runs.start({
+        blueprintName: "feature-planning",
+        repo: "re-cinq/lore",
+        args: { spec_plan: JSON.stringify({ summary: question }) },
+      });
+      await runs.start({
+        blueprintName: "feature-planning",
+        repo: "re-cinq/lore",
+        args: { spec_plan: { summary: question } },
+      });
+      await runs.start({
+        blueprintName: "feature-planning",
+        repo: "re-cinq/lore",
+      });
+      const server = await servePort(runs, makePool());
+
+      const res = await server.inject("/api/assembly-lines");
+
+      expect(
+        (res.result as { runs: { spec_plan_summary: string | null }[] }).runs
+          .map((run) => run.spec_plan_summary)
+          .sort(),
+      ).toEqual([question, question, null].sort());
+    });
+
     it("falls back to args.actor when the task row names no author", async () => {
       const runs = new InMemoryAssemblyRuns();
 

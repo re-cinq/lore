@@ -7,14 +7,10 @@ import {
   transportFor,
   type ProviderTransport,
 } from "@re-cinq/planning-editor";
-import {
-  HocuspocusProvider,
-  HocuspocusProviderWebsocket,
-} from "@hocuspocus/provider";
 import { FormError } from "@/components/FormError";
 import type { LiveSocketClient } from "@/lib/live-socket/client";
-import { channelWebSocketFor } from "@/lib/live-socket/channel-websocket";
 import { useLiveSocket } from "@/lib/live-socket/LiveSocketProvider";
+import { planProvider } from "@/lib/live-socket/plan-provider";
 import type { PlanPageState } from "@/lib/plan-page-state";
 import type { PlanUser } from "@/lib/plan-user";
 import type { PlanActions } from "./plan-actions";
@@ -118,36 +114,22 @@ async function connectPlan(
   return { transport: planTransport(client, socket.documentName, meta, token) };
 }
 
-/** The Hocuspocus provider on a channel of the shared socket: its websocket "polyfill" is the channel, so it reconnects by asking the client for a new one. */
+/** The editor's transport on a plan channel of the shared socket; destroying it tears the provider and its channel down together. */
 function planTransport(
   client: LiveSocketClient,
   documentName: string,
   meta: PlanMeta,
   token: () => Promise<string>,
 ): ProviderTransport {
-  const websocketProvider = new HocuspocusProviderWebsocket({
-    url: "channel://plan",
-    WebSocketPolyfill: channelWebSocketFor(client, documentName),
-  });
-  const provider = new HocuspocusProvider({
-    websocketProvider,
-    name: documentName,
-    token,
-  });
+  const plan = planProvider(client, documentName, token);
+  const transport = transportFor(plan.provider, meta);
 
-  return withSocketTeardown(transportFor(provider, meta), websocketProvider);
-}
-
-/** Destroying the transport destroys its provider; the provider's socket wrapper needs its own destroy, or its channel would linger. */
-function withSocketTeardown(
-  transport: ProviderTransport,
-  websocketProvider: HocuspocusProviderWebsocket,
-): ProviderTransport {
+  // The editor's own teardown first (its subscriptions on the provider), then the provider and its channel; Hocuspocus's destroy tolerates the second call.
   return {
     ...transport,
     destroy: () => {
       transport.destroy();
-      websocketProvider.destroy();
+      plan.destroy();
     },
   };
 }
