@@ -72,7 +72,7 @@ class ChannelSocket extends EventTarget implements ChannelWebSocket {
     this.dispatchEvent(new MessageEvent("message", { data: copy.buffer }));
   }
 
-  /** Live means open; anything after that is a close, since Hocuspocus reconnects by constructing a fresh instance. */
+  /** Live means open; anything after that is a close. Hocuspocus reconnects by constructing a fresh instance, so this one releases its channel first, or every retry would leave one more pending channel on the client for the socket to re-open. */
   private onState(state: ChannelState): void {
     if (state === "live") {
       this.readyState = OPEN;
@@ -82,6 +82,7 @@ class ChannelSocket extends EventTarget implements ChannelWebSocket {
     }
 
     if (state !== "connecting") {
+      this.handle.close();
       this.dispatchEvent(new Event("error"));
       this.end(ABNORMAL_CLOSE, state);
     }

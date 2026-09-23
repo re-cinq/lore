@@ -83,6 +83,25 @@ describe("channelWebSocketFor", () => {
     });
   });
 
+  it("releases its channel when the socket is lost, so a retry's fresh instance opens exactly one channel", async () => {
+    const { client, events } = harness();
+
+    await FakeWebSocket.latest.acceptAndOpenAll();
+    await flush();
+    FakeWebSocket.latest.drop();
+    new (channelWebSocketFor(client, "plan:o/r:1"))("channel://plan");
+    client.dispatch({ type: "retry_due" });
+    await FakeWebSocket.latest.acceptAndOpenAll();
+
+    expect({
+      events,
+      reopened: FakeWebSocket.latest.opens.map((o) => o.channel),
+    }).toEqual({
+      events: ["open", "error", "close:1006"],
+      reopened: ["c2"],
+    });
+  });
+
   it("closes the channel on the wire once when Hocuspocus closes it", async () => {
     const { socket, events } = harness();
 
