@@ -979,6 +979,90 @@
         ]
       }
     },
+    "/api/assembly-runs/{id}/run-station": {
+      "post": {
+        "operationId": "post_api_assembly-runs_id_run-station",
+        "summary": "POST /api/assembly-runs/{id}/run-station",
+        "tags": ["Tasks"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "201": {
+            "description": "A fresh line on the same work, entered at the named station; an open source line is retired first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssemblyRunStationStarted"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "task",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "node_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "actor": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  }
+                },
+                "required": ["node_id", "actor"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/assembly-runs/{id}/stream-token": {
       "post": {
         "operationId": "post_api_assembly-runs_id_stream-token",
@@ -9173,6 +9257,16 @@
         "additionalProperties": false
       },
       "AssemblyRunStarted": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": ["id"],
+        "additionalProperties": false
+      },
+      "AssemblyRunStationStarted": {
         "type": "object",
         "properties": {
           "id": {

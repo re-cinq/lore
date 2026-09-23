@@ -68,7 +68,7 @@ async function serveRunRead(
 
 /** One run, enriched: its nodes, its task and the definition it walks — the canonical read the run page is built from. */
 /** The injected port, or one built on the pool. The guard pairs the two possibilities because a disjunction cannot narrow `pool` on its own — the cast is proven by having required one of them. */
-function resolvePort(
+export function resolvePort(
   pool: Pool | null,
   runs: AssemblyRunsPort | undefined,
 ): AssemblyRunsPort {

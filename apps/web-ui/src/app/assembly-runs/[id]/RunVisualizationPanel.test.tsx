@@ -809,6 +809,21 @@ describe("retry from node", () => {
     });
   }
 
+  it("offers Run this station on a node the run never visited, while the run is still live", async () => {
+    stubHistory([]);
+
+    useFakeSocket();
+    renderRun("running", [retryRow({ nodeId: "implement", outcome: null })]);
+
+    await settle();
+    await select("validate");
+
+    expect({
+      run: screen.getByRole("button", { name: "Run this station" }) !== null,
+      retry: screen.queryByRole("button", { name: "Retry from this node" }),
+    }).toEqual({ run: true, retry: null });
+  });
+
   it("offers retry in the node card's header on a finished run, posting the implement fork source", async () => {
     const fetchMock = stubHistory([]); // eslint-disable-line re-lint/declare-near-use -- the history stub must be installed before the render it serves
 
