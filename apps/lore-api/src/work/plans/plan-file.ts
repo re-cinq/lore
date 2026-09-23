@@ -9,7 +9,7 @@ import {
   type MarkdownProblem,
 } from "@re-cinq/planning-document";
 import type {
-  FailRefineRequest,
+  FailRequest,
   OpsRequest,
   PassRequest,
 } from "@re-cinq/planning-sync";
@@ -26,7 +26,7 @@ export interface PlanFilePorts {
     /** One pass's proposals, one per paragraph it changed: each is read and taken where it lands. */
     proposeChanges(request: PassRequest): Promise<unknown>;
     /** A Refine whose pass stopped before it answered: the section says why, and can be asked again. */
-    failRefine(request: FailRefineRequest): Promise<unknown>;
+    failRefine(request: FailRequest): Promise<unknown>;
   };
 }
 
