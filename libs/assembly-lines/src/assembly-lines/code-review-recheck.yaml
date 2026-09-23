@@ -1,5 +1,5 @@
 name: code-review-recheck
-description: Fast re-check after a new push — re-assess the updated diff and emit a REVIEW_RESULT verdict so the PR's formal APPROVE / REQUEST_CHANGES tracks the fix. Same model as the deep review, short timeout. Started per push once the deep review has run.
+description: Fast re-check after a new push — re-assess the updated diff and emit a REVIEW_RESULT verdict so the PR's formal APPROVE / REQUEST_CHANGES tracks the fix. Gemini 3.1 Pro model, short timeout. Started per push once the deep review has run.
 version: 1
 entry: recheck
 exit: done
