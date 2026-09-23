@@ -979,10 +979,10 @@
         ]
       }
     },
-    "/api/assembly-runs/{id}/stream": {
-      "get": {
-        "operationId": "get_api_assembly-runs_id_stream",
-        "summary": "GET /api/assembly-runs/{id}/stream",
+    "/api/assembly-runs/{id}/stream-token": {
+      "post": {
+        "operationId": "post_api_assembly-runs_id_stream-token",
+        "summary": "POST /api/assembly-runs/{id}/stream-token",
         "tags": ["Tasks"],
         "security": [
           {
@@ -992,14 +992,17 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Server-Sent Events: one `event:` per frame type, `data:` the frame; only agent_event frames carry an `id:` (the Last-Event-ID cursor)",
+            "description": "A short-lived token that opens this assembly run's channel of the live socket (/api/ws) as one person",
             "content": {
-              "text/event-stream": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/RunStreamFrame"
+                  "$ref": "#/components/schemas/RunStreamToken"
                 }
               }
             }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -1010,6 +1013,9 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1017,7 +1023,7 @@
             "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
-        "x-required-scope": "read",
+        "x-required-scope": "write",
         "parameters": [
           {
             "name": "id",
@@ -1027,7 +1033,36 @@
               "type": "string"
             }
           }
-        ]
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "user": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "name": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": ["id", "name"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["user"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
       }
     },
     "/api/assembly-runs/{id}/token-usage": {
@@ -11119,6 +11154,587 @@
         "required": ["logs", "complete"],
         "additionalProperties": false
       },
+      "LiveClientMessage": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "open"
+              },
+              "channel": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "kind": {
+                "type": "string",
+                "const": "run"
+              },
+              "subject": {
+                "type": "string",
+                "minLength": 1
+              },
+              "token": {
+                "type": "string",
+                "minLength": 1
+              },
+              "after": {
+                "type": "string",
+                "pattern": "^\\d+$"
+              }
+            },
+            "required": ["type", "channel", "kind", "subject", "token"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "open"
+              },
+              "channel": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "kind": {
+                "type": "string",
+                "const": "plan"
+              },
+              "subject": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": ["type", "channel", "kind", "subject"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "send"
+              },
+              "channel": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "data": {
+                "type": "string"
+              }
+            },
+            "required": ["type", "channel", "data"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "close"
+              },
+              "channel": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              }
+            },
+            "required": ["type", "channel"],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "LiveServerMessage": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "opened"
+              },
+              "channel": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              }
+            },
+            "required": ["type", "channel"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "frame"
+              },
+              "channel": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "frame": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "agent_event"
+                      },
+                      "event": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "taskId": {
+                            "type": "string"
+                          },
+                          "agentCrName": {
+                            "type": ["string", "null"]
+                          },
+                          "assemblyLineId": {
+                            "type": ["string", "null"]
+                          },
+                          "stationRunId": {
+                            "type": ["string", "null"]
+                          },
+                          "nodeId": {
+                            "type": ["string", "null"]
+                          },
+                          "iteration": {
+                            "type": ["number", "null"]
+                          },
+                          "eventType": {
+                            "type": "string",
+                            "enum": [
+                              "init",
+                              "message",
+                              "thinking",
+                              "tool_call",
+                              "tool_result",
+                              "result",
+                              "hook"
+                            ]
+                          },
+                          "toolName": {
+                            "type": ["string", "null"]
+                          },
+                          "toolUseId": {
+                            "type": ["string", "null"]
+                          },
+                          "isError": {
+                            "type": "boolean"
+                          },
+                          "filePaths": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "summary": {
+                            "type": ["string", "null"]
+                          },
+                          "payload": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "taskId",
+                          "agentCrName",
+                          "assemblyLineId",
+                          "stationRunId",
+                          "nodeId",
+                          "iteration",
+                          "eventType",
+                          "toolName",
+                          "toolUseId",
+                          "isError",
+                          "filePaths",
+                          "summary",
+                          "payload",
+                          "createdAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": ["type", "event"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "node_status"
+                      },
+                      "node": {
+                        "type": "object",
+                        "properties": {
+                          "node_id": {
+                            "type": "string"
+                          },
+                          "iteration": {
+                            "type": "number"
+                          },
+                          "outcome": {
+                            "type": ["string", "null"]
+                          },
+                          "agent_cr_name": {
+                            "type": ["string", "null"]
+                          },
+                          "station_run_id": {
+                            "type": ["string", "null"]
+                          },
+                          "input": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "description": {
+                                    "type": "string"
+                                  },
+                                  "prompt": {
+                                    "type": ["string", "null"]
+                                  },
+                                  "params": {
+                                    "anyOf": [
+                                      {
+                                        "type": "object",
+                                        "propertyNames": {
+                                          "type": "string"
+                                        },
+                                        "additionalProperties": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "repo": {
+                                    "type": "string"
+                                  },
+                                  "ref": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "description",
+                                  "prompt",
+                                  "params",
+                                  "repo",
+                                  "ref"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "commit_sha": {
+                            "type": ["string", "null"]
+                          },
+                          "started_at": {
+                            "type": "string"
+                          },
+                          "finished_at": {
+                            "type": ["string", "null"]
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "claimed_at": {
+                            "type": ["string", "null"]
+                          }
+                        },
+                        "required": [
+                          "node_id",
+                          "iteration",
+                          "outcome",
+                          "agent_cr_name",
+                          "station_run_id",
+                          "input",
+                          "commit_sha",
+                          "started_at",
+                          "finished_at",
+                          "status",
+                          "claimed_at"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": ["type", "node"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "run_status"
+                      },
+                      "run": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "outcome": {
+                            "type": ["string", "null"]
+                          },
+                          "reason": {
+                            "type": ["string", "null"]
+                          },
+                          "started_at": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "finished_at": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "status",
+                          "outcome",
+                          "reason",
+                          "started_at",
+                          "finished_at"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": ["type", "run"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "task_event"
+                      },
+                      "event": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "task_id": {
+                            "type": "string"
+                          },
+                          "from_status": {
+                            "type": ["string", "null"]
+                          },
+                          "to_status": {
+                            "type": "string"
+                          },
+                          "metadata": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "propertyNames": {
+                                  "type": "string"
+                                },
+                                "additionalProperties": {}
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "created_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "task_id",
+                          "from_status",
+                          "to_status",
+                          "metadata",
+                          "created_at"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": ["type", "event"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "ci_check"
+                      },
+                      "check": {
+                        "type": "object",
+                        "properties": {
+                          "repo": {
+                            "type": "string"
+                          },
+                          "pr_number": {
+                            "type": "number"
+                          },
+                          "observed_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "status": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
+                          }
+                        },
+                        "required": [
+                          "repo",
+                          "pr_number",
+                          "observed_at",
+                          "status"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": ["type", "check"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "catchup_complete"
+                      },
+                      "last_id": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["type", "last_id"],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            },
+            "required": ["type", "channel", "frame"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "data"
+              },
+              "channel": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "data": {
+                "type": "string"
+              }
+            },
+            "required": ["type", "channel", "data"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "closed"
+              },
+              "channel": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "reason": {
+                "type": "string",
+                "enum": [
+                  "client",
+                  "unauthorized",
+                  "not_found",
+                  "capacity",
+                  "slow",
+                  "server"
+                ]
+              },
+              "code": {
+                "type": "number"
+              }
+            },
+            "required": ["type", "channel", "reason"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "error"
+              },
+              "channel": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "code": {
+                "type": "string",
+                "enum": [
+                  "bad_message",
+                  "channel_in_use",
+                  "too_many_channels",
+                  "unknown_channel"
+                ]
+              }
+            },
+            "required": ["type", "code"],
+            "additionalProperties": false
+          }
+        ]
+      },
       "MemoryAuditPage": {
         "type": "object",
         "properties": {
@@ -13465,6 +14081,20 @@
           }
         ]
       },
+      "RunStreamToken": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["token", "expires_at"],
+        "additionalProperties": false
+      },
       "SearchContextResults": {
         "type": "object",
         "properties": {
@@ -15303,6 +15933,16 @@
           }
         }
       }
+    }
+  },
+  "x-websocket": {
+    "path": "/api/ws",
+    "description": "The browser's one live socket: JSON text frames, client-chosen channel ids; a `run` channel carries RunStreamFrame envelopes, a `plan` channel tunnels the plan collaboration protocol as base64.",
+    "client": {
+      "$ref": "#/components/schemas/LiveClientMessage"
+    },
+    "server": {
+      "$ref": "#/components/schemas/LiveServerMessage"
     }
   }
 }

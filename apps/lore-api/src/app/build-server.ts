@@ -16,6 +16,8 @@ import {
 } from "../transport/openapi/build-document.js";
 import { MAX_JSON_BODY_BYTES } from "@re-cinq/lore-shared/http/body-limits.js";
 import { registerPlanning } from "./register-planning.js";
+import { mountLiveSocket } from "../work/assembly-line-station/live-socket.js";
+import { runChannelDepsFromPool } from "../work/assembly-line-station/station-wiring.js";
 
 // `traceHttp` is the metric half the span does not carry — lore-api recorded it per request before the tracing plugin was shared, and still does.
 const TRACING = { tracerName: "lore.api.http", observe: traceHttp };
@@ -39,7 +41,7 @@ export function buildServer(getPool: () => Pool | null, port = 0): Hapi.Server {
   const routes = routeList(getPool);
 
   server.route(routes);
-  registerPlanning(server, getPool);
+  registerLiveSocket(server, getPool);
 
   // Surface OpenAPI coverage at boot (FR7, drift-guard test enforces via CI).
   if (!process.env.VITEST) {
@@ -47,6 +49,20 @@ export function buildServer(getPool: () => Pool | null, port = 0): Hapi.Server {
   }
 
   return server;
+}
+
+/** Plans and the live socket share the listener: the socket tunnels to the collaboration server the plans registration returns (ADR-048). */
+function registerLiveSocket(
+  server: Hapi.Server,
+  getPool: () => Pool | null,
+): void {
+  const { collab } = registerPlanning(server, getPool);
+  const liveSocket = mountLiveSocket(server.listener, {
+    run: runChannelDepsFromPool(getPool),
+    collab,
+  });
+
+  server.ext("onPreStop", () => liveSocket.close());
 }
 
 function logOpenApiCoverage(routes: ServerRoute[]): void {

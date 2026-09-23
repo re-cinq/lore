@@ -27,7 +27,7 @@ import { assemblyLineRoutes } from "./routes/assembly-lines/assembly-lines.js";
 import { startRunRoute } from "./routes/assembly-lines/start-run.js";
 import { runReadRoute } from "./routes/assembly-lines/run-read.js";
 import { runDodRoute } from "./routes/assembly-lines/run-dod.js";
-import { runStreamRoute } from "./routes/assembly-lines/run-stream.js";
+import { runStreamTokenRoute } from "./routes/assembly-lines/run-stream-token.js";
 import { taskByPrRoute } from "./routes/tasks/task-by-pr.js";
 import {
   taskLogsGetRoute,
@@ -175,7 +175,7 @@ function taskRunRoutes(getPool: PoolGetter): ServerRoute[] {
     startRunRoute(),
     runReadRoute(getPool),
     runDodRoute(getPool),
-    runStreamRoute(getPool),
+    runStreamTokenRoute(getPool),
     taskByPrRoute(getPool),
     taskLogsGetRoute(getPool),
     jobRunLogsRoute(),

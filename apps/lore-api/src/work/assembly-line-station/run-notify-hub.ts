@@ -1,13 +1,9 @@
 // Postgres LISTEN/NOTIFY as the run stream's fan-out (ADR-037 amendment 2026-09): the triggers in migration 0070 say WHAT changed (ids only), the session re-reads the row. One dedicated client per process, outside the pool, so held stream connections never cost pool capacity; a lost connection reconnects with backoff and tells every subscriber to resync, because notifications during the gap are gone by design.
 
 import pg from "pg";
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { dbConfigFromEnv } from "@re-cinq/lore-shared/db/pg-pool.js";
 
 export const NOTIFY_CHANNEL = "lore_run_stream";
-
-/** Defensive cap: one run's page should need a handful of watchers, not hundreds of leaked subscriptions. */
-export const MAX_SUBSCRIBERS_PER_RUN = 20;
 
 const RECONNECT_BASE_MS = 1_000;
 const RECONNECT_CAP_MS = 30_000;
@@ -45,7 +41,7 @@ export interface NotifyFilter {
 export type NotificationHandler = (notification: RunNotification) => void;
 
 export interface RunNotifier {
-  /** Subscribe to the changes `filter` names; `onResync` fires after a reconnect, when notifications may have been missed. Returns the unsubscribe. Throws past {@link MAX_SUBSCRIBERS_PER_RUN}. */
+  /** Subscribe to the changes `filter` names; `onResync` fires after a reconnect, when notifications may have been missed. Returns the unsubscribe. */
   subscribe(
     filter: NotifyFilter,
     handler: NotificationHandler,
@@ -104,20 +100,11 @@ interface Subscriber {
   onResync: () => void;
 }
 
-/** The subscriber registry both notifiers share: cap per run, dispatch by filter, resync broadcast. */
+/** The subscriber registry both notifiers share: dispatch by filter, resync broadcast. */
 class SubscriberSet {
   private readonly subscribers = new Set<Subscriber>();
 
   add(subscriber: Subscriber): () => void {
-    const onRun = [...this.subscribers].filter(
-      (s) => s.filter.runId === subscriber.filter.runId,
-    ).length;
-
-    enforceTrue(
-      onRun < MAX_SUBSCRIBERS_PER_RUN,
-      Error,
-      `run stream: ${subscriber.filter.runId} already has ${MAX_SUBSCRIBERS_PER_RUN} subscribers`,
-    );
     this.subscribers.add(subscriber);
 
     return () => this.subscribers.delete(subscriber);

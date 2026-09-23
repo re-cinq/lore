@@ -1,7 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import {
   InMemoryRunNotifier,
-  MAX_SUBSCRIBERS_PER_RUN,
   PgRunNotifier,
   matchesFilter,
   parseNotification,
@@ -96,20 +95,6 @@ describe("InMemoryRunNotifier", () => {
 
     expect(first).not.toHaveBeenCalled();
     expect(second).toHaveBeenCalledTimes(1);
-  });
-
-  it("rejects a subscriber past the per-run cap", () => {
-    const hub = new InMemoryRunNotifier();
-
-    for (let i = 0; i < MAX_SUBSCRIBERS_PER_RUN; i++) {
-      hub.subscribe(filter, () => {});
-    }
-
-    expect(() => hub.subscribe(filter, () => {})).toThrow(
-      new Error(
-        `run stream: run-1 already has ${MAX_SUBSCRIBERS_PER_RUN} subscribers`,
-      ),
-    );
   });
 
   it("keeps delivering to the remaining subscribers when one throws", () => {
