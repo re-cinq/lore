@@ -114,6 +114,7 @@ function agentEventsRelayDeps(
   return {
     emit: (message: ProxyMessage) => proxy.emit(message),
     // todo: why are env vars read from the deps in some places and from the process here?
+
     // The mounted token is read once at boot like every other env read here; only the per-agent token is a thunk, because re-registration rotates it mid-run.
     acceptedTokens: () => [INGEST_TOKEN, agentToken],
   };
