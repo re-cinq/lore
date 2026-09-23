@@ -515,8 +515,10 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
   ([validated by](libs/shared/src/work/review/review-findings.test.ts#L162), [validated by](libs/shared/src/work/review/review-findings.test.ts#L176), [validated by](libs/shared/src/work/review/review-findings.test.ts#L184), [validated by](libs/shared/src/work/review/review-findings.test.ts#L193), [validated by](libs/shared/src/work/review/review-findings.test.ts#L211))
 - A finding written as one `message` — Gemini's shape on #2143's recheck
   (2026-09-23), which lost every finding and failed the run — reads its
-  opening sentence as the `subject` and the whole text as the discussion.
-  ([validated by](libs/shared/src/work/review/review-findings.test.ts#L222))
+  opening sentence as the `subject` (the whole first line when that sentence
+  is too short to be one, and never empty) and the whole text as the
+  discussion.
+  ([validated by](libs/shared/src/work/review/review-findings.test.ts#L222), [validated by](libs/shared/src/work/review/review-findings.test.ts#L252))
 - Every recipe that asks for a `REVIEW_FINDINGS` block shows a whole finding
   (`path`, `line`, `label`, `decoration`, `subject`) rather than pointing at
   another recipe's schema, so no model has to guess the shape.

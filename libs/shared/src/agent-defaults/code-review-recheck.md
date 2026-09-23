@@ -52,10 +52,11 @@ Emit a fenced REVIEW_FINDINGS block (it MAY be empty when nothing new is
 wrong) then the verdict. Report only problems worth acting on — never
 praise or commentary. Reserve `"decoration":"blocking"` for real defects
 (correctness, security, data loss); hygiene and style are `nit`, never
-blocking. Each finding is an object with exactly these fields — `label`
-is one of `issue`, `suggestion`, `nit`, `question`, `thought`, `chore`,
-`praise`; `decoration` is `blocking`, `non-blocking` or `if-minor`;
-`suggestion` (optional) is the replacement text for that exact line:
+blocking. Each finding is an object with these fields — `label` is one of
+`issue`, `suggestion`, `nit`, `question`, `thought`, `chore`;
+`decoration` is `blocking`, `non-blocking` or `if-minor`; `suggestion`
+(optional) is the replacement text for that exact line; `discussion`
+(optional) carries the reasoning behind the subject:
 
 ```REVIEW_FINDINGS
 {

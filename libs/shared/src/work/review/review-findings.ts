@@ -91,8 +91,16 @@ function findingSubject(finding: Record<string, unknown>): string | undefined {
     text(finding.subject) ??
     text(finding.short_summary) ??
     text(finding.summary) ??
-    text(finding.message)?.split(/(?<=[.!?])\s|\n/)[0]
+    headline(text(finding.message)?.trim())
   );
+}
+
+// The opening sentence, unless that is too short to be one (an "e.g." cut at its period): then the whole first line.
+function headline(message: string | undefined): string | undefined {
+  const firstLine = message?.split("\n")[0];
+  const sentence = firstLine?.split(/(?<=[.!?])\s/)[0];
+
+  return text(sentence && sentence.length >= 12 ? sentence : firstLine);
 }
 
 function findingDiscussion(

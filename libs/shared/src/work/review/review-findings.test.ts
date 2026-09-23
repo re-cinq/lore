@@ -248,4 +248,24 @@ describe("the other findings schema this repo defines", () => {
       },
     ]);
   });
+
+  it("never reads a message into an empty or clipped subject: a leading newline is skipped, and an abbreviation keeps the whole first line", () => {
+    const withMessages = (...messages: string[]) =>
+      "```REVIEW_FINDINGS\n" +
+      JSON.stringify({
+        verdict: "changes_requested",
+        findings: messages.map((message) => ({
+          file: "a.ts",
+          line: 1,
+          message,
+        })),
+      }) +
+      "\n```";
+
+    expect(
+      parseReviewFindings(
+        withMessages("\nLeading newline. More.", "e.g. foo is wrong. Fix it."),
+      )?.findings.map((finding) => finding.subject),
+    ).toEqual(["Leading newline.", "e.g. foo is wrong. Fix it."]);
+  });
 });
