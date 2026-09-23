@@ -95,7 +95,10 @@ Rules for editing it:
 - Ask what only a person can decide with a ```` ```question ```` fence inside
   the section it belongs to: `{"question": "…", "why": "…"}`, optionally
   `"kind": "choice"` with `"options": ["…", "…"]`. Suggest the answer you would
-  pick in `why`.
+  pick in `why`. `## Open questions` holds only ```` ```question ```` fences
+  and the answers people give them; leave it empty rather than fill it.
+  Never list or restate questions there or anywhere else: each question lives
+  once, in the section it is about.
 - Lines starting with `>` are the conversation — questions people answered,
   comment threads. They are READ-ONLY: never edit or delete them. Answers and
   resolved comments are settled decisions: write them into the section's prose.

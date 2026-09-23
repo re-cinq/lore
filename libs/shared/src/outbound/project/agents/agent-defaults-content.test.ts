@@ -250,6 +250,17 @@ describe("the feature-planning recipe", () => {
     }).toEqual({ gatherFirst: true, context: true, graph: true, trace: true });
   });
 
+  it("tells the planning agent that Open questions holds only question fences, so it never restates its questions there as a list", () => {
+    const prompt = promptOf("feature-planning");
+
+    expect({
+      onlyFences: prompt.includes(
+        "`## Open questions` holds only ```` ```question ```` fences",
+      ),
+      noRestating: prompt.includes("Never list or restate questions"),
+    }).toEqual({ onlyFences: true, noRestating: true });
+  });
+
   it("gives the planning agent its plan as a downloaded plan.md and takes the edited file back by upload", () => {
     expect(SHIPPED.get("feature-planning")?.config).toMatchObject({
       inputs: [{ path: "plan.md", source: "plan" }],
