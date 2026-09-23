@@ -81,7 +81,7 @@ function AuthorQuestion({
 
   return (
     <div className={styles.question}>
-      {question && <blockquote>{question}</blockquote>}
+      {question ? <blockquote>{question}</blockquote> : null}
       <ReopenPlanButton state="question" reopen={reopen} />
     </div>
   );

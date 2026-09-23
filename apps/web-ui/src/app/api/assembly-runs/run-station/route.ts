@@ -54,25 +54,22 @@ async function startStation(
   if (!apiConfig) {
     return unconfigured();
   }
+  const { apiUrl } = apiConfig;
   const headers = { Authorization: `Bearer ${apiConfig.token}` };
   const line = await readAuthorizedSourceRun(
-    apiConfig.apiUrl,
+    apiUrl,
     headers,
     accessToken,
     runId,
   );
 
-  if (line instanceof Response) {
-    return line;
-  }
-  const upstream = await postRunStation(
-    apiConfig.apiUrl,
-    headers,
-    runId,
-    nodeId,
-  );
+  return line instanceof Response
+    ? line
+    : freshRunAnswer(await postRunStation(apiUrl, headers, runId, nodeId));
+}
 
-  // JSON, not a redirect — the button's fetch navigates itself.
+// JSON, not a redirect — the button's fetch navigates itself.
+async function freshRunAnswer(upstream: Response): Promise<NextResponse> {
   return upstream.ok
     ? NextResponse.json({ id: ((await upstream.json()) as { id: string }).id })
     : upstreamRefusal(upstream);

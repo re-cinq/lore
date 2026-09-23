@@ -90,7 +90,7 @@ interface NodeInspectorProps {
 }
 
 function NodeInspector(props: NodeInspectorProps) {
-  const { nodeId, runId, rows, retrySource, agentEditHref } = props;
+  const { nodeId, runId, rows } = props;
 
   return (
     <section className={styles.inspector} aria-label={`${nodeId} inspector`}>
@@ -118,20 +118,27 @@ function inspectorPropsFor(
 ): NodeInspectorProps {
   return {
     nodeId,
-    runId: props.runId,
-    repo: props.repo,
-    reason: props.reason,
-    definition: props.definition,
+    ...pageFacts(props),
     state: props.selectedState ?? undefined,
     row: props.latestRows.get(nodeId),
     rows: props.selectedRows,
     attempts: props.selectedAttempts,
     inputs: props.nodeInputs,
-    retrySource: props.retrySource,
-    runState: props.runState,
     agentEditHref: props.agentEditHrefs?.[nodeId],
     model: props.nodeModels?.[nodeId] ?? null,
   };
+}
+
+// The facts every node shares: the run, its repo, its definition and its state.
+function pageFacts({
+  runId,
+  repo,
+  reason,
+  definition,
+  retrySource,
+  runState,
+}: SelectedNodeSectionProps) {
+  return { runId, repo, reason, definition, retrySource, runState };
 }
 
 type RetrySource = { nodeId: string; iteration: number };
