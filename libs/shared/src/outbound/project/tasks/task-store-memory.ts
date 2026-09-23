@@ -16,7 +16,6 @@ import type {
   TaskListResult,
   FindOpenLikeInput,
   DriftTaskRow,
-  FeatureTaskRow,
 } from "./task-store-port.js";
 import { TaskTransitionStore } from "./task-store-memory-transitions.js";
 import { TaskQueryStore } from "./task-store-memory-queries.js";
@@ -280,13 +279,6 @@ export class InMemoryTaskStore implements TaskStorePort {
     specPath: string,
   ): Promise<DriftTaskRow[]> {
     return this.queries.driftTasksForSpec(repo, taskType, specPath);
-  }
-
-  specTasksForFeature(
-    repo: string,
-    featureId: string,
-  ): Promise<FeatureTaskRow[]> {
-    return this.queries.specTasksForFeature(repo, featureId);
   }
 
   private findById(id: string): SeedStoreTask | undefined {

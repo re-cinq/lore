@@ -64,6 +64,12 @@ catalog:
   # when floorUrl is set — it queues and retries and lets the run pods' public
   # egress close. Keep ai-agents.floorSink below in agreement with it.
   eventsUrl: ""
+  # The central Floor's agent-files endpoint (download inputs such as a
+  # planning pod's plan.md, upload watched files), reached the same way as
+  # eventsUrl. Set, the cluster also offers the `agent-files` tag; empty, it
+  # never claims a pass whose pod downloads a file (every planning pass), so
+  # those stay central.
+  filesUrl: ""
   # The central lore-mcp gateway's public /mcp and /skills endpoints. Without
   # skillsUrl every Claude-agent recipe dies at startup ("Settings file not
   # found"), so leave it empty only on a cluster that claims non-agent

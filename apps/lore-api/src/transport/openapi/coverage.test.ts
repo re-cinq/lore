@@ -141,23 +141,22 @@ describe("OpenAPI document is structurally valid 3.1", () => {
   });
 });
 
-describe("Features responses are declaratively described", () => {
-  const featureOps = Object.entries(document.paths).flatMap(
-    ([path, pathItem]) =>
-      Object.entries(pathItem as Record<string, { tags: string[] }>)
-        .filter(([, op]) => op.tags?.[0] === "Features")
-        .map(([method, op]) => ({
-          label: `${method.toUpperCase()} ${path}`,
-          op,
-        })),
+describe("Plans responses are declaratively described", () => {
+  const planOps = Object.entries(document.paths).flatMap(([path, pathItem]) =>
+    Object.entries(pathItem as Record<string, { tags: string[] }>)
+      .filter(([, op]) => op.tags?.[0] === "Plans")
+      .map(([method, op]) => ({
+        label: `${method.toUpperCase()} ${path}`,
+        op,
+      })),
   );
 
-  it("finds the Features surface at all", () => {
-    expect(featureOps.length).toBeGreaterThan(0);
+  it("finds the Plans surface at all", () => {
+    expect(planOps.length).toBeGreaterThan(0);
   });
 
-  it("gives every Features operation a schema'd success body", () => {
-    for (const { label, op } of featureOps) {
+  it("gives every Plans operation a schema'd success body", () => {
+    for (const { label, op } of planOps) {
       const responses = (
         op as unknown as { responses: Record<string, unknown> }
       ).responses;
@@ -173,8 +172,8 @@ describe("Features responses are declaratively described", () => {
     }
   });
 
-  it("resolves every Features success schema to a registered component", () => {
-    for (const { label, op } of featureOps) {
+  it("resolves every Plans success schema to a registered component", () => {
+    for (const { label, op } of planOps) {
       const responses = (
         op as unknown as { responses: Record<string, unknown> }
       ).responses;

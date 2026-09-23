@@ -1,10 +1,17 @@
 import { notFound } from "next/navigation";
 import { planMetaSchema, type PlanMeta } from "@re-cinq/planning-document";
 import { readPlan } from "@/lib/api/plans";
+import { fetchAssemblyRunNodes, fetchPlanRun } from "@/lib/assembly-runs";
 import { planUserOf, type PlanSession } from "@/lib/plan-user";
 import { getSession } from "@/lib/session";
 import PlanDetailView from "./PlanDetailView";
-import { approvePlanAction, openPlanSocketAction } from "./actions";
+import type { PlanRun } from "./PlanRunCard";
+import {
+  approvePlanAction,
+  draftAgainAction,
+  openPlanSocketAction,
+  refinePlanAction,
+} from "./actions";
 
 export default async function PlanDetailPage({
   params,
@@ -13,16 +20,30 @@ export default async function PlanDetailPage({
 }) {
   const { owner, repo, id } = await params;
   const fullName = `${owner}/${repo}`;
-  const meta = await repoPlanMeta(fullName, id);
+  const { meta, run, user } = await planPage(fullName, id);
 
   return (
     <PlanDetailView
       meta={meta}
-      user={planUserOf((await getSession()) as PlanSession | null)}
+      run={run}
+      user={user}
       openSocket={openPlanSocketAction.bind(null, fullName, id)}
       approve={approvePlanAction.bind(null, fullName, id)}
+      refine={refinePlanAction.bind(null, fullName, id)}
+      draftAgain={draftAgainAction.bind(null, fullName, id)}
     />
   );
+}
+
+// The plan, its run and who is looking — the plan first, so a plan under another repo is not found before anything else is read.
+async function planPage(fullName: string, planId: string) {
+  const meta = await repoPlanMeta(fullName, planId);
+  const [run, session] = await Promise.all([
+    planRunFor(fullName, planId),
+    getSession(),
+  ]);
+
+  return { meta, run, user: planUserOf(session as PlanSession | null) };
 }
 
 // A plan is only shown under the repo it belongs to.
@@ -38,4 +59,20 @@ async function repoPlanMeta(
   }
 
   return planMetaSchema.parse(plan);
+}
+
+// The plan's planning run with its visits, or null before one has started.
+async function planRunFor(
+  repo: string,
+  planId: string,
+): Promise<PlanRun | null> {
+  const run = await fetchPlanRun(repo, planId);
+
+  if (!run) {
+    return null;
+  }
+  const nodes = await fetchAssemblyRunNodes(run.id);
+  const { id, status, outcome, reason, prUrl, prNumber } = run;
+
+  return { id, status, outcome, reason, prUrl, prNumber, nodes };
 }

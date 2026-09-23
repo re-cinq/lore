@@ -7,7 +7,6 @@ import {
   decideCiGate,
   decideTokenReclaim,
   runOutcomeFromTaskStatus,
-  decideFeatureLink,
   stampPrOnOpenRuns,
   agentTerminalReport,
   stationOutcomeForRunOutcome,
@@ -104,34 +103,6 @@ describe("runOutcomeFromTaskStatus", () => {
   });
   it("maps an un-advanced task on a Succeeded CR to completed", () => {
     expect(runOutcomeFromTaskStatus("running", "Succeeded")).toBe("completed");
-  });
-});
-
-describe("decideFeatureLink", () => {
-  const bundle = { feature_id: "f1", slug: "spec-standard" };
-
-  it("links the PR for the merged line (task type feature-planning, not feature-finalize, per FR6.26)", async () => {
-    expect(decideFeatureLink("feature-planning", bundle)).toEqual({
-      featureId: "f1",
-      slug: "spec-standard",
-    });
-  });
-
-  it("links nothing for a task that is not part of a feature's life", () => {
-    expect(decideFeatureLink("implementation", bundle)).toBeNull();
-  });
-
-  it("links nothing when the task carries no feature", () => {
-    expect(decideFeatureLink("feature-planning", { slug: "x" })).toBeNull();
-  });
-
-  it("tolerates a missing slug, which the merged line's task predates and does not carry", () => {
-    expect(decideFeatureLink("feature-planning", { feature_id: "f1" })).toEqual(
-      {
-        featureId: "f1",
-        slug: undefined,
-      },
-    );
   });
 });
 

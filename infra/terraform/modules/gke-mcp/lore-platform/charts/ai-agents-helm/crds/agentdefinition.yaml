@@ -224,6 +224,18 @@ spec:
                           path:
                             type: string
                             description: "File to read; relative paths resolve against WORKSPACE_DIR."
+                          upload:
+                            type: object
+                            description: "Upload the file to a URL instead of inlining its content."
+                            required:
+                              - url
+                            properties:
+                              url:
+                                type: string
+                                description: "URL the file is POSTed to; {agent} and {event} are expanded per run."
+                              headers_secret:
+                                type: string
+                                description: "Secret key holding the header block sent with the upload."
                 tool_config:
                   type: object
                   description: "Raw passthrough for tool-specific knobs."

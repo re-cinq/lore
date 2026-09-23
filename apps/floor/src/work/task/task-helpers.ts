@@ -3,13 +3,17 @@
 import { projectFor } from "../../outbound/project-boot.js";
 import { taskStore } from "../../outbound/queues.js";
 import { prFooter } from "@re-cinq/lore-shared";
-import { slugifyTitle } from "@re-cinq/lore-shared/project/features/features-port.js";
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
-// The task/branch slug: the shared slugger, capped at 30 — two sluggers with two caps once produced two `specs/<slug>` directories for one title, and a dash-trim that existed only here let the other end a slug in `-`.
+// The task/branch slug, capped at 30; the trailing-dash trim runs AFTER the slice since the cut can land on a `-`.
 export function slugify(text: string): string {
-  return slugifyTitle(text, 30);
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 30)
+    .replace(/-+$/, "");
 }
 
 // ── Status transition helpers ─────────────────────────────────────────

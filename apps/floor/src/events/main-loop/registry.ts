@@ -140,7 +140,6 @@ function cronEntries(): Entry[] {
     ["cron.spec_task_executor.tick", cron.specTaskExecutor],
     ["cron.stale_task_check.tick", cron.staleTaskCheck],
     ["cron.telemetry_prune.tick", telemetryPrune],
-    ["cron.feature_planning_reaper.tick", cron.featurePlanningReaper],
     ["cron.assembly_line_reaper.tick", cron.assemblyLineReaper],
     ["cron.llm_credit_probe.tick", cron.llmCreditProbe],
     ["cron.agent_watcher_reconcile.tick", cron.agentWatcherReconcile],

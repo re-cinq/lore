@@ -1,13 +1,8 @@
-/** Module: open and record PR a push node produced (feature-dependent, load-bearing for merged node resumability). */
+/** Module: open and record the PR a push node produced (load-bearing for the merged node's resumability). */
 
 import { prFooter } from "@re-cinq/lore-shared";
 import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import type { PullRef } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
-import type {
-  Feature,
-  FeaturePatch,
-  FeatureStatus,
-} from "@re-cinq/lore-shared/project/features/features-port.js";
 
 /** Constant prompt_ref for every line's pushing node; by recipe not id keeps it resilient to renames. */
 const PUSH_PROMPT_REF = "push-only";
@@ -75,14 +70,15 @@ export function decideMarkReady(input: {
 /** Maximum PR title length (70 chars); unread titles harm discoverability. */
 const TITLE_MAX = 70;
 
-/** Draft PR title from feature or issue title; branch name as fallback if no ticket. */
+/** Draft PR title from the plan or issue title; branch name as fallback if there is neither. */
 export function draftPrTitle(input: {
-  featureTitle: string | null;
   args: Record<string, unknown>;
   branch: string;
 }): string {
-  if (input.featureTitle) {
-    return `spec: ${input.featureTitle}`;
+  const plan = planTitleArg(input.args);
+
+  if (plan) {
+    return `spec: ${plan}`;
   }
   const ticket = input.args.issue_title;
 
@@ -115,7 +111,7 @@ function clampTitle(text: string): string {
     : oneLine;
 }
 
-/** Narrow repo-bound slice of project; caller passes pulls and features directly. */
+/** Narrow repo-bound slice of project; caller passes pulls directly. */
 export interface SpecPrPorts {
   pulls: {
     list(): Promise<PullRef[]>;
@@ -133,15 +129,6 @@ export interface SpecPrPorts {
   assemblyRuns: {
     mergeArgs(id: string, patch: Record<string, unknown>): Promise<void>;
   };
-  features: {
-    get(id: string): Promise<Feature | null>;
-    /** Returns updated row; narrowest honest contract is resolving to something. */
-    transitionStatus(
-      id: string,
-      status: FeatureStatus,
-      patch?: FeaturePatch,
-    ): Promise<unknown>;
-  };
   /** Where an ONBOARDING's PR is recorded: the repo row the onboard guard and the merge-check sweep read. Optional because most callers stamp no onboarding. */
   onboarding?: {
     setOnboardingPrUrl(repo: string, url: string): Promise<void>;
@@ -155,7 +142,7 @@ export function decideOnboardingPrRecord(
   return row.blueprintName === ONBOARD_BLUEPRINT;
 }
 
-/** Ensure PR on branch, record on line; stamp before feature transition (safer if transition fails). */
+/** Ensure a PR on the branch and record it on the line. */
 export async function stampLinePr(
   row: AssemblyRunRecord,
   ports: SpecPrPorts,
@@ -165,37 +152,27 @@ export async function stampLinePr(
   if (!branch) {
     return;
   }
-  const feature = await loadFeature(row, ports);
-  const title = draftPrTitle({
-    featureTitle: featureTitle(feature),
-    args: row.args,
-    branch,
-  });
-  const pr = await ensurePr({ branch, ports, title, feature, row });
+  const title = draftPrTitle({ args: row.args, branch });
+  const pr = await ensurePr({ branch, ports, title, row });
 
-  await recordOpenedPr(row, pr, feature, ports);
-}
-
-function featureTitle(feature: Feature | null): string | null {
-  return feature?.title ?? null;
+  await recordOpenedPr(row, pr, ports);
 }
 
 interface EnsurePrInput {
   branch: string;
   ports: SpecPrPorts;
   title: string;
-  feature: Feature | null;
   row: AssemblyRunRecord;
 }
 
 async function ensurePr(input: EnsurePrInput): Promise<PullRef> {
-  const { branch, ports, title, feature, row } = input;
+  const { branch, ports, title, row } = input;
 
   return (
     (await existingPrFor(branch, ports.pulls)) ??
     (await ports.pulls.open(branch, {
       title,
-      body: prBody(branch, feature, row),
+      body: prBody(branch, row),
       draft: decidePrDraft(row.args),
     }))
   );
@@ -211,11 +188,10 @@ async function existingPrFor(
   return open.find((pr) => pr.branch === branch) ?? null;
 }
 
-/** Records the opened PR on the line BEFORE moving the feature, so a rejected transition cannot lose a PR the run already opened. */
+/** Records the opened PR on the line (and, for an onboarding, on the repo). */
 async function recordOpenedPr(
   row: AssemblyRunRecord,
   pr: PullRef,
-  feature: Feature | null,
   ports: SpecPrPorts,
 ): Promise<void> {
   await ports.assemblyRuns.mergeArgs(row.id, {
@@ -226,44 +202,13 @@ async function recordOpenedPr(
   if (decideOnboardingPrRecord(row)) {
     await ports.onboarding?.setOnboardingPrUrl(row.repo, pr.url);
   }
-
-  await markFeaturePrOpen(feature, pr, ports);
 }
 
-/** Moves the feature to `pr-open`. Warned rather than thrown: the PR exists and its args are recorded by this point, so a rejected transition (a feature already past this state, say) must not undo a run that succeeded. */
-async function markFeaturePrOpen(
-  feature: Awaited<ReturnType<typeof loadFeature>>,
-  pr: { url: string; number: number },
-  ports: SpecPrPorts,
-): Promise<void> {
-  if (!feature) {
-    return;
-  }
-
-  try {
-    await ports.features.transitionStatus(feature.id, "pr-open", {
-      spec_pr_url: pr.url,
-      spec_pr_number: pr.number,
-      spec_path: `specs/${feature.slug}/spec.md`,
-    });
-  } catch (err) {
-    console.warn(
-      `[spec-pr] feature ${feature.id} not moved to pr-open: ${(err as Error).message}`,
-    );
-  }
-}
-
-async function loadFeature(
-  row: AssemblyRunRecord,
-  ports: SpecPrPorts,
-): Promise<Feature | null> {
-  const featureId = featureIdArg(row.args);
-
-  return featureId ? ports.features.get(featureId) : null;
-}
-
-function featureIdArg(args: Record<string, unknown>): string | null {
-  return typeof args.feature_id === "string" ? args.feature_id : null;
+/** The title of the plan a planning line works from, stamped into its args when the plan's drafting started. */
+function planTitleArg(args: Record<string, unknown>): string | null {
+  return typeof args.plan_title === "string" && args.plan_title.trim()
+    ? args.plan_title
+    : null;
 }
 
 /** Rewrite PR body with pr-ready prose + footer; coverage verdict downgrades Closes→Refs for partial coverage (#1745). */
@@ -288,18 +233,13 @@ export function readyPrBody(
 }
 
 /** Line's PR body with standard footer; adds Lore-Task for PR-to-task resolution and closes merged tickets. */
-function prBody(
-  branch: string,
-  feature: Feature | null,
-  run: AssemblyRunRecord,
-): string {
-  const head = feature
+function prBody(branch: string, run: AssemblyRunRecord): string {
+  const plan = planTitleArg(run.args);
+  const head = plan
     ? [
-        `## ${feature.title}`,
+        `## ${plan}`,
         "",
-        feature.original_prompt,
-        "",
-        `Planned interactively; this PR carries the agreed spec from \`${branch}\`.`,
+        `Planned together in Lore; this PR carries the approved plan's spec from \`${branch}\`.`,
       ].join("\n")
     : `Opened by the Lore assembly line from \`${branch}\`.`;
 

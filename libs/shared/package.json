@@ -66,14 +66,6 @@
       "types": "./dist/domain/feature-planning/decomposition-result.d.ts",
       "default": "./dist/domain/feature-planning/decomposition-result.js"
     },
-    "./feature-planning/gap-result.js": {
-      "types": "./dist/domain/feature-planning/gap-result.d.ts",
-      "default": "./dist/domain/feature-planning/gap-result.js"
-    },
-    "./feature-planning/planning-prompt.js": {
-      "types": "./dist/domain/feature-planning/planning-prompt.d.ts",
-      "default": "./dist/domain/feature-planning/planning-prompt.js"
-    },
     "./feature-planning/decomposition-instructions.js": {
       "types": "./dist/domain/feature-planning/decomposition-instructions.d.ts",
       "default": "./dist/domain/feature-planning/decomposition-instructions.js"
@@ -168,7 +160,7 @@
     "@hapi/hapi": "21.4.10",
     "@octokit/auth-app": "^8.3.1",
     "@opentelemetry/sdk-trace-base": "^2.11.0",
-    "@re-cinq/agent-contracts": "^0.10.11",
+    "@re-cinq/agent-contracts": "^0.11.1",
     "@types/node": "^22.20.1",
     "@types/pg": "^8.23.1",
     "@vitest/coverage-v8": "^5.0.0",

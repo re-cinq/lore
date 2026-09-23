@@ -296,7 +296,7 @@ and the webhook/verdict plumbing it rides on.
 
 8. The watcher parses the agent's review verdict from stdout: `REVIEW_RESULT:APPROVED` → `approved`,
    `CHANGES_REQUESTED` (with trailing feedback) → `changes_requested`, and no marker or absent output
-   → undefined. ([validated by `agent-watcher-logic.test.ts:34`](apps/floor/src/domain/agent-watcher-logic.test.ts#L38), [`agent-watcher-logic.test.ts:43`](apps/floor/src/domain/agent-watcher-logic.test.ts#L43), [`agent-watcher-logic.test.ts:48`](apps/floor/src/domain/agent-watcher-logic.test.ts#L48), [`agent-watcher-logic.test.ts:208`](apps/floor/src/domain/agent-watcher-logic.test.ts#L208))
+   → undefined. ([validated by `agent-watcher-logic.test.ts:34`](apps/floor/src/domain/agent-watcher-logic.test.ts#L37), [`agent-watcher-logic.test.ts:43`](apps/floor/src/domain/agent-watcher-logic.test.ts#L42), [`agent-watcher-logic.test.ts:48`](apps/floor/src/domain/agent-watcher-logic.test.ts#L47), [`agent-watcher-logic.test.ts:208`](apps/floor/src/domain/agent-watcher-logic.test.ts#L179))
 
 
 
@@ -330,7 +330,7 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 
 ### `apps/floor/src/work/assembly-run/advance-line.test.ts`
 
-- A code-review-recheck line opts out of the branch-overlap guard, so a push landing while a review or reply line still holds the PR branch is not silently dropped as `lease_held` (the verdict update always runs). ([validated by](apps/floor/src/work/assembly-run/advance-line.test.ts#L824))
+- A code-review-recheck line opts out of the branch-overlap guard, so a push landing while a review or reply line still holds the PR branch is not silently dropped as `lease_held` (the verdict update always runs). ([validated by](apps/floor/src/work/assembly-run/advance-line.test.ts#L825))
 
 ### `apps/floor/src/work/merge/auto-merge.test.ts`
 

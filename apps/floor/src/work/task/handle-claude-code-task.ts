@@ -62,20 +62,20 @@ function agentRunSpec(input: ClaudeCodeTaskInput): AgentRunOpts {
 
 /** The four `context_bundle` fields `agentRunSpec` threads onto the CR opts. */
 interface ContextBundleFields {
-  featureId: unknown;
+  planId: unknown;
   roundFeedback: unknown;
   resumeFromTask: unknown;
   lineArgs: unknown;
 }
 
 /** Everything the Agent CR is dispatched with. */
-/** The context-bundle fields, threaded onto the run so a line's `continues.key: args.feature_id` resolves — the assembly-line engine itself never learns what a feature is. Each is spread conditionally: an explicitly-undefined key is not the same as an absent one to the recipe renderer. */
+/** The context-bundle fields, threaded onto the run so a line's `continues.key: args.plan_id` resolves — the assembly-line engine itself never learns what a plan is. Each is spread conditionally: an explicitly-undefined key is not the same as an absent one to the recipe renderer. */
 function bundleFields(task: ClaudeCodeTaskInput["task"]) {
-  const { featureId, roundFeedback, resumeFromTask, lineArgs } =
+  const { planId, roundFeedback, resumeFromTask, lineArgs } =
     contextBundleFields(task);
 
   return {
-    ...optionalStringField("featureId", featureId),
+    ...optionalStringField("planId", planId),
     ...optionalStringField("roundFeedback", roundFeedback),
     ...optionalStringField("resumeFromTask", resumeFromTask),
     ...optionalLineArgs(lineArgs),
@@ -84,7 +84,7 @@ function bundleFields(task: ClaudeCodeTaskInput["task"]) {
 
 function contextBundleFields(task: PipelineTask): ContextBundleFields {
   return {
-    featureId: task.context_bundle?.feature_id,
+    planId: task.context_bundle?.plan_id,
     roundFeedback: task.context_bundle?.round_feedback,
     resumeFromTask: task.context_bundle?.resume_from_task,
     lineArgs: task.context_bundle?.line_args,
@@ -93,7 +93,7 @@ function contextBundleFields(task: PipelineTask): ContextBundleFields {
 
 /** A `string`-typed `context_bundle` field, spread onto the CR opts only when present — an unset field stays absent rather than becoming an explicit undefined the CR would carry. */
 function optionalStringField<
-  K extends "featureId" | "roundFeedback" | "resumeFromTask",
+  K extends "planId" | "roundFeedback" | "resumeFromTask",
 >(key: K, value: unknown): Partial<Pick<AgentRunOpts, K>> {
   return typeof value === "string"
     ? ({ [key]: value } as Pick<AgentRunOpts, K>)

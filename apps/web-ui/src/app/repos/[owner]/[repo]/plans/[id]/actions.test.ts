@@ -11,7 +11,12 @@ vi.mock("@/lib/user-repo-access", () => ({
   userCanAccessRepo: () => canAccess(),
 }));
 
-const { approvePlanAction, openPlanSocketAction } = await import("./actions");
+const {
+  approvePlanAction,
+  openPlanSocketAction,
+  refinePlanAction,
+  draftAgainAction,
+} = await import("./actions");
 
 const GEDAIU = {
   login: "gedaiu",
@@ -98,6 +103,66 @@ describe("approvePlanAction", () => {
 
     expect(await approvePlanAction("re-cinq/lore", "p1")).toEqual({
       error: "The plan is not ready to approve yet.",
+    });
+  });
+});
+
+describe("refinePlanAction", () => {
+  const REFINE = {
+    slot: "intent",
+    title: "Intent",
+    baseHash: "3f9a",
+    inputs: {},
+    uses: {},
+  };
+
+  it("asks the planning agent to refine the intent section of plan p1", async () => {
+    answer(202, { ok: true });
+
+    expect({
+      result: await refinePlanAction("re-cinq/lore", "p1", REFINE),
+      url: String(fetchMock.mock.calls[0][0]),
+    }).toEqual({
+      result: {},
+      url: "http://api:3000/api/repos/re-cinq/lore/plans/p1/refine",
+    });
+  });
+
+  it("reports a Refine lore-api refuses while the agent is still drafting", async () => {
+    answer(409, { error: "the planning agent is still working on this plan" });
+
+    expect(await refinePlanAction("re-cinq/lore", "p1", REFINE)).toEqual({
+      error: "The planning agent is still working on this plan.",
+    });
+  });
+});
+
+describe("draftAgainAction", () => {
+  it("asks the planning agent for a fresh draft of plan p1 in gedaiu's name", async () => {
+    answer(202, { task_id: "t2" });
+
+    expect({
+      result: await draftAgainAction("re-cinq/lore", "p1"),
+      url: String(fetchMock.mock.calls[0][0]),
+      body: JSON.parse(
+        String((fetchMock.mock.calls[0][1] as RequestInit).body),
+      ) as unknown,
+    }).toEqual({
+      result: {},
+      url: "http://api:3000/api/repos/re-cinq/lore/plans/p1/drafting",
+      body: { known: "", createdBy: "gedaiu" },
+    });
+  });
+
+  it("starts no draft for someone GitHub does not let see the repo", async () => {
+    canAccess.mockResolvedValue(false);
+
+    expect({
+      result: await draftAgainAction("re-cinq/lore", "p1"),
+      fetched: fetchMock.mock.calls.length,
+    }).toEqual({
+      result: { error: "You do not have access to this repo." },
+      fetched: 0,
     });
   });
 });

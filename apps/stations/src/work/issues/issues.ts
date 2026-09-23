@@ -148,13 +148,13 @@ function taskInput(
   };
 }
 
-// What the spec-task carries about its place in the plan: its own id, what it waits on, and the Issue it reports to. `feature_id` is absent rather than null when the line carries no feature — the UI filter is a JSON text match, and a literal "null" would match nothing while looking set.
+// What the spec-task carries about its place in the plan: its own id, what it waits on, the Issue it reports to, and the plan and spec it came from — the merge-check flips that spec's status once the group is merged. Each is absent rather than null when the line carries none.
 function contextBundle(
   planned: PlannedTask,
   input: StationInput,
   filed: number[],
 ) {
-  const featureId = input.params.feature_id;
+  const { plan_id: planId, spec_path: specPath } = input.params;
 
   return {
     spec_task_id: planned.task.id,
@@ -165,6 +165,7 @@ function contextBundle(
     ...(planned.task.labels ? { labels: planned.task.labels } : {}),
     story_issue: filed[planned.storyIndex],
     assembly_line_id: input.assembly_run_id,
-    ...(featureId ? { feature_id: featureId } : {}),
+    ...(planId ? { plan_id: planId } : {}),
+    ...(specPath ? { spec_path: specPath } : {}),
   };
 }

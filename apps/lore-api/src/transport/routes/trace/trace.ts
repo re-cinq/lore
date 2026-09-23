@@ -9,7 +9,6 @@ import type {
 } from "@hapi/hapi";
 import { z } from "zod";
 import {
-  mergePersistentFeatures,
   parseRanges,
   createDgraphClient,
   failuresTouching,
@@ -47,35 +46,6 @@ const TraceReadSchema = z.record(z.string(), z.unknown());
 type ProjectResult = Awaited<ReturnType<typeof projectFor>>;
 type Trace = ProjectResult["trace"];
 
-// lore.features is source of truth for Feature nodes (ADR-027); tolerate 42P01.
-async function graphWithFeatures(trace: Trace, project: ProjectResult) {
-  const { features: featureStore } = project;
-  const [graph, features] = await Promise.all([
-    trace.graph(),
-    listFeaturesTolerantly(featureStore),
-  ]);
-
-  return mergePersistentFeatures(
-    graph,
-    features.map((f) => ({
-      id: f.id,
-      title: f.title,
-      path: f.path,
-      status: f.status,
-    })),
-  );
-}
-
-// A deployment whose lore.features table was never created reads as no features.
-function listFeaturesTolerantly(featureStore: ProjectResult["features"]) {
-  return featureStore.list().catch((err) => {
-    if ((err as { code?: string }).code === "42P01") {
-      return [];
-    }
-    throw err;
-  });
-}
-
 // Kinds answerable without a ?path=; each handler shapes its own response body.
 const NO_PATH_KINDS: Partial<
   Record<string, (trace: Trace, project: ProjectResult) => Promise<object>>
@@ -86,7 +56,7 @@ const NO_PATH_KINDS: Partial<
   }),
   adrs: async (trace) => ({ adrs: await trace.adrs() }),
   "adr-summaries": async (trace) => ({ summaries: await trace.adrSummaries() }),
-  graph: graphWithFeatures,
+  graph: async (trace) => trace.graph(),
 };
 
 // `ranges` narrows the covered file to spans; `branch` reads that branch's overlay instead of main.

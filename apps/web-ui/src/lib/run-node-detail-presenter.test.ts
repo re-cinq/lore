@@ -272,7 +272,7 @@ describe("describeNode on a parked wait node", () => {
       {
         id: "author",
         type: "feature_review" as const,
-        route: "/repos/{args.repo}/features/{args.feature_id}" as const,
+        route: "/repos/{args.repo}/plans/{args.plan_id}" as const,
       },
       { id: "done", type: "retrospective" as const },
     ],

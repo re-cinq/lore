@@ -83,6 +83,9 @@ resource "helm_release" "lore_platform" {
         # The Floor performs no Kubernetes operation itself any more; it asks
         # the cluster agent (ADR-024).
         CLUSTER_AGENT_URL = local.cluster_agent_in_cluster
+        # Where the Floor writes a planning agent's result into its plan
+        # (ADR-047); lore-api hosts plans.
+        LORE_API_URL = local.lore_api_in_cluster
       }
       dbPasswordSecret        = { name = "lore-db-password", key = "password" }
       anthropicKeySecret      = { name = "lore-anthropic-key", key = "anthropic-api-key" }

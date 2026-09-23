@@ -78,6 +78,16 @@ describe("registrationConfig", () => {
     });
   });
 
+  it("offers agent-files beside node:agent when LORE_AGENT_FILES_URL is set, so it claims the passes whose pods download a file", () => {
+    expect(
+      registrationConfig({
+        ...FULL_ENV,
+        LORE_CLUSTER_AGENT_TAGS: "node:agent",
+        LORE_AGENT_FILES_URL: "http://floor:8080/api/agent-files",
+      }).tags,
+    ).toEqual(["node:agent", "agent-files"]);
+  });
+
   it("strips a trailing slash from LORE_API_URL", () => {
     expect(
       registrationConfig({

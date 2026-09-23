@@ -391,6 +391,7 @@ describe("parseAgentSink file events", () => {
         path: "/workspace/target/result.json",
         content: '{"gap":"found"}',
         reason: null,
+        uploaded: false,
       },
     ]);
   });
@@ -406,6 +407,25 @@ describe("parseAgentSink file events", () => {
     );
 
     expect(fileEvents[0]).toMatchObject({ content: null, reason: "missing" });
+  });
+
+  it("marks a plan.md the supervisor uploaded, which carries no content", () => {
+    const { fileEvents } = parseAgentSink(
+      fileLine({
+        kind: "file",
+        event: "planning.result",
+        path: "plan.md",
+        uploaded: true,
+        bytes: 2_400_000,
+        sha256: "9f86d081",
+      }),
+    );
+
+    expect(fileEvents[0]).toMatchObject({
+      content: null,
+      reason: null,
+      uploaded: true,
+    });
   });
 
   it("ignores lifecycle and tool-native lines", () => {

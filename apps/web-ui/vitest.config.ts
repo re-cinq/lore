@@ -59,8 +59,6 @@ export default defineConfig({
         // The plan editor's socket + BlockNote shell (the editor needs a real browser; pure logic in plan-input/plan-user/plan-status).
         "src/app/repos/[owner]/[repo]/plans/[[]id]/PlanEditorPanel.tsx",
         "src/app/repos/[owner]/[repo]/plans/[[]id]/PlanWorkspace.tsx",
-        // Feature-planning UI shells (interactive/IO like graph shells; pure logic in feature-status.ts).
-        "src/app/repos/[owner]/[repo]/features/**/*.tsx",
         // Infinite-scroll pager (IntersectionObserver + fetch shell; query logic in events/pagination.ts).
         "src/app/repos/[owner]/[repo]/events/InfiniteEvents.tsx",
         // Pod-log panel (fetch + polling shell; pure logic in node-pod-logs-presenter.ts).

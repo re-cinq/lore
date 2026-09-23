@@ -323,12 +323,14 @@ layers:
       - outbound
       - "@re-cinq/lore-server-core"
       - "@re-cinq/lore-shared"
+      - "@re-cinq/planning-document"
       - "@re-cinq/planning-sync"
     outbound:
       - "@re-cinq/lore-server-core"
       - "@re-cinq/lore-shared"
       - "@re-cinq/planning-document"
       - "@re-cinq/planning-sync"
+      - "@re-cinq/planning-yjs"
     # A store adapter is proven against a real database, so its contract test
     # lives here and reaches the adapter directly.
     integration-tests:

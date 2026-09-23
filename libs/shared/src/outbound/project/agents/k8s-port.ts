@@ -23,12 +23,14 @@ export interface LoreTaskSpec {
   lineArgs?: Record<string, unknown>;
   /** False skips per-task token/clone provisioning — API-reading station nodes need no repo and their line branch resolves no checkout. Default true. */
   clone?: boolean;
-  /** The feature a planning/finalize run belongs to, threaded into the line's args so a definition can key a conversation thread on args.feature_id. */
-  featureId?: string;
+  /** The plan a planning run belongs to, threaded into the line's args so a definition can key a conversation thread on args.plan_id. */
+  planId?: string;
   /** The round's feedback-only turn, used instead of description when this run resumes a conversation the agent already holds the draft for. */
   roundFeedback?: string;
   /** The task whose run this one continues (rewind); absent means "continue the newest". */
   resumeFromTask?: string;
+  /** Files the pod downloads into its workspace before the agent starts, as refs relative to the executing cluster's agent-files endpoint — references only, so an input of any size never rides the Agent object. */
+  files?: Array<{ path: string; ref: string }>;
   /** A previous run this one continues (ai-agent-subsystem#188), resolved at dispatch from the node's `continues` declaration; absent when none or a retry. */
   conversation?: {
     source: string;

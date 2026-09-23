@@ -122,8 +122,9 @@ export function createLineHarness(
     assemblyRuns: runs,
     definitions: loadBuiltinAssemblyLines,
     repoSettings: async () => null,
-    resolvePrompt: async (_repo, promptRef, description) =>
-      `${promptRef}::${description}`,
+    resolveRecipe: async (_repo, promptRef, description) => ({
+      prompt: `${promptRef}::${description}`,
+    }),
     cleanupToken: async () => {},
     jobRuns: { complete: async () => {}, fail: async () => {} },
     publishNode: async (event) => {

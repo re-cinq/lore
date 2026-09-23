@@ -5,6 +5,7 @@ import pg from "pg";
 import { buildServer } from "../app/build-server.js";
 import { restoreEnv } from "./restore-env.js";
 import { collabAuthenticator } from "../work/plans/collab-tokens.js";
+import { setPipelinePool } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
 
 const TOKEN = "test-plan-routes-token";
 const READ_TOKEN = "test-plan-routes-read-token";
@@ -58,11 +59,19 @@ describe("/api/plans on lore-api", () => {
        VALUES ('plan-routes-read', $1, '{read}', 'test') ON CONFLICT (token_hash) DO NOTHING`,
       [createHash("sha256").update(READ_TOKEN).digest("hex")],
     );
+    setPipelinePool(pool);
     server = buildServer(() => pool);
   });
 
   afterAll(async () => {
     await pool.query("DELETE FROM lore.plans WHERE repo = $1", [REPO]);
+    await pool.query(
+      "DELETE FROM pipeline.task_events WHERE task_id IN (SELECT id FROM pipeline.tasks WHERE target_repo = $1)",
+      [REPO],
+    );
+    await pool.query("DELETE FROM pipeline.tasks WHERE target_repo = $1", [
+      REPO,
+    ]);
     await pool.query(
       "DELETE FROM pipeline.api_tokens WHERE name = 'plan-routes-read'",
     );
@@ -157,5 +166,132 @@ describe("/api/plans on lore-api", () => {
     );
 
     expect(minted.status).toBe(404);
+  });
+
+  it("starts the planning agent's draft of Ana's plan as a feature-planning task", async () => {
+    const planId = await createPlan();
+    const started = await call(
+      "POST",
+      `/api/repos/${REPO}/plans/${planId}/drafting`,
+      TOKEN,
+      {
+        known: "Checkout is slow.",
+        createdBy: "ana",
+      },
+    );
+    const { rows } = await pool.query(
+      "SELECT task_type, created_by, context_bundle FROM pipeline.tasks WHERE id = $1",
+      [(started.body as { task_id: string }).task_id],
+    );
+
+    expect({ status: started.status, task: rows[0] }).toMatchObject({
+      status: 202,
+      task: {
+        task_type: "feature-planning",
+        created_by: "ana",
+        context_bundle: { plan_id: planId },
+      },
+    });
+  });
+
+  it("answers 409 to a Refine while no planning line waits on the plan", async () => {
+    const planId = await createPlan();
+    const refused = await call(
+      "POST",
+      `/api/repos/${REPO}/plans/${planId}/refine`,
+      TOKEN,
+      {
+        slot: "intent",
+        title: "Intent",
+        baseHash: "3f9a",
+        inputs: {},
+        uses: {},
+      },
+    );
+
+    expect(refused.status).toBe(409);
+  });
+
+  const planMd = async (planId: string) =>
+    (
+      await server.inject({
+        method: "GET",
+        url: `/api/plans/${planId}/markdown`,
+        headers: { authorization: `Bearer ${READ_TOKEN}` },
+      })
+    ).payload;
+
+  it("serves Ana's plan as the plan.md a planning pod edits, one marked heading per section", async () => {
+    const planId = await createPlan();
+
+    expect(await planMd(planId)).toContain(
+      "## What we want and why <!-- slot:intent -->",
+    );
+  });
+
+  it("writes a draft's plan.md into Ana's live plan as the planning agent's edits", async () => {
+    const planId = await createPlan();
+    const markdown = (await planMd(planId)).replace(
+      "## What we want and why <!-- slot:intent -->\n",
+      "## What we want and why <!-- slot:intent -->\n\nCheckout p95 is 450 ms.\n",
+    );
+    const written = await call(
+      "POST",
+      `/api/plans/${planId}/agent-file`,
+      TOKEN,
+      {
+        actor: "planning-agent",
+        markdown,
+        refine: null,
+      },
+    );
+
+    expect({
+      written,
+      after: (await planMd(planId)).includes("Checkout p95 is 450 ms."),
+    }).toMatchObject({
+      written: { status: 200, body: { written: 1, problems: [] } },
+      after: true,
+    });
+  });
+
+  it("writes a 3 MB draft of short paragraphs into Ana's live plan and serves it back whole", async () => {
+    const planId = await createPlan();
+    const paragraphs = Array.from(
+      { length: 100_000 },
+      (_, n) => `Finding ${n}: "p95" is 450 ms.`,
+    ).join("\n\n");
+    const markdown = (await planMd(planId)).replace(
+      "## What we want and why <!-- slot:intent -->\n",
+      `## What we want and why <!-- slot:intent -->\n\n${paragraphs}\n`,
+    );
+    const written = await call(
+      "POST",
+      `/api/plans/${planId}/agent-file`,
+      TOKEN,
+      { actor: "planning-agent", markdown, refine: null },
+    );
+    const after = await planMd(planId);
+
+    expect({
+      bytes: markdown.length > 3_000_000,
+      status: written.status,
+      last: after.includes('Finding 99999: "p95" is 450 ms.'),
+    }).toEqual({ bytes: true, status: 200, last: true });
+  });
+
+  it("answers 400 to a plan.md whose only change names no section of Ana's plan", async () => {
+    const planId = await createPlan();
+    const markdown = `${await planMd(planId)}\n## Rollout <!-- slot:custom-nowhere -->\n\nWaves.\n`;
+
+    expect(
+      (
+        await call("POST", `/api/plans/${planId}/agent-file`, TOKEN, {
+          actor: "planning-agent",
+          markdown,
+          refine: null,
+        })
+      ).status,
+    ).toBe(400);
   });
 });

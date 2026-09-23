@@ -16,30 +16,47 @@ export interface AssemblyRunFilter {
   status?: string;
   repo?: string;
   clusterAgentId?: string;
+  /** What the run works on, e.g. `plan:<id>`. */
+  subjectKey?: string;
+  blueprint?: string;
   limit?: number;
 }
 
-/** The run list, filterable by status and repo (both SQL-side). Empty on pre-0025 DBs. */
+/** The run list, filterable by status, repo, subject and blueprint (all SQL-side). Empty on pre-0025 DBs. */
 export async function fetchAssemblyRuns(
   opts: AssemblyRunFilter = {},
 ): Promise<AssemblyRun[]> {
   return readRuns(`?${assemblyRunFilterParams(opts)}`);
 }
 
+/** The newest planning run of a plan, or null before one has started — the run is keyed on the plan (`plan:<id>`, the subject the Floor stamps). */
+export async function fetchPlanRun(
+  repo: string,
+  planId: string,
+): Promise<AssemblyRun | null> {
+  const runs = await fetchAssemblyRuns({
+    repo,
+    subjectKey: `plan:${planId}`,
+    blueprint: "feature-planning",
+    limit: 1,
+  });
+
+  return runs.at(0) ?? null;
+}
+
 function assemblyRunFilterParams(opts: AssemblyRunFilter): URLSearchParams {
   const params = new URLSearchParams();
+  const filters: Array<[string, string | undefined]> = [
+    ["status", opts.status],
+    ["repo", opts.repo],
+    ["cluster_agent_id", opts.clusterAgentId],
+    ["subject_key", opts.subjectKey],
+    ["blueprint", opts.blueprint],
+  ];
 
-  if (opts.status) {
-    params.set("status", opts.status);
-  }
-
-  if (opts.repo) {
-    params.set("repo", opts.repo);
-  }
-
-  if (opts.clusterAgentId) {
-    params.set("cluster_agent_id", opts.clusterAgentId);
-  }
+  filters
+    .filter((filter): filter is [string, string] => Boolean(filter[1]))
+    .forEach(([name, value]) => params.set(name, value));
   params.set("limit", String(opts.limit ?? 50));
 
   return params;

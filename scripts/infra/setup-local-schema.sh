@@ -190,7 +190,7 @@ done
 pg "$SUPERUSER" -v ON_ERROR_STOP=1 >/dev/null <<'SQL'
 GRANT CREATE ON DATABASE lore TO lore;
 GRANT CREATE, USAGE ON SCHEMA lore, payments, platform, mobile, data, org_shared TO lore;
--- web-ui connects as lore_ui and reads lore.* tables (e.g. lore.features,
+-- web-ui connects as lore_ui and reads lore.* tables (e.g. lore.plans,
 -- lore.agent_definitions) granted by migrations; it needs schema USAGE too. In
 -- the cluster lore_ui already has it; mirror that locally.
 GRANT USAGE ON SCHEMA lore TO lore_ui;

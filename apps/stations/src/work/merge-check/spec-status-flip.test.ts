@@ -1,21 +1,20 @@
 import { describe, it, expect } from "vitest";
-import {
-  decideFeatureImplemented,
-  decideSpecStatusFlip,
-} from "./merge-check.js";
+import { decideSpecShipped, decideSpecStatusFlip } from "./merge-check.js";
 
 type GateTask = Parameters<typeof decideSpecStatusFlip>[0];
 
 const task = (over: Partial<GateTask> = {}): GateTask => ({
   task_type: "spec-task",
   task_group_id: "g1",
-  context_bundle: { feature_id: "f1" },
+  context_bundle: { spec_path: "specs/checkout/spec.md" },
   ...over,
 });
 
 describe("decideSpecStatusFlip", () => {
-  it("returns the feature id when the last spec-task in a group merges", () => {
-    expect(decideSpecStatusFlip(task(), 0)).toEqual({ featureId: "f1" });
+  it("returns the spec path when the last spec-task in a group merges", () => {
+    expect(decideSpecStatusFlip(task(), 0)).toEqual({
+      specPath: "specs/checkout/spec.md",
+    });
   });
 
   it("returns null while siblings in the group are still unmerged", () => {
@@ -30,16 +29,16 @@ describe("decideSpecStatusFlip", () => {
     expect(decideSpecStatusFlip(task({ task_group_id: null }), 0)).toBeNull();
   });
 
-  it("returns null when the bundle carries no feature id", () => {
+  it("returns null when the bundle carries no spec path", () => {
     expect(decideSpecStatusFlip(task({ context_bundle: {} }), 0)).toBeNull();
     expect(decideSpecStatusFlip(task({ context_bundle: null }), 0)).toBeNull();
   });
 });
 
-describe("decideFeatureImplemented", () => {
+describe("decideSpecShipped", () => {
   it("returns true when the flip PR set the spec to shipped", () => {
     expect(
-      decideFeatureImplemented({
+      decideSpecShipped({
         prUrl: "https://example.test/pr/1",
         skipped: false,
         status: "shipped",
@@ -49,7 +48,7 @@ describe("decideFeatureImplemented", () => {
 
   it("returns true when the spec already claimed shipped", () => {
     expect(
-      decideFeatureImplemented({
+      decideSpecShipped({
         prUrl: null,
         skipped: true,
         reason: "already-current",
@@ -60,7 +59,7 @@ describe("decideFeatureImplemented", () => {
 
   it("returns false when coverage only supported In Progress", () => {
     expect(
-      decideFeatureImplemented({
+      decideSpecShipped({
         prUrl: "https://example.test/pr/1",
         skipped: false,
         status: "in-progress",
@@ -70,7 +69,7 @@ describe("decideFeatureImplemented", () => {
 
   it("returns false when the spec already claimed a status short of shipped", () => {
     expect(
-      decideFeatureImplemented({
+      decideSpecShipped({
         prUrl: null,
         skipped: true,
         reason: "already-current",
@@ -81,7 +80,7 @@ describe("decideFeatureImplemented", () => {
 
   it("returns false for a shipped spec with no testable statement to confirm it", () => {
     expect(
-      decideFeatureImplemented({
+      decideSpecShipped({
         prUrl: null,
         skipped: true,
         reason: "no-coverage-tier",
@@ -92,14 +91,14 @@ describe("decideFeatureImplemented", () => {
 
   it("returns false when the spec is missing, terminal, or has no status row", () => {
     expect(
-      decideFeatureImplemented({
+      decideSpecShipped({
         prUrl: null,
         skipped: true,
         reason: "missing",
       }),
     ).toBe(false);
     expect(
-      decideFeatureImplemented({
+      decideSpecShipped({
         prUrl: null,
         skipped: true,
         reason: "terminal",
@@ -107,7 +106,7 @@ describe("decideFeatureImplemented", () => {
       }),
     ).toBe(false);
     expect(
-      decideFeatureImplemented({
+      decideSpecShipped({
         prUrl: null,
         skipped: true,
         reason: "no-status-row",

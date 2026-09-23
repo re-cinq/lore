@@ -1,6 +1,9 @@
 /** Record the visit, then hand a launched node to whoever runs it: a human station, the pooled service, or a cluster-agent-claimable pod. */
 
-import { resolveRequiredTags } from "@re-cinq/lore-shared/project/cluster-agents/required-tags.js";
+import {
+  AGENT_FILES_TAG,
+  resolveRequiredTags,
+} from "@re-cinq/lore-shared/project/cluster-agents/required-tags.js";
 import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { isHumanStation, type NodeVisit } from "@re-cinq/lore-assembly-lines";
 import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
@@ -86,7 +89,7 @@ async function ensureStationRunFor(
       : nodeAgentName(assemblyLineId, node.id, iteration),
     input: stationRunInputFor(node, task, dispatch.content, dispatch.prompt),
     ...(dispatchedAsPod
-      ? await podClaimFields(node, assemblyRun.repo, deps)
+      ? await podClaimFields(node, assemblyRun.repo, dispatch, deps)
       : {}),
   });
 }
@@ -95,15 +98,18 @@ async function ensureStationRunFor(
 async function podClaimFields(
   node: RunGraphNode,
   repo: string,
+  dispatch: NodeLaunch["dispatch"],
   deps: AdvanceDeps,
 ): Promise<{ status: "queued"; requiredTags: string[] }> {
+  const tags = resolveRequiredTags(
+    node.type,
+    node.required_tags,
+    await deps.repoSettings(repo),
+  );
+
   return {
     status: "queued",
-    requiredTags: resolveRequiredTags(
-      node.type,
-      node.required_tags,
-      await deps.repoSettings(repo),
-    ),
+    requiredTags: dispatch.files.length > 0 ? [...tags, AGENT_FILES_TAG] : tags,
   };
 }
 

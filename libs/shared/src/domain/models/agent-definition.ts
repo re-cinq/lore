@@ -14,7 +14,18 @@ export const CatalogConfigSchema = z
     skills: z.array(z.string()).optional(),
     pod_resources: PodResourcesSchema.optional(),
     disallowed_tools: z.array(z.string()).optional(),
-    watch: z.object({ event: z.string(), path: z.string() }).optional(),
+    // `upload` sends the watched file's bytes to the Floor instead of inlining them in the event, for artifacts that outgrow the event stream.
+    watch: z
+      .object({
+        event: z.string(),
+        path: z.string(),
+        upload: z.boolean().optional(),
+      })
+      .optional(),
+    // Files the pod downloads into the workspace before the agent starts; `source` names what the Floor serves at that path.
+    inputs: z
+      .array(z.object({ path: z.string(), source: z.enum(["plan"]) }))
+      .optional(),
     repo_workdir: z.boolean().optional(),
 
     command: z.array(z.string()).optional(),

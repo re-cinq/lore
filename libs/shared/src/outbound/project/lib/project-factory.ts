@@ -138,12 +138,12 @@ function outsideModules() {
   ]);
 }
 
-/** What the platform records about itself: who ran, what it cost, what it audited, which features it is tracking. */
+/** What the platform records about itself: who ran, what it cost, what it audited. */
 async function registerLedgerPorts(
   ports: Map<string, unknown>,
   { pgPool, env, providers }: OutsidePortDeps,
 ): Promise<void> {
-  const [audit, usage, features] = await ledgerModules();
+  const [audit, usage] = await ledgerModules();
 
   ports.set("agentDefs", await agentDefsForEnv(env, pgPool));
   ports.set(
@@ -155,7 +155,6 @@ async function registerLedgerPorts(
     ),
   );
   ports.set("usage", new usage.PgUsage(pgPool));
-  ports.set("features", new features.PgFeatures(pgPool));
 }
 
 /** The self-record adapters, imported lazily for the same reason the stored ones are. */
@@ -163,7 +162,6 @@ function ledgerModules() {
   return Promise.all([
     import("../audit/audit-pg.js"),
     import("../usage/usage-pg.js"),
-    import("../features/features-pg.js"),
   ]);
 }
 

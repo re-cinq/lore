@@ -13,9 +13,12 @@ export interface WalkGraph {
   entry: string;
   exit: string;
   edges: readonly WalkEdge[];
+  /** Node types, so the node ceiling can tell a person's pass from a machine's; a clone recorded without them counts every visit. */
+  nodes?: readonly { id: string; type: string }[];
 }
 import type { StageOutcome } from "./node-types.js";
 import { isPermanentNodeFailure, nodeFailureReason } from "./failure-reason.js";
+import { isHumanStation } from "./human-station.js";
 
 /** One node row's contribution to the walk state (outcome null = still running). */
 export interface NodeVisit {
@@ -100,15 +103,29 @@ function replayBlocked(
     return { kind: "await" };
   }
 
-  if (visits.length >= maxNodes) {
+  if (unattendedVisits(assemblyLine, visits) >= maxNodes) {
     return {
       kind: "fail",
       outcome: "error",
-      reason: `AssemblyLine ${assemblyLine.name}: maxNodes (${maxNodes}) reached without hitting exit`,
+      reason: `AssemblyLine ${assemblyLine.name}: maxNodes (${maxNodes}) reached without hitting exit or a person acting`,
     };
   }
 
   return null;
+}
+
+// The ceiling guards a MACHINE loop that never ends, so it counts only the visits since a person last acted — the same exemption a human-gated back-edge gets from iteration_max.
+function unattendedVisits(
+  assemblyLine: WalkGraph,
+  visits: readonly NodeVisit[],
+): number {
+  const human = new Set(
+    (assemblyLine.nodes ?? [])
+      .filter((node) => isHumanStation(node.type))
+      .map((node) => node.id),
+  );
+
+  return visits.length - 1 - visits.findLastIndex((v) => human.has(v.nodeId));
 }
 
 // A walk that has not started: at the entry node, on its first iteration, having spent nothing. Every replay begins here — the history is what moves it, so nothing is carried over between calls.

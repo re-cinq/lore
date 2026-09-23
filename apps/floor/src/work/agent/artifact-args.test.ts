@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
 import {
   argNameForEvent,
+  argsForArtifact,
   artifactsFromTerminalOutput,
   deliverArtifact,
 } from "./artifact-args.js";
@@ -14,6 +15,7 @@ const fileEvent = (over: Partial<AgentFileEvent> = {}): AgentFileEvent => ({
   path: "target/spec-plan.json",
   content: '{"changes":[]}',
   reason: null,
+  uploaded: false,
   ...over,
 });
 
@@ -57,7 +59,7 @@ describe("deliverArtifact", () => {
     });
   });
 
-  it("leaves the planning result to deliverPlanningResult, which posts it to the features API instead of duplicating a GapResult into args", async () => {
+  it("leaves the planning result to deliverPlanningResult, which writes it into the plan instead of duplicating it into args", async () => {
     const lines = new InMemoryAssemblyRuns();
 
     await lineFor(lines);
@@ -144,6 +146,32 @@ describe("artifactsFromTerminalOutput", () => {
     ).toEqual({ args: {}, missing: [] });
   });
 
+  it("fails the pass whose plan.md upload failed, though the planning file is written by another handler", () => {
+    expect(
+      artifactsFromTerminalOutput(
+        fileLine({
+          event: "planning.result",
+          path: "plan.md",
+          content: null,
+          reason: "upload-failed",
+        }),
+      ),
+    ).toEqual({ args: {}, missing: ["planning.result (upload-failed)"] });
+  });
+
+  it("counts an uploaded file as delivered, carrying no content of its own", () => {
+    expect(
+      artifactsFromTerminalOutput(
+        fileLine({
+          event: "planning.result",
+          path: "plan.md",
+          content: null,
+          uploaded: true,
+        }),
+      ),
+    ).toEqual({ args: {}, missing: [] });
+  });
+
   it("finds nothing in a status that carries no artifacts at all", () => {
     expect(artifactsFromTerminalOutput(undefined)).toEqual({
       args: {},
@@ -152,6 +180,40 @@ describe("artifactsFromTerminalOutput", () => {
     expect(artifactsFromTerminalOutput("plain text, not ndjson")).toEqual({
       args: {},
       missing: [],
+    });
+  });
+});
+
+describe("argsForArtifact", () => {
+  it("names spec_path after the first spec a spec plan creates", () => {
+    const plan = {
+      creates: [{ path: "specs/checkout/spec.md" }],
+      updates: [{ path: "specs/cart/spec.md" }],
+    };
+
+    expect(argsForArtifact("spec.plan", JSON.stringify(plan))).toEqual({
+      spec_plan: JSON.stringify(plan),
+      spec_path: "specs/checkout/spec.md",
+    });
+  });
+
+  it("names spec_path after the first spec a spec plan updates when it creates none", () => {
+    const plan = { creates: [], updates: [{ path: "specs/cart/spec.md" }] };
+
+    expect(argsForArtifact("spec.plan", JSON.stringify(plan))).toMatchObject({
+      spec_path: "specs/cart/spec.md",
+    });
+  });
+
+  it("carries any other artifact under its own name only", () => {
+    expect(argsForArtifact("feature.decomposition", "{}")).toEqual({
+      feature_decomposition: "{}",
+    });
+  });
+
+  it("names no spec_path for a spec plan that is not JSON", () => {
+    expect(argsForArtifact("spec.plan", "{oops")).toEqual({
+      spec_plan: "{oops",
     });
   });
 });

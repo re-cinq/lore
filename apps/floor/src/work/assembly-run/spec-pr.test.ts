@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
-import { InMemoryFeatures } from "@re-cinq/lore-shared/project/features/features-memory.js";
 import type { PullRef } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import {
   decideEmptyBranchEnding,
@@ -68,50 +67,34 @@ const pullRef = (branch: string, number: number): PullRef => ({
 interface Harness {
   ports: SpecPrPorts;
   lines: InMemoryAssemblyRuns;
-  features: InMemoryFeatures;
   pulls: FakePulls;
   lineId: string;
-  featureId: string;
 }
 
 async function harness(
   options: {
     existingPulls?: PullRef[];
-    withFeature?: boolean;
+    withPlan?: boolean;
     withTask?: boolean;
     blueprintName?: string;
   } = {},
 ): Promise<Harness> {
   const lines = new InMemoryAssemblyRuns();
-  const features = new InMemoryFeatures();
   const pulls = new FakePulls(options.existingPulls ?? []);
-  const feature = await features.create(REPO, {
-    title: "Dark factory rollback",
-    prompt: "Make rollback one command",
-  });
   const lineId = await lines.start({
     blueprintName: options.blueprintName ?? "feature-planning",
     repo: REPO,
     ...(options.withTask === false ? {} : { taskId: "task-1" }),
     branch: "feature/dark-factory-rollback",
-    args: options.withFeature === false ? {} : { feature_id: feature.id },
+    args:
+      options.withPlan === false ? {} : { plan_title: "Dark factory rollback" },
   });
 
   return {
     lines,
-    features,
     pulls,
     lineId,
-    featureId: feature.id,
-    ports: {
-      pulls,
-      assemblyRuns: lines,
-      features: {
-        get: (id) => features.get(REPO, id),
-        transitionStatus: (id, status, patch) =>
-          features.transitionStatus(REPO, id, status, patch),
-      },
-    },
+    ports: { pulls, assemblyRuns: lines },
   };
 }
 
@@ -194,41 +177,10 @@ describe("stampLinePr", () => {
     });
   });
 
-  it("moves the feature to pr-open carrying the spec PR and path", async () => {
-    const h = await harness();
+  it("still records the PR on a line that carries no plan", async () => {
+    const h = await harness({ withPlan: false });
 
     await stampLinePr(await lineRow(h), h.ports);
-
-    expect(await h.features.get(REPO, h.featureId)).toMatchObject({
-      status: "pr-open",
-      spec_pr_number: 4201,
-      spec_pr_url: `https://github.com/${REPO}/pull/4201`,
-      spec_path: "specs/dark-factory-rollback/spec.md",
-    });
-  });
-
-  it("still records the PR on a line that carries no feature", async () => {
-    const h = await harness({ withFeature: false });
-
-    await stampLinePr(await lineRow(h), h.ports);
-
-    expect((await h.lines.getById(h.lineId))?.args).toMatchObject({
-      pr_number: 4201,
-    });
-  });
-
-  it("records the PR even when the feature transition throws", async () => {
-    const h = await harness();
-
-    await stampLinePr(await lineRow(h), {
-      ...h.ports,
-      features: {
-        get: h.ports.features.get,
-        transitionStatus: async () => {
-          throw new Error("features table unavailable");
-        },
-      },
-    });
 
     expect((await h.lines.getById(h.lineId))?.args).toMatchObject({
       pr_number: 4201,
@@ -244,26 +196,12 @@ describe("stampLinePr", () => {
     expect(h.pulls.opened).toEqual([]);
     expect((await h.lines.getById(h.lineId))?.args.pr_number).toBeUndefined();
   });
-
-  it("skips a feature the line names but the repo no longer has", async () => {
-    const h = await harness();
-    const row = await lineRow(h);
-
-    await stampLinePr(
-      { ...row, args: { ...row.args, feature_id: "no-such-feature" } },
-      h.ports,
-    );
-
-    expect((await h.lines.getById(h.lineId))?.args).toMatchObject({
-      pr_number: 4201,
-    });
-  });
 });
 
 describe("stampLinePr onboarding record", () => {
   it("records an onboard line's PR as the repo's onboarding PR", async () => {
     const recorded: Array<[string, string]> = [];
-    const h = await harness({ blueprintName: "onboard", withFeature: false });
+    const h = await harness({ blueprintName: "onboard", withPlan: false });
 
     await stampLinePr(await lineRow(h), {
       ...h.ports,
@@ -437,7 +375,7 @@ describe("readyPrBody", () => {
 
 describe("stampLinePr title", () => {
   it("titles a ticket run's draft after the ticket", async () => {
-    const h = await harness({ withFeature: false });
+    const h = await harness({ withPlan: false });
 
     await h.lines.mergeArgs(h.lineId, {
       issue_title: "Backlog PRs are titled after their branch",
@@ -450,7 +388,7 @@ describe("stampLinePr title", () => {
   });
 
   it("clamps a 96-character ticket title to 70 characters", async () => {
-    const h = await harness({ withFeature: false });
+    const h = await harness({ withPlan: false });
 
     await h.lines.mergeArgs(h.lineId, {
       issue_title:
@@ -464,7 +402,7 @@ describe("stampLinePr title", () => {
   });
 
   it("falls back to the branch when the run carries no ticket title", async () => {
-    const h = await harness({ withFeature: false });
+    const h = await harness({ withPlan: false });
 
     await stampLinePr(await lineRow(h), h.ports);
 

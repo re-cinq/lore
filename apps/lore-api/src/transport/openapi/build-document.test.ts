@@ -49,12 +49,9 @@ describe("generateOpenApi — coverage", () => {
     expect(document.paths["/healthz"]).toBeUndefined();
   });
 
-  it("records tokens + features POSTs as documented freeform", () => {
+  it("records the tokens POST as documented freeform", () => {
     expect(coverage.freeform).toEqual(
-      expect.arrayContaining([
-        "POST /api/tokens",
-        "POST /api/repos/{owner}/{repo}/features",
-      ]),
+      expect.arrayContaining(["POST /api/tokens"]),
     );
   });
 
@@ -93,13 +90,7 @@ describe("generateOpenApi — request bodies", () => {
     expect(schema.properties.name).toMatchObject({ type: "string" });
   });
 
-  it("documents features + tokens POSTs as a permissive object", () => {
-    expect(
-      bodySchema(document.paths["/api/repos/{owner}/{repo}/features"].post),
-    ).toEqual({
-      type: "object",
-      additionalProperties: true,
-    });
+  it("documents the tokens POST as a permissive object", () => {
     expect(bodySchema(document.paths["/api/tokens"].post)).toEqual({
       type: "object",
       additionalProperties: true,
@@ -163,7 +154,7 @@ describe("generateOpenApi — tag grouping", () => {
       "Memory",
       "Tasks",
       "Repositories",
-      "Features",
+      "Plans",
       "Agents",
       "Cluster Agents",
       "Ingestion",
@@ -183,9 +174,9 @@ describe("generateOpenApi — tag grouping", () => {
     expect(document.paths["/api/memory"].post.tags).toEqual(["Memory"]);
     expect(document.paths["/api/context"].get.tags).toEqual(["Context"]);
     expect(document.paths["/api/repos"].get.tags).toEqual(["Repositories"]);
-    expect(
-      document.paths["/api/repos/{owner}/{repo}/features"].post.tags,
-    ).toEqual(["Features"]);
+    expect(document.paths["/api/repos/{owner}/{repo}/plans"].get.tags).toEqual([
+      "Plans",
+    ]);
     expect(
       document.paths["/api/repos/{owner}/{repo}/agent-definitions"].post.tags,
     ).toEqual(["Agents"]);

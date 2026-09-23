@@ -9,6 +9,13 @@ import {
   type FloorAssemblyRunTask,
 } from "./floor-assembly-run.js";
 import { resolveRoundContent } from "./round-content.js";
+import { withRoundHandoff, type RoundHandoff } from "./round-handoff.js";
+import {
+  inputFilesFor,
+  type InputFiles,
+  type NodeRecipe,
+  type ResolveRecipeFn,
+} from "./input-files.js";
 
 /** Resolve a node's `continues` declaration into the conversation this run resumes and saves as. Optional seam — a composition without it never continues. */
 export type ResolveConversationFn = (
@@ -19,12 +26,7 @@ export type ResolveConversationFn = (
 ) => Promise<LoreTaskSpec["conversation"] | undefined>;
 
 export interface NodeLaunchDeps {
-  /** The prompt an agent node's pod renders, built from the RESOLVED recipe for `repo` (project row → org row → yaml) so an Agents-UI edit reaches the pod; strict on an unknown ref (#1329). */
-  resolvePrompt: (
-    repo: string,
-    promptRef: string,
-    description: string,
-  ) => Promise<string>;
+  resolveRecipe: ResolveRecipeFn;
   resolveConversation?: ResolveConversationFn;
 }
 
@@ -43,63 +45,6 @@ export interface NodeLaunchInput {
   ciFeedback?: CiFeedback | null;
   /** What the previous round said it finished and left for next. Derive with {@link roundHandoffOf}; null before any round reported. */
   roundHandoff?: RoundHandoff | null;
-}
-
-/** A round's own account of itself, lifted off its `Lore-Tdd-Done` / `Lore-Tdd-Next` extras into the run's args so the NEXT round does not start cold — extras alone never reach a later node (FR6.17). */
-export interface RoundHandoff {
-  done: string | null;
-  next: string;
-}
-
-const HANDOFF_EXTRAS = {
-  done: "Lore-Tdd-Done",
-  next: "Lore-Tdd-Next",
-} as const;
-
-/** The args a finishing node's extras add to the run: the hand-off keys, or null when the node reported none. */
-export function roundHandoffArgsOf(
-  extras: Readonly<Record<string, string>> | undefined,
-): Record<string, string> | null {
-  const next = extras?.[HANDOFF_EXTRAS.next];
-
-  if (!next) {
-    return null;
-  }
-  const done = extras[HANDOFF_EXTRAS.done];
-
-  return { round_next: next, ...(done ? { round_done: done } : {}) };
-}
-
-/** The hand-off the run's args carry, as the next prompt reads it. */
-export function roundHandoffOf(
-  args: Readonly<Record<string, unknown>>,
-): RoundHandoff | null {
-  const next = args.round_next;
-
-  if (typeof next !== "string" || next.length === 0) {
-    return null;
-  }
-  const done = args.round_done;
-
-  return { next, done: typeof done === "string" && done ? done : null };
-}
-
-/** Append the previous round's report so a round continues where the last one stopped instead of re-deriving it from the branch. */
-export function withRoundHandoff(
-  prompt: string,
-  handoff: RoundHandoff | null,
-): string {
-  if (!handoff) {
-    return prompt;
-  }
-  const doneLine = handoff.done ? `- Done: ${handoff.done}\n` : "";
-
-  return `${prompt}
-
-## The previous round reported
-
-${doneLine}- Next: ${handoff.next}
-`;
 }
 
 /** A preceding node's failure, as the next node needs to hear it. */
@@ -247,6 +192,7 @@ export interface NodeDispatch {
   conversation: LoreTaskSpec["conversation"] | undefined;
   content: string;
   prompt: string | null;
+  files: InputFiles;
 }
 
 interface ConversationResolutionInput {
@@ -263,11 +209,13 @@ export async function resolveNodeDispatch(
 ): Promise<NodeDispatch> {
   const conversation = await resolveConversationFor(input, deps);
   const content = resolveRoundContent(input.task, conversation);
+  const recipe = await resolvedRecipeFor(promptInput(input, content), deps);
 
   return {
     conversation,
     content,
-    prompt: await resolvedPromptFor(promptInput(input, content), deps),
+    prompt: recipe?.prompt ?? null,
+    files: inputFilesFor(recipe?.inputs, input.task.assemblyLineId),
   };
 }
 
@@ -328,22 +276,22 @@ interface PromptResolutionInput {
   roundHandoff: RoundHandoff | null;
 }
 
-async function resolvedPromptFor(
+async function resolvedRecipeFor(
   input: PromptResolutionInput,
   deps: NodeLaunchDeps,
-): Promise<string | null> {
+): Promise<NodeRecipe | null> {
   const { node, repo, content } = input;
 
   if (node.type !== "agent") {
     return null;
   }
-  const recipe = await deps.resolvePrompt(
+  const recipe = await deps.resolveRecipe(
     repo,
     node.prompt_ref ?? node.type,
     content,
   );
 
-  return withDispatchBlocks(recipe, input);
+  return { ...recipe, prompt: withDispatchBlocks(recipe.prompt, input) };
 }
 
 /** The blocks appended to a rendered recipe, in the order the pod reads them; CI's verdict comes LAST: it is about the push this node is being launched to repair, where the blocks above it are about attempts that came before. */
@@ -379,8 +327,20 @@ export function nodeLaunchSpec(
         )
       : nodeStationSpec(node, task, iteration, stationRunId);
 
+  return withDispatchExtras(spec, dispatch);
+}
+
+// What a dispatch adds on top of the node's own spec: the conversation it continues and the files its pod downloads.
+function withDispatchExtras(
+  spec: LoreTaskSpec,
+  dispatch: NodeDispatch,
+): LoreTaskSpec {
   if (dispatch.conversation) {
     spec.conversation = dispatch.conversation;
+  }
+
+  if (dispatch.files.length > 0) {
+    spec.files = dispatch.files;
   }
 
   return spec;

@@ -2,6 +2,7 @@
 
 import { errorMessage } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { AGENT_FILES_TAG } from "@re-cinq/lore-shared/project/cluster-agents/required-tags.js";
 import { pollUntil } from "@re-cinq/lore-shared/lib/poll-loop.js";
 import type {
   ClusterAgentIdentity,
@@ -43,8 +44,17 @@ export function registrationConfig(env: NodeJS.ProcessEnv): RegistrationConfig {
     apiUrl: apiUrl.replace(/\/+$/, ""),
     registrationToken,
     name,
-    tags: parseTags(env.LORE_CLUSTER_AGENT_TAGS),
+    tags: offeredTags(env),
   };
+}
+
+// Derived, never configured: a cluster serving agent files says so, and one that does not can never be handed a pod that downloads one.
+function offeredTags(env: NodeJS.ProcessEnv): string[] {
+  const tags = parseTags(env.LORE_CLUSTER_AGENT_TAGS);
+
+  return env.LORE_AGENT_FILES_URL
+    ? [...new Set([...tags, AGENT_FILES_TAG])]
+    : tags;
 }
 
 // Which of the three are unset. Named ALL at once rather than failing on the first: a deployment missing two variables should learn both from one boot, not from two.

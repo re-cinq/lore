@@ -43,16 +43,9 @@ export interface LlmCallRow {
   durationMs: number;
 }
 
-/** A file declared under `output.watch`, raised by the subsystem on agent exit (`{"kind":"file"}`); `content`/`reason` are mutually exclusive — an undelivered declared artifact still reports, carrying why. */
-export interface AgentFileEvent {
-  taskId: string;
-  agentCrName: string | null;
-  /** The recipe-declared event name, so one run can raise several artifacts. */
-  event: string;
-  path: string;
-  content: string | null;
-  reason: string | null;
-}
+import type { AgentFileEvent } from "./agent-file-event.js";
+
+export type { AgentFileEvent } from "./agent-file-event.js";
 
 const str = (value: unknown): string | null =>
   typeof value === "string" ? value : null;
@@ -239,6 +232,7 @@ function fileEventFromEnvelope(envelope: unknown): AgentFileEvent | null {
     path: str(ev.path) ?? "",
     content: str(ev.content),
     reason: str(ev.reason),
+    uploaded: ev.uploaded === true,
   };
 }
 

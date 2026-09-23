@@ -23,7 +23,7 @@ import type { PendingOnboardingRepo } from "@re-cinq/lore-shared/project/setting
 
 export {
   decideSpecStatusFlip,
-  decideFeatureImplemented,
+  decideSpecShipped,
   describeFlipSuccess,
   describeFlipMiss,
   maybeFlipSpecStatus,

@@ -17,7 +17,6 @@ import { Workspace } from "../workspace/workspace.js";
 
 import { Audit } from "../audit/audit.js";
 
-import { Features } from "../features/features.js";
 import { assertCanClone } from "./trust.js";
 
 import type { GitHubPort } from "./github-port.js";
@@ -36,7 +35,6 @@ import type { GitPort } from "../workspace/git-port.js";
 import type { LeaseBackend } from "../leases/lease-backends.js";
 import type { AuditPort } from "../audit/audit-port.js";
 import type { UsagePort } from "../usage/usage-port.js";
-import type { FeaturesPort } from "../features/features-port.js";
 import type { ChunksPort } from "../chunks/chunks-port.js";
 import type { PipelineRepositories } from "../pipeline/pipeline-repositories.js";
 
@@ -139,11 +137,6 @@ export class Project {
   /** The org-wide `pipeline.*` repositories. Raw, like `leases` and `usage`: nothing here is scoped by `fullName`. */
   get pipeline(): PipelineRepositories {
     return this.port<PipelineRepositories>("pipeline");
-  }
-
-  /** Smart feature-planning lifecycle (lore.features + lore.feature_iterations). */
-  get features(): Features {
-    return new Features(this.fullName, this.port<FeaturesPort>("features"));
   }
 
   /** Clone the repo to a cache dir and return a Workspace for writes; refuses on the shared server — writes require a trusted sandbox. */

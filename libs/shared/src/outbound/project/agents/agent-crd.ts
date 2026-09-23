@@ -5,6 +5,7 @@ import type {
   AgentDefinitionSpec,
   Station,
   OutputSink,
+  OutputWatch,
 } from "@re-cinq/agent-contracts";
 import { enforceTrue } from "../../../lib/enforce.js";
 import { AGENT_MAX_TURNS } from "../../cluster/agent-limits.js";
@@ -246,8 +247,27 @@ function sinksFor(
   return {
     sinks,
     // A file-deliverable recipe declares watch; the subsystem raises it as a kind:"file" event on exit — the only way the artifact leaves the pod (ai-agent-subsystem#188, lost 8 days in #1468).
-    ...(def.config?.watch ? { watch: [def.config.watch] } : {}),
+    ...(def.config?.watch ? { watch: [watchFor(def.config.watch, opts)] } : {}),
   };
+}
+
+type RecipeWatch = NonNullable<
+  NonNullable<ResolvedAgentDefinition["config"]>["watch"]
+>;
+
+// An uploading watch sends the file's bytes to the Floor with the sink's own credential, since an artifact can outgrow the event that inlines it; with no files endpoint on this cluster it stays inline.
+function watchFor(watch: RecipeWatch, opts: CatalogCrdOptions): OutputWatch {
+  const { upload, ...inline } = watch;
+
+  return upload && opts.filesUrl
+    ? {
+        ...inline,
+        upload: {
+          url: `${opts.filesUrl}/{agent}/{event}`,
+          headers_secret: "agent-events-auth",
+        },
+      }
+    : inline;
 }
 
 function stationCrd(

@@ -1,131 +1,142 @@
-// Delivers a planning round's GapResult from the pod's declared `kind:"file"` artifact on the NDJSON sink (ai-agent-subsystem#188) — the Floor does the write since the pod carries no DB token.
+// Moves the planning agent's plan.md between lore-api and its pod (ADR-047): the pod downloads the live plan before it starts and hands the edited file back, and the Floor carries both because the pod holds no API token. The refine context comes from the run, never from the agent.
 
-import {
-  applyGapResult,
-  type GapResultFeatures,
-} from "@re-cinq/lore-shared/feature-planning/apply-gap-result.js";
-import type { PipelineTask } from "@re-cinq/lore-shared";
 import type { AgentFileEvent } from "./agent-events.js";
+import type {
+  PlanRunRef,
+  PlanWriter,
+  RefineContext,
+} from "../../domain/plan-writer.js";
+
+export type {
+  PlanRunRef,
+  PlanWriter,
+  RefineContext,
+} from "../../domain/plan-writer.js";
 
 /** The event name the feature-planning recipe declares in `output.watch`; must match the recipe since the Floor routes on it. */
 export const PLANNING_RESULT_EVENT = "planning.result";
 
+/** Who the plan's people see writing. */
+export const PLANNING_ACTOR = "planning-agent";
+
 export interface PlanningResultDeps {
-  tasks: { getById(id: string): Promise<PipelineTask | null> };
-  featuresFor(repo: string): Promise<{ features: GapResultFeatures }>;
-  /** The round the run's assembly line is on, when a line carries one. */
-  roundOf(taskId: string): Promise<number | undefined>;
+  /** The plan the task's open planning run works on, and the Refine it answers when it answers one. */
+  planRunOfTask(taskId: string): Promise<PlanRunRef | undefined>;
+  plans: PlanWriter;
 }
 
-/** What the DELIVERY did, never the round's verdict (only settleTaskForLine records that); `failed` = a declared artifact produced none, `skipped` = not this handler's event. */
+export interface PlanUploadDeps {
+  /** The plan run of the pod an Agent CR name belongs to. */
+  planRunOfAgent(agentCrName: string): Promise<PlanRunRef | undefined>;
+  plans: PlanWriter;
+}
+
+export interface PlanFileDeps {
+  planOfRun(assemblyRunId: string): Promise<string | undefined>;
+  plans: PlanWriter;
+}
+
+/** What the DELIVERY did, never the round's verdict; `failed` = the agent's file could not be written, `skipped` = not this handler's to write. */
 export type PlanningDelivery =
   | { outcome: "ready" }
   | { outcome: "failed"; error: string }
   | { outcome: "skipped"; error: string };
 
-/** Persist one planning artifact event; skips non-planning-result events and non-planning-round tasks (the sink carries every run's events, so most calls are a no-op by design). */
+const NO_PLAN: PlanningDelivery = {
+  outcome: "skipped",
+  error: "the run names no plan",
+};
+
+/** The plan and Refine a planning run's args carry; undefined for a run that drafts no plan. A malformed refine reads as a draft rather than a proposal nobody asked for. */
+export function planRunRefOf(
+  args: Readonly<Record<string, unknown>>,
+): PlanRunRef | undefined {
+  const planId = args.plan_id;
+
+  return typeof planId === "string"
+    ? { planId, refine: refineOf(args.refine) }
+    : undefined;
+}
+
+function refineOf(value: unknown): RefineContext | null {
+  const refine = (value ?? {}) as Partial<RefineContext>;
+
+  return typeof refine.slot === "string" && typeof refine.baseHash === "string"
+    ? { slot: refine.slot, baseHash: refine.baseHash, uses: refine.uses }
+    : null;
+}
+
+/** The plan.md a pod downloads for its run, rendered from the live plan at the moment it asks; null when the run drafts no plan. */
+export async function planFileOf(
+  assemblyRunId: string,
+  deps: PlanFileDeps,
+): Promise<string | null> {
+  const planId = await deps.planOfRun(assemblyRunId);
+
+  return planId ? deps.plans.markdownOf(planId) : null;
+}
+
+/** A plan.md the supervisor uploaded: written into the plan the agent's run drafts, as a draft or as its Refine's proposal. */
+export async function receivePlanUpload(
+  agentCrName: string,
+  markdown: string,
+  deps: PlanUploadDeps,
+): Promise<PlanningDelivery> {
+  const run = await deps.planRunOfAgent(agentCrName);
+
+  return run ? submit(run, markdown, deps.plans) : NO_PLAN;
+}
+
+/** A planning file event from the sink. An uploaded file was already written by its upload, so its event is only the notice; an inline one (a cluster with no files endpoint) is written here. */
 export async function deliverPlanningResult(
   fileEvent: AgentFileEvent,
   deps: PlanningResultDeps,
 ): Promise<PlanningDelivery> {
+  const skipped = skipReason(fileEvent);
+
+  if (skipped) {
+    return skipped;
+  }
+  const run = await deps.planRunOfTask(fileEvent.taskId);
+
+  if (!run) {
+    return NO_PLAN;
+  }
+
+  return fileEvent.content === null
+    ? {
+        outcome: "failed",
+        error: `the agent produced no plan.md (${fileEvent.reason ?? "no reason"})`,
+      }
+    : submit(run, fileEvent.content, deps.plans);
+}
+
+// Why this handler leaves the event alone: another artifact entirely, or an uploaded file its upload already wrote.
+function skipReason(fileEvent: AgentFileEvent): PlanningDelivery | null {
   if (fileEvent.event !== PLANNING_RESULT_EVENT) {
     return { outcome: "skipped", error: "not a planning result" };
   }
-  const task = await resolvePlanningTask(fileEvent, deps);
 
-  if (!task) {
-    return { outcome: "skipped", error: "not a planning round" };
-  }
-
-  return deliverForPlanningTask(fileEvent, deps, task);
+  return fileEvent.uploaded
+    ? { outcome: "skipped", error: "delivered by upload" }
+    : null;
 }
 
-async function resolvePlanningTask(
-  fileEvent: AgentFileEvent,
-  deps: PlanningResultDeps,
-): Promise<PipelineTask | null> {
-  const task = await deps.tasks.getById(fileEvent.taskId);
-
-  if (!task || task.task_type !== "feature-planning") {
-    return null;
-  }
-
-  return task;
-}
-
-async function deliverForPlanningTask(
-  fileEvent: AgentFileEvent,
-  deps: PlanningResultDeps,
-  task: PipelineTask,
+async function submit(
+  run: PlanRunRef,
+  markdown: string,
+  plans: PlanWriter,
 ): Promise<PlanningDelivery> {
-  const ids = await resolvePlanningRoundIds(fileEvent, deps, task);
+  await plans.submitFile(run.planId, {
+    actor: PLANNING_ACTOR,
+    markdown,
+    refine: run.refine,
+  });
 
-  if (!ids) {
-    return { outcome: "skipped", error: "planning round has no feature id" };
-  }
-  const { features } = await deps.featuresFor(task.target_repo);
-  const parsed = resolvePlanningOutcome(fileEvent);
-
-  if (parsed.outcome === "failed") {
-    return parsed;
-  }
-
-  return applyGapResult(features, ids.featureId, ids.iteration, parsed.payload);
+  return { outcome: "ready" };
 }
 
-interface PlanningRoundIds {
-  featureId: string;
-  iteration: number;
-}
-
-/** The LINE owns the round number: a resumed round mints no task (FR6.22), so context_bundle's iteration is stale past round 1; the task's value is only the legacy fallback. */
-async function resolvePlanningRoundIds(
-  fileEvent: AgentFileEvent,
-  deps: PlanningResultDeps,
-  task: PipelineTask,
-): Promise<PlanningRoundIds | null> {
-  const featureId = task.context_bundle?.feature_id as string | undefined;
-  const iteration =
-    (await deps.roundOf(fileEvent.taskId)) ??
-    (task.context_bundle?.iteration as number | undefined);
-
-  if (!featureId || iteration == null) {
-    return null;
-  }
-
-  return { featureId, iteration };
-}
-
-type ParsedPlanningPayload =
-  { outcome: "ok"; payload: unknown } | { outcome: "failed"; error: string };
-
-/** A failed ATTEMPT is not a failed ROUND — the analyze node's iteration_max retry can still produce a result, so settleTaskForLine remains the single owner of the round verdict. */
-function resolvePlanningOutcome(
-  fileEvent: AgentFileEvent,
-): ParsedPlanningPayload {
-  if (fileEvent.reason) {
-    return {
-      outcome: "failed",
-      error: `the agent produced no result.json (${fileEvent.reason})`,
-    };
-  }
-
-  return parsePlanningPayload(fileEvent.content);
-}
-
-function parsePlanningPayload(content: string | null): ParsedPlanningPayload {
-  try {
-    return { outcome: "ok", payload: JSON.parse(content ?? "") };
-  } catch (err) {
-    // Same rule as below: one owner for "this round failed".
-    return {
-      outcome: "failed",
-      error: `result.json is not valid JSON: ${err instanceof Error ? err.message : String(err)}`,
-    };
-  }
-}
-
-/** Deliver every planning artifact in one sink batch; never throws, since a delivery failure must not 500 the telemetry ingest that also carries unrelated cost/run-viz rows. Returns how many rounds it settled. */
+/** Deliver every planning artifact in one sink batch; never throws, since a delivery failure must not 500 the telemetry ingest that also carries unrelated cost/run-viz rows. Returns how many it wrote. */
 export async function deliverPlanningResults(
   fileEvents: readonly AgentFileEvent[],
   deps: PlanningResultDeps,

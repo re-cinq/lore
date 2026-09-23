@@ -41,13 +41,13 @@ describe("AssemblyLineStationBackend", () => {
     expect(await backend.isActive()).toBe(true);
   });
 
-  it("threads the feature id into the line's args, which is all `continues.key: args.feature_id` resolves against", async () => {
+  it("threads the plan id into the line's args, which is all `continues.key: args.plan_id` resolves against", async () => {
     const port = new InMemoryAssemblyRuns();
     const backend = new AssemblyLineStationBackend(port);
 
-    await backend.launch({ ...spec("t1"), featureId: "feature-9" });
+    await backend.launch({ ...spec("t1"), planId: "plan-9" });
 
-    expect(port.rows[0].args).toMatchObject({ feature_id: "feature-9" });
+    expect(port.rows[0].args).toMatchObject({ plan_id: "plan-9" });
   });
 
   it("threads the round-feedback turn so a resumed run can send only what is new", async () => {
@@ -98,13 +98,13 @@ describe("AssemblyLineStationBackend", () => {
     expect(port.rows[0].args.description).toBe("implement the thing");
   });
 
-  it("carries no feature id for a run that has none", async () => {
+  it("carries no plan id for a run that has none", async () => {
     const port = new InMemoryAssemblyRuns();
     const backend = new AssemblyLineStationBackend(port);
 
     await backend.launch(spec("t1"));
 
-    expect(port.rows[0].args).not.toHaveProperty("feature_id");
+    expect(port.rows[0].args).not.toHaveProperty("plan_id");
     expect(port.rows[0].args).not.toHaveProperty("round_feedback");
   });
 
@@ -128,21 +128,21 @@ describe("AssemblyLineStationBackend", () => {
     expect(port.rows[0]).toMatchObject({ subjectKey: "backlog" });
   });
 
-  it("a feature's run declares that feature as its subject", async () => {
+  it("a plan's run declares that plan as its subject", async () => {
     const port = new InMemoryAssemblyRuns();
     const backend = new AssemblyLineStationBackend(port);
 
-    await backend.launch({ ...spec("t-1"), featureId: "f-9" });
+    await backend.launch({ ...spec("t-1"), planId: "p-9" });
 
-    expect(port.rows[0]).toMatchObject({ subjectKey: "feature:f-9" });
+    expect(port.rows[0]).toMatchObject({ subjectKey: "plan:p-9" });
   });
 
-  it("a second task for a feature already in flight joins that run instead of starting one", async () => {
+  it("a second task for a plan already in flight joins that run instead of starting one", async () => {
     const port = new InMemoryAssemblyRuns();
     const backend = new AssemblyLineStationBackend(port);
 
-    const first = await backend.launch({ ...spec("t-1"), featureId: "f-9" });
-    const second = await backend.launch({ ...spec("t-2"), featureId: "f-9" });
+    const first = await backend.launch({ ...spec("t-1"), planId: "p-9" });
+    const second = await backend.launch({ ...spec("t-2"), planId: "p-9" });
 
     expect(port.rows).toHaveLength(1);
     expect(second).toEqual({
@@ -156,7 +156,7 @@ describe("AssemblyLineStationBackend", () => {
     const port = new InMemoryAssemblyRuns();
     const backend = new AssemblyLineStationBackend(port);
 
-    const first = await backend.launch({ ...spec("t-1"), featureId: "f-9" });
+    const first = await backend.launch({ ...spec("t-1"), planId: "p-9" });
 
     expect(first).toEqual({ ref: port.rows[0].id, launched: true });
   });

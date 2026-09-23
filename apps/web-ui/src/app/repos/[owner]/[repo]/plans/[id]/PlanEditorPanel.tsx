@@ -1,14 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import type { PlanMeta } from "@re-cinq/planning-document";
 import { PlanEditor, type ProviderTransport } from "@re-cinq/planning-editor";
 import { createHocuspocusTransport } from "@re-cinq/planning-editor/transports/hocuspocus";
 import { FormError } from "@/components/FormError";
 import type { PlanUser } from "@/lib/plan-user";
 import type { PlanActions } from "./plan-actions";
-import styles from "./PlanEditorPanel.module.scss";
+import ApprovePlanButton from "./ApprovePlanButton";
 
 interface PlanEditorPanelProps extends PlanActions {
   meta: PlanMeta;
@@ -17,12 +16,6 @@ interface PlanEditorPanelProps extends PlanActions {
 
 interface ConnectedPlanProps extends PlanEditorPanelProps {
   transport: ProviderTransport;
-}
-
-interface ApproveProps {
-  status: string;
-  canApprove: boolean;
-  approve: PlanActions["approve"];
 }
 
 type Connection = { transport: ProviderTransport } | { error: string };
@@ -43,22 +36,21 @@ export default function PlanEditorPanel(props: PlanEditorPanelProps) {
 
 function ConnectedPlan(props: ConnectedPlanProps) {
   const [canApprove, setCanApprove] = useState(false);
-  const { meta, user, transport, approve } = props;
+  const { meta, user, transport, approve, refine } = props;
 
   return (
-    <div className={styles.panel}>
-      <ApproveBar
-        status={meta.status}
-        canApprove={canApprove}
-        approve={approve}
-      />
-      <PlanEditor
-        transport={transport}
-        user={user}
-        validationPhase="approval"
-        onValidation={(report) => setCanApprove(report.passed)}
-      />
-    </div>
+    <PlanEditor
+      transport={transport}
+      user={user}
+      validationPhase="approval"
+      onValidation={(report) => setCanApprove(report.passed)}
+      onRefine={(request) => askOrWithdraw(refine, request)}
+      outlineFooter={
+        meta.status !== "approved" && (
+          <ApprovePlanButton canApprove={canApprove} approve={approve} />
+        )
+      }
+    />
   );
 }
 
@@ -110,36 +102,14 @@ async function connectPlan(
       };
 }
 
-/** Approval ends the plan; lore-api validates it again, so the button is only a courtesy. */
-function ApproveBar(props: ApproveProps) {
-  const { error, run } = useApprove(props.approve);
-  const hint = props.canApprove
-    ? undefined
-    : "The outline lists what the plan still needs";
+// The editor withdraws a Refine whose promise rejects, so a refused ask must throw.
+async function askOrWithdraw(
+  refine: PlanActions["refine"],
+  request: Parameters<PlanActions["refine"]>[0],
+): Promise<void> {
+  const asked = await refine(request);
 
-  return props.status === "approved" ? null : (
-    <div className={styles.approve}>
-      <FormError message={error} />
-      <button
-        type="button"
-        className="button"
-        disabled={!props.canApprove}
-        title={hint}
-        onClick={run}
-      >
-        Approve plan
-      </button>
-    </div>
-  );
-}
-
-function useApprove(approve: PlanActions["approve"]) {
-  const router = useRouter();
-  const [error, setError] = useState<string>();
-  const run = () =>
-    void approve().then((result) =>
-      result.error ? setError(result.error) : router.refresh(),
-    );
-
-  return { error, run };
+  if (asked.error) {
+    throw new Error(asked.error);
+  }
 }

@@ -19,7 +19,7 @@ This ADR adds a feature-decompose agent that runs in-process when a feature's sp
 > **What went wrong.** The trigger was a task-type predicate:
 > `decompose-kick.ts` fires only when a
 > merged PR belongs to a `feature-finalize` task. Once finalize became a *resume* of the
-> feature-planning line ([features.ts](../apps/lore-api/src/transport/routes/features/features.ts))
+> feature-planning line (features.ts)
 > the owning task is `feature-planning`, the predicate stops matching, and **decomposition
 > never starts** — silently, with nothing logged. Every feature planned on the merged line
 > is affected.
@@ -66,6 +66,11 @@ This ADR adds a feature-decompose agent that runs in-process when a feature's sp
 >
 > **Migration.** A line resolves its definition at start, so features already in flight on
 > the two-line shape settle on the old path. No data migration.
+
+
+## Amendment 2026-09-21: decomposition keys on plans
+
+Decomposition is unchanged, but its spec-tasks no longer name a feature row: the `issues` station stamps `plan_id` and `spec_path` into each spec-task's `context_bundle`, and the spec-status flip reads the path from there (ADR-047). `specTasksForFeature` is gone with the feature page that read it.
 
 ## Context
 

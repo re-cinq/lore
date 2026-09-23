@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { createPlan, seedPlan } from "@/lib/api/plans";
+import { createPlan, seedPlan, startDrafting } from "@/lib/api/plans";
 import type { ApiResult } from "@/lib/api/result";
 import {
   newPlanInput,
@@ -34,7 +34,7 @@ export async function createPlanAction(
   redirect(`/repos/${fullName}/plans/${created.id}`);
 }
 
-// The plan in lore-api, with what the author already knew written into its intent.
+// The plan in lore-api, with what the author already knew written into its intent, and the planning agent asked for its first draft.
 async function createSeededPlan(
   fullName: string,
   { input, user }: { input: NewPlanInput; user: PlanUser },
@@ -52,6 +52,7 @@ async function createSeededPlan(
   const { id } = created.data.meta;
 
   await seedIntent(id, user.id, input.description);
+  await startDrafting(fullName, id, input.description, user.id);
 
   return { id };
 }

@@ -10,11 +10,11 @@ import { type Transition } from "@re-cinq/lore-assembly-lines";
 import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import {
   incomingFailureOf,
-  roundHandoffOf,
   priorOutcomeOf,
   resolveNodeDispatch,
   type PriorFailure,
 } from "./launch-spec.js";
+import { roundHandoffOf } from "./round-handoff.js";
 import { ciFeedbackOf } from "./ci-feedback.js";
 import type { AdvanceDeps } from "./advance-deps.js";
 import {

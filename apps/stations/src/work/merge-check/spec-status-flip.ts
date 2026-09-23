@@ -5,11 +5,11 @@ import { pipeline } from "../../outbound/queues.js";
 
 // spec-status-upkeep FR1: flip a spec's `| Status |` row to `shipped` once every task in its group is merged (ADR-016).
 
-/** Decide whether merged task completes its feature's task group (pure). */
+/** Decide whether the merged task completes its plan's task group, and which spec it was about (pure). */
 export function decideSpecStatusFlip(
   task: Pick<MergeableTask, "task_type" | "task_group_id" | "context_bundle">,
   remainingInGroup: number,
-): { featureId: string } | null {
+): { specPath: string } | null {
   if (task.task_type !== "spec-task" || !task.task_group_id) {
     return null;
   }
@@ -17,13 +17,13 @@ export function decideSpecStatusFlip(
   if (remainingInGroup > 0) {
     return null;
   }
-  const featureId = task.context_bundle?.feature_id;
+  const specPath = task.context_bundle?.spec_path;
 
-  return featureId ? { featureId } : null;
+  return specPath ? { specPath } : null;
 }
 
-/** Keep features table in sync with spec status (FR1). */
-export function decideFeatureImplemented(result: StatusFlipResult): boolean {
+/** Whether the flip landed the spec on shipped, whether by its PR or because it already said so (FR1). */
+export function decideSpecShipped(result: StatusFlipResult): boolean {
   return (
     result.status === "shipped" &&
     (!result.skipped || result.reason === "already-current")
@@ -45,13 +45,12 @@ export function describeFlipSuccess(
 export function describeFlipMiss(
   specPath: string,
   result: Pick<StatusFlipResult, "prUrl" | "status" | "reason">,
-  featureId: string,
 ): string {
   return (
     `[job] merge-check: spec-status-upkeep did not mark ${specPath} shipped ` +
     `(status=${result.status ?? "unreadable"}, reason=${result.reason ?? "flipped"}` +
     `${result.prUrl ? `, pr=${result.prUrl}` : ""}); ` +
-    `feature ${featureId} left for human reconcile`
+    `left for human reconcile`
   );
 }
 
@@ -64,36 +63,25 @@ export async function maybeFlipSpecStatus(
     : 0;
   const decision = decideSpecStatusFlip(task, remaining);
 
-  if (!decision) {
-    return;
+  if (decision) {
+    await flipSpecStatus(project, decision.specPath, task);
   }
-
-  const feature = await project.features.get(decision.featureId);
-
-  if (!feature) {
-    return;
-  }
-  const specPath = feature.spec_path ?? `specs/${feature.slug}/spec.md`;
-
-  await flipAndTransition(project, specPath, task, decision.featureId);
 }
 
-// Opens the status-flip PR and, if it landed, moves the feature to implemented. The feature transitions only on a successful flip: the spec header is the org's record of what shipped, and marking the feature done while its spec still says Draft would put the two out of step.
-async function flipAndTransition(
+// Opens the status-flip PR; a flip that did not land the spec on shipped is left for a human, since the spec header is the org's record of what shipped.
+async function flipSpecStatus(
   project: Project,
   specPath: string,
   task: MergeableTask,
-  featureId: string,
 ): Promise<void> {
   const result = await openSpecStatusFlipPr(project, specPath, {
     evidence: `Completion: every task in group \`${task.task_group_id}\` is merged (last: PR #${task.pr_number}).`,
   });
 
-  if (!decideFeatureImplemented(result)) {
-    console.warn(describeFlipMiss(specPath, result, featureId));
+  if (decideSpecShipped(result)) {
+    console.log(describeFlipSuccess(specPath, result));
 
     return;
   }
-  await project.features.transitionStatus(featureId, "implemented");
-  console.log(describeFlipSuccess(specPath, result));
+  console.warn(describeFlipMiss(specPath, result));
 }

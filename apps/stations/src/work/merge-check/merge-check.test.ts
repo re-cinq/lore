@@ -45,41 +45,33 @@ describe("describeFlipSuccess", () => {
 describe("describeFlipMiss", () => {
   it("reports status and reason with no PR when none was opened", () => {
     expect(
-      describeFlipMiss(
-        "specs/x/spec.md",
-        {
-          prUrl: null,
-          reason: "no-coverage-tier",
-          status: "shipped",
-        },
-        "f1",
-      ),
+      describeFlipMiss("specs/x/spec.md", {
+        prUrl: null,
+        reason: "no-coverage-tier",
+        status: "shipped",
+      }),
     ).toBe(
       "[job] merge-check: spec-status-upkeep did not mark specs/x/spec.md shipped " +
-        "(status=shipped, reason=no-coverage-tier); feature f1 left for human reconcile",
+        "(status=shipped, reason=no-coverage-tier); left for human reconcile",
     );
   });
 
   it("defaults status and reason to placeholders when the result carries neither", () => {
-    expect(describeFlipMiss("specs/x/spec.md", { prUrl: null }, "f1")).toBe(
+    expect(describeFlipMiss("specs/x/spec.md", { prUrl: null })).toBe(
       "[job] merge-check: spec-status-upkeep did not mark specs/x/spec.md shipped " +
-        "(status=unreadable, reason=flipped); feature f1 left for human reconcile",
+        "(status=unreadable, reason=flipped); left for human reconcile",
     );
   });
 
   it("appends the PR link when one was opened but did not confirm shipped", () => {
     expect(
-      describeFlipMiss(
-        "specs/x/spec.md",
-        {
-          prUrl: "https://example.test/pr/9",
-          status: "in-progress",
-        },
-        "f1",
-      ),
+      describeFlipMiss("specs/x/spec.md", {
+        prUrl: "https://example.test/pr/9",
+        status: "in-progress",
+      }),
     ).toBe(
       "[job] merge-check: spec-status-upkeep did not mark specs/x/spec.md shipped " +
-        "(status=in-progress, reason=flipped, pr=https://example.test/pr/9); feature f1 left for human reconcile",
+        "(status=in-progress, reason=flipped, pr=https://example.test/pr/9); left for human reconcile",
     );
   });
 });

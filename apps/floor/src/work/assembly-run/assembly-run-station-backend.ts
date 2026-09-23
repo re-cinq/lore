@@ -9,7 +9,7 @@ import type { AssemblyRunsPort } from "@re-cinq/lore-shared/project/assembly-run
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import {
   backlogSubject,
-  featureSubject,
+  planSubject,
 } from "@re-cinq/lore-shared/project/assembly-runs/subject-keys.js";
 
 /** The subject a task's run works on, or undefined when it declares none — the shared builder keeps lore-api and the loop driver reading the same key (implementation-loop FR2). */
@@ -18,7 +18,7 @@ function subjectKeyFor(spec: LoreTaskSpec): string | undefined {
     return backlogSubject();
   }
 
-  return spec.featureId ? featureSubject(spec.featureId) : undefined;
+  return spec.planId ? planSubject(spec.planId) : undefined;
 }
 
 // Per-run values a definition can name with `continues.key: args.<name>`; the engine stays domain-free.
@@ -27,7 +27,7 @@ function launchArgsFor(spec: LoreTaskSpec): Record<string, unknown> {
     // Seeds FIRST — a context-bundle bag must never displace `description`, which fills {description} in every agent prompt.
     ...(spec.lineArgs ?? {}),
     description: spec.description,
-    ...(spec.featureId ? { feature_id: spec.featureId } : {}),
+    ...(spec.planId ? { plan_id: spec.planId } : {}),
     ...(spec.roundFeedback ? { round_feedback: spec.roundFeedback } : {}),
     ...(spec.resumeFromTask ? { resume_from_task: spec.resumeFromTask } : {}),
   };
@@ -43,7 +43,7 @@ export class AssemblyLineStationBackend implements StationBackend {
       repo: spec.targetRepo,
       branch: spec.branch,
       taskId: spec.taskId,
-      // What this run WORKS ON: a feature's planning + finalize runs share a subject, so only one is open at a time.
+      // What this run WORKS ON: one plan has one planning run open at a time.
       ...(subjectKey ? { subjectKey } : {}),
       args: launchArgsFor(spec),
     });

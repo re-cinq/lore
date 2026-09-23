@@ -59,6 +59,28 @@ describe("feature-planning author loop", () => {
     });
   });
 
+  it("hands a failed pass back to the author instead of ending the line (a draft or Refine that died leaves the plan with its people, who can ask again)", async () => {
+    expect(
+      getNextTransition(await planning(), [visit("analyze", 1, "failed")]),
+    ).toEqual({ kind: "launch", nodeId: "author", iteration: 1 });
+  });
+
+  it("keeps the line through 100 refine rounds that all failed (every pass is asked for by a person, so no count of failures ends the plan)", async () => {
+    const line = await planning();
+    const visits: NodeVisit[] = [];
+
+    for (let round = 1; round <= 100; round += 1) {
+      visits.push(visit("analyze", round, "failed"));
+      visits.push(visit("author", round, "changes_requested"));
+    }
+
+    expect(getNextTransition(line, visits)).toEqual({
+      kind: "launch",
+      nodeId: "analyze",
+      iteration: 101,
+    });
+  });
+
   it("moves on when the author accepts the plan (accepting no longer ends the line — the spec work follows on the SAME line)", async () => {
     expect(
       getNextTransition(await planning(), [
