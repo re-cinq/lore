@@ -936,7 +936,7 @@ describe("loadAssemblyLineDir — code-review-recheck line", () => {
   const here = new URL(".", import.meta.url).pathname;
   const assemblyLinesDir = path.resolve(here, "assembly-lines");
 
-  it("is a fast Haiku recheck→done graph routing every verdict to done", async () => {
+  it("is a Gemini 3.1 Pro recheck→done graph routing every verdict to done", async () => {
     const map = await loadAssemblyLineDir(assemblyLinesDir);
     const wf = map.get("code-review-recheck");
 
@@ -945,7 +945,7 @@ describe("loadAssemblyLineDir — code-review-recheck line", () => {
     expect(wf?.nodes.find((n) => n.id === "recheck")).toMatchObject({
       type: "agent",
       prompt_ref: "code-review-recheck",
-      model: "claude-haiku-4-5-20251001",
+      model: "gemini-3.1-pro-preview",
     });
     expect(
       wf?.edges

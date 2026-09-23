@@ -1,15 +1,15 @@
 ---
 # The code-review-recheck line's node — the FAST re-check run on every new push
 # after the first full review. Same REVIEW_FINDINGS contract (the node emits
-# findings and never posts or commits; the Floor submits the verdict), but a cheap
-# model and a tighter scope, so the PR's formal APPROVE / REQUEST_CHANGES tracks
+# findings and never posts or commits; the Floor submits the verdict), but a
+# tighter scope, so the PR's formal APPROVE / REQUEST_CHANGES tracks
 # the fixes as the author iterates.
 timeout_minutes: 10
 review_required: false
 execution_mode: claude-code
 # The pod's Bash hook refuses every test runner, install and build here: CI is the judge and the disk is 1Gi.
 test_policy: none
-model: claude-haiku-4-5-20251001
+model: gemini-3.1-pro-preview
 # Read-only recipe (#1160): see the `review` recipe's note.
 repo_workdir: false
 disallowed_tools:
