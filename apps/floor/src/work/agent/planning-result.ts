@@ -2,6 +2,7 @@
 
 import type { AgentFileEvent } from "./agent-events.js";
 import type {
+  FailedRefine,
   PlanRunRef,
   PlanWriter,
   RefineContext,
@@ -76,15 +77,45 @@ export async function planFileOf(
   return planId ? deps.plans.markdownOf(planId) : null;
 }
 
-/** A plan.md the supervisor uploaded: written into the plan the agent's run drafts, as a draft or as its Refine's proposal. */
+/** A plan.md the supervisor uploaded after its agent exited; `exitCode` is null when the supervisor did not say. */
+export interface PlanUpload {
+  agentCrName: string;
+  markdown: string;
+  exitCode: number | null;
+}
+
+/** A plan.md the supervisor uploaded: written into the plan the agent's run drafts, as a draft or as its Refine's proposal. A Refine whose agent failed is marked failed instead — the file is the plan as it was downloaded, and proposing it would answer the Refine with nothing. */
 export async function receivePlanUpload(
-  agentCrName: string,
-  markdown: string,
+  upload: PlanUpload,
   deps: PlanUploadDeps,
 ): Promise<PlanningDelivery> {
-  const run = await deps.planRunOfAgent(agentCrName);
+  const run = await deps.planRunOfAgent(upload.agentCrName);
 
-  return run ? submit(run, markdown, deps.plans) : NO_PLAN;
+  if (!run) {
+    return NO_PLAN;
+  }
+
+  const failedRefine = failedRefineOf(run, upload.exitCode);
+
+  if (failedRefine) {
+    await deps.plans.failRefine(run.planId, failedRefine);
+
+    return { outcome: "ready" };
+  }
+
+  return submit(run, upload.markdown, deps.plans);
+}
+
+function failedRefineOf(
+  run: PlanRunRef,
+  exitCode: number | null,
+): FailedRefine | null {
+  return run.refine && exitCode !== null && exitCode !== 0
+    ? {
+        slot: run.refine.slot,
+        reason: `the planning agent stopped with exit code ${exitCode} before it answered`,
+      }
+    : null;
 }
 
 /** A planning file event from the sink. An uploaded file was already written by its upload, so its event is only the notice; an inline one (a cluster with no files endpoint) is written here. */

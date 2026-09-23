@@ -8,7 +8,11 @@ import {
   type AgentOp,
   type MarkdownProblem,
 } from "@re-cinq/planning-document";
-import type { OpsRequest, PassRequest } from "@re-cinq/planning-sync";
+import type {
+  FailRequest,
+  OpsRequest,
+  PassRequest,
+} from "@re-cinq/planning-sync";
 import type { LivePlan } from "../../outbound/plans/live-plan.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
@@ -21,6 +25,8 @@ export interface PlanFilePorts {
     applyOps(request: OpsRequest): Promise<unknown>;
     /** One pass's proposals, one per paragraph it changed: each is read and taken where it lands. */
     proposeChanges(request: PassRequest): Promise<unknown>;
+    /** A Refine whose pass stopped before it answered: the section says why, and can be asked again. */
+    failRefine(request: FailRequest): Promise<unknown>;
   };
 }
 

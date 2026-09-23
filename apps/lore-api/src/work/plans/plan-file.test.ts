@@ -31,6 +31,9 @@ function recordingPorts() {
 
         return [];
       },
+      failRefine: async (request) => {
+        writes.push({ call: "failRefine", request });
+      },
     },
   };
 

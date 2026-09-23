@@ -8,17 +8,19 @@ const TIMEOUT_MS = 120_000;
 export function loreApiPlans(baseUrl: string, token: string): PlanWriter {
   const request = (path: string, init: RequestInit) =>
     requestLoreApi(baseUrl, token, `/api/plans/${path}`, init);
+  const post = async (path: string, body: unknown) => {
+    await request(path, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  };
 
   return {
     markdownOf: async (planId) =>
       (await request(`${planId}/markdown`, { method: "GET" })).text(),
-    submitFile: async (planId, body) => {
-      await request(`${planId}/agent-file`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(body),
-      });
-    },
+    submitFile: (planId, body) => post(`${planId}/agent-file`, body),
+    failRefine: (planId, refine) => post(`${planId}/refine-failed`, refine),
   };
 }
 

@@ -38,6 +38,9 @@ function recordingWriter() {
     submitFile: async (planId, body) => {
       writes.push({ planId, body });
     },
+    failRefine: async (planId, refine) => {
+      writes.push({ planId, body: { failed: refine } });
+    },
   };
 
   return { writes, writer };
@@ -129,11 +132,14 @@ describe("receivePlanUpload", () => {
     const { writes, writer } = recordingWriter();
     const markdown = `${PLAN_MD}${"More context. ".repeat(150_000)}`;
 
-    const delivery = await receivePlanUpload("abc-analyze", markdown, {
-      planRunOfAgent: async (agent) =>
-        agent === "abc-analyze" ? REFINING : undefined,
-      plans: writer,
-    });
+    const delivery = await receivePlanUpload(
+      { agentCrName: "abc-analyze", markdown, exitCode: 0 },
+      {
+        planRunOfAgent: async (agent) =>
+          agent === "abc-analyze" ? REFINING : undefined,
+        plans: writer,
+      },
+    );
 
     expect({ delivery, writes }).toEqual({
       delivery: { outcome: "ready" },
@@ -148,14 +154,32 @@ describe("receivePlanUpload", () => {
 
   it("writes nothing for an upload from an agent no planning run knows", async () => {
     const { writes, writer } = recordingWriter();
-    const delivery = await receivePlanUpload("stranger", PLAN_MD, {
-      planRunOfAgent: async () => undefined,
-      plans: writer,
-    });
+    const delivery = await receivePlanUpload(
+      { agentCrName: "stranger", markdown: PLAN_MD, exitCode: 0 },
+      { planRunOfAgent: async () => undefined, plans: writer },
+    );
 
     expect({ delivery, writes }).toEqual({
       delivery: { outcome: "skipped", error: "the run names no plan" },
       writes: [],
+    });
+  });
+
+  it("still writes a draft whose agent exited 1, since a draft answers no Refine", async () => {
+    const { writes, writer } = recordingWriter();
+    const delivery = await receivePlanUpload(
+      { agentCrName: "abc-analyze", markdown: PLAN_MD, exitCode: 1 },
+      { planRunOfAgent: async () => DRAFTING, plans: writer },
+    );
+
+    expect({ delivery, writes }).toEqual({
+      delivery: { outcome: "ready" },
+      writes: [
+        {
+          planId: "p1",
+          body: { actor: "planning-agent", markdown: PLAN_MD, refine: null },
+        },
+      ],
     });
   });
 });

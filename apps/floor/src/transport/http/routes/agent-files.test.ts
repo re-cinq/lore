@@ -1,10 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
-import type { PlanFileBody } from "../../../domain/plan-writer.js";
+import type {
+  FailedRefine,
+  PlanFileBody,
+} from "../../../domain/plan-writer.js";
 import { buildServer } from "../server.js";
 
 const runs = new InMemoryAssemblyRuns();
 const submitted: Array<{ planId: string; body: PlanFileBody }> = [];
+const failed: Array<{ planId: string; refine: FailedRefine }> = [];
 
 vi.mock("../../../outbound/queues.js", () => ({
   clusterAgent: () => ({}),
@@ -19,6 +23,9 @@ vi.mock("../../../outbound/lore-api-plans.js", () => ({
     markdownOf: async (planId: string) => `# plan ${planId}\n`,
     submitFile: async (planId: string, body: PlanFileBody) => {
       submitted.push({ planId, body });
+    },
+    failRefine: async (planId: string, refine: FailedRefine) => {
+      failed.push({ planId, refine });
     },
   }),
 }));
@@ -47,6 +54,7 @@ async function planningRun(args: Record<string, unknown>): Promise<string> {
 beforeEach(() => {
   process.env.LORE_AGENT_INTERNAL_TOKEN = "test-internal";
   submitted.length = 0;
+  failed.length = 0;
 });
 
 afterEach(() => {
@@ -113,6 +121,39 @@ describe("POST /api/agent-files/{agent}/planning.result", () => {
               baseHash: "3f9a",
               uses: { questions: [] },
             },
+          },
+        },
+      ],
+    });
+  });
+
+  it("marks the run's Refine of intent failed, writing nothing, when the agent exited 42", async () => {
+    const runId = await planningRun({
+      plan_id: "p1",
+      refine: { slot: "intent", baseHash: "3f9a" },
+    });
+
+    const res = await server().inject({
+      method: "POST",
+      url: `/api/agent-files/${runId.substring(0, 12)}-analyze/planning.result`,
+      headers: {
+        ...auth,
+        "content-type": "application/octet-stream",
+        "x-agent-exit-code": "42",
+      },
+      payload: Buffer.from("# plan as it was downloaded\n"),
+    });
+
+    expect({ status: res.statusCode, submitted, failed }).toEqual({
+      status: 200,
+      submitted: [],
+      failed: [
+        {
+          planId: "p1",
+          refine: {
+            slot: "intent",
+            reason:
+              "the planning agent stopped with exit code 42 before it answered",
           },
         },
       ],

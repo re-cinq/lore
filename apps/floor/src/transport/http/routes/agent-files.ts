@@ -56,14 +56,27 @@ async function receiveUpload(request: Request, h: ResponseToolkit) {
     "no handler for this file event",
   );
   const delivery = await receivePlanUpload(
-    request.params.agent,
-    rawBytes(request).toString("utf8"),
+    {
+      agentCrName: request.params.agent,
+      markdown: rawBytes(request).toString("utf8"),
+      exitCode: exitCodeOf(request),
+    },
     { planRunOfAgent, plans: plans() },
   );
 
   return delivery.outcome === "ready"
     ? h.response({ status: "ok" }).code(200)
     : h.response({ error: delivery.error }).code(404);
+}
+
+// The supervisor sends how its agent exited; one that predates the header says nothing, and is taken at its word as before.
+function exitCodeOf(request: Request): number | null {
+  const code = Number.parseInt(
+    String(request.headers["x-agent-exit-code"]),
+    10,
+  );
+
+  return Number.isNaN(code) ? null : code;
 }
 
 async function planRunOfRun(runId: string): Promise<PlanRunRef | undefined> {
