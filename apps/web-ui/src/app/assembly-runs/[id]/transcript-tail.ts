@@ -93,7 +93,10 @@ async function pullUntilSettled(
       return;
     }
     cursor.newest = newestId(fresh.turns, cursor.newest);
-    sink.append(fresh.turns);
+
+    if (fresh.turns.length > 0) {
+      sink.append(fresh.turns);
+    }
   } while (takeQueued(cursor));
 }
 
