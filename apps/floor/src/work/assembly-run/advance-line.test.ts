@@ -1149,6 +1149,80 @@ edges:
     ).toBeNull();
   });
 
+  const parkOnAuthor = async (
+    port: InMemoryAssemblyRuns,
+    onHumanNodeParked: AdvanceDeps["onHumanNodeParked"],
+  ) => {
+    const id = await port.start({
+      blueprintName: "author-gated",
+      repo: "re-cinq/lore",
+      branch: "feat/x",
+      args: { plan_id: "p1" },
+    });
+
+    await port.markRunning(id);
+    await advanceLine(id, {
+      ...makeDeps(port).deps,
+      definitions: async () =>
+        new Map<string, AssemblyLine>([["author-gated", authorGated]]),
+      onHumanNodeParked,
+    });
+
+    return id;
+  };
+
+  it("tells the parked-node seam that the line waits on its feature_review author, once its row is recorded", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const parked: object[] = [];
+
+    const id = await parkOnAuthor(port, async (row, node) => {
+      parked.push({
+        runId: row.id,
+        args: row.args,
+        node: { id: node.id, type: node.type },
+        rows: port.nodes.map((visit) => visit.nodeId),
+      });
+    });
+
+    expect(parked).toEqual([
+      {
+        runId: id,
+        args: { plan_id: "p1" },
+        node: { id: "author", type: "feature_review" },
+        rows: ["author"],
+      },
+    ]);
+  });
+
+  it("keeps the line parked on its author when the parked-node seam throws", async () => {
+    const port = new InMemoryAssemblyRuns();
+
+    const id = await parkOnAuthor(port, async () => {
+      throw new Error("lore-api answered 503");
+    });
+
+    expect({
+      run: (await port.getById(id))?.status,
+      node: port.nodes[0],
+    }).toMatchObject({
+      run: "running",
+      node: { nodeId: "author", status: "running" },
+    });
+  });
+
+  it("never calls the parked-node seam for an agent node it dispatches", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const id = await runningLine(port);
+    const parked: string[] = [];
+
+    await advanceLine(id, {
+      ...makeDeps(port).deps,
+      onHumanNodeParked: async (_row, node) => void parked.push(node.id),
+    });
+
+    expect(parked).toEqual([]);
+  });
+
   it("keeps a service node's row running, so it is never claimable", async () => {
     const port = new InMemoryAssemblyRuns();
     const id = await port.start({

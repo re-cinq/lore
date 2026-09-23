@@ -18,6 +18,13 @@ interface PlanOutlineActionsProps extends Pick<
   prNumber: number | null;
 }
 
+const APPROVABLE: ReadonlySet<PlanPageState> = new Set([
+  "writing",
+  "reopened",
+  "refining",
+  "answering",
+]);
+
 const STILL_REFINING = "The planning agent is still refining a section";
 
 const RETRY = {
@@ -46,7 +53,7 @@ export default function PlanOutlineActions(props: PlanOutlineActionsProps) {
 function StateAction(props: PlanOutlineActionsProps) {
   const { state, canApprove, approve, prNumber } = props;
 
-  if (state === "writing" || state === "reopened" || state === "refining") {
+  if (APPROVABLE.has(state)) {
     return (
       <ApprovePlanButton
         canApprove={canApprove}

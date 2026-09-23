@@ -53,6 +53,12 @@ describe("PlanOutlineActions", () => {
     expect(screen.getByRole("dialog")).toHaveTextContent("updates spec PR #7");
   });
 
+  it("offers Approve plan while the plan's people answer the spec analysis's question", () => {
+    outline("answering");
+
+    expect(buttons()).toEqual(["Approve plan"]);
+  });
+
   it("offers only the spec PR link while the specs are being written", () => {
     outline("spec-work");
 

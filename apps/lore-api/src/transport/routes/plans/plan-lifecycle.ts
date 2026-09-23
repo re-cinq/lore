@@ -18,6 +18,7 @@ import {
 } from "../../../work/plans/plan-approval.js";
 import {
   decideApproval,
+  openForAuthor,
   reopenPlan,
   startSpecWork,
 } from "../../../work/plans/planning-line.js";
@@ -50,6 +51,12 @@ export function planLifecycleRoutes(ports: PlanLifecyclePorts): ServerRoute[] {
       serveReopen(service, pool, request, h),
     ),
     lifecycleRoute(getPool, "spec-work", SPEC_WORK_OPTIONS, serveSpecWork),
+    lifecycleRoute(
+      getPool,
+      "author-waiting",
+      AUTHOR_WAITING_OPTIONS,
+      (pool, request, h) => serveAuthorWaiting(service, pool, request, h),
+    ),
   ];
 }
 
@@ -113,6 +120,35 @@ const SPEC_WORK_OPTIONS = zodResponse(
     errors: [404, 409],
   },
 );
+
+const AuthorWaitingSchema = z.object({ reopened: z.boolean() });
+
+const AUTHOR_WAITING_OPTIONS = zodResponse(
+  bearerScope("write"),
+  AuthorWaitingSchema,
+  {
+    name: "PlanOpenedForAuthor",
+    description:
+      "The planning line parked on the plan's author: an approved plan is reopened so its people can answer; any other plan is left as it is",
+    errors: [404],
+  },
+);
+
+async function serveAuthorWaiting(
+  service: PlanLifecyclePorts["service"],
+  pool: Pool,
+  request: Request,
+  h: ResponseToolkit,
+) {
+  const plan = await repoPlan(() => pool, request);
+  const reopened = await openForAuthor(
+    resumeDepsFor(plan.repo, pool).runs,
+    plan,
+    (planId) => service.reopenPlan(planId),
+  );
+
+  return h.response({ reopened });
+}
 
 async function serveApprove(
   service: PlanApprover,

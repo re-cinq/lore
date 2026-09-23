@@ -15,7 +15,8 @@ export const HUMAN_STATIONS: Record<HumanStationType, HumanStationMeta> = {
   feature_review: {
     label: "Waiting for you",
     phase: "awaiting-author",
-    whyParked: "Parked — waiting for you to review this round.",
+    whyParked:
+      "Parked — waiting for you: open the plan to refine or approve it.",
   },
   pr_review: {
     label: "Waiting for the spec PR",

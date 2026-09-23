@@ -4,6 +4,7 @@ import {
   AGENT_FILES_TAG,
   resolveRequiredTags,
 } from "@re-cinq/lore-shared/project/cluster-agents/required-tags.js";
+import { errorMessage } from "@re-cinq/lore-shared";
 import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { isHumanStation, type NodeVisit } from "@re-cinq/lore-assembly-lines";
 import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
@@ -61,6 +62,8 @@ export async function launchNode(launch: NodeLaunch): Promise<void> {
 
   // A human station's worker is outside the pod system (wizard/PR page); the row parks the walk, nothing dispatches, and the outcome arrives later as a resume.
   if (isHumanStation(node.type)) {
+    await announceParked(launch);
+
     return;
   }
 
@@ -71,6 +74,21 @@ export async function launchNode(launch: NodeLaunch): Promise<void> {
   }
 
   await dispatchStationRun(launch, { stationRunId, nodeRowId });
+}
+
+// Best-effort: the parked row already IS the park, so a reaction that fails (lore-api down) must never un-park the walk or fail the run.
+async function announceParked({
+  assemblyRun,
+  node,
+  deps,
+}: NodeLaunch): Promise<void> {
+  try {
+    await deps.onHumanNodeParked?.(assemblyRun, node);
+  } catch (err) {
+    console.warn(
+      `[floor] run ${assemblyRun.id} parked on ${node.id}; reacting to it failed: ${errorMessage(err)}`,
+    );
+  }
 }
 
 // Row before CR: a crash between them leaves an open row the reaper resolves by reading the deterministically named CR; the row also MINTS the station-run id so a converged duplicate reuses it. A service node names no CR (null), so the reaper never mistakes it for the crash-between-row-and-launch case and relaunches it as a duplicate pod.

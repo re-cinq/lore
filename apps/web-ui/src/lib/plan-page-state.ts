@@ -9,6 +9,7 @@ export type PlanPageState =
   | "spec-work"
   | "spec-pr-open"
   | "question"
+  | "answering"
   | "spec-work-failed"
   | "delivering"
   | "delivered";
@@ -54,7 +55,25 @@ function draftState(run: RunFacts): PlanPageState {
     return "refining";
   }
 
-  return open === "author" && run.prUrl ? "reopened" : "writing";
+  return open === "author" ? authorState(run) : "writing";
+}
+
+// The line waits on the plan's people: to answer the spec analysis's question, to revise an open spec PR, or to write.
+function authorState(run: RunFacts): PlanPageState {
+  if (askedBySpecAnalysis(run.nodes)) {
+    return "answering";
+  }
+
+  return run.prUrl ? "reopened" : "writing";
+}
+
+// The line reopens the plan when the spec analysis sends it back to the author (specs/7-feature-planning FR-18), so a draft can be waiting on an answer to that question.
+function askedBySpecAnalysis(visits: readonly Visit[]): boolean {
+  const last = visits.filter((visit) => visit.outcome !== null).at(-1);
+
+  return (
+    last?.nodeId === "analyse-specs" && last.outcome === "changes_requested"
+  );
 }
 
 // A closed run either delivered the spec-tasks or fell short; an open one is on the node that names its state.
