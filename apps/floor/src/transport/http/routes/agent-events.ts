@@ -122,19 +122,31 @@ async function ingestAgentSink(rawNdjson: string): Promise<AgentSinkResult> {
     collectTurns: !oversized,
   });
   const cost = await recordAgentCosts(parsed.costRows);
-  const vizRows = oversized ? 0 : await recordRunEvents(parsed.runEvents);
+  const stored = await recordRunStores(parsed);
   const projected = await recordSinkProjections(parsed);
 
   await writeCostDegradedAudit(cost);
 
   return sinkResult(cost, {
     events: parsed.costRows.length,
-    vizRows,
+    ...stored,
     turnsDropped: parsed.turnsDropped,
     turnsCapped: parsed.turnsCapped,
     oversized,
     ...projected,
   });
+}
+
+/** Turns before events: the event insert's trigger is what tells a live viewer to fetch the turns, so they must already be readable when it fires. */
+async function recordRunStores(
+  parsed: ParsedAgentSink,
+): Promise<{ turnRows: number; vizRows: number }> {
+  const turnRows =
+    parsed.turns.length > 0 ? await recordRunTurns(parsed.turns) : 0;
+  const vizRows =
+    parsed.runEvents.length > 0 ? await recordRunEvents(parsed.runEvents) : 0;
+
+  return { turnRows, vizRows };
 }
 
 // Persist the per-tool-call run-viz projection (#876); the live fan-out is Postgres NOTIFY from the insert's own trigger (migration 0070), so a subscriber learns of a row only once `listSince` can replay it. Skip-not-fail: a viz persistence failure must never 500 the cost sink.
@@ -153,12 +165,10 @@ async function recordRunEvents(
   }
 }
 
-/** Everything downstream of the cost rows and the viz projection: turn transcript, planning results and artifact hand-off, each skip-not-fail. */
+/** Everything downstream of the cost rows and the viz projection: planning results and artifact hand-off, each skip-not-fail. */
 async function recordSinkProjections(
   parsed: ParsedAgentSink,
-): Promise<{ turnRows: number; planningRounds: number }> {
-  const turnRows =
-    parsed.turns.length > 0 ? await recordRunTurns(parsed.turns) : 0;
+): Promise<{ planningRounds: number }> {
   // Declared artifacts ride the same sink as cost + telemetry, so a planning round's result lands here rather than needing its own channel.
   const planningRounds = await recordPlanningResults(parsed.fileEvents);
 
@@ -166,7 +176,7 @@ async function recordSinkProjections(
 
   reportTurnAnomalies(parsed.turnsDropped, parsed.turnsCapped);
 
-  return { turnRows, planningRounds };
+  return { planningRounds };
 }
 
 // Persist the full-fidelity turn transcript (specs/turn-level-transcript-store); skip-not-fail like recordRunEvents, and more so — the store is non-authoritative until piloted and must never fail the cost sink that is this endpoint's actual contract.

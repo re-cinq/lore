@@ -13,6 +13,7 @@ import {
 import type { AgentRunTurn } from "@/lib/run-turn-types";
 import { conversationEntries, turnsForNode } from "./turn-transcript-presenter";
 import { walkAllTurns, walkErrorMessage } from "./transcript-walk";
+import { useFollowLiveEvents, useTranscriptTail } from "./transcript-tail";
 import {
   segmentLabel,
   segmentTurns,
@@ -35,6 +36,8 @@ export interface FullTranscriptPanelProps {
   taskEvents?: readonly TaskRuntimeEvent[];
   /** This node's visit rows, whose span decides which task events belong to it. */
   rows?: readonly AssemblyRunNode[];
+  /** The newest agent event the live socket delivered; each change pulls the turns stored since the last one loaded. */
+  liveEventId?: string;
 }
 
 const NO_EVENTS: readonly TaskRuntimeEvent[] = [];
@@ -42,7 +45,7 @@ const NO_ROWS: readonly AssemblyRunNode[] = [];
 
 export default function FullTranscriptPanel(props: FullTranscriptPanelProps) {
   const { runId, nodeId, taskEvents = NO_EVENTS, rows = NO_ROWS } = props;
-  const walk = useTranscriptWalk(runId);
+  const walk = useTranscriptWalk(runId, props.liveEventId);
   const segments = useNodeSegments({
     turns: walk.turns,
     nodeId,
@@ -61,9 +64,12 @@ export default function FullTranscriptPanel(props: FullTranscriptPanelProps) {
   );
 }
 
-function useTranscriptWalk(runId: string) {
+function useTranscriptWalk(runId: string, liveEventId: string | undefined) {
   const [open, setOpen] = useState(true);
-  const { turns, capped, error } = useTranscriptData(runId, { open });
+  const { turns, capped, error } = useTranscriptData(runId, {
+    open,
+    liveEventId,
+  });
 
   return { open, setOpen, turns, capped, error };
 }
@@ -138,13 +144,42 @@ interface TranscriptDisplayInput {
   entryCount: number;
 }
 
-/** Walks the transcript ONCE per open. A failure re-arms the gate, so closing and reopening retries instead of pinning the error until a page reload. */
-function useTranscriptData(runId: string, { open }: { open: boolean }) {
+interface TranscriptWatch {
+  open: boolean;
+  liveEventId: string | undefined;
+}
+
+/** Walks the transcript once, then follows its tail on every live event. */
+function useTranscriptData(runId: string, watch: TranscriptWatch) {
   const [turns, setTurns] = useState<AgentRunTurn[] | null>(null);
   const [capped, setCapped] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const startedRef = useRef(false);
   const disposedRef = useDisposedRef();
+  const tail = useTranscriptTail({ runId, disposedRef, setTurns, setCapped });
+
+  useFirstWalk(
+    { runId, open: watch.open, disposedRef },
+    { setTurns: tail.seed, setCapped, setError },
+  );
+  useFollowLiveEvents(
+    turns === null || capped ? undefined : watch.liveEventId,
+    tail.follow,
+  );
+
+  return { turns, capped, error };
+}
+
+interface FirstWalk {
+  runId: string;
+  open: boolean;
+  disposedRef: { current: boolean };
+}
+
+/** Walks the transcript ONCE per open. A failure re-arms the gate, so closing and reopening retries instead of pinning the error until a page reload. */
+function useFirstWalk(walk: FirstWalk, set: TranscriptSetters) {
+  const { runId, open, disposedRef } = walk;
+  const startedRef = useRef(false);
+  const { setTurns, setCapped, setError } = set;
 
   useEffect(() => {
     if (!open || startedRef.current) {
@@ -157,9 +192,7 @@ function useTranscriptData(runId: string, { open }: { open: boolean }) {
       { disposedRef, startedRef },
       { setTurns, setCapped, setError },
     );
-  }, [open, runId, disposedRef]);
-
-  return { turns, capped, error };
+  }, [open, runId, disposedRef, setTurns, setCapped, setError]);
 }
 
 /** Which of the panel's mutually exclusive states is on screen. One decision, so the four flags are resolved together rather than each child asking separately. */

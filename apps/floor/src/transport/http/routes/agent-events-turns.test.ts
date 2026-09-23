@@ -75,6 +75,14 @@ describe("POST /api/agent-events turn store", () => {
     expect(insertBatch).toHaveBeenCalledTimes(1);
   });
 
+  it("stores the turns before the run events whose insert notifies live viewers", async () => {
+    await post(RESULT_LINE);
+
+    expect(insertTurns.mock.invocationCallOrder[0]).toBeLessThan(
+      insertBatch.mock.invocationCallOrder[0],
+    );
+  });
+
   it("returns the unchanged cost-path response when the turn insert rejects", async () => {
     insertTurns.mockRejectedValue(new Error("pg down"));
 
