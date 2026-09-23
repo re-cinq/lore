@@ -19,9 +19,16 @@ export interface PlanFileBody {
   refine: RefineContext | null;
 }
 
+/** A Refine whose pass failed before it answered: the section is told why, so its person can ask again. */
+export interface FailedRefine {
+  slot: string;
+  reason: string;
+}
+
 export interface PlanWriter {
   markdownOf(planId: string): Promise<string>;
   submitFile(planId: string, body: PlanFileBody): Promise<void>;
+  failRefine(planId: string, refine: FailedRefine): Promise<void>;
 }
 
 /** lore-api's answer to a planning line parked on its author: an approved plan is reopened for writing, any other plan is left as it is. */

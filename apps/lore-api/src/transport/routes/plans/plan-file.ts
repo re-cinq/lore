@@ -37,7 +37,7 @@ const PlanFileOutcomeSchema = z.object({
 });
 
 export function planFileRoutes(ports: PlanFilePorts): ServerRoute[] {
-  return [markdownRoute(ports), agentFileRoute(ports)];
+  return [markdownRoute(ports), agentFileRoute(ports), refineFailedRoute(ports)];
 }
 
 function markdownRoute(ports: PlanFilePorts): ServerRoute {
@@ -79,5 +79,35 @@ function agentFileRoute(ports: PlanFilePorts): ServerRoute {
         request.payload as z.infer<typeof PlanFileBody>,
         ports,
       ),
+  };
+}
+
+const RefineFailedBody = z.object({
+  slot: z.string().min(1),
+  reason: z.string().min(1),
+});
+
+const REFINE_FAILED_OPTIONS = {
+  ...zodResponse({}, z.object({ slot: z.string() }), {
+    name: "PlanRefineFailed",
+    description:
+      "The Refine of one section is marked failed, with why its pass stopped, for its person to ask again",
+    errors: [400, 404],
+  }),
+  validate: { payload: zodValidate(RefineFailedBody) },
+};
+
+function refineFailedRoute(ports: PlanFilePorts): ServerRoute {
+  return {
+    method: "POST",
+    path: "/api/plans/{id}/refine-failed",
+    options: REFINE_FAILED_OPTIONS,
+    handler: async (request) => {
+      const failed = request.payload as z.infer<typeof RefineFailedBody>;
+
+      await ports.writer.failRefine({ planId: request.params.id, ...failed });
+
+      return { slot: failed.slot };
+    },
   };
 }
