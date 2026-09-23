@@ -26,6 +26,8 @@ export interface AssemblyRun {
   durationSeconds: number | null;
   prUrl: string | null;
   prNumber: number | null;
+  /** The spec analysis's summary: the question a planning line's author must answer while the line waits on them. Optional so test doubles need not set it; the mapper always does. */
+  specPlanSummary?: string | null;
   issueUrl: string | null;
   issueNumber: number | null;
   createdBy: string | null;
@@ -86,8 +88,21 @@ export function toAssemblyRun(row: AssemblyRunRow): AssemblyRun {
     durationSeconds: durationSeconds(row.started_at, row.finished_at),
     createdBy: row.created_by,
     costUsd: row.cost_usd,
+    ...linkedWork(row),
+  };
+}
+
+// What the run points at beyond itself: its Issue, its PR, and the spec analysis's summary.
+function linkedWork(
+  row: AssemblyRunRow,
+): Pick<
+  AssemblyRun,
+  "issueUrl" | "issueNumber" | "prUrl" | "prNumber" | "specPlanSummary"
+> {
+  return {
     ...issueRef(row),
     ...pullRequestRef(row),
+    specPlanSummary: row.spec_plan_summary ?? null,
   };
 }
 

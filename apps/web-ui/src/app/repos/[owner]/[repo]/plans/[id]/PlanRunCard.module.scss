@@ -29,3 +29,20 @@
   gap: var(--space-3);
   margin-left: auto;
 }
+
+.question {
+  display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-3);
+
+  blockquote {
+    flex: 1 1 24rem;
+    margin: 0;
+    padding-left: var(--space-3);
+    border-left: 3px solid var(--warning);
+    color: var(--text);
+    white-space: pre-wrap;
+  }
+}

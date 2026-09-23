@@ -10,6 +10,7 @@ const RUN: PlanRun = {
   reason: null,
   prUrl: null,
   prNumber: null,
+  specPlanSummary: null,
   nodes: [
     {
       nodeId: "analyze",
@@ -33,7 +34,12 @@ const RUN: PlanRun = {
 describe("PlanRunCard", () => {
   it("says the plan waits for its people and links run-1's page", () => {
     render(
-      <PlanRunCard run={RUN} state="writing" draftAgain={async () => ({})} />,
+      <PlanRunCard
+        run={RUN}
+        state="writing"
+        draftAgain={async () => ({})}
+        reopen={async () => ({})}
+      />,
     );
 
     expect({
@@ -57,6 +63,7 @@ describe("PlanRunCard", () => {
         }}
         state="spec-pr-open"
         draftAgain={async () => ({})}
+        reopen={async () => ({})}
       />,
     );
 
@@ -68,7 +75,12 @@ describe("PlanRunCard", () => {
 
   it("says no run has started for a plan without one", () => {
     render(
-      <PlanRunCard run={null} state="writing" draftAgain={async () => ({})} />,
+      <PlanRunCard
+        run={null}
+        state="writing"
+        draftAgain={async () => ({})}
+        reopen={async () => ({})}
+      />,
     );
 
     expect(screen.getByText("No planning run yet.")).toBeInTheDocument();
@@ -90,7 +102,12 @@ describe("PlanRunCard regenerate", () => {
     const draftAgain = vi.fn(async () => ({}));
 
     render(
-      <PlanRunCard run={failed} state="writing" draftAgain={draftAgain} />,
+      <PlanRunCard
+        run={failed}
+        state="writing"
+        draftAgain={draftAgain}
+        reopen={async () => ({})}
+      />,
     );
     fireEvent.click(screen.getByRole("button", { name: "Regenerate plan" }));
     const asked = draftAgain.mock.calls.length;
@@ -118,7 +135,12 @@ describe("PlanRunCard regenerate", () => {
     const draftAgain = vi.fn(async () => ({}));
 
     render(
-      <PlanRunCard run={failed} state="writing" draftAgain={draftAgain} />,
+      <PlanRunCard
+        run={failed}
+        state="writing"
+        draftAgain={draftAgain}
+        reopen={async () => ({})}
+      />,
     );
     fireEvent.click(screen.getByRole("button", { name: "Regenerate plan" }));
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
@@ -138,6 +160,7 @@ describe("PlanRunCard regenerate", () => {
         run={failed}
         state="writing"
         draftAgain={async () => ({})}
+        reopen={async () => ({})}
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: "Regenerate plan" }));
@@ -149,7 +172,12 @@ describe("PlanRunCard regenerate", () => {
 
   it("offers a regeneration for a plan no run was ever started for", () => {
     render(
-      <PlanRunCard run={null} state="writing" draftAgain={async () => ({})} />,
+      <PlanRunCard
+        run={null}
+        state="writing"
+        draftAgain={async () => ({})}
+        reopen={async () => ({})}
+      />,
     );
 
     expect(
@@ -159,7 +187,12 @@ describe("PlanRunCard regenerate", () => {
 
   it("offers a regeneration while the run waits on its people at author", () => {
     render(
-      <PlanRunCard run={RUN} state="writing" draftAgain={async () => ({})} />,
+      <PlanRunCard
+        run={RUN}
+        state="writing"
+        draftAgain={async () => ({})}
+        reopen={async () => ({})}
+      />,
     );
 
     expect(
@@ -181,6 +214,7 @@ describe("PlanRunCard on an approved plan", () => {
         run={failedSpecWork}
         state="spec-work-failed"
         draftAgain={async () => ({})}
+        reopen={async () => ({})}
       />,
     );
 
@@ -193,17 +227,39 @@ describe("PlanRunCard on an approved plan", () => {
     });
   });
 
-  it("says the spec work has a question while the line is back on the author", () => {
+  it("quotes the spec analysis's question without its verdict word, and offers Reopen plan beside it", () => {
     render(
-      <PlanRunCard run={RUN} state="question" draftAgain={async () => ({})} />,
+      <PlanRunCard
+        run={{
+          ...RUN,
+          specPlanSummary:
+            "CHANGES REQUESTED. Should spec-writing proceed on the SQL-cron scope?",
+        }}
+        state="question"
+        draftAgain={async () => ({})}
+        reopen={async () => ({})}
+      />,
     );
 
-    expect(screen.getByText(/has a question for you/)).toBeInTheDocument();
+    expect({
+      banner: screen.getByText(/has a question for you/) !== null,
+      quote: screen.getByRole("blockquote").textContent,
+      reopen: screen.getByRole("button", { name: "Reopen plan" }) !== null,
+    }).toEqual({
+      banner: true,
+      quote: "Should spec-writing proceed on the SQL-cron scope?",
+      reopen: true,
+    });
   });
 
   it("says a reopened plan updates its spec PR on the next approval", () => {
     render(
-      <PlanRunCard run={RUN} state="reopened" draftAgain={async () => ({})} />,
+      <PlanRunCard
+        run={RUN}
+        state="reopened"
+        draftAgain={async () => ({})}
+        reopen={async () => ({})}
+      />,
     );
 
     expect(screen.getByText(/Reopened:/).textContent).toContain(

@@ -21,6 +21,7 @@ const ROW = {
   started_at: null,
   finished_at: null,
   args_pr_number: null,
+  spec_plan_summary: "CHANGES REQUESTED. Which scope?",
   pr_url: null,
   task_pr_number: null,
   issue_url: null,
@@ -64,6 +65,7 @@ describe("fetchPlanRun", () => {
     expect(await fetchPlanRun("re-cinq/lore", "p1")).toMatchObject({
       id: "run-1",
       status: "queued",
+      specPlanSummary: "CHANGES REQUESTED. Which scope?",
     });
   });
 

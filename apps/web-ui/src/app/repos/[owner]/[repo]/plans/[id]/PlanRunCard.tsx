@@ -3,6 +3,8 @@ import ConfirmedActionButton from "@/components/ConfirmedActionButton";
 import type { AssemblyRunNode } from "@/lib/assembly-run-rows";
 import type { PlanPageState } from "@/lib/plan-page-state";
 import { canRegenerate, planRunPhase } from "@/lib/plan-run-phase";
+import type { PlanActions } from "./plan-actions";
+import ReopenPlanButton from "./ReopenPlanButton";
 import styles from "./PlanRunCard.module.scss";
 
 /** The plan's planning run, as the page summarizes it. */
@@ -13,6 +15,8 @@ export interface PlanRun {
   reason: string | null;
   prUrl: string | null;
   prNumber: number | null;
+  /** The spec analysis's summary, which is its question while the line waits on the author. */
+  specPlanSummary: string | null;
   nodes: readonly AssemblyRunNode[];
 }
 
@@ -23,6 +27,7 @@ interface PlanRunCardProps {
   state: PlanPageState;
   /** A fresh planning run, offered when there is none or the last one failed. */
   draftAgain: DraftAgain;
+  reopen: PlanActions["reopen"];
 }
 
 const REGENERATE = {
@@ -42,11 +47,12 @@ const STATE_TEXT: Partial<Record<PlanPageState, string>> = {
     "The spec work did not deliver. Retry it from the approved plan, or reopen the plan to change it first.",
 };
 
-/** What the plan's run is doing, and where to look closer — the run page draws the line itself. */
+/** What the plan's run is doing, and where to look closer — the run page draws the line itself. A question the spec work has for the author is quoted here, with Reopen beside it, since answering it is the plan's next step. */
 export default function PlanRunCard({
   run,
   state,
   draftAgain,
+  reopen,
 }: PlanRunCardProps) {
   const regenerate =
     state === "writing" && (!run || canRegenerate(run, run.nodes));
@@ -56,6 +62,27 @@ export default function PlanRunCard({
       <span>{summaryOf(run, state)}</span>
       {run && <RunLinks run={run} />}
       {regenerate && <RegeneratePlan draftAgain={draftAgain} />}
+      {state === "question" && <AuthorQuestion run={run} reopen={reopen} />}
+    </div>
+  );
+}
+
+// The analysis's summary opens with its verdict word; the person reads the question after it.
+const VERDICT_PREFIX = /^changes requested[.:]?\s*/i;
+
+function AuthorQuestion({
+  run,
+  reopen,
+}: {
+  run: PlanRun | null;
+  reopen: PlanActions["reopen"];
+}) {
+  const question = run?.specPlanSummary?.replace(VERDICT_PREFIX, "");
+
+  return (
+    <div className={styles.question}>
+      {question && <blockquote>{question}</blockquote>}
+      <ReopenPlanButton state="question" reopen={reopen} />
     </div>
   );
 }
