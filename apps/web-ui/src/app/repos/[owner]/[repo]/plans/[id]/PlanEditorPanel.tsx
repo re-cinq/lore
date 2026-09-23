@@ -114,7 +114,7 @@ async function connectPlan(
   return { transport: planTransport(client, socket.documentName, meta, token) };
 }
 
-/** The editor's transport on a plan channel of the shared socket; destroying it tears the channel down with the provider. */
+/** The editor's transport on a plan channel of the shared socket; destroying it tears the provider and its channel down together. */
 function planTransport(
   client: LiveSocketClient,
   documentName: string,
@@ -122,15 +122,8 @@ function planTransport(
   token: () => Promise<string>,
 ): ProviderTransport {
   const plan = planProvider(client, documentName, token);
-  const transport = transportFor(plan.provider, meta);
 
-  return {
-    ...transport,
-    destroy: () => {
-      transport.destroy();
-      plan.destroy();
-    },
-  };
+  return { ...transportFor(plan.provider, meta), destroy: plan.destroy };
 }
 
 // The editor withdraws a Refine whose promise rejects, so a refused ask must throw.
