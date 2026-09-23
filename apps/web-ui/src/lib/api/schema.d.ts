@@ -277,17 +277,17 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/assembly-runs/{id}/stream": {
+  "/api/assembly-runs/{id}/stream-token": {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    /** GET /api/assembly-runs/{id}/stream */
-    get: operations["get_api_assembly-runs_id_stream"];
+    get?: never;
     put?: never;
-    post?: never;
+    /** POST /api/assembly-runs/{id}/stream-token */
+    post: operations["post_api_assembly-runs_id_stream-token"];
     delete?: never;
     options?: never;
     head?: never;
@@ -2948,6 +2948,181 @@ export interface components {
       logs: string;
       complete: boolean;
     };
+    LiveClientMessage:
+      | {
+          /** @constant */
+          type: "open";
+          channel: string;
+          /** @constant */
+          kind: "run";
+          subject: string;
+          token: string;
+          after?: string;
+        }
+      | {
+          /** @constant */
+          type: "open";
+          channel: string;
+          /** @constant */
+          kind: "plan";
+          subject: string;
+        }
+      | {
+          /** @constant */
+          type: "send";
+          channel: string;
+          data: string;
+        }
+      | {
+          /** @constant */
+          type: "close";
+          channel: string;
+        };
+    LiveServerMessage:
+      | {
+          /** @constant */
+          type: "opened";
+          channel: string;
+        }
+      | {
+          /** @constant */
+          type: "frame";
+          channel: string;
+          frame:
+            | {
+                /** @constant */
+                type: "agent_event";
+                event: {
+                  id: string;
+                  taskId: string;
+                  agentCrName: string | null;
+                  assemblyLineId: string | null;
+                  stationRunId: string | null;
+                  nodeId: string | null;
+                  iteration: number | null;
+                  /** @enum {string} */
+                  eventType:
+                    | "init"
+                    | "message"
+                    | "thinking"
+                    | "tool_call"
+                    | "tool_result"
+                    | "result"
+                    | "hook";
+                  toolName: string | null;
+                  toolUseId: string | null;
+                  isError: boolean;
+                  filePaths: string[];
+                  summary: string | null;
+                  payload: {
+                    [key: string]: unknown;
+                  };
+                  /** Format: date-time */
+                  createdAt: string;
+                };
+              }
+            | {
+                /** @constant */
+                type: "node_status";
+                node: {
+                  node_id: string;
+                  iteration: number;
+                  outcome: string | null;
+                  agent_cr_name: string | null;
+                  station_run_id: string | null;
+                  input: {
+                    description: string;
+                    prompt: string | null;
+                    params: {
+                      [key: string]: string;
+                    } | null;
+                    repo: string;
+                    ref: string;
+                  } | null;
+                  commit_sha: string | null;
+                  started_at: string;
+                  finished_at: string | null;
+                  status: string;
+                  claimed_at: string | null;
+                };
+              }
+            | {
+                /** @constant */
+                type: "run_status";
+                run: {
+                  id: string;
+                  status: string;
+                  outcome: string | null;
+                  reason: string | null;
+                  started_at: string | null;
+                  finished_at: string | null;
+                };
+              }
+            | {
+                /** @constant */
+                type: "task_event";
+                event: {
+                  id: string;
+                  task_id: string;
+                  from_status: string | null;
+                  to_status: string;
+                  metadata: {
+                    [key: string]: unknown;
+                  } | null;
+                  /** Format: date-time */
+                  created_at: string;
+                };
+              }
+            | {
+                /** @constant */
+                type: "ci_check";
+                check: {
+                  repo: string;
+                  pr_number: number;
+                  /** Format: date-time */
+                  observed_at: string;
+                  status: {
+                    [key: string]: unknown;
+                  };
+                };
+              }
+            | {
+                /** @constant */
+                type: "catchup_complete";
+                last_id: string;
+              };
+        }
+      | {
+          /** @constant */
+          type: "data";
+          channel: string;
+          data: string;
+        }
+      | {
+          /** @constant */
+          type: "closed";
+          channel: string;
+          /** @enum {string} */
+          reason:
+            | "client"
+            | "unauthorized"
+            | "not_found"
+            | "capacity"
+            | "slow"
+            | "server";
+          code?: number;
+        }
+      | {
+          /** @constant */
+          type: "error";
+          channel?: string;
+          /** @enum {string} */
+          code:
+            | "bad_message"
+            | "channel_in_use"
+            | "too_many_channels"
+            | "unknown_channel";
+        };
     MemoryAuditPage: {
       entries: {
         id: string;
@@ -3635,6 +3810,11 @@ export interface components {
           type: "catchup_complete";
           last_id: string;
         };
+    RunStreamToken: {
+      token: string;
+      /** Format: date-time */
+      expires_at: string;
+    };
     SearchContextResults: {
       results: {
         content: string;
@@ -4640,7 +4820,7 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
-  "get_api_assembly-runs_id_stream": {
+  "post_api_assembly-runs_id_stream-token": {
     parameters: {
       query?: never;
       header?: never;
@@ -4649,20 +4829,31 @@ export interface operations {
       };
       cookie?: never;
     };
-    requestBody?: never;
+    requestBody: {
+      content: {
+        "application/json": {
+          user: {
+            id: string;
+            name: string;
+          };
+        };
+      };
+    };
     responses: {
-      /** @description Server-Sent Events: one `event:` per frame type, `data:` the frame; only agent_event frames carry an `id:` (the Last-Event-ID cursor) */
+      /** @description A short-lived token that opens this assembly run's channel of the live socket (/api/ws) as one person */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "text/event-stream": components["schemas"]["RunStreamFrame"];
+          "application/json": components["schemas"]["RunStreamToken"];
         };
       };
+      400: components["responses"]["BadRequest"];
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
       404: components["responses"]["NotFound"];
+      413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };

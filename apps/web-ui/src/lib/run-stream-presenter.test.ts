@@ -10,7 +10,6 @@ import {
   reconnectDelayMs,
   resolveChipState,
   resolveStreamMode,
-  streamUrl,
 } from "./run-stream-presenter";
 
 describe("historyUrl", () => {
@@ -28,20 +27,6 @@ describe("historyUrl", () => {
 
   it("encodes a run id containing a slash", () => {
     expect(historyUrl("a/b", "0")).toContain("a%2Fb");
-  });
-});
-
-describe("streamUrl", () => {
-  it("returns the stream path with after for cursor 42", () => {
-    expect(streamUrl("run-1", "42")).toBe(
-      "/api/assembly-runs/run-1/events/stream?after=42",
-    );
-  });
-
-  it("omits the after param from the stream path for cursor 0", () => {
-    expect(streamUrl("run-1", "0")).toBe(
-      "/api/assembly-runs/run-1/events/stream",
-    );
   });
 });
 
@@ -118,31 +103,31 @@ describe("connectionLabel", () => {
 });
 
 describe("resolveStreamMode", () => {
-  it("returns live for a running run when EventSource is available", () => {
+  it("returns live for a running run when a live socket is available", () => {
     expect(
       resolveStreamMode({
         runStatus: "running",
-        eventSourceAvailable: true,
+        socketAvailable: true,
         streamUnavailable: false,
       }),
     ).toBe("live");
   });
 
-  it("returns history-only when EventSource is unavailable", () => {
+  it("returns history-only when no live socket is available", () => {
     expect(
       resolveStreamMode({
         runStatus: "running",
-        eventSourceAvailable: false,
+        socketAvailable: false,
         streamUnavailable: false,
       }),
     ).toBe("history-only");
   });
 
-  it("returns history-only for a finished run even when EventSource is available", () => {
+  it("returns history-only for a finished run even when a live socket is available", () => {
     expect(
       resolveStreamMode({
         runStatus: "finished",
-        eventSourceAvailable: true,
+        socketAvailable: true,
         streamUnavailable: false,
       }),
     ).toBe("history-only");
@@ -152,7 +137,7 @@ describe("resolveStreamMode", () => {
     expect(
       resolveStreamMode({
         runStatus: "running",
-        eventSourceAvailable: true,
+        socketAvailable: true,
         streamUnavailable: true,
       }),
     ).toBe("history-only");

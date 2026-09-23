@@ -31,6 +31,7 @@ planning-station ships that drafting step as four packages. `planning-document` 
 - A rollout waits up to 45 s (`terminationGracePeriodSeconds`), so planning-sync's `onPreStop` can store debounced keystrokes before the pod goes.
 - Lore installs the packages as git dependencies on built-artifact tags (`<package>-dist-v<version>`, made by planning-station's `dist-tags` workflow). planning-station is a public repository, so CI and image builds need no credentials to fetch them.
 - A new planning-station release reaches lore by bumping the tag in `package.json`. npm records the dependency as `git+ssh://` in the lockfile either way; a public repo installs anyway through GitHub's tarball endpoint.
+- _(Amended 2026-09-23, [ADR-048](ADR-048-one-websocket-for-live-channels.md).)_ The browser no longer opens `/api/plans/collab` itself: the plan's collaboration protocol rides a `plan` channel of the tab's one live socket at `/api/ws`, tunnelled by lore-api to the same Hocuspocus instance. The library's mount stays on the listener, the collab token ceremony is unchanged, and `LORE_PLANS_WS_URL` is replaced by `LORE_WS_URL`.
 
 ## Amendment (2026-09-22): the agent edits the plan as a file, moved by reference
 

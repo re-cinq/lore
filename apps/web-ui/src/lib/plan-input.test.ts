@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { newPlanInput, paragraphsOf, planSocketUrl } from "./plan-input";
+import { newPlanInput, paragraphsOf } from "./plan-input";
 
 const form = (fields: Record<string, string>) => {
   const formData = new FormData();
@@ -50,26 +50,5 @@ describe("paragraphsOf", () => {
     expect(
       paragraphsOf("Checkout is slow.\n\n  Mobile users drop off.\n"),
     ).toEqual(["Checkout is slow.", "Mobile users drop off."]);
-  });
-});
-
-describe("planSocketUrl", () => {
-  it("uses the public socket address the deployment names", () => {
-    expect(
-      planSocketUrl({
-        LORE_PLANS_WS_URL: "wss://lore-api.example/api/plans/collab",
-        LORE_API_URL: "http://lore-api:3000",
-      }),
-    ).toEqual("wss://lore-api.example/api/plans/collab");
-  });
-
-  it("derives ws://localhost:3002/api/plans/collab from a local lore-api", () => {
-    expect(planSocketUrl({ LORE_API_URL: "http://localhost:3002" })).toEqual(
-      "ws://localhost:3002/api/plans/collab",
-    );
-  });
-
-  it("has no address when neither is configured", () => {
-    expect(planSocketUrl({})).toBeUndefined();
   });
 });

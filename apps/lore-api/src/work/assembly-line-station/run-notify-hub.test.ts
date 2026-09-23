@@ -1,7 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import {
   InMemoryRunNotifier,
-  MAX_SUBSCRIBERS_PER_RUN,
   PgRunNotifier,
   matchesFilter,
   parseNotification,
@@ -98,20 +97,6 @@ describe("InMemoryRunNotifier", () => {
     expect(second).toHaveBeenCalledTimes(1);
   });
 
-  it("rejects a subscriber past the per-run cap", () => {
-    const hub = new InMemoryRunNotifier();
-
-    for (let i = 0; i < MAX_SUBSCRIBERS_PER_RUN; i++) {
-      hub.subscribe(filter, () => {});
-    }
-
-    expect(() => hub.subscribe(filter, () => {})).toThrow(
-      new Error(
-        `run stream: run-1 already has ${MAX_SUBSCRIBERS_PER_RUN} subscribers`,
-      ),
-    );
-  });
-
   it("keeps delivering to the remaining subscribers when one throws", () => {
     const hub = new InMemoryRunNotifier();
     const after = vi.fn();
@@ -191,12 +176,37 @@ describe("PgRunNotifier", () => {
 
     hub.subscribe(filter, () => {}, onResync);
     await flush();
+    onResync.mockClear();
     clients[0].emit("error", new Error("terminated"));
     scheduled.shift()?.();
     await flush();
 
     expect(clients[1].queries).toEqual(["LISTEN lore_run_stream"]);
     expect(onResync).toHaveBeenCalledTimes(1);
+  });
+
+  it("resyncs a subscriber that joined before the first LISTEN was in place, so a row written in that gap is not missed", async () => {
+    let finishConnect: () => void = () => {};
+    const client = fakeClient(
+      () =>
+        new Promise<void>((resolve) => {
+          finishConnect = resolve;
+        }),
+    );
+    const hub = new PgRunNotifier({ connect: () => client, log: () => {} });
+    const onResync = vi.fn();
+
+    hub.subscribe(filter, () => {}, onResync);
+    await flush();
+    const beforeListen = onResync.mock.calls.length;
+
+    finishConnect();
+    await flush();
+
+    expect({ beforeListen, afterListen: onResync.mock.calls.length }).toEqual({
+      beforeListen: 0,
+      afterListen: 1,
+    });
   });
 
   it("backs off and retries when the connection attempt itself fails", async () => {

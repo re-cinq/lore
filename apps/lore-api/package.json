@@ -40,15 +40,19 @@
     "pg": "^8.23.0",
     "tree-sitter-wasms": "^0.1.11",
     "web-tree-sitter": "^0.24.7",
+    "ws": "^8.21.3",
     "yaml": "^2.7.0",
     "yjs": "^13.6.32",
     "zod": "^4.5.4",
     "zod-to-json-schema": "^3.25.1"
   },
   "devDependencies": {
+    "@hocuspocus/common": "^4.7.0",
     "@types/node": "^22.20.1",
     "@types/pg": "^8.23.1",
+    "@types/ws": "^8.18.1",
     "@vitest/coverage-v8": "^5.0.0",
+    "lib0": "^0.2.117",
     "typescript": "^7.0.2",
     "vitest": "^5.0.0"
   }

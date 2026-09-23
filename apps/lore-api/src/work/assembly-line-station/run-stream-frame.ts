@@ -1,4 +1,4 @@
-// The one multiplexed run stream's frame contract (specs/assembly-line-run-viz FR7): five row families on one SSE connection, published in OpenAPI as `RunStreamFrame` so the web-ui reads it as a generated type rather than a hand mirror.
+// The one multiplexed run stream's frame contract (specs/assembly-line-run-viz FR7): five row families on one channel of the live socket, published in OpenAPI as `RunStreamFrame` so the web-ui reads it as a generated type rather than a hand mirror.
 
 import { z } from "zod";
 import { wireSchema } from "@re-cinq/lore-shared/lib/wire-schema.js";
@@ -97,14 +97,3 @@ export const catchupFrame = (lastId: string): RunStreamFrame => ({
   type: "catchup_complete",
   last_id: lastId,
 });
-
-/** One SSE message. Only an agent event carries an `id:` line: per the SSE spec a frame without one leaves the browser's `Last-Event-ID` untouched, so the cursor stays the agent_run_events row id and every other family is a snapshot the client applies idempotently. */
-export function sseFrame(frame: RunStreamFrame): string {
-  const id = frame.type === "agent_event" ? `id: ${frame.event.id}\n` : "";
-
-  return `${id}event: ${frame.type}\ndata: ${JSON.stringify(frame)}\n\n`;
-}
-
-export function sseComment(text: string): string {
-  return `: ${text}\n\n`;
-}

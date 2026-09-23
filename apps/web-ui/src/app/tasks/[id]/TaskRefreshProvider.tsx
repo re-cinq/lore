@@ -15,7 +15,8 @@ import {
 import type { ReactNode } from "react";
 import type { ConnectionState } from "@/lib/run-stream-presenter";
 import type { RunStreamEvent } from "@/lib/run-stream-types";
-import { useRunEventStream } from "@/app/assembly-runs/[id]/useRunEventStream";
+import { useRunChannel } from "@/app/assembly-runs/[id]/useRunChannel";
+import { useLiveSocket } from "@/lib/live-socket/LiveSocketProvider";
 import {
   pickLiveRun,
   refreshIntervalMs,
@@ -132,10 +133,10 @@ function useRefreshContextValue(
 /** Chooses how this page stays current and keeps it that way. The stream is preferred; falling back to POLLING is a one-way move within a mount — once the stream has proved unavailable, retrying it per render would reconnect on every refresh. Discovery keeps looking for a live run while the task is unfinished, because a run can start after the page loaded. */
 function useRefreshDriver({ taskId, taskStatus, runs }: RefreshDriverOptions) {
   const state = useDriverState(runs);
-  const { liveRunId, streamUnavailable, connection } = state;
+  const { connection } = state;
   const { register, setActive, refreshAll, anyPanelActive } =
     usePanelRegistry();
-  const driver = pickDriver({ liveRunId, streamUnavailable, anyPanelActive });
+  const driver = useDriver({ ...state, anyPanelActive });
   const onEvent = useCoalescedRefresh(refreshAll, state.setAfterId);
 
   useDriverSubscriptions({
@@ -220,15 +221,15 @@ function useLiveRunFound(options: StreamCallbackOptions) {
   );
 }
 
-/** Stream or poll. `EventSource` is probed rather than assumed: it is absent under SSR and in the test environment, and a page that assumed it would never fall back to polling there. */
-function pickDriver(input: {
+/** Stream or poll. The live socket is asked for rather than assumed: there is none without a configured address or a provider above the page, and a page that assumed it would never fall back to polling there. */
+function useDriver(input: {
   liveRunId: string | null;
   streamUnavailable: boolean;
   anyPanelActive: boolean;
 }) {
   return resolveRefreshDriver({
     ...input,
-    eventSourceAvailable: typeof EventSource !== "undefined",
+    socketAvailable: useLiveSocket() !== null,
   });
 }
 
@@ -241,7 +242,7 @@ function useDriverSubscriptions(opts: DriverSubscriptionOptions) {
 function useStreamSubscription(opts: DriverSubscriptionOptions) {
   const { driver, liveRunId } = opts;
 
-  useRunEventStream({
+  useRunChannel({
     runId: liveRunId ?? "",
     afterId: opts.afterId,
     enabled: driver === "stream" && liveRunId !== null,

@@ -38,7 +38,7 @@ export type RefreshDriver = "stream" | "poll" | "idle";
 /** What advances the page: stream/poll/idle. */
 export function resolveRefreshDriver(input: {
   liveRunId: string | null;
-  eventSourceAvailable: boolean;
+  socketAvailable: boolean;
   streamUnavailable: boolean;
   anyPanelActive: boolean;
 }): RefreshDriver {
@@ -48,7 +48,7 @@ export function resolveRefreshDriver(input: {
 
   if (
     input.liveRunId === null ||
-    !input.eventSourceAvailable ||
+    !input.socketAvailable ||
     input.streamUnavailable
   ) {
     return "poll";

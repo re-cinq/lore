@@ -1,6 +1,9 @@
 import type { Lifecycle, Server } from "@hapi/hapi";
 import type { Pool } from "pg";
-import { registerPlanningSync } from "@re-cinq/planning-sync/hapi";
+import {
+  registerPlanningSync,
+  type PlanningSync,
+} from "@re-cinq/planning-sync/hapi";
 import type { PlanLifecycleHooks } from "@re-cinq/planning-sync";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
@@ -19,11 +22,11 @@ import type { TokenScope } from "../transport/http/auth.js";
 
 export const PLANS_PREFIX = "/api/plans";
 
-/** Plans hosted in this process (@re-cinq/planning-sync): REST under /api/plans and the collaboration socket at /api/plans/collab, on lore-api's own listener. */
+/** Plans hosted in this process (@re-cinq/planning-sync): REST under /api/plans and the collaboration socket at /api/plans/collab, on lore-api's own listener. Returns the collaboration server so the live socket can tunnel to it (ADR-048). */
 export function registerPlanning(
   server: Server,
   getPool: () => Pool | null,
-): void {
+): { collab: PlanningSync["collab"] } {
   const pool = livePool(getPool);
 
   const sync = registerPlanningSync(server, {
@@ -37,6 +40,8 @@ export function registerPlanning(
   );
   server.route(planLifecycleRoutes({ service: sync.service, getPool }));
   server.ext("onPreHandler", planRouteGuard(server));
+
+  return { collab: sync.collab };
 }
 
 // The pool, answering 503 while the database is away.
