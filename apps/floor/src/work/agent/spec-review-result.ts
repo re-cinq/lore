@@ -4,12 +4,12 @@ import type {
   AssemblyRunRecord,
   AssemblyRunsPort,
 } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
-import type { ReviewThread } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import { findThreadForComment } from "@re-cinq/lore-shared/project/pulls/review-threads.js";
 import { djb2Hash } from "@re-cinq/lore-shared/llm/prompt-cache.js";
 import {
   SPEC_REVIEW_REOPEN_ARG,
   SPEC_REVIEW_RESULT_EVENT,
+  specReviewFromArgs,
   specReviewResultSchema,
   type SpecReviewResult,
 } from "@re-cinq/lore-shared/review/spec-review.js";
@@ -25,6 +25,7 @@ export const SPEC_WRITER_ACTOR = "spec-writer";
 export type SpecReviewReplyPoster = Pick<
   ReplyPoster,
   | "replyToReviewComment"
+  | "comment"
   | "listComments"
   | "listIssueComments"
   | "listReviewThreads"
@@ -208,50 +209,110 @@ interface ReplyCounts {
   resolved: number;
 }
 
+/** One delivery's reply context: the PR, the run, the poster, and which ids are whole review bodies rather than threads. */
+interface ReplyContext {
+  target: ReviewTarget;
+  pulls: SpecReviewReplyPoster;
+  counts: ReplyCounts;
+  reviewIds: Set<number>;
+}
+
 async function postReplies(
   target: ReviewTarget,
   replies: readonly Reply[],
   pulls: SpecReviewReplyPoster,
 ): Promise<ReplyCounts> {
+  const counts = { replied: 0, resolved: 0 };
+
   if (replies.length === 0) {
-    return { replied: 0, resolved: 0 };
+    return counts;
   }
   const posted = await postedBodies(pulls, target.prNumber);
-  const counts = { replied: 0, resolved: 0 };
+  const context = { target, pulls, counts, reviewIds: reviewBodyIds(target) };
 
   for (const reply of replies) {
     const marker = replyMarker(target.run.id, reply.comment_id);
+    const already = posted.some((body) => body.includes(marker));
 
-    if (!posted.some((body) => body.includes(marker))) {
-      await postOne(target, reply, pulls, counts);
-    }
+    await (already ? healThread(context, reply) : postOne(context, reply));
   }
 
   return counts;
 }
 
+/** The ids the review carried as whole review bodies, which sit in no thread: answered as a comment on the PR, never resolved. */
+function reviewBodyIds(target: ReviewTarget): Set<number> {
+  const review = specReviewFromArgs(target.run.args);
+
+  return new Set((review?.reviews ?? []).map((body) => body.id));
+}
+
+// A redelivery after a resolve that failed: the reply is there, the thread may still be open; a review body sits in no thread.
+async function healThread(context: ReplyContext, reply: Reply): Promise<void> {
+  if (reply.action !== "addressed" || context.reviewIds.has(reply.comment_id)) {
+    return;
+  }
+  context.counts.resolved += await resolveThreadOf(context, reply.comment_id);
+}
+
 // A failed post is logged and left uncounted: the other replies still go out, and a redelivery retries it because its marker never landed.
-async function postOne(
-  target: ReviewTarget,
-  reply: Reply,
-  pulls: SpecReviewReplyPoster,
-  counts: ReplyCounts,
-): Promise<void> {
-  const { prNumber } = target;
-  const body = `${replyMarker(target.run.id, reply.comment_id)}\n\n${replyText(reply)}`;
+async function postOne(context: ReplyContext, reply: Reply): Promise<void> {
+  const { target, counts, reviewIds } = context;
+  const onReview = reviewIds.has(reply.comment_id);
 
   try {
-    await pulls.replyToReviewComment(prNumber, reply.comment_id, body);
+    await (onReview
+      ? commentOnReview(context, reply)
+      : replyInThread(context, reply));
   } catch (err) {
-    warnReply(prNumber, reply.comment_id, `reply failed: ${errorMessage(err)}`);
+    warnReply(
+      target.prNumber,
+      reply.comment_id,
+      `reply failed: ${errorMessage(err)}`,
+    );
 
     return;
   }
   counts.replied += 1;
 
-  if (reply.action === "addressed") {
-    counts.resolved += await resolveThreadOf(pulls, prNumber, reply.comment_id);
+  if (reply.action === "addressed" && !onReview) {
+    counts.resolved += await resolveThreadOf(context, reply.comment_id);
   }
+}
+
+/** The answer to an inline comment, in its thread. */
+function replyInThread(
+  { target, pulls }: ReplyContext,
+  reply: Reply,
+): Promise<void> {
+  const { run, prNumber } = target;
+
+  return pulls.replyToReviewComment(
+    prNumber,
+    reply.comment_id,
+    stamped(run.id, reply, replyText(reply)),
+  );
+}
+
+/** The answer to a whole review body, which sits in no thread: a comment on the PR naming the review. */
+function commentOnReview(
+  { target, pulls }: ReplyContext,
+  reply: Reply,
+): Promise<void> {
+  const { run, prNumber } = target;
+
+  return pulls.comment(
+    prNumber,
+    stamped(
+      run.id,
+      reply,
+      `On review ${reply.comment_id}: ${replyText(reply)}`,
+    ),
+  );
+}
+
+function stamped(runId: string, reply: Reply, text: string): string {
+  return `${replyMarker(runId, reply.comment_id)}\n\n${text}`;
 }
 
 // Every body already on the PR, either delivery shape; a failed probe reads as "nothing posted" (fail open: a rare duplicate beats a dropped reply).
@@ -277,8 +338,7 @@ async function postedBodies(
 
 /** 1 when the thread the comment sits in is now resolved, 0 otherwise — a thread nobody could match, a poster without the thread methods, or a throw all leave it open and say so. */
 async function resolveThreadOf(
-  pulls: SpecReviewReplyPoster,
-  prNumber: number,
+  { pulls, target }: ReplyContext,
   commentId: number,
 ): Promise<number> {
   if (!pulls.listReviewThreads || !pulls.resolveReviewThread) {
@@ -286,30 +346,37 @@ async function resolveThreadOf(
   }
 
   try {
-    const thread = findThreadForComment(
-      await pulls.listReviewThreads(prNumber),
-      commentId,
-    );
-
-    return thread ? await resolveOne(pulls.resolveReviewThread, thread) : 0;
+    return await resolveMatchingThread(pulls, target.prNumber, commentId);
   } catch (err) {
-    warnReply(prNumber, commentId, `thread not resolved: ${errorMessage(err)}`);
+    warnReply(
+      target.prNumber,
+      commentId,
+      `thread not resolved: ${errorMessage(err)}`,
+    );
 
     return 0;
   }
+}
+
+// Called AS A METHOD: the adapter reaches its octokit through `this`, and the first delivery passed the function around unbound (plan b4b2026f, 2026-09-24: nine addressed threads left open).
+async function resolveMatchingThread(
+  pulls: SpecReviewReplyPoster,
+  prNumber: number,
+  commentId: number,
+): Promise<number> {
+  const threads = (await pulls.listReviewThreads?.(prNumber)) ?? [];
+  const thread = findThreadForComment(threads, commentId);
+
+  if (!thread) {
+    return 0;
+  }
+  await pulls.resolveReviewThread?.(thread.id);
+
+  return 1;
 }
 
 function warnReply(prNumber: number, commentId: number, what: string): void {
   console.warn(
     `[spec-review-result] PR #${prNumber} comment ${commentId}: ${what}`,
   );
-}
-
-async function resolveOne(
-  resolveReviewThread: NonNullable<ReplyPoster["resolveReviewThread"]>,
-  thread: ReviewThread,
-): Promise<number> {
-  await resolveReviewThread(thread.id);
-
-  return 1;
 }
