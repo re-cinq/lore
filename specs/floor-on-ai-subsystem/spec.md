@@ -360,7 +360,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     first call of every Gemini review), and to query with what the work is ABOUT — the
     title, the spec sections, the surfaces — not the words of the instruction, which
     returned the platform overview
-    ([validated by `recipe-prompt.test.ts:5`](libs/shared/src/domain/agents/recipe-prompt.test.ts#L5), [`recipe-prompt.test.ts:11`](libs/shared/src/domain/agents/recipe-prompt.test.ts#L11), [`recipe-prompt.test.ts:15`](libs/shared/src/domain/agents/recipe-prompt.test.ts#L15), [`recipe-prompt.test.ts:19`](libs/shared/src/domain/agents/recipe-prompt.test.ts#L19), [`recipe-prompt.test.ts:23`](libs/shared/src/domain/agents/recipe-prompt.test.ts#L23); implemented by [`recipe-prompt.ts:16`](libs/shared/src/domain/agents/recipe-prompt.ts#L16))
+    ([validated by `recipe-prompt.test.ts:5`](libs/shared/src/domain/agents/recipe-prompt.test.ts#L5), [`recipe-prompt.test.ts:11`](libs/shared/src/domain/agents/recipe-prompt.test.ts#L11), [`recipe-prompt.test.ts:15`](libs/shared/src/domain/agents/recipe-prompt.test.ts#L15), [`recipe-prompt.test.ts:19`](libs/shared/src/domain/agents/recipe-prompt.test.ts#L19), [`recipe-prompt.test.ts:23`](libs/shared/src/domain/agents/recipe-prompt.test.ts#L23); implemented by [`recipe-prompt.ts:19`](libs/shared/src/domain/agents/recipe-prompt.ts#L19))
 
 33. *(added 2026-08-28, #1629)* The `{context}` placeholder is guarded on the
     cluster's MCP URL, the same value as the `mcp_servers` block it points at, so
