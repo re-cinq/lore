@@ -14,6 +14,9 @@ import PlanOutlineActions from "./PlanOutlineActions";
 const refresh = vi.fn();
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
+vi.mock("@/components/Icon", () => ({
+  default: ({ name }: { name: string }) => <i data-testid={`icon-${name}`} />,
+}));
 
 const actions = {
   approve: vi.fn(async () => ({})),
