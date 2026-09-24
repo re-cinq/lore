@@ -23,7 +23,7 @@ export interface PlanFilePorts {
   /** The agent's writes into the live document; what they return is not this module's to read. */
   writer: {
     applyOps(request: OpsRequest): Promise<unknown>;
-    /** One pass's proposals, one per paragraph it changed: each is read and taken where it lands. */
+    /** One pass's answer: the sections it adds are written straight in, and its edits to existing sections wait as one change per paragraph, each read and taken where it lands. */
     proposeChanges(request: PassRequest): Promise<unknown>;
     /** A Refine whose pass stopped before it answered: the section says why, and can be asked again. */
     failRefine(request: FailRequest): Promise<unknown>;
