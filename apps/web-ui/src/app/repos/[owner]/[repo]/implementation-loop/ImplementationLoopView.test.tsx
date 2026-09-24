@@ -56,6 +56,14 @@ describe("ImplementationLoopView", () => {
     ).toBeGreaterThan(0);
   });
 
+  it("explains that a ticket blocked by an open issue waits unlabelled until its last blocker closes", () => {
+    const { getAllByText } = renderView();
+
+    expect(
+      getAllByText(/waits instead: it gets no label/).length,
+    ).toBeGreaterThan(0);
+  });
+
   it("renders a mini pipeline dot per node, linked to the run", () => {
     const { getByTestId } = renderView({
       current: ticket({

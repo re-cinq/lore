@@ -104,7 +104,9 @@ function LoopExplainer() {
       thread resolved before picking the next. It never merges — a human does
       that, whenever they like. A ticket that gets stuck is labelled{" "}
       <code>lore:blocked</code> with a comment saying why; remove the label to
-      re-queue it. An issue carrying two priority labels is skipped until a
+      re-queue it. A ticket linked as blocked by an issue that is still open
+      waits instead: it gets no label, and the loop picks it up once its last
+      blocker closes. An issue carrying two priority labels is skipped until a
       human settles the ambiguity.
     </p>
   );
