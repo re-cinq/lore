@@ -2458,7 +2458,7 @@ export interface components {
     AssemblyRunStarted: {
       id: string;
     };
-    AssemblyRunStationStarted: {
+    AssemblyRunStationRequested: {
       id: string;
     };
     AssemblyRunTokenUsage: {
@@ -4880,13 +4880,13 @@ export interface operations {
       };
     };
     responses: {
-      /** @description A fresh line on the same work, entered at the named station; an open source line is retired first */
-      201: {
+      /** @description The station's next iteration was asked for in the same run, which is reopened if it had ended; the Floor launches it */
+      202: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["AssemblyRunStationStarted"];
+          "application/json": components["schemas"]["AssemblyRunStationRequested"];
         };
       };
       400: components["responses"]["BadRequest"];

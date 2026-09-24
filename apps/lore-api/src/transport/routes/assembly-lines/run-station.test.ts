@@ -1,6 +1,7 @@
 import Hapi from "@hapi/hapi";
 import { describe, expect, it } from "vitest";
 import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
+import { InMemoryEventReporter } from "@re-cinq/lore-shared/project/events/event-reporter-memory.js";
 import type { RunGraph } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import { runStationRoute } from "./run-station.js";
 
@@ -21,7 +22,10 @@ const GRAPH: RunGraph = {
   edges: [],
 };
 
-async function serve(runs: InMemoryAssemblyRuns) {
+async function serve(
+  runs: InMemoryAssemblyRuns,
+  reporter = new InMemoryEventReporter(),
+) {
   const server = Hapi.server();
 
   server.auth.scheme("stub", () => ({
@@ -34,6 +38,7 @@ async function serve(runs: InMemoryAssemblyRuns) {
       () => null,
       async () => new Map(),
       runs,
+      reporter,
     ),
   );
 
@@ -41,8 +46,9 @@ async function serve(runs: InMemoryAssemblyRuns) {
 }
 
 describe("POST /api/assembly-runs/{id}/run-station", () => {
-  it("answers 201 with the fresh line's id, entered at write, and retires the parked source", async () => {
+  it("answers 202 with the same run's id and asks the Floor to run write in it", async () => {
     const runs = new InMemoryAssemblyRuns();
+    const reporter = new InMemoryEventReporter();
     const source = await runs.start({
       blueprintName: "feature-planning",
       repo: "re-cinq/lore",
@@ -51,20 +57,19 @@ describe("POST /api/assembly-runs/{id}/run-station", () => {
 
     await runs.stampBlueprint(source, "h", GRAPH);
     await runs.markRunning(source);
-    const server = await serve(runs);
+    const server = await serve(runs, reporter);
 
     const res = await server.inject({
       method: "POST",
       url: `/api/assembly-runs/${source}/run-station`,
       payload: { node_id: "write", actor: "gedaiu" },
     });
-    const { id } = res.result as { id: string };
 
     expect({
       status: res.statusCode,
-      fresh: (await runs.getById(id))?.args.entry_node,
-      source: (await runs.getById(source))?.outcome,
-    }).toEqual({ status: 201, fresh: "write", source: "cancelled" });
+      body: res.result,
+      asked: reporter.rows.map((row) => row.params.nodeId),
+    }).toEqual({ status: 202, body: { id: source }, asked: ["write"] });
   });
 
   it("answers 400 for a station the run's graph does not have, and 404 for a run that does not exist", async () => {

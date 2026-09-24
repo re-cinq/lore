@@ -9,7 +9,9 @@ import {
   type AssemblyLine,
 } from "@re-cinq/lore-assembly-lines";
 import type { AssemblyRunsPort } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
+import type { EventReporter } from "@re-cinq/lore-shared/project/events/event-reporter-port.js";
 import { resolvePort } from "./run-read.js";
+import { eventReporterFor } from "../event-reporter.js";
 import { runStation } from "../../../work/assembly-runs/run-station.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
@@ -28,6 +30,7 @@ interface RunStationDeps {
   getPool: () => Pool | null;
   load: LoadDefinitions;
   runs?: AssemblyRunsPort;
+  reporter?: EventReporter;
 }
 
 const RUN_STATION_OPTIONS = zodResponse(
@@ -37,10 +40,10 @@ const RUN_STATION_OPTIONS = zodResponse(
   },
   RunStationSchema,
   {
-    name: "AssemblyRunStationStarted",
-    status: 201,
+    name: "AssemblyRunStationRequested",
+    status: 202,
     description:
-      "A fresh line on the same work, entered at the named station; an open source line is retired first",
+      "The station's next iteration was asked for in the same run, which is reopened if it had ended; the Floor launches it",
     errors: [400, 404, 409],
   },
 );
@@ -49,13 +52,14 @@ export function runStationRoute(
   getPool: () => Pool | null,
   load: LoadDefinitions = loadBuiltinAssemblyLines,
   runs?: AssemblyRunsPort,
+  reporter?: EventReporter,
 ): ServerRoute {
   return {
     method: "POST",
     path: "/api/assembly-runs/{id}/run-station",
     options: RUN_STATION_OPTIONS,
     handler: (request, h) =>
-      serveRunStation({ getPool, load, runs }, request, h),
+      serveRunStation({ getPool, load, runs, reporter }, request, h),
   };
 }
 
@@ -64,17 +68,16 @@ async function serveRunStation(
   request: Request,
   h: ResponseToolkit,
 ) {
-  const port = resolvePort(deps.getPool(), deps.runs);
+  const pool = deps.getPool();
   const { node_id, actor } = request.payload as z.infer<typeof RunStationBody>;
   const id = await runStation(
-    port,
-    (line) => resolveRunGraph(line, deps.load),
     {
-      runId: String(request.params.id),
-      nodeId: node_id,
-      actor,
+      runs: resolvePort(pool, deps.runs),
+      reporter: deps.reporter ?? eventReporterFor(pool),
+      graphOf: (line) => resolveRunGraph(line, deps.load),
     },
+    { runId: String(request.params.id), nodeId: node_id, actor },
   );
 
-  return h.response({ id }).code(201);
+  return h.response({ id }).code(202);
 }
