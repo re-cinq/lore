@@ -55,7 +55,7 @@ describe("PlanRunCard", () => {
     });
   });
 
-  it("links the spec PR once the run opened one", () => {
+  it("links only the run once spec PR #7 is open; the outline carries the PR", () => {
     render(
       <PlanRunCard
         run={{
@@ -69,10 +69,9 @@ describe("PlanRunCard", () => {
       />,
     );
 
-    expect(screen.getByRole("link", { name: "Spec PR #7" })).toHaveAttribute(
-      "href",
-      "https://github.com/re-cinq/lore/pull/7",
-    );
+    expect(
+      screen.getAllByRole("link").map((link) => link.getAttribute("href")),
+    ).toEqual(["/assembly-runs/run-1"]);
   });
 
   it("says no run has started for a plan without one", () => {
