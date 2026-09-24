@@ -228,7 +228,15 @@ async function postReplies(
     return counts;
   }
   const posted = await postedBodies(pulls, target.prNumber);
-  const context = { target, pulls, counts, reviewIds: reviewBodyIds(target) };
+  const { run } = target;
+  // The ids the review carried as whole review bodies, which sit in no thread: answered as a comment on the PR, never resolved.
+  const reviews = specReviewFromArgs(run.args)?.reviews ?? [];
+  const context = {
+    target,
+    pulls,
+    counts,
+    reviewIds: new Set(reviews.map((body) => body.id)),
+  };
 
   for (const reply of replies) {
     const marker = replyMarker(target.run.id, reply.comment_id);
@@ -238,13 +246,6 @@ async function postReplies(
   }
 
   return counts;
-}
-
-/** The ids the review carried as whole review bodies, which sit in no thread: answered as a comment on the PR, never resolved. */
-function reviewBodyIds(target: ReviewTarget): Set<number> {
-  const review = specReviewFromArgs(target.run.args);
-
-  return new Set((review?.reviews ?? []).map((body) => body.id));
 }
 
 // A redelivery after a resolve that failed: the reply is there, the thread may still be open; a review body sits in no thread.
