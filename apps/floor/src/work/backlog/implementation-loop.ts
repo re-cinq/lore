@@ -46,6 +46,8 @@ export interface LoopTickDeps {
     repo: string,
     branch: string,
   ): Promise<{ number: number; url: string } | null>;
+  /** Numbers of the open issues linked as blocking this one; asked only of a ticket that carries blocked-by links. */
+  openBlockers(repo: string, issueNumber: number): Promise<number[]>;
 }
 
 /** One tick of the self-re-arming backlog loop (FR2): serialized per repo by the open-run subject key, per issue by `activeTaskByIssue` (FR1's "no open PR already referencing it"); a cross-issue race settles via the unique `(repo, subject_key)` index. */
@@ -121,8 +123,7 @@ async function pickBacklogTicket(
   const guarded: number[] = [];
 
   for (const candidate of ordered) {
-    if (ticketTextTooLong(candidate)) {
-      logTextTooLong(repo, candidate.number);
+    if (await walkedPast(repo, candidate, deps)) {
       continue;
     }
 
@@ -135,6 +136,43 @@ async function pickBacklogTicket(
   }
 
   return { picked: null, guarded };
+}
+
+/** A ticket no pod could start on is walked past, not dispatched, and the driver logs why. */
+async function walkedPast(
+  repo: string,
+  candidate: IssueRef,
+  deps: LoopTickDeps,
+): Promise<boolean> {
+  if (ticketTextTooLong(candidate)) {
+    logTextTooLong(repo, candidate.number);
+
+    return true;
+  }
+
+  return waitsOnOpenBlockers(repo, candidate, deps);
+}
+
+/** A ticket whose blockers are still open is walked past, not dispatched: no pod can build on work that has not landed (run db0304bb). It is picked again on the first tick after its last blocker closes, with no label to lift. */
+async function waitsOnOpenBlockers(
+  repo: string,
+  candidate: IssueRef,
+  deps: LoopTickDeps,
+): Promise<boolean> {
+  if (!candidate.blockedByCount) {
+    return false;
+  }
+  const open = await deps.openBlockers(repo, candidate.number);
+
+  if (open.length === 0) {
+    return false;
+  }
+
+  console.log(
+    `[implementation-loop] ${repo}: skipped #${candidate.number} — waits on open blocker(s) ${open.map((n) => `#${n}`).join(", ")}`,
+  );
+
+  return true;
 }
 
 /** A ticket whose text is too long is walked past, not minted: task creation would refuse it, and a refusal thrown at the head froze re-cinq/Otto's backlog for two days. */
@@ -267,6 +305,8 @@ function repoPorts(projectFor: (repo: string) => Promise<Project>) {
       (await projectFor(repo)).issues.list({ state: "open" }),
     branchExists: async (repo: string, branch: string) =>
       (await projectFor(repo)).repo.branchExists(branch),
+    openBlockers: async (repo: string, issueNumber: number) =>
+      (await projectFor(repo)).issues.openBlockers(issueNumber),
     openPrForBranch: async (repo: string, branch: string) => {
       const open = await (await projectFor(repo)).pulls.list();
       const forBranch = open.find((pr) => pr.branch === branch);

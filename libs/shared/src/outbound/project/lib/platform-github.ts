@@ -75,6 +75,10 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     return issues.getIssueLabels(await this.octo(), repo, number);
   }
 
+  async listOpenBlockers(repo: string, number: number): Promise<number[]> {
+    return issues.listOpenBlockers(await this.octo(), repo, number);
+  }
+
   async createIssue(
     repo: string,
     title: string,

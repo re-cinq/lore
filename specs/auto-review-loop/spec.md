@@ -448,19 +448,19 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 
 ### `libs/shared/src/outbound/project/issues/issues.test.ts`
 
-- returns the GitHubPort issues for the project's repo. ([validated by](libs/shared/src/outbound/project/issues/issues.test.ts#L54))
-- creates an issue bound to the repo. ([validated by](libs/shared/src/outbound/project/issues/issues.test.ts#L98))
-- comments, closes, and labels by number bound to the repo. ([validated by](libs/shared/src/outbound/project/issues/issues.test.ts#L111))
+- returns the GitHubPort issues for the project's repo. ([validated by](libs/shared/src/outbound/project/issues/issues.test.ts#L55))
+- creates an issue bound to the repo. ([validated by](libs/shared/src/outbound/project/issues/issues.test.ts#L99))
+- comments, closes, and labels by number bound to the repo. ([validated by](libs/shared/src/outbound/project/issues/issues.test.ts#L112))
 
 ### `libs/shared/src/outbound/project/lib/platform-github.test.ts`
 
-- exposes the github port name. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L152))
-- createLabels swallows a 422 (already exists) and continues. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L406))
-- createLabels rethrows a non-422 error. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L413))
-- createReview posts one review with the mapped comments array. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L420))
-- get exposes the PR head sha as headSha. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L443))
-- listReviewThreads maps GraphQL thread nodes (id, resolution, outdated flag, comment databaseIds) and stitches pages past the first cursor. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L494))
-- resolveReviewThread sends the GraphQL mutation carrying the thread node id. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L544))
+- exposes the github port name. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L159))
+- createLabels swallows a 422 (already exists) and continues. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L451))
+- createLabels rethrows a non-422 error. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L458))
+- createReview posts one review with the mapped comments array. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L465))
+- get exposes the PR head sha as headSha. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L488))
+- listReviewThreads maps GraphQL thread nodes (id, resolution, outdated flag, comment databaseIds) and stitches pages past the first cursor. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L539))
+- resolveReviewThread sends the GraphQL mutation carrying the thread node id. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L589))
 
 ### `libs/shared/src/outbound/project/pulls/pull-requests.test.ts`
 
@@ -478,9 +478,9 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 
 ### `libs/shared/src/outbound/project/repo/repo-files.test.ts`
 
-- reads a file from the repo at the given ref. ([validated by](libs/shared/src/outbound/project/repo/repo-files.test.ts#L50))
-- returns null for a file the repo does not have. ([validated by](libs/shared/src/outbound/project/repo/repo-files.test.ts#L56))
-- creates a branch and commits a file via the API, repo bound. ([validated by](libs/shared/src/outbound/project/repo/repo-files.test.ts#L62))
+- reads a file from the repo at the given ref. ([validated by](libs/shared/src/outbound/project/repo/repo-files.test.ts#L51))
+- returns null for a file the repo does not have. ([validated by](libs/shared/src/outbound/project/repo/repo-files.test.ts#L57))
+- creates a branch and commits a file via the API, repo bound. ([validated by](libs/shared/src/outbound/project/repo/repo-files.test.ts#L63))
 
 ### `libs/shared/src/work/review/comment-triage.test.ts`
 

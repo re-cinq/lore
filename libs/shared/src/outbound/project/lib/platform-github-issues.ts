@@ -19,6 +19,7 @@ interface OctokitIssue {
   labels: OctokitLabel[];
   html_url: string;
   body?: string | null;
+  issue_dependencies_summary?: { total_blocked_by: number } | null;
 }
 
 export async function listIssues(
@@ -41,12 +42,18 @@ export async function listIssues(
     .map((i) => toListedIssueRef(repo, i));
 }
 
-/** The listing projection: the shared IssueRef fields plus the creation time only the list read carries. */
+/** The listing projection: the shared IssueRef fields plus the creation time and blocked-by link count only the list read carries. */
 function toListedIssueRef(
   repo: string,
   issue: OctokitIssue & { created_at: string },
 ): IssueRef {
-  return { ...toIssueRef(repo, issue), createdAt: issue.created_at };
+  const blockedByCount = issue.issue_dependencies_summary?.total_blocked_by;
+
+  return {
+    ...toIssueRef(repo, issue),
+    createdAt: issue.created_at,
+    ...(blockedByCount ? { blockedByCount } : {}),
+  };
 }
 
 /** The IssueRef fields every issue read projects; GitHub answers an empty body as null, which projects as no body at all. */
@@ -104,6 +111,24 @@ export async function getIssueLabels(
   });
 
   return labelNames(issue.labels);
+}
+
+/** Filters by state here rather than trusting the summary's count, whose closed-blocker semantics GitHub does not document. */
+export async function listOpenBlockers(
+  ok: Octokit,
+  repo: string,
+  number: number,
+): Promise<number[]> {
+  const [owner, name] = split(repo);
+  const { issues } = ok.rest;
+  const blockers = await ok.paginate(issues.listDependenciesBlockedBy, {
+    owner,
+    repo: name,
+    issue_number: number,
+    per_page: 100,
+  });
+
+  return blockers.filter((b) => b.state === "open").map((b) => b.number);
 }
 
 interface IssueDraft {

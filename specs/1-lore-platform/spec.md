@@ -394,7 +394,7 @@ LOCKED` — atomically prevents duplicate work without versioning
   another task. ([validated by `task-queue.test.ts:7`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L7))
 - FR-4.6: Every pipeline task automatically creates a GitHub Issue
   on the target repo (labelled `lore-managed`). The issue receives
-  status comments and is closed when the PR is created. ([validated by `issues.test.ts:102`](libs/shared/src/outbound/project/issues/issues.test.ts#L98), [`issues.test.ts:111`](libs/shared/src/outbound/project/issues/issues.test.ts#L111))
+  status comments and is closed when the PR is created. ([validated by `issues.test.ts:102`](libs/shared/src/outbound/project/issues/issues.test.ts#L99), [`issues.test.ts:111`](libs/shared/src/outbound/project/issues/issues.test.ts#L112))
 - FR-4.7: Optional approval gates: tasks can require a human to add
   an `approved` label on the GitHub Issue before processing.
   Configured via the settings UI or `lore.settings` table. ([validated by `SettingsView.test.tsx:123`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L122))
@@ -1198,13 +1198,13 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   PR via the pulls port. ([validated by `git-auth.test.ts:5`](libs/shared/src/outbound/project/workspace/git-auth.test.ts#L5), [`git-auth.test.ts:14`](libs/shared/src/outbound/project/workspace/git-auth.test.ts#L14), [`git-auth.test.ts:20`](libs/shared/src/outbound/project/workspace/git-auth.test.ts#L20), [`git-auth.test.ts:26`](libs/shared/src/outbound/project/workspace/git-auth.test.ts#L26), [`git-cli-auth.test.ts:20`](libs/shared/src/outbound/project/workspace/git-cli-auth.test.ts#L20), [`git-cli-auth.test.ts:33`](libs/shared/src/outbound/project/workspace/git-cli-auth.test.ts#L33), [`git-cli-auth.test.ts:44`](libs/shared/src/outbound/project/workspace/git-cli-auth.test.ts#L44), [`git-cli.test.ts:47`](libs/shared/src/outbound/project/workspace/git-cli.test.ts#L47), [`git-cli.test.ts:57`](libs/shared/src/outbound/project/workspace/git-cli.test.ts#L57), [`git-cli.test.ts:75`](libs/shared/src/outbound/project/workspace/git-cli.test.ts#L75), [`git-cli.test.ts:94`](libs/shared/src/outbound/project/workspace/git-cli.test.ts#L94), [`git-cli.test.ts:105`](libs/shared/src/outbound/project/workspace/git-cli.test.ts#L105), [`git-cli.test.ts:123`](libs/shared/src/outbound/project/workspace/git-cli.test.ts#L123), [`workspace.test.ts:33`](libs/shared/src/outbound/project/workspace/workspace.test.ts#L33), [`workspace.test.ts:46`](libs/shared/src/outbound/project/workspace/workspace.test.ts#L46))
 - FR-20.14: The `Repo` files port reads a file at a given ref (null when
   absent) and creates a branch committing a file via the API, repo bound.
-  ([validated by `repo-files.test.ts:54`](libs/shared/src/outbound/project/repo/repo-files.test.ts#L50), [`repo-files.test.ts:56`](libs/shared/src/outbound/project/repo/repo-files.test.ts#L56), [`repo-files.test.ts:62`](libs/shared/src/outbound/project/repo/repo-files.test.ts#L62))
+  ([validated by `repo-files.test.ts:54`](libs/shared/src/outbound/project/repo/repo-files.test.ts#L51), [`repo-files.test.ts:56`](libs/shared/src/outbound/project/repo/repo-files.test.ts#L57), [`repo-files.test.ts:62`](libs/shared/src/outbound/project/repo/repo-files.test.ts#L63))
 - FR-20.15: The `PullRequests` port lists only the repo's PRs, merges by
   number with the requested method, and exposes PR reads bound to the
   repo and number. ([validated by `pull-requests.test.ts:106`](libs/shared/src/outbound/project/pulls/pull-requests.test.ts#L106), [`pull-requests.test.ts:142`](libs/shared/src/outbound/project/pulls/pull-requests.test.ts#L142), [`pull-requests.test.ts:151`](libs/shared/src/outbound/project/pulls/pull-requests.test.ts#L151))
 - FR-20.16: The `Issues` port returns the GitHubPort issues for the
   project's repo, creates an issue bound to the repo, and comments,
-  closes, and labels by number bound to the repo. ([validated by `issues.test.ts:58`](libs/shared/src/outbound/project/issues/issues.test.ts#L54), [`issues.test.ts:98`](libs/shared/src/outbound/project/issues/issues.test.ts#L98), [`issues.test.ts:111`](libs/shared/src/outbound/project/issues/issues.test.ts#L111))
+  closes, and labels by number bound to the repo. ([validated by `issues.test.ts:58`](libs/shared/src/outbound/project/issues/issues.test.ts#L55), [`issues.test.ts:98`](libs/shared/src/outbound/project/issues/issues.test.ts#L99), [`issues.test.ts:111`](libs/shared/src/outbound/project/issues/issues.test.ts#L112))
 - FR-20.17: The `TestRunner` port lists tests in a trusted sandbox (no
   `LORE_DB_HOST`); its exec adapter lists the descriptors from the
   manifest `list` command, runs a single test aggregating the report, and

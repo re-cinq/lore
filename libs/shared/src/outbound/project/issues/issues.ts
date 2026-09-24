@@ -54,4 +54,8 @@ export class IssueCollection {
   getLabels(number: number): Promise<string[]> {
     return this.github.getIssueLabels(this.repo, number);
   }
+
+  openBlockers(number: number): Promise<number[]> {
+    return this.github.listOpenBlockers(this.repo, number);
+  }
 }
