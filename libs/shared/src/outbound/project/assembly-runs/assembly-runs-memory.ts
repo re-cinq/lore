@@ -15,6 +15,7 @@ import { AssemblyRunQueryStore } from "./assembly-runs-memory-queries.js";
 import {
   inheritFromSource,
   newRunLifecycle,
+  reopenRow,
   resumeRefs,
 } from "./assembly-runs-memory-rows.js";
 import type {
@@ -216,19 +217,7 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
   }
 
   async reopen(id: string): Promise<boolean> {
-    const row = this.mustFind(id);
-
-    // Only an ended row reopens (mirrors the Pg guard).
-    if (row.status !== "finished" && row.status !== "failed") {
-      return false;
-    }
-
-    row.status = "running";
-    row.outcome = null;
-    row.reason = null;
-    row.finishedAt = null;
-
-    return true;
+    return reopenRow(this.mustFind(id));
   }
 
   ensureStationRun(

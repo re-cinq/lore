@@ -21,6 +21,17 @@ export function isHumanStation(nodeType: string | null | undefined): boolean {
   return typeof nodeType === "string" && HUMAN.has(nodeType);
 }
 
+/** The ids of a graph's nodes a person works — a run's clone or a blueprint alike. */
+export function humanStationIds(graph: {
+  nodes: readonly { id: string; type: string }[];
+}): Set<string> {
+  const { nodes } = graph;
+
+  return new Set(
+    nodes.filter((node) => isHumanStation(node.type)).map((node) => node.id),
+  );
+}
+
 // Placeholders in `route` that are NOT `{args.<name>}` — routes resolve only against the run's args (keeping the engine domain-free), built on the same grammar `resolveRoute` reads so the loader can never bless a placeholder resolving to a dead link.
 export function invalidRoutePlaceholders(route: string): string[] {
   return routePlaceholders(route)

@@ -55,7 +55,16 @@ function subject() {
   const runs = new InMemoryAssemblyRuns();
   const reporter = new InMemoryEventReporter();
 
-  return { runs, reporter, deps: { runs, reporter, graphOf: async () => GRAPH } };
+  return {
+    runs,
+    reporter,
+    deps: {
+      runs,
+      reporter,
+      graphOf: async () => GRAPH,
+      humanStationIds: () => new Set(["author"]),
+    },
+  };
 }
 
 describe("runStation", () => {

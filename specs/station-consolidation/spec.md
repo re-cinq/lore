@@ -296,7 +296,7 @@ subscribe" has no expressible meaning on the current substrate.
   delivery still queued for it — duplicate issues, duplicate episodes — or, for a
   node type with no seeded recipe, fail on every tick. A service visit is still
   timed out at its budget, so a lost delivery surfaces rather than parking forever.
-  ([validated by waits rather than relaunching it as a pod, since no pod was ever meant to exist](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L940), [`assembly-run-reaper.test.ts:953`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L954), [`assembly-run-reaper.test.ts:967`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L968), [`finish-node.test.ts:715`](apps/floor/src/work/assembly-run/finish-node.test.ts#L721), [`advance-line.test.ts:976`](apps/floor/src/work/assembly-run/advance-line.test.ts#L978))
+  ([validated by waits rather than relaunching it as a pod, since no pod was ever meant to exist](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L942), [`assembly-run-reaper.test.ts:953`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L956), [`assembly-run-reaper.test.ts:967`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L970), [`finish-node.test.ts:715`](apps/floor/src/work/assembly-run/finish-node.test.ts#L721), [`advance-line.test.ts:976`](apps/floor/src/work/assembly-run/advance-line.test.ts#L978))
 
 - **FR23 — what a subscriber asks for, it can handle and does receive.** Every
   name a process subscribes to has a handler, derived from the same manifests the
@@ -326,7 +326,7 @@ subscribe" has no expressible meaning on the current substrate.
   its work takes, and a five-minute step left to a sixty-minute default sits
   un-reaped for an hour after it is already lost. A blueprint that does declare a
   budget still wins, so a line may deliberately extend a step.
-  ([validated by takes the station's 5 minutes when the YAML declares no budget](apps/floor/src/work/assembly-run/node-timeout.test.ts#L5), [`node-timeout.test.ts:9`](apps/floor/src/work/assembly-run/node-timeout.test.ts#L9), [`node-timeout.test.ts:13`](apps/floor/src/work/assembly-run/node-timeout.test.ts#L13), [`assembly-run-reaper.test.ts:1150`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L1151))
+  ([validated by takes the station's 5 minutes when the YAML declares no budget](apps/floor/src/work/assembly-run/node-timeout.test.ts#L5), [`node-timeout.test.ts:9`](apps/floor/src/work/assembly-run/node-timeout.test.ts#L9), [`node-timeout.test.ts:13`](apps/floor/src/work/assembly-run/node-timeout.test.ts#L13), [`assembly-run-reaper.test.ts:1150`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L1154))
 
 - **FR26 — a subscriber repairs what it was not there to receive.** Fan-out reads
   the subscription set when an event is INSERTED, so an event captured while a

@@ -11,7 +11,7 @@ import {
 import { getSession } from "@/lib/session";
 import { planUserOf, type PlanSession } from "@/lib/plan-user";
 
-// "Run this station" backend (specs/fork-rerun-from-node FR8): resolves the source run's repo server-side, authorizes, then asks lore-api for a fresh line entered at the station.
+// "Run this station" backend (specs/fork-rerun-from-node FR8): resolves the run's repo server-side, authorizes, then asks lore-api to run the station as its next iteration in that run.
 export async function POST(req: Request) {
   try {
     const accessToken = await resolveSessionAccessToken();
@@ -65,11 +65,11 @@ async function startStation(
 
   return line instanceof Response
     ? line
-    : freshRunAnswer(await postRunStation(apiUrl, headers, runId, nodeId));
+    : runAnswer(await postRunStation(apiUrl, headers, runId, nodeId));
 }
 
-// JSON, not a redirect — the button's fetch navigates itself.
-async function freshRunAnswer(upstream: Response): Promise<NextResponse> {
+// JSON, not a redirect — the button's fetch reloads the page itself.
+async function runAnswer(upstream: Response): Promise<NextResponse> {
   return upstream.ok
     ? NextResponse.json({ id: ((await upstream.json()) as { id: string }).id })
     : upstreamRefusal(upstream);
@@ -92,7 +92,7 @@ async function postRunStation(
   );
 }
 
-// The person is named on the retired line and the fresh one; a session with no login falls back to its display name.
+// The person is named on the visit they ran; a session with no login falls back to its display name.
 async function actorName(): Promise<string> {
   const user = planUserOf((await getSession()) as PlanSession | null);
 

@@ -630,7 +630,10 @@ describe("a station a person ran by hand restarts the walk at that visit (fork-r
     nodeId: string,
     iteration: number,
     outcome: StageOutcome | null,
-  ): NodeVisit => ({ ...visit(nodeId, iteration, outcome), requestedBy: "gedaiu" });
+  ): NodeVisit => ({
+    ...visit(nodeId, iteration, outcome),
+    requestedBy: "gedaiu",
+  });
 
   it("launches validate after review failed and the person ran implement again as iteration 2", () => {
     const visits = [

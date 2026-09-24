@@ -30,7 +30,7 @@ describe("RunStationButton", () => {
   it("posts run_id and node_id to the run-station proxy only after the popup is confirmed", async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValue({ ok: true, json: async () => ({ id: "fresh-9" }) });
+      .mockResolvedValue({ ok: true, json: async () => ({ id: "run-1" }) });
 
     vi.stubGlobal("fetch", fetchMock);
     renderLive();
@@ -51,7 +51,7 @@ describe("RunStationButton", () => {
     });
   });
 
-  it("warns that a live run is retired, and says only that a fresh run starts for one that ended", async () => {
+  it("warns that a live run's wait on a person is closed, and says a run that ended reopens", async () => {
     renderLive();
     await ask();
     const live = screen.getByRole("dialog").textContent;
@@ -65,9 +65,13 @@ describe("RunStationButton", () => {
     });
 
     expect({
-      live: live?.includes("it is retired and a fresh run starts at write"),
-      ended: screen.getByRole("dialog").textContent?.includes("it is retired"),
-    }).toEqual({ live: true, ended: false });
+      live: live?.includes("A station waiting on a person is closed."),
+      ended: screen
+        .getByRole("dialog")
+        .textContent?.includes(
+          "This run reopens: write runs as its next iteration in this run",
+        ),
+    }).toEqual({ live: true, ended: true });
   });
 
   it("shows the proxy's refusal inline and re-enables the button", async () => {

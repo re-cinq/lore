@@ -2,7 +2,6 @@
 
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
-import { isHumanStation } from "@re-cinq/lore-assembly-lines";
 import type {
   AssemblyRunRecord,
   AssemblyRunsPort,
@@ -18,6 +17,8 @@ export interface RunStationDeps {
   >;
   reporter: EventReporter;
   graphOf: (line: AssemblyRunRecord) => Promise<RunGraph | null | undefined>;
+  /** The graph's stations a person works; the engine's classification, injected because this layer may not import the engine. */
+  humanStationIds: (graph: RunGraph) => Set<string>;
 }
 
 export interface RunStationInput {
@@ -69,9 +70,7 @@ async function assertNoStationWorking(
   line: AssemblyRunRecord,
   graph: RunGraph,
 ): Promise<void> {
-  const human = new Set(
-    graph.nodes.filter((n) => isHumanStation(n.type)).map((n) => n.id),
-  );
+  const human = deps.humanStationIds(graph);
   const working = (await deps.runs.listStationRuns(line.id)).find(
     (visit) => visit.outcome === null && !human.has(visit.nodeId),
   );

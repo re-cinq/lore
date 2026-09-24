@@ -981,6 +981,7 @@ describe("PgAssemblyRuns node-transition primitives", () => {
       "running",
       [],
       null,
+      null,
     ]);
   });
 
@@ -1056,6 +1057,7 @@ describe("PgAssemblyRuns node-transition primitives", () => {
         agentCrName: "abcd1234-implement",
         input: null,
         commitSha: "sha-1",
+        requestedBy: null,
         startedAt: new Date("2026-07-14T00:00:00Z"),
         finishedAt: new Date("2026-07-14T00:01:00Z"),
       },
@@ -1534,9 +1536,7 @@ describe("PgAssemblyRuns resumeFrom", () => {
     const sql = calls[2]?.text ?? "";
 
     expect(sql).toContain("n.node_id, n.iteration, n.outcome, NULL,");
-    expect(sql).toContain(
-      "NULL, NULL, n.input, n.commit_sha, n.started_at, n.finished_at",
-    );
+    expect(sql).toContain("NULL, NULL, n.input, n.commit_sha, n.requested_by,");
   });
 
   it("issues no write when the source line is still running", async () => {

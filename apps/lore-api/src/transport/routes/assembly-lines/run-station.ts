@@ -4,6 +4,7 @@ import type { Request, ResponseToolkit, ServerRoute } from "@hapi/hapi";
 import type { Pool } from "pg";
 import { z } from "zod";
 import {
+  humanStationIds,
   loadBuiltinAssemblyLines,
   resolveRunGraph,
   type AssemblyLine,
@@ -75,6 +76,7 @@ async function serveRunStation(
       runs: resolvePort(pool, deps.runs),
       reporter: deps.reporter ?? eventReporterFor(pool),
       graphOf: (line) => resolveRunGraph(line, deps.load),
+      humanStationIds,
     },
     { runId: String(request.params.id), nodeId: node_id, actor },
   );

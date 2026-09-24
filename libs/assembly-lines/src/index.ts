@@ -56,6 +56,7 @@ export { definitionHash } from "./definition-hash.js";
 export {
   HUMAN_STATION_TYPES,
   isHumanStation,
+  humanStationIds,
   invalidRoutePlaceholders,
   type HumanStationType,
 } from "./human-station.js";

@@ -46,14 +46,16 @@ function ensureParams(input: StationRunStartInput): unknown[] {
     input.nodeId,
     input.iteration,
     input.agentCrName ?? null,
-    input.input ? JSON.stringify(input.input) : null,
+    jsonOrNull(input.input),
     input.status ?? "running",
     input.requiredTags ?? [],
-    input.dispatchSpec !== undefined
-      ? JSON.stringify(input.dispatchSpec)
-      : null,
+    jsonOrNull(input.dispatchSpec),
     input.requestedBy ?? null,
   ];
+}
+
+function jsonOrNull(value: unknown): string | null {
+  return value === undefined || value === null ? null : JSON.stringify(value);
 }
 
 /** The upsert names one visit, so anything but one row back means the ON CONFLICT target no longer identifies it. */

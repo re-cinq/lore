@@ -1,7 +1,7 @@
 /** A person runs one station of a line (specs/fork-rerun-from-node FR8): the node's next iteration, in the SAME run, recorded under their name so the walk replay restarts there. */
 
-import { isHumanStation } from "@re-cinq/lore-assembly-lines";
-import type { RunGraph } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
+import { humanStationIds, type NodeVisit } from "@re-cinq/lore-assembly-lines";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { launchTransition } from "./advance-line.js";
 import type { AdvanceDeps } from "./advance-deps.js";
 import { loadWalkState, type WalkState } from "./walk-state.js";
@@ -40,16 +40,11 @@ export async function runStationByHand(
   await deps.publishRunCheck?.(assemblyRunId);
 }
 
-function machineInFlight(state: WalkState): boolean {
-  return state.visits.some(
-    (visit) =>
-      visit.outcome === null && !humanIds(state.runGraph).has(visit.nodeId),
-  );
-}
+function machineInFlight({ runGraph, visits }: WalkState): boolean {
+  const human = humanStationIds(runGraph);
 
-function humanIds(graph: RunGraph): Set<string> {
-  return new Set(
-    graph.nodes.filter((node) => isHumanStation(node.type)).map((node) => node.id),
+  return visits.some(
+    (visit) => visit.outcome === null && !human.has(visit.nodeId),
   );
 }
 
@@ -72,29 +67,31 @@ async function closeParkedWaits(
   );
 }
 
+// lore-api checked the node against this graph, so a missing one means the graph changed under the ask — failing the event says so.
 async function launchByHand(
   state: WalkState,
   { nodeId, actor }: HandRun,
   deps: AdvanceDeps,
 ): Promise<void> {
-  const node = state.runGraph.nodes.find((n) => n.id === nodeId);
+  const { runGraph, visits } = state;
+  const node = runGraph.nodes.find((n) => n.id === nodeId);
 
-  if (!node) {
-    console.log(`[run-station] ${state.assemblyRun.id}: no station "${nodeId}"`);
-
-    return;
-  }
-  const iteration =
-    Math.max(
-      0,
-      ...state.visits.filter((v) => v.nodeId === nodeId).map((v) => v.iteration),
-    ) + 1;
-
+  enforceTrue(node, Error, `${runGraph.name} has no station "${nodeId}"`);
   await launchTransition(
     node,
-    { kind: "launch", nodeId, iteration },
+    {
+      kind: "launch",
+      nodeId,
+      iteration: nextIteration(visits, nodeId),
+      requestedBy: actor,
+    },
     state,
     deps,
-    actor,
   );
+}
+
+function nextIteration(visits: readonly NodeVisit[], nodeId: string): number {
+  const own = visits.filter((visit) => visit.nodeId === nodeId);
+
+  return Math.max(0, ...own.map((visit) => visit.iteration)) + 1;
 }

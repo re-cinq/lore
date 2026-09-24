@@ -48,21 +48,20 @@ function makeDeps(port: InMemoryAssemblyRuns) {
     enqueued.push(dispatchSpec as LoreTaskSpec);
     await armDispatch(nodeRowId, dispatchSpec);
   };
-  const deps: AdvanceDeps & { reopenTask: (runId: string) => Promise<void> } =
-    {
-      assemblyRuns: port,
-      definitions: async () =>
-        new Map<string, AssemblyLine>([["push-then-wait", pushThenWait]]),
-      repoSettings: async () => null,
-      resolveRecipe: async (_repo, promptRef, description) => ({
-        prompt: `${promptRef}::${description}`,
-      }),
-      cleanupToken: async () => {},
-      jobRuns: { complete: async () => {}, fail: async () => {} },
-      reopenTask: async (runId) => {
-        reopenedTasks.push(runId);
-      },
-    };
+  const deps: AdvanceDeps & { reopenTask: (runId: string) => Promise<void> } = {
+    assemblyRuns: port,
+    definitions: async () =>
+      new Map<string, AssemblyLine>([["push-then-wait", pushThenWait]]),
+    repoSettings: async () => null,
+    resolveRecipe: async (_repo, promptRef, description) => ({
+      prompt: `${promptRef}::${description}`,
+    }),
+    cleanupToken: async () => {},
+    jobRuns: { complete: async () => {}, fail: async () => {} },
+    reopenTask: async (runId) => {
+      reopenedTasks.push(runId);
+    },
+  };
 
   return { deps, enqueued, reopenedTasks };
 }
@@ -108,18 +107,22 @@ describe("running a station by hand starts its next iteration in the same run (f
 
     await runStationByHand(id, { nodeId: "push", actor: "gedaiu" }, deps);
 
-    expect(await port.getById(id)).toMatchObject({
-      status: "running",
-      outcome: null,
+    expect({
+      run: await port.getById(id),
+      visit: port.nodes.at(-1),
+      enqueued: enqueued.length,
+      reopenedTasks,
+    }).toMatchObject({
+      run: { status: "running", outcome: null },
+      visit: {
+        nodeId: "push",
+        iteration: 2,
+        outcome: null,
+        requestedBy: "gedaiu",
+      },
+      enqueued: 1,
+      reopenedTasks: [id],
     });
-    expect(port.nodes.at(-1)).toMatchObject({
-      nodeId: "push",
-      iteration: 2,
-      outcome: null,
-      requestedBy: "gedaiu",
-    });
-    expect(enqueued).toHaveLength(1);
-    expect(reopenedTasks).toEqual([id]);
   });
 
   it("closes the merged wait the line is parked on as cancelled and enqueues push as iteration 2", async () => {

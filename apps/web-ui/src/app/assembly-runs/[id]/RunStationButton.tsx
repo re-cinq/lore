@@ -1,6 +1,6 @@
 "use client";
 
-// "Run this station" (specs/fork-rerun-from-node FR8): any node, any time. Asks first, because a live run is retired to make room; then posts via fetch and navigates to the fresh run. `*Button.tsx` keeps this exempt from no-io-in-view, like RerunNodeButton.
+// "Run this station" (specs/fork-rerun-from-node FR8): any node, any time, as its next iteration in THIS run. Asks first, because a wait the run is parked on is closed; then posts via fetch and reloads, so an ended run that reopened is followed live again. `*Button.tsx` keeps this exempt from no-io-in-view, like RerunNodeButton.
 import { useState } from "react";
 import { settleStart } from "./settle-start";
 import { isTerminalRunStatus } from "@/lib/run-stream-presenter";
@@ -8,7 +8,7 @@ import ConfirmDialog, {
   type ConfirmQuestion,
 } from "@/components/ConfirmDialog";
 
-/** Whether the run is still open ("live"): the confirmation then says it will be retired. */
+/** Whether the run is still open ("live"): the confirmation then says a wait is closed, and otherwise that the run reopens. */
 export type RunState = "live" | "ended";
 
 export function runStateOf(runStatus: string): RunState {
@@ -73,27 +73,24 @@ function AskButton({ pending, ask }: { pending: boolean; ask: () => void }) {
   );
 }
 
-const RETIRED =
-  "This run is still open; it is retired and a fresh run starts at";
-
 function question({
   nodeId,
   runState,
 }: RunStationButtonProps): ConfirmQuestion {
-  const starts = `${nodeId} on the same branch, with this run's arguments.`;
+  const runs = `${nodeId} runs as its next iteration in this run, and the walk goes on from there.`;
 
   return {
     title: `Run ${nodeId} now?`,
     body:
       runState === "live"
-        ? `${RETIRED} ${starts}`
-        : `A fresh run starts at ${starts}`,
+        ? `${runs} A station waiting on a person is closed.`
+        : `This run reopens: ${runs}`,
     confirmLabel: "Run",
     tone: runState === "live" ? "danger" : "accent",
   };
 }
 
-/** Starts the station and navigates to the fresh run, or returns the message to show. Nothing is returned on success because the page is already leaving. */
+/** Asks for the station and reloads the run, or returns the message to show. Nothing is returned on success because the page is already reloading. */
 async function startStation({
   runId,
   nodeId,
@@ -104,12 +101,13 @@ async function startStation({
       signal: AbortSignal.timeout(30_000),
       body: new URLSearchParams({ run_id: runId, node_id: nodeId }),
     });
-    const body = (await res.json()) as { id?: string; error?: string };
 
-    if (!res.ok || !body.id) {
+    if (!res.ok) {
+      const body = (await res.json()) as { error?: string };
+
       return body.error ?? `run failed (${res.status})`;
     }
-    window.location.assign(`/assembly-runs/${body.id}`);
+    window.location.reload();
 
     return null;
   } catch (err) {
