@@ -1,6 +1,8 @@
 "use client";
 
 import ConfirmedActionButton from "@/components/ConfirmedActionButton";
+import Icon from "@/components/Icon";
+import { StatusPill } from "@/components/StatusPill";
 import type { PlanPageState } from "@/lib/plan-page-state";
 import ApprovePlanButton from "./ApprovePlanButton";
 import ReopenPlanButton from "./ReopenPlanButton";
@@ -70,15 +72,15 @@ function SpecPr(props: PlanOutlineActionsProps) {
   if (!prUrl) {
     return null;
   }
-  const unresolved = unresolvedThreadsText(state, prUnresolvedThreads);
 
   return (
     <section className={styles.specPr} aria-labelledby="spec-pr-title">
-      <p id="spec-pr-title" className="meta">
+      <p id="spec-pr-title" className={`meta ${styles.title}`}>
+        <Icon name="review" size={14} inline />
         {SPEC_PR_TITLES[state] ?? "Spec PR"}
       </p>
       <SpecPrLink href={prUrl} prNumber={prNumber} prTitle={prTitle} />
-      {unresolved && <p className="meta">{unresolved}</p>}
+      <ReviewState state={state} count={prUnresolvedThreads} />
       <ReworkSpecs state={state} reworkSpecs={props.reworkSpecs} />
     </section>
   );
@@ -94,11 +96,13 @@ function ReworkSpecs({
   }
 
   return (
-    <ConfirmedActionButton
-      action={reworkSpecs}
-      label="Rework the specs from the review"
-      question={REWORK}
-    />
+    <div className={styles.rework}>
+      <ConfirmedActionButton
+        action={reworkSpecs}
+        label="Rework the specs from the review"
+        question={REWORK}
+      />
+    </div>
   );
 }
 
@@ -114,9 +118,27 @@ function SpecPrLink({ href, prNumber, prTitle }: SpecPrLinkProps) {
       target="_blank"
       rel="noopener noreferrer"
     >
-      {prTitle ?? `Spec PR #${prNumber}`}
+      <span className={styles.prTitle}>
+        {prTitle ?? `Spec PR #${prNumber}`}
+      </span>
+      <Icon name="external" size={14} className={styles.external} />
     </a>
   );
+}
+
+// How the review stands, as a pill: green once nothing is open, amber while someone still waits.
+function ReviewState({
+  state,
+  count,
+}: {
+  state: PlanPageState;
+  count: number | null;
+}) {
+  const text = unresolvedThreadsText(state, count);
+
+  return text ? (
+    <StatusPill label={text} tone={count === 0 ? "ok" : "warn"} />
+  ) : null;
 }
 
 // A clean PR is worth saying only while it waits for review; a merged one with nothing open says nothing.

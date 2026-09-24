@@ -1,18 +1,58 @@
+@use "styles/tokens" as t;
+
 .actions {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
 }
 
+/* The spec PR as a card of its own inside the outline: what it waits for, the PR by name, how the review stands, and the rework while it waits. */
 .specPr {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  padding-bottom: var(--space-3);
-  border-bottom: 1px solid var(--border);
+  @include t.stack(var(--space-2));
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-hover);
+}
+
+.title {
+  @include t.row(var(--space-1));
+  align-items: center;
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: var(--fs-xs);
 }
 
 .pr {
+  @include t.row(var(--space-1));
+  align-items: flex-start;
+  color: var(--text);
   font-size: var(--fs-sm);
-  font-weight: var(--fw-medium);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-sm);
+  text-decoration: none;
+
+  &:hover .prTitle {
+    text-decoration: underline;
+  }
+}
+
+.prTitle {
+  overflow-wrap: anywhere;
+}
+
+.external {
+  flex: none;
+  margin-top: var(--space-1);
+  color: var(--text-muted);
+}
+
+/* One action, as wide as the card, so it reads as the card's own control rather than a stray button. */
+.rework {
+  margin-top: var(--space-1);
+
+  button {
+    width: 100%;
+  }
 }
