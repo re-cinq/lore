@@ -846,7 +846,7 @@ config flag.
   more than one open row, since an unreadable one is deliberately left for the
   reaper, and an event without an iteration — the older cluster-agent's, the
   only kind needing a read at all — would otherwise let a satellite's open row
-  deny a readable central run its read and strand it. ([validated by settles the row whose CR the event names](apps/floor/src/work/assembly-run/node-event-handler.test.ts#L647))
+  deny a readable central run its read and strand it. ([validated by settles the row whose CR the event names](apps/floor/src/work/assembly-run/node-event-handler.test.ts#L663))
 - An unresolved central cluster-agent id routes the per-task token reclaim to
   central rather than skipping it. Not knowing which cluster claimed a run is
   not evidence a satellite did, and failing closed there stops reclaiming every
