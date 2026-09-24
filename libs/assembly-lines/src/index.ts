@@ -72,6 +72,7 @@ export {
 export {
   selectEdge,
   getNextTransition,
+  visitsSinceHandRun,
   type NodeVisit,
   type Transition,
 } from "./transition.js";

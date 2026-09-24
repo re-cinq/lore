@@ -49,4 +49,20 @@ describe("lineOutcomeFromVisits", () => {
       reason: 'node "review" failed',
     });
   });
+
+  it("closes completed when the person ran review by hand after validate failed, and review succeeded", () => {
+    const outcome = lineOutcomeFromVisits([
+      { nodeId: "implement", iteration: 1, outcome: "success" },
+      { nodeId: "validate", iteration: 1, outcome: "failed" },
+      {
+        nodeId: "review",
+        iteration: 1,
+        outcome: "success",
+        requestedBy: "gedaiu",
+      },
+      { nodeId: "done", iteration: 1, outcome: "success" },
+    ]);
+
+    expect(outcome).toEqual({ outcome: "completed" });
+  });
 });
