@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { buildRegistry, withExtra } from "./registry.js";
-import { RUN_START_EVENT } from "@re-cinq/lore-shared/project/assembly-runs/run-events.js";
+import {
+  RUN_START_EVENT,
+  RUN_STATION_EVENT,
+} from "@re-cinq/lore-shared/project/assembly-runs/run-events.js";
 import { GITHUB_EVENT_NAMES } from "@re-cinq/lore-shared/project/events/github-map.js";
 import { AGENT_EVENT_NAMES } from "@re-cinq/lore-shared/project/events/k8s-map.js";
 import { cronTickEventNames } from "../listeners/cron-emitters.js";
@@ -11,6 +14,7 @@ function producibleEventNames(): string[] {
     ...AGENT_EVENT_NAMES,
     "internal.ingest.spec_trace",
     RUN_START_EVENT,
+    RUN_STATION_EVENT,
     ...cronTickEventNames(),
   ];
 }

@@ -18,13 +18,14 @@ export function decideTaskReopen(taskStatus: string): "running" | null {
 export async function reopenTaskForFork(
   row: { id: string; taskId: string | null },
   deps: { tasks: SettleTaskDeps["tasks"] },
+  reason = "fork-rerun",
 ): Promise<void> {
   if (!row.taskId) {
     return;
   }
 
   try {
-    await reopen(row.id, row.taskId, deps);
+    await reopen({ assemblyRunId: row.id, taskId: row.taskId, reason }, deps);
   } catch (err) {
     console.error(
       `[reopen-task] fork ${row.id} → task ${row.taskId}: ${(err as Error).message}`,
@@ -32,11 +33,17 @@ export async function reopenTaskForFork(
   }
 }
 
+/** Which run reopens which task, and the reason its transition records. */
+interface TaskReopen {
+  assemblyRunId: string;
+  taskId: string;
+  reason: string;
+}
+
 /** Reopens the settled task behind a fork that just started; safe to call for every fork — task-less rows, already-open tasks, and losing racers all no-op. */
 /** Flips a settled task back to running for a fork's rerun, and records the transition. CAS-guarded on the status we read: another delivery may have moved the task since, and losing that race means somebody else already owns it. `failure_reason` is cleared with the flip — a running task should not wear the source attempt's failure text. */
 async function reopen(
-  assemblyRunId: string,
-  taskId: string,
+  { assemblyRunId, taskId, reason }: TaskReopen,
   deps: { tasks: SettleTaskDeps["tasks"] },
 ): Promise<void> {
   const task = await deps.tasks.getById(taskId);
@@ -49,25 +56,24 @@ async function reopen(
   if (!reopenTo) {
     return;
   }
-  await flipToRunning(task, reopenTo, assemblyRunId, deps);
+  await flipToRunning(task, { assemblyRunId, reason }, deps);
 }
 
 /** CAS-guarded flip plus its transition record; a lost race means another delivery already owns the task, so it writes nothing. */
 async function flipToRunning(
   task: { id: string; status: string },
-  reopenTo: "running",
-  assemblyRunId: string,
+  { assemblyRunId, reason }: Omit<TaskReopen, "taskId">,
   deps: { tasks: SettleTaskDeps["tasks"] },
 ): Promise<void> {
-  const won = await deps.tasks.setStatusIf(task.id, task.status, reopenTo, {
+  const won = await deps.tasks.setStatusIf(task.id, task.status, "running", {
     failure_reason: null,
   });
 
   if (!won) {
     return;
   }
-  await deps.tasks.recordEvent(task.id, task.status, reopenTo, {
+  await deps.tasks.recordEvent(task.id, task.status, "running", {
     assembly_run_id: assemblyRunId,
-    reason: "fork-rerun",
+    reason,
   });
 }

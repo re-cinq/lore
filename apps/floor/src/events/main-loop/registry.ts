@@ -15,9 +15,11 @@ import { implementationLoopTick } from "../../work/backlog/implementation-loop.j
 import * as kubernetes from "../handlers/kubernetes.js";
 import { assemblyLineStart } from "../../work/assembly-run/start-event-handler.js";
 import { assemblyLineResume } from "../../work/assembly-run/resume-event-handler.js";
+import { assemblyRunStation } from "../../work/assembly-run/run-station-event-handler.js";
 import {
   RUN_START_EVENT,
   RUN_RESUME_EVENT,
+  RUN_STATION_EVENT,
 } from "@re-cinq/lore-shared/project/assembly-runs/run-events.js";
 import { agentNodeTerminal } from "../../work/assembly-run/node-event-handler.js";
 import { dropOverlayOnClose } from "../../work/assembly-run/drop-overlay.js";
@@ -115,6 +117,8 @@ function internalEntries(): Entry[] {
     [RUN_START_EVENT, assemblyLineStart],
     // A HUMAN station's worker reporting in (planning wizard or spec-PR webhook): same two steps as a terminal CR.
     [RUN_RESUME_EVENT, assemblyLineResume],
+    // A person ran one station by hand: its next iteration, in the same run.
+    [RUN_STATION_EVENT, assemblyRunStation],
   ];
 }
 

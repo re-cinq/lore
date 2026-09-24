@@ -106,5 +106,6 @@ function visitsFromRows(rows: readonly StationRunRecord[]): NodeVisit[] {
     outcome: row.outcome as StageOutcome | null,
     failureClass: row.failureClass,
     failureDetail: row.failureDetail,
+    requestedBy: row.requestedBy,
   }));
 }

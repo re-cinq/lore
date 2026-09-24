@@ -104,12 +104,13 @@ function isAgentDispatchBlocked(
 /** Everything a launch reads apart from the dispatch it is about to resolve. */
 type LaunchStep = Omit<NodeLaunch, "dispatch" | "deps">;
 
-/** Launches the node the transition names. Split from the decision above so the walk reads as "what is next" then "run it" — the two failed for different reasons and were previously one function. */
-async function launchTransition(
+/** Launches the node the transition names. Split from the decision above so the walk reads as "what is next" then "run it" — the two failed for different reasons and were previously one function. A person running the station by hand names themself, which is what the replay restarts at. */
+export async function launchTransition(
   node: RunGraphNode,
   transition: Extract<Transition, { kind: "launch" }>,
   state: WalkState,
   deps: AdvanceDeps,
+  requestedBy?: string,
 ): Promise<void> {
   const step: LaunchStep = {
     node,
@@ -117,6 +118,7 @@ async function launchTransition(
     assemblyRun: state.assemblyRun,
     visits: state.visits,
     iteration: transition.iteration,
+    ...(requestedBy ? { requestedBy } : {}),
   };
   const dispatch = await dispatchForNode(step, transition.nodeId, deps);
 
