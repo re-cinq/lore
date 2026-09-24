@@ -23,7 +23,8 @@ what the last one had settled.
 A plan is created from a title, a template and what the author already knows, and
 its planning line starts at once. The agent drafts into the live plan while people
 read and write it (ADR-047). A section's **Refine** sends that section back to the
-agent, whose answer comes back as a proposal someone accepts. Approval ends the
+agent; its edits to an existing section come back as proposals someone accepts, while
+the sections it adds are written straight in. Approval ends the
 plan: the same line analyses which specs it changes, writes and pushes them, waits
 for the spec PR to merge, decomposes the merged spec into stories and tasks, and
 files them.

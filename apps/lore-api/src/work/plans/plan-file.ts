@@ -1,4 +1,4 @@
-// The plan as the file its planning pod edits (ADR-047): rendered from the live document when the pod asks, and turned back into agent ops when the edited file returns — a draft's written straight in, and a Refine is proposed one paragraph at a time, each read and taken under the paragraph it is about.
+// The plan as the file its planning pod edits (ADR-047): rendered from the live document when the pod asks, and turned back into agent ops when the edited file returns — a draft and the sections a Refine adds are written straight in, and a Refine's edits to existing sections are proposed one paragraph at a time, each read and taken under the paragraph it is about.
 
 import {
   markdownToOps,
