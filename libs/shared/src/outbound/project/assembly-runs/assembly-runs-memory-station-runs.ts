@@ -27,6 +27,8 @@ export interface SeedAssemblyLineNode {
   failureClass: string | null;
   failureDetail: string | null;
   commitSha: string | null;
+  /** Optional (older test seeds); reads as null — the walk launched it. */
+  requestedBy?: string | null;
   startedAt: Date;
   finishedAt: Date | null;
 }
@@ -56,6 +58,7 @@ function newNodeRow(
     input: input.input ?? null,
     status: input.status ?? "running",
     requiredTags: input.requiredTags ?? [],
+    requestedBy: input.requestedBy ?? null,
     ...emptyNodeOutcome(startedAt),
   };
 }
@@ -109,6 +112,7 @@ function toStationRun(node: SeedAssemblyLineNode): StationRunRecord {
     clusterAgentId: node.clusterAgentId ?? null,
     requiredTags: node.requiredTags ?? [],
     claimedAt: node.claimedAt ?? null,
+    requestedBy: node.requestedBy ?? null,
   };
 }
 

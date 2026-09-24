@@ -45,6 +45,10 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
     return lifecycle.finish(this.pool, id, outcome, reason);
   }
 
+  async reopen(id: string): Promise<boolean> {
+    return lifecycle.reopen(this.pool, id);
+  }
+
   async ensureStationRun(
     input: StationRunStartInput,
   ): Promise<{ nodeRowId: string; stationRunId: string; created: boolean }> {

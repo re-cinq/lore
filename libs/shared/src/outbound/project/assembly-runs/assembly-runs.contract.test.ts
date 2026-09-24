@@ -1374,5 +1374,46 @@ describe.each(IMPLEMENTATIONS)(
         outcome: null,
       });
     });
+    it("ensureStationRun records gedaiu as the person who ran the review visit by hand", async () => {
+      const { port, repo } = make();
+      const runId = await port.start({ blueprintName: "code-review", repo });
+
+      await port.ensureStationRun({
+        assemblyRunId: runId,
+        nodeId: "review",
+        iteration: 2,
+        requestedBy: "gedaiu",
+      });
+
+      expect(await port.listStationRuns(runId)).toMatchObject([
+        { nodeId: "review", iteration: 2, requestedBy: "gedaiu" },
+      ]);
+    });
+
+    it("reopen flips a failed run back to running without its outcome, reason or finish time", async () => {
+      const { port, repo } = make();
+      const runId = await port.start({ blueprintName: "code-review", repo });
+
+      await port.markRunning(runId);
+      await port.finish(runId, "error", "review failed");
+
+      expect(await port.reopen(runId)).toBe(true);
+      expect(await port.getById(runId)).toMatchObject({
+        status: "running",
+        outcome: null,
+        reason: null,
+        finishedAt: null,
+      });
+    });
+
+    it("reopen answers false and leaves a running run as it is", async () => {
+      const { port, repo } = make();
+      const runId = await port.start({ blueprintName: "code-review", repo });
+
+      await port.markRunning(runId);
+
+      expect(await port.reopen(runId)).toBe(false);
+      expect(await port.getById(runId)).toMatchObject({ status: "running" });
+    });
   },
 );

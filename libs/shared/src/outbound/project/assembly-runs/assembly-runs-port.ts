@@ -68,6 +68,8 @@ export interface StationRunStartInput {
   requiredTags?: string[];
   /** Complete dispatch contract (LoreTaskSpec) stored whole, unlike the bounded `input` record. */
   dispatchSpec?: unknown;
+  /** Who ran this visit by hand; the walk restarts at it (fork-rerun-from-node FR8). */
+  requestedBy?: string;
 }
 
 /** What a successful claim hands the cluster-agent: visit identity + its dispatch contract. */
@@ -131,6 +133,8 @@ export interface AssemblyRunsPort {
   stampBlueprint(id: string, hash: string, graph?: RunGraph): Promise<void>;
   /** outcome "error" -> failed row, else finished; first writer wins (true), so racers can gate once-only side effects on it. */
   finish(id: string, outcome: string, reason?: string): Promise<boolean>;
+  /** Flips an ended run back to running, clearing its verdict, so a person can run one of its stations again (fork-rerun-from-node FR8); false when it was not ended. */
+  reopen(id: string): Promise<boolean>;
   getById(id: string): Promise<AssemblyRunRecord | null>;
   /** Additive merge into the line's args (unmentioned keys untouched, mentioned keys replaced); unknown line id is a no-op, not an error. */
   mergeArgs(id: string, patch: Record<string, unknown>): Promise<void>;

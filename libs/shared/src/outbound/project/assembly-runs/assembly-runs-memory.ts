@@ -215,6 +215,22 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
     return true;
   }
 
+  async reopen(id: string): Promise<boolean> {
+    const row = this.mustFind(id);
+
+    // Only an ended row reopens (mirrors the Pg guard).
+    if (row.status !== "finished" && row.status !== "failed") {
+      return false;
+    }
+
+    row.status = "running";
+    row.outcome = null;
+    row.reason = null;
+    row.finishedAt = null;
+
+    return true;
+  }
+
   ensureStationRun(
     input: StationRunStartInput,
   ): Promise<{ nodeRowId: string; stationRunId: string; created: boolean }> {
