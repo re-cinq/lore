@@ -59,6 +59,7 @@ describe("PlanDetailView", () => {
           reason: null,
           prUrl: null,
           prNumber: null,
+          prTitle: null,
           specPlanSummary: null,
           nodes: [],
         }}

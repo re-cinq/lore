@@ -16,6 +16,8 @@ interface PlanOutlineActionsProps extends Pick<
   canApprove: boolean;
   prUrl: string | null;
   prNumber: number | null;
+  /** The PR's title as GitHub reports it; null names the PR by its number. */
+  prTitle: string | null;
 }
 
 const APPROVABLE: ReadonlySet<PlanPageState> = new Set([
@@ -34,19 +36,44 @@ const RETRY = {
   tone: "accent",
 } as const;
 
+// What the spec PR is to the plan's people right now, worded as the section's title.
+const SPEC_PR_TITLES: Partial<Record<PlanPageState, string>> = {
+  "spec-pr-open": "Spec waiting for review",
+  reopened: "Spec PR updated on the next approval",
+  delivering: "Spec merged",
+  delivered: "Spec merged",
+};
+
 /** The action the plan's state calls for, drawn under the outline: approve while writing, reopen or retry once approved, and the spec PR wherever one exists. */
 export default function PlanOutlineActions(props: PlanOutlineActionsProps) {
-  const { prUrl, prNumber } = props;
-
   return (
     <div className={styles.actions}>
-      {prUrl && (
-        <a className={styles.pr} href={prUrl}>
-          Spec PR #{prNumber}
-        </a>
-      )}
+      <SpecPr {...props} />
       <StateAction {...props} />
     </div>
+  );
+}
+
+// The PR as a section of its own: a title that says what it waits for, then the PR by name, opened in a new tab so the plan stays where it is.
+function SpecPr({ state, prUrl, prNumber, prTitle }: PlanOutlineActionsProps) {
+  if (!prUrl) {
+    return null;
+  }
+
+  return (
+    <section className={styles.specPr} aria-labelledby="spec-pr-title">
+      <p id="spec-pr-title" className="meta">
+        {SPEC_PR_TITLES[state] ?? "Spec PR"}
+      </p>
+      <a
+        className={styles.pr}
+        href={prUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        {prTitle ?? `Spec PR #${prNumber}`}
+      </a>
+    </section>
   );
 }
 

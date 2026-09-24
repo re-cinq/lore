@@ -6,6 +6,7 @@ import type { PlanUser } from "@/lib/plan-user";
 import DraftingPlan from "./DraftingPlan";
 import PlanStatusBadge from "../PlanStatusBadge";
 import PlanRunCard, { type PlanRun } from "./PlanRunCard";
+import PlanRunFollower from "./PlanRunFollower";
 import PlanWorkspace from "./PlanWorkspace";
 import type { PlanActions } from "./plan-actions";
 import styles from "./PlanDetailView.module.scss";
@@ -32,9 +33,25 @@ export default function PlanDetailView({
   return (
     <div>
       <PlanHeader meta={meta} deletePlan={deletePlan} />
-      <PlanRunCard {...card} />
+      <PlanRunPanel {...card} />
       <PlanBody meta={meta} run={run} user={user} state={state} {...actions} />
     </div>
+  );
+}
+
+type PlanRunPanelProps = Parameters<typeof PlanRunCard>[0];
+
+// The run card, and behind it the follower that re-reads the page whenever the run's line moves.
+function PlanRunPanel(props: PlanRunPanelProps) {
+  const { run } = props;
+
+  return (
+    <>
+      {run && (
+        <PlanRunFollower runId={run.id} live={OPEN_RUN.has(run.status)} />
+      )}
+      <PlanRunCard {...props} />
+    </>
   );
 }
 
@@ -63,8 +80,18 @@ function PlanBody({ meta, run, user, state, ...actions }: PlanBodyProps) {
   );
 }
 
-function specPrOf(run: PlanRun | null): Pick<PlanRun, "prUrl" | "prNumber"> {
-  return { prUrl: run?.prUrl ?? null, prNumber: run?.prNumber ?? null };
+const OPEN_RUN: ReadonlySet<string> = new Set(["queued", "running"]);
+
+const NO_PR: Pick<PlanRun, "prUrl" | "prNumber" | "prTitle"> = {
+  prUrl: null,
+  prNumber: null,
+  prTitle: null,
+};
+
+function specPrOf(run: PlanRun | null): typeof NO_PR {
+  const { prUrl, prNumber, prTitle } = run ?? NO_PR;
+
+  return { prUrl, prNumber, prTitle };
 }
 
 type PlanHeaderProps = Pick<PlanDetailViewProps, "meta" | "deletePlan">;

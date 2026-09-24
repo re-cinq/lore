@@ -16,6 +16,8 @@ export interface PlanRun {
   reason: string | null;
   prUrl: string | null;
   prNumber: number | null;
+  /** The spec PR's title as GitHub reports it, or null when nobody could ask. */
+  prTitle: string | null;
   /** The spec analysis's summary, which is its question while the line waits on the author. */
   specPlanSummary: string | null;
   nodes: readonly AssemblyRunNode[];
