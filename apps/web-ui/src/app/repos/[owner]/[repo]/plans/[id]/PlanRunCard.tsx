@@ -151,14 +151,12 @@ function summaryOf(run: PlanRun | null, state: PlanPageState): string {
   return STATE_TEXT[state] ?? planRunPhase(run, run.nodes).text;
 }
 
+// The spec PR is the outline's section, not the run line's: one place says what it is to the plan's people.
 function RunLinks({ run }: { run: PlanRun }) {
   return (
-    <>
-      <Link className={styles.openRun} href={`/assembly-runs/${run.id}`}>
-        Open the run →
-      </Link>
-      {run.prUrl && <a href={run.prUrl}>Spec PR #{run.prNumber}</a>}
-    </>
+    <Link className={styles.openRun} href={`/assembly-runs/${run.id}`}>
+      Open the run →
+    </Link>
   );
 }
 
