@@ -323,7 +323,7 @@ describe("advanceLine", () => {
     });
   });
 
-  it("renders the spec analysis the args carry into a recipe's {spec_plan} slot, and refuses to launch such a recipe on a run that carries none", async () => {
+  it("renders the spec analysis the args carry into a recipe's {spec_plan} slot, and tells a writer on a run that carries none that it works without one", async () => {
     const port = new InMemoryAssemblyRuns();
     const withPlan = await port.start({
       blueprintName: "code-review",
@@ -357,14 +357,14 @@ describe("advanceLine", () => {
 
     expect({
       prompt: enqueued[0]?.prompt,
-      refused: await advanceLine(withoutPlan, specWriter).then(
-        () => "launched",
-        (err: Error) => err.message,
+      withoutPlan: await advanceLine(withoutPlan, specWriter).then(
+        () => enqueued[1]?.prompt,
       ),
     }).toEqual({
       prompt:
         "Edit:\n### Update `specs/tools/spec.md`\n\nStatements that change:\n- FR-043",
-      refused: expect.stringContaining("carry no valid spec_plan"),
+      withoutPlan:
+        "Edit:\nNo spec analysis was delivered for this run. Work from plan.md and the specs already on this branch: find the statements the plan overtakes yourself, and say in your final message that you did so without an analysis.",
     });
   });
 

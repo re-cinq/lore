@@ -87,11 +87,15 @@ export async function deliverArtifact(
   return { outcome: "merged", arg: argNameForEvent(fileEvent.event) };
 }
 
-/** The line a fresh artifact belongs to: the most recently started one for the task, since a crash-redispatched task has more than one and the artifact came from the run still going. */
+const OPEN = new Set(["queued", "running"]);
+
+/** The line a fresh artifact belongs to: the run still going for the task — the artifact came from its pod — and, with none open, the most recently started one. Newest-by-creation alone landed a spec plan on a cancelled leftover run while the open run, an older one a person had reopened, got nothing (plan b4b2026f, 2026-09-24). */
 function newestOpen(lines: AssemblyRunRecord[]): AssemblyRunRecord | undefined {
-  return [...lines]
-    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
-    .at(-1);
+  const byAge = [...lines].sort(
+    (a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
+  );
+
+  return byAge.findLast((line) => OPEN.has(line.status)) ?? byAge.at(-1);
 }
 
 /** What one terminal status says about the artifacts its node declared: the args to merge, and the names of any the agent never produced. */

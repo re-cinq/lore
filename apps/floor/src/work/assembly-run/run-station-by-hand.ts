@@ -2,7 +2,7 @@
 
 import { humanStationIds, type NodeVisit } from "@re-cinq/lore-assembly-lines";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { launchTransition } from "./advance-line.js";
+import { launchResolved, resolveLaunch } from "./advance-line.js";
 import type { AdvanceDeps } from "./advance-deps.js";
 import { loadWalkState, type WalkState } from "./walk-state.js";
 
@@ -35,8 +35,11 @@ export async function runStationByHand(
 
     return;
   }
+  // Resolved first: a dispatch that cannot be built must leave the wait parked, not cancel it and fail the line (plan b4b2026f, 2026-09-24).
+  const launch = await resolveByHand(state, handRun, deps);
+
   await closeParkedWaits(state, handRun, deps);
-  await launchByHand(state, handRun, deps);
+  await launchResolved(launch, deps);
   await deps.publishRunCheck?.(assemblyRunId);
 }
 
@@ -68,16 +71,17 @@ async function closeParkedWaits(
 }
 
 // lore-api checked the node against this graph, so a missing one means the graph changed under the ask — failing the event says so.
-async function launchByHand(
+function resolveByHand(
   state: WalkState,
   { nodeId, actor }: HandRun,
   deps: AdvanceDeps,
-): Promise<void> {
+): ReturnType<typeof resolveLaunch> {
   const { runGraph, visits } = state;
   const node = runGraph.nodes.find((n) => n.id === nodeId);
 
   enforceTrue(node, Error, `${runGraph.name} has no station "${nodeId}"`);
-  await launchTransition(
+
+  return resolveLaunch(
     node,
     {
       kind: "launch",
