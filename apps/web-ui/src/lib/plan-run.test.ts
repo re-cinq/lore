@@ -48,14 +48,14 @@ afterEach(() => {
 });
 
 describe("fetchPlanRun", () => {
-  it("asks for the newest feature-planning run keyed on plan p1 of re-cinq/lore", async () => {
+  it("asks for the feature-planning runs keyed on plan p1 of re-cinq/lore", async () => {
     runsAnswer([ROW]);
     await fetchPlanRun("re-cinq/lore", "p1");
 
     expect(
       new URL(String(fetchMock.mock.calls[0][0])).searchParams.toString(),
     ).toEqual(
-      "repo=re-cinq%2Flore&subject_key=plan%3Ap1&blueprint=feature-planning&limit=1",
+      "repo=re-cinq%2Flore&subject_key=plan%3Ap1&blueprint=feature-planning&limit=50",
     );
   });
 
@@ -67,6 +67,15 @@ describe("fetchPlanRun", () => {
       status: "queued",
       specPlanSummary: "CHANGES REQUESTED. Which scope?",
     });
+  });
+
+  it("answers the open run-old over the newer finished run-new", async () => {
+    runsAnswer([
+      { ...ROW, id: "run-new", status: "finished", outcome: "cancelled" },
+      { ...ROW, id: "run-old", status: "running" },
+    ]);
+
+    expect((await fetchPlanRun("re-cinq/lore", "p1"))?.id).toBe("run-old");
   });
 
   it("answers null for a plan no run has started for", async () => {

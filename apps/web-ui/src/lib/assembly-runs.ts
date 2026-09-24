@@ -29,7 +29,7 @@ export async function fetchAssemblyRuns(
   return readRuns(`?${assemblyRunFilterParams(opts)}`);
 }
 
-/** The newest planning run of a plan, or null before one has started — the run is keyed on the plan (`plan:<id>`, the subject the Floor stamps). */
+/** A plan's planning run — its open one, else its newest — or null before one has started. The run is keyed on the plan (`plan:<id>`, the subject the Floor stamps); a newer run can be over while an older one was reopened, so the newest alone may be the wrong one. */
 export async function fetchPlanRun(
   repo: string,
   planId: string,
@@ -38,11 +38,12 @@ export async function fetchPlanRun(
     repo,
     subjectKey: `plan:${planId}`,
     blueprint: "feature-planning",
-    limit: 1,
   });
 
-  return runs.at(0) ?? null;
+  return runs.find((run) => OPEN_RUN.has(run.status)) ?? runs.at(0) ?? null;
 }
+
+const OPEN_RUN = new Set(["queued", "running"]);
 
 function assemblyRunFilterParams(opts: AssemblyRunFilter): URLSearchParams {
   const params = new URLSearchParams();
