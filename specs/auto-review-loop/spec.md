@@ -529,18 +529,18 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
   beside it and the page or route that renders it, and a mismatch is a `question`
   finding rather than silence — a spec written in the same PR as its code proves
   nothing about intent (the #2130 replay approved a fresh-run design twice).
-  ([validated by](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L303))
+  ([validated by](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L302))
 - Lint, types, formatting and tests are CI's verdict, read through
   `lore_get_ci_failures`; the review runs no eslint, tsc, formatter, test runner or
-  install. ([validated by](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L313))
+  install. ([validated by](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L312))
 - The diff is read once, in place, never dumped to a file and read back.
-  ([validated by](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L323))
+  ([validated by](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L322))
 - Context is queried with the PR title, the spec sections it touches and the surface
   it changes, never with a description of reviewing, which returns the platform
-  overview. ([validated by](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L327))
+  overview. ([validated by](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L328))
 - `changes_requested` is for a defect in the changed code or a mismatch between what
   the spec says and what a person would expect of its surface; a `question` alone
-  never blocks. ([validated by](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L336))
+  never blocks. ([validated by](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L337))
 - parses a valid findings block into a ReviewOutput. ([validated by](libs/shared/src/work/review/review-findings.test.ts#L8))
 - returns null when no findings block is present. ([validated by](libs/shared/src/work/review/review-findings.test.ts#L42))
 - returns null when the block is not valid JSON that a quote/newline repair
