@@ -295,7 +295,7 @@ export async function deliverTerminalArtifacts(
   }
 
   // A DELIVERING node that left the branch empty is not a success, whatever it printed — caught here rather than at push, since the next pod's fresh-clone validate would otherwise lint the whole tree for nothing (18/18 impl-loop branches, 2026-08-30). Retryable via the self-retry edge.
-  return (await emptyDeliveryFailure(row, node, deps)) ?? result;
+  return (await emptyDeliveryFailure(row, node, result, deps)) ?? result;
 }
 
 async function mergeNodeArgs(
@@ -314,10 +314,11 @@ async function mergeNodeArgs(
 async function emptyDeliveryFailure(
   row: AssemblyRunRecord,
   node: { type: string; prompt_ref?: string | null },
+  result: NodeResult,
   deps: Pick<NodeEventDeps, "deliveredChangeCount">,
 ): Promise<NodeResult | null> {
   if (
-    !isDeliveringRecipe(node.prompt_ref) ||
+    !owesDelivery(node, result) ||
     !deps.deliveredChangeCount ||
     !row.branch
   ) {
@@ -325,14 +326,19 @@ async function emptyDeliveryFailure(
   }
   const changed = await deps.deliveredChangeCount(row.repo, row.branch);
 
-  if (changed !== 0) {
-    return null;
-  }
-
-  return undelivered(
-    `the ${node.prompt_ref} node reported success but pushed nothing — ${row.branch} has no changes against the default branch`,
-  );
+  return changed === 0
+    ? undelivered(
+        `the ${node.prompt_ref} node reported success but pushed nothing — ${row.branch} has no changes against the default branch`,
+      )
+    : null;
 }
+
+// Only a claimed success owes a push: a dod blocked/resolved verdict leaves the branch empty by design and must reach its park edge with its own reason (#2165).
+const owesDelivery = (
+  node: { prompt_ref?: string | null },
+  result: NodeResult,
+): boolean =>
+  result.outcome === "success" && isDeliveringRecipe(node.prompt_ref);
 
 const undelivered = (detail: string): NodeResult => ({
   outcome: "failed",

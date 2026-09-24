@@ -560,7 +560,7 @@ edges:
     on: always
 `);
 
-  async function implementRun(commitCount: number | null) {
+  async function implementRun(commitCount: number | null, result = "done") {
     const h = harness();
     const calls: Array<{ repo: string; branch: string }> = [];
 
@@ -593,7 +593,7 @@ edges:
     });
     h.statusByName[`${id.substring(0, 12)}-implement`] = {
       phase: "Succeeded",
-      output: JSON.stringify({ type: "result", result: "done" }),
+      output: JSON.stringify({ type: "result", result }),
     };
     await createNodeEventHandler(h.deps)({
       assemblyLineId: id,
@@ -621,6 +621,22 @@ edges:
       "implement:2",
     ]);
     void id;
+  });
+
+  it("keeps a blocked verdict on an empty branch, parking once with its reason instead of retrying (run db0304bb)", async () => {
+    const { h } = await implementRun(
+      0,
+      'LORE_NODE_RESULT: {"outcome":"changes_requested","extras":{"Lore-Dod-Blocked":"the outbox this extends is not on main"}}',
+    );
+
+    expect(
+      h.port.nodes.map(
+        (n) => `${n.nodeId}:${n.iteration}=${n.outcome ?? "open"}`,
+      ),
+    ).toEqual(["implement:1=changes_requested"]);
+    expect(h.port.nodes[0]).toMatchObject({
+      failureDetail: "the outbox this extends is not on main",
+    });
   });
 
   it("keeps the success when commits landed, and moves on to validate", async () => {
