@@ -12892,6 +12892,18 @@
             "type": "string",
             "enum": ["approved", "changes_requested", "pending", "none"]
           },
+          "unresolved_threads": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "computedStatus": {
             "type": "string",
             "enum": [
@@ -12914,6 +12926,7 @@
           "mergeable",
           "checksStatus",
           "reviewStatus",
+          "unresolved_threads",
           "computedStatus"
         ],
         "additionalProperties": false

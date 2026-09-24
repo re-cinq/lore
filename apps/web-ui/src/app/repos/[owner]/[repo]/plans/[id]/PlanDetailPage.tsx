@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { planMetaSchema, type PlanMeta } from "@re-cinq/planning-document";
 import { readPlan } from "@/lib/api/plans";
-import { fetchPrTitle } from "@/lib/api/pr-status";
+import { fetchPrStatus, type PrStatus } from "@/lib/api/pr-status";
 import {
   fetchAssemblyRunNodes,
   fetchPlanRun,
@@ -89,15 +89,28 @@ async function planRunFor(
   if (!run) {
     return null;
   }
-  const [nodes, prTitle] = await Promise.all([
+  const [nodes, pr] = await Promise.all([
     fetchAssemblyRunNodes(run.id),
-    run.prNumber ? fetchPrTitle(repo, run.prNumber) : null,
+    run.prNumber ? fetchPrStatus(repo, run.prNumber) : null,
   ]);
 
-  return { ...planRunOf(run), nodes, prTitle };
+  return { ...planRunOf(run), nodes, ...specPrFactsOf(pr) };
 }
 
-function planRunOf(run: AssemblyRun): Omit<PlanRun, "nodes" | "prTitle"> {
+type SpecPrFacts = Pick<PlanRun, "prTitle" | "prUnresolvedThreads">;
+
+const UNASKED: SpecPrFacts = { prTitle: null, prUnresolvedThreads: null };
+
+// What GitHub said about the spec PR, or nothing when nobody could ask.
+function specPrFactsOf(pr: PrStatus | null): SpecPrFacts {
+  return pr
+    ? { prTitle: pr.title, prUnresolvedThreads: pr.unresolved_threads }
+    : UNASKED;
+}
+
+function planRunOf(
+  run: AssemblyRun,
+): Omit<PlanRun, "nodes" | "prTitle" | "prUnresolvedThreads"> {
   const { id, status, outcome, reason, prUrl, prNumber } = run;
 
   return {

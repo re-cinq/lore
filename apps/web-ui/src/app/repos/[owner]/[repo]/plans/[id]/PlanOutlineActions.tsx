@@ -18,6 +18,8 @@ interface PlanOutlineActionsProps extends Pick<
   prNumber: number | null;
   /** The PR's title as GitHub reports it; null names the PR by its number. */
   prTitle: string | null;
+  /** Review threads on the PR nobody resolved yet; null when GitHub could not be asked. */
+  prUnresolvedThreads: number | null;
 }
 
 const APPROVABLE: ReadonlySet<PlanPageState> = new Set([
@@ -54,27 +56,57 @@ export default function PlanOutlineActions(props: PlanOutlineActionsProps) {
   );
 }
 
-// The PR as a section of its own: a title that says what it waits for, then the PR by name, opened in a new tab so the plan stays where it is.
-function SpecPr({ state, prUrl, prNumber, prTitle }: PlanOutlineActionsProps) {
+// The PR as a section of its own: a title that says what it waits for, then the PR by name, opened in a new tab so the plan stays where it is, and how many review threads still wait on someone.
+function SpecPr(props: PlanOutlineActionsProps) {
+  const { state, prUrl, prNumber, prTitle, prUnresolvedThreads } = props;
+
   if (!prUrl) {
     return null;
   }
+  const unresolved = unresolvedThreadsText(state, prUnresolvedThreads);
 
   return (
     <section className={styles.specPr} aria-labelledby="spec-pr-title">
       <p id="spec-pr-title" className="meta">
         {SPEC_PR_TITLES[state] ?? "Spec PR"}
       </p>
-      <a
-        className={styles.pr}
-        href={prUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        {prTitle ?? `Spec PR #${prNumber}`}
-      </a>
+      <SpecPrLink href={prUrl} prNumber={prNumber} prTitle={prTitle} />
+      {unresolved && <p className="meta">{unresolved}</p>}
     </section>
   );
+}
+
+type SpecPrLinkProps = Pick<PlanOutlineActionsProps, "prNumber" | "prTitle"> & {
+  href: string;
+};
+
+function SpecPrLink({ href, prNumber, prTitle }: SpecPrLinkProps) {
+  return (
+    <a
+      className={styles.pr}
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      {prTitle ?? `Spec PR #${prNumber}`}
+    </a>
+  );
+}
+
+// A clean PR is worth saying only while it waits for review; a merged one with nothing open says nothing.
+function unresolvedThreadsText(
+  state: PlanPageState,
+  count: number | null,
+): string | null {
+  if (count === null) {
+    return null;
+  }
+
+  if (count === 0) {
+    return state === "spec-pr-open" ? "No unresolved comments" : null;
+  }
+
+  return count === 1 ? "1 unresolved comment" : `${count} unresolved comments`;
 }
 
 function StateAction(props: PlanOutlineActionsProps) {

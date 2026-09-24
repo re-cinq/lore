@@ -23,6 +23,7 @@ interface PlanEditorPanelProps extends PlanActions {
   prUrl: string | null;
   prNumber: number | null;
   prTitle: string | null;
+  prUnresolvedThreads: number | null;
 }
 
 interface ConnectedPlanProps extends PlanEditorPanelProps {

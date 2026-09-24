@@ -60,6 +60,7 @@ describe("PlanDetailView", () => {
           prUrl: null,
           prNumber: null,
           prTitle: null,
+          prUnresolvedThreads: null,
           specPlanSummary: null,
           nodes: [],
         }}

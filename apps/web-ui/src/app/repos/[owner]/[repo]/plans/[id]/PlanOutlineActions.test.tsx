@@ -18,6 +18,7 @@ const outline = (
   state: PlanPageState,
   pr: number | null = null,
   prTitle: string | null = null,
+  prUnresolvedThreads: number | null = null,
 ) =>
   render(
     <PlanOutlineActions
@@ -26,6 +27,7 @@ const outline = (
       prUrl={pr ? `https://github.com/re-cinq/lore/pull/${pr}` : null}
       prNumber={pr}
       prTitle={prTitle}
+      prUnresolvedThreads={prUnresolvedThreads}
       {...actions}
     />,
   );
@@ -87,6 +89,32 @@ describe("PlanOutlineActions", () => {
       href: "https://github.com/re-cinq/lore/pull/7",
       target: "_blank",
       buttons: ["Reopen plan"],
+    });
+  });
+
+  it("counts 3 unresolved comments under spec PR #7 while it waits for review", () => {
+    outline("spec-pr-open", 7, "spec: Faster checkout", 3);
+
+    expect(
+      screen.getByRole("region", { name: "Spec waiting for review" }),
+    ).toHaveTextContent("spec: Faster checkout3 unresolved comments");
+  });
+
+  it("says spec PR #7 has no unresolved comments while it waits for review, and nothing once it merged", () => {
+    const { unmount } = outline("spec-pr-open", 7, null, 0);
+    const waiting = screen.getByRole("region", {
+      name: "Spec waiting for review",
+    }).textContent;
+
+    unmount();
+    outline("delivered", 7, null, 0);
+
+    expect({
+      waiting,
+      merged: screen.getByRole("region", { name: "Spec merged" }).textContent,
+    }).toEqual({
+      waiting: "Spec waiting for reviewSpec PR #7No unresolved comments",
+      merged: "Spec mergedSpec PR #7",
     });
   });
 

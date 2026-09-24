@@ -82,16 +82,20 @@ function PlanBody({ meta, run, user, state, ...actions }: PlanBodyProps) {
 
 const OPEN_RUN: ReadonlySet<string> = new Set(["queued", "running"]);
 
-const NO_PR: Pick<PlanRun, "prUrl" | "prNumber" | "prTitle"> = {
+const NO_PR: Pick<
+  PlanRun,
+  "prUrl" | "prNumber" | "prTitle" | "prUnresolvedThreads"
+> = {
   prUrl: null,
   prNumber: null,
   prTitle: null,
+  prUnresolvedThreads: null,
 };
 
 function specPrOf(run: PlanRun | null): typeof NO_PR {
-  const { prUrl, prNumber, prTitle } = run ?? NO_PR;
+  const { prUrl, prNumber, prTitle, prUnresolvedThreads } = run ?? NO_PR;
 
-  return { prUrl, prNumber, prTitle };
+  return { prUrl, prNumber, prTitle, prUnresolvedThreads };
 }
 
 type PlanHeaderProps = Pick<PlanDetailViewProps, "meta" | "deletePlan">;

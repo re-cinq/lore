@@ -3446,6 +3446,7 @@ export interface components {
       checksStatus: "success" | "failure" | "pending" | "none";
       /** @enum {string} */
       reviewStatus: "approved" | "changes_requested" | "pending" | "none";
+      unresolved_threads: number | null;
       /** @enum {string} */
       computedStatus:
         | "merged"
