@@ -293,3 +293,55 @@ describe("the feature-planning recipe", () => {
     ]);
   });
 });
+
+function promptOnOneLine(name: string): string {
+  return promptOf(name).replace(/\s+/g, " ");
+}
+
+describe("the code-review recipe reads the change as its user first", () => {
+  it("asks, for every spec statement the PR adds or changes, what a person using that surface sees differently, and files a mismatch as a question rather than silence", () => {
+    const prompt = promptOnOneLine("code-review");
+
+    expect({
+      asUser: prompt.includes("what a person using that surface"),
+      neighbours: prompt.includes("the statements beside it"),
+      question: prompt.includes("label it `question`"),
+    }).toEqual({ asUser: true, neighbours: true, question: true });
+  });
+
+  it("names lint, types, formatting and tests as CI's verdict, read through lore_get_ci_failures, so the review spends no commands reproducing them", () => {
+    const prompt = promptOnOneLine("code-review");
+
+    expect({
+      ciJudges: prompt.includes("CI's verdict"),
+      tool: prompt.includes("`lore_get_ci_failures`"),
+      noEslint: prompt.includes("not eslint, tsc or a formatter"),
+    }).toEqual({ ciJudges: true, tool: true, noEslint: true });
+  });
+
+  it("reads the diff once in place and never dumps it to a file to re-read", () => {
+    expect(promptOnOneLine("code-review")).toContain(
+      "Read the diff once, in place",
+    );
+  });
+
+  it("queries context with the PR's subject, spec and surface, never with a description of reviewing", () => {
+    const prompt = promptOnOneLine("code-review");
+
+    expect({
+      subject: prompt.includes("the PR title, the spec sections it touches"),
+      reviewingQueryRuledOut: prompt.includes('not "PR review conventions"'),
+    }).toEqual({ subject: true, reviewingQueryRuledOut: true });
+  });
+
+  it("reserves changes_requested for a defect in the changed code or a mismatch between the spec and what a person would expect, and says a question alone does not block", () => {
+    const prompt = promptOnOneLine("code-review");
+
+    expect({
+      mismatch: prompt.includes(
+        "a mismatch between what the spec says and what a person would expect",
+      ),
+      questionNoBlock: prompt.includes("A `question` alone never blocks"),
+    }).toEqual({ mismatch: true, questionNoBlock: true });
+  });
+});

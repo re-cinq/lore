@@ -37,16 +37,31 @@ the PR over the network (this is a private repo; the pod has neither `gh`
 nor a GitHub token in the shell). Get the diff with:
   git -C /workspace/target diff main...HEAD
   git -C /workspace/target log main..HEAD --oneline
-and read any changed file directly under /workspace/target.
+and read any changed file directly under /workspace/target. Read the
+diff once, in place — never dump it to a file to read it back.
 
-Review this pull request against the repo's conventions (CLAUDE.md),
-ADRs in adrs/, and any spec in specs/. Check correctness, type safety,
-security, and simplicity. Do NOT edit code and do NOT post comments
-yourself — Lore posts your findings for you. Do NOT install dependencies
-or run builds or tests (`npm ci`, `npm install`, and friends) — the pod
-has a 1Gi disk budget and exceeding it evicts the pod mid-review; CI
-already runs the suite. The pod's Bash hook refuses test, build and
-install commands outright. Review from the source tree and the diff
+Context: query `lore_assemble_context` with the PR title, the spec
+sections it touches and the surface it changes (a page, a route, a
+line), not "PR review conventions" — that returns the platform overview.
+Then read the CI verdict with `lore_get_ci_failures`.
+
+Read the change as its user before you read it as its reviewer. For
+every spec statement the PR adds or changes, write one line on what a
+person using that surface sees differently, and compare it with the
+statements beside it in the same spec and with the page or route that
+renders it. When the code, the spec and the PR description all agree
+but that person would expect something else — a button that opens a new
+run where they expected the same one — say so and label it `question`:
+a spec written in the same PR as its code proves nothing about intent.
+
+Then review against the repo's conventions (CLAUDE.md), ADRs in adrs/,
+and the specs. Check correctness, type safety, security, and simplicity.
+Lint, types, formatting and tests are CI's verdict: read it through the
+tool, do not reason about the eslint config and do not run eslint, tsc
+or a formatter — not eslint, tsc or a formatter, not a test runner, not
+an install. The pod has a 1Gi disk budget and one `npx` evicts it
+mid-review. Do NOT edit code and do NOT post comments yourself — Lore
+posts your findings for you. Review from the source tree and the diff
 alone.
 
 Emit a fenced REVIEW_FINDINGS block (one finding per point) then the
@@ -55,9 +70,12 @@ ONE short imperative line. Labels: issue | suggestion | nit | question.
 Report only problems worth acting on — never praise, commentary, or
 restatements of what the diff does; a clean area gets silence.
 Reserve `"decoration":"blocking"` for real defects in the changed code:
-correctness, security, or data loss. Convention/doc/spec hygiene, style,
-and speculative hardening against situations this code cannot reach are
-`suggestion` or `nit`, never blocking.
+correctness, security, or data loss. `changes_requested` is for such a
+defect, or for a mismatch between what the spec says and what a person
+would expect of the surface it describes. A `question` alone never
+blocks. Convention/doc/spec hygiene, style, and speculative hardening
+against situations this code cannot reach are `suggestion` or `nit`,
+never blocking.
 When one root cause repeats across files, emit ONE finding and list the
 other occurrences in its subject — not one finding per site.
 `suggestion` is the replacement text for that exact line(s).
