@@ -28,7 +28,6 @@ interface RunFacts {
 }
 
 const APPROVED_STATES: Partial<Record<string, PlanPageState>> = {
-  author: "question",
   merged: "spec-pr-open",
   decompose: "delivering",
   issues: "delivering",
@@ -81,7 +80,17 @@ function approvedState(run: RunFacts): PlanPageState {
   if (run.status === "failed" || run.status === "finished") {
     return run.outcome === "completed" ? "delivered" : "spec-work-failed";
   }
-  const open = openNode(run.nodes);
+
+  return openApprovedState(run.nodes);
+}
+
+// The author node is open on an approved plan in two moments: the spec analysis sent the line back with a question, or the approval landed a beat ago and the resume has not moved the line yet. Only the first has a question to show.
+function openApprovedState(visits: readonly Visit[]): PlanPageState {
+  const open = openNode(visits);
+
+  if (open === "author") {
+    return askedBySpecAnalysis(visits) ? "question" : "spec-work";
+  }
 
   return (open ? APPROVED_STATES[open] : undefined) ?? "spec-work";
 }
