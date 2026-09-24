@@ -69,7 +69,10 @@ controller:
   replicas: 1
   image:
     repository: ghcr.io/re-cinq/ai-agent-controller
-    # Pinned by digest (never a floating tag) — v0.11.4: a continued Gemini conversation
+    # Pinned by digest (never a floating tag) — v0.11.5: an init clone GitHub refuses
+    # moments after the broker minted its token is run again (3 tries, 5s→10s) instead
+    # of failing the run — ~35 pods a week died on "remote: Repository not found." for
+    # repos that exist (ai-agent-subsystem#255). v0.11.4: a continued Gemini conversation
     # resumes `latest` instead of the caller's id, which gemini-cli never issued, so every
     # resumed Gemini pass exited 42 before its first turn (ai-agent-subsystem#250); a
     # watched file's upload carries X-Agent-Exit-Code, so the Floor can tell a failed
@@ -112,11 +115,11 @@ controller:
     # line: informer watch + cache reconcile, /healthz from bind, conversation
     # continuity, tar-free conversation archiving.
     # Digests come from the release's install.yaml
-    # (https://github.com/re-cinq/ai-agent-subsystem/releases/tag/v0.11.4), or:
-    #   skopeo inspect docker://ghcr.io/re-cinq/ai-agent-controller:v0.11.4
-    digest: "sha256:a6b3dea5d5c707bb98af17e5bf2078949853200aca1a0f3367faf6f81b99112e"
+    # (https://github.com/re-cinq/ai-agent-subsystem/releases/tag/v0.11.5), or:
+    #   skopeo inspect docker://ghcr.io/re-cinq/ai-agent-controller:v0.11.5
+    digest: "sha256:eb568083ddb8eb1bc6431eb3c1ef3b79cc5021cabefcf33e1879db5106ff9506"
   # The image whose init container injects the agent runtime + supervisor into each run
-  # pod. Controller + agent ship as a PAIR from the v-tag matrix — pinned to the v0.11.4
+  # pod. Controller + agent ship as a PAIR from the v-tag matrix — pinned to the v0.11.5
   # digest, paired with the controller above. The GeminiSetup installer lives in THIS
   # image (the init container is what installs the vendor CLI), so the pair must move
   # together or a gemini run still boots a pod with no gemini binary in it. The
@@ -127,9 +130,11 @@ controller:
   # retries a watched file's upload; v0.11.2 writes a Gemini run's MCP settings;
   # v0.11.3 writes them where gemini-cli reads them as uid 1000 (the user settings,
   # merged by `ai-agent-init mcp-settings`); v0.11.4 resumes a Gemini conversation by
-  # `latest` and sends the agent's exit code with each upload.
-  #   skopeo inspect --no-tags docker://ghcr.io/re-cinq/ai-agent:v0.11.4
-  agentImage: "ghcr.io/re-cinq/ai-agent@sha256:6fd75759aba15ce50a3d7b1fd6c2ec243ddb0af368ff12467430aabd1fbd9038"
+  # `latest` and sends the agent's exit code with each upload; v0.11.5 retries the
+  # clone GitHub refuses moments after minting. THIS image carries the init, so the
+  # retry lives here.
+  #   skopeo inspect --no-tags docker://ghcr.io/re-cinq/ai-agent:v0.11.5
+  agentImage: "ghcr.io/re-cinq/ai-agent@sha256:010191054ebafec9ba5c3c3dd9bd51d7555bad303c97a618114639bdd3e19cda"
   # Tail of run-pod log kept in Agent.status.output (bounds the object under etcd's limit).
   maxOutputBytes: "262144"
   resources:
