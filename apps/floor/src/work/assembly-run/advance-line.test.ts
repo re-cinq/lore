@@ -364,7 +364,7 @@ describe("advanceLine", () => {
     }).toEqual({
       prompt:
         "Edit:\n### Update `specs/tools/spec.md`\n\nStatements that change:\n- FR-043",
-      refused: expect.stringContaining("carry no spec_plan"),
+      refused: expect.stringContaining("carry no valid spec_plan"),
     });
   });
 

@@ -49,23 +49,22 @@ export function specPlanOf(
 ): SpecPlan | null {
   const raw = args[SPEC_PLAN_ARG];
 
-  if (typeof raw === "string") {
-    return parseSpecPlan(raw);
-  }
-
-  return raw !== null && typeof raw === "object" ? (raw as SpecPlan) : null;
+  return typeof raw === "string" ? parseSpecPlan(raw) : asSpecPlan(raw);
 }
 
 function parseSpecPlan(text: string): SpecPlan | null {
   try {
-    const parsed: unknown = JSON.parse(text);
-
-    return parsed !== null && typeof parsed === "object"
-      ? (parsed as SpecPlan)
-      : null;
+    return asSpecPlan(JSON.parse(text));
   } catch {
     return null;
   }
+}
+
+// A spec plan is an object with named fields; an array or a scalar is not one, however it was stored.
+function asSpecPlan(value: unknown): SpecPlan | null {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as SpecPlan)
+    : null;
 }
 
 /** Fill the recipe's `{spec_plan}` slot with the analysis rendered as Markdown. A recipe without the slot is untouched; one with it, launched on a run that carries no spec plan, is a wiring failure — the writer must never be left to guess. */
@@ -76,7 +75,7 @@ export function withSpecPlan(prompt: string, plan: SpecPlan | null): string {
   enforceTrue(
     plan !== null,
     Error,
-    "the recipe expects the spec analysis in {spec_plan}, but the run's args carry no spec_plan — the analysis node never delivered spec-plan.json",
+    "the recipe expects the spec analysis in {spec_plan}, but the run's args carry no valid spec_plan — the analysis node never delivered spec-plan.json, or what it delivered was not a JSON object",
   );
 
   return prompt.replace(SPEC_PLAN_SLOT, () => renderSpecPlan(plan));

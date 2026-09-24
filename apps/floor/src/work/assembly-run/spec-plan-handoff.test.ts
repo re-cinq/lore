@@ -38,12 +38,14 @@ describe("specPlanOf", () => {
     expect(specPlanOf({ spec_plan: JSON.stringify(PLAN) })).toEqual(PLAN);
   });
 
-  it("takes a spec plan already stored as an object, and answers null for none or for text that is not JSON", () => {
+  it("takes a spec plan already stored as an object, and answers null for none, for text that is not JSON, and for a JSON array", () => {
     expect([
       specPlanOf({ spec_plan: PLAN }),
       specPlanOf({}),
       specPlanOf({ spec_plan: "not json" }),
-    ]).toEqual([PLAN, null, null]);
+      specPlanOf({ spec_plan: "[1]" }),
+      specPlanOf({ spec_plan: [] }),
+    ]).toEqual([PLAN, null, null, null, null]);
   });
 });
 
@@ -57,7 +59,7 @@ describe("withSpecPlan", () => {
 
   it("refuses to launch a recipe that expects the analysis on a run whose args carry none", () => {
     expect(() => withSpecPlan("Edit these:\n{spec_plan}", null)).toThrow(
-      /carry no spec_plan/,
+      /carry no valid spec_plan/,
     );
   });
 
