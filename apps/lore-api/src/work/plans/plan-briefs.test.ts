@@ -30,7 +30,7 @@ describe("plan briefs", () => {
     };
 
     expect(refineBrief(PLAN, request)).toEqual(
-      'Refine the section "Intent" (<!-- slot:intent -->) of plan.md for "Faster checkout", building on its answered questions and resolved comments. Where a settled answer asks for structure the plan lacks — a section per item, say — add those sections as new `## Title` headings with no marker, placed after this one, rather than writing them into this section. Change another existing section ONLY where one of those settled answers makes what it says wrong. Each section you add or touch is proposed on its own, for a person to accept or refuse. Leave every other section exactly as it is.',
+      'Refine the section "Intent" (<!-- slot:intent -->) of plan.md for "Faster checkout", building on its answered questions and resolved comments. Where a settled answer asks for structure the plan lacks — a section per item, say — add those sections as new `## Title` headings with no marker, placed after this one, rather than writing them into this section. Change another existing section ONLY where one of those settled answers makes what it says wrong. A section you touch is proposed on its own, for a person to accept or refuse; a section you add is written straight in. Leave every other section exactly as it is.',
     );
   });
 
