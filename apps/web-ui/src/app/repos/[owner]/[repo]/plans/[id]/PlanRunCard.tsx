@@ -18,6 +18,8 @@ export interface PlanRun {
   prNumber: number | null;
   /** The spec PR's title as GitHub reports it, or null when nobody could ask. */
   prTitle: string | null;
+  /** The spec PR's review threads nobody resolved yet, or null when nobody could ask. */
+  prUnresolvedThreads: number | null;
   /** The spec analysis's summary, which is its question while the line waits on the author. */
   specPlanSummary: string | null;
   nodes: readonly AssemblyRunNode[];

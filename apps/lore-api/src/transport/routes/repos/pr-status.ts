@@ -33,6 +33,8 @@ const PrStatusSchema = z.object({
   mergeable: z.boolean(),
   checksStatus: z.enum(["success", "failure", "pending", "none"]),
   reviewStatus: z.enum(["approved", "changes_requested", "pending", "none"]),
+  /** Review threads nobody resolved yet; null when GitHub would not say. */
+  unresolved_threads: z.number().int().nullable(),
   computedStatus: z.enum([
     "merged",
     "closed",
