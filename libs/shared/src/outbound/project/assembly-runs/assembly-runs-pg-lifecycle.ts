@@ -72,10 +72,12 @@ const RESUME_START_SQL = `WITH al AS (
      ), copied AS (
        INSERT INTO pipeline.station_runs
          (assembly_run_id, node_id, iteration, outcome, failure_class,
-          failure_detail, agent_cr_name, input, commit_sha, started_at, finished_at)
+          failure_detail, agent_cr_name, input, commit_sha, requested_by,
+          started_at, finished_at)
        SELECT al.id,
               n.node_id, n.iteration, n.outcome, NULL,
-              NULL, NULL, n.input, n.commit_sha, n.started_at, n.finished_at
+              NULL, NULL, n.input, n.commit_sha, n.requested_by,
+              n.started_at, n.finished_at
          FROM pipeline.station_runs n, al
         WHERE n.assembly_run_id = $7
           AND n.id <= $9::bigint
@@ -263,6 +265,19 @@ const FINISH_SQL = `WITH won AS (
         RETURNING 1
      )
      SELECT id FROM won`;
+
+/** Guarded on an ENDED row, so a redelivered request cannot reset a run already walking again. */
+const REOPEN_SQL = `UPDATE pipeline.assembly_runs
+       SET status = 'running', outcome = NULL, reason = NULL, finished_at = NULL
+     WHERE id = $1
+       AND status IN ('finished', 'failed')
+     RETURNING id`;
+
+export async function reopen(pool: PgPool, id: string): Promise<boolean> {
+  const { rows } = await pool.query(REOPEN_SQL, [id]);
+
+  return rows.length > 0;
+}
 
 export async function finish(
   pool: PgPool,

@@ -41,6 +41,8 @@ export interface NodeLaunch {
   visits: NodeVisit[];
   assemblyRun: AssemblyRunRecord;
   iteration: number;
+  /** The person who ran this station by hand; absent when the walk launched it. */
+  requestedBy?: string;
   deps: AdvanceDeps;
 }
 
@@ -93,19 +95,20 @@ async function announceParked({
 
 // Row before CR: a crash between them leaves an open row the reaper resolves by reading the deterministically named CR; the row also MINTS the station-run id so a converged duplicate reuses it. A service node names no CR (null), so the reaper never mistakes it for the crash-between-row-and-launch case and relaunches it as a duplicate pod.
 async function ensureStationRunFor(
-  { node, task, dispatch, assemblyRun, iteration, deps }: NodeLaunch,
+  launch: NodeLaunch,
   { runsInService, dispatchedAsPod }: NodeDispatchKind,
 ): Promise<{ stationRunId: string; nodeRowId: string }> {
-  const assemblyLineId = assemblyRun.id;
+  const { node, task, dispatch, assemblyRun, iteration, deps } = launch;
 
   return deps.assemblyRuns.ensureStationRun({
-    assemblyRunId: assemblyLineId,
+    assemblyRunId: assemblyRun.id,
     nodeId: node.id,
     iteration,
     agentCrName: runsInService
       ? null
-      : nodeAgentName(assemblyLineId, node.id, iteration),
+      : nodeAgentName(assemblyRun.id, node.id, iteration),
     input: stationRunInputFor(node, task, dispatch.content, dispatch.prompt),
+    requestedBy: launch.requestedBy,
     ...(dispatchedAsPod
       ? await podClaimFields(node, assemblyRun.repo, dispatch, deps)
       : {}),

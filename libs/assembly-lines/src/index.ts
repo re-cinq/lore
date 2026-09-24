@@ -56,6 +56,7 @@ export { definitionHash } from "./definition-hash.js";
 export {
   HUMAN_STATION_TYPES,
   isHumanStation,
+  humanStationIds,
   invalidRoutePlaceholders,
   type HumanStationType,
 } from "./human-station.js";
@@ -72,6 +73,7 @@ export {
 export {
   selectEdge,
   getNextTransition,
+  visitsSinceHandRun,
   type NodeVisit,
   type Transition,
 } from "./transition.js";

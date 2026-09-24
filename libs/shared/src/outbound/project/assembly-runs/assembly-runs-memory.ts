@@ -15,6 +15,7 @@ import { AssemblyRunQueryStore } from "./assembly-runs-memory-queries.js";
 import {
   inheritFromSource,
   newRunLifecycle,
+  reopenRow,
   resumeRefs,
 } from "./assembly-runs-memory-rows.js";
 import type {
@@ -213,6 +214,10 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
     this.stationRuns.strandOpenNodes(id);
 
     return true;
+  }
+
+  async reopen(id: string): Promise<boolean> {
+    return reopenRow(this.mustFind(id));
   }
 
   ensureStationRun(

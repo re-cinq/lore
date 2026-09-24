@@ -3,3 +3,6 @@
 export const RUN_START_EVENT = "assembly_run.start";
 
 export const RUN_RESUME_EVENT = "assembly_run.resume";
+
+/** A person ran one station of a run by hand (specs/fork-rerun-from-node FR8): `{ assemblyRunId, nodeId, actor }`. */
+export const RUN_STATION_EVENT = "assembly_run.run_station";

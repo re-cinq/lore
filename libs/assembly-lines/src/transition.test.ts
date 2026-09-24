@@ -624,3 +624,86 @@ describe("an unclaimed node on the real implementation blueprint (2026-08-29 inc
     ).toEqual({ kind: "launch", nodeId: "implement", iteration: 2 });
   });
 });
+
+describe("a station a person ran by hand restarts the walk at that visit (fork-rerun-from-node FR8)", () => {
+  const handRun = (
+    nodeId: string,
+    iteration: number,
+    outcome: StageOutcome | null,
+  ): NodeVisit => ({
+    ...visit(nodeId, iteration, outcome),
+    requestedBy: "gedaiu",
+  });
+
+  it("launches validate after review failed and the person ran implement again as iteration 2", () => {
+    const visits = [
+      visit("implement", 1, "success"),
+      visit("validate", 1, "success"),
+      visit("review", 1, "failed"),
+      handRun("implement", 2, "success"),
+    ];
+
+    expect(getNextTransition(reviewLoop, visits)).toEqual({
+      kind: "launch",
+      nodeId: "validate",
+      iteration: 2,
+    });
+  });
+
+  it("awaits the hand-run review while it is still open", () => {
+    const visits = [
+      visit("implement", 1, "success"),
+      visit("validate", 1, "failed"),
+      handRun("review", 1, null),
+    ];
+
+    expect(getNextTransition(reviewLoop, visits)).toEqual({ kind: "await" });
+  });
+
+  it("launches implement at iteration 4 when the spent review budget restarts at a hand-run review", () => {
+    const visits = [
+      visit("implement", 1, "success"),
+      visit("validate", 1, "success"),
+      visit("review", 1, "changes_requested"),
+      visit("implement", 2, "success"),
+      visit("validate", 2, "success"),
+      visit("review", 2, "changes_requested"),
+      visit("implement", 3, "success"),
+      visit("validate", 3, "success"),
+      handRun("review", 3, "changes_requested"),
+    ];
+
+    expect(getNextTransition(reviewLoop, visits)).toEqual({
+      kind: "launch",
+      nodeId: "implement",
+      iteration: 4,
+    });
+  });
+
+  it("launches validate at iteration 3 when the person ran implement as iteration 2 after validate already ran twice", () => {
+    const visits = [
+      visit("implement", 1, "success"),
+      visit("validate", 1, "success"),
+      visit("review", 1, "changes_requested"),
+      visit("implement", 2, "failed"),
+      visit("validate", 2, "failed"),
+      handRun("implement", 3, "success"),
+    ];
+
+    expect(getNextTransition(reviewLoop, visits)).toEqual({
+      kind: "launch",
+      nodeId: "validate",
+      iteration: 3,
+    });
+  });
+
+  it("finishes when the hand-run review succeeds after an earlier run failed at validate", () => {
+    const visits = [
+      visit("implement", 1, "success"),
+      visit("validate", 1, "failed"),
+      handRun("review", 1, "success"),
+    ];
+
+    expect(getNextTransition(reviewLoop, visits)).toEqual({ kind: "finish" });
+  });
+});

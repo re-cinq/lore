@@ -82,6 +82,7 @@ describe("decideNodeRecovery", () => {
     agentCrName: "a1b2c3d4-review",
     input: null,
     commitSha: null,
+    requestedBy: null,
     startedAt: new Date(Date.now() - ageMinutes * MIN),
     finishedAt: null,
     ...over,
@@ -933,6 +934,7 @@ describe("a node whose station runs in the pooled service", () => {
     agentCrName: null,
     input: null,
     commitSha: null,
+    requestedBy: null,
     startedAt: new Date(Date.now() - ageMinutes * MINUTE),
     finishedAt: null,
   });
@@ -999,6 +1001,7 @@ describe("the offline sweep (FR4)", () => {
     agentCrName: "a1b2c3d4-review",
     input: null,
     commitSha: null,
+    requestedBy: null,
     startedAt: new Date(Date.now() - 10 * MIN),
     finishedAt: null,
     ...over,

@@ -47,14 +47,14 @@ function post(fields: Record<string, string>) {
 }
 
 describe("POST /api/assembly-runs/run-station", () => {
-  it("resolves run-1's repo, then asks lore-api to run write in gedaiu's name and answers the fresh id", async () => {
+  it("resolves run-1's repo, then asks lore-api to run write in gedaiu's name and answers the same run id", async () => {
     fetchMock
       .mockResolvedValueOnce(
         json(200, {
           line: { repo: "re-cinq/lore", blueprintName: "feature-planning" },
         }),
       )
-      .mockResolvedValueOnce(json(201, { id: "fresh-9" }));
+      .mockResolvedValueOnce(json(202, { id: "run-1" }));
 
     const res = await post({ run_id: "run-1", node_id: "write" });
     const [url, init] = fetchMock.mock.calls[1] as [string, RequestInit];
@@ -66,7 +66,7 @@ describe("POST /api/assembly-runs/run-station", () => {
       sent: JSON.parse(String(init.body)) as unknown,
     }).toEqual({
       status: 200,
-      body: { id: "fresh-9" },
+      body: { id: "run-1" },
       url: "http://api:3000/api/assembly-runs/run-1/run-station",
       sent: { node_id: "write", actor: "gedaiu" },
     });

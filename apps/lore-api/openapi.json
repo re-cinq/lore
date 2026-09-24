@@ -991,12 +991,12 @@
         ],
         "x-rate-limit-bucket": "default",
         "responses": {
-          "201": {
-            "description": "A fresh line on the same work, entered at the named station; an open source line is retired first",
+          "202": {
+            "description": "The station's next iteration was asked for in the same run, which is reopened if it had ended; the Floor launches it",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AssemblyRunStationStarted"
+                  "$ref": "#/components/schemas/AssemblyRunStationRequested"
                 }
               }
             }
@@ -9333,7 +9333,7 @@
         "required": ["id"],
         "additionalProperties": false
       },
-      "AssemblyRunStationStarted": {
+      "AssemblyRunStationRequested": {
         "type": "object",
         "properties": {
           "id": {

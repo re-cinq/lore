@@ -4,13 +4,15 @@ import {
   nodeFailureReason,
   type NodeVisit,
   type StageOutcome,
+  visitsSinceHandRun,
 } from "@re-cinq/lore-assembly-lines";
 
-/** A walk failed overall if any node failed on the way, even though every definition routes `failed` edges toward exit — "completed" would otherwise render a green check over a failed review. */
-export function lineOutcomeFromVisits(visits: NodeVisit[]): {
+/** A walk failed overall if any node failed on the way, even though every definition routes `failed` edges toward exit — "completed" would otherwise render a green check over a failed review. Only the visits since a person last ran a station by hand count: what they ran it past is history. */
+export function lineOutcomeFromVisits(allVisits: NodeVisit[]): {
   outcome: "completed" | "failed";
   reason?: string;
 } {
+  const visits = visitsSinceHandRun(allVisits);
   // The LAST unrecovered failure decides the line — run 52c3fdd5 blamed a retried-and-recovered node instead of the failure that actually routed the walk out.
   const unrecovered = visits.filter(
     (visit, index) =>

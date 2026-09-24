@@ -29,6 +29,8 @@ export interface NodeVisit {
   failureClass?: string | null;
   // What the failed visit actually said (station/agent error) — rides the iteration_max terminal reason so the author reads the CAUSE, not just the exhausted edge.
   failureDetail?: string | null;
+  // Who ran this visit by hand (fork-rerun-from-node FR8); the walk restarts here, so what came before routes nothing and spends no budget.
+  requestedBy?: string | null;
 }
 
 export type Transition =
@@ -81,8 +83,7 @@ export function getNextTransition(
   if (blocked) {
     return blocked;
   }
-  const { state, accounting } = freshWalk(assemblyLine);
-  const failure = replayVisits(assemblyLine, visits, state, accounting);
+  const { state, failure } = replayFromLastHandRun(assemblyLine, visits);
 
   if (failure) {
     return failure;
@@ -125,7 +126,56 @@ function unattendedVisits(
       .map((node) => node.id),
   );
 
-  return visits.length - 1 - visits.findLastIndex((v) => human.has(v.nodeId));
+  return (
+    visits.length -
+    1 -
+    visits.findLastIndex((v) => human.has(v.nodeId) || v.requestedBy)
+  );
+}
+
+/** The visits the walk routes on: from the last one a person ran by hand, or all of them when nobody did. */
+export function visitsSinceHandRun<T extends Pick<NodeVisit, "requestedBy">>(
+  visits: readonly T[],
+): T[] {
+  return visits.slice(Math.max(0, lastHandRun(visits)));
+}
+
+// Where the walk got to, or the Transition that ended it — replayed from the last hand-run visit on.
+function replayFromLastHandRun(
+  assemblyLine: WalkGraph,
+  visits: NodeVisit[],
+): { state: WalkState; failure: Transition | null } {
+  const { state, accounting } = walkFromLastHandRun(assemblyLine, visits);
+  const since = visitsSinceHandRun(visits);
+
+  return {
+    state,
+    failure: replayVisits(assemblyLine, since, state, accounting),
+  };
+}
+
+// Starts where the person put the walk. The visits before still number the iterations after, or a revisit would collide with a row already recorded; their back-edges are not carried, because a person acting grants a fresh budget.
+function walkFromLastHandRun(
+  assemblyLine: WalkGraph,
+  visits: readonly NodeVisit[],
+): Walk {
+  const walk = freshWalk(assemblyLine);
+  const index = lastHandRun(visits);
+
+  if (index < 0) {
+    return walk;
+  }
+  visits.slice(0, index).forEach((v) => recordVisit(v, walk.accounting));
+  walk.state.currentId = visits[index].nodeId;
+  walk.state.iteration = visits[index].iteration;
+
+  return walk;
+}
+
+function lastHandRun(
+  visits: readonly Pick<NodeVisit, "requestedBy">[],
+): number {
+  return visits.findLastIndex((v) => v.requestedBy);
 }
 
 // A walk that has not started: at the entry node, on its first iteration, having spent nothing. Every replay begins here — the history is what moves it, so nothing is carried over between calls.

@@ -44,6 +44,8 @@ export const StationRunSchema = z.object({
   /** What this visit was dispatched WITH; null pre-migration-0046 means "not captured", never "no input". */
   input: StationRunInputSchema.nullable(),
   commitSha: z.string().nullable(),
+  /** The person who ran this visit by hand (fork-rerun-from-node FR8); null when the walk launched it. */
+  requestedBy: z.string().nullable(),
   startedAt: z.date(),
   finishedAt: z.date().nullable(),
 });
@@ -66,6 +68,7 @@ export const STATION_RUN_COLUMNS = {
   agentCrName: "agent_cr_name",
   input: "input",
   commitSha: "commit_sha",
+  requestedBy: "requested_by",
   startedAt: "started_at",
   finishedAt: "finished_at",
 } as const satisfies ColumnMap<StationRun>;
