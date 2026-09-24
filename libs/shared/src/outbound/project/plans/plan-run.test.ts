@@ -163,3 +163,49 @@ describe("planLineState", () => {
     expect(state).toMatchObject({ open: "analyse-specs", prNumber: null });
   });
 });
+
+describe("a plan's run is its open planning run, not merely its newest", () => {
+  const graph = {
+    nodes: [
+      { id: "analyze", type: "agent" },
+      { id: "author", type: "feature_review" },
+    ],
+  };
+  const openBehindNewer = port(
+    [
+      {
+        id: "r-new",
+        blueprintName: PLANNING,
+        status: "finished",
+        graph,
+        args: {},
+      },
+      {
+        id: "r-old",
+        blueprintName: PLANNING,
+        status: "running",
+        graph,
+        args: {},
+      },
+    ],
+    [
+      { nodeId: "analyze", iteration: 8, outcome: "failed" },
+      { nodeId: "author", iteration: 9, outcome: null },
+    ],
+  );
+
+  it("reports a refinement to author 9 waiting on the open run r-old, not the newer finished r-new", async () => {
+    expect(await findParkedAuthorNode(openBehindNewer, "f-1")).toEqual({
+      runId: "r-old",
+      parked: { lineId: "r-old", nodeId: "author", iteration: 9 },
+    });
+  });
+
+  it("reads the plan's state off the open run r-old, parked on its author", async () => {
+    expect(await planLineState(openBehindNewer, "f-1")).toMatchObject({
+      lineId: "r-old",
+      status: "running",
+      parkedAuthor: { nodeId: "author", iteration: 9 },
+    });
+  });
+});

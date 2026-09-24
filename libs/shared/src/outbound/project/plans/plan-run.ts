@@ -44,8 +44,7 @@ export async function findParkedAuthorNode(
   runs: PlanningRunPort,
   planId: string,
 ): Promise<ParkedAuthorNode> {
-  const lines = await runs.listForSubject(planSubject(planId));
-  const line = lines.find((l) => l.blueprintName === PLANNING_DEFINITION);
+  const line = planningLineOf(await runs.listForSubject(planSubject(planId)));
 
   if (!line) {
     return { runId: null, parked: null };
@@ -69,6 +68,17 @@ function parkedTarget(
     : null;
 }
 
+const OPEN = new Set(["queued", "running"]);
+
+/** The plan's line: the open planning run when there is one, else the newest. The subject holds one open line at a time, but a newer run can be over while an older one was reopened — reading only the newest then finds nobody waiting. */
+function planningLineOf(
+  lines: readonly AssemblyRunRecord[],
+): AssemblyRunRecord | undefined {
+  const planning = lines.filter((l) => l.blueprintName === PLANNING_DEFINITION);
+
+  return planning.find((l) => OPEN.has(l.status)) ?? planning.at(0);
+}
+
 const AUTHOR_STATION = { type: "feature_review", fallbackNodeId: "author" };
 const MERGED_STATION = { type: "pr_review", fallbackNodeId: "merged" };
 
@@ -77,8 +87,7 @@ export async function planLineState(
   runs: PlanningRunPort,
   planId: string,
 ): Promise<PlanLine | null> {
-  const lines = await runs.listForSubject(planSubject(planId));
-  const line = lines.find((l) => l.blueprintName === PLANNING_DEFINITION);
+  const line = planningLineOf(await runs.listForSubject(planSubject(planId)));
 
   if (!line) {
     return null;
