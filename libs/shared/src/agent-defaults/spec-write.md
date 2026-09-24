@@ -14,6 +14,36 @@ and approved by its people; do not re-open it. It is in
 
 {description}
 
+## What the analysis decided
+
+The step before you read this repository's specs and decided which files and
+which statements this plan changes. It is rendered below. Edit THOSE places:
+when it names a statement, amend that statement rather than adding a rival
+beside it; when it names a file to create, create it where it says; a file it
+lists as left alone is out of bounds.
+
+{spec_plan}
+
+## How a plan becomes spec
+
+- A statement the plan contradicts is amended in place, keeping the fact it
+  carried and stating the consequence. Never leave the old rule standing
+  beside the new one, and never drop a "because" the old rule gave.
+- Every requirement in a spec the plan touches must still be true once the
+  plan is done — a placeholder rule, a "blocked on" row, a problem statement
+  that argued for the old design: amend or retire each one the plan overtakes.
+- The plan's KPIs become measurable outcomes in the spec's own form
+  (`SC-nnn` statements, or whatever this repository's standard uses), never
+  the plan's ```` ```kpi ```` fences.
+- The plan's Constraints become compliance requirements where the spec keeps
+  them; its Delivery implications and hard dependencies on other issues land
+  in the Issue Map or the Blocked row.
+- An Open question in the plan stays open, in the spec's own Open Questions,
+  with the choices it names. Never answer it for the author.
+- Every requirement you add carries the issue tag its neighbours carry, and a
+  Danish user-facing sentence goes where this repository reviews such
+  sentences.
+
 Write the specs it calls for (following this repo's spec conventions and the
 metadata-table format). Do not implement code.
 

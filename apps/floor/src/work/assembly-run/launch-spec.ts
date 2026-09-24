@@ -10,6 +10,7 @@ import {
 } from "./floor-assembly-run.js";
 import { resolveRoundContent } from "./round-content.js";
 import { withRoundHandoff, type RoundHandoff } from "./round-handoff.js";
+import { withSpecPlan, type SpecPlan } from "./spec-plan-handoff.js";
 import {
   inputFilesFor,
   type InputFiles,
@@ -45,6 +46,8 @@ export interface NodeLaunchInput {
   ciFeedback?: CiFeedback | null;
   /** What the previous round said it finished and left for next. Derive with {@link roundHandoffOf}; null before any round reported. */
   roundHandoff?: RoundHandoff | null;
+  /** What the spec analysis decided, for a recipe that declares the `{spec_plan}` slot. Derive with {@link specPlanOf}; null when no analysis delivered one. */
+  specPlan?: SpecPlan | null;
 }
 
 /** A preceding node's failure, as the next node needs to hear it. */
@@ -248,6 +251,7 @@ function promptInput(
     priorFailures: dedupedPriorFailures(input.priorFailures, incomingFailure),
     ciFeedback: input.ciFeedback ?? null,
     roundHandoff: input.roundHandoff ?? null,
+    specPlan: input.specPlan ?? null,
   };
 }
 
@@ -274,6 +278,7 @@ interface PromptResolutionInput {
   priorFailures: readonly PriorFailure[];
   ciFeedback: CiFeedback | null;
   roundHandoff: RoundHandoff | null;
+  specPlan: SpecPlan | null;
 }
 
 async function resolvedRecipeFor(
@@ -294,7 +299,7 @@ async function resolvedRecipeFor(
   return { ...recipe, prompt: withDispatchBlocks(recipe.prompt, input) };
 }
 
-/** The blocks appended to a rendered recipe, in the order the pod reads them; CI's verdict comes LAST: it is about the push this node is being launched to repair, where the blocks above it are about attempts that came before. */
+/** The blocks appended to a rendered recipe, in the order the pod reads them; the spec analysis fills its slot INSIDE the recipe first, then CI's verdict comes LAST: it is about the push this node is being launched to repair, where the blocks above it are about attempts that came before. */
 function withDispatchBlocks(
   recipe: string,
   input: PromptResolutionInput,
@@ -302,7 +307,10 @@ function withDispatchBlocks(
   return withCiFeedback(
     withPriorFailures(
       withRoundHandoff(
-        withIncomingFailure(recipe, input.incomingFailure),
+        withIncomingFailure(
+          withSpecPlan(recipe, input.specPlan),
+          input.incomingFailure,
+        ),
         input.roundHandoff,
       ),
       input.priorFailures,
