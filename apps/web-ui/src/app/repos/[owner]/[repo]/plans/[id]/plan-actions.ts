@@ -18,4 +18,6 @@ export interface PlanActions {
   reopen: () => Outcome;
   /** A fresh spec pass for an approved plan whose spec work failed or whose specs merged. */
   retrySpecWork: () => Outcome;
+  /** The spec writer again, in the same line, with the spec PR's unresolved review: the specs are amended on the PR's branch and whatever contradicts the plan comes back to it as questions. */
+  reworkSpecs: () => Outcome;
 }

@@ -1,5 +1,6 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
+import { SPEC_REVIEW_ARG } from "@re-cinq/lore-shared/review/spec-review.js";
 import {
   findParkedAuthorNode,
   planLineState,
@@ -14,6 +15,7 @@ import {
 import {
   approvedBrief,
   draftBrief,
+  openPrBrief,
   refineBrief,
   revisedBrief,
   type PlanView,
@@ -76,28 +78,48 @@ export async function startDrafting(
   return deps.createTask(planningTask(plan, brief, createdBy));
 }
 
+/** The spec PR an earlier pass left open, which a fresh pass contributes to: its branch, and the PR the push node must not open again. */
+interface OpenSpecPr {
+  prNumber: number;
+  prUrl: string | null;
+  branch: string | null;
+}
+
+interface TaskShape {
+  entryNode?: string;
+  open?: OpenSpecPr | null;
+}
+
+// A contributing task lands on the open PR's branch (the Floor honours `contextBundle.branch`).
 function planningTask(
   plan: PlanRef,
   description: string,
   createdBy: string,
-  entryNode?: string,
+  shape: TaskShape = {},
 ): NewPlanningTask {
+  const branch = shape.open?.branch;
+
   return {
     description,
     taskType: PLANNING_DEFINITION,
     targetRepo: plan.repo,
     createdBy,
-    contextBundle: { plan_id: plan.id, line_args: lineArgs(plan, entryNode) },
+    contextBundle: {
+      plan_id: plan.id,
+      ...(branch ? { branch } : {}),
+      line_args: lineArgs(plan, shape),
+    },
     priority: "immediate",
   };
 }
 
-// The run's args: what its route and PR are named from, and where it enters the blueprint when the draft is already settled.
-function lineArgs(plan: PlanRef, entryNode?: string) {
+// The run's args: what its route and PR are named from, where it enters the blueprint when the draft is already settled, and the open PR it contributes to, so `push` stamps nothing new.
+function lineArgs(plan: PlanRef, { entryNode, open }: TaskShape) {
   return {
     repo: plan.repo,
     plan_title: plan.title,
     ...(entryNode ? { entry_node: entryNode } : {}),
+    ...(open ? { pr_number: open.prNumber, pr_url: open.prUrl } : {}),
   };
 }
 
@@ -205,17 +227,40 @@ export interface SpecWorkInput {
   line: PlanLine | null;
 }
 
-/** A fresh spec pass for an approved plan whose line is not open, entered at the spec analysis; after a merged spec PR it is briefed as an amendment. */
+/** A fresh spec pass for an approved plan whose line is not open, entered at the spec analysis; after a merged spec PR it is briefed as an amendment, and while the spec PR is still open the pass contributes to it — an existing spec branch is never replaced. */
 export async function startSpecWork(
   deps: SpecWorkDeps,
   { plan, projection, createdBy, line }: SpecWorkInput,
 ): Promise<string> {
-  const brief =
-    line?.merged && line.prNumber !== null
-      ? revisedBrief(projection, line.prNumber)
-      : approvedBrief(projection);
+  const open = openSpecPrOf(line);
 
-  return deps.createTask(planningTask(plan, brief, createdBy, SPEC_WORK_ENTRY));
+  return deps.createTask(
+    planningTask(plan, specWorkBrief(projection, line, open), createdBy, {
+      entryNode: SPEC_WORK_ENTRY,
+      open,
+    }),
+  );
+}
+
+// An ended line whose spec PR never merged: the Retry of a failed pass, or a cancelled one.
+function openSpecPrOf(line: PlanLine | null): OpenSpecPr | null {
+  return line && line.prNumber !== null && !line.merged
+    ? { prNumber: line.prNumber, prUrl: line.prUrl, branch: line.branch }
+    : null;
+}
+
+function specWorkBrief(
+  projection: PlanView,
+  line: PlanLine | null,
+  open: OpenSpecPr | null,
+): string {
+  if (open) {
+    return openPrBrief(projection, open.prNumber);
+  }
+
+  return line?.merged && line.prNumber !== null
+    ? revisedBrief(projection, line.prNumber)
+    : approvedBrief(projection);
 }
 
 /** Reopening an approved plan sends its open spec PR back to the author (the `merged → author` edge's only reporter); a line already waiting on the author, ended, or never started needs no report. A line the spec work is on is refused, since reopening would race it. */
@@ -235,6 +280,7 @@ export async function reopenPlan(
     args: {
       round_feedback: `${actor} reopened the plan to revise it`,
       refine: null,
+      [SPEC_REVIEW_ARG]: null,
     },
   });
 }

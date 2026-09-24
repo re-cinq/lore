@@ -10,6 +10,7 @@ import {
   startDrafting,
   startSpecWork,
   type RefineAsk,
+  reworkSpecs,
 } from "@/lib/api/plans";
 import type { ApiResult } from "@/lib/api/result";
 import { planUserOf, type PlanSession, type PlanUser } from "@/lib/plan-user";
@@ -111,6 +112,21 @@ export async function retrySpecWorkAction(
     return allowed;
   }
   const started = await startSpecWork(fullName, planId, allowed.user.id);
+
+  return started.status === "ok" ? {} : { error: refusalOf(started) };
+}
+
+/** The spec writer again on the same PR, reading its review; anything against the plan comes back to the plan. */
+export async function reworkSpecsAction(
+  fullName: string,
+  planId: string,
+): Promise<{ error?: string }> {
+  const allowed = await allowedUser(fullName);
+
+  if ("error" in allowed) {
+    return allowed;
+  }
+  const started = await reworkSpecs(fullName, planId, allowed.user.id);
 
   return started.status === "ok" ? {} : { error: refusalOf(started) };
 }

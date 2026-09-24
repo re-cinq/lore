@@ -368,6 +368,51 @@ describe("advanceLine", () => {
     });
   });
 
+  it("appends the spec review the args carry to the dispatched prompt, and appends nothing on a run that carries none", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const specReview = JSON.stringify({
+      pr_number: 42,
+      reviews: [],
+      comments: [
+        {
+          id: 9001,
+          path: "specs/tools/spec.md",
+          line: 3,
+          author: "gedaiu",
+          body: "Name the owner.",
+        },
+      ],
+    });
+    const withReview = await port.start({
+      blueprintName: "code-review",
+      repo: "re-cinq/lore",
+      branch: "feat/x",
+      args: { description: "Write the specs", spec_review: specReview },
+    });
+    const withoutReview = await port.start({
+      blueprintName: "code-review",
+      repo: "re-cinq/lore",
+      branch: "feat/y",
+      args: { description: "Write the specs" },
+    });
+
+    await Promise.all([
+      port.markRunning(withReview),
+      port.markRunning(withoutReview),
+    ]);
+    const { deps, enqueued } = makeDeps(port);
+
+    await advanceLine(withReview, deps);
+    await advanceLine(withoutReview, deps);
+
+    expect(enqueued.map((spec) => spec.prompt)).toEqual([
+      expect.stringMatching(
+        /^code-review::Write the specs\n\n## The spec review said\n[\s\S]*comment 9001 on specs\/tools\/spec\.md:3 by gedaiu: Name the owner\.\n$/,
+      ),
+      "code-review::Write the specs",
+    ]);
+  });
+
   it("dispatches the full composition when nothing was resumed", async () => {
     const port = new InMemoryAssemblyRuns();
     const id = await port.start({

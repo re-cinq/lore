@@ -7,6 +7,12 @@ model: claude-sonnet-4-6
 inputs:
   - path: plan.md
     source: plan
+# The writer's answer to a spec review crosses back as an artifact the Floor
+# owns (never merged into args): the questions it sends to the plan and the
+# reply it owes each review comment. Always written, empty when no review ran.
+watch:
+  event: spec.review.result
+  path: target/spec-review-result.json
 ---
 Turn an approved plan into committable specifications. The plan was written
 and approved by its people; do not re-open it. It is in
@@ -46,6 +52,34 @@ lists as left alone is out of bounds.
 
 Write the specs it calls for (following this repo's spec conventions and the
 metadata-table format). Do not implement code.
+
+## When the spec review sent this back
+
+When the plan's spec PR is under review, this pass runs again with the review
+appended at the end of this prompt under "The spec review said": every open
+inline comment and every review body, each with an id. The specs are on THIS
+branch already; amend them, do not rewrite them. For each item decide:
+
+- It stays inside what the plan settled: amend the spec accordingly and
+  record `{"comment_id": <id>, "action": "addressed", "note": "<what you changed>"}`.
+- It contradicts what the plan settled, or decides something the plan left
+  open or never spoke of: change NOTHING for it. Record
+  `{"comment_id": <id>, "action": "to_plan"}` and add a plan question
+  `{"slot": "<section slot>", "question": "<the decision, as a question>", "why": "<the comment, quoted, and where it collides with the plan>"}`.
+  The slot is the plan.md section marker the matter belongs to (`intent`,
+  `scope`, `constraints`, a `custom-…` slot, …). Never answer for the plan's
+  people: the plan stays as it is until they do.
+- A review body with no single comment id is answered the same way, by the
+  review's id.
+
+Always write `spec-review-result.json` in the working directory (the
+repository root), on every pass of this recipe:
+
+    {"plan_questions": [ {"slot": "...", "question": "...", "why": "..."} ],
+     "replies": [ {"comment_id": 0, "action": "addressed" | "to_plan", "note": "..."} ]}
+
+A pass with no review writes `{"plan_questions": [], "replies": []}`. Commit
+the specs, never this file.
 
 DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
 - Before you commit, run the repository's FORMATTER over the files you

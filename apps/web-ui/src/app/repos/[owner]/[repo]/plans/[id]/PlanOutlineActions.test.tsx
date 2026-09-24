@@ -1,6 +1,13 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import type { PlanPageState } from "@/lib/plan-page-state";
 import PlanOutlineActions from "./PlanOutlineActions";
 
@@ -12,6 +19,7 @@ const actions = {
   approve: vi.fn(async () => ({})),
   reopen: vi.fn(async () => ({})),
   retrySpecWork: vi.fn(async () => ({})),
+  reworkSpecs: vi.fn(async () => ({})),
 };
 
 const outline = (
@@ -88,8 +96,36 @@ describe("PlanOutlineActions", () => {
     }).toEqual({
       href: "https://github.com/re-cinq/lore/pull/7",
       target: "_blank",
-      buttons: ["Reopen plan"],
+      buttons: ["Rework the specs from the review", "Reopen plan"],
     });
+  });
+
+  it("offers to rework the specs from the review only while spec PR #7 waits for review, and reworks only after the confirmation popup", async () => {
+    outline("delivered", 7);
+    const whileDelivered = screen.queryByRole("button", {
+      name: "Rework the specs from the review",
+    });
+
+    cleanup();
+    outline("spec-pr-open", 7);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Rework the specs from the review" }),
+    );
+    const asked = actions.reworkSpecs.mock.calls.length;
+
+    await act(async () => {
+      fireEvent.click(
+        within(screen.getByRole("dialog")).getByRole("button", {
+          name: "Rework",
+        }),
+      );
+    });
+
+    expect({
+      whileDelivered,
+      asked,
+      reworked: actions.reworkSpecs.mock.calls.length,
+    }).toEqual({ whileDelivered: null, asked: 0, reworked: 1 });
   });
 
   it("counts 3 unresolved comments under spec PR #7 while it waits for review", () => {
@@ -113,7 +149,8 @@ describe("PlanOutlineActions", () => {
       waiting,
       merged: screen.getByRole("region", { name: "Spec merged" }).textContent,
     }).toEqual({
-      waiting: "Spec waiting for reviewSpec PR #7No unresolved comments",
+      waiting:
+        "Spec waiting for reviewSpec PR #7No unresolved commentsRework the specs from the review",
       merged: "Spec mergedSpec PR #7",
     });
   });

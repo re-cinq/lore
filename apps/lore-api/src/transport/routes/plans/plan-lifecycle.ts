@@ -22,11 +22,14 @@ import {
   reopenPlan,
   startSpecWork,
 } from "../../../work/plans/planning-line.js";
+import { startSpecRework } from "../../../work/plans/spec-rework.js";
 import { pgPlanStore } from "../../../outbound/plans/plan-store-pg.js";
 import {
   projectionOf,
   resumeDepsFor,
+  specReworkDepsFor,
   specWorkDepsFor,
+  type SpecReworkRouteDeps,
 } from "./plan-line-deps.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
@@ -38,10 +41,12 @@ const BASE = "/api/repos/{owner}/{repo}/plans/{id}";
 export interface PlanLifecyclePorts {
   service: PlanApprover & { reopenPlan(planId: string): Promise<PlanMeta> };
   getPool: () => Pool | null;
+  /** The rework's deps per repo; the production wiring reads the PR through the repo's GitHub App, a test hands in doubles. */
+  specReworkDeps?: (repo: string, pool: Pool) => Promise<SpecReworkRouteDeps>;
 }
 
 export function planLifecycleRoutes(ports: PlanLifecyclePorts): ServerRoute[] {
-  const { service, getPool } = ports;
+  const { service, getPool, specReworkDeps = specReworkDepsFor } = ports;
 
   return [
     lifecycleRoute(getPool, "approve", APPROVE_OPTIONS, (pool, request, h) =>
@@ -51,6 +56,7 @@ export function planLifecycleRoutes(ports: PlanLifecyclePorts): ServerRoute[] {
       serveReopen(service, pool, request, h),
     ),
     lifecycleRoute(getPool, "spec-work", SPEC_WORK_OPTIONS, serveSpecWork),
+    specReworkRoute(getPool, specReworkDeps),
     lifecycleRoute(
       getPool,
       "author-waiting",
@@ -117,6 +123,24 @@ const SPEC_WORK_OPTIONS = zodResponse(
     status: 202,
     description:
       "A fresh spec pass for an approved plan whose line is not running: after a failed pass, or to revise merged specs",
+    errors: [404, 409],
+  },
+);
+
+const SpecReworkBody = z.object({ actor: z.string().min(1) });
+const SpecReworkSchema = z.object({ run_id: z.string() });
+
+const SPEC_REWORK_OPTIONS = zodResponse(
+  {
+    ...bearerScope("write"),
+    validate: { payload: zodValidate(SpecReworkBody) },
+  },
+  SpecReworkSchema,
+  {
+    name: "PlanSpecReworkStarted",
+    status: 202,
+    description:
+      "The spec writer runs again in the same line with the spec PR's unresolved review: the specs are amended on the PR's branch, and whatever contradicts the plan comes back to it as questions",
     errors: [404, 409],
   },
 );
@@ -208,6 +232,39 @@ async function serveSpecWork(pool: Pool, request: Request, h: ResponseToolkit) {
   });
 
   return h.response({ task_id: taskId }).code(202);
+}
+
+function specReworkRoute(
+  getPool: PlanLifecyclePorts["getPool"],
+  depsFor: NonNullable<PlanLifecyclePorts["specReworkDeps"]>,
+): ServerRoute {
+  return lifecycleRoute(
+    getPool,
+    "spec-rework",
+    SPEC_REWORK_OPTIONS,
+    (pool, request, h) => serveSpecRework(depsFor, pool, request, h),
+  );
+}
+
+async function serveSpecRework(
+  depsFor: NonNullable<PlanLifecyclePorts["specReworkDeps"]>,
+  pool: Pool,
+  request: Request,
+  h: ResponseToolkit,
+) {
+  const plan = await repoPlan(() => pool, request);
+  const { actor } = request.payload as z.infer<typeof SpecReworkBody>;
+  const deps = await depsFor(plan.repo, pool);
+  const line = await planLineState(deps.line, plan.id);
+
+  enforceTrue(
+    line !== null,
+    apiError(409),
+    "the spec PR is not waiting for review",
+  );
+  const runId = await startSpecRework(deps, { plan, line, actor });
+
+  return h.response({ run_id: runId }).code(202);
 }
 
 // The plan the path names, only when it belongs to the path's repo.

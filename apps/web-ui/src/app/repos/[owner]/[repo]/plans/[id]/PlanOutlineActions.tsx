@@ -9,7 +9,7 @@ import styles from "./PlanOutlineActions.module.scss";
 
 interface PlanOutlineActionsProps extends Pick<
   PlanActions,
-  "approve" | "reopen" | "retrySpecWork"
+  "approve" | "reopen" | "retrySpecWork" | "reworkSpecs"
 > {
   state: PlanPageState;
   /** The outline's validation verdict; approval waits on it. */
@@ -38,6 +38,13 @@ const RETRY = {
   tone: "accent",
 } as const;
 
+const REWORK = {
+  title: "Rework the specs from the review?",
+  body: "The spec writer reads the PR's unresolved review comments, amends the specs on the same branch, and sends anything that contradicts the plan back to the plan as questions for its people.",
+  confirmLabel: "Rework",
+  tone: "accent",
+} as const;
+
 // What the spec PR is to the plan's people right now, worded as the section's title.
 const SPEC_PR_TITLES: Partial<Record<PlanPageState, string>> = {
   "spec-pr-open": "Spec waiting for review",
@@ -56,7 +63,7 @@ export default function PlanOutlineActions(props: PlanOutlineActionsProps) {
   );
 }
 
-// The PR as a section of its own: a title that says what it waits for, then the PR by name, opened in a new tab so the plan stays where it is, and how many review threads still wait on someone.
+// The PR as a section of its own: a title that says what it waits for, then the PR by name, opened in a new tab so the plan stays where it is, how many review threads still wait on someone, and the rework while it waits.
 function SpecPr(props: PlanOutlineActionsProps) {
   const { state, prUrl, prNumber, prTitle, prUnresolvedThreads } = props;
 
@@ -72,7 +79,26 @@ function SpecPr(props: PlanOutlineActionsProps) {
       </p>
       <SpecPrLink href={prUrl} prNumber={prNumber} prTitle={prTitle} />
       {unresolved && <p className="meta">{unresolved}</p>}
+      <ReworkSpecs state={state} reworkSpecs={props.reworkSpecs} />
     </section>
+  );
+}
+
+// Only a PR waiting for review has a review to rework from; a merged or revised one does not.
+function ReworkSpecs({
+  state,
+  reworkSpecs,
+}: Pick<PlanOutlineActionsProps, "state" | "reworkSpecs">) {
+  if (state !== "spec-pr-open") {
+    return null;
+  }
+
+  return (
+    <ConfirmedActionButton
+      action={reworkSpecs}
+      label="Rework the specs from the review"
+      question={REWORK}
+    />
   );
 }
 

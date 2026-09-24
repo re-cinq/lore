@@ -24,6 +24,7 @@ const {
   draftAgainAction,
   reopenPlanAction,
   retrySpecWorkAction,
+  reworkSpecsAction,
 } = await import("./actions");
 
 const GEDAIU = {
@@ -205,6 +206,32 @@ describe("retrySpecWorkAction", () => {
     }).toEqual({
       result: { error: "You do not have access to this repo." },
       calls: 0,
+    });
+  });
+});
+
+describe("reworkSpecsAction", () => {
+  it("reworks plan p1's specs from the review in gedaiu's name", async () => {
+    answer(202, { run_id: "r1" });
+
+    expect({
+      result: await reworkSpecsAction("re-cinq/lore", "p1"),
+      url: String(fetchMock.mock.calls[0][0]),
+      body: JSON.parse(
+        String((fetchMock.mock.calls[0][1] as RequestInit).body),
+      ) as unknown,
+    }).toEqual({
+      result: {},
+      url: "http://api:3000/api/repos/re-cinq/lore/plans/p1/spec-rework",
+      body: { actor: "gedaiu" },
+    });
+  });
+
+  it("reports lore-api's reason when nothing on the spec PR waits for the writer", async () => {
+    answer(409, { error: "nothing on the spec PR is waiting for the writer" });
+
+    expect(await reworkSpecsAction("re-cinq/lore", "p1")).toEqual({
+      error: "Nothing on the spec PR is waiting for the writer.",
     });
   });
 });

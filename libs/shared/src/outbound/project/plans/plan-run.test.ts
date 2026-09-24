@@ -94,6 +94,7 @@ const line = (status: string, args: object = {}) => ({
   blueprintName: PLANNING,
   status,
   outcome: null,
+  branch: "lore/feature-planning/faster-checkout-r1",
   graph: GRAPH,
   args,
 });
@@ -103,10 +104,15 @@ describe("planLineState", () => {
     expect(await planLineState(port([]), "p-1")).toBeNull();
   });
 
-  it("names the parked merged node and the spec PR while the line waits on the PR", async () => {
+  it("names the parked merged node, the spec PR and its branch while the line waits on the PR", async () => {
     const state = await planLineState(
       port(
-        [line("running", { pr_number: 7 })],
+        [
+          line("running", {
+            pr_number: 7,
+            pr_url: "https://github.com/re-cinq/lore/pull/7",
+          }),
+        ],
         [
           { nodeId: "author", iteration: 1, outcome: "success" },
           { nodeId: "merged", iteration: 1, outcome: null },
@@ -120,6 +126,8 @@ describe("planLineState", () => {
       status: "running",
       outcome: null,
       prNumber: 7,
+      prUrl: "https://github.com/re-cinq/lore/pull/7",
+      branch: "lore/feature-planning/faster-checkout-r1",
       open: "merged",
       parkedAuthor: null,
       parkedMerged: { lineId: "r-1", nodeId: "merged", iteration: 1 },
@@ -160,7 +168,11 @@ describe("planLineState", () => {
       "p-1",
     );
 
-    expect(state).toMatchObject({ open: "analyse-specs", prNumber: null });
+    expect(state).toMatchObject({
+      open: "analyse-specs",
+      prNumber: null,
+      prUrl: null,
+    });
   });
 });
 

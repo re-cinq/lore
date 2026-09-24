@@ -179,6 +179,7 @@ interface LineFacts {
   status: string;
   outcome?: string | null;
   args?: object;
+  branch?: string;
 }
 
 const lineWith = (facts: LineFacts, visits: object[]): PlanningRunPort => ({
@@ -190,6 +191,7 @@ const lineWith = (facts: LineFacts, visits: object[]): PlanningRunPort => ({
         status: facts.status,
         outcome: facts.outcome ?? null,
         args: facts.args ?? {},
+        branch: facts.branch ?? null,
         graph: GRAPH,
       },
     ] as never,
@@ -214,6 +216,21 @@ const specPrOpen = lineWith({ status: "running", args: { pr_number: 7 } }, [
   v("push", "success"),
   v("merged", null),
 ]);
+
+const SPEC_PR = {
+  pr_number: 7,
+  pr_url: "https://github.com/re-cinq/lore/pull/7",
+};
+
+const specPrOpenLineEnded = lineWith(
+  {
+    status: "failed",
+    outcome: "error",
+    args: SPEC_PR,
+    branch: "lore/feature-planning/faster-checkout-abcd1234",
+  },
+  [v("author", "success"), v("push", "success"), v("merged", "failed")],
+);
 
 const specsMerged = lineWith(
   { status: "finished", outcome: "completed", args: { pr_number: 7 } },
@@ -352,6 +369,46 @@ describe("handOverApproved", () => {
     );
   });
 
+  it("contributes the fresh spec pass to open spec PR #7 on its branch when the line ended before the PR merged", async () => {
+    const { deps, created } = specWorkDeps(specPrOpenLineEnded);
+
+    await handOverApproved(deps, PLAN, { title: "Faster checkout" }, "gedaiu");
+
+    expect(created).toMatchObject([
+      {
+        description: expect.stringContaining(
+          "Spec PR #7 is open on this branch",
+        ),
+        contextBundle: {
+          plan_id: "p1",
+          branch: "lore/feature-planning/faster-checkout-abcd1234",
+          line_args: {
+            repo: "re-cinq/lore",
+            plan_title: "Faster checkout",
+            entry_node: "analyse-specs",
+            pr_number: 7,
+            pr_url: "https://github.com/re-cinq/lore/pull/7",
+          },
+        },
+      },
+    ]);
+  });
+
+  it("starts the pass after merged spec PR #7 on a fresh branch, with no PR to contribute to", async () => {
+    const { deps, created } = specWorkDeps(specsMerged);
+
+    await handOverApproved(deps, PLAN, { title: "Faster checkout" }, "gedaiu");
+
+    expect(created[0]?.contextBundle).toEqual({
+      plan_id: "p1",
+      line_args: {
+        repo: "re-cinq/lore",
+        plan_title: "Faster checkout",
+        entry_node: "analyse-specs",
+      },
+    });
+  });
+
   it("hands over nothing while the planning agent is still refining a section", async () => {
     const { deps, created, reporter } = specWorkDeps(refining);
 
@@ -378,6 +435,7 @@ describe("reopenPlan", () => {
         args: {
           round_feedback: "gedaiu reopened the plan to revise it",
           refine: null,
+          spec_review: null,
         },
       },
     ]);
