@@ -282,6 +282,28 @@ describe("the feature-planning recipe", () => {
     });
   });
 
+  it("hands the spec-write recipe the analysis through a {spec_plan} slot and tells it to amend the statements named there rather than guess from plan.md (#2175)", () => {
+    const prompt = promptOnOneLine("spec-write");
+
+    expect({
+      slot: promptOf("spec-write").includes("{spec_plan}"),
+      amendInPlace: prompt.includes(
+        "amend that statement rather than adding a rival beside it",
+      ),
+      leftAlone: prompt.includes("left alone is out of bounds"),
+      kpis: prompt.includes("never the plan's"),
+      openQuestions: prompt.includes("Never answer it for the author"),
+      overtaken: prompt.includes("amend or retire each one the plan overtakes"),
+    }).toEqual({
+      slot: true,
+      amendInPlace: true,
+      leftAlone: true,
+      kpis: true,
+      openQuestions: true,
+      overtaken: true,
+    });
+  });
+
   it("gives the spec steps after approval the approved plan as plan.md rather than in their prompt", () => {
     expect(
       ["spec-analysis", "spec-write"].map(

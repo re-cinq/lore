@@ -15,6 +15,7 @@ import {
   type PriorFailure,
 } from "./launch-spec.js";
 import { roundHandoffOf } from "./round-handoff.js";
+import { specPlanOf } from "./spec-plan-handoff.js";
 import { ciFeedbackOf } from "./ci-feedback.js";
 import type { AdvanceDeps } from "./advance-deps.js";
 import {
@@ -144,7 +145,7 @@ async function dispatchForNode(
   );
 }
 
-/** Everything a dispatch is resolved from: the visit trail read four ways (retry cause, this node's own failures, the build's verdict, the previous round's hand-off). */
+/** Everything a dispatch is resolved from: the visit trail read four ways (retry cause, this node's own failures, the build's verdict, the previous round's hand-off), plus the spec analysis the args carry for a recipe that asks for it. */
 function dispatchInput(
   step: LaunchStep,
   nodeId: string,
@@ -161,6 +162,7 @@ function dispatchInput(
     incomingFailure: incomingFailureOf(visits),
     ciFeedback: ciFeedbackOf(visits, args),
     roundHandoff: roundHandoffOf(args),
+    specPlan: specPlanOf(args),
     priorFailures,
   };
 }

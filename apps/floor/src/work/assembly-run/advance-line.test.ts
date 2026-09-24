@@ -323,6 +323,51 @@ describe("advanceLine", () => {
     });
   });
 
+  it("renders the spec analysis the args carry into a recipe's {spec_plan} slot, and refuses to launch such a recipe on a run that carries none", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const withPlan = await port.start({
+      blueprintName: "code-review",
+      repo: "re-cinq/lore",
+      branch: "feat/x",
+      args: {
+        description: "Write the specs",
+        spec_plan: JSON.stringify({
+          updates: [{ path: "specs/tools/spec.md", statements: ["FR-043"] }],
+        }),
+      },
+    });
+    const withoutPlan = await port.start({
+      blueprintName: "code-review",
+      repo: "re-cinq/lore",
+      branch: "feat/y",
+      args: { description: "Write the specs" },
+    });
+
+    await Promise.all([
+      port.markRunning(withPlan),
+      port.markRunning(withoutPlan),
+    ]);
+    const { deps, enqueued } = makeDeps(port);
+    const specWriter: AdvanceDeps = {
+      ...deps,
+      resolveRecipe: async () => ({ prompt: "Edit:\n{spec_plan}" }),
+    };
+
+    await advanceLine(withPlan, specWriter);
+
+    expect({
+      prompt: enqueued[0]?.prompt,
+      refused: await advanceLine(withoutPlan, specWriter).then(
+        () => "launched",
+        (err: Error) => err.message,
+      ),
+    }).toEqual({
+      prompt:
+        "Edit:\n### Update `specs/tools/spec.md`\n\nStatements that change:\n- FR-043",
+      refused: expect.stringContaining("carry no valid spec_plan"),
+    });
+  });
+
   it("dispatches the full composition when nothing was resumed", async () => {
     const port = new InMemoryAssemblyRuns();
     const id = await port.start({
