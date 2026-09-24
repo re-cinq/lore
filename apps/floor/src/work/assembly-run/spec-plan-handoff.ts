@@ -1,7 +1,5 @@
 // The spec analysis's answer, carried from the line's args into the writing step's prompt: the writer edits the files and statements the analysis chose instead of guessing them from plan.md (#2175 — the analysis was merged into args.spec_plan and read by nothing).
 
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-
 /** The slot a recipe declares to receive the analysis; a recipe without it is untouched. */
 export const SPEC_PLAN_SLOT = "{spec_plan}";
 
@@ -67,18 +65,25 @@ function asSpecPlan(value: unknown): SpecPlan | null {
     : null;
 }
 
-/** Fill the recipe's `{spec_plan}` slot with the analysis rendered as Markdown. A recipe without the slot is untouched; one with it, launched on a run that carries no spec plan, is a wiring failure — the writer must never be left to guess. */
+/** What the writer reads in the slot when the run carries no analysis: said outright, so the pod never sees a literal `{spec_plan}` and knows it works from the plan and the branch alone. A refusal here once failed a whole line: the hand-run had already cancelled the PR wait when the launch threw (plan b4b2026f, 2026-09-24). */
+export const NO_SPEC_PLAN =
+  "No spec analysis was delivered for this run. Work from plan.md and the specs already on this branch: find the statements the plan overtakes yourself, and say in your final message that you did so without an analysis.";
+
+/** Fill the recipe's `{spec_plan}` slot with the analysis rendered as Markdown; a recipe without the slot is untouched, and one launched on a run that carries no spec plan reads {@link NO_SPEC_PLAN} there, logged so the missing hand-off is visible. */
 export function withSpecPlan(prompt: string, plan: SpecPlan | null): string {
   if (!prompt.includes(SPEC_PLAN_SLOT)) {
     return prompt;
   }
-  enforceTrue(
-    plan !== null,
-    Error,
-    "the recipe expects the spec analysis in {spec_plan}, but the run's args carry no valid spec_plan — the analysis node never delivered spec-plan.json, or what it delivered was not a JSON object",
-  );
 
-  return prompt.replace(SPEC_PLAN_SLOT, () => renderSpecPlan(plan));
+  if (plan === null) {
+    console.warn(
+      "[spec-plan] the recipe expects the spec analysis in {spec_plan}, but the run's args carry no valid spec_plan — the writer works without it",
+    );
+  }
+
+  return prompt.replace(SPEC_PLAN_SLOT, () =>
+    plan === null ? NO_SPEC_PLAN : renderSpecPlan(plan),
+  );
 }
 
 /** The analysis as the writer reads it: each file to change with its statements and guidance, each file to create, each ADR, and the files deliberately left alone. */

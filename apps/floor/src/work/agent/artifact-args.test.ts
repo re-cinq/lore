@@ -95,6 +95,26 @@ describe("deliverArtifact", () => {
     });
   });
 
+  it("merges into the OPEN line for the task even when a newer, ended line exists — the artifact came from the run still going", async () => {
+    const lines = new InMemoryAssemblyRuns();
+    const open = await lineFor(lines);
+    const newerButOver = await lines.start({
+      blueprintName: "feature-finalize",
+      repo: "re-cinq/lore",
+      branch: "spec/x-again",
+      taskId: "task-1",
+      args: { description: "d2" },
+    });
+
+    await lines.finish(newerButOver, "cancelled");
+    await deliverArtifact(fileEvent(), { assemblyRuns: lines });
+
+    expect({
+      open: (await lines.getById(open))?.args.spec_plan,
+      over: (await lines.getById(newerButOver))?.args.spec_plan,
+    }).toEqual({ open: '{"changes":[]}', over: undefined });
+  });
+
   it("skips an artifact from a run with no assembly line", async () => {
     const lines = new InMemoryAssemblyRuns();
 

@@ -156,6 +156,32 @@ describe("running a station by hand starts its next iteration in the same run (f
     expect(enqueued).toHaveLength(1);
   });
 
+  it("leaves the merged wait parked and the run untouched when the push dispatch cannot be resolved", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const { deps, enqueued } = makeDeps(port);
+    const id = await lineWithVisits(port, [
+      { nodeId: "push", outcome: "success" },
+      { nodeId: "merged", outcome: null },
+    ]);
+    const noRecipe: AdvanceDeps = {
+      ...deps,
+      resolveRecipe: async () => {
+        throw new Error('no prompt named "push-only"');
+      },
+    };
+
+    await expect(
+      runStationByHand(id, { nodeId: "push", actor: "gedaiu" }, noRecipe),
+    ).rejects.toThrow('no prompt named "push-only"');
+
+    expect({
+      merged: port.nodes.find((row) => row.nodeId === "merged")?.outcome,
+      pushRows: port.nodes.filter((row) => row.nodeId === "push").length,
+      enqueued: enqueued.length,
+      status: (await port.getById(id))?.status,
+    }).toEqual({ merged: null, pushRows: 1, enqueued: 0, status: "running" });
+  });
+
   it("launches nothing while the push pod is still running", async () => {
     const port = new InMemoryAssemblyRuns();
     const { deps, enqueued } = makeDeps(port);

@@ -118,6 +118,21 @@ export async function launchTransition(
   state: WalkState,
   deps: AdvanceDeps,
 ): Promise<void> {
+  await launchResolved(
+    await resolveLaunch(node, transition, state, deps),
+    deps,
+  );
+}
+
+/** Everything a launch needs, resolved and nothing written yet: a throw here (an unknown recipe, say) leaves the run exactly as it was, which is why a hand-run resolves BEFORE it cancels the wait it moves past. */
+export type ResolvedLaunch = Omit<NodeLaunch, "deps">;
+
+export async function resolveLaunch(
+  node: RunGraphNode,
+  transition: Launch,
+  state: WalkState,
+  deps: AdvanceDeps,
+): Promise<ResolvedLaunch> {
   const { iteration, requestedBy } = transition;
   const step: LaunchStep = {
     node,
@@ -127,9 +142,16 @@ export async function launchTransition(
     iteration,
     ...(requestedBy ? { requestedBy } : {}),
   };
-  const dispatch = await dispatchForNode(step, transition.nodeId, deps);
 
-  await launchNode({ ...step, dispatch, deps });
+  return { ...step, dispatch: await dispatchForNode(step, node.id, deps) };
+}
+
+/** Writes the row and hands the node to its runner. */
+export function launchResolved(
+  launch: ResolvedLaunch,
+  deps: AdvanceDeps,
+): Promise<void> {
+  return launchNode({ ...launch, deps });
 }
 
 /** Resolved BEFORE the station_runs row is written, because the row RECORDS the dispatch — otherwise the prompt and round content exist only on an Agent CR that gets pruned. The failure, CI and hand-off reads are how a retry learns why it runs again, what the build said about the last push, and what the previous round left for next. */

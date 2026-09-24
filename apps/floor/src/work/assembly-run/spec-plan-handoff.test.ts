@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  NO_SPEC_PLAN,
   renderSpecPlan,
   specPlanOf,
   withSpecPlan,
@@ -57,9 +58,9 @@ describe("withSpecPlan", () => {
     ]).toEqual(["Write the specs.", "Write the specs."]);
   });
 
-  it("refuses to launch a recipe that expects the analysis on a run whose args carry none", () => {
-    expect(() => withSpecPlan("Edit these:\n{spec_plan}", null)).toThrow(
-      /carry no valid spec_plan/,
+  it("tells the writer it works without an analysis when the run's args carry none, instead of refusing the launch", () => {
+    expect(withSpecPlan("Edit these:\n{spec_plan}", null)).toBe(
+      `Edit these:\n${NO_SPEC_PLAN}`,
     );
   });
 
