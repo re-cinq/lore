@@ -45,26 +45,52 @@ async function reworkRun(args: Record<string, unknown> = {}) {
   return { port, id };
 }
 
-function recordingPulls(seed: { posted?: string[]; threads?: ReviewThread[] }) {
-  const replies: Array<{ number: number; commentId: number; body: string }> =
+class RecordingPulls implements SpecReviewReplyPoster {
+  readonly replies: Array<{ number: number; commentId: number; body: string }> =
     [];
-  const resolves: string[] = [];
-  const pulls: SpecReviewReplyPoster = {
-    replyToReviewComment: async (number, commentId, body) => {
-      replies.push({ number, commentId, body });
-    },
-    listComments: async () =>
-      (seed.posted ?? []).map(
-        (body, index) => ({ id: index, body }) as ReviewComment,
-      ),
-    listIssueComments: async () => [],
-    listReviewThreads: async () => seed.threads ?? [],
-    resolveReviewThread: async (threadId) => {
-      resolves.push(threadId);
-    },
-  };
+  readonly comments: Array<{ number: number; body: string }> = [];
+  readonly resolves: string[] = [];
 
-  return { pulls, replies, resolves };
+  constructor(
+    private readonly seed: { posted?: string[]; threads?: ReviewThread[] },
+  ) {}
+
+  async replyToReviewComment(number: number, commentId: number, body: string) {
+    this.replies.push({ number, commentId, body });
+  }
+
+  async comment(number: number, body: string) {
+    this.comments.push({ number, body });
+  }
+
+  async listComments() {
+    return (this.seed.posted ?? []).map(
+      (body, index) => ({ id: index, body }) as ReviewComment,
+    );
+  }
+
+  async listIssueComments() {
+    return [];
+  }
+
+  async listReviewThreads() {
+    return this.seed.threads ?? [];
+  }
+
+  async resolveReviewThread(threadId: string) {
+    this.resolves.push(threadId);
+  }
+}
+
+function recordingPulls(seed: { posted?: string[]; threads?: ReviewThread[] }) {
+  const pulls = new RecordingPulls(seed);
+
+  return {
+    pulls,
+    replies: pulls.replies,
+    resolves: pulls.resolves,
+    comments: pulls.comments,
+  };
 }
 
 function recordingPlans() {
@@ -188,6 +214,76 @@ describe("deliverSpecReviewResult", () => {
           body: `${replyMarker(id, 9002)}\n\nSent to the plan as a question for its people to settle; the spec keeps what the plan says until they answer.`,
         },
       ],
+      resolves: ["T1"],
+    });
+  });
+
+  it("answers review 5000, which sits in no thread, as a comment on PR 42 rather than a thread reply, and resolves nothing for it", async () => {
+    const { port, id } = await reworkRun({
+      spec_review: JSON.stringify({
+        pr_number: 42,
+        reviews: [
+          {
+            id: 5000,
+            author: "gedaiu",
+            state: "COMMENTED",
+            body: "Two things.",
+          },
+        ],
+        comments: [],
+      }),
+    });
+    const { plans } = recordingPlans();
+    const { pulls, replies, comments, resolves } = recordingPulls({});
+
+    const delivery = await deliverSpecReviewResult(
+      fileEvent(
+        JSON.stringify({
+          plan_questions: [],
+          replies: [
+            { comment_id: 5000, action: "addressed", note: "Both done." },
+          ],
+        }),
+      ),
+      { assemblyRuns: port, plans, pullsFor: async () => pulls },
+    );
+
+    expect({ delivery, replies, comments, resolves }).toEqual({
+      delivery: { outcome: "delivered", questions: 0, replied: 1, resolved: 0 },
+      replies: [],
+      comments: [
+        {
+          number: 42,
+          body: `${replyMarker(id, 5000)}\n\nOn review 5000: Addressed in the latest push to this branch. Both done.`,
+        },
+      ],
+      resolves: [],
+    });
+  });
+
+  it("still resolves the thread of addressed comment 9001 when its reply was already on PR 42 but the thread stayed open", async () => {
+    const { port, id } = await reworkRun();
+    const { plans } = recordingPlans();
+    const { pulls, replies, resolves } = recordingPulls({
+      posted: [
+        `${replyMarker(id, 9001)}\n\nAddressed in the latest push to this branch.`,
+      ],
+      threads: [thread("T1", 9001)],
+    });
+
+    const delivery = await deliverSpecReviewResult(
+      fileEvent(
+        JSON.stringify({
+          plan_questions: [],
+          replies: [{ comment_id: 9001, action: "addressed" }],
+        }),
+      ),
+      { assemblyRuns: port, plans, pullsFor: async () => pulls },
+    );
+
+    expect({ delivery, replies, resolves }).toEqual({
+      delivery: { outcome: "delivered", questions: 0, replied: 0, resolved: 1 },
+      replies: [],
       resolves: ["T1"],
     });
   });
