@@ -41,6 +41,9 @@ function recordingWriter() {
     failRefine: async (planId, refine) => {
       writes.push({ planId, body: { failed: refine } });
     },
+    addQuestions: async (planId, edits) => {
+      writes.push({ planId, body: edits });
+    },
   };
 
   return { writes, writer };

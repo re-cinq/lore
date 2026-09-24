@@ -39,3 +39,8 @@ export function approvedBrief(plan: PlanView): string {
 export function revisedBrief(plan: PlanView, prNumber: number): string {
   return `${approvedBrief(plan)} The specs on main were written from an earlier version of this plan (spec PR #${prNumber}); amend them to say what the plan says now, and leave what still holds alone.`;
 }
+
+/** The spec PR is still open: the fresh pass amends the specs on its branch rather than opening a second PR. */
+export function openPrBrief(plan: PlanView, prNumber: number): string {
+  return `${approvedBrief(plan)} Spec PR #${prNumber} is open on this branch with the specs an earlier pass wrote; amend them to say what the plan says now, and leave what still holds alone.`;
+}

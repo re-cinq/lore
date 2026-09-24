@@ -18,11 +18,13 @@ import { enforceRegistryOrSharedToken } from "@re-cinq/lore-shared/http/registry
 import type { RegistryOrSharedTokenDeps } from "@re-cinq/lore-shared/http/registry-or-shared-token.js";
 import { pipeline } from "../../../outbound/queues.js";
 import { loreApiPlans } from "../../../outbound/lore-api-plans.js";
+import { projectFor } from "../../../outbound/project-boot.js";
 import {
   deliverPlanningResults,
   planRunRefOf,
   type PlanRunRef,
 } from "../../../work/agent/planning-result.js";
+import { deliverSpecReviewResult } from "../../../work/agent/spec-review-result.js";
 import { deliverArtifact } from "../../../work/agent/artifact-args.js";
 import {
   parseAgentSink,
@@ -172,6 +174,7 @@ async function recordSinkProjections(
   // Declared artifacts ride the same sink as cost + telemetry, so a planning round's result lands here rather than needing its own channel.
   const planningRounds = await recordPlanningResults(parsed.fileEvents);
 
+  await deliverSpecReviewResults(parsed.fileEvents);
   await mergeArtifacts(parsed.fileEvents);
 
   reportTurnAnomalies(parsed.turnsDropped, parsed.turnsCapped);
@@ -237,6 +240,26 @@ async function openPlanRunOfTask(
   const newest = open.at(0);
 
   return newest ? planRunRefOf(newest.args) : undefined;
+}
+
+// The spec writer's answer to the spec review goes to the plan and the PR; skip-not-fail like the planning results, and per event so one bad answer never holds another run's back.
+async function deliverSpecReviewResults(
+  fileEvents: readonly AgentFileEvent[],
+): Promise<void> {
+  for (const fileEvent of fileEvents) {
+    try {
+      await deliverSpecReviewResult(fileEvent, {
+        assemblyRuns: pipeline().assemblyRuns,
+        plans: loreApiPlans(
+          process.env.LORE_API_URL ?? "",
+          process.env.LORE_INGEST_TOKEN ?? "",
+        ),
+        pullsFor: async (repo) => (await projectFor(repo)).pulls,
+      });
+    } catch (err) {
+      console.warn(`[floor] spec review result skipped: ${errorMessage(err)}`);
+    }
+  }
 }
 
 // Every OTHER declared artifact becomes the next node's input, merged into its line's args; best-effort — a run that produced its file has already succeeded, so losing the handoff must not retroactively fail it (the consuming node reports the missing input itself).

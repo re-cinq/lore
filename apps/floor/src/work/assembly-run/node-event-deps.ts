@@ -10,7 +10,7 @@ import type { RottenAnchorReportInput } from "./spec-anchor-check.js";
 import { BillingAlertThrottle, maybeAlertBilling } from "./billing-alert.js";
 import { maybeAlertAgentConfig } from "./agent-config-alert.js";
 import { llmDispatchGate } from "./llm-dispatch-gate.js";
-import { openPlanForAuthor } from "../agent/plan-author-waiting.js";
+import { reopenPlanOnPark } from "../agent/plan-author-waiting.js";
 import { loreApiPlanOpener } from "../../outbound/lore-api-plans.js";
 import { type CommentContext } from "../review/code-review.js";
 import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
@@ -60,12 +60,13 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
     // Wired HERE so it reaches every door (CR event, reaper resolve, `assembly_run.resume`) — it used to be CR-handler-only, so a REAPER-resolved triage node silently never routed.
     onNodeFinished: routeCommentTriage,
     // Wired HERE for the same reason: every door that parks the walk on the author (an edge, a resume, a run started at `entry_node: author`) launches through this composition.
-    onHumanNodeParked: openPlanForAuthor(
-      loreApiPlanOpener(
+    onHumanNodeParked: reopenPlanOnPark({
+      plans: loreApiPlanOpener(
         process.env.LORE_API_URL ?? "",
         process.env.LORE_INGEST_TOKEN ?? "",
       ),
-    ),
+      assemblyRuns: pipeline().assemblyRuns,
+    }),
     // Enqueue-time half of FR2: `resolveRequiredTags` reads `station_default_tags` from this raw settings object.
     repoSettings: (repo) => settings().rawSettings(repo),
     // Per-repo override CRDs live under project-qualified names; dispatch must spell its stationRef as the catalog sync applied it.

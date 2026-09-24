@@ -31,6 +31,7 @@ const actions = {
   approve: async () => ({}),
   reopen: async () => ({}),
   retrySpecWork: async () => ({}),
+  reworkSpecs: async () => ({}),
   deletePlan: vi.fn(async () => ({})),
 };
 

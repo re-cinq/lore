@@ -11,6 +11,8 @@ import {
 import { resolveRoundContent } from "./round-content.js";
 import { withRoundHandoff, type RoundHandoff } from "./round-handoff.js";
 import { withSpecPlan, type SpecPlan } from "./spec-plan-handoff.js";
+import { withSpecReview } from "./spec-review-handoff.js";
+import type { SpecReview } from "@re-cinq/lore-shared/review/spec-review.js";
 import {
   inputFilesFor,
   type InputFiles,
@@ -48,6 +50,8 @@ export interface NodeLaunchInput {
   roundHandoff?: RoundHandoff | null;
   /** What the spec analysis decided, for a recipe that declares the `{spec_plan}` slot. Derive with {@link specPlanOf}; null when no analysis delivered one. */
   specPlan?: SpecPlan | null;
+  /** The spec PR's open review a rework answers. Derive with `specReviewFromArgs`; null when nobody asked for a rework. */
+  specReview?: SpecReview | null;
 }
 
 /** A preceding node's failure, as the next node needs to hear it. */
@@ -252,6 +256,7 @@ function promptInput(
     ciFeedback: input.ciFeedback ?? null,
     roundHandoff: input.roundHandoff ?? null,
     specPlan: input.specPlan ?? null,
+    specReview: input.specReview ?? null,
   };
 }
 
@@ -279,6 +284,7 @@ interface PromptResolutionInput {
   ciFeedback: CiFeedback | null;
   roundHandoff: RoundHandoff | null;
   specPlan: SpecPlan | null;
+  specReview: SpecReview | null;
 }
 
 async function resolvedRecipeFor(
@@ -299,24 +305,18 @@ async function resolvedRecipeFor(
   return { ...recipe, prompt: withDispatchBlocks(recipe.prompt, input) };
 }
 
-/** The blocks appended to a rendered recipe, in the order the pod reads them; the spec analysis fills its slot INSIDE the recipe first, then CI's verdict comes LAST: it is about the push this node is being launched to repair, where the blocks above it are about attempts that came before. */
+/** The blocks appended to a rendered recipe, in the order the pod reads them; the spec analysis fills its slot INSIDE the recipe first, the spec review follows what just failed, then CI's verdict comes LAST: it is about the push this node is being launched to repair, where the blocks above it are about attempts that came before. */
 function withDispatchBlocks(
   recipe: string,
   input: PromptResolutionInput,
 ): string {
-  return withCiFeedback(
-    withPriorFailures(
-      withRoundHandoff(
-        withIncomingFailure(
-          withSpecPlan(recipe, input.specPlan),
-          input.incomingFailure,
-        ),
-        input.roundHandoff,
-      ),
-      input.priorFailures,
-    ),
-    input.ciFeedback,
-  );
+  const filled = withSpecPlan(recipe, input.specPlan);
+  const afterFailure = withIncomingFailure(filled, input.incomingFailure);
+  const afterReview = withSpecReview(afterFailure, input.specReview);
+  const afterHandoff = withRoundHandoff(afterReview, input.roundHandoff);
+  const afterAttempts = withPriorFailures(afterHandoff, input.priorFailures);
+
+  return withCiFeedback(afterAttempts, input.ciFeedback);
 }
 
 /** Build the dispatch spec from an already-resolved {@link NodeDispatch}. Pure. */

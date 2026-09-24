@@ -21,20 +21,30 @@ export function loreApiPlans(baseUrl: string, token: string): PlanWriter {
       (await request(`${planId}/markdown`, { method: "GET" })).text(),
     submitFile: (planId, body) => post(`${planId}/agent-file`, body),
     failRefine: (planId, refine) => post(`${planId}/refine-failed`, refine),
+    // planning-sync's own route: `{actor, ops, base?}`; the Floor never sends `base`, so the ops land on whatever the plan is by then.
+    addQuestions: (planId, edits) => post(`${planId}/agent-edits`, edits),
   };
 }
 
-/** lore-api's `author-waiting` route: it reopens an approved plan whose line waits on its author, and leaves any other plan as it is. */
+/** lore-api's plan routes for a parked planning line: `author-waiting` reopens an approved plan whose line waits on its author, `reopen` reopens one the spec review sent questions to; both leave any other plan as it is. */
 export function loreApiPlanOpener(baseUrl: string, token: string): PlanOpener {
+  const post = async (path: string, body?: unknown) => {
+    await requestLoreApi(baseUrl, token, `/api/repos/${path}`, {
+      method: "POST",
+      ...(body === undefined
+        ? {}
+        : {
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(body),
+          }),
+    });
+  };
+
   return {
-    openForAuthor: async (repo, planId) => {
-      await requestLoreApi(
-        baseUrl,
-        token,
-        `/api/repos/${repo}/plans/${planId}/author-waiting`,
-        { method: "POST" },
-      );
-    },
+    openForAuthor: (repo, planId) =>
+      post(`${repo}/plans/${planId}/author-waiting`),
+    reopenForReview: (repo, planId, actor) =>
+      post(`${repo}/plans/${planId}/reopen`, { reopenedBy: actor }),
   };
 }
 

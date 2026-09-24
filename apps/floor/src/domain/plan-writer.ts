@@ -25,13 +25,22 @@ export interface FailedRefine {
   reason: string;
 }
 
+/** Agent-authored plan operations, as planning-sync's agent-edits route takes them (`add-question` and its kin); the Floor forwards them, it does not interpret them. */
+export interface PlanAgentEdits {
+  actor: string;
+  ops: unknown[];
+}
+
 export interface PlanWriter {
   markdownOf(planId: string): Promise<string>;
   submitFile(planId: string, body: PlanFileBody): Promise<void>;
   failRefine(planId: string, refine: FailedRefine): Promise<void>;
+  /** The spec writer's questions for the plan's people, added as agent edits. */
+  addQuestions(planId: string, edits: PlanAgentEdits): Promise<void>;
 }
 
-/** lore-api's answer to a planning line parked on its author: an approved plan is reopened for writing, any other plan is left as it is. */
+/** lore-api's answer to a planning line parked on a human station: an approved plan is reopened for writing when its author is asked, or when the spec review sent questions to it; any other plan is left as it is. */
 export interface PlanOpener {
   openForAuthor(repo: string, planId: string): Promise<void>;
+  reopenForReview(repo: string, planId: string, actor: string): Promise<void>;
 }

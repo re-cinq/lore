@@ -31,6 +31,9 @@ export interface PlanLine {
   outcome: string | null;
   /** The spec PR the line opened, once `push` stamped it. */
   prNumber: number | null;
+  prUrl: string | null;
+  /** The branch the line's specs are on; a later pass contributes to it while its PR is open. */
+  branch: string | null;
   /** The node the line is on, or null once it ended. */
   open: string | null;
   parkedAuthor: ParkedTarget | null;
@@ -105,6 +108,8 @@ function lineState(line: AssemblyRunRecord, visits: ParkedNode[]): PlanLine {
     status: line.status,
     outcome: line.outcome,
     prNumber: prNumberOf(line.args),
+    prUrl: prUrlOf(line.args),
+    branch: line.branch,
     open: openNode(line.status, visits),
     parkedAuthor: parked(AUTHOR_STATION),
     parkedMerged: parked(MERGED_STATION),
@@ -120,6 +125,10 @@ function target(lineId: string, node: ParkedNode | null): ParkedTarget | null {
 
 function prNumberOf(args: Record<string, unknown>): number | null {
   return typeof args.pr_number === "number" ? args.pr_number : null;
+}
+
+function prUrlOf(args: Record<string, unknown>): string | null {
+  return typeof args.pr_url === "string" ? args.pr_url : null;
 }
 
 // The newest visit with no outcome is the node the line is on; a closed line is on none, whatever its rows say.

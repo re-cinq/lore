@@ -19,6 +19,7 @@ import {
   refinePlanAction,
   reopenPlanAction,
   retrySpecWorkAction,
+  reworkSpecsAction,
 } from "./actions";
 
 export default async function PlanDetailPage({
@@ -49,6 +50,7 @@ function boundActions(fullName: string, id: string) {
     draftAgain: draftAgainAction.bind(null, fullName, id),
     reopen: reopenPlanAction.bind(null, fullName, id),
     retrySpecWork: retrySpecWorkAction.bind(null, fullName, id),
+    reworkSpecs: reworkSpecsAction.bind(null, fullName, id),
     deletePlan: deletePlanAction.bind(null, fullName, id),
   };
 }

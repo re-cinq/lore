@@ -304,6 +304,29 @@ describe("the feature-planning recipe", () => {
     });
   });
 
+  it("tells the spec-write recipe to answer a spec review item by item — amend what the plan settled, send what contradicts it to the plan as a question — and to always write spec-review-result.json", () => {
+    const prompt = promptOnOneLine("spec-write");
+
+    expect({
+      watch: SHIPPED.get("spec-write")?.config?.watch,
+      addressed: prompt.includes('"action": "addressed"'),
+      toPlan: prompt.includes("change NOTHING for it"),
+      neverAnswer: prompt.includes("Never answer for the plan's people"),
+      always: prompt.includes("Always write `spec-review-result.json`"),
+      empty: prompt.includes('{"plan_questions": [], "replies": []}'),
+    }).toEqual({
+      watch: {
+        event: "spec.review.result",
+        path: "target/spec-review-result.json",
+      },
+      addressed: true,
+      toPlan: true,
+      neverAnswer: true,
+      always: true,
+      empty: true,
+    });
+  });
+
   it("gives the spec steps after approval the approved plan as plan.md rather than in their prompt", () => {
     expect(
       ["spec-analysis", "spec-write"].map(

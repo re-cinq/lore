@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   approvedBrief,
   draftBrief,
+  openPrBrief,
   refineBrief,
   revisedBrief,
 } from "./plan-briefs.js";
@@ -37,6 +38,12 @@ describe("plan briefs", () => {
   it("briefs a spec pass after spec PR #7 merged as an amendment of what is on main", () => {
     expect(revisedBrief(PLAN, 7)).toEqual(
       'The approved plan "Faster checkout" is in plan.md. It is settled: map it onto this repository\'s specs; do not re-open it. The specs on main were written from an earlier version of this plan (spec PR #7); amend them to say what the plan says now, and leave what still holds alone.',
+    );
+  });
+
+  it("briefs a spec pass while spec PR #7 is still open as an amendment of the specs on its branch", () => {
+    expect(openPrBrief(PLAN, 7)).toEqual(
+      'The approved plan "Faster checkout" is in plan.md. It is settled: map it onto this repository\'s specs; do not re-open it. Spec PR #7 is open on this branch with the specs an earlier pass wrote; amend them to say what the plan says now, and leave what still holds alone.',
     );
   });
 
