@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { planMetaSchema, type PlanMeta } from "@re-cinq/planning-document";
 import { readPlan } from "@/lib/api/plans";
+import { fetchPrTitle } from "@/lib/api/pr-status";
 import {
   fetchAssemblyRunNodes,
   fetchPlanRun,
@@ -85,12 +86,18 @@ async function planRunFor(
 ): Promise<PlanRun | null> {
   const run = await fetchPlanRun(repo, planId);
 
-  return (
-    run && { ...planRunOf(run), nodes: await fetchAssemblyRunNodes(run.id) }
-  );
+  if (!run) {
+    return null;
+  }
+  const [nodes, prTitle] = await Promise.all([
+    fetchAssemblyRunNodes(run.id),
+    run.prNumber ? fetchPrTitle(repo, run.prNumber) : null,
+  ]);
+
+  return { ...planRunOf(run), nodes, prTitle };
 }
 
-function planRunOf(run: AssemblyRun): Omit<PlanRun, "nodes"> {
+function planRunOf(run: AssemblyRun): Omit<PlanRun, "nodes" | "prTitle"> {
   const { id, status, outcome, reason, prUrl, prNumber } = run;
 
   return {

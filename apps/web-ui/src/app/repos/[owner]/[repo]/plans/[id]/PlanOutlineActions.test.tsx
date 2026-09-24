@@ -14,13 +14,18 @@ const actions = {
   retrySpecWork: vi.fn(async () => ({})),
 };
 
-const outline = (state: PlanPageState, pr: number | null = null) =>
+const outline = (
+  state: PlanPageState,
+  pr: number | null = null,
+  prTitle: string | null = null,
+) =>
   render(
     <PlanOutlineActions
       state={state}
       canApprove
       prUrl={pr ? `https://github.com/re-cinq/lore/pull/${pr}` : null}
       prNumber={pr}
+      prTitle={prTitle}
       {...actions}
     />,
   );
@@ -65,18 +70,35 @@ describe("PlanOutlineActions", () => {
     expect(screen.queryAllByRole("button")).toEqual([]);
   });
 
-  it("links spec PR #7 and offers Reopen plan while the PR is open", () => {
-    outline("spec-pr-open", 7);
+  it("links spec PR #7 by its title under 'Spec waiting for review', in a new tab, and offers Reopen plan while the PR is open", () => {
+    outline("spec-pr-open", 7, "spec: Faster checkout");
+    const section = screen.getByRole("region", {
+      name: "Spec waiting for review",
+    });
+    const link = within(section).getByRole("link", {
+      name: "spec: Faster checkout",
+    });
 
     expect({
-      link: screen
-        .getByRole("link", { name: "Spec PR #7" })
-        .getAttribute("href"),
+      href: link.getAttribute("href"),
+      target: link.getAttribute("target"),
       buttons: buttons(),
     }).toEqual({
-      link: "https://github.com/re-cinq/lore/pull/7",
+      href: "https://github.com/re-cinq/lore/pull/7",
+      target: "_blank",
       buttons: ["Reopen plan"],
     });
+  });
+
+  it("names spec PR #7 by its number when GitHub gave no title, under 'Spec merged' once delivered", () => {
+    outline("delivered", 7);
+
+    expect(
+      within(screen.getByRole("region", { name: "Spec merged" })).getByRole(
+        "link",
+        { name: "Spec PR #7" },
+      ),
+    ).toBeInTheDocument();
   });
 
   it("offers Retry the spec work and Reopen plan after the spec work failed", () => {

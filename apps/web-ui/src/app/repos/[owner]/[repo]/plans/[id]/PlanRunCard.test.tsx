@@ -10,6 +10,7 @@ const RUN: PlanRun = {
   reason: null,
   prUrl: null,
   prNumber: null,
+  prTitle: null,
   specPlanSummary: null,
   nodes: [
     {

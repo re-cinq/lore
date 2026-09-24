@@ -22,6 +22,7 @@ interface PlanEditorPanelProps extends PlanActions {
   state: PlanPageState;
   prUrl: string | null;
   prNumber: number | null;
+  prTitle: string | null;
 }
 
 interface ConnectedPlanProps extends PlanEditorPanelProps {
