@@ -36,9 +36,25 @@ function deps(overrides: Partial<LoopTickDeps> = {}) {
     },
     branchExists: async () => false,
     openPrForBranch: async () => null,
+    openBlockers: async () => [],
   };
 
   return { deps: { ...base, ...overrides }, minted, columns };
+}
+
+async function loggedLines(run: () => Promise<void>): Promise<string[]> {
+  const lines: string[] = [];
+  const orig = console.log;
+
+  console.log = (msg: string) => void lines.push(String(msg));
+
+  try {
+    await run();
+  } finally {
+    console.log = orig;
+  }
+
+  return lines;
 }
 
 describe("createImplementationLoopTickHandler", () => {
@@ -274,12 +290,7 @@ describe("a guarded head does not freeze the queue", () => {
   });
 
   it("says why when every eligible ticket is guarded, instead of exiting silently", async () => {
-    const lines: string[] = [];
-    const orig = console.log;
-
-    console.log = (msg: string) => void lines.push(String(msg));
-
-    try {
+    const lines = await loggedLines(async () => {
       const d = deps({
         listIssues: twoTickets,
         activeTaskByIssue: async () => ({ id: "t" }),
@@ -287,46 +298,33 @@ describe("a guarded head does not freeze the queue", () => {
 
       await createImplementationLoopTickHandler(d.deps)({});
       expect(d.minted).toEqual([]);
-    } finally {
-      console.log = orig;
-    }
+    });
+
     expect(lines.filter((l) => l.includes("[implementation-loop]"))).toEqual([
       "[implementation-loop] acme/widgets: no pick — 2 eligible ticket(s), all awaiting an earlier task (#5, #9)",
     ]);
   });
 
   it("stays silent about an empty backlog — a normal state, not a stall", async () => {
-    const lines: string[] = [];
-    const orig = console.log;
-
-    console.log = (msg: string) => void lines.push(String(msg));
-
-    try {
+    const lines = await loggedLines(async () => {
       const d = deps({ listIssues: async () => [] });
 
       await createImplementationLoopTickHandler(d.deps)({});
-    } finally {
-      console.log = orig;
-    }
+    });
+
     expect(lines.filter((l) => l.includes("no pick"))).toEqual([]);
   });
 });
 
 describe("a repo whose loop is on but whose onboarding has not merged", () => {
   it("picks nothing and says why, instead of being skipped in silence", async () => {
-    const lines: string[] = [];
-    const orig = console.log;
-
-    console.log = (msg: string) => void lines.push(String(msg));
-
-    try {
+    const lines = await loggedLines(async () => {
       const d = deps({ isOnboarded: async () => false });
 
       await createImplementationLoopTickHandler(d.deps)({});
       expect(d.minted).toEqual([]);
-    } finally {
-      console.log = orig;
-    }
+    });
+
     expect(lines.filter((l) => l.includes("[implementation-loop]"))).toEqual([
       "[implementation-loop] acme/widgets: loop enabled but the repo is not onboarded — its onboarding PR has not merged, so no ticket is picked",
     ]);
@@ -340,23 +338,68 @@ describe("a ticket whose text is too long for a task description", () => {
   ];
 
   it("walks past #5 with 32000 chars of body text and picks #9, logging why #5 was skipped", async () => {
-    const lines: string[] = [];
-    const orig = console.log;
-
-    console.log = (msg: string) => void lines.push(String(msg));
-
-    try {
+    const lines = await loggedLines(async () => {
       const d = deps({ listIssues: longTextHead });
 
       await createImplementationLoopTickHandler(d.deps)({});
       expect(d.minted).toMatchObject([
         { contextBundle: { github_issue_number: 9 } },
       ]);
-    } finally {
-      console.log = orig;
-    }
+    });
+
     expect(lines.filter((l) => l.includes("text too long"))).toEqual([
       "[implementation-loop] acme/widgets: skipped #5 — ticket text too long: its title and body exceed the 32000-char task description limit",
     ]);
+  });
+});
+
+describe("a ticket whose blockers are still open", () => {
+  const blockedHead = async () => [
+    { ...issue(5, ["priority:medium"]), blockedByCount: 2 },
+    issue(9, ["priority:medium"]),
+  ];
+
+  it("walks past #5 blocked by open #39 and #154 and picks #9, logging what #5 waits on", async () => {
+    const lines = await loggedLines(async () => {
+      const d = deps({
+        listIssues: blockedHead,
+        openBlockers: async () => [39, 154],
+      });
+
+      await createImplementationLoopTickHandler(d.deps)({});
+      expect(d.minted).toMatchObject([
+        { contextBundle: { github_issue_number: 9 } },
+      ]);
+    });
+
+    expect(lines.filter((l) => l.includes("waits on"))).toEqual([
+      "[implementation-loop] acme/widgets: skipped #5 — waits on open blocker(s) #39, #154",
+    ]);
+  });
+
+  it("picks #5 once every blocker it links is closed", async () => {
+    const d = deps({ listIssues: blockedHead, openBlockers: async () => [] });
+
+    await createImplementationLoopTickHandler(d.deps)({});
+
+    expect(d.minted).toMatchObject([
+      { contextBundle: { github_issue_number: 5 } },
+    ]);
+  });
+
+  it("asks GitHub for blockers only of a ticket that links any", async () => {
+    const asked: number[] = [];
+    const d = deps({
+      listIssues: blockedHead,
+      openBlockers: async (_repo, n) => {
+        asked.push(n);
+
+        return [39];
+      },
+    });
+
+    await createImplementationLoopTickHandler(d.deps)({});
+
+    expect(asked).toEqual([5]);
   });
 });

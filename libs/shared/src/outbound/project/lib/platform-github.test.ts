@@ -27,6 +27,8 @@ const state: {
   treeData?: Record<string, unknown>;
   issuesData?: Array<Record<string, unknown>>;
   issueData?: Record<string, unknown>;
+  blockersData?: Array<{ number: number; state: string }>;
+  blockersCall?: Record<string, unknown>;
   reviewThreadPages?: Array<Record<string, unknown>>;
   graphqlCalls: Array<{ query: string; vars: Record<string, unknown> }>;
   authCalls: Array<Record<string, unknown>>;
@@ -130,6 +132,11 @@ vi.mock("octokit", () => ({
         addLabels: async () => ({}),
         listForRepo: async () => state.issuesData ?? [],
         get: async () => ({ data: state.issueData }),
+        listDependenciesBlockedBy: async (params: Record<string, unknown>) => {
+          state.blockersCall = params;
+
+          return state.blockersData ?? [];
+        },
         createLabel: async () => {
           if (state.labelError) {
             throw state.labelError;
@@ -231,6 +238,44 @@ describe("PlatformGitHub paginated reads + helpers", () => {
       body: "248 links across 23 specs don't resolve.",
     });
     expect(issues[1]).not.toHaveProperty("body");
+  });
+
+  it("listIssues carries a blocked-by link count of 3 and omits a count of 0", async () => {
+    const dependent = (number: number, totalBlockedBy: number) => ({
+      number,
+      title: `Ticket ${number}`,
+      state: "open",
+      labels: [],
+      html_url: `https://gh/i/${number}`,
+      created_at: "2026-08-02T09:00:00Z",
+      issue_dependencies_summary: {
+        blocked_by: totalBlockedBy,
+        total_blocked_by: totalBlockedBy,
+      },
+    });
+
+    state.issuesData = [dependent(16, 3), dependent(17, 0)];
+    const issues = await gh().listIssues("re-cinq/lore");
+
+    expect(issues[0]).toMatchObject({ number: 16, blockedByCount: 3 });
+    expect(issues[1]).not.toHaveProperty("blockedByCount");
+  });
+
+  it("listOpenBlockers asks for #16's blockers and returns only the open #39 and #155", async () => {
+    state.blockersData = [
+      { number: 39, state: "open" },
+      { number: 23, state: "closed" },
+      { number: 155, state: "open" },
+    ];
+
+    await expect(gh().listOpenBlockers("re-cinq/lore", 16)).resolves.toEqual([
+      39, 155,
+    ]);
+    expect(state.blockersCall).toMatchObject({
+      owner: "re-cinq",
+      repo: "lore",
+      issue_number: 16,
+    });
   });
 
   it("listFiles returns every changed filename (paginated past one page)", async () => {

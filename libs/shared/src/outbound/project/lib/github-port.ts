@@ -14,6 +14,8 @@ export interface IssueRef {
   createdAt?: string;
   /** Issue body (octokit adapter only; GitHub returns null if empty). */
   body?: string;
+  /** How many blocked-by links the issue carries, open or closed (octokit list read only; absent when none). */
+  blockedByCount?: number;
 }
 
 export interface IssueFilter {
@@ -62,6 +64,8 @@ export interface GitHubPort {
     since: string,
   ): Promise<Array<{ sha: string; files: string[] }>>;
   getIssueLabels(repo: string, number: number): Promise<string[]>;
+  /** Numbers of the still-open issues linked as blocking this one. */
+  listOpenBlockers(repo: string, number: number): Promise<number[]>;
   // issue writes
   createIssue(
     repo: string,
