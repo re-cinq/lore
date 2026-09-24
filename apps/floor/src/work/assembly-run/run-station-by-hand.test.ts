@@ -39,6 +39,10 @@ edges:
     on: always
 `);
 
+const LINES = new Map<string, AssemblyLine>([["push-then-wait", pushThenWait]]);
+
+const nothing = async (): Promise<void> => {};
+
 function makeDeps(port: InMemoryAssemblyRuns) {
   const enqueued: LoreTaskSpec[] = [];
   const reopenedTasks: string[] = [];
@@ -50,14 +54,11 @@ function makeDeps(port: InMemoryAssemblyRuns) {
   };
   const deps: AdvanceDeps & { reopenTask: (runId: string) => Promise<void> } = {
     assemblyRuns: port,
-    definitions: async () =>
-      new Map<string, AssemblyLine>([["push-then-wait", pushThenWait]]),
+    definitions: async () => LINES,
+    jobRuns: { complete: nothing, fail: nothing },
+    cleanupToken: nothing,
     repoSettings: async () => null,
-    resolveRecipe: async (_repo, promptRef, description) => ({
-      prompt: `${promptRef}::${description}`,
-    }),
-    cleanupToken: async () => {},
-    jobRuns: { complete: async () => {}, fail: async () => {} },
+    resolveRecipe: async (_repo, promptRef) => ({ prompt: promptRef }),
     reopenTask: async (runId) => {
       reopenedTasks.push(runId);
     },
