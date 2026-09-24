@@ -102,6 +102,15 @@ describe("planPageState for an approved plan", () => {
     ).toBe("question");
   });
 
+  it("is spec-work while the line still sits on the author right after approval, before the resume moved it", () => {
+    expect(
+      planPageState(
+        "approved",
+        run("running", [visit("analyze", "success"), visit("author", null)]),
+      ),
+    ).toBe("spec-work");
+  });
+
   it("is spec-work-failed after a run that failed or ended short of completing, and with no run at all", () => {
     expect([
       planPageState("approved", run("failed", [visit("push", "success")])),
