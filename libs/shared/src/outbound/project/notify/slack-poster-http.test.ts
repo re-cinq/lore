@@ -22,14 +22,13 @@ afterEach(() => {
 describe("SlackPosterHttp", () => {
   const poster = () => new SlackPosterHttp({ LORE_SLACK_BOT_TOKEN: "xoxb" });
 
-  it("sends thread_ts and reply_broadcast when replying", async () => {
+  it("sends thread_ts when replying in a thread", async () => {
     const sent = slackAnswers({ ok: true, ts: "2.000" });
 
     await poster().post({
       channel: "C1",
       text: "hi",
       threadTs: "1.000",
-      replyBroadcast: true,
     });
 
     expect(sent).toEqual([
@@ -38,7 +37,6 @@ describe("SlackPosterHttp", () => {
         text: "hi",
         unfurl_links: true,
         thread_ts: "1.000",
-        reply_broadcast: true,
       },
     ]);
   });

@@ -67,7 +67,7 @@ function harness(slackRefuses?: string, acceptedBeforeRefusing = 0) {
 }
 
 describe("receiveDigestUpload", () => {
-  it("posts the refined message on exit 0 as a broadcast reply under a new week parent", async () => {
+  it("posts the refined message on exit 0 as a thread-only reply under a new week parent", async () => {
     const { assemblyRuns, poster, deps } = harness();
     const { agent } = await digestRun(assemblyRuns);
 
@@ -84,7 +84,6 @@ describe("receiveDigestUpload", () => {
           channel: "C1",
           text: REFINED,
           threadTs: "1.000",
-          replyBroadcast: true,
         },
       ],
     });
@@ -134,11 +133,11 @@ describe("receiveDigestUpload", () => {
     );
 
     expect(poster.posts).toEqual([
-      { channel: "C1", text: REFINED, threadTs: "9.000", replyBroadcast: true },
+      { channel: "C1", text: REFINED, threadTs: "9.000" },
     ]);
   });
 
-  it("posts a long digest as several thread replies with only the first broadcast", async () => {
+  it("posts a long digest as several thread replies, none of them broadcast to the channel", async () => {
     const { assemblyRuns, poster, deps } = harness();
     const long = Array.from(
       { length: 400 },
@@ -154,12 +153,10 @@ describe("receiveDigestUpload", () => {
 
     expect({
       delivery,
-      firstBroadcast: replies[0]?.replyBroadcast,
-      broadcasts: replies.filter((reply) => reply.replyBroadcast).length,
+      broadcasts: replies.filter((reply) => "replyBroadcast" in reply).length,
     }).toEqual({
       delivery: { outcome: "posted", chunks: replies.length },
-      firstBroadcast: true,
-      broadcasts: 1,
+      broadcasts: 0,
     });
     expect(replies.length).toBeGreaterThan(1);
   });
@@ -247,7 +244,7 @@ describe("receiveDigestUpload", () => {
     );
 
     expect(poster.posts).toEqual([
-      { channel: "C1", text: REFINED, threadTs: "1.000", replyBroadcast: true },
+      { channel: "C1", text: REFINED, threadTs: "1.000" },
     ]);
   });
 
