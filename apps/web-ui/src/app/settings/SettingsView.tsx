@@ -1,5 +1,6 @@
 import ThemeSwitcher from "@/components/ThemeSwitcher";
 import ApprovalGatesForm from "./ApprovalGatesForm";
+import SlackPeopleForm from "./SlackPeopleForm";
 import GithubConnectSection, {
   type GithubInstallationRow,
 } from "./GithubConnectSection";
@@ -24,6 +25,9 @@ export interface SettingsViewProps {
   /** Server actions wired to the forms ("actions up"). */
   saveSettings: (formData: FormData) => void | Promise<void>;
   saveApprovalConfig: (formData: FormData) => void | Promise<void>;
+  /** The org setting `slack_users` as one `login id` pair per line. */
+  slackPeopleLines: string;
+  saveSlackPeople: (formData: FormData) => void | Promise<void>;
   regenerateToken: (formData: FormData) => void | Promise<void>;
   /** The GitHub accounts Lore is connected to (specs/4-ux-repo-onboarding FR-8). */
   githubInstallations: GithubInstallationRow[];
@@ -44,6 +48,7 @@ export default function SettingsView(props: SettingsViewProps) {
       />
       <PlatformConfigForm {...props} />
       <ApprovalGatesForm {...props} />
+      <SlackPeopleForm {...props} />
       <InstallCommand {...props} />
     </div>
   );

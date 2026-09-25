@@ -65,6 +65,8 @@ export interface GitHubPort {
   listDirectory(repo: string, path: string): Promise<string[]>;
   listTree(repo: string, ref?: string): Promise<string[]>;
   getDefaultBranch(repo: string): Promise<string>;
+  /** The author email of the login's newest commit in the repo, or null when it has none or hides its email behind GitHub's noreply address (the daily digest's Slack match). */
+  commitEmailOf?(repo: string, login: string): Promise<string | null>;
   listCommitsSince(
     repo: string,
     since: string,

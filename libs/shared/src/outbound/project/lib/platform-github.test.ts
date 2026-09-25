@@ -43,7 +43,11 @@ const state: {
   jobError?: { status: number };
   branchCommits?: Array<{
     sha: string;
-    commit: { message: string; committer: { date: string } | null };
+    commit: {
+      message: string;
+      committer: { date: string } | null;
+      author?: { email: string } | null;
+    };
   }>;
   annotations?: Array<{
     path: string;
@@ -938,6 +942,44 @@ describe("PlatformGitHub failedJob when GitHub refuses", () => {
 
 describe("PlatformGitHub branch reads for the CI tools", () => {
   const gh = () => new PlatformGitHub({ GITHUB_TOKEN: "gh-token" });
+
+  it("commitEmailOf returns the author email of the login's newest commit", async () => {
+    state.branchCommits = [
+      {
+        sha: "a1",
+        commit: {
+          message: "feat",
+          committer: null,
+          author: { email: "bogdan@re-cinq.com" },
+        },
+      },
+    ];
+
+    expect(await gh().commitEmailOf("re-cinq/lore", "gedaiu")).toBe(
+      "bogdan@re-cinq.com",
+    );
+  });
+
+  it("commitEmailOf returns null for a login with no commits in the repo", async () => {
+    state.branchCommits = [];
+
+    expect(await gh().commitEmailOf("re-cinq/lore", "vvondruska")).toBe(null);
+  });
+
+  it("commitEmailOf returns null for a GitHub noreply address", async () => {
+    state.branchCommits = [
+      {
+        sha: "a1",
+        commit: {
+          message: "feat",
+          committer: null,
+          author: { email: "123+gedaiu@users.noreply.github.com" },
+        },
+      },
+    ];
+
+    expect(await gh().commitEmailOf("re-cinq/lore", "gedaiu")).toBe(null);
+  });
 
   it("listBranchCommits returns the branch's commits oldest-first, the order listCommits uses, so ciJudgedSha reads both alike", async () => {
     state.branchCommits = [

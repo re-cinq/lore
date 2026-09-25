@@ -1,4 +1,5 @@
 export const dynamic = "force-dynamic";
+import { formatSlackPeople, parseSlackPeople } from "@/lib/slack-people";
 import { getTaskStats } from "@/lib/api/tasks";
 import { getOrgSettings, putOrgSettings } from "@/lib/api/repos";
 import { listGithubInstallations } from "@/lib/api/github-installations";
@@ -11,7 +12,7 @@ import SettingsView, {
 
 type SettingsViewData = Omit<
   SettingsViewProps,
-  "saveSettings" | "saveApprovalConfig" | "regenerateToken"
+  "saveSettings" | "saveApprovalConfig" | "regenerateToken" | "saveSlackPeople"
 >;
 
 export default async function SettingsPage() {
@@ -20,6 +21,7 @@ export default async function SettingsPage() {
       {...viewDataFrom(await loadSettingsPageData())}
       saveSettings={saveSettings}
       saveApprovalConfig={saveApprovalConfig}
+      saveSlackPeople={saveSlackPeople}
       regenerateToken={regenerateToken}
     />
   );
@@ -37,6 +39,7 @@ function viewDataFrom(
     tasksToday: loaded.taskStats.today,
     approvalConfig: loaded.approvalConfig,
     repoLines: Object.keys(loaded.approvalConfig.repos).join("\n"),
+    slackPeopleLines: formatSlackPeople(loaded.settingsMap.slack_users),
     githubInstallations: loaded.githubInstallations,
     githubInstallUrl: githubAppInstallUrl(process.env.GITHUB_APP_SLUG),
   };
@@ -117,6 +120,17 @@ async function saveSettings(formData: FormData) {
   await putOrgSettings(
     entries.map(({ key, value }) => ({ key, value: value ?? "" })),
   );
+  revalidatePath("/settings");
+}
+
+/** Always a JSON object, `{}` when every line was removed: a blank value would be read as "leave it alone". */
+async function saveSlackPeople(formData: FormData) {
+  "use server";
+  const people = parseSlackPeople(
+    (formData.get("slack_people") as string) || "",
+  );
+
+  await putOrgSettings([{ key: "slack_users", value: JSON.stringify(people) }]);
   revalidatePath("/settings");
 }
 

@@ -6,3 +6,4 @@ export * from "./render.js";
 export * from "./split-for-slack.js";
 export * from "./codec.js";
 export * from "./contract.js";
+export * from "./people.js";

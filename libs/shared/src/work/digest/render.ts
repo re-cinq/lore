@@ -15,6 +15,8 @@ export interface RepoSectionInput {
   roadmap?: DigestGroup[];
   /** Why the repo could not be read; renders instead of the lists. */
   error?: string;
+  /** A group key's display name (GitHub login → Slack name); a key without one shows as itself. */
+  names?: Record<string, string>;
 }
 
 export function renderRepoSection(input: RepoSectionInput): string {
@@ -63,8 +65,23 @@ function renderList(list: ListSpec, input: RepoSectionInput): string[] {
 
   return [
     list.title,
-    ...renderGroups(input[list.section] ?? [], list.cap, list.empty),
+    ...renderGroups(
+      named(input[list.section], input.names),
+      list.cap,
+      list.empty,
+    ),
   ];
+}
+
+/** Groups keyed by their display name, where one is known; the grouping itself stays by login, so one person is one group. */
+function named(
+  groups: DigestGroup[] | undefined,
+  names: Record<string, string> | undefined,
+): DigestGroup[] {
+  return (groups ?? []).map((group) => ({
+    ...group,
+    key: names?.[group.key] ?? group.key,
+  }));
 }
 
 function renderGroups(

@@ -20,6 +20,9 @@ oauth_config:
     bot:
       - chat:write
       - commands
+      # The daily digest names people by their Slack profile (specs/daily-digest FR12).
+      - users:read
+      - users:read.email
 settings:
   org_deploy_enabled: false
   socket_mode_enabled: false

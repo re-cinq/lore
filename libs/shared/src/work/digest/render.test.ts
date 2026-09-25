@@ -50,6 +50,13 @@ describe("renderRepoSection", () => {
     expect(text).toContain("+3 more");
   });
 
+  it("shows a person under their Slack name when one is known", () => {
+    const text = section({ names: { alice: "Alice Smith" } });
+
+    expect(text).toContain("*Alice Smith*");
+    expect(text).toContain("*bob*");
+  });
+
   it("omits a section the repo did not enable", () => {
     const text = section({ settings: { ...all, sections: ["roadmap"] } });
 
