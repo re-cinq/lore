@@ -53,10 +53,6 @@ export async function approvePlanAction(
 
 type ApprovalProblem = { code: string };
 
-function isApprovalProblems(value: unknown): value is ApprovalProblem[] {
-  return Array.isArray(value);
-}
-
 // A refusal carrying the validation report is the outline's job to explain; any other reason is lore-api's own sentence.
 function approvalRefusal(result: ApiResult<unknown>): string {
   const problems =
@@ -68,13 +64,16 @@ function approvalRefusal(result: ApiResult<unknown>): string {
   }
 
   const unresolvedCount = isApprovalProblems(problems)
-    ? problems.filter((problem) => problem.code === "unresolved-finding")
-        .length
+    ? problems.filter((problem) => problem.code === "unresolved-finding").length
     : 0;
 
   return unresolvedCount > 0
     ? unresolvedFindingsRefusal(unresolvedCount)
     : "The plan is not ready to approve yet.";
+}
+
+function isApprovalProblems(value: unknown): value is ApprovalProblem[] {
+  return Array.isArray(value);
 }
 
 function unresolvedFindingsRefusal(count: number): string {
