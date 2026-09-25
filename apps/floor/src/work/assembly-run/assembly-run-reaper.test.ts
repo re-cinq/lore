@@ -16,6 +16,7 @@ import {
 } from "./assembly-run-reaper.js";
 import { LlmDispatchGate } from "./llm-dispatch-gate.js";
 import { advanceLine } from "./advance-line.js";
+import { RecordingPlanWriter } from "../../domain/plan-writer-recording.js";
 
 const line: AssemblyLine = parseAssemblyLine(`
 name: code-review
@@ -295,6 +296,7 @@ function harness() {
     resolveRecipe: async (_repo: string, ref: string, description: string) => ({
       prompt: `prompt:${ref}::${description}`,
     }),
+    plans: new RecordingPlanWriter(),
     cleanupToken: async () => {},
     jobRuns: { complete: async () => {}, fail: async () => {} },
     readAgentStatus: async (name: string) => {

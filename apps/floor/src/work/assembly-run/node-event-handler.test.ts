@@ -7,11 +7,7 @@ import {
   type AgentNodeStatus,
 } from "@re-cinq/lore-assembly-lines";
 import { createNodeEventHandler } from "./node-event-handler.js";
-import type {
-  PlanFinding,
-  PlanSection,
-  PlanWriter,
-} from "../../domain/plan-writer.js";
+import { RecordingPlanWriter } from "../../domain/plan-writer-recording.js";
 import { BillingAlertThrottle, maybeAlertBilling } from "./billing-alert.js";
 import { maybeAlertAgentConfig } from "./agent-config-alert.js";
 import { LlmDispatchGate } from "./llm-dispatch-gate.js";
@@ -46,6 +42,24 @@ edges:
     on: always
 `);
 
+const planningLine: AssemblyLine = parseAssemblyLine(`
+name: feature-planning
+description: analyze → done
+version: 1
+entry: analyze
+exit: done
+nodes:
+  - id: analyze
+    type: agent
+    prompt_ref: feature-planning-analyze
+  - id: done
+    type: retrospective
+edges:
+  - from: analyze
+    to: done
+    on: always
+`);
+
 function harness() {
   const port = new InMemoryAssemblyRuns();
   const launched: LoreTaskSpec[] = [];
@@ -60,7 +74,11 @@ function harness() {
   };
   const deps = {
     assemblyRuns: port,
-    definitions: async () => new Map([["code-review", line]]),
+    definitions: async () =>
+      new Map([
+        ["code-review", line],
+        ["feature-planning", planningLine],
+      ]),
     repoSettings: async () => null,
     resolveRecipe: async (_repo: string, ref: string) => ({
       prompt: `prompt:${ref}`,
@@ -74,6 +92,7 @@ function harness() {
     alertAgentConfig: async (repo: string, nodeType: string) => {
       agentConfigAlerts.push({ repo, nodeType });
     },
+    plans: new RecordingPlanWriter(),
   };
 
   return {
@@ -99,6 +118,7 @@ function alertingHarness() {
     cleanupToken: async () => {},
     jobRuns: { complete: async () => {}, fail: async () => {} },
     readAgentStatus: async (name) => statusByName[name] ?? null,
+    plans: new RecordingPlanWriter(),
     alertBilling: async (repo, nodeType, status) => {
       await maybeAlertBilling(repo, nodeType, status, {
         notify: async (_level, message) => {
@@ -705,127 +725,64 @@ describe("the open row a terminal event is matched to", () => {
   });
 });
 
-const planningLine: AssemblyLine = parseAssemblyLine(`
-name: feature-planning
-description: analyze → done
-version: 1
-entry: analyze
-exit: done
-nodes:
-  - id: analyze
-    type: agent
-    prompt_ref: feature-planning-analyze
-  - id: done
-    type: retrospective
-edges:
-  - from: analyze
-    to: done
-    on: always
-`);
+async function settleIntentRefine(phase: "Succeeded" | "Failed") {
+  const { port, handler, deps } = harness();
+  const id = await port.start({
+    blueprintName: "feature-planning",
+    repo: "o/r",
+    branch: "b",
+    args: {
+      plan_id: "p9",
+      refine: {
+        slot: "intent",
+        baseHash: "h",
+        uses: { questions: ["q-1"], comments: [] },
+      },
+    },
+  });
 
-type PlanWriterCall =
-  | { closePresence: string }
-  | { finishRefine: { planId: string; slot: string; uses: unknown } };
+  await port.markRunning(id);
+  const crName = `${id.substring(0, 12)}-analyze`;
 
-class RecordingPlanWriter implements PlanWriter {
-  calls: PlanWriterCall[] = [];
+  await port.ensureStationRun({
+    assemblyRunId: id,
+    nodeId: "analyze",
+    iteration: 1,
+    agentCrName: crName,
+  });
+  await handler({
+    assemblyLineId: id,
+    nodeId: "analyze",
+    agentName: crName,
+    taskId: id,
+    phase,
+  });
 
-  async closePresence(planId: string): Promise<void> {
-    this.calls.push({ closePresence: planId });
-  }
-
-  async finishRefine(
-    planId: string,
-    refine: { slot: string; uses: unknown },
-  ): Promise<void> {
-    this.calls.push({
-      finishRefine: { planId, slot: refine.slot, uses: refine.uses },
-    });
-  }
-
-  markdownOf(): Promise<string> {
-    throw new Error("not implemented");
-  }
-
-  submitFile(): Promise<void> {
-    throw new Error("not implemented");
-  }
-
-  failRefine(): Promise<void> {
-    throw new Error("not implemented");
-  }
-
-  addQuestions(): Promise<void> {
-    throw new Error("not implemented");
-  }
-
-  findingsOf(): Promise<PlanFinding[]> {
-    throw new Error("not implemented");
-  }
-
-  sectionsOf(): Promise<PlanSection[]> {
-    throw new Error("not implemented");
-  }
-
-  openPresence(): Promise<void> {
-    throw new Error("not implemented");
-  }
+  return deps.plans.writes;
 }
 
 describe("a Refine's analyze node settling", () => {
   it("closes presence then finishes the refine on success", async () => {
-    const port = new InMemoryAssemblyRuns();
-    const plans = new RecordingPlanWriter();
-    const handler = createNodeEventHandler({
-      assemblyRuns: port,
-      definitions: async () => new Map([["feature-planning", planningLine]]),
-      repoSettings: async () => null,
-      resolveRecipe: async (_repo, ref) => ({ prompt: `prompt:${ref}` }),
-      cleanupToken: async () => {},
-      jobRuns: { complete: async () => {}, fail: async () => {} },
-      readAgentStatus: async () => null,
-      plans,
-    });
-
-    const id = await port.start({
-      blueprintName: "feature-planning",
-      repo: "o/r",
-      branch: "b",
-      args: {
-        plan_id: "p9",
-        refine: {
-          slot: "intent",
-          baseHash: "h",
-          uses: { questions: ["q-1"], comments: [] },
-        },
-      },
-    });
-
-    await port.markRunning(id);
-    const crName = `${id.substring(0, 12)}-analyze`;
-
-    await port.ensureStationRun({
-      assemblyRunId: id,
-      nodeId: "analyze",
-      iteration: 1,
-      agentCrName: crName,
-    });
-
-    await handler({
-      assemblyLineId: id,
-      nodeId: "analyze",
-      agentName: crName,
-      taskId: id,
-      phase: "Succeeded",
-    });
-
-    expect(plans.calls).toEqual([
-      { closePresence: "p9" },
+    expect(await settleIntentRefine("Succeeded")).toEqual([
+      { method: "closePresence", planId: "p9" },
       {
-        finishRefine: {
-          planId: "p9",
+        method: "finishRefine",
+        planId: "p9",
+        body: { slot: "intent", uses: { questions: ["q-1"], comments: [] } },
+      },
+    ]);
+  });
+
+  it("closes presence then fails the intent Refine naming outcome failed", async () => {
+    expect(await settleIntentRefine("Failed")).toEqual([
+      { method: "closePresence", planId: "p9" },
+      {
+        method: "failRefine",
+        planId: "p9",
+        body: {
           slot: "intent",
-          uses: { questions: ["q-1"], comments: [] },
+          reason:
+            "the planning agent stopped with outcome failed before it answered",
         },
       },
     ]);

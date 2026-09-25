@@ -11,13 +11,7 @@ import { finishNodeAndAdvance } from "./finish-node.js";
 import { finishLine } from "./finish-line.js";
 import type { AdvanceDeps } from "./advance-deps.js";
 import { LlmDispatchGate } from "./llm-dispatch-gate.js";
-import type {
-  PlanAgentEdits,
-  PlanFileBody,
-  PlanFinding,
-  PlanSection,
-  PlanWriter,
-} from "../../domain/plan-writer.js";
+import { RecordingPlanWriter } from "../../domain/plan-writer-recording.js";
 
 const codeReviewLike: AssemblyLine = parseAssemblyLine(`
 name: code-review
@@ -177,6 +171,7 @@ function makeDeps(port: InMemoryAssemblyRuns) {
     enqueued.push(dispatchSpec as LoreTaskSpec);
     await armDispatch(nodeRowId, dispatchSpec);
   };
+  const plans = new RecordingPlanWriter();
   const deps: AdvanceDeps = {
     assemblyRuns: port,
     definitions: async () =>
@@ -185,6 +180,7 @@ function makeDeps(port: InMemoryAssemblyRuns) {
         ["comment-triage", commentTriageLike],
         ["triage-then-issues", triageThenIssues],
         ["push-then-wait", pushThenWait],
+        ["feature-planning", featurePlanningLike],
       ]),
     repoSettings: async () => null,
     resolveRecipe: async (_repo, promptRef, description) => ({
@@ -204,9 +200,10 @@ function makeDeps(port: InMemoryAssemblyRuns) {
     notifyFailure: async (row, outcome, reason) => {
       notified.push({ id: row.id, outcome, reason });
     },
+    plans,
   };
 
-  return { deps, enqueued, cleaned, jobRuns, notified };
+  return { deps, enqueued, cleaned, jobRuns, notified, plans };
 }
 
 async function runningLine(port: InMemoryAssemblyRuns) {
@@ -1371,53 +1368,6 @@ edges:
     ).toBeNull();
   });
 
-  class RecordingPlanWriter implements PlanWriter {
-    calls: Array<{ planId: string; user: { name: string; color: string } }> =
-      [];
-
-    async openPresence(
-      planId: string,
-      user: { name: string; color: string },
-    ): Promise<void> {
-      this.calls.push({ planId, user });
-    }
-
-    async markdownOf(): Promise<string> {
-      throw new Error("unexpected");
-    }
-
-    async submitFile(_planId: string, _body: PlanFileBody): Promise<void> {
-      throw new Error("unexpected");
-    }
-
-    async failRefine(): Promise<void> {
-      throw new Error("unexpected");
-    }
-
-    async addQuestions(
-      _planId: string,
-      _edits: PlanAgentEdits,
-    ): Promise<void> {
-      throw new Error("unexpected");
-    }
-
-    async findingsOf(): Promise<PlanFinding[]> {
-      throw new Error("unexpected");
-    }
-
-    async sectionsOf(): Promise<PlanSection[]> {
-      throw new Error("unexpected");
-    }
-
-    async closePresence(): Promise<void> {
-      throw new Error("unexpected");
-    }
-
-    async finishRefine(): Promise<void> {
-      throw new Error("unexpected");
-    }
-  }
-
   it("opens presence for the planning agent before the analyze pod launches", async () => {
     const port = new InMemoryAssemblyRuns();
     const id = await port.start({
@@ -1428,22 +1378,15 @@ edges:
     });
 
     await port.markRunning(id);
-    const { deps } = makeDeps(port);
-    const plans = new RecordingPlanWriter();
+    const { deps, plans } = makeDeps(port);
 
-    await advanceLine(id, {
-      ...deps,
-      definitions: async () =>
-        new Map<string, AssemblyLine>([
-          ["feature-planning", featurePlanningLike],
-        ]),
-      plans,
-    });
+    await advanceLine(id, deps);
 
-    expect(plans.calls).toEqual([
+    expect(plans.writes).toEqual([
       {
+        method: "openPresence",
         planId: "p9",
-        user: { name: "Planning agent", color: expect.any(String) },
+        body: { name: "Planning agent", color: expect.any(String) },
       },
     ]);
   });

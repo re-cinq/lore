@@ -68,6 +68,12 @@ export interface PlanWriter {
   ): Promise<void>;
 }
 
+/** What the walk writes around one planning agent's pass: presence opened before its pod launches, closed when its node settles, and the Refine it answered finished or failed. */
+export type PlanningPassWriter = Pick<
+  PlanWriter,
+  "openPresence" | "closePresence" | "finishRefine" | "failRefine"
+>;
+
 /** lore-api's answer to a planning line parked on a human station: an approved plan is reopened for writing when its author is asked, or when the spec review sent questions to it; any other plan is left as it is. */
 export interface PlanOpener {
   openForAuthor(repo: string, planId: string): Promise<void>;

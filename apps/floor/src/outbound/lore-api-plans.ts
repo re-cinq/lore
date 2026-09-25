@@ -14,16 +14,7 @@ const TIMEOUT_MS = 120_000;
 export function loreApiPlans(baseUrl: string, token: string): PlanWriter {
   const request = (path: string, init: RequestInit) =>
     requestLoreApi(baseUrl, token, `/api/plans/${path}`, init);
-  const post = async (path: string, body: unknown) => {
-    await request(path, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    });
-  };
-  const del = async (path: string) => {
-    await request(path, { method: "DELETE" });
-  };
+  const post = (path: string, body: unknown) => postJson(request, path, body);
 
   return {
     markdownOf: async (planId) =>
@@ -33,9 +24,35 @@ export function loreApiPlans(baseUrl: string, token: string): PlanWriter {
     finishRefine: (planId, done) => post(`${planId}/refine-done`, done),
     // planning-sync's own route: `{actor, ops, base?}`; the Floor never sends `base`, so the ops land on whatever the plan is by then.
     addQuestions: (planId, edits) => post(`${planId}/agent-edits`, edits),
-    openPresence: (planId, user) => post(`${planId}/agent-presence`, { user }),
-    closePresence: (planId) => del(`${planId}/agent-presence`),
+    ...planPresence(request),
     ...planReads(request),
+  };
+}
+
+async function postJson(
+  request: PlanRequest,
+  path: string,
+  body: unknown,
+): Promise<void> {
+  await request(path, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+/** The planning agent's presence on a plan: opened before its pod launches, closed when its node settles. */
+function planPresence(
+  request: PlanRequest,
+): Pick<PlanWriter, "openPresence" | "closePresence"> {
+  const presence = (planId: string) => `${planId}/agent-presence`;
+
+  return {
+    openPresence: (planId, user) =>
+      postJson(request, presence(planId), { user }),
+    closePresence: async (planId) => {
+      await request(presence(planId), { method: "DELETE" });
+    },
   };
 }
 

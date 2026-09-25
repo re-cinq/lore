@@ -1,45 +1,65 @@
-// What a feature-planning line's `analyze` node settling means for the plan it wrote: presence always closes, and a Refine's answer (success or failure) is recorded on the section it was asked for.
+// What a feature-planning line's `analyze` node means for the plan it writes: presence opens before its pod launches, and when it settles presence closes and a Refine's answer (success or failure) is recorded on the section it was asked for.
 
-import type { PlanWriter, RefineContext } from "../../domain/plan-writer.js";
+import type {
+  FailedRefine,
+  PlanRunRef,
+  PlanningPassWriter,
+  RefineContext,
+} from "../../domain/plan-writer.js";
+import { planRunRefOf, unansweredRefine } from "../agent/planning-result.js";
 
-/** The section a Refine's pass answered, with `uses` always present (unlike the optional field a run's args carry it as). */
-type RefineAnswer = { slot: string; uses: unknown };
+/** The feature-planning line's node whose pod is the planning agent. */
+const PLANNING_NODE = "analyze";
 
-/** The plan a settled `analyze` node touches, and the Refine (if any) its pass answered. Null for any other node, or a run naming no plan. */
-export interface PlanningPassEnd {
-  planId: string;
-  refine: RefineAnswer | null;
-  failed: boolean;
+/** The plan a node's pass writes and the Refine it answers — only the planning agent's node of a run naming a plan; null for any other node. */
+export function planningPassOf(
+  args: Readonly<Record<string, unknown>> | undefined,
+  nodeId: string,
+): PlanRunRef | null {
+  return nodeId === PLANNING_NODE ? (planRunRefOf(args ?? {}) ?? null) : null;
 }
 
+/** How a settled pass answers its Refine: success proposes the section, anything else tells it what the agent stopped with. */
+export type RefineSettlement =
+  { finish: { slot: string; uses: unknown } } | { fail: FailedRefine };
+
+/** The plan a settled planning node touches, and how its Refine (if any) is answered. */
+export interface PlanningPassEnd {
+  planId: string;
+  refine: RefineSettlement | null;
+}
+
+/** Null for any other node, or a run naming no plan. */
 export function planningPassEnd(
   args: Readonly<Record<string, unknown>>,
   nodeId: string,
   outcome: string,
 ): PlanningPassEnd | null {
-  const planId = args.plan_id;
+  const pass = planningPassOf(args, nodeId);
 
-  if (nodeId !== "analyze" || typeof planId !== "string") {
-    return null;
-  }
-
-  return { planId, refine: refineOf(args.refine), failed: outcome !== "success" };
+  return (
+    pass && {
+      planId: pass.planId,
+      refine: pass.refine && refineSettlement(pass.refine, outcome),
+    }
+  );
 }
 
-function refineOf(value: unknown): RefineAnswer | null {
-  const refine = (value ?? {}) as Partial<RefineContext>;
-
-  return typeof refine.slot === "string"
-    ? { slot: refine.slot, uses: refine.uses ?? null }
-    : null;
+function refineSettlement(
+  refine: RefineContext,
+  outcome: string,
+): RefineSettlement {
+  return outcome === "success"
+    ? { finish: { slot: refine.slot, uses: refine.uses ?? null } }
+    : { fail: unansweredRefine(refine, `outcome ${outcome}`) };
 }
 
-/** Closes presence, then settles a Refine's answer on the section it was asked for — success proposes it, failure tells the section why. A draft (no refine) closes presence only. */
+/** Closes presence, then applies the Refine's settlement on the section it was asked for. A draft (no refine) closes presence only. */
 export async function settlePlanningPass(
   args: Readonly<Record<string, unknown>>,
   nodeId: string,
   outcome: string,
-  plans: Pick<PlanWriter, "closePresence" | "finishRefine" | "failRefine">,
+  plans: PlanningPassWriter,
 ): Promise<void> {
   const end = planningPassEnd(args, nodeId, outcome);
 
@@ -51,11 +71,7 @@ export async function settlePlanningPass(
   if (!end.refine) {
     return;
   }
-
-  await (end.failed
-    ? plans.failRefine(end.planId, {
-        slot: end.refine.slot,
-        reason: "the planning agent's pass did not succeed",
-      })
-    : plans.finishRefine(end.planId, end.refine));
+  await ("fail" in end.refine
+    ? plans.failRefine(end.planId, end.refine.fail)
+    : plans.finishRefine(end.planId, end.refine.finish));
 }

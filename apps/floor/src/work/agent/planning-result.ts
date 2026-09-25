@@ -117,11 +117,19 @@ function failedRefineOf(
   exitCode: number | null,
 ): FailedRefine | null {
   return run.refine && exitCode !== null && exitCode !== 0
-    ? {
-        slot: run.refine.slot,
-        reason: `the planning agent stopped with exit code ${exitCode} before it answered`,
-      }
+    ? unansweredRefine(run.refine, `exit code ${exitCode}`)
     : null;
+}
+
+/** A Refine the planning agent stopped before answering, telling its section what it stopped with (`exit code 1`, `outcome failed`). */
+export function unansweredRefine(
+  refine: RefineContext,
+  stoppedWith: string,
+): FailedRefine {
+  return {
+    slot: refine.slot,
+    reason: `the planning agent stopped with ${stoppedWith} before it answered`,
+  };
 }
 
 /** A planning file event from the sink. An uploaded file was already written by its upload, so its event is only the notice; an inline one (a cluster with no files endpoint) is written here. */
