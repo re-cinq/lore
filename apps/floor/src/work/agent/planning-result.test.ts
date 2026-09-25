@@ -44,6 +44,7 @@ function recordingWriter() {
     addQuestions: async (planId, edits) => {
       writes.push({ planId, body: edits });
     },
+    findingsOf: async () => [],
   };
 
   return { writes, writer };
