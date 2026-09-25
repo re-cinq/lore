@@ -7,6 +7,7 @@ import {
   type AgentNodeStatus,
 } from "@re-cinq/lore-assembly-lines";
 import { createNodeEventHandler } from "./node-event-handler.js";
+import { RecordingPlanWriter } from "../../domain/plan-writer-recording.js";
 import { BillingAlertThrottle, maybeAlertBilling } from "./billing-alert.js";
 import { maybeAlertAgentConfig } from "./agent-config-alert.js";
 import { LlmDispatchGate } from "./llm-dispatch-gate.js";
@@ -41,6 +42,24 @@ edges:
     on: always
 `);
 
+const planningLine: AssemblyLine = parseAssemblyLine(`
+name: feature-planning
+description: analyze → done
+version: 1
+entry: analyze
+exit: done
+nodes:
+  - id: analyze
+    type: agent
+    prompt_ref: feature-planning-analyze
+  - id: done
+    type: retrospective
+edges:
+  - from: analyze
+    to: done
+    on: always
+`);
+
 function harness() {
   const port = new InMemoryAssemblyRuns();
   const launched: LoreTaskSpec[] = [];
@@ -55,7 +74,11 @@ function harness() {
   };
   const deps = {
     assemblyRuns: port,
-    definitions: async () => new Map([["code-review", line]]),
+    definitions: async () =>
+      new Map([
+        ["code-review", line],
+        ["feature-planning", planningLine],
+      ]),
     repoSettings: async () => null,
     resolveRecipe: async (_repo: string, ref: string) => ({
       prompt: `prompt:${ref}`,
@@ -69,6 +92,7 @@ function harness() {
     alertAgentConfig: async (repo: string, nodeType: string) => {
       agentConfigAlerts.push({ repo, nodeType });
     },
+    plans: new RecordingPlanWriter(),
   };
 
   return {
@@ -94,6 +118,7 @@ function alertingHarness() {
     cleanupToken: async () => {},
     jobRuns: { complete: async () => {}, fail: async () => {} },
     readAgentStatus: async (name) => statusByName[name] ?? null,
+    plans: new RecordingPlanWriter(),
     alertBilling: async (repo, nodeType, status) => {
       await maybeAlertBilling(repo, nodeType, status, {
         notify: async (_level, message) => {
@@ -697,5 +722,69 @@ describe("the open row a terminal event is matched to", () => {
 
     expect(h.port.nodes[1]).toMatchObject({ outcome: "success" });
     expect(h.port.nodes[0]).toMatchObject({ outcome: null });
+  });
+});
+
+async function settleIntentRefine(phase: "Succeeded" | "Failed") {
+  const { port, handler, deps } = harness();
+  const id = await port.start({
+    blueprintName: "feature-planning",
+    repo: "o/r",
+    branch: "b",
+    args: {
+      plan_id: "p9",
+      refine: {
+        slot: "intent",
+        baseHash: "h",
+        uses: { questions: ["q-1"], comments: [] },
+      },
+    },
+  });
+
+  await port.markRunning(id);
+  const crName = `${id.substring(0, 12)}-analyze`;
+
+  await port.ensureStationRun({
+    assemblyRunId: id,
+    nodeId: "analyze",
+    iteration: 1,
+    agentCrName: crName,
+  });
+  await handler({
+    assemblyLineId: id,
+    nodeId: "analyze",
+    agentName: crName,
+    taskId: id,
+    phase,
+  });
+
+  return deps.plans.writes;
+}
+
+describe("a Refine's analyze node settling", () => {
+  it("closes presence then finishes the refine on success", async () => {
+    expect(await settleIntentRefine("Succeeded")).toEqual([
+      { method: "closePresence", planId: "p9" },
+      {
+        method: "finishRefine",
+        planId: "p9",
+        body: { slot: "intent", uses: { questions: ["q-1"], comments: [] } },
+      },
+    ]);
+  });
+
+  it("closes presence then fails the intent Refine naming outcome failed", async () => {
+    expect(await settleIntentRefine("Failed")).toEqual([
+      { method: "closePresence", planId: "p9" },
+      {
+        method: "failRefine",
+        planId: "p9",
+        body: {
+          slot: "intent",
+          reason:
+            "the planning agent stopped with outcome failed before it answered",
+        },
+      },
+    ]);
   });
 });

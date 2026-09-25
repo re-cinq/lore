@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { resolve } from "node:path";
-import { readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 
 const GUARD = resolve(
@@ -26,6 +27,35 @@ function guard(command: string, policy?: string) {
 
 const blocked = (command: string, policy?: string) =>
   guard(command, policy).code === 2;
+
+function geminiDecision(command: string, policy: string): string | null {
+  const settings = JSON.parse(
+    readFileSync(
+      resolve(GUARD, "../../../hooks/gemini/.gemini/settings.json"),
+      "utf8",
+    ),
+  ) as { hooks: { BeforeTool: Array<{ hooks: Array<{ command: string }> }> } };
+  const home = mkdtempSync(join(tmpdir(), "lore-gemini-hook-"));
+  const staged = join(home, ".claude/skills/lore-context");
+
+  mkdirSync(staged, { recursive: true });
+  copyFileSync(GUARD, join(staged, "guard-tests.sh"));
+  const result = spawnSync(
+    "sh",
+    ["-c", settings.hooks.BeforeTool[0].hooks[0].command],
+    {
+      input: JSON.stringify({
+        cwd: "/workspace/target",
+        tool_name: "run_shell_command",
+        tool_input: { command },
+      }),
+      env: { PATH: process.env.PATH, HOME: home, LORE_TEST_POLICY: policy },
+    },
+  );
+  const out = result.stdout.toString().trim();
+
+  return out === "" ? null : (JSON.parse(out) as { reason: string }).reason;
+}
 
 describe("guard-tests hook", () => {
   it("is wired as the Bash PreToolUse hook in the settings every pod fetches, at the path the lore-context tarball unpacks to", () => {
@@ -238,5 +268,58 @@ describe("guard-tests hook", () => {
       ),
       undeclared: 0,
     });
+  });
+
+  it("refuses eslint, prettier and a lint script under policy none, where CI has already published that verdict", () => {
+    expect([
+      blocked("npx eslint apps/web-ui/src/app/api/route.ts", "none"),
+      blocked("cd /workspace/target && npx eslint .", "none"),
+      blocked("npm run lint -- --ext .ts", "none"),
+      blocked("prettier --check src/a.ts", "none"),
+      blocked("node_modules/.bin/eslint src", "none"),
+    ]).toEqual([true, true, true, true, true]);
+  });
+
+  it("names CI's verdict as where to read it instead", () => {
+    expect(guard("npx eslint .", "none").reason).toContain(
+      "lore_get_ci_failures",
+    );
+  });
+
+  it("leaves a linter alone under the scoped policy an implementation pod runs", () => {
+    expect(blocked("npx eslint src/a.ts", "scoped")).toBe(false);
+  });
+
+  it("wires the same guard into the Gemini bundle, which blocks with a decision on stdout rather than an exit code", () => {
+    const settings = JSON.parse(
+      readFileSync(
+        resolve(GUARD, "../../../hooks/gemini/.gemini/settings.json"),
+        "utf8",
+      ),
+    ) as {
+      hooks: {
+        BeforeTool: Array<{
+          matcher: string;
+          hooks: Array<{ type: string; command: string }>;
+        }>;
+      };
+    };
+    const hook = settings.hooks.BeforeTool[0];
+
+    expect(hook.matcher).toEqual("run_shell_command");
+    expect(hook.hooks[0].command).toContain(
+      "$HOME/.claude/skills/lore-context/guard-tests.sh",
+    );
+    expect(hook.hooks[0].command).toContain('"decision":"block"');
+  });
+
+  it("blocks an install through the Gemini hook and passes a read-only command", () => {
+    expect([
+      geminiDecision("npm install", "none"),
+      geminiDecision("git -C /workspace/target diff main...HEAD", "none"),
+    ]).toEqual([
+      "[lore] blocked: this node does not install dependencies or build. The pod has a 1Gi disk budget and CI already builds the branch.",
+      null,
+    ]);
   });
 });
