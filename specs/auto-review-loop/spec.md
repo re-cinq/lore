@@ -545,7 +545,7 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
   verdict read through `lore_get_ci_failures` rather than reasoned about or re-run, each
   diff read once in place, and a `question` when an added spec statement is not what a
   person using that surface would expect.
-  ([validated by](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L454), [validated by](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L464), [validated by](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L475))
+  ([validated by](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L476), [validated by](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L486), [validated by](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L497))
 - *(added 2026-09-25)* A review asked for by hand supersedes the fast pass a push started:
   the open re-check is finished `superseded` before the deep review starts, so one sha
   never collects two verdicts of different depths.
