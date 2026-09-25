@@ -68,9 +68,18 @@ branch already; amend them, do not rewrite them. For each item decide:
   `{"slot": "<section slot>", "question": "<the decision, as a question>", "why": "<the comment, quoted, and where it collides with the plan>", "comment_id": <the comment's id>}`.
   The `comment_id` is what keeps the question one question: a later pass
   that rewords it replaces it in the plan instead of asking twice.
-  The slot is the plan.md section marker the matter belongs to (`intent`,
-  `scope`, `constraints`, a `custom-…` slot, …). Never answer for the plan's
-  people: the plan stays as it is until they do.
+  The slot is copied VERBATIM from the section's `<!-- slot:… -->` marker in
+  plan.md (`intent`, `scope`, `constraints`, `custom-section_<uuid>`, …) —
+  a section title or a slug of your own names no section, and the question
+  is moved to the plan's Open questions section instead of where it belongs.
+  Every `to_plan` reply MUST have a `plan_questions` entry with the same
+  `comment_id`: a reply that says "sent to the plan" with no question behind
+  it gets one made from the comment, worded worse than yours. Never answer
+  for the plan's people: the plan stays as it is until they do.
+- A wording, formatting or example matter inside what the plan settled — a
+  sentence fragment, a label's casing, a worked example that contradicts a
+  rule — is `addressed`, never `to_plan`: the plan's people decide the
+  design, not the prose.
 - A review body with no single comment id is answered the same way, by the
   review's id.
 

@@ -15,6 +15,12 @@ import { errorMessage } from "@re-cinq/lore-shared";
 import type { PlanWriter } from "../../domain/plan-writer.js";
 import type { AgentFileEvent } from "./agent-events.js";
 import {
+  homeQuestions,
+  questionsOwed,
+  type HomedQuestion,
+  type PlanQuestion,
+} from "./spec-review-questions.js";
+import {
   postReplies,
   type ReviewTarget,
   type SpecReviewReplyPoster,
@@ -31,7 +37,7 @@ export const SPEC_WRITER_ACTOR = "spec-writer";
 
 export interface SpecReviewResultDeps {
   assemblyRuns: Pick<AssemblyRunsPort, "listForTask" | "mergeArgs">;
-  plans: Pick<PlanWriter, "addQuestions">;
+  plans: Pick<PlanWriter, "addQuestions" | "sectionsOf">;
   /** The PR surface of the run's repo. */
   pullsFor(repo: string): Promise<SpecReviewReplyPoster>;
 }
@@ -41,13 +47,13 @@ export type SpecReviewDelivery =
   | {
       outcome: "delivered";
       questions: number;
+      /** Questions that landed on a slot other than the one the writer named — a slot the plan does not have. */
+      rehomed: number;
       replied: number;
       resolved: number;
     }
   | { outcome: "invalid"; error: string }
   | { outcome: "skipped"; error: string };
-
-type PlanQuestion = SpecReviewResult["plan_questions"][number];
 
 /** The writer's answer from the sink: questions to the plan, replies to the PR, and the reopen flag on the run when the plan now has something to settle. Never throws on a bad file; a failed reply or resolve is logged and counted, never fatal. */
 export async function deliverSpecReviewResult(
@@ -135,34 +141,68 @@ async function deliver(
   result: SpecReviewResult,
   deps: SpecReviewResultDeps,
 ): Promise<SpecReviewDelivery> {
-  const questions = await sendQuestions(target, result.plan_questions, deps);
-  const replies = await postReplies(
-    target,
-    result.replies,
-    await deps.pullsFor(target.run.repo),
+  const pulls = await deps.pullsFor(target.run.repo);
+  const homed = await questionsToSend(target, result, deps, pulls);
+  const questions = await sendQuestions(target, homed, deps);
+  const replies = await postReplies(target, result.replies, pulls);
+
+  return { outcome: "delivered", ...questions, ...replies };
+}
+
+/** The writer's questions plus the ones it owes for its `to_plan` replies, each on a slot the plan has. The plan's sections and the PR's comments are read best-effort: unreadable, every slot stays as written and an owed question quotes nothing. */
+async function questionsToSend(
+  target: ReviewTarget,
+  result: SpecReviewResult,
+  deps: SpecReviewResultDeps,
+  pulls: SpecReviewReplyPoster,
+): Promise<HomedQuestion[]> {
+  const [sections, comments] = await Promise.all([
+    orNone(deps.plans.sectionsOf(target.planId)),
+    orNone(pulls.listComments?.(target.prNumber) ?? Promise.resolve([])),
+  ]);
+  const homed = homeQuestions(
+    [...result.plan_questions, ...questionsOwed(result, comments)],
+    sections,
   );
 
-  return { outcome: "delivered", questions, ...replies };
+  homed
+    .filter((entry) => entry.rehomed)
+    .forEach((entry) => warnRehomed(target.planId, entry));
+
+  return homed;
+}
+
+// A read that fails leaves the delivery to what the writer wrote, never blocks it.
+function orNone<T>(read: Promise<T[]>): Promise<T[]> {
+  return read.catch(() => []);
+}
+
+function warnRehomed(planId: string, { question }: HomedQuestion): void {
+  console.warn(
+    `[spec-review-result] plan ${planId}: question for comment ${question.comment_id ?? "none"} named a slot the plan does not have; landed on "${question.slot}"`,
+  );
 }
 
 /** The questions land on the plan, and the run is flagged so its next park on the PR wait reopens the plan for them. */
 async function sendQuestions(
   target: ReviewTarget,
-  questions: readonly PlanQuestion[],
+  homed: readonly HomedQuestion[],
   deps: SpecReviewResultDeps,
-): Promise<number> {
-  if (questions.length === 0) {
-    return 0;
+): Promise<{ questions: number; rehomed: number }> {
+  const rehomed = homed.filter((entry) => entry.rehomed).length;
+
+  if (homed.length === 0) {
+    return { questions: 0, rehomed };
   }
   await deps.plans.addQuestions(target.planId, {
     actor: SPEC_WRITER_ACTOR,
-    ops: questions.map(addQuestionOp),
+    ops: homed.map(({ question }) => addQuestionOp(question)),
   });
   await deps.assemblyRuns.mergeArgs(target.run.id, {
     [SPEC_REVIEW_REOPEN_ARG]: true,
   });
 
-  return questions.length;
+  return { questions: homed.length, rehomed };
 }
 
 /** One `add-question` op; the id is stable across reworks — keyed on the review comment the question answers for, so a rework that rewords it replaces it, and on the text only for a question tied to no comment. */

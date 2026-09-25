@@ -31,6 +31,12 @@ export interface PlanAgentEdits {
   ops: unknown[];
 }
 
+/** One section of the live plan: the slot an agent op addresses it by, and the title its people read. */
+export interface PlanSection {
+  slot: string;
+  title: string;
+}
+
 /** One finding block as it stands on the live plan, for reconciling a new pass against it. */
 export interface PlanFinding {
   slot: string;
@@ -46,6 +52,8 @@ export interface PlanWriter {
   addQuestions(planId: string, edits: PlanAgentEdits): Promise<void>;
   /** The plan's current finding blocks, for a validator pass reconciling against them. */
   findingsOf(planId: string): Promise<PlanFinding[]>;
+  /** The plan's sections in order, for landing an agent's question on a slot the plan has. */
+  sectionsOf(planId: string): Promise<PlanSection[]>;
 }
 
 /** lore-api's answer to a planning line parked on a human station: an approved plan is reopened for writing when its author is asked, or when the spec review sent questions to it; any other plan is left as it is. */

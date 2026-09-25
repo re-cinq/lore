@@ -52,7 +52,11 @@ class RecordingPulls implements SpecReviewReplyPoster {
   readonly resolves: string[] = [];
 
   constructor(
-    private readonly seed: { posted?: string[]; threads?: ReviewThread[] },
+    private readonly seed: {
+      posted?: string[];
+      threads?: ReviewThread[];
+      comments?: ReviewComment[];
+    },
   ) {}
 
   async replyToReviewComment(number: number, commentId: number, body: string) {
@@ -64,9 +68,12 @@ class RecordingPulls implements SpecReviewReplyPoster {
   }
 
   async listComments() {
-    return (this.seed.posted ?? []).map(
-      (body, index) => ({ id: index, body }) as ReviewComment,
-    );
+    return [
+      ...(this.seed.posted ?? []).map(
+        (body, index) => ({ id: index, body }) as ReviewComment,
+      ),
+      ...(this.seed.comments ?? []),
+    ];
   }
 
   async listIssueComments() {
@@ -82,7 +89,11 @@ class RecordingPulls implements SpecReviewReplyPoster {
   }
 }
 
-function recordingPulls(seed: { posted?: string[]; threads?: ReviewThread[] }) {
+function recordingPulls(seed: {
+  posted?: string[];
+  threads?: ReviewThread[];
+  comments?: ReviewComment[];
+}) {
   const pulls = new RecordingPulls(seed);
 
   return {
@@ -93,7 +104,14 @@ function recordingPulls(seed: { posted?: string[]; threads?: ReviewThread[] }) {
   };
 }
 
-function recordingPlans() {
+const PLAN_SECTIONS = [
+  { slot: "intent", title: "What we want and why" },
+  { slot: "scope", title: "In and out of scope" },
+  { slot: "delivery", title: "Delivery implications" },
+  { slot: "questions", title: "Open questions" },
+];
+
+function recordingPlans(sections = PLAN_SECTIONS) {
   const questions: Array<{ planId: string; edits: unknown }> = [];
 
   return {
@@ -102,9 +120,19 @@ function recordingPlans() {
       addQuestions: async (planId: string, edits: unknown) => {
         questions.push({ planId, edits });
       },
+      sectionsOf: async () => sections,
     },
   };
 }
+
+const reviewComment = (id: number, body: string): ReviewComment => ({
+  id,
+  path: "specs/tms/spec.md",
+  line: 12,
+  body,
+  user: "gedaiu",
+  created_at: "2026-09-25T09:00:00Z",
+});
 
 const thread = (id: string, databaseId: number): ReviewThread => ({
   id,
@@ -146,8 +174,20 @@ describe("deliverSpecReviewResult", () => {
       questions,
       reopen: (await port.getById(id))?.args[SPEC_REVIEW_REOPEN_ARG],
     }).toEqual({
-      delivery: { outcome: "delivered", questions: 2, replied: 0, resolved: 0 },
-      again: { outcome: "delivered", questions: 2, replied: 0, resolved: 0 },
+      delivery: {
+        outcome: "delivered",
+        questions: 2,
+        rehomed: 0,
+        replied: 0,
+        resolved: 0,
+      },
+      again: {
+        outcome: "delivered",
+        questions: 2,
+        rehomed: 0,
+        replied: 0,
+        resolved: 0,
+      },
       questions: [
         {
           planId: "p1",
@@ -206,7 +246,13 @@ describe("deliverSpecReviewResult", () => {
     );
 
     expect({ delivery, replies, resolves }).toEqual({
-      delivery: { outcome: "delivered", questions: 0, replied: 2, resolved: 1 },
+      delivery: {
+        outcome: "delivered",
+        questions: 1,
+        rehomed: 0,
+        replied: 2,
+        resolved: 1,
+      },
       replies: [
         {
           number: 42,
@@ -220,6 +266,105 @@ describe("deliverSpecReviewResult", () => {
         },
       ],
       resolves: ["T1"],
+    });
+  });
+
+  it("lands the question the writer put on 'Delivery implications' on slot delivery, and one on a slot plan p1 lacks on its Open questions section, counting 2 rehomed", async () => {
+    const { port } = await reworkRun();
+    const { questions, plans } = recordingPlans();
+    const { pulls } = recordingPulls({});
+
+    const delivery = await deliverSpecReviewResult(
+      fileEvent(
+        JSON.stringify({
+          plan_questions: [
+            {
+              slot: "Delivery implications",
+              question: "Which engine ticket?",
+              comment_id: 1,
+            },
+            {
+              slot: "custom-tool",
+              question: "Past five shipments?",
+              comment_id: 2,
+            },
+            {
+              slot: "scope",
+              question: "Whose customer number?",
+              comment_id: 3,
+            },
+          ],
+          replies: [],
+        }),
+      ),
+      { assemblyRuns: port, plans, pullsFor: async () => pulls },
+    );
+
+    expect({
+      delivery,
+      slots: (questions[0].edits as { ops: Array<{ slot: string }> }).ops.map(
+        (op) => op.slot,
+      ),
+    }).toEqual({
+      delivery: {
+        outcome: "delivered",
+        questions: 3,
+        rehomed: 2,
+        replied: 0,
+        resolved: 0,
+      },
+      slots: ["delivery", "questions", "scope"],
+    });
+  });
+
+  it("asks plan p1 the question the writer owed for to_plan comment 9002, made from that comment, so its reply on PR 42 is true", async () => {
+    const { port } = await reworkRun();
+    const { questions, plans } = recordingPlans();
+    const { pulls, replies } = recordingPulls({
+      threads: [thread("T2", 9002)],
+      comments: [
+        reviewComment(
+          9002,
+          "**Second blocker.** Persistence is a dependency.\nThe plan says only stored server-side.",
+        ),
+      ],
+    });
+
+    const delivery = await deliverSpecReviewResult(
+      fileEvent(
+        JSON.stringify({
+          plan_questions: [],
+          replies: [{ comment_id: 9002, action: "to_plan" }],
+        }),
+      ),
+      { assemblyRuns: port, plans, pullsFor: async () => pulls },
+    );
+
+    expect({
+      delivery,
+      ops: (questions[0].edits as { ops: unknown[] }).ops,
+      replied: replies.map((reply) => reply.commentId),
+    }).toEqual({
+      delivery: {
+        outcome: "delivered",
+        questions: 1,
+        rehomed: 0,
+        replied: 1,
+        resolved: 0,
+      },
+      ops: [
+        {
+          op: "add-question",
+          slot: "questions",
+          questionId: "q-review-c9002",
+          question:
+            "Review comment 9002 on specs/tms/spec.md asks for a decision the plan has not made: Second blocker. Persistence is a dependency.",
+          why: "**Second blocker.** Persistence is a dependency.\nThe plan says only stored server-side.",
+          kind: "text",
+          options: [],
+        },
+      ],
+      replied: [9002],
     });
   });
 
@@ -254,7 +399,13 @@ describe("deliverSpecReviewResult", () => {
     );
 
     expect({ delivery, replies, comments, resolves }).toEqual({
-      delivery: { outcome: "delivered", questions: 0, replied: 1, resolved: 0 },
+      delivery: {
+        outcome: "delivered",
+        questions: 0,
+        rehomed: 0,
+        replied: 1,
+        resolved: 0,
+      },
       replies: [],
       comments: [
         {
@@ -287,7 +438,13 @@ describe("deliverSpecReviewResult", () => {
     );
 
     expect({ delivery, replies, resolves }).toEqual({
-      delivery: { outcome: "delivered", questions: 0, replied: 0, resolved: 1 },
+      delivery: {
+        outcome: "delivered",
+        questions: 0,
+        rehomed: 0,
+        replied: 0,
+        resolved: 1,
+      },
       replies: [],
       resolves: ["T1"],
     });
@@ -311,7 +468,13 @@ describe("deliverSpecReviewResult", () => {
     );
 
     expect({ delivery, replies }).toEqual({
-      delivery: { outcome: "delivered", questions: 0, replied: 0, resolved: 0 },
+      delivery: {
+        outcome: "delivered",
+        questions: 0,
+        rehomed: 0,
+        replied: 0,
+        resolved: 0,
+      },
       replies: [],
     });
   });
