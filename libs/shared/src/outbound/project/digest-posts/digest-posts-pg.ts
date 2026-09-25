@@ -6,14 +6,14 @@ import type {
   DigestTexts,
 } from "./digest-posts-port.js";
 
-/** Postgres-backed DigestPostsPort over `lore.digest_posts`; a finished row is one with a thread_ts. */
+/** Postgres-backed DigestPostsPort over `lore.digest_posts`; `status` says whether a run's rows are claimed, posted or failed. */
 export class PgDigestPosts implements DigestPostsPort {
   constructor(private readonly pool: PgPool) {}
 
   async lastPostedAt(repo: string): Promise<Date | null> {
     const { rows } = await this.pool.query<{ posted_at: Date }>(
       `SELECT posted_at FROM lore.digest_posts
-        WHERE repo = $1 AND thread_ts <> ''
+        WHERE repo = $1 AND status = 'posted'
         ORDER BY posted_at DESC LIMIT 1`,
       [repo],
     );
@@ -39,7 +39,7 @@ export class PgDigestPosts implements DigestPostsPort {
     const { rows } = await this.pool.query<DigestTexts>(
       `SELECT min(intro) AS intro, min(ending) AS ending
          FROM lore.digest_posts
-        WHERE channel_id = $1 AND thread_ts <> ''
+        WHERE channel_id = $1 AND status = 'posted'
         GROUP BY run_id
         ORDER BY max(posted_at) DESC
         LIMIT $2`,
@@ -74,16 +74,18 @@ export class PgDigestPosts implements DigestPostsPort {
   async finish(runId: string, result: DigestFinish): Promise<void> {
     await this.pool.query(
       `UPDATE lore.digest_posts
-          SET thread_ts = $2, intro = $3, ending = $4, posted_at = now()
+          SET status = 'posted', thread_ts = $2, intro = $3, ending = $4, posted_at = now()
         WHERE run_id = $1`,
       [runId, result.threadTs, result.intro, result.ending],
     );
   }
 
-  async release(runId: string): Promise<void> {
+  async abandon(runId: string, threadTs: string): Promise<void> {
     await this.pool.query(
-      `DELETE FROM lore.digest_posts WHERE run_id = $1 AND thread_ts = ''`,
-      [runId],
+      `UPDATE lore.digest_posts
+          SET status = 'failed', thread_ts = $2, posted_at = now()
+        WHERE run_id = $1 AND status = 'claimed'`,
+      [runId, threadTs],
     );
   }
 }

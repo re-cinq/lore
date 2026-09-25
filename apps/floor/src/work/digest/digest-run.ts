@@ -12,26 +12,41 @@ export interface DigestRun {
   weekKey: string;
   date: string;
   repos: DigestRepo[];
+  /** Every repo on the channel, for the week's thread parent; the run's own repos when an older fan-out did not say. */
+  channelRepos: string[];
   draft: string | null;
 }
 
 /** Null for a run that is not a digest run, or one whose args a fan-out never wrote. */
 export function digestRunOf(run: AssemblyRunRecord): DigestRun | null {
-  const { channel, week_key, digest_date, digest_repos, digest_draft } =
-    run.args;
+  const { args } = run;
 
-  if (![channel, week_key, digest_date, digest_repos].every(isText)) {
+  if (!hasDigestArgs(args)) {
     return null;
   }
+  const repos = decodeDigestRepos(args.digest_repos as string);
 
   return {
     id: run.id,
-    channel: channel as string,
-    weekKey: week_key as string,
-    date: digest_date as string,
-    repos: decodeDigestRepos(digest_repos as string),
-    draft: isText(digest_draft) ? digest_draft : null,
+    channel: args.channel as string,
+    weekKey: args.week_key as string,
+    date: args.digest_date as string,
+    repos,
+    channelRepos: channelReposOf(args.channel_repos, repos),
+    draft: isText(args.digest_draft) ? args.digest_draft : null,
   };
+}
+
+/** The four args every digest fan-out writes. */
+function hasDigestArgs(args: Record<string, unknown>): boolean {
+  const { channel, week_key, digest_date, digest_repos } = args;
+
+  return [channel, week_key, digest_date, digest_repos].every(isText);
+}
+
+/** Every repo on the channel, or the run's own repos when an older fan-out did not say. */
+function channelReposOf(raw: unknown, repos: DigestRepo[]): string[] {
+  return isText(raw) ? raw.split(",") : repos.map((r) => r.repo);
 }
 
 function isText(value: unknown): value is string {
