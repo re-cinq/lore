@@ -42,13 +42,12 @@ export async function deliverPlanValidation(
   deps: PlanValidationResultDeps,
 ): Promise<void> {
   const content = answeredContent(fileEvent);
+  const planId =
+    content === undefined
+      ? undefined
+      : await planIdOfTask(fileEvent.taskId, deps.assemblyRuns);
 
-  if (content === undefined) {
-    return;
-  }
-  const planId = await planIdOfTask(fileEvent.taskId, deps.assemblyRuns);
-
-  if (planId === undefined) {
+  if (content === undefined || planId === undefined) {
     return;
   }
   const findings = parsedFindings(content);
@@ -56,10 +55,9 @@ export async function deliverPlanValidation(
     ? reconciledOps(findings, await deps.plans.findingsOf(planId))
     : [];
 
-  if (ops.length === 0) {
-    return;
+  if (ops.length > 0) {
+    await deps.plans.addQuestions(planId, { actor: PLAN_VALIDATOR_ACTOR, ops });
   }
-  await deps.plans.addQuestions(planId, { actor: PLAN_VALIDATOR_ACTOR, ops });
 }
 
 /** The validator's answer, when the event is this handler's and the pod answered. */

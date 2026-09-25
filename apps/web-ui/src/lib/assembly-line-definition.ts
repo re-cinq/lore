@@ -19,6 +19,7 @@ export type DefinitionNodeType =
 export type DefinitionEdgeCondition =
   "success" | "changes_requested" | "failed" | "always";
 
+// eslint-disable-next-line re-lint/no-row-types-outside-models -- mirrors the assembly-line YAML node, whose keys are snake_case by contract; no table holds this shape
 export interface DefinitionNode {
   id: string;
   type: DefinitionNodeType;
@@ -31,6 +32,8 @@ export interface DefinitionNode {
   description?: string;
   /** Which previous run this node continues, and what keys the thread. */
   continues?: { node: string; key: string };
+  /** Started only by hand while the line waits on a person; no edge leads here. */
+  by_hand?: boolean;
   /** Where a human station's worker acts — relative (this app) or absolute (e.g. a GitHub PR); `{args.x}` placeholders resolve API-side to a link or null. */
   route?: string;
   /** Capability tags a claiming cluster-agent must carry. */
