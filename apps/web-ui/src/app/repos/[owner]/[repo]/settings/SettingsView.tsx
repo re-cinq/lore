@@ -24,7 +24,6 @@ const SETTINGS_LEDE =
 
 export default function SettingsView(props: SettingsViewProps) {
   const { fullName, team, settings, allRepos, saveAction } = props;
-  const selectedRepos = settings.cross_repo_repos ?? [];
 
   return (
     <SettingsFormShell
@@ -34,14 +33,31 @@ export default function SettingsView(props: SettingsViewProps) {
       help={<SettingsHelp />}
       lede={SETTINGS_LEDE}
     >
+      <SettingsSections team={team} settings={settings} allRepos={allRepos} />
+      <SubmitButton pendingLabel="Saving…">Save Settings</SubmitButton>
+    </SettingsFormShell>
+  );
+}
+
+type SettingsSectionsProps = Pick<
+  SettingsViewProps,
+  "team" | "settings" | "allRepos"
+>;
+
+/** The form's three sections, top to bottom. */
+function SettingsSections({ team, settings, allRepos }: SettingsSectionsProps) {
+  return (
+    <>
       <GeneralFields team={team} settings={settings} />
-      <CrossRepoField allRepos={allRepos} selectedRepos={selectedRepos} />
+      <CrossRepoField
+        allRepos={allRepos}
+        selectedRepos={settings.cross_repo_repos ?? []}
+      />
       <DigestFields
         digest={settings.digest}
         slackChannelSet={Boolean(settings.slack_channel_id)}
       />
-      <SubmitButton pendingLabel="Saving…">Save Settings</SubmitButton>
-    </SettingsFormShell>
+    </>
   );
 }
 
@@ -72,11 +88,6 @@ function SettingsHelpPoints() {
       <li>
         Per-repo <strong>agents</strong> live on the <strong>Agents</strong>{" "}
         tab; autonomy on the <strong>Dark Factory</strong> tab.
-      </li>
-      <li>
-        The <strong>daily digest</strong> posts what merged, what closed and who
-        holds which issue into the Slack channel, once a day in the chosen
-        timezone; repos sharing a channel land in one message.
       </li>
     </ul>
   );

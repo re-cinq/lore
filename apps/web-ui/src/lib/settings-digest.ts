@@ -62,5 +62,7 @@ function weekdaysOf(raw: FormDataEntryValue[]): number[] {
 function sectionsOf(raw: FormDataEntryValue[]): DigestSection[] {
   const known = new Set<string>(DIGEST_SECTIONS.map((s) => s.value));
 
-  return raw.map(String).filter((section): section is DigestSection => known.has(section));
+  return raw
+    .map(String)
+    .filter((section): section is DigestSection => known.has(section));
 }

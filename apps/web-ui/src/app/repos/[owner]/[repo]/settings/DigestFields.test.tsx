@@ -4,7 +4,9 @@ import { render } from "@testing-library/react";
 import DigestFields from "./DigestFields";
 
 const checked = (container: HTMLElement, name: string): string[] =>
-  Array.from(container.querySelectorAll<HTMLInputElement>(`input[name="${name}"]`))
+  Array.from(
+    container.querySelectorAll<HTMLInputElement>(`input[name="${name}"]`),
+  )
     .filter((box) => box.checked)
     .map((box) => box.value);
 
@@ -26,11 +28,17 @@ describe("DigestFields", () => {
 
     expect({
       enabled: checked(container, "digest_enabled"),
-      time: container.querySelector<HTMLInputElement>('input[name="digest_time"]')?.value,
+      time: container.querySelector<HTMLInputElement>(
+        'input[name="digest_time"]',
+      )?.value,
       days: checked(container, "digest_days"),
-      timezone: container.querySelector<HTMLSelectElement>('select[name="digest_timezone"]')?.value,
+      timezone: container.querySelector<HTMLSelectElement>(
+        'select[name="digest_timezone"]',
+      )?.value,
       sections: checked(container, "digest_sections"),
-      groupBy: container.querySelector<HTMLSelectElement>('select[name="digest_group_by"]')?.value,
+      groupBy: container.querySelector<HTMLSelectElement>(
+        'select[name="digest_group_by"]',
+      )?.value,
     }).toEqual({
       enabled: ["yes"],
       time: "17:30",
@@ -42,13 +50,19 @@ describe("DigestFields", () => {
   });
 
   it("checks Monday to Friday, 09:00 Berlin and every section when no block is stored", () => {
-    const { container } = render(<DigestFields digest={undefined} slackChannelSet />);
+    const { container } = render(
+      <DigestFields digest={undefined} slackChannelSet />,
+    );
 
     expect({
       enabled: checked(container, "digest_enabled"),
-      time: container.querySelector<HTMLInputElement>('input[name="digest_time"]')?.value,
+      time: container.querySelector<HTMLInputElement>(
+        'input[name="digest_time"]',
+      )?.value,
       days: checked(container, "digest_days"),
-      timezone: container.querySelector<HTMLSelectElement>('select[name="digest_timezone"]')?.value,
+      timezone: container.querySelector<HTMLSelectElement>(
+        'select[name="digest_timezone"]',
+      )?.value,
       sections: checked(container, "digest_sections"),
     }).toEqual({
       enabled: [],
@@ -60,18 +74,27 @@ describe("DigestFields", () => {
   });
 
   it("hints that a Slack channel is needed when none is set", () => {
-    const { container } = render(<DigestFields digest={undefined} slackChannelSet={false} />);
+    const { container } = render(
+      <DigestFields digest={undefined} slackChannelSet={false} />,
+    );
 
-    expect(container.textContent).toContain("Set a Slack Channel ID above first");
+    expect(container.textContent).toContain(
+      "Set a Slack Channel ID above first",
+    );
   });
 
   it("keeps a stored timezone the browser does not list as an option", () => {
     const { container } = render(
-      <DigestFields digest={{ timezone: "Mars/Olympus_Mons" }} slackChannelSet />,
+      <DigestFields
+        digest={{ timezone: "Mars/Olympus_Mons" }}
+        slackChannelSet
+      />,
     );
 
-    expect(container.querySelector<HTMLSelectElement>('select[name="digest_timezone"]')?.value).toBe(
-      "Mars/Olympus_Mons",
-    );
+    expect(
+      container.querySelector<HTMLSelectElement>(
+        'select[name="digest_timezone"]',
+      )?.value,
+    ).toBe("Mars/Olympus_Mons");
   });
 });

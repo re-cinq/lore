@@ -14,29 +14,45 @@ export interface DigestFieldsProps {
 }
 
 /** The daily Slack digest (specs/daily-digest FR10): whether, when, and what. Uncontrolled like the rest of the form; the server action reads the whole block back. */
-export default function DigestFields({ digest, slackChannelSet }: DigestFieldsProps) {
+export default function DigestFields({
+  digest,
+  slackChannelSet,
+}: DigestFieldsProps) {
   const current = { ...DIGEST_DEFAULTS, ...digest };
 
   return (
     <>
       <h3 className={styles.section}>Daily digest</h3>
-      {!slackChannelSet && (
-        <span className={`meta ${styles.hint}`}>
-          Set a Slack Channel ID above first: the digest is posted there.
-        </span>
-      )}
+      {!slackChannelSet && <SlackChannelHint />}
       <EnableField enabled={current.enabled} />
-      <ScheduleFields time={current.time} days={current.days} timezone={current.timezone} />
+      <ScheduleFields
+        time={current.time}
+        days={current.days}
+        timezone={current.timezone}
+      />
       <ContentFields sections={current.sections} groupBy={current.group_by} />
     </>
+  );
+}
+
+function SlackChannelHint() {
+  return (
+    <span className={`meta ${styles.hint}`}>
+      Set a Slack Channel ID above first: the digest is posted there.
+    </span>
   );
 }
 
 function EnableField({ enabled }: { enabled: boolean }) {
   return (
     <label>
-      <input type="checkbox" name="digest_enabled" value="yes" defaultChecked={enabled} /> Post a daily
-      digest to the Slack channel
+      <input
+        type="checkbox"
+        name="digest_enabled"
+        value="yes"
+        defaultChecked={enabled}
+      />{" "}
+      Post a daily digest to the Slack channel
     </label>
   );
 }
@@ -65,7 +81,12 @@ function WeekdayBoxes({ days }: { days: number[] }) {
     <div>
       {WEEKDAYS.map((day) => (
         <label key={day.value}>
-          <input type="checkbox" name="digest_days" value={day.value} defaultChecked={days.includes(day.value)} />{" "}
+          <input
+            type="checkbox"
+            name="digest_days"
+            value={day.value}
+            defaultChecked={days.includes(day.value)}
+          />{" "}
           {day.label}{" "}
         </label>
       ))}
@@ -95,24 +116,33 @@ interface ContentFieldsProps {
 }
 
 function ContentFields({ sections, groupBy }: ContentFieldsProps) {
-  const chosen = sections ?? [];
-
   return (
     <>
       <label>Sections</label>
-      <div>
-        {DIGEST_SECTIONS.map((section) => (
-          <label key={section.value}>
-            <input type="checkbox" name="digest_sections" value={section.value} defaultChecked={chosen.includes(section.value)} />{" "}
-            {section.label}
-          </label>
-        ))}
-      </div>
+      <SectionBoxes chosen={sections ?? []} />
       <label>Group by</label>
       <select name="digest_group_by" defaultValue={groupBy}>
         <option value="person">Person (author or assignee)</option>
         <option value="area">Area (area:* labels)</option>
       </select>
     </>
+  );
+}
+
+function SectionBoxes({ chosen }: { chosen: string[] }) {
+  return (
+    <div>
+      {DIGEST_SECTIONS.map((section) => (
+        <label key={section.value}>
+          <input
+            type="checkbox"
+            name="digest_sections"
+            value={section.value}
+            defaultChecked={chosen.includes(section.value)}
+          />{" "}
+          {section.label}
+        </label>
+      ))}
+    </div>
   );
 }
