@@ -411,3 +411,41 @@ describe("the code-review recipe reads the change as its user first", () => {
     }).toEqual({ mismatch: true, questionNoBlock: true });
   });
 });
+
+describe("the plan-validate recipe", () => {
+  it("reads plan.md read-only and writes plan-validation.json, never editing the plan", () => {
+    const prompt = promptOnOneLine("plan-validate");
+
+    expect({
+      config: SHIPPED.get("plan-validate")?.config,
+      readsPlan: prompt.includes("../plan.md"),
+      writesValidation: prompt.includes("../plan-validation.json"),
+      neverEdits: prompt.includes("Never edit the plan"),
+      standingFindingById: prompt.includes("by its id"),
+      fixedTextNamesStrings: prompt.includes("names its strings"),
+      newWireNamesFields: prompt.includes("names its fields"),
+      newStoreRetention: prompt.includes("retention and erasure"),
+      verifiedClaimNamesTarget: prompt.includes("verified against"),
+      severity: prompt.includes("severity"),
+      success: prompt.includes('LORE_NODE_RESULT: {"outcome":"success"}'),
+    }).toEqual({
+      config: {
+        inputs: [{ path: "plan.md", source: "plan" }],
+        watch: {
+          event: "plan.validation.result",
+          path: "plan-validation.json",
+        },
+      },
+      readsPlan: true,
+      writesValidation: true,
+      neverEdits: true,
+      standingFindingById: true,
+      fixedTextNamesStrings: true,
+      newWireNamesFields: true,
+      newStoreRetention: true,
+      verifiedClaimNamesTarget: true,
+      severity: true,
+      success: true,
+    });
+  });
+});
