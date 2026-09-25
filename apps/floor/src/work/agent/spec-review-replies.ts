@@ -3,6 +3,7 @@
 import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { findThreadForComment } from "@re-cinq/lore-shared/project/pulls/review-threads.js";
 import {
+  SPEC_REWORK_MARKER,
   specReviewFromArgs,
   type SpecReviewResult,
 } from "@re-cinq/lore-shared/review/spec-review.js";
@@ -41,7 +42,7 @@ export function replyText(reply: Reply): string {
 
 /** Invisible per-run, per-comment identity leading every reply, so a redelivered sink batch posts nothing twice. */
 export function replyMarker(runId: string, commentId: number): string {
-  return `<!-- lore-spec-rework: ${runId}/${commentId} -->`;
+  return `${SPEC_REWORK_MARKER} ${runId}/${commentId} -->`;
 }
 
 interface ReplyCounts {
