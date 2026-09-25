@@ -360,7 +360,7 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 - routes review to a code-review line. ([validated by](apps/floor/src/work/review/code-review.test.ts#L144))
 - routes answer to a code-review-reply line with the answer intent. ([validated by](apps/floor/src/work/review/code-review.test.ts#L163))
 - composes the review body with inline comments carrying ids and locations. ([validated by](apps/floor/src/work/review/code-review.test.ts#L285))
-- returns an empty string for a review with neither body nor comments. ([validated by](apps/floor/src/work/review/code-review.test.ts#L314))
+- returns an empty string for a review with neither body nor comments. ([validated by](apps/floor/src/work/review/code-review.test.ts#L318))
 - keeps the inline-comments header when the review has no body. ([validated by](apps/floor/src/work/review/code-review.test.ts#L318))
 - starts a code-review-reply line carrying the review body and its inline comments. ([validated by](apps/floor/src/work/review/code-review.test.ts#L347))
 - falls back to a generic description when the review carried no text. ([validated by](apps/floor/src/work/review/code-review.test.ts#L386))
