@@ -90,4 +90,30 @@ describe("lore_plan_edit remote proxy", () => {
     });
     expect(JSON.parse(result.content[0].text)).toEqual(applied);
   });
+
+  it("tells the agent to reread and retry when the block changed under it", async () => {
+    const planId = "b4b2026f-1111-2222-3333-444455556666";
+    const op = { op: "replace-block", blockId: "p-1", text: "new" };
+    const expectHash = { blockId: "p-1", hash: "abc" };
+    const problem = {
+      type: "https://lore.dev/problems/plan-block-conflict",
+      title: "Conflict",
+      status: 409,
+      detail: "block p-1 changed after the agent read it",
+    };
+
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 409,
+      statusText: "Conflict",
+      json: async () => problem,
+      text: async () => JSON.stringify(problem),
+    });
+
+    const result = await planEdit({ plan_id: planId, op, expect: expectHash });
+
+    expect(result.content[0].text).toEqual(
+      "Edit refused: block p-1 changed after the agent read it. Read the plan again with lore_plan_read and retry against the block's current hash.",
+    );
+  });
 });
