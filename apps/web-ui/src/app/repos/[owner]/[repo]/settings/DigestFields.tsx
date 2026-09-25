@@ -31,6 +31,7 @@ export default function DigestFields({
         timezone={current.timezone}
       />
       <ContentFields sections={current.sections} groupBy={current.group_by} />
+      <VoiceField voice={current.voice} />
     </>
   );
 }
@@ -144,5 +145,20 @@ function SectionBoxes({ chosen }: { chosen: string[] }) {
         </label>
       ))}
     </div>
+  );
+}
+
+/** Who the agent writes the intro, the ending and a one-line aside after each section as; empty keeps a plain tone and no asides (FR13). */
+function VoiceField({ voice }: { voice: DigestBlock["voice"] }) {
+  return (
+    <>
+      <label>Voice (optional)</label>
+      <input
+        name="digest_voice"
+        defaultValue={voice}
+        maxLength={200}
+        placeholder="e.g. Michael Scott from The Office"
+      />
+    </>
   );
 }

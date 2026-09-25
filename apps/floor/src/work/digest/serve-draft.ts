@@ -65,7 +65,7 @@ async function collectDraft(
   deps: Pick<DraftDeps, "recentTexts" | "collect" | "namesFor">,
 ): Promise<string> {
   const [sections, recent] = await Promise.all([
-    Promise.all(digest.repos.map((entry) => repoSection(entry, deps))),
+    sectionsOf(digest, deps),
     deps.recentTexts(digest.channel, RECENT_TEXTS_LIMIT),
   ]);
 
@@ -75,31 +75,46 @@ async function collectDraft(
     wantsIntro: digest.repos.some((r) => r.sections.includes("summary")),
     wantsEnding: digest.repos.some((r) => r.sections.includes("morale")),
     recent,
+    voice: digest.voice,
   });
+}
+
+/** Every repo's section; a voice gets an aside after each (FR13). */
+function sectionsOf(digest: DigestRun, deps: SectionDeps): Promise<string[]> {
+  const asides = digest.voice !== "";
+
+  return Promise.all(
+    digest.repos.map((entry) => repoSection({ entry, asides }, deps)),
+  );
+}
+
+export interface SectionRequest {
+  entry: DigestRepo;
+  asides: boolean;
 }
 
 /** One repo's section; a repo whose read fails renders as a section saying so, so one broken repo never hides the others (FR6). */
 export async function repoSection(
-  entry: DigestRepo,
+  { entry, asides }: SectionRequest,
   deps: SectionDeps,
 ): Promise<string> {
-  const settings = resolveDigestSettings({
-    sections: entry.sections,
-    group_by: entry.group_by,
-  });
+  const base = { repo: entry.repo, settings: sectionSettings(entry) };
 
   try {
     const lists = groupedLists(await deps.collect(entry), entry);
     const names = await peopleNames(entry, lists, deps);
 
-    return renderRepoSection({ repo: entry.repo, settings, names, ...lists });
+    return renderRepoSection({ ...base, names, asides, ...lists });
   } catch (err) {
-    return renderRepoSection({
-      repo: entry.repo,
-      settings,
-      error: (err as Error).message,
-    });
+    return renderRepoSection({ ...base, error: (err as Error).message });
   }
+}
+
+function sectionSettings(entry: DigestRepo) {
+  return resolveDigestSettings({
+    sections: entry.sections,
+    group_by: entry.group_by,
+  });
 }
 
 /** The two lists of one repo, deduped and grouped the way the repo asked. */

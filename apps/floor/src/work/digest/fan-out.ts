@@ -234,25 +234,36 @@ function skipReason(
 
 /** `ref` is the host repo's default branch: an agent node clones `args.ref`, and the run's own branch name is only the lease key. */
 async function startInput(run: ChannelRun, deps: DigestFanOutDeps) {
-  const { host } = run;
-  const repoNames = run.repos.map((r) => r.repo);
-  const names = repoNames.join(", ");
-
   return {
     blueprintName: DAILY_DIGEST_LINE,
-    repo: host.repo,
+    repo: run.host.repo,
     branch: `digest/${run.channel}`,
     subjectKey: run.subjectKey,
-    args: {
-      channel: run.channel,
-      channel_repos: run.members.join(","),
-      week_key: isoWeekKey(deps.now(), host.settings.timezone),
-      digest_date: run.date,
-      digest_repos: encodeDigestRepos(run.repos.map(digestRepoOf)),
-      ref: await deps.defaultBranch(host.repo),
-      description: `Daily digest for ${run.channel}: ${names}, ${run.date}`,
-    },
+    args: await runArgs(run, deps),
   };
+}
+
+async function runArgs(run: ChannelRun, deps: DigestFanOutDeps) {
+  const { host } = run;
+  const repoNames = run.repos.map((r) => r.repo);
+
+  return {
+    channel: run.channel,
+    channel_repos: run.members.join(","),
+    week_key: isoWeekKey(deps.now(), host.settings.timezone),
+    digest_date: run.date,
+    digest_repos: encodeDigestRepos(run.repos.map(digestRepoOf)),
+    voice: voiceOf(run.repos),
+    ref: await deps.defaultBranch(host.repo),
+    description: `Daily digest for ${run.channel}: ${repoNames.join(", ")}, ${run.date}`,
+  };
+}
+
+/** One message has one voice: the first due repo's that sets one, by name. */
+function voiceOf(repos: DueRepo[]): string {
+  const voices = repos.map((r) => r.settings.voice);
+
+  return voices.find(Boolean) ?? "";
 }
 
 function digestRepoOf({ repo, since, settings: s }: DueRepo): DigestRepo {

@@ -6,6 +6,7 @@ import {
   splitDigestMessage,
   stripAppendix,
   APPENDIX_MARKER,
+  ASIDE_MARKER,
   ENDING_MARKER,
   INTRO_MARKER,
 } from "./render.js";
@@ -85,6 +86,23 @@ describe("renderRepoSection", () => {
   });
 });
 
+describe("section asides", () => {
+  it("puts one aside marker after each enabled section when asked", () => {
+    const text = section({ asides: true });
+
+    expect(
+      text.split("\n").filter((line) => line === ASIDE_MARKER),
+    ).toHaveLength(2);
+    expect(text.indexOf(ASIDE_MARKER)).toBeGreaterThan(
+      text.indexOf("Add digest"),
+    );
+  });
+
+  it("puts no aside marker when not asked", () => {
+    expect(section()).not.toContain(ASIDE_MARKER);
+  });
+});
+
 describe("renderDigestDraft", () => {
   const draft = (overrides = {}) =>
     renderDigestDraft({
@@ -114,6 +132,12 @@ describe("renderDigestDraft", () => {
     expect(text).toContain("Old ending");
   });
 
+  it("names the voice in the appendix when one is set", () => {
+    expect(draft({ voice: "Michael Scott from The Office" })).toContain(
+      "Voice: Michael Scott from The Office",
+    );
+  });
+
   it("omits the intro marker when no repo asked for a summary", () => {
     const text = draft({ wantsIntro: false });
 
@@ -129,6 +153,12 @@ describe("renderDigestDraft", () => {
 describe("stripAppendix", () => {
   it("leaves only the message", () => {
     expect(stripAppendix(`body\n\n${APPENDIX_MARKER}\nold stuff`)).toBe("body");
+  });
+
+  it("removes aside markers a refine never filled", () => {
+    expect(stripAppendix(`*repo*\n• item\n${ASIDE_MARKER}\n\n*next*`)).toBe(
+      "*repo*\n• item\n\n*next*",
+    );
   });
 
   it("removes the intro and ending markers a refine never filled", () => {

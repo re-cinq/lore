@@ -112,6 +112,7 @@ describe("createDailyDigestTickHandler", () => {
       job_run_id: "jr-1",
       channel: "C1",
       channel_repos: "re-cinq/lore",
+      voice: "",
       week_key: "2026-W39",
       digest_date: "2026-09-25",
       ref: "main",
@@ -125,6 +126,22 @@ describe("createDailyDigestTickHandler", () => {
         },
       ],
     });
+  });
+
+  it("gives the run the voice of the first due repo that sets one", async () => {
+    const { assemblyRuns, handler } = harness([
+      repoRow("re-cinq/lore", "C1"),
+      repoRow("re-cinq/otto", "C1", {
+        enabled: true,
+        voice: "Michael Scott from The Office",
+      }),
+    ]);
+
+    await handler({});
+
+    expect(assemblyRuns.rows[0].args.voice).toBe(
+      "Michael Scott from The Office",
+    );
   });
 
   it("opens the window at the repo's last finished post", async () => {

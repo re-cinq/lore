@@ -14,6 +14,8 @@ export interface DigestSettings {
   timezone?: string;
   sections?: DigestSection[];
   group_by?: DigestGroupBy;
+  /** Who the agent writes the intro, ending and section asides as (e.g. "Michael Scott from The Office"); empty = a plain friendly tone and no asides. */
+  voice?: string;
 }
 
 export interface ResolvedDigestSettings {
@@ -23,6 +25,7 @@ export interface ResolvedDigestSettings {
   timezone: string;
   sections: DigestSection[];
   group_by: DigestGroupBy;
+  voice: string;
 }
 
 export const DIGEST_DEFAULTS: ResolvedDigestSettings = {
@@ -32,6 +35,7 @@ export const DIGEST_DEFAULTS: ResolvedDigestSettings = {
   timezone: "Europe/Berlin",
   sections: ["implemented", "roadmap", "summary", "morale"],
   group_by: "person",
+  voice: "",
 };
 
 export function resolveDigestSettings(

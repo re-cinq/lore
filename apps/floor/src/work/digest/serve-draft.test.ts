@@ -5,6 +5,7 @@ import { encodeDigestRepos } from "@re-cinq/lore-shared/digest/codec.js";
 import {
   APPENDIX_MARKER,
   INTRO_MARKER,
+  ASIDE_MARKER,
 } from "@re-cinq/lore-shared/digest/render.js";
 import { digestDraftOf, type RepoCollector } from "./serve-draft.js";
 
@@ -145,6 +146,39 @@ describe("digestDraftOf", () => {
     );
 
     expect(draft).toContain("*alice*");
+  });
+
+  it("puts an aside marker after each section and names the voice when the run has one", async () => {
+    const assemblyRuns = runs();
+    const id = await assemblyRuns.start({
+      blueprintName: "daily-digest",
+      repo: "re-cinq/lore",
+      args: {
+        ...digestArgs(["re-cinq/lore"]),
+        voice: "Michael Scott from The Office",
+      },
+    });
+
+    const draft =
+      (await digestDraftOf(id, deps(assemblyRuns, collectOne))) ?? "";
+
+    expect({
+      asides: draft.split("\n").filter((line) => line === ASIDE_MARKER).length,
+      voice: draft.includes("Voice: Michael Scott from The Office"),
+    }).toEqual({ asides: 2, voice: true });
+  });
+
+  it("puts no aside marker in a run without a voice", async () => {
+    const assemblyRuns = runs();
+    const id = await assemblyRuns.start({
+      blueprintName: "daily-digest",
+      repo: "re-cinq/lore",
+      args: digestArgs(["re-cinq/lore"]),
+    });
+
+    expect(
+      await digestDraftOf(id, deps(assemblyRuns, collectOne)),
+    ).not.toContain(ASIDE_MARKER);
   });
 
   it("returns null for a run that is not a digest run", async () => {
