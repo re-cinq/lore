@@ -1,4 +1,4 @@
-/** `lore.digest_posts` (specs/daily-digest FR7): the watermark, the weekly thread and the anti-repeat memory of the daily digest. A post is CLAIMED for its run before Slack is called and FINISHED after, so the upload receiver and the terminal-event fallback racing for one run post once; a claim whose Slack call failed is RELEASED so the next tick may try again. */
+/** `lore.digest_posts` (specs/daily-digest FR7): the watermark, the weekly thread and the anti-repeat memory of the daily digest. A post is CLAIMED for its run before Slack is called and FINISHED after, so the upload receiver and the terminal-event fallback racing for one run post once; a run whose Slack call failed is ABANDONED: marked failed but keeping the week's thread it may have opened, so the next tick replies in that thread. */
 
 export interface DigestClaim {
   repo: string;
@@ -18,17 +18,18 @@ export interface DigestTexts {
 }
 
 export interface DigestPostsPort {
-  /** When the repo's last FINISHED digest went out; null before the first. */
+  /** When the repo's last POSTED digest went out; null before the first. */
   lastPostedAt(repo: string): Promise<Date | null>;
-  /** The channel's thread for the week, from its newest finished post; null until the first post of the week. */
+  /** The channel's thread for the week, from its newest row that opened or used one (a failed run keeps the thread it opened); null until then. */
   threadFor(
     channelId: string,
     weekKey: string,
   ): Promise<{ threadTs: string } | null>;
-  /** The intro and ending of the channel's last `limit` finished posts, newest first, one per run. */
+  /** The intro and ending of the channel's last `limit` posted digests, newest first, one per run. */
   recentTexts(channelId: string, limit: number): Promise<DigestTexts[]>;
   /** First writer wins: true when this call inserted the run's rows, false when another already had. */
   claim(runId: string, entries: DigestClaim[]): Promise<boolean>;
   finish(runId: string, result: DigestFinish): Promise<void>;
-  release(runId: string): Promise<void>;
+  /** Mark the run failed; `threadTs` is the thread it opened, or "" when it never got that far. */
+  abandon(runId: string, threadTs: string): Promise<void>;
 }

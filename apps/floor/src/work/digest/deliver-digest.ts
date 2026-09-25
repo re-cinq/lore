@@ -1,4 +1,4 @@
-// Posting a channel's digest (specs/daily-digest FR7/FR9): the refined message the pod uploaded, or the stored draft when the agent failed or never reported. The run is CLAIMED in digest_posts before Slack is called, so the upload receiver and the run-closed fallback racing for one run post once; a claim whose Slack call failed is released so the next tick may try again.
+// Posting a channel's digest (specs/daily-digest FR7/FR9): the refined message the pod uploaded, or the stored draft when the agent failed or never reported. The run is CLAIMED in digest_posts before Slack is called, so the upload receiver and the run-closed fallback racing for one run post once; a run whose Slack call failed is marked failed, keeping the week's thread, so the next tick may try again.
 
 import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import type { DigestPostsPort } from "@re-cinq/lore-shared/project/digest-posts/digest-posts-port.js";
@@ -101,28 +101,59 @@ function messageOf(
   return digest.draft ? stripAppendix(digest.draft) : null;
 }
 
+/** How far a delivery got, so a failure can be settled without posting anything twice. */
+interface Progress {
+  threadTs: string;
+  replies: number;
+}
+
 async function postClaimed(
   digest: DigestRun,
   message: string,
   deps: DeliverDeps,
 ): Promise<DigestDelivery> {
+  const progress: Progress = { threadTs: "", replies: 0 };
+  const chunks = splitForSlack(message);
+
   try {
-    const threadTs = await threadOf(digest, deps);
-    const chunks = splitForSlack(message);
-
-    await postChunks(digest.channel, threadTs, chunks, deps.poster);
-    const { intro, ending } = splitDigestMessage(message);
-
-    await deps.posts.finish(digest.id, { threadTs, intro, ending });
-
-    return { outcome: "posted", chunks: chunks.length };
+    progress.threadTs = await threadOf(digest, deps);
+    await postChunks(digest, chunks, progress, deps.poster);
   } catch (err) {
-    await deps.posts.release(digest.id);
+    await settleFailure(digest, message, progress, deps.posts);
     throw err;
   }
+  await finishPosted(digest, message, progress.threadTs, deps.posts);
+
+  return { outcome: "posted", chunks: chunks.length };
 }
 
-/** The week's thread, opened with its parent on the week's first post. */
+/** Once any part of the digest is in the channel it counts as posted, since a retry would repeat that part; before that, the run is marked failed but keeps the week's thread, so a retry replies in it instead of opening a second one (FR7). */
+async function settleFailure(
+  digest: DigestRun,
+  message: string,
+  progress: Progress,
+  posts: DigestPostsPort,
+): Promise<void> {
+  if (progress.replies > 0) {
+    await finishPosted(digest, message, progress.threadTs, posts);
+
+    return;
+  }
+  await posts.abandon(digest.id, progress.threadTs);
+}
+
+async function finishPosted(
+  digest: DigestRun,
+  message: string,
+  threadTs: string,
+  posts: DigestPostsPort,
+): Promise<void> {
+  const { intro, ending } = splitDigestMessage(message);
+
+  await posts.finish(digest.id, { threadTs, intro, ending });
+}
+
+/** The week's thread, opened with its parent on the week's first post; the parent names every repo on the channel. */
 async function threadOf(digest: DigestRun, deps: DeliverDeps): Promise<string> {
   const existing = await deps.posts.threadFor(digest.channel, digest.weekKey);
 
@@ -131,10 +162,7 @@ async function threadOf(digest: DigestRun, deps: DeliverDeps): Promise<string> {
   }
   const parent = await deps.poster.post({
     channel: digest.channel,
-    text: renderThreadParent(
-      digest.weekKey,
-      digest.repos.map((r) => r.repo),
-    ),
+    text: renderThreadParent(digest.weekKey, digest.channelRepos),
   });
 
   return parent.ts;
@@ -142,12 +170,18 @@ async function threadOf(digest: DigestRun, deps: DeliverDeps): Promise<string> {
 
 /** Consecutive replies in the thread; only the first is broadcast to the channel (FR8). Sequential on purpose: Slack orders replies by arrival. */
 async function postChunks(
-  channel: string,
-  threadTs: string,
+  digest: DigestRun,
   chunks: string[],
+  progress: Progress,
   poster: SlackPosterPort,
 ): Promise<void> {
   for (const [index, text] of chunks.entries()) {
-    await poster.post({ channel, text, threadTs, replyBroadcast: index === 0 });
+    await poster.post({
+      channel: digest.channel,
+      text,
+      threadTs: progress.threadTs,
+      replyBroadcast: index === 0,
+    });
+    progress.replies += 1;
   }
 }

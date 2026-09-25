@@ -1,9 +1,13 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { describe, it, expect } from "vitest";
 import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
 import { InMemoryDigestPosts } from "@re-cinq/lore-shared/project/digest-posts/digest-posts-memory.js";
 import { digestSubject } from "@re-cinq/lore-shared/project/assembly-runs/subject-keys.js";
 import { decodeDigestRepos } from "@re-cinq/lore-shared/digest/codec.js";
-import { createDailyDigestTickHandler } from "./fan-out.js";
+import {
+  createDailyDigestTickHandler,
+  type DigestFanOutDeps,
+} from "./fan-out.js";
 
 const FRIDAY_0905_BERLIN = new Date("2026-09-25T07:05:00Z");
 
@@ -16,7 +20,11 @@ const repoRow = (
   settings: { slack_channel_id: channel, digest },
 });
 
-function harness(rows: ReturnType<typeof repoRow>[], now = FRIDAY_0905_BERLIN) {
+function harness(
+  rows: ReturnType<typeof repoRow>[],
+  now = FRIDAY_0905_BERLIN,
+  overrides: Partial<DigestFanOutDeps> = {},
+) {
   const assemblyRuns = new InMemoryAssemblyRuns();
   const posts = new InMemoryDigestPosts(() => now);
   const started: string[] = [];
@@ -37,6 +45,7 @@ function harness(rows: ReturnType<typeof repoRow>[], now = FRIDAY_0905_BERLIN) {
     },
     defaultBranch: async () => "main",
     now: () => now,
+    ...overrides,
   });
 
   return { assemblyRuns, posts, started, failed, handler };
@@ -73,12 +82,12 @@ describe("createDailyDigestTickHandler", () => {
       {
         repo: "re-cinq/lore",
         branch: "digest/C1",
-        subjectKey: digestSubject("C1", "2026-09-25"),
+        subjectKey: digestSubject("C1", "2026-09-25", "09:00"),
       },
       {
         repo: "re-cinq/other",
         branch: "digest/C2",
-        subjectKey: digestSubject("C2", "2026-09-25"),
+        subjectKey: digestSubject("C2", "2026-09-25", "09:00"),
       },
     ]);
     expect(started).toEqual(["daily_digest:C1", "daily_digest:C2"]);
@@ -102,6 +111,7 @@ describe("createDailyDigestTickHandler", () => {
     }).toEqual({
       job_run_id: "jr-1",
       channel: "C1",
+      channel_repos: "re-cinq/lore",
       week_key: "2026-W39",
       digest_date: "2026-09-25",
       ref: "main",
@@ -157,7 +167,7 @@ describe("createDailyDigestTickHandler", () => {
     await assemblyRuns.start({
       blueprintName: "daily-digest",
       repo: "re-cinq/lore",
-      subjectKey: digestSubject("C1", "2026-09-25"),
+      subjectKey: digestSubject("C1", "2026-09-25", "09:00"),
     });
     await handler({});
 
@@ -171,7 +181,7 @@ describe("createDailyDigestTickHandler", () => {
     const { assemblyRuns, started, handler } = harness([
       repoRow("re-cinq/lore", "C1"),
     ]);
-    const subjectKey = digestSubject("C1", "2026-09-25");
+    const subjectKey = digestSubject("C1", "2026-09-25", "09:00");
 
     for (let attempt = 0; attempt < 3; attempt++) {
       const id = await assemblyRuns.start({
@@ -201,18 +211,120 @@ describe("createDailyDigestTickHandler", () => {
     expect(assemblyRuns.rows.map((r) => r.repo)).toEqual(["re-cinq/otto"]);
   });
 
-  it("fails the orphaned job_run when the start throws", async () => {
-    const { assemblyRuns, failed, handler } = harness([
+  it("fails the orphaned job_run when the start throws and carries on with the next channel", async () => {
+    const { assemblyRuns, failed, started, handler } = harness([
       repoRow("re-cinq/lore", "C1"),
+      repoRow("re-cinq/otto", "C2"),
     ]);
+    const realStart = assemblyRuns.start.bind(assemblyRuns);
 
-    assemblyRuns.start = async () => {
-      throw new Error("db down");
+    assemblyRuns.start = async (input) => {
+      enforceTrue(input.repo !== "re-cinq/lore", Error, "db down");
+
+      return realStart(input);
     };
+    await handler({});
 
-    await expect(handler({})).rejects.toThrow(new Error("db down"));
-    expect(failed).toEqual([
-      { runId: "jr-1", reason: "assembly_line.start failed: db down" },
+    expect({
+      failed,
+      started,
+      runs: assemblyRuns.rows.map((r) => r.repo),
+    }).toEqual({
+      failed: [
+        { runId: "jr-1", reason: "assembly_line.start failed: db down" },
+      ],
+      started: ["daily_digest:C1", "daily_digest:C2"],
+      runs: ["re-cinq/otto"],
+    });
+  });
+
+  it("mints no job_run when reading the host's default branch fails", async () => {
+    const { started, handler } = harness(
+      [repoRow("re-cinq/lore", "C1")],
+      FRIDAY_0905_BERLIN,
+      {
+        defaultBranch: async () => {
+          throw new Error("GitHub 502");
+        },
+      },
+    );
+
+    await handler({});
+
+    expect(started).toEqual([]);
+  });
+
+  it("leaves out a repo whose due check throws and still starts the others", async () => {
+    const posts = new InMemoryDigestPosts();
+    const { assemblyRuns, handler } = harness(
+      [repoRow("re-cinq/lore", "C1"), repoRow("re-cinq/otto", "C2")],
+      FRIDAY_0905_BERLIN,
+      {
+        posts: {
+          lastPostedAt: async (repo) => {
+            enforceTrue(repo !== "re-cinq/lore", Error, "db timeout");
+
+            return posts.lastPostedAt(repo);
+          },
+        },
+      },
+    );
+
+    await handler({});
+
+    expect(assemblyRuns.rows.map((r) => r.repo)).toEqual(["re-cinq/otto"]);
+  });
+
+  it("keeps the channel's first repo as host when only a later repo is due, and lists every member", async () => {
+    const { assemblyRuns, handler } = harness([
+      repoRow("re-cinq/otto", "C1", { enabled: true, time: "09:00" }),
+      repoRow("re-cinq/lore", "C1", { enabled: true, time: "17:00" }),
     ]);
+
+    await handler({});
+    const [run] = assemblyRuns.rows;
+
+    expect({
+      repo: run.repo,
+      members: run.args.channel_repos,
+      due: decodeDigestRepos(String(run.args.digest_repos)).map((r) => r.repo),
+    }).toEqual({
+      repo: "re-cinq/lore",
+      members: "re-cinq/lore,re-cinq/otto",
+      due: ["re-cinq/otto"],
+    });
+  });
+
+  it("keys a later slot of the same channel on its own time, so the morning's runs never count against it", async () => {
+    const { assemblyRuns, started, handler } = harness(
+      [
+        repoRow("re-cinq/lore", "C1", { enabled: true, time: "08:00" }),
+        repoRow("re-cinq/otto", "C1", { enabled: true, time: "09:00" }),
+      ],
+      FRIDAY_0905_BERLIN,
+      {
+        posts: {
+          lastPostedAt: async (repo) =>
+            repo === "re-cinq/lore" ? FRIDAY_0905_BERLIN : null,
+        },
+      },
+    );
+    const morning = digestSubject("C1", "2026-09-25", "08:00");
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const id = await assemblyRuns.start({
+        blueprintName: "daily-digest",
+        repo: "re-cinq/lore",
+        subjectKey: morning,
+      });
+
+      await assemblyRuns.finish(id, "completed");
+    }
+    await handler({});
+
+    expect({ started, subject: assemblyRuns.rows.at(-1)?.subjectKey }).toEqual({
+      started: ["daily_digest:C1"],
+      subject: digestSubject("C1", "2026-09-25", "09:00"),
+    });
   });
 });

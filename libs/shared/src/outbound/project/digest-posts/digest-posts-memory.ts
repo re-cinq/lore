@@ -13,7 +13,7 @@ export class InMemoryDigestPosts implements DigestPostsPort {
   constructor(private readonly now: () => Date = () => new Date()) {}
 
   async lastPostedAt(repo: string): Promise<Date | null> {
-    const finished = this.finished()
+    const finished = this.posted()
       .filter((row) => row.repo === repo)
       .sort(newestFirst);
 
@@ -24,7 +24,8 @@ export class InMemoryDigestPosts implements DigestPostsPort {
     channelId: string,
     weekKey: string,
   ): Promise<{ threadTs: string } | null> {
-    const inWeek = this.finished()
+    const inWeek = this.rows
+      .filter((row) => row.threadTs !== "")
       .filter((row) => row.channelId === channelId && row.weekKey === weekKey)
       .sort(newestFirst);
 
@@ -34,7 +35,7 @@ export class InMemoryDigestPosts implements DigestPostsPort {
   async recentTexts(channelId: string, limit: number): Promise<DigestTexts[]> {
     const perRun = new Map<string, DigestPost>();
 
-    for (const row of this.finished().filter(
+    for (const row of this.posted().filter(
       (r) => r.channelId === channelId,
     )) {
       perRun.set(row.runId, row);
@@ -56,6 +57,7 @@ export class InMemoryDigestPosts implements DigestPostsPort {
         repo,
         channelId,
         weekKey,
+        status: "claimed" as const,
         threadTs: "",
         intro: "",
         ending: "",
@@ -68,18 +70,22 @@ export class InMemoryDigestPosts implements DigestPostsPort {
 
   async finish(runId: string, result: DigestFinish): Promise<void> {
     for (const row of this.rows.filter((r) => r.runId === runId)) {
-      Object.assign(row, result, { postedAt: this.now() });
+      Object.assign(row, result, { status: "posted", postedAt: this.now() });
     }
   }
 
-  async release(runId: string): Promise<void> {
-    const kept = this.rows.filter((r) => r.runId !== runId || r.threadTs);
+  async abandon(runId: string, threadTs: string): Promise<void> {
+    const claimed = this.rows.filter(
+      (r) => r.runId === runId && r.status === "claimed",
+    );
 
-    this.rows.splice(0, this.rows.length, ...kept);
+    for (const row of claimed) {
+      Object.assign(row, { status: "failed", threadTs, postedAt: this.now() });
+    }
   }
 
-  private finished(): DigestPost[] {
-    return this.rows.filter((row) => row.threadTs !== "");
+  private posted(): DigestPost[] {
+    return this.rows.filter((row) => row.status === "posted");
   }
 }
 

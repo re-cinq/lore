@@ -1,13 +1,16 @@
 -- 0093_digest_posts: one row per repo per daily-digest run — the "already posted today" watermark, the
 -- channel's weekly Slack thread, and the intro/ending texts the next drafts must not repeat
--- (specs/daily-digest FR7). A row is CLAIMED (thread_ts = '') before Slack is called and FINISHED after,
--- so an upload and a terminal event racing for the same run post once.
+-- (specs/daily-digest FR7). A run's rows are CLAIMED before Slack is called, then POSTED, or FAILED
+-- keeping the thread they opened, so an upload and a terminal event racing for one run post once
+-- and a retry replies in the same thread.
 
 CREATE TABLE IF NOT EXISTS lore.digest_posts (
   run_id     UUID        NOT NULL,
   repo       TEXT        NOT NULL,
   channel_id TEXT        NOT NULL,
   week_key   TEXT        NOT NULL,
+  status     TEXT        NOT NULL DEFAULT 'claimed'
+             CHECK (status IN ('claimed', 'posted', 'failed')),
   thread_ts  TEXT        NOT NULL DEFAULT '',
   intro      TEXT        NOT NULL DEFAULT '',
   ending     TEXT        NOT NULL DEFAULT '',

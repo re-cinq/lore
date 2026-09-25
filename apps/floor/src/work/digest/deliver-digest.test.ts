@@ -49,10 +49,10 @@ async function digestRun(
   return { id, agent: `${id.substring(0, 12)}-refine` };
 }
 
-function harness(slackRefuses?: string) {
+function harness(slackRefuses?: string, acceptedBeforeRefusing = 0) {
   const assemblyRuns = new InMemoryAssemblyRuns();
   const posts = new InMemoryDigestPosts();
-  const poster = new InMemorySlackPoster(slackRefuses);
+  const poster = new InMemorySlackPoster(slackRefuses, acceptedBeforeRefusing);
   const deps = {
     posts,
     poster,
@@ -216,7 +216,7 @@ describe("receiveDigestUpload", () => {
     });
   });
 
-  it("releases the claim and rethrows slack's error, so the next tick may try again", async () => {
+  it("marks the run failed and rethrows slack's error when nothing reached the channel", async () => {
     const { assemblyRuns, posts, deps } = harness("not_in_channel");
     const { agent } = await digestRun(assemblyRuns);
 
@@ -226,7 +226,62 @@ describe("receiveDigestUpload", () => {
         deps,
       ),
     ).rejects.toThrow(new Error("slack chat.postMessage: not_in_channel"));
-    expect(posts.rows).toEqual([]);
+    expect(posts.rows.map((r) => r.status)).toEqual(["failed", "failed"]);
+  });
+
+  it("replies in the thread a failed run opened instead of opening a second one", async () => {
+    const { assemblyRuns, posts, poster, deps } = harness();
+    const failing = harness("ratelimited", 1);
+    const first = await digestRun(failing.assemblyRuns);
+
+    await receiveDigestUpload(
+      { agentCrName: first.agent, markdown: REFINED, exitCode: 0 },
+      failing.deps,
+    ).catch(() => {});
+    posts.rows.push(...failing.posts.rows);
+    const second = await digestRun(assemblyRuns);
+
+    await receiveDigestUpload(
+      { agentCrName: second.agent, markdown: REFINED, exitCode: 0 },
+      deps,
+    );
+
+    expect(poster.posts).toEqual([
+      { channel: "C1", text: REFINED, threadTs: "1.000", replyBroadcast: true },
+    ]);
+  });
+
+  it("counts a digest as posted once its first part is in the channel, so a retry never repeats it", async () => {
+    const { assemblyRuns, posts, deps } = harness("ratelimited", 2);
+    const long = Array.from(
+      { length: 400 },
+      (_, i) => `• <https://gh/pr/${i}|Change number ${i}> (#${i})`,
+    ).join("\n");
+    const { agent } = await digestRun(assemblyRuns);
+
+    await expect(
+      receiveDigestUpload(
+        { agentCrName: agent, markdown: long, exitCode: 0 },
+        deps,
+      ),
+    ).rejects.toThrow(new Error("slack chat.postMessage: ratelimited"));
+    expect(await posts.lastPostedAt("re-cinq/lore")).not.toBe(null);
+  });
+
+  it("names every repo on the channel in the week's thread parent", async () => {
+    const { assemblyRuns, poster, deps } = harness();
+    const { agent } = await digestRun(assemblyRuns, {
+      channel_repos: "re-cinq/lore,re-cinq/otto,re-cinq/planning-station",
+    });
+
+    await receiveDigestUpload(
+      { agentCrName: agent, markdown: REFINED, exitCode: 0 },
+      deps,
+    );
+
+    expect(poster.posts[0]?.text).toBe(
+      "Week 39 · re-cinq/lore, re-cinq/otto, re-cinq/planning-station",
+    );
   });
 
   it("skips an upload from an agent no digest run knows", async () => {

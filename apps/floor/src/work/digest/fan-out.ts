@@ -56,10 +56,15 @@ export function createDailyDigestTickHandler(
   deps: DigestFanOutDeps,
 ): EventHandler {
   return async (params) => {
-    const due = await dueRepos(params, deps);
+    const targets = await digestTargets(deps);
+    const due = await dueRepos(params, targets, deps);
 
     for (const [channel, repos] of byChannel(due)) {
-      await startChannelRun(channel, repos, deps);
+      const members = targets.filter((t) => t.channel === channel);
+
+      await startChannelRun({ channel, due: repos, members }, deps).catch(
+        (err: Error) => console.error(`[digest] ${channel}: ${err.message}`),
+      );
     }
   };
 }
@@ -72,33 +77,17 @@ function byChannel(due: DueRepo[]): Map<string, DueRepo[]> {
   );
 }
 
-type DueCheck = typeof decideDigestDue;
-
-/** The manual trigger's check: every enabled repo with a channel is due. */
-const alwaysDue: DueCheck = () => true;
-
-/** Every onboarded repo whose digest is due now; `params.repo` narrows to one repo and `params.force` skips the due check (the manual trigger). */
-async function dueRepos(
-  params: Record<string, unknown>,
-  deps: DigestFanOutDeps,
-): Promise<DueRepo[]> {
-  const isDue = params.force === true ? alwaysDue : decideDigestDue;
-  const targets = (await deps.repoSettings())
-    .filter(
-      (row) => typeof params.repo !== "string" || row.full_name === params.repo,
-    )
-    .map(digestTargetOf)
-    .filter((target): target is DigestTarget => target !== null);
-  const candidates = await Promise.all(
-    targets.map((target) => dueRepoOf(target, isDue, deps)),
-  );
-
-  return candidates.filter((entry): entry is DueRepo => entry !== null);
-}
-
 type DigestTarget = Omit<DueRepo, "since">;
 
-/** A repo that has switched the digest on and has a channel to post it to; null otherwise. */
+/** Every repo that switched the digest on and has a channel, sorted by name: the members of each channel, due or not. */
+async function digestTargets(deps: DigestFanOutDeps): Promise<DigestTarget[]> {
+  const targets = (await deps.repoSettings()).map(digestTargetOf);
+
+  return targets
+    .filter((target): target is DigestTarget => target !== null)
+    .sort((a, b) => a.repo.localeCompare(b.repo));
+}
+
 function digestTargetOf(row: OnboardedRepoSettings): DigestTarget | null {
   const settings = resolveDigestSettings(row.settings?.digest);
   const channel = row.settings?.slack_channel_id;
@@ -106,6 +95,34 @@ function digestTargetOf(row: OnboardedRepoSettings): DigestTarget | null {
   return channel && settings.enabled
     ? { repo: row.full_name, channel, settings }
     : null;
+}
+
+type DueCheck = typeof decideDigestDue;
+
+/** The manual trigger's check: every enabled repo with a channel is due. */
+const alwaysDue: DueCheck = () => true;
+
+/** The targets due now; `params.repo` narrows to one repo and `params.force` skips the due check (the manual trigger). One repo whose check throws is logged and left out, never the whole tick. */
+async function dueRepos(
+  params: Record<string, unknown>,
+  targets: DigestTarget[],
+  deps: DigestFanOutDeps,
+): Promise<DueRepo[]> {
+  const isDue = params.force === true ? alwaysDue : decideDigestDue;
+  const asked = targets.filter(
+    (t) => typeof params.repo !== "string" || t.repo === params.repo,
+  );
+  const candidates = await Promise.all(
+    asked.map((target) =>
+      dueRepoOf(target, isDue, deps).catch((err: Error) => {
+        console.error(`[digest] ${target.repo}: ${err.message}`);
+
+        return null;
+      }),
+    ),
+  );
+
+  return candidates.filter((entry): entry is DueRepo => entry !== null);
 }
 
 /** The window opens at the repo's last finished post, or 24 hours back before its first. */
@@ -125,63 +142,73 @@ async function dueRepoOf(
   return { ...target, since: since.toISOString() };
 }
 
+interface ChannelDue {
+  channel: string;
+  due: DueRepo[];
+  /** Every repo on the channel, due or not; the first names the run and the week's thread lists them all. */
+  members: DigestTarget[];
+}
+
 interface ChannelRun {
   channel: string;
-  /** Sorted by repo name; the first is the host the run is labelled with. */
+  host: DigestTarget;
   repos: DueRepo[];
+  members: string[];
   date: string;
   subjectKey: string;
 }
 
-/** One run per channel per local day, keyed so a second tick joins rather than duplicates, and capped so a run that never reports does not respawn all day. */
+/** One run per channel per scheduled slot of a local day, keyed so a second tick joins rather than duplicates, and capped so a run that never reports does not respawn all day. Everything that can fail is read before the job_run is minted, so a failure orphans nothing. */
 async function startChannelRun(
-  channel: string,
-  repos: DueRepo[],
+  due: ChannelDue,
   deps: DigestFanOutDeps,
 ): Promise<void> {
-  const run = channelRunOf(channel, repos, deps.now());
+  const run = channelRunOf(due, deps.now());
 
   if (await skipChannel(run, deps)) {
     return;
   }
-  const jobRunId = await deps.jobRuns.start(`daily_digest:${channel}`);
+  const input = await startInput(run, deps);
+  const jobRunId = await deps.jobRuns.start(`daily_digest:${run.channel}`);
   const { id, joined } = await startUnderJobRun(
-    `[digest] ${channel}`,
-    await startInput(run, deps),
+    `[digest] ${run.channel}`,
+    input,
     jobRunId,
     deps,
   );
 
   if (!joined) {
-    console.log(`[digest] ${channel}: started run ${id}`);
+    console.log(`[digest] ${run.channel}: started run ${id}`);
   }
 }
 
+/** The host is the channel's first member by name, whichever repos are due, so the cap and the in-flight guard always look under the same repo. */
 function channelRunOf(
-  channel: string,
-  repos: DueRepo[],
+  { channel, due, members }: ChannelDue,
   now: Date,
 ): ChannelRun {
-  const sorted = [...repos].sort((a, b) => a.repo.localeCompare(b.repo));
-  const [{ settings: hostSettings }] = sorted;
-  const { date } = localParts(now, hostSettings.timezone);
+  const [host] = members;
+  const repos = [...due].sort((a, b) => a.repo.localeCompare(b.repo));
+  const times = repos.map((r) => r.settings.time).sort();
+  const { date } = localParts(now, host.settings.timezone);
 
   return {
     channel,
-    repos: sorted,
+    host,
+    repos,
+    members: members.map((m) => m.repo),
     date,
-    subjectKey: digestSubject(channel, date),
+    subjectKey: digestSubject(channel, date, times[0]),
   };
 }
 
 async function skipChannel(
-  { repos, subjectKey }: ChannelRun,
+  { host, subjectKey }: ChannelRun,
   deps: DigestFanOutDeps,
 ): Promise<boolean> {
-  const hostRepo = repos[0].repo;
   const [inFlight, attempts] = await Promise.all([
-    deps.assemblyRuns.findOpenBySubject(hostRepo, subjectKey),
-    deps.assemblyRuns.countBySubject(hostRepo, subjectKey),
+    deps.assemblyRuns.findOpenBySubject(host.repo, subjectKey),
+    deps.assemblyRuns.countBySubject(host.repo, subjectKey),
   ]);
   const reason = skipReason(inFlight?.id, attempts);
 
@@ -207,7 +234,7 @@ function skipReason(
 
 /** `ref` is the host repo's default branch: an agent node clones `args.ref`, and the run's own branch name is only the lease key. */
 async function startInput(run: ChannelRun, deps: DigestFanOutDeps) {
-  const host = run.repos[0];
+  const { host } = run;
   const repoNames = run.repos.map((r) => r.repo);
   const names = repoNames.join(", ");
 
@@ -218,6 +245,7 @@ async function startInput(run: ChannelRun, deps: DigestFanOutDeps) {
     subjectKey: run.subjectKey,
     args: {
       channel: run.channel,
+      channel_repos: run.members.join(","),
       week_key: isoWeekKey(deps.now(), host.settings.timezone),
       digest_date: run.date,
       digest_repos: encodeDigestRepos(run.repos.map(digestRepoOf)),
