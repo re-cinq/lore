@@ -10,5 +10,7 @@ export function withPlanId(
 ): string {
   const planId = args?.plan_id;
 
-  return typeof planId === "string" ? prompt.replaceAll(PLAN_ID_SLOT, planId) : prompt;
+  return typeof planId === "string"
+    ? prompt.replaceAll(PLAN_ID_SLOT, planId)
+    : prompt;
 }

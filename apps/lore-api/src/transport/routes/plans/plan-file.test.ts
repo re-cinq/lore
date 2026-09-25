@@ -1,6 +1,10 @@
 import Hapi from "@hapi/hapi";
 import { describe, expect, it } from "vitest";
-import { planMeta, planWith, textBlock } from "@re-cinq/planning-document/testing";
+import {
+  planMeta,
+  planWith,
+  textBlock,
+} from "@re-cinq/planning-document/testing";
 import type { PlanFilePorts } from "../../../work/plans/plan-file.js";
 import { planFileRoutes } from "./plan-file.js";
 

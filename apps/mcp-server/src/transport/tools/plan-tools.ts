@@ -1,7 +1,12 @@
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { proxyGetApi, proxyToApi, textResult, type ProxyResult } from "./deps.js";
+import {
+  proxyGetApi,
+  proxyToApi,
+  textResult,
+  type ProxyResult,
+} from "./deps.js";
 import { interpretMemoryProxy } from "./interpret-memory-proxy.js";
 
 const conflictProblemSchema = z.object({ detail: z.string() });
@@ -31,9 +36,7 @@ async function planReadHandler({ plan_id }: { plan_id: string }) {
 
     return (
       interpretMemoryProxy("lore_plan_read", proxied) ??
-      textResult(
-        "Reading a plan requires a configured LORE_API_URL.",
-      )
+      textResult("Reading a plan requires a configured LORE_API_URL.")
     );
   } catch (err) {
     return textResult(`Error reading plan: ${errorMessage(err)}`);
@@ -75,7 +78,11 @@ async function planEditHandler(args: PlanEditArgs) {
   }
 }
 
-function postAgentEdit({ plan_id, op, expect }: PlanEditArgs): Promise<ProxyResult> {
+function postAgentEdit({
+  plan_id,
+  op,
+  expect,
+}: PlanEditArgs): Promise<ProxyResult> {
   return proxyToApi(`/api/plans/${plan_id}/agent-edits`, {
     actor: "planning-agent",
     ops: [op],
@@ -84,8 +91,14 @@ function postAgentEdit({ plan_id, op, expect }: PlanEditArgs): Promise<ProxyResu
 }
 
 // A block-conflict 409 (RFC 9457 problem body) reads as an edit refusal, not a proxy error.
-function refusalOf(proxied: ProxyResult): { content: [{ type: "text"; text: string }] } | null {
-  if (proxied.ok || proxied.reason !== "unreachable" || proxied.status !== 409) {
+function refusalOf(
+  proxied: ProxyResult,
+): { content: [{ type: "text"; text: string }] } | null {
+  if (
+    proxied.ok ||
+    proxied.reason !== "unreachable" ||
+    proxied.status !== 409
+  ) {
     return null;
   }
   const detail = conflictDetail(proxied.body);

@@ -1,4 +1,12 @@
-import { describe, it, expect, beforeAll, afterEach, beforeEach, vi } from "vitest";
+import {
+  describe,
+  it,
+  expect,
+  beforeAll,
+  afterEach,
+  beforeEach,
+  vi,
+} from "vitest";
 
 type ToolHandler = (
   args: Record<string, unknown>,

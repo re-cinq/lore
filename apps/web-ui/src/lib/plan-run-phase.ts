@@ -104,8 +104,7 @@ export function isDraftingPlan(
   visits: readonly Visit[],
 ): boolean {
   return (
-    run.status === "queued" ||
-    (run.status === "running" && visits.length === 0)
+    run.status === "queued" || (run.status === "running" && visits.length === 0)
   );
 }
 
