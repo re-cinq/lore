@@ -137,7 +137,7 @@ describe("receiveDigestUpload", () => {
     ]);
   });
 
-  it("posts a long digest as several thread replies, none of them broadcast to the channel", async () => {
+  it("posts a long digest as several replies inside the week's thread", async () => {
     const { assemblyRuns, poster, deps } = harness();
     const long = Array.from(
       { length: 400 },
@@ -153,10 +153,10 @@ describe("receiveDigestUpload", () => {
 
     expect({
       delivery,
-      broadcasts: replies.filter((reply) => "replyBroadcast" in reply).length,
+      threads: [...new Set(replies.map((reply) => reply.threadTs))],
     }).toEqual({
       delivery: { outcome: "posted", chunks: replies.length },
-      broadcasts: 0,
+      threads: ["1.000"],
     });
     expect(replies.length).toBeGreaterThan(1);
   });
