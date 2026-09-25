@@ -63,9 +63,19 @@ export function partitionByHunks(
 const FALLBACK_NOTE =
   "_Inline placement was rejected by GitHub, so this review is posted as a single comment._";
 
-/** `fallback`: GitHub rejected the inline review, so the caller audits the downgrade to a top-level comment. `deduped`: this run's marker was already on the PR. */
+/** What the body calls the findings it renders itself: on an inline review only the ones GitHub would not take a comment on land here, but a review that stepped down carries ALL of them, and calling those "outside changed hunks" is simply false. */
+const OUT_OF_HUNK_HEADING = "Notes on lines outside changed hunks";
+const STEPPED_DOWN_HEADING = "Findings";
+
+/** Says where the verdict went when GitHub would not take it as one. It is not a detail: a reader who sees "Approved" in a comment has no way to know whether anything is gating the merge, and the check is what does. */
+const COMMENT_NOTE =
+  "_GitHub does not accept an approving or blocking review from the account that opened this pull request, so this review is posted as a comment. Its verdict is published on the `lore/code-review` check._";
+
+/** How far down the ladder a review had to go to reach the PR. `inline` is the whole review with its comments in the diff; `summary` keeps the APPROVE/REQUEST_CHANGES verdict but renders every finding in the body, for a line GitHub will not take a comment on; `comment` is a COMMENT-event review, the only kind GitHub accepts on a PR the reviewer authored; `fallback` is a plain issue comment, the floor that never drops a review. `deduped`: this run's marker was already on the PR. */
 export type ReviewPostDelivery =
   | { mode: "inline" }
+  | { mode: "summary"; error: string }
+  | { mode: "comment"; error: string }
   | { mode: "fallback"; error: string }
   | { mode: "deduped"; marker: string };
 
@@ -76,23 +86,91 @@ export interface ReviewDelivery {
   model?: string;
 }
 
+/** Posts the review, giving up as little as GitHub forces at each step. Two different refusals used to land in the same place: ONE finding on a line outside the diff 422d the atomic post and downgraded the whole verdict to a comment, and a PR the review App itself authored is refused outright, which is every implementation-loop PR. So the ladder drops the inline comments first and the formal verdict only last. */
 export async function postReview(
   pulls: ReviewPoster,
   prNumber: number,
   output: ReviewOutput,
   delivery: ReviewDelivery,
 ): Promise<ReviewPostDelivery> {
-  try {
-    await postInlineReview(pulls, prNumber, output, delivery);
+  const rungs: Array<[ReviewPostDelivery["mode"], () => Promise<void>]> = [
+    ["inline", () => postInlineReview(pulls, prNumber, output, delivery)],
+    ["summary", () => postSummaryReview(pulls, prNumber, output, delivery)],
+    ["comment", () => postCommentReview(pulls, prNumber, output, delivery)],
+  ];
+  const reached = await climb(rungs);
 
-    return { mode: "inline" };
-  } catch (err) {
-    // Never drop the review: an atomic-post 422 falls back to one top-level comment.
-    return postFallback(pulls, prNumber, output, {
-      ...delivery,
-      error: (err as Error).message,
-    });
+  // Never drop the review: with every review shape refused, one plain comment still carries it.
+  return reached.mode === undefined
+    ? postFallback(pulls, prNumber, output, {
+        ...delivery,
+        error: reached.refusal,
+      })
+    : deliveryOf(reached.mode, reached.refusal);
+}
+
+/** Runs each rung until one is accepted, carrying the last refusal down as the reason the review had to step down. */
+async function climb(
+  rungs: Array<[ReviewPostDelivery["mode"], () => Promise<void>]>,
+): Promise<{ mode?: ReviewPostDelivery["mode"]; refusal: string }> {
+  let refusal = "";
+
+  for (const [mode, post] of rungs) {
+    try {
+      await post();
+
+      return { mode, refusal };
+    } catch (err) {
+      refusal = (err as Error).message;
+    }
   }
+
+  return { refusal };
+}
+
+function deliveryOf(
+  mode: ReviewPostDelivery["mode"],
+  error: string,
+): ReviewPostDelivery {
+  return mode === "inline" ? { mode } : ({ mode, error } as ReviewPostDelivery);
+}
+
+/** The verdict with every finding in the body: what a review becomes when GitHub will not take one of its inline comments. */
+async function postSummaryReview(
+  pulls: ReviewPoster,
+  prNumber: number,
+  output: ReviewOutput,
+  { marker, model }: ReviewDelivery,
+): Promise<void> {
+  await pulls.createReview(prNumber, {
+    event: reviewEvent(output),
+    body: withMarker(
+      composeBody(output, output.findings, model, STEPPED_DOWN_HEADING),
+      marker,
+    ),
+    comments: [],
+  });
+}
+
+/** The review as a COMMENT — the one event GitHub accepts from the account that opened the PR, so a self-authored PR's review is still a review a reader can find, not a loose comment. */
+async function postCommentReview(
+  pulls: ReviewPoster,
+  prNumber: number,
+  output: ReviewOutput,
+  { marker, model }: ReviewDelivery,
+): Promise<void> {
+  const body = composeBody(
+    output,
+    output.findings,
+    model,
+    STEPPED_DOWN_HEADING,
+  );
+
+  await pulls.createReview(prNumber, {
+    event: "COMMENT",
+    body: withMarker(`${COMMENT_NOTE}\n\n${body}`, marker),
+    comments: [],
+  });
 }
 
 async function postInlineReview(
@@ -131,17 +209,18 @@ function withMarker(body: string, marker?: string): string {
 /** The review body: the standard summary, plus any findings GitHub cannot inline. */
 export function composeBody(
   output: ReviewOutput,
-  overflow: ReviewFinding[],
+  written: ReviewFinding[],
   model?: string,
+  heading: string = OUT_OF_HUNK_HEADING,
 ): string {
   const summary = buildReviewSummary(output, { model });
 
-  if (overflow.length === 0) {
+  if (written.length === 0) {
     return summary;
   }
-  const notes = overflow.map(renderOutOfDiff).join("\n\n");
+  const notes = written.map(renderOutOfDiff).join("\n\n");
 
-  return `${summary}\n\n### Notes on lines outside changed hunks\n\n${notes}`;
+  return `${summary}\n\n### ${heading}\n\n${notes}`;
 }
 
 async function postFallback(

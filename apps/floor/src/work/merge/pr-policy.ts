@@ -2,6 +2,8 @@
 import type { ResolvedDarkFactorySettings } from "@re-cinq/lore-shared";
 import type { PullRequests } from "@re-cinq/lore-shared/project/pulls/pull-requests.js";
 import type { TaskPrInfo } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
+import type { CheckRun } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
+import { loreReviewVerdict } from "@re-cinq/lore-shared/project/pulls/check-runs.js";
 import { projectFor } from "../../outbound/project-boot.js";
 import { pipeline, settings } from "../../outbound/queues.js";
 
@@ -140,7 +142,7 @@ async function fetchPrCheckState(
   return {
     changedPaths: files,
     ciSucceeded: ciIsGreen(checkRuns),
-    botApproved: botHasApproved(reviews, botLogin),
+    botApproved: botApprovedPr(reviews, botLogin, checkRuns),
     humanChangesRequested: humanRequestedChanges(reviews),
   };
 }
@@ -156,11 +158,24 @@ function ciIsGreen(checkRuns: { conclusion: string | null }[]): boolean {
   );
 }
 
-/** The bot's LATEST decision, not "has it ever approved" — `id` is monotonic by submission, so a stale early APPROVED cannot linger past a later CHANGES_REQUESTED. */
-function botHasApproved(
+/** Whether Lore's review approved this PR, from whichever channel carries its verdict. The reviews list is preferred because it is what a person reading the PR sees; it is EMPTY on a PR the review App itself authored, because GitHub refuses an APPROVE or a REQUEST_CHANGES from the author, and every implementation-loop PR is one — so `require_bot_approval` deferred those for ever while the verdict sat in plain sight on the `lore/code-review` check. */
+function botApprovedPr(
   reviews: { user: string; state: string; id: number }[],
   botLogin: string,
+  checkRuns: readonly CheckRun[],
 ): boolean {
+  const reviewed = botDecision(reviews, botLogin);
+
+  return reviewed === "none"
+    ? loreReviewVerdict(checkRuns) === "approved"
+    : reviewed === "approved";
+}
+
+/** The bot's LATEST decision, not "has it ever approved" — `id` is monotonic by submission, so a stale early APPROVED cannot linger past a later CHANGES_REQUESTED. */
+function botDecision(
+  reviews: { user: string; state: string; id: number }[],
+  botLogin: string,
+): "approved" | "changes_requested" | "none" {
   const decisions = reviews
     .filter(
       (r) =>
@@ -168,8 +183,13 @@ function botHasApproved(
         (r.state === "APPROVED" || r.state === "CHANGES_REQUESTED"),
     )
     .sort((a, b) => a.id - b.id);
+  const latest = decisions.at(-1)?.state;
 
-  return decisions.at(-1)?.state === "APPROVED";
+  if (latest === undefined) {
+    return "none";
+  }
+
+  return latest === "APPROVED" ? "approved" : "changes_requested";
 }
 
 /** A human (not a bot account) asked for changes — a hard block on auto-merge. */

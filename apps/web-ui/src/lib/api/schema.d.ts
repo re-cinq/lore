@@ -3555,7 +3555,7 @@ export interface components {
               sections?: ("implemented" | "roadmap" | "summary" | "morale")[];
               /** @enum {string} */
               group_by?: "person" | "area";
-            };
+            } | null;
             dispatch_label?: string;
             dispatch_default_type?: string;
             test_commands?: unknown;
@@ -3691,7 +3691,7 @@ export interface components {
                 sections?: ("implemented" | "roadmap" | "summary" | "morale")[];
                 /** @enum {string} */
                 group_by?: "person" | "area";
-              };
+              } | null;
               dispatch_label?: string;
               dispatch_default_type?: string;
               test_commands?: unknown;

@@ -12,6 +12,7 @@ import { collectPriorNodeFailures } from "./walk-state.js";
 import { finishLine } from "./finish-line.js";
 import { finishNodeAndAdvance } from "./finish-node.js";
 import type { AdvanceDeps } from "./advance-deps.js";
+import { RecordingPlanWriter } from "../../domain/plan-writer-recording.js";
 
 const codeReviewLike: AssemblyLine = parseAssemblyLine(`
 name: code-review
@@ -182,6 +183,7 @@ function makeDeps(port: InMemoryAssemblyRuns) {
     resolveRecipe: async (_repo, promptRef, description) => ({
       prompt: `${promptRef}::${description}`,
     }),
+    plans: new RecordingPlanWriter(),
     cleanupToken: async (runTaskId) => {
       cleaned.push(runTaskId);
     },

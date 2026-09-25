@@ -43,7 +43,7 @@ export const RepoSettingsSchema = z
     cross_repo_repos: z.array(z.string()).optional(),
     slack_channel_id: z.string().optional(),
     // The daily Slack digest (specs/daily-digest FR1); posts to slack_channel_id.
-    digest: DigestSettingsSchema.optional(),
+    digest: DigestSettingsSchema.nullable().optional(),
     dispatch_label: z.string().optional(),
     dispatch_default_type: z.string().optional(),
     test_commands: z.unknown().optional(),

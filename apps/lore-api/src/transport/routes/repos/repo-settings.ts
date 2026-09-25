@@ -106,7 +106,8 @@ function enforceDarkFactoryAllowed(darkFactory: unknown, repo: string): void {
 
 /** The digest block is read by a station with no user in front of it, so a malformed one (a weekday of 9, a time of "9am") is refused here rather than stored (specs/daily-digest FR1). */
 function enforceDigestValid(digest: unknown): void {
-  if (digest === undefined) {
+  // null clears the block under the route's `||` merge; only a block that is there is checked.
+  if (digest === undefined || digest === null) {
     return;
   }
   const parsed = DigestSettingsSchema.safeParse(digest);
