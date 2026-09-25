@@ -3,6 +3,7 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type {
   PlanFinding,
   PlanOpener,
+  PlanSection,
   PlanWriter,
 } from "../domain/plan-writer.js";
 
@@ -28,8 +29,7 @@ export function loreApiPlans(baseUrl: string, token: string): PlanWriter {
     failRefine: (planId, refine) => post(`${planId}/refine-failed`, refine),
     // planning-sync's own route: `{actor, ops, base?}`; the Floor never sends `base`, so the ops land on whatever the plan is by then.
     addQuestions: (planId, edits) => post(`${planId}/agent-edits`, edits),
-    findingsOf: async (planId) =>
-      findingsIn(await (await request(planId, { method: "GET" })).json()),
+    ...planReads(request),
   };
 }
 
@@ -77,12 +77,13 @@ async function requestLoreApi(
   return res;
 }
 
-// planning-sync's plan projection (`GET /api/plans/{id}`), read only as far as its finding blocks.
+// planning-sync's plan projection (`GET /api/plans/{id}`), read only as far as its sections and their finding blocks.
 const planProjectionSchema = z.object({
   json: z.object({
     sections: z.array(
       z.object({
         slot: z.string(),
+        title: z.string().default(""),
         blocks: z.array(
           z.object({
             type: z.string(),
@@ -98,6 +99,28 @@ const findingPropsSchema = z.object({
   findingId: z.string(),
   resolved: z.unknown().transform((value) => value === true),
 });
+
+type PlanRequest = (path: string, init: RequestInit) => Promise<Response>;
+
+/** The reads of planning-sync's plan projection (`GET /api/plans/{id}`): its sections, and its finding blocks. */
+function planReads(
+  request: PlanRequest,
+): Pick<PlanWriter, "findingsOf" | "sectionsOf"> {
+  const projection = (planId: string): Promise<unknown> =>
+    request(planId, { method: "GET" }).then((res) => res.json());
+
+  return {
+    findingsOf: async (planId) => findingsIn(await projection(planId)),
+    sectionsOf: async (planId) => sectionsIn(await projection(planId)),
+  };
+}
+
+/** The sections of a plan projection, in the plan's order. */
+function sectionsIn(projection: unknown): PlanSection[] {
+  const { sections } = planProjectionSchema.parse(projection).json;
+
+  return sections.map(({ slot, title }) => ({ slot, title }));
+}
 
 /** The finding blocks of a plan projection, section by section. */
 function findingsIn(projection: unknown): PlanFinding[] {

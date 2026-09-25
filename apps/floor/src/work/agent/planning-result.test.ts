@@ -45,6 +45,7 @@ function recordingWriter() {
       writes.push({ planId, body: edits });
     },
     findingsOf: async () => [],
+    sectionsOf: async () => [],
   };
 
   return { writes, writer };
