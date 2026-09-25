@@ -128,9 +128,7 @@ function deliveryOf(
   mode: ReviewPostDelivery["mode"],
   error: string,
 ): ReviewPostDelivery {
-  return mode === "inline"
-    ? { mode }
-    : ({ mode, error } as ReviewPostDelivery);
+  return mode === "inline" ? { mode } : ({ mode, error } as ReviewPostDelivery);
 }
 
 /** The verdict with every finding in the body: what a review becomes when GitHub will not take one of its inline comments. */
