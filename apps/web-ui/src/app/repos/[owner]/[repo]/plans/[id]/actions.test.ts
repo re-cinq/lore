@@ -112,8 +112,18 @@ describe("approvePlanAction", () => {
     answer(409, {
       error: "plan p1 is not ready for approval",
       problems: [
-        { code: "unresolved-finding", slot: "s1", blockId: "b1", message: "m1" },
-        { code: "unresolved-finding", slot: "s2", blockId: "b2", message: "m2" },
+        {
+          code: "unresolved-finding",
+          slot: "s1",
+          blockId: "b1",
+          message: "m1",
+        },
+        {
+          code: "unresolved-finding",
+          slot: "s2",
+          blockId: "b2",
+          message: "m2",
+        },
         { code: "empty-required-section", slot: "s3" },
       ],
     });

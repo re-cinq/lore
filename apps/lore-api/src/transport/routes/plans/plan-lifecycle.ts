@@ -298,8 +298,11 @@ function validateRoute(
   getPool: PlanLifecyclePorts["getPool"],
   depsFor: NonNullable<PlanLifecyclePorts["planValidateDeps"]>,
 ): ServerRoute {
-  return lifecycleRoute(getPool, "validate", VALIDATE_OPTIONS, (pool, request, h) =>
-    serveValidate(depsFor, pool, request, h),
+  return lifecycleRoute(
+    getPool,
+    "validate",
+    VALIDATE_OPTIONS,
+    (pool, request, h) => serveValidate(depsFor, pool, request, h),
   );
 }
 

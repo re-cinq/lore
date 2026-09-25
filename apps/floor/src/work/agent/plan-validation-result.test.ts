@@ -59,8 +59,19 @@ describe("deliverPlanValidation", () => {
     ]);
     const answer = {
       findings: [
-        { slot: "scope", finding_id: "f-kept", text: "Still open.", why: "Not addressed.", severity: "blocker" },
-        { slot: "intent", text: "No success metric stated.", why: "Cannot judge Definition of Done without one.", severity: "blocker" },
+        {
+          slot: "scope",
+          finding_id: "f-kept",
+          text: "Still open.",
+          why: "Not addressed.",
+          severity: "blocker",
+        },
+        {
+          slot: "intent",
+          text: "No success metric stated.",
+          why: "Cannot judge Definition of Done without one.",
+          severity: "blocker",
+        },
       ],
     };
 

@@ -13,8 +13,18 @@ const GRAPH: RunGraph = {
   exit: "done",
   nodes: [
     { id: "validate", type: "agent", station: "s", station_inherited: false },
-    { id: "author", type: "feature_review", station: "s", station_inherited: false },
-    { id: "done", type: "retrospective", station: "s", station_inherited: false },
+    {
+      id: "author",
+      type: "feature_review",
+      station: "s",
+      station_inherited: false,
+    },
+    {
+      id: "done",
+      type: "retrospective",
+      station: "s",
+      station_inherited: false,
+    },
   ],
   edges: [{ from: "validate", to: "author", on: "success" }],
 };

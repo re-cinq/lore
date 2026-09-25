@@ -121,7 +121,12 @@ describe("feature-planning author loop", () => {
     expect(
       getNextTransition(await planning(), [
         visit("analyze", 1, "success"),
-        { nodeId: "validate", iteration: 1, outcome: "success", requestedBy: "gedaiu" },
+        {
+          nodeId: "validate",
+          iteration: 1,
+          outcome: "success",
+          requestedBy: "gedaiu",
+        },
       ]),
     ).toEqual({ kind: "launch", nodeId: "author", iteration: 1 });
   });

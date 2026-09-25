@@ -278,7 +278,9 @@ async function deliverPlanValidations(
         ),
       });
     } catch (err) {
-      console.warn(`[floor] plan validation result skipped: ${errorMessage(err)}`);
+      console.warn(
+        `[floor] plan validation result skipped: ${errorMessage(err)}`,
+      );
     }
   }
 }

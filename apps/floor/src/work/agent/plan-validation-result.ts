@@ -52,7 +52,9 @@ export async function deliverPlanValidation(
     return;
   }
   const findings = parsedFindings(content);
-  const ops = findings ? reconciledOps(findings, await deps.plans.findingsOf(planId)) : [];
+  const ops = findings
+    ? reconciledOps(findings, await deps.plans.findingsOf(planId))
+    : [];
 
   if (ops.length === 0) {
     return;
@@ -100,7 +102,9 @@ function staleFindingOps(
   reportedIds: Set<string>,
 ): RemoveBlockOp[] {
   return existing
-    .filter((finding) => !finding.resolved && !reportedIds.has(finding.findingId))
+    .filter(
+      (finding) => !finding.resolved && !reportedIds.has(finding.findingId),
+    )
     .map((finding) => ({
       op: "remove-block" as const,
       slot: finding.slot,
