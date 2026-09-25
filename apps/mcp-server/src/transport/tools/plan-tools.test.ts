@@ -79,16 +79,17 @@ describe("lore_plan_edit remote proxy", () => {
     const result = await planEdit({ plan_id: planId, op, expect: expectHash });
     const [calledUrl, opts] = fetchMock.mock.calls[0];
 
-    expect(calledUrl).toBe(
-      `https://lore-api.example.com/api/plans/${planId}/agent-edits`,
-    );
-    expect((opts as any).headers.Authorization).toBe("Bearer tok");
-    expect(JSON.parse((opts as any).body)).toEqual({
-      actor: "planning-agent",
-      ops: [op],
-      expect: expectHash,
+    expect({
+      calledUrl,
+      authorization: (opts as any).headers.Authorization,
+      body: JSON.parse((opts as any).body),
+      answer: JSON.parse(result.content[0].text),
+    }).toEqual({
+      calledUrl: `https://lore-api.example.com/api/plans/${planId}/agent-edits`,
+      authorization: "Bearer tok",
+      body: { actor: "planning-agent", ops: [op], expect: expectHash },
+      answer: applied,
     });
-    expect(JSON.parse(result.content[0].text)).toEqual(applied);
   });
 
   it("tells the agent to reread and retry when the block changed under it", async () => {

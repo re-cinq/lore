@@ -11,32 +11,6 @@ import {
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 
-/** Twice the Floor's 64 MiB upload cap: the file arrives here JSON-escaped, and a newline escapes to two bytes. */
-const MAX_PLAN_FILE_BYTES = 128 * 1024 * 1024;
-
-const PlanFileBody = z.object({
-  actor: z.string().min(1),
-  markdown: z.string(),
-  refine: z
-    .object({
-      slot: z.string().min(1),
-      baseHash: z.string().min(1),
-      uses: z.unknown().optional(),
-    })
-    .nullable(),
-});
-
-const PlanFileOutcomeSchema = z.object({
-  written: z.number(),
-  problems: z.array(
-    z.object({
-      code: z.string(),
-      slot: z.string().optional(),
-      message: z.string(),
-    }),
-  ),
-});
-
 export function planFileRoutes(ports: PlanFilePorts): ServerRoute[] {
   return [
     markdownRoute(ports),
@@ -94,6 +68,32 @@ function markdownRoute(ports: PlanFilePorts): ServerRoute {
         .type("text/markdown; charset=utf-8"),
   };
 }
+
+const PlanFileOutcomeSchema = z.object({
+  written: z.number(),
+  problems: z.array(
+    z.object({
+      code: z.string(),
+      slot: z.string().optional(),
+      message: z.string(),
+    }),
+  ),
+});
+
+const PlanFileBody = z.object({
+  actor: z.string().min(1),
+  markdown: z.string(),
+  refine: z
+    .object({
+      slot: z.string().min(1),
+      baseHash: z.string().min(1),
+      uses: z.unknown().optional(),
+    })
+    .nullable(),
+});
+
+/** Twice the Floor's 64 MiB upload cap: the file arrives here JSON-escaped, and a newline escapes to two bytes. */
+const MAX_PLAN_FILE_BYTES = 128 * 1024 * 1024;
 
 const AGENT_FILE_OPTIONS = {
   ...zodResponse({}, PlanFileOutcomeSchema, {

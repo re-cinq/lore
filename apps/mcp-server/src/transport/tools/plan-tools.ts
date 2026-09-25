@@ -6,40 +6,7 @@ import { interpretMemoryProxy } from "./interpret-memory-proxy.js";
 
 const conflictProblemSchema = z.object({ detail: z.string() });
 
-// A block-conflict 409 (RFC 9457 problem body) reads as an edit refusal, not a proxy error.
-function refusalOf(proxied: ProxyResult): { content: [{ type: "text"; text: string }] } | null {
-  if (proxied.ok || proxied.reason !== "unreachable" || proxied.status !== 409) {
-    return null;
-  }
-  const detail = conflictDetail(proxied.body);
-
-  if (!detail) {
-    return null;
-  }
-
-  return textResult(
-    `Edit refused: ${detail}. Read the plan again with lore_plan_read and retry against the block's current hash.`,
-  );
-}
-
-// Parses a JSON problem body's `detail` field; null when the body is missing/unparseable/shapeless.
-function conflictDetail(body: string | undefined): string | null {
-  if (!body) {
-    return null;
-  }
-
-  try {
-    const parsed = conflictProblemSchema.safeParse(JSON.parse(body));
-
-    return parsed.success ? parsed.data.detail : null;
-  } catch {
-    return null;
-  }
-}
-
-// The op shapes agent-edits accepts (append-to-section / replace-block / remove-block, etc.);
-// kept as a record here rather than importing @re-cinq/planning-document's schema, which would
-// pull the git dependency into the mcp-server's lean install (ADR-032).
+// A record, not planning-document's op schema: importing it would pull a git dependency into the lean install (ADR-032).
 const agentOpSchema = z.record(z.string(), z.unknown());
 
 // The plan-reading half of the planning tool surface: an agent reads the plan it is working on before editing it.
@@ -88,21 +55,15 @@ function registerPlanEditTool(server: McpServer) {
   );
 }
 
-async function planEditHandler({
-  plan_id,
-  op,
-  expect,
-}: {
+type PlanEditArgs = {
   plan_id: string;
   op: Record<string, unknown>;
   expect?: { blockId: string; hash: string };
-}) {
+};
+
+async function planEditHandler(args: PlanEditArgs) {
   try {
-    const proxied = await proxyToApi(`/api/plans/${plan_id}/agent-edits`, {
-      actor: "planning-agent",
-      ops: [op],
-      expect,
-    });
+    const proxied = await postAgentEdit(args);
 
     return (
       refusalOf(proxied) ??
@@ -111,5 +72,44 @@ async function planEditHandler({
     );
   } catch (err) {
     return textResult(`Error editing plan: ${errorMessage(err)}`);
+  }
+}
+
+function postAgentEdit({ plan_id, op, expect }: PlanEditArgs): Promise<ProxyResult> {
+  return proxyToApi(`/api/plans/${plan_id}/agent-edits`, {
+    actor: "planning-agent",
+    ops: [op],
+    expect,
+  });
+}
+
+// A block-conflict 409 (RFC 9457 problem body) reads as an edit refusal, not a proxy error.
+function refusalOf(proxied: ProxyResult): { content: [{ type: "text"; text: string }] } | null {
+  if (proxied.ok || proxied.reason !== "unreachable" || proxied.status !== 409) {
+    return null;
+  }
+  const detail = conflictDetail(proxied.body);
+
+  if (!detail) {
+    return null;
+  }
+
+  return textResult(
+    `Edit refused: ${detail}. Read the plan again with lore_plan_read and retry against the block's current hash.`,
+  );
+}
+
+// Parses a JSON problem body's `detail` field; null when the body is missing/unparseable/shapeless.
+function conflictDetail(body: string | undefined): string | null {
+  if (!body) {
+    return null;
+  }
+
+  try {
+    const parsed = conflictProblemSchema.safeParse(JSON.parse(body));
+
+    return parsed.success ? parsed.data.detail : null;
+  } catch {
+    return null;
   }
 }
