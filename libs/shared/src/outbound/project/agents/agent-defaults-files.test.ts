@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { loadAgentDefaults } from "./agent-defaults-files.js";
 
 describe("loadAgentDefaults", () => {
-  it("loads the 21 shipped agents and 5 def- stations, each named after its file", () => {
+  it("loads the 22 shipped agents and 5 def- stations, each named after its file", () => {
     const defaults = loadAgentDefaults();
 
     expect({
@@ -10,6 +10,6 @@ describe("loadAgentDefaults", () => {
       review: defaults.find((row) => row.name === "review")?.execution_mode,
       station: defaults.find((row) => row.name === "def-validate")
         ?.execution_mode,
-    }).toEqual({ count: 26, review: "claude-code", station: "station" });
+    }).toEqual({ count: 27, review: "claude-code", station: "station" });
   });
 });
