@@ -6,6 +6,7 @@ import {
   routeTriagedComment,
   reviewFeedback,
   decideRecheck,
+  startRecheck,
   decideReviewOnOpen,
   recheckDescription,
   decideReviewOnReply,
@@ -612,6 +613,77 @@ describe("recheckDescription", () => {
   it("asks for the whole PR when no verdict has judged it yet", () => {
     expect(recheckDescription("re-cinq/lore", 42, "feature/x")).toEqual(
       "Re-check pull request #42 in re-cinq/lore (branch feature/x) after a new push.",
+    );
+  });
+});
+
+describe("startRecheck — the range it hands the pod", () => {
+  function recheckHarness(opts: {
+    lastJudged?: string;
+    commits: Array<{ sha: string; message: string }>;
+  }) {
+    const started: Array<{
+      blueprintName: string;
+      args: Record<string, unknown>;
+    }> = [];
+    const project = {
+      pulls: {
+        get: async () => openPr({ headSha: "head9" }),
+        comment: async () => {},
+        listComments: async () => [],
+        listCommits: async () => opts.commits,
+      },
+      assemblyRuns: {
+        start: async (
+          blueprintName: string,
+          o: { args?: Record<string, unknown> },
+        ) => {
+          started.push({ blueprintName, args: o.args ?? {} });
+
+          return "run-1";
+        },
+        findOpenBySubject: async () => null,
+        findOpenByPr: async () => [],
+        listForPr: async () =>
+          opts.lastJudged ? [{ args: { head_sha: opts.lastJudged } }] : [],
+        finishOpenByPr: async () => [],
+        hasReviewedPr: async () => true,
+      },
+    } as unknown as Parameters<typeof startRecheck>[0];
+
+    return { project, started };
+  }
+
+  it("names the judged sha when it is still on the branch", async () => {
+    const { project, started } = recheckHarness({
+      lastJudged: "old1",
+      commits: [
+        { sha: "old1", message: "feat: first" },
+        { sha: "head9", message: "fix: second" },
+      ],
+    });
+
+    await startRecheck(project, { repo: REPO, prNumber: 42, autoReview: true });
+
+    expect(started[0]?.args.description).toContain(
+      "The last verdict judged old1",
+    );
+  });
+
+  it("names no sha after a rebase dropped the judged commit, so the pod never diffs against history the branch lost", async () => {
+    const { project, started } = recheckHarness({
+      lastJudged: "gone7",
+      commits: [
+        { sha: "new1", message: "feat: first, rebased" },
+        { sha: "head9", message: "fix: second, rebased" },
+      ],
+    });
+
+    await startRecheck(project, { repo: REPO, prNumber: 42, autoReview: true });
+
+    expect(started).toHaveLength(1);
+    expect(started[0]?.args.description).not.toContain(
+      "The last verdict judged",
     );
   });
 });

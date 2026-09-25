@@ -206,21 +206,19 @@ async function startRecheckFor(
   input: { repo: string; prNumber: number },
   pr: PullRef,
 ): Promise<string | null> {
-  const sinceSha = await lastJudgedSha(project, input.prNumber);
+  const range = await judgedRange(project, input.prNumber);
   const decision = decideRecheck({
     headSha: pr.headSha,
     openReviewShas: await openReviewShas(project, input.prNumber),
-    newCommitMessages: await commitsSince(project, input.prNumber, sinceSha),
+    newCommitMessages: range.newCommitMessages,
   });
 
-  if (!decision.start) {
-    return skipped(input.prNumber, decision.reason);
-  }
-
-  return project.assemblyRuns.start("code-review-recheck", {
-    branch: pr.branch,
-    args: recheckArgs(input.repo, input.prNumber, pr, sinceSha),
-  });
+  return decision.start
+    ? project.assemblyRuns.start("code-review-recheck", {
+        branch: pr.branch,
+        args: recheckArgs(input.repo, input.prNumber, pr, range.sinceSha),
+      })
+    : skipped(input.prNumber, decision.reason);
 }
 
 /** Says why this push gets no pass of its own, where a silent null would read as a dropped event. */
@@ -230,17 +228,25 @@ function skipped(prNumber: number, reason: string): null {
   return null;
 }
 
-/** The sha the newest review-family run was started for, which is the sha its verdict judged. */
-async function lastJudgedSha(
+/** Where the last verdict left off: the sha it judged and the commits pushed since. The two are resolved together because they fail together — after a rebase the judged commit is no longer on the branch, and naming it would send the pod to `git diff <orphan>..HEAD`, against unrelated history or none at all. Then there is no range, and the whole PR is new again. */
+async function judgedRange(
   project: CodeReviewProject,
   prNumber: number,
-): Promise<string | undefined> {
+): Promise<{ sinceSha?: string; newCommitMessages: string[] }> {
   const runs = await project.assemblyRuns.listForPr(
     prNumber,
     REVIEW_DEFINITIONS,
   );
+  const lastSha = shaOf(runs[0]?.args);
+  const commits = lastSha ? await project.pulls.listCommits(prNumber) : [];
+  const judged = commits.findIndex((commit) => commit.sha === lastSha);
 
-  return shaOf(runs[0]?.args);
+  return judged < 0
+    ? { newCommitMessages: [] }
+    : {
+        sinceSha: lastSha,
+        newCommitMessages: commits.slice(judged + 1).map((c) => c.message),
+      };
 }
 
 /** The head shas the review-family runs still in flight were started for. */
@@ -260,21 +266,6 @@ function shaOf(args: Record<string, unknown> | undefined): string | undefined {
   const sha = args?.head_sha;
 
   return typeof sha === "string" ? sha : undefined;
-}
-
-/** The commit messages pushed after `sinceSha`; empty when no verdict has judged this PR yet, or when the commit it judged is no longer on the branch (a rebase), where every commit is new by definition and the caller must not read "nothing changed" from it. */
-async function commitsSince(
-  project: CodeReviewProject,
-  prNumber: number,
-  sinceSha: string | undefined,
-): Promise<string[]> {
-  if (!sinceSha) {
-    return [];
-  }
-  const commits = await project.pulls.listCommits(prNumber);
-  const judged = commits.findIndex((commit) => commit.sha === sinceSha);
-
-  return judged < 0 ? [] : commits.slice(judged + 1).map((c) => c.message);
 }
 
 function recheckArgs(
