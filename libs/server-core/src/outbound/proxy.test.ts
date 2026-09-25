@@ -6,6 +6,7 @@ import {
   proxyToApi,
   proxyGetApi,
   withReadCache,
+  textResult,
   type ProxyResult,
 } from "./proxy.js";
 
@@ -398,5 +399,27 @@ describe("withReadCache", () => {
     );
 
     expect(stale).toEqual({ ok: true, body: "cached" });
+  });
+});
+
+describe("textResult", () => {
+  it("wraps a JSON array answer as {results} so a client lifting the text into structuredContent gets an object", () => {
+    expect(textResult('[{"key":"a"},{"key":"b"}]')).toEqual({
+      content: [
+        { type: "text", text: '{"results":[{"key":"a"},{"key":"b"}]}' },
+      ],
+    });
+  });
+
+  it("leaves a JSON object answer as it is", () => {
+    expect(textResult('{"memories":[]}')).toEqual({
+      content: [{ type: "text", text: '{"memories":[]}' }],
+    });
+  });
+
+  it("leaves plain text starting with a bracket as it is", () => {
+    expect(textResult("[lore] nothing found")).toEqual({
+      content: [{ type: "text", text: "[lore] nothing found" }],
+    });
   });
 });

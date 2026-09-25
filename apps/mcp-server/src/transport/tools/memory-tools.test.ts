@@ -66,7 +66,7 @@ describe("lore_query_graph remote proxy (no local DB)", () => {
       "https://lore-api.example.com/api/graph?entity=auth-service&relation_type=uses",
     );
     expect((opts as any).headers.Authorization).toBe("Bearer tok");
-    expect(JSON.parse(result.content[0].text)).toEqual(rows);
+    expect(JSON.parse(result.content[0].text)).toEqual({ results: rows });
   });
 
   it("falls back to the not-configured message when LORE_API_URL is unset", async () => {
