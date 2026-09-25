@@ -140,7 +140,7 @@ const VALIDATE_GRAPH: RunGraph = {
     { id: "validate", type: "agent", station: "s", station_inherited: false },
     {
       id: "author",
-      type: "pr_review",
+      type: "feature_review",
       station: "s",
       station_inherited: false,
     },
@@ -151,7 +151,7 @@ const VALIDATE_GRAPH: RunGraph = {
       station_inherited: false,
     },
   ],
-  edges: [{ from: "validate", to: "author" }],
+  edges: [{ from: "validate", to: "author", on: "success" }],
 };
 
 async function lineParkedOnAuthor(runs: InMemoryAssemblyRuns) {

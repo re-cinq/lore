@@ -54,12 +54,7 @@ export interface PlanLifecyclePorts {
 }
 
 export function planLifecycleRoutes(ports: PlanLifecyclePorts): ServerRoute[] {
-  const {
-    service,
-    getPool,
-    specReworkDeps = specReworkDepsFor,
-    planValidateDeps = planValidateDepsFor,
-  } = ports;
+  const { service, getPool } = ports;
 
   return [
     lifecycleRoute(getPool, "approve", APPROVE_OPTIONS, (pool, request, h) =>
@@ -69,8 +64,8 @@ export function planLifecycleRoutes(ports: PlanLifecyclePorts): ServerRoute[] {
       serveReopen(service, pool, request, h),
     ),
     lifecycleRoute(getPool, "spec-work", SPEC_WORK_OPTIONS, serveSpecWork),
-    specReworkRoute(getPool, specReworkDeps),
-    validateRoute(getPool, planValidateDeps),
+    specReworkRoute(getPool, ports.specReworkDeps ?? specReworkDepsFor),
+    validateRoute(getPool, ports.planValidateDeps ?? planValidateDepsFor),
     lifecycleRoute(
       getPool,
       "author-waiting",

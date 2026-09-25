@@ -53,7 +53,7 @@ function assertValidatable(
     "the plan has no planning line yet",
   );
   enforceTrue(
-    line.open === "author",
+    line.parkedAuthor !== null,
     apiError(409),
     "the planning agent is still working; validate once it hands the plan back",
   );
