@@ -13,6 +13,8 @@ export const SPEC_REVIEW_ARG = "spec_review";
 export const SPEC_REVIEW_REOPEN_ARG = "spec_review_reopen";
 /** The artifact event the writer's answer arrives as; `argNameForEvent` would make it `spec_review_result`, but it is owned by the Floor's delivery, never merged into args. */
 export const SPEC_REVIEW_RESULT_EVENT = "spec.review.result";
+/** What every reply the Floor posts for the writer begins with (`<!-- lore-spec-rework: <run>/<comment> -->`): the dedupe key on the PR, and the mark by which the next rework leaves the writer's own replies out of the review it reads. */
+export const SPEC_REWORK_MARKER = "<!-- lore-spec-rework:";
 
 const specReviewCommentSchema = z.object({
   id: z.number(),
@@ -59,7 +61,7 @@ export const specReviewResultSchema = z.object({
 
 export type SpecReviewResult = z.infer<typeof specReviewResultSchema>;
 
-/** The review as the rework carries it: inline comments whose thread nobody resolved (outdated ones included — a comment on a line the push moved is still a comment), and every submitted review that said something. Pure; the reads are the caller's. */
+/** The review as the rework carries it: inline comments whose thread nobody resolved (outdated ones included — a comment on a line the push moved is still a comment), never the writer's own replies (the second rework on Otto #261 read its "sent to the plan" notes as review, "addressed" them and resolved the reviewer's six threads with no spec change behind them), and every submitted review that said something. Pure; the reads are the caller's. */
 export function specReviewOf(
   prNumber: number,
   reads: {
@@ -71,7 +73,9 @@ export function specReviewOf(
   const open = unresolvedCommentIds(reads.threads);
   const { reviews, comments } = reads;
   const spoken = reviews.filter(saidSomething);
-  const unresolved = comments.filter((comment) => open.has(comment.id));
+  const unresolved = comments.filter(
+    (comment) => open.has(comment.id) && !postedByTheWriter(comment.body),
+  );
 
   return {
     pr_number: prNumber,
@@ -87,6 +91,10 @@ function unresolvedCommentIds(threads: readonly ReviewThread[]): Set<number> {
   return new Set(
     ids.flatMap((c) => (c.databaseId === null ? [] : [c.databaseId])),
   );
+}
+
+function postedByTheWriter(body: string): boolean {
+  return body.trimStart().startsWith(SPEC_REWORK_MARKER);
 }
 
 function saidSomething(review: PullReview): boolean {

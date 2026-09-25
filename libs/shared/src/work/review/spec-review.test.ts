@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  SPEC_REWORK_MARKER,
   renderSpecReview,
   specReviewFromArgs,
   specReviewIsEmpty,
@@ -84,6 +85,42 @@ describe("specReviewOf", () => {
         },
       ],
     });
+  });
+
+  it("drops the writer's own marker-led replies: thread 11 yields loredana's comment alone, and thread 15 holding nothing but the bot's reply yields nothing", () => {
+    const reads = {
+      threads: [
+        {
+          id: "T1",
+          isResolved: false,
+          isOutdated: false,
+          comments: [{ databaseId: 11 }, { databaseId: 21 }],
+        },
+        {
+          id: "T5",
+          isResolved: false,
+          isOutdated: false,
+          comments: [{ databaseId: 25 }],
+        },
+      ],
+      comments: [
+        comment(11, "say at most five"),
+        {
+          ...comment(
+            21,
+            `${SPEC_REWORK_MARKER} r1/11 -->\n\nSent to the plan.`,
+          ),
+          user: "lore-agent",
+        },
+        {
+          ...comment(25, `${SPEC_REWORK_MARKER} r1/15 -->\n\nAddressed.`),
+          user: "lore-agent",
+        },
+      ],
+      reviews: [],
+    };
+
+    expect(specReviewOf(261, reads).comments.map((c) => c.id)).toEqual([11]);
   });
 });
 
