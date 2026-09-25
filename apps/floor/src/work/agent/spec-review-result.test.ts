@@ -114,13 +114,18 @@ const thread = (id: string, databaseId: number): ReviewThread => ({
 });
 
 describe("deliverSpecReviewResult", () => {
-  it("adds 2 questions to plan p1 as q-review-<hash> ops and flags run for a reopen", async () => {
+  it("adds 2 questions to plan p1 — one keyed on comment 77 as q-review-c77, one on its text — and flags run for a reopen", async () => {
     const { port, id } = await reworkRun();
     const { questions, plans } = recordingPlans();
     const { pulls } = recordingPulls({});
     const answer = {
       plan_questions: [
-        { slot: "scope", question: "Which service owns it?", why: "Two do." },
+        {
+          slot: "scope",
+          question: "Which service owns it?",
+          why: "Two do.",
+          comment_id: 77,
+        },
         { slot: "scope", question: "Is the CLI in?" },
       ],
       replies: [],
@@ -152,7 +157,7 @@ describe("deliverSpecReviewResult", () => {
               {
                 op: "add-question",
                 slot: "scope",
-                questionId: expect.stringMatching(/^q-review-[0-9a-f]{1,8}$/),
+                questionId: "q-review-c77",
                 question: "Which service owns it?",
                 why: "Two do.",
                 kind: "text",

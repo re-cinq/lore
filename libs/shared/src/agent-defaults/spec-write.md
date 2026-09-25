@@ -65,7 +65,9 @@ branch already; amend them, do not rewrite them. For each item decide:
 - It contradicts what the plan settled, or decides something the plan left
   open or never spoke of: change NOTHING for it. Record
   `{"comment_id": <id>, "action": "to_plan"}` and add a plan question
-  `{"slot": "<section slot>", "question": "<the decision, as a question>", "why": "<the comment, quoted, and where it collides with the plan>"}`.
+  `{"slot": "<section slot>", "question": "<the decision, as a question>", "why": "<the comment, quoted, and where it collides with the plan>", "comment_id": <the comment's id>}`.
+  The `comment_id` is what keeps the question one question: a later pass
+  that rewords it replaces it in the plan instead of asking twice.
   The slot is the plan.md section marker the matter belongs to (`intent`,
   `scope`, `constraints`, a `custom-…` slot, …). Never answer for the plan's
   people: the plan stays as it is until they do.
@@ -75,7 +77,7 @@ branch already; amend them, do not rewrite them. For each item decide:
 Always write `spec-review-result.json` in the working directory (the
 repository root), on every pass of this recipe:
 
-    {"plan_questions": [ {"slot": "...", "question": "...", "why": "..."} ],
+    {"plan_questions": [ {"slot": "...", "question": "...", "why": "...", "comment_id": 0} ],
      "replies": [ {"comment_id": 0, "action": "addressed" | "to_plan", "note": "..."} ]}
 
 A pass with no review writes `{"plan_questions": [], "replies": []}`. Commit
@@ -108,8 +110,12 @@ DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
   dies with it — do NOT report success for one. Plan b5ec0e24's specs
   were committed here and never pushed: the push step found an empty
   branch and no spec PR could be opened.
-- If you genuinely changed nothing, say why and end your final message
-  with the line `LORE_NODE_RESULT: {"outcome":"failed"}` so the line does
-  not validate an empty branch.
+- If you genuinely changed nothing on a FIRST pass, say why and end your
+  final message with the line `LORE_NODE_RESULT: {"outcome":"failed"}` so
+  the line does not validate an empty branch. A review pass is different:
+  when every item was already addressed on this branch or went to the plan,
+  the specs are right as they stand — `spec-review-result.json` is your
+  delivery, so end with `LORE_NODE_RESULT: {"outcome":"success"}` and no
+  commit; the push step finds nothing to deliver and says so.
 - Do not open a pull request: you have no `gh` and no GitHub token. Lore
   opens the PR from the branch you pushed.

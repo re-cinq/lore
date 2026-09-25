@@ -44,6 +44,8 @@ export const specReviewResultSchema = z.object({
       slot: z.string().min(1),
       question: z.string().min(1),
       why: z.string().default(""),
+      /** The review comment the question answers for; keys the question's id, so a rework that rewords the same question replaces it rather than asking twice. */
+      comment_id: z.number().optional(),
     }),
   ),
   replies: z.array(

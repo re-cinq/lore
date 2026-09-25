@@ -314,6 +314,9 @@ describe("the feature-planning recipe", () => {
       neverAnswer: prompt.includes("Never answer for the plan's people"),
       always: prompt.includes("Always write `spec-review-result.json`"),
       empty: prompt.includes('{"plan_questions": [], "replies": []}'),
+      noChangeIsSuccess: prompt.includes(
+        'the specs are right as they stand — `spec-review-result.json` is your delivery, so end with `LORE_NODE_RESULT: {"outcome":"success"}`',
+      ),
     }).toEqual({
       watch: {
         event: "spec.review.result",
@@ -324,6 +327,7 @@ describe("the feature-planning recipe", () => {
       neverAnswer: true,
       always: true,
       empty: true,
+      noChangeIsSuccess: true,
     });
   });
 
