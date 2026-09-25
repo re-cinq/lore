@@ -5,8 +5,6 @@ export interface SlackPost {
   text: string;
   /** Reply inside this thread (the parent's `ts`). */
   threadTs?: string;
-  /** Also show the reply in the channel, not only inside the thread. */
-  replyBroadcast?: boolean;
   unfurlLinks?: boolean;
 }
 

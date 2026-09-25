@@ -38,6 +38,7 @@ export function renderRepoSection(input: RepoSectionInput): string {
 
 interface ListSpec {
   section: "implemented" | "roadmap";
+  /** Bold capitals after a blank line: the person headers under it are bold too, so only case and space set the section apart. */
   title: string;
   cap: number;
   empty: string;
@@ -47,13 +48,13 @@ interface ListSpec {
 const LISTS: ListSpec[] = [
   {
     section: "implemented",
-    title: "_Implemented_",
+    title: "\n*IMPLEMENTED*",
     cap: Infinity,
     empty: "Nothing merged or closed since the last digest.",
   },
   {
     section: "roadmap",
-    title: "_Roadmap_",
+    title: "\n*ROADMAP*",
     cap: ROADMAP_CAP,
     empty: "No assigned open issues.",
   },

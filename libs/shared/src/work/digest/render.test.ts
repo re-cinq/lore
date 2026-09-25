@@ -58,11 +58,16 @@ describe("renderRepoSection", () => {
     expect(text).toContain("*bob*");
   });
 
+  it("sets each section title apart as a bold capital line after a blank one", () => {
+    expect(section()).toContain("*re-cinq/lore*\n\n*IMPLEMENTED*\n");
+    expect(section()).toContain("\n\n*ROADMAP*\n");
+  });
+
   it("omits a section the repo did not enable", () => {
     const text = section({ settings: { ...all, sections: ["roadmap"] } });
 
-    expect(text).not.toContain("Implemented");
-    expect(text).toContain("Roadmap");
+    expect(text).not.toContain("IMPLEMENTED");
+    expect(text).toContain("ROADMAP");
   });
 
   it("says so when nothing was implemented", () => {
