@@ -29,6 +29,9 @@ export function isIanaTimeZone(timeZone: string): boolean {
   }
 }
 
+/** Short on purpose: it rides into the agent's brief every day. */
+const Voice = z.string().max(200);
+
 const TimeZone = z
   .string()
   .refine(isIanaTimeZone, { message: "not an IANA timezone" });
@@ -40,6 +43,7 @@ export const DigestSettingsSchema = z.object({
   timezone: TimeZone.optional(),
   sections: z.array(DigestSectionSchema).optional(),
   group_by: DigestGroupBySchema.optional(),
+  voice: Voice.optional(),
 });
 
 /** The same block after `resolveDigestSettings` has filled every default. */
@@ -50,6 +54,7 @@ export const ResolvedDigestSettingsSchema = z.object({
   timezone: TimeZone,
   sections: z.array(DigestSectionSchema),
   group_by: DigestGroupBySchema,
+  voice: Voice,
 });
 
 export type {

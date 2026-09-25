@@ -27,6 +27,7 @@ describe("parseDigestBlock", () => {
           digest_timezone: "Europe/Bucharest",
           digest_sections: ["implemented", "morale"],
           digest_group_by: "area",
+          digest_voice: "  Michael Scott from The Office ",
         }),
       ),
     ).toEqual({
@@ -36,6 +37,7 @@ describe("parseDigestBlock", () => {
       timezone: "Europe/Bucharest",
       sections: ["implemented", "morale"],
       group_by: "area",
+      voice: "Michael Scott from The Office",
     });
   });
 
@@ -47,6 +49,7 @@ describe("parseDigestBlock", () => {
       timezone: "Europe/Berlin",
       sections: [],
       group_by: "person",
+      voice: "",
     });
   });
 
@@ -76,6 +79,7 @@ describe("parseDigestBlock", () => {
       timezone: "Europe/Berlin",
       sections: [],
       group_by: "person",
+      voice: "",
     });
   });
 });

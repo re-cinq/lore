@@ -13253,6 +13253,10 @@
                           "group_by": {
                             "type": "string",
                             "enum": ["person", "area"]
+                          },
+                          "voice": {
+                            "type": "string",
+                            "maxLength": 200
                           }
                         },
                         "additionalProperties": false
@@ -13720,6 +13724,10 @@
                                 "group_by": {
                                   "type": "string",
                                   "enum": ["person", "area"]
+                                },
+                                "voice": {
+                                  "type": "string",
+                                  "maxLength": 200
                                 }
                               },
                               "additionalProperties": false

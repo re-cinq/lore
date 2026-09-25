@@ -6,6 +6,8 @@ import type { DigestGroup, DigestChange } from "./group.js";
 export const INTRO_MARKER = "<!-- lore-digest:intro -->";
 export const ENDING_MARKER = "<!-- lore-digest:ending -->";
 export const APPENDIX_MARKER = "<!-- lore-digest:appendix -->";
+/** Where the agent writes one line reacting to the section just above it; placed only when a voice is set. */
+export const ASIDE_MARKER = "<!-- lore-digest:aside -->";
 export const ROADMAP_CAP = 10;
 
 export interface RepoSectionInput {
@@ -15,6 +17,10 @@ export interface RepoSectionInput {
   roadmap?: DigestGroup[];
   /** Why the repo could not be read; renders instead of the lists. */
   error?: string;
+  /** A group key's display name (GitHub login → Slack name); a key without one shows as itself. */
+  names?: Record<string, string>;
+  /** Put an aside marker after each enabled section (FR13). */
+  asides?: boolean;
 }
 
 export function renderRepoSection(input: RepoSectionInput): string {
@@ -64,8 +70,24 @@ function renderList(list: ListSpec, input: RepoSectionInput): string[] {
 
   return [
     list.title,
-    ...renderGroups(input[list.section] ?? [], list.cap, list.empty),
+    ...renderGroups(
+      named(input[list.section], input.names),
+      list.cap,
+      list.empty,
+    ),
+    ...(input.asides ? [ASIDE_MARKER] : []),
   ];
+}
+
+/** Groups keyed by their display name, where one is known; the grouping itself stays by login, so one person is one group. */
+function named(
+  groups: DigestGroup[] | undefined,
+  names: Record<string, string> | undefined,
+): DigestGroup[] {
+  return (groups ?? []).map((group) => ({
+    ...group,
+    key: names?.[group.key] ?? group.key,
+  }));
 }
 
 function renderGroups(
@@ -102,6 +124,8 @@ export interface DigestDraftInput {
   wantsIntro: boolean;
   wantsEnding: boolean;
   recent: Array<{ intro: string; ending: string }>;
+  /** Who the agent writes as; empty for a plain friendly tone. */
+  voice?: string;
 }
 
 export function renderDigestDraft(input: DigestDraftInput): string {
@@ -111,7 +135,7 @@ export function renderDigestDraft(input: DigestDraftInput): string {
     `*Daily digest · ${header.date}*`,
     ...sections,
     ...(wantsEnding ? [ENDING_MARKER] : []),
-    renderAppendix(recent),
+    renderAppendix(recent, input.voice ?? ""),
   ];
 
   return paragraphs.join("\n\n");
@@ -119,6 +143,7 @@ export function renderDigestDraft(input: DigestDraftInput): string {
 
 function renderAppendix(
   recent: Array<{ intro: string; ending: string }>,
+  voice: string,
 ): string {
   const lines = recent.flatMap(({ intro, ending }) => [
     ...(intro ? [`- intro: ${intro}`] : []),
@@ -127,18 +152,21 @@ function renderAppendix(
 
   return [
     APPENDIX_MARKER,
+    ...(voice ? [`Voice: ${voice}`] : []),
     "Recent intros and endings already posted in this channel. Write something different in wording and angle:",
     ...(lines.length > 0 ? lines : ["(none yet)"]),
   ].join("\n");
 }
 
 /** The draft as postable text: the appendix and any marker the refine never filled are gone. */
+const UNFILLED = new Set([INTRO_MARKER, ENDING_MARKER, ASIDE_MARKER]);
+
 export function stripAppendix(text: string): string {
   const [message] = text.split(APPENDIX_MARKER);
 
   return message
     .split("\n")
-    .filter((line) => line !== INTRO_MARKER && line !== ENDING_MARKER)
+    .filter((line) => !UNFILLED.has(line))
     .join("\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();

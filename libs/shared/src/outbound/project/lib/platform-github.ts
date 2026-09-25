@@ -153,6 +153,10 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     return this.octo().then((ok) => fetchDefaultBranch(ok, repo));
   }
 
+  async commitEmailOf(repo: string, login: string): Promise<string | null> {
+    return repoContent.commitEmailOf(await this.octo(), repo, login);
+  }
+
   async listCommitsSince(
     repo: string,
     since: string,

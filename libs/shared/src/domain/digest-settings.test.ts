@@ -10,6 +10,7 @@ describe("resolveDigestSettings", () => {
       timezone: "Europe/Berlin",
       sections: ["implemented", "roadmap", "summary", "morale"],
       group_by: "person",
+      voice: "",
     });
   });
 

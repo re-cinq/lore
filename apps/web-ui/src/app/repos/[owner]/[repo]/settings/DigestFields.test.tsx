@@ -73,6 +73,19 @@ describe("DigestFields", () => {
     });
   });
 
+  it("prefills the voice field from the stored block", () => {
+    const { container } = render(
+      <DigestFields
+        digest={{ voice: "Michael Scott from The Office" }}
+        slackChannelSet
+      />,
+    );
+
+    expect(container.querySelector('input[name="digest_voice"]')).toHaveValue(
+      "Michael Scott from The Office",
+    );
+  });
+
   it("hints that a Slack channel is needed when none is set", () => {
     const { container } = render(
       <DigestFields digest={undefined} slackChannelSet={false} />,

@@ -85,3 +85,12 @@
   font-size: var(--fs-sm);
   overflow-x: auto;
 }
+
+.warn {
+  color: var(--warning);
+  background: var(--warning-bg);
+  border: 1px solid var(--warning);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3) var(--space-4);
+  margin: var(--space-3) 0;
+}

@@ -40,6 +40,7 @@ vi.mock("../../../work/digest/deps.js", () => ({
       closed: [],
       open: [],
     }),
+    namesFor: async () => ({}),
   }),
   uploadDeps: () => ({
     posts,

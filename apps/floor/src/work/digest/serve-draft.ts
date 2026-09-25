@@ -32,7 +32,11 @@ export interface DraftDeps {
   mergeArgs(runId: string, patch: Record<string, unknown>): Promise<void>;
   recentTexts(channelId: string, limit: number): Promise<DigestTexts[]>;
   collect: RepoCollector;
+  /** Slack display names of the GitHub logins a repo's section groups by (FR12); a login left out keeps its GitHub name. */
+  namesFor(repo: string, logins: string[]): Promise<Record<string, string>>;
 }
+
+type SectionDeps = Pick<DraftDeps, "collect" | "namesFor">;
 
 /** The draft for a run: the stored one when the pod already asked once, else collected now and stored; null for a run that is not a digest run. */
 export async function digestDraftOf(
@@ -58,10 +62,10 @@ export async function digestDraftOf(
 
 async function collectDraft(
   digest: DigestRun,
-  deps: Pick<DraftDeps, "recentTexts" | "collect">,
+  deps: Pick<DraftDeps, "recentTexts" | "collect" | "namesFor">,
 ): Promise<string> {
   const [sections, recent] = await Promise.all([
-    Promise.all(digest.repos.map((entry) => repoSection(entry, deps.collect))),
+    sectionsOf(digest, deps),
     deps.recentTexts(digest.channel, RECENT_TEXTS_LIMIT),
   ]);
 
@@ -71,30 +75,46 @@ async function collectDraft(
     wantsIntro: digest.repos.some((r) => r.sections.includes("summary")),
     wantsEnding: digest.repos.some((r) => r.sections.includes("morale")),
     recent,
+    voice: digest.voice,
   });
+}
+
+/** Every repo's section; a voice gets an aside after each (FR13). */
+function sectionsOf(digest: DigestRun, deps: SectionDeps): Promise<string[]> {
+  const asides = digest.voice !== "";
+
+  return Promise.all(
+    digest.repos.map((entry) => repoSection({ entry, asides }, deps)),
+  );
+}
+
+export interface SectionRequest {
+  entry: DigestRepo;
+  asides: boolean;
 }
 
 /** One repo's section; a repo whose read fails renders as a section saying so, so one broken repo never hides the others (FR6). */
 export async function repoSection(
-  entry: DigestRepo,
-  collect: RepoCollector,
+  { entry, asides }: SectionRequest,
+  deps: SectionDeps,
 ): Promise<string> {
-  const settings = resolveDigestSettings({
+  const base = { repo: entry.repo, settings: sectionSettings(entry) };
+
+  try {
+    const lists = groupedLists(await deps.collect(entry), entry);
+    const names = await peopleNames(entry, lists, deps);
+
+    return renderRepoSection({ ...base, names, asides, ...lists });
+  } catch (err) {
+    return renderRepoSection({ ...base, error: (err as Error).message });
+  }
+}
+
+function sectionSettings(entry: DigestRepo) {
+  return resolveDigestSettings({
     sections: entry.sections,
     group_by: entry.group_by,
   });
-
-  try {
-    const lists = groupedLists(await collect(entry), entry);
-
-    return renderRepoSection({ repo: entry.repo, settings, ...lists });
-  } catch (err) {
-    return renderRepoSection({
-      repo: entry.repo,
-      settings,
-      error: (err as Error).message,
-    });
-  }
 }
 
 /** The two lists of one repo, deduped and grouped the way the repo asked. */
@@ -109,4 +129,18 @@ function groupedLists(
     ),
     roadmap: groupRoadmap(open, entry.group_by),
   };
+}
+
+/** Only a person-grouped section has people to name; a failed lookup leaves every group under its GitHub login rather than failing the section. */
+async function peopleNames(
+  entry: DigestRepo,
+  lists: ReturnType<typeof groupedLists>,
+  deps: SectionDeps,
+): Promise<Record<string, string>> {
+  if (entry.group_by !== "person") {
+    return {};
+  }
+  const logins = [...lists.implemented, ...lists.roadmap].map((g) => g.key);
+
+  return deps.namesFor(entry.repo, logins).catch(() => ({}));
 }

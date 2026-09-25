@@ -14,6 +14,8 @@ export interface DigestRun {
   repos: DigestRepo[];
   /** Every repo on the channel, for the week's thread parent; the run's own repos when an older fan-out did not say. */
   channelRepos: string[];
+  /** Who the agent writes as; empty for a plain tone and no section asides (FR13). */
+  voice: string;
   draft: string | null;
 }
 
@@ -33,6 +35,7 @@ export function digestRunOf(run: AssemblyRunRecord): DigestRun | null {
     date: args.digest_date as string,
     repos,
     channelRepos: channelReposOf(args.channel_repos, repos),
+    voice: isText(args.voice) ? args.voice : "",
     draft: isText(args.digest_draft) ? args.digest_draft : null,
   };
 }

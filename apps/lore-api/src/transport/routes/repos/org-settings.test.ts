@@ -96,6 +96,45 @@ describe("org settings + repo sessions", () => {
       expect(pool.query).not.toHaveBeenCalled();
     });
 
+    it("stores a slack_users map of GitHub logins to Slack user ids", async () => {
+      const pool = makePool();
+
+      pool.query.mockResolvedValue({ rows: [] });
+      const value = JSON.stringify({ loredanamoanga: "U02LORE" });
+      const res = await call(
+        "PUT",
+        "/api/settings",
+        { entries: [{ key: "slack_users", value }] },
+        pool,
+      );
+
+      expect({
+        status: res.statusCode,
+        params: pool.query.mock.calls[0][1],
+      }).toEqual({
+        status: 200,
+        params: ["slack_users", value],
+      });
+    });
+
+    it("refuses a slack_users value that maps a login to something other than a Slack user id", async () => {
+      const pool = makePool();
+      const res = await call(
+        "PUT",
+        "/api/settings",
+        { entries: [{ key: "slack_users", value: '{"gedaiu":"bogdan"}' }] },
+        pool,
+      );
+
+      expect({
+        status: res.statusCode,
+        writes: pool.query.mock.calls.length,
+      }).toEqual({
+        status: 400,
+        writes: 0,
+      });
+    });
+
     it("refuses an unknown key", async () => {
       const res = await call("PUT", "/api/settings", {
         entries: [{ key: "not_a_setting", value: "x" }],
