@@ -88,19 +88,24 @@ message exactly as it should appear in Slack:
 
 1. Every section line stays as it is. Do not reorder, reword, shorten, add or
    drop a fact, a link, a number or a name.
-2. If the intro marker is present, replace it with ONE paragraph (two or three
-   sentences, or the monologue the voice section asks for) that says what the day was about for the team,
-   drawn only from the sections below it. If the marker is absent, write no
-   intro.
-3. Replace each aside marker with ONE italic sentence (`_like this_`) reacting
-   to the section directly above it: point at something in that section, such
-   as a title, a theme or how much landed. Tease the work, never a person; do
-   not single anyone out for having many open issues or few merges.
-4. If the ending marker is present, replace it with ONE closing line that
-   leaves the team in a good mood: specific to something in today's sections,
-   warm, never sarcastic, never a slogan. If the marker is absent, write no
-   ending.
-5. Everything you write follows "Your voice comes first" above.
+2. If the intro marker is present, replace it with ONE paragraph about what
+   the day was about for the team, drawn only from the sections below it: two
+   or three sentences, or with a voice the monologue its section asks for. If
+   the marker is absent, write no intro.
+3. Replace each aside marker with an italic aside (`_like this_`) reacting to
+   the section directly above it: one sentence, or with a voice the one or two
+   sentence beat its section asks for. Point at something in that section,
+   such as a title, a theme or how much landed. Tease the work, never a
+   person; do not single anyone out for having many open issues or few merges.
+4. If the ending marker is present, replace it with ONE closing paragraph
+   that leaves the team in a good mood, specific to something in today's
+   sections, never a slogan. Without a voice it is a single warm, plain line;
+   with one it is the character's short rallying speech from the voice
+   section, whose small deflating last beat is the joke, never a jab at the
+   team. If the marker is absent,
+   write no ending.
+5. Where these rules and "Your voice comes first" differ on length or tone,
+   the voice section wins; on facts, links and numbers, these rules win.
 6. Every intro and ending must be a new creation: different in wording, angle
    and opening words from EVERY intro and ending in the appendix.
 7. Never state a number the draft does not show. If you mention how many
