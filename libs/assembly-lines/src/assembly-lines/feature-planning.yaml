@@ -33,6 +33,19 @@ nodes:
     route: /repos/{args.repo}/plans/{args.plan_id}
     description: People write the plan, refine sections, and approve it.
 
+  # Started only by hand — the plan page's Validate button runs this station while
+  # the line waits on the author — so no edge leads here; every outcome hands the
+  # plan back to its people with the findings written into it.
+  - id: validate
+    type: agent
+    prompt_ref: plan-validate
+    station_ref: plan-validate
+    model: claude-sonnet-4-6
+    by_hand: true
+    description: >
+      Read the plan and the repository and report every contradiction and gap as
+      findings in the plan; never edits the plan.
+
   # Approving the plan starts the spec work on the SAME line: the approval is a
   # station outcome like any other, so what follows it is an edge, not a new run.
   - id: analyse-specs
@@ -236,3 +249,7 @@ edges:
   - from: analyze
     to: author
     on: failed
+
+  - from: validate
+    to: author
+    on: always

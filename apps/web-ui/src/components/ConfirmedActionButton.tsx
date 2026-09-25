@@ -1,14 +1,12 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import ConfirmDialog, {
   toneClass,
   type ConfirmQuestion,
 } from "./ConfirmDialog";
 import { FormError } from "./FormError";
-
-type ServerAction = () => Promise<{ error?: string }>;
+import { useRefreshingAction, type ServerAction } from "./useRefreshingAction";
 
 interface ConfirmedActionButtonProps {
   action: ServerAction;
@@ -60,21 +58,10 @@ function AskButton({
 }
 
 function useConfirmedAction(action: ServerAction) {
-  const router = useRouter();
   const [asking, setAsking] = useState(false);
-  const [error, setError] = useState<string>();
-  const [pending, startTransition] = useTransition();
-  const confirm = () =>
-    startTransition(async () => {
-      const result = await action();
+  const { error, pending, run } = useRefreshingAction(action, () =>
+    setAsking(false),
+  );
 
-      setAsking(false);
-      setError(result.error);
-
-      if (!result.error) {
-        router.refresh();
-      }
-    });
-
-  return { asking, setAsking, error, pending, confirm };
+  return { asking, setAsking, error, pending, confirm: run };
 }

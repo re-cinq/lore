@@ -429,10 +429,10 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 
 ### `libs/assembly-lines/src/loader.test.ts`
 
-- code-review is a suggestion-only review→done graph (no refine/auto-commit). ([validated by](libs/assembly-lines/src/loader.test.ts#L638))
-- gap-fill is a linear flow with retrospective + done as exit pair. ([validated by](libs/assembly-lines/src/loader.test.ts#L685))
-- assemblyLinesDir actually exists on disk (sanity check). ([validated by](libs/assembly-lines/src/loader.test.ts#L739))
-- code-review-recheck is a Gemini 3.1 Pro recheck→done graph routing every verdict to done. ([validated by](libs/assembly-lines/src/loader.test.ts#L939))
+- code-review is a suggestion-only review→done graph (no refine/auto-commit). ([validated by](libs/assembly-lines/src/loader.test.ts#L667))
+- gap-fill is a linear flow with retrospective + done as exit pair. ([validated by](libs/assembly-lines/src/loader.test.ts#L714))
+- assemblyLinesDir actually exists on disk (sanity check). ([validated by](libs/assembly-lines/src/loader.test.ts#L768))
+- code-review-recheck is a Gemini 3.1 Pro recheck→done graph routing every verdict to done. ([validated by](libs/assembly-lines/src/loader.test.ts#L968))
 
 ### `libs/shared/src/outbound/project/assembly-runs/assembly-runs.test.ts`
 

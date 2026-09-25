@@ -54,6 +54,8 @@ const NodeSchema = z.strictObject({
     })
     .optional(),
   description: z.string().optional(),
+  // A node started only by hand (`run_station`) while the line waits on a person; it needs no inbound edge.
+  by_hand: z.boolean().optional(),
   // STRICT: a mistyped key (`timeoutMinutes:`, `prompt-ref:`) used to be silently discarded; now a named, sourced load failure. Strictness adds no field, so it doesn't move definitionHash.
 });
 

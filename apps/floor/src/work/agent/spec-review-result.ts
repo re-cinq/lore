@@ -90,7 +90,7 @@ function skipReason(fileEvent: AgentFileEvent): SpecReviewDelivery | null {
 }
 
 // The newest run still going for the task — a rework re-runs the write node in the same run, so this is the run the review rides on.
-async function openRunOfTask(
+export async function openRunOfTask(
   taskId: string,
   assemblyRuns: Pick<AssemblyRunsPort, "listForTask">,
 ): Promise<AssemblyRunRecord | undefined> {

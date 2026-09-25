@@ -6,12 +6,13 @@ import { StatusPill } from "@/components/StatusPill";
 import type { PlanPageState } from "@/lib/plan-page-state";
 import ApprovePlanButton from "./ApprovePlanButton";
 import ReopenPlanButton from "./ReopenPlanButton";
+import ValidatePlanButton from "./ValidatePlanButton";
 import type { PlanActions } from "./plan-actions";
 import styles from "./PlanOutlineActions.module.scss";
 
 interface PlanOutlineActionsProps extends Pick<
   PlanActions,
-  "approve" | "reopen" | "retrySpecWork" | "reworkSpecs"
+  "approve" | "reopen" | "retrySpecWork" | "reworkSpecs" | "validate"
 > {
   state: PlanPageState;
   /** The outline's validation verdict; approval waits on it. */
@@ -29,9 +30,11 @@ const APPROVABLE: ReadonlySet<PlanPageState> = new Set([
   "reopened",
   "refining",
   "answering",
+  "validating",
 ]);
 
 const STILL_REFINING = "The planning agent is still refining a section";
+const STILL_VALIDATING = "The validator is reading the plan";
 
 const RETRY = {
   title: "Retry the spec work?",
@@ -55,7 +58,7 @@ const SPEC_PR_TITLES: Partial<Record<PlanPageState, string>> = {
   delivered: "Spec merged",
 };
 
-/** The action the plan's state calls for, drawn under the outline: approve while writing, reopen or retry once approved, and the spec PR wherever one exists. */
+/** The action the plan's state calls for, drawn under the outline: validate and approve while writing, reopen or retry once approved, and the spec PR wherever one exists. */
 export default function PlanOutlineActions(props: PlanOutlineActionsProps) {
   return (
     <div className={styles.actions}>
@@ -158,20 +161,42 @@ function unresolvedThreadsText(
 }
 
 function StateAction(props: PlanOutlineActionsProps) {
-  const { state, canApprove, approve, prNumber } = props;
+  return APPROVABLE.has(props.state) ? (
+    <DraftActions {...props} />
+  ) : (
+    <ApprovedActions {...props} />
+  );
+}
 
-  if (APPROVABLE.has(state)) {
-    return (
+function DraftActions({
+  state,
+  canApprove,
+  approve,
+  validate,
+  prNumber,
+}: PlanOutlineActionsProps) {
+  const waitingOn = draftWaitingOn(state);
+
+  return (
+    <>
+      <ValidatePlanButton validate={validate} waitingOn={waitingOn} />
       <ApprovePlanButton
         canApprove={canApprove}
         approve={approve}
-        waitingOn={state === "refining" ? STILL_REFINING : undefined}
+        waitingOn={waitingOn}
         updatesPr={state === "reopened" ? prNumber : null}
       />
-    );
+    </>
+  );
+}
+
+// What, if anything, holds up both draft actions while the outline still moves on its own.
+function draftWaitingOn(state: PlanPageState): string | undefined {
+  if (state === "validating") {
+    return STILL_VALIDATING;
   }
 
-  return <ApprovedActions {...props} />;
+  return state === "refining" ? STILL_REFINING : undefined;
 }
 
 function ApprovedActions({

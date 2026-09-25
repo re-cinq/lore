@@ -18,6 +18,7 @@ import type {
   SpecWorkDeps,
 } from "../../../work/plans/planning-line.js";
 import type { SpecReworkDeps } from "../../../work/plans/spec-rework.js";
+import type { PlanValidateDeps } from "../../../work/plans/plan-validate.js";
 import { eventReporterFor } from "../event-reporter.js";
 
 /** What resumes a repo's planning line: its assembly runs, and the reporter that raises the resume event. */
@@ -61,6 +62,28 @@ export async function specReworkDepsFor(
     line: new AssemblyRuns(repo, runs),
     runs,
     pulls: (await projectFor(repo)).pulls,
+    station: {
+      runs,
+      reporter: eventReporterFor(pool),
+      graphOf: (line) => resolveRunGraph(line, loadBuiltinAssemblyLines),
+      humanStationIds,
+    },
+  };
+}
+
+/** What plan validation needs: the plan's line, and the hand-run mechanism to launch the validate station. */
+export type PlanValidateRouteDeps = PlanValidateDeps & {
+  line: PlanningRunPort;
+};
+
+export async function planValidateDepsFor(
+  repo: string,
+  pool: Pool,
+): Promise<PlanValidateRouteDeps> {
+  const runs = new PgAssemblyRuns(pool);
+
+  return {
+    line: new AssemblyRuns(repo, runs),
     station: {
       runs,
       reporter: eventReporterFor(pool),

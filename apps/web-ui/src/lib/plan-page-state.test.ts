@@ -44,6 +44,15 @@ describe("planPageState for a draft plan", () => {
     ).toBe("refining");
   });
 
+  it("is validating while the plan validator runs on the author's branch", () => {
+    expect(
+      planPageState(
+        "draft",
+        run("running", [visit("author", null), visit("validate", null)]),
+      ),
+    ).toBe("validating");
+  });
+
   it("is reopened while the line waits on the author with spec PR #7 already open", () => {
     expect(
       planPageState(

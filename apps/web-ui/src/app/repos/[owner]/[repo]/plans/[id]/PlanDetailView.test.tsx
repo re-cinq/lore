@@ -32,6 +32,7 @@ const actions = {
   reopen: async () => ({}),
   retrySpecWork: async () => ({}),
   reworkSpecs: async () => ({}),
+  validate: async () => ({}),
   deletePlan: vi.fn(async () => ({})),
 };
 
