@@ -108,6 +108,22 @@ describe("approvePlanAction", () => {
     });
   });
 
+  it("counts unresolved findings among the refusal problems", async () => {
+    answer(409, {
+      error: "plan p1 is not ready for approval",
+      problems: [
+        { code: "unresolved-finding", slot: "s1", blockId: "b1", message: "m1" },
+        { code: "unresolved-finding", slot: "s2", blockId: "b2", message: "m2" },
+        { code: "empty-required-section", slot: "s3" },
+      ],
+    });
+
+    expect(await approvePlanAction("re-cinq/lore", "p1")).toEqual({
+      error:
+        "The plan has 2 unresolved findings; resolve them before approving.",
+    });
+  });
+
   it("reports lore-api's reason when the planning agent is still refining a section", async () => {
     answer(409, { error: "the planning agent is still refining a section" });
 

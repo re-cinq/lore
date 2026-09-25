@@ -51,13 +51,37 @@ export async function approvePlanAction(
   return approved.status === "ok" ? {} : { error: approvalRefusal(approved) };
 }
 
+type ApprovalProblem = { code: string };
+
+function isApprovalProblems(value: unknown): value is ApprovalProblem[] {
+  return Array.isArray(value);
+}
+
 // A refusal carrying the validation report is the outline's job to explain; any other reason is lore-api's own sentence.
 function approvalRefusal(result: ApiResult<unknown>): string {
   const problems =
     result.status === "error" &&
     (result.body as { problems?: unknown }).problems;
 
-  return problems ? "The plan is not ready to approve yet." : refusalOf(result);
+  if (!problems) {
+    return refusalOf(result);
+  }
+
+  const unresolvedCount = isApprovalProblems(problems)
+    ? problems.filter((problem) => problem.code === "unresolved-finding")
+        .length
+    : 0;
+
+  return unresolvedCount > 0
+    ? unresolvedFindingsRefusal(unresolvedCount)
+    : "The plan is not ready to approve yet.";
+}
+
+function unresolvedFindingsRefusal(count: number): string {
+  const noun = count === 1 ? "finding" : "findings";
+  const pronoun = count === 1 ? "it" : "them";
+
+  return `The plan has ${count} unresolved ${noun}; resolve ${pronoun} before approving.`;
 }
 
 // lore-api's reasons are lower-case clauses; the page shows them as sentences.
