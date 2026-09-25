@@ -18,36 +18,53 @@ export interface RepoSectionInput {
 }
 
 export function renderRepoSection(input: RepoSectionInput): string {
-  const { repo, settings, error } = input;
+  const { repo, error } = input;
 
   if (error) {
     return `*${repo}*\n_could not read ${repo}: ${error}_`;
   }
-  const parts = [`*${repo}*`];
 
-  if (settings.sections.includes("implemented")) {
-    parts.push(
-      "_Implemented_",
-      ...renderGroups(
-        input.implemented ?? [],
-        Infinity,
-        "Nothing merged or closed since the last digest.",
-      ),
-    );
+  return [
+    `*${repo}*`,
+    ...LISTS.flatMap((list) => renderList(list, input)),
+  ].join("\n");
+}
+
+interface ListSpec {
+  section: "implemented" | "roadmap";
+  title: string;
+  cap: number;
+  empty: string;
+}
+
+/** The two lists a repo section can carry, in the order they are shown. */
+const LISTS: ListSpec[] = [
+  {
+    section: "implemented",
+    title: "_Implemented_",
+    cap: Infinity,
+    empty: "Nothing merged or closed since the last digest.",
+  },
+  {
+    section: "roadmap",
+    title: "_Roadmap_",
+    cap: ROADMAP_CAP,
+    empty: "No assigned open issues.",
+  },
+];
+
+/** One list's lines, or none when the repo did not enable its section. */
+function renderList(list: ListSpec, input: RepoSectionInput): string[] {
+  const { sections } = input.settings;
+
+  if (!sections.includes(list.section)) {
+    return [];
   }
 
-  if (settings.sections.includes("roadmap")) {
-    parts.push(
-      "_Roadmap_",
-      ...renderGroups(
-        input.roadmap ?? [],
-        ROADMAP_CAP,
-        "No assigned open issues.",
-      ),
-    );
-  }
-
-  return parts.join("\n");
+  return [
+    list.title,
+    ...renderGroups(input[list.section] ?? [], list.cap, list.empty),
+  ];
 }
 
 function renderGroups(
