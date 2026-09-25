@@ -56,6 +56,5 @@ function wireBody(input: SlackPost): Record<string, unknown> {
     text: input.text,
     unfurl_links: input.unfurlLinks ?? true,
     ...(input.threadTs ? { thread_ts: input.threadTs } : {}),
-    ...(input.replyBroadcast ? { reply_broadcast: true } : {}),
   };
 }

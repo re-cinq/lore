@@ -168,19 +168,18 @@ async function threadOf(digest: DigestRun, deps: DeliverDeps): Promise<string> {
   return parent.ts;
 }
 
-/** Consecutive replies in the thread; only the first is broadcast to the channel (FR8). Sequential on purpose: Slack orders replies by arrival. */
+/** Consecutive replies inside the thread, never broadcast: the channel shows only the week's parent (FR7). Sequential on purpose: Slack orders replies by arrival. */
 async function postChunks(
   digest: DigestRun,
   chunks: string[],
   progress: Progress,
   poster: SlackPosterPort,
 ): Promise<void> {
-  for (const [index, text] of chunks.entries()) {
+  for (const text of chunks) {
     await poster.post({
       channel: digest.channel,
       text,
       threadTs: progress.threadTs,
-      replyBroadcast: index === 0,
     });
     progress.replies += 1;
   }
