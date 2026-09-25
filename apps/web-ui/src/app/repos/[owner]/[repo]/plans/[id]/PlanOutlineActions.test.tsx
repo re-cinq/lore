@@ -65,6 +65,25 @@ describe("PlanOutlineActions", () => {
     );
   });
 
+  it("disables both draft actions while the validator reads the plan", () => {
+    outline("validating");
+
+    const buttonElements = screen.getAllByRole("button");
+
+    expect({
+      buttons: buttons(),
+      disabled: buttonElements.map((button) => button.hasAttribute("disabled")),
+      titles: buttonElements.map((button) => button.getAttribute("title")),
+    }).toEqual({
+      buttons: ["Validate the plan", "Approve plan"],
+      disabled: [true, true],
+      titles: [
+        "The validator is reading the plan",
+        "The validator is reading the plan",
+      ],
+    });
+  });
+
   it("says approving a reopened plan updates spec PR #7", () => {
     outline("reopened", 7);
     fireEvent.click(screen.getByRole("button", { name: "Approve plan" }));

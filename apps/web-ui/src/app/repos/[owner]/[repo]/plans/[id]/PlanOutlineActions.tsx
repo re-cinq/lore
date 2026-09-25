@@ -30,9 +30,11 @@ const APPROVABLE: ReadonlySet<PlanPageState> = new Set([
   "reopened",
   "refining",
   "answering",
+  "validating",
 ]);
 
 const STILL_REFINING = "The planning agent is still refining a section";
+const STILL_VALIDATING = "The validator is reading the plan";
 
 const RETRY = {
   title: "Retry the spec work?",
@@ -173,17 +175,28 @@ function DraftActions({
   validate,
   prNumber,
 }: PlanOutlineActionsProps) {
+  const waitingOn = draftWaitingOn(state);
+
   return (
     <>
-      <ValidatePlanButton validate={validate} />
+      <ValidatePlanButton validate={validate} waitingOn={waitingOn} />
       <ApprovePlanButton
         canApprove={canApprove}
         approve={approve}
-        waitingOn={state === "refining" ? STILL_REFINING : undefined}
+        waitingOn={waitingOn}
         updatesPr={state === "reopened" ? prNumber : null}
       />
     </>
   );
+}
+
+// What, if anything, holds up both draft actions while the outline still moves on its own.
+function draftWaitingOn(state: PlanPageState): string | undefined {
+  if (state === "validating") {
+    return STILL_VALIDATING;
+  }
+
+  return state === "refining" ? STILL_REFINING : undefined;
 }
 
 function ApprovedActions({

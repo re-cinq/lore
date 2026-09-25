@@ -116,6 +116,15 @@ describe("feature-planning author loop", () => {
       ]),
     ).toEqual({ kind: "launch", nodeId: "author", iteration: 1 });
   });
+
+  it("relaunches the author once a hand-run validate succeeds over the cancelled wait", async () => {
+    expect(
+      getNextTransition(await planning(), [
+        visit("analyze", 1, "success"),
+        { nodeId: "validate", iteration: 1, outcome: "success", requestedBy: "gedaiu" },
+      ]),
+    ).toEqual({ kind: "launch", nodeId: "author", iteration: 1 });
+  });
 });
 
 describe("feature-planning after the author accepts", () => {
