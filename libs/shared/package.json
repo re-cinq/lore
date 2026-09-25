@@ -34,6 +34,14 @@
       "types": "./dist/outbound/db/*.d.ts",
       "default": "./dist/outbound/db/*.js"
     },
+    "./digest/*.js": {
+      "types": "./dist/work/digest/*.d.ts",
+      "default": "./dist/work/digest/*.js"
+    },
+    "./digest-settings.js": {
+      "types": "./dist/domain/digest-settings.d.ts",
+      "default": "./dist/domain/digest-settings.js"
+    },
     "./detect/*.js": {
       "types": "./dist/work/detect/*.d.ts",
       "default": "./dist/work/detect/*.js"

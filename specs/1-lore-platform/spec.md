@@ -1311,7 +1311,7 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   DNS + HTTPS + internal Lore API only. ([validated by `security-posture.test.ts:71`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L71), [`security-posture.test.ts:76`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L76), [`security-posture.test.ts:84`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L84), [`security-posture.test.ts:90`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L90))
 - Rate limiting: 30/min webhooks, 60/min task ops, 200/min other
   (in-memory sliding window). 1 MB body size limit. ([validated by `rate-limit.test.ts:53`](apps/lore-api/src/transport/http/rate-limit.test.ts#L50), [`rate-limit.test.ts:39`](apps/lore-api/src/transport/http/rate-limit.test.ts#L39), [`auth.test.ts:17`](apps/lore-api/src/transport/http/auth.test.ts#L17), [`webhook-incident.test.ts:144`](apps/lore-api/src/transport/routes/webhooks/webhook-incident.test.ts#L144))
-- Slack indexing opt-in per channel only; DMs never indexed. ([validated by `notify-slack.test.ts:10`](libs/shared/src/outbound/project/notify/notify-slack.test.ts#L10), [`notify-decision.test.ts:30`](libs/shared/src/outbound/project/notify/notify-decision.test.ts#L30))
+- Slack indexing opt-in per channel only; DMs never indexed. ([validated by `notify-slack.test.ts:10`](libs/shared/src/outbound/project/notify/notify-slack.test.ts#L11), [`notify-decision.test.ts:30`](libs/shared/src/outbound/project/notify/notify-decision.test.ts#L30))
 
 ### NFR-2: Reliability & Freshness
 

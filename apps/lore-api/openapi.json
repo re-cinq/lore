@@ -8422,7 +8422,7 @@
                             },
                             "source": {
                               "type": "string",
-                              "enum": ["plan"]
+                              "enum": ["plan", "digest-draft"]
                             }
                           },
                           "required": ["path", "source"],
@@ -8580,7 +8580,7 @@
                                   },
                                   "source": {
                                     "type": "string",
-                                    "enum": ["plan"]
+                                    "enum": ["plan", "digest-draft"]
                                   }
                                 },
                                 "required": ["path", "source"],
@@ -8812,7 +8812,7 @@
                             },
                             "source": {
                               "type": "string",
-                              "enum": ["plan"]
+                              "enum": ["plan", "digest-draft"]
                             }
                           },
                           "required": ["path", "source"],
@@ -9780,7 +9780,7 @@
                                       },
                                       "source": {
                                         "type": "string",
-                                        "enum": ["plan"]
+                                        "enum": ["plan", "digest-draft"]
                                       }
                                     },
                                     "required": ["path", "source"],
@@ -12476,7 +12476,7 @@
                             },
                             "source": {
                               "type": "string",
-                              "enum": ["plan"]
+                              "enum": ["plan", "digest-draft"]
                             }
                           },
                           "required": ["path", "source"],
@@ -12638,7 +12638,7 @@
                               },
                               "source": {
                                 "type": "string",
-                                "enum": ["plan"]
+                                "enum": ["plan", "digest-draft"]
                               }
                             },
                             "required": ["path", "source"],
