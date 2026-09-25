@@ -25,6 +25,7 @@ import {
   type PlanRunRef,
 } from "../../../work/agent/planning-result.js";
 import { deliverSpecReviewResult } from "../../../work/agent/spec-review-result.js";
+import { deliverPlanValidation } from "../../../work/agent/plan-validation-result.js";
 import { deliverArtifact } from "../../../work/agent/artifact-args.js";
 import {
   parseAgentSink,
@@ -175,6 +176,7 @@ async function recordSinkProjections(
   const planningRounds = await recordPlanningResults(parsed.fileEvents);
 
   await deliverSpecReviewResults(parsed.fileEvents);
+  await deliverPlanValidations(parsed.fileEvents);
   await mergeArtifacts(parsed.fileEvents);
 
   reportTurnAnomalies(parsed.turnsDropped, parsed.turnsCapped);
@@ -258,6 +260,25 @@ async function deliverSpecReviewResults(
       });
     } catch (err) {
       console.warn(`[floor] spec review result skipped: ${errorMessage(err)}`);
+    }
+  }
+}
+
+// The plan validator's findings go to the plan, not the line's args; skip-not-fail like the spec review results, per event so one bad finding set never holds another run's back.
+async function deliverPlanValidations(
+  fileEvents: readonly AgentFileEvent[],
+): Promise<void> {
+  for (const fileEvent of fileEvents) {
+    try {
+      await deliverPlanValidation(fileEvent, {
+        assemblyRuns: pipeline().assemblyRuns,
+        plans: loreApiPlans(
+          process.env.LORE_API_URL ?? "",
+          process.env.LORE_INGEST_TOKEN ?? "",
+        ),
+      });
+    } catch (err) {
+      console.warn(`[floor] plan validation result skipped: ${errorMessage(err)}`);
     }
   }
 }

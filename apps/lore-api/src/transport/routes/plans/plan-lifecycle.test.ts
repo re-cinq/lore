@@ -132,6 +132,104 @@ const rework = (server: Hapi.Server) =>
     payload: { actor: "gedaiu" },
   });
 
+const VALIDATE_GRAPH: RunGraph = {
+  name: "feature-planning",
+  entry: "validate",
+  exit: "done",
+  nodes: [
+    { id: "validate", type: "agent", station: "s", station_inherited: false },
+    {
+      id: "author",
+      type: "pr_review",
+      station: "s",
+      station_inherited: false,
+    },
+    {
+      id: "done",
+      type: "retrospective",
+      station: "s",
+      station_inherited: false,
+    },
+  ],
+  edges: [{ from: "validate", to: "author" }],
+};
+
+async function lineParkedOnAuthor(runs: InMemoryAssemblyRuns) {
+  const id = await runs.start({
+    blueprintName: "feature-planning",
+    repo: REPO,
+    branch: "lore/feature-planning/faster-checkout-abcd1234",
+    subjectKey: `plan:${PLAN_ID}`,
+    args: {},
+  });
+
+  await runs.markRunning(id);
+  await runs.stampBlueprint(id, "hash", VALIDATE_GRAPH);
+  await runs.ensureStationRun({
+    assemblyRunId: id,
+    nodeId: "author",
+    iteration: 1,
+  });
+
+  return id;
+}
+
+function validateSubject() {
+  const runs = new InMemoryAssemblyRuns();
+  const reporter = new InMemoryEventReporter();
+  const deps = {
+    line: new AssemblyRuns(REPO, runs),
+    station: {
+      runs,
+      reporter,
+      graphOf: async () => VALIDATE_GRAPH,
+      humanStationIds: () => new Set(["author"]),
+    },
+  };
+  const pool = planPool("draft");
+  const server = Hapi.server();
+
+  registerBearerScope(server, () => pool);
+  server.route(
+    planLifecycleRoutes({
+      service: {} as PlanLifecyclePorts["service"],
+      getPool: () => pool,
+      planValidateDeps: async () => deps,
+    } as never),
+  );
+
+  return { server, runs };
+}
+
+describe("POST /api/repos/{owner}/{repo}/plans/{id}/validate", () => {
+  beforeEach(() => {
+    process.env.LORE_INGEST_TOKEN = LEGACY_TOKEN;
+  });
+  afterEach(() => {
+    process.env = { ...originalEnv };
+  });
+
+  it("starts the validate station on the line parked on author", async () => {
+    const { server, runs } = validateSubject();
+    const id = await lineParkedOnAuthor(runs);
+
+    const res = await server.inject({
+      method: "POST",
+      url: `/api/repos/${REPO}/plans/${PLAN_ID}/validate`,
+      headers: AUTH,
+      payload: { actor: "gedaiu" },
+    });
+
+    expect({
+      statusCode: res.statusCode,
+      payload: JSON.parse(res.payload) as unknown,
+    }).toEqual({
+      statusCode: 202,
+      payload: { run_id: id },
+    });
+  });
+});
+
 describe("POST /api/repos/{owner}/{repo}/plans/{id}/spec-rework", () => {
   beforeEach(() => {
     process.env.LORE_INGEST_TOKEN = LEGACY_TOKEN;

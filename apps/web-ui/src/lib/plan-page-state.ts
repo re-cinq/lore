@@ -4,6 +4,7 @@ import { isDraftingPlan } from "./plan-run-phase";
 export type PlanPageState =
   | "drafting"
   | "writing"
+  | "validating"
   | "refining"
   | "reopened"
   | "spec-work"
@@ -52,6 +53,10 @@ function draftState(run: RunFacts): PlanPageState {
 
   if (open === "analyze") {
     return "refining";
+  }
+
+  if (open === "validate") {
+    return "validating";
   }
 
   return open === "author" ? authorState(run) : "writing";

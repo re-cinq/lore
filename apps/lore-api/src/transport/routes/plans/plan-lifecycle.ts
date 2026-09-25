@@ -23,12 +23,15 @@ import {
   startSpecWork,
 } from "../../../work/plans/planning-line.js";
 import { startSpecRework } from "../../../work/plans/spec-rework.js";
+import { startPlanValidation } from "../../../work/plans/plan-validate.js";
 import { pgPlanStore } from "../../../outbound/plans/plan-store-pg.js";
 import {
+  planValidateDepsFor,
   projectionOf,
   resumeDepsFor,
   specReworkDepsFor,
   specWorkDepsFor,
+  type PlanValidateRouteDeps,
   type SpecReworkRouteDeps,
 } from "./plan-line-deps.js";
 import { bearerScope } from "../../http/bearer-scope.js";
@@ -43,10 +46,20 @@ export interface PlanLifecyclePorts {
   getPool: () => Pool | null;
   /** The rework's deps per repo; the production wiring reads the PR through the repo's GitHub App, a test hands in doubles. */
   specReworkDeps?: (repo: string, pool: Pool) => Promise<SpecReworkRouteDeps>;
+  /** The validator's deps per repo; a test hands in doubles. */
+  planValidateDeps?: (
+    repo: string,
+    pool: Pool,
+  ) => Promise<PlanValidateRouteDeps>;
 }
 
 export function planLifecycleRoutes(ports: PlanLifecyclePorts): ServerRoute[] {
-  const { service, getPool, specReworkDeps = specReworkDepsFor } = ports;
+  const {
+    service,
+    getPool,
+    specReworkDeps = specReworkDepsFor,
+    planValidateDeps = planValidateDepsFor,
+  } = ports;
 
   return [
     lifecycleRoute(getPool, "approve", APPROVE_OPTIONS, (pool, request, h) =>
@@ -57,6 +70,7 @@ export function planLifecycleRoutes(ports: PlanLifecyclePorts): ServerRoute[] {
     ),
     lifecycleRoute(getPool, "spec-work", SPEC_WORK_OPTIONS, serveSpecWork),
     specReworkRoute(getPool, specReworkDeps),
+    validateRoute(getPool, planValidateDeps),
     lifecycleRoute(
       getPool,
       "author-waiting",
@@ -141,6 +155,24 @@ const SPEC_REWORK_OPTIONS = zodResponse(
     status: 202,
     description:
       "The spec writer runs again in the same line with the spec PR's unresolved review: the specs are amended on the PR's branch, and whatever contradicts the plan comes back to it as questions",
+    errors: [404, 409],
+  },
+);
+
+const PlanValidateBody = z.object({ actor: z.string().min(1) });
+const PlanValidateSchema = z.object({ run_id: z.string() });
+
+const VALIDATE_OPTIONS = zodResponse(
+  {
+    ...bearerScope("write"),
+    validate: { payload: zodValidate(PlanValidateBody) },
+  },
+  PlanValidateSchema,
+  {
+    name: "PlanValidateStarted",
+    status: 202,
+    description:
+      "Runs the plan validator over a draft plan parked on its author; findings land in the plan",
     errors: [404, 409],
   },
 );
@@ -265,6 +297,30 @@ async function serveSpecRework(
   const runId = await startSpecRework(deps, { plan, line, actor });
 
   return h.response({ run_id: runId }).code(202);
+}
+
+function validateRoute(
+  getPool: PlanLifecyclePorts["getPool"],
+  depsFor: NonNullable<PlanLifecyclePorts["planValidateDeps"]>,
+): ServerRoute {
+  return lifecycleRoute(getPool, "validate", VALIDATE_OPTIONS, (pool, request, h) =>
+    serveValidate(depsFor, pool, request, h),
+  );
+}
+
+async function serveValidate(
+  depsFor: NonNullable<PlanLifecyclePorts["planValidateDeps"]>,
+  pool: Pool,
+  request: Request,
+  h: ResponseToolkit,
+) {
+  const plan = await repoPlan(() => pool, request);
+  const { actor } = request.payload as z.infer<typeof PlanValidateBody>;
+  const deps = await depsFor(plan.repo, pool);
+  const line = await planLineState(deps.line, plan.id);
+  const result = await startPlanValidation(deps, { plan, line, actor });
+
+  return h.response(result).code(202);
 }
 
 // The plan the path names, only when it belongs to the path's repo.

@@ -5,10 +5,15 @@ import type {
   AssemblyRunsPort,
 } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { SPEC_REVIEW_RESULT_EVENT } from "@re-cinq/lore-shared/review/spec-review.js";
+import { PLAN_VALIDATION_RESULT_EVENT } from "@re-cinq/lore-shared/review/plan-validation.js";
 import { parseAgentSink, type AgentFileEvent } from "./agent-events.js";
 
-/** Written into its plan and its PR, not the line — see deliverPlanningResult and deliverSpecReviewResult. */
-const OWNED_ELSEWHERE = new Set(["planning.result", SPEC_REVIEW_RESULT_EVENT]);
+/** Written into its plan and its PR, not the line — see deliverPlanningResult, deliverSpecReviewResult, and deliverPlanValidation. */
+const OWNED_ELSEWHERE = new Set([
+  "planning.result",
+  SPEC_REVIEW_RESULT_EVENT,
+  PLAN_VALIDATION_RESULT_EVENT,
+]);
 
 export interface ArtifactArgsDeps {
   assemblyRuns: Pick<AssemblyRunsPort, "listForTask" | "mergeArgs">;

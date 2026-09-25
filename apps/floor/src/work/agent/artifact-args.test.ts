@@ -71,6 +71,22 @@ describe("deliverArtifact", () => {
     ).toMatchObject({ outcome: "skipped" });
   });
 
+  it("leaves the plan validation result to deliverPlanValidation, merging nothing into args", async () => {
+    const lines = new InMemoryAssemblyRuns();
+    const id = await lineFor(lines);
+
+    await deliverArtifact(
+      fileEvent({
+        event: "plan.validation.result",
+        path: "plan-validation-result.json",
+        content: '{"findings":[]}',
+      }),
+      { assemblyRuns: lines },
+    );
+
+    expect((await lines.getById(id))?.args).toEqual({ description: "d" });
+  });
+
   it("merges nothing when the agent never produced the artifact, since the node's own outcome already reports it", async () => {
     const lines = new InMemoryAssemblyRuns();
     const id = await lineFor(lines);
