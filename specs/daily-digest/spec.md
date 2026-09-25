@@ -25,7 +25,7 @@ are pruned after seven days), the GitHub port has no "merged since", "closed
 since" or assignee reads, no Slack post has ever used a thread, and no setting
 carries a time of day.
 
-## Shape
+## Background: how it runs
 
 An assembly line with one agent node, `refine`, and the exit marker. The
 Floor's cron emitter `daily_digest` ticks every 15 minutes; the tick handler
@@ -48,7 +48,7 @@ posts it to Slack. A failed or dead agent still gets the draft posted.
 
 ## FR3 — What is collected
 
-- The implemented window opens at the repo's last digest post, or 24 hours back on the first run.
+- The implemented window opens at the repo's last digest post, or 24 hours back on the first run. ([validated by `fan-out.test.ts:96`](apps/floor/src/work/digest/fan-out.test.ts#L96), [`fan-out.test.ts:130`](apps/floor/src/work/digest/fan-out.test.ts#L130))
 - Implemented changes are the PRs merged in the window, read newest first from GitHub's closed listing, which stops paging once it passes the cutoff, and the issues closed in the window with their assignees. ([validated by `platform-github.test.ts:225`](libs/shared/src/outbound/project/lib/platform-github.test.ts#L225), [`platform-github.test.ts:254`](libs/shared/src/outbound/project/lib/platform-github.test.ts#L254), [`platform-github.test.ts:267`](libs/shared/src/outbound/project/lib/platform-github.test.ts#L267), [`platform-github.test.ts:280`](libs/shared/src/outbound/project/lib/platform-github.test.ts#L280), [`platform-github.test.ts:302`](libs/shared/src/outbound/project/lib/platform-github.test.ts#L302))
 - Roadmap is every open issue that has at least one assignee; an unassigned open issue says nothing about who is busy. ([validated by `group.test.ts:69`](libs/shared/src/work/digest/group.test.ts#L69))
 
@@ -95,4 +95,6 @@ posts it to Slack. A failed or dead agent still gets the draft posted.
 
 ## FR10 — Settings page
 
-- The repo settings page carries a Daily digest section with the enable switch, time of day, weekdays, timezone, sections and grouping, always sent whole.
+- The repo settings page carries a Daily digest section after the cross-repo field, prefilled from the stored block or, when none is stored, from the defaults. ([validated by `SettingsView.test.tsx:64`](apps/web-ui/src/app/repos/[owner]/[repo]/settings/SettingsView.test.tsx#L64), [`DigestFields.test.tsx:14`](apps/web-ui/src/app/repos/[owner]/[repo]/settings/DigestFields.test.tsx#L14), [`DigestFields.test.tsx:52`](apps/web-ui/src/app/repos/[owner]/[repo]/settings/DigestFields.test.tsx#L52))
+- It offers the enable switch, the time of day, the weekdays, every timezone the browser knows (keeping a stored one it does not list), the sections and the grouping, and hints that the digest needs a Slack channel when none is set. ([validated by `DigestFields.test.tsx:76`](apps/web-ui/src/app/repos/[owner]/[repo]/settings/DigestFields.test.tsx#L76), [`DigestFields.test.tsx:86`](apps/web-ui/src/app/repos/[owner]/[repo]/settings/DigestFields.test.tsx#L86))
+- The form sends the block whole, since the settings route merges shallowly, falling back to 09:00 for a malformed time and dropping unknown days and sections. ([validated by `settings-digest.test.ts:20`](apps/web-ui/src/lib/settings-digest.test.ts#L20), [`settings-digest.test.ts:42`](apps/web-ui/src/lib/settings-digest.test.ts#L42), [`settings-digest.test.ts:53`](apps/web-ui/src/lib/settings-digest.test.ts#L53), [`settings-digest.test.ts:71`](apps/web-ui/src/lib/settings-digest.test.ts#L71))

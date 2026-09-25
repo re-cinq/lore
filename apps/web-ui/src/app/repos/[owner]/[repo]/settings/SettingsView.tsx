@@ -1,6 +1,7 @@
 "use client";
 import HelpPopover from "@/components/HelpPopover";
 import SettingsFormShell, { type SaveAction } from "./SettingsFormShell";
+import DigestFields from "./DigestFields";
 import { SubmitButton } from "@/components/SubmitButton";
 import type { components } from "@/lib/api/schema";
 import styles from "./page.module.css";
@@ -19,11 +20,10 @@ export interface SettingsViewProps {
 
 /** Says what this tab covers, so a reader knows before scrolling which settings live here and which live on a sibling tab. */
 const SETTINGS_LEDE =
-  "Per-repo general configuration: routing, trust, and cross-repo context.";
+  "Per-repo general configuration: routing, trust, cross-repo context, and the daily Slack digest.";
 
 export default function SettingsView(props: SettingsViewProps) {
   const { fullName, team, settings, allRepos, saveAction } = props;
-  const selectedRepos = settings.cross_repo_repos ?? [];
 
   return (
     <SettingsFormShell
@@ -33,10 +33,31 @@ export default function SettingsView(props: SettingsViewProps) {
       help={<SettingsHelp />}
       lede={SETTINGS_LEDE}
     >
-      <GeneralFields team={team} settings={settings} />
-      <CrossRepoField allRepos={allRepos} selectedRepos={selectedRepos} />
+      <SettingsSections team={team} settings={settings} allRepos={allRepos} />
       <SubmitButton pendingLabel="Saving…">Save Settings</SubmitButton>
     </SettingsFormShell>
+  );
+}
+
+type SettingsSectionsProps = Pick<
+  SettingsViewProps,
+  "team" | "settings" | "allRepos"
+>;
+
+/** The form's three sections, top to bottom. */
+function SettingsSections({ team, settings, allRepos }: SettingsSectionsProps) {
+  return (
+    <>
+      <GeneralFields team={team} settings={settings} />
+      <CrossRepoField
+        allRepos={allRepos}
+        selectedRepos={settings.cross_repo_repos ?? []}
+      />
+      <DigestFields
+        digest={settings.digest ?? undefined}
+        slackChannelSet={Boolean(settings.slack_channel_id)}
+      />
+    </>
   );
 }
 
