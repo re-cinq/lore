@@ -7,6 +7,7 @@ import { detectSubject } from "@re-cinq/lore-shared/project/assembly-runs/subjec
 import type { EventHandler } from "../../domain/event-types.js";
 import { query } from "../../outbound/db.js";
 import { pipeline, settings } from "../../outbound/queues.js";
+import { startUnderJobRun } from "../fan-out/start-under-job-run.js";
 
 /** Synthetic ref — detect nodes read through the API and clone nothing. No longer the overlap-guard key ({@link detectSubject} is). */
 export function detectBranchName(blueprintName: string, repo: string): string {
@@ -172,9 +173,19 @@ async function processDetectRepo(
     return;
   }
   const jobRunId = await deps.jobRuns.start(`${jobRef}:${repo}`);
-  const id = await startUnderJobRun(blueprintName, repo, jobRunId, deps);
+  const { id, joined } = await startUnderJobRun(
+    `[detect] ${blueprintName}: ${repo}`,
+    {
+      blueprintName,
+      repo,
+      branch: detectBranchName(blueprintName, repo),
+      subjectKey: detectSubject(blueprintName, repo),
+    },
+    jobRunId,
+    deps,
+  );
 
-  if (await joinedAnotherTick({ blueprintName, repo, id, jobRunId }, deps)) {
+  if (joined) {
     return;
   }
 
@@ -199,64 +210,6 @@ async function detectAlreadyInFlight(
   }
   console.log(
     `[detect] ${blueprintName}: ${repo} already running as ${inFlight.id}, skipping`,
-  );
-
-  return true;
-}
-
-/** Starts (or joins) the detect run for one repo; never throws for a "superseded" join, only for a genuine `assembly_line.start` failure. */
-async function startUnderJobRun(
-  blueprintName: string,
-  repo: string,
-  jobRunId: string,
-  deps: DetectFanOutDeps,
-): Promise<string> {
-  try {
-    return await deps.assemblyRuns.start({
-      blueprintName,
-      repo,
-      branch: detectBranchName(blueprintName, repo),
-      subjectKey: detectSubject(blueprintName, repo),
-      args: { job_run_id: jobRunId },
-    });
-  } catch (err) {
-    return failOrphanedJobRun(jobRunId, err, deps);
-  }
-}
-
-/** A throw mid-loop would ORPHAN the job_run — nothing reaps those — so it is failed before the error is rethrown, and the retry settles cleanly. */
-async function failOrphanedJobRun(
-  jobRunId: string,
-  err: unknown,
-  deps: DetectFanOutDeps,
-): Promise<never> {
-  const { jobRuns } = deps;
-
-  await jobRuns
-    .fail(jobRunId, `assembly_line.start failed: ${(err as Error).message}`)
-    .catch(() => {});
-  throw err;
-}
-
-/** Two ticks can both read "nothing in flight" — the loser's start() then JOINS the winner's run rather than creating a second one, and a job_run_id that is not ours is exactly that join. Its job_run is closed here, because otherwise it stays open forever with no run behind it. */
-async function joinedAnotherTick(
-  line: { blueprintName: string; repo: string; id: string; jobRunId: string },
-  deps: DetectFanOutDeps,
-): Promise<boolean> {
-  const { blueprintName, repo, id, jobRunId } = line;
-  const startedRun = await deps.assemblyRuns.getById(id);
-
-  if (!startedRun || startedRun.args.job_run_id === jobRunId) {
-    return false;
-  }
-
-  const { jobRuns } = deps;
-
-  await jobRuns
-    .fail(jobRunId, `superseded — ${repo} is already running as ${id}`)
-    .catch(() => {});
-  console.log(
-    `[detect] ${blueprintName}: ${repo} joined ${id}; job_run ${jobRunId} closed`,
   );
 
   return true;

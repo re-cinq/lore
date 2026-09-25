@@ -1,0 +1,36 @@
+name: daily-digest
+description: >
+  One Slack channel's daily digest (specs/daily-digest): the Floor collects what
+  merged, what closed and who holds which issue across the channel's repos into
+  a draft the refine agent downloads as a file, the agent writes a fresh intro
+  and ending around the facts and uploads the message, and the Floor's upload
+  receiver posts it into the week's thread. Started per channel by the
+  daily_digest tick; repos and their windows ride args.digest_repos.
+version: 1
+entry: refine
+exit: done
+
+nodes:
+  - id: refine
+    type: agent
+    prompt_ref: digest-refine
+    # The Station carries the RECIPE — its inputs (digest-draft.md) and its
+    # uploading watch (digest.md); without it the node would run the line's own
+    # task type and never see the draft.
+    station_ref: digest-refine
+    model: claude-haiku-4-5-20251001
+    timeout_minutes: 10
+    description: >
+      Keep every fact and link of the draft; write one new intro paragraph and
+      one new closing line that repeat none of the channel's recent ones.
+
+  - id: done
+    type: retrospective
+    description: Terminal marker.
+
+edges:
+  # A failed refine still reaches the exit: the upload receiver, or the
+  # run-closed fallback when nothing was uploaded, posts the unrefined draft.
+  - { from: refine, to: done, on: success }
+  - { from: refine, to: done, on: changes_requested }
+  - { from: refine, to: done, on: failed }

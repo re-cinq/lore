@@ -98,9 +98,16 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
     jobRuns: pipeline().jobRuns,
     notifyFailure: notifyLineFailure,
     onRunClosed: async (run, outcome, reason) => {
-      const { loopRunClosed } = await import("../backlog/loop-run-closed.js");
+      const [{ loopRunClosed }, { digestRunClosed }, { uploadDeps }] =
+        await Promise.all([
+          import("../backlog/loop-run-closed.js"),
+          import("../digest/run-closed.js"),
+          import("../digest/deps.js"),
+        ]);
 
       await loopRunClosed(run, outcome, reason);
+      // A digest run that closed without uploading posts its draft from here.
+      await digestRunClosed(run, uploadDeps());
     },
     // Publishes a service-form node for the pooled stations service to claim, instead of a pod per DB write/HTTP POST.
     publishNode: (event) =>

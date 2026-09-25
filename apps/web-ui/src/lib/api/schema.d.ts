@@ -2207,7 +2207,7 @@ export interface components {
                 inputs?: {
                   path: string;
                   /** @enum {string} */
-                  source: "plan";
+                  source: "plan" | "digest-draft";
                 }[];
                 repo_workdir?: boolean;
                 command?: string[];
@@ -2253,7 +2253,7 @@ export interface components {
                   inputs?: {
                     path: string;
                     /** @enum {string} */
-                    source: "plan";
+                    source: "plan" | "digest-draft";
                   }[];
                   repo_workdir?: boolean;
                   command?: string[];
@@ -2320,7 +2320,7 @@ export interface components {
               inputs?: {
                 path: string;
                 /** @enum {string} */
-                source: "plan";
+                source: "plan" | "digest-draft";
               }[];
               repo_workdir?: boolean;
               command?: string[];
@@ -2575,7 +2575,7 @@ export interface components {
                 inputs?: {
                   path: string;
                   /** @enum {string} */
-                  source: "plan";
+                  source: "plan" | "digest-draft";
                 }[];
                 repo_workdir?: boolean;
                 command?: string[];
@@ -3326,7 +3326,7 @@ export interface components {
               inputs?: {
                 path: string;
                 /** @enum {string} */
-                source: "plan";
+                source: "plan" | "digest-draft";
               }[];
               repo_workdir?: boolean;
               command?: string[];
@@ -3373,7 +3373,7 @@ export interface components {
               inputs?: {
                 path: string;
                 /** @enum {string} */
-                source: "plan";
+                source: "plan" | "digest-draft";
               }[];
               repo_workdir?: boolean;
               command?: string[];

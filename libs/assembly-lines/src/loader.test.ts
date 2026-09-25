@@ -673,6 +673,7 @@ describe("loadAssemblyLineDir — bundled assemblyLines", () => {
       "code-review-recheck",
       "code-review-reply",
       "comment-triage",
+      "daily-digest",
       "escalation",
       "feature-planning",
       "gap-detect",

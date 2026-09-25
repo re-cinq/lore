@@ -7,6 +7,7 @@ import {
 import type {
   SettingsPort,
   OnboardedRepo,
+  OnboardedRepoSettings,
   PendingOnboardingRepo,
   RepoRecord,
   RepoRenameOutcome,
@@ -178,6 +179,15 @@ export class InMemorySettings implements SettingsPort {
       .map((r) => ({
         full_name: r.full_name,
         last_ingested_at: r.last_ingested_at ?? null,
+      }));
+  }
+
+  async onboardedRepoSettings(): Promise<OnboardedRepoSettings[]> {
+    return this.repos
+      .filter((r) => r.onboarding_pr_merged === true)
+      .map((r) => ({
+        full_name: r.full_name,
+        settings: (r.settings ?? null) as OnboardedRepoSettings["settings"],
       }));
   }
 

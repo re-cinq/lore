@@ -35,3 +35,8 @@ export function backlogSubject(): string {
 export function implementationLoopBranch(issueNumber: number): string {
   return `lore/implementation-loop/issue-${issueNumber}`;
 }
+
+/** One daily-digest run per Slack channel per local day (specs/daily-digest FR8); the repo half of the guard is the channel's host repo. */
+export function digestSubject(channelId: string, localDate: string): string {
+  return `digest:${channelId}:${localDate}`;
+}

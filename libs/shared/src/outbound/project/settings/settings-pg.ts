@@ -11,6 +11,7 @@ import {
 import type {
   SettingsPort,
   OnboardedRepo,
+  OnboardedRepoSettings,
   PendingOnboardingRepo,
   RepoRecord,
   RepoRenameOutcome,
@@ -211,6 +212,14 @@ export class PgSettings implements SettingsPort {
     );
 
     return rows as OnboardedRepo[];
+  }
+
+  async onboardedRepoSettings(): Promise<OnboardedRepoSettings[]> {
+    const { rows } = await this.pool.query<OnboardedRepoSettings>(
+      "SELECT full_name, settings FROM lore.repos WHERE onboarding_pr_merged = true ORDER BY full_name",
+    );
+
+    return rows;
   }
 
   async allRepos(): Promise<string[]> {
