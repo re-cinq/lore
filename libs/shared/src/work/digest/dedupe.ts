@@ -8,7 +8,8 @@ export interface Implemented {
   issues: IssueRef[];
 }
 
-const CLOSING_KEYWORD = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)/gi;
+const CLOSING_KEYWORD =
+  /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)/gi;
 const TITLE_NUMBER = /#(\d+)/g;
 
 /** Issue numbers a PR claims: closing keywords in the body plus any bare `#N` in the title. */

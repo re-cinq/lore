@@ -7,7 +7,10 @@ describe("splitForSlack", () => {
   });
 
   it("breaks only at a line end when the next line would exceed the limit", () => {
-    expect(splitForSlack("aaaa\nbbbb\ncccc", 9)).toEqual(["aaaa\nbbbb", "cccc"]);
+    expect(splitForSlack("aaaa\nbbbb\ncccc", 9)).toEqual([
+      "aaaa\nbbbb",
+      "cccc",
+    ]);
   });
 
   it("keeps every line whole", () => {
