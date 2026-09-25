@@ -14,7 +14,6 @@ import { finishNodeTerminal, normalizeAgentStatus } from "./node-terminal.js";
 import { isDeliveringRecipe } from "@re-cinq/lore-shared/task-types/delivering-recipes.js";
 import { agentCrVisible } from "./cr-visibility.js";
 import { artifactsFromTerminalOutput } from "../agent/artifact-args.js";
-import { settlePlanningPass } from "./planning-pass-end.js";
 import type {
   AssemblyRunRecord,
   StationRunRecord,
@@ -195,7 +194,6 @@ async function settleTerminalNode(
     { row, node, nodeId, iteration, result, output: status.output },
     deps,
   );
-  await settlePlanningPass(row.args, nodeId, result.outcome, deps.plans);
 }
 
 /** Artifacts are merged into the run's args FIRST, because the artifact sink is a separate racing HTTP post and the next station would otherwise miss an arg its predecessor already produced (a re-merge is a no-op). */

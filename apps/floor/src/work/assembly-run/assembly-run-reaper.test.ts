@@ -1257,6 +1257,38 @@ describe("a claimed single-CR visit the sweep must NOT own", () => {
   });
 });
 
+describe("a feature-planning run's analyze node settling through the reaper", () => {
+  it("closes presence when the reaper times out the open analyze node", async () => {
+    const h = harness();
+    const builtins = await loadBuiltinAssemblyLines();
+
+    h.deps.definitions = async () => builtins;
+    const id = await h.port.start({
+      blueprintName: "feature-planning",
+      repo: "o/r",
+      args: { plan_id: "p9" },
+    });
+
+    await h.port.markRunning(id);
+    const clock = h.port.clock;
+
+    h.port.setClock(() => new Date(Date.now() - 70 * MIN));
+    await h.port.ensureStationRun({
+      assemblyRunId: id,
+      nodeId: "analyze",
+      iteration: 1,
+      agentCrName: `${id.substring(0, 12)}-analyze`,
+    });
+    h.port.setClock(clock);
+
+    await assemblyLineReaperJob(h.deps);
+
+    expect(h.deps.plans.writes).toEqual([
+      { method: "closePresence", planId: "p9" },
+    ]);
+  });
+});
+
 describe("the implementation line's unclaimed validate node", () => {
   it("fails the run once and never re-dispatches implement (2026-08-29 incident: validate needed a tag only paused central offered)", async () => {
     const h = harness();
