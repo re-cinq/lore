@@ -18,7 +18,9 @@ nodes:
     # uploading watch (digest.md); without it the node would run the line's own
     # task type and never see the draft.
     station_ref: digest-refine
-    model: claude-haiku-4-5-20251001
+    # Gemini 3 Flash wrote the most recognisable voices in a side-by-side on the
+    # first live draft (Haiku stayed neutral whatever the prompt said).
+    model: gemini-3-flash-preview
     timeout_minutes: 10
     description: >
       Keep every fact and link of the draft; write one new intro paragraph and
