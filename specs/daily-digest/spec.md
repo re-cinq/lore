@@ -48,7 +48,7 @@ posts it to Slack. A failed or dead agent still gets the draft posted.
 
 ## FR3 — What is collected
 
-- The implemented window opens at the repo's last digest post, or 24 hours back on the first run. ([validated by `fan-out.test.ts:87`](apps/floor/src/work/digest/fan-out.test.ts#L87), [`fan-out.test.ts:120`](apps/floor/src/work/digest/fan-out.test.ts#L120))
+- The implemented window opens at the repo's last digest post, or 24 hours back on the first run. ([validated by `fan-out.test.ts:96`](apps/floor/src/work/digest/fan-out.test.ts#L96), [`fan-out.test.ts:130`](apps/floor/src/work/digest/fan-out.test.ts#L130))
 - Implemented changes are the PRs merged in the window, read newest first from GitHub's closed listing, which stops paging once it passes the cutoff, and the issues closed in the window with their assignees. ([validated by `platform-github.test.ts:225`](libs/shared/src/outbound/project/lib/platform-github.test.ts#L225), [`platform-github.test.ts:254`](libs/shared/src/outbound/project/lib/platform-github.test.ts#L254), [`platform-github.test.ts:267`](libs/shared/src/outbound/project/lib/platform-github.test.ts#L267), [`platform-github.test.ts:280`](libs/shared/src/outbound/project/lib/platform-github.test.ts#L280), [`platform-github.test.ts:302`](libs/shared/src/outbound/project/lib/platform-github.test.ts#L302))
 - Roadmap is every open issue that has at least one assignee; an unassigned open issue says nothing about who is busy. ([validated by `group.test.ts:69`](libs/shared/src/work/digest/group.test.ts#L69))
 
