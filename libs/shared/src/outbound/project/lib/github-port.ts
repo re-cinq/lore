@@ -16,11 +16,17 @@ export interface IssueRef {
   body?: string;
   /** How many blocked-by links the issue carries, open or closed (octokit list read only; absent when none). */
   blockedByCount?: number;
+  /** Assignee logins (octokit adapter only; empty when nobody is assigned). */
+  assignees?: string[];
+  /** ISO close time (octokit adapter only; absent while open). */
+  closedAt?: string;
 }
 
 export interface IssueFilter {
   state?: IssueState;
   labels?: string[];
+  /** ISO cutoff: only issues updated at or after it; with `state: "closed"` also only those closed at or after it. */
+  since?: string;
 }
 
 export type CheckStatus = "queued" | "in_progress" | "completed";

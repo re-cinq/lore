@@ -206,6 +206,10 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     return pullsRead.list(await this.octo(), repo);
   }
 
+  async listMergedSince(repo: string, since: string): Promise<PullRef[]> {
+    return pullsRead.listMergedSince(await this.octo(), repo, since);
+  }
+
   async get(repo: string, number: number): Promise<PullRef | null> {
     return pullsRead.get(await this.octo(), repo, number);
   }
