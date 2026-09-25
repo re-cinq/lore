@@ -13216,44 +13216,51 @@
                     "type": "string"
                   },
                   "digest": {
-                    "type": "object",
-                    "properties": {
-                      "enabled": {
-                        "type": "boolean"
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "time": {
+                            "type": "string",
+                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                          },
+                          "days": {
+                            "type": "array",
+                            "items": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 6
+                            }
+                          },
+                          "timezone": {
+                            "type": "string"
+                          },
+                          "sections": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "enum": [
+                                "implemented",
+                                "roadmap",
+                                "summary",
+                                "morale"
+                              ]
+                            }
+                          },
+                          "group_by": {
+                            "type": "string",
+                            "enum": ["person", "area"]
+                          }
+                        },
+                        "additionalProperties": false
                       },
-                      "time": {
-                        "type": "string",
-                        "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
-                      },
-                      "days": {
-                        "type": "array",
-                        "items": {
-                          "type": "integer",
-                          "minimum": 0,
-                          "maximum": 6
-                        }
-                      },
-                      "timezone": {
-                        "type": "string"
-                      },
-                      "sections": {
-                        "type": "array",
-                        "items": {
-                          "type": "string",
-                          "enum": [
-                            "implemented",
-                            "roadmap",
-                            "summary",
-                            "morale"
-                          ]
-                        }
-                      },
-                      "group_by": {
-                        "type": "string",
-                        "enum": ["person", "area"]
+                      {
+                        "type": "null"
                       }
-                    },
-                    "additionalProperties": false
+                    ]
                   },
                   "dispatch_label": {
                     "type": "string"
@@ -13676,44 +13683,51 @@
                           "type": "string"
                         },
                         "digest": {
-                          "type": "object",
-                          "properties": {
-                            "enabled": {
-                              "type": "boolean"
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "enabled": {
+                                  "type": "boolean"
+                                },
+                                "time": {
+                                  "type": "string",
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                                },
+                                "days": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 6
+                                  }
+                                },
+                                "timezone": {
+                                  "type": "string"
+                                },
+                                "sections": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "enum": [
+                                      "implemented",
+                                      "roadmap",
+                                      "summary",
+                                      "morale"
+                                    ]
+                                  }
+                                },
+                                "group_by": {
+                                  "type": "string",
+                                  "enum": ["person", "area"]
+                                }
+                              },
+                              "additionalProperties": false
                             },
-                            "time": {
-                              "type": "string",
-                              "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
-                            },
-                            "days": {
-                              "type": "array",
-                              "items": {
-                                "type": "integer",
-                                "minimum": 0,
-                                "maximum": 6
-                              }
-                            },
-                            "timezone": {
-                              "type": "string"
-                            },
-                            "sections": {
-                              "type": "array",
-                              "items": {
-                                "type": "string",
-                                "enum": [
-                                  "implemented",
-                                  "roadmap",
-                                  "summary",
-                                  "morale"
-                                ]
-                              }
-                            },
-                            "group_by": {
-                              "type": "string",
-                              "enum": ["person", "area"]
+                            {
+                              "type": "null"
                             }
-                          },
-                          "additionalProperties": false
+                          ]
                         },
                         "dispatch_label": {
                           "type": "string"

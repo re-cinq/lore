@@ -54,7 +54,25 @@ export interface PlanWriter {
   findingsOf(planId: string): Promise<PlanFinding[]>;
   /** The plan's sections in order, for landing an agent's question on a slot the plan has. */
   sectionsOf(planId: string): Promise<PlanSection[]>;
+  /** Tells the plan's people an agent is about to write it, before its pod launches. */
+  openPresence(
+    planId: string,
+    user: { name: string; color: string },
+  ): Promise<void>;
+  /** Tells the plan's people the writing agent is done, once its pod's node settles (success or failure). */
+  closePresence(planId: string): Promise<void>;
+  /** Marks a Refine's section answered by the pass that just proposed it. */
+  finishRefine(
+    planId: string,
+    done: { slot: string; uses: unknown },
+  ): Promise<void>;
 }
+
+/** What the walk writes around one planning agent's pass: presence opened before its pod launches, closed when its node settles, and the Refine it answered finished or failed. */
+export type PlanningPassWriter = Pick<
+  PlanWriter,
+  "openPresence" | "closePresence" | "finishRefine" | "failRefine"
+>;
 
 /** lore-api's answer to a planning line parked on a human station: an approved plan is reopened for writing when its author is asked, or when the spec review sent questions to it; any other plan is left as it is. */
 export interface PlanOpener {

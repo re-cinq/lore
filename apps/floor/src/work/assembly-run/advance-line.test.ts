@@ -11,6 +11,7 @@ import { finishNodeAndAdvance } from "./finish-node.js";
 import { finishLine } from "./finish-line.js";
 import type { AdvanceDeps } from "./advance-deps.js";
 import { LlmDispatchGate } from "./llm-dispatch-gate.js";
+import { RecordingPlanWriter } from "../../domain/plan-writer-recording.js";
 
 const codeReviewLike: AssemblyLine = parseAssemblyLine(`
 name: code-review
@@ -123,6 +124,24 @@ edges:
     on: failed
 `);
 
+const featurePlanningLike: AssemblyLine = parseAssemblyLine(`
+name: feature-planning
+description: draft the plan, then finish
+version: 1
+entry: analyze
+exit: done
+nodes:
+  - id: analyze
+    type: agent
+    prompt_ref: feature-planning
+  - id: done
+    type: retrospective
+edges:
+  - from: analyze
+    to: done
+    on: always
+`);
+
 const authorGated = parseAssemblyLine(`
 name: author-gated
 description: a line that waits on the author
@@ -152,6 +171,7 @@ function makeDeps(port: InMemoryAssemblyRuns) {
     enqueued.push(dispatchSpec as LoreTaskSpec);
     await armDispatch(nodeRowId, dispatchSpec);
   };
+  const plans = new RecordingPlanWriter();
   const deps: AdvanceDeps = {
     assemblyRuns: port,
     definitions: async () =>
@@ -160,6 +180,7 @@ function makeDeps(port: InMemoryAssemblyRuns) {
         ["comment-triage", commentTriageLike],
         ["triage-then-issues", triageThenIssues],
         ["push-then-wait", pushThenWait],
+        ["feature-planning", featurePlanningLike],
       ]),
     repoSettings: async () => null,
     resolveRecipe: async (_repo, promptRef, description) => ({
@@ -179,9 +200,10 @@ function makeDeps(port: InMemoryAssemblyRuns) {
     notifyFailure: async (row, outcome, reason) => {
       notified.push({ id: row.id, outcome, reason });
     },
+    plans,
   };
 
-  return { deps, enqueued, cleaned, jobRuns, notified };
+  return { deps, enqueued, cleaned, jobRuns, notified, plans };
 }
 
 async function runningLine(port: InMemoryAssemblyRuns) {
@@ -1344,5 +1366,28 @@ edges:
     expect(
       await port.claimNextStationRun({ clusterAgentId: "central", tags: [] }),
     ).toBeNull();
+  });
+
+  it("opens presence for the planning agent before the analyze pod launches", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const id = await port.start({
+      blueprintName: "feature-planning",
+      repo: "re-cinq/lore",
+      branch: "feat/plan",
+      args: { plan_id: "p9" },
+    });
+
+    await port.markRunning(id);
+    const { deps, plans } = makeDeps(port);
+
+    await advanceLine(id, deps);
+
+    expect(plans.writes).toEqual([
+      {
+        method: "openPresence",
+        planId: "p9",
+        body: { name: "Planning agent", color: expect.any(String) },
+      },
+    ]);
   });
 });

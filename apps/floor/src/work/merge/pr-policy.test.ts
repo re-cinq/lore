@@ -255,3 +255,63 @@ describe("resolvePrForTaskFromDb", () => {
     expect(result?.policy.botApproved).toBe(true);
   });
 });
+
+describe("resolvePrForTaskFromDb — the review verdict on a PR the bot authored", () => {
+  it("reports botApproved true from the lore/code-review check when GitHub let the App leave no review of its own", async () => {
+    const result = await resolvePrForTaskFromDb(
+      "t1",
+      settings,
+      deps(task({}), {
+        reviews: [],
+        checkRuns: [
+          { name: "build", status: "completed", conclusion: "success" },
+          {
+            name: "lore/code-review",
+            status: "completed",
+            conclusion: "success",
+          },
+        ],
+      }),
+    );
+
+    expect(result?.policy.botApproved).toBe(true);
+  });
+
+  it("reports botApproved false when that check published the neutral it uses for suggested changes", async () => {
+    const result = await resolvePrForTaskFromDb(
+      "t1",
+      settings,
+      deps(task({}), {
+        reviews: [],
+        checkRuns: [
+          {
+            name: "lore/code-review",
+            status: "completed",
+            conclusion: "neutral",
+          },
+        ],
+      }),
+    );
+
+    expect(result?.policy.botApproved).toBe(false);
+  });
+
+  it("keeps the bot's own CHANGES_REQUESTED review over a stale approving check", async () => {
+    const result = await resolvePrForTaskFromDb(
+      "t1",
+      settings,
+      deps(task({}), {
+        reviews: [{ state: "CHANGES_REQUESTED", user: "lore-agent[bot]" }],
+        checkRuns: [
+          {
+            name: "lore/code-review",
+            status: "completed",
+            conclusion: "success",
+          },
+        ],
+      }),
+    );
+
+    expect(result?.policy.botApproved).toBe(false);
+  });
+});

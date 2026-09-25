@@ -536,7 +536,7 @@ done here.
   take the same test. ([validated by `agent-logs.test.ts:143`](../apps/floor/src/transport/http/routes/agent-logs.test.ts#L143), [`agent-logs.test.ts:154`](../apps/floor/src/transport/http/routes/agent-logs.test.ts#L154), [`per-task-token.test.ts:27`](../apps/floor/src/work/watcher/per-task-token.test.ts#L27))
 - A duplicate terminal delivery for an already-settled node is dropped rather
   than re-read; the walk advances on the first delivery and the second has
-  nothing to add. ([validated by `node-event-handler.test.ts:441`](../apps/floor/src/work/assembly-run/node-event-handler.test.ts#L443))
+  nothing to add. ([validated by `node-event-handler.test.ts:441`](../apps/floor/src/work/assembly-run/node-event-handler.test.ts#L468))
 - The remaining central reads are enumerated above, and a new read of a
   cluster from the Floor is a design change to this table rather than a local
   decision.

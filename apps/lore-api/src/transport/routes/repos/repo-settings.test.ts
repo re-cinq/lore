@@ -250,6 +250,19 @@ describe("PUT /api/repos/{owner}/{repo}/settings", () => {
     });
   });
 
+  it("merges digest: null so a repo can clear its digest block", async () => {
+    const pool = makePool();
+
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ full_name: "re-cinq/lore", team: null }],
+      })
+      .mockResolvedValue({ rows: [] });
+    const res = await put({ settings: { digest: null } }, pool);
+
+    expect(res.statusCode).toBe(200);
+  });
+
   it("merges a well-formed digest block", async () => {
     const pool = makePool();
 

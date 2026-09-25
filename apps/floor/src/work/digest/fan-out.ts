@@ -89,7 +89,7 @@ async function digestTargets(deps: DigestFanOutDeps): Promise<DigestTarget[]> {
 }
 
 function digestTargetOf(row: OnboardedRepoSettings): DigestTarget | null {
-  const settings = resolveDigestSettings(row.settings?.digest);
+  const settings = resolveDigestSettings(row.settings?.digest ?? undefined);
   const channel = row.settings?.slack_channel_id;
 
   return channel && settings.enabled
