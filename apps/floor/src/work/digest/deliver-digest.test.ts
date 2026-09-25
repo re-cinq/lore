@@ -9,7 +9,10 @@ import { deliverDigestRun, receiveDigestUpload } from "./deliver-digest.js";
 const DRAFT = `Intro placeholder.\n\n*re-cinq/lore*\n• item\n\nEnding placeholder.\n\n${APPENDIX_MARKER}\n- intro: Old`;
 const REFINED = "Fresh intro.\n\n*re-cinq/lore*\n• item\n\nFresh ending!";
 
-async function digestRun(assemblyRuns: InMemoryAssemblyRuns, extra: Record<string, unknown> = {}) {
+async function digestRun(
+  assemblyRuns: InMemoryAssemblyRuns,
+  extra: Record<string, unknown> = {},
+) {
   const id = await assemblyRuns.start({
     blueprintName: "daily-digest",
     repo: "re-cinq/lore",
@@ -18,8 +21,18 @@ async function digestRun(assemblyRuns: InMemoryAssemblyRuns, extra: Record<strin
       week_key: "2026-W39",
       digest_date: "2026-09-25",
       digest_repos: encodeDigestRepos([
-        { repo: "re-cinq/lore", since: "2026-09-24T07:00:00Z", sections: ["implemented"], group_by: "person" },
-        { repo: "re-cinq/otto", since: "2026-09-24T07:00:00Z", sections: ["implemented"], group_by: "person" },
+        {
+          repo: "re-cinq/lore",
+          since: "2026-09-24T07:00:00Z",
+          sections: ["implemented"],
+          group_by: "person",
+        },
+        {
+          repo: "re-cinq/otto",
+          since: "2026-09-24T07:00:00Z",
+          sections: ["implemented"],
+          group_by: "person",
+        },
       ]),
       digest_draft: DRAFT,
       ...extra,
@@ -36,10 +49,10 @@ async function digestRun(assemblyRuns: InMemoryAssemblyRuns, extra: Record<strin
   return { id, agent: `${id.substring(0, 12)}-refine` };
 }
 
-function harness() {
+function harness(slackRefuses?: string) {
   const assemblyRuns = new InMemoryAssemblyRuns();
   const posts = new InMemoryDigestPosts();
-  const poster = new InMemorySlackPoster();
+  const poster = new InMemorySlackPoster(slackRefuses);
   const deps = {
     posts,
     poster,
@@ -58,13 +71,21 @@ describe("receiveDigestUpload", () => {
     const { assemblyRuns, poster, deps } = harness();
     const { agent } = await digestRun(assemblyRuns);
 
-    const delivery = await receiveDigestUpload({ agentCrName: agent, markdown: REFINED, exitCode: 0 }, deps);
+    const delivery = await receiveDigestUpload(
+      { agentCrName: agent, markdown: REFINED, exitCode: 0 },
+      deps,
+    );
 
     expect({ delivery, posts: poster.posts }).toEqual({
       delivery: { outcome: "posted", chunks: 1 },
       posts: [
         { channel: "C1", text: "Week 39 · re-cinq/lore, re-cinq/otto" },
-        { channel: "C1", text: REFINED, threadTs: "1.000", replyBroadcast: true },
+        {
+          channel: "C1",
+          text: REFINED,
+          threadTs: "1.000",
+          replyBroadcast: true,
+        },
       ],
     });
   });
@@ -73,16 +94,24 @@ describe("receiveDigestUpload", () => {
     const { assemblyRuns, poster, deps } = harness();
     const { agent } = await digestRun(assemblyRuns);
 
-    await receiveDigestUpload({ agentCrName: agent, markdown: DRAFT, exitCode: 42 }, deps);
+    await receiveDigestUpload(
+      { agentCrName: agent, markdown: DRAFT, exitCode: 42 },
+      deps,
+    );
 
-    expect(poster.posts[1]?.text).toBe("Intro placeholder.\n\n*re-cinq/lore*\n• item\n\nEnding placeholder.");
+    expect(poster.posts[1]?.text).toBe(
+      "Intro placeholder.\n\n*re-cinq/lore*\n• item\n\nEnding placeholder.",
+    );
   });
 
   it("posts the draft when no markdown arrived", async () => {
     const { assemblyRuns, poster, deps } = harness();
     const { agent } = await digestRun(assemblyRuns);
 
-    await receiveDigestUpload({ agentCrName: agent, markdown: "  ", exitCode: 0 }, deps);
+    await receiveDigestUpload(
+      { agentCrName: agent, markdown: "  ", exitCode: 0 },
+      deps,
+    );
 
     expect(poster.posts[1]?.text).toContain("Intro placeholder.");
   });
@@ -91,9 +120,18 @@ describe("receiveDigestUpload", () => {
     const { assemblyRuns, posts, poster, deps } = harness();
     const { agent } = await digestRun(assemblyRuns);
 
-    await posts.claim("earlier", [{ repo: "re-cinq/lore", channelId: "C1", weekKey: "2026-W39" }]);
-    await posts.finish("earlier", { threadTs: "9.000", intro: "Old", ending: "Bye" });
-    await receiveDigestUpload({ agentCrName: agent, markdown: REFINED, exitCode: 0 }, deps);
+    await posts.claim("earlier", [
+      { repo: "re-cinq/lore", channelId: "C1", weekKey: "2026-W39" },
+    ]);
+    await posts.finish("earlier", {
+      threadTs: "9.000",
+      intro: "Old",
+      ending: "Bye",
+    });
+    await receiveDigestUpload(
+      { agentCrName: agent, markdown: REFINED, exitCode: 0 },
+      deps,
+    );
 
     expect(poster.posts).toEqual([
       { channel: "C1", text: REFINED, threadTs: "9.000", replyBroadcast: true },
@@ -102,29 +140,62 @@ describe("receiveDigestUpload", () => {
 
   it("posts a long digest as several thread replies with only the first broadcast", async () => {
     const { assemblyRuns, poster, deps } = harness();
-    const long = Array.from({ length: 400 }, (_, i) => `• <https://gh/pr/${i}|Change number ${i}> (#${i})`).join("\n");
+    const long = Array.from(
+      { length: 400 },
+      (_, i) => `• <https://gh/pr/${i}|Change number ${i}> (#${i})`,
+    ).join("\n");
     const { agent } = await digestRun(assemblyRuns);
 
-    const delivery = await receiveDigestUpload({ agentCrName: agent, markdown: long, exitCode: 0 }, deps);
+    const delivery = await receiveDigestUpload(
+      { agentCrName: agent, markdown: long, exitCode: 0 },
+      deps,
+    );
+    const replies = poster.posts.slice(1);
 
     expect({
-      chunks: delivery,
-      broadcasts: poster.posts.slice(1).map((p) => p.replyBroadcast === true),
+      delivery,
+      firstBroadcast: replies[0]?.replyBroadcast,
+      broadcasts: replies.filter((reply) => reply.replyBroadcast).length,
     }).toEqual({
-      chunks: { outcome: "posted", chunks: poster.posts.length - 1 },
-      broadcasts: [true, ...Array(poster.posts.length - 2).fill(false)],
+      delivery: { outcome: "posted", chunks: replies.length },
+      firstBroadcast: true,
+      broadcasts: 1,
     });
+    expect(replies.length).toBeGreaterThan(1);
   });
 
   it("records one finished row per repo with the intro and ending", async () => {
     const { assemblyRuns, posts, deps } = harness();
     const { id, agent } = await digestRun(assemblyRuns);
 
-    await receiveDigestUpload({ agentCrName: agent, markdown: REFINED, exitCode: 0 }, deps);
+    await receiveDigestUpload(
+      { agentCrName: agent, markdown: REFINED, exitCode: 0 },
+      deps,
+    );
 
-    expect(posts.rows.map(({ runId, repo, threadTs, intro, ending }) => ({ runId, repo, threadTs, intro, ending }))).toEqual([
-      { runId: id, repo: "re-cinq/lore", threadTs: "1.000", intro: "Fresh intro.", ending: "Fresh ending!" },
-      { runId: id, repo: "re-cinq/otto", threadTs: "1.000", intro: "Fresh intro.", ending: "Fresh ending!" },
+    expect(
+      posts.rows.map(({ runId, repo, threadTs, intro, ending }) => ({
+        runId,
+        repo,
+        threadTs,
+        intro,
+        ending,
+      })),
+    ).toEqual([
+      {
+        runId: id,
+        repo: "re-cinq/lore",
+        threadTs: "1.000",
+        intro: "Fresh intro.",
+        ending: "Fresh ending!",
+      },
+      {
+        runId: id,
+        repo: "re-cinq/otto",
+        threadTs: "1.000",
+        intro: "Fresh intro.",
+        ending: "Fresh ending!",
+      },
     ]);
   });
 
@@ -132,21 +203,28 @@ describe("receiveDigestUpload", () => {
     const { assemblyRuns, poster, deps } = harness();
     const { id, agent } = await digestRun(assemblyRuns);
 
-    await receiveDigestUpload({ agentCrName: agent, markdown: REFINED, exitCode: 0 }, deps);
+    await receiveDigestUpload(
+      { agentCrName: agent, markdown: REFINED, exitCode: 0 },
+      deps,
+    );
     const run = await assemblyRuns.getById(id);
     const second = await deliverDigestRun(run!, null, deps);
 
-    expect({ second, posted: poster.posts.length }).toEqual({ second: { outcome: "already" }, posted: 2 });
+    expect({ second, posted: poster.posts.length }).toEqual({
+      second: { outcome: "already" },
+      posted: 2,
+    });
   });
 
   it("releases the claim and rethrows slack's error, so the next tick may try again", async () => {
-    const { assemblyRuns, posts, poster, deps } = harness();
+    const { assemblyRuns, posts, deps } = harness("not_in_channel");
     const { agent } = await digestRun(assemblyRuns);
 
-    poster.refuse = "not_in_channel";
-
     await expect(
-      receiveDigestUpload({ agentCrName: agent, markdown: REFINED, exitCode: 0 }, deps),
+      receiveDigestUpload(
+        { agentCrName: agent, markdown: REFINED, exitCode: 0 },
+        deps,
+      ),
     ).rejects.toThrow(new Error("slack chat.postMessage: not_in_channel"));
     expect(posts.rows).toEqual([]);
   });
@@ -154,7 +232,12 @@ describe("receiveDigestUpload", () => {
   it("skips an upload from an agent no digest run knows", async () => {
     const { deps } = harness();
 
-    expect(await receiveDigestUpload({ agentCrName: "nobody-refine", markdown: REFINED, exitCode: 0 }, deps)).toEqual({
+    expect(
+      await receiveDigestUpload(
+        { agentCrName: "nobody-refine", markdown: REFINED, exitCode: 0 },
+        deps,
+      ),
+    ).toEqual({
       outcome: "skipped",
       error: "no digest run knows this agent",
     });

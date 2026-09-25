@@ -39,10 +39,12 @@ async function startOrFailJobRun(
   jobRunId: string,
   deps: StartUnderJobRunDeps,
 ): Promise<string> {
+  const { assemblyRuns, jobRuns } = deps;
+
   try {
-    return await deps.assemblyRuns.start(input);
+    return await assemblyRuns.start(input);
   } catch (err) {
-    await deps.jobRuns
+    await jobRuns
       .fail(jobRunId, `assembly_line.start failed: ${(err as Error).message}`)
       .catch(() => {});
     throw err;
@@ -56,12 +58,13 @@ async function joinedAnotherTick(
   jobRunId: string,
   deps: StartUnderJobRunDeps,
 ): Promise<boolean> {
-  const startedRun = await deps.assemblyRuns.getById(id);
+  const { assemblyRuns, jobRuns } = deps;
+  const startedRun = await assemblyRuns.getById(id);
 
   if (!startedRun || startedRun.args.job_run_id === jobRunId) {
     return false;
   }
-  await deps.jobRuns
+  await jobRuns
     .fail(jobRunId, `superseded — already running as ${id}`)
     .catch(() => {});
   console.log(`${label} joined ${id}; job_run ${jobRunId} closed`);

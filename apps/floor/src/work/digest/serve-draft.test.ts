@@ -2,7 +2,10 @@ import { describe, it, expect } from "vitest";
 import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
 import { InMemoryDigestPosts } from "@re-cinq/lore-shared/project/digest-posts/digest-posts-memory.js";
 import { encodeDigestRepos } from "@re-cinq/lore-shared/digest/codec.js";
-import { APPENDIX_MARKER, INTRO_MARKER } from "@re-cinq/lore-shared/digest/render.js";
+import {
+  APPENDIX_MARKER,
+  INTRO_MARKER,
+} from "@re-cinq/lore-shared/digest/render.js";
 import { digestDraftOf, type RepoCollector } from "./serve-draft.js";
 
 const runs = () => new InMemoryAssemblyRuns();
@@ -42,8 +45,10 @@ function deps(assemblyRuns: InMemoryAssemblyRuns, collect: RepoCollector) {
 
   return {
     runById: (id: string) => assemblyRuns.getById(id),
-    mergeArgs: (id: string, patch: Record<string, unknown>) => assemblyRuns.mergeArgs(id, patch),
-    recentTexts: (channel: string, limit: number) => posts.recentTexts(channel, limit),
+    mergeArgs: (id: string, patch: Record<string, unknown>) =>
+      assemblyRuns.mergeArgs(id, patch),
+    recentTexts: (channel: string, limit: number) =>
+      posts.recentTexts(channel, limit),
     collect,
   };
 }
@@ -75,7 +80,9 @@ describe("digestDraftOf", () => {
       throw new Error("must not read GitHub twice");
     };
 
-    expect(await digestDraftOf(id, deps(assemblyRuns, refusing))).toBe("the draft");
+    expect(await digestDraftOf(id, deps(assemblyRuns, refusing))).toBe(
+      "the draft",
+    );
   });
 
   it("renders a failed repo read as its own section", async () => {
@@ -113,9 +120,14 @@ describe("digestDraftOf", () => {
       args: digestArgs(["re-cinq/lore"]),
     });
 
-    const draft = (await digestDraftOf(id, deps(assemblyRuns, collectOne))) ?? "";
+    const draft =
+      (await digestDraftOf(id, deps(assemblyRuns, collectOne))) ?? "";
 
-    expect(draft.indexOf(INTRO_MARKER)).toBeLessThan(draft.indexOf("*re-cinq/lore*"));
-    expect(draft.indexOf("*re-cinq/lore*")).toBeLessThan(draft.indexOf(APPENDIX_MARKER));
+    expect(draft.indexOf(INTRO_MARKER)).toBeLessThan(
+      draft.indexOf("*re-cinq/lore*"),
+    );
+    expect(draft.indexOf("*re-cinq/lore*")).toBeLessThan(
+      draft.indexOf(APPENDIX_MARKER),
+    );
   });
 });

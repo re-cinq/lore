@@ -23,7 +23,9 @@ describe("InMemoryDigestPosts", () => {
     expect(await posts.threadFor("C1", "2026-W39")).toBe(null);
     await posts.finish("run-1", { threadTs: "1.1", intro: "Hi", ending: "Go" });
 
-    expect(await posts.threadFor("C1", "2026-W39")).toEqual({ threadTs: "1.1" });
+    expect(await posts.threadFor("C1", "2026-W39")).toEqual({
+      threadTs: "1.1",
+    });
   });
 
   it("returns the newest finished post time for a repo", async () => {
@@ -44,11 +46,22 @@ describe("InMemoryDigestPosts", () => {
     let clock = new Date("2026-09-24T07:00:00Z");
     const posts = new InMemoryDigestPosts(() => clock);
 
-    await posts.claim("run-1", [claimFor("re-cinq/lore"), claimFor("re-cinq/otto")]);
-    await posts.finish("run-1", { threadTs: "1.1", intro: "Old", ending: "Bye" });
+    await posts.claim("run-1", [
+      claimFor("re-cinq/lore"),
+      claimFor("re-cinq/otto"),
+    ]);
+    await posts.finish("run-1", {
+      threadTs: "1.1",
+      intro: "Old",
+      ending: "Bye",
+    });
     clock = new Date("2026-09-25T07:00:00Z");
     await posts.claim("run-2", [claimFor("re-cinq/lore")]);
-    await posts.finish("run-2", { threadTs: "1.1", intro: "New", ending: "Go" });
+    await posts.finish("run-2", {
+      threadTs: "1.1",
+      intro: "New",
+      ending: "Go",
+    });
 
     expect(await posts.recentTexts("C1", 14)).toEqual([
       { intro: "New", ending: "Go" },

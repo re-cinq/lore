@@ -7,7 +7,9 @@ export function isoWeekKey(now: Date, timeZone: string): string {
   const thursday = new Date(Date.UTC(year, month - 1, day));
 
   // ISO weeks belong to the year of their Thursday.
-  thursday.setUTCDate(thursday.getUTCDate() - ((thursday.getUTCDay() + 6) % 7) + 3);
+  thursday.setUTCDate(
+    thursday.getUTCDate() - ((thursday.getUTCDay() + 6) % 7) + 3,
+  );
   const isoYear = thursday.getUTCFullYear();
   const firstThursday = new Date(Date.UTC(isoYear, 0, 4));
 

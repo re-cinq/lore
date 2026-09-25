@@ -33,5 +33,10 @@ export function closedIssue(overrides: Partial<IssueRef> = {}): IssueRef {
 }
 
 export function openIssue(overrides: Partial<IssueRef> = {}): IssueRef {
-  return { ...closedIssue({ number: 20, url: "https://gh/i/20" }), state: "open", closedAt: undefined, ...overrides };
+  return {
+    ...closedIssue({ number: 20, url: "https://gh/i/20" }),
+    state: "open",
+    closedAt: undefined,
+    ...overrides,
+  };
 }

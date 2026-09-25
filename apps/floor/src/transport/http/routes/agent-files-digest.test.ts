@@ -20,11 +20,22 @@ vi.mock("../../../outbound/queues.js", () => ({
 vi.mock("../../../work/digest/deps.js", () => ({
   draftDeps: () => ({
     runById: (id: string) => runs.getById(id),
-    mergeArgs: (id: string, patch: Record<string, unknown>) => runs.mergeArgs(id, patch),
-    recentTexts: (channel: string, limit: number) => posts.recentTexts(channel, limit),
+    mergeArgs: (id: string, patch: Record<string, unknown>) =>
+      runs.mergeArgs(id, patch),
+    recentTexts: (channel: string, limit: number) =>
+      posts.recentTexts(channel, limit),
     collect: async () => ({
       merged: [
-        { repo: "re-cinq/lore", number: 1, title: "Digest core", branch: "b", state: "merged", labels: [], url: "https://gh/pr/1", author: "alice" },
+        {
+          repo: "re-cinq/lore",
+          number: 1,
+          title: "Digest core",
+          branch: "b",
+          state: "merged",
+          labels: [],
+          url: "https://gh/pr/1",
+          author: "alice",
+        },
       ],
       closed: [],
       open: [],
@@ -54,13 +65,23 @@ async function digestRun(): Promise<{ id: string; agent: string }> {
       week_key: "2026-W39",
       digest_date: "2026-09-25",
       digest_repos: encodeDigestRepos([
-        { repo: "re-cinq/lore", since: "2026-09-24T07:00:00Z", sections: ["implemented", "summary"], group_by: "person" },
+        {
+          repo: "re-cinq/lore",
+          since: "2026-09-24T07:00:00Z",
+          sections: ["implemented", "summary"],
+          group_by: "person",
+        },
       ]),
     },
   });
   const agent = `${id.substring(0, 12)}-refine`;
 
-  await runs.ensureStationRun({ assemblyRunId: id, nodeId: "refine", iteration: 1, agentCrName: agent });
+  await runs.ensureStationRun({
+    assemblyRunId: id,
+    nodeId: "refine",
+    iteration: 1,
+    agentCrName: agent,
+  });
 
   return { id, agent };
 }
@@ -79,9 +100,17 @@ describe("GET /api/agent-files/runs/{runId}/digest-draft", () => {
   it("serves the collected draft as markdown and keeps it on the run", async () => {
     const { id } = await digestRun();
 
-    const res = await server().inject({ method: "GET", url: `/api/agent-files/runs/${id}/digest-draft`, headers: auth });
+    const res = await server().inject({
+      method: "GET",
+      url: `/api/agent-files/runs/${id}/digest-draft`,
+      headers: auth,
+    });
 
-    expect({ status: res.statusCode, type: res.headers["content-type"], stored: (await runs.getById(id))?.args.digest_draft }).toEqual({
+    expect({
+      status: res.statusCode,
+      type: res.headers["content-type"],
+      stored: (await runs.getById(id))?.args.digest_draft,
+    }).toEqual({
       status: 200,
       type: "text/markdown; charset=utf-8",
       stored: res.payload,
@@ -92,7 +121,11 @@ describe("GET /api/agent-files/runs/{runId}/digest-draft", () => {
   it("answers 404 for an input source no run has", async () => {
     const { id } = await digestRun();
 
-    const res = await server().inject({ method: "GET", url: `/api/agent-files/runs/${id}/something-else`, headers: auth });
+    const res = await server().inject({
+      method: "GET",
+      url: `/api/agent-files/runs/${id}/something-else`,
+      headers: auth,
+    });
 
     expect(res.statusCode).toBe(404);
   });
@@ -105,11 +138,21 @@ describe("POST /api/agent-files/{agent}/digest.message", () => {
     const res = await server().inject({
       method: "POST",
       url: `/api/agent-files/${agent}/digest.message`,
-      headers: { ...auth, "content-type": "application/octet-stream", "x-agent-exit-code": "0" },
-      payload: Buffer.from("Hello team.\n\n*re-cinq/lore*\n• <https://gh/pr/1|Digest core> (#1)\n\nOnwards!"),
+      headers: {
+        ...auth,
+        "content-type": "application/octet-stream",
+        "x-agent-exit-code": "0",
+      },
+      payload: Buffer.from(
+        "Hello team.\n\n*re-cinq/lore*\n• <https://gh/pr/1|Digest core> (#1)\n\nOnwards!",
+      ),
     });
 
-    expect({ status: res.statusCode, body: res.result, texts: poster.posts.map((p) => p.text) }).toEqual({
+    expect({
+      status: res.statusCode,
+      body: res.result,
+      texts: poster.posts.map((p) => p.text),
+    }).toEqual({
       status: 200,
       body: { status: "posted" },
       texts: [

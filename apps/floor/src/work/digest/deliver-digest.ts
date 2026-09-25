@@ -45,6 +45,11 @@ export async function receiveDigestUpload(
   return deliverDigestRun(run, upload, deps);
 }
 
+const NOTHING_TO_POST: DigestDelivery = {
+  outcome: "skipped",
+  error: "the run has neither a message nor a draft",
+};
+
 /** With no upload (the run closed without one), the stored draft is what gets posted; with nothing stored either, the pod never even asked for its draft and there is nothing to say. */
 export async function deliverDigestRun(
   run: AssemblyRunRecord,
@@ -59,18 +64,26 @@ export async function deliverDigestRun(
   const message = messageOf(digest, upload);
 
   if (message === null) {
-    return { outcome: "skipped", error: "the run has neither a message nor a draft" };
+    return NOTHING_TO_POST;
   }
-  const claimed = await deps.posts.claim(
-    digest.id,
-    digest.repos.map(({ repo }) => ({ repo, channelId: digest.channel, weekKey: digest.weekKey })),
-  );
 
-  if (!claimed) {
+  if (!(await claimRun(digest, deps.posts))) {
     return { outcome: "already" };
   }
 
   return postClaimed(digest, message, deps);
+}
+
+/** One row per repo of the run; false when another delivery already claimed it. */
+function claimRun(digest: DigestRun, posts: DigestPostsPort): Promise<boolean> {
+  return posts.claim(
+    digest.id,
+    digest.repos.map(({ repo }) => ({
+      repo,
+      channelId: digest.channel,
+      weekKey: digest.weekKey,
+    })),
+  );
 }
 
 /** The agent's file when it exited well and wrote something; the draft otherwise. */
@@ -78,7 +91,8 @@ function messageOf(
   digest: DigestRun,
   upload: Pick<DigestUpload, "markdown" | "exitCode"> | null,
 ): string | null {
-  const refined = upload !== null && (upload.exitCode ?? 0) === 0 && upload.markdown.trim();
+  const refined =
+    upload !== null && (upload.exitCode ?? 0) === 0 && upload.markdown.trim();
 
   if (refined) {
     return upload.markdown.trim();
@@ -117,7 +131,10 @@ async function threadOf(digest: DigestRun, deps: DeliverDeps): Promise<string> {
   }
   const parent = await deps.poster.post({
     channel: digest.channel,
-    text: renderThreadParent(digest.weekKey, digest.repos.map((r) => r.repo)),
+    text: renderThreadParent(
+      digest.weekKey,
+      digest.repos.map((r) => r.repo),
+    ),
   });
 
   return parent.ts;

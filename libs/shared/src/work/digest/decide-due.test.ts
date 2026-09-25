@@ -79,8 +79,10 @@ describe("decideDigestDue", () => {
 
 describe("localParts", () => {
   it("returns the local date, JS weekday and HH:MM in the timezone", () => {
-    expect(localParts(new Date("2026-09-25T22:30:00Z"), "Asia/Tokyo")).toEqual(
-      { date: "2026-09-26", weekday: 6, hhmm: "07:30" },
-    );
+    expect(localParts(new Date("2026-09-25T22:30:00Z"), "Asia/Tokyo")).toEqual({
+      date: "2026-09-26",
+      weekday: 6,
+      hhmm: "07:30",
+    });
   });
 });

@@ -16,7 +16,11 @@ const successorsOf = (nodeId: string, on: string) =>
 
 describe("the daily-digest line", () => {
   it("refines then finishes", () => {
-    expect({ entry: digest.entry, exit: digest.exit, next: successorsOf("refine", "success") }).toEqual({
+    expect({
+      entry: digest.entry,
+      exit: digest.exit,
+      next: successorsOf("refine", "success"),
+    }).toEqual({
       entry: "refine",
       exit: "done",
       next: ["done"],
