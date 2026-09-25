@@ -20,4 +20,6 @@ export interface PlanActions {
   retrySpecWork: () => Outcome;
   /** The spec writer again, in the same line, with the spec PR's unresolved review: the specs are amended on the PR's branch and whatever contradicts the plan comes back to it as questions. */
   reworkSpecs: () => Outcome;
+  /** Runs the outline's validation again ahead of approval. */
+  validate: () => Outcome;
 }

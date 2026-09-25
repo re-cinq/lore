@@ -207,6 +207,35 @@ edges:
     ).toThrow(/"b" is not reachable/);
   });
 
+  it("accepts a by_hand node with no inbound edge", () => {
+    const wf = parseAssemblyLine(`
+name: x
+description: d
+version: 1
+entry: a
+exit: done
+nodes:
+  - id: a
+    type: agent
+  - id: done
+    type: retrospective
+  - id: v
+    type: agent
+    by_hand: true
+edges:
+  - from: a
+    to: done
+    on: always
+  - from: v
+    to: a
+    on: always
+`);
+
+    expect(wf.nodes.find((n) => n.id === "v")).toMatchObject({
+      by_hand: true,
+    });
+  });
+
   it("rejects non-exit nodes with no outgoing edges", () => {
     expect(() =>
       parseAssemblyLine(`

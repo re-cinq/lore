@@ -23,6 +23,7 @@ const actions = {
   reopen: vi.fn(async () => ({})),
   retrySpecWork: vi.fn(async () => ({})),
   reworkSpecs: vi.fn(async () => ({})),
+  validate: vi.fn(async () => ({})),
 };
 
 const outline = (
@@ -47,10 +48,10 @@ const buttons = () =>
   screen.getAllByRole("button").map((button) => button.textContent);
 
 describe("PlanOutlineActions", () => {
-  it("offers Approve plan while the plan is being written", () => {
+  it("offers Validate the plan above Approve plan while the plan is being written", () => {
     outline("writing");
 
-    expect(buttons()).toEqual(["Approve plan"]);
+    expect(buttons()).toEqual(["Validate the plan", "Approve plan"]);
   });
 
   it("holds Approve plan while the planning agent is refining a section", () => {
@@ -71,10 +72,10 @@ describe("PlanOutlineActions", () => {
     expect(screen.getByRole("dialog")).toHaveTextContent("updates spec PR #7");
   });
 
-  it("offers Approve plan while the plan's people answer the spec analysis's question", () => {
+  it("offers Validate the plan above Approve plan while the plan's people answer the spec analysis's question", () => {
     outline("answering");
 
-    expect(buttons()).toEqual(["Approve plan"]);
+    expect(buttons()).toEqual(["Validate the plan", "Approve plan"]);
   });
 
   it("offers only the spec PR link while the specs are being written", () => {

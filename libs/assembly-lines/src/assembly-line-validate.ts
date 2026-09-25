@@ -26,7 +26,7 @@ export function validateAssemblyLine(wf: AssemblyLine, source: string): void {
 
   validateEntryAndExit(wf, nodeIds, loadError);
   validateEdgeEndpoints(wf, nodeIds, loadError);
-  validateReachability(wf, nodeIds, loadError);
+  validateReachability(wf, loadError);
   validateTerminalNodes(wf, loadError);
   validateParameterisedNodes(wf);
   validateHumanStations(wf);
@@ -68,14 +68,15 @@ function validateEdgeEndpoints(
   }
 }
 
+// A by_hand node is started by a person, never by an edge, so only the walked nodes must be reachable from entry.
 function validateReachability(
   wf: AssemblyLine,
-  nodeIds: Set<string>,
   loadError: LoadErrorFactory,
 ): void {
   const reachable = reachableNodeIds(wf);
+  const walkedNodes = wf.nodes.filter((n) => !n.by_hand);
 
-  for (const id of nodeIds) {
+  for (const { id } of walkedNodes) {
     enforceTrue(
       reachable.has(id),
       loadError,

@@ -11,6 +11,7 @@ import {
   startSpecWork,
   type RefineAsk,
   reworkSpecs,
+  validatePlan,
 } from "@/lib/api/plans";
 import type { ApiResult } from "@/lib/api/result";
 import { planUserOf, type PlanSession, type PlanUser } from "@/lib/plan-user";
@@ -73,14 +74,7 @@ export async function reopenPlanAction(
   fullName: string,
   planId: string,
 ): Promise<{ error?: string }> {
-  const allowed = await allowedUser(fullName);
-
-  if ("error" in allowed) {
-    return allowed;
-  }
-  const reopened = await reopenPlan(fullName, planId, allowed.user.id);
-
-  return reopened.status === "ok" ? {} : { error: refusalOf(reopened) };
+  return inUsersName(fullName, planId, reopenPlan);
 }
 
 /** Deletes the plan for good and goes back to the repo's plans. */
@@ -106,14 +100,7 @@ export async function retrySpecWorkAction(
   fullName: string,
   planId: string,
 ): Promise<{ error?: string }> {
-  const allowed = await allowedUser(fullName);
-
-  if ("error" in allowed) {
-    return allowed;
-  }
-  const started = await startSpecWork(fullName, planId, allowed.user.id);
-
-  return started.status === "ok" ? {} : { error: refusalOf(started) };
+  return inUsersName(fullName, planId, startSpecWork);
 }
 
 /** The spec writer again on the same PR, reading its review; anything against the plan comes back to the plan. */
@@ -121,14 +108,15 @@ export async function reworkSpecsAction(
   fullName: string,
   planId: string,
 ): Promise<{ error?: string }> {
-  const allowed = await allowedUser(fullName);
+  return inUsersName(fullName, planId, reworkSpecs);
+}
 
-  if ("error" in allowed) {
-    return allowed;
-  }
-  const started = await reworkSpecs(fullName, planId, allowed.user.id);
-
-  return started.status === "ok" ? {} : { error: refusalOf(started) };
+/** Runs the outline's validation again ahead of approval. */
+export async function validatePlanAction(
+  fullName: string,
+  planId: string,
+): Promise<{ error?: string }> {
+  return inUsersName(fullName, planId, validatePlan);
 }
 
 export async function refinePlanAction(
@@ -163,6 +151,28 @@ export async function draftAgainAction(
   return started.status === "ok"
     ? {}
     : { error: "Could not start a new draft." };
+}
+
+type PlanRoute = (
+  repo: string,
+  planId: string,
+  userId: string,
+) => Promise<ApiResult<unknown>>;
+
+// A lore-api plan route called in the signed-in person's name; a refusal comes back worded for the page.
+async function inUsersName(
+  fullName: string,
+  planId: string,
+  route: PlanRoute,
+): Promise<{ error?: string }> {
+  const allowed = await allowedUser(fullName);
+
+  if ("error" in allowed) {
+    return allowed;
+  }
+  const answer = await route(fullName, planId, allowed.user.id);
+
+  return answer.status === "ok" ? {} : { error: refusalOf(answer) };
 }
 
 // Every action is bound to one plan of one repo on the server; the person must be signed in and able to see the repo on GitHub.
