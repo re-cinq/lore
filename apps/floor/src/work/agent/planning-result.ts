@@ -20,6 +20,12 @@ export const PLANNING_RESULT_EVENT = "planning.result";
 /** Who the plan's people see writing. */
 export const PLANNING_ACTOR = "planning-agent";
 
+/** The presence label the plan's people see before the analyze pod launches. */
+export const PLANNING_AGENT_USER = {
+  name: "Planning agent",
+  color: "hsl(200 65% 45%)",
+};
+
 export interface PlanningResultDeps {
   /** The plan the task's open planning run works on, and the Refine it answers when it answers one. */
   planRunOfTask(taskId: string): Promise<PlanRunRef | undefined>;

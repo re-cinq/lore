@@ -8,6 +8,7 @@ import type { AssemblyLine, NodeResult } from "@re-cinq/lore-assembly-lines";
 import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import type { ResolveConversationFn } from "./launch-spec.js";
 import type { ResolveRecipeFn } from "./input-files.js";
+import type { PlanWriter } from "../../domain/plan-writer.js";
 
 export interface AdvanceDeps {
   assemblyRuns: AssemblyRunsPort;
@@ -98,4 +99,6 @@ export interface AdvanceDeps {
     assemblyRun: AssemblyRunRecord,
     result: NodeResult,
   ) => Promise<void>;
+  /** Opens presence for the planning agent on its plan before the analyze pod launches; optional seam, absent means no presence is opened. */
+  plans?: Pick<PlanWriter, "openPresence">;
 }

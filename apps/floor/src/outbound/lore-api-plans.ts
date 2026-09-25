@@ -29,6 +29,7 @@ export function loreApiPlans(baseUrl: string, token: string): PlanWriter {
     failRefine: (planId, refine) => post(`${planId}/refine-failed`, refine),
     // planning-sync's own route: `{actor, ops, base?}`; the Floor never sends `base`, so the ops land on whatever the plan is by then.
     addQuestions: (planId, edits) => post(`${planId}/agent-edits`, edits),
+    openPresence: (planId, user) => post(`${planId}/agent-presence`, { user }),
     ...planReads(request),
   };
 }

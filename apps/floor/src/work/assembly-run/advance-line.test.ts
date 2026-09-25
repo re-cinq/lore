@@ -11,6 +11,13 @@ import { finishNodeAndAdvance } from "./finish-node.js";
 import { finishLine } from "./finish-line.js";
 import type { AdvanceDeps } from "./advance-deps.js";
 import { LlmDispatchGate } from "./llm-dispatch-gate.js";
+import type {
+  PlanAgentEdits,
+  PlanFileBody,
+  PlanFinding,
+  PlanSection,
+  PlanWriter,
+} from "../../domain/plan-writer.js";
 
 const codeReviewLike: AssemblyLine = parseAssemblyLine(`
 name: code-review
@@ -121,6 +128,24 @@ edges:
   - from: merged
     to: done
     on: failed
+`);
+
+const featurePlanningLike: AssemblyLine = parseAssemblyLine(`
+name: feature-planning
+description: draft the plan, then finish
+version: 1
+entry: analyze
+exit: done
+nodes:
+  - id: analyze
+    type: agent
+    prompt_ref: feature-planning
+  - id: done
+    type: retrospective
+edges:
+  - from: analyze
+    to: done
+    on: always
 `);
 
 const authorGated = parseAssemblyLine(`
@@ -1344,5 +1369,74 @@ edges:
     expect(
       await port.claimNextStationRun({ clusterAgentId: "central", tags: [] }),
     ).toBeNull();
+  });
+
+  class RecordingPlanWriter implements PlanWriter {
+    calls: Array<{ planId: string; user: { name: string; color: string } }> =
+      [];
+
+    async openPresence(
+      planId: string,
+      user: { name: string; color: string },
+    ): Promise<void> {
+      this.calls.push({ planId, user });
+    }
+
+    async markdownOf(): Promise<string> {
+      throw new Error("unexpected");
+    }
+
+    async submitFile(_planId: string, _body: PlanFileBody): Promise<void> {
+      throw new Error("unexpected");
+    }
+
+    async failRefine(): Promise<void> {
+      throw new Error("unexpected");
+    }
+
+    async addQuestions(
+      _planId: string,
+      _edits: PlanAgentEdits,
+    ): Promise<void> {
+      throw new Error("unexpected");
+    }
+
+    async findingsOf(): Promise<PlanFinding[]> {
+      throw new Error("unexpected");
+    }
+
+    async sectionsOf(): Promise<PlanSection[]> {
+      throw new Error("unexpected");
+    }
+  }
+
+  it("opens presence for the planning agent before the analyze pod launches", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const id = await port.start({
+      blueprintName: "feature-planning",
+      repo: "re-cinq/lore",
+      branch: "feat/plan",
+      args: { plan_id: "p9" },
+    });
+
+    await port.markRunning(id);
+    const { deps } = makeDeps(port);
+    const plans = new RecordingPlanWriter();
+
+    await advanceLine(id, {
+      ...deps,
+      definitions: async () =>
+        new Map<string, AssemblyLine>([
+          ["feature-planning", featurePlanningLike],
+        ]),
+      plans,
+    });
+
+    expect(plans.calls).toEqual([
+      {
+        planId: "p9",
+        user: { name: "Planning agent", color: expect.any(String) },
+      },
+    ]);
   });
 });

@@ -10,6 +10,7 @@ import {
 } from "./floor-assembly-run.js";
 import { resolveRoundContent } from "./round-content.js";
 import { withRoundHandoff, type RoundHandoff } from "./round-handoff.js";
+import { withPlanId } from "./plan-id-handoff.js";
 import { withSpecPlan, type SpecPlan } from "./spec-plan-handoff.js";
 import { withSpecReview } from "./spec-review-handoff.js";
 import type { SpecReview } from "@re-cinq/lore-shared/review/spec-review.js";
@@ -257,6 +258,7 @@ function promptInput(
     roundHandoff: input.roundHandoff ?? null,
     specPlan: input.specPlan ?? null,
     specReview: input.specReview ?? null,
+    args: input.task.args,
   };
 }
 
@@ -285,6 +287,7 @@ interface PromptResolutionInput {
   roundHandoff: RoundHandoff | null;
   specPlan: SpecPlan | null;
   specReview: SpecReview | null;
+  args: Record<string, unknown> | undefined;
 }
 
 async function resolvedRecipeFor(
@@ -310,7 +313,8 @@ function withDispatchBlocks(
   recipe: string,
   input: PromptResolutionInput,
 ): string {
-  const filled = withSpecPlan(recipe, input.specPlan);
+  const withPlan = withPlanId(recipe, input.args);
+  const filled = withSpecPlan(withPlan, input.specPlan);
   const afterFailure = withIncomingFailure(filled, input.incomingFailure);
   const afterReview = withSpecReview(afterFailure, input.specReview);
   const afterHandoff = withRoundHandoff(afterReview, input.roundHandoff);

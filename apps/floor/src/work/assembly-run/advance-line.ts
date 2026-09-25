@@ -28,6 +28,7 @@ import {
 import { launchNode, type NodeLaunch } from "./launch-node.js";
 import { finishLine } from "./finish-line.js";
 import { lineOutcomeFromVisits } from "./line-outcome.js";
+import { PLANNING_AGENT_USER } from "../agent/planning-result.js";
 
 export async function advanceLine(
   assemblyLineId: string,
@@ -147,11 +148,25 @@ export async function resolveLaunch(
 }
 
 /** Writes the row and hands the node to its runner. */
-export function launchResolved(
+export async function launchResolved(
   launch: ResolvedLaunch,
   deps: AdvanceDeps,
 ): Promise<void> {
-  return launchNode({ ...launch, deps });
+  await openPlanPresence(launch, deps);
+  await launchNode({ ...launch, deps });
+}
+
+/** Tells the plan's people the planning agent is about to write, before the analyze pod launches. */
+async function openPlanPresence(
+  launch: ResolvedLaunch,
+  deps: AdvanceDeps,
+): Promise<void> {
+  const planId = launch.assemblyRun.args?.plan_id;
+
+  if (launch.node.id !== "analyze" || typeof planId !== "string") {
+    return;
+  }
+  await deps.plans?.openPresence(planId, PLANNING_AGENT_USER);
 }
 
 /** Resolved BEFORE the station_runs row is written, because the row RECORDS the dispatch — otherwise the prompt and round content exist only on an Agent CR that gets pruned. The failure, CI and hand-off reads are how a retry learns why it runs again, what the build said about the last push, and what the previous round left for next. */

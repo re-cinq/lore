@@ -103,12 +103,9 @@ export function isDraftingPlan(
   run: { status: string },
   visits: readonly Visit[],
 ): boolean {
-  const open = openVisit(visits);
-  const firstDraft = open?.nodeId === "analyze" && open.iteration === 1;
-
   return (
     run.status === "queued" ||
-    (run.status === "running" && (visits.length === 0 || firstDraft))
+    (run.status === "running" && visits.length === 0)
   );
 }
 
