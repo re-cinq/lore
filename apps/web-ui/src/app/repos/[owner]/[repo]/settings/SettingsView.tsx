@@ -54,7 +54,7 @@ function SettingsSections({ team, settings, allRepos }: SettingsSectionsProps) {
         selectedRepos={settings.cross_repo_repos ?? []}
       />
       <DigestFields
-        digest={settings.digest}
+        digest={settings.digest ?? undefined}
         slackChannelSet={Boolean(settings.slack_channel_id)}
       />
     </>
