@@ -12,7 +12,7 @@ inputs:
 # reply it owes each review comment. Always written, empty when no review ran.
 watch:
   event: spec.review.result
-  path: target/spec-review-result.json
+  path: spec-review-result.json
 ---
 Turn an approved plan into committable specifications. The plan was written
 and approved by its people; do not re-open it. It is in
@@ -74,8 +74,8 @@ branch already; amend them, do not rewrite them. For each item decide:
 - A review body with no single comment id is answered the same way, by the
   review's id.
 
-Always write `spec-review-result.json` in the working directory (the
-repository root), on every pass of this recipe:
+Always write `../spec-review-result.json`, beside plan.md, outside the clone,
+on every pass of this recipe:
 
     {"plan_questions": [ {"slot": "...", "question": "...", "why": "...", "comment_id": 0} ],
      "replies": [ {"comment_id": 0, "action": "addressed" | "to_plan", "note": "..."} ]}

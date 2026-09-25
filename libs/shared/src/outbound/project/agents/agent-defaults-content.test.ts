@@ -165,12 +165,20 @@ describe("the implementation-tdd recipe", () => {
     expect(ready).not.toContain("Closes #");
   });
 
-  it("keeps .lore/pr-body.md out of the commit — Lore reads it from the workspace", () => {
-    const ready = promptOf("pr-ready");
+  it("writes the PR description beside the clone, where Lore reads it and git never sees it", () => {
+    const ready = promptOnOneLine("pr-ready");
 
-    expect(ready).toContain("do NOT commit `.lore/pr-body.md`");
-    expect(ready).toContain("from your workspace");
-    expect(ready).not.toContain("and all of it is pushed");
+    expect({
+      namesBodyBesideClone: ready.includes("`../pr-body.md`"),
+      saysOutsideGit: ready.includes("beside the clone, outside git"),
+      namesOldInCloneBody: ready.includes(".lore/pr-body.md"),
+      pushesEverything: ready.includes("and all of it is pushed"),
+    }).toEqual({
+      namesBodyBesideClone: true,
+      saysOutsideGit: true,
+      namesOldInCloneBody: false,
+      pushesEverything: false,
+    });
   });
 
   it("has pr-ready rewrite stale spec prose and point anchors at assertions", () => {
@@ -312,7 +320,7 @@ describe("the feature-planning recipe", () => {
       addressed: prompt.includes('"action": "addressed"'),
       toPlan: prompt.includes("change NOTHING for it"),
       neverAnswer: prompt.includes("Never answer for the plan's people"),
-      always: prompt.includes("Always write `spec-review-result.json`"),
+      always: prompt.includes("Always write `../spec-review-result.json`"),
       empty: prompt.includes('{"plan_questions": [], "replies": []}'),
       noChangeIsSuccess: prompt.includes(
         'the specs are right as they stand — `spec-review-result.json` is your delivery, so end with `LORE_NODE_RESULT: {"outcome":"success"}`',
@@ -320,7 +328,7 @@ describe("the feature-planning recipe", () => {
     }).toEqual({
       watch: {
         event: "spec.review.result",
-        path: "target/spec-review-result.json",
+        path: "spec-review-result.json",
       },
       addressed: true,
       toPlan: true,
@@ -340,6 +348,15 @@ describe("the feature-planning recipe", () => {
       [{ path: "plan.md", source: "plan" }],
       [{ path: "plan.md", source: "plan" }],
     ]);
+  });
+
+  it("writes every watched artifact outside the clone, never under target/", () => {
+    const watchedInsideClone = [...SHIPPED.entries()]
+      .filter(([, def]) => def.config?.watch)
+      .map(([name, def]) => [name, def.config?.watch?.path])
+      .filter(([, path]) => path?.startsWith("target/"));
+
+    expect(watchedInsideClone).toEqual([]);
   });
 });
 

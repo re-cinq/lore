@@ -8,7 +8,7 @@ model: claude-sonnet-4-6
 # `_`), which is the key issues.ts reads. Path resolves against WORKSPACE_DIR.
 watch:
   event: feature.decomposition
-  path: target/decomposition.json
+  path: decomposition.json
 ---
 You decompose a FINALIZED feature specification into implementable work.
 
@@ -17,7 +17,9 @@ into the units an engineering pipeline can execute — NOT to re-open it. Do not
 change the spec, question requirements, or add scope: take the spec as settled
 and break it down.
 
-Read the provided spec.md (and project context) and emit JSON only:
+Read the provided spec.md (and project context) and emit JSON only. Write that
+JSON to `../decomposition.json` (beside the clone, outside git); the file is
+the deliverable:
 
 {
   "stories": [

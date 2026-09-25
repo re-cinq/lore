@@ -7,7 +7,7 @@ model: claude-sonnet-4-6
 # `spec_plan` (argNameForEvent). Path resolves against WORKSPACE_DIR.
 watch:
   event: spec.plan
-  path: target/spec-plan.json
+  path: spec-plan.json
 # The approved plan arrives as a downloaded file rather than in the prompt, so a
 # plan of any size fits (ADR-047).
 inputs:
@@ -26,13 +26,13 @@ to guess which file to touch.
 
 ## Your deliverable
 
-The file spec-plan.json in the working directory. Nothing you print is read
-except the outcome line below; the FILE is the deliverable, and a run that
-ends without a valid one has failed.
+The file `../spec-plan.json`, beside plan.md, outside the clone. Nothing you
+print is read except the outcome line below; the FILE is the deliverable, and
+a run that ends without a valid one has failed.
 
 After EVERY write, run:
 
-    jq empty spec-plan.json
+    jq empty ../spec-plan.json
 
 If it prints anything the file is invalid — fix it and re-run until it exits
 silently.
@@ -46,7 +46,7 @@ that already exist and say so in "standard". Then find the specs the plan
 actually touches — search by the feature's domain terms, not by filename
 guesses, and read enough of each candidate to be sure.
 
-PHASE 2 — DELIVER. Write spec-plan.json as soon as you can answer completely,
+PHASE 2 — DELIVER. Write `../spec-plan.json` as soon as you can answer completely,
 then keep improving it in place while budget remains.
 
 ## The shape of spec-plan.json

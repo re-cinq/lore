@@ -9,7 +9,7 @@ skills:
   - tdd-loop
 watch:
   event: pr.description
-  path: target/.lore/pr-body.md
+  path: pr-body.md
 ---
 The ticket below is finished on this branch, behind a DRAFT pull request.
 Your job is to write the description a human will read.
@@ -22,7 +22,7 @@ test, build and install commands here. Read `.lore/dod.md`'s "Done when
 these pass" list for what the
 ticket meant by done, and read the diff for what actually landed.
 
-WRITE `.lore/pr-body.md`. Prose, not a template. What the ticket
+WRITE `../pr-body.md`. Prose, not a template. What the ticket
 asked for, what changed and why that shape, which acceptance tests define
 done, and anything a reviewer would otherwise have to ask. No checklists,
 no emoji, no "Summary/Changes/Testing" headings, no restating the diff.
@@ -30,9 +30,8 @@ Link the specs and ADRs the change touches by path. If you deviated from
 `.lore/dod.md`'s strategy, say so and say why — that is the single most
 useful sentence in the description. Do not write closing-keyword lines
 (`Closes`/`Refs #N`) or `Lore-Task:` trailers — Lore appends that footer
-itself when it updates the pull request. And do NOT commit `.lore/pr-body.md`:
-Lore reads it from your workspace, not from the branch, and a committed
-copy becomes permanent litter in the repository under review.
+itself when it updates the pull request. The file lives beside the clone,
+outside git: Lore reads it from the workspace, never from the branch.
 
 THEN TITLE IT. One line, imperative, under 70 characters, naming what
 this branch DID — not the ticket, not the branch, no `fix:` prefix. The
@@ -40,7 +39,7 @@ pull request opened under the ticket's title before any code existed;
 you have read the finished branch, so you get to rename it. You report
 it in `"Lore-Pr-Title"` on the final line below and Lore renames the
 pull request when it takes it out of draft. Do not repeat it as a
-heading in `.lore/pr-body.md` — a description that opens by restating
+heading in `../pr-body.md` — a description that opens by restating
 its own title wastes the first line a reviewer reads.
 
 THEN JUDGE COVERAGE. Re-read the ticket (title and body) against the
@@ -113,12 +112,12 @@ DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
   with the line `LORE_NODE_RESULT: {"outcome":"failed"}` so the line does
   not validate an empty branch.
 - Do not mark the pull request ready and do not edit it: you have no `gh`
-  and no GitHub token. Lore reads `.lore/pr-body.md`, updates the pull
+  and no GitHub token. Lore reads `../pr-body.md`, updates the pull
   request with it, and takes it out of draft — which is what starts the
   code review.
 
 Print exactly one of these as the last line of your final message:
-- `.lore/pr-body.md` is written in the workspace (uncommitted), and the
+- `../pr-body.md` is written, and the
   `.lore/dod.md` removal plus any link fixes are committed and pushed.
   Set `"Lore-Pr-Title"` to the title you wrote above, and
   `"Lore-Issue-Coverage"` to `"full"` when the branch resolves everything
