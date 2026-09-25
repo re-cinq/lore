@@ -1,5 +1,6 @@
 import Hapi from "@hapi/hapi";
 import { describe, expect, it } from "vitest";
+import { planMeta, planWith, textBlock } from "@re-cinq/planning-document/testing";
 import type { PlanFilePorts } from "../../../work/plans/plan-file.js";
 import { planFileRoutes } from "./plan-file.js";
 
@@ -62,6 +63,46 @@ describe("POST /api/plans/{id}/refine-failed", () => {
     expect({ status: res.statusCode, failed }).toEqual({
       status: 400,
       failed: [],
+    });
+  });
+});
+
+describe("GET /api/plans/{id}/agent-view", () => {
+  it("answers the intent section as one paragraph block with its hash", async () => {
+    const meta = { ...planMeta("feature", "Faster checkout"), id: "p1" };
+    const blocks = planWith("feature", {
+      intent: [textBlock("paragraph", {}, "Checkout is slow.")],
+    });
+    const server = Hapi.server();
+
+    server.route(
+      planFileRoutes({
+        livePlan: async () => ({ meta, blocks }),
+        writer: {
+          applyOps: async () => [],
+          proposeChanges: async () => [],
+          failRefine: async () => {},
+        },
+      }),
+    );
+
+    const res = await server.inject({
+      method: "GET",
+      url: "/api/plans/p1/agent-view",
+    });
+    const body = res.result as { sections: Array<Record<string, unknown>> };
+
+    expect(body.sections[0]).toEqual({
+      slot: "intent",
+      title: expect.any(String),
+      blocks: [
+        {
+          id: expect.any(String),
+          type: "paragraph",
+          hash: expect.stringMatching(/^[0-9a-z]+$/),
+          text: "Checkout is slow.",
+        },
+      ],
     });
   });
 });

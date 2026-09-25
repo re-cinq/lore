@@ -4,6 +4,7 @@ import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
 import {
   applyPlanFile,
+  planAgentView,
   planMarkdown,
   type PlanFilePorts,
 } from "../../../work/plans/plan-file.js";
@@ -39,9 +40,42 @@ const PlanFileOutcomeSchema = z.object({
 export function planFileRoutes(ports: PlanFilePorts): ServerRoute[] {
   return [
     markdownRoute(ports),
+    agentViewRoute(ports),
     agentFileRoute(ports),
     refineFailedRoute(ports),
   ];
+}
+
+const PlanAgentViewSchema = z.object({
+  sections: z.array(
+    z.object({
+      slot: z.string(),
+      title: z.string(),
+      blocks: z.array(
+        z.object({
+          id: z.string(),
+          type: z.string(),
+          hash: z.string(),
+          text: z.string(),
+          props: z.record(z.string(), z.unknown()).optional(),
+        }),
+      ),
+    }),
+  ),
+});
+
+function agentViewRoute(ports: PlanFilePorts): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/plans/{id}/agent-view",
+    options: zodResponse({}, PlanAgentViewSchema, {
+      name: "PlanAgentView",
+      description:
+        "The live plan as a person reads it: one section per slot, with its own blocks and their content only",
+      errors: [404],
+    }),
+    handler: async (request) => planAgentView(request.params.id, ports),
+  };
 }
 
 function markdownRoute(ports: PlanFilePorts): ServerRoute {
