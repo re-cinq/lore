@@ -13,7 +13,8 @@
 #                     test files or a path, a workspace package or a Go package
 #                     path, or follows a cd into a subdirectory. Bare suite
 #                     runs are refused.
-#   none              no runner, no dependency install, no build at all.
+#   none              no runner, no dependency install, no build, and no
+#                     linter/formatter/typechecker: CI publishes that verdict.
 #   any               guard off.
 #
 # The command is judged one segment at a time (split on ; & | and newlines,
@@ -49,6 +50,9 @@ RUNNER="$RUNNER|(^|$W)(cargo$W+test|go$W+test|deno$W+test|playwright$W+test|cypr
 SCRIPT="(^|$W)(npm|pnpm|yarn|bun)$W+((run|run-script)$W+)?(test|tst|t|coverage)(:$NW*)?($W|$)"
 INSTALL="^((npm|pnpm|bun)$W+(ci|install|i|add)|yarn($W+(install|add))?|pip3?$W+install|uv$W+(sync|pip$W+install)|poetry$W+install|go$W+mod$W+download)($W|$)"
 BUILD="^((npm|pnpm|yarn|bun)$W+(run$W+)?build(:$NW*)?|(npx$W+|(\.\.?/)?($NW*/)?node_modules/\.bin/)?tsc|go$W+(build|install|generate)|cargo$W+(build|check)|make|docker$W+build)($W|$)"
+# Linters and formatters: CI publishes their verdict, and reaching one through npx
+# downloads it into the pod, which is how a review pod fetched eslint@10 (#2155).
+LINT="^((npx$W+|(pnpm|bun)$W+dlx$W+|(\.\.?/)?($NW*/)?node_modules/\.bin/)?(eslint|prettier|biome|ruff|black|golangci-lint)|(npm|pnpm|yarn|bun)$W+(run$W+)?(lint|format|fmt|typecheck|type-check|check)(:$NW*)?)($W|$)"
 TEST_FILE="\.(test|spec)\.[cm]?[jt]sx?($W|:|$)|_test\.go($W|$)|(^|$W|/)test_[A-Za-z0-9_]+\.py"
 WORKSPACE="(^|$W)(-w|--workspace|--filter|--project)(=|$W+)[^-[:space:]]"
 GO_PACKAGE="go$W+test($W+-$NW+)*$W+\./[A-Za-z0-9_][A-Za-z0-9_/.-]*($W|$)"
@@ -144,6 +148,9 @@ for seg in $segments; do
     fi
     if matches "$head" "$INSTALL" || matches "$head" "$BUILD"; then
       refuse "this node does not install dependencies or build. The pod has a 1Gi disk budget and CI already builds the branch."
+    fi
+    if matches "$head" "$LINT"; then
+      refuse "lint, types and formatting are CI's verdict — read it with lore_get_ci_failures. Reaching a linter through npx also downloads it into a 1Gi pod."
     fi
     continue
   fi
