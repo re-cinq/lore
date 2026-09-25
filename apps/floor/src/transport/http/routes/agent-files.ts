@@ -35,16 +35,24 @@ export const agentFileDownloadRoute: ServerRoute = {
   path: "/api/agent-files/runs/{runId}/{source}",
   options: { auth: "internal-token" },
   handler: async (request, h) => {
-    const markdown = await inputFileOf(request.params.runId, request.params.source);
+    const markdown = await inputFileOf(
+      request.params.runId,
+      request.params.source,
+    );
 
     return markdown === null
-      ? h.response({ error: `the run has no ${request.params.source}` }).code(404)
+      ? h
+          .response({ error: `the run has no ${request.params.source}` })
+          .code(404)
       : h.response(markdown).type("text/markdown; charset=utf-8").code(200);
   },
 };
 
 /** What a recipe's `inputs[].source` names, resolved for the run at the moment the pod asks; an unknown source is a file the run does not have. */
-async function inputFileOf(runId: string, source: string): Promise<string | null> {
+async function inputFileOf(
+  runId: string,
+  source: string,
+): Promise<string | null> {
   if (source === "plan") {
     return planFileOf(runId, {
       planOfRun: async (id) => (await planRunOfRun(id))?.planId,
@@ -78,6 +86,11 @@ async function receiveUpload(request: Request, h: ResponseToolkit) {
     apiError(404),
     "no handler for this file event",
   );
+
+  return receivePlan(request, h);
+}
+
+async function receivePlan(request: Request, h: ResponseToolkit) {
   const delivery = await receivePlanUpload(
     {
       agentCrName: request.params.agent,

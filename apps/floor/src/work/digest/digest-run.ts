@@ -17,7 +17,8 @@ export interface DigestRun {
 
 /** Null for a run that is not a digest run, or one whose args a fan-out never wrote. */
 export function digestRunOf(run: AssemblyRunRecord): DigestRun | null {
-  const { channel, week_key, digest_date, digest_repos, digest_draft } = run.args;
+  const { channel, week_key, digest_date, digest_repos, digest_draft } =
+    run.args;
 
   if (![channel, week_key, digest_date, digest_repos].every(isText)) {
     return null;

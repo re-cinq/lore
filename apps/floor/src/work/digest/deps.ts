@@ -10,8 +10,10 @@ import type { UploadDeps } from "./deliver-digest.js";
 export function draftDeps(): DraftDeps {
   return {
     runById: (runId) => pipeline().assemblyRuns.getById(runId),
-    mergeArgs: (runId, patch) => pipeline().assemblyRuns.mergeArgs(runId, patch),
-    recentTexts: (channel, limit) => pipeline().digestPosts.recentTexts(channel, limit),
+    mergeArgs: (runId, patch) =>
+      pipeline().assemblyRuns.mergeArgs(runId, patch),
+    recentTexts: (channel, limit) =>
+      pipeline().digestPosts.recentTexts(channel, limit),
     collect: collectChanges,
   };
 }
@@ -21,9 +23,12 @@ export function uploadDeps(): UploadDeps {
     posts: pipeline().digestPosts,
     poster: new SlackPosterHttp(process.env),
     runOfAgent: async (agentCrName) => {
-      const visit = await pipeline().assemblyRuns.findStationRunByAgentCrName(agentCrName);
+      const visit =
+        await pipeline().assemblyRuns.findStationRunByAgentCrName(agentCrName);
 
-      return visit ? pipeline().assemblyRuns.getById(visit.assemblyRunId) : null;
+      return visit
+        ? pipeline().assemblyRuns.getById(visit.assemblyRunId)
+        : null;
     },
   };
 }

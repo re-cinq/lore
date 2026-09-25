@@ -34,7 +34,9 @@ export class InMemoryDigestPosts implements DigestPostsPort {
   async recentTexts(channelId: string, limit: number): Promise<DigestTexts[]> {
     const perRun = new Map<string, DigestPost>();
 
-    for (const row of this.finished().filter((r) => r.channelId === channelId)) {
+    for (const row of this.finished().filter(
+      (r) => r.channelId === channelId,
+    )) {
       perRun.set(row.runId, row);
     }
 

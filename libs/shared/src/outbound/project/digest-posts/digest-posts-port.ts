@@ -21,7 +21,10 @@ export interface DigestPostsPort {
   /** When the repo's last FINISHED digest went out; null before the first. */
   lastPostedAt(repo: string): Promise<Date | null>;
   /** The channel's thread for the week, from its newest finished post; null until the first post of the week. */
-  threadFor(channelId: string, weekKey: string): Promise<{ threadTs: string } | null>;
+  threadFor(
+    channelId: string,
+    weekKey: string,
+  ): Promise<{ threadTs: string } | null>;
   /** The intro and ending of the channel's last `limit` finished posts, newest first, one per run. */
   recentTexts(channelId: string, limit: number): Promise<DigestTexts[]>;
   /** First writer wins: true when this call inserted the run's rows, false when another already had. */

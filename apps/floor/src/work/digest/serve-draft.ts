@@ -7,7 +7,10 @@ import type { PullRef } from "@re-cinq/lore-shared/project/pulls/pull-requests-p
 import { resolveDigestSettings } from "@re-cinq/lore-shared/digest-settings.js";
 import type { DigestRepo } from "@re-cinq/lore-shared/digest/codec.js";
 import { dedupeImplemented } from "@re-cinq/lore-shared/digest/dedupe.js";
-import { groupImplemented, groupRoadmap } from "@re-cinq/lore-shared/digest/group.js";
+import {
+  groupImplemented,
+  groupRoadmap,
+} from "@re-cinq/lore-shared/digest/group.js";
 import {
   renderDigestDraft,
   renderRepoSection,
@@ -82,15 +85,28 @@ export async function repoSection(
   });
 
   try {
-    const { merged, closed, open } = await collect(entry);
+    const lists = groupedLists(await collect(entry), entry);
 
+    return renderRepoSection({ repo: entry.repo, settings, ...lists });
+  } catch (err) {
     return renderRepoSection({
       repo: entry.repo,
       settings,
-      implemented: groupImplemented(dedupeImplemented(merged, closed), entry.group_by),
-      roadmap: groupRoadmap(open, entry.group_by),
+      error: (err as Error).message,
     });
-  } catch (err) {
-    return renderRepoSection({ repo: entry.repo, settings, error: (err as Error).message });
   }
+}
+
+/** The two lists of one repo, deduped and grouped the way the repo asked. */
+function groupedLists(
+  { merged, closed, open }: RepoChanges,
+  entry: DigestRepo,
+) {
+  return {
+    implemented: groupImplemented(
+      dedupeImplemented(merged, closed),
+      entry.group_by,
+    ),
+    roadmap: groupRoadmap(open, entry.group_by),
+  };
 }

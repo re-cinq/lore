@@ -173,7 +173,25 @@ async function processDetectRepo(
     return;
   }
   const jobRunId = await deps.jobRuns.start(`${jobRef}:${repo}`);
-  const { id, joined } = await startUnderJobRun(
+  const { id, joined } = await startDetectRun(
+    blueprintName,
+    repo,
+    jobRunId,
+    deps,
+  );
+
+  if (!joined) {
+    console.log(`[detect] ${blueprintName}: started ${id} for ${repo}`);
+  }
+}
+
+function startDetectRun(
+  blueprintName: string,
+  repo: string,
+  jobRunId: string,
+  deps: DetectFanOutDeps,
+) {
+  return startUnderJobRun(
     `[detect] ${blueprintName}: ${repo}`,
     {
       blueprintName,
@@ -183,14 +201,6 @@ async function processDetectRepo(
     },
     jobRunId,
     deps,
-  );
-
-  if (joined) {
-    return;
-  }
-
-  console.log(
-    `[detect] ${blueprintName}: started assembly line ${id} for ${repo}`,
   );
 }
 
