@@ -165,15 +165,21 @@ async function sendQuestions(
   return questions.length;
 }
 
-/** One `add-question` op; the id is stable across redeliveries of the same answer, so planning-sync sees the same question twice rather than two questions. */
+/** One `add-question` op; the id is stable across reworks — keyed on the review comment the question answers for, so a rework that rewords it replaces it, and on the text only for a question tied to no comment. */
 export function addQuestionOp(question: PlanQuestion): Record<string, unknown> {
   return {
     op: "add-question",
     slot: question.slot,
-    questionId: `q-review-${djb2Hash(`${question.slot}\n${question.question}`)}`,
+    questionId: questionIdOf(question),
     question: question.question,
     why: question.why,
     kind: "text",
     options: [],
   };
+}
+
+function questionIdOf(question: PlanQuestion): string {
+  return question.comment_id === undefined
+    ? `q-review-${djb2Hash(`${question.slot}\n${question.question}`)}`
+    : `q-review-c${question.comment_id}`;
 }

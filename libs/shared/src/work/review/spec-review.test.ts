@@ -126,13 +126,14 @@ Inline comments:
 });
 
 describe("specReviewResultSchema", () => {
-  it("accepts the writer's answer and fills the optional why and note", () => {
+  it("accepts the writer's answer, fills the optional why and note, and keeps the comment a question answers for", () => {
     expect(
       specReviewResultSchema.parse({
         plan_questions: [
           {
             slot: "intent",
             question: "Suppress the model, or let it phrase the answer?",
+            comment_id: 12,
           },
         ],
         replies: [{ comment_id: 11, action: "addressed" }],
@@ -143,6 +144,7 @@ describe("specReviewResultSchema", () => {
           slot: "intent",
           question: "Suppress the model, or let it phrase the answer?",
           why: "",
+          comment_id: 12,
         },
       ],
       replies: [{ comment_id: 11, action: "addressed", note: "" }],
