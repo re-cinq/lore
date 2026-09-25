@@ -90,11 +90,11 @@ message exactly as it should appear in Slack:
    drop a fact, a link, a number or a name.
 2. If the intro marker is present, replace it with ONE paragraph about what
    the day was about for the team, drawn only from the sections below it: two
-   or three sentences, or with a voice the monologue its section asks for. If
+   or three sentences, or with a voice the monologue the voice section asks for. If
    the marker is absent, write no intro.
 3. Replace each aside marker with an italic aside (`_like this_`) reacting to
    the section directly above it: one sentence, or with a voice the one or two
-   sentence beat its section asks for. Point at something in that section,
+   sentence beat the voice section asks for. Point at something in that section,
    such as a title, a theme or how much landed. Tease the work, never a
    person; do not single anyone out for having many open issues or few merges.
 4. If the ending marker is present, replace it with ONE closing paragraph
