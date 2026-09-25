@@ -228,6 +228,28 @@ describe("PUT /api/repos/{owner}/{repo}/settings", () => {
     expect(pool.query.mock.calls.length).toBe(1);
   });
 
+  it("returns 400 for a digest block whose timezone is not an IANA zone", async () => {
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({
+      rows: [{ full_name: "re-cinq/lore", team: null }],
+    });
+    const res = await put(
+      {
+        settings: { digest: { enabled: true, timezone: "Mars/Olympus_Mons" } },
+      },
+      pool,
+    );
+
+    expect({
+      status: res.statusCode,
+      queries: pool.query.mock.calls.length,
+    }).toEqual({
+      status: 400,
+      queries: 1,
+    });
+  });
+
   it("merges a well-formed digest block", async () => {
     const pool = makePool();
 
