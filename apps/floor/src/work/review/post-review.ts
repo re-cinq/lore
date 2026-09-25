@@ -63,6 +63,10 @@ export function partitionByHunks(
 const FALLBACK_NOTE =
   "_Inline placement was rejected by GitHub, so this review is posted as a single comment._";
 
+/** What the body calls the findings it renders itself: on an inline review only the ones GitHub would not take a comment on land here, but a review that stepped down carries ALL of them, and calling those "outside changed hunks" is simply false. */
+const OUT_OF_HUNK_HEADING = "Notes on lines outside changed hunks";
+const STEPPED_DOWN_HEADING = "Findings";
+
 /** Says where the verdict went when GitHub would not take it as one. It is not a detail: a reader who sees "Approved" in a comment has no way to know whether anything is gating the merge, and the check is what does. */
 const COMMENT_NOTE =
   "_GitHub does not accept an approving or blocking review from the account that opened this pull request, so this review is posted as a comment. Its verdict is published on the `lore/code-review` check._";
@@ -140,7 +144,10 @@ async function postSummaryReview(
 ): Promise<void> {
   await pulls.createReview(prNumber, {
     event: reviewEvent(output),
-    body: withMarker(composeBody(output, output.findings, model), marker),
+    body: withMarker(
+      composeBody(output, output.findings, model, STEPPED_DOWN_HEADING),
+      marker,
+    ),
     comments: [],
   });
 }
@@ -152,7 +159,12 @@ async function postCommentReview(
   output: ReviewOutput,
   { marker, model }: ReviewDelivery,
 ): Promise<void> {
-  const body = composeBody(output, output.findings, model);
+  const body = composeBody(
+    output,
+    output.findings,
+    model,
+    STEPPED_DOWN_HEADING,
+  );
 
   await pulls.createReview(prNumber, {
     event: "COMMENT",
@@ -197,17 +209,18 @@ function withMarker(body: string, marker?: string): string {
 /** The review body: the standard summary, plus any findings GitHub cannot inline. */
 export function composeBody(
   output: ReviewOutput,
-  overflow: ReviewFinding[],
+  written: ReviewFinding[],
   model?: string,
+  heading: string = OUT_OF_HUNK_HEADING,
 ): string {
   const summary = buildReviewSummary(output, { model });
 
-  if (overflow.length === 0) {
+  if (written.length === 0) {
     return summary;
   }
-  const notes = overflow.map(renderOutOfDiff).join("\n\n");
+  const notes = written.map(renderOutOfDiff).join("\n\n");
 
-  return `${summary}\n\n### Notes on lines outside changed hunks\n\n${notes}`;
+  return `${summary}\n\n### ${heading}\n\n${notes}`;
 }
 
 async function postFallback(

@@ -506,6 +506,7 @@ describe("postReview — what GitHub refuses", () => {
       comments: [],
     });
     expect(calls.at(-1)?.input.body).toContain("null deref");
+    expect(calls.at(-1)?.input.body).not.toContain("outside changed hunks");
     expect(comments).toEqual([]);
   });
 

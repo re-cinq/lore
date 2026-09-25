@@ -526,7 +526,7 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
   went, which is the only review GitHub accepts on a pull request the reviewer opened; and
   only with all three refused, one plain comment, which never drops it. Each downgrade is
   audited with the rung it landed on.
-  ([validated by](apps/floor/src/work/review/post-review.test.ts#L493), [validated by](apps/floor/src/work/review/post-review.test.ts#L512), [validated by](apps/floor/src/work/review/post-review.test.ts#L532))
+  ([validated by](apps/floor/src/work/review/post-review.test.ts#L493), [validated by](apps/floor/src/work/review/post-review.test.ts#L513), [validated by](apps/floor/src/work/review/post-review.test.ts#L533))
 - *(added 2026-09-25)* A push earns a re-check of its own unless one of two things is true:
   a review-family run is already in flight for that exact head sha, or every commit pushed
   since the last verdict tells CI to skip it, which is the `style: prettier [skip ci]` the
