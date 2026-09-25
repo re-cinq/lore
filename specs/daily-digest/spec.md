@@ -39,7 +39,7 @@ posts it to Slack. A failed or dead agent still gets the draft posted.
 
 - A repo opts in through `settings.digest` next to its `slack_channel_id`: `enabled`, `time` (`HH:MM`), `days` (JS weekdays, Sunday 0), `timezone` (IANA), `sections` (any of `implemented`, `roadmap`, `summary`, `morale`) and `group_by` (`person` or `area`). ([validated by `digest-settings.test.ts:5`](libs/shared/src/domain/digest-settings.test.ts#L5))
 - An absent field takes its default: disabled, 09:00, Monday to Friday, Europe/Berlin, every section, grouped by person; a partial block keeps what it says and fills the rest. ([validated by `digest-settings.test.ts:16`](libs/shared/src/domain/digest-settings.test.ts#L16), [`digest-settings.test.ts:27`](libs/shared/src/domain/digest-settings.test.ts#L27))
-- The settings API refuses a malformed digest block with 400 and writes nothing, and merges a well-formed one like any other setting. ([validated by `repo-settings.test.ts:216`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L216), [`repo-settings.test.ts:231`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L231))
+- The settings API refuses a malformed digest block (a weekday outside 0–6, a time that is not `HH:MM`, a timezone `Intl` cannot format in) with 400 and writes nothing, and merges a well-formed one like any other setting. ([validated by `repo-settings.test.ts:216`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L216), [`repo-settings.test.ts:231`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L231), [`repo-settings.test.ts:253`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L253))
 
 ## FR2 — When a digest is due
 

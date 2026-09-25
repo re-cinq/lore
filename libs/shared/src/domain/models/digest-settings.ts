@@ -18,11 +18,26 @@ export const DigestGroupBySchema = z.enum(["person", "area"]);
 const TimeOfDay = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 const Weekday = z.number().int().min(0).max(6);
 
+/** A name `Intl` can format in; anything else would throw inside the tick's due check. */
+export function isIanaTimeZone(timeZone: string): boolean {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone });
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const TimeZone = z
+  .string()
+  .refine(isIanaTimeZone, { message: "not an IANA timezone" });
+
 export const DigestSettingsSchema = z.object({
   enabled: z.boolean().optional(),
   time: TimeOfDay.optional(),
   days: z.array(Weekday).optional(),
-  timezone: z.string().optional(),
+  timezone: TimeZone.optional(),
   sections: z.array(DigestSectionSchema).optional(),
   group_by: DigestGroupBySchema.optional(),
 });
@@ -32,7 +47,7 @@ export const ResolvedDigestSettingsSchema = z.object({
   enabled: z.boolean(),
   time: TimeOfDay,
   days: z.array(Weekday),
-  timezone: z.string(),
+  timezone: TimeZone,
   sections: z.array(DigestSectionSchema),
   group_by: DigestGroupBySchema,
 });
