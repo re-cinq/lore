@@ -272,21 +272,43 @@ describe("the feature-planning recipe", () => {
     }).toEqual({ gatherFirst: true, context: true, graph: true, trace: true });
   });
 
-  it("tells the planning agent that Open questions holds only question fences, so it never restates its questions there as a list", () => {
+  it("tells the planning agent that Open questions holds only questions, so it never restates its questions there as a list", () => {
     const prompt = promptOf("feature-planning");
 
     expect({
-      onlyFences: prompt.includes(
+      onlyQuestions: prompt.includes(
         "only when it belongs to no other section. That section holds only",
       ),
       noRestating: prompt.includes("Never list or restate questions"),
-    }).toEqual({ onlyFences: true, noRestating: true });
+    }).toEqual({ onlyQuestions: true, noRestating: true });
   });
 
-  it("gives the planning agent its plan as a downloaded plan.md and takes the edited file back by upload", () => {
-    expect(SHIPPED.get("feature-planning")?.config).toMatchObject({
+  it("edits the live plan through lore_plan_read and lore_plan_edit instead of uploading a file", () => {
+    const config = SHIPPED.get("feature-planning")?.config;
+    const prompt = promptOnOneLine("feature-planning");
+
+    expect(config).toMatchObject({
       inputs: [{ path: "plan.md", source: "plan" }],
-      watch: { event: "planning.result", path: "plan.md", upload: true },
+    });
+    expect(config?.watch).toBeUndefined();
+    expect({
+      read: prompt.includes("lore_plan_read"),
+      edit: prompt.includes("lore_plan_edit"),
+      onePerCall: prompt.includes("one op per call"),
+      planIdSlot: prompt.includes("{plan_id}"),
+      expectHash: prompt.includes("expect"),
+      readAgain: prompt.includes("read the plan again"),
+      neverConversation: prompt.includes("never touch the conversation"),
+      briefSlot: prompt.includes("{description}"),
+    }).toEqual({
+      read: true,
+      edit: true,
+      onePerCall: true,
+      planIdSlot: true,
+      expectHash: true,
+      readAgain: true,
+      neverConversation: true,
+      briefSlot: true,
     });
   });
 

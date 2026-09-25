@@ -16,6 +16,7 @@ import {
 } from "./assembly-run-reaper.js";
 import { LlmDispatchGate } from "./llm-dispatch-gate.js";
 import { advanceLine } from "./advance-line.js";
+import { RecordingPlanWriter } from "../../domain/plan-writer-recording.js";
 
 const line: AssemblyLine = parseAssemblyLine(`
 name: code-review
@@ -295,6 +296,7 @@ function harness() {
     resolveRecipe: async (_repo: string, ref: string, description: string) => ({
       prompt: `prompt:${ref}::${description}`,
     }),
+    plans: new RecordingPlanWriter(),
     cleanupToken: async () => {},
     jobRuns: { complete: async () => {}, fail: async () => {} },
     readAgentStatus: async (name: string) => {
@@ -1252,6 +1254,38 @@ describe("a claimed single-CR visit the sweep must NOT own", () => {
       outcome: null,
     });
     expect(await h.port.getById(singleCr)).toMatchObject({ status: "running" });
+  });
+});
+
+describe("a feature-planning run's analyze node settling through the reaper", () => {
+  it("closes presence when the reaper times out the open analyze node", async () => {
+    const h = harness();
+    const builtins = await loadBuiltinAssemblyLines();
+
+    h.deps.definitions = async () => builtins;
+    const id = await h.port.start({
+      blueprintName: "feature-planning",
+      repo: "o/r",
+      args: { plan_id: "p9" },
+    });
+
+    await h.port.markRunning(id);
+    const clock = h.port.clock;
+
+    h.port.setClock(() => new Date(Date.now() - 70 * MIN));
+    await h.port.ensureStationRun({
+      assemblyRunId: id,
+      nodeId: "analyze",
+      iteration: 1,
+      agentCrName: `${id.substring(0, 12)}-analyze`,
+    });
+    h.port.setClock(clock);
+
+    await assemblyLineReaperJob(h.deps);
+
+    expect(h.deps.plans.writes).toEqual([
+      { method: "closePresence", planId: "p9" },
+    ]);
   });
 });
 

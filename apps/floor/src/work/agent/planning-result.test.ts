@@ -7,8 +7,8 @@ import {
   receivePlanUpload,
   PLANNING_RESULT_EVENT,
   type PlanRunRef,
-  type PlanWriter,
 } from "./planning-result.js";
+import { RecordingPlanWriter } from "../../domain/plan-writer-recording.js";
 
 const PLAN_MD =
   "# Faster checkout\n\n## What we want and why <!-- slot:intent -->\n\nCheckout is slow.\n";
@@ -31,37 +31,17 @@ function fileEvent(over: Partial<AgentFileEvent> = {}): AgentFileEvent {
   };
 }
 
-function recordingWriter() {
-  const writes: Array<{ planId: string; body: unknown }> = [];
-  const writer: PlanWriter = {
-    markdownOf: async (planId) => `# plan ${planId}\n`,
-    submitFile: async (planId, body) => {
-      writes.push({ planId, body });
-    },
-    failRefine: async (planId, refine) => {
-      writes.push({ planId, body: { failed: refine } });
-    },
-    addQuestions: async (planId, edits) => {
-      writes.push({ planId, body: edits });
-    },
-    findingsOf: async () => [],
-    sectionsOf: async () => [],
-  };
-
-  return { writes, writer };
-}
-
 const deliver = async (
   event: AgentFileEvent,
   run: PlanRunRef | null = DRAFTING,
 ) => {
-  const { writes, writer } = recordingWriter();
+  const writer = new RecordingPlanWriter();
   const delivery = await deliverPlanningResult(event, {
     planRunOfTask: async () => run ?? undefined,
     plans: writer,
   });
 
-  return { delivery, writes };
+  return { delivery, writes: writer.writes };
 };
 
 describe("deliverPlanningResult", () => {
@@ -70,6 +50,7 @@ describe("deliverPlanningResult", () => {
       delivery: { outcome: "ready" },
       writes: [
         {
+          method: "submitFile",
           planId: "p1",
           body: { actor: "planning-agent", markdown: PLAN_MD, refine: null },
         },
@@ -82,6 +63,7 @@ describe("deliverPlanningResult", () => {
 
     expect(writes).toEqual([
       {
+        method: "submitFile",
         planId: "p1",
         body: {
           actor: "planning-agent",
@@ -134,7 +116,7 @@ describe("deliverPlanningResult", () => {
 
 describe("receivePlanUpload", () => {
   it("writes a 2 MB uploaded plan.md into the plan its agent's run drafts", async () => {
-    const { writes, writer } = recordingWriter();
+    const writer = new RecordingPlanWriter();
     const markdown = `${PLAN_MD}${"More context. ".repeat(150_000)}`;
 
     const delivery = await receivePlanUpload(
@@ -146,10 +128,11 @@ describe("receivePlanUpload", () => {
       },
     );
 
-    expect({ delivery, writes }).toEqual({
+    expect({ delivery, writes: writer.writes }).toEqual({
       delivery: { outcome: "ready" },
       writes: [
         {
+          method: "submitFile",
           planId: "p1",
           body: { actor: "planning-agent", markdown, refine: REFINING.refine },
         },
@@ -158,29 +141,30 @@ describe("receivePlanUpload", () => {
   });
 
   it("writes nothing for an upload from an agent no planning run knows", async () => {
-    const { writes, writer } = recordingWriter();
+    const writer = new RecordingPlanWriter();
     const delivery = await receivePlanUpload(
       { agentCrName: "stranger", markdown: PLAN_MD, exitCode: 0 },
       { planRunOfAgent: async () => undefined, plans: writer },
     );
 
-    expect({ delivery, writes }).toEqual({
+    expect({ delivery, writes: writer.writes }).toEqual({
       delivery: { outcome: "skipped", error: "the run names no plan" },
       writes: [],
     });
   });
 
   it("still writes a draft whose agent exited 1, since a draft answers no Refine", async () => {
-    const { writes, writer } = recordingWriter();
+    const writer = new RecordingPlanWriter();
     const delivery = await receivePlanUpload(
       { agentCrName: "abc-analyze", markdown: PLAN_MD, exitCode: 1 },
       { planRunOfAgent: async () => DRAFTING, plans: writer },
     );
 
-    expect({ delivery, writes }).toEqual({
+    expect({ delivery, writes: writer.writes }).toEqual({
       delivery: { outcome: "ready" },
       writes: [
         {
+          method: "submitFile",
           planId: "p1",
           body: { actor: "planning-agent", markdown: PLAN_MD, refine: null },
         },
@@ -191,7 +175,7 @@ describe("receivePlanUpload", () => {
 
 describe("planFileOf", () => {
   it("serves run-1's plan p1 as the markdown the pod downloads", async () => {
-    const { writer } = recordingWriter();
+    const writer = new RecordingPlanWriter();
 
     expect(
       await planFileOf("run-1", {
@@ -202,7 +186,7 @@ describe("planFileOf", () => {
   });
 
   it("serves nothing for a run that names no plan", async () => {
-    const { writer } = recordingWriter();
+    const writer = new RecordingPlanWriter();
 
     expect(
       await planFileOf("run-9", {

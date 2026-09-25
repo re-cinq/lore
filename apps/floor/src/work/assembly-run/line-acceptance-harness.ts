@@ -21,6 +21,7 @@ import {
 } from "./node-event-handler.js";
 import { createResumeEventHandler } from "./resume-event-handler.js";
 import { nodeAgentName } from "./floor-assembly-run.js";
+import { RecordingPlanWriter } from "../../domain/plan-writer-recording.js";
 
 export interface PublishedServiceNode {
   eventName: string;
@@ -125,6 +126,7 @@ export function createLineHarness(
     resolveRecipe: async (_repo, promptRef, description) => ({
       prompt: `${promptRef}::${description}`,
     }),
+    plans: new RecordingPlanWriter(),
     cleanupToken: async () => {},
     jobRuns: { complete: async () => {}, fail: async () => {} },
     publishNode: async (event) => {
