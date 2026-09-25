@@ -56,3 +56,12 @@ Sections are open, and only the agent changes them: a plan may carry `custom-<id
 ### Rationale
 
 Approval used to be the end of what the page knew: the status flipped, the editor stayed open (lore-api's socket silently refused the edits), the outline kept saying "Ready for approval", and a failed spec pass offered to redraft the plan. Nothing could send an open spec PR back to the plan's people, though the line had the `merged → author` edge for it. The alternative to a fresh line for a revision — forking the merged line onto its delivered branch — would push onto a branch GitHub may already have deleted and inherit the old PR number, so the fork was not used. planning-station's editor learned to say who approved the plan in its outline and to delete a comment behind a confirmation (planning-editor 0.6.0).
+
+## Amendment (2026-09-25): the agent is a collaborator on the plan, not a file writer
+
+- **The planning agent edits the Yjs document it shares with people.** It holds one direct connection to the plan with an awareness state of its own, so people see it present while its pass runs, and it changes the plan one op at a time through the gateway's `lore_plan_edit`, each op guarded by the hash of the block it read; a block a person changed since is refused, and the agent reads it again ([validated by edits the live plan through lore_plan_read and lore_plan_edit instead of uploading a file](../libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L286), [validated by tells the agent to reread and retry when the block changed under it](../apps/mcp-server/src/transport/tools/plan-tools.test.ts#L94), [validated by opens presence for the planning agent before the analyze pod launches](../apps/floor/src/work/assembly-run/advance-line.test.ts#L1371)).
+- **The upload path of the 2026-09-22 amendment remains only for a recipe that still ships a file.** No shipped recipe does; `plan.md` is still downloaded, as a read copy ([validated by](../apps/floor/src/transport/http/routes/agent-files.test.ts#L97)).
+
+### Rationale
+
+A pass that wrote a whole file and handed it back replaced the plan at the end, so people watched a placeholder and their edits during the pass raced the upload. Editing op by op on the shared document lets people watch the draft appear and write beside it, and the per-block hash keeps the agent from overwriting their words.
