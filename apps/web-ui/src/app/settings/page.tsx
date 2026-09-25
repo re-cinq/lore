@@ -4,6 +4,7 @@ import { getTaskStats } from "@/lib/api/tasks";
 import { getOrgSettings, putOrgSettings } from "@/lib/api/repos";
 import { listGithubInstallations } from "@/lib/api/github-installations";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { githubAppInstallUrl } from "./github-app-install-url";
 import SettingsView, {
   type SettingsApprovalConfig,
@@ -15,10 +16,22 @@ type SettingsViewData = Omit<
   "saveSettings" | "saveApprovalConfig" | "regenerateToken" | "saveSlackPeople"
 >;
 
-export default async function SettingsPage() {
+/** A refused Slack-people save comes back here with the text as typed and the lines it could not read. */
+interface SettingsSearchParams {
+  slack_people?: string;
+  slack_people_rejected?: string;
+}
+
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<SettingsSearchParams>;
+}) {
+  const refused = await searchParams;
+
   return (
     <SettingsView
-      {...viewDataFrom(await loadSettingsPageData())}
+      {...viewDataFrom(await loadSettingsPageData(), refused)}
       saveSettings={saveSettings}
       saveApprovalConfig={saveApprovalConfig}
       saveSlackPeople={saveSlackPeople}
@@ -30,6 +43,7 @@ export default async function SettingsPage() {
 /** The view's data props from what the page loaded. */
 function viewDataFrom(
   loaded: Awaited<ReturnType<typeof loadSettingsPageData>>,
+  refused: SettingsSearchParams,
 ): SettingsViewData {
   return {
     apiUrl: loaded.settingsMap.api_url || "",
@@ -39,7 +53,9 @@ function viewDataFrom(
     tasksToday: loaded.taskStats.today,
     approvalConfig: loaded.approvalConfig,
     repoLines: Object.keys(loaded.approvalConfig.repos).join("\n"),
-    slackPeopleLines: formatSlackPeople(loaded.settingsMap.slack_users),
+    slackPeopleLines:
+      refused.slack_people ?? formatSlackPeople(loaded.settingsMap.slack_users),
+    slackPeopleRejected: refused.slack_people_rejected?.split("\n") ?? [],
     githubInstallations: loaded.githubInstallations,
     githubInstallUrl: githubAppInstallUrl(process.env.GITHUB_APP_SLUG),
   };
@@ -123,13 +139,20 @@ async function saveSettings(formData: FormData) {
   revalidatePath("/settings");
 }
 
-/** Always a JSON object, `{}` when every line was removed: a blank value would be read as "leave it alone". */
+/** All or nothing: a line that is not `login id` saves none of them and comes back with the text as typed. Always a JSON object, `{}` when every line was removed, since a blank value would be read as "leave it alone". */
 async function saveSlackPeople(formData: FormData) {
   "use server";
-  const people = parseSlackPeople(
-    (formData.get("slack_people") as string) || "",
-  );
+  const text = (formData.get("slack_people") as string) || "";
+  const { people, rejected } = parseSlackPeople(text);
 
+  if (rejected.length > 0) {
+    const back = new URLSearchParams({
+      slack_people: text,
+      slack_people_rejected: rejected.join("\n"),
+    });
+
+    redirect(`/settings?${back}`);
+  }
   await putOrgSettings([{ key: "slack_users", value: JSON.stringify(people) }]);
   revalidatePath("/settings");
 }

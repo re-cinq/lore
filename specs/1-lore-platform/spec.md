@@ -404,7 +404,7 @@ LOCKED` — atomically prevents duplicate work without versioning
   status comments and is closed when the PR is created. ([validated by `issues.test.ts:102`](libs/shared/src/outbound/project/issues/issues.test.ts#L99), [`issues.test.ts:111`](libs/shared/src/outbound/project/issues/issues.test.ts#L112))
 - FR-4.7: Optional approval gates: tasks can require a human to add
   an `approved` label on the GitHub Issue before processing.
-  Configured via the settings UI or `lore.settings` table. ([validated by `SettingsView.test.tsx:123`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L124))
+  Configured via the settings UI or `lore.settings` table. ([validated by `SettingsView.test.tsx:123`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L125))
 - FR-4.8: `parseTasks` turns each `- [ ] Tnnn ...` markdown line into a task
   record — id, description, `completed` from the checkbox, `parallelizable` with a
   stripped description from a `[P]` marker, a `dependsOn` list from a `[DEPENDS ON: ...]`

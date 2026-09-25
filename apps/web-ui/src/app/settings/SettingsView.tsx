@@ -27,6 +27,8 @@ export interface SettingsViewProps {
   saveApprovalConfig: (formData: FormData) => void | Promise<void>;
   /** The org setting `slack_users` as one `login id` pair per line. */
   slackPeopleLines: string;
+  /** Lines the last save refused, shown back with the text as typed; empty when nothing was refused. */
+  slackPeopleRejected: string[];
   saveSlackPeople: (formData: FormData) => void | Promise<void>;
   regenerateToken: (formData: FormData) => void | Promise<void>;
   /** The GitHub accounts Lore is connected to (specs/4-ux-repo-onboarding FR-8). */

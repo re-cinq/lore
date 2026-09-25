@@ -6,16 +6,17 @@ describe("parseSlackPeople", () => {
     expect(
       parseSlackPeople("gedaiu U01BOGDAN\n  loredanamoanga   U02LORE  "),
     ).toEqual({
-      gedaiu: "U01BOGDAN",
-      loredanamoanga: "U02LORE",
+      people: { gedaiu: "U01BOGDAN", loredanamoanga: "U02LORE" },
+      rejected: [],
     });
   });
 
-  it("drops blank lines and lines whose second part is not a Slack user id", () => {
+  it("skips blank lines and reports every line that is not a login and a Slack user id", () => {
     expect(
       parseSlackPeople("\ngedaiu bogdan\nmuemich\nvvondruska U03VV"),
     ).toEqual({
-      vvondruska: "U03VV",
+      people: { vvondruska: "U03VV" },
+      rejected: ["gedaiu bogdan", "muemich"],
     });
   });
 });

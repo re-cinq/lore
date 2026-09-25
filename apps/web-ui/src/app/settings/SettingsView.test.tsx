@@ -31,6 +31,7 @@ function renderView(
       saveSettings={action}
       saveApprovalConfig={action}
       slackPeopleLines=""
+      slackPeopleRejected={[]}
       saveSlackPeople={action}
       regenerateToken={action}
       githubInstallations={[]}
