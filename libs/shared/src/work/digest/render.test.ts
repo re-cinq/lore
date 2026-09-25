@@ -13,14 +13,18 @@ import { closedIssue, mergedPr, openIssue } from "./fixtures.js";
 import { DIGEST_DEFAULTS } from "../../domain/digest-settings.js";
 
 const all = { ...DIGEST_DEFAULTS, enabled: true };
-const section = (overrides: Partial<Parameters<typeof renderRepoSection>[0]> = {}) =>
+const section = (
+  overrides: Partial<Parameters<typeof renderRepoSection>[0]> = {},
+) =>
   renderRepoSection({
     repo: "re-cinq/lore",
     settings: all,
     implemented: [
       { key: "alice", changes: [mergedPr({ number: 1, title: "Add digest" })] },
     ],
-    roadmap: [{ key: "bob", changes: [openIssue({ number: 20, title: "Roadmap" })] }],
+    roadmap: [
+      { key: "bob", changes: [openIssue({ number: 20, title: "Roadmap" })] },
+    ],
     ...overrides,
   });
 
@@ -65,7 +69,9 @@ describe("renderRepoSection", () => {
 
   it("lists a closed issue with its number", () => {
     const text = section({
-      implemented: [{ key: "carol", changes: [closedIssue({ number: 12, title: "Bug" })] }],
+      implemented: [
+        { key: "carol", changes: [closedIssue({ number: 12, title: "Bug" })] },
+      ],
     });
 
     expect(text).toContain("• <https://gh/i/12|Bug> (#12)");
@@ -94,7 +100,9 @@ describe("renderDigestDraft", () => {
   it("carries the recent intros and endings in the appendix", () => {
     const text = draft();
 
-    expect(text.indexOf(APPENDIX_MARKER)).toBeGreaterThan(text.indexOf(ENDING_MARKER));
+    expect(text.indexOf(APPENDIX_MARKER)).toBeGreaterThan(
+      text.indexOf(ENDING_MARKER),
+    );
     expect(text).toContain("Old intro");
     expect(text).toContain("Old ending");
   });
@@ -117,13 +125,17 @@ describe("stripAppendix", () => {
   });
 
   it("removes the intro and ending markers a refine never filled", () => {
-    expect(stripAppendix(`${INTRO_MARKER}\n\nbody\n\n${ENDING_MARKER}`)).toBe("body");
+    expect(stripAppendix(`${INTRO_MARKER}\n\nbody\n\n${ENDING_MARKER}`)).toBe(
+      "body",
+    );
   });
 });
 
 describe("splitDigestMessage", () => {
   it("returns the first paragraph as intro and the last as ending", () => {
-    expect(splitDigestMessage("Hello team.\n\n*repo*\n• item\n\nKeep going!")).toEqual({
+    expect(
+      splitDigestMessage("Hello team.\n\n*repo*\n• item\n\nKeep going!"),
+    ).toEqual({
       intro: "Hello team.",
       body: "*repo*\n• item",
       ending: "Keep going!",
@@ -141,8 +153,8 @@ describe("splitDigestMessage", () => {
 
 describe("renderThreadParent", () => {
   it("names the week and every repo", () => {
-    expect(renderThreadParent("2026-W39", ["re-cinq/lore", "re-cinq/otto"])).toBe(
-      "Week 39 · re-cinq/lore, re-cinq/otto",
-    );
+    expect(
+      renderThreadParent("2026-W39", ["re-cinq/lore", "re-cinq/otto"]),
+    ).toBe("Week 39 · re-cinq/lore, re-cinq/otto");
   });
 });

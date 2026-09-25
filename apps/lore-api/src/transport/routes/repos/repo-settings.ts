@@ -61,7 +61,9 @@ async function serveRepoSettings(
     ?.dark_factory;
 
   enforceDarkFactoryAllowed(darkFactory, repo);
-  enforceDigestValid((body.settings as { digest?: unknown } | undefined)?.digest);
+  enforceDigestValid(
+    (body.settings as { digest?: unknown } | undefined)?.digest,
+  );
   await applyRepoUpdates(pool, repo, body);
 
   // A changed team strands legacy org_shared chunk rows — signal the Floor to relocate them now (nightly reindex is the safety net).
@@ -119,7 +121,9 @@ function enforceDigestValid(digest: unknown): void {
 function digestIssues(
   issues: Array<{ path: PropertyKey[]; message: string }>,
 ): string {
-  return issues.map(({ path, message }) => `${path.join(".")} ${message}`).join("; ");
+  return issues
+    .map(({ path, message }) => `${path.join(".")} ${message}`)
+    .join("; ");
 }
 
 /** Never throws: an invalid block is a client error, not a 500. */

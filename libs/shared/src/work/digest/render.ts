@@ -18,25 +18,60 @@ export interface RepoSectionInput {
 }
 
 export function renderRepoSection(input: RepoSectionInput): string {
-  const { repo, settings, error } = input;
+  const { repo, error } = input;
 
   if (error) {
     return `*${repo}*\n_could not read ${repo}: ${error}_`;
   }
-  const parts = [`*${repo}*`];
 
-  if (settings.sections.includes("implemented")) {
-    parts.push("_Implemented_", ...renderGroups(input.implemented ?? [], Infinity, "Nothing merged or closed since the last digest."));
-  }
-
-  if (settings.sections.includes("roadmap")) {
-    parts.push("_Roadmap_", ...renderGroups(input.roadmap ?? [], ROADMAP_CAP, "No assigned open issues."));
-  }
-
-  return parts.join("\n");
+  return [
+    `*${repo}*`,
+    ...LISTS.flatMap((list) => renderList(list, input)),
+  ].join("\n");
 }
 
-function renderGroups(groups: DigestGroup[], cap: number, empty: string): string[] {
+interface ListSpec {
+  section: "implemented" | "roadmap";
+  title: string;
+  cap: number;
+  empty: string;
+}
+
+/** The two lists a repo section can carry, in the order they are shown. */
+const LISTS: ListSpec[] = [
+  {
+    section: "implemented",
+    title: "_Implemented_",
+    cap: Infinity,
+    empty: "Nothing merged or closed since the last digest.",
+  },
+  {
+    section: "roadmap",
+    title: "_Roadmap_",
+    cap: ROADMAP_CAP,
+    empty: "No assigned open issues.",
+  },
+];
+
+/** One list's lines, or none when the repo did not enable its section. */
+function renderList(list: ListSpec, input: RepoSectionInput): string[] {
+  const { sections } = input.settings;
+
+  if (!sections.includes(list.section)) {
+    return [];
+  }
+
+  return [
+    list.title,
+    ...renderGroups(input[list.section] ?? [], list.cap, list.empty),
+  ];
+}
+
+function renderGroups(
+  groups: DigestGroup[],
+  cap: number,
+  empty: string,
+): string[] {
   if (groups.length === 0) {
     return [`_${empty}_`];
   }
@@ -81,7 +116,9 @@ export function renderDigestDraft(input: DigestDraftInput): string {
   return paragraphs.join("\n\n");
 }
 
-function renderAppendix(recent: Array<{ intro: string; ending: string }>): string {
+function renderAppendix(
+  recent: Array<{ intro: string; ending: string }>,
+): string {
   const lines = recent.flatMap(({ intro, ending }) => [
     ...(intro ? [`- intro: ${intro}`] : []),
     ...(ending ? [`- ending: ${ending}`] : []),
@@ -115,9 +152,10 @@ export interface DigestMessageParts {
 /** The intro is the first paragraph and the ending the last, when they are prose: a paragraph opening with a bold header or an italic note is a section, never a creation. */
 export function splitDigestMessage(text: string): DigestMessageParts {
   const paragraphs = text.trim().split(/\n{2,}/);
-  const intro = isProse(paragraphs[0]) ? paragraphs.shift() ?? "" : "";
+  const intro = isProse(paragraphs[0]) ? (paragraphs.shift() ?? "") : "";
   const last = paragraphs.at(-1);
-  const ending = paragraphs.length > 0 && isProse(last) ? paragraphs.pop() ?? "" : "";
+  const ending =
+    paragraphs.length > 0 && isProse(last) ? (paragraphs.pop() ?? "") : "";
 
   return { intro, body: paragraphs.join("\n\n"), ending };
 }
