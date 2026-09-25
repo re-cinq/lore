@@ -471,3 +471,32 @@ describe("the plan-validate recipe", () => {
     });
   });
 });
+
+describe("the code-review-recheck recipe judges the push, not the pull request", () => {
+  it("reads the range since the sha the last verdict judged, rather than the whole PR again", () => {
+    const prompt = promptOnOneLine("code-review-recheck");
+
+    expect({
+      named: prompt.includes("names the sha the last verdict judged"),
+      range: prompt.includes("..HEAD` and judge that range"),
+      whole: prompt.includes("When no sha is named, read `main...HEAD`"),
+    }).toEqual({ named: true, range: true, whole: true });
+  });
+
+  it("carries the same CI-verdict and read-once rules as the deep review, so a re-check runs no linter either", () => {
+    const prompt = promptOnOneLine("code-review-recheck");
+
+    expect({
+      ci: prompt.includes("CI's verdict"),
+      tool: prompt.includes("`lore_get_ci_failures`"),
+      noEslint: prompt.includes("not eslint, tsc or a formatter"),
+      once: prompt.includes("Read each diff once, in place"),
+    }).toEqual({ ci: true, tool: true, noEslint: true, once: true });
+  });
+
+  it("queries context with the PR title and the surface the new commits change", () => {
+    expect(promptOnOneLine("code-review-recheck")).toContain(
+      "the PR title and the surface these commits change",
+    );
+  });
+});

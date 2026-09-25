@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import {
   postReview,
   maybePostReview,
@@ -28,16 +29,23 @@ function positions(...entries: Array<[string, number]>): CommentablePositions {
   return { right, left: new Map() };
 }
 
-function recorder(opts: { createReviewThrows?: boolean } = {}) {
+function recorder(
+  opts: {
+    createReviewThrows?: boolean;
+    refuses?: (input: CreateReviewInput) => string | null;
+  } = {},
+) {
   const calls: Array<{ number: number; input: CreateReviewInput }> = [];
   const comments: Array<{ number: number; body: string }> = [];
-  const createReview = opts.createReviewThrows
-    ? async () => {
-        throw new Error("line must be part of the diff");
-      }
-    : async (number: number, input: CreateReviewInput) => {
-        calls.push({ number, input });
-      };
+  const refuses =
+    opts.refuses ??
+    (() => (opts.createReviewThrows ? "line must be part of the diff" : null));
+  const createReview = async (number: number, input: CreateReviewInput) => {
+    const refusal = refuses(input);
+
+    enforceTrue(refusal === null, Error, refusal ?? "");
+    calls.push({ number, input });
+  };
   const pulls: ReviewPoster = {
     createReview,
     comment: async (number, body) => {
@@ -472,5 +480,63 @@ describe("formal verdict submission (always on)", () => {
       event: "REQUEST_CHANGES",
       comments: [{ path: "src/a.ts", line: 12 }],
     });
+  });
+});
+
+describe("postReview — what GitHub refuses", () => {
+  const changesRequested: ReviewOutput = {
+    verdict: "changes_requested",
+    summary: "one defect",
+    findings: [finding({ line: 99 })],
+  };
+
+  it("keeps the REQUEST_CHANGES verdict and renders the finding in the body when a line will take no comment", async () => {
+    const { pulls, calls, comments } = recorder({
+      refuses: (input) =>
+        input.comments.length > 0 ? "line must be part of the diff" : null,
+    });
+
+    const delivered = await postReview(pulls, 7, changesRequested, {
+      positions: positions(["src/a.ts", 99]),
+    });
+
+    expect(delivered).toMatchObject({ mode: "summary" });
+    expect(calls.at(-1)?.input).toMatchObject({
+      event: "REQUEST_CHANGES",
+      comments: [],
+    });
+    expect(calls.at(-1)?.input.body).toContain("null deref");
+    expect(comments).toEqual([]);
+  });
+
+  it("posts a COMMENT review naming the check that carries the verdict when the PR is the reviewer's own", async () => {
+    const { pulls, calls, comments } = recorder({
+      refuses: (input) =>
+        input.event === "COMMENT"
+          ? null
+          : "Can not approve your own pull request",
+    });
+
+    const delivered = await postReview(pulls, 7, changesRequested, {
+      positions: positions(["src/a.ts", 99]),
+    });
+
+    expect(delivered).toMatchObject({
+      mode: "comment",
+      error: "Can not approve your own pull request",
+    });
+    expect(calls.at(-1)?.input.body).toContain("`lore/code-review` check");
+    expect(comments).toEqual([]);
+  });
+
+  it("still reaches the PR as one plain comment when every review shape is refused", async () => {
+    const { pulls, comments } = recorder({ createReviewThrows: true });
+
+    const delivered = await postReview(pulls, 7, changesRequested, {
+      positions: positions(["src/a.ts", 99]),
+    });
+
+    expect(delivered).toMatchObject({ mode: "fallback" });
+    expect(comments).toHaveLength(1);
   });
 });
