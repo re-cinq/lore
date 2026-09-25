@@ -247,11 +247,25 @@ export function deniedError(
   };
 }
 
-/** The MCP content envelope every tool answers in. One place to build it, so a tool returns text rather than assembling a protocol shape. */
+/** The MCP content envelope every tool answers in. One place to build it, so a tool returns text rather than assembling a protocol shape. A JSON array is wrapped as `{results}`: gemini-cli lifts a JSON text into `structuredContent`, which the MCP schema only accepts as an object, so an array answer failed every Gemini pod's call. */
 export function textResult(text: string): {
   content: [{ type: "text"; text: string }];
 } {
-  return { content: [{ type: "text" as const, text }] };
+  return { content: [{ type: "text" as const, text: objectText(text) }] };
+}
+
+function objectText(text: string): string {
+  if (!text.trimStart().startsWith("[")) {
+    return text;
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(text);
+
+    return Array.isArray(parsed) ? JSON.stringify({ results: parsed }) : text;
+  } catch {
+    return text;
+  }
 }
 
 // Format MCP error for unconfigured API endpoint/token; distinct from unreachable.
