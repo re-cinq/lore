@@ -14,6 +14,8 @@ import { finishNodeTerminal, normalizeAgentStatus } from "./node-terminal.js";
 import { isDeliveringRecipe } from "@re-cinq/lore-shared/task-types/delivering-recipes.js";
 import { agentCrVisible } from "./cr-visibility.js";
 import { artifactsFromTerminalOutput } from "../agent/artifact-args.js";
+import { settlePlanningPass } from "./planning-pass-end.js";
+import type { PlanWriter } from "../../domain/plan-writer.js";
 import type {
   AssemblyRunRecord,
   StationRunRecord,
@@ -45,6 +47,11 @@ export interface NodeEventDeps extends AdvanceDeps {
     nodeType: string,
     status: AgentNodeStatus,
   ) => Promise<void>;
+  /** Widened over {@link AdvanceDeps}'s launch-time-only pick: settling `analyze` also closes presence and records a Refine's answer. */
+  plans?: Pick<
+    PlanWriter,
+    "openPresence" | "closePresence" | "finishRefine" | "failRefine"
+  >;
 }
 
 /** The event's own reported status (FR4's follow-up), or null when an older cluster-agent sent none; narrowed defensively since `params` is untyped JSONB off the wire. */
@@ -199,6 +206,15 @@ async function settleTerminalNode(
     },
     deps,
   );
+
+  if (deps.plans) {
+    await settlePlanningPass(
+      target.row.args,
+      event.nodeId,
+      result.outcome,
+      deps.plans,
+    );
+  }
 }
 
 /** Artifacts are merged into the run's args FIRST, because the artifact sink is a separate racing HTTP post and the next station would otherwise miss an arg its predecessor already produced (a re-merge is a no-op). */

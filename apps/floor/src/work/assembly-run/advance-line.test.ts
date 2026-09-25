@@ -1408,6 +1408,14 @@ edges:
     async sectionsOf(): Promise<PlanSection[]> {
       throw new Error("unexpected");
     }
+
+    async closePresence(): Promise<void> {
+      throw new Error("unexpected");
+    }
+
+    async finishRefine(): Promise<void> {
+      throw new Error("unexpected");
+    }
   }
 
   it("opens presence for the planning agent before the analyze pod launches", async () => {

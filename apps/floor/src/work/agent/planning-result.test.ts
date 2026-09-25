@@ -47,6 +47,8 @@ function recordingWriter() {
     findingsOf: async () => [],
     sectionsOf: async () => [],
     openPresence: async () => {},
+    closePresence: async () => {},
+    finishRefine: async () => {},
   };
 
   return { writes, writer };

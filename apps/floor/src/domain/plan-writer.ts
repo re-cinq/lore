@@ -59,6 +59,13 @@ export interface PlanWriter {
     planId: string,
     user: { name: string; color: string },
   ): Promise<void>;
+  /** Tells the plan's people the writing agent is done, once its pod's node settles (success or failure). */
+  closePresence(planId: string): Promise<void>;
+  /** Marks a Refine's section answered by the pass that just proposed it. */
+  finishRefine(
+    planId: string,
+    done: { slot: string; uses: unknown },
+  ): Promise<void>;
 }
 
 /** lore-api's answer to a planning line parked on a human station: an approved plan is reopened for writing when its author is asked, or when the spec review sent questions to it; any other plan is left as it is. */

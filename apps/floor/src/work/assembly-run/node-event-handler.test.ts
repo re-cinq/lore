@@ -7,6 +7,11 @@ import {
   type AgentNodeStatus,
 } from "@re-cinq/lore-assembly-lines";
 import { createNodeEventHandler } from "./node-event-handler.js";
+import type {
+  PlanFinding,
+  PlanSection,
+  PlanWriter,
+} from "../../domain/plan-writer.js";
 import { BillingAlertThrottle, maybeAlertBilling } from "./billing-alert.js";
 import { maybeAlertAgentConfig } from "./agent-config-alert.js";
 import { LlmDispatchGate } from "./llm-dispatch-gate.js";
@@ -697,5 +702,132 @@ describe("the open row a terminal event is matched to", () => {
 
     expect(h.port.nodes[1]).toMatchObject({ outcome: "success" });
     expect(h.port.nodes[0]).toMatchObject({ outcome: null });
+  });
+});
+
+const planningLine: AssemblyLine = parseAssemblyLine(`
+name: feature-planning
+description: analyze → done
+version: 1
+entry: analyze
+exit: done
+nodes:
+  - id: analyze
+    type: agent
+    prompt_ref: feature-planning-analyze
+  - id: done
+    type: retrospective
+edges:
+  - from: analyze
+    to: done
+    on: always
+`);
+
+type PlanWriterCall =
+  | { closePresence: string }
+  | { finishRefine: { planId: string; slot: string; uses: unknown } };
+
+class RecordingPlanWriter implements PlanWriter {
+  calls: PlanWriterCall[] = [];
+
+  async closePresence(planId: string): Promise<void> {
+    this.calls.push({ closePresence: planId });
+  }
+
+  async finishRefine(
+    planId: string,
+    refine: { slot: string; uses: unknown },
+  ): Promise<void> {
+    this.calls.push({
+      finishRefine: { planId, slot: refine.slot, uses: refine.uses },
+    });
+  }
+
+  markdownOf(): Promise<string> {
+    throw new Error("not implemented");
+  }
+
+  submitFile(): Promise<void> {
+    throw new Error("not implemented");
+  }
+
+  failRefine(): Promise<void> {
+    throw new Error("not implemented");
+  }
+
+  addQuestions(): Promise<void> {
+    throw new Error("not implemented");
+  }
+
+  findingsOf(): Promise<PlanFinding[]> {
+    throw new Error("not implemented");
+  }
+
+  sectionsOf(): Promise<PlanSection[]> {
+    throw new Error("not implemented");
+  }
+
+  openPresence(): Promise<void> {
+    throw new Error("not implemented");
+  }
+}
+
+describe("a Refine's analyze node settling", () => {
+  it("closes presence then finishes the refine on success", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const plans = new RecordingPlanWriter();
+    const handler = createNodeEventHandler({
+      assemblyRuns: port,
+      definitions: async () => new Map([["feature-planning", planningLine]]),
+      repoSettings: async () => null,
+      resolveRecipe: async (_repo, ref) => ({ prompt: `prompt:${ref}` }),
+      cleanupToken: async () => {},
+      jobRuns: { complete: async () => {}, fail: async () => {} },
+      readAgentStatus: async () => null,
+      plans,
+    });
+
+    const id = await port.start({
+      blueprintName: "feature-planning",
+      repo: "o/r",
+      branch: "b",
+      args: {
+        plan_id: "p9",
+        refine: {
+          slot: "intent",
+          baseHash: "h",
+          uses: { questions: ["q-1"], comments: [] },
+        },
+      },
+    });
+
+    await port.markRunning(id);
+    const crName = `${id.substring(0, 12)}-analyze`;
+
+    await port.ensureStationRun({
+      assemblyRunId: id,
+      nodeId: "analyze",
+      iteration: 1,
+      agentCrName: crName,
+    });
+
+    await handler({
+      assemblyLineId: id,
+      nodeId: "analyze",
+      agentName: crName,
+      taskId: id,
+      phase: "Succeeded",
+    });
+
+    expect(plans.calls).toEqual([
+      { closePresence: "p9" },
+      {
+        finishRefine: {
+          planId: "p9",
+          slot: "intent",
+          uses: { questions: ["q-1"], comments: [] },
+        },
+      },
+    ]);
   });
 });

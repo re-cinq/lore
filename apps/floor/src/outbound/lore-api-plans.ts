@@ -21,15 +21,20 @@ export function loreApiPlans(baseUrl: string, token: string): PlanWriter {
       body: JSON.stringify(body),
     });
   };
+  const del = async (path: string) => {
+    await request(path, { method: "DELETE" });
+  };
 
   return {
     markdownOf: async (planId) =>
       (await request(`${planId}/markdown`, { method: "GET" })).text(),
     submitFile: (planId, body) => post(`${planId}/agent-file`, body),
     failRefine: (planId, refine) => post(`${planId}/refine-failed`, refine),
+    finishRefine: (planId, done) => post(`${planId}/refine-done`, done),
     // planning-sync's own route: `{actor, ops, base?}`; the Floor never sends `base`, so the ops land on whatever the plan is by then.
     addQuestions: (planId, edits) => post(`${planId}/agent-edits`, edits),
     openPresence: (planId, user) => post(`${planId}/agent-presence`, { user }),
+    closePresence: (planId) => del(`${planId}/agent-presence`),
     ...planReads(request),
   };
 }
