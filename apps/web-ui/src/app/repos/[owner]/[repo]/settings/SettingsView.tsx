@@ -1,6 +1,7 @@
 "use client";
 import HelpPopover from "@/components/HelpPopover";
 import SettingsFormShell, { type SaveAction } from "./SettingsFormShell";
+import DigestFields from "./DigestFields";
 import { SubmitButton } from "@/components/SubmitButton";
 import type { components } from "@/lib/api/schema";
 import styles from "./page.module.css";
@@ -19,7 +20,7 @@ export interface SettingsViewProps {
 
 /** Says what this tab covers, so a reader knows before scrolling which settings live here and which live on a sibling tab. */
 const SETTINGS_LEDE =
-  "Per-repo general configuration: routing, trust, and cross-repo context.";
+  "Per-repo general configuration: routing, trust, cross-repo context, and the daily Slack digest.";
 
 export default function SettingsView(props: SettingsViewProps) {
   const { fullName, team, settings, allRepos, saveAction } = props;
@@ -35,6 +36,10 @@ export default function SettingsView(props: SettingsViewProps) {
     >
       <GeneralFields team={team} settings={settings} />
       <CrossRepoField allRepos={allRepos} selectedRepos={selectedRepos} />
+      <DigestFields
+        digest={settings.digest}
+        slackChannelSet={Boolean(settings.slack_channel_id)}
+      />
       <SubmitButton pendingLabel="Saving…">Save Settings</SubmitButton>
     </SettingsFormShell>
   );
@@ -67,6 +72,11 @@ function SettingsHelpPoints() {
       <li>
         Per-repo <strong>agents</strong> live on the <strong>Agents</strong>{" "}
         tab; autonomy on the <strong>Dark Factory</strong> tab.
+      </li>
+      <li>
+        The <strong>daily digest</strong> posts what merged, what closed and who
+        holds which issue into the Slack channel, once a day in the chosen
+        timezone; repos sharing a channel land in one message.
       </li>
     </ul>
   );
