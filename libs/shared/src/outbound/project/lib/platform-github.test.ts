@@ -26,6 +26,9 @@ const state: {
   prData?: Record<string, unknown>;
   treeData?: Record<string, unknown>;
   issuesData?: Array<Record<string, unknown>>;
+  pullsPages?: Array<Array<Record<string, unknown>>>;
+  pullsListCall?: Record<string, unknown>;
+  pagesServed: number;
   issueData?: Record<string, unknown>;
   blockersData?: Array<{ number: number; state: string }>;
   blockersCall?: Record<string, unknown>;
@@ -48,7 +51,14 @@ const state: {
     annotation_level: string;
     message: string;
   }>;
-} = { files: [], checkRuns: [], token: "", graphqlCalls: [], authCalls: [] };
+} = {
+  files: [],
+  checkRuns: [],
+  token: "",
+  graphqlCalls: [],
+  authCalls: [],
+  pagesServed: 0,
+};
 
 vi.mock("octokit", () => ({
   Octokit: class {
@@ -75,12 +85,30 @@ vi.mock("octokit", () => ({
 
       return { repository: { pullRequest: { reviewThreads: page } } };
     };
-    paginate = async (
-      fn: (p: unknown) => Promise<unknown[]>,
-      params: unknown,
-    ) => fn(params);
+    paginate = Object.assign(
+      async (fn: (p: unknown) => Promise<unknown[]>, params: unknown) =>
+        fn(params),
+      {
+        iterator: async function* (
+          fn: (p: unknown) => Promise<unknown>,
+          params: unknown,
+        ) {
+          await fn(params);
+
+          for (const page of state.pullsPages ?? []) {
+            state.pagesServed += 1;
+            yield { data: page };
+          }
+        },
+      },
+    );
     rest = {
       pulls: {
+        list: async (params: Record<string, unknown>) => {
+          state.pullsListCall = params;
+
+          return [];
+        },
         listFiles: async () => state.files,
         get: async () => ({ data: state.prData }),
         createReview: async (params: Record<string, unknown>) => {
@@ -173,8 +201,126 @@ describe("PlatformGitHub paginated reads + helpers", () => {
     state.prData = undefined;
     state.treeData = undefined;
     state.issuesData = undefined;
+    state.pullsPages = undefined;
+    state.pagesServed = 0;
   });
   afterEach(() => vi.clearAllMocks());
+
+  const closedPull = (
+    number: number,
+    updatedAt: string,
+    mergedAt: string | null,
+  ) => ({
+    number,
+    title: `PR ${number}`,
+    head: { ref: `b${number}` },
+    state: "closed",
+    html_url: `https://gh/pr/${number}`,
+    updated_at: updatedAt,
+    merged_at: mergedAt,
+    body: `Closes #${number}`,
+    user: { login: "alice" },
+  });
+
+  it("listMergedSince keeps only pulls merged at or after the cutoff, newest first", async () => {
+    state.pullsPages = [
+      [
+        closedPull(3, "2026-09-25T09:00:00Z", "2026-09-25T08:00:00Z"),
+        closedPull(2, "2026-09-25T07:00:00Z", null),
+        closedPull(1, "2026-09-23T07:00:00Z", "2026-09-23T07:00:00Z"),
+      ],
+    ];
+    const merged = await gh().listMergedSince(
+      "re-cinq/lore",
+      "2026-09-24T07:00:00Z",
+    );
+
+    expect(merged).toEqual([
+      expect.objectContaining({
+        number: 3,
+        state: "merged",
+        mergedAt: "2026-09-25T08:00:00Z",
+        body: "Closes #3",
+        author: "alice",
+      }),
+    ]);
+    expect(state.pullsListCall).toMatchObject({
+      state: "closed",
+      sort: "updated",
+      direction: "desc",
+    });
+  });
+
+  it("listMergedSince stops paging once a closed pull is older than the cutoff", async () => {
+    state.pullsPages = [
+      [
+        closedPull(3, "2026-09-25T09:00:00Z", "2026-09-25T08:00:00Z"),
+        closedPull(1, "2026-09-23T07:00:00Z", "2026-09-23T07:00:00Z"),
+      ],
+      [closedPull(0, "2026-09-01T07:00:00Z", "2026-09-01T07:00:00Z")],
+    ];
+    await gh().listMergedSince("re-cinq/lore", "2026-09-24T07:00:00Z");
+
+    expect(state.pagesServed).toBe(1);
+  });
+
+  it("listMergedSince keeps paging while every pull is inside the window", async () => {
+    state.pullsPages = [
+      [closedPull(3, "2026-09-25T09:00:00Z", "2026-09-25T08:00:00Z")],
+      [closedPull(2, "2026-09-25T08:00:00Z", "2026-09-25T07:30:00Z")],
+    ];
+    const merged = await gh().listMergedSince(
+      "re-cinq/lore",
+      "2026-09-24T07:00:00Z",
+    );
+
+    expect(merged.map((pr) => pr.number)).toEqual([3, 2]);
+  });
+
+  it("listIssues maps assignee logins onto assignees and close time onto closedAt", async () => {
+    state.issuesData = [
+      {
+        number: 21,
+        title: "Owned",
+        state: "closed",
+        labels: [],
+        html_url: "https://gh/i/21",
+        created_at: "2026-09-01T09:00:00Z",
+        closed_at: "2026-09-25T06:00:00Z",
+        assignees: [{ login: "alice" }, { login: "bob" }],
+      },
+    ];
+    const [issue] = await gh().listIssues("re-cinq/lore", { state: "closed" });
+
+    expect(issue).toMatchObject({
+      number: 21,
+      assignees: ["alice", "bob"],
+      closedAt: "2026-09-25T06:00:00Z",
+    });
+  });
+
+  it("listIssues keeps only issues closed at or after since when listing closed ones", async () => {
+    const closed = (number: number, closedAt: string) => ({
+      number,
+      title: `Issue ${number}`,
+      state: "closed",
+      labels: [],
+      html_url: `https://gh/i/${number}`,
+      created_at: "2026-09-01T09:00:00Z",
+      closed_at: closedAt,
+    });
+
+    state.issuesData = [
+      closed(30, "2026-09-25T06:00:00Z"),
+      closed(31, "2026-09-20T06:00:00Z"),
+    ];
+    const issues = await gh().listIssues("re-cinq/lore", {
+      state: "closed",
+      since: "2026-09-24T07:00:00Z",
+    });
+
+    expect(issues.map((i) => i.number)).toEqual([30]);
+  });
 
   it("listIssues maps created_at to createdAt and drops pull requests", async () => {
     state.issuesData = [

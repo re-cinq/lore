@@ -16,6 +16,7 @@ import {
   parseDarkFactorySettings,
   twoKeyFieldsTouched,
 } from "../../../work/dark-factory/dark-factory-settings.js";
+import { DigestSettingsSchema } from "@re-cinq/lore-shared/models/digest-settings.js";
 import { withPool } from "../with-pool.js";
 import { OkSchema } from "../../http/ok-schema.js";
 
@@ -60,6 +61,7 @@ async function serveRepoSettings(
     ?.dark_factory;
 
   enforceDarkFactoryAllowed(darkFactory, repo);
+  enforceDigestValid((body.settings as { digest?: unknown } | undefined)?.digest);
   await applyRepoUpdates(pool, repo, body);
 
   // A changed team strands legacy org_shared chunk rows — signal the Floor to relocate them now (nightly reindex is the safety net).
@@ -98,6 +100,26 @@ function enforceDarkFactoryAllowed(darkFactory: unknown, repo: string): void {
     apiError(403),
     `privileged dark-factory fields (${touched.join(", ")}) are written through PUT /api/repos/${repo}/settings/dark-factory, which requires the CODEOWNER approval PR`,
   );
+}
+
+/** The digest block is read by a station with no user in front of it, so a malformed one (a weekday of 9, a time of "9am") is refused here rather than stored (specs/daily-digest FR1). */
+function enforceDigestValid(digest: unknown): void {
+  if (digest === undefined) {
+    return;
+  }
+  const parsed = DigestSettingsSchema.safeParse(digest);
+
+  enforceTrue(
+    parsed.success,
+    apiError(400),
+    `invalid digest settings: ${digestIssues(parsed.error?.issues ?? [])}`,
+  );
+}
+
+function digestIssues(
+  issues: Array<{ path: PropertyKey[]; message: string }>,
+): string {
+  return issues.map(({ path, message }) => `${path.join(".")} ${message}`).join("; ");
 }
 
 /** Never throws: an invalid block is a client error, not a 500. */

@@ -28,6 +28,10 @@ export class PullRequests {
     return this.pulls.list(this.repo);
   }
 
+  listMergedSince(since: string): Promise<PullRef[]> {
+    return this.pulls.listMergedSince(this.repo, since);
+  }
+
   get(number: number): Promise<PullRef | null> {
     return this.pulls.get(this.repo, number);
   }

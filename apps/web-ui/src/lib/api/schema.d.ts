@@ -3547,6 +3547,15 @@ export interface components {
             cross_repo?: boolean;
             cross_repo_repos?: string[];
             slack_channel_id?: string;
+            digest?: {
+              enabled?: boolean;
+              time?: string;
+              days?: number[];
+              timezone?: string;
+              sections?: ("implemented" | "roadmap" | "summary" | "morale")[];
+              /** @enum {string} */
+              group_by?: "person" | "area";
+            };
             dispatch_label?: string;
             dispatch_default_type?: string;
             test_commands?: unknown;
@@ -3674,6 +3683,15 @@ export interface components {
               cross_repo?: boolean;
               cross_repo_repos?: string[];
               slack_channel_id?: string;
+              digest?: {
+                enabled?: boolean;
+                time?: string;
+                days?: number[];
+                timezone?: string;
+                sections?: ("implemented" | "roadmap" | "summary" | "morale")[];
+                /** @enum {string} */
+                group_by?: "person" | "area";
+              };
               dispatch_label?: string;
               dispatch_default_type?: string;
               test_commands?: unknown;

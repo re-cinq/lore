@@ -19,6 +19,8 @@ interface OctokitIssue {
   labels: OctokitLabel[];
   html_url: string;
   body?: string | null;
+  assignees?: Array<{ login: string }> | null;
+  closed_at?: string | null;
   issue_dependencies_summary?: { total_blocked_by: number } | null;
 }
 
@@ -34,12 +36,23 @@ export async function listIssues(
     repo: name,
     state: filter?.state ?? "open",
     labels: filter?.labels?.join(","),
+    since: filter?.since,
     per_page: 100,
   });
 
   return rows
     .filter((i) => !i.pull_request)
+    .filter((i) => closedWithin(i, filter))
     .map((i) => toListedIssueRef(repo, i));
+}
+
+/** GitHub's `since` is an updated-at cutoff; for a closed listing the digest wants issues CLOSED in the window, so a reopened-and-relabelled old closure is dropped here. */
+function closedWithin(issue: OctokitIssue, filter?: IssueFilter): boolean {
+  if (filter?.state !== "closed" || !filter.since) {
+    return true;
+  }
+
+  return (issue.closed_at ?? "") >= filter.since;
 }
 
 /** The listing projection: the shared IssueRef fields plus the creation time and blocked-by link count only the list read carries. */
@@ -66,7 +79,16 @@ function toIssueRef(repo: string, issue: OctokitIssue): IssueRef {
     labels: labelNames(issue.labels),
     url: issue.html_url,
     ...(issue.body ? { body: issue.body } : {}),
+    ...assigneesOf(issue),
+    ...(issue.closed_at ? { closedAt: issue.closed_at } : {}),
   };
+}
+
+/** Present only when somebody is assigned, so the legacy exact-shape reads stay unchanged. */
+function assigneesOf(issue: OctokitIssue): { assignees?: string[] } {
+  const logins = (issue.assignees ?? []).map((a) => a.login);
+
+  return logins.length > 0 ? { assignees: logins } : {};
 }
 
 /** Label names out of octokit's string-or-object label array, blanks dropped. */
