@@ -6,6 +6,7 @@ import ConfirmDialog, {
   type ConfirmQuestion,
 } from "./ConfirmDialog";
 import { FormError } from "./FormError";
+import PendingActionButton from "./PendingActionButton";
 import { useRefreshingAction, type ServerAction } from "./useRefreshingAction";
 
 interface ConfirmedActionButtonProps {
@@ -29,7 +30,6 @@ export default function ConfirmedActionButton(
       {confirmed.asking && (
         <ConfirmDialog
           question={props.question}
-          pending={confirmed.pending}
           onConfirm={confirmed.confirm}
           onCancel={() => confirmed.setAsking(false)}
         />
@@ -45,23 +45,20 @@ function AskButton({
   ask,
 }: ConfirmedActionButtonProps & { ask: () => void }) {
   return (
-    <button
-      type="button"
-      className={toneClass(question.tone)}
+    <PendingActionButton
+      action={async () => ask()}
+      text={label}
+      pendingText={label}
       disabled={waitingOn !== undefined}
       title={waitingOn}
-      onClick={ask}
-    >
-      {label}
-    </button>
+      className={toneClass(question.tone) ?? ""}
+    />
   );
 }
 
 function useConfirmedAction(action: ServerAction) {
   const [asking, setAsking] = useState(false);
-  const { error, pending, run } = useRefreshingAction(action, () =>
-    setAsking(false),
-  );
+  const { error, run } = useRefreshingAction(action, () => setAsking(false));
 
-  return { asking, setAsking, error, pending, confirm: run };
+  return { asking, setAsking, error, confirm: run };
 }

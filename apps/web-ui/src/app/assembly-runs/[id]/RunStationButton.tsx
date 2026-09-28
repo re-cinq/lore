@@ -32,8 +32,7 @@ export function RunStationButton(props: RunStationButtonProps) {
       {start.asking && (
         <ConfirmDialog
           question={question(props)}
-          pending={start.pending}
-          onConfirm={() => void start.confirm()}
+          onConfirm={start.confirm}
           onCancel={() => start.setAsking(false)}
         />
       )}

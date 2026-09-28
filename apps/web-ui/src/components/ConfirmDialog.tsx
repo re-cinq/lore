@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import PendingActionButton from "./PendingActionButton";
 import styles from "./ConfirmDialog.module.scss";
 
 /** What a confirmation asks, and how loudly its confirm button says it. */
@@ -15,8 +16,7 @@ export interface ConfirmQuestion {
 
 interface ConfirmDialogProps {
   question: ConfirmQuestion;
-  pending: boolean;
-  onConfirm: () => void;
+  onConfirm: () => Promise<void>;
   onCancel: () => void;
 }
 
@@ -75,21 +75,15 @@ function DialogActions(props: DialogActionsProps) {
   );
 }
 
-function ConfirmButton({
-  question,
-  pending,
-  confirmable,
-  onConfirm,
-}: DialogActionsProps) {
+function ConfirmButton({ question, confirmable, onConfirm }: DialogActionsProps) {
   return (
-    <button
-      type="button"
-      className={toneClass(question.tone)}
-      disabled={pending || !confirmable}
-      onClick={onConfirm}
-    >
-      {question.confirmLabel}
-    </button>
+    <PendingActionButton
+      action={onConfirm}
+      text={question.confirmLabel}
+      pendingText={question.confirmLabel}
+      disabled={!confirmable}
+      className={toneClass(question.tone) ?? ""}
+    />
   );
 }
 

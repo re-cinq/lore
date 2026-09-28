@@ -12,6 +12,7 @@ export function TriggerReviewButton({
     <form action="/api/review/trigger" method="POST">
       <input type="hidden" name="repo" value={repo} />
       <input type="hidden" name="pr_number" value={prNumber} />
+      {/* eslint-disable-next-line no-restricted-syntax -- native full-page POST, no client JS state to show; the browser's own navigation is the pending affordance */}
       <button type="submit">Trigger review</button>
     </form>
   );

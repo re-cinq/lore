@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import styles from "./PendingActionButton.module.css";
 
 interface PendingActionButtonProps {
   action: () => Promise<void>;
-  text: string;
+  text: ReactNode;
   /** What the button says while the action runs — the only thing that differs between its instances. */
-  pendingText: string;
+  pendingText: ReactNode;
   /** An outside pending signal (e.g. a confirm dialog's own in-flight request), OR'd with the button's own click. */
   pending?: boolean;
   disabled?: boolean;
@@ -15,6 +15,7 @@ interface PendingActionButtonProps {
   guardRow?: boolean;
   /** Overrides the default link-styled skin; pass "" for the plain global button. */
   className?: string;
+  title?: string;
 }
 
 /** A server-action button that disables itself for the duration and says what it is doing. */
@@ -26,6 +27,7 @@ export default function PendingActionButton(props: PendingActionButtonProps) {
       type="button"
       disabled={pending || (props.disabled ?? false)}
       className={props.className ?? styles.button}
+      title={props.title}
       onClick={onClick}
     >
       <Label pending={pending} text={props.text} pendingText={props.pendingText} />
@@ -59,8 +61,8 @@ function Label({
   pendingText,
 }: {
   pending: boolean;
-  text: string;
-  pendingText: string;
+  text: ReactNode;
+  pendingText: ReactNode;
 }) {
   if (!pending) {
     return text;

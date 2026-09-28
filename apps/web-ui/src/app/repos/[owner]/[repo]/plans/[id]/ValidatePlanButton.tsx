@@ -23,7 +23,7 @@ export default function ValidatePlanButton({
         className="btn-secondary"
         disabled={pending || !!waitingOn}
         title={waitingOn}
-        onClick={run}
+        onClick={() => void run()}
       >
         Validate the plan
       </button>

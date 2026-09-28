@@ -62,6 +62,7 @@ function SourceFilter({
           </option>
         ))}
       </select>
+      {/* eslint-disable-next-line no-restricted-syntax -- native GET filter form, no mutation, no client JS state to show */}
       <button type="submit">Filter</button>
     </form>
   );

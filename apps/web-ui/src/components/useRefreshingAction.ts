@@ -1,29 +1,31 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 export type ServerAction = () => Promise<{ error?: string }>;
 
-/** Runs a server action in a transition, keeps its refusal to show, and reloads the page onto what it changed; `onSettled` hears of the answer before either. */
+/** Runs a server action, keeps its refusal to show, and reloads the page onto what it changed; `onSettled` hears of the answer before either. `run` returns the promise itself so a caller (PendingActionButton) can await it directly. */
 export function useRefreshingAction(
   action: ServerAction,
   onSettled?: () => void,
 ) {
   const router = useRouter();
   const [error, setError] = useState<string>();
-  const [pending, startTransition] = useTransition();
-  const run = () =>
-    startTransition(async () => {
-      const result = await action();
+  const [pending, setPending] = useState(false);
 
-      onSettled?.();
-      setError(result.error);
+  async function run(): Promise<void> {
+    setPending(true);
+    const result = await action();
 
-      if (!result.error) {
-        router.refresh();
-      }
-    });
+    onSettled?.();
+    setError(result.error);
+
+    if (!result.error) {
+      router.refresh();
+    }
+    setPending(false);
+  }
 
   return { error, pending, run };
 }
