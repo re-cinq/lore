@@ -334,6 +334,54 @@ describe("the feature-planning recipe", () => {
     });
   });
 
+  it("has the spec-write recipe fill the spec-kit artifact set from the in-repo templates and convert every NEEDS CLARIFICATION marker to a plan question", () => {
+    const prompt = promptOnOneLine("spec-write");
+
+    expect({
+      specTemplate: prompt.includes(".specify/templates/spec-template.md"),
+      planTemplate: prompt.includes(".specify/templates/plan-template.md"),
+      tasksTemplate: prompt.includes(".specify/templates/tasks-template.md"),
+      constitution: prompt.includes(".specify/memory/constitution.md"),
+      artifactSet: prompt.includes("the full artifact set"),
+      noCli: prompt.includes("there is no `specify` CLI to run in this pod"),
+      markerConversion: prompt.includes(
+        "A committed file contains ZERO `[NEEDS CLARIFICATION` strings",
+      ),
+      checklistZeroMarkers: prompt.includes(
+        "zero `[NEEDS CLARIFICATION` strings remain in any committed file",
+      ),
+      planNamingSplit: prompt.includes(
+        "TWO DIFFERENT FILES ARE CALLED plan.md",
+      ),
+    }).toEqual({
+      specTemplate: true,
+      planTemplate: true,
+      tasksTemplate: true,
+      constitution: true,
+      artifactSet: true,
+      noCli: true,
+      markerConversion: true,
+      checklistZeroMarkers: true,
+      planNamingSplit: true,
+    });
+  });
+
+  it("has the feature-decompose recipe transcribe a reviewed tasks.md instead of re-deriving a breakdown", () => {
+    const prompt = promptOnOneLine("feature-decompose");
+
+    expect({
+      primaryInput: prompt.includes("it is the PRIMARY input"),
+      transcribe: prompt.includes(
+        "transcribe the reviewed breakdown, do not re-derive one",
+      ),
+      fallback: prompt.includes("absent or silent"),
+    }).toEqual({
+      primaryInput: true,
+      transcribe: true,
+      fallback: true,
+    });
+  });
+
   it("tells the spec-write recipe to answer a spec review item by item — amend what the plan settled, send what contradicts it to the plan as a question — and to always write spec-review-result.json", () => {
     const prompt = promptOnOneLine("spec-write");
 

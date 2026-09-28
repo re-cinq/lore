@@ -42,6 +42,14 @@ the deliverable:
 }
 
 Rules:
+- **When `tasks.md` exists beside the spec** (`specs/<slug>/tasks.md`, the
+  planning line's reviewed decomposition), it is the PRIMARY input: lift its
+  T-ids, `[P]` markers (→ `parallelizable`), phases, `(depends on …)` marks
+  (→ `depends_on`), file paths and `[USn]` story grouping into this JSON
+  1:1 — transcribe the reviewed breakdown, do not re-derive one. A task with
+  no `[USn]` marker (Setup and Foundational phases) belongs to the first
+  user story, the MVP, which it blocks. Fall back
+  to deriving from spec.md only where tasks.md is absent or silent.
 - A **user story** is a coherent vertical slice of value (what a user/operator can
   now do), ordered by build sequence. Derive stories and their acceptance criteria
   from the spec's scenarios and functional requirements — do not invent new ones.
