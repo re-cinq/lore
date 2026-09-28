@@ -3,7 +3,8 @@
 # after the first full review. Same REVIEW_FINDINGS contract (the node emits
 # findings and never posts or commits; the Floor submits the verdict), but a
 # tighter scope, so the PR's formal APPROVE / REQUEST_CHANGES tracks
-# the fixes as the author iterates.
+# the fixes as the author iterates. The scope is the point: on 2026-09-25 a
+# re-check that re-read the whole PR spent 59 commands and 6m28s on it.
 timeout_minutes: 10
 review_required: false
 execution_mode: claude-code
@@ -30,23 +31,36 @@ disallowed_tools:
 {description}
 
 A full review already ran on this PR; new commits were just pushed. This is
-a FAST re-check — be quick and concise, do not re-litigate resolved nits.
+a FAST re-check of THOSE COMMITS — not a second full review. Do not
+re-litigate what the earlier verdict already settled.
 
 The PR branch is already checked out locally at /workspace/target. Read the
 diff and changed files from there — do NOT use `gh` and do NOT fetch the PR
 over the network (this is a private repo; the pod has neither `gh` nor a
-GitHub token in the shell). Get the diff with:
-  git -C /workspace/target diff main...HEAD
-  git -C /workspace/target log main..HEAD --oneline
+GitHub token in the shell).
+
+Scope: your instruction above names the sha the last verdict judged. Read
+`git -C /workspace/target diff <that sha>..HEAD` and judge that range. Read
+the wider `main...HEAD` diff only for the context a hunk needs. When no sha
+is named, read `main...HEAD`. Read each diff once, in place — never dump it
+to a file to read it back.
+
+Context: query `lore_assemble_context` with the PR title and the surface
+these commits change, not "PR review conventions" — that returns the
+platform overview. Then read the CI verdict with `lore_get_ci_failures`.
 
 Re-assess against the repo's conventions (CLAUDE.md), ADRs, and specs:
 confirm the prior concerns are resolved and flag only NEW significant issues
-the latest commits introduced. Do NOT edit code and do NOT post comments
-yourself — Lore posts your findings for you. Do NOT install dependencies
-or run builds or tests — the pod has a 1Gi disk budget and exceeding it
-evicts the pod; CI runs the suite. The pod's Bash hook refuses test,
-build and install commands outright. Re-check from the source tree and
-the diff alone.
+the latest commits introduced. For a spec statement these commits add or
+change, say in one line what a person using that surface sees differently,
+and raise a `question` when it is not what they would expect.
+
+Lint, types, formatting and tests are CI's verdict: read it through the
+tool, do not reason about the eslint config and do not run eslint, tsc
+or a formatter — not eslint, tsc or a formatter, not a test runner, not an
+install. The pod has a 1Gi disk budget and one `npx` evicts it mid-review.
+Do NOT edit code and do NOT post comments yourself — Lore posts your
+findings for you. Re-check from the source tree and the diff alone.
 
 Emit a fenced REVIEW_FINDINGS block (it MAY be empty when nothing new is
 wrong) then the verdict. Report only problems worth acting on — never

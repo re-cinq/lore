@@ -11,7 +11,10 @@ import { BillingAlertThrottle, maybeAlertBilling } from "./billing-alert.js";
 import { maybeAlertAgentConfig } from "./agent-config-alert.js";
 import { llmDispatchGate } from "./llm-dispatch-gate.js";
 import { reopenPlanOnPark } from "../agent/plan-author-waiting.js";
-import { loreApiPlanOpener } from "../../outbound/lore-api-plans.js";
+import {
+  loreApiPlanOpener,
+  loreApiPlans,
+} from "../../outbound/lore-api-plans.js";
 import { type CommentContext } from "../review/code-review.js";
 import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
@@ -67,6 +70,10 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
       ),
       assemblyRuns: pipeline().assemblyRuns,
     }),
+    plans: loreApiPlans(
+      process.env.LORE_API_URL ?? "",
+      process.env.LORE_INGEST_TOKEN ?? "",
+    ),
     // Enqueue-time half of FR2: `resolveRequiredTags` reads `station_default_tags` from this raw settings object.
     repoSettings: (repo) => settings().rawSettings(repo),
     // Per-repo override CRDs live under project-qualified names; dispatch must spell its stationRef as the catalog sync applied it.
@@ -98,9 +105,16 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
     jobRuns: pipeline().jobRuns,
     notifyFailure: notifyLineFailure,
     onRunClosed: async (run, outcome, reason) => {
-      const { loopRunClosed } = await import("../backlog/loop-run-closed.js");
+      const [{ loopRunClosed }, { digestRunClosed }, { uploadDeps }] =
+        await Promise.all([
+          import("../backlog/loop-run-closed.js"),
+          import("../digest/run-closed.js"),
+          import("../digest/deps.js"),
+        ]);
 
       await loopRunClosed(run, outcome, reason);
+      // A digest run that closed without uploading posts its draft from here.
+      await digestRunClosed(run, uploadDeps());
     },
     // Publishes a service-form node for the pooled stations service to claim, instead of a pod per DB write/HTTP POST.
     publishNode: (event) =>

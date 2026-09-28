@@ -59,6 +59,28 @@ describe("InMemorySettings.onboardedRepos", () => {
   });
 });
 
+describe("InMemorySettings.onboardedRepoSettings", () => {
+  it("returns every onboarded repo with its raw settings", async () => {
+    const port = new InMemorySettings([
+      {
+        full_name: "a/b",
+        onboarding_pr_merged: true,
+        settings: { slack_channel_id: "C1", digest: { enabled: true } },
+      },
+      { full_name: "c/d", onboarding_pr_merged: true },
+      { full_name: "e/f", onboarding_pr_merged: false },
+    ]);
+
+    expect(await port.onboardedRepoSettings()).toEqual([
+      {
+        full_name: "a/b",
+        settings: { slack_channel_id: "C1", digest: { enabled: true } },
+      },
+      { full_name: "c/d", settings: null },
+    ]);
+  });
+});
+
 describe("InMemorySettings.markOnboardingMergedById", () => {
   it("marks the onboarding merged and leaves a never-ingested repo's last_ingested_at unset", async () => {
     const port = new InMemorySettings([

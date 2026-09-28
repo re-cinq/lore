@@ -133,8 +133,8 @@ async function classifyPostedReview(
     return "already_posted";
   }
 
-  if (posted.mode === "fallback") {
-    await auditFallbackPost(row, prNumber, posted.error, ports);
+  if ("error" in posted) {
+    await auditFallbackPost(row, prNumber, posted, ports);
   }
 
   return "posted";
@@ -183,10 +183,11 @@ async function auditDedupedPost(
 }
 
 // The review reached the PR as a top-level comment after GitHub rejected the inline post (never-drop fallback) — a silent downgrade is invisible at the PR, so it gets an audit row like its siblings.
+/** Records a review GitHub would not take whole. The mode is the operative half: `summary` kept the verdict and lost only the inline placement, while `comment` and `fallback` mean nothing on this PR carries an APPROVE or a REQUEST_CHANGES and the `lore/code-review` check is the only gate left. */
 async function auditFallbackPost(
   row: AssemblyRunRecord,
   prNumber: number,
-  error: string,
+  posted: { mode: string; error: string },
   ports: ReviewPorts,
 ): Promise<void> {
   await writeAuditLog(
@@ -196,7 +197,8 @@ async function auditFallbackPost(
       payload: {
         pr_number: prNumber,
         assembly_run_id: row.id,
-        error,
+        mode: posted.mode,
+        error: posted.error,
       },
     },
     ports.audit,

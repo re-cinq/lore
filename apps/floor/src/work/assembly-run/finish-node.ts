@@ -16,6 +16,7 @@ import {
 import type { AdvanceDeps } from "./advance-deps.js";
 import { advanceLine } from "./advance-line.js";
 import { finishLine } from "./finish-line.js";
+import { settlePlanningPass } from "./planning-pass-end.js";
 
 /** One node's terminal outcome, addressed to the run and the revisit it belongs to. */
 interface NodeCompletion {
@@ -42,6 +43,7 @@ export async function finishNodeAndAdvance(
     await maybeStampPr(assemblyLineId, nodeId, result, deps);
     await maybeMarkPrReady(assemblyLineId, nodeId, result, deps);
     await reactToNodeFinished(assemblyLineId, nodeId, result, deps);
+    await settleAnyPlanningPass(assemblyLineId, nodeId, result, deps);
     await recordNodeOutcome(assemblyLineId, closed, result, deps);
   }
 
@@ -240,6 +242,29 @@ function nextNodeTypeAfter(
   const next = graph.nodes.find((n) => n.id === toId);
 
   return next?.type;
+}
+
+/** Closes a planning pass's presence (and answers its Refine) on every settle door — pod event and reaper timeout alike — so a plan never keeps its presence open past the node that held it. Best-effort: same bias as `maybeStampPr`. */
+async function settleAnyPlanningPass(
+  assemblyLineId: string,
+  nodeId: string,
+  result: NodeResult,
+  deps: AdvanceDeps,
+): Promise<void> {
+  const row = await deps.assemblyRuns.getById(assemblyLineId);
+
+  if (!row) {
+    return;
+  }
+
+  try {
+    await settlePlanningPass(row.args, nodeId, result.outcome, deps.plans);
+  } catch (err) {
+    console.warn(
+      `[assembly-run] planning-pass settle failed for ${nodeId}:`,
+      (err as Error).message,
+    );
+  }
 }
 
 /** Runs the node-finished reaction and never lets it stop the walk — same bias as `maybeStampPr`: a failed follow-up is a log line, not a permanently parked run. */

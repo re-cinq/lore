@@ -21,7 +21,10 @@ PR history, and task state.
   **agent-skills registry** (`src/server/skills-registry.ts`) at `/skills/<name>.tar.gz`
   + `/skills/hooks/<vendor>.tar.gz` (a per-vendor hook bundle laid out relative to `$HOME`;
   `hooks/claude/.claude/settings.json` wires the `lore-context` skill's `guard-tests.sh` as
-  the Bash `PreToolUse` guard and is also served as the flat `/skills/settings.json`)
+  the Bash `PreToolUse` guard and is also served as the flat `/skills/settings.json`;
+  `hooks/gemini/.gemini/settings.json` wires the same script as a `BeforeTool` hook on
+  `run_shell_command`, wrapped to report a refusal as the `{"decision":"block"}` document
+  gemini-cli reads instead of an exit code)
   (unauthenticated; bundle baked from `apps/mcp-server/agent-skills/`); the
   ai-agent-subsystem init fetches these into a run's `$HOME` via the recipe's
   `resources.skills` + `skills_source` (ADR-030 skills seam).

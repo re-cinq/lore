@@ -198,3 +198,40 @@ describe("the files an agent node's pod downloads", () => {
     ).toBeUndefined();
   });
 });
+
+describe("the plan id a feature-planning pod reads", () => {
+  it("fills {plan_id} with the run's plan id", async () => {
+    const analyze: RunGraphNode = {
+      id: "analyze",
+      type: "agent",
+      station: "feature-planning",
+      station_inherited: true,
+      prompt_ref: "feature-planning",
+    };
+    const launch = {
+      node: analyze,
+      task: {
+        taskId: "t1",
+        pipelineTaskId: "t1",
+        assemblyLineId: "run-1",
+        taskType: "feature-planning",
+        description: "Draft the plan.",
+        targetRepo: "re-cinq/lore",
+        branch: "lore/feature-planning/p1",
+        args: { plan_id: "b4b2026f-0000-4000-8000-000000000001" },
+      },
+      iteration: 1,
+      priorOutcome: null,
+    };
+
+    const dispatch = await resolveNodeDispatch(launch, {
+      resolveRecipe: async () => ({
+        prompt: "The plan you work on is {plan_id}.",
+      }),
+    });
+
+    expect(dispatch.prompt).toContain(
+      "The plan you work on is b4b2026f-0000-4000-8000-000000000001.",
+    );
+  });
+});

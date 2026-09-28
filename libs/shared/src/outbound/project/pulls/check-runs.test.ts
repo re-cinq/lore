@@ -7,6 +7,7 @@ import {
   externalCheckRuns,
   failureTail,
   logLines,
+  loreReviewVerdict,
   npmScriptOf,
   summarizeFailedChecks,
 } from "./check-runs.js";
@@ -516,5 +517,57 @@ describe("a failed Actions job GitHub refused to show in full", () => {
       job_id: 105414171440,
       unreadable: ["job (403)", "log (403)"],
     });
+  });
+});
+
+describe("loreReviewVerdict", () => {
+  it("reads approved from the lore/code-review check that succeeded", () => {
+    expect(
+      loreReviewVerdict([
+        check({ name: "build" }),
+        check({ name: "lore/code-review", conclusion: "success" }),
+      ]),
+    ).toEqual("approved");
+  });
+
+  it("reads changes_requested from the neutral the check publishes for suggested changes", () => {
+    expect(
+      loreReviewVerdict([
+        check({ name: "lore/code-review", conclusion: "neutral" }),
+      ]),
+    ).toEqual("changes_requested");
+  });
+
+  it("returns none when only other checks ran, and none for a review line that failed", () => {
+    expect([
+      loreReviewVerdict([check({ name: "build" })]),
+      loreReviewVerdict([
+        check({ name: "lore/code-review", conclusion: "failure" }),
+      ]),
+      loreReviewVerdict([]),
+    ]).toEqual(["none", "none", "none"]);
+  });
+
+  it("takes the newest run when a push re-published the check, so an earlier approval cannot outlive it", () => {
+    expect(
+      loreReviewVerdict([
+        check({ name: "lore/code-review", conclusion: "success", id: 1 }),
+        check({ name: "lore/code-review", conclusion: "neutral", id: 2 }),
+      ]),
+    ).toEqual("changes_requested");
+  });
+
+  it("ignores a review check that has not finished, rather than reading its empty conclusion as a verdict", () => {
+    expect(
+      loreReviewVerdict([
+        check({ name: "lore/code-review", conclusion: "success", id: 1 }),
+        check({
+          name: "lore/code-review",
+          status: "in_progress",
+          conclusion: null,
+          id: 2,
+        }),
+      ]),
+    ).toEqual("approved");
   });
 });

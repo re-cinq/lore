@@ -102,6 +102,26 @@ function treeBlobPaths(
     .map((e) => e.path as string);
 }
 
+export async function commitEmailOf(
+  ok: Octokit,
+  repo: string,
+  login: string,
+): Promise<string | null> {
+  const [owner, name] = split(repo);
+  const { repos } = ok.rest;
+  const { data: commits } = await repos.listCommits({
+    owner,
+    repo: name,
+    author: login,
+    per_page: 1,
+  });
+  const newest = commits.at(0);
+  const author = newest?.commit.author;
+  const email = author?.email ?? "";
+
+  return email && !email.endsWith("@users.noreply.github.com") ? email : null;
+}
+
 export async function listCommitsSince(
   ok: Octokit,
   repo: string,

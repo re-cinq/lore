@@ -462,7 +462,7 @@ BEFORE the finish writes the outcome onto it, so its failure fields are still
 empty at that moment. Reading them there would have projected every failure with
 no detail, and a failure with no detail names no file, and a failure that names
 no file is not projected at all — the whole feature would have been silently
-inert. ([validated by takes identity from the row and the failure from the verdict](apps/floor/src/work/assembly-run/node-outcome-event.test.ts#L38), [validated by hands the graph the delivery's failure detail, not the row read before the finish wrote it](apps/floor/src/work/assembly-run/finish-node.test.ts#L789))
+inert. ([validated by takes identity from the row and the failure from the verdict](apps/floor/src/work/assembly-run/node-outcome-event.test.ts#L38), [validated by hands the graph the delivery's failure detail, not the row read before the finish wrote it](apps/floor/src/work/assembly-run/finish-node.test.ts#L791))
 
 A verdict that names no failure carries nulls rather than omitting the fields, so
 a resolve is distinguishable from a malformed record. ([validated by carries nulls for a verdict that names no failure](apps/floor/src/work/assembly-run/node-outcome-event.test.ts#L71))

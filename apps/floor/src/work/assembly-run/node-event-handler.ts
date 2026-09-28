@@ -187,16 +187,11 @@ async function settleTerminalNode(
 ): Promise<void> {
   const status = normalizeAgentStatus(rawStatus);
   const result = await terminalNodeResult(target, rawStatus, status, deps);
+  const { row, node } = target;
+  const { nodeId, iteration } = event;
 
   await finishNodeTerminal(
-    {
-      row: target.row,
-      node: target.node,
-      nodeId: event.nodeId,
-      iteration: event.iteration,
-      result,
-      output: status.output,
-    },
+    { row, node, nodeId, iteration, result, output: status.output },
     deps,
   );
 }

@@ -24,7 +24,12 @@ export const CatalogConfigSchema = z
       .optional(),
     // Files the pod downloads into the workspace before the agent starts; `source` names what the Floor serves at that path.
     inputs: z
-      .array(z.object({ path: z.string(), source: z.enum(["plan"]) }))
+      .array(
+        z.object({
+          path: z.string(),
+          source: z.enum(["plan", "digest-draft"]),
+        }),
+      )
       .optional(),
     repo_workdir: z.boolean().optional(),
 

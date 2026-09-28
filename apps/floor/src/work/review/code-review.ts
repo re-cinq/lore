@@ -10,15 +10,19 @@ import { reviewSubject } from "@re-cinq/lore-shared/project/assembly-runs/subjec
 
 import type { ClosedRunRef } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import {
+  decideRecheck,
   decideReviewOnOpen,
   recheckDescription,
   reviewDescription,
   reviewGateOpen,
 } from "./code-review-decisions.js";
+import { REVIEW_DEFINITIONS } from "@re-cinq/lore-shared/review/review-definitions.js";
 
 // Re-exported so callers (and the handlers module) have one import site for the review decisions.
 export {
+  decideRecheck,
   decideReviewOnOpen,
+  recheckDescription,
   decideReviewOnReply,
   isBotActor,
   isReviewRequest,
@@ -33,6 +37,10 @@ export interface CodeReviewProject {
     get(number: number): Promise<PullRef | null>;
     comment(number: number, body: string): Promise<void>;
     listComments(number: number): Promise<ReviewComment[]>;
+    /** Oldest first, as GitHub lists them. */
+    listCommits(
+      number: number,
+    ): Promise<Array<{ sha: string; message: string }>>;
   };
   assemblyRuns: {
     start(
@@ -44,6 +52,13 @@ export interface CodeReviewProject {
       },
     ): Promise<string>;
     findOpenBySubject(subjectKey: string): Promise<{ id: string } | null>;
+    findOpenByPr(
+      prNumber: number,
+    ): Promise<Array<{ blueprintName: string; args: Record<string, unknown> }>>;
+    listForPr(
+      prNumber: number,
+      definitions?: readonly string[],
+    ): Promise<Array<{ args: Record<string, unknown> }>>;
     finishOpenByPr(
       prNumber: number,
       outcome: string,
@@ -101,6 +116,10 @@ export async function startReview(
   if (!pr || !reviewGateOpen(pr, input)) {
     return null;
   }
+
+  if (input.forced) {
+    await retireOpenRechecks(project, input.prNumber);
+  }
   const started = await startReviewLine(project, input, pr);
 
   // A JOINed run was announced when it started; announcing again posts a duplicate comment.
@@ -134,6 +153,24 @@ async function startReviewLine(
   return { id, joined: alreadyOpen?.id === id };
 }
 
+/** A person asking for a review by hand supersedes the fast pass a push started: left open it would post a second, shallower verdict on the same sha, and the engine would keep both lines walking. */
+async function retireOpenRechecks(
+  project: CodeReviewProject,
+  prNumber: number,
+): Promise<void> {
+  const closed = await project.assemblyRuns.finishOpenByPr(
+    prNumber,
+    "superseded",
+    ["code-review-recheck"],
+  );
+
+  for (const run of closed) {
+    console.log(
+      `[code-review] PR #${prNumber}: re-check ${run.id} superseded by a requested review`,
+    );
+  }
+}
+
 async function announceReview(
   project: CodeReviewProject,
   prNumber: number,
@@ -146,7 +183,7 @@ async function announceReview(
   );
 }
 
-/** Fast re-check for pushes after initial review; BRANCH_SHARED_WORKSPACE prevents lease_held drops. */
+/** Fast re-check for pushes after initial review; BRANCH_SHARED_WORKSPACE prevents lease_held drops. Returns null when the push earns no pass of its own — see {@link decideRecheck}. */
 export async function startRecheck(
   project: CodeReviewProject,
   input: { repo: string; prNumber: number; autoReview: boolean },
@@ -161,23 +198,88 @@ export async function startRecheck(
     return null;
   }
 
-  return project.assemblyRuns.start("code-review-recheck", {
-    branch: pr.branch,
-    args: recheckArgs(input.repo, input.prNumber, pr),
+  return startRecheckFor(project, input, pr);
+}
+
+async function startRecheckFor(
+  project: CodeReviewProject,
+  input: { repo: string; prNumber: number },
+  pr: PullRef,
+): Promise<string | null> {
+  const range = await judgedRange(project, input.prNumber);
+  const decision = decideRecheck({
+    headSha: pr.headSha,
+    openReviewShas: await openReviewShas(project, input.prNumber),
+    newCommitMessages: range.newCommitMessages,
   });
+
+  return decision.start
+    ? project.assemblyRuns.start("code-review-recheck", {
+        branch: pr.branch,
+        args: recheckArgs(input.repo, input.prNumber, pr, range.sinceSha),
+      })
+    : skipped(input.prNumber, decision.reason);
+}
+
+/** Says why this push gets no pass of its own, where a silent null would read as a dropped event. */
+function skipped(prNumber: number, reason: string): null {
+  console.log(`[code-review] PR #${prNumber}: no re-check — ${reason}`);
+
+  return null;
+}
+
+/** Where the last verdict left off: the sha it judged and the commits pushed since. The two are resolved together because they fail together — after a rebase the judged commit is no longer on the branch, and naming it would send the pod to `git diff <orphan>..HEAD`, against unrelated history or none at all. Then there is no range, and the whole PR is new again. */
+async function judgedRange(
+  project: CodeReviewProject,
+  prNumber: number,
+): Promise<{ sinceSha?: string; newCommitMessages: string[] }> {
+  const runs = await project.assemblyRuns.listForPr(
+    prNumber,
+    REVIEW_DEFINITIONS,
+  );
+  const lastSha = shaOf(runs[0]?.args);
+  const commits = lastSha ? await project.pulls.listCommits(prNumber) : [];
+  const judged = commits.findIndex((commit) => commit.sha === lastSha);
+
+  return judged < 0
+    ? { newCommitMessages: [] }
+    : {
+        sinceSha: lastSha,
+        newCommitMessages: commits.slice(judged + 1).map((c) => c.message),
+      };
+}
+
+/** The head shas the review-family runs still in flight were started for. */
+async function openReviewShas(
+  project: CodeReviewProject,
+  prNumber: number,
+): Promise<string[]> {
+  const open = await project.assemblyRuns.findOpenByPr(prNumber);
+
+  return open
+    .filter((run) => REVIEW_DEFINITIONS.includes(run.blueprintName as never))
+    .map((run) => shaOf(run.args))
+    .filter((sha): sha is string => sha !== undefined);
+}
+
+function shaOf(args: Record<string, unknown> | undefined): string | undefined {
+  const sha = args?.head_sha;
+
+  return typeof sha === "string" ? sha : undefined;
 }
 
 function recheckArgs(
   repo: string,
   prNumber: number,
   pr: PullRef,
+  sinceSha?: string,
 ): Record<string, unknown> {
   return {
     pr_number: prNumber,
     mode: "recheck",
     head_sha: pr.headSha,
     actor: pr.author,
-    description: recheckDescription(repo, prNumber, pr.branch),
+    description: recheckDescription(repo, prNumber, pr.branch, sinceSha),
   };
 }
 

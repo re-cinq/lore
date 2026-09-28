@@ -42,7 +42,7 @@ describe("PlanDetailView", () => {
       <PlanDetailView
         meta={META}
         run={null}
-        user={{ id: "gedaiu", name: "Bogdan", color: "red" }}
+        user={{ id: "gedaiu", name: "Bogdan" }}
         {...actions}
       />,
     );
@@ -66,7 +66,7 @@ describe("PlanDetailView", () => {
           specPlanSummary: null,
           nodes: [],
         }}
-        user={{ id: "gedaiu", name: "Bogdan", color: "red" }}
+        user={{ id: "gedaiu", name: "Bogdan" }}
         {...actions}
       />,
     );
@@ -91,7 +91,7 @@ describe("PlanDetailView", () => {
           },
         }}
         run={null}
-        user={{ id: "gedaiu", name: "Bogdan", color: "red" }}
+        user={{ id: "gedaiu", name: "Bogdan" }}
         {...actions}
       />,
     );

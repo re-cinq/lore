@@ -61,6 +61,17 @@ describe("SettingsView (general only)", () => {
     );
   });
 
+  it("renders the daily digest section after the cross-repo field", () => {
+    const { container } = renderView({ digest: { enabled: true } });
+    const names = Array.from(container.querySelectorAll("select, input")).map(
+      (field) => field.getAttribute("name"),
+    );
+
+    expect(names.indexOf("digest_enabled")).toBeGreaterThan(
+      names.indexOf("cross_repo_repos"),
+    );
+  });
+
   it("no longer renders dark-factory, agent, or approval-PR controls", () => {
     const { container } = renderView();
 

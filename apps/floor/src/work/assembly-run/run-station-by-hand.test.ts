@@ -8,6 +8,7 @@ import {
 import { runStationByHand } from "./run-station-by-hand.js";
 import { advanceLine } from "./advance-line.js";
 import type { AdvanceDeps } from "./advance-deps.js";
+import { RecordingPlanWriter } from "../../domain/plan-writer-recording.js";
 
 const pushThenWait: AssemblyLine = parseAssemblyLine(`
 name: push-then-wait
@@ -56,6 +57,7 @@ function makeDeps(port: InMemoryAssemblyRuns) {
     assemblyRuns: port,
     definitions: async () => LINES,
     jobRuns: { complete: nothing, fail: nothing },
+    plans: new RecordingPlanWriter(),
     cleanupToken: nothing,
     repoSettings: async () => null,
     resolveRecipe: async (_repo, promptRef) => ({ prompt: promptRef }),

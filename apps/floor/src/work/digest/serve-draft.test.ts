@@ -1,0 +1,213 @@
+import { describe, it, expect } from "vitest";
+import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
+import { InMemoryDigestPosts } from "@re-cinq/lore-shared/project/digest-posts/digest-posts-memory.js";
+import { encodeDigestRepos } from "@re-cinq/lore-shared/digest/codec.js";
+import {
+  APPENDIX_MARKER,
+  INTRO_MARKER,
+  ASIDE_MARKER,
+} from "@re-cinq/lore-shared/digest/render.js";
+import { digestDraftOf, type RepoCollector } from "./serve-draft.js";
+
+const runs = () => new InMemoryAssemblyRuns();
+const digestArgs = (repos: string[]) => ({
+  channel: "C1",
+  week_key: "2026-W39",
+  digest_date: "2026-09-25",
+  digest_repos: encodeDigestRepos(
+    repos.map((repo) => ({
+      repo,
+      since: "2026-09-24T07:00:00Z",
+      sections: ["implemented", "roadmap", "summary", "morale"],
+      group_by: "person",
+    })),
+  ),
+});
+
+const collectOne: RepoCollector = async (entry) => ({
+  merged: [
+    {
+      repo: entry.repo,
+      number: 1,
+      title: `Merged in ${entry.repo}`,
+      branch: "b",
+      state: "merged",
+      labels: [],
+      url: `https://gh/${entry.repo}/pr/1`,
+      author: "alice",
+    },
+  ],
+  closed: [],
+  open: [],
+});
+
+function deps(
+  assemblyRuns: InMemoryAssemblyRuns,
+  collect: RepoCollector,
+  namesFor: (
+    repo: string,
+    logins: string[],
+  ) => Promise<Record<string, string>> = async () => ({}),
+) {
+  const posts = new InMemoryDigestPosts();
+
+  return {
+    runById: (id: string) => assemblyRuns.getById(id),
+    mergeArgs: (id: string, patch: Record<string, unknown>) =>
+      assemblyRuns.mergeArgs(id, patch),
+    recentTexts: (channel: string, limit: number) =>
+      posts.recentTexts(channel, limit),
+    collect,
+    namesFor,
+  };
+}
+
+describe("digestDraftOf", () => {
+  it("collects every repo into one draft and stores it on the run on the first download", async () => {
+    const assemblyRuns = runs();
+    const id = await assemblyRuns.start({
+      blueprintName: "daily-digest",
+      repo: "re-cinq/lore",
+      args: digestArgs(["re-cinq/lore", "re-cinq/otto"]),
+    });
+
+    const draft = await digestDraftOf(id, deps(assemblyRuns, collectOne));
+
+    expect(draft).toContain("Merged in re-cinq/lore");
+    expect(draft).toContain("Merged in re-cinq/otto");
+    expect((await assemblyRuns.getById(id))?.args.digest_draft).toBe(draft);
+  });
+
+  it("serves the stored draft unchanged on a retry without reading GitHub again", async () => {
+    const assemblyRuns = runs();
+    const id = await assemblyRuns.start({
+      blueprintName: "daily-digest",
+      repo: "re-cinq/lore",
+      args: { ...digestArgs(["re-cinq/lore"]), digest_draft: "the draft" },
+    });
+    const refusing: RepoCollector = async () => {
+      throw new Error("must not read GitHub twice");
+    };
+
+    expect(await digestDraftOf(id, deps(assemblyRuns, refusing))).toBe(
+      "the draft",
+    );
+  });
+
+  it("renders a failed repo read as its own section", async () => {
+    const assemblyRuns = runs();
+    const id = await assemblyRuns.start({
+      blueprintName: "daily-digest",
+      repo: "re-cinq/lore",
+      args: digestArgs(["re-cinq/lore"]),
+    });
+    const failing: RepoCollector = async () => {
+      throw new Error("GitHub 502");
+    };
+
+    expect(await digestDraftOf(id, deps(assemblyRuns, failing))).toContain(
+      "_could not read re-cinq/lore: GitHub 502_",
+    );
+  });
+
+  it("shows each person under their Slack name when one is known", async () => {
+    const assemblyRuns = runs();
+    const id = await assemblyRuns.start({
+      blueprintName: "daily-digest",
+      repo: "re-cinq/lore",
+      args: digestArgs(["re-cinq/lore"]),
+    });
+
+    const draft = await digestDraftOf(
+      id,
+      deps(
+        assemblyRuns,
+        collectOne,
+        async (): Promise<Record<string, string>> => ({ alice: "Alice Smith" }),
+      ),
+    );
+
+    expect(draft).toContain("*Alice Smith*");
+  });
+
+  it("keeps GitHub logins when the name lookup fails", async () => {
+    const assemblyRuns = runs();
+    const id = await assemblyRuns.start({
+      blueprintName: "daily-digest",
+      repo: "re-cinq/lore",
+      args: digestArgs(["re-cinq/lore"]),
+    });
+
+    const draft = await digestDraftOf(
+      id,
+      deps(assemblyRuns, collectOne, async () => {
+        throw new Error("slack users.lookupByEmail: missing_scope");
+      }),
+    );
+
+    expect(draft).toContain("*alice*");
+  });
+
+  it("puts an aside marker after each section and names the voice when the run has one", async () => {
+    const assemblyRuns = runs();
+    const id = await assemblyRuns.start({
+      blueprintName: "daily-digest",
+      repo: "re-cinq/lore",
+      args: {
+        ...digestArgs(["re-cinq/lore"]),
+        voice: "Michael Scott from The Office",
+      },
+    });
+
+    const draft =
+      (await digestDraftOf(id, deps(assemblyRuns, collectOne))) ?? "";
+
+    expect({
+      asides: draft.split("\n").filter((line) => line === ASIDE_MARKER).length,
+      voice: draft.includes("Voice: Michael Scott from The Office"),
+    }).toEqual({ asides: 2, voice: true });
+  });
+
+  it("puts no aside marker in a run without a voice", async () => {
+    const assemblyRuns = runs();
+    const id = await assemblyRuns.start({
+      blueprintName: "daily-digest",
+      repo: "re-cinq/lore",
+      args: digestArgs(["re-cinq/lore"]),
+    });
+
+    expect(
+      await digestDraftOf(id, deps(assemblyRuns, collectOne)),
+    ).not.toContain(ASIDE_MARKER);
+  });
+
+  it("returns null for a run that is not a digest run", async () => {
+    const assemblyRuns = runs();
+    const id = await assemblyRuns.start({
+      blueprintName: "code-review",
+      repo: "re-cinq/lore",
+      args: { pr_number: 1 },
+    });
+
+    expect(await digestDraftOf(id, deps(assemblyRuns, collectOne))).toBe(null);
+  });
+
+  it("puts the intro marker and the appendix around the sections", async () => {
+    const assemblyRuns = runs();
+    const id = await assemblyRuns.start({
+      blueprintName: "daily-digest",
+      repo: "re-cinq/lore",
+      args: digestArgs(["re-cinq/lore"]),
+    });
+
+    const draft =
+      (await digestDraftOf(id, deps(assemblyRuns, collectOne))) ?? "";
+
+    expect(draft.indexOf(INTRO_MARKER)).toBeLessThan(
+      draft.indexOf("*re-cinq/lore*"),
+    );
+    expect(draft.indexOf("*re-cinq/lore*")).toBeLessThan(
+      draft.indexOf(APPENDIX_MARKER),
+    );
+  });
+});

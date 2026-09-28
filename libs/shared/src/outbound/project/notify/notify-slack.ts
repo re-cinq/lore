@@ -10,6 +10,8 @@ import type {
   NotifyOptions,
 } from "./notify-port.js";
 import { decideNotify } from "./notify-decision.js";
+import { SlackPosterHttp } from "./slack-poster-http.js";
+import type { SlackPosterPort } from "./slack-poster-port.js";
 
 interface RepoNotifyRow {
   settings?: { dark_factory?: DarkFactorySettings; slack_channel_id?: string };
@@ -36,6 +38,7 @@ export class NotifySlack implements NotifyPort {
   constructor(
     private readonly pool: PgPool,
     private readonly env: NodeJS.ProcessEnv = process.env,
+    private readonly poster: SlackPosterPort = new SlackPosterHttp(env),
   ) {}
 
   async notify(
@@ -52,8 +55,9 @@ export class NotifySlack implements NotifyPort {
     // The override picks the destination; `decision` already decided whether to post.
     const channel = opts.channel ?? slackChannelId;
 
+    // No token means no post and no error — a laptop Floor without Slack must still decide.
     if (decision.fire && token && channel) {
-      await this.post(token, channel, message);
+      await this.poster.post({ channel, text: message });
     }
 
     return decision;
@@ -67,21 +71,5 @@ export class NotifySlack implements NotifyPort {
     );
 
     return repoNotifySettings(rows[0] as RepoNotifyRow | undefined);
-  }
-
-  private async post(
-    token: string,
-    channel: string,
-    text: string,
-  ): Promise<void> {
-    await fetch("https://slack.com/api/chat.postMessage", {
-      signal: AbortSignal.timeout(10_000),
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ channel, text, unfurl_links: true }),
-    });
   }
 }

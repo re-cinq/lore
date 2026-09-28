@@ -1,5 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerMemoryTools } from "./tools/memory-tools.js";
+import { registerPlanTools } from "./tools/plan-tools.js";
 import { registerContextTools } from "./tools/context-tools.js";
 import { registerPipelineTools } from "./tools/pipeline-tools.js";
 import { registerRepoTools } from "./tools/repo-tools.js";
@@ -49,6 +50,7 @@ function resolveServerMode(): ServerMode {
 function registerSharedTools(server: McpServer): void {
   registerContextTools(server);
   registerMemoryTools(server);
+  registerPlanTools(server);
   registerSpecTraceTools(server);
   registerUsageTools(server);
   registerRepoTools(server);

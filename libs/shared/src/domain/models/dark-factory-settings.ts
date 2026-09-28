@@ -3,6 +3,7 @@ import type {
   ResolvedDarkFactorySettings,
 } from "../dark-factory-settings.js";
 import { z } from "zod";
+import type { Assert, Equals } from "./schema-equals.js";
 
 /** The `dark_factory` block of `lore.repos.settings` (ADR-016); JSONB storage, so keys stay snake_case (the wire contract, not TS fields). Resolver + defaults stay in `../dark-factory-settings.js` — only the shape lives here. */
 
@@ -72,14 +73,6 @@ export type {
   ReviewMode,
   TrustLevel,
 } from "../dark-factory-settings.js";
-
-type Assert<T extends true> = T;
-
-/** Identity-based equality, not a bidirectional `extends` — an `extends` pair can't see an added OPTIONAL field (`{a?: x}` and `{}` each extend the other). */
-type Equals<A, B> =
-  (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2
-    ? true
-    : false;
 
 /** Proves the schemas above and the plain types in `../dark-factory-settings.ts` are one shape (kept separate only because that module must stay dependency-free for web-ui); a field added to either side alone fails `tsc`. */
 type SchemaMatchesTypes = Assert<

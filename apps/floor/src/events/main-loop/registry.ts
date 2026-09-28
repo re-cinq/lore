@@ -11,6 +11,7 @@ import * as github from "../handlers/github.js";
 import * as internal from "../handlers/internal.js";
 import * as cron from "../handlers/cron.js";
 import * as detect from "../../work/detect/fan-out.js";
+import { dailyDigestTick } from "../../work/digest/fan-out.js";
 import { implementationLoopTick } from "../../work/backlog/implementation-loop.js";
 import * as kubernetes from "../handlers/kubernetes.js";
 import { assemblyLineStart } from "../../work/assembly-run/start-event-handler.js";
@@ -160,5 +161,6 @@ function detectTickEntries(): Entry[] {
     ["cron.spec_drift.tick", detect.specDriftTick],
     ["cron.spec_coverage_backfill.tick", cron.specCoverageBackfill],
     ["cron.spec_coverage_validate.tick", detect.specCoverageValidateTick],
+    ["cron.daily_digest.tick", dailyDigestTick],
   ];
 }

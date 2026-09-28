@@ -57,6 +57,18 @@ describe("per-vendor hook bundles", () => {
     expect(flat.body.toString()).toEqual(fromBundle.toString());
   });
 
+  it("serves hooks/gemini.tar.gz, so a Gemini pod fetches the same guard under its own settings file", async () => {
+    const { status, body } = await get("/skills/hooks/gemini.tar.gz");
+    const listing = spawnSync("tar", ["-tzf", "-"], { input: body })
+      .stdout.toString()
+      .split("\n");
+
+    expect({
+      status,
+      hasSettings: listing.includes("./.gemini/settings.json"),
+    }).toEqual({ status: 200, hasSettings: true });
+  });
+
   it("404s a vendor with no bundle and a traversing vendor name alike", async () => {
     const statuses = await Promise.all(
       ["/skills/hooks/cursor.tar.gz", "/skills/hooks/..%2fclaude.tar.gz"].map(

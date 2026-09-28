@@ -1,5 +1,7 @@
 // ── General (non-privileged) settings → written directly to the DB ──────────
 
+import { parseDigestBlock } from "./settings-digest";
+
 export function parseSettingsForm(formData: FormData) {
   const selectedRepos = formData.getAll("cross_repo_repos") as string[];
   const updates: Record<string, unknown> = {
@@ -10,6 +12,7 @@ export function parseSettingsForm(formData: FormData) {
     slack_channel_id: optionalText(formData, "slack_channel_id"),
     dispatch_label: optionalText(formData, "dispatch_label"),
     dispatch_default_type: optionalText(formData, "dispatch_default_type"),
+    digest: parseDigestBlock(formData),
   };
 
   const trustLevel = formData.get("trust_level") as string;

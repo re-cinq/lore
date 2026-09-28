@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { NotifySlack } from "./notify-slack.js";
+import { InMemorySlackPoster } from "./slack-poster-memory.js";
 import type { PgPool } from "../../memory-store.js";
 
 function fakePool(rows: unknown[]): PgPool {
@@ -36,7 +37,7 @@ describe("NotifySlack", () => {
 
 describe("a task that arrived from Slack", () => {
   it("posts to the task's own channel while the repo's list still decides whether to post", async () => {
-    const posts: Array<{ channel: string; text: string }> = [];
+    const poster = new InMemorySlackPoster();
     const slack = new NotifySlack(
       fakePool([
         {
@@ -47,46 +48,34 @@ describe("a task that arrived from Slack", () => {
         },
       ]),
       { LORE_SLACK_BOT_TOKEN: "xoxb-test" },
+      poster,
     );
-
-    globalThis.fetch = (async (_url: string, init: { body: string }) => {
-      posts.push(JSON.parse(init.body));
-
-      return { ok: true };
-    }) as unknown as typeof fetch;
 
     const result = await slack.notify("re-cinq/lore", "pr_open", "PR ready", {
       channel: "C-from-slash-command",
     });
 
-    expect(result.fire).toBe(true);
-    expect(posts).toEqual([
-      {
-        channel: "C-from-slash-command",
-        text: "PR ready",
-        unfurl_links: true,
-      },
-    ]);
+    expect({ fire: result.fire, posts: poster.posts }).toEqual({
+      fire: true,
+      posts: [{ channel: "C-from-slash-command", text: "PR ready" }],
+    });
   });
 
   it("posts nothing when the repo's channel list suppresses the level, override or not", async () => {
+    const poster = new InMemorySlackPoster();
     const slack = new NotifySlack(
       fakePool([{ settings: { dark_factory: { notify: ["escalation"] } } }]),
       { LORE_SLACK_BOT_TOKEN: "xoxb-test" },
+      poster,
     );
-    let called = false;
-
-    globalThis.fetch = (async () => {
-      called = true;
-
-      return { ok: true };
-    }) as unknown as typeof fetch;
 
     const result = await slack.notify("re-cinq/lore", "completion", "done", {
       channel: "C-from-slash-command",
     });
 
-    expect(result.fire).toBe(false);
-    expect(called).toBe(false);
+    expect({ fire: result.fire, posts: poster.posts }).toEqual({
+      fire: false,
+      posts: [],
+    });
   });
 });

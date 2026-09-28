@@ -20,6 +20,7 @@ interface OctokitPull {
   user?: { login?: string } | null;
   draft?: boolean;
   mergeable?: boolean | null;
+  body?: string | null;
 }
 
 export function toPullRef(repo: string, pr: OctokitPull): PullRef {
@@ -36,7 +37,17 @@ export function toPullRef(repo: string, pr: OctokitPull): PullRef {
     headSha: pr.head.sha,
     // Only `pulls.get` returns this; a list read leaves it undefined, which is not the same as null (GitHub still computing).
     mergeable: pr.mergeable,
+    ...whenPresent("mergedAt", pr.merged_at),
+    ...whenPresent("body", pr.body),
   };
+}
+
+/** GitHub answers an absent value as null; the ref carries the field only when there is one. */
+function whenPresent(
+  key: "mergedAt" | "body",
+  value: string | null | undefined,
+): Partial<Pick<PullRef, "mergedAt" | "body">> {
+  return value ? { [key]: value } : {};
 }
 
 /** Repo default branch, shared by listTree and getDefaultBranch. */

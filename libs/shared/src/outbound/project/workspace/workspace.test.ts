@@ -48,6 +48,7 @@ describe("Workspace", () => {
     const opened: string[] = [];
     const ws = new Workspace("re-cinq/lore", "/tmp/ws", fakeGit(log), {
       list: async () => [],
+      listMergedSince: async () => [],
       get: async () => null,
       comment: async () => {},
       review: async () => {},

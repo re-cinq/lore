@@ -1,7 +1,7 @@
 /** ingest-graph shared shape — kind registry, file selection, and summary building shared by ingest-graph-task.ts (the orchestrator) and ingest-graph-run.ts (the per-kind executor). */
 
 import type { SourceDocument } from "./project-blocks.js";
-import type { ProjectionOptions } from "./project-spec-file.js";
+import type { EmbedFn, ProjectionOptions } from "./project-spec-file.js";
 import type { DgraphClientPort } from "../../outbound/spec-trace/deps.js";
 import { projectSpecFile } from "./project-spec-file.js";
 import { projectAdrFile } from "./project-adr-file.js";
@@ -42,8 +42,8 @@ export interface IngestGraphPorts {
   listTree(ref?: string): Promise<string[]>;
   readFile(path: string, ref?: string): Promise<string>;
   buildTestReport?: () => Promise<unknown>;
-  /** Statement embedder passed to each kind's project; omitted = the projector's default (Vertex via GCP ADC, absent in station pods). */
-  embed?: (text: string) => Promise<number[] | null>;
+  /** Batch statement embedder passed to each kind's project; omitted = the projector's default (Vertex via GCP ADC, absent in station pods). */
+  embed?: EmbedFn;
 }
 
 /** One file-projectable kind: how to discover its files + how to project one. */

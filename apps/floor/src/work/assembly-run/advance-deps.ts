@@ -8,6 +8,7 @@ import type { AssemblyLine, NodeResult } from "@re-cinq/lore-assembly-lines";
 import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import type { ResolveConversationFn } from "./launch-spec.js";
 import type { ResolveRecipeFn } from "./input-files.js";
+import type { PlanningPassWriter } from "../../domain/plan-writer.js";
 
 export interface AdvanceDeps {
   assemblyRuns: AssemblyRunsPort;
@@ -98,4 +99,6 @@ export interface AdvanceDeps {
     assemblyRun: AssemblyRunRecord,
     result: NodeResult,
   ) => Promise<void>;
+  /** The plan a planning agent's pass writes: presence opened before its pod launches, closed and its Refine settled when its node does. Required — a Floor without it cannot run the planning line. */
+  plans: PlanningPassWriter;
 }

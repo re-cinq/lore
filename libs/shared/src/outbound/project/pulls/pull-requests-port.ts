@@ -37,6 +37,10 @@ export interface PullRef {
   headSha?: string;
   /** GitHub's mergeability: false when the PR conflicts with its base, null while GitHub is still computing it, absent from list reads (only `get` returns it). A conflicting PR gets no workflow run at all. */
   mergeable?: boolean | null;
+  /** ISO merge time; present on a merged PR read from octokit, absent on open PRs and legacy doubles. */
+  mergedAt?: string;
+  /** PR body (octokit adapter only; GitHub returns null if empty) — the digest reads its closing keywords. */
+  body?: string;
 }
 
 export interface PullReview {
@@ -139,6 +143,8 @@ export interface PullDraft {
 
 export interface PullRequestsPort {
   list(repo: string): Promise<PullRef[]>;
+  /** PRs merged at or after `since` (ISO), newest first — the digest's "implemented" window; pages stop once GitHub's updated-at order passes the cutoff. */
+  listMergedSince(repo: string, since: string): Promise<PullRef[]>;
   get(repo: string, number: number): Promise<PullRef | null>;
   comment(repo: string, number: number, body: string): Promise<void>;
   review(

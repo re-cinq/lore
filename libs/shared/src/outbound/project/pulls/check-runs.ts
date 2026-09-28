@@ -32,6 +32,30 @@ export function loreCheckName(blueprintName: string): string {
   return `${LORE_CHECK_PREFIX}${checkDisplayName(blueprintName)}`;
 }
 
+/** What Lore's own review said about a ref, read from the check it publishes rather than from the reviews list. The check is the only place a verdict survives on a PR the review App itself authored: GitHub refuses an APPROVE or a REQUEST_CHANGES from the author, so every implementation-loop PR's review reaches a reader only here. `neutral` is what {@link ciConclusionOf}'s siblings publish for suggested changes; a failed review line is no verdict at all. */
+export function loreReviewVerdict(
+  checks: readonly CheckRun[],
+): "approved" | "changes_requested" | "none" {
+  const latest = latestFinished(checks, loreCheckName("code-review"));
+
+  if (latest?.conclusion === "success") {
+    return "approved";
+  }
+
+  return latest?.conclusion === "neutral" ? "changes_requested" : "none";
+}
+
+/** The last finished run published under `name`, by id — GitHub's ids are monotonic, so the newest push's verdict wins over the one it replaced. A run still in flight is not a verdict and is skipped, or a re-check in progress would erase the verdict standing on the ref. */
+function latestFinished(
+  checks: readonly CheckRun[],
+  name: string,
+): CheckRun | undefined {
+  return checks
+    .filter((run) => run.name === name && run.status === "completed")
+    .sort((a, b) => (a.id ?? 0) - (b.id ?? 0))
+    .at(-1);
+}
+
 /** Markers GitHub honours to skip a workflow run — a commit carrying one gets no checks, so it can never be the sha a verdict is read from. */
 export const SKIP_CI_MARKERS = [
   "[skip ci]",

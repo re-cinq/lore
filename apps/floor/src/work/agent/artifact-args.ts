@@ -6,13 +6,15 @@ import type {
 } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { SPEC_REVIEW_RESULT_EVENT } from "@re-cinq/lore-shared/review/spec-review.js";
 import { PLAN_VALIDATION_RESULT_EVENT } from "@re-cinq/lore-shared/review/plan-validation.js";
+import { DIGEST_MESSAGE_EVENT } from "@re-cinq/lore-shared/digest/contract.js";
 import { parseAgentSink, type AgentFileEvent } from "./agent-events.js";
 
-/** Written into its plan and its PR, not the line — see deliverPlanningResult, deliverSpecReviewResult, and deliverPlanValidation. */
+/** Written into its plan, its PR or its Slack channel, not the line — see deliverPlanningResult, deliverSpecReviewResult, deliverPlanValidation and receiveDigestUpload. */
 const OWNED_ELSEWHERE = new Set([
   "planning.result",
   SPEC_REVIEW_RESULT_EVENT,
   PLAN_VALIDATION_RESULT_EVENT,
+  DIGEST_MESSAGE_EVENT,
 ]);
 
 export interface ArtifactArgsDeps {

@@ -97,7 +97,7 @@ describe("runIngestStation", () => {
     const result = await runIngestStation(input({ kind: "specs" }), {
       workspaceDir: fixtureClone(),
       dgraph: fake.port,
-      embed: async () => [0.1, 0.2],
+      embed: async (texts) => texts.map(() => [0.1, 0.2]),
     });
 
     expect(result).toMatchObject({ outcome: "success" });
@@ -110,7 +110,7 @@ describe("runIngestStation", () => {
     const result = await runIngestStation(input({ kind: "adrs" }), {
       workspaceDir: fixtureClone(),
       dgraph: fake.port,
-      embed: async () => [0.1, 0.2],
+      embed: async (texts) => texts.map(() => [0.1, 0.2]),
     });
 
     expect(result).toMatchObject({ outcome: "success" });
@@ -128,7 +128,11 @@ describe("runIngestStation", () => {
     );
     const result = await runIngestStation(
       input({ kind: "specs", glob: "specs/beta/" }),
-      { workspaceDir: clone, dgraph: fake.port, embed: async () => [0.1] },
+      {
+        workspaceDir: clone,
+        dgraph: fake.port,
+        embed: async (texts) => texts.map(() => [0.1]),
+      },
     );
 
     expect(result.extras?.["Lore-Ingest-Summary"]).toContain("projected=1");
@@ -148,7 +152,7 @@ describe("runIngestStation", () => {
     const result = await runIngestStation(input({ kind: "specs" }), {
       workspaceDir: fixtureClone(),
       dgraph: { newTxn: () => broken },
-      embed: async () => [0.1],
+      embed: async (texts) => texts.map(() => [0.1]),
     });
 
     expect(result).toMatchObject({ outcome: "failed" });
@@ -193,7 +197,7 @@ describe("runIngestStation", () => {
       runIngestStation(input({ kind: "specs", ...(force ? { force } : {}) }), {
         workspaceDir: clone,
         dgraph: port,
-        embed: async () => [0.1],
+        embed: async (texts) => texts.map(() => [0.1]),
       });
 
     expect((await run()).extras?.["Lore-Ingest-Summary"]).toContain(
@@ -214,7 +218,7 @@ describe("runIngestStation", () => {
       {
         workspaceDir: fixtureClone(),
         dgraph: fakeDgraph().port,
-        embed: async () => [0.1],
+        embed: async (texts) => texts.map(() => [0.1]),
         fetchPayload: async (eventId) => {
           fetched.push(eventId);
 
@@ -238,13 +242,13 @@ describe("runIngestStation", () => {
       runIngestStation(input({ kind: "test-report" }), {
         workspaceDir: fixtureClone(),
         dgraph: fakeDgraph().port,
-        embed: async () => [0.1],
+        embed: async (texts) => texts.map(() => [0.1]),
         fetchPayload: async () => ({}),
       }),
     ).rejects.toThrow(/payload_event_id/);
   });
 
-  it("apiEmbed posts the text to /api/embed and returns the embedding", async () => {
+  it("apiEmbed posts the texts to /api/embeddings and returns their embeddings in order", async () => {
     const calls: Array<{ url: string; body: string }> = [];
     const embed = apiEmbed(
       "https://lore-api.example",
@@ -252,26 +256,48 @@ describe("runIngestStation", () => {
       async (url, init) => {
         calls.push({ url: String(url), body: String(init?.body) });
 
-        return new Response(JSON.stringify({ embedding: [0.7, 0.8] }), {
-          status: 200,
-        });
+        return new Response(
+          JSON.stringify({ embeddings: [[0.7, 0.8], null] }),
+          { status: 200 },
+        );
       },
     );
 
-    expect(await embed("some statement")).toEqual([0.7, 0.8]);
-    expect(calls[0].url).toBe("https://lore-api.example/api/embed");
-    expect(JSON.parse(calls[0].body)).toEqual({ text: "some statement" });
+    expect(await embed(["some statement", "another"])).toEqual([
+      [0.7, 0.8],
+      null,
+    ]);
+    expect(calls).toEqual([
+      {
+        url: "https://lore-api.example/api/embeddings",
+        body: JSON.stringify({ texts: ["some statement", "another"] }),
+      },
+    ]);
   });
 
-  it("apiEmbed returns null when the proxy yields no embedding", async () => {
-    const embed = apiEmbed("https://lore-api.example", "tok-123", async () => {
-      return new Response(JSON.stringify({ embedding: null }), { status: 200 });
-    });
+  it("apiEmbed posts 251 texts as 2 requests of 250 and 1", async () => {
+    const posted: number[] = [];
+    const embed = apiEmbed(
+      "https://lore-api.example",
+      "tok-123",
+      async (_url, init) => {
+        const { texts } = JSON.parse(String(init?.body)) as { texts: string[] };
 
-    expect(await embed("x")).toBeNull();
+        posted.push(texts.length);
+
+        return new Response(
+          JSON.stringify({ embeddings: texts.map(() => [0.1]) }),
+          { status: 200 },
+        );
+      },
+    );
+    const texts = Array.from({ length: 251 }, (_, i) => `statement ${i}`);
+
+    expect(await embed(texts)).toHaveLength(251);
+    expect(posted).toEqual([250, 1]);
   });
 
-  it("apiEmbed retries a 429 after backing off and succeeds — a per-statement burst can outrun the API's embed bucket", async () => {
+  it("apiEmbed retries a 429 after backing off and succeeds — stations on every repo share the API's embed bucket", async () => {
     const slept: number[] = [];
     let attempts = 0;
     const embed = apiEmbed(
@@ -282,14 +308,16 @@ describe("runIngestStation", () => {
 
         return attempts < 3
           ? new Response("rate limit exceeded", { status: 429 })
-          : new Response(JSON.stringify({ embedding: [0.5] }), { status: 200 });
+          : new Response(JSON.stringify({ embeddings: [[0.5]] }), {
+              status: 200,
+            });
       },
       async (ms) => {
         slept.push(ms);
       },
     );
 
-    expect(await embed("statement")).toEqual([0.5]);
+    expect(await embed(["statement"])).toEqual([[0.5]]);
     expect(slept).toEqual([2000, 5000]);
   });
 
@@ -304,7 +332,7 @@ describe("runIngestStation", () => {
       },
     );
 
-    await expect(embed("statement")).rejects.toThrow(/429/);
+    await expect(embed(["statement"])).rejects.toThrow(/429/);
     expect(slept).toEqual([2000, 5000, 15000]);
   });
 
@@ -313,7 +341,7 @@ describe("runIngestStation", () => {
       runIngestStation(input({ kind: "bogus" }), {
         workspaceDir: fixtureClone(),
         dgraph: fakeDgraph().port,
-        embed: async () => [0.1],
+        embed: async (texts) => texts.map(() => [0.1]),
       }),
     ).rejects.toThrow(/no ingest handler for kind "bogus"/);
   });
@@ -323,7 +351,7 @@ describe("runIngestStation", () => {
       runIngestStation(input({}), {
         workspaceDir: fixtureClone(),
         dgraph: fakeDgraph().port,
-        embed: async () => [0.1],
+        embed: async (texts) => texts.map(() => [0.1]),
       }),
     ).rejects.toThrow(/no ingest handler for kind "undefined"/);
   });
@@ -346,7 +374,7 @@ describe("runIngestStation", () => {
     try {
       const result = await runIngestStation(input({ kind: "specs" }), {
         dgraph: fakeDgraph().port,
-        embed: async () => [0.1],
+        embed: async (texts) => texts.map(() => [0.1]),
       });
 
       expect(result.extras?.["Lore-Ingest-Summary"]).toContain("projected=1");
@@ -370,7 +398,7 @@ describe("runIngestStation", () => {
       await expect(
         runIngestStation(input({ kind: "specs" }), {
           workspaceDir: fixtureClone(),
-          embed: async () => [0.1],
+          embed: async (texts) => texts.map(() => [0.1]),
         }),
       ).rejects.toThrow(/LORE_DGRAPH_HTTP not configured/);
     } finally {

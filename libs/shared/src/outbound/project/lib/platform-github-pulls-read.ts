@@ -22,6 +22,58 @@ export async function list(ok: Octokit, repo: string): Promise<PullRef[]> {
   return rows.map((pr) => toPullRef(repo, pr));
 }
 
+/** Merged PRs at or after `since`. GitHub has no merged-since filter, so closed PRs are read newest-updated first and the window closes on the first page whose last row is older than the cutoff (a merge always updates the PR). */
+export async function listMergedSince(
+  ok: Octokit,
+  repo: string,
+  since: string,
+): Promise<PullRef[]> {
+  const rows = await closedPullsUpdatedSince(ok, repo, since);
+
+  return rows
+    .filter((pr) => (pr.merged_at ?? "") >= since)
+    .map((pr) => toPullRef(repo, pr));
+}
+
+type ClosedPull = Parameters<typeof toPullRef>[1] & { updated_at: string };
+
+async function closedPullsUpdatedSince(
+  ok: Octokit,
+  repo: string,
+  since: string,
+): Promise<ClosedPull[]> {
+  const [owner, name] = split(repo);
+  const { pulls } = ok.rest;
+  const pages = ok.paginate.iterator(pulls.list, {
+    owner,
+    repo: name,
+    state: "closed",
+    sort: "updated",
+    direction: "desc",
+    per_page: 100,
+  });
+
+  return collectUntil(pages, (page) => (page.at(-1)?.updated_at ?? "") < since);
+}
+
+/** Every page up to and including the first one `past` says is beyond the window. */
+async function collectUntil(
+  pages: AsyncIterable<{ data: ClosedPull[] }>,
+  past: (page: ClosedPull[]) => boolean,
+): Promise<ClosedPull[]> {
+  const rows: ClosedPull[] = [];
+
+  for await (const { data: page } of pages) {
+    rows.push(...page);
+
+    if (past(page)) {
+      break;
+    }
+  }
+
+  return rows;
+}
+
 export async function get(
   ok: Octokit,
   repo: string,

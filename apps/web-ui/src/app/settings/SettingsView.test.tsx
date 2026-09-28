@@ -30,6 +30,9 @@ function renderView(
       repoLines={"re-cinq/production-app"}
       saveSettings={action}
       saveApprovalConfig={action}
+      slackPeopleLines=""
+      slackPeopleRejected={[]}
+      saveSlackPeople={action}
       regenerateToken={action}
       githubInstallations={[]}
       githubInstallUrl={null}

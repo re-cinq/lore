@@ -33,6 +33,11 @@ export class RepoFiles {
     return this.github.getDefaultBranch(this.repo);
   }
 
+  /** The login's newest commit email here; null when unknown, including on an adapter that cannot say. */
+  async commitEmailOf(login: string): Promise<string | null> {
+    return (await this.github.commitEmailOf?.(this.repo, login)) ?? null;
+  }
+
   /** True/false when adapter answers; undefined means "don't modify branch". */
   branchExists(branch: string): Promise<boolean> | undefined {
     return this.github.branchExists?.(this.repo, branch);

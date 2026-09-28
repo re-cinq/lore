@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "BeforeTool": [
+      {
+        "matcher": "run_shell_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=\"$HOME/.claude/skills/lore-context/guard-tests.sh\"; if [ ! -r \"$f\" ]; then [ -n \"$LORE_TEST_POLICY\" ] || exit 0; printf '{\"decision\":\"block\",\"reason\":\"[lore] blocked: this recipe declares LORE_TEST_POLICY=%s but its guard script is missing from %s; it was staged with the lore-context skill and must not be removed\"}\\n' \"$LORE_TEST_POLICY\" \"$f\"; exit 0; fi; event=$(cat); reason=$(printf '%s' \"$event\" | sh \"$f\" 2>&1 >/dev/null) && exit 0; printf '{\"decision\":\"block\",\"reason\":\"%s\"}\\n' \"$(printf '%s' \"$reason\" | tr '\\n\"' '  ')\"; exit 0"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -3,10 +3,12 @@
 import {
   markdownToOps,
   planToMarkdown,
+  readView,
   refineUsesSchema,
   templateFor,
   type AgentOp,
   type MarkdownProblem,
+  type ReadView,
 } from "@re-cinq/planning-document";
 import type {
   FailRequest,
@@ -51,6 +53,15 @@ export async function planMarkdown(
   const { meta, blocks } = await ports.livePlan(planId);
 
   return planToMarkdown(blocks, templateFor(meta.type));
+}
+
+export async function planAgentView(
+  planId: string,
+  ports: PlanFilePorts,
+): Promise<ReadView> {
+  const { blocks } = await ports.livePlan(planId);
+
+  return readView(blocks);
 }
 
 /** Writes what the edited file changed. A file with problems and nothing writable is refused whole, so a broken pass reads as a failure rather than as a silent no-op. */

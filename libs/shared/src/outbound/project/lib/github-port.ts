@@ -16,11 +16,17 @@ export interface IssueRef {
   body?: string;
   /** How many blocked-by links the issue carries, open or closed (octokit list read only; absent when none). */
   blockedByCount?: number;
+  /** Assignee logins (octokit adapter only; empty when nobody is assigned). */
+  assignees?: string[];
+  /** ISO close time (octokit adapter only; absent while open). */
+  closedAt?: string;
 }
 
 export interface IssueFilter {
   state?: IssueState;
   labels?: string[];
+  /** ISO cutoff: only issues updated at or after it; with `state: "closed"` also only those closed at or after it. */
+  since?: string;
 }
 
 export type CheckStatus = "queued" | "in_progress" | "completed";
@@ -59,6 +65,8 @@ export interface GitHubPort {
   listDirectory(repo: string, path: string): Promise<string[]>;
   listTree(repo: string, ref?: string): Promise<string[]>;
   getDefaultBranch(repo: string): Promise<string>;
+  /** The author email of the login's newest commit in the repo, or null when it has none or hides its email behind GitHub's noreply address (the daily digest's Slack match). */
+  commitEmailOf?(repo: string, login: string): Promise<string | null>;
   listCommitsSince(
     repo: string,
     since: string,

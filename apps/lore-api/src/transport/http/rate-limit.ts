@@ -15,7 +15,10 @@ const BUCKET_RULES: ReadonlyArray<{
       path.startsWith("/api/tasks"),
     bucket: "task",
   },
-  { matches: (path) => path === "/api/embed", bucket: "embed" },
+  {
+    matches: (path) => path === "/api/embed" || path === "/api/embeddings",
+    bucket: "embed",
+  },
   { matches: (path) => path.startsWith("/api/task-turns/"), bucket: "turns" },
 ];
 

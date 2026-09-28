@@ -122,12 +122,12 @@ describe("isDraftingPlan", () => {
   const drafting = (status: string, ...nodes: ReturnType<typeof visit>[]) =>
     isDraftingPlan({ status }, nodes);
 
-  it("holds the plan while the run is queued, started or on its first analyze", () => {
-    expect([
-      drafting("queued"),
-      drafting("running"),
-      drafting("running", visit("analyze", null)),
-    ]).toEqual([true, true, true]);
+  it("holds the plan while the run is queued or started", () => {
+    expect([drafting("queued"), drafting("running")]).toEqual([true, true]);
+  });
+
+  it("opens the plan as soon as the pod is running its first analyze", () => {
+    expect(drafting("running", visit("analyze", null))).toEqual(false);
   });
 
   it("opens the plan once the draft is written, while a section is refined, and when the run failed", () => {

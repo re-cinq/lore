@@ -133,8 +133,16 @@ trust ≥ `min_trust` → merge. Otherwise a typed deferral
 > satisfied, see [ADR-012](./ADR-012-autonomous-review-loop.md): the signal is the
 > code-review line's formal `APPROVE` / `REQUEST_CHANGES` verdict (no longer a neutral
 > comment), `pr-policy.ts` reads the bot's **latest** decision so the per-push re-check
-> keeps `botApproved` current, and — a known limitation — a Lore-authored PR needs a
-> distinct `LORE_REVIEW_BOT_LOGIN` reviewer identity before the bot can self-approve.
+> keeps `botApproved` current.
+>
+> **Bot-authored PRs (2026-09-25 amendment).** The limitation recorded here — that a
+> Lore-authored PR needed a distinct `LORE_REVIEW_BOT_LOGIN` identity before the bot
+> could self-approve — is resolved without a second identity. GitHub refuses an APPROVE
+> or a REQUEST_CHANGES from the account that opened the PR, so the review's verdict was
+> never in the reviews list for an implementation-loop PR; it was always on the
+> `lore/code-review` check, which the line publishes either way. `pr-policy.ts` now reads
+> that check when the reviews list carries no bot decision. A review the bot did leave
+> still wins, so nothing changes for a human-authored PR.
 
 ### 4. Two-key authorization (FR3.9, R9)
 

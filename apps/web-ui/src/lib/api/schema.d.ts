@@ -634,6 +634,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/embeddings": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/embeddings */
+    post: operations["post_api_embeddings"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/episode": {
     parameters: {
       query?: never;
@@ -2207,7 +2224,7 @@ export interface components {
                 inputs?: {
                   path: string;
                   /** @enum {string} */
-                  source: "plan";
+                  source: "plan" | "digest-draft";
                 }[];
                 repo_workdir?: boolean;
                 command?: string[];
@@ -2253,7 +2270,7 @@ export interface components {
                   inputs?: {
                     path: string;
                     /** @enum {string} */
-                    source: "plan";
+                    source: "plan" | "digest-draft";
                   }[];
                   repo_workdir?: boolean;
                   command?: string[];
@@ -2320,7 +2337,7 @@ export interface components {
               inputs?: {
                 path: string;
                 /** @enum {string} */
-                source: "plan";
+                source: "plan" | "digest-draft";
               }[];
               repo_workdir?: boolean;
               command?: string[];
@@ -2575,7 +2592,7 @@ export interface components {
                 inputs?: {
                   path: string;
                   /** @enum {string} */
-                  source: "plan";
+                  source: "plan" | "digest-draft";
                 }[];
                 repo_workdir?: boolean;
                 command?: string[];
@@ -2769,6 +2786,9 @@ export interface components {
     };
     Embedding: {
       embedding: number[];
+    };
+    Embeddings: {
+      embeddings: (number[] | null)[];
     };
     EpisodePage: {
       episodes: {
@@ -3326,7 +3346,7 @@ export interface components {
               inputs?: {
                 path: string;
                 /** @enum {string} */
-                source: "plan";
+                source: "plan" | "digest-draft";
               }[];
               repo_workdir?: boolean;
               command?: string[];
@@ -3373,7 +3393,7 @@ export interface components {
               inputs?: {
                 path: string;
                 /** @enum {string} */
-                source: "plan";
+                source: "plan" | "digest-draft";
               }[];
               repo_workdir?: boolean;
               command?: string[];
@@ -3547,6 +3567,16 @@ export interface components {
             cross_repo?: boolean;
             cross_repo_repos?: string[];
             slack_channel_id?: string;
+            digest?: {
+              enabled?: boolean;
+              time?: string;
+              days?: number[];
+              timezone?: string;
+              sections?: ("implemented" | "roadmap" | "summary" | "morale")[];
+              /** @enum {string} */
+              group_by?: "person" | "area";
+              voice?: string;
+            } | null;
             dispatch_label?: string;
             dispatch_default_type?: string;
             test_commands?: unknown;
@@ -3674,6 +3704,16 @@ export interface components {
               cross_repo?: boolean;
               cross_repo_repos?: string[];
               slack_channel_id?: string;
+              digest?: {
+                enabled?: boolean;
+                time?: string;
+                days?: number[];
+                timezone?: string;
+                sections?: ("implemented" | "roadmap" | "summary" | "morale")[];
+                /** @enum {string} */
+                group_by?: "person" | "area";
+                voice?: string;
+              } | null;
               dispatch_label?: string;
               dispatch_default_type?: string;
               test_commands?: unknown;
@@ -5442,6 +5482,38 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["Embedding"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_embeddings: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          texts: string[];
+        };
+      };
+    };
+    responses: {
+      /** @description One embedding per posted text, in order */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Embeddings"];
         };
       };
       400: components["responses"]["BadRequest"];

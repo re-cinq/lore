@@ -1,5 +1,6 @@
 import type { ResolvedDarkFactorySettings } from "../../../domain/dark-factory-settings.js";
 import { REPO_COLUMNS, type Repo } from "../../../domain/models/repo.js";
+import type { RepoSettings } from "../../../domain/models/repo-settings.js";
 
 /** One lore.repos column per named field, typed off the model. */
 type RepoColumn<K extends keyof Repo> = {
@@ -10,6 +11,12 @@ type RepoColumn<K extends keyof Repo> = {
 export interface OnboardedRepo {
   full_name: string;
   last_ingested_at: Date | null;
+}
+
+/** An onboarded repo with its raw settings JSONB, for a sweep that decides per repo from settings alone (the daily digest's due check). */
+export interface OnboardedRepoSettings {
+  full_name: string;
+  settings: RepoSettings | null;
 }
 
 /** One lore.repos row; shape = Repo model, declared once beside its columns rather than restated here (where it drifted into a Date|string union). */
@@ -47,6 +54,8 @@ export interface SettingsPort {
   repoForTeam(team: string): Promise<string | null>;
   /** All onboarded repos with their last reindex stamp (the reindex scan set). */
   onboardedRepos(): Promise<OnboardedRepo[]>;
+  /** Every onboarded repo with its settings in one read, so a 15-minute tick costs one query, not one per repo. */
+  onboardedRepoSettings(): Promise<OnboardedRepoSettings[]>;
   /** True when the repo's onboarding PR has merged (gap-detect's per-repo guard). */
   isOnboarded(repo: string): Promise<boolean>;
   /** Every repo Lore has a row for, onboarded or not. The implementation loop walks these, so a repo that switched the loop on before its onboarding merged is reported rather than never looked at. */

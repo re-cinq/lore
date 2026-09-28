@@ -213,6 +213,76 @@ describe("PUT /api/repos/{owner}/{repo}/settings", () => {
     expect(res.statusCode).toBe(400);
   });
 
+  it("returns 400 for a digest block with a weekday of 9", async () => {
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({
+      rows: [{ full_name: "re-cinq/lore", team: null }],
+    });
+    const res = await put(
+      { settings: { digest: { enabled: true, days: [1, 9] } } },
+      pool,
+    );
+
+    expect(res.statusCode).toBe(400);
+    expect(pool.query.mock.calls.length).toBe(1);
+  });
+
+  it("returns 400 for a digest block whose timezone is not an IANA zone", async () => {
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({
+      rows: [{ full_name: "re-cinq/lore", team: null }],
+    });
+    const res = await put(
+      {
+        settings: { digest: { enabled: true, timezone: "Mars/Olympus_Mons" } },
+      },
+      pool,
+    );
+
+    expect({
+      status: res.statusCode,
+      queries: pool.query.mock.calls.length,
+    }).toEqual({
+      status: 400,
+      queries: 1,
+    });
+  });
+
+  it("merges digest: null so a repo can clear its digest block", async () => {
+    const pool = makePool();
+
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ full_name: "re-cinq/lore", team: null }],
+      })
+      .mockResolvedValue({ rows: [] });
+    const res = await put({ settings: { digest: null } }, pool);
+
+    expect(res.statusCode).toBe(200);
+  });
+
+  it("merges a well-formed digest block", async () => {
+    const pool = makePool();
+
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ full_name: "re-cinq/lore", team: null }],
+      })
+      .mockResolvedValue({ rows: [] });
+    const res = await put(
+      {
+        settings: {
+          digest: { enabled: true, time: "08:30", days: [1, 2, 3, 4, 5] },
+        },
+      },
+      pool,
+    );
+
+    expect(res.statusCode).toBe(200);
+  });
+
   it("returns 400 when the patch names no field to update", async () => {
     const pool = makePool();
 

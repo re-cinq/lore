@@ -39,7 +39,7 @@ home for per-unit isolation, hard deadlines, and kill-that-kills is a station po
   params; the embedder threads through `IngestGraphPorts.embed` (station pods
   have no GCP ADC — provider wiring lands with FR4); payload kinds reject loudly
   until FR3.
-  ([validated by `ingest.test.ts:95`](apps/stations/src/work/ingest/ingest.test.ts#L95), [`ingest.test.ts:108`](apps/stations/src/work/ingest/ingest.test.ts#L108), [`ingest.test.ts:120`](apps/stations/src/work/ingest/ingest.test.ts#L120), [`ingest.test.ts:138`](apps/stations/src/work/ingest/ingest.test.ts#L138), [`ingest.test.ts:160`](apps/stations/src/work/ingest/ingest.test.ts#L160), [`ingest.test.ts:311`](apps/stations/src/work/ingest/ingest.test.ts#L311), [`ingest.test.ts:321`](apps/stations/src/work/ingest/ingest.test.ts#L321), [`ingest.test.ts:331`](apps/stations/src/work/ingest/ingest.test.ts#L331), [`ingest-graph-task.test.ts:160`](libs/shared/src/work/spec-trace/ingest-graph-task.test.ts#L160), [`ingest-spec-trace.test.ts:63`](libs/shared/src/work/spec-trace/ingest-spec-trace.test.ts#L63), [`ingest-spec-trace.test.ts:122`](libs/shared/src/work/spec-trace/ingest-spec-trace.test.ts#L122), [`ingest-spec-trace-unknown-kind.test.ts:10`](libs/shared/src/work/spec-trace/ingest-spec-trace-unknown-kind.test.ts#L10); implemented by [`ingest.ts:71`](apps/stations/src/work/ingest/ingest.ts#L71))
+  ([validated by `ingest.test.ts:95`](apps/stations/src/work/ingest/ingest.test.ts#L95), [`ingest.test.ts:108`](apps/stations/src/work/ingest/ingest.test.ts#L108), [`ingest.test.ts:120`](apps/stations/src/work/ingest/ingest.test.ts#L120), [`ingest.test.ts:138`](apps/stations/src/work/ingest/ingest.test.ts#L142), [`ingest.test.ts:160`](apps/stations/src/work/ingest/ingest.test.ts#L164), [`ingest.test.ts:311`](apps/stations/src/work/ingest/ingest.test.ts#L339), [`ingest.test.ts:321`](apps/stations/src/work/ingest/ingest.test.ts#L349), [`ingest.test.ts:331`](apps/stations/src/work/ingest/ingest.test.ts#L359), [`ingest-graph-task.test.ts:160`](libs/shared/src/work/spec-trace/ingest-graph-task.test.ts#L160), [`ingest-spec-trace.test.ts:63`](libs/shared/src/work/spec-trace/ingest-spec-trace.test.ts#L63), [`ingest-spec-trace.test.ts:122`](libs/shared/src/work/spec-trace/ingest-spec-trace.test.ts#L122), [`ingest-spec-trace-unknown-kind.test.ts:10`](libs/shared/src/work/spec-trace/ingest-spec-trace-unknown-kind.test.ts#L10); implemented by [`ingest.ts:71`](apps/stations/src/work/ingest/ingest.ts#L71))
 
 - **FR2 — dispatch.** A single-node detect-shaped assembly line definition
   (`libs/assembly-lines/src/assembly-lines/ingest.yaml`, node type `ingest`) rides
@@ -81,7 +81,7 @@ home for per-unit isolation, hard deadlines, and kill-that-kills is a station po
   back from `GET /api/repos/:o/:r/events/:id/payload` (read scope, repo must match
   the row) and runs `ingestSpecTrace`; docs kinds need only `{commit, glob, force}`
   inline.
-  ([validated by `ingest.test.ts:210`](apps/stations/src/work/ingest/ingest.test.ts#L210), [`ingest.test.ts:236`](apps/stations/src/work/ingest/ingest.test.ts#L236), [`event-payload.test.ts:29`](apps/lore-api/src/transport/routes/ingest/event-payload.test.ts#L29), [`event-payload.test.ts:42`](apps/lore-api/src/transport/routes/ingest/event-payload.test.ts#L42), [`event-payload.test.ts:52`](apps/lore-api/src/transport/routes/ingest/event-payload.test.ts#L52), [`spec-trace-dispatch:193`](apps/floor/src/work/spec-trace/spec-trace-dispatch.test.ts#L186); implemented by [`event-payload.ts:14`](apps/lore-api/src/transport/routes/ingest/event-payload.ts#L14))
+  ([validated by `ingest.test.ts:210`](apps/stations/src/work/ingest/ingest.test.ts#L214), [`ingest.test.ts:236`](apps/stations/src/work/ingest/ingest.test.ts#L240), [`event-payload.test.ts:29`](apps/lore-api/src/transport/routes/ingest/event-payload.test.ts#L29), [`event-payload.test.ts:42`](apps/lore-api/src/transport/routes/ingest/event-payload.test.ts#L42), [`event-payload.test.ts:52`](apps/lore-api/src/transport/routes/ingest/event-payload.test.ts#L52), [`spec-trace-dispatch:193`](apps/floor/src/work/spec-trace/spec-trace-dispatch.test.ts#L186); implemented by [`event-payload.ts:14`](apps/lore-api/src/transport/routes/ingest/event-payload.ts#L14))
 
 - **FR4 — network policy + pod providers.** A label-scoped NetworkPolicy
   (`ingest-station-egress`, selecting the `lore.re-cinq.com/dgraph-egress`
@@ -102,17 +102,24 @@ home for per-unit isolation, hard deadlines, and kill-that-kills is a station po
   the `LORE_INGEST_TOKEN` secret: `createStationProject` requires them, and no
   detect/ingest pod ever had them before this pair (detect lines failed for five
   straight days as "createStationProject requires LORE_API_URL"). Statement
-  embeddings ride `POST /api/embed` — the API proxies Vertex on its own
-  credentials, so no GCP identity ever reaches a run pod; the route has its own
-  1200/min rate bucket (a 7-file changed-spec batch fired ~250 calls in seconds
-  and the 200/min `default` bucket 429'd them all, 2026-07-17) and `apiEmbed`
-  retries a 429 up to three times (2s/5s/15s) before failing the file. No dispatch assembles context at
+  embeddings ride `POST /api/embeddings` — the API proxies Vertex on its own
+  credentials, so no GCP identity ever reaches a run pod. A spec file's
+  statements and acceptance criteria are embedded in ONE batch before any node
+  is written, posted in requests of at most 250 texts and 50,000 characters
+  (Vertex's per-call ceilings), never one request per statement: embedding a
+  100 KB spec statement by statement took ~110 s a file, and a push that
+  rewrote five of them ran every re-cinq/Otto specs ingest into its 10-minute
+  deadline (2026-09-28). The route shares the 1200/min `embed` rate bucket with
+  the older single-text `POST /api/embed` (a 7-file changed-spec batch fired
+  ~250 calls in seconds and the 200/min `default` bucket 429'd them all,
+  2026-07-17), and `apiEmbed` retries a 429 up to three times (2s/5s/15s)
+  before failing the file. No dispatch assembles context at
   all any more (the `hydrate` flag and both `ContextSource` implementations were
   removed 2026-08-28): the exec recipe renders only `{station_input}`, and the
   empty-description dispatch that used to assemble an unbounded-query context
   (~3 MB) — blowing the 2 MiB apiserver limit and blocking every ingest CR create
   on day one — has nothing left to assemble.
-  ([validated by renders the exec-vendor shape on the lore-station image with the ingest token](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L301), [the dgraphUrl option repoints a config LORE_DGRAPH_HTTP entry](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L343), [`rate-limit.test.ts:26`](apps/lore-api/src/transport/http/rate-limit.test.ts#L26), [`ingest.test.ts:274`](apps/stations/src/work/ingest/ingest.test.ts#L274), [`ingest.test.ts:296`](apps/stations/src/work/ingest/ingest.test.ts#L296), [`embed.test.ts:33`](apps/lore-api/src/transport/routes/ingest/embed.test.ts#L33), [`embed.test.ts:40`](apps/lore-api/src/transport/routes/ingest/embed.test.ts#L40), [`embed.test.ts:47`](apps/lore-api/src/transport/routes/ingest/embed.test.ts#L47), [`ingest.test.ts:247`](apps/stations/src/work/ingest/ingest.test.ts#L247), [`ingest.test.ts:266`](apps/stations/src/work/ingest/ingest.test.ts#L266), [`ingest.test.ts:364`](apps/stations/src/work/ingest/ingest.test.ts#L364); implemented by [`ingest-station-egress.yaml:1`](infra/terraform/modules/gke-mcp/lore-platform/charts/ai-agents-helm/templates/ingest-station-egress.yaml#L1), [`embed.ts:27`](apps/lore-api/src/transport/routes/ingest/embed.ts#L27))
+  ([validated by renders the exec-vendor shape on the lore-station image with the ingest token](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L301), [the dgraphUrl option repoints a config LORE_DGRAPH_HTTP entry](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L343), [`rate-limit.test.ts:26`](apps/lore-api/src/transport/http/rate-limit.test.ts#L26), [apiEmbed posts the texts to /api/embeddings and returns their embeddings in order](apps/stations/src/work/ingest/ingest.test.ts#L251), [apiEmbed posts 251 texts as 2 requests of 250 and 1](apps/stations/src/work/ingest/ingest.test.ts#L278), [apiEmbed retries a 429 after backing off and succeeds — stations on every repo share the API's embed bucket](apps/stations/src/work/ingest/ingest.test.ts#L300), [apiEmbed gives up after 4 429s (3 retries) with the status in the error](apps/stations/src/work/ingest/ingest.test.ts#L324), [returns one embedding per posted text, in order](apps/lore-api/src/transport/routes/ingest/embeddings.test.ts#L34), [returns null in the place of a text the provider could not embed](apps/lore-api/src/transport/routes/ingest/embeddings.test.ts#L41), [rejects 251 texts with 400](apps/lore-api/src/transport/routes/ingest/embeddings.test.ts#L47), [embeds a spec's 3 statements and 1 acceptance criterion in one embedder call of 4 texts](libs/shared/src/work/spec-trace/project-spec-file.test.ts#L285), [embeds three texts in one Vertex call and returns the vectors in input order](libs/shared/src/outbound/embeddings/embedding-service.test.ts#L218), [splits 251 short texts into batches of 250 and 1](libs/shared/src/outbound/embeddings/embedding-service.test.ts#L168), [rejects when dgraph is not injected and LORE_DGRAPH_HTTP is unset](apps/stations/src/work/ingest/ingest.test.ts#L392), [rejects an empty text list with 400](apps/lore-api/src/transport/routes/ingest/embeddings.test.ts#L53), [starts a new batch when the next 8000-char text would pass 50000 chars](libs/shared/src/outbound/embeddings/embedding-service.test.ts#L176), [returns no batches for no texts](libs/shared/src/outbound/embeddings/embedding-service.test.ts#L184), [returns null for every text when Vertex answers 403](libs/shared/src/outbound/embeddings/embedding-service.test.ts#L233), [returns an empty list for no texts without calling Vertex](libs/shared/src/outbound/embeddings/embedding-service.test.ts#L243), [returns the embedding for the posted text](apps/lore-api/src/transport/routes/ingest/embed.test.ts#L33), [returns a null embedding when the provider yields none](apps/lore-api/src/transport/routes/ingest/embed.test.ts#L40), [rejects a missing text with 400](apps/lore-api/src/transport/routes/ingest/embed.test.ts#L47); implemented by [`ingest-station-egress.yaml:1`](infra/terraform/modules/gke-mcp/lore-platform/charts/ai-agents-helm/templates/ingest-station-egress.yaml#L1), [`embed.ts:31`](apps/lore-api/src/transport/routes/ingest/embed.ts#L31), [`embeddings.ts:36`](apps/lore-api/src/transport/routes/ingest/embeddings.ts#L36), [`embedding-service.ts:86`](libs/shared/src/outbound/embeddings/embedding-service.ts#L86), [`project-spec-file.ts:163`](libs/shared/src/work/spec-trace/project-spec-file.ts#L163))
 
 - **FR5 — validate substrate dedup.** The post-ingest `spec_coverage_validate`
   event routes through the SAME production detect-tick handler as the weekly cron
@@ -136,9 +143,13 @@ home for per-unit isolation, hard deadlines, and kill-that-kills is a station po
 
 - **FR7 — catalog.** A `def-ingest` recipe is seeded like the other builtins
   (a `def-<type>` row in `lore.agent_definitions`, rendered by each cluster-agent's catalog sync), with
-  `execution_mode: exec`, the `lore-station` image, and a deadline sized for the
-  largest chunk (the per-directory self-chunking from #855 stays — the station
-  inherits bounded units, it does not reintroduce whole-repo passes).
+  `execution_mode: exec`, the `lore-station` image, and a 30-minute deadline,
+  matched by the `ingest` node's `timeout_minutes` so the reaper and the Job
+  agree. The deadline is sized for a push that rewrites several large specs,
+  not for the largest chunk alone: 10 minutes held a 41-file chunk (~7 min) but
+  not five changed 100 KB specs (9.5 min, re-cinq/Otto, 2026-09-28). The
+  per-directory self-chunking from #855 stays — the station inherits bounded
+  units, it does not reintroduce whole-repo passes.
 
 ## Non-goals
 
@@ -170,5 +181,5 @@ home for per-unit isolation, hard deadlines, and kill-that-kills is a station po
 1. Event-id payload fetch (FR3): reuse `pipeline.events` row as the payload store
    with a scoped read endpoint, or a short-lived object in GCS? (Leaning events-row
    read — no new storage, payload already there.)
-2. Deadline sizing for `def-ingest` under force-chunk load (largest observed chunk:
-   41 files ≈ 7 min with embeddings) — 10 min deadline + the walk's `+2 min` buffer?
+2. ~~Deadline sizing for `def-ingest` under force-chunk load~~ — resolved in FR7:
+   30 minutes, with one batched embed call per spec file (FR4).

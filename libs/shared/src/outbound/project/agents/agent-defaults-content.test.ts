@@ -272,21 +272,43 @@ describe("the feature-planning recipe", () => {
     }).toEqual({ gatherFirst: true, context: true, graph: true, trace: true });
   });
 
-  it("tells the planning agent that Open questions holds only question fences, so it never restates its questions there as a list", () => {
+  it("tells the planning agent that Open questions holds only questions, so it never restates its questions there as a list", () => {
     const prompt = promptOf("feature-planning");
 
     expect({
-      onlyFences: prompt.includes(
+      onlyQuestions: prompt.includes(
         "only when it belongs to no other section. That section holds only",
       ),
       noRestating: prompt.includes("Never list or restate questions"),
-    }).toEqual({ onlyFences: true, noRestating: true });
+    }).toEqual({ onlyQuestions: true, noRestating: true });
   });
 
-  it("gives the planning agent its plan as a downloaded plan.md and takes the edited file back by upload", () => {
-    expect(SHIPPED.get("feature-planning")?.config).toMatchObject({
+  it("edits the live plan through lore_plan_read and lore_plan_edit instead of uploading a file", () => {
+    const config = SHIPPED.get("feature-planning")?.config;
+    const prompt = promptOnOneLine("feature-planning");
+
+    expect(config).toMatchObject({
       inputs: [{ path: "plan.md", source: "plan" }],
-      watch: { event: "planning.result", path: "plan.md", upload: true },
+    });
+    expect(config?.watch).toBeUndefined();
+    expect({
+      read: prompt.includes("lore_plan_read"),
+      edit: prompt.includes("lore_plan_edit"),
+      onePerCall: prompt.includes("one op per call"),
+      planIdSlot: prompt.includes("{plan_id}"),
+      expectHash: prompt.includes("expect"),
+      readAgain: prompt.includes("read the plan again"),
+      neverConversation: prompt.includes("never touch the conversation"),
+      briefSlot: prompt.includes("{description}"),
+    }).toEqual({
+      read: true,
+      edit: true,
+      onePerCall: true,
+      planIdSlot: true,
+      expectHash: true,
+      readAgain: true,
+      neverConversation: true,
+      briefSlot: true,
     });
   });
 
@@ -447,5 +469,34 @@ describe("the plan-validate recipe", () => {
       severity: true,
       success: true,
     });
+  });
+});
+
+describe("the code-review-recheck recipe judges the push, not the pull request", () => {
+  it("reads the range since the sha the last verdict judged, rather than the whole PR again", () => {
+    const prompt = promptOnOneLine("code-review-recheck");
+
+    expect({
+      named: prompt.includes("names the sha the last verdict judged"),
+      range: prompt.includes("..HEAD` and judge that range"),
+      whole: prompt.includes("When no sha is named, read `main...HEAD`"),
+    }).toEqual({ named: true, range: true, whole: true });
+  });
+
+  it("carries the same CI-verdict and read-once rules as the deep review, so a re-check runs no linter either", () => {
+    const prompt = promptOnOneLine("code-review-recheck");
+
+    expect({
+      ci: prompt.includes("CI's verdict"),
+      tool: prompt.includes("`lore_get_ci_failures`"),
+      noEslint: prompt.includes("not eslint, tsc or a formatter"),
+      once: prompt.includes("Read each diff once, in place"),
+    }).toEqual({ ci: true, tool: true, noEslint: true, once: true });
+  });
+
+  it("queries context with the PR title and the surface the new commits change", () => {
+    expect(promptOnOneLine("code-review-recheck")).toContain(
+      "the PR title and the surface these commits change",
+    );
   });
 });

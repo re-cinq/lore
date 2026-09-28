@@ -29,6 +29,8 @@ function fakePulls(
 ): PullRequestsPort {
   return {
     list: async (repo) => pulls.filter((p) => p.repo === repo),
+    listMergedSince: async (repo, since) =>
+      pulls.filter((p) => p.repo === repo && (p.mergedAt ?? "") >= since),
     get: async (repo, number) =>
       pulls.find((p) => p.repo === repo && p.number === number) ?? null,
     comment: async () => {},

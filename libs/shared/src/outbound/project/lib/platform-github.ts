@@ -153,6 +153,10 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     return this.octo().then((ok) => fetchDefaultBranch(ok, repo));
   }
 
+  async commitEmailOf(repo: string, login: string): Promise<string | null> {
+    return repoContent.commitEmailOf(await this.octo(), repo, login);
+  }
+
   async listCommitsSince(
     repo: string,
     since: string,
@@ -204,6 +208,10 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
 
   async list(repo: string): Promise<PullRef[]> {
     return pullsRead.list(await this.octo(), repo);
+  }
+
+  async listMergedSince(repo: string, since: string): Promise<PullRef[]> {
+    return pullsRead.listMergedSince(await this.octo(), repo, since);
   }
 
   async get(repo: string, number: number): Promise<PullRef | null> {

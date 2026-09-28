@@ -7,6 +7,7 @@ import {
 import { createStartEventHandler } from "./start-event-handler.js";
 import { createResumeEventHandler } from "./resume-event-handler.js";
 import { createNodeEventHandler } from "./node-event-handler.js";
+import { RecordingPlanWriter } from "../../domain/plan-writer-recording.js";
 
 const twoNodeLine: AssemblyLine = parseAssemblyLine(`
 name: implementation
@@ -109,6 +110,7 @@ describe("assembly_run.* params accept assemblyRunId with assemblyLineId fallbac
       definitions: async () => new Map([["implementation", twoNodeLine]]),
       repoSettings: async () => null,
       resolveRecipe: async (_repo, ref) => ({ prompt: `prompt:${ref}` }),
+      plans: new RecordingPlanWriter(),
       cleanupToken: async () => {},
       jobRuns: { complete: async () => {}, fail: async () => {} },
       readAgentStatus: async () => ({ phase: "Succeeded", output: "" }),

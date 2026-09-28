@@ -78,7 +78,7 @@ const TAG_RULES: Array<[RegExp, string]> = [
   [/\/settings\/dark-factory\b/, "Dark Factory"],
   [/\/(trace|impact)\b/, "Traceability"],
   [/\/ingest/, "Ingestion"],
-  [/^\/api\/embed$/, "Ingestion"],
+  [/^\/api\/embed(dings)?$/, "Ingestion"],
   [/\/events\/\{id\}\/payload$/, "Ingestion"],
   [/\/webhook/, "Webhooks"],
   [/^\/api\/tokens\b/, "Tokens"],

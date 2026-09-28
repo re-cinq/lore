@@ -53,6 +53,11 @@ export const CRON_EMITTERS: CronEmitter[] = [
     note: "hourly housekeeping of handled event rows",
   },
   {
+    name: "daily_digest",
+    schedule: "*/15 * * * *",
+    note: "coarse tick; each repo's time, days and timezone live in settings.digest, the watermark in lore.digest_posts; one run per Slack channel (ADR-019 amendment 2026-09-25)",
+  },
+  {
     name: "gap_detection",
     schedule: "0 9 * * 1",
     note: "detection fan-out: one gap-detect assembly line per onboarded repo",

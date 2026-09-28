@@ -10,6 +10,8 @@ import {
   INGEST_KINDS,
   type DgraphClientPort,
   type IngestGraphSummary,
+  type IngestGraphPorts,
+  embeddingBatches,
   PAYLOAD_INGEST_KINDS,
   pruneGraphRetention,
 } from "@re-cinq/lore-shared";
@@ -29,10 +31,13 @@ export interface IngestStationDeps {
   /** Injectable dgraph port; defaults to LORE_DGRAPH_HTTP via createDgraphClient. */
   dgraph?: DgraphClientPort | null;
   /** Injectable embedder for tests; defaults to Vertex. */
-  embed?: (text: string) => Promise<number[] | null>;
+  embed?: EmbedTexts;
   /** Payload-by-reference fetch; defaults to the Lore API events endpoint. */
   fetchPayload?: (eventId: string) => Promise<unknown>;
 }
+
+/** A file's statement texts in, one vector (or null) per text out. */
+type EmbedTexts = NonNullable<IngestGraphPorts["embed"]>;
 
 // Vertex embeddings via the API (FR4) — pods have no GCP credentials.
 const EMBED_429_DELAYS_MS = [2000, 5000, 15000];
@@ -279,8 +284,7 @@ async function listClone(root: string, prefix = ""): Promise<string[]> {
 }
 
 // The default embedder: the API proxy when configured, else the projector's own fallback (Vertex ADC — local/dev only).
-function defaultEmbed():
-  ((text: string) => Promise<number[] | null>) | undefined {
+function defaultEmbed(): EmbedTexts | undefined {
   const baseUrl = process.env.LORE_API_URL;
 
   if (!baseUrl) {
@@ -299,33 +303,50 @@ export function apiEmbed(
   fetchImpl: typeof fetch = fetch,
   sleep: (ms: number) => Promise<void> = (ms) =>
     new Promise((resolve) => setTimeout(resolve, ms)),
-): (text: string) => Promise<number[] | null> {
+): EmbedTexts {
   const proxy: EmbedProxy = { baseUrl, token, fetchImpl, sleep };
 
-  return async (text: string) => {
-    const res = await postEmbed(proxy, text);
+  return async (texts) => {
+    const vectors: Array<number[] | null> = [];
 
-    enforceTrue(
-      res.ok,
-      Error,
-      `ingest station: embed proxy returned ${res.status}`,
-    );
-    const body = (await res.json()) as { embedding: number[] | null };
+    for (const batch of embeddingBatches(texts)) {
+      vectors.push(...(await embedBatch(proxy, batch)));
+    }
 
-    return body.embedding;
+    return vectors;
   };
 }
 
-/** POSTs one text, retrying only 429 — the embedder is shared across every ingesting repo, so rate limiting is an ordinary queueing signal rather than a fault. Any other status is returned as-is for the caller to enforce on. */
-async function postEmbed(proxy: EmbedProxy, text: string): Promise<Response> {
+/** One request's worth of texts; the batches are sized to what Vertex takes in one call, so the API forwards each as one. */
+async function embedBatch(
+  proxy: EmbedProxy,
+  texts: string[],
+): Promise<Array<number[] | null>> {
+  const res = await postEmbeddings(proxy, texts);
+
+  enforceTrue(
+    res.ok,
+    Error,
+    `ingest station: embed proxy returned ${res.status}`,
+  );
+  const body = (await res.json()) as { embeddings: Array<number[] | null> };
+
+  return body.embeddings;
+}
+
+/** POSTs one batch, retrying only 429 — the embedder is shared across every ingesting repo, so rate limiting is an ordinary queueing signal rather than a fault. Any other status is returned as-is for the caller to enforce on. */
+async function postEmbeddings(
+  proxy: EmbedProxy,
+  texts: string[],
+): Promise<Response> {
   for (let attempt = 0; ; attempt++) {
-    const res = await proxy.fetchImpl(`${proxy.baseUrl}/api/embed`, {
+    const res = await proxy.fetchImpl(`${proxy.baseUrl}/api/embeddings`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${proxy.token}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ texts }),
     });
 
     if (res.status !== 429 || attempt >= EMBED_429_DELAYS_MS.length) {

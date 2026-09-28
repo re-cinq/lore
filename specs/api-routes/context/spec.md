@@ -89,7 +89,7 @@ Always `200` (success or empty) or `500` (engine throw). JSON only.
 
 ## Acceptance Criteria
 
-A query with a pool returns the assembled `{ text, sections }`. ([validated by `returns assembled context when query + pool present`](apps/lore-api/src/transport/routes/context/context.test.ts#L21), [validated by `context.test.ts:31`](apps/lore-api/src/transport/routes/context/context.test.ts#L31))
+A query with a pool returns the assembled `{ text, sections }`. ([validated by `returns assembled context when query + pool present`](apps/lore-api/src/transport/routes/context/context.test.ts#L31), [validated by `context.test.ts:31`](apps/lore-api/src/transport/routes/context/context.test.ts#L31))
 
 `max_tokens`, `agent_id`, and `cross_repo` query params are forwarded to `assembleContext` at their respective argument positions. ([validated by `context.test.ts:71`](apps/lore-api/src/transport/routes/context/context.test.ts#L70))
 

@@ -265,7 +265,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     vector[2] = 0.125;
 
     await projectSpecFile({ repo, filePath, content }, dgraphClient, {
-      embed: async () => vector,
+      embed: async (texts) => texts.map(() => vector),
     });
 
     const graph = (await readGraph(
@@ -280,6 +280,36 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
 
     expect(statementEmbedding(graph)).toEqual(vector);
     expect(acceptanceCriterionEmbedding(graph)).toEqual(vector);
+  });
+
+  it("embeds a spec's 3 statements and 1 acceptance criterion in one embedder call of 4 texts", async () => {
+    const repo = `test-proj/${randomUUID()}`;
+
+    createdRepo = repo;
+    const content =
+      "## Overview\n\n- The widget emits a click.\n- The widget emits a hover.\n- The widget emits a focus.\n\n## Acceptance Criteria\n\n- The click is debounced.\n";
+    const calls: string[][] = [];
+
+    await projectSpecFile(
+      { repo, filePath: "specs/example/spec.md", content },
+      dgraphClient,
+      {
+        embed: async (texts) => {
+          calls.push(texts);
+
+          return texts.map(() => null);
+        },
+      },
+    );
+
+    expect(calls).toEqual([
+      [
+        "The widget emits a click.",
+        "The widget emits a hover.",
+        "The widget emits a focus.",
+        "The click is debounced.",
+      ],
+    ]);
   });
 
   it("links the Statement to a TestChunk via validated_by for an inline test link", async () => {
@@ -419,7 +449,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     const first = await projectSpecFile(
       { repo, filePath, content },
       dgraphClient,
-      { embed: async () => null },
+      { embed: async (texts) => texts.map(() => null) },
     );
 
     expect(first).toEqual({ projected: true });
@@ -427,7 +457,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     const unchanged = await projectSpecFile(
       { repo, filePath, content },
       dgraphClient,
-      { embed: async () => null },
+      { embed: async (texts) => texts.map(() => null) },
     );
 
     expect(unchanged).toEqual({ projected: false });
@@ -435,7 +465,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     const forced = await projectSpecFile(
       { repo, filePath, content },
       dgraphClient,
-      { embed: async () => null, force: true },
+      { embed: async (texts) => texts.map(() => null), force: true },
     );
 
     expect(forced).toEqual({ projected: true });
@@ -975,7 +1005,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       "# Title\n\n## Acceptance Criteria\n\nThe thing happens. ([validated by `it works`](src/thing.test.ts#L42))\n";
 
     await projectSpecFile({ repo, filePath, content }, dgraphClient, {
-      embed: async () => null,
+      embed: async (texts) => texts.map(() => null),
     });
 
     const graph = (await readGraph(
@@ -1021,7 +1051,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
         content: "## Overview\n\nPer ADR-016, we do the thing.",
       },
       dgraphClient,
-      { embed: async () => null },
+      { embed: async (texts) => texts.map(() => null) },
     );
 
     const graph = (await readGraph(
