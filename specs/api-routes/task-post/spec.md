@@ -172,6 +172,10 @@ Cancelling a merged task answers 409 with the refusal reason. ([validated by ret
 
 A `cancel` action records the status transition in `pipeline.task_events`. ([validated by cancel records a task_events row for the status transition](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L382))
 
+A `cancel` action also ends every assembly run still open for the task, as `finished` with outcome `cancelled`, leaving other tasks' runs alone — a run left running kept its plan's subject lock, kept waiting on a closed spec PR, and was resumed by a later Retry (plan 3b3a67af, run 18773dbb, 2026-09-28). ([validated by cancels task t1 and ends its open run as cancelled, leaving task t2's run running](apps/lore-api/src/work/pipeline/cancel-task.test.ts#L20))
+
+A cancel the task refuses ends no run. ([validated by ends no run when the task itself cannot be cancelled](apps/lore-api/src/work/pipeline/cancel-task.test.ts#L52))
+
 A `run-now` action escalates a pending task and answers with its new priority. ([validated by escalates a pending task to immediate](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L122))
 
 Escalating an unknown task id answers 404 rather than reporting success. ([validated by returns 404 when escalating a task that does not exist](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L131))
