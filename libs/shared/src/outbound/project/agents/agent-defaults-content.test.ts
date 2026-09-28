@@ -500,3 +500,16 @@ describe("the code-review-recheck recipe judges the push, not the pull request",
     );
   });
 });
+
+describe("the gap-fill and general recipes", () => {
+  it("let a draft that finds the context already current report changes_requested, so a true no-op ends the run without a PR instead of failing an empty branch", () => {
+    for (const name of ["gap-fill", "general"]) {
+      const prompt = promptOf(name);
+
+      expect(prompt, name).toContain(
+        'LORE_NODE_RESULT: {"outcome":"changes_requested","extras":{"Lore-Already-Current":',
+      );
+      expect(prompt, name).toContain("Report failure when you are STUCK");
+    }
+  });
+});

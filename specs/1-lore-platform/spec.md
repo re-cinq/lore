@@ -514,6 +514,16 @@ The system MUST automatically identify and address knowledge gaps. ([validated b
   ([validated by `gap-detect.test.ts:114`](libs/shared/src/work/detect/gap-detect.test.ts#L115), [`gap-detect.test.ts:123`](libs/shared/src/work/detect/gap-detect.test.ts#L124))
 - FR-10.9: An in-flight or failed matching `gap-fill` task suppresses a
   duplicate filing. ([validated by `gap-detect.test.ts:175`](libs/shared/src/work/detect/gap-detect.test.ts#L136))
+- FR-10.10 *(added 2026-09-28)*: The `gap-fill` draft is a delivering recipe: it
+  commits and pushes what it wrote, because the validate and push nodes after it
+  are other pods with fresh clones, and a draft that finds the context already
+  current reports `changes_requested` naming what it checked, so the run ends
+  without a pull request instead of validating an empty branch. Neither the
+  `gap-fill` nor the `general` recipe said push after their lines moved to a pod
+  per node, so 15 of 36 gap-fill branches carried zero commits (2026-08-15 to
+  2026-09-25): validate diffed nothing, ran the checks unscoped over the whole
+  tree, and was OOM-killed in its 1Gi pod, or passed and the push found nothing,
+  so no PR could open. ([validated by let a draft that finds the context already current report changes_requested, so a true no-op ends the run without a PR instead of failing an empty branch](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L505), [validated by counts gap-fill and general as delivering, since validate and push after them are other pods (15 of 36 gap-fill branches shipped 0 commits between 2026-08-15 and 2026-09-25)](libs/shared/src/domain/task-types/delivering-recipes.test.ts#L13))
 
 ### FR-11: Live Knowledge Graph (Phase 1+)
 
