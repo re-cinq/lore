@@ -2057,6 +2057,74 @@
         }
       }
     },
+    "/api/embeddings": {
+      "post": {
+        "operationId": "post_api_embeddings",
+        "summary": "POST /api/embeddings",
+        "tags": ["Ingestion"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "embed",
+        "responses": {
+          "200": {
+            "description": "One embedding per posted text, in order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Embeddings"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "texts": {
+                    "minItems": 1,
+                    "maxItems": 250,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 20000
+                    }
+                  }
+                },
+                "required": ["texts"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/episode": {
       "post": {
         "operationId": "post_api_episode",
@@ -10496,6 +10564,29 @@
           }
         },
         "required": ["embedding"],
+        "additionalProperties": false
+      },
+      "Embeddings": {
+        "type": "object",
+        "properties": {
+          "embeddings": {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        "required": ["embeddings"],
         "additionalProperties": false
       },
       "EpisodePage": {

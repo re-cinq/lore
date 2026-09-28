@@ -5,6 +5,8 @@ import {
   resolveVertexProject,
   resetVertexProjectCache,
   getQueryEmbedding,
+  getQueryEmbeddings,
+  embeddingBatches,
   embeddingHealth,
   embedderDegraded,
   resetEmbeddingHealth,
@@ -159,5 +161,91 @@ describe("getQueryEmbedding project resolution", () => {
         String(u).includes("projects//locations"),
       ),
     ).toBe(false);
+  });
+});
+
+describe("embeddingBatches", () => {
+  it("splits 251 short texts into batches of 250 and 1", () => {
+    const texts = Array.from({ length: 251 }, (_, i) => `statement ${i}`);
+
+    expect(embeddingBatches(texts).map((batch) => batch.length)).toEqual([
+      250, 1,
+    ]);
+  });
+
+  it("starts a new batch when the next 8000-char text would pass 50000 chars", () => {
+    const texts = Array.from({ length: 7 }, () => "x".repeat(8000));
+
+    expect(embeddingBatches(texts).map((batch) => batch.length)).toEqual([
+      6, 1,
+    ]);
+  });
+
+  it("returns no batches for no texts", () => {
+    expect(embeddingBatches([])).toEqual([]);
+  });
+});
+
+describe("getQueryEmbeddings", () => {
+  const vertexEchoingIndexes = () =>
+    vi.fn(async (url: string, init?: RequestInit) => {
+      enforceTrue(
+        !url.includes("service-accounts/default/token"),
+        Error,
+        "no metadata",
+      );
+      const { instances } = JSON.parse(String(init?.body)) as {
+        instances: Array<{ content: string }>;
+      };
+
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          predictions: instances.map((instance) => ({
+            embeddings: { values: [instance.content.length] },
+          })),
+        }),
+      } as Response;
+    });
+
+  beforeEach(() => {
+    resetEmbeddingHealth();
+    process.env.GOOGLE_ACCESS_TOKEN = "tok";
+    process.env.GCP_PROJECT = "p";
+  });
+
+  it("embeds three texts in one Vertex call and returns the vectors in input order", async () => {
+    const fetchMock = vertexEchoingIndexes();
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    expect(await getQueryEmbeddings(["a", "bb", "ccc"])).toEqual([
+      [1],
+      [2],
+      [3],
+    ]);
+    expect(
+      fetchMock.mock.calls.filter(([url]) => url.includes(":predict")),
+    ).toHaveLength(1);
+  });
+
+  it("returns null for every text when Vertex answers 403", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: false, status: 403 }) as Response),
+    );
+
+    expect(await getQueryEmbeddings(["a", "b"])).toEqual([null, null]);
+    expect(embeddingHealth()).toMatchObject({ lastStatus: 403 });
+  });
+
+  it("returns an empty list for no texts without calling Vertex", async () => {
+    const fetchMock = vi.fn();
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    expect(await getQueryEmbeddings([])).toEqual([]);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

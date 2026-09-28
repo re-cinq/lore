@@ -54,6 +54,7 @@ import { ingestStateRoute } from "./routes/ingest/ingest-state.js";
 import { ingestDeltaRoute } from "./routes/ingest/ingest-delta.js";
 import { eventPayloadRoute } from "./routes/ingest/event-payload.js";
 import { embedRoute } from "./routes/ingest/embed.js";
+import { embeddingsRoute } from "./routes/ingest/embeddings.js";
 import { reembedRoute } from "./routes/ingest/reembed.js";
 import { onboardRoute } from "./routes/repos/onboard.js";
 import { slackWebhookRoute } from "./routes/webhooks/webhook-slack.js";
@@ -219,6 +220,7 @@ function ingestRoutes(getPool: PoolGetter): ServerRoute[] {
     ingestDeltaRoute(getPool),
     eventPayloadRoute(getPool),
     embedRoute(),
+    embeddingsRoute(),
     // The sweep is a write of knowledge (rows leave the store), not a graph read.
     chunksPruneRoute(getPool),
     reembedRoute(getPool),

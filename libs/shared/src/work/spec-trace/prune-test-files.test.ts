@@ -205,7 +205,7 @@ describe.skipIf(!reachable)(
             "# Feature Specification: Adder\n\n## Requirements\n\n1. Adds numbers. ([validated by](src/a.test.ts#L1))\n",
         },
         dgraphClient,
-        { embed: async () => null },
+        { embed: async (texts) => texts.map(() => null) },
       );
       await ingestTestReport(dgraphClient, mainScope(repo), seedReport());
 
