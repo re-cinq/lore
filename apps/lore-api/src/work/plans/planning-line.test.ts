@@ -9,6 +9,7 @@ import {
   reopenPlan,
   startDrafting,
   type NewPlanningTask,
+  type SpecPrState,
 } from "./planning-line.js";
 
 const PLAN = { id: "p1", repo: "re-cinq/lore", title: "Faster checkout" };
@@ -252,7 +253,7 @@ const refining = lineWith({ status: "running" }, [
   v("analyze", null, 2),
 ]);
 
-const specWorkDeps = (runs: PlanningRunPort) => {
+const specWorkDeps = (runs: PlanningRunPort, prState: SpecPrState = "open") => {
   const created: NewPlanningTask[] = [];
   const reporter = new InMemoryEventReporter();
 
@@ -263,6 +264,7 @@ const specWorkDeps = (runs: PlanningRunPort) => {
       runs,
       reporter,
       createTask: async (task: NewPlanningTask) => (created.push(task), "t2"),
+      specPrState: async () => prState,
     },
   };
 };
@@ -392,6 +394,29 @@ describe("handOverApproved", () => {
         },
       },
     ]);
+  });
+
+  it("starts the pass on a fresh branch with the approved-plan brief when spec PR #7 was closed without merging", async () => {
+    const { deps, created } = specWorkDeps(specPrOpenLineEnded, "closed");
+
+    await handOverApproved(deps, PLAN, { title: "Faster checkout" }, "gedaiu");
+
+    expect({
+      description: created[0]?.description,
+      contextBundle: created[0]?.contextBundle,
+    }).toEqual({
+      description: expect.stringContaining(
+        'The approved plan "Faster checkout"',
+      ),
+      contextBundle: {
+        plan_id: "p1",
+        line_args: {
+          repo: "re-cinq/lore",
+          plan_title: "Faster checkout",
+          entry_node: "analyse-specs",
+        },
+      },
+    });
   });
 
   it("starts the pass after merged spec PR #7 on a fresh branch, with no PR to contribute to", async () => {
