@@ -10,7 +10,7 @@ describe("isDeliveringRecipe", () => {
     expect(isDeliveringRecipe("spec-analysis")).toBe(false);
   });
 
-  it("counts gap-fill and general as delivering, since validate and push after them are other pods (15 of 36 gap-fill branches shipped 0 commits between 2026-08-15 and 2026-09-25)", () => {
+  it("counts gap-fill and general as delivering, since validate and push after them are other pods (17 of 36 gap-fill branches shipped 0 commits between 2026-08-15 and 2026-09-25)", () => {
     expect(isDeliveringRecipe("gap-fill")).toBe(true);
     expect(isDeliveringRecipe("general")).toBe(true);
   });
