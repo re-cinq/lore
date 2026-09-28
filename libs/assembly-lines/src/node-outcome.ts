@@ -170,7 +170,7 @@ function stationOutputOutcome(
   const stationResult = parseNodeResult(output);
 
   if (stationResult) {
-    return withDodBlockedDetail(withValidationFailureDetail(stationResult));
+    return withLiftedVerdictDetail(withValidationFailureDetail(stationResult));
   }
 
   const malformed = malformedNodeResultLine(output);
@@ -191,14 +191,14 @@ function stationOutputOutcome(
 }
 
 // The definition-of-done step's one-line verdict rides extras too; lift it into failureDetail so the terminal hook can quote it on the issue (implementation-loop FR8) — nothing later reads failureDetail off a changes_requested row, so it cannot leak into a prompt. Three verdicts share the outcome: blocked (a park), resolved (the ticket is already done) and already-current (a gap-fill/general draft found nothing to change, FR-10.10), told apart by the prefixes the last two carry.
-function withDodBlockedDetail(stationResult: NodeResult): NodeResult {
+function withLiftedVerdictDetail(stationResult: NodeResult): NodeResult {
   if (
     stationResult.outcome !== "changes_requested" ||
     stationResult.failureDetail
   ) {
     return stationResult;
   }
-  const failureDetail = liftedDodVerdict(stationResult);
+  const failureDetail = liftedVerdict(stationResult);
 
   return failureDetail ? { ...stationResult, failureDetail } : stationResult;
 }
@@ -212,11 +212,11 @@ const LIFTED_VERDICTS: readonly { key: string; prefix: string }[] = [
   { key: "Lore-Dod-Blocked", prefix: "" },
 ];
 
-function liftedDodVerdict(stationResult: NodeResult): string | null {
+function liftedVerdict(stationResult: NodeResult): string | null {
   for (const { key, prefix } of LIFTED_VERDICTS) {
     const verdict = stationResult.extras?.[key];
 
-    if (isDodVerdict(verdict)) {
+    if (isVerdictText(verdict)) {
       return `${prefix}${verdict}`;
     }
   }
@@ -233,7 +233,7 @@ export function dodResolvedReason(
     : null;
 }
 
-function isDodVerdict(verdict: unknown): verdict is string {
+function isVerdictText(verdict: unknown): verdict is string {
   return typeof verdict === "string" && verdict.length > 0;
 }
 
