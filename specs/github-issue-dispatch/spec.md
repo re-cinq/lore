@@ -45,7 +45,7 @@ Issue gets comment: "Working on this → PR #N"
 
 **1. Webhook endpoint** (`mcp-server/src/index.ts`)
 
-HTTP ingress: the GitHub branch of `POST /api/webhook/github` on the Floor coordinator (ADR-015 and ADR-044), which integrates with the 3-layer event bus (`pipeline.events`)
+HTTP ingress: the GitHub branch of `POST /api/events` on the event-router (ADR-015 and ADR-044), which integrates with the 3-layer event bus (`pipeline.events`)
 - Validates GitHub webhook signature (HMAC SHA-256)
 - Handles `issues` event with action `labeled` ([validated by `github-map.test.ts:298`](libs/shared/src/outbound/project/events/github-map.test.ts#L298))
 - The event mapper is a guard at the door: it returns nothing when the `repository` is missing or the
