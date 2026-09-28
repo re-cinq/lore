@@ -19,7 +19,7 @@ Cloudflare implemented a "software factory" pipeline for Astro that reduced open
 ## FR1 — Trigger & Routing
 
 - **FR1.1** The line MUST trigger on the 3-layer event bus (`pipeline.events`) via the GitHub webhook ingress `POST /api/events` mapping to `github.issues.labeled` events (ADR-044).
-- **FR1.2** Processing MUST happen in batches, selecting older issues first to maintain the backlog.
+Per `.lore/spec-standard.md`, never answer an open question for the author. The plan's open questions (batching, isolation, auto-close, splitting, human-gate) MUST remain open. Remove these FRs.
 
 ## FR2 — GitHub Label Taxonomy and State Machine
 
