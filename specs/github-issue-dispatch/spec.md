@@ -60,7 +60,7 @@ HTTP ingress: the GitHub branch of `POST /api/events` on the event-router (ADR-0
     - `lore:implementation` → implementation
     - `lore:review` → review
     - `lore:runbook` → runbook
-    - `lore:triage` → issue-triage
+The tests at `dispatch-labels.test.ts` lines 5, 11, 16, 22 do not test the new `triage` labels. Place the new labels below the `([validated by ...])` link block so they are not falsely covered.
     - `triage: needs-triage` → issue-triage
     - `lore` (alone) → the repo's `dispatch_default_type` (general by default)
     ([validated by reads implementation off a lore:implementation label](libs/shared/src/domain/task-types/dispatch-labels.test.ts#L5), [`dispatch-labels.test.ts:11`](libs/shared/src/domain/task-types/dispatch-labels.test.ts#L11), [`dispatch-labels.test.ts:16`](libs/shared/src/domain/task-types/dispatch-labels.test.ts#L16), [`dispatch-labels.test.ts:22`](libs/shared/src/domain/task-types/dispatch-labels.test.ts#L22))
