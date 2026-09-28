@@ -168,7 +168,8 @@ function NotifyField({ selected }: { selected: readonly string[] }) {
         name="df_notify"
         multiple
         size={NOTIFY_CHANNELS.length}
-        defaultValue={selected}>
+        defaultValue={selected}
+      >
         {NOTIFY_CHANNELS.map((channel) => (
           <option key={channel} value={channel}>
             {channel}

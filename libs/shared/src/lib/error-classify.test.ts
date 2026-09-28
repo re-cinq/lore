@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   classifyError,
   failureHint,
+  failureLabel,
   isFailureCategory,
   isPermanentFailure,
   summarizeFailures,
@@ -195,6 +196,12 @@ describe("isPermanentFailure", () => {
   it("carries a remediation hint for unclaimed that points at the registry", () => {
     expect(failureHint("unclaimed")).toMatch(/registry/i);
     expect(isFailureCategory("unclaimed")).toBe(true);
+  });
+});
+
+describe("failureLabel", () => {
+  it("names infra as a pod or Job infrastructure failure", () => {
+    expect(failureLabel("infra")).toBe("Pod or Job infrastructure failure");
   });
 });
 

@@ -4,9 +4,11 @@ import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-ru
 import type { AuditLogEntry } from "../../outbound/audit.js";
 import {
   isFailureOutcome,
+  failureCause,
   failureNotice,
   notifyLineFailure,
 } from "./notify-failure.js";
+import { NO_FAILURE_CONTEXT, type FailureContext } from "./failure-context.js";
 
 function lineRow(
   overrides: Partial<AssemblyRunRecord> = {},
@@ -52,12 +54,9 @@ describe("isFailureOutcome", () => {
 
 describe("failureNotice", () => {
   it("builds a message carrying definition, repo, outcome, reason and the run link", () => {
-    const notice = failureNotice(
-      lineRow(),
-      "error",
-      "node review failed",
-      "https://lore.example.com",
-    );
+    const notice = failureNotice(lineRow(), "error", "node review failed", {
+      uiUrl: "https://lore.example.com",
+    });
 
     expect(notice.message).toContain("code-review");
     expect(notice.message).toContain("re-cinq/lore");
@@ -69,12 +68,9 @@ describe("failureNotice", () => {
   });
 
   it("carries the PR number and a comment with the @lore review re-run hint for code-review lines", () => {
-    const notice = failureNotice(
-      lineRow(),
-      "error",
-      undefined,
-      "https://lore.example.com",
-    );
+    const notice = failureNotice(lineRow(), "error", undefined, {
+      uiUrl: "https://lore.example.com",
+    });
 
     expect(notice.prNumber).toBe(862);
     expect(notice.prComment).toContain(
@@ -87,7 +83,6 @@ describe("failureNotice", () => {
     const notice = failureNotice(
       lineRow({ blueprintName: "implementation" }),
       "error",
-      undefined,
       undefined,
     );
 
@@ -105,7 +100,6 @@ describe("failureNotice", () => {
         lineRow({ blueprintName }),
         "error",
         undefined,
-        undefined,
       );
 
       expect(notice.prComment).toContain("@lore review");
@@ -117,10 +111,128 @@ describe("failureNotice", () => {
       lineRow({ blueprintName: "gap-detect", args: {} }),
       "error",
       "detect station exploded",
-      undefined,
     );
 
     expect(notice).toMatchObject({ prNumber: null, prComment: null });
+  });
+});
+
+describe("failureCause", () => {
+  it("takes the category the failed node recorded over the run's reason", () => {
+    const cause = failureCause(
+      {
+        nodeId: "review",
+        failureClass: "anthropic-credit",
+        failureDetail: null,
+      },
+      "DeadlineExceeded",
+    );
+
+    expect(cause).toMatchObject({
+      nodeId: "review",
+      category: "anthropic-credit",
+    });
+  });
+
+  it("classifies the node's detail when the node recorded the unknown class", () => {
+    const cause = failureCause(
+      {
+        nodeId: "implement",
+        failureClass: "unknown",
+        failureDetail:
+          "Job has reached the specified backoff limit: BackoffLimitExceeded",
+      },
+      undefined,
+    );
+
+    expect(cause).toMatchObject({ nodeId: "implement", category: "infra" });
+  });
+
+  it("classifies the run's reason when no node failed", () => {
+    expect(
+      failureCause(null, "Your credit balance is too low to access the API"),
+    ).toMatchObject({ nodeId: null, category: "anthropic-credit" });
+  });
+
+  it("returns unknown with its hint for a run with no node and no reason", () => {
+    expect(failureCause(null, undefined)).toMatchObject({
+      nodeId: null,
+      category: "unknown",
+      hint: expect.stringMatching(/pod logs/),
+    });
+  });
+});
+
+function context(overrides: Partial<FailureContext> = {}): FailureContext {
+  return { ...NO_FAILURE_CONTEXT, ...overrides };
+}
+
+describe("failureNotice, classified", () => {
+  it("names the category, the failing node and the hint", () => {
+    const notice = failureNotice(lineRow(), "error", "node review failed", {
+      context: context({
+        failedNode: {
+          nodeId: "review",
+          failureClass: "infra",
+          failureDetail: "DeadlineExceeded",
+        },
+      }),
+    });
+
+    expect(notice.message).toContain(
+      "Pod or Job infrastructure failure at node `review`",
+    );
+    expect(notice.message).toContain(
+      "Hint: The pod died rather than the work failing",
+    );
+  });
+
+  it("links the run and the PR in Slack's link syntax", () => {
+    const notice = failureNotice(lineRow(), "error", undefined, {
+      uiUrl: "https://lore.example.com",
+    });
+
+    expect(notice.message).toContain(
+      "<https://lore.example.com/assembly-runs/al-1|run al-1>",
+    );
+    expect(notice.message).toContain(
+      "<https://github.com/re-cinq/lore/pull/862|PR #862>",
+    );
+  });
+
+  it("links the task's PR and issue when the run carries no pr_number", () => {
+    const notice = failureNotice(
+      lineRow({ blueprintName: "implementation", args: {} }),
+      "error",
+      undefined,
+      {
+        context: context({
+          prUrl: "https://github.com/re-cinq/lore/pull/901",
+          issueUrl: "https://github.com/re-cinq/lore/issues/900",
+        }),
+      },
+    );
+
+    expect(notice.message).toContain(
+      "<https://github.com/re-cinq/lore/pull/901|PR>",
+    );
+    expect(notice.message).toContain(
+      "<https://github.com/re-cinq/lore/issues/900|issue>",
+    );
+  });
+
+  it("names the owner when one is known", () => {
+    const notice = failureNotice(lineRow(), "error", undefined, {
+      context: context({ owner: "Ada Fixture" }),
+    });
+
+    expect(notice.message).toContain("Owner: Ada Fixture");
+  });
+
+  it("leaves the owner line out when nobody is known", () => {
+    const notice = failureNotice(lineRow(), "error", undefined);
+
+    expect(notice.message).not.toContain("Owner:");
   });
 });
 
@@ -131,7 +243,11 @@ interface Recorded {
 }
 
 function recordingPorts(
-  behavior: { notifyThrows?: boolean; commentThrows?: boolean } = {},
+  behavior: {
+    notifyThrows?: boolean;
+    commentThrows?: boolean;
+    contextThrows?: boolean;
+  } = {},
 ): Recorded & {
   ports: Parameters<typeof notifyLineFailure>[3];
 } {
@@ -155,6 +271,11 @@ function recordingPorts(
         listRecentByType: async () => [],
       },
       uiUrl: "https://lore.example.com",
+      context: async () => {
+        enforceTrue(!behavior.contextThrows, Error, "db down");
+
+        return context({ owner: "Ada Fixture" });
+      },
     },
   };
 }
@@ -217,5 +338,22 @@ describe("notifyLineFailure", () => {
         payload: { channel: "comment", error: "comment 403" },
       },
     ]);
+  });
+
+  it("posts the owner the context resolved", async () => {
+    const recorder = recordingPorts();
+
+    await notifyLineFailure(lineRow(), "error", undefined, recorder.ports);
+
+    expect(recorder.notified[0]?.message).toContain("Owner: Ada Fixture");
+  });
+
+  it("still posts the failure when resolving its context throws", async () => {
+    const recorder = recordingPorts({ contextThrows: true });
+
+    await notifyLineFailure(lineRow(), "error", "boom", recorder.ports);
+
+    expect(recorder.notified).toHaveLength(1);
+    expect(recorder.notified[0]?.message).toContain("boom");
   });
 });
