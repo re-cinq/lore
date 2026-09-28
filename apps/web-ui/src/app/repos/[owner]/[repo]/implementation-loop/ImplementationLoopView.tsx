@@ -1,7 +1,7 @@
 "use client";
 
 import { Alert } from "@/components/Alert";
-import { useTransition } from "react";
+import PendingActionButton from "@/components/PendingActionButton";
 import type { ImplementationLoop, LoopTicket } from "@/lib/api/backlog";
 import styles from "./ImplementationLoopView.module.scss";
 import OnboardingBanner from "./OnboardingBanner";
@@ -71,23 +71,20 @@ interface LoopHeaderProps {
   toggle: (next: { enabled: boolean }) => Promise<void>;
 }
 
-/** What the loop is, and the one control that runs it. The button is disabled for the length of the transition so a double click cannot send two conflicting toggles. */
+/** What the loop is, and the one control that runs it. The button is disabled until the toggle's server action resolves, so a double click cannot send two conflicting toggles. */
 function LoopHeader({ enabled, toggle }: LoopHeaderProps) {
-  const [pending, startTransition] = useTransition();
-
   return (
     <div className={styles.header}>
       <p className="meta">
         The implementation loop works this repo&apos;s backlog one ticket at a
         time.
       </p>
-      <button
-        className="button"
-        disabled={pending}
-        onClick={() => startTransition(() => toggle({ enabled: !enabled }))}
-      >
-        {enabled ? "Disable loop" : "Enable loop"}
-      </button>
+      <PendingActionButton
+        action={() => toggle({ enabled: !enabled })}
+        text={enabled ? "Disable loop" : "Enable loop"}
+        pendingText={enabled ? "Disabling…" : "Enabling…"}
+        className=""
+      />
     </div>
   );
 }

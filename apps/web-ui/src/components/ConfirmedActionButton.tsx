@@ -6,6 +6,7 @@ import ConfirmDialog, {
   type ConfirmQuestion,
 } from "./ConfirmDialog";
 import { FormError } from "./FormError";
+import PendingActionButton from "./PendingActionButton";
 import { useRefreshingAction, type ServerAction } from "./useRefreshingAction";
 
 interface ConfirmedActionButtonProps {
@@ -45,15 +46,14 @@ function AskButton({
   ask,
 }: ConfirmedActionButtonProps & { ask: () => void }) {
   return (
-    <button
-      type="button"
-      className={toneClass(question.tone)}
+    <PendingActionButton
+      action={async () => ask()}
+      text={label}
+      pendingText={label}
       disabled={waitingOn !== undefined}
       title={waitingOn}
-      onClick={ask}
-    >
-      {label}
-    </button>
+      className={toneClass(question.tone) ?? ""}
+    />
   );
 }
 

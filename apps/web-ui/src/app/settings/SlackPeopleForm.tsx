@@ -1,3 +1,4 @@
+import { SubmitButton } from "@/components/SubmitButton";
 import styles from "./SettingsView.module.css";
 import type { SettingsViewProps } from "./SettingsView";
 
@@ -21,7 +22,7 @@ export default function SlackPeopleForm({
         )}
         <SlackPeopleField lines={slackPeopleLines} />
         <div className={styles.actions}>
-          <button type="submit">Save Slack people</button>
+          <SubmitButton pendingLabel="Saving…">Save Slack people</SubmitButton>
         </div>
       </form>
     </>

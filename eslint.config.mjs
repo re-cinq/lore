@@ -275,6 +275,66 @@ export default tseslint.config(
     },
   },
 
+  // web-ui only, two guards against the hand-rolled action-button duplication
+  // this repo kept reinventing — ONE block, since a second `no-restricted-
+  // syntax` block on the same `files` glob would silently REPLACE this rule's
+  // value instead of adding to it (flat config merges same-key rule options
+  // per block, not across blocks; a first attempt at this split the two
+  // selectors into separate blocks and the second one went live with the
+  // first one dead, caught only because a later migration re-tripped the
+  // "already fixed" file). Both start at error with the introducing branch's
+  // backlog already drained; every exemption is an inline eslint-disable at
+  // the site, not a path in `ignores`, for the same reason — a block-level
+  // `ignores` here would exempt a file from BOTH selectors even when only one
+  // applies to it.
+  //
+  // 1. An action button's pending state is PendingActionButton's job (action/
+  // text/pendingText, or ConfirmedActionButton for a confirm-first flow), not
+  // a bespoke useTransition next to a `disabled={pending}` button. Migrated:
+  // RunStationButton, RerunNodeButton, PauseClusterButton, ImplementationLoop
+  // View's LoopHeader, OnboardingBanner's OnboardButton, RestartClusterButton,
+  // RemoveOverrideButton, FixIngestButton, ConfirmDialog's ConfirmButton,
+  // ConfirmedActionButton's AskButton. `useRefreshingAction.ts` (Confirmed
+  // ActionButton's shared hook) plainly no longer needs useTransition either,
+  // once `run` just returns the promise directly. The one legitimate holder
+  // left is SearchForm's router.push transition (not an HTTP action), which
+  // carries its own inline disable.
+  //
+  // 2. A `<button type="submit">` with no `disabled` at all gives a double-
+  // click nothing to stop it and the person no sign the request is in flight
+  // — one form (RegenerateTokenForm) was even destructive. `SubmitButton`
+  // (components/SubmitButton.tsx, useFormStatus-backed) is the fix; its own
+  // `<button type="submit" disabled={busy || disabled}>` always carries
+  // `disabled`, so it never matches this selector itself, and neither does a
+  // button that already wires its own (SearchForm's transition-backed submit,
+  // ConfirmDialog's, PendingActionButton's) — this only flags the *absence*
+  // of pending wiring, not the mechanism. Two kinds of native full-page
+  // submit (no client JS state to show either way, browser navigation
+  // carries its own pending affordance) carry an inline disable at the site:
+  // a plain `method="get"` filter/search form (AuditView, EpisodesView,
+  // SearchView) and a plain `action="/api/..."` POST that reloads the whole
+  // page on completion (TriggerReviewButton, CancelTaskButton, TaskSummary
+  // Card's RunNowAction).
+  {
+    files: ["apps/web-ui/src/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "CallExpression[callee.name='useTransition']",
+          message:
+            "Don't hand-roll useTransition for a pending/disabled button — use PendingActionButton (action/text/pendingText) or ConfirmedActionButton (confirm-first) from @/components instead. If this truly isn't an action button, add an inline eslint-disable naming why.",
+        },
+        {
+          selector:
+            "JSXOpeningElement[name.name='button']:has(JSXAttribute[name.name='type'] > Literal[value='submit']):not(:has(JSXAttribute[name.name='disabled']))",
+          message:
+            "A submit button needs pending/disabled feedback so a double-click can't double-submit — use <SubmitButton> from @/components/SubmitButton instead of a bare <button type=\"submit\">.",
+        },
+      ],
+    },
+  },
+
   // The Floor reaches infrastructure through the shared port adapters bound
   // in kernel/, never the vendor SDK directly.
   {

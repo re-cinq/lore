@@ -1,0 +1,39 @@
+.button {
+  font-size: var(--fs-xs);
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Both callers disable the button while their transition is in flight, so the
+   in-flight cursor follows from that rather than from a computed style prop. */
+.button:disabled {
+  cursor: default;
+}
+
+/* Matches the .chip-spinner convention in globals.css: same size, same
+   border-circle technique, same rotation speed. */
+.spinner {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: var(--space-2);
+  vertical-align: -1px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: pending-button-spin 0.6s linear infinite;
+}
+@keyframes pending-button-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 1.5s;
+  }
+}
