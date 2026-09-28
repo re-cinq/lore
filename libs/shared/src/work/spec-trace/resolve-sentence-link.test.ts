@@ -88,7 +88,7 @@ describe.skipIf(!reachable)("resolveSentenceLink (live Dgraph)", () => {
       "# Feature Specification: Widget Service\n\n## Requirements\n\n1. Onboarding a new repo produces a\n   PR within 5 minutes\n";
 
     await projectSpecFile({ repo, filePath, content }, dgraphClient, {
-      embed: async () => null,
+      embed: async (texts) => texts.map(() => null),
     });
 
     const matched = await resolveSentenceLink(dgraphClient, repo, {
@@ -114,7 +114,7 @@ describe.skipIf(!reachable)("resolveSentenceLink (live Dgraph)", () => {
           "# Feature Specification: Widget Service\n\n## Requirements\n\n1. A real criterion.\n",
       },
       dgraphClient,
-      { embed: async () => null },
+      { embed: async (texts) => texts.map(() => null) },
     );
 
     const matched = await resolveSentenceLink(dgraphClient, repo, {
@@ -140,7 +140,7 @@ describe.skipIf(!reachable)("resolveSentenceLink (live Dgraph)", () => {
           "# Feature Specification: Widget Service\n\n## Acceptance Criteria\n\n1. Rollback completes within one minute\n",
       },
       dgraphClient,
-      { embed: async () => null },
+      { embed: async (texts) => texts.map(() => null) },
     );
 
     const matched = await resolveSentenceLink(dgraphClient, repo, {

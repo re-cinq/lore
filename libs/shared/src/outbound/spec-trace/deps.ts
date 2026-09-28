@@ -17,7 +17,7 @@ export {
 } from "../../domain/spec-blocks.js";
 export type { DgraphClientPort, DgraphTxn } from "../memory-store.js";
 export { cosineSimilarity, parseEmbedding } from "../../domain/spec-judge.js";
-export { getQueryEmbedding } from "../embeddings/embedding-service.js";
+export { getQueryEmbeddings } from "../embeddings/embedding-service.js";
 export type { ProvenanceRef } from "../../domain/commit-trailers.js";
 export type {
   CoveredChunk,
