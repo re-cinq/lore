@@ -67,7 +67,7 @@ const AssemblyLineSchema = z.object({
 `libs/assembly-lines/src/assembly-lines/` currently holds: `implementation`, `general`, `gap-fill`,
 the PR-review choreography lines (`code-review`, `code-review-reply`, `comment-triage`), the
 feature-planning pair (`feature-planning`, `feature-finalize`), the detection family (`spec-drift`,
-`gap-detect`, `spec-coverage-validate`, `spec-coverage-backfill`), and `ingest`. The examples below
+`gap-detect`, `spec-coverage-validate`, `spec-coverage-backfill`), `ingest`, and `issue-triage`. The examples below
 are excerpts of the real files — when they drift, the YAML wins.
 
 ## Example: implementation flow
