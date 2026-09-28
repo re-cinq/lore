@@ -37,8 +37,12 @@ async function confirmedRestart(
   setPending: (pending: boolean) => void,
 ): Promise<void> {
   setPending(true);
-  await restart();
-  setPending(false);
+
+  try {
+    await restart();
+  } finally {
+    setPending(false);
+  }
 }
 
 interface ConfirmRowProps {

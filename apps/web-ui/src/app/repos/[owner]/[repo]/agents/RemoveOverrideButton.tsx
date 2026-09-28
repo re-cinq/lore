@@ -36,8 +36,12 @@ async function confirmedRemove(
   setPending: (pending: boolean) => void,
 ): Promise<void> {
   setPending(true);
-  await remove();
-  setPending(false);
+
+  try {
+    await remove();
+  } finally {
+    setPending(false);
+  }
 }
 
 interface ConfirmRowProps {

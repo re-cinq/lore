@@ -16,16 +16,29 @@ export function useRefreshingAction(
 
   async function run(): Promise<void> {
     setPending(true);
-    const result = await action();
 
-    onSettled?.();
-    setError(result.error);
-
-    if (!result.error) {
-      router.refresh();
+    try {
+      await settle(action, onSettled, setError, router);
+    } finally {
+      setPending(false);
     }
-    setPending(false);
   }
 
   return { error, pending, run };
+}
+
+async function settle(
+  action: ServerAction,
+  onSettled: (() => void) | undefined,
+  setError: (error: string | undefined) => void,
+  router: ReturnType<typeof useRouter>,
+): Promise<void> {
+  const result = await action();
+
+  onSettled?.();
+  setError(result.error);
+
+  if (!result.error) {
+    router.refresh();
+  }
 }
