@@ -46,7 +46,7 @@ Per `.lore/spec-standard.md` ('Detail before decomposition'), detail the assembl
 
 ## FR5 — Diagnosis & Spec Verification
 
-- **FR5.1** The `diagnose` node MUST analyze the codebase using instrumentation and logging to trace the root cause.
+FR5.1 'using instrumentation and logging' and FR5.2 'cross-reference... against existing specs' do not specify how the agents accomplish this. Name the mechanism or move these details to Open Questions.
 - **FR5.2** The `verify` node MUST cross-reference the diagnosed behaviour against existing specs and documentation to determine if the issue is a genuine bug.
 
 ## FR6 — Obsolete Issue Detection & Automated Closing
