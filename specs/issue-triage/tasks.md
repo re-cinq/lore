@@ -1,60 +1,59 @@
 # Tasks: Issue Triage Assembly Line
 
-| Feature | Issue Triage Assembly Line |
-| ------- | -------------------------- |
-| Spec    | [spec.md](./spec.md)       |
-| Plan    | [plan.md](./plan.md)       |
-| Created | 2026-09-28                 |
+| Feature | Issue Triage Assembly Line             |
+| ------- | -------------------------------------- |
+| Spec    | [spec.md](./spec.md)                   |
+| Plan    | [plan.md](./plan.md)                   |
+| Created | 2026-09-28                             |
 
-Implementing the Issue Triage Assembly Line.
+This checklist delivers the Issue Triage Assembly Line to automate bug reproduction, diagnosis, and verification.
 
 ## Story map
 
-| Story | Spec scenario                                      | Priority |
-| ----- | -------------------------------------------------- | -------- |
-| US1   | Automated Bug Reproduction in Sandbox              | P1       |
-| US2   | Root Cause Diagnosis and Spec Verification         | P1       |
-| US3   | Obsolete Issue Detection and Automatic Closing     | P2       |
-| US4   | Large Issue Detection and Decomposition            | P2       |
-| US5   | Human-Gated Handoff to Implementation              | P1       |
+| Story | Spec scenario                                    | Priority |
+| ----- | ------------------------------------------------ | -------- |
+| US1   | Automated Bug Reproduction in Sandbox            | P1       |
+| US2   | Root Cause Diagnosis and Spec Verification       | P1       |
+| US3   | Obsolete Issue Detection and Automatic Closing   | P2       |
+| US4   | Large Issue Detection and Decomposition          | P2       |
+| US5   | Human-Gated Handoff to Implementation            | P1       |
 
-**MVP**: completing Setup + Foundational + the US1 phase delivers a working automated bug reproduction.
+**MVP**: completing Setup + Foundational + the US1 phase delivers a working reproduction sandbox.
 
 ## Phase 1: Setup
 
-- [ ] T001 Define `issue-triage` label taxonomy mapping in `apps/floor/src/events/handlers/github.ts`
+- [ ] T001 Add `libs/assembly-lines/src/assembly-lines/issue-triage.yaml` stub with empty nodes and edges.
 
 ## Phase 2: Foundational *(blocks all stories)*
 
-- [ ] T002 [P] Create `libs/assembly-lines/src/assembly-lines/issue-triage.yaml` skeleton
-- [ ] T003 Implement batch processing logic for triage issues (depends on T002)
+- [ ] T002 Update webhook label mapping in `apps/floor/src/events/handlers/github.ts` to route `lore:triage` and `triage: needs-triage` to the `issue-triage` task type.
 
 ## Phase 3: User Story 1 — Automated Bug Reproduction in Sandbox (P1, MVP)
 
-**Independent test**: Issue labelled `triage: needs-triage` spins up sandbox and transitions to `reproduced`.
+**Independent test**: Triggering the triage line on an issue with a valid reproduction repository results in the bot successfully running the reproduction and applying the `triage: reproduced` label.
 
-- [ ] T004 [P] [US1] Implement `reproduce` node definition in `libs/assembly-lines/src/assembly-lines/issue-triage.yaml` with Dedicated Agent Pod
+- [ ] T003 [US1] Define the `reproduce` node in `libs/assembly-lines/src/assembly-lines/issue-triage.yaml` configured for a Dedicated Agent Pod sandbox.
 
 ## Phase 4: User Story 2 — Root Cause Diagnosis and Spec Verification (P1)
 
-**Independent test**: Reproduced issue triggers diagnosis and outputs analysis.
+**Independent test**: A reproduced issue is diagnosed by the bot, which traces the failure to a specific code path and checks it against specs, resulting in a `triage: diagnosed` label.
 
-- [ ] T005 [P] [US2] Implement `diagnose` node in `libs/assembly-lines/src/assembly-lines/issue-triage.yaml`
-- [ ] T006 [US2] Implement `verify` node in `libs/assembly-lines/src/assembly-lines/issue-triage.yaml` (depends on T005)
+- [ ] T004 [US2] Implement the `diagnose` node in `libs/assembly-lines/src/assembly-lines/issue-triage.yaml` to instrument the code.
+- [ ] T005 [US2] Implement the `verify` node in `libs/assembly-lines/src/assembly-lines/issue-triage.yaml` to cross-reference specs. (depends on T004)
 
 ## Phase 5: User Story 5 — Human-Gated Handoff to Implementation (P1)
 
-**Independent test**: Diagnosed issue awaits human approval.
+**Independent test**: A diagnosed issue stops processing and waits for a human to apply the `lore:implementation` label.
 
-- [ ] T007 [P] [US5] Implement human-gating logic at the end of `issue-triage.yaml`
+- [ ] T006 [US5] Add the `human-gate` node to `libs/assembly-lines/src/assembly-lines/issue-triage.yaml` to halt execution until manual approval.
 
-## Phase 6: User Story 3 & 4 (P2)
+## Phase 6: User Story 3 & 4 — Obsolete Issues and Decomposition (P2)
 
-**Independent test**: Obsolete issues closed; large issues split.
+**Independent test**: Issues are either closed automatically if obsolete, or split if too large.
 
-- [ ] T008 [P] [US3] Implement `close-obsolete` node
-- [ ] T009 [P] [US4] Implement `decompose` node
+- [ ] T007 [P] [US3] Add the `close-obsolete` service station logic in `libs/assembly-lines/src/assembly-lines/issue-triage.yaml`.
+- [ ] T008 [P] [US4] Add the `decompose` agent station logic in `libs/assembly-lines/src/assembly-lines/issue-triage.yaml`.
 
 ## Phase 7: Polish
 
-- [ ] T010 Add telemetry events for triage metrics
+- [ ] T009 Update `README.md` to document the new `triage:*` label taxonomy and issue triage flow.

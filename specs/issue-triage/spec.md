@@ -1,119 +1,118 @@
-# Feature Specification: Issue Triage Assembly Line
+| Feature | Issue Triage Assembly Line             |
+| ------- | -------------------------------------- |
+| Branch  | issue-triage                           |
+| Status  | Draft                                  |
+| Created | 2026-09-28                             |
+| Owner   | Lore Platform Team                     |
 
-| Feature | Issue Triage Assembly Line  |
-| ------- | --------------------------- |
-| Branch  | feat/issue-triage           |
-| Status  | Draft                       |
-| Created | 2026-09-28                  |
-| Owner   | Lore Platform Team          |
-
-Issue triage assembly line automates bug reproduction, diagnosis, and verification against specs before handing off to the implementation loop.
+The Issue Triage feature introduces a new assembly line to automatically reproduce bug reports in sandboxed pods, diagnose root causes, verify against specifications, and close obsolete issues before handing off valid bugs to human maintainers for implementation approval.
 
 ## Problem Statement
 
-Currently, the `implementation-loop` starts from an issue (via the `priority labels`) and jumps straight to writing a fix. By introducing an `issue-triage` line driven by labels, we can automatically clone reproduction repositories, trace root causes, and verify against documentation *before* committing to an implementation task, saving human triage effort and avoiding blocked tasks.
+Developers create GitHub Issues as part of their natural workflow, but triaging them is a manual, time-consuming process. Maintainers must manually verify reproductions, check if the issue is already implemented, and trace root causes before an issue is ready for implementation. By introducing an `issue-triage` assembly line driven by labels, we can automatically clone reproduction repositories, trace root causes, and verify against documentation before committing to an implementation task, saving human triage effort and avoiding blocked tasks.
 
 ## User Scenarios
 
 ### User Story 1 - Automated Bug Reproduction in Sandbox (Priority: P1)
 
-The triagebot should spin up a sandbox and verify the reproduction repository almost instantly after an issue is opened.
+A user submits a bug report with a reproduction repository. The triage line automatically provisions an isolated sandbox, clones the repository, and confirms the bug exists.
 
-**Why this priority**: Empirically confirming that the bug exists is the first step in triage.
+**Why this priority**: Confirmed reproduction is the foundation of triaging any bug report and requires strict sandboxing (MVP).
 
-**Independent Test**: An issue is labelled `triage: needs-triage` and the system spins up a sandbox, runs reproduction steps, and assigns `triage: reproduced` or `triage: unable-to-reproduce`.
+**Independent Test**: Triggering the triage line on an issue with a valid reproduction repository results in the bot successfully running the reproduction and applying the `triage: reproduced` label.
 
 **Acceptance Scenarios**:
 
-1. **Given** an open issue with a reproduction repository, **When** the triage pipeline runs, **Then** it clones the repository in a dedicated pod and attempts to reproduce the issue.
+1. **Given** a new issue labeled `triage: needs-triage` with a reproduction repository, **When** the triage line runs, **Then** it executes the reproduction in a Dedicated Agent Pod and transitions the issue to `triage: reproduced`.
 
 ### User Story 2 - Root Cause Diagnosis and Spec Verification (Priority: P1)
 
-Once reproduced, the system analyses the codebase to trace the root cause and cross-references against specs to determine if it is a genuine bug.
+Once reproduced, the triage line diagnoses the root cause and cross-references it with existing documentation and specifications to determine if it's a genuine bug.
 
-**Why this priority**: Identifies why the bug occurs and validates it against design intent.
+**Why this priority**: Prevents working on intended behavior and speeds up the fix by pinpointing the root cause.
 
-**Independent Test**: A reproduced issue triggers diagnosis and verification, producing a root cause analysis comment.
+**Independent Test**: A reproduced issue is diagnosed by the bot, which traces the failure to a specific code path and checks it against specs, resulting in a `triage: diagnosed` label.
 
 **Acceptance Scenarios**:
 
-1. **Given** a reproduced issue, **When** the pipeline proceeds, **Then** it uses instrumentation to trace the root cause and compares findings with specs and docs.
+1. **Given** an issue labeled `triage: reproduced`, **When** the triage line advances, **Then** the diagnose station traces the error and the verify station confirms it against specs, labeling it `triage: diagnosed`.
 
 ### User Story 3 - Obsolete Issue Detection and Automatic Closing (Priority: P2)
 
-The assembly line must detect already implemented issues or obsolete problems, because the project direction changes and closes the issues.
+The triage line detects issues that describe problems already solved by recent changes or that no longer apply, and automatically closes them.
 
-**Why this priority**: Cleans up the backlog automatically.
+**Why this priority**: Keeps the backlog clean without manual maintainer effort.
 
-**Independent Test**: A stale or already-implemented issue is processed and closed.
+**Independent Test**: An issue describing a bug fixed in a recent commit is processed and automatically closed by the bot.
 
 **Acceptance Scenarios**:
 
-1. **Given** an obsolete issue, **When** processed by the triage line, **Then** it is automatically closed.
+1. **Given** an issue that cannot be reproduced on the latest `main`, **When** the verify station cross-references it, **Then** the bot closes the issue as already implemented or obsolete.
 
 ### User Story 4 - Large Issue Detection and Decomposition (Priority: P2)
 
-The assembly line must detect large issues and, when possible, split them so the resulting PRs are smaller.
+The triage line identifies large, complex issues and automatically splits them into smaller, manageable tasks.
 
-**Why this priority**: Improves implementation efficiency by keeping tasks scoped.
+**Why this priority**: Ensures resulting PRs are small and reviewable.
 
-**Independent Test**: A large issue is split into smaller issues via the decompose node.
+**Independent Test**: An issue with multiple distinct bugs is split into separate GitHub issues linked to the original.
 
 **Acceptance Scenarios**:
 
-1. **Given** a large, complex issue, **When** the pipeline processes it, **Then** it is split into smaller sub-issues.
+1. **Given** a multi-part bug report, **When** the triage line processes it, **Then** the decompose node splits it into smaller issues.
 
 ### User Story 5 - Human-Gated Handoff to Implementation (Priority: P1)
 
-Once the bot successfully diagnoses the issue, human maintainers must review and manually approve the transition rather than the bot automatically applying the `lore:implementation` label.
+After successful diagnosis and verification, the bot waits for human approval before handing the issue off to the implementation loop.
 
-**Why this priority**: Prevents runaway task generation and allows the team to manage task priorities.
+**Why this priority**: Prevents runaway task generation and allows maintainers to control prioritization.
 
-**Independent Test**: A diagnosed issue halts the pipeline and awaits a human label change to proceed to implementation.
+**Independent Test**: A diagnosed issue stops processing and waits for a human to apply the `lore:implementation` label.
 
 **Acceptance Scenarios**:
 
-1. **Given** a successfully diagnosed issue, **When** the pipeline completes, **Then** it does not automatically start the implementation loop but waits for human approval.
+1. **Given** a diagnosed issue, **When** it completes the triage line, **Then** it requires a human to manually apply the `lore:implementation` label to start the implementation loop.
 
 ## Requirements
 
 ### Functional Requirements
 
-- **FR1 — Assembly Line Definition and Station Graph**: A new `issue-triage` assembly line definition orchestrates the reproduce, diagnose, verify, decompose, and close-obsolete nodes in `libs/assembly-lines/src/assembly-lines/issue-triage.yaml`.
-- **FR2 — Reproduction Sandboxing in Dedicated Agent Pods**: The `reproduce` node executes in a Dedicated Agent Pod to ensure strict sandboxing of untrusted code.
-- **FR3 — Root Cause Diagnosis and Instrumentation**: The `diagnose` node analyses the codebase using instrumentation to trace the root cause of the reproduced failure.
-- **FR4 — Spec and Documentation Verification**: The `verify` node cross-references the diagnosed behaviour against existing specs and documentation.
-- **FR5 — Obsolete and Already-Implemented Issue Detection**: A `close-obsolete` node automatically closes issues detected as obsolete or already implemented.
-- **FR6 — Large Issue Decomposition**: A `decompose` node automatically splits large, complex issues into smaller tasks.
-- **FR7 — GitHub Label Taxonomy and Event-Driven State Machine**: The state machine is driven by `triage:*` labels mapped via the webhook event handler in `apps/floor/src/events/handlers/github.ts`.
-- **FR8 — Human-Gated Handoff to Implementation Loop**: Transition to the `implementation-loop` requires human maintainers to manually apply the `lore:implementation` label.
-- **FR9 — Batch Processing and Backlog Ordering**: The assembly line processes issues in batches, prioritizing older issues first via a scheduled batch task.
-- **FR10 — Telemetry and Monitoring Events**: The assembly line emits monitoring events to `pipeline.events` to support triage automation metrics.
+- **FR1**: The `issue-triage` assembly line MUST be defined as a YAML graph topology in `libs/assembly-lines/src/assembly-lines/issue-triage.yaml`.
+- **FR2**: The Reproduce station MUST execute untrusted reproduction code within a Dedicated Agent Pod sandbox.
+- **FR3**: The Diagnose station MUST instrument the codebase to trace the root cause of the reproduced failure.
+- **FR4**: The Verify station MUST cross-reference the diagnosed behavior against existing specs and documentation.
+- **FR5**: The assembly line MUST automatically close issues that the Verify station detects as already implemented or obsolete.
+- **FR6**: The assembly line MUST automatically split large issues into smaller tasks via a decompose node.
+- **FR7**: State transitions MUST be driven by a label taxonomy (`triage: needs-triage`, `triage: needs-reproduction`, `triage: reproduced`, `triage: unable-to-reproduce`, `triage: diagnosed`, `triage: skipped`, `triage: not-actionable`, `triage: failed`) via the `pipeline.events` bus and GitHub webhook ingress.
+- **FR8**: The handoff to the implementation loop MUST be human-gated, requiring manual application of the `lore:implementation` label.
+- **FR9**: Incoming triage tasks MUST be processed in batches, ordering older issues first.
+- **FR10**: The assembly line MUST emit monitoring telemetry events to `pipeline.events` for KPI tracking.
 
 ## Success Criteria
 
-- **SC-001**: Triage automation rate reaches 80% (Percentage of issues that reach a confirmed root cause or are closed as intended behavior without human intervention).
-- **SC-002**: Time to working reproduction is < 5 minutes.
-- **SC-003**: Actionable rate increases (1 − `not actionable` / all issues).
-- **SC-004**: Missing-repro rate decreases (`needs reproduction` / triaged).
-- **SC-005**: Skip rate decreases (`skipped` / triaged).
-- **SC-006**: Reproduction rate increases (Agent's ability to confirm bugs).
-- **SC-007**: Failure rate decreases (`failed` / runs).
-- **SC-008**: Re-triage cycles per issue decreases (Count of loops back to `needs triage`).
+- **SC-001**: Triage automation rate achieves 80%, computed from `pipeline.station_runs` terminal states.
+- **SC-002**: Time to working reproduction is < 5 minutes from issue open to sandbox verification.
+- **SC-003**: Actionable rate increases.
+- **SC-004**: Missing-repro rate decreases.
+- **SC-005**: Skip rate decreases.
+- **SC-006**: Reproduction rate increases.
+- **SC-007**: Failure rate decreases.
+- **SC-008**: Re-triage cycles per issue decreases.
 - **SC-009**: Time to first triage verdict decreases.
-- **SC-010**: Backlog trend decreases (Open issues over time, and median issue age).
+- **SC-010**: Backlog trend (open issues and median age) decreases.
 - **SC-011**: LLM tokens/cost per issue decreases.
 - **SC-012**: Docs/tests added from bot failures increases.
 - **SC-013**: Reporter response latency decreases.
 - **SC-014**: Bot PR merge rate increases.
 
-**Dropped from the plan's KPIs**:
-- Human rework per bot PR — This is a KPI for the implementation/fix stage, which is out of scope for the triage line.
+**Dropped from the plan's KPIs**: Human rework per bot PR — explicitly dropped because it measures implementation-loop/fix work which is out of scope for the triage line.
 
 ## Assumptions
 
-- No specific assumptions required outside of the constraints and answers provided in the plan.
+- The triage line relies on the existing AI agent subsystem integrations and does not require custom LLM hosting.
 
 ## Open Questions
 
-- **Should the triage line automatically decompose large issues into smaller tasks?** — Choices: Yes, No. (The plan answered "Split automatically" for one question, but left `q-review-c5` open).
+- **How should we isolate untrusted reproduction repositories?** — Choices: Dedicated Agent Pod, Firecracker VM. The plan states "Dedicated Agent Pod" as the answer.
+- **Should the handoff to the `implementation-loop` be fully automatic, or require human approval?** — Choices: Human-gated, Automatic. The plan states "Human-gated" as the answer.
+- **Should the triage line automatically decompose large issues into smaller tasks?** — Choices: Split automatically (via decompose node), leave as one issue. The plan states "Split automatically" elsewhere but leaves this question open in the Open questions section.
