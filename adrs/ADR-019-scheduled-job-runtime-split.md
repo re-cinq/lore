@@ -186,7 +186,7 @@ The nightly full re-index CronJob had failed on every run for at least four
 nights, and nothing noticed — because nothing depended on it any more.
 Ingestion had already become merge-time only: the `ci-ingest` hook starts
 the ingest assembly line, whose station chunks and embeds (through
-`POST /api/embed`) on its own. The job, its `cronJobs` entry, the
+`POST /api/embeddings`) on its own. The job, its `cronJobs` entry, the
 `apps/floor/src/work/context-jobs/reindex/` module, and the reindex-only
 chunk-port surface (`reindexOwnedFilePaths`, `chunkedFilePaths`,
 `staleChunkerFiles`, `touchChunksForFiles`, `pruneChunksForFiles`,
