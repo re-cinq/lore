@@ -34,7 +34,7 @@ Per `.lore/spec-standard.md`, never answer an open question for the author. The 
 
 ## FR3 — Assembly Line Definition and Node Graph
 
-- **FR3.1** The `issue-triage` assembly line MUST be defined in `libs/assembly-lines/src/assembly-lines/issue-triage.yaml` and pass strict YAML schema validation.
+Per `.lore/spec-standard.md` ('Detail before decomposition'), detail the assembly line graph: specify the sequence, failure edges, iteration caps, and node types (e.g. agent vs wait). Do not just list the nodes.
 - **FR3.2** The graph MUST include `reproduce`, `diagnose`, `verify`, and `decompose` nodes, routing failure edges and respecting iteration limits.
 - **FR3.3** The outcome of each triage node MUST be recorded immutably in the `pipeline.station_runs` table as per ADR-016.
 - **FR3.4** Failure edges for `unable-to-reproduce`, `not-actionable`, and `failed` MUST route to a terminal `retrospective` node.
