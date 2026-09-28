@@ -508,17 +508,17 @@ describe("deliverSpecReviewResult", () => {
     });
   });
 
-  it("skips a planning.result event, an answer the agent never produced, and a run with no PR", async () => {
+  it("skips a planning.result event, an answer the agent never produced, and a run with no plan", async () => {
     const { port } = await reworkRun();
-    const noPr = new InMemoryAssemblyRuns();
+    const noPlan = new InMemoryAssemblyRuns();
 
-    await noPr.markRunning(
-      await noPr.start({
+    await noPlan.markRunning(
+      await noPlan.start({
         blueprintName: "feature-planning",
         repo: "re-cinq/lore",
         branch: "plan/p2",
         taskId: TASK,
-        args: { plan_id: "p2" },
+        args: { pr_number: 42 },
       }),
     );
     const { plans } = recordingPlans();
@@ -537,11 +537,48 @@ describe("deliverSpecReviewResult", () => {
     expect({
       foreign: await deliver(fileEvent(answer, { event: "planning.result" })),
       missing: await deliver(fileEvent(null, { reason: "not produced" })),
-      noPr: await deliver(fileEvent(answer), noPr),
+      noPlan: await deliver(fileEvent(answer), noPlan),
     }).toEqual({
       foreign: { outcome: "skipped", error: "not a spec review result" },
       missing: { outcome: "skipped", error: "no answer (not produced)" },
-      noPr: { outcome: "skipped", error: "no open run with a plan and a PR" },
+      noPlan: { outcome: "skipped", error: "no open run with a plan" },
+    });
+  });
+
+  it("lands a first pass's question on plan p1 before any spec PR exists, flags the run for a reopen, and replies to nothing", async () => {
+    const { port, id } = await reworkRun({ pr_number: undefined });
+    const { questions, plans } = recordingPlans();
+    const { pulls, replies, comments } = recordingPulls({});
+    const answer = {
+      plan_questions: [
+        { slot: "scope", question: "Pod or Actions runner for repro?" },
+      ],
+      replies: [],
+    };
+
+    const delivery = await deliverSpecReviewResult(
+      fileEvent(JSON.stringify(answer)),
+      { assemblyRuns: port, plans, pullsFor: async () => pulls },
+    );
+
+    expect({
+      delivery,
+      asked: questions.map((entry) => entry.planId),
+      reopen: (await port.getById(id))?.args[SPEC_REVIEW_REOPEN_ARG],
+      replies,
+      comments,
+    }).toEqual({
+      delivery: {
+        outcome: "delivered",
+        questions: 1,
+        rehomed: 0,
+        replied: 0,
+        resolved: 0,
+      },
+      asked: ["p1"],
+      reopen: true,
+      replies: [],
+      comments: [],
     });
   });
 });

@@ -5,6 +5,7 @@ import type {
   AssemblyRunsPort,
 } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { djb2Hash } from "@re-cinq/lore-shared/llm/prompt-cache.js";
+import type { ReviewComment } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import {
   SPEC_REVIEW_REOPEN_ARG,
   SPEC_REVIEW_RESULT_EVENT,
@@ -65,12 +66,12 @@ export async function deliverSpecReviewResult(
   if (skipped) {
     return skipped;
   }
-  const target = reviewTargetOf(
+  const target = planTargetOf(
     await openRunOfTask(fileEvent.taskId, deps.assemblyRuns),
   );
 
   if (!target) {
-    return { outcome: "skipped", error: "no open run with a plan and a PR" };
+    return { outcome: "skipped", error: "no open run with a plan" };
   }
   const result = parseResult(fileEvent.content ?? "");
 
@@ -107,15 +108,20 @@ export async function openRunOfTask(
   return open.at(0);
 }
 
-function reviewTargetOf(
-  run: AssemblyRunRecord | undefined,
-): ReviewTarget | null {
+// A first pass writes before the push opens the spec PR, so its questions still reach the plan; only replies need a PR.
+type PlanTarget = Omit<ReviewTarget, "prNumber"> & { prNumber?: number };
+
+function planTargetOf(run: AssemblyRunRecord | undefined): PlanTarget | null {
   const planId = run?.args.plan_id;
   const prNumber = run?.args.pr_number;
 
-  return run && typeof planId === "string" && typeof prNumber === "number"
+  if (!run || typeof planId !== "string") {
+    return null;
+  }
+
+  return typeof prNumber === "number"
     ? { run, planId, prNumber }
-    : null;
+    : { run, planId };
 }
 
 type ParsedResult =
@@ -137,28 +143,37 @@ function parseResult(content: string): ParsedResult {
 }
 
 async function deliver(
-  target: ReviewTarget,
+  target: PlanTarget,
   result: SpecReviewResult,
   deps: SpecReviewResultDeps,
 ): Promise<SpecReviewDelivery> {
   const pulls = await deps.pullsFor(target.run.repo);
+  const review = reviewTargetOf(target);
   const homed = await questionsToSend(target, result, deps, pulls);
   const questions = await sendQuestions(target, homed, deps);
-  const replies = await postReplies(target, result.replies, pulls);
+  const replies = review
+    ? await postReplies(review, result.replies, pulls)
+    : { replied: 0, resolved: 0 };
 
   return { outcome: "delivered", ...questions, ...replies };
 }
 
+function reviewTargetOf(target: PlanTarget): ReviewTarget | null {
+  const { prNumber } = target;
+
+  return prNumber === undefined ? null : { ...target, prNumber };
+}
+
 /** The writer's questions plus the ones it owes for its `to_plan` replies, each on a slot the plan has. The plan's sections and the PR's comments are read best-effort: unreadable, every slot stays as written and an owed question quotes nothing. */
 async function questionsToSend(
-  target: ReviewTarget,
+  target: PlanTarget,
   result: SpecReviewResult,
   deps: SpecReviewResultDeps,
   pulls: SpecReviewReplyPoster,
 ): Promise<HomedQuestion[]> {
   const [sections, comments] = await Promise.all([
     orNone(deps.plans.sectionsOf(target.planId)),
-    orNone(pulls.listComments?.(target.prNumber) ?? Promise.resolve([])),
+    orNone(prCommentsOf(pulls, target.prNumber)),
   ]);
   const homed = homeQuestions(
     [...result.plan_questions, ...questionsOwed(result, comments)],
@@ -170,6 +185,15 @@ async function questionsToSend(
     .forEach((entry) => warnRehomed(target.planId, entry));
 
   return homed;
+}
+
+function prCommentsOf(
+  pulls: SpecReviewReplyPoster,
+  prNumber: number | undefined,
+): Promise<ReviewComment[]> {
+  return prNumber === undefined
+    ? Promise.resolve([])
+    : (pulls.listComments?.(prNumber) ?? Promise.resolve([]));
 }
 
 // A read that fails leaves the delivery to what the writer wrote, never blocks it.
@@ -185,7 +209,7 @@ function warnRehomed(planId: string, { question }: HomedQuestion): void {
 
 /** The questions land on the plan, and the run is flagged so its next park on the PR wait reopens the plan for them. */
 async function sendQuestions(
-  target: ReviewTarget,
+  target: PlanTarget,
   homed: readonly HomedQuestion[],
   deps: SpecReviewResultDeps,
 ): Promise<{ questions: number; rehomed: number }> {
