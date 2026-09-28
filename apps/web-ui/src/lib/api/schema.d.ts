@@ -617,23 +617,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/embed": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** POST /api/embed */
-    post: operations["post_api_embed"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   "/api/embeddings": {
     parameters: {
       query?: never;
@@ -2783,9 +2766,6 @@ export interface components {
         issue_number?: number | null;
         issue_url?: string | null;
       }[];
-    };
-    Embedding: {
-      embedding: number[];
     };
     Embeddings: {
       embeddings: (number[] | null)[];
@@ -5456,38 +5436,6 @@ export interface operations {
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  post_api_embed: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          text: string;
-        };
-      };
-    };
-    responses: {
-      /** @description The embedding for a piece of text */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["Embedding"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };
