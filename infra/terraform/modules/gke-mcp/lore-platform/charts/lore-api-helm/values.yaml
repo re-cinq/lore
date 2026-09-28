@@ -27,16 +27,22 @@ service:
   type: ClusterIP
   port: 3000
 
+# 1Gi, heap sized to it by NODE_OPTIONS below: at 512Mi Node's default heap
+# (~250 MB) ran out every Monday at 11:00 UTC when the weekly
+# spec-coverage-backfill started ~20 detect pods reading chunks through here
+# at once (#2217).
 resources:
   limits:
     cpu: "500m"
-    memory: 512Mi
+    memory: 1Gi
   requests:
     cpu: "100m"
     memory: 256Mi
 
 env:
   PORT: "3000"
+  # Leaves ~250 MB of the 1Gi limit for buffers, sockets and native memory.
+  NODE_OPTIONS: "--max-old-space-size=768"
   CONTEXT_PATH: /context
   LORE_TEAM: platform
   LORE_DB_HOST: lore-db-rw.lore-db.svc.cluster.local

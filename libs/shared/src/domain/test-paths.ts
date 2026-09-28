@@ -13,6 +13,11 @@ const TEST_PATH_PATTERNS = [
   /Test\.php$/,
 ];
 
+/** The same conventions as one Postgres regex (every pattern above is also a valid ARE), so a query can keep only test files instead of shipping a repo's whole codebase to be filtered afterwards. */
+export const TEST_PATH_SQL_PATTERN = TEST_PATH_PATTERNS.map(
+  (pattern) => pattern.source,
+).join("|");
+
 export function isTestFile(filePath: string): boolean {
   return TEST_PATH_PATTERNS.some((pattern) => pattern.test(filePath));
 }

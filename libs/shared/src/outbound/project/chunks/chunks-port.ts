@@ -109,8 +109,8 @@ export interface ChunksPort {
   /** Spec chunks with embeddings for a repo, from its resolved schema (backfill), same ordering as {@link specChunksWithIngest}. */
   specChunksForBackfill(repo: string): Promise<SpecChunkWithEmbedding[]>;
 
-  /** Code chunks (content + metadata + embedding) for a repo, from its resolved schema (backfill). */
-  codeChunksForBackfill(repo: string): Promise<CodeChunkFull[]>;
+  /** Test-file chunks (content + metadata + embedding) for a repo, from its resolved schema (backfill). Filtered in the store, never after: every code chunk of every repo, shipped through lore-api's heap to be discarded in the pod, ran it out of memory each Monday the weekly backfill fanned out (#2217). */
+  testChunksForBackfill(repo: string): Promise<CodeChunkFull[]>;
 
   // ── Floor-only write; the station HTTP adapter throws. ──
 

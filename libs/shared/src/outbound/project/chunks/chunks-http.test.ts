@@ -67,7 +67,7 @@ describe("ChunksHttp", () => {
           },
         ],
       },
-      "/api/repos/o/r/chunks/code-backfill": {
+      "/api/repos/o/r/chunks/test-backfill": {
         chunks: [
           {
             filePath: "a.test.ts",
@@ -83,7 +83,7 @@ describe("ChunksHttp", () => {
     expect((await http.specChunksForBackfill("o/r"))[0].embedding).toEqual([
       0.1,
     ]);
-    expect((await http.codeChunksForBackfill("o/r"))[0].filePath).toBe(
+    expect((await http.testChunksForBackfill("o/r"))[0].filePath).toBe(
       "a.test.ts",
     );
   });
