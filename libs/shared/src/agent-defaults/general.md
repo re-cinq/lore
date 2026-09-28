@@ -33,9 +33,10 @@ DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
 - Confirm it landed: `git status` must report the branch is not ahead of
   its upstream. An unpushed commit lives only in this container and
   dies with it — do NOT report success for one.
-- If the content is ALREADY CURRENT — you checked and nothing needs to
-  change — say what you checked and end your final message with the line
-  `LORE_NODE_RESULT: {"outcome":"changes_requested","extras":{"Lore-Already-Current":"<one line: what you checked and why nothing needs to change>"}}`
+- If the repository ALREADY does what this asks — you checked, and
+  nothing needs to change — name the file or commit that already does it
+  (never a bare "looks fine") and end your final message with the line
+  `LORE_NODE_RESULT: {"outcome":"changes_requested","extras":{"Lore-Already-Current":"<one line: the file or commit that already does it, and what you checked>"}}`
   so the run ends without a pull request instead of validating an empty
   branch. Report failure when you are STUCK, never when you are FINISHED:
   if you could not do the work, say why and end with the line

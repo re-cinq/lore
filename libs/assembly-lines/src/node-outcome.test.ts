@@ -139,6 +139,24 @@ describe("stationNodeOutcome", () => {
     });
   });
 
+  it("lifts a draft's already-current reason into the row, so a run that opened no PR says what already did the work", () => {
+    const status: AgentNodeStatus = {
+      phase: "Succeeded",
+      output: resultLine({
+        outcome: "changes_requested",
+        extras: {
+          "Lore-Already-Current": "ADR-031 already records the cutover",
+        },
+      }),
+    };
+
+    expect(stationNodeOutcome(detectNode, status)).toEqual({
+      outcome: "changes_requested",
+      extras: { "Lore-Already-Current": "ADR-031 already records the cutover" },
+      failureDetail: "already current: ADR-031 already records the cutover",
+    });
+  });
+
   it("reads the resolved reason back out of a lifted detail, and nothing out of a blocked one", () => {
     expect(dodResolvedReason("already resolved: fixed on main by #2064")).toBe(
       "fixed on main by #2064",

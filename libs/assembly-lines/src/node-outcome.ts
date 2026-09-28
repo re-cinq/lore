@@ -190,7 +190,7 @@ function stationOutputOutcome(
     : { outcome: "success" };
 }
 
-// The definition-of-done step's one-line verdict rides extras too; lift it into failureDetail so the terminal hook can quote it on the issue (implementation-loop FR8) — nothing later reads failureDetail off a changes_requested row, so it cannot leak into a prompt. Two verdicts share the outcome: blocked (a park) and resolved (the ticket is already done), told apart by the prefix the resolved one carries.
+// The definition-of-done step's one-line verdict rides extras too; lift it into failureDetail so the terminal hook can quote it on the issue (implementation-loop FR8) — nothing later reads failureDetail off a changes_requested row, so it cannot leak into a prompt. Three verdicts share the outcome: blocked (a park), resolved (the ticket is already done) and already-current (a gap-fill/general draft found nothing to change, FR-10.10), told apart by the prefixes the last two carry.
 function withDodBlockedDetail(stationResult: NodeResult): NodeResult {
   if (
     stationResult.outcome !== "changes_requested" ||
@@ -205,15 +205,23 @@ function withDodBlockedDetail(stationResult: NodeResult): NodeResult {
 
 const DOD_RESOLVED_PREFIX = "already resolved: ";
 
+// In precedence order; the blocked verdict carries no prefix because nothing reads it back.
+const LIFTED_VERDICTS: readonly { key: string; prefix: string }[] = [
+  { key: "Lore-Dod-Resolved", prefix: DOD_RESOLVED_PREFIX },
+  { key: "Lore-Already-Current", prefix: "already current: " },
+  { key: "Lore-Dod-Blocked", prefix: "" },
+];
+
 function liftedDodVerdict(stationResult: NodeResult): string | null {
-  const resolved = stationResult.extras?.["Lore-Dod-Resolved"];
+  for (const { key, prefix } of LIFTED_VERDICTS) {
+    const verdict = stationResult.extras?.[key];
 
-  if (isDodVerdict(resolved)) {
-    return `${DOD_RESOLVED_PREFIX}${resolved}`;
+    if (isDodVerdict(verdict)) {
+      return `${prefix}${verdict}`;
+    }
   }
-  const blocked = stationResult.extras?.["Lore-Dod-Blocked"];
 
-  return isDodVerdict(blocked) ? blocked : null;
+  return null;
 }
 
 // The resolved verdict's reason, read back off a row's failure_detail; null for a blocked verdict or no verdict at all.
