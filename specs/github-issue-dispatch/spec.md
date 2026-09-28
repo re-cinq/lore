@@ -86,7 +86,7 @@ For webhook-dispatched tasks, the originating issue IS the task's issue
 **3. Webhook registration**
 
 During `lore_onboard_repo`, configure the GitHub webhook on the target repo:
-- URL: `https://LORE_EVENTS_DOMAIN/api/webhook/github` (the Floor coordinator front door)
+- URL: `https://LORE_EVENTS_DOMAIN/api/events` (the event-router front door)
 - Events: `issues`
 - Secret: from `LORE_WEBHOOK_SECRET` env var
 - Content type: `application/json`
