@@ -71,9 +71,8 @@ describe("isTestFile", () => {
     });
   });
 
-  it.skipIf(!pgUp)(
-    "matches the same 13 test paths and 11 production paths in Postgres through TEST_PATH_SQL_PATTERN",
-    async () => {
+  describe.skipIf(!pgUp)("in Postgres", () => {
+    it("matches the same 13 test paths and 11 production paths in Postgres through TEST_PATH_SQL_PATTERN", async () => {
       const pool = new Pool(PG_CONFIG);
 
       try {
@@ -89,8 +88,8 @@ describe("isTestFile", () => {
       } finally {
         await pool.end();
       }
-    },
-  );
+    });
+  });
 });
 
 describe("normalizeTestName", () => {
