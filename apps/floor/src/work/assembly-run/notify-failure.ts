@@ -77,7 +77,7 @@ function recordedCategory(
   return recorded;
 }
 
-/** The node's own words say more than the run's summary of them. */
+/** The node's own words: the run's reason restates them with the hint appended, which the message already carries. */
 function failureText(
   failedNode: FailedNode | null,
   reason: string | undefined,
@@ -127,10 +127,11 @@ function slackFailureMessage(
 ): string {
   const cause = failureCause(context.failedNode, reason);
   const at = cause.nodeId ? ` at node \`${cause.nodeId}\`` : "";
+  const words = failureText(context.failedNode, reason);
   const lines = [
     `Lore ${row.blueprintName} run failed on ${row.repo} (${outcome}): ${failureLabel(cause.category)}${at}`,
     `Hint: ${cause.hint}`,
-    reason ? `Reason: ${reason}` : null,
+    words ? `Reason: ${words}` : null,
     context.owner ? `Owner: ${context.owner}` : null,
     failureLinks(row, uiUrl, context).join(" · "),
   ];

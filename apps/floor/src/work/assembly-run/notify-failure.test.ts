@@ -234,6 +234,26 @@ describe("failureNotice, classified", () => {
 
     expect(notice.message).not.toContain("Owner:");
   });
+
+  it("quotes the failed node's own words once, not the run's reason that repeats the hint", () => {
+    const notice = failureNotice(
+      lineRow(),
+      "iteration_max",
+      'AssemblyLine code-review: node "review" failed: DeadlineExceeded — The pod died rather than the work failing',
+      {
+        context: context({
+          failedNode: {
+            nodeId: "review",
+            failureClass: "infra",
+            failureDetail: "DeadlineExceeded",
+          },
+        }),
+      },
+    );
+
+    expect(notice.message.match(/The pod died/g)).toHaveLength(1);
+    expect(notice.message).toContain("Reason: DeadlineExceeded");
+  });
 });
 
 interface Recorded {
