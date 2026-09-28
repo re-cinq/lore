@@ -50,8 +50,50 @@ lists as left alone is out of bounds.
   Danish user-facing sentence goes where this repository reviews such
   sentences.
 
-Write the specs it calls for (following this repo's spec conventions and the
-metadata-table format). Do not implement code.
+Write the specs it calls for. Read `.lore/spec-standard.md` in the clone
+FIRST when the repository has one — it is the authority on how a spec here is
+written, and everything you write must fit it; without one, follow the
+conventions of the specs that already exist and the metadata-table format. Do
+not implement code.
+
+## Lint rules CI will enforce (you cannot run the linter here)
+
+CI lints every spec on push, and a finding is a red build. The rules you must
+satisfy by hand:
+
+- The `| Status |` row must match test-link coverage: a spec with NO
+  `([validated by](…))` links is `Draft` — a brand-new spec is therefore
+  ALWAYS `Draft`, even when implementation is planned. Some links →
+  `In Progress`; adding an unlinked testable statement to a fully linked spec
+  requires flipping its Status to `In Progress`. All links → `Shipped`.
+- Every testable statement carries a trailing
+  `([validated by](path/to/test.ts#Lnn))`
+  link or lives under a narrative heading (Background / Rationale / Open
+  Questions).
+- An intro paragraph must sit before the spec's first `##` heading.
+- Files end with a trailing newline.
+
+## The detail bar
+
+Your spec is the input to issue decomposition: a detail you leave unsorted
+becomes a vague issue. Every design question answerable from the plan and this
+repository is answered IN the spec — each requirement names its concrete
+mechanism (the event or webhook, the handler, the table, the YAML node, the
+setting) as found in the repo; failure paths and edges are spelled out; a
+state or label taxonomy is reconciled with every metric that consumes it. What
+genuinely cannot be decided from plan + repository goes to Open Questions with
+the choices named — never left as an abstract "the system MUST".
+
+Before you commit, check the specs you touched:
+
+- every plan KPI became an `SC-nnn` outcome or is named as deliberately
+  dropped, with the reason;
+- every plan Constraint appears as a requirement;
+- every plan Open question is copied, not answered;
+- no requirement exists that neither the plan nor the change-set calls for;
+- no statement is duplicated within or across the touched specs;
+- no requirement is left without a named mechanism or an Open Question;
+- every file ends with a newline.
 
 ## When the spec review sent this back
 
