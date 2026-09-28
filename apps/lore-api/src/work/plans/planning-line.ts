@@ -38,8 +38,15 @@ export interface ResumeDeps {
   reporter: Parameters<typeof reportToParkedNode>[0];
 }
 
-export type SpecWorkDeps = ResumeDeps & {
+/** What GitHub says of a spec PR now; null when it is gone. */
+export type SpecPrState = "open" | "closed" | "merged" | null;
+
+export type DraftingDeps = ResumeDeps & {
   createTask(task: NewPlanningTask): Promise<string>;
+};
+
+export type SpecWorkDeps = DraftingDeps & {
+  specPrState(prNumber: number): Promise<SpecPrState>;
 };
 
 export interface PlanRef {
@@ -60,7 +67,7 @@ const SPEC_WORK_ENTRY = "analyse-specs";
 
 /** Drafts the plan: a line parked on its people is sent back to the agent with the draft brief (a plan has one open line, so a new run would only join it and do nothing); otherwise a new line starts. The run's args carry what its route and its PR are named from. */
 export async function startDrafting(
-  deps: SpecWorkDeps,
+  deps: DraftingDeps,
   { plan, projection, known, createdBy }: DraftingInput,
 ): Promise<string> {
   const brief = draftBrief(projection, known);
@@ -232,7 +239,7 @@ export async function startSpecWork(
   deps: SpecWorkDeps,
   { plan, projection, createdBy, line }: SpecWorkInput,
 ): Promise<string> {
-  const open = openSpecPrOf(line);
+  const open = await openSpecPrOf(line, deps);
 
   return deps.createTask(
     planningTask(plan, specWorkBrief(projection, line, open), createdBy, {
@@ -242,9 +249,16 @@ export async function startSpecWork(
   );
 }
 
-// An ended line whose spec PR never merged: the Retry of a failed pass, or a cancelled one.
-function openSpecPrOf(line: PlanLine | null): OpenSpecPr | null {
-  return line && line.prNumber !== null && !line.merged
+// An ended line whose spec PR is still open on GitHub: the Retry of a failed pass, or a cancelled one. A PR closed without merging is gone — contributing to it would push specs no PR shows and park the line on a merge that never comes.
+async function openSpecPrOf(
+  line: PlanLine | null,
+  deps: Pick<SpecWorkDeps, "specPrState">,
+): Promise<OpenSpecPr | null> {
+  if (!line || line.prNumber === null || line.merged) {
+    return null;
+  }
+
+  return (await deps.specPrState(line.prNumber)) === "open"
     ? { prNumber: line.prNumber, prUrl: line.prUrl, branch: line.branch }
     : null;
 }

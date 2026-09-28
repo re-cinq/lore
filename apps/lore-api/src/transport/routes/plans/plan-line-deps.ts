@@ -41,11 +41,13 @@ export async function projectionOf(
   return stored.json;
 }
 
-/** Resume deps plus the task a fresh line starts from — one shape for the drafting route, the approval hook and the spec-work route. */
+/** Resume deps plus the task a fresh line starts from and the live state of the line's spec PR — one shape for the drafting route, the approval hook and the spec-work route. */
 export function specWorkDepsFor(repo: string, pool: Pool): SpecWorkDeps {
   return {
     ...resumeDepsFor(repo, pool),
     createTask: async (task) => String((await createTask(task)).task_id),
+    specPrState: async (prNumber) =>
+      (await (await projectFor(repo)).pulls.get(prNumber))?.state ?? null,
   };
 }
 
