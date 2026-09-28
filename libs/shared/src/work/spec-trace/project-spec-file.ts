@@ -55,7 +55,10 @@ export async function projectSpecFile(
 
   const specUid = await projectSpecNode(dgraph, { repo, filePath, content });
 
-  await projectSpecChildren({ dgraph, repo, filePath, specUid }, content, embed);
+  await projectSpecChildren(
+    { dgraph, repo, filePath, specUid, embed },
+    content,
+  );
 
   await upsertByXid(dgraph, "Spec", `${repo}|${filePath}`, {
     "Spec.content_hash": contentHash,
@@ -134,40 +137,57 @@ async function upsertSpecNode(
 
 /** Everything that hangs off a spec: its sections, statements, acceptance criteria and code blocks — each followed by a prune, so a statement deleted from the markdown does not linger in the graph as a validated claim. */
 async function projectSpecChildren(
-  address: Omit<ProjectionContext, "embeddingOf">,
+  target: SpecTarget,
   content: string,
-  embed: EmbedFn,
 ): Promise<void> {
   const segments = segmentStatements(content);
-  const introOrdinals = buildIntroOrdinals(segments);
-  const acSegments = segments.filter((segment) =>
-    isAcceptanceCriteriaHeading(segment.enclosingHeading),
-  );
-  const statementSegments = segments.filter(
-    (segment) => !isAcceptanceCriteriaHeading(segment.enclosingHeading),
-  );
-  const context: ProjectionContext = {
-    ...address,
-    embeddingOf: await embedAll(embed, [...statementSegments, ...acSegments]),
-  };
+  const { statementSegments, acSegments } = splitAcceptanceCriteria(segments);
+  const context = await embeddedContext(target, [
+    ...statementSegments,
+    ...acSegments,
+  ]);
 
-  await projectStatementLayer(context, statementSegments, introOrdinals);
+  await projectStatementLayer(
+    context,
+    statementSegments,
+    buildIntroOrdinals(segments),
+  );
   await projectAcceptanceCriteriaLayer(context, acSegments);
   await projectBlocks(context, content);
 }
 
-/** Embeds every segment's text in one call and answers each text's vector from it. */
-async function embedAll(
-  embed: EmbedFn,
+/** Where a spec's children are written, plus the embedder that has not run yet. */
+type SpecTarget = Omit<ProjectionContext, "embeddingOf"> & { embed: EmbedFn };
+
+/** Embeds every segment's text in one call, so each node reads its vector instead of asking for it. */
+async function embeddedContext(
+  { embed, ...address }: SpecTarget,
   segments: ReturnType<typeof segmentStatements>,
-): Promise<(text: string) => number[] | null> {
+): Promise<ProjectionContext> {
   const texts = segments.map((segment) => segment.text);
   const vectors = await embed(texts);
   const vectorByText = new Map(
     texts.map((text, index) => [text, vectors[index]]),
   );
 
-  return (text) => vectorByText.get(text) ?? null;
+  return { ...address, embeddingOf: (text) => vectorByText.get(text) ?? null };
+}
+
+/** Acceptance-criteria segments project as AcceptanceCriterion nodes, everything else as Statements. */
+function splitAcceptanceCriteria(
+  segments: ReturnType<typeof segmentStatements>,
+): Record<
+  "statementSegments" | "acSegments",
+  ReturnType<typeof segmentStatements>
+> {
+  return {
+    statementSegments: segments.filter(
+      (segment) => !isAcceptanceCriteriaHeading(segment.enclosingHeading),
+    ),
+    acSegments: segments.filter((segment) =>
+      isAcceptanceCriteriaHeading(segment.enclosingHeading),
+    ),
+  };
 }
 
 /** True for any heading-variant title used across specs for acceptance/success/independent-test criteria — those segments project as AcceptanceCriterion, not Statement. */

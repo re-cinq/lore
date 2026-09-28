@@ -128,7 +128,11 @@ describe("runIngestStation", () => {
     );
     const result = await runIngestStation(
       input({ kind: "specs", glob: "specs/beta/" }),
-      { workspaceDir: clone, dgraph: fake.port, embed: async (texts) => texts.map(() => [0.1]) },
+      {
+        workspaceDir: clone,
+        dgraph: fake.port,
+        embed: async (texts) => texts.map(() => [0.1]),
+      },
     );
 
     expect(result.extras?.["Lore-Ingest-Summary"]).toContain("projected=1");

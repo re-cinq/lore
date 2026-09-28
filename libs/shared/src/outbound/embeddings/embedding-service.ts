@@ -89,28 +89,36 @@ export async function getQueryEmbeddings(
   if (texts.length === 0) {
     return [];
   }
+
   try {
-    const token = await resolveAccessToken();
-    const project = token ? await resolveProjectOrWarn() : "";
-
-    if (!token || !project) {
-      recordEmbeddingOutcome({ ok: false, status: null });
-
-      return texts.map(() => null);
-    }
-    const vectors: Array<number[] | null> = [];
-
-    for (const batch of embeddingBatches(texts)) {
-      vectors.push(...(await fetchVertexEmbeddings(project, token, batch)));
-    }
-
-    return vectors;
+    return await embedWithCredentials(texts);
   } catch (err) {
     console.error("[embeddings] Vertex AI embedding error:", err);
     recordEmbeddingOutcome({ ok: false, status: null });
 
     return texts.map(() => null);
   }
+}
+
+/** Resolves the Vertex credential and project, then embeds batch by batch; nulls throughout when either is missing. */
+async function embedWithCredentials(
+  texts: string[],
+): Promise<Array<number[] | null>> {
+  const token = await resolveAccessToken();
+  const project = token ? await resolveProjectOrWarn() : "";
+
+  if (!token || !project) {
+    recordEmbeddingOutcome({ ok: false, status: null });
+
+    return texts.map(() => null);
+  }
+  const vectors: Array<number[] | null> = [];
+
+  for (const batch of embeddingBatches(texts)) {
+    vectors.push(...(await fetchVertexEmbeddings(project, token, batch)));
+  }
+
+  return vectors;
 }
 
 async function resolveAccessToken(): Promise<string> {

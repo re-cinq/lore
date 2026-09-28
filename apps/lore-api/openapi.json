@@ -2061,7 +2061,7 @@
       "post": {
         "operationId": "post_api_embeddings",
         "summary": "POST /api/embeddings",
-        "tags": ["Other"],
+        "tags": ["Ingestion"],
         "security": [
           {
             "bearerAuth": []
