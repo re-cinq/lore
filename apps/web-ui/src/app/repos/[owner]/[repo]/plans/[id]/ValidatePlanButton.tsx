@@ -15,7 +15,7 @@ export default function ValidatePlanButton({
   validate,
   waitingOn,
 }: ValidatePlanButtonProps) {
-  const { error, run } = useRefreshingAction(validate);
+  const { error, pending, run } = useRefreshingAction(validate);
 
   return (
     <>
@@ -23,6 +23,7 @@ export default function ValidatePlanButton({
         action={run}
         text="Validate the plan"
         pendingText="Validating…"
+        pending={pending}
         disabled={!!waitingOn}
         title={waitingOn}
         className="btn-secondary"

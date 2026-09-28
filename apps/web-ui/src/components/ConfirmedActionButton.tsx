@@ -30,6 +30,7 @@ export default function ConfirmedActionButton(
       {confirmed.asking && (
         <ConfirmDialog
           question={props.question}
+          pending={confirmed.pending}
           onConfirm={confirmed.confirm}
           onCancel={() => confirmed.setAsking(false)}
         />
@@ -58,7 +59,9 @@ function AskButton({
 
 function useConfirmedAction(action: ServerAction) {
   const [asking, setAsking] = useState(false);
-  const { error, run } = useRefreshingAction(action, () => setAsking(false));
+  const { error, pending, run } = useRefreshingAction(action, () =>
+    setAsking(false),
+  );
 
-  return { asking, setAsking, error, confirm: run };
+  return { asking, setAsking, error, pending, confirm: run };
 }

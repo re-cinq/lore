@@ -18,6 +18,8 @@ interface ConfirmDialogProps {
   question: ConfirmQuestion;
   onConfirm: () => Promise<void>;
   onCancel: () => void;
+  /** An outside pending signal (e.g. a router.refresh() still settling) OR'd with the confirm button's own click. */
+  pending?: boolean;
 }
 
 /** A modal that asks before an action that cannot be taken back. Mounted only while asking, so the caller owns whether it is open; Escape cancels. */
@@ -79,12 +81,14 @@ function ConfirmButton({
   question,
   confirmable,
   onConfirm,
+  pending,
 }: DialogActionsProps) {
   return (
     <PendingActionButton
       action={onConfirm}
       text={question.confirmLabel}
       pendingText={question.confirmLabel}
+      pending={pending}
       disabled={!confirmable}
       className={toneClass(question.tone) ?? ""}
     />
