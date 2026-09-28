@@ -17,13 +17,9 @@ export function useRefreshingAction(
 
   function run(): Promise<void> {
     return new Promise((resolve) => {
-      startTransition(async () => {
-        try {
-          await settle(action, onSettled, setError, router);
-        } finally {
-          resolve();
-        }
-      });
+      startTransition(() =>
+        settle(action, onSettled, setError, router).finally(resolve),
+      );
     });
   }
 
@@ -36,12 +32,16 @@ async function settle(
   setError: (error: string | undefined) => void,
   router: ReturnType<typeof useRouter>,
 ): Promise<void> {
-  const result = await action();
+  try {
+    const result = await action();
 
-  onSettled?.();
-  setError(result.error);
+    onSettled?.();
+    setError(result.error);
 
-  if (!result.error) {
-    router.refresh();
+    if (!result.error) {
+      router.refresh();
+    }
+  } catch (err) {
+    setError(err instanceof Error ? err.message : String(err));
   }
 }
