@@ -589,7 +589,7 @@ ai-agent-subsystem per ADR-031). ([validated by `code-review.test.ts:91`](apps/f
   review — inline comments per finding plus a summary, carrying the verdict as its
   GitHub review event (`APPROVE` / `REQUEST_CHANGES`, always on, no longer a neutral comment). ([validated by `post-review.test.ts:78`](apps/floor/src/work/review/post-review.test.ts#L85), [`post-review.test.ts:180`](apps/floor/src/work/review/post-review.test.ts#L188))
 - FR-13.3: On a formal `APPROVE` the PR becomes eligible for (auto-)merge once the
-  remaining gates pass; auto-merge reads the bot's latest review, so a later push's re-check verdict supersedes the earlier one. ([validated by `post-review.test.ts:181`](apps/floor/src/work/review/post-review.test.ts#L188), [`auto-merge.test.ts:32`](apps/floor/src/work/merge/auto-merge.test.ts#L32))
+  remaining gates pass; auto-merge reads the bot's latest review, so a later push's re-check verdict supersedes the earlier one. ([validated by `post-review.test.ts:181`](apps/floor/src/work/review/post-review.test.ts#L188), [`auto-merge.test.ts:32`](apps/floor/src/work/merge/auto-merge.test.ts#L33))
 - FR-13.4: When changes are requested, a follow-up round is started on the same
   branch carrying the feedback (the code-review-reply path). ([validated by `code-review.test.ts:113`](apps/floor/src/work/review/code-review.test.ts#L125))
 - FR-13.5: After further iterations the loop escalates to human review via a

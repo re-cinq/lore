@@ -11,8 +11,8 @@ import { evaluateAndMerge, type AutoMergeDecision } from "./auto-merge.js";
 export async function tryAutoMergeForCompletedTask(opts: {
   taskId: string;
 }): Promise<AutoMergeDecision | null> {
-  // Resolve dark-factory settings before GitHub API round-trip.
-  const settings = await resolveEnabledDarkFactorySettings(opts.taskId);
+  // Resolve settings before the GitHub API round-trip.
+  const settings = await resolveAutoMergeSettings(opts.taskId);
 
   if (!settings) {
     return null;
@@ -32,8 +32,8 @@ export async function tryAutoMergeForCompletedTask(opts: {
   });
 }
 
-/** Resolves the task's target repo and its dark-factory settings, or null when the task has no repo or dark-factory is off. */
-async function resolveEnabledDarkFactorySettings(
+/** Resolves the task's target repo and its dark-factory settings, or null when the task has no repo or auto-merge is off for it. */
+async function resolveAutoMergeSettings(
   taskId: string,
 ): Promise<ResolvedDarkFactorySettings | null> {
   const task = await taskStore().getById(taskId);
@@ -49,5 +49,5 @@ async function resolveEnabledDarkFactorySettings(
   >[0];
   const settings = resolveDarkFactorySettings(darkFactoryRaw);
 
-  return settings.enabled ? settings : null;
+  return settings.auto_merge.enabled ? settings : null;
 }

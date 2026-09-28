@@ -23,6 +23,8 @@ const PARTIALS: Array<DarkFactorySettings | null | undefined> = [
     { enabled, auto_merge: { paths: ["docs/**"] } },
     { enabled, auto_merge: { min_trust: "full", require_green_ci: false } },
     { enabled, auto_merge: { require_bot_approval: false } },
+    { enabled, auto_merge: { enabled: true, escalate_paths: ["infra/**"] } },
+    { enabled, auto_merge: { enabled: false } },
     {
       enabled,
       create_issue: "never",

@@ -50,7 +50,7 @@ describe("DarkFactoryView", () => {
           'textarea[name="df_am_paths"]',
         ) as HTMLTextAreaElement
       ).value,
-    ).toContain("CLAUDE.md");
+    ).not.toContain("CLAUDE.md");
   });
 
   it("prefills the execution image from raw settings, with the default as placeholder", () => {
@@ -81,5 +81,31 @@ describe("DarkFactoryView", () => {
     expect(
       container.querySelector('input[name="approval_pr"]'),
     ).toHaveAttribute("placeholder", "re-cinq/lore#123");
+  });
+
+  it("prefills auto-merge off and an empty escalate list for a repo without dark mode", () => {
+    const { container } = renderView();
+
+    expect([
+      container.querySelector('select[name="df_am_enabled"]'),
+      container.querySelector('textarea[name="df_am_escalate_paths"]'),
+    ]).toEqual([
+      expect.objectContaining({ value: "no" }),
+      expect.objectContaining({ value: "" }),
+    ]);
+  });
+
+  it("prefills auto-merge on and escalate paths infra/** and Dockerfile one per line", () => {
+    const { container } = renderView(undefined, {
+      auto_merge: { enabled: true, escalate_paths: ["infra/**", "Dockerfile"] },
+    });
+
+    expect([
+      container.querySelector('select[name="df_am_enabled"]'),
+      container.querySelector('textarea[name="df_am_escalate_paths"]'),
+    ]).toEqual([
+      expect.objectContaining({ value: "yes" }),
+      expect.objectContaining({ value: "infra/**\nDockerfile" }),
+    ]);
   });
 });

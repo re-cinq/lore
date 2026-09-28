@@ -6,7 +6,9 @@ import {
 } from "./auto-merge.js";
 
 const DEFAULT_AUTO_MERGE: DarkFactoryAutoMerge = {
-  paths: ["specs/**", "adrs/**", "*.md", "CLAUDE.md", ".claude/**"],
+  enabled: true,
+  paths: ["specs/**", "adrs/**", "*.md"],
+  escalate_paths: [],
   min_trust: "docs",
   require_green_ci: true,
   require_bot_approval: true,
@@ -16,7 +18,6 @@ function inputs(
   overrides: Partial<AutoMergePolicyInputs> = {},
 ): AutoMergePolicyInputs {
   return {
-    darkFactoryEnabled: true,
     autoMerge: DEFAULT_AUTO_MERGE,
     trustLevel: "docs",
     changedPaths: ["specs/foo.md"],
@@ -38,10 +39,12 @@ describe("evaluateAutoMerge — happy path", () => {
 });
 
 describe("evaluateAutoMerge — deferral reasons (priority)", () => {
-  it("deferred:dark_mode_off when not enabled (overrides everything)", () => {
+  it("deferred:auto_merge_off when auto-merge is off (overrides everything)", () => {
     expect(
-      evaluateAutoMerge(inputs({ darkFactoryEnabled: false })).outcome,
-    ).toBe("deferred:dark_mode_off");
+      evaluateAutoMerge(
+        inputs({ autoMerge: { ...DEFAULT_AUTO_MERGE, enabled: false } }),
+      ).outcome,
+    ).toBe("deferred:auto_merge_off");
   });
 
   it("deferred:no_changes for an empty PR before path-allowlist check", () => {
@@ -146,5 +149,64 @@ describe("evaluateAutoMerge — rule trace", () => {
     const d = evaluateAutoMerge(inputs({ botApproved: false }));
 
     expect(d.rule.bot_review_state).toBe("CHANGES_REQUESTED");
+  });
+});
+
+describe("evaluateAutoMerge — escalate paths", () => {
+  const ESCALATING: DarkFactoryAutoMerge = {
+    ...DEFAULT_AUTO_MERGE,
+    paths: ["apps/**"],
+    escalate_paths: ["apps/api/src/server.ts"],
+  };
+
+  it("defers apps/api/src/server.ts as a sensitive path although apps/** admits it", () => {
+    const d = evaluateAutoMerge(
+      inputs({
+        autoMerge: ESCALATING,
+        changedPaths: ["apps/api/src/server.ts", "apps/web/src/App.tsx"],
+      }),
+    );
+
+    expect(d).toMatchObject({
+      outcome: "deferred:sensitive_path",
+      rule: { escalated_paths: ["apps/api/src/server.ts"] },
+    });
+  });
+
+  it("defers CLAUDE.md as a sensitive path when the repo lists no escalate paths", () => {
+    expect(
+      evaluateAutoMerge(inputs({ changedPaths: ["CLAUDE.md"] })),
+    ).toMatchObject({
+      outcome: "deferred:sensitive_path",
+      rule: { escalated_paths: ["CLAUDE.md"] },
+    });
+  });
+
+  it("defers a red-CI PR touching an escalate path as sensitive_path, not ci_failed", () => {
+    expect(
+      evaluateAutoMerge(
+        inputs({
+          autoMerge: ESCALATING,
+          changedPaths: ["apps/api/src/server.ts"],
+          ciSucceeded: false,
+        }),
+      ).outcome,
+    ).toBe("deferred:sensitive_path");
+  });
+
+  it("defers as review_in_flight while a review is open, ahead of sensitive_path", () => {
+    expect(
+      evaluateAutoMerge(
+        inputs({
+          autoMerge: ESCALATING,
+          changedPaths: ["apps/api/src/server.ts"],
+          reviewInFlight: true,
+        }),
+      ).outcome,
+    ).toBe("deferred:review_in_flight");
+  });
+
+  it("records an empty escalated_paths list on a merge", () => {
+    expect(evaluateAutoMerge(inputs()).rule.escalated_paths).toEqual([]);
   });
 });

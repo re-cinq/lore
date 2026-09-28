@@ -21,7 +21,9 @@ import type { DarkFactorySettings } from "@re-cinq/lore-shared";
 const TrustLevelEnum = z.enum(["docs", "tests", "implementation", "full"]);
 
 const AutoMergeSchema = z.object({
+  enabled: z.boolean().optional(),
   paths: z.array(z.string()).max(32).optional(),
+  escalate_paths: z.array(z.string()).max(32).optional(),
   min_trust: TrustLevelEnum.optional(),
   require_green_ci: z.boolean().optional(),
   require_bot_approval: z.boolean().optional(),
@@ -84,25 +86,27 @@ export function twoKeyFieldsTouched(
   return touched;
 }
 
+type AutoMergePatch = NonNullable<DarkFactorySettings["auto_merge"]>;
+
+/** Which auto-merge fields need the two-key ceremony, and in which direction: switching auto-merge ON, any list change, and turning a safety requirement OFF. Turning auto-merge off is free, so it can always be switched off quickly. */
+const TWO_KEY_AUTO_MERGE: Array<
+  [keyof AutoMergePatch, (value: unknown) => boolean]
+> = [
+  ["enabled", (value) => value === true],
+  ["paths", (value) => value !== undefined],
+  ["escalate_paths", (value) => value !== undefined],
+  ["require_green_ci", (value) => value === false],
+  ["require_bot_approval", (value) => value === false],
+];
+
 function autoMergeFieldsTouched(
   autoMerge: DarkFactorySettings["auto_merge"],
 ): string[] {
-  const { paths, require_green_ci, require_bot_approval } = autoMerge ?? {};
-  const touched: string[] = [];
+  const given: AutoMergePatch = autoMerge ?? {};
 
-  if (paths !== undefined) {
-    touched.push("auto_merge.paths");
-  }
-
-  if (require_green_ci === false) {
-    touched.push("auto_merge.require_green_ci");
-  }
-
-  if (require_bot_approval === false) {
-    touched.push("auto_merge.require_bot_approval");
-  }
-
-  return touched;
+  return TWO_KEY_AUTO_MERGE.filter(([field, gated]) => gated(given[field])).map(
+    ([field]) => `auto_merge.${field}`,
+  );
 }
 
 function taskOverrideImageFieldsTouched(

@@ -28,3 +28,13 @@ export function allPathsMatch(
 export function matchingPatterns(path: string, allowlist: string[]): string[] {
   return allowlist.filter((p) => minimatch(path, p, MATCH_OPTIONS));
 }
+
+/** The changed paths that match at least one glob; the escalate check's answer and the list the PR comment names. */
+export function pathsMatching(
+  changedPaths: string[],
+  globs: string[],
+): string[] {
+  return changedPaths.filter(
+    (path) => matchingPatterns(path, globs).length > 0,
+  );
+}

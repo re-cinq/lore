@@ -126,6 +126,7 @@ export {
   resolveDarkFactorySettings,
   resolveExecutionImage,
   trustMeets,
+  AGENT_INSTRUCTION_PATHS,
   DEFAULT_AUTO_MERGE_PATHS,
   DEFAULT_EXECUTION_IMAGE,
   type DarkFactorySettings,
@@ -228,7 +229,11 @@ export { TEST_COMMAND_SETUP_PROMPT } from "./lib/test-command-setup-prompt.js";
 export { LORE_TESTS_INSTRUCTION } from "./lib/lore-tests-instruction.js";
 
 // Pure-domain helpers relocated from agent/src/lib (Slice 2).
-export { allPathsMatch, matchingPatterns } from "./lib/path-match.js";
+export {
+  allPathsMatch,
+  matchingPatterns,
+  pathsMatching,
+} from "./lib/path-match.js";
 export {
   classifyError,
   errorMessage,

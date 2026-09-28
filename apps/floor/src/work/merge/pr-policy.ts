@@ -1,5 +1,6 @@
 // PR-state → AutoMergePolicyInputs lookup, staying Floor-side (never in a pod) because merge authority is Floor-side by decision (ADR-016); its sole caller is auto-merge-trigger.ts.
 import type { ResolvedDarkFactorySettings } from "@re-cinq/lore-shared";
+import type { AutoMergePolicyInputs } from "./auto-merge.js";
 import type { PullRequests } from "@re-cinq/lore-shared/project/pulls/pull-requests.js";
 import type { TaskPrInfo } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
 import type { CheckRun } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
@@ -27,21 +28,7 @@ export interface PrPolicyDeps {
 export interface PrForAutoMerge {
   repo: string;
   prNumber: number;
-  policy: {
-    darkFactoryEnabled: boolean;
-    autoMerge: {
-      paths: string[];
-      min_trust: "docs" | "tests" | "implementation" | "full";
-      require_green_ci: boolean;
-      require_bot_approval: boolean;
-    };
-    trustLevel: "docs" | "tests" | "implementation" | "full" | undefined;
-    changedPaths: string[];
-    ciSucceeded: boolean;
-    botApproved: boolean;
-    humanChangesRequested: boolean;
-    reviewInFlight: boolean;
-  };
+  policy: AutoMergePolicyInputs;
 }
 
 const defaultPullsFor = (repo: string): Promise<PullRequests> =>
@@ -248,14 +235,6 @@ function defaultPrPolicyDeps(): PrPolicyDeps {
 /** What policy ASKS of the PR, as opposed to what is observed about it. */
 function configuredPolicy(
   darkFactorySettings: ResolvedDarkFactorySettings,
-): Pick<PrForAutoMerge["policy"], "darkFactoryEnabled" | "autoMerge"> {
-  return {
-    darkFactoryEnabled: darkFactorySettings.enabled,
-    autoMerge: {
-      paths: darkFactorySettings.auto_merge.paths,
-      min_trust: darkFactorySettings.auto_merge.min_trust,
-      require_green_ci: darkFactorySettings.auto_merge.require_green_ci,
-      require_bot_approval: darkFactorySettings.auto_merge.require_bot_approval,
-    },
-  };
+): Pick<AutoMergePolicyInputs, "autoMerge"> {
+  return { autoMerge: darkFactorySettings.auto_merge };
 }

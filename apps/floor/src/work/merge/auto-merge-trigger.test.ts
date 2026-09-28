@@ -86,7 +86,6 @@ describe("tryAutoMergeForCompletedTask", () => {
     seedTask("owner/repo", { dark_factory: { enabled: true } });
 
     const policy = {
-      darkFactoryEnabled: true,
       autoMerge: {
         paths: ["specs/**"],
         min_trust: "docs" as const,
@@ -146,7 +145,6 @@ describe("tryAutoMergeForCompletedTask", () => {
       repo: "owner/repo",
       prNumber: 7,
       policy: {
-        darkFactoryEnabled: true,
         autoMerge: {
           paths: [],
           min_trust: "docs" as const,
@@ -165,5 +163,27 @@ describe("tryAutoMergeForCompletedTask", () => {
     await expect(
       tryAutoMergeForCompletedTask({ taskId: "t1" }),
     ).rejects.toThrow("merge api 502");
+  });
+
+  it("evaluates a repo with auto_merge.enabled true and dark mode off", async () => {
+    seedTask("owner/repo", { dark_factory: { auto_merge: { enabled: true } } });
+    resolvePrForTaskFromDbMock.mockResolvedValueOnce(null);
+    await tryAutoMergeForCompletedTask({ taskId: "t1" });
+    expect(resolvePrForTaskFromDbMock).toHaveBeenCalledWith(
+      "t1",
+      expect.objectContaining({
+        auto_merge: expect.objectContaining({ enabled: true }),
+      }),
+    );
+  });
+
+  it("returns null in dark mode when auto_merge.enabled is false", async () => {
+    seedTask("owner/repo", {
+      dark_factory: { enabled: true, auto_merge: { enabled: false } },
+    });
+
+    const result = await tryAutoMergeForCompletedTask({ taskId: "t1" });
+
+    expect([result, resolvePrForTaskFromDbMock.mock.calls]).toEqual([null, []]);
   });
 });
