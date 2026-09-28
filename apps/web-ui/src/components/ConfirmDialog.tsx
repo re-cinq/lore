@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import PendingActionButton from "./PendingActionButton";
 import styles from "./ConfirmDialog.module.scss";
 
 /** What a confirmation asks, and how loudly its confirm button says it. */
@@ -15,9 +16,10 @@ export interface ConfirmQuestion {
 
 interface ConfirmDialogProps {
   question: ConfirmQuestion;
-  pending: boolean;
-  onConfirm: () => void;
+  onConfirm: () => Promise<void>;
   onCancel: () => void;
+  /** An outside pending signal (e.g. a router.refresh() still settling) OR'd with the confirm button's own click. */
+  pending?: boolean;
 }
 
 /** A modal that asks before an action that cannot be taken back. Mounted only while asking, so the caller owns whether it is open; Escape cancels. */
@@ -77,19 +79,19 @@ function DialogActions(props: DialogActionsProps) {
 
 function ConfirmButton({
   question,
-  pending,
   confirmable,
   onConfirm,
+  pending,
 }: DialogActionsProps) {
   return (
-    <button
-      type="button"
-      className={toneClass(question.tone)}
-      disabled={pending || !confirmable}
-      onClick={onConfirm}
-    >
-      {question.confirmLabel}
-    </button>
+    <PendingActionButton
+      action={onConfirm}
+      text={question.confirmLabel}
+      pendingText={question.confirmLabel}
+      pending={pending}
+      disabled={!confirmable}
+      className={toneClass(question.tone) ?? ""}
+    />
   );
 }
 

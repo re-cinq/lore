@@ -2,6 +2,7 @@
 
 import { KNOWN_MODELS } from "@/lib/agents-mirror";
 import { type AgentFormState, type PodResources } from "@/lib/agents-form";
+import { SubmitButton } from "@/components/SubmitButton";
 import styles from "./agents.module.css";
 import { scopeNote } from "./agent-form-values";
 
@@ -144,7 +145,9 @@ export function FormActions({
 }): React.ReactElement {
   return (
     <div className={styles.formActions}>
-      <button type="submit">{isNew ? "Create agent" : "Save agent"}</button>
+      <SubmitButton pendingLabel={isNew ? "Creating…" : "Saving…"}>
+        {isNew ? "Create agent" : "Save agent"}
+      </SubmitButton>
       {state.twoKey && (
         <span className={styles.error}>image change needs an approval PR</span>
       )}

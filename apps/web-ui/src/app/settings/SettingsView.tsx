@@ -1,4 +1,5 @@
 import ThemeSwitcher from "@/components/ThemeSwitcher";
+import { SubmitButton } from "@/components/SubmitButton";
 import ApprovalGatesForm from "./ApprovalGatesForm";
 import SlackPeopleForm from "./SlackPeopleForm";
 import GithubConnectSection, {
@@ -113,7 +114,7 @@ function PlatformConfigForm(props: PlatformConfigFormProps) {
         <PlatformFields apiUrl={apiUrl} ingestToken={ingestToken} />
 
         <div className={styles.actions}>
-          <button type="submit">Save</button>
+          <SubmitButton pendingLabel="Saving…">Save</SubmitButton>
         </div>
       </form>
 
@@ -173,9 +174,12 @@ function RegenerateTokenForm({
 }: Pick<SettingsViewProps, "regenerateToken">) {
   return (
     <form action={regenerateToken} className={styles.regenerateForm}>
-      <button type="submit" className={`danger ${styles.regenerateButton}`}>
+      <SubmitButton
+        className={`danger ${styles.regenerateButton}`}
+        pendingLabel="Regenerating…"
+      >
         Regenerate Token
-      </button>
+      </SubmitButton>
       <span className={`meta ${styles.regenerateNote}`}>
         Warning: invalidates all existing tokens. You&apos;ll need to update all
         repos and developer installs.

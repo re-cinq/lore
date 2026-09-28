@@ -7,6 +7,7 @@ import { isTerminalRunStatus } from "@/lib/run-stream-presenter";
 import ConfirmDialog, {
   type ConfirmQuestion,
 } from "@/components/ConfirmDialog";
+import PendingActionButton from "@/components/PendingActionButton";
 
 /** Whether the run is still open ("live"): the confirmation then says a wait is closed, and otherwise that the run reopens. */
 export type RunState = "live" | "ended";
@@ -32,7 +33,7 @@ export function RunStationButton(props: RunStationButtonProps) {
         <ConfirmDialog
           question={question(props)}
           pending={start.pending}
-          onConfirm={() => void start.confirm()}
+          onConfirm={start.confirm}
           onCancel={() => start.setAsking(false)}
         />
       )}
@@ -56,20 +57,16 @@ function useStationStart(props: RunStationButtonProps) {
   return { asking, setAsking, pending, error, confirm };
 }
 
-// The button sits inside a clickable row; without both, asking would also select the node behind it.
 function AskButton({ pending, ask }: { pending: boolean; ask: () => void }) {
   return (
-    <button
-      type="button"
-      disabled={pending}
-      onClick={(event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        ask();
-      }}
-    >
-      {pending ? "Starting…" : "Run this station"}
-    </button>
+    <PendingActionButton
+      action={async () => ask()}
+      text="Run this station"
+      pendingText="Starting…"
+      pending={pending}
+      guardRow
+      className=""
+    />
   );
 }
 

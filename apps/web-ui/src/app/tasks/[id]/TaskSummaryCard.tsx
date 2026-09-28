@@ -177,21 +177,20 @@ function TaskActions({ task }: { task: TaskDetailTask }) {
   );
 }
 
-function RunNowAction({
-  taskId,
-  status,
-  priority,
-}: {
+interface RunNowActionProps {
   taskId: string;
   status: string;
   priority: string;
-}) {
+}
+
+function RunNowAction({ taskId, status, priority }: RunNowActionProps) {
   if (status !== "pending" || (priority || "normal") !== "normal") {
     return null;
   }
 
   return (
     <form action={`/api/tasks/${taskId}/run-now`} method="POST">
+      {/* eslint-disable-next-line no-restricted-syntax -- native full-page POST, no client JS state to show; the browser's own navigation is the pending affordance */}
       <button type="submit" className={styles.runNowBtn}>
         Run Now
       </button>

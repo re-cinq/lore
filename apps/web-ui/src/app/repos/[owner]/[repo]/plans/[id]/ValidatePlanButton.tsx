@@ -1,6 +1,7 @@
 "use client";
 
 import { FormError } from "@/components/FormError";
+import PendingActionButton from "@/components/PendingActionButton";
 import { useRefreshingAction } from "@/components/useRefreshingAction";
 import type { PlanActions } from "./plan-actions";
 
@@ -18,15 +19,15 @@ export default function ValidatePlanButton({
 
   return (
     <>
-      <button
-        type="button"
-        className="btn-secondary"
-        disabled={pending || !!waitingOn}
+      <PendingActionButton
+        action={run}
+        text="Validate the plan"
+        pendingText="Validating…"
+        pending={pending}
+        disabled={!!waitingOn}
         title={waitingOn}
-        onClick={run}
-      >
-        Validate the plan
-      </button>
+        className="btn-secondary"
+      />
       <FormError message={error} />
     </>
   );

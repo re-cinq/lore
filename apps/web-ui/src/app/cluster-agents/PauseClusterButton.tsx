@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import PendingActionButton from "@/components/PendingActionButton";
 
 export interface PauseClusterButtonProps {
   paused: boolean;
@@ -8,20 +8,17 @@ export interface PauseClusterButtonProps {
   toggle: (next: { paused: boolean }) => Promise<void>;
 }
 
-/** Cluster pause switch: client useTransition with bound server action (FR9). */
+/** Cluster pause switch: bound server action, awaited end-to-end by the button (FR9). */
 export default function PauseClusterButton({
   paused,
   toggle,
 }: PauseClusterButtonProps) {
-  const [pending, startTransition] = useTransition();
-
   return (
-    <button
-      className="button"
-      disabled={pending}
-      onClick={() => startTransition(() => toggle({ paused: !paused }))}
-    >
-      {paused ? "Resume" : "Pause"}
-    </button>
+    <PendingActionButton
+      action={() => toggle({ paused: !paused })}
+      text={paused ? "Resume" : "Pause"}
+      pendingText={paused ? "Resuming…" : "Pausing…"}
+      className=""
+    />
   );
 }

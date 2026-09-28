@@ -2,7 +2,7 @@
 
 // "Retry from this node" (specs/fork-rerun-from-node): posts via fetch (a native form POST navigated the whole page into a bare JSON screen) and navigates to the new run on success; `*Button.tsx` name keeps this exempt from no-io-in-view.
 import { useState } from "react";
-import { settleStart } from "./settle-start";
+import PendingActionButton from "@/components/PendingActionButton";
 
 interface RerunNodeButtonProps {
   runId: string;
@@ -11,61 +11,43 @@ interface RerunNodeButtonProps {
 }
 
 export function RerunNodeButton(props: RerunNodeButtonProps) {
-  const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function rerun(event: React.MouseEvent<HTMLButtonElement>) {
-    // The button sits inside a clickable row; without both, retrying would also select the node behind it.
-    event.preventDefault();
-    event.stopPropagation();
-    setPending(true);
-    setError(null);
-    settleStart(await startRerun(props), setError, setPending);
-  }
-
   return (
-    <RerunControl
-      pending={pending}
-      error={error}
-      onClick={(event) => void rerun(event)}
-    />
+    <>
+      {error ? <span className="meta">{error}</span> : null}
+      <PendingActionButton
+        action={() => rerun(props, setError)}
+        text="Retry from this node"
+        pendingText="Starting retry…"
+        guardRow
+        className=""
+      />
+    </>
   );
 }
 
-/** Starts the rerun and navigates to the new run, or returns the message to show. Nothing is returned on success because the page is already leaving. */
-async function startRerun(
+/** Starts the rerun and navigates to the new run, or shows the message inline. On success the promise is left unsettled — the page is already leaving, so the button must not flip back to its ready label first. */
+async function rerun(
   target: RerunNodeButtonProps,
-): Promise<string | null> {
+  setError: (error: string | null) => void,
+): Promise<void> {
+  setError(null);
+
   try {
     const res = await postRerun(target);
     const body = (await res.json()) as { id?: string; error?: string };
 
     if (!res.ok || !body.id) {
-      return body.error ?? `retry failed (${res.status})`;
+      setError(body.error ?? `retry failed (${res.status})`);
+
+      return;
     }
     window.location.assign(`/assembly-runs/${body.id}`);
-
-    return null;
+    await new Promise<void>(() => {});
   } catch (err) {
-    return err instanceof Error ? err.message : String(err);
+    setError(err instanceof Error ? err.message : String(err));
   }
-}
-
-interface RerunControlProps {
-  pending: boolean;
-  error: string | null;
-  onClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
-}
-
-function RerunControl({ pending, error, onClick }: RerunControlProps) {
-  return (
-    <>
-      {error ? <span className="meta">{error}</span> : null}
-      <button type="button" onClick={onClick} disabled={pending}>
-        {pending ? "Starting retry…" : "Retry from this node"}
-      </button>
-    </>
-  );
 }
 
 function postRerun(target: RerunNodeButtonProps): Promise<Response> {
