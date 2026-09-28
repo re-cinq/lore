@@ -69,9 +69,16 @@ then keep improving it in place while budget remains.
 - "updates" — an EXISTING spec this feature changes. Name the file by its real
   path, and in "statements" quote or identify the specific statements that
   must change, so the writing step edits a known place instead of rewriting a
-  document. "guidance" says what the change must convey.
+  document. "guidance" says what the change must convey, and names which of
+  the plan's Constraints, KPIs and Open questions land in this file — the
+  writing step works from your answer, not from a re-read of the plan, so a
+  plan item no entry claims is a plan item that gets dropped.
 - "creates" — a spec that does not exist yet. Propose the path the standard
-  implies, and give an "outline" of its headings. Create a new spec only when
+  implies, and give an "outline" of its headings. The outline must include the
+  mechanism sections the standard demands — trigger wiring, data model, the
+  line graph with its failure edges, gating, the state/label taxonomy, success
+  criteria (`SC-nnn`, from the plan's KPIs) and Open Questions — so the
+  writing step cannot skip them. Create a new spec only when
   the feature genuinely has no home; extending the spec that already owns the
   area is almost always right, and a repo full of thin overlapping specs is
   worse than a few thorough ones.
