@@ -85,3 +85,6 @@ Cloudflare implemented a "software factory" pipeline for Astro that reduced open
 
 > **Question:** Should the handoff to the `implementation-loop` be fully automatic, or require human approval?
 > **Choices:** Human-gated | Automatic
+
+> **Question:** Should the triage line automatically decompose large issues into smaller tasks?
+> **Choices:** Split automatically via decompose node | Keep intact
