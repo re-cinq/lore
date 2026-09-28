@@ -53,7 +53,9 @@ function usePendingClick({
       event.stopPropagation();
     }
     setClickPending(true);
-    void action().finally(() => setClickPending(false));
+    void action()
+      .catch(() => {})
+      .finally(() => setClickPending(false));
   }
 
   return { pending: clickPending || (externalPending ?? false), onClick };

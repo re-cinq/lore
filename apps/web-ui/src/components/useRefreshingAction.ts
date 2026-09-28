@@ -18,8 +18,11 @@ export function useRefreshingAction(
   function run(): Promise<void> {
     return new Promise((resolve) => {
       startTransition(async () => {
-        await settle(action, onSettled, setError, router);
-        resolve();
+        try {
+          await settle(action, onSettled, setError, router);
+        } finally {
+          resolve();
+        }
       });
     });
   }
