@@ -18,6 +18,13 @@ Turn an approved plan into committable specifications. The plan was written
 and approved by its people; do not re-open it. It is in
 `$WORKSPACE_DIR/plan.md` (`../plan.md` from your working directory).
 
+TWO DIFFERENT FILES ARE CALLED plan.md — never confuse them:
+
+- `../plan.md`, OUTSIDE the clone, is the APPROVED PLANNING DOCUMENT — your
+  input, never edited. This prompt calls it "the approved plan".
+- `specs/<slug>/plan.md`, INSIDE the clone, is the implementation-plan
+  ARTIFACT you write. This prompt calls it "the plan artifact".
+
 {description}
 
 ## What the analysis decided
@@ -50,11 +57,50 @@ lists as left alone is out of bounds.
   Danish user-facing sentence goes where this repository reviews such
   sentences.
 
-Write the specs it calls for. Read `.lore/spec-standard.md` in the clone
-FIRST when the repository has one — it is the authority on how a spec here is
-written, and everything you write must fit it; without one, follow the
-conventions of the specs that already exist and the metadata-table format. Do
-not implement code.
+Write the specs it calls for. Do not implement code.
+
+## Write from the templates (spec-kit)
+
+This repository writes specifications the spec-kit way: an agent fills
+committed templates; there is no `specify` CLI to run in this pod and you
+never install one. Read, in this order, from the clone — these are plain
+files you read by path, whatever vendor you are:
+
+1. `.lore/spec-standard.md` — the authority on how a spec here is written.
+2. `.specify/memory/constitution.md` — the project principles the plan
+   artifact's Constitution Check answers to.
+3. `.specify/templates/spec-template.md`, `.specify/templates/plan-template.md`,
+   `.specify/templates/tasks-template.md` — the templates you fill.
+
+When a repository has none of these, follow the conventions of the specs
+that already exist and the metadata-table format.
+
+A feature the change-set CREATES is a DIRECTORY, `specs/<slug>/`, holding
+the full artifact set — fill each template from the approved plan and the
+change-set, section by section:
+
+- `spec.md` — the WHAT: scenarios, testable requirements, measurable
+  success criteria mapped from the approved plan's KPIs, open questions.
+- `plan.md` (the plan artifact) — the HOW: the mechanisms every spec.md
+  requirement names in one line are elaborated here, plus the Constitution
+  Check.
+- `tasks.md` — the WORK: the phased `T00n [P]` checklist decomposition
+  lifts 1:1; its story map points at spec.md's user stories.
+
+Delete a template's unused optional sections and its instruction comments
+rather than leaving placeholders. A file the change-set UPDATES is amended
+in place as always; create missing plan.md/tasks.md siblings only when the
+change-set says so.
+
+`[NEEDS CLARIFICATION: …]` markers are working notes, at most 3, reserved
+for choices that change scope, security or user experience and have no
+reasonable default — a default you chose is recorded under Assumptions
+instead. Before you commit, convert EVERY remaining marker into BOTH a plan
+question in `../spec-review-result.json` (`{"slot": "<verbatim slot from
+the approved plan's <!-- slot:… --> markers>", "question": "...", "why":
+"..."}` — no `comment_id` on a first pass, there is no comment yet) AND an
+Open Questions bullet naming the real alternatives. A committed file
+contains ZERO `[NEEDS CLARIFICATION` strings.
 
 ## Lint rules CI will enforce (you cannot run the linter here)
 
@@ -77,14 +123,16 @@ satisfy by hand:
 
 Your spec is the input to issue decomposition: a detail you leave unsorted
 becomes a vague issue. Every design question answerable from the plan and this
-repository is answered IN the spec — each requirement names its concrete
-mechanism (the event or webhook, the handler, the table, the YAML node, the
-setting) as found in the repo; failure paths and edges are spelled out; a
-state or label taxonomy is reconciled with every metric that consumes it. What
-genuinely cannot be decided from plan + repository goes to Open Questions with
-the choices named — never left as an abstract "the system MUST".
+repository is answered IN the artifact set — each spec.md requirement names
+its concrete mechanism (the event or webhook, the handler, the table, the
+YAML node, the setting) as found in the repo in ONE line, and the plan
+artifact's Mechanisms section elaborates it; failure paths and edges are
+spelled out; a state or label taxonomy is reconciled with every metric that
+consumes it. What genuinely cannot be decided from plan + repository goes to
+Open Questions with the choices named — never left as an abstract "the
+system MUST".
 
-Before you commit, check the specs you touched:
+Before you commit, check the artifacts you touched:
 
 - every plan KPI became an `SC-nnn` outcome or is named as deliberately
   dropped, with the reason;
@@ -93,6 +141,12 @@ Before you commit, check the specs you touched:
 - no requirement exists that neither the plan nor the change-set calls for;
 - no statement is duplicated within or across the touched specs;
 - no requirement is left without a named mechanism or an Open Question;
+- zero `[NEEDS CLARIFICATION` strings remain in any committed file — each
+  resolved marker is either answered from plan+repo, a recorded Assumption,
+  or a plan question plus an Open Questions bullet;
+- every tasks.md task has a unique sequential T-id, a real file path as
+  inline code, and its `[P]`/`(depends on …)` marks; no markdown link points
+  at a file that does not exist;
 - every file ends with a newline.
 
 ## When the spec review sent this back
@@ -100,7 +154,10 @@ Before you commit, check the specs you touched:
 When the plan's spec PR is under review, this pass runs again with the review
 appended at the end of this prompt under "The spec review said": every open
 inline comment and every review body, each with an id. The specs are on THIS
-branch already; amend them, do not rewrite them. For each item decide:
+branch already; amend them, do not rewrite them. A comment may target any of
+the three artifacts — spec.md, the plan artifact or tasks.md — and the same
+triage applies to each; "what the plan settled" always means the APPROVED
+PLAN, never the plan artifact. For each item decide:
 
 - It stays inside what the plan settled: amend the spec accordingly and
   record `{"comment_id": <id>, "action": "addressed", "note": "<what you changed>"}`.
@@ -111,7 +168,8 @@ branch already; amend them, do not rewrite them. For each item decide:
   The `comment_id` is what keeps the question one question: a later pass
   that rewords it replaces it in the plan instead of asking twice.
   The slot is copied VERBATIM from the section's `<!-- slot:… -->` marker in
-  plan.md (`intent`, `scope`, `constraints`, `custom-section_<uuid>`, …) —
+  the approved plan, `../plan.md` (`intent`, `scope`, `constraints`,
+  `custom-section_<uuid>`, …) —
   a section title or a slug of your own names no section, and the question
   is moved to the plan's Open questions section instead of where it belongs.
   Every `to_plan` reply MUST have a `plan_questions` entry with the same

@@ -59,15 +59,40 @@ A spec written from a plan carries the whole plan and nothing beyond it:
 - No requirement appears that neither the plan nor the analysis change-set
   calls for.
 
+## The three-artifact feature directory (spec-kit)
+
+A feature written by the planning line lives in `specs/<slug>/` as the
+spec-kit artifact set, filled from the authoritative templates at
+`.specify/templates/` (spec-template.md, plan-template.md,
+tasks-template.md; header comments record the upstream spec-kit release they
+adapt):
+
+- **spec.md** — the WHAT: user scenarios, testable statements, `SC-nnn`
+  success criteria, open questions. The lint rules above govern this file.
+- **plan.md** — the HOW: the Mechanisms sections, Constitution Check against
+  `.specify/memory/constitution.md`, failure edges, project structure. The
+  statement-link and status rules do NOT govern it, but
+  `re-lint/no-dead-md-links` does: only link files that exist; code file
+  paths are inline code, never links.
+- **tasks.md** — the WORK: the phased `- [ ] T00n [P]` checklist with real
+  file paths and `(depends on T00n)` marks; decomposition lifts it 1:1 into
+  issues instead of re-deriving a breakdown.
+
+Spec-kit's `[NEEDS CLARIFICATION: …]` markers are working notes only — at
+most 3, for choices with no reasonable default; each is converted to a plan
+question plus an Open Questions bullet before commit, and zero survive in a
+committed file.
+
 ## Detail before decomposition
 
-The spec is the input to issue decomposition: a detail left unsorted here
-becomes a vague issue. Every design question answerable from the plan and the
-codebase is answered IN the spec — trigger wiring (which event or webhook,
-which handler), the data model (tables, subject/overlap keys, new settings and
-their defaults), the assembly line graph with its failure edges and iteration
-caps, node types (agent vs detect vs service vs label-webhook choreography),
-gating (trust-ladder level, per-repo opt-in setting), and the exact state or
-label taxonomy reconciled with the metrics that consume it. A requirement that
-cannot name its mechanism is either given one or moved to Open Questions —
-never left abstract.
+The artifact set is the input to issue decomposition: a detail left unsorted
+here becomes a vague issue. Every design question answerable from the plan
+and the codebase is answered IN the artifacts — trigger wiring (which event
+or webhook, which handler), the data model (tables, subject/overlap keys, new
+settings and their defaults), the assembly line graph with its failure edges
+and iteration caps, node types (agent vs detect vs service vs label-webhook
+choreography), gating (trust-ladder level, per-repo opt-in setting), and the
+exact state or label taxonomy reconciled with the metrics that consume it.
+Every spec.md requirement names its mechanism in one line; the elaboration
+lives in the feature's plan.md. A requirement that cannot name its mechanism
+is either given one or moved to Open Questions — never left abstract.

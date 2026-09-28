@@ -59,7 +59,8 @@ then keep improving it in place while budget remains.
   ],
   "creates": [
     { "path": string, "title": string, "reason": string,
-      "outline": [string], "guidance": string }
+      "outline": [string], "guidance": string,
+      "artifacts": ["spec", "plan", "tasks"] }
   ],
   "adrs": [ { "path": string, "decision": string, "why_now": string } ],
   "considered": [ { "path": string, "why_not": string } ],
@@ -73,17 +74,21 @@ then keep improving it in place while budget remains.
   the plan's Constraints, KPIs and Open questions land in this file — the
   writing step works from your routing, so a
   plan item no entry claims is a plan item that gets dropped.
-- "creates" — a spec that does not exist yet. Propose the path the standard
-  implies, and give an "outline" of its headings. Name in "guidance" which of
-  the plan's Constraints, KPIs and Open questions land in this file, exactly as
-  an "updates" entry would. The outline must include the
-  mechanism sections the standard demands — trigger wiring, data model, the
-  line graph with its failure edges, gating, the state/label taxonomy, success
-  criteria (`SC-nnn`, from the plan's KPIs) and Open Questions — so the
-  writing step cannot skip them. Create a new spec only when
-  the feature genuinely has no home; extending the spec that already owns the
-  area is almost always right, and a repo full of thin overlapping specs is
-  worse than a few thorough ones.
+- "creates" — a feature that has no spec yet. Propose a DIRECTORY,
+  `specs/<slug>/`, as "path": the writing step fills the repository's
+  templates (`.specify/templates/`) into the artifact set there — spec.md,
+  plan.md, tasks.md. "artifacts" names which of the three this feature
+  needs; leave it out for a new feature, which gets all three. Give an
+  "outline" of spec.md's headings, and name in "guidance" which of the
+  plan's Constraints, KPIs and Open questions land in this feature, exactly
+  as an "updates" entry would — the mechanism detail (trigger wiring, data
+  model, line graph with failure edges, gating, state/label taxonomy) lands
+  in the feature's plan.md, the success criteria (`SC-nnn`, from the plan's
+  KPIs) and Open Questions in its spec.md, so say which is which when it is
+  not obvious. Create a new feature dir only when the feature genuinely has
+  no home; extending the spec that already owns the area is almost always
+  right, and a repo full of thin overlapping specs is worse than a few
+  thorough ones.
 - "adrs" — include an entry ONLY when the plan settles an architectural
   DECISION with a trade-off worth recording (a new dependency, a protocol, a
   boundary moved). A feature that merely uses the existing architecture needs
