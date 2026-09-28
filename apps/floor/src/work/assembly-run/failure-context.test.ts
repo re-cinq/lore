@@ -64,7 +64,7 @@ function deps(overrides: Partial<FailureContextDeps> = {}): FailureContextDeps {
 }
 
 describe("failureContext", () => {
-  it("takes the last failed visit as the failing node", async () => {
+  it("takes the visit the run ended on as the failing node when it failed", async () => {
     const context = await failureContext(
       lineRow(),
       deps({
@@ -81,6 +81,21 @@ describe("failureContext", () => {
       failureClass: null,
       failureDetail: "lint failed",
     });
+  });
+
+  it("names no failing node when an earlier failure was routed onward and the run ended on a later visit", async () => {
+    const context = await failureContext(
+      lineRow(),
+      deps({
+        stationRuns: async () => [
+          visit("validate", "failed", { failureDetail: "lint failed" }),
+          visit("implement", "success"),
+          visit("review", "changes_requested"),
+        ],
+      }),
+    );
+
+    expect(context.failedNode).toBeNull();
   });
 
   it("returns no failing node when no visit failed", async () => {
@@ -116,10 +131,34 @@ describe("failureContext", () => {
   it("falls back to the task's creator when the run has no actor", async () => {
     const context = await failureContext(
       lineRow(),
-      deps({ taskById: async () => task({ created_by: "octo-fixture" }) }),
+      deps({
+        taskById: async () => task({ created_by: "octo-fixture" }),
+        slackNameOf: async () => "Ada Fixture",
+      }),
     );
 
-    expect(context.owner).toBe("octo-fixture");
+    expect(context.owner).toBe("Ada Fixture");
+  });
+
+  it("shows no owner for a task creator Slack does not know, such as the github-webhook system label", async () => {
+    const context = await failureContext(
+      lineRow(),
+      deps({ taskById: async () => task({ created_by: "github-webhook" }) }),
+    );
+
+    expect(context.owner).toBeNull();
+  });
+
+  it("reads the Slack creator behind retry prefixes", async () => {
+    const context = await failureContext(
+      lineRow(),
+      deps({
+        taskById: async () =>
+          task({ created_by: "retry:retry:slack:ada.fixture" }),
+      }),
+    );
+
+    expect(context.owner).toBe("ada.fixture");
   });
 
   it("uses the Slack user name a Slack-created task recorded", async () => {

@@ -254,6 +254,30 @@ describe("failureNotice, classified", () => {
     expect(notice.message.match(/The pod died/g)).toHaveLength(1);
     expect(notice.message).toContain("Reason: DeadlineExceeded");
   });
+
+  it("escapes Slack's control characters in the reason", () => {
+    const notice = failureNotice(
+      lineRow(),
+      "error",
+      "tsc: Promise<string> & Array<number> mismatch",
+    );
+
+    expect(notice.message).toContain(
+      "Reason: tsc: Promise&lt;string&gt; &amp; Array&lt;number&gt; mismatch",
+    );
+  });
+
+  it("puts a multi-line reason in a code block so command output keeps its lines", () => {
+    const notice = failureNotice(
+      lineRow(),
+      "error",
+      "lint failed\nsrc/a.ts:3 no-unused-vars\nsrc/b.ts:9 complexity",
+    );
+
+    expect(notice.message).toContain(
+      "Reason:\n```\nlint failed\nsrc/a.ts:3 no-unused-vars\nsrc/b.ts:9 complexity\n```",
+    );
+  });
 });
 
 interface Recorded {

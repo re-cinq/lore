@@ -131,12 +131,24 @@ function slackFailureMessage(
   const lines = [
     `Lore ${row.blueprintName} run failed on ${row.repo} (${outcome}): ${failureLabel(cause.category)}${at}`,
     `Hint: ${cause.hint}`,
-    words ? `Reason: ${words}` : null,
+    words ? reasonLine(words) : null,
     context.owner ? `Owner: ${context.owner}` : null,
     failureLinks(row, uiUrl, context).join(" · "),
   ];
 
   return lines.filter((line) => line !== null).join("\n");
+}
+
+/** Slack reads `&`, `<` and `>` as markup, and command output only reads right with its line breaks. */
+function reasonLine(words: string): string {
+  const escaped = words
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+
+  return escaped.includes("\n")
+    ? `Reason:\n\`\`\`\n${escaped}\n\`\`\``
+    : `Reason: ${escaped}`;
 }
 
 function failureLinks(

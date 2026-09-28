@@ -49,50 +49,50 @@ export async function failureContext(
   };
 }
 
+/** Only the visit the run ended on: lines route `failed` onward as normal flow, so an earlier failure may have been recovered from. */
 function lastFailedVisit(visits: StationRunRecord[]): FailedNode | null {
-  const failed = visits.findLast((visit) => visit.outcome === "failed");
+  const last = visits.at(-1);
 
-  if (!failed) {
+  if (last?.outcome !== "failed") {
     return null;
   }
 
-  const { nodeId, failureClass, failureDetail } = failed;
+  const { nodeId, failureClass, failureDetail } = last;
 
   return { nodeId, failureClass, failureDetail };
 }
 
 const SLACK_CREATOR = "slack:";
+const RETRY_PREFIXES = /^(?:retry:)+/;
 
-/** The run's actor (the PR author or commenter), else whoever created its task; a Slack-created task already carries a Slack name. */
+/** The run's actor is always a GitHub user (the PR author or commenter), so an unknown one keeps its login; else the task's creator. */
 async function ownerName(
   row: AssemblyRunRecord,
   task: PipelineTask | null,
   deps: FailureContextDeps,
 ): Promise<string | null> {
-  const login = ownerLogin(row, task);
-
-  if (!login) {
-    return null;
-  }
-
-  if (login.startsWith(SLACK_CREATOR)) {
-    return login.slice(SLACK_CREATOR.length);
-  }
-
-  return (await deps.slackNameOf(row.repo, login)) ?? login;
-}
-
-function ownerLogin(
-  row: AssemblyRunRecord,
-  task: PipelineTask | null,
-): string | null {
   const { actor } = row.args;
 
   if (typeof actor === "string" && actor) {
-    return actor;
+    return (await deps.slackNameOf(row.repo, actor)) ?? actor;
   }
 
-  return task?.created_by || null;
+  return task ? creatorName(row.repo, task.created_by, deps) : null;
+}
+
+/** A creator is often a system label (`github-webhook`, `review-loop`), so only one Slack knows is shown; a Slack-created task already carries the Slack name. */
+async function creatorName(
+  repo: string,
+  createdBy: string,
+  deps: FailureContextDeps,
+): Promise<string | null> {
+  const creator = createdBy.replace(RETRY_PREFIXES, "");
+
+  if (creator.startsWith(SLACK_CREATOR)) {
+    return creator.slice(SLACK_CREATOR.length);
+  }
+
+  return creator ? deps.slackNameOf(repo, creator) : null;
 }
 
 export async function resolveFailureContext(
