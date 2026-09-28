@@ -85,7 +85,7 @@ async function serveSlackCommand(
 }
 
 /** Slack's own request check: the shared secret must be configured, the request signed, and recent enough that a replayed one is refused. Returns the refusal, or null when the request is genuine. */
-function authenticateSlack(
+export function authenticateSlack(
   request: Request,
   body: string,
   h: ResponseToolkit,

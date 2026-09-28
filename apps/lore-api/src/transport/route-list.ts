@@ -58,6 +58,7 @@ import { embeddingsRoute } from "./routes/ingest/embeddings.js";
 import { reembedRoute } from "./routes/ingest/reembed.js";
 import { onboardRoute } from "./routes/repos/onboard.js";
 import { slackWebhookRoute } from "./routes/webhooks/webhook-slack.js";
+import { slackEventsRoute } from "./routes/webhooks/webhook-slack-events.js";
 import { incidentWebhookRoute } from "./routes/webhooks/webhook-incident.js";
 import {
   webhookStatusRoute,
@@ -231,6 +232,7 @@ function ingestRoutes(getPool: PoolGetter): ServerRoute[] {
 function webhookRoutes(getPool: PoolGetter): ServerRoute[] {
   return [
     slackWebhookRoute(getPool),
+    slackEventsRoute(),
     incidentWebhookRoute(getPool),
     webhookStatusRoute(),
     webhookEnsureRoute(),

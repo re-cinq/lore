@@ -8303,6 +8303,37 @@
         },
         "description": "Request body is verified and parsed by the handler (HMAC/form-encoded), not JSON."
       }
+    },
+    "/api/webhook/slack-events": {
+      "post": {
+        "operationId": "post_api_webhook_slack-events",
+        "summary": "POST /api/webhook/slack-events",
+        "tags": ["Webhooks"],
+        "security": [],
+        "x-rate-limit-bucket": "webhook",
+        "responses": {
+          "200": {
+            "description": "Empty acknowledgement, or the url_verification challenge echoed back",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlackEventAck"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "description": "Request body is verified and parsed by the handler (HMAC/form-encoded), not JSON."
+      }
     }
   },
   "components": {
@@ -14670,6 +14701,9 @@
           }
         },
         "additionalProperties": false
+      },
+      "SlackEventAck": {
+        "type": "string"
       },
       "SpecList": {
         "type": "object",
