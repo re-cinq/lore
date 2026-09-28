@@ -23,7 +23,13 @@ oauth_config:
       # The daily digest names people by their Slack profile (specs/daily-digest FR12).
       - users:read
       - users:read.email
+      # reaction_added events: a trash-can reaction on a Lore message deletes it.
+      - reactions:read
 settings:
+  event_subscriptions:
+    request_url: https://YOUR_LORE_API_URL/api/webhook/slack-events
+    bot_events:
+      - reaction_added
   org_deploy_enabled: false
   socket_mode_enabled: false
   token_rotation_enabled: false
