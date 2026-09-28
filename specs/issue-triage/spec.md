@@ -113,6 +113,4 @@ After successful diagnosis and verification, the bot waits for human approval be
 
 ## Open Questions
 
-- **How should we isolate untrusted reproduction repositories?** — Choices: Dedicated Agent Pod, Firecracker VM. The plan states "Dedicated Agent Pod" as the answer.
-- **Should the handoff to the `implementation-loop` be fully automatic, or require human approval?** — Choices: Human-gated, Automatic. The plan states "Human-gated" as the answer.
-- **Should the triage line automatically decompose large issues into smaller tasks?** — Choices: Split automatically (via decompose node), leave as one issue. The plan states "Split automatically" elsewhere but leaves this question open in the Open questions section.
+- **Should the triage line automatically decompose large issues into smaller tasks?** — Choices: split automatically via the `decompose` node, or leave the issue whole for a maintainer. The approved plan answers "split automatically" in one section while still listing this question as open, so FR6 stands only until its author confirms.

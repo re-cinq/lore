@@ -52,6 +52,13 @@ Edges:
 - `verify` (success) -> `human-gate`
 - `verify` (obsolete) -> `close-obsolete`
 - `verify` (large-issue) -> `decompose`
+- `verify` (not-actionable) -> `done`, applying `triage: not-actionable`
+- `reproduce` (unable-to-reproduce or needs-reproduction) -> `done`, applying the matching label
+- `close-obsolete` (always) -> `done`
+- `decompose` (always) -> `done`
+- `human-gate` (success) -> `done`
+
+The line completes at a terminal `done` node (a `retrospective`, as the other lines end): the run ends once the issue carries its verdict label — closed as obsolete, split, parked for more information, or handed to a maintainer at `human-gate`, whose success is a maintainer applying `lore:implementation`.
 
 Timeout minutes will be set appropriately (e.g., 15 minutes for reproduce, 10 for diagnose/verify).
 Max iterations per node is capped at 3 retries on transient failures.
