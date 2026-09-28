@@ -59,7 +59,7 @@ FR5.1 'using instrumentation and logging' and FR5.2 'cross-reference... against 
 
 ## FR8 — Constraints & Compliance Requirements
 
-- **FR8.1** The assembly line MUST use Floor's existing 3-layer event bus (`pipeline.events`) and `github.issues.labeled` webhook ingress per ADR-015 and ADR-044.
+- **FR8.1** The assembly line MUST use the existing 3-layer event bus (`pipeline.events`) and `github.issues.labeled` webhook ingress per ADR-015 and ADR-044.
 - **FR8.2** The line MUST adhere to DB-as-state immutability constraints, recording outcomes in `pipeline.station_runs` per ADR-016.
 - **FR8.3** The assembly line definition MUST comply strictly with the YAML schema validation in `libs/assembly-lines/src/loader.ts`.
 
