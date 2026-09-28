@@ -65,8 +65,9 @@ satisfy by hand:
   `([validated by](…))` links is `Draft` — a brand-new spec is therefore
   ALWAYS `Draft`, even when implementation is planned. Some links →
   `In Progress`; adding an unlinked testable statement to a fully linked spec
-  requires flipping its Status to `In Progress`.
-- Every testable statement carries a `([validated by](path/to/test.ts#Lnn))`
+  requires flipping its Status to `In Progress`. All links → `Shipped`.
+- Every testable statement carries a trailing
+  `([validated by](path/to/test.ts#Lnn))`
   link or lives under a narrative heading (Background / Rationale / Open
   Questions).
 - An intro paragraph must sit before the spec's first `##` heading.

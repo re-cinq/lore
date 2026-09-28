@@ -74,7 +74,9 @@ then keep improving it in place while budget remains.
   writing step works from your routing, so a
   plan item no entry claims is a plan item that gets dropped.
 - "creates" — a spec that does not exist yet. Propose the path the standard
-  implies, and give an "outline" of its headings. The outline must include the
+  implies, and give an "outline" of its headings. Name in "guidance" which of
+  the plan's Constraints, KPIs and Open questions land in this file, exactly as
+  an "updates" entry would. The outline must include the
   mechanism sections the standard demands — trigger wiring, data model, the
   line graph with its failure edges, gating, the state/label taxonomy, success
   criteria (`SC-nnn`, from the plan's KPIs) and Open Questions — so the
