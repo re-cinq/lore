@@ -71,7 +71,7 @@ then keep improving it in place while budget remains.
   must change, so the writing step edits a known place instead of rewriting a
   document. "guidance" says what the change must convey, and names which of
   the plan's Constraints, KPIs and Open questions land in this file — the
-  writing step works from your answer, not from a re-read of the plan, so a
+  writing step works from your routing, so a
   plan item no entry claims is a plan item that gets dropped.
 - "creates" — a spec that does not exist yet. Propose the path the standard
   implies, and give an "outline" of its headings. The outline must include the

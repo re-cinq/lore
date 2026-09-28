@@ -25,12 +25,13 @@ link:
   `Draft`, even when implementation is planned or underway.
 - **Some links → `In Progress`.** Adding an unlinked testable statement to a
   fully linked spec REQUIRES flipping its Status to `In Progress`.
-- **All links → `Shipped`** (or `Implemented`).
+- **All links → `Shipped`**.
 - `Rejected` / `Retired` mark abandoned designs and are exempt.
 
 ## Statements
 
-- Every testable statement either carries a `([validated by](…#Lnn))` link to
+- Every testable statement either carries a trailing `([validated by](…#Lnn))`
+  link — on the statement's own line, at its end — to
   the test that validates it, or lives under a narrative heading (Background /
   Rationale / Problem Statement / Open Questions), which is exempt
   (`re-lint/require-statement-links`).
