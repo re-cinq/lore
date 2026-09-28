@@ -15,7 +15,7 @@ export const TrustLevelSchema = z.enum([
 ]);
 export const ReviewModeSchema = z.enum(["trust_based", "always", "never"]);
 export const CreateIssueModeSchema = z.enum(["never", "on_gate", "always"]);
-export const NotifyChannelSchema = z.enum(["escalation", "watched", "all"]);
+export const NotifyChannelSchema = z.enum(["escalation", "watched", "pr_open", "all"]);
 
 export const DarkFactoryAutoMergeSchema = z.object({
   paths: z.array(z.string()).optional(),

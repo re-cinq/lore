@@ -24,7 +24,11 @@ export function decideNotify(
     return { fire: true, matchedChannels: ["watched"] };
   }
 
-  // pr_open, or watched/completion without the channel: only `all` lets these through
+  if (level === "pr_open" && channels.includes("pr_open")) {
+    return { fire: true, matchedChannels: ["pr_open"] };
+  }
+
+  // A level whose own channel is not listed: only `all` lets it through
   return { fire: false, matchedChannels: [] };
 }
 

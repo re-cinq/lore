@@ -27,8 +27,22 @@ describe("decideNotify", () => {
     });
   });
 
-  it("suppresses pr_open unless all is listed", () => {
+  it("suppresses pr_open when only watched is listed", () => {
     expect(decideNotify("pr_open", { channels: ["watched"] })).toEqual({
+      fire: false,
+      matchedChannels: [],
+    });
+  });
+
+  it("fires pr_open when the pr_open channel is listed without all", () => {
+    expect(decideNotify("pr_open", { channels: ["pr_open"] })).toEqual({
+      fire: true,
+      matchedChannels: ["pr_open"],
+    });
+  });
+
+  it("keeps watched and completion silent when only pr_open is listed", () => {
+    expect(decideNotify("completion", { channels: ["pr_open"] })).toEqual({
       fire: false,
       matchedChannels: [],
     });

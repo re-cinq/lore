@@ -82,4 +82,17 @@ describe("DarkFactoryView", () => {
       container.querySelector('input[name="approval_pr"]'),
     ).toHaveAttribute("placeholder", "re-cinq/lore#123");
   });
+
+  it("offers pr_open as its own notify choice, selected when stored without all", () => {
+    const { container } = renderView(undefined, {
+      enabled: true,
+      notify: ["pr_open"],
+    });
+    const select = container.querySelector(
+      'select[name="df_notify"]',
+    ) as HTMLSelectElement;
+    const selected = [...select.selectedOptions].map((option) => option.value);
+
+    expect(selected).toEqual(["pr_open"]);
+  });
 });

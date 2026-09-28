@@ -3,7 +3,7 @@
 export type TrustLevel = "docs" | "tests" | "implementation" | "full";
 export type ReviewMode = "trust_based" | "always" | "never";
 export type CreateIssueMode = "never" | "on_gate" | "always";
-export type NotifyChannel = "escalation" | "watched" | "all";
+export type NotifyChannel = "escalation" | "watched" | "pr_open" | "all";
 
 export interface DarkFactorySettings {
   enabled?: boolean;

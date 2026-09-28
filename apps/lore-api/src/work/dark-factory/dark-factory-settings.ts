@@ -27,7 +27,7 @@ const AutoMergeSchema = z.object({
   require_bot_approval: z.boolean().optional(),
 });
 
-const NotifyChannel = z.enum(["escalation", "watched", "all"]);
+const NotifyChannel = z.enum(["escalation", "watched", "pr_open", "all"]);
 
 const ExecutionSchema = z.object({
   image: z.string().min(1).max(256).optional(),
