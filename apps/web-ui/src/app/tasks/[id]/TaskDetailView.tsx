@@ -128,10 +128,7 @@ function FeedbackForm({ taskId, submitFeedback }: FeedbackFormProps) {
         placeholder="e.g. Don't use a custom CLI — use the existing MCP tools instead. The approach should be..."
         className={styles.feedbackTextarea}
       />
-      <SubmitButton
-        className={styles.feedbackBtn}
-        pendingLabel="Requesting…"
-      >
+      <SubmitButton className={styles.feedbackBtn} pendingLabel="Requesting…">
         Request Revision
       </SubmitButton>
     </form>

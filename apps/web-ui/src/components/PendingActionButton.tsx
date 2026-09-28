@@ -30,7 +30,11 @@ export default function PendingActionButton(props: PendingActionButtonProps) {
       title={props.title}
       onClick={onClick}
     >
-      <Label pending={pending} text={props.text} pendingText={props.pendingText} />
+      <Label
+        pending={pending}
+        text={props.text}
+        pendingText={props.pendingText}
+      />
     </button>
   );
 }

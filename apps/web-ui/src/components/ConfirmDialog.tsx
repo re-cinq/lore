@@ -75,7 +75,11 @@ function DialogActions(props: DialogActionsProps) {
   );
 }
 
-function ConfirmButton({ question, confirmable, onConfirm }: DialogActionsProps) {
+function ConfirmButton({
+  question,
+  confirmable,
+  onConfirm,
+}: DialogActionsProps) {
   return (
     <PendingActionButton
       action={onConfirm}
