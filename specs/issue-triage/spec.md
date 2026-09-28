@@ -16,14 +16,14 @@ Currently, our `implementation-loop` starts from an issue (via the priority labe
 
 Cloudflare implemented a "software factory" pipeline for Astro that reduced open issues significantly using a four-stage state machine: Reproduce, Diagnose, Verify, and Fix. Our goal is to adopt the triage front-half of this pattern (Reproduce, Diagnose, Verify) as a new Assembly Line in Lore.
 
-## FR1 — Trigger & Batch Backlog Selection
+## FR1 — Trigger & Routing
 
-- **FR1.1** The line MUST trigger on the event bus (`pipeline.events`) from GitHub webhooks (`github.issues.labeled`).
+- **FR1.1** The line MUST trigger on the 3-layer event bus (`pipeline.events`) via the GitHub webhook ingress `POST /api/webhook/github` mapping to `github.issues.labeled` events (ADR-044).
 - **FR1.2** Processing MUST happen in batches, selecting older issues first to maintain the backlog.
 
 ## FR2 — GitHub Label Taxonomy and State Machine
 
-- **FR2.1** `triage: needs-triage`: Initial state when an issue is opened or requires a new triage cycle (trigger).
+- **FR2.1** `triage: needs-triage`: Initial state when an issue is opened or requires a new triage cycle (triggers the webhook).
 - **FR2.2** `triage: needs-reproduction`: More information or a reproduction repository is required from the user.
 - **FR2.3** `triage: reproduced`: The bot successfully reproduced the bug.
 - **FR2.4** `triage: unable-to-reproduce`: The bot could not reproduce the bug with the provided information.
@@ -36,7 +36,8 @@ Cloudflare implemented a "software factory" pipeline for Astro that reduced open
 
 - **FR3.1** The `issue-triage` assembly line MUST be defined in `libs/assembly-lines/src/assembly-lines/issue-triage.yaml` and pass strict YAML schema validation.
 - **FR3.2** The graph MUST include `reproduce`, `diagnose`, `verify`, and `decompose` nodes, routing failure edges and respecting iteration limits.
-- **FR3.3** The outcome of each triage node MUST be recorded immutably in `pipeline.station_runs` (ADR-016).
+- **FR3.3** The outcome of each triage node MUST be recorded immutably in the `pipeline.station_runs` table as per ADR-016.
+- **FR3.4** Failure edges for `unable-to-reproduce`, `not-actionable`, and `failed` MUST route to a terminal `retrospective` node.
 
 ## FR4 — Untrusted Reproduction Sandboxing (Dedicated Agent Pod)
 
@@ -50,23 +51,17 @@ Cloudflare implemented a "software factory" pipeline for Astro that reduced open
 
 ## FR6 — Obsolete Issue Detection & Automated Closing
 
-- **FR6.1** The line MUST detect issues that are already implemented or obsolete and automatically close them.
+- **FR6.1** The line MUST detect issues that are already implemented or obsolete and automatically close them via GitHub API in the node outcome handler.
 
 ## FR7 — Large Issue Decomposition
 
 - **FR7.1** When a large issue is detected, the `decompose` node MUST automatically split it into smaller, reviewable sub-tasks.
 
-## FR8 — Human-Gated Handoff to Implementation Loop
+## FR8 — Constraints & Compliance Requirements
 
-- **FR8.1** Once an issue is diagnosed, the line MUST halt at a human gate.
-- **FR8.2** Maintainers MUST review the diagnosed issue and manually apply implementation priority labels to trigger the `implementation-loop` (it MUST NOT be fully automatic).
-
-## Constraints & Invariants
-
-- Must use Floor's existing 3-layer event bus (`pipeline.events`) and `github.issues.labeled` webhook ingress (ADR-015 and ADR-044).
-- Must adhere to branch-as-state / DB-as-state immutability constraints, recording outcomes in `pipeline.station_runs` (ADR-016).
-- Must enforce strict sandboxing in Dedicated Agent Pods for executing untrusted reproduction repositories, avoiding execution on the Floor coordinator.
-- Must ensure strict assembly line YAML schema compliance.
+- **FR8.1** The assembly line MUST use Floor's existing 3-layer event bus (`pipeline.events`) and `github.issues.labeled` webhook ingress per ADR-015 and ADR-044.
+- **FR8.2** The line MUST adhere to DB-as-state immutability constraints, recording outcomes in `pipeline.station_runs` per ADR-016.
+- **FR8.3** The assembly line definition MUST comply strictly with the YAML schema validation in `libs/assembly-lines/src/loader.ts`.
 
 ## Success Criteria
 
@@ -81,24 +76,12 @@ Cloudflare implemented a "software factory" pipeline for Astro that reduced open
 - **SC-009 (Time to first triage verdict)**: Decreased time from issue opened to first non-`needs triage` label.
 - **SC-010 (Backlog trend)**: Decreased open issues over time and median issue age.
 - **SC-011 (LLM tokens/cost per issue)**: Minimised LLM tokens/cost per issue.
-- **SC-012 (Docs/tests added from bot failures)**: Increased number of docs, comments, or tests added as a result of bot failures.
-- **SC-013 (Reporter response latency)**: Decreased time spent in `fix pending`.
-- **SC-014 (Bot PR merge rate)**: Increased bot PR merge rate.
-- **SC-015 (Human rework per bot PR)**: Decreased amount of human rework per bot PR.
+- **SC-012**: The fix-related metrics (`Reporter response latency` for `fix pending`, `Bot PR merge rate`, `Human rework per bot PR`, and `Docs/tests added from bot failures`) have been deliberately dropped because they measure fix-side states, which are out of scope for the triage taxonomy and assembly line.
 
 ## Open Questions
 
 > **Question:** How should we isolate untrusted reproduction repositories?
-> **Choices:** Dedicated Agent Pod
+> **Choices:** Dedicated Agent Pod | In-Process
 
 > **Question:** Should the handoff to the `implementation-loop` be fully automatic, or require human approval?
-> **Choices:** Human-gated
-
-> **Question:** How should the triage assembly line process issues?
-> **Choices:** Batches (older first)
-
-> **Question:** How should the triage line handle issues it detects as obsolete or already implemented?
-> **Choices:** Automatically close
-
-> **Question:** When the triage line detects a large issue, should it automatically split it into smaller tasks?
-> **Choices:** Split automatically (via decompose node)
+> **Choices:** Human-gated | Automatic
