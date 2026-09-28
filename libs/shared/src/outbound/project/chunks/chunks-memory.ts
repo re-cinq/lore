@@ -1,4 +1,5 @@
 import { LegacyRelocationStore } from "./chunks-memory-relocate.js";
+import { isTestFile } from "../../../domain/test-paths.js";
 import { enforceSchema, type ChunkRow } from "./chunk-row-memory.js";
 import type {
   ChunksPort,
@@ -218,9 +219,9 @@ export class InMemoryChunks implements ChunksPort {
     }));
   }
 
-  async codeChunksForBackfill(repo: string): Promise<CodeChunkFull[]> {
+  async testChunksForBackfill(repo: string): Promise<CodeChunkFull[]> {
     return this.forRepo(repo)
-      .filter((row) => isSourceRow(row))
+      .filter((row) => isSourceRow(row) && isTestFile(row.filePath))
       .map((row) => ({
         filePath: row.filePath,
         content: row.content,

@@ -5,7 +5,6 @@ import {
   parseEmbedding,
   type TestChunk,
 } from "../../domain/spec-judge.js";
-import { isTestFile } from "../../domain/test-paths.js";
 import { type SpecChunkWithEmbedding } from "../../outbound/project/chunks/chunks-port.js";
 import { type Project } from "../../outbound/project/lib/project.js";
 import { isAssertionSource } from "./spec-drift-rules.js";
@@ -80,10 +79,9 @@ function resolveSpecsToProcess(
 }
 
 async function buildTestChunks(project: Project): Promise<TestChunk[]> {
-  const rows = dropIngestExcluded(await project.chunks.codeChunksForBackfill());
+  const rows = dropIngestExcluded(await project.chunks.testChunksForBackfill());
 
   return rows
-    .filter((r) => isTestFile(r.filePath))
     .map((r) => ({
       file_path: r.filePath,
       content: r.content,
