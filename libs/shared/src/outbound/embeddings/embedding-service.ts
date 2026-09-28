@@ -47,6 +47,48 @@ let cachedProject: string | null = null;
 export async function getQueryEmbedding(
   query: string,
 ): Promise<number[] | null> {
+  const [embedding] = await getQueryEmbeddings([query]);
+
+  return embedding;
+}
+
+/** Vertex's per-request ceilings for text-embedding-005: 250 instances and 20k tokens. Chars stand in for tokens at a conservative 50k (~12.5k tokens), since each text is already capped at 8000 chars. */
+const MAX_BATCH_TEXTS = 250;
+const MAX_BATCH_CHARS = 50_000;
+const MAX_TEXT_CHARS = 8000;
+
+/** Groups texts, in order, into the fewest batches Vertex accepts in one predict call. */
+export function embeddingBatches(texts: string[]): string[][] {
+  const batches: string[][] = [];
+  let batchChars = 0;
+
+  for (const text of texts) {
+    const chars = Math.min(text.length, MAX_TEXT_CHARS);
+    const current = batches.at(-1);
+
+    if (
+      !current ||
+      current.length >= MAX_BATCH_TEXTS ||
+      batchChars + chars > MAX_BATCH_CHARS
+    ) {
+      batches.push([text]);
+      batchChars = chars;
+      continue;
+    }
+    current.push(text);
+    batchChars += chars;
+  }
+
+  return batches;
+}
+
+/** One vector per text, in input order, from as few Vertex calls as the request ceilings allow; a text whose batch failed gets null. A spec with hundreds of statements embedded one call at a time outran its station's 10-minute deadline (re-cinq/Otto, 2026-09-28). */
+export async function getQueryEmbeddings(
+  texts: string[],
+): Promise<Array<number[] | null>> {
+  if (texts.length === 0) {
+    return [];
+  }
   try {
     const token = await resolveAccessToken();
     const project = token ? await resolveProjectOrWarn() : "";
@@ -54,15 +96,20 @@ export async function getQueryEmbedding(
     if (!token || !project) {
       recordEmbeddingOutcome({ ok: false, status: null });
 
-      return null;
+      return texts.map(() => null);
+    }
+    const vectors: Array<number[] | null> = [];
+
+    for (const batch of embeddingBatches(texts)) {
+      vectors.push(...(await fetchVertexEmbeddings(project, token, batch)));
     }
 
-    return await fetchVertexEmbedding(project, token, query);
+    return vectors;
   } catch (err) {
     console.error("[embeddings] Vertex AI embedding error:", err);
     recordEmbeddingOutcome({ ok: false, status: null });
 
-    return null;
+    return texts.map(() => null);
   }
 }
 
@@ -137,21 +184,21 @@ export function resetVertexProjectCache(): void {
   cachedProject = null;
 }
 
-async function fetchVertexEmbedding(
+async function fetchVertexEmbeddings(
   project: string,
   token: string,
-  query: string,
-): Promise<number[] | null> {
+  batch: string[],
+): Promise<Array<number[] | null>> {
   const res = await fetch(buildVertexUrl(project, VERTEX_REGION), {
     signal: AbortSignal.timeout(30_000),
-    ...embeddingRequestInit(token, query),
+    ...embeddingRequestInit(token, batch),
   });
 
   if (!res.ok) {
     console.error(`[embeddings] Vertex AI embedding failed: ${res.status}`);
     recordEmbeddingOutcome({ ok: false, status: res.status });
 
-    return null;
+    return batch.map(() => null);
   }
   const values = await readEmbeddingValues(res);
 
@@ -164,7 +211,7 @@ export function buildVertexUrl(project: string, region: string): string {
   return `https://${region}-aiplatform.googleapis.com/v1/projects/${project}/locations/${region}/publishers/google/models/${VERTEX_MODEL}:predict`;
 }
 
-function embeddingRequestInit(token: string, query: string): RequestInit {
+function embeddingRequestInit(token: string, batch: string[]): RequestInit {
   return {
     method: "POST",
     headers: {
@@ -172,7 +219,9 @@ function embeddingRequestInit(token: string, query: string): RequestInit {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      instances: [{ content: query.substring(0, 8000) }],
+      instances: batch.map((text) => ({
+        content: text.substring(0, MAX_TEXT_CHARS),
+      })),
     }),
   };
 }
@@ -190,12 +239,10 @@ export function recordEmbeddingOutcome(outcome: EmbeddingOutcome): void {
       };
 }
 
-async function readEmbeddingValues(res: Response): Promise<number[]> {
+async function readEmbeddingValues(res: Response): Promise<number[][]> {
   const json = (await res.json()) as {
     predictions: Array<{ embeddings: { values: number[] } }>;
   };
 
-  const [prediction] = json.predictions;
-
-  return prediction.embeddings.values;
+  return json.predictions.map((prediction) => prediction.embeddings.values);
 }

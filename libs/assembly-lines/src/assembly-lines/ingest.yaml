@@ -6,7 +6,7 @@ exit: done
 nodes:
   - id: ingest
     type: ingest
-    timeout_minutes: 10
+    timeout_minutes: 30
     description: Runs the docs projection against the pod's clone; kind/glob/force arrive via the line's args.
   - id: done
     type: retrospective

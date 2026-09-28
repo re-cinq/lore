@@ -1,9 +1,10 @@
 ---
 execution_mode: station
 command: [ "lore-station", "ingest" ]
-# Sized for the largest self-chunked slice (41 files with embeddings ~ 7 min);
-# whole-repo passes never reach a pod (the Floor chunks force runs first).
-timeout_minutes: 10
+# Sized for a push that rewrites several 100 KB specs (re-cinq/Otto, 2026-09-28:
+# 5 changed specs took 9.5 min against a 10-minute budget); whole-repo passes
+# never reach a pod (the Floor chunks force runs first).
+timeout_minutes: 30
 env:
   # The ONLY station type with dgraph reach — matched by the label-scoped
   # ingest-station-egress NetworkPolicy (specs/ingest-station FR4). Same
