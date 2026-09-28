@@ -1,6 +1,7 @@
 "use client";
 import type { ResolvedDarkFactorySettings } from "@/lib/dark-factory-resolve";
 import HelpPopover from "@/components/HelpPopover";
+import { SubmitButton } from "@/components/SubmitButton";
 import SettingsFormShell, {
   type SaveAction,
 } from "../../settings/SettingsFormShell";
@@ -33,7 +34,7 @@ export default function DarkFactoryView(props: DarkFactoryViewProps) {
       <ExecutionImageField {...props} />
 
       <ApprovalPrField />
-      <button type="submit">Save Dark Factory</button>
+      <SubmitButton pendingLabel="Saving…">Save Dark Factory</SubmitButton>
     </SettingsFormShell>
   );
 }

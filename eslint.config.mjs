@@ -275,6 +275,76 @@ export default tseslint.config(
     },
   },
 
+  // web-ui only: an action button's pending state is PendingActionButton's job
+  // (action/text/pendingText, or ConfirmedActionButton for a confirm-first
+  // flow), not a bespoke useTransition next to a `disabled={pending}` button.
+  // Every hand-rolled instance this rule would have caught was migrated onto
+  // one of those two in the same branch that introduced it (RunStationButton,
+  // RerunNodeButton, PauseClusterButton, ImplementationLoopView's LoopHeader,
+  // OnboardingBanner's OnboardButton, RestartClusterButton, RemoveOverride
+  // Button), so this starts at error with no queue left open.
+  // `useTransition` itself is fine — `useRefreshingAction.ts` is its one
+  // legitimate holder, exempted below because it IS ConfirmedActionButton's
+  // shared implementation. A file with a real non-button reason to reach for
+  // it (e.g. SearchForm's router.push transition, FixIngestButton's 3-state
+  // label that outgrows PendingActionButton's pending/ready shape) carries its
+  // own inline eslint-disable naming why, same as every other rule above.
+  {
+    files: ["apps/web-ui/src/**/*.{ts,tsx}"],
+    ignores: ["apps/web-ui/src/components/useRefreshingAction.ts"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "CallExpression[callee.name='useTransition']",
+          message:
+            "Don't hand-roll useTransition for a pending/disabled button — use PendingActionButton (action/text/pendingText) or ConfirmedActionButton (confirm-first) from @/components instead. If this truly isn't an action button, add an inline eslint-disable naming why.",
+        },
+      ],
+    },
+  },
+
+  // web-ui only: a `<button type="submit">` with no `disabled` at all gives a
+  // double-click nothing to stop it and the person no sign the request is in
+  // flight — one form (RegenerateTokenForm) is even destructive. `SubmitButton`
+  // (components/SubmitButton.tsx, useFormStatus-backed) is the fix; its own
+  // `<button type="submit" disabled={busy || disabled}>` always carries
+  // `disabled`, so it never matches this selector itself. A button that
+  // already wires its own `disabled` (SearchForm's transition-backed submit,
+  // ConfirmDialog's, PendingActionButton's) is unaffected — this only flags
+  // the *absence* of any pending wiring, not the mechanism. Two kinds of
+  // native full-page submit (no client JS state to show either way, browser
+  // navigation carries its own pending affordance) are exempted by path
+  // below rather than by inline disable, since the same reason applies to
+  // every button in each file: a plain `method="get"` filter/search form
+  // (AuditView, EpisodesView, SearchView), and a plain `action="/api/..."`
+  // POST that reloads the whole page on completion (TriggerReviewButton,
+  // CancelTaskButton, TaskSummaryCard's RunNowAction). `*`, not the literal
+  // `[id]`/`[owner]`/`[repo]` segments: minimatch reads a bracketed segment
+  // as a character class, so the literal form would silently match nothing.
+  {
+    files: ["apps/web-ui/src/**/*.{ts,tsx}"],
+    ignores: [
+      "apps/web-ui/src/app/assembly-runs/*/TriggerReviewButton.tsx",
+      "apps/web-ui/src/app/tasks/*/CancelTaskButton.tsx",
+      "apps/web-ui/src/app/tasks/*/TaskSummaryCard.tsx",
+      "apps/web-ui/src/app/audit/AuditView.tsx",
+      "apps/web-ui/src/app/episodes/EpisodesView.tsx",
+      "apps/web-ui/src/app/search/SearchView.tsx",
+    ],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "JSXOpeningElement[name.name='button']:has(JSXAttribute[name.name='type'] > Literal[value='submit']):not(:has(JSXAttribute[name.name='disabled']))",
+          message:
+            "A submit button needs pending/disabled feedback so a double-click can't double-submit — use <SubmitButton> from @/components/SubmitButton instead of a bare <button type=\"submit\">.",
+        },
+      ],
+    },
+  },
+
   // The Floor reaches infrastructure through the shared port adapters bound
   // in kernel/, never the vendor SDK directly.
   {

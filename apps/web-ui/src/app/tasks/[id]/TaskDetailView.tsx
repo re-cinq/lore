@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SubmitButton } from "@/components/SubmitButton";
 import TaskRefreshProvider from "./TaskRefreshProvider";
 import TaskSummaryCard from "./TaskSummaryCard";
 import FailurePanel from "./FailurePanel";
@@ -127,9 +128,12 @@ function FeedbackForm({ taskId, submitFeedback }: FeedbackFormProps) {
         placeholder="e.g. Don't use a custom CLI — use the existing MCP tools instead. The approach should be..."
         className={styles.feedbackTextarea}
       />
-      <button type="submit" className={styles.feedbackBtn}>
+      <SubmitButton
+        className={styles.feedbackBtn}
+        pendingLabel="Requesting…"
+      >
         Request Revision
-      </button>
+      </SubmitButton>
     </form>
   );
 }

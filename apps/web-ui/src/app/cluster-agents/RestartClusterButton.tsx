@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
+import PendingActionButton from "@/components/PendingActionButton";
 
 export interface RestartClusterButtonProps {
   /** The bound server action — the agent id is applied server-side. */
@@ -11,14 +12,14 @@ export interface RestartClusterButtonProps {
 export default function RestartClusterButton({
   restart,
 }: RestartClusterButtonProps) {
-  const [pending, startTransition] = useTransition();
+  const [pending, setPending] = useState(false);
   const [confirming, setConfirming] = useState(false);
 
   if (confirming) {
     return (
       <ConfirmRow
         pending={pending}
-        onConfirm={() => startTransition(() => restart())}
+        onConfirm={() => confirmedRestart(restart, setPending)}
         onCancel={() => setConfirming(false)}
       />
     );
@@ -31,21 +32,31 @@ export default function RestartClusterButton({
   );
 }
 
-/** The second click. A restart kills whatever the cluster is running mid-process, so it is confirmed rather than fired from one press. */
-function ConfirmRow({
-  pending,
-  onConfirm,
-  onCancel,
-}: {
+async function confirmedRestart(
+  restart: () => Promise<void>,
+  setPending: (pending: boolean) => void,
+): Promise<void> {
+  setPending(true);
+  await restart();
+  setPending(false);
+}
+
+interface ConfirmRowProps {
   pending: boolean;
-  onConfirm: () => void;
+  onConfirm: () => Promise<void>;
   onCancel: () => void;
-}) {
+}
+
+/** The second click. A restart kills whatever the cluster is running mid-process, so it is confirmed rather than fired from one press. Cancel is disabled off the same `pending` the confirm button drives, so it can't be clicked mid-restart. */
+function ConfirmRow({ pending, onConfirm, onCancel }: ConfirmRowProps) {
   return (
     <>
-      <button className="button" disabled={pending} onClick={onConfirm}>
-        Confirm restart
-      </button>{" "}
+      <PendingActionButton
+        action={onConfirm}
+        text="Confirm restart"
+        pendingText="Restarting…"
+        className="button"
+      />{" "}
       <button className="button" disabled={pending} onClick={onCancel}>
         Cancel
       </button>
