@@ -54,6 +54,8 @@ Edges:
 - `verify` (large-issue) -> `decompose`
 - `verify` (not-actionable) -> `done`, applying `triage: not-actionable`
 - `reproduce` (unable-to-reproduce or needs-reproduction) -> `done`, applying the matching label
+- `reproduce` (skipped) -> `done`, applying `triage: skipped` — the reproduction needs an environment the pod cannot provide (hardware, OS, external service), which is what the plan's skip-rate KPI counts
+- `reproduce`, `diagnose`, `verify` (failed, after the 3 retries) -> `done`, applying `triage: failed`
 - `close-obsolete` (always) -> `done`
 - `decompose` (always) -> `done`
 - `human-gate` (success) -> `done`
@@ -65,7 +67,7 @@ Max iterations per node is capped at 3 retries on transient failures.
 
 ### Gating
 
-The handoff to the implementation loop is explicitly human-gated at the `human-gate` node, requiring a maintainer to apply the `lore:implementation` label.
+The handoff to the implementation loop is explicitly human-gated at the `human-gate` node, requiring a maintainer to apply the `lore:implementation` label. Today that label would be refused: the webhook handler's `alreadyWorkingOnIssue` (`apps/floor/src/events/handlers/github.ts`) answers any dispatch on an issue that still has an active task with "Already being worked on", and the triage task parked at `human-gate` is exactly that. So the handler must first report success to a triage line parked at `human-gate` for that issue — ending the triage run and its task — and only then dispatch the implementation task.
 
 ### State/label taxonomy
 

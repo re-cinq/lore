@@ -46,14 +46,15 @@ This checklist delivers the Issue Triage Assembly Line to automate bug reproduct
 **Independent test**: A diagnosed issue stops processing and waits for a human to apply the `lore:implementation` label.
 
 - [ ] T006 [US5] Add the `human-gate` node to `libs/assembly-lines/src/assembly-lines/issue-triage.yaml` to halt execution until manual approval.
+- [ ] T007 [US5] Make `lore:implementation` on an issue whose triage line is parked at `human-gate` report success to that node and end the triage task before `alreadyWorkingOnIssue` runs, in `apps/floor/src/events/handlers/github.ts`, so the handoff dispatches instead of answering "Already being worked on". (depends on T006)
 
 ## Phase 6: User Story 3 & 4 — Obsolete Issues and Decomposition (P2)
 
 **Independent test**: Issues are either closed automatically if obsolete, or split if too large.
 
-- [ ] T007 [P] [US3] Add the `close-obsolete` service station logic in `libs/assembly-lines/src/assembly-lines/issue-triage.yaml`.
-- [ ] T008 [P] [US4] Add the `decompose` agent station logic in `libs/assembly-lines/src/assembly-lines/issue-triage.yaml`.
+- [ ] T008 [P] [US3] Add the `close-obsolete` service station logic in `libs/assembly-lines/src/assembly-lines/issue-triage.yaml`.
+- [ ] T009 [P] [US4] Add the `decompose` agent station logic in `libs/assembly-lines/src/assembly-lines/issue-triage.yaml`.
 
 ## Phase 7: Polish
 
-- [ ] T009 Update `README.md` to document the new `triage:*` label taxonomy and issue triage flow.
+- [ ] T010 Update `README.md` to document the new `triage:*` label taxonomy and issue triage flow.
