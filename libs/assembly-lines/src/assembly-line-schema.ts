@@ -97,17 +97,7 @@ const PRODUCIBLE_OUTCOMES: Record<
   z.infer<typeof NodeType>,
   readonly EdgeConditionValue[]
 > = {
-  agent: [
-    "success",
-    "changes_requested",
-    "failed",
-    "unable-to-reproduce",
-    "needs-reproduction",
-    "skipped",
-    "obsolete",
-    "large-issue",
-    "not-actionable",
-  ],
+  agent: ["success", "changes_requested", "failed"],
   validate: ["success", "failed"],
   retrospective: ["success", "failed"],
   detect: ["success", "failed"],

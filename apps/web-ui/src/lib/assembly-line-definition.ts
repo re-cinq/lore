@@ -17,7 +17,16 @@ export type DefinitionNodeType =
   | "ci_check";
 
 export type DefinitionEdgeCondition =
-  "success" | "changes_requested" | "failed" | "always";
+  | "success"
+  | "changes_requested"
+  | "failed"
+  | "always"
+  | "unable-to-reproduce"
+  | "needs-reproduction"
+  | "skipped"
+  | "obsolete"
+  | "large-issue"
+  | "not-actionable";
 
 // eslint-disable-next-line re-lint/no-row-types-outside-models -- mirrors the assembly-line YAML node, whose keys are snake_case by contract; no table holds this shape
 export interface DefinitionNode {

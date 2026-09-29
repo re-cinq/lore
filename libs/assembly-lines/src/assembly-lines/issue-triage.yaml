@@ -28,8 +28,7 @@ nodes:
     description: Cross-reference the diagnosed behavior against existing specs and documentation.
 
   - id: close-obsolete
-    type: service
-    route: /api/stations/close-obsolete
+    type: issues
     description: Close the issue if verified as obsolete.
 
   - id: decompose
@@ -40,7 +39,7 @@ nodes:
     description: Split large issues into smaller tasks.
 
   - id: human-gate
-    type: human
+    type: feature_review
     route: /issues/triage-gate
     description: A maintainer reviews the diagnosis and applies lore:implementation to proceed.
 
@@ -52,6 +51,9 @@ edges:
   - from: reproduce
     to: diagnose
     on: success
+  - from: reproduce
+    to: done
+    on: changes_requested
   - from: reproduce
     to: done
     on: unable-to-reproduce
@@ -71,12 +73,18 @@ edges:
     on: success
   - from: diagnose
     to: done
+    on: changes_requested
+  - from: diagnose
+    to: done
     on: failed
     iteration_max: 3
 
   - from: verify
     to: human-gate
     on: success
+  - from: verify
+    to: done
+    on: changes_requested
   - from: verify
     to: close-obsolete
     on: obsolete
@@ -101,4 +109,4 @@ edges:
 
   - from: human-gate
     to: done
-    on: success
+    on: always
