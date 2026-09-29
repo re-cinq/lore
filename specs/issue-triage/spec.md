@@ -85,8 +85,8 @@ After successful diagnosis and verification, the bot waits for human approval be
 - **FR6**: The assembly line MUST automatically split large issues into smaller tasks via a decompose node.
 - **FR7**: State transitions MUST be driven by a label taxonomy (`triage: needs-triage`, `triage: needs-reproduction`, `triage: reproduced`, `triage: unable-to-reproduce`, `triage: diagnosed`, `triage: skipped`, `triage: not-actionable`, `triage: failed`) via the `pipeline.events` bus and GitHub webhook ingress.
 - **FR8**: The handoff to the implementation loop MUST be human-gated, requiring manual application of the `lore:implementation` label.
-- **FR9**: Incoming triage tasks MUST be processed in batches, ordering older issues first.
-- **FR10**: The assembly line MUST emit monitoring telemetry events to `pipeline.events` for KPI tracking.
+- **FR9**: Incoming triage tasks MUST be processed in batches, ordering older issues first; how a batch is released is an Open Question below.
+- **FR10**: The success criteria MUST be computable from what the line already records — the `outcome` of each issue-triage row in `pipeline.station_runs` and the `triage:*` labels on the issues — so the line emits no telemetry events of its own.
 
 ## Success Criteria
 
@@ -113,4 +113,5 @@ After successful diagnosis and verification, the bot waits for human approval be
 
 ## Open Questions
 
-- **Should the triage line automatically decompose large issues into smaller tasks?** — Choices: split automatically via the `decompose` node, or leave the issue whole for a maintainer. The approved plan answers "split automatically" in one section while still listing this question as open, so FR6 stands only until its author confirms.
+- **Should the triage line automatically decompose large issues into smaller tasks?** — Choices: split automatically via the `decompose` node, or leave the issue whole for a maintainer.
+- **How is a batch of triage work released (FR9)?** — Choices: a `cron.<job>.tick` fan-out that starts the oldest labelled issues each tick, as the detection lines do (`apps/floor/src/work/detect/fan-out.ts`); or a per-repo cap on concurrent issue-triage tasks in the task queue, claimed oldest issue first.

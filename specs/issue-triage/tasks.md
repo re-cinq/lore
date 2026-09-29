@@ -52,8 +52,8 @@ This checklist delivers the Issue Triage Assembly Line to automate bug reproduct
 
 **Independent test**: Issues are either closed automatically if obsolete, or split if too large.
 
-- [ ] T008 [P] [US3] Add the `close-obsolete` service station logic in `libs/assembly-lines/src/assembly-lines/issue-triage.yaml`.
-- [ ] T009 [P] [US4] Add the `decompose` agent station logic in `libs/assembly-lines/src/assembly-lines/issue-triage.yaml`.
+- [ ] T008 [US3] Add the `close-obsolete` service station logic in `libs/assembly-lines/src/assembly-lines/issue-triage.yaml`.
+- [ ] T009 [US4] Add the `decompose` agent station logic in `libs/assembly-lines/src/assembly-lines/issue-triage.yaml`.
 
 ## Phase 7: Polish
 
