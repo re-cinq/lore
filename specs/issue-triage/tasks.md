@@ -26,7 +26,7 @@ This checklist delivers the Issue Triage Assembly Line to automate bug reproduct
 
 ## Phase 2: Foundational *(blocks all stories)*
 
-- [ ] T002 Update webhook label mapping in `apps/floor/src/events/handlers/github.ts` to route `lore:triage` and `triage: needs-triage` to the `issue-triage` task type.
+- [x] T002 Update webhook label mapping in `apps/floor/src/events/handlers/github.ts` to route `lore:triage` and `triage: needs-triage` to the `issue-triage` task type.
 
 ## Phase 3: User Story 1 — Automated Bug Reproduction in Sandbox (P1, MVP)
 
