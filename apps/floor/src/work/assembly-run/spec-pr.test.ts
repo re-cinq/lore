@@ -130,6 +130,15 @@ describe("decidePrStamp", () => {
   it("does not stamp a line that already carries a PR number", () => {
     expect(decidePrStamp({ ...base, args: { pr_number: 17 } })).toBe(false);
   });
+
+  it("stamps again when the line's recorded PR #2221 was closed without merging, and not while it is live", () => {
+    const recorded = { ...base, args: { pr_number: 2221 } };
+
+    expect({
+      gone: decidePrStamp({ ...recorded, recordedPrGone: true }),
+      live: decidePrStamp({ ...recorded, recordedPrGone: false }),
+    }).toEqual({ gone: true, live: false });
+  });
 });
 
 describe("stampLinePr", () => {
