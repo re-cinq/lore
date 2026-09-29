@@ -4,7 +4,17 @@ import { z } from "zod";
 import type { NodeResult } from "./node-types.js";
 import { FAILURE_CATEGORIES } from "@re-cinq/lore-shared/error-classify.js";
 
-const OUTCOME = z.enum(["success", "changes_requested", "failed"]);
+const OUTCOME = z.enum([
+  "success",
+  "changes_requested",
+  "failed",
+  "unable-to-reproduce",
+  "needs-reproduction",
+  "skipped",
+  "obsolete",
+  "large-issue",
+  "not-actionable",
+]);
 
 // DERIVED from FailureCategory, not copied — a mirror drifts the moment a class is added, and zod drops what it doesn't declare, so drift would erase the new class rather than fail.
 const FAILURE_CLASS = z.enum(FAILURE_CATEGORIES);

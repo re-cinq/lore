@@ -9,6 +9,7 @@ import {
 export const HUMAN_STATION_TYPES = [
   "feature_review",
   "pr_review",
+  "human",
   "ci_check",
 ] as const;
 

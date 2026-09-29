@@ -15,6 +15,7 @@ const NodeType = z.enum([
   // One step of the merge line, parameterised by `job_ref` (like `detect`) rather than split into nine node types.
   "merge_step",
   "escalation_step",
+  "service",
   // Stations worked by a PERSON: dispatch nothing, park the run until `route` reports an outcome over HTTP on the same contract a pod reports over stdout (FR6.40).
   ...HUMAN_STATION_TYPES,
 ]);
@@ -24,6 +25,12 @@ const EdgeCondition = z.enum([
   "changes_requested",
   "failed",
   "always",
+  "unable-to-reproduce",
+  "needs-reproduction",
+  "skipped",
+  "obsolete",
+  "large-issue",
+  "not-actionable",
 ]);
 
 // A field added to NodeSchema/AssemblyLineSchema changes definitionHash by default (denylist in IGNORED_KEYS), refusing stored fork hashes across the change — deliberate; add prose-only fields to IGNORED_KEYS.
@@ -100,6 +107,8 @@ const PRODUCIBLE_OUTCOMES: Record<
   issues: ["success", "changes_requested", "failed"],
   merge_step: ["success", "failed"],
   escalation_step: ["success", "failed"],
+  service: ["success", "failed"],
+  human: ["success", "changes_requested", "failed"],
   // accept / merged, refine, and abandoned — a person can do all three.
   feature_review: ["success", "changes_requested", "failed"],
   pr_review: ["success", "changes_requested", "failed"],
