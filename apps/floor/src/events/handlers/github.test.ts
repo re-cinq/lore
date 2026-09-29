@@ -52,7 +52,7 @@ afterEach(() => {
 });
 
 describe("issuesLabeled", () => {
-  // specs/issue-triage/plan.md#Trigger wiring
+  // specs/issue-triage/spec.md#FR7
   it("dispatches issue-triage task for lore:triage label", async () => {
     await issuesLabeled(
       {
@@ -76,7 +76,7 @@ describe("issuesLabeled", () => {
     );
   });
 
-  // specs/issue-triage/plan.md#Trigger wiring
+  // specs/issue-triage/spec.md#FR7
   it("dispatches issue-triage task for triage: needs-triage label", async () => {
     await issuesLabeled(
       {
