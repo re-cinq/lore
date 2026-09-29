@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { runIssuesStation } from "./issues.js";
 import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
+import {
+  storyMarker,
+  taskMarker,
+} from "@re-cinq/lore-shared/feature-planning/plan-issues.js";
 
 const DECOMPOSITION = JSON.stringify({
   stories: [
@@ -46,7 +50,13 @@ function input(params: Record<string, string> = {}): StationInput {
   };
 }
 
-function fakeProject(labels: string[]) {
+type ExistingIssue = {
+  number: number;
+  state: "open" | "closed";
+  body: string;
+};
+
+function fakeProject(labels: string[], existing: ExistingIssue[] = []) {
   const issues: Array<{ title: string; body: string; labels?: string[] }> = [];
   const tasks: Array<Record<string, unknown>> = [];
   const steps: string[] = [];
@@ -61,6 +71,15 @@ function fakeProject(labels: string[]) {
     project: {
       issues: {
         listLabels: async () => labels,
+        list: async (filter: { state: string; labels: string[] }) =>
+          existing
+            .filter((issue) => issue.state === filter.state)
+            .map((issue) => ({
+              ...issue,
+              repo: "re-cinq/lore",
+              title: `#${issue.number}`,
+              labels: filter.labels,
+            })),
         create: async (title: string, body: string, l?: string[]) => {
           issues.push({ title, body, labels: l });
           n += 1;
@@ -72,15 +91,28 @@ function fakeProject(labels: string[]) {
         addSubIssue: async (parent: number, child: number) => {
           steps.push(`sub #${child} under #${parent}`);
         },
-        updateBody: async (number: number, body: string) => {
-          bodies.set(number, body);
-          steps.push(`body #${number}`);
+        update: async (
+          number: number,
+          edit: { title?: string; body?: string },
+        ) => {
+          bodies.set(number, edit.body ?? "");
+          steps.push(`update #${number}${edit.title ? ` ${edit.title}` : ""}`);
+        },
+        comment: async (number: number) => {
+          steps.push(`comment #${number}`);
+        },
+        close: async (number: number, reason?: string) => {
+          steps.push(`close #${number} ${reason}`);
         },
       },
       tasks: {
-        create: async (t: Record<string, unknown>) => {
-          tasks.push(t);
-          steps.push(`task ${String(t.issueNumber)}`);
+        reconcileSpecTasks: async (input: {
+          tasks: Array<Record<string, unknown>>;
+        }) => {
+          tasks.push(...input.tasks);
+          steps.push(
+            `spec-tasks ${input.tasks.map((t) => String(t.issueNumber)).join(",")}`,
+          );
         },
       },
     } as never,
@@ -104,7 +136,7 @@ async function specSlugFiledFor(specPath: string): Promise<unknown> {
 }
 
 describe("runIssuesStation", () => {
-  it("files one story issue, then per task its own issue linked under the story and a spec-task on it, then lists the task issues in the story", async () => {
+  it("files one story issue, then per task its own issue linked under the story, then lists the task issues in the story and files a spec-task on each", async () => {
     const fake = fakeProject(LABELS);
 
     expect(
@@ -127,11 +159,10 @@ describe("runIssuesStation", () => {
       "issue #101 User story: Live runs",
       "issue #102 T001: Stream node events",
       "sub #102 under #101",
-      "task 102",
       "issue #103 T002: render node events on the graph",
       "sub #103 under #101",
-      "task 103",
-      "body #101",
+      "update #101",
+      "spec-tasks 102,103",
     ]);
   });
 
@@ -277,5 +308,69 @@ describe("runIssuesStation", () => {
     expect(
       (fake.tasks[0].contextBundle as Record<string, unknown>).plan_id,
     ).toBeUndefined();
+  });
+  it("marks story #101 and task issue #102 with plan 3b3a67af, so a rerun finds them", async () => {
+    const fake = fakeProject(LABELS);
+
+    await runIssuesStation(
+      input({ feature_decomposition: DECOMPOSITION, plan_id: "3b3a67af" }),
+      { project: fake.project },
+    );
+
+    expect({
+      story: fake.bodies.get(101)?.includes(storyMarker("3b3a67af")),
+      task: fake.bodies.get(102)?.includes(taskMarker("3b3a67af", "T001")),
+    }).toEqual({ story: true, task: true });
+  });
+
+  it("on a rerun of plan 3b3a67af rewrites story #90 and T001's issue #91, files only T002, and closes T003's issue #92 the new decomposition dropped", async () => {
+    const fake = fakeProject(LABELS, [
+      { number: 90, state: "open", body: storyMarker("3b3a67af") },
+      { number: 91, state: "open", body: taskMarker("3b3a67af", "T001") },
+      { number: 92, state: "open", body: taskMarker("3b3a67af", "T003") },
+    ]);
+
+    const result = await runIssuesStation(
+      input({
+        feature_decomposition: DECOMPOSITION,
+        plan_id: "3b3a67af",
+        plan_title: "Live runs",
+      }),
+      { project: fake.project },
+    );
+
+    expect({ extras: result.extras, steps: fake.steps }).toEqual({
+      extras: {
+        "Lore-Story-Issue": "90",
+        "Lore-Issues": "3",
+        "Lore-Spec-Tasks": "2",
+      },
+      steps: [
+        "update #91 T001: Stream node events",
+        "issue #101 T002: render node events on the graph",
+        "sub #101 under #90",
+        "comment #92",
+        "close #92 not_planned",
+        "update #90 User story: Live runs",
+        "spec-tasks 91,101",
+      ],
+    });
+  });
+
+  it("leaves T001's closed issue #91 as it is and files no spec-task for it, while T002 still names it as a dependency", async () => {
+    const fake = fakeProject(LABELS, [
+      { number: 91, state: "closed", body: taskMarker("3b3a67af", "T001") },
+    ]);
+
+    await runIssuesStation(
+      input({ feature_decomposition: DECOMPOSITION, plan_id: "3b3a67af" }),
+      { project: fake.project },
+    );
+
+    expect({
+      touched91: fake.steps.filter((step) => step.includes("#91")),
+      t002Deps: fake.bodies.get(102)?.includes("**Depends on:** #91"),
+      specTasks: fake.steps.at(-1),
+    }).toEqual({ touched91: [], t002Deps: true, specTasks: "spec-tasks 102" });
   });
 });

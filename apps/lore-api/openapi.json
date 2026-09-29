@@ -5372,11 +5372,11 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "The issue's body was rewritten",
+            "description": "The issue's title and/or body were rewritten",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/IssueBodyUpdated"
+                  "$ref": "#/components/schemas/IssueUpdated"
                 }
               }
             }
@@ -5434,11 +5434,14 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1
+                  },
                   "body": {
                     "type": "string"
                   }
                 },
-                "required": ["body"],
                 "additionalProperties": false
               }
             }
@@ -6775,6 +6778,125 @@
             }
           }
         ]
+      }
+    },
+    "/api/repos/{owner}/{repo}/tasks/spec-tasks": {
+      "put": {
+        "operationId": "put_api_repos_owner_repo_tasks_spec-tasks",
+        "summary": "PUT /api/repos/{owner}/{repo}/tasks/spec-tasks",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "How many spec-tasks were created, reused and cancelled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpecTasksReconciled"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "task",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "planId": {
+                    "type": "string"
+                  },
+                  "groupId": {
+                    "type": "string"
+                  },
+                  "tasks": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "description": {
+                          "type": "string"
+                        },
+                        "taskType": {
+                          "type": "string"
+                        },
+                        "createdBy": {
+                          "type": "string"
+                        },
+                        "contextBundle": {
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {}
+                        },
+                        "taskGroupId": {
+                          "type": "string"
+                        },
+                        "issueNumber": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "issueUrl": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["description", "taskType", "issueNumber"],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": ["tasks"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
       }
     },
     "/api/repos/{owner}/{repo}/trace/{kind}": {
@@ -11492,7 +11614,7 @@
         "required": ["number", "title", "state", "url", "body"],
         "additionalProperties": false
       },
-      "IssueBodyUpdated": {
+      "IssueUpdated": {
         "type": "object",
         "properties": {
           "ok": {
@@ -14880,6 +15002,22 @@
           }
         },
         "required": ["tasks"],
+        "additionalProperties": false
+      },
+      "SpecTasksReconciled": {
+        "type": "object",
+        "properties": {
+          "created": {
+            "type": "number"
+          },
+          "updated": {
+            "type": "number"
+          },
+          "cancelled": {
+            "type": "number"
+          }
+        },
+        "required": ["created", "updated", "cancelled"],
         "additionalProperties": false
       },
       "SpecTasksSynced": {

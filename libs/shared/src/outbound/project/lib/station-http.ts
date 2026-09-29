@@ -4,18 +4,11 @@ import type { FileChange } from "./github-port.js";
 import type { PullDraft } from "../pulls/pull-requests-port.js";
 import { Project } from "./project.js";
 import { ChunksHttp } from "../chunks/chunks-http.js";
-import type { IssueRef, IssueFilter } from "./github-port.js";
+import type { IssueRef, IssueFilter, IssueEdit } from "./github-port.js";
 import type { PullRef } from "../pulls/pull-requests-port.js";
 import type { CiConclusion } from "../pulls/pull-requests-port.js";
 import type { TraceDocument } from "../../../domain/spec-trace/assemble-trace-document.js";
-import type { PipelineTask } from "../../../domain/types.js";
-import { acceptEitherSpelling, type DbRow } from "../../../lib/row.js";
-import { PIPELINE_TASK_COLUMNS } from "../../../domain/models/pipeline-task.js";
-import type {
-  DriftTaskRow,
-  FindOpenLikeInput,
-  CreateTaskInput,
-} from "../tasks/task-store-port.js";
+import { TaskStoreHttp } from "../tasks/task-store-http.js";
 
 /** HTTP-backed Project for detection pods (proxies Lore API; ADR-031 D6/D7). */
 
@@ -40,6 +33,8 @@ function makeHttp(cfg: HttpConfig) {
       httpSend<T>(call, "POST", path, body),
     patch: <T>(path: string, body: unknown): Promise<T> =>
       httpSend<T>(call, "PATCH", path, body),
+    put: <T>(path: string, body: unknown): Promise<T> =>
+      httpSend<T>(call, "PUT", path, body),
   };
 }
 
@@ -66,7 +61,7 @@ function httpGet<T>(
 
 function httpSend<T>(
   call: HttpCall,
-  method: "POST" | "PATCH",
+  method: "POST" | "PATCH" | "PUT",
   path: string,
   body: unknown,
 ): Promise<T> {
@@ -127,6 +122,7 @@ class GitHubHttp {
     return (
       await this.http.get<{ issues: IssueRef[] }>("/issues", {
         state: filter?.state ?? "open",
+        ...(filter?.labels?.length ? { labels: filter.labels.join(",") } : {}),
       })
     ).issues;
   }
@@ -152,12 +148,12 @@ class GitHubHttp {
       child: childNumber,
     });
   }
-  async updateIssueBody(
+  async updateIssue(
     _repo: string,
     number: number,
-    body: string,
+    edit: IssueEdit,
   ): Promise<void> {
-    await this.http.patch(`/issues/${number}`, { body });
+    await this.http.patch(`/issues/${number}`, edit);
   }
   async createBranch(
     _repo: string,
@@ -205,54 +201,6 @@ class TraceHttp {
   constructor(private readonly http: Http) {}
   async document(_repo: string, filePath: string): Promise<TraceDocument> {
     return this.http.get<TraceDocument>("/trace/document", { path: filePath });
-  }
-}
-
-/** TaskStorePort subset: driftTasksForSpec + findOpenLike + create. */
-class TaskStoreHttp {
-  constructor(private readonly http: Http) {}
-  async driftTasksForSpec(
-    _repo: string,
-    taskType: string,
-    specPath: string,
-  ): Promise<DriftTaskRow[]> {
-    return (
-      await this.http.get<{ tasks: DriftTaskRow[] }>("/tasks/drift", {
-        task_type: taskType,
-        spec_path: specPath,
-      })
-    ).tasks;
-  }
-  /** Accept either spelling of pipeline.tasks fields for pod rollout tolerance. */
-  async findOpenLike(input: FindOpenLikeInput): Promise<PipelineTask[]> {
-    const { tasks } = await this.http.get<{ tasks: DbRow[] }>(
-      "/tasks/open-like",
-      {
-        task_type: input.taskType,
-        description_prefix: input.descriptionPrefix,
-        statuses: [...input.statuses].join(","),
-      },
-    );
-
-    return tasks.map(
-      (task) =>
-        acceptEitherSpelling(
-          PIPELINE_TASK_COLUMNS,
-          task,
-        ) as unknown as PipelineTask,
-    );
-  }
-  async create(input: CreateTaskInput): Promise<unknown> {
-    return this.http.post("/tasks", {
-      description: input.description,
-      taskType: input.taskType,
-      createdBy: input.createdBy,
-      contextBundle: input.contextBundle,
-      ...(input.taskGroupId ? { taskGroupId: input.taskGroupId } : {}),
-      ...(input.issueNumber !== undefined
-        ? { issueNumber: input.issueNumber, issueUrl: input.issueUrl }
-        : {}),
-    });
   }
 }
 

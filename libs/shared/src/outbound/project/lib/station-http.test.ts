@@ -55,6 +55,52 @@ describe("createStationProject", () => {
     expect(calls.every(() => true)).toBe(true);
   });
 
+  it("lists closed lore-managed issues with the label filter on the query", async () => {
+    const { fetchImpl } = fakeFetch({
+      "GET /api/repos/o/r/issues?state=closed&labels=lore-managed": {
+        issues: [
+          {
+            repo: "o/r",
+            number: 2262,
+            title: "T002",
+            state: "closed",
+            labels: [],
+          },
+        ],
+      },
+    });
+    const project = createStationProject("o/r", env, fetchImpl);
+
+    expect(
+      (
+        await project.issues.list({ state: "closed", labels: ["lore-managed"] })
+      ).map((issue) => issue.number),
+    ).toEqual([2262]);
+  });
+
+  it("reconciles plan 3b3a67af's spec-tasks with one PUT /tasks/spec-tasks", async () => {
+    const reconciled = { created: 1, updated: 9, cancelled: 0 };
+    const { fetchImpl, calls } = fakeFetch({
+      "PUT /api/repos/o/r/tasks/spec-tasks": reconciled,
+    });
+    const project = createStationProject("o/r", env, fetchImpl);
+    const input = {
+      planId: "3b3a67af",
+      groupId: "g1",
+      tasks: [{ description: "T001", issueNumber: 2261 }],
+    };
+
+    expect({
+      result: await project.tasks.reconcileSpecTasks(input),
+      calls,
+    }).toEqual({
+      result: reconciled,
+      calls: [
+        { method: "PUT", path: "/api/repos/o/r/tasks/spec-tasks", body: input },
+      ],
+    });
+  });
+
   it("files a task via POST /tasks and opens a PR via POST /pulls", async () => {
     const { fetchImpl, calls } = fakeFetch({
       "POST /api/repos/o/r/tasks": { task_id: "new", status: "pending" },
@@ -172,7 +218,7 @@ describe("filing a spec-task over HTTP", () => {
 });
 
 describe("tying task issues to their story issue over HTTP", () => {
-  it("links #2261 under #2260 and rewrites #2260's body", async () => {
+  it("links #2261 under #2260 and rewrites #2260's title and body", async () => {
     const { fetchImpl, calls } = fakeFetch({
       "POST /api/repos/o/r/issues/2260/sub-issues": { ok: true },
       "PATCH /api/repos/o/r/issues/2260": { ok: true },
@@ -180,7 +226,10 @@ describe("tying task issues to their story issue over HTTP", () => {
     const project = createStationProject("o/r", env, fetchImpl);
 
     await project.issues.addSubIssue(2260, 2261);
-    await project.issues.updateBody(2260, "- [ ] #2261 T001");
+    await project.issues.update(2260, {
+      title: "User story: Issue triage",
+      body: "- [ ] #2261 T001",
+    });
 
     expect(calls).toEqual([
       {
@@ -191,7 +240,7 @@ describe("tying task issues to their story issue over HTTP", () => {
       {
         method: "PATCH",
         path: "/api/repos/o/r/issues/2260",
-        body: { body: "- [ ] #2261 T001" },
+        body: { title: "User story: Issue triage", body: "- [ ] #2261 T001" },
       },
     ]);
   });

@@ -99,7 +99,10 @@ export class SpecTaskStore {
 
   async countUnmergedInGroup(groupId: string): Promise<number> {
     return this.tasks.filter(
-      (t) => t.task_group_id === groupId && t.status !== "merged",
+      (t) =>
+        t.task_group_id === groupId &&
+        t.status !== "merged" &&
+        t.status !== "cancelled",
     ).length;
   }
 

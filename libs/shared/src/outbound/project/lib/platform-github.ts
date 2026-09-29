@@ -9,6 +9,7 @@ import type {
   IssueFilter,
   IssueState,
   CloseReason,
+  IssueEdit,
   CheckRunInput,
 } from "./github-port.js";
 import type {
@@ -102,12 +103,12 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     );
   }
 
-  async updateIssueBody(
+  async updateIssue(
     repo: string,
     number: number,
-    body: string,
+    edit: IssueEdit,
   ): Promise<void> {
-    return issueLinks.updateIssueBody(await this.octo(), repo, number, body);
+    return issueLinks.updateIssue(await this.octo(), repo, number, edit);
   }
 
   async listLabels(repo: string): Promise<string[]> {

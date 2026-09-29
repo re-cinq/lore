@@ -16,7 +16,10 @@ import { repoOf, fail } from "./station-helpers.js";
 // How the issues station ties a plan's task issues to its story issue: the station holds no GitHub App creds (ADR-031 D6/D7), so both writes come back through here.
 
 const SubIssueBody = z.object({ child: z.number().int().positive() });
-const IssueBodyUpdate = z.object({ body: z.string() });
+const IssueUpdate = z.object({
+  title: z.string().min(1).optional(),
+  body: z.string().optional(),
+});
 
 export function addSubIssueRoute(): ServerRoute {
   return {
@@ -65,28 +68,28 @@ async function serveAddSubIssue(
   }
 }
 
-export function updateIssueBodyRoute(): ServerRoute {
+export function updateIssueRoute(): ServerRoute {
   return {
     method: "PATCH",
     path: "/api/repos/{owner}/{repo}/issues/{number}",
-    options: issueWriteOptions(IssueBodyUpdate, {
-      name: "IssueBodyUpdated",
-      description: "The issue's body was rewritten",
+    options: issueWriteOptions(IssueUpdate, {
+      name: "IssueUpdated",
+      description: "The issue's title and/or body were rewritten",
     }),
-    handler: (request, h) => serveUpdateIssueBody(request, h),
+    handler: (request, h) => serveUpdateIssue(request, h),
   };
 }
 
-async function serveUpdateIssueBody(
+async function serveUpdateIssue(
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
   try {
     const { number } = request.params as unknown as RepoNumberParams;
-    const { body } = request.payload as z.infer<typeof IssueBodyUpdate>;
+    const edit = request.payload as z.infer<typeof IssueUpdate>;
     const p = await projectFor(repoOf(request.params));
 
-    await p.issues.updateBody(number, body);
+    await p.issues.update(number, edit);
 
     return h.response({ ok: true });
   } catch (err) {

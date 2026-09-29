@@ -5,6 +5,7 @@ import type {
   ResponseToolkit,
   ServerRoute,
 } from "@hapi/hapi";
+import type { IssueFilter } from "@re-cinq/lore-shared/project/lib/github-port.js";
 import { rethrowBoom, apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { z } from "zod";
 import { projectFor } from "../../../outbound/project-boot.js";
@@ -22,10 +23,8 @@ import {
   commitRoute,
   createPullRoute,
 } from "./station-write-routes.js";
-import {
-  addSubIssueRoute,
-  updateIssueBodyRoute,
-} from "./station-issue-links.js";
+import { addSubIssueRoute, updateIssueRoute } from "./station-issue-links.js";
+import { reconcileSpecTasksRoute } from "./station-spec-task-routes.js";
 import { repoOf, fail } from "./station-helpers.js";
 
 export {
@@ -51,7 +50,7 @@ export function stationDataRoutes(): ServerRoute[] {
     listLabelsRoute(),
     createIssueRoute(),
     addSubIssueRoute(),
-    updateIssueBodyRoute(),
+    updateIssueRoute(),
     createBranchRoute(),
     commitRoute(),
     createPullRoute(),
@@ -59,6 +58,7 @@ export function stationDataRoutes(): ServerRoute[] {
     driftTasksRoute(),
     openLikeTasksRoute(),
     createRepoTaskRoute(),
+    reconcileSpecTasksRoute(),
   ];
 }
 
@@ -92,15 +92,25 @@ function listIssuesRoute(): ServerRoute {
     }),
     handler: async (request, h) => {
       try {
-        const state =
-          (request.query.state as "open" | "closed" | undefined) ?? "open";
         const p = await projectFor(repoOf(request.params));
 
-        return h.response({ issues: await p.issues.list({ state }) });
+        return h.response({
+          issues: await p.issues.list(issueFilterOf(request)),
+        });
       } catch (err) {
         return fail(h, err);
       }
     },
+  };
+}
+
+// `labels` is GitHub's comma-separated all-of filter, passed through as a list.
+function issueFilterOf(request: Request): IssueFilter {
+  const { state, labels } = request.query as Record<string, string | undefined>;
+
+  return {
+    state: state === "closed" ? "closed" : "open",
+    ...(labels ? { labels: labels.split(",").filter(Boolean) } : {}),
   };
 }
 

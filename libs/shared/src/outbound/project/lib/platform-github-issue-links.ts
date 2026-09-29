@@ -1,5 +1,6 @@
 import type { Octokit } from "octokit";
 import { split } from "./platform-github-support.js";
+import type { IssueEdit } from "./github-port.js";
 
 /** How PlatformGitHub ties issues together: native sub-issues and body rewrites, which the issues station uses to hang a plan's task issues under its story issue. */
 
@@ -24,14 +25,14 @@ export async function addSubIssue(
   );
 }
 
-export async function updateIssueBody(
+export async function updateIssue(
   ok: Octokit,
   repo: string,
   number: number,
-  body: string,
+  edit: IssueEdit,
 ): Promise<void> {
   const [owner, name] = split(repo);
   const { issues } = ok.rest;
 
-  await issues.update({ owner, repo: name, issue_number: number, body });
+  await issues.update({ owner, repo: name, issue_number: number, ...edit });
 }

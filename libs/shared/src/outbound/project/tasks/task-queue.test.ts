@@ -602,12 +602,12 @@ describe("InMemoryTaskQueue.findReadySpecTasks", () => {
 });
 
 describe("countUnmergedInGroup", () => {
-  it("PgTaskQueue counts group rows whose status is not merged", async () => {
+  it("PgTaskQueue counts group rows neither merged nor cancelled", async () => {
     const { pool, calls } = fakePgPool([{ rows: [{ cnt: "2" }] }]);
 
     expect(await new PgTaskQueue(pool).countUnmergedInGroup("g1")).toBe(2);
     expect(calls[0].text).toContain("task_group_id = $1");
-    expect(calls[0].text).toContain("status <> 'merged'");
+    expect(calls[0].text).toContain("status NOT IN ('merged', 'cancelled')");
     expect(calls[0].params).toEqual(["g1"]);
   });
 
@@ -629,6 +629,15 @@ describe("countUnmergedInGroup", () => {
     seed[1].status = "merged";
     expect(await q.countUnmergedInGroup("g1")).toBe(0);
     expect(await q.countUnmergedInGroup("g2")).toBe(1);
+  });
+
+  it("InMemory leaves out a spec-task a rerun cancelled, so the rest merging completes group g1", async () => {
+    const q = new InMemoryTaskQueue([
+      { id: "a", task_group_id: "g1", status: "merged" },
+      { id: "dropped", task_group_id: "g1", status: "cancelled" },
+    ]);
+
+    expect(await q.countUnmergedInGroup("g1")).toBe(0);
   });
 });
 
