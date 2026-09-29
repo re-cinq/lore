@@ -161,7 +161,7 @@ export interface TaskQueueRepository {
   /** running/queued spec-task counts per group, for the concurrency gate. */
   countRunningSpecTasksByGroup(): Promise<SpecGroupCount[]>;
 
-  /** Count of non-merged tasks in groupId (spec-status-upkeep FR1 group-completion signal); a closed-without-merge sibling keeps it above zero so no flip fires on a partially-abandoned group. */
+  /** Count of tasks in groupId neither merged nor cancelled (spec-status-upkeep FR1 group-completion signal). A closed-without-merge sibling (`failed`) keeps it above zero so no flip fires on a partially-abandoned group; a cancelled one was dropped from the plan by a rerun and is no longer owed. */
   countUnmergedInGroup(groupId: string): Promise<number>;
 
   /** Atomically flips a pending spec-task to running; true iff this caller won. agentId records the claimer (default spec-task-executor). */

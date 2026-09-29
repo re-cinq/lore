@@ -72,7 +72,7 @@ export class PgSpecTaskQueries {
       `SELECT COUNT(*) as cnt
          FROM pipeline.tasks
         WHERE task_group_id = $1
-          AND status <> 'merged'`,
+          AND status NOT IN ('merged', 'cancelled')`,
       [groupId],
     );
 

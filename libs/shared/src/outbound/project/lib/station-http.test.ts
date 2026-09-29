@@ -78,6 +78,29 @@ describe("createStationProject", () => {
     ).toEqual([2262]);
   });
 
+  it("reconciles plan 3b3a67af's spec-tasks with one PUT /tasks/spec-tasks", async () => {
+    const reconciled = { created: 1, updated: 9, cancelled: 0 };
+    const { fetchImpl, calls } = fakeFetch({
+      "PUT /api/repos/o/r/tasks/spec-tasks": reconciled,
+    });
+    const project = createStationProject("o/r", env, fetchImpl);
+    const input = {
+      planId: "3b3a67af",
+      groupId: "g1",
+      tasks: [{ description: "T001", issueNumber: 2261 }],
+    };
+
+    expect({
+      result: await project.tasks.reconcileSpecTasks(input),
+      calls,
+    }).toEqual({
+      result: reconciled,
+      calls: [
+        { method: "PUT", path: "/api/repos/o/r/tasks/spec-tasks", body: input },
+      ],
+    });
+  });
+
   it("files a task via POST /tasks and opens a PR via POST /pulls", async () => {
     const { fetchImpl, calls } = fakeFetch({
       "POST /api/repos/o/r/tasks": { task_id: "new", status: "pending" },
