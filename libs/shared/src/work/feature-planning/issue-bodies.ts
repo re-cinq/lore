@@ -134,9 +134,22 @@ function references(repo: string, refs: readonly string[]): string[] {
 
 // A repository path becomes a link at the default branch; anything else (an ADR id, a URL) stays as written.
 function referenceLink(repo: string, ref: string): string {
-  return /^(specs|adrs)\//.test(ref)
-    ? `[${ref}](${blobBase(repo)}/${ref})`
-    : ref;
+  if (!/^(specs|adrs)\//.test(ref)) {
+    return ref;
+  }
+  const [path, heading] = ref.split("#", 2);
+  const anchor = heading ? `#${headingAnchor(heading)}` : "";
+
+  return `[${ref}](${blobBase(repo)}/${path}${anchor})`;
+}
+
+// Decompose names a section by its heading as written; GitHub's anchor for it is lowercased, stripped of punctuation other than `-` and `_`, with each space a `-`.
+function headingAnchor(heading: string): string {
+  return heading
+    .trim()
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s_-]/gu, "")
+    .replace(/\s/g, "-");
 }
 
 function blobBase(repo: string): string {

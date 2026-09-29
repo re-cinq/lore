@@ -193,6 +193,28 @@ describe("taskIssueBody", () => {
     expect(body).toContain("**Depends on:** #2261, T007\n");
   });
 
+  it("links a spec section named as written to GitHub's anchor for that heading, so the link opens the section", () => {
+    const body = taskIssueBody({
+      repo: REPO,
+      storyNumber: 2257,
+      dependsOn: [],
+      task: {
+        id: "T005",
+        description: "verify",
+        depends_on: [],
+        parallelizable: false,
+        phase: 3,
+        references: [
+          "specs/issue-triage/spec.md#User Story 2 - Root Cause Diagnosis and Spec Verification (Priority: P1)",
+        ],
+      },
+    });
+
+    expect(body).toContain(
+      "- [specs/issue-triage/spec.md#User Story 2 - Root Cause Diagnosis and Spec Verification (Priority: P1)](https://github.com/re-cinq/lore/blob/HEAD/specs/issue-triage/spec.md#user-story-2---root-cause-diagnosis-and-spec-verification-priority-p1)",
+    );
+  });
+
   it("falls back to the task's description when decompose wrote no detail", () => {
     expect(
       taskIssueBody({
