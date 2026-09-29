@@ -32,7 +32,7 @@ This checklist delivers the Issue Triage Assembly Line to automate bug reproduct
 
 **Independent test**: Triggering the triage line on an issue with a valid reproduction repository results in the bot successfully running the reproduction and applying the `triage: reproduced` label.
 
-- [ ] T003 [US1] Define the `reproduce` node in `libs/assembly-lines/src/assembly-lines/issue-triage.yaml` configured for a Dedicated Agent Pod sandbox.
+- [x] T003 [US1] Define the `reproduce` node in `libs/assembly-lines/src/assembly-lines/issue-triage.yaml` configured for a Dedicated Agent Pod sandbox.
 
 ## Phase 4: User Story 2 — Root Cause Diagnosis and Spec Verification (P1)
 

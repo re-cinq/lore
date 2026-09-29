@@ -24,6 +24,12 @@ const EdgeCondition = z.enum([
   "changes_requested",
   "failed",
   "always",
+  "unable-to-reproduce",
+  "needs-reproduction",
+  "skipped",
+  "obsolete",
+  "large-issue",
+  "not-actionable",
 ]);
 
 // A field added to NodeSchema/AssemblyLineSchema changes definitionHash by default (denylist in IGNORED_KEYS), refusing stored fork hashes across the change — deliberate; add prose-only fields to IGNORED_KEYS.
@@ -91,7 +97,17 @@ const PRODUCIBLE_OUTCOMES: Record<
   z.infer<typeof NodeType>,
   readonly EdgeConditionValue[]
 > = {
-  agent: ["success", "changes_requested", "failed"],
+  agent: [
+    "success",
+    "changes_requested",
+    "failed",
+    "unable-to-reproduce",
+    "needs-reproduction",
+    "skipped",
+    "obsolete",
+    "large-issue",
+    "not-actionable",
+  ],
   validate: ["success", "failed"],
   retrospective: ["success", "failed"],
   detect: ["success", "failed"],

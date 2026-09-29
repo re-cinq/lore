@@ -10,6 +10,7 @@ nodes:
     prompt_ref: reproduce
     station_ref: reproduce
     model: claude-sonnet-4-6
+    required_tags: ["sandbox"]
     description: Clone and run the reproduction repository in a secure sandbox.
 
   - id: diagnose
