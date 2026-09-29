@@ -137,10 +137,14 @@ function referenceLink(repo: string, ref: string): string {
   if (!/^(specs|adrs)\//.test(ref)) {
     return ref;
   }
-  const [path, heading] = ref.split("#", 2);
-  const anchor = heading ? `#${headingAnchor(heading)}` : "";
+  // Only the first `#` ends the path: a heading may hold one itself (`C#`).
+  const hash = ref.indexOf("#");
+  const target =
+    hash === -1
+      ? ref
+      : `${ref.slice(0, hash)}#${headingAnchor(ref.slice(hash + 1))}`;
 
-  return `[${ref}](${blobBase(repo)}/${path}${anchor})`;
+  return `[${ref}](${blobBase(repo)}/${target})`;
 }
 
 // Decompose names a section by its heading as written; GitHub's anchor for it is lowercased, stripped of punctuation other than `-` and `_`, with each space a `-`.

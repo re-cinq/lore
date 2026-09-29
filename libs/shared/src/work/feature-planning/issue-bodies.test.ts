@@ -215,6 +215,26 @@ describe("taskIssueBody", () => {
     );
   });
 
+  it("keeps a heading that itself holds a # whole, linking Support for C# repos to #support-for-c-repos", () => {
+    const body = taskIssueBody({
+      repo: REPO,
+      storyNumber: 2257,
+      dependsOn: [],
+      task: {
+        id: "T005",
+        description: "verify",
+        depends_on: [],
+        parallelizable: false,
+        phase: 3,
+        references: ["specs/issue-triage/spec.md#Support for C# repos"],
+      },
+    });
+
+    expect(body).toContain(
+      "(https://github.com/re-cinq/lore/blob/HEAD/specs/issue-triage/spec.md#support-for-c-repos)",
+    );
+  });
+
   it("falls back to the task's description when decompose wrote no detail", () => {
     expect(
       taskIssueBody({
