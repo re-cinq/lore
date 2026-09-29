@@ -4,7 +4,7 @@ import type { FileChange } from "./github-port.js";
 import type { PullDraft } from "../pulls/pull-requests-port.js";
 import { Project } from "./project.js";
 import { ChunksHttp } from "../chunks/chunks-http.js";
-import type { IssueRef, IssueFilter } from "./github-port.js";
+import type { IssueRef, IssueFilter, IssueEdit } from "./github-port.js";
 import type { PullRef } from "../pulls/pull-requests-port.js";
 import type { CiConclusion } from "../pulls/pull-requests-port.js";
 import type { TraceDocument } from "../../../domain/spec-trace/assemble-trace-document.js";
@@ -127,6 +127,7 @@ class GitHubHttp {
     return (
       await this.http.get<{ issues: IssueRef[] }>("/issues", {
         state: filter?.state ?? "open",
+        ...(filter?.labels?.length ? { labels: filter.labels.join(",") } : {}),
       })
     ).issues;
   }
@@ -152,12 +153,12 @@ class GitHubHttp {
       child: childNumber,
     });
   }
-  async updateIssueBody(
+  async updateIssue(
     _repo: string,
     number: number,
-    body: string,
+    edit: IssueEdit,
   ): Promise<void> {
-    await this.http.patch(`/issues/${number}`, { body });
+    await this.http.patch(`/issues/${number}`, edit);
   }
   async createBranch(
     _repo: string,

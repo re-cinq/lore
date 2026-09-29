@@ -5,11 +5,19 @@ const calls: string[] = [];
 vi.mock("../../../outbound/project-boot.js", () => ({
   projectFor: async (repo: string) => ({
     issues: {
+      list: async (filter: { state?: string; labels?: string[] }) => {
+        calls.push(`list:${repo}:${filter.state}:${filter.labels?.join("+")}`);
+
+        return [];
+      },
       addSubIssue: async (parent: number, child: number) => {
         calls.push(`sub:${repo}:${parent}:${child}`);
       },
-      updateBody: async (number: number, body: string) => {
-        calls.push(`body:${repo}:${number}:${body}`);
+      update: async (
+        number: number,
+        edit: { title?: string; body?: string },
+      ) => {
+        calls.push(`update:${repo}:${number}:${edit.title}:${edit.body}`);
       },
     },
   }),
@@ -49,14 +57,30 @@ describe("station issue links", () => {
     });
   });
 
-  it("rewrites #2260's body in re-cinq/lore", async () => {
+  it("rewrites #2260's title and body in re-cinq/lore", async () => {
     const res = await send("PATCH", "/api/repos/re-cinq/lore/issues/2260", {
+      title: "User story: Issue triage",
       body: "- [ ] #2261 T001",
     });
 
     expect({ status: res.statusCode, calls }).toEqual({
       status: 200,
-      calls: ["body:re-cinq/lore:2260:- [ ] #2261 T001"],
+      calls: [
+        "update:re-cinq/lore:2260:User story: Issue triage:- [ ] #2261 T001",
+      ],
+    });
+  });
+
+  it("lists re-cinq/lore's closed issues labelled lore-managed", async () => {
+    const res = await buildServer(() => null).inject({
+      method: "GET",
+      url: "/api/repos/re-cinq/lore/issues?state=closed&labels=lore-managed",
+      headers: AUTH,
+    });
+
+    expect({ status: res.statusCode, calls }).toEqual({
+      status: 200,
+      calls: ["list:re-cinq/lore:closed:lore-managed"],
     });
   });
 

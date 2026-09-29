@@ -459,13 +459,17 @@ describe("PlatformGitHub paginated reads + helpers", () => {
     ]);
   });
 
-  it("updateIssueBody rewrites #2260's body and nothing else", async () => {
-    await gh().updateIssueBody("re-cinq/lore", 2260, "- [ ] #2261 T001");
+  it("updateIssue rewrites #2260's title and body and nothing else", async () => {
+    await gh().updateIssue("re-cinq/lore", 2260, {
+      title: "User story: Issue triage",
+      body: "- [ ] #2261 T001",
+    });
 
     expect(state.issueUpdateCall).toEqual({
       owner: "re-cinq",
       repo: "lore",
       issue_number: 2260,
+      title: "User story: Issue triage",
       body: "- [ ] #2261 T001",
     });
   });

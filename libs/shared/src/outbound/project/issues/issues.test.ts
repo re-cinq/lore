@@ -36,8 +36,8 @@ function fakeGitHub(issues: IssueRef[], calls: string[] = []): GitHubPort {
     addSubIssue: async (repo, parent, child) => {
       calls.push(`sub:${repo}:${parent}:${child}`);
     },
-    updateIssueBody: async (repo, number, body) => {
-      calls.push(`body:${repo}:${number}:${body}`);
+    updateIssue: async (repo, number, edit) => {
+      calls.push(`update:${repo}:${number}:${edit.title}:${edit.body}`);
     },
     commentOnIssue: async (_repo, number, body) => {
       calls.push(`comment:${number}:${body}`);
@@ -132,16 +132,19 @@ describe("IssueCollection", () => {
     ]);
   });
 
-  it("links #2261 under #2260 and rewrites #2260's body in its own repo", async () => {
+  it("links #2261 under #2260 and rewrites #2260's title and body in its own repo", async () => {
     const calls: string[] = [];
     const issues = new IssueCollection("re-cinq/lore", fakeGitHub([], calls));
 
     await issues.addSubIssue(2260, 2261);
-    await issues.updateBody(2260, "sections");
+    await issues.update(2260, {
+      title: "User story: triage",
+      body: "sections",
+    });
 
     expect(calls).toEqual([
       "sub:re-cinq/lore:2260:2261",
-      "body:re-cinq/lore:2260:sections",
+      "update:re-cinq/lore:2260:User story: triage:sections",
     ]);
   });
 });

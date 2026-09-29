@@ -3,6 +3,7 @@ import type {
   IssueRef,
   IssueFilter,
   CloseReason,
+  IssueEdit,
 } from "../lib/github-port.js";
 
 /** Value-object sub-facade over GitHubPort (repo-bound); cheap to construct, keeps Project stateless. */
@@ -39,8 +40,8 @@ export class IssueCollection {
     return this.github.addSubIssue(this.repo, parentNumber, childNumber);
   }
 
-  updateBody(number: number, body: string): Promise<void> {
-    return this.github.updateIssueBody(this.repo, number, body);
+  update(number: number, edit: IssueEdit): Promise<void> {
+    return this.github.updateIssue(this.repo, number, edit);
   }
 
   comment(number: number, body: string): Promise<void> {
