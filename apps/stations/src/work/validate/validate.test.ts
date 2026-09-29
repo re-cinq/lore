@@ -36,12 +36,30 @@ describe("runValidateStation", () => {
     await fs.rm(workspaceDir, { recursive: true, force: true });
   });
 
-  it("reports success with no-tooling extras for an empty repo", async () => {
+  it("leaves a Node repo's failing lint, typecheck and build to the PR's CI and runs none of them in the pod", async () => {
+    const target = path.join(workspaceDir, "target");
+    const ran = path.join(workspaceDir, "ran");
+    const fail = `touch ${ran} && exit 1`;
+
+    await fs.writeFile(
+      path.join(target, "package.json"),
+      JSON.stringify({
+        scripts: { lint: fail, typecheck: fail, build: fail },
+      }),
+    );
+    await fs.mkdir(path.join(target, "node_modules"));
+
     const result = await runValidateStation(input, { workspaceDir });
 
-    expect(result).toMatchObject({
-      outcome: "success",
-      extras: { "Lore-Validation": "none" },
+    expect({
+      result,
+      ran: await fs.access(ran).then(
+        () => true,
+        () => false,
+      ),
+    }).toEqual({
+      result: { outcome: "success", extras: { "Lore-Validation": "ci" } },
+      ran: false,
     });
   });
 });
