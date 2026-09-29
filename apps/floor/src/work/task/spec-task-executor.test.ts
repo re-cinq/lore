@@ -71,4 +71,41 @@ describe("startSpecTaskAgent", () => {
       "specs/issue-triage/spec.md, specs/issue-triage/plan.md and specs/issue-triage/tasks.md",
     );
   });
+
+  it("briefs the agent with its task issue #2261: the story it is part of, context, changes and acceptance criteria", async () => {
+    const fake = fakeProject();
+    const detailed = {
+      ...T001,
+      context_bundle: {
+        ...T001.context_bundle,
+        story_issue: 2260,
+        task_issue: 2261,
+        title: "Add the issue-triage line stub",
+        context: "Every later task fills this line in.",
+        changes: "Create issue-triage.yaml with empty nodes and edges.",
+        acceptance_criteria: ["the loader accepts the file"],
+      },
+    } as unknown as ReadySpecTask;
+
+    await startSpecTaskAgent(fake.project, detailed);
+    const description = String(fake.runs[0]?.opts.description);
+
+    expect({
+      header: description.startsWith(
+        "Implement spec-task T001 (issue #2261): Add the issue-triage line stub",
+      ),
+      story: description.includes("Part of #2260."),
+      context: description.includes("Every later task fills this line in."),
+      changes: description.includes(
+        "Create issue-triage.yaml with empty nodes and edges.",
+      ),
+      criteria: description.includes("- [ ] the loader accepts the file"),
+    }).toEqual({
+      header: true,
+      story: true,
+      context: true,
+      changes: true,
+      criteria: true,
+    });
+  });
 });

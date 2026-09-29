@@ -8,28 +8,34 @@ import type {
 /** Every Lore-filed issue carries this, so a repo can find or ignore them all. */
 export const BASE_STORY_LABELS = ["lore-managed", "user-story"] as const;
 
-export interface PlannedIssue {
+/** Every task issue carries these: filterable as Lore's, and as a spec-task. */
+export const BASE_TASK_LABELS = ["lore-managed", "spec-task"] as const;
+
+/** The ONE issue a plan becomes; its decomposed slices are sections inside it. */
+export interface PlannedStory {
   title: string;
   labels: string[];
-  storyIndex: number;
 }
 
 export interface PlannedTask {
+  /** The task issue's title: its id, then its own title or its description. */
+  title: string;
   description: string;
   labels: string[];
-  /** Which story this task belongs to, so the caller can attach the filed issue. */
+  /** Which slice (story section) this task belongs to. */
   storyIndex: number;
   task: UserStory["tasks"][number];
 }
 
 export type IssueWork =
-  | { outcome: "proceed"; issues: PlannedIssue[]; tasks: PlannedTask[] }
+  | { outcome: "proceed"; story: PlannedStory; tasks: PlannedTask[] }
   | { outcome: "changes_requested"; objection: string };
 
-/** The issues and spec-tasks a decomposition calls for, or the objection that sends it back; rejects invented labels because GitHub's create-issue silently adds unknown ones to the repo's real taxonomy. */
+/** The story issue and task issues a decomposition calls for, or the objection that sends it back; rejects invented labels because GitHub's create-issue silently adds unknown ones to the repo's real taxonomy. */
 export function decideIssueWork(
   decomposition: DecompositionResult,
   repoLabels: readonly string[],
+  planTitle?: string,
 ): IssueWork {
   const objection = firstObjection(decomposition, repoLabels);
 
@@ -40,7 +46,7 @@ export function decideIssueWork(
 
   return {
     outcome: "proceed",
-    issues: plannedIssues(stories),
+    story: plannedStory(stories, planTitle),
     tasks: plannedTasks(stories),
   };
 }
@@ -94,23 +100,31 @@ function proposedLabels(story: UserStory): string[] {
   ];
 }
 
-function plannedIssues(
+function plannedStory(
   stories: DecompositionResult["stories"],
-): PlannedIssue[] {
-  return stories.map((story, storyIndex) => ({
-    title: `User story: ${story.title}`,
-    labels: [...(story.labels ?? []), ...BASE_STORY_LABELS],
-    storyIndex,
-  }));
+  planTitle: string | undefined,
+): PlannedStory {
+  return {
+    title: `User story: ${planTitle ?? stories[0].title}`,
+    labels: distinct([
+      ...stories.flatMap((story) => story.labels ?? []),
+      ...BASE_STORY_LABELS,
+    ]),
+  };
 }
 
 function plannedTasks(stories: DecompositionResult["stories"]): PlannedTask[] {
   return stories.flatMap((story, storyIndex) =>
     story.tasks.map((task) => ({
+      title: `${task.id}: ${task.title ?? task.description}`,
       description: task.description,
-      labels: task.labels ?? [],
+      labels: distinct([...(task.labels ?? []), ...BASE_TASK_LABELS]),
       storyIndex,
       task,
     })),
   );
+}
+
+function distinct(labels: string[]): string[] {
+  return [...new Set(labels)];
 }

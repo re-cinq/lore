@@ -8,6 +8,7 @@ import { agentPrompt } from "../../outbound/agent-invocation.js";
 import { pipeline } from "../../outbound/queues.js";
 import { setStatus, insertEvent } from "./task-helpers.js";
 import { ensureTaskBranch } from "./ensure-task-branch.js";
+import { taskIssueBody } from "@re-cinq/lore-shared/feature-planning/issue-bodies.js";
 
 const MAX_CONCURRENT_PER_GROUP = 3;
 
@@ -221,21 +222,61 @@ function bumpGroupCounter(
 
 /** What the agent is told to build, and where it builds it. */
 function specTaskBrief(task: ReadySpecTask) {
-  const cb = (task.context_bundle ?? {}) as {
-    spec_slug?: string;
-    spec_task_id?: string;
-    file_path?: string;
-  };
+  const cb = (task.context_bundle ?? {}) as SpecTaskBundle;
   const specRef = cb.spec_slug
     ? `\n\nREAD specs/${cb.spec_slug}/spec.md, specs/${cb.spec_slug}/plan.md and specs/${cb.spec_slug}/tasks.md first for full context.`
     : "";
-  const fileRef = cb.file_path ? `\nTarget file: ${cb.file_path}` : "";
   const slug = cb.spec_slug || "spec-task";
 
   return {
     specSlug: cb.spec_slug,
     specTaskId: cb.spec_task_id,
-    description: `Implement spec-task ${cb.spec_task_id}: ${task.description}${specRef}${fileRef}`,
+    description: `${briefHeader(task, cb)}\n\n${briefDetail(task, cb)}${specRef}`,
     branchName: `lore/spec-task/${slug}-${(cb.spec_task_id || "").toLowerCase()}-${task.id.substring(0, 8)}`,
   };
+}
+
+/** What the issues station stamps on a spec-task: its place in the plan, its issue and the issue's detail. */
+interface SpecTaskBundle {
+  spec_slug?: string;
+  spec_task_id?: string;
+  file_path?: string;
+  story_issue?: number;
+  task_issue?: number;
+  title?: string;
+  context?: string;
+  changes?: string;
+  acceptance_criteria?: string[];
+  test_plan?: string;
+  references?: string[];
+}
+
+function briefHeader(task: ReadySpecTask, cb: SpecTaskBundle): string {
+  const issue = cb.task_issue ? ` (issue #${cb.task_issue})` : "";
+
+  return `Implement spec-task ${cb.spec_task_id}${issue}: ${cb.title ?? task.description}`;
+}
+
+// The same Markdown its task issue carries, so the agent works from what a developer would read.
+function briefDetail(task: ReadySpecTask, cb: SpecTaskBundle): string {
+  return taskIssueBody({
+    repo: task.target_repo,
+    ...(cb.story_issue ? { storyNumber: cb.story_issue } : {}),
+    dependsOn: [],
+    task: {
+      id: cb.spec_task_id ?? "",
+      description: task.description,
+      depends_on: [],
+      parallelizable: false,
+      phase: 0,
+      ...(cb.file_path ? { file_path: cb.file_path } : {}),
+      ...(cb.context ? { context: cb.context } : {}),
+      ...(cb.changes ? { changes: cb.changes } : {}),
+      ...(cb.acceptance_criteria
+        ? { acceptance_criteria: cb.acceptance_criteria }
+        : {}),
+      ...(cb.test_plan ? { test_plan: cb.test_plan } : {}),
+      ...(cb.references ? { references: cb.references } : {}),
+    },
+  });
 }
