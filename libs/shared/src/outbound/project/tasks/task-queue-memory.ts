@@ -106,6 +106,7 @@ export class InMemoryTaskQueue implements TaskQueueRepository {
       .filter(
         (t) =>
           t.status === "pending" &&
+          t.task_type !== "spec-task" &&
           (t.priority === "immediate" || ms(t.created_at) < now - GRACE_MS),
       )
       .sort((a, b) => {

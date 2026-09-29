@@ -82,10 +82,12 @@ export class PgTaskQueue implements TaskQueueRepository {
     this.specTasks = new PgSpecTaskQueries(pool);
   }
 
+  /** Spec-tasks are the spec-task executor's alone: it dispatches them in dependency order under a per-group cap, and this worker has no recipe for them — it claimed the ones the executor was holding back, filed an Issue for each and failed them all (plan 3b3a67af, 2026-09-29). */
   async claimNextPending(): Promise<PipelineTask | null> {
     const { rows } = await this.pool.query<PipelineTask>(
       `SELECT ${selectList(PIPELINE_TASK_COLUMNS)} FROM pipeline.tasks
         WHERE status = 'pending'
+          AND task_type <> 'spec-task'
           AND (
             (priority = 'immediate')
             OR (created_at < now() - interval '30 seconds')

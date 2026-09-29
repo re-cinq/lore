@@ -121,7 +121,7 @@ GKE's agent worker uses the same query but with `status = 'pending'`.
 The `FOR UPDATE SKIP LOCKED` ensures only one runner claims each task. ([validated by `task-queue.test.ts:7`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L7))
 
 **Grace period**: GKE worker waits 30s before claiming pending tasks.
-Local runners claim immediately. This gives local runners priority. ([validated by `task-queue.test.ts:245`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L245), [`task-queue.test.ts:232`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L232))
+Local runners claim immediately. This gives local runners priority. ([validated by `task-queue.test.ts:245`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L252), [`task-queue.test.ts:232`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L239))
 
 ### Execution Flow
 

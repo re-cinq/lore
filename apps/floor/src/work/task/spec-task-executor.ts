@@ -7,6 +7,7 @@ import { defaultTaskPrompt } from "../../outbound/config.js";
 import { agentPrompt } from "../../outbound/agent-invocation.js";
 import { pipeline } from "../../outbound/queues.js";
 import { setStatus, insertEvent } from "./task-helpers.js";
+import { ensureTaskBranch } from "./ensure-task-branch.js";
 
 const MAX_CONCURRENT_PER_GROUP = 3;
 
@@ -98,7 +99,7 @@ async function runClaimed(
   const brief = specTaskBrief(task);
 
   try {
-    const result = await runSpecTaskAgent(task, brief);
+    const result = await runSpecTaskAgent(task);
 
     return result.started
       ? recordDispatch(task, brief, runningByGroup)
@@ -118,9 +119,23 @@ type SpecTaskBrief = ReturnType<typeof specTaskBrief>;
 /** Runs as an `implementation` agent, but LABELLED `spec-task`: the recipe is the same, the provenance is not, and the label is what the run page and every later query read. */
 async function runSpecTaskAgent(
   task: ReadySpecTask,
-  brief: SpecTaskBrief,
 ): Promise<{ started: boolean }> {
-  const project = await projectFor(task.target_repo);
+  return startSpecTaskAgent(await projectFor(task.target_repo), task);
+}
+
+type SpecTaskProject = Pick<
+  Awaited<ReturnType<typeof projectFor>>,
+  "repo" | "agentDefs" | "agents"
+>;
+
+/** Creates the task's branch when missing, then runs its agent on it — the pod checks the branch out, so an agent dispatched onto a branch nobody made dies in init (plan 3b3a67af's T001–T003, 2026-09-29). */
+export async function startSpecTaskAgent(
+  project: SpecTaskProject,
+  task: ReadySpecTask,
+): Promise<{ started: boolean }> {
+  const brief = specTaskBrief(task);
+
+  await ensureTaskBranch(project.repo, brief.branchName);
   const recipe = await project.agentDefs.resolve("implementation");
 
   return await project.agents.run(task.id, specTaskRunOpts(recipe, brief));
@@ -212,7 +227,7 @@ function specTaskBrief(task: ReadySpecTask) {
     file_path?: string;
   };
   const specRef = cb.spec_slug
-    ? `\n\nREAD the spec at specs/${cb.spec_slug}/spec.md and specs/${cb.spec_slug}/data-model.md first for full context.`
+    ? `\n\nREAD specs/${cb.spec_slug}/spec.md, specs/${cb.spec_slug}/plan.md and specs/${cb.spec_slug}/tasks.md first for full context.`
     : "";
   const fileRef = cb.file_path ? `\nTarget file: ${cb.file_path}` : "";
   const slug = cb.spec_slug || "spec-task";
