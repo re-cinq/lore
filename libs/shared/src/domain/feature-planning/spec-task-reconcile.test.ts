@@ -49,6 +49,22 @@ describe("planSpecTaskReconcile", () => {
     ).toEqual({ requeue: [], update: [], create: [], cancel: [] });
   });
 
+  it("cancels queued T008 the new decomposition dropped, before it starts", () => {
+    expect(
+      planSpecTaskReconcile(
+        [
+          {
+            id: "queued",
+            status: "queued",
+            issueNumber: 2268,
+            specTaskId: "T008",
+          },
+        ],
+        [],
+      ).cancel,
+    ).toEqual(["queued"]);
+  });
+
   it("cancels pending T009 the new decomposition dropped, and leaves running T010 to finish", () => {
     expect(
       planSpecTaskReconcile(

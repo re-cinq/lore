@@ -25,6 +25,7 @@ const REQUEUE = new Set(["failed", "cancelled", "retried", "needs-human-help"]);
 // Not started, or stopped short: nothing is lost by cancelling these once their task is gone. A running one is left to finish.
 const CANCELLABLE = new Set([
   "pending",
+  "queued",
   "awaiting_approval",
   "failed",
   "retried",
