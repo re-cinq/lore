@@ -157,6 +157,8 @@ function specTaskRunOpts(recipe: ImplementationRecipe, brief: SpecTaskBrief) {
     model: recipe?.model || "claude-sonnet-4-6",
     timeoutMinutes: recipe?.timeout_minutes || 90,
     extraLabels: specTaskLabels(brief),
+    // The draft PR takes the task issue's title (draftPrTitle); without it the PR was titled by its branch name.
+    lineArgs: { issue_title: brief.issueTitle },
   };
 }
 
@@ -209,6 +211,7 @@ function specTaskBrief(task: ReadySpecTask, live?: LiveIssue) {
     specSlug: cb.spec_slug,
     specTaskId: cb.spec_task_id,
     description: `${briefHeader(task, cb, live?.title)}\n\n${detail}${specRef(cb.spec_slug)}`,
+    issueTitle: issueTitleOf(task, cb, live),
     branchName: specTaskBranch(task, cb),
   };
 }
@@ -228,6 +231,19 @@ function specTaskBranch(
   return `lore/spec-task/${slug}-${(cb.spec_task_id || "").toLowerCase()}-${task.id.substring(0, 8)}`;
 }
 
+// The task issue's title as it reads now, else as the issues station filed it (`T001: <title>`).
+function issueTitleOf(
+  task: ReadySpecTask,
+  cb: Record<string, unknown>,
+  live: LiveIssue | undefined,
+): string {
+  return live?.title ?? `${String(cb.spec_task_id)}: ${filedTitle(task, cb)}`;
+}
+
+function filedTitle(task: ReadySpecTask, cb: Record<string, unknown>): string {
+  return typeof cb.title === "string" ? cb.title : task.description;
+}
+
 // The issue is filed as `T001: <title>`, so its live title is read back without that prefix.
 function briefHeader(
   task: ReadySpecTask,
@@ -237,8 +253,7 @@ function briefHeader(
   const taskId = String(cb.spec_task_id);
   const issue =
     typeof cb.task_issue === "number" ? ` (issue #${cb.task_issue})` : "";
-  const filedTitle = typeof cb.title === "string" ? cb.title : task.description;
-  const title = liveTitle?.replace(`${taskId}: `, "") ?? filedTitle;
+  const title = liveTitle?.replace(`${taskId}: `, "") ?? filedTitle(task, cb);
 
   return `Implement spec-task ${taskId}${issue}: ${title}`;
 }

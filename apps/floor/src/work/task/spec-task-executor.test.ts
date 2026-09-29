@@ -116,6 +116,36 @@ describe("startSpecTaskAgent", () => {
     });
   });
 
+  it("titles T001's pull request after its task issue #2261, not its branch", async () => {
+    const fake = fakeProject([], {
+      2261: {
+        title: "T001: Add the issue-triage line stub",
+        body: "Part of #2260.",
+      },
+    });
+    const withIssue = {
+      ...T001,
+      context_bundle: { ...T001.context_bundle, task_issue: 2261 },
+    } as unknown as ReadySpecTask;
+
+    await startSpecTaskAgent(fake.project, withIssue);
+
+    expect(fake.runs[0]?.opts.lineArgs).toEqual({
+      issue_title: "T001: Add the issue-triage line stub",
+    });
+  });
+
+  it("titles a spec-task's pull request from its filed title when GitHub cannot be read", async () => {
+    const fake = fakeProject([]);
+
+    await startSpecTaskAgent(fake.project, T001);
+
+    expect(fake.runs[0]?.opts.lineArgs).toEqual({
+      issue_title:
+        "T001: Add `issue-triage.yaml` stub with empty nodes and edges.",
+    });
+  });
+
   it("briefs the agent from task issue #2261 as it reads now, so a person's edit before the run reaches the agent", async () => {
     const fake = fakeProject([], {
       2261: {
