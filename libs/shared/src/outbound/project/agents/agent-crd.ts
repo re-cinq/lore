@@ -84,23 +84,13 @@ function llmSpec(
   def: ResolvedAgentDefinition,
   opts: CatalogCrdOptions,
 ): AgentDefinitionSpec {
-  // The recipe's own family key comes first and must never disagree with validateCatalogEntry's default family; the cluster's other family keys follow, because a line node's model: overrides the recipe's per run (Agent spec.model) and can pick another vendor's CLI — analyse-specs on claude-sonnet-4-6 over a gemini recipe ran with only GEMINI_API_KEY and died "Not logged in" (run 18773dbb, 2026-09-29).
-  const family = def.model ? modelFamily(def.model) : "anthropic";
-  const keys = secretKeysOf(opts);
-  const secretKeys = [
-    ...new Set([
-      ...(family && keys[family] ? [keys[family]] : []),
-      ...Object.values(keys),
-    ]),
-  ];
-
   return {
     description: `Lore ${def.name} recipe.`,
     ...(def.model ? { model: def.model } : {}),
     prompt: llmPrompt(def, opts),
     permission_mode: "bypass",
     max_turns: AGENT_MAX_TURNS,
-    resources: llmResources(def, opts, secretKeys),
+    resources: llmResources(def, opts, llmSecretKeys(def, opts)),
     // Defense-in-depth: an agent must never spawn more pipeline work from inside a run; recipe denies (#1160) append after.
     disallowed_tools: [
       "mcp__lore__lore_create_pipeline_task",
@@ -108,6 +98,18 @@ function llmSpec(
     ],
     output: sinksFor(def, opts),
   };
+}
+
+// The recipe's own family key comes first and must never disagree with validateCatalogEntry's default family; the cluster's other family keys follow, because a line node's model: overrides the recipe's per run (Agent spec.model) and can pick another vendor's CLI — analyse-specs on claude-sonnet-4-6 over a gemini recipe ran with only GEMINI_API_KEY and died "Not logged in" (run 18773dbb, 2026-09-29).
+function llmSecretKeys(
+  def: ResolvedAgentDefinition,
+  opts: CatalogCrdOptions,
+): string[] {
+  const family = def.model ? modelFamily(def.model) : "anthropic";
+  const keys = secretKeysOf(opts);
+  const own = family ? keys[family] : undefined;
+
+  return [...new Set([...(own ? [own] : []), ...Object.values(keys)])];
 }
 
 /** The template renders the `prompt` PARAMETER, not the recipe body: the Floor renders the recipe (resolved row → yaml) and appends the CI verdict and failure blocks, and until 2026-09-13 the template ignored that parameter and every appended block died on the CR (#2051). {context} is filled per run with CONTEXT_BOOTSTRAP; only where the pod has a Lore MCP to call (#1629). */
