@@ -12,6 +12,7 @@ import {
 } from "@re-cinq/lore-shared/feature-planning/issue-bodies.js";
 import {
   parseDecomposition,
+  taskIssueDetail,
   type DecompositionResult,
 } from "@re-cinq/lore-shared/feature-planning/decomposition-result.js";
 import { parseModelJson } from "@re-cinq/lore-shared/feature-planning/model-json.js";
@@ -44,11 +45,7 @@ export async function runIssuesStation(
   }
   const project = deps.project ?? createStationProject(input.repo);
   const decomposition = parseDecomposition(parseModelJson(raw));
-  const work = decideIssueWork(
-    decomposition,
-    await project.issues.listLabels(),
-    input.params.plan_title,
-  );
+  const work = await planWork(project, decomposition, input);
 
   if (work.outcome === "changes_requested") {
     return rework(work.objection);
@@ -58,6 +55,18 @@ export async function runIssuesStation(
     input,
     story: storyInput(input, decomposition, deps.uiUrl),
   });
+}
+
+async function planWork(
+  project: StationProject,
+  decomposition: DecompositionResult,
+  input: StationInput,
+) {
+  return decideIssueWork(
+    decomposition,
+    await project.issues.listLabels(),
+    input.params.plan_title,
+  );
 }
 
 // A run reaching this node with no decomposition is a WIRING failure, not a bad decomposition — so it fails rather than routing to rework, which would ask the agent to fix something it did nothing wrong about.
@@ -120,35 +129,60 @@ async function fileWork(
   work: ProceedWork,
   context: FilingContext,
 ): Promise<NodeResult> {
-  const story = await project.issues.create(
-    work.story.title,
-    storyIssueBody(context.story),
-    work.story.labels,
-  );
+  const storyNumber = await fileStory(project, work.story, context.story);
+  const taskIssues = await fileTasks(project, work.tasks, {
+    context,
+    storyNumber,
+  });
 
-  console.log(eventLine(`filed story #${story.number} ${work.story.title}`));
-  const taskIssues = new Map<string, number>();
-
-  for (const planned of work.tasks) {
-    const issue = await fileTask(project, planned, {
-      context,
-      storyNumber: story.number,
-      taskIssues,
-    });
-
-    taskIssues.set(planned.task.id, issue.number);
-  }
   await project.issues.updateBody(
-    story.number,
+    storyNumber,
     storyIssueBody({ ...context.story, taskIssues }),
   );
 
+  return filed(storyNumber, work.tasks.length);
+}
+
+async function fileStory(
+  project: StationProject,
+  story: ProceedWork["story"],
+  body: StoryIssueInput,
+): Promise<number> {
+  const issue = await project.issues.create(
+    story.title,
+    storyIssueBody(body),
+    story.labels,
+  );
+
+  console.log(eventLine(`filed story #${issue.number} ${story.title}`));
+
+  return issue.number;
+}
+
+/** Every task's issue in order, answering task id → issue number so later tasks name their dependencies by issue. */
+async function fileTasks(
+  project: StationProject,
+  tasks: readonly PlannedTask[],
+  filing: Omit<TaskFiling, "taskIssues">,
+): Promise<Map<string, number>> {
+  const taskIssues = new Map<string, number>();
+
+  for (const planned of tasks) {
+    const issue = await fileTask(project, planned, { ...filing, taskIssues });
+
+    taskIssues.set(planned.task.id, issue.number);
+  }
+
+  return taskIssues;
+}
+
+function filed(storyNumber: number, taskCount: number): NodeResult {
   return {
     outcome: "success",
     extras: {
-      "Lore-Story-Issue": String(story.number),
-      "Lore-Issues": String(1 + work.tasks.length),
-      "Lore-Spec-Tasks": String(work.tasks.length),
+      "Lore-Story-Issue": String(storyNumber),
+      "Lore-Issues": String(1 + taskCount),
+      "Lore-Spec-Tasks": String(taskCount),
     },
   };
 }
@@ -163,29 +197,48 @@ interface TaskFiling {
 async function fileTask(
   project: StationProject,
   planned: PlannedTask,
-  { context, storyNumber, taskIssues }: TaskFiling,
+  filing: TaskFiling,
 ): Promise<FiledIssue> {
-  const dependsOn = planned.task.depends_on
-    .map((id) => taskIssues.get(id))
-    .filter((n): n is number => n !== undefined);
-  const issue = await project.issues.create(
-    planned.title,
-    taskIssueBody({
-      repo: context.input.repo,
-      storyNumber,
-      task: planned.task,
-      dependsOn,
-    }),
-    planned.labels,
-  );
+  const issue = await fileTaskIssue(project, planned, filing);
 
-  await project.issues.addSubIssue(storyNumber, issue.number);
   await project.tasks.create(
-    taskInput(planned, context.input, { storyNumber, issue }),
+    taskInput(planned, filing.context.input, {
+      storyNumber: filing.storyNumber,
+      issue,
+    }),
   );
   console.log(eventLine(`filed #${issue.number} ${planned.title}`));
 
   return issue;
+}
+
+/** The task's issue, a native sub-issue of the story. */
+async function fileTaskIssue(
+  project: StationProject,
+  { task, title, labels }: PlannedTask,
+  { context, storyNumber, taskIssues }: TaskFiling,
+): Promise<FiledIssue> {
+  const body = taskIssueBody({
+    repo: context.input.repo,
+    storyNumber,
+    task,
+    dependsOn: dependencyIssues(task.depends_on, taskIssues),
+  });
+  const issue = await project.issues.create(title, body, labels);
+
+  await project.issues.addSubIssue(storyNumber, issue.number);
+
+  return issue;
+}
+
+// A dependency filed later than its dependent (tasks.md out of order) has no number yet and is left out rather than guessed.
+function dependencyIssues(
+  dependsOn: readonly string[],
+  taskIssues: ReadonlyMap<string, number>,
+): number[] {
+  return dependsOn
+    .map((id) => taskIssues.get(id))
+    .filter((n): n is number => n !== undefined);
 }
 
 interface TaskIssues {
@@ -218,40 +271,33 @@ function contextBundle(
   input: StationInput,
   { storyNumber, issue }: TaskIssues,
 ) {
-  const { plan_id: planId, spec_path: specPath } = input.params;
-  const specSlug = specSlugOf(specPath);
+  const { task } = planned;
 
   return {
-    spec_task_id: planned.task.id,
-    depends_on: planned.task.depends_on,
-    parallelizable: planned.task.parallelizable,
-    phase: planned.task.phase,
-    ...(planned.task.file_path ? { file_path: planned.task.file_path } : {}),
-    ...(planned.task.labels ? { labels: planned.task.labels } : {}),
-    ...taskDetail(planned.task),
+    spec_task_id: task.id,
+    depends_on: task.depends_on,
+    parallelizable: task.parallelizable,
+    phase: task.phase,
+    ...(task.file_path ? { file_path: task.file_path } : {}),
+    ...(task.labels ? { labels: task.labels } : {}),
+    ...taskIssueDetail(task),
     story_issue: storyNumber,
     task_issue: issue.number,
     assembly_line_id: input.assembly_run_id,
+    ...planPlace(input.params),
+  };
+}
+
+// The plan and spec a spec-task came from, each only when the line carries it.
+function planPlace(params: StationInput["params"]) {
+  const { plan_id: planId, spec_path: specPath } = params;
+  const specSlug = specSlugOf(specPath);
+
+  return {
     ...(planId ? { plan_id: planId } : {}),
     ...(specPath ? { spec_path: specPath } : {}),
     ...(specSlug ? { spec_slug: specSlug } : {}),
   };
-}
-
-// The task issue's detail, so the spec-task executor can brief its agent with it rather than the one-line description.
-function taskDetail(task: PlannedTask["task"]): Record<string, unknown> {
-  const detail = {
-    title: task.title,
-    context: task.context,
-    changes: task.changes,
-    acceptance_criteria: task.acceptance_criteria,
-    test_plan: task.test_plan,
-    references: task.references,
-  };
-
-  return Object.fromEntries(
-    Object.entries(detail).filter(([, value]) => value !== undefined),
-  );
 }
 
 // The spec's directory under specs/ — what the tasks.md sync stamps, and what the spec-task dependency check pairs a task with its prerequisites on; without it a task with any depends_on never became ready.

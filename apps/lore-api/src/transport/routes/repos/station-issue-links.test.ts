@@ -23,7 +23,7 @@ import {
 } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
 const originalEnv = { ...process.env };
-const send = (method: "POST" | "PATCH", url: string, payload: unknown) =>
+const send = (method: "POST" | "PATCH", url: string, payload: object) =>
   buildServer(() => null).inject({ method, url, headers: AUTH, payload });
 
 describe("station issue links", () => {

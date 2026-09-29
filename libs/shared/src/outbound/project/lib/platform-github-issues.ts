@@ -153,42 +153,6 @@ export async function listOpenBlockers(
   return blockers.filter((b) => b.state === "open").map((b) => b.number);
 }
 
-// The sub-issue API takes the child's numeric id, not its number, so the child is read first.
-export async function addSubIssue(
-  ok: Octokit,
-  repo: string,
-  parentNumber: number,
-  childNumber: number,
-): Promise<void> {
-  const [owner, name] = split(repo);
-  const { data: child } = await ok.rest.issues.get({
-    owner,
-    repo: name,
-    issue_number: childNumber,
-  });
-
-  await ok.request(
-    "POST /repos/{owner}/{repo}/issues/{issue_number}/sub_issues",
-    { owner, repo: name, issue_number: parentNumber, sub_issue_id: child.id },
-  );
-}
-
-export async function updateIssueBody(
-  ok: Octokit,
-  repo: string,
-  number: number,
-  body: string,
-): Promise<void> {
-  const [owner, name] = split(repo);
-
-  await ok.rest.issues.update({
-    owner,
-    repo: name,
-    issue_number: number,
-    body,
-  });
-}
-
 interface IssueDraft {
   title: string;
   body: string;

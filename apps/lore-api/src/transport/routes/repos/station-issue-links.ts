@@ -22,22 +22,30 @@ export function addSubIssueRoute(): ServerRoute {
   return {
     method: "POST",
     path: "/api/repos/{owner}/{repo}/issues/{number}/sub-issues",
-    options: zodResponse(
-      {
-        ...bearerScope("write"),
-        validate: {
-          params: zodValidate(RepoNumberParams),
-          payload: zodValidate(SubIssueBody),
-        },
-      },
-      OkSchema,
-      {
-        name: "SubIssueAdded",
-        description: "The child issue is now a sub-issue of this one",
-      },
-    ),
+    options: issueWriteOptions(SubIssueBody, {
+      name: "SubIssueAdded",
+      description: "The child issue is now a sub-issue of this one",
+    }),
     handler: (request, h) => serveAddSubIssue(request, h),
   };
+}
+
+// Both writes: write scope, the repo + issue number in the path, a JSON body, `{ ok: true }` back.
+function issueWriteOptions(
+  payload: z.ZodType,
+  doc: { name: string; description: string },
+) {
+  return zodResponse(
+    {
+      ...bearerScope("write"),
+      validate: {
+        params: zodValidate(RepoNumberParams),
+        payload: zodValidate(payload),
+      },
+    },
+    OkSchema,
+    doc,
+  );
 }
 
 async function serveAddSubIssue(
@@ -45,7 +53,7 @@ async function serveAddSubIssue(
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
   try {
-    const { number } = request.params as RepoNumberParams;
+    const { number } = request.params as unknown as RepoNumberParams;
     const { child } = request.payload as z.infer<typeof SubIssueBody>;
     const p = await projectFor(repoOf(request.params));
 
@@ -61,20 +69,10 @@ export function updateIssueBodyRoute(): ServerRoute {
   return {
     method: "PATCH",
     path: "/api/repos/{owner}/{repo}/issues/{number}",
-    options: zodResponse(
-      {
-        ...bearerScope("write"),
-        validate: {
-          params: zodValidate(RepoNumberParams),
-          payload: zodValidate(IssueBodyUpdate),
-        },
-      },
-      OkSchema,
-      {
-        name: "IssueBodyUpdated",
-        description: "The issue's body was rewritten",
-      },
-    ),
+    options: issueWriteOptions(IssueBodyUpdate, {
+      name: "IssueBodyUpdated",
+      description: "The issue's body was rewritten",
+    }),
     handler: (request, h) => serveUpdateIssueBody(request, h),
   };
 }
@@ -84,7 +82,7 @@ async function serveUpdateIssueBody(
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
   try {
-    const { number } = request.params as RepoNumberParams;
+    const { number } = request.params as unknown as RepoNumberParams;
     const { body } = request.payload as z.infer<typeof IssueBodyUpdate>;
     const p = await projectFor(repoOf(request.params));
 

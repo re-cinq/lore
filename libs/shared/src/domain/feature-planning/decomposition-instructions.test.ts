@@ -14,6 +14,19 @@ const DECOMPOSITION_INSTRUCTIONS =
     ),
   ).prompt ?? "";
 
+const ISSUE_DETAIL = [
+  "title",
+  "context",
+  "changes",
+  "acceptance_criteria",
+  "test_plan",
+  "references",
+] as const;
+
+function isBlank(value: unknown): boolean {
+  return Array.isArray(value) ? value.length === 0 : !value;
+}
+
 describe("the shipped feature-decompose prompt", () => {
   it("documents the output contract — stories, acceptance criteria, and task dependencies", () => {
     for (const token of [
@@ -52,15 +65,7 @@ describe("DECOMPOSITION_EXAMPLE", () => {
       JSON.parse(DECOMPOSITION_EXAMPLE),
     ).stories.flatMap((s) => s.tasks);
     const missing = everyTask
-      .filter(
-        (t) =>
-          !t.title ||
-          !t.context ||
-          !t.changes ||
-          !t.acceptance_criteria?.length ||
-          !t.test_plan ||
-          !t.references?.length,
-      )
+      .filter((t) => ISSUE_DETAIL.some((field) => isBlank(t[field])))
       .map((t) => t.id);
 
     expect(missing).toEqual([]);

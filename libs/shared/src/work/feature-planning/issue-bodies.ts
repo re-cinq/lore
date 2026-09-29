@@ -33,7 +33,7 @@ export function storyIssueBody(input: StoryIssueInput): string {
 }
 
 function planLine({ planTitle, planUrl, stories }: StoryIssueInput): string {
-  const title = planTitle ?? stories[0]?.title ?? "this plan";
+  const title = planTitle ?? stories.at(0)?.title ?? "this plan";
 
   return planUrl ? `**Plan:** [${title}](${planUrl})` : `**Plan:** ${title}`;
 }
@@ -113,9 +113,9 @@ function section(heading: string, text: string | undefined): string[] {
   return text ? [`## ${heading}`, "", text, ""] : [];
 }
 
-function checklist(heading: string, items: readonly string[]): string[] {
-  return items.length
-    ? [heading, "", ...items.map((item) => `- [ ] ${item}`), ""]
+function checklist(heading: string, criteria: readonly string[]): string[] {
+  return criteria.length
+    ? [heading, "", ...criteria.map((criterion) => `- [ ] ${criterion}`), ""]
     : [];
 }
 

@@ -265,6 +265,9 @@ resource "helm_release" "lore_platform" {
         # external URL would leave the cluster and come back through the
         # ingress for a call between two pods in it.
         LORE_API_URL = local.lore_api_in_cluster
+        # The web UI's external address: the issues station links a plan's
+        # story issue to its plan page. Unset, the story names the plan instead.
+        LORE_UI_URL = var.lore_ui_url
         }, var.enable_gcp_billing_export ? {
         # Where the gcp-cost-sync station finds the Cloud Billing export.
         # Unset (flag off) → the sync reports a skip and /spend keeps showing

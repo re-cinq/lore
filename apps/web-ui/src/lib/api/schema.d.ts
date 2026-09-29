@@ -1404,6 +1404,24 @@ export interface paths {
     delete?: never;
     options?: never;
     head?: never;
+    /** PATCH /api/repos/{owner}/{repo}/issues/{number} */
+    patch: operations["patch_api_repos_owner_repo_issues_number"];
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/issues/{number}/sub-issues": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/issues/{number}/sub-issues */
+    post: operations["post_api_repos_owner_repo_issues_number_sub-issues"];
+    delete?: never;
+    options?: never;
+    head?: never;
     patch?: never;
     trace?: never;
   };
@@ -2992,6 +3010,10 @@ export interface components {
       url: string | null;
       body: string | null;
     };
+    IssueBodyUpdated: {
+      /** @constant */
+      ok: true;
+    };
     JobRun: {
       id: string;
       job_name: string;
@@ -4183,6 +4205,10 @@ export interface components {
       status: string;
       priority: string;
       created_at: string;
+    };
+    SubIssueAdded: {
+      /** @constant */
+      ok: true;
     };
     TaskByPr: {
       task_id: string;
@@ -7055,6 +7081,78 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
+  patch_api_repos_owner_repo_issues_number: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+        number: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          body: string;
+        };
+      };
+    };
+    responses: {
+      /** @description The issue's body was rewritten */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IssueBodyUpdated"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "post_api_repos_owner_repo_issues_number_sub-issues": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+        number: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          child: number;
+        };
+      };
+    };
+    responses: {
+      /** @description The child issue is now a sub-issue of this one */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SubIssueAdded"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
   get_api_repos_owner_repo_labels: {
     parameters: {
       query?: never;
@@ -7519,6 +7617,8 @@ export interface operations {
             [key: string]: unknown;
           };
           taskGroupId?: string;
+          issueNumber?: number;
+          issueUrl?: string;
         };
       };
     };

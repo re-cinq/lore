@@ -175,38 +175,52 @@ function applyTaskOptionals(
   if (labels.length) {
     task.labels = labels;
   }
-  applyTaskIssueDetail(task, t);
+  Object.assign(task, taskIssueDetail(t));
 }
 
-/** The issue a task is filed as; each field set only when the agent wrote it. */
-function applyTaskIssueDetail(
-  task: DecompTask,
-  t: Record<string, unknown>,
-): void {
-  const texts = {
-    title: t.title,
-    context: t.context,
-    changes: t.changes,
-    test_plan: t.test_plan ?? t.testPlan,
-  };
+/** The detail a task's issue carries, read leniently from anything shaped like a task (the decomposition, or a spec-task's context bundle); each field only when written. */
+export type TaskIssueDetail = Pick<
+  DecompTask,
+  | "title"
+  | "context"
+  | "changes"
+  | "acceptance_criteria"
+  | "test_plan"
+  | "references"
+>;
 
-  for (const [key, value] of Object.entries(texts)) {
-    if (typeof value === "string" && value.trim()) {
-      task[key as "title" | "context" | "changes" | "test_plan"] = value;
-    }
-  }
-  const lists = {
-    acceptance_criteria: asStringList(
+export function taskIssueDetail(source: object): TaskIssueDetail {
+  const t = source as Record<string, unknown>;
+
+  return {
+    ...textField("title", t.title),
+    ...textField("context", t.context),
+    ...textField("changes", t.changes),
+    ...textField("test_plan", t.test_plan ?? t.testPlan),
+    ...listField(
+      "acceptance_criteria",
       t.acceptance_criteria ?? t.acceptanceCriteria,
     ),
-    references: asStringList(t.references),
+    ...listField("references", t.references),
   };
+}
 
-  for (const [key, value] of Object.entries(lists)) {
-    if (value.length) {
-      task[key as "acceptance_criteria" | "references"] = value;
-    }
-  }
+function textField<K extends string>(
+  key: K,
+  value: unknown,
+): Partial<Record<K, string>> {
+  return typeof value === "string" && value.trim()
+    ? ({ [key]: value } as Record<K, string>)
+    : {};
+}
+
+function listField<K extends string>(
+  key: K,
+  value: unknown,
+): Partial<Record<K, string[]>> {
+  const list = asStringList(value);
+
+  return list.length ? ({ [key]: list } as Record<K, string[]>) : {};
 }
 
 function taskFilePath(t: Record<string, unknown>): string | undefined {
