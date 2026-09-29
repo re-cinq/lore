@@ -17,4 +17,12 @@ describe("the issue-triage line (specs/issue-triage/spec.md#User Story 2 - Root 
   it("transitions to diagnose after a successful reproduce", () => {
     expect(successorsOf("reproduce", "success")).toEqual(["diagnose"]);
   });
+
+  it("includes a diagnose node that instruments the codebase to trace root causes", () => {
+    const diagnoseNode = triage.nodes.find((n) => n.id === "diagnose");
+    expect(diagnoseNode).toBeDefined();
+    expect(diagnoseNode?.description).toContain("trace the root cause");
+    expect(successorsOf("diagnose", "success")).toEqual(["verify"]);
+    expect(successorsOf("diagnose", "failed")).toEqual(["done"]);
+  });
 });
