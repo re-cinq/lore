@@ -55,6 +55,15 @@ ingestTokenSecret:
   name: lore-agent-internal-token
   key: token
 
+# lore-api's own bearer token, presented as LORE_STATION_TOKEN by the stations
+# that read and write through lore-api (createStationProject prefers it over
+# LORE_INGEST_TOKEN, which here is the Floor<->stations token lore-api rejects).
+# Optional: an unsynced secret leaves the variable unset instead of failing the
+# pod, so this can merge before the terraform that syncs it.
+stationTokenSecret:
+  name: lore-ingest-token
+  key: token
+
 # GitHub App triple — merge-check merges PRs, comments on issues and reads CI.
 githubAppSecret:
   name: lore-stations-github-app

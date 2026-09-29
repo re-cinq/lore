@@ -1011,6 +1011,42 @@ resource "kubectl_manifest" "es_stations_internal_token" {
   depends_on = [kubectl_manifest.cluster_secret_store]
 }
 
+# lore-api's own bearer token, for the stations that read and write through
+# lore-api over HTTP (the issues station files Issues and spec-tasks this way).
+# lore-agent-internal-token above is only the Floor<->stations token; lore-api
+# does not accept it, so every such call answered 403 (plan 3b3a67af,
+# 2026-09-29: "GET /labels failed: 403").
+resource "kubectl_manifest" "es_stations_ingest_token" {
+  yaml_body = yamlencode({
+    apiVersion = "external-secrets.io/v1beta1"
+    kind       = "ExternalSecret"
+    metadata = {
+      name      = "lore-ingest-token"
+      namespace = "lore-stations"
+    }
+    spec = {
+      refreshInterval = "1h"
+      secretStoreRef = {
+        name = "gcp-secret-manager"
+        kind = "ClusterSecretStore"
+      }
+      target = {
+        name = "lore-ingest-token"
+      }
+      data = [
+        {
+          secretKey = "token"
+          remoteRef = {
+            key = "lore-ingest-token"
+          }
+        },
+      ]
+    }
+  })
+
+  depends_on = [kubectl_manifest.cluster_secret_store]
+}
+
 resource "kubectl_manifest" "es_stations_github_app" {
   yaml_body = yamlencode({
     apiVersion = "external-secrets.io/v1beta1"
