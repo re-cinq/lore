@@ -120,3 +120,35 @@ describe("createTask group linking", () => {
     expect(insert?.[1]).toMatchObject({ length: 6 });
   });
 });
+
+function specTaskAt(level: string) {
+  return createTask(poolWithTrust(level).pool, {
+    description: "T001 add the issue-triage line",
+    taskType: "spec-task",
+    targetRepo: "o/r",
+  });
+}
+
+describe("spec-task trust", () => {
+  it("allows a spec-task at trust level implementation", async () => {
+    expect(await specTaskAt("implementation")).toMatchObject({
+      task_id: "task-1",
+    });
+  });
+
+  it("allows a spec-task at trust level full", async () => {
+    expect(await specTaskAt("full")).toMatchObject({ task_id: "task-1" });
+  });
+
+  it("refuses a spec-task at trust level tests", async () => {
+    const { pool } = poolWithTrust("tests");
+
+    await expect(
+      createTask(pool, {
+        description: "T001 add the issue-triage line",
+        taskType: "spec-task",
+        targetRepo: "o/r",
+      }),
+    ).rejects.toThrow(/not allowed at trust level "tests"/);
+  });
+});

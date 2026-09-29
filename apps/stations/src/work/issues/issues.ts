@@ -167,5 +167,13 @@ function contextBundle(
     assembly_line_id: input.assembly_run_id,
     ...(planId ? { plan_id: planId } : {}),
     ...(specPath ? { spec_path: specPath } : {}),
+    ...specSlugOf(specPath),
   };
+}
+
+// The spec's directory under specs/ — what the tasks.md sync stamps, and what the spec-task dependency check pairs a task with its prerequisites on; without it a task with any depends_on never became ready.
+function specSlugOf(specPath: string | undefined): { spec_slug?: string } {
+  const slug = specPath?.match(/^specs\/([^/]+)/)?.[1];
+
+  return slug ? { spec_slug: slug } : {};
 }
