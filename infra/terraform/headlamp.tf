@@ -243,6 +243,14 @@ resource "helm_release" "headlamp" {
 
 # The gate. Runs in auth_request mode: nginx asks it about every request, so its
 # own upstream is /dev/null and it proxies nothing.
+#
+# FIRST INSTALL ORDER. The Helm provider waits for Ready and this pod cannot start
+# without headlamp-oauth, so a single apply against unseeded secrets fails here on
+# the 5-minute timeout. Create the containers, seed them, then apply the rest:
+#
+#   terraform apply -target='google_secret_manager_secret.lore'
+#   # seed the three versions — docs/managing-secrets.md
+#   terraform apply
 resource "helm_release" "oauth2_proxy" {
   count = var.enable_headlamp ? 1 : 0
 

@@ -178,9 +178,21 @@ openssl rand -base64 32 | head -c 32 \
 `head -c 32` is load-bearing: oauth2-proxy accepts a cookie secret of exactly 16,
 24 or 32 bytes and refuses to start otherwise.
 
-Order: `terraform apply` creates the three containers, then seed, then
+**Order matters here, more than for the other secrets.** The Helm provider waits
+for a release to become Ready, and oauth2-proxy cannot start without its secret, so
+a single `terraform apply` on a fresh install fails on that release's 5-minute
+timeout. Create the containers first, seed them, then apply the rest:
+
+```bash
+cd infra/terraform
+terraform apply -target='google_secret_manager_secret.lore'   # containers only
+# ... seed the three versions with the commands above ...
+terraform apply                                              # the workloads
+```
+
+Rotating later is the ordinary path — `gcloud secrets versions add`, then
 `kubectl rollout restart deploy/oauth2-proxy -n headlamp`. Rotating the cookie
-secret later signs everyone out; rotating the client secret needs the same restart.
+secret signs everyone out; rotating the client secret needs the same restart.
 
 **What these credentials protect.** GKE does not let you point the API server at a
 third-party OIDC issuer, so a Google login cannot become a Kubernetes identity —
