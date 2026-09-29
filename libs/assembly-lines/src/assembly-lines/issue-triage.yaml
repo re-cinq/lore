@@ -44,6 +44,10 @@ nodes:
     model: claude-sonnet-4-6
     description: Split large issues into smaller tasks.
 
+  - id: issues
+    type: issues
+    description: File the Issues + spec-tasks the decomposition calls for.
+
   - id: done
     type: retrospective
     description: Terminal marker.
@@ -105,8 +109,25 @@ edges:
     on: always
 
   - from: decompose
+    to: issues
+    on: success
+  - from: decompose
     to: done
-    on: always
+    on: changes_requested
+  - from: decompose
+    to: done
+    on: failed
+
+  - from: issues
+    to: done
+    on: success
+  - from: issues
+    to: decompose
+    on: changes_requested
+    iteration_max: 1
+  - from: issues
+    to: done
+    on: failed
 
   - from: human-gate
     to: done

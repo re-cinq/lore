@@ -18,6 +18,7 @@ const successorsOf = (nodeId: string, on: string) =>
 describe("the issue-triage line", () => {
   it("routes verify (large-issue) to decompose (specs/issue-triage/spec.md#FR6)", () => {
     expect(successorsOf("verify", "large-issue")).toEqual(["decompose"]);
-    expect(successorsOf("decompose", "always")).toEqual(["done"]);
+    expect(successorsOf("decompose", "success")).toEqual(["issues"]);
+    expect(successorsOf("issues", "success")).toEqual(["done"]);
   });
 });
