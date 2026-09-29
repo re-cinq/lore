@@ -6470,6 +6470,9 @@
                       "type": "string"
                     },
                     "additionalProperties": {}
+                  },
+                  "taskGroupId": {
+                    "type": "string"
                   }
                 },
                 "required": ["description", "taskType"],

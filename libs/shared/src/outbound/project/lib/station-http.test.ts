@@ -111,3 +111,41 @@ describe("findOpenLike accepts either wire spelling", () => {
     ).toEqual([{ id: "t1", task_type: "gap-fill", status: "running" }]);
   });
 });
+
+describe("filing a spec-task over HTTP", () => {
+  it("carries the task group g-1 on POST /tasks", async () => {
+    const { fetchImpl, calls } = fakeFetch({
+      "POST /api/repos/o/r/tasks": { task_id: "new", status: "pending" },
+    });
+
+    await createStationProject("o/r", env, fetchImpl).tasks.create({
+      description: "T001",
+      taskType: "spec-task",
+      targetRepo: "o/r",
+      taskGroupId: "g-1",
+    });
+
+    expect(
+      calls.find((c) => c.path === "/api/repos/o/r/tasks")?.body,
+    ).toMatchObject({ taskType: "spec-task", taskGroupId: "g-1" });
+  });
+
+  it("names lore-api's reason in the error, not only the 500", async () => {
+    const refusing = (async () => ({
+      ok: false,
+      status: 500,
+      text: async () =>
+        JSON.stringify({ error: 'Task type "spec-task" not allowed' }),
+    })) as unknown as typeof fetch;
+
+    await expect(
+      createStationProject("o/r", env, refusing).tasks.create({
+        description: "T001",
+        taskType: "spec-task",
+        targetRepo: "o/r",
+      }),
+    ).rejects.toThrow(
+      new Error('POST /tasks failed: 500 — Task type "spec-task" not allowed'),
+    );
+  });
+});

@@ -73,7 +73,7 @@ function httpPost<T>(call: HttpCall, path: string, body: unknown): Promise<T> {
   );
 }
 
-/** The parsed body, or a throw naming the call that failed. The status alone is what the caller gets — a station's failures surface as pod logs, and a bare `404` there says nothing about which read produced it. */
+/** The parsed body, or a throw naming the call that failed and lore-api's own reason — a bare `500` sent plan 3b3a67af's issues station hunting through logs for a trust refusal lore-api had already put in words. */
 async function unwrap<T>(
   pending: Promise<Response>,
   label: string,
@@ -81,10 +81,27 @@ async function unwrap<T>(
   const res = await pending;
 
   if (!res.ok) {
-    throw new Error(`${label} failed: ${res.status}`);
+    const reason = await refusalReason(res);
+
+    throw new Error(
+      `${label} failed: ${res.status}${reason ? ` — ${reason}` : ""}`,
+    );
   }
 
   return (await res.json()) as T;
+}
+
+// lore-api answers `{ error }`; any other body, or none, adds nothing to the status.
+async function refusalReason(res: Response): Promise<string | null> {
+  const text = await res.text().catch(() => "");
+
+  try {
+    const parsed = JSON.parse(text) as { error?: unknown };
+
+    return typeof parsed.error === "string" ? parsed.error : null;
+  } catch {
+    return null;
+  }
 }
 
 type Http = ReturnType<typeof makeHttp>;
@@ -208,6 +225,7 @@ class TaskStoreHttp {
       taskType: input.taskType,
       createdBy: input.createdBy,
       contextBundle: input.contextBundle,
+      ...(input.taskGroupId ? { taskGroupId: input.taskGroupId } : {}),
     });
   }
 }

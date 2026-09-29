@@ -61,6 +61,22 @@ function fakeProject(labels: string[]) {
   };
 }
 
+async function specSlugFiledFor(specPath: string): Promise<unknown> {
+  const fake = fakeProject([
+    "area:web-ui",
+    "area:floor",
+    "lore-managed",
+    "user-story",
+  ]);
+
+  await runIssuesStation(
+    input({ feature_decomposition: DECOMPOSITION, spec_path: specPath }),
+    { project: fake.project },
+  );
+
+  return (fake.tasks[0].contextBundle as Record<string, unknown>).spec_slug;
+}
+
 describe("runIssuesStation", () => {
   it("files one issue per story and one spec-task per task", async () => {
     const fake = fakeProject([
@@ -164,6 +180,14 @@ describe("runIssuesStation", () => {
         spec_path: "specs/checkout/spec.md",
       },
     });
+  });
+
+  it("stamps spec_slug checkout from spec path specs/checkout/spec.md, the key the dependency check pairs spec-tasks on", async () => {
+    expect(await specSlugFiledFor("specs/checkout/spec.md")).toBe("checkout");
+  });
+
+  it("stamps spec_slug checkout from the spec directory specs/checkout/", async () => {
+    expect(await specSlugFiledFor("specs/checkout/")).toBe("checkout");
   });
 
   it("names the spec-task id spec_task_id, the way every other consumer reads it, not the agent artifact's own `id` (spreading the raw task left these rows with a blank id)", async () => {

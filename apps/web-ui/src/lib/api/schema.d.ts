@@ -7518,6 +7518,7 @@ export interface operations {
           contextBundle?: {
             [key: string]: unknown;
           };
+          taskGroupId?: string;
         };
       };
     };
