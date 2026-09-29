@@ -33,6 +33,12 @@ function fakeGitHub(issues: IssueRef[], calls: string[] = []): GitHubPort {
     },
     listLabels: async () => [],
     createLabels: async () => {},
+    addSubIssue: async (repo, parent, child) => {
+      calls.push(`sub:${repo}:${parent}:${child}`);
+    },
+    updateIssueBody: async (repo, number, body) => {
+      calls.push(`body:${repo}:${number}:${body}`);
+    },
     commentOnIssue: async (_repo, number, body) => {
       calls.push(`comment:${number}:${body}`);
     },
@@ -123,6 +129,19 @@ describe("IssueCollection", () => {
       "close:7:not_planned",
       "addLabel:7:approved",
       "removeLabel:7:awaiting-approval",
+    ]);
+  });
+
+  it("links #2261 under #2260 and rewrites #2260's body in its own repo", async () => {
+    const calls: string[] = [];
+    const issues = new IssueCollection("re-cinq/lore", fakeGitHub([], calls));
+
+    await issues.addSubIssue(2260, 2261);
+    await issues.updateBody(2260, "sections");
+
+    expect(calls).toEqual([
+      "sub:re-cinq/lore:2260:2261",
+      "body:re-cinq/lore:2260:sections",
     ]);
   });
 });

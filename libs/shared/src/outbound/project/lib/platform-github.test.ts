@@ -32,6 +32,8 @@ const state: {
   issueData?: Record<string, unknown>;
   blockersData?: Array<{ number: number; state: string }>;
   blockersCall?: Record<string, unknown>;
+  requestCalls?: Array<{ route: string; params: Record<string, unknown> }>;
+  issueUpdateCall?: Record<string, unknown>;
   reviewThreadPages?: Array<Record<string, unknown>>;
   graphqlCalls: Array<{ query: string; vars: Record<string, unknown> }>;
   authCalls: Array<Record<string, unknown>>;
@@ -71,6 +73,11 @@ vi.mock("octokit", () => ({
       state.authCalls.push(options);
 
       return { token: state.token };
+    };
+    request = async (route: string, params: Record<string, unknown>) => {
+      (state.requestCalls ??= []).push({ route, params });
+
+      return { data: {} };
     };
     graphql = async (query: string, vars: Record<string, unknown>) => {
       state.graphqlCalls.push({ query, vars });
@@ -164,6 +171,11 @@ vi.mock("octokit", () => ({
         addLabels: async () => ({}),
         listForRepo: async () => state.issuesData ?? [],
         get: async () => ({ data: state.issueData }),
+        update: async (params: Record<string, unknown>) => {
+          state.issueUpdateCall = params;
+
+          return { data: {} };
+        },
         listDependenciesBlockedBy: async (params: Record<string, unknown>) => {
           state.blockersCall = params;
 
@@ -425,6 +437,36 @@ describe("PlatformGitHub paginated reads + helpers", () => {
       owner: "re-cinq",
       repo: "lore",
       issue_number: 16,
+    });
+  });
+
+  it("addSubIssue links #2261 under #2260 by #2261's numeric id, not its number", async () => {
+    state.issueData = { id: 987654, number: 2261 };
+    state.requestCalls = [];
+
+    await gh().addSubIssue("re-cinq/lore", 2260, 2261);
+
+    expect(state.requestCalls).toEqual([
+      {
+        route: "POST /repos/{owner}/{repo}/issues/{issue_number}/sub_issues",
+        params: {
+          owner: "re-cinq",
+          repo: "lore",
+          issue_number: 2260,
+          sub_issue_id: 987654,
+        },
+      },
+    ]);
+  });
+
+  it("updateIssueBody rewrites #2260's body and nothing else", async () => {
+    await gh().updateIssueBody("re-cinq/lore", 2260, "- [ ] #2261 T001");
+
+    expect(state.issueUpdateCall).toEqual({
+      owner: "re-cinq",
+      repo: "lore",
+      issue_number: 2260,
+      body: "- [ ] #2261 T001",
     });
   });
 

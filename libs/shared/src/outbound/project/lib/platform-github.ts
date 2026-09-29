@@ -88,6 +88,27 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     return issues.createIssue(await this.octo(), repo, { title, body, labels });
   }
 
+  async addSubIssue(
+    repo: string,
+    parentNumber: number,
+    childNumber: number,
+  ): Promise<void> {
+    return issues.addSubIssue(
+      await this.octo(),
+      repo,
+      parentNumber,
+      childNumber,
+    );
+  }
+
+  async updateIssueBody(
+    repo: string,
+    number: number,
+    body: string,
+  ): Promise<void> {
+    return issues.updateIssueBody(await this.octo(), repo, number, body);
+  }
+
   async listLabels(repo: string): Promise<string[]> {
     return issues.listLabels(await this.octo(), repo);
   }

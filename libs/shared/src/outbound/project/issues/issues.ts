@@ -35,6 +35,14 @@ export class IssueCollection {
     return this.github.createLabels(this.repo, labels);
   }
 
+  addSubIssue(parentNumber: number, childNumber: number): Promise<void> {
+    return this.github.addSubIssue(this.repo, parentNumber, childNumber);
+  }
+
+  updateBody(number: number, body: string): Promise<void> {
+    return this.github.updateIssueBody(this.repo, number, body);
+  }
+
   comment(number: number, body: string): Promise<void> {
     return this.github.commentOnIssue(this.repo, number, body);
   }
