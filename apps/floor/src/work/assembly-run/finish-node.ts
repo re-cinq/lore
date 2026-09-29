@@ -11,6 +11,7 @@ import {
   decideMarkReady,
   decidePrStamp,
   decideStampFailure,
+  isPushSuccess,
   decideEmptyBranchEnding,
 } from "./spec-pr.js";
 import type { AdvanceDeps } from "./advance-deps.js";
@@ -141,17 +142,33 @@ async function stampPrIfDue(
 ): Promise<void> {
   const node = await findRunNode(assemblyRun, nodeId, deps);
 
-  if (
-    !decidePrStamp({
-      promptRef: node?.prompt_ref,
-      outcome: result.outcome,
-      args: assemblyRun.args,
-    })
-  ) {
+  // Every other node of a line that carries a PR returns here, before any GitHub call.
+  if (!isPushSuccess(node?.prompt_ref, result.outcome)) {
     return;
   }
+  const due = decidePrStamp({
+    promptRef: node?.prompt_ref,
+    outcome: result.outcome,
+    args: assemblyRun.args,
+    recordedPrGone: await recordedPrGone(assemblyRun, deps),
+  });
 
-  await deps.stampPr?.(assemblyRun);
+  if (due) {
+    await deps.stampPr?.(assemblyRun);
+  }
+}
+
+async function recordedPrGone(
+  assemblyRun: AssemblyRunRecord,
+  deps: AdvanceDeps,
+): Promise<boolean> {
+  const recorded = assemblyRun.args.pr_number;
+
+  if (typeof recorded !== "number") {
+    return false;
+  }
+
+  return (await deps.prGone?.(assemblyRun.repo, recorded)) ?? false;
 }
 
 /** An empty-branch stamp failure (#1330) fails the line outright — otherwise the wait node downstream parks forever on a PR that cannot exist. Any other failure is transient and left for the reaper to re-drive. */

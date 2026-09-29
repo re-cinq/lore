@@ -94,6 +94,8 @@ export interface AdvanceDeps {
   };
   /** Ensure the `push` node's PR exists and is recorded on the line (`args.pr_number`), moving it to `pr-open` — nothing else does, since the push recipe's watcher ignores assembly-line CRs. Optional seam. */
   stampPr?: (assemblyRun: AssemblyRunRecord) => Promise<void>;
+  /** Whether a PR the line recorded was closed without merging or no longer exists; the push node then stamps the branch's open PR instead. Optional seam. */
+  prGone?: (repo: string, prNumber: number) => Promise<boolean>;
   /** Update the run's PR from its description artifact and take it out of draft (Floor-side — the pod has no `gh`/GitHub token); the finishing node's result carries the `Lore-Issue-Coverage` verdict deciding Closes-vs-Refs. */
   markPrReady?: (
     assemblyRun: AssemblyRunRecord,

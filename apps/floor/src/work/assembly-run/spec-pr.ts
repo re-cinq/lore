@@ -40,12 +40,21 @@ export function decidePrStamp(input: {
   promptRef?: string | null;
   outcome: string | null;
   args: Record<string, unknown>;
+  /** The recorded PR was closed without merging, or no longer exists: the branch's open PR replaces it (plan 3b3a67af: a resumed run kept closed #2221, so the merge of its hand-opened successor never woke the line). */
+  recordedPrGone?: boolean;
 }): boolean {
   return (
-    input.promptRef === PUSH_PROMPT_REF &&
-    input.outcome === "success" &&
-    !input.args.pr_number
+    isPushSuccess(input.promptRef, input.outcome) &&
+    (!input.args.pr_number || input.recordedPrGone === true)
   );
+}
+
+/** The line's pushing node reported the branch carries work. */
+export function isPushSuccess(
+  promptRef: string | null | undefined,
+  outcome: string | null,
+): boolean {
+  return promptRef === PUSH_PROMPT_REF && outcome === "success";
 }
 
 /** Decide if PR opens as draft (read from run args); drafts bypass code review for multiple pushes. */

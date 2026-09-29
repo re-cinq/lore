@@ -172,6 +172,11 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
       ),
     settleTask: (row, outcome, reason) =>
       settleTaskForLine(row, outcome, reason, { tasks: taskStore() }),
+    prGone: async (repo, prNumber) => {
+      const pr = await (await projectFor(repo)).pulls.get(prNumber);
+
+      return pr === null || pr.state === "closed";
+    },
     stampPr: async (row) => {
       const project = await projectFor(row.repo);
 
