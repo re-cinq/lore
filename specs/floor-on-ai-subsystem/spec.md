@@ -208,13 +208,12 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     rendered prompt appended; no CRD schema change.
 
 16. Node YAML accepts optional `station_ref` (custom station, default `def-<type>`) and
-    `timeout_minutes`. ([validated by accepts station_ref and timeout_minutes on a node](libs/assembly-lines/src/loader.test.ts#L560))
-    An agent node's `model:` reaches the pod *(added 2026-09-29, #2267)*: the Agent CR
+    `timeout_minutes`. An agent node's `model:` reaches the pod *(added 2026-09-29, #2267)*: the Agent CR
     carries it as `spec.model`, which the subsystem (v0.11.7+) runs instead of the
     Station's definition's model and uses to pick the vendor CLI; a node without one
     names no model and runs its definition's. Before this the field stopped at the
     task spec, so `decompose`'s `model: claude-sonnet-4-6` ran Gemini.
-    ([validated by runs a node that names claude-sonnet-4-6 on it, whatever model its Station's definition carries](libs/shared/src/outbound/cluster/agent-backend.test.ts#L70), [validated by names no model on the Agent when the task names none, so its definition's model runs](libs/shared/src/outbound/cluster/agent-backend.test.ts#L76))
+    ([validated by accepts station_ref and timeout_minutes on a node](libs/assembly-lines/src/loader.test.ts#L560), [validated by runs a node that names claude-sonnet-4-6 on it, whatever model its Station's definition carries](libs/shared/src/outbound/cluster/agent-backend.test.ts#L70), [validated by names no model on the Agent when the task names none, so its definition's model runs](libs/shared/src/outbound/cluster/agent-backend.test.ts#L76))
 
 17. `nodeStationSpec` builds the CR spec: stationRef, `parameters.station_input` JSON
     (assembly_line_id/node_id/node_type/repo/branch/task_id/params). ([validated by station-flagged node types dispatch a station CR](apps/floor/src/work/assembly-run/floor-assembly-run.test.ts#L119), [honors an explicit station_ref override](apps/floor/src/work/assembly-run/floor-assembly-run.test.ts#L159), [agent nodes thread station_ref too — a renamed recipe (code-review-refine) still resolves](apps/floor/src/work/assembly-run/floor-assembly-run.test.ts#L98))
