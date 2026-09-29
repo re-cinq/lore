@@ -50,6 +50,9 @@ spec:
                 taskId:
                   type: string
                   description: "External id for correlation."
+                model:
+                  type: string
+                  description: "Model id for this run; overrides the AgentDefinition's model."
                 targetRepo:
                   type: string
                   description: "GitHub repo in owner/name form."

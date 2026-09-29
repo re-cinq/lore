@@ -34,7 +34,7 @@ import {
 /** How the pod renders the parameters built below; exported beside them so a test can hold the two together. */
 export { renderPodPrompt };
 
-/** Maps a LoreTaskSpec to an `Agent` CR body; the recipe (model/prompt/tools) lives on the resolved Station, per-run carries only parameters (incl. the `{context}` fetch-instruction slot). */
+/** Maps a LoreTaskSpec to an `Agent` CR body; the recipe (prompt/tools) lives on the resolved Station, per-run carries its parameters (incl. the `{context}` fetch-instruction slot) and, when the task names one, the model the run uses instead of the definition's — a line node's YAML `model:` never reached the pod before (#2267). */
 export function specToAgent(
   spec: LoreTaskSpec,
   stationRef?: string,
@@ -47,6 +47,7 @@ export function specToAgent(
       taskId: spec.taskId,
       targetRepo: spec.targetRepo,
       branch: spec.branch,
+      ...(spec.model ? { model: spec.model } : {}),
       parameters: agentParameters(spec),
       ...inputFiles(spec, filesUrl),
     },
