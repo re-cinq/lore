@@ -25,4 +25,20 @@ describe("repoTaskInput", () => {
       repoTaskInput({ description: "Gap: x", taskType: "gap-fill" }),
     ).toEqual({ description: "Gap: x", taskType: "gap-fill" });
   });
+
+  it("forwards the spec-task's own issue #2261 and its url", () => {
+    expect(
+      repoTaskInput({
+        description: "T001",
+        taskType: "spec-task",
+        issueNumber: 2261,
+        issueUrl: "https://github.com/o/r/issues/2261",
+      }),
+    ).toEqual({
+      description: "T001",
+      taskType: "spec-task",
+      issueNumber: 2261,
+      issueUrl: "https://github.com/o/r/issues/2261",
+    });
+  });
 });

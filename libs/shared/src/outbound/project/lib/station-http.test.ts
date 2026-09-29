@@ -113,6 +113,27 @@ describe("findOpenLike accepts either wire spelling", () => {
 });
 
 describe("filing a spec-task over HTTP", () => {
+  it("carries the spec-task's own issue #2261 on POST /tasks", async () => {
+    const { fetchImpl, calls } = fakeFetch({
+      "POST /api/repos/o/r/tasks": { task_id: "new", status: "pending" },
+    });
+
+    await createStationProject("o/r", env, fetchImpl).tasks.create({
+      description: "T001",
+      taskType: "spec-task",
+      targetRepo: "o/r",
+      issueNumber: 2261,
+      issueUrl: "https://github.com/o/r/issues/2261",
+    });
+
+    expect(
+      calls.find((c) => c.path === "/api/repos/o/r/tasks")?.body,
+    ).toMatchObject({
+      issueNumber: 2261,
+      issueUrl: "https://github.com/o/r/issues/2261",
+    });
+  });
+
   it("carries the task group g-1 on POST /tasks", async () => {
     const { fetchImpl, calls } = fakeFetch({
       "POST /api/repos/o/r/tasks": { task_id: "new", status: "pending" },

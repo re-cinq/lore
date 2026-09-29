@@ -26,6 +26,8 @@ const TaskBody = z.object({
   createdBy: z.string().optional(),
   contextBundle: z.record(z.string(), z.unknown()).optional(),
   taskGroupId: z.string().optional(),
+  issueNumber: z.number().int().positive().optional(),
+  issueUrl: z.string().optional(),
 });
 
 /** What `tasks.create` answers with — the queued task's identity, not its row. */
@@ -174,5 +176,9 @@ export function repoTaskInput(body: z.infer<typeof TaskBody>) {
     ...(body.createdBy ? { createdBy: body.createdBy } : {}),
     ...(body.contextBundle ? { contextBundle: body.contextBundle } : {}),
     ...(body.taskGroupId ? { taskGroupId: body.taskGroupId } : {}),
+    ...(body.issueNumber !== undefined
+      ? { issueNumber: body.issueNumber }
+      : {}),
+    ...(body.issueUrl ? { issueUrl: body.issueUrl } : {}),
   };
 }

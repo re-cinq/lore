@@ -19,6 +19,9 @@ export interface CreateTaskInput {
   priority?: string;
   taskGroupId?: string;
   contextRefs?: { fact_ids: string[]; memory_ids: string[] };
+  /** The issue this task implements, already filed by its producer (the issues station's per-task issue), so its PR closes it. */
+  issueNumber?: number;
+  issueUrl?: string;
 }
 
 // The createTask API response body — task_id renames the row's id; not a column restatement.
@@ -147,11 +150,26 @@ async function recordTaskCreated(
   const { input, resolved } = created;
 
   await saveContextRefs(pool, taskId, input.contextRefs);
+  await saveIssue(pool, taskId, input);
   await recordEvent(
     pool,
     taskId,
     { from: null, to: "pending" },
     { created_by: resolved.createdBy, priority: resolved.priority },
+  );
+}
+
+async function saveIssue(
+  pool: PgPool,
+  taskId: string,
+  { issueNumber, issueUrl }: CreateTaskInput,
+): Promise<void> {
+  if (issueNumber === undefined) {
+    return;
+  }
+  await pool.query(
+    `UPDATE pipeline.tasks SET issue_number = $1, issue_url = $2 WHERE id = $3`,
+    [issueNumber, issueUrl ?? null, taskId],
   );
 }
 

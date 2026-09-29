@@ -121,6 +121,44 @@ describe("createTask group linking", () => {
   });
 });
 
+describe("createTask issue linking", () => {
+  it("records spec-task issue #2261 and its url on the task it creates", async () => {
+    const { pool, query } = poolWithTrust("full");
+
+    await createTask(pool, {
+      description: "T001",
+      taskType: "spec-task",
+      targetRepo: "o/r",
+      issueNumber: 2261,
+      issueUrl: "https://github.com/o/r/issues/2261",
+    });
+
+    const update = query.mock.calls.find(([sql]) =>
+      sql.includes("SET issue_number"),
+    );
+
+    expect(update?.[1]).toEqual([
+      2261,
+      "https://github.com/o/r/issues/2261",
+      "task-1",
+    ]);
+  });
+
+  it("writes no issue for a task created without one", async () => {
+    const { pool, query } = poolWithTrust("full");
+
+    await createTask(pool, {
+      description: "d",
+      taskType: "gap-fill",
+      targetRepo: "o/r",
+    });
+
+    expect(
+      query.mock.calls.some(([sql]) => sql.includes("SET issue_number")),
+    ).toBe(false);
+  });
+});
+
 function specTaskAt(level: string) {
   return createTask(poolWithTrust(level).pool, {
     description: "T001 add the issue-triage line",

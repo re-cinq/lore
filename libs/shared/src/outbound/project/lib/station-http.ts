@@ -249,6 +249,9 @@ class TaskStoreHttp {
       createdBy: input.createdBy,
       contextBundle: input.contextBundle,
       ...(input.taskGroupId ? { taskGroupId: input.taskGroupId } : {}),
+      ...(input.issueNumber !== undefined
+        ? { issueNumber: input.issueNumber, issueUrl: input.issueUrl }
+        : {}),
     });
   }
 }
