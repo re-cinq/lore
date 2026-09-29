@@ -1,11 +1,11 @@
 import type { NodeStationModule } from "../lib/station.js";
 
-/** Pod executes repo's lint/typecheck; never shares process with GitHub App key. */
+/** Leaves lint/typecheck to the pull request's CI; never shares process with GitHub App key. */
 export const validate: NodeStationModule = {
   manifest: {
     name: "validate",
     description:
-      "Run the target repo's own lint and typecheck against the cloned branch.",
+      "Defer the branch's lint, typecheck and build to the pull request's CI.",
     triggers: [
       {
         kind: "node",
