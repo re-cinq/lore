@@ -29,6 +29,13 @@ describe("PgTaskQueue.claimNextPending", () => {
 
     expect(await new PgTaskQueue(pool).claimNextPending()).toBeNull();
   });
+
+  it("leaves spec-tasks to the spec-task executor", async () => {
+    const { pool, calls } = fakePgPool([{ rows: [] }]);
+
+    await new PgTaskQueue(pool).claimNextPending();
+    expect(calls[0].text).toContain("task_type <> 'spec-task'");
+  });
 });
 
 describe("PgTaskQueue.findRecoverable", () => {
@@ -277,6 +284,27 @@ describe("InMemoryTaskQueue.claimNextPending", () => {
         ]).claimNextPending(),
       ).toBeNull();
     }
+  });
+
+  it("claims the gap-fill behind an older pending spec-task, which only the spec-task executor may take", async () => {
+    const q = queue([
+      {
+        id: "spec-t001",
+        status: "pending",
+        task_type: "spec-task",
+        priority: "normal",
+        created_at: at(NOW, 200),
+      },
+      {
+        id: "gap",
+        status: "pending",
+        task_type: "gap-fill",
+        priority: "normal",
+        created_at: at(NOW, 100),
+      },
+    ]);
+
+    expect((await q.claimNextPending())?.id).toBe("gap");
   });
 
   it("orders immediate before normal, then oldest first", async () => {
