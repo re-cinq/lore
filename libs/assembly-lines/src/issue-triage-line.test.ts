@@ -4,7 +4,7 @@ import { loadAssemblyLineFile } from "./loader.js";
 import * as path from "node:path";
 
 describe("issue-triage assembly line", () => {
-  it("routes verify (obsolete) to close-obsolete [validated by specs/issue-triage/spec.md#FR5]", async () => {
+  it("routes verify (obsolete) to close-obsolete [validated by specs/issue-triage/spec.md#User Story 3 - Obsolete Issue Detection and Automatic Closing (Priority: P2)]", async () => {
     const yamlPath = path.join(
       __dirname,
       "assembly-lines",
