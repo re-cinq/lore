@@ -43,6 +43,11 @@ lore_event_router_hostname = "lore-events.example.com"
 # report live run telemetry to. Empty leaves the sink cluster-internal.
 lore_agent_events_hostname = "lore-agent-events.example.com"
 
+# The Headlamp cluster dashboard. Also the OAuth redirect host, so it must match
+# the Authorized redirect URI on the Google OAuth client
+# (https://<this host>/oauth2/callback). Empty disables the ingress.
+headlamp_hostname = "headlamp.example.com"
+
 # --- Feature gates ---
 #
 # These decide whether a resource EXISTS. They are deployment topology, not
@@ -61,6 +66,14 @@ enable_anthropic_admin_key = false
 # before or right after the apply; a listed family with no key in the Secret
 # fails run pods on their secretKeyRef.
 enable_gemini = false
+
+# Headlamp, the read-only cluster dashboard, behind Google sign-in restricted to
+# the re-cinq email domain (headlamp.tf). Rancher is not an option on this
+# cluster: it is GKE Autopilot, which blocks both a Rancher install and the
+# registration of an Autopilot cluster into a Rancher elsewhere. Seed
+# lore-headlamp-oauth-client-id / -secret and lore-headlamp-cookie-secret before
+# the apply, or oauth2-proxy crash-loops on its missing secret.
+enable_headlamp = false
 
 # Cloud Billing budget for this project, stated per week (see budget.tf: Google
 # only resets budgets monthly, so it is applied as weekly * 52 / 12, with a

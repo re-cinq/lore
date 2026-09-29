@@ -112,3 +112,20 @@ variable "lore_agent_events_hostname" {
   type        = string
   default     = ""
 }
+
+# Gates the Headlamp cluster dashboard and its Google sign-in proxy (headlamp.tf).
+# The cluster is GKE Autopilot, which cannot run Rancher — Rancher writes into
+# kube-system to install, and an Autopilot cluster cannot even be registered into a
+# Rancher running elsewhere (rancher/rancher#57604). Headlamp is the read-only
+# substitute, and it is a dashboard rather than a dependency: leaving this false
+# changes nothing about how the platform runs.
+variable "enable_headlamp" {
+  type    = bool
+  default = false
+}
+
+variable "headlamp_hostname" {
+  description = "Hostname for the Headlamp dashboard ingress (e.g. headlamp.example.com). Also the OAuth redirect host, so changing it invalidates the Google OAuth client's registered callback. Empty disables the ingress, leaving Headlamp reachable only by port-forward."
+  type        = string
+  default     = ""
+}

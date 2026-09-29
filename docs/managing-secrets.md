@@ -148,6 +148,49 @@ key live, re-save each gemini-model definition on `/agents` — a refusal is
 acked past permanently, so the re-save is what emits the catalog event that
 makes the sync loop re-render and apply it.
 
+## The Headlamp sign-in credentials (`lore-headlamp-*`)
+
+The Headlamp dashboard (`infra/terraform/headlamp.tf`) is public at
+`headlamp_hostname` and is gated by oauth2-proxy using Google as the identity
+provider, restricted to `@re-cinq.com` addresses. Three secrets, all gated on
+`enable_headlamp`.
+
+Google OAuth **web** clients have no Terraform resource outside IAP, so the client
+itself is created by hand, once:
+
+1. Cloud Console → APIs & Services → **Credentials** → Create OAuth client ID →
+   *Web application*, name `headlamp`.
+2. Authorized redirect URI — exactly, or sign-in fails with `redirect_uri_mismatch`:
+   `https://<headlamp_hostname>/oauth2/callback`
+3. Consent screen: choose **Internal** if `re-cinq.com` is a Google Workspace org in
+   this GCP org. That restricts sign-in to re-cinq accounts at Google's end as well
+   as at oauth2-proxy's, which is the difference between one gate and two.
+
+Then seed the versions:
+
+```bash
+printf '%s' "<client id>"     | gcloud secrets versions add lore-headlamp-oauth-client-id     --data-file=-
+printf '%s' "<client secret>" | gcloud secrets versions add lore-headlamp-oauth-client-secret --data-file=-
+openssl rand -base64 32 | head -c 32 \
+  | gcloud secrets versions add lore-headlamp-cookie-secret --data-file=-
+```
+
+`head -c 32` is load-bearing: oauth2-proxy accepts a cookie secret of exactly 16,
+24 or 32 bytes and refuses to start otherwise.
+
+Order: `terraform apply` creates the three containers, then seed, then
+`kubectl rollout restart deploy/oauth2-proxy -n headlamp`. Rotating the cookie
+secret later signs everyone out; rotating the client secret needs the same restart.
+
+**What these credentials protect.** GKE does not let you point the API server at a
+third-party OIDC issuer, so a Google login cannot become a Kubernetes identity —
+Headlamp talks to the API server as its own ServiceAccount, and everyone who gets
+past Google shares that one identity. These secrets are therefore the *only* thing
+deciding who reads the cluster, and the `headlamp-view` ClusterRole (read-only, no
+Secrets) is the only thing bounding what they can read. Treat a leak of the client
+secret as cluster-wide read exposure, and note that the Kubernetes audit log will
+name the ServiceAccount rather than the person.
+
 ## Change a non-secret value
 
 Hostnames, `project_id`, the `enable_*` gates, `log_retention_days` — these live

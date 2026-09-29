@@ -47,6 +47,14 @@ locals {
     ],
     var.enable_anthropic_admin_key ? ["lore-anthropic-admin-api-key"] : [],
     var.enable_gemini ? ["lore-gemini-api-key"] : [],
+    # Headlamp's Google sign-in. Two are the OAuth web client Google issues; the
+    # third is the key oauth2-proxy signs its session cookie with, and it must be
+    # exactly 16, 24 or 32 bytes or the proxy refuses to start.
+    var.enable_headlamp ? [
+      "lore-headlamp-oauth-client-id",
+      "lore-headlamp-oauth-client-secret",
+      "lore-headlamp-cookie-secret",
+    ] : [],
   )
 }
 
