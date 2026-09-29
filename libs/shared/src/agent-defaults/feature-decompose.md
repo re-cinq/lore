@@ -58,8 +58,8 @@ Rules:
   user stories depend on them), Polish tasks in a last story "Polish". Fall
   back to deriving from spec.md only where tasks.md is absent or silent.
 - Two exceptions to transcribing. Tasks that edit the same `file_path` get
-  `depends_on` the earlier one of them in T-id order when tasks.md left them
-  unchained — side by side they can only conflict. And `test_plan` names a
+  `depends_on` the immediately preceding one of them in T-id order when
+  tasks.md left them unchained, so they form one chain — side by side they can only conflict. And `test_plan` names a
   test file and what it asserts, from tasks.md's `— test: …`; never a manual
   step such as "run it on a real repo".
 - A **user story** is a coherent vertical slice of value (what a user/operator can

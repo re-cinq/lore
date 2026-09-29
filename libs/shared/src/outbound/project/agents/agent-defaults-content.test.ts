@@ -611,7 +611,7 @@ describe("the planning recipes check a plan against what the platform has (issue
       polishStory: prompt.includes('"Polish"'),
       foldedIntoFirstStory: prompt.includes("belongs to the first user story"),
       sameFileChained: prompt.includes(
-        "Tasks that edit the same `file_path` get `depends_on` the earlier one",
+        "Tasks that edit the same `file_path` get `depends_on` the immediately preceding one of them in T-id order",
       ),
       noManualTest: prompt.includes("never a manual step"),
     }).toEqual({
