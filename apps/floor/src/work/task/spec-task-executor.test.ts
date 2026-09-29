@@ -18,7 +18,7 @@ const BRANCH = "lore/spec-task/issue-triage-t001-5e7c01d7";
 
 function fakeProject(
   existingBranches: string[] = [],
-  liveIssues: Record<number, string> = {},
+  liveIssues: Record<number, { title: string; body: string }> = {},
 ) {
   const steps: string[] = [];
   const runs: Array<{ taskId: string; opts: Record<string, unknown> }> = [];
@@ -38,7 +38,7 @@ function fakeProject(
       agentDefs: { resolve: async () => null },
       issues: {
         get: async (number: number) =>
-          number in liveIssues ? { number, body: liveIssues[number] } : null,
+          number in liveIssues ? { number, ...liveIssues[number] } : null,
       },
       agents: {
         run: async (taskId: string, opts: Record<string, unknown>) => {
@@ -118,7 +118,10 @@ describe("startSpecTaskAgent", () => {
 
   it("briefs the agent from task issue #2261 as it reads now, so a person's edit before the run reaches the agent", async () => {
     const fake = fakeProject([], {
-      2261: "Part of #2260.\n\n**Depends on:** #2259\n\n## What to change\n\nEdited by a maintainer: also update the README.",
+      2261: {
+        title: "T001: Add the issue-triage line stub and its README",
+        body: "Part of #2260.\n\n**Depends on:** #2259\n\n## What to change\n\nEdited by a maintainer: also update the README.",
+      },
     });
     const detailed = {
       ...T001,
@@ -134,11 +137,19 @@ describe("startSpecTaskAgent", () => {
     const description = String(fake.runs[0]?.opts.description);
 
     expect({
+      header: description.startsWith(
+        "Implement spec-task T001 (issue #2261): Add the issue-triage line stub and its README\n",
+      ),
       edited: description.includes(
         "Edited by a maintainer: also update the README.",
       ),
       dependsOn: description.includes("**Depends on:** #2259"),
       staleCopy: description.includes("The detail as filed."),
-    }).toEqual({ edited: true, dependsOn: true, staleCopy: false });
+    }).toEqual({
+      header: true,
+      edited: true,
+      dependsOn: true,
+      staleCopy: false,
+    });
   });
 });

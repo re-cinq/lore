@@ -176,6 +176,23 @@ describe("taskIssueBody", () => {
     );
   });
 
+  it("names dependency T007 by its task id when its issue is filed after this one", () => {
+    const body = taskIssueBody({
+      repo: REPO,
+      storyNumber: 2260,
+      dependsOn: [2261, "T007"],
+      task: {
+        id: "T003",
+        description: "reproduce",
+        depends_on: ["T001", "T007"],
+        parallelizable: false,
+        phase: 3,
+      },
+    });
+
+    expect(body).toContain("**Depends on:** #2261, T007\n");
+  });
+
   it("falls back to the task's description when decompose wrote no detail", () => {
     expect(
       taskIssueBody({

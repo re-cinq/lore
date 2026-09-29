@@ -231,14 +231,12 @@ async function fileTaskIssue(
   return issue;
 }
 
-// A dependency filed later than its dependent (tasks.md out of order) has no number yet and is left out rather than guessed.
+// A dependency filed later than its dependent (tasks.md out of order) has no number yet, so it is named by its task id rather than dropped.
 function dependencyIssues(
   dependsOn: readonly string[],
   taskIssues: ReadonlyMap<string, number>,
-): number[] {
-  return dependsOn
-    .map((id) => taskIssues.get(id))
-    .filter((n): n is number => n !== undefined);
+): (number | string)[] {
+  return dependsOn.map((id) => taskIssues.get(id) ?? id);
 }
 
 interface TaskIssues {

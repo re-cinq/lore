@@ -81,8 +81,8 @@ export interface TaskIssueInput {
   /** The story issue this task is part of; absent when there is none to name. */
   storyNumber?: number;
   task: DecompTask;
-  /** Issue numbers of the tasks this one waits on. */
-  dependsOn: readonly number[];
+  /** The tasks this one waits on: an issue number once filed, the task id while its issue doesn't exist yet. */
+  dependsOn: readonly (number | string)[];
 }
 
 export function taskIssueBody({
@@ -103,10 +103,12 @@ export function taskIssueBody({
   ].join("\n");
 }
 
-function dependencyLine(dependsOn: readonly number[]): string[] {
-  return dependsOn.length
-    ? [`**Depends on:** ${dependsOn.map((n) => `#${n}`).join(", ")}`, ""]
-    : [];
+function dependencyLine(dependsOn: readonly (number | string)[]): string[] {
+  const named = dependsOn.map((dep) =>
+    typeof dep === "number" ? `#${dep}` : dep,
+  );
+
+  return named.length ? [`**Depends on:** ${named.join(", ")}`, ""] : [];
 }
 
 function section(heading: string, text: string | undefined): string[] {
