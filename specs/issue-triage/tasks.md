@@ -38,7 +38,7 @@ This checklist delivers the Issue Triage Assembly Line to automate bug reproduct
 
 **Independent test**: A reproduced issue is diagnosed by the bot, which traces the failure to a specific code path and checks it against specs, resulting in a `triage: diagnosed` label.
 
-- [ ] T004 [US2] Implement the `diagnose` node in `libs/assembly-lines/src/assembly-lines/issue-triage.yaml` to instrument the code.
+- [x] T004 [US2] Implement the `diagnose` node in `libs/assembly-lines/src/assembly-lines/issue-triage.yaml` to instrument the code.
 - [ ] T005 [US2] Implement the `verify` node in `libs/assembly-lines/src/assembly-lines/issue-triage.yaml` to cross-reference specs. (depends on T004)
 
 ## Phase 5: User Story 5 — Human-Gated Handoff to Implementation (P1)
