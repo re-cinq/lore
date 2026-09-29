@@ -16,7 +16,10 @@ const T001 = {
 
 const BRANCH = "lore/spec-task/issue-triage-t001-5e7c01d7";
 
-function fakeProject(existingBranches: string[] = []) {
+function fakeProject(
+  existingBranches: string[] = [],
+  liveIssues: Record<number, string> = {},
+) {
   const steps: string[] = [];
   const runs: Array<{ taskId: string; opts: Record<string, unknown> }> = [];
 
@@ -33,6 +36,10 @@ function fakeProject(existingBranches: string[] = []) {
         defaultBranch: async () => "main",
       },
       agentDefs: { resolve: async () => null },
+      issues: {
+        get: async (number: number) =>
+          number in liveIssues ? { number, body: liveIssues[number] } : null,
+      },
       agents: {
         run: async (taskId: string, opts: Record<string, unknown>) => {
           steps.push(`run ${String(opts.branch)}`);
@@ -107,5 +114,31 @@ describe("startSpecTaskAgent", () => {
       changes: true,
       criteria: true,
     });
+  });
+
+  it("briefs the agent from task issue #2261 as it reads now, so a person's edit before the run reaches the agent", async () => {
+    const fake = fakeProject([], {
+      2261: "Part of #2260.\n\n**Depends on:** #2259\n\n## What to change\n\nEdited by a maintainer: also update the README.",
+    });
+    const detailed = {
+      ...T001,
+      context_bundle: {
+        ...T001.context_bundle,
+        story_issue: 2260,
+        task_issue: 2261,
+        changes: "The detail as filed.",
+      },
+    } as unknown as ReadySpecTask;
+
+    await startSpecTaskAgent(fake.project, detailed);
+    const description = String(fake.runs[0]?.opts.description);
+
+    expect({
+      edited: description.includes(
+        "Edited by a maintainer: also update the README.",
+      ),
+      dependsOn: description.includes("**Depends on:** #2259"),
+      staleCopy: description.includes("The detail as filed."),
+    }).toEqual({ edited: true, dependsOn: true, staleCopy: false });
   });
 });

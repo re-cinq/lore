@@ -127,7 +127,7 @@ async function runSpecTaskAgent(
 
 type SpecTaskProject = Pick<
   Awaited<ReturnType<typeof projectFor>>,
-  "repo" | "agentDefs" | "agents"
+  "repo" | "agentDefs" | "agents" | "issues"
 >;
 
 /** Creates the task's branch when missing, then runs its agent on it — the pod checks the branch out, so an agent dispatched onto a branch nobody made dies in init (plan 3b3a67af's T001–T003, 2026-09-29). */
@@ -135,12 +135,34 @@ export async function startSpecTaskAgent(
   project: SpecTaskProject,
   task: ReadySpecTask,
 ): Promise<{ started: boolean }> {
-  const brief = specTaskBrief(task);
+  const brief = specTaskBrief(task, await liveIssueBody(project, task));
 
   await ensureTaskBranch(project.repo, brief.branchName);
   const recipe = await project.agentDefs.resolve("implementation");
 
   return await project.agents.run(task.id, specTaskRunOpts(recipe, brief));
+}
+
+// The task issue as it reads now, so a person's edit between filing and dispatch reaches the agent; a task with no issue, or a GitHub read that fails, briefs from what was filed instead of holding the dispatch.
+async function liveIssueBody(
+  project: SpecTaskProject,
+  task: ReadySpecTask,
+): Promise<string | undefined> {
+  const number = task.context_bundle?.task_issue;
+
+  if (typeof number !== "number") {
+    return undefined;
+  }
+
+  try {
+    return (await project.issues.get(number))?.body ?? undefined;
+  } catch (err) {
+    console.warn(
+      `[spec-task-executor] task issue #${number} unreadable, briefing from the filed detail: ${(err as Error).message}`,
+    );
+
+    return undefined;
+  }
 }
 
 type ImplementationRecipe = Awaited<
@@ -222,7 +244,7 @@ function bumpGroupCounter(
 }
 
 /** What the agent is told to build, and where it builds it. */
-function specTaskBrief(task: ReadySpecTask) {
+function specTaskBrief(task: ReadySpecTask, liveBody?: string) {
   const cb = (task.context_bundle ?? {}) as Record<string, unknown> & {
     spec_slug?: string;
     spec_task_id?: string;
@@ -235,7 +257,7 @@ function specTaskBrief(task: ReadySpecTask) {
   return {
     specSlug: cb.spec_slug,
     specTaskId: cb.spec_task_id,
-    description: `${briefHeader(task, cb)}\n\n${briefDetail(task, cb)}${specRef}`,
+    description: `${briefHeader(task, cb)}\n\n${liveBody ?? briefDetail(task, cb)}${specRef}`,
     branchName: `lore/spec-task/${slug}-${(cb.spec_task_id || "").toLowerCase()}-${task.id.substring(0, 8)}`,
   };
 }
