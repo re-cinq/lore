@@ -82,7 +82,7 @@ After successful diagnosis and verification, the bot waits for human approval be
 - **FR3**: The Diagnose station MUST instrument the codebase to trace the root cause of the reproduced failure.
 - **FR4**: The Verify station MUST cross-reference the diagnosed behavior against existing specs and documentation.
 - **FR5**: The assembly line MUST automatically close issues that the Verify station detects as already implemented or obsolete.
-- **FR6**: The assembly line MUST automatically split large issues into smaller tasks via a decompose node.
+- **FR6**: The assembly line MUST automatically split large issues into smaller tasks via a decompose node. ([validated by](libs/assembly-lines/src/issue-triage-line.test.ts#L19))
 - **FR7**: State transitions MUST be driven by a label taxonomy (`triage: needs-triage`, `triage: needs-reproduction`, `triage: reproduced`, `triage: unable-to-reproduce`, `triage: diagnosed`, `triage: skipped`, `triage: not-actionable`, `triage: failed`) via the `pipeline.events` bus and GitHub webhook ingress.
 - **FR8**: The handoff to the implementation loop MUST be human-gated, requiring manual application of the `lore:implementation` label.
 - **FR9**: Incoming triage tasks MUST be processed in batches, ordering older issues first; how a batch is released is an Open Question below.

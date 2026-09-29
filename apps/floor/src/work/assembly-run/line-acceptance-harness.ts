@@ -10,6 +10,7 @@ import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 import {
   loadBuiltinAssemblyLines,
   type AgentNodeStatus,
+  type StageOutcome,
 } from "@re-cinq/lore-assembly-lines";
 import { advanceLine } from "./advance-line.js";
 import { finishNodeAndAdvance } from "./finish-node.js";
@@ -285,7 +286,7 @@ export function createLineHarness(
   async function resume(
     assemblyRunId: string,
     nodeId: string,
-    outcome: "success" | "changes_requested" | "failed",
+    outcome: StageOutcome,
     {
       args,
       iteration,

@@ -77,7 +77,7 @@ export interface ParkedTarget {
 
 /** Reports a station outcome to a parked node; deliberately not swallowed like fire-and-forget triggers — a lost event would lose the work while the caller's 202 claimed it started. */
 export interface StationReport {
-  outcome: "success" | "changes_requested" | "failed";
+  outcome: string;
   args?: Record<string, unknown>;
   /** What the worker produced beyond a decision; optional since a human station reports only an outcome. `unknown`, not NodeResult, since assembly-lines depends on this package — the Floor validates it on receipt (NodeResultSchema). */
   result?: unknown;

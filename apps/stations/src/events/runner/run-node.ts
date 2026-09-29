@@ -7,7 +7,7 @@ import {
   type NodeStationRun,
   type StationEnv,
 } from "../../work/index.js";
-import type { NodeResult } from "@re-cinq/lore-assembly-lines";
+import type { NodeResult, StageOutcome } from "@re-cinq/lore-assembly-lines";
 import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
 
 // The published node's shape, parsed not asserted: params crossed a process boundary (Floor → Postgres jsonb → router), so a cast through `unknown` would let a dropped field surface as `undefined` deep inside a station wearing the wrong name; parsing at the door names it instead.
@@ -49,7 +49,7 @@ function zodIssueText(error: z.ZodError): string {
 /** Reports a node's outcome to the parked visit — `reportToParkedNode`'s shape. */
 export type ReportNode = (
   target: { lineId: string; nodeId: string; iteration: number },
-  outcome: "success" | "changes_requested" | "failed",
+  outcome: StageOutcome,
   args: Record<string, unknown>,
   result?: unknown,
 ) => Promise<void>;
