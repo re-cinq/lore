@@ -13,7 +13,7 @@ nodes:
 
   - id: validate
     type: validate
-    description: Run lint + typecheck on changed files.
+    description: Leaves lint + typecheck to the PR's CI; runs nothing in the pod.
 
   - id: push
     type: agent

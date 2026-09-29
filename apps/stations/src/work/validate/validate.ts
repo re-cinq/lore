@@ -1,59 +1,12 @@
-// Pod-based validate station (branch pre-cloned at $WORKSPACE_DIR/target, no relay; ADR-025).
+// Pod-based validate station (ADR-025). It no longer runs the repo's lint, typecheck or build in the pod: the pull request's CI runs them and is the judge (specs/implementation-loop FR15), and repeating them here OOM-killed the 1Gi pod on any TypeScript change to this monorepo (install + workspace build alone is ~950 MB) — spec-task T002, run 920c24d8, 2026-09-29. The node stays so runs already in flight keep the graph they started with.
 
-import * as path from "node:path";
-import { execFile as execFileCb } from "node:child_process";
-import { promisify } from "node:util";
-import {
-  createValidateHandler,
-  type NodeResult,
-} from "@re-cinq/lore-assembly-lines";
+import type { NodeResult } from "@re-cinq/lore-assembly-lines";
 import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
 import type { StationEnv } from "../lib/station.js";
 
-const execFile = promisify(execFileCb);
-
 export async function runValidateStation(
-  input: StationInput,
-  env: StationEnv,
+  _input: StationInput,
+  _env: StationEnv,
 ): Promise<NodeResult> {
-  const gitDir = path.join(env.workspaceDir, "target");
-  const changed = await changedFiles(gitDir);
-  const handler = createValidateHandler(
-    changed ? { changedFiles: () => changed } : {},
-  );
-
-  return handler(
-    { id: input.node_id, type: "validate" },
-    nodeContext(input, gitDir),
-  );
-}
-
-/** Changed files vs default branch to scope lint/typecheck; undefined if diff unavailable. */
-async function changedFiles(gitDir: string): Promise<string[] | undefined> {
-  try {
-    const { stdout } = await execFile("git", [
-      "-C",
-      gitDir,
-      "diff",
-      "--name-only",
-      "origin/HEAD...HEAD",
-    ]);
-    const files = stdout.split("\n").filter((f) => f.length > 0);
-
-    return files.length > 0 ? files : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-// The node context the shared handler expects. `iteration` is 0 because a station pod runs one attempt: the walk decides whether there is another, and the pod has no way to know which one it is.
-function nodeContext(input: StationInput, gitDir: string) {
-  return {
-    taskId: input.task_id ?? "",
-    assemblyRunId: input.assembly_run_id,
-    branchName: input.branch,
-    gitDir,
-    iteration: 0,
-    assemblyLineName: input.node_type,
-  };
+  return { outcome: "success", extras: { "Lore-Validation": "ci" } };
 }
