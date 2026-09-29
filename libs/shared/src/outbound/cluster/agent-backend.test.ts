@@ -67,6 +67,16 @@ describe("specToAgent", () => {
     });
   });
 
+  it("runs a node that names claude-sonnet-4-6 on it, whatever model its Station's definition carries", () => {
+    expect(
+      specToAgent({ ...baseSpec, model: "claude-sonnet-4-6" }).spec?.model,
+    ).toBe("claude-sonnet-4-6");
+  });
+
+  it("names no model on the Agent when the task names none, so its definition's model runs", () => {
+    expect(specToAgent(baseSpec).spec).not.toHaveProperty("model");
+  });
+
   it("honours an explicit name, extraLabels, and prNumber → pr_number parameter", () => {
     const agent = specToAgent({
       ...baseSpec,

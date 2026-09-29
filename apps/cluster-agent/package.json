@@ -1,7 +1,7 @@
 {
   "name": "@re-cinq/lore-cluster-agent",
   "version": "0.1.0",
-  "description": "Lore cluster agent \u2014 the only process that talks to this cluster's Kubernetes API",
+  "description": "Lore cluster agent — the only process that talks to this cluster's Kubernetes API",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
@@ -16,7 +16,7 @@
   "dependencies": {
     "@hapi/hapi": "21.4.10",
     "@kubernetes/client-node": "^2.0.0",
-    "@re-cinq/agent-contracts": "^0.11.1",
+    "@re-cinq/agent-contracts": "^0.11.7",
     "@re-cinq/lore-shared": "*",
     "zod": "^4.5.4"
   },
