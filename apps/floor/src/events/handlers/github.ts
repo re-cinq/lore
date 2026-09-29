@@ -164,9 +164,11 @@ function resolveTaskTypeFromLabel(
   if (label === "lore:triage" || label === "triage: needs-triage") {
     return "issue-triage";
   }
+
   if (label !== dispatchLabel) {
     return null;
   }
+
   return dispatchTypeFromLabels(issueLabels) ?? dispatchDefaultType;
 }
 
@@ -181,9 +183,15 @@ export const issuesLabeled: EventHandler = async (params) => {
     dispatchDefaultType,
     issue.labels,
   );
-  if (taskType === null) return;
+
+  if (taskType === null) {
+    return;
+  }
   const issues = (await projectFor(repo)).issues;
-  if (await alreadyWorkingOnIssue(repo, issue.number, issues)) return;
+
+  if (await alreadyWorkingOnIssue(repo, issue.number, issues)) {
+    return;
+  }
   await fileIssueTask(repo, issue, taskType, issues);
 };
 
