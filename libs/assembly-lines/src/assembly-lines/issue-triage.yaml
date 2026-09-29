@@ -1,0 +1,57 @@
+name: issue-triage
+description: Automatically reproduce, diagnose, and verify bug reports before handing off to maintainers.
+version: 1
+entry: reproduce
+exit: done
+
+nodes:
+  - id: reproduce
+    type: agent
+    prompt_ref: reproduce
+    station_ref: reproduce
+    model: claude-sonnet-4-6
+    description: Clone and run the reproduction repository in a secure sandbox.
+
+  - id: verify
+    type: agent
+    prompt_ref: verify
+    station_ref: verify
+    model: claude-sonnet-4-6
+    description: Cross-reference the diagnosed behavior against existing specs and documentation.
+
+  - id: close-obsolete
+    type: service
+    route: /api/stations/close-obsolete
+    description: Close the issue if verified as obsolete.
+
+  - id: done
+    type: retrospective
+    description: Terminal marker.
+
+edges:
+  - from: reproduce
+    to: verify
+    on: success
+  - from: reproduce
+    to: done
+    on: changes_requested
+  - from: reproduce
+    to: done
+    on: failed
+
+  - from: verify
+    to: close-obsolete
+    on: obsolete
+  - from: verify
+    to: done
+    on: success
+  - from: verify
+    to: done
+    on: changes_requested
+  - from: verify
+    to: done
+    on: failed
+
+  - from: close-obsolete
+    to: done
+    on: always

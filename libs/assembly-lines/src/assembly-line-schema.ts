@@ -10,6 +10,7 @@ const NodeType = z.enum([
   "detect",
   "comment-triage",
   "ingest",
+  "service",
   // Files the GitHub Issues + spec-tasks a decomposition calls for — a station, not an agent, since the judgement already happened upstream.
   "issues",
   // One step of the merge line, parameterised by `job_ref` (like `detect`) rather than split into nine node types.
@@ -24,6 +25,7 @@ const EdgeCondition = z.enum([
   "changes_requested",
   "failed",
   "always",
+  "obsolete",
 ]);
 
 // A field added to NodeSchema/AssemblyLineSchema changes definitionHash by default (denylist in IGNORED_KEYS), refusing stored fork hashes across the change — deliberate; add prose-only fields to IGNORED_KEYS.
@@ -97,6 +99,7 @@ const PRODUCIBLE_OUTCOMES: Record<
   detect: ["success", "failed"],
   "comment-triage": ["success", "failed"],
   ingest: ["success", "failed"],
+  service: ["success", "failed"],
   issues: ["success", "changes_requested", "failed"],
   merge_step: ["success", "failed"],
   escalation_step: ["success", "failed"],
