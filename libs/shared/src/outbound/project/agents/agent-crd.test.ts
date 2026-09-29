@@ -423,7 +423,7 @@ describe("validateCatalogEntry", () => {
 });
 
 describe("model-family credentials in the render", () => {
-  it("a gemini recipe renders the gemini key, not the cluster's anthropic habit", () => {
+  it("a gemini recipe renders the gemini key first, then the cluster's anthropic key, so a run a line node puts on claude-sonnet-4-6 can still log in", () => {
     const { agentDefinition } = agentDefToCrds(
       row({ model: "gemini-2.5-pro" }),
       {
@@ -437,6 +437,7 @@ describe("model-family credentials in the render", () => {
 
     expect(agentDefinition.spec?.resources?.secrets).toEqual([
       { name: "GEMINI_API_KEY", ref: "GEMINI_API_KEY" },
+      { name: "ANTHROPIC_API_KEY", ref: "ANTHROPIC_API_KEY" },
     ]);
   });
 
