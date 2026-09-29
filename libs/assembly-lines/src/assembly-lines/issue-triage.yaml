@@ -3,5 +3,12 @@ description: Automate bug reproduction, diagnosis, and verification.
 version: 1
 entry: reproduce
 exit: done
-nodes: []
-edges: []
+nodes:
+  - id: reproduce
+    type: agent
+  - id: done
+    type: retrospective
+edges:
+  - from: reproduce
+    to: done
+    on: always
