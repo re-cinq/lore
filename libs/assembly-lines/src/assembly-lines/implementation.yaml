@@ -32,6 +32,21 @@ nodes:
     model: claude-sonnet-4-6
     description: Address review feedback in code.
 
+  # CI judges what `push` opened: `validate` no longer runs the repo's checks in
+  # the pod (2026-09-29), so without this wait the line would push and finish on
+  # a build nobody read. The pr-ready-check sweep resumes it.
+  - id: await-ci
+    type: ci_check
+    route: "{args.pr_url}"
+    description: Waiting on the PR's CI — GitHub Actions is the judge.
+
+  - id: fix-ci
+    type: agent
+    prompt_ref: fix-ci
+    station_ref: fix-ci
+    model: claude-sonnet-4-6
+    description: Fix what CI reported red, push, and go back to waiting.
+
   - id: retrospective
     type: retrospective
     description: Episode + curated memory.
@@ -59,8 +74,30 @@ edges:
     on: failed
     iteration_max: 1
   - from: push
-    to: review
+    to: await-ci
     on: always
+  - from: await-ci
+    to: review
+    on: success
+  # Red after a push, and red again on a sha already reported: both are fix-ci's,
+  # on one budget (the counter keys on from->to).
+  - from: await-ci
+    to: fix-ci
+    on: changes_requested
+    iteration_max: 2
+  - from: await-ci
+    to: fix-ci
+    on: failed
+    iteration_max: 2
+  - from: fix-ci
+    to: await-ci
+    on: success
+  - from: fix-ci
+    to: retrospective
+    on: failed
+  - from: fix-ci
+    to: retrospective
+    on: changes_requested
   - from: review
     to: retrospective
     on: success

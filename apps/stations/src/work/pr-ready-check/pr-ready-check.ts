@@ -7,6 +7,7 @@ import {
 } from "@re-cinq/lore-shared/project/assembly-runs/parked-node.js";
 import { ciReportForRun, prReportForRun } from "./park-readers.js";
 import {
+  CI_WAIT_BLUEPRINTS,
   LOOP_BLUEPRINT,
   type LoopRunSlice,
   type ParkedReport,
@@ -34,11 +35,18 @@ interface ParkedVerdict {
 
 /** The two parks, each with the reader that judges it. Ordered CI-first only for determinism: a run holds one open row, so at most one ever matches. */
 const PARK_KINDS = [
-  { type: CI_STATION_TYPE, fallbackNodeId: CI_NODE, read: ciReportForRun },
+  {
+    type: CI_STATION_TYPE,
+    fallbackNodeId: CI_NODE,
+    read: ciReportForRun,
+    lines: CI_WAIT_BLUEPRINTS,
+  },
+  // Only the loop's pr_review park is this sweep's: another line's (feature-planning's `merged`) is resumed by the PR's own webhook, and judging it green here would advance a plan nobody merged.
   {
     type: AWAIT_STATION_TYPE,
     fallbackNodeId: AWAIT_NODE,
     read: prReportForRun,
+    lines: [LOOP_BLUEPRINT],
   },
 ] as const;
 
@@ -134,7 +142,7 @@ function runReads(
   return {
     listOpenLoopRuns: () =>
       pipeline().assemblyRuns.list({
-        blueprintName: LOOP_BLUEPRINT,
+        blueprintName: CI_WAIT_BLUEPRINTS,
         status: OPEN_RUN_STATUS,
       }),
     listStationRuns: (runId) => pipeline().assemblyRuns.listStationRuns(runId),
@@ -185,7 +193,7 @@ function prReads(
   };
 }
 
-/** Resume implementation-loop await-pr nodes whose PR has settled: green CI or unresolved threads with no review run open (specs/implementation-loop FR4). */
+/** Resume runs parked on their PR: an `await-ci` of any line in {@link CI_WAIT_BLUEPRINTS} once the judged sha has a verdict, and an implementation-loop `await-pr` once the PR has settled — green CI, or unresolved threads with no review run open (specs/implementation-loop FR4). */
 export async function prReadyCheckSweep(
   deps: PrReadyCheckDeps,
 ): Promise<string> {
@@ -246,8 +254,11 @@ async function parkedAt(
   read: (typeof PARK_KINDS)[number]["read"];
 } | null> {
   const rows = await deps.listStationRuns(run.id);
+  const kinds = PARK_KINDS.filter((kind) =>
+    (kind.lines as readonly string[]).includes(run.blueprintName),
+  );
 
-  for (const kind of PARK_KINDS) {
+  for (const kind of kinds) {
     const parked = parkedHumanNode(run.status, rows, run.graph, kind);
 
     if (parked) {
