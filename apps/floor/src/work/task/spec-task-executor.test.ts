@@ -16,7 +16,10 @@ const T001 = {
 
 const BRANCH = "lore/spec-task/issue-triage-t001-5e7c01d7";
 
-function fakeProject(existingBranches: string[] = []) {
+function fakeProject(
+  existingBranches: string[] = [],
+  liveIssues: Record<number, { title: string; body: string }> = {},
+) {
   const steps: string[] = [];
   const runs: Array<{ taskId: string; opts: Record<string, unknown> }> = [];
 
@@ -33,6 +36,10 @@ function fakeProject(existingBranches: string[] = []) {
         defaultBranch: async () => "main",
       },
       agentDefs: { resolve: async () => null },
+      issues: {
+        get: async (number: number) =>
+          number in liveIssues ? { number, ...liveIssues[number] } : null,
+      },
       agents: {
         run: async (taskId: string, opts: Record<string, unknown>) => {
           steps.push(`run ${String(opts.branch)}`);
@@ -70,5 +77,79 @@ describe("startSpecTaskAgent", () => {
     expect(fake.runs[0]?.opts.description).toContain(
       "specs/issue-triage/spec.md, specs/issue-triage/plan.md and specs/issue-triage/tasks.md",
     );
+  });
+
+  it("briefs the agent with its task issue #2261: the story it is part of, context, changes and acceptance criteria", async () => {
+    const fake = fakeProject();
+    const detailed = {
+      ...T001,
+      context_bundle: {
+        ...T001.context_bundle,
+        story_issue: 2260,
+        task_issue: 2261,
+        title: "Add the issue-triage line stub",
+        context: "Every later task fills this line in.",
+        changes: "Create issue-triage.yaml with empty nodes and edges.",
+        acceptance_criteria: ["the loader accepts the file"],
+      },
+    } as unknown as ReadySpecTask;
+
+    await startSpecTaskAgent(fake.project, detailed);
+    const description = String(fake.runs[0]?.opts.description);
+
+    expect({
+      header: description.startsWith(
+        "Implement spec-task T001 (issue #2261): Add the issue-triage line stub",
+      ),
+      story: description.includes("Part of #2260."),
+      context: description.includes("Every later task fills this line in."),
+      changes: description.includes(
+        "Create issue-triage.yaml with empty nodes and edges.",
+      ),
+      criteria: description.includes("- [ ] the loader accepts the file"),
+    }).toEqual({
+      header: true,
+      story: true,
+      context: true,
+      changes: true,
+      criteria: true,
+    });
+  });
+
+  it("briefs the agent from task issue #2261 as it reads now, so a person's edit before the run reaches the agent", async () => {
+    const fake = fakeProject([], {
+      2261: {
+        title: "T001: Add the issue-triage line stub and its README",
+        body: "Part of #2260.\n\n**Depends on:** #2259\n\n## What to change\n\nEdited by a maintainer: also update the README.",
+      },
+    });
+    const detailed = {
+      ...T001,
+      context_bundle: {
+        ...T001.context_bundle,
+        story_issue: 2260,
+        task_issue: 2261,
+        changes: "The detail as filed.",
+      },
+    } as unknown as ReadySpecTask;
+
+    await startSpecTaskAgent(fake.project, detailed);
+    const description = String(fake.runs[0]?.opts.description);
+
+    expect({
+      header: description.startsWith(
+        "Implement spec-task T001 (issue #2261): Add the issue-triage line stub and its README\n",
+      ),
+      edited: description.includes(
+        "Edited by a maintainer: also update the README.",
+      ),
+      dependsOn: description.includes("**Depends on:** #2259"),
+      staleCopy: description.includes("The detail as filed."),
+    }).toEqual({
+      header: true,
+      edited: true,
+      dependsOn: true,
+      staleCopy: false,
+    });
   });
 });

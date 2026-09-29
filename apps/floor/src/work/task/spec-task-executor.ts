@@ -1,5 +1,6 @@
 /** Every minute, picks up ready spec-tasks and dispatches an Agent CR (ADR-031) to implement each, limited to 3 concurrent dispatches per task_group_id. */
 import type { ReadySpecTask } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
+import type { IssueRef } from "@re-cinq/lore-shared/project/lib/github-port.js";
 
 import { anthropicCreditsExhausted } from "@re-cinq/lore-shared/llm/credit-probe.js";
 import { projectFor } from "../../outbound/project-boot.js";
@@ -8,6 +9,8 @@ import { agentPrompt } from "../../outbound/agent-invocation.js";
 import { pipeline } from "../../outbound/queues.js";
 import { setStatus, insertEvent } from "./task-helpers.js";
 import { ensureTaskBranch } from "./ensure-task-branch.js";
+import { taskIssueBody } from "@re-cinq/lore-shared/feature-planning/issue-bodies.js";
+import { taskIssueDetail } from "@re-cinq/lore-shared/feature-planning/decomposition-result.js";
 
 const MAX_CONCURRENT_PER_GROUP = 3;
 
@@ -125,7 +128,7 @@ async function runSpecTaskAgent(
 
 type SpecTaskProject = Pick<
   Awaited<ReturnType<typeof projectFor>>,
-  "repo" | "agentDefs" | "agents"
+  "repo" | "agentDefs" | "agents" | "issues"
 >;
 
 /** Creates the task's branch when missing, then runs its agent on it — the pod checks the branch out, so an agent dispatched onto a branch nobody made dies in init (plan 3b3a67af's T001–T003, 2026-09-29). */
@@ -133,13 +136,37 @@ export async function startSpecTaskAgent(
   project: SpecTaskProject,
   task: ReadySpecTask,
 ): Promise<{ started: boolean }> {
-  const brief = specTaskBrief(task);
+  const brief = specTaskBrief(task, await liveIssue(project, task));
 
   await ensureTaskBranch(project.repo, brief.branchName);
   const recipe = await project.agentDefs.resolve("implementation");
 
   return await project.agents.run(task.id, specTaskRunOpts(recipe, brief));
 }
+
+// The task issue as it reads now, so a person's edit between filing and dispatch reaches the agent; a task with no issue, or a GitHub read that fails, briefs from what was filed instead of holding the dispatch.
+async function liveIssue(
+  project: SpecTaskProject,
+  task: ReadySpecTask,
+): Promise<LiveIssue | undefined> {
+  const number = task.context_bundle?.task_issue;
+
+  if (typeof number !== "number") {
+    return undefined;
+  }
+
+  try {
+    return (await project.issues.get(number)) ?? undefined;
+  } catch (err) {
+    console.warn(
+      `[spec-task-executor] task issue #${number} unreadable, briefing from the filed detail: ${(err as Error).message}`,
+    );
+
+    return undefined;
+  }
+}
+
+type LiveIssue = Pick<IssueRef, "title" | "body">;
 
 type ImplementationRecipe = Awaited<
   ReturnType<Awaited<ReturnType<typeof projectFor>>["agentDefs"]["resolve"]>
@@ -220,22 +247,67 @@ function bumpGroupCounter(
 }
 
 /** What the agent is told to build, and where it builds it. */
-function specTaskBrief(task: ReadySpecTask) {
-  const cb = (task.context_bundle ?? {}) as {
+function specTaskBrief(task: ReadySpecTask, live?: LiveIssue) {
+  const cb = (task.context_bundle ?? {}) as Record<string, unknown> & {
     spec_slug?: string;
     spec_task_id?: string;
-    file_path?: string;
   };
-  const specRef = cb.spec_slug
-    ? `\n\nREAD specs/${cb.spec_slug}/spec.md, specs/${cb.spec_slug}/plan.md and specs/${cb.spec_slug}/tasks.md first for full context.`
-    : "";
-  const fileRef = cb.file_path ? `\nTarget file: ${cb.file_path}` : "";
-  const slug = cb.spec_slug || "spec-task";
+  const detail = live?.body ?? briefDetail(task, cb);
 
   return {
     specSlug: cb.spec_slug,
     specTaskId: cb.spec_task_id,
-    description: `Implement spec-task ${cb.spec_task_id}: ${task.description}${specRef}${fileRef}`,
-    branchName: `lore/spec-task/${slug}-${(cb.spec_task_id || "").toLowerCase()}-${task.id.substring(0, 8)}`,
+    description: `${briefHeader(task, cb, live?.title)}\n\n${detail}${specRef(cb.spec_slug)}`,
+    branchName: specTaskBranch(task, cb),
   };
+}
+
+function specRef(specSlug: string | undefined): string {
+  return specSlug
+    ? `\n\nREAD specs/${specSlug}/spec.md, specs/${specSlug}/plan.md and specs/${specSlug}/tasks.md first for full context.`
+    : "";
+}
+
+function specTaskBranch(
+  task: ReadySpecTask,
+  cb: { spec_slug?: string; spec_task_id?: string },
+): string {
+  const slug = cb.spec_slug || "spec-task";
+
+  return `lore/spec-task/${slug}-${(cb.spec_task_id || "").toLowerCase()}-${task.id.substring(0, 8)}`;
+}
+
+// The issue is filed as `T001: <title>`, so its live title is read back without that prefix.
+function briefHeader(
+  task: ReadySpecTask,
+  cb: Record<string, unknown>,
+  liveTitle?: string,
+): string {
+  const taskId = String(cb.spec_task_id);
+  const issue =
+    typeof cb.task_issue === "number" ? ` (issue #${cb.task_issue})` : "";
+  const filedTitle = typeof cb.title === "string" ? cb.title : task.description;
+  const title = liveTitle?.replace(`${taskId}: `, "") ?? filedTitle;
+
+  return `Implement spec-task ${taskId}${issue}: ${title}`;
+}
+
+// The same Markdown its task issue carries, so the agent works from what a developer would read.
+function briefDetail(task: ReadySpecTask, cb: Record<string, unknown>): string {
+  return taskIssueBody({
+    repo: task.target_repo,
+    ...(typeof cb.story_issue === "number"
+      ? { storyNumber: cb.story_issue }
+      : {}),
+    dependsOn: [],
+    task: {
+      id: String(cb.spec_task_id),
+      description: task.description,
+      depends_on: [],
+      parallelizable: false,
+      phase: 0,
+      ...(typeof cb.file_path === "string" ? { file_path: cb.file_path } : {}),
+      ...taskIssueDetail(cb),
+    },
+  });
 }

@@ -13,15 +13,26 @@ const DECOMPOSITION = JSON.stringify({
         {
           id: "T001",
           description: "stream node events over SSE",
+          title: "Stream node events",
+          context: "The run page needs live node updates.",
           depends_on: [],
           parallelizable: true,
           phase: 1,
           labels: ["area:floor"],
         },
+        {
+          id: "T002",
+          description: "render node events on the graph",
+          depends_on: ["T001"],
+          parallelizable: false,
+          phase: 2,
+        },
       ],
     },
   ],
 });
+
+const LABELS = ["area:web-ui", "area:floor", "lore-managed", "user-story"];
 
 function input(params: Record<string, string> = {}): StationInput {
   return {
@@ -38,23 +49,38 @@ function input(params: Record<string, string> = {}): StationInput {
 function fakeProject(labels: string[]) {
   const issues: Array<{ title: string; body: string; labels?: string[] }> = [];
   const tasks: Array<Record<string, unknown>> = [];
+  const steps: string[] = [];
+  const bodies = new Map<number, string>();
   let n = 100;
 
   return {
     issues,
     tasks,
+    steps,
+    bodies,
     project: {
       issues: {
         listLabels: async () => labels,
         create: async (title: string, body: string, l?: string[]) => {
           issues.push({ title, body, labels: l });
+          n += 1;
+          bodies.set(n, body);
+          steps.push(`issue #${n} ${title}`);
 
-          return { number: ++n, url: `https://github.com/x/${n}` };
+          return { number: n, url: `https://github.com/x/${n}` };
+        },
+        addSubIssue: async (parent: number, child: number) => {
+          steps.push(`sub #${child} under #${parent}`);
+        },
+        updateBody: async (number: number, body: string) => {
+          bodies.set(number, body);
+          steps.push(`body #${number}`);
         },
       },
       tasks: {
         create: async (t: Record<string, unknown>) => {
           tasks.push(t);
+          steps.push(`task ${String(t.issueNumber)}`);
         },
       },
     } as never,
@@ -78,52 +104,79 @@ async function specSlugFiledFor(specPath: string): Promise<unknown> {
 }
 
 describe("runIssuesStation", () => {
-  it("files one issue per story and one spec-task per task", async () => {
-    const fake = fakeProject([
-      "area:web-ui",
-      "area:floor",
-      "lore-managed",
-      "user-story",
-    ]);
+  it("files one story issue, then per task its own issue linked under the story and a spec-task on it, then lists the task issues in the story", async () => {
+    const fake = fakeProject(LABELS);
 
     expect(
-      await runIssuesStation(input({ feature_decomposition: DECOMPOSITION }), {
-        project: fake.project,
-      }),
+      await runIssuesStation(
+        input({
+          feature_decomposition: DECOMPOSITION,
+          plan_title: "Live runs",
+        }),
+        { project: fake.project },
+      ),
     ).toMatchObject({
       outcome: "success",
-      extras: { "Lore-Issues": "1", "Lore-Spec-Tasks": "1" },
+      extras: {
+        "Lore-Story-Issue": "101",
+        "Lore-Issues": "3",
+        "Lore-Spec-Tasks": "2",
+      },
     });
-    expect(fake.issues[0]).toMatchObject({
-      title: "User story: Watch a run live",
-      labels: ["area:web-ui", "lore-managed", "user-story"],
-    });
+    expect(fake.steps).toEqual([
+      "issue #101 User story: Live runs",
+      "issue #102 T001: Stream node events",
+      "sub #102 under #101",
+      "task 102",
+      "issue #103 T002: render node events on the graph",
+      "sub #103 under #101",
+      "task 103",
+      "body #101",
+    ]);
   });
 
-  it("puts the acceptance criteria in the issue body as a checklist", async () => {
-    const fake = fakeProject([
-      "area:web-ui",
-      "area:floor",
-      "lore-managed",
-      "user-story",
-    ]);
+  it("writes each task issue as part of the story, with its dependencies by issue number", async () => {
+    const fake = fakeProject(LABELS);
 
     await runIssuesStation(input({ feature_decomposition: DECOMPOSITION }), {
       project: fake.project,
     });
 
-    expect(fake.issues[0].body).toContain(
-      "- [ ] the graph updates without a reload",
-    );
+    expect({
+      t001: fake.bodies.get(102)?.startsWith("Part of #101.\n"),
+      t002Deps: fake.bodies.get(103)?.includes("**Depends on:** #102"),
+      t001Context: fake.bodies
+        .get(102)
+        ?.includes("The run page needs live node updates."),
+    }).toEqual({ t001: true, t002Deps: true, t001Context: true });
   });
 
-  it("links each spec-task to the story issue it implements", async () => {
-    const fake = fakeProject([
-      "area:web-ui",
-      "area:floor",
-      "lore-managed",
-      "user-story",
-    ]);
+  it("links the story to its plan page and lists the filed task issues as a checklist", async () => {
+    const fake = fakeProject(LABELS);
+
+    await runIssuesStation(
+      input({
+        feature_decomposition: DECOMPOSITION,
+        plan_id: "3b3a67af",
+        plan_title: "Live runs",
+      }),
+      { project: fake.project, uiUrl: "https://lore.example" },
+    );
+
+    expect({
+      plan: fake.bodies
+        .get(101)
+        ?.startsWith(
+          "**Plan:** [Live runs](https://lore.example/repos/re-cinq/lore/plans/3b3a67af)",
+        ),
+      checklist: fake.bodies
+        .get(101)
+        ?.includes("- [ ] #102 T001: Stream node events"),
+    }).toEqual({ plan: true, checklist: true });
+  });
+
+  it("files each spec-task on its own issue, carrying its story issue", async () => {
+    const fake = fakeProject(LABELS);
 
     await runIssuesStation(input({ feature_decomposition: DECOMPOSITION }), {
       project: fake.project,
@@ -132,7 +185,9 @@ describe("runIssuesStation", () => {
     expect(fake.tasks[0]).toMatchObject({
       taskType: "spec-task",
       taskGroupId: "11111111-2222-3333-4444-555555555555",
-      contextBundle: { story_issue: 101 },
+      issueNumber: 102,
+      issueUrl: "https://github.com/x/102",
+      contextBundle: { story_issue: 101, task_issue: 102 },
     });
   });
 

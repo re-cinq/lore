@@ -22,6 +22,10 @@ import {
   commitRoute,
   createPullRoute,
 } from "./station-write-routes.js";
+import {
+  addSubIssueRoute,
+  updateIssueBodyRoute,
+} from "./station-issue-links.js";
 import { repoOf, fail } from "./station-helpers.js";
 
 export {
@@ -46,6 +50,8 @@ export function stationDataRoutes(): ServerRoute[] {
     listIssuesRoute(),
     listLabelsRoute(),
     createIssueRoute(),
+    addSubIssueRoute(),
+    updateIssueBodyRoute(),
     createBranchRoute(),
     commitRoute(),
     createPullRoute(),

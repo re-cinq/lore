@@ -88,6 +88,13 @@ export interface GitHubPort {
     repo: string,
     labels: Array<{ name: string; color?: string; description?: string }>,
   ): Promise<void>;
+  /** Makes `childNumber` a native sub-issue of `parentNumber`. */
+  addSubIssue(
+    repo: string,
+    parentNumber: number,
+    childNumber: number,
+  ): Promise<void>;
+  updateIssueBody(repo: string, number: number, body: string): Promise<void>;
   commentOnIssue(repo: string, number: number, body: string): Promise<void>;
   closeIssue(repo: string, number: number, reason?: CloseReason): Promise<void>;
   addIssueLabel(repo: string, number: number, label: string): Promise<void>;

@@ -26,7 +26,7 @@ interface HttpConfig {
   fetchImpl: typeof fetch;
 }
 
-/** A station pod holds no database and no App credentials (D7), so every read and write it makes is one of these two calls against the repo-scoped API. */
+/** A station pod holds no database and no App credentials (D7), so every read and write it makes is one of these calls against the repo-scoped API. */
 function makeHttp(cfg: HttpConfig) {
   const headers = bearerJsonHeaders(cfg.token);
   const base = `${cfg.baseUrl}/api/repos/${cfg.repo}`;
@@ -37,7 +37,9 @@ function makeHttp(cfg: HttpConfig) {
     get: <T>(path: string, query: Record<string, string> = {}): Promise<T> =>
       httpGet<T>(call, path, query),
     post: <T>(path: string, body: unknown): Promise<T> =>
-      httpPost<T>(call, path, body),
+      httpSend<T>(call, "POST", path, body),
+    patch: <T>(path: string, body: unknown): Promise<T> =>
+      httpSend<T>(call, "PATCH", path, body),
   };
 }
 
@@ -62,14 +64,19 @@ function httpGet<T>(
   );
 }
 
-function httpPost<T>(call: HttpCall, path: string, body: unknown): Promise<T> {
+function httpSend<T>(
+  call: HttpCall,
+  method: "POST" | "PATCH",
+  path: string,
+  body: unknown,
+): Promise<T> {
   return unwrap(
     call.fetchImpl(`${call.base}${path}`, {
-      method: "POST",
+      method,
       headers: call.headers,
       body: JSON.stringify(body),
     }),
-    `POST ${path}`,
+    `${method} ${path}`,
   );
 }
 
@@ -135,6 +142,22 @@ class GitHubHttp {
     labels?: string[],
   ): Promise<IssueRef> {
     return this.http.post<IssueRef>("/issues", { title, body, labels });
+  }
+  async addSubIssue(
+    _repo: string,
+    parentNumber: number,
+    childNumber: number,
+  ): Promise<void> {
+    await this.http.post(`/issues/${parentNumber}/sub-issues`, {
+      child: childNumber,
+    });
+  }
+  async updateIssueBody(
+    _repo: string,
+    number: number,
+    body: string,
+  ): Promise<void> {
+    await this.http.patch(`/issues/${number}`, { body });
   }
   async createBranch(
     _repo: string,
@@ -226,6 +249,9 @@ class TaskStoreHttp {
       createdBy: input.createdBy,
       contextBundle: input.contextBundle,
       ...(input.taskGroupId ? { taskGroupId: input.taskGroupId } : {}),
+      ...(input.issueNumber !== undefined
+        ? { issueNumber: input.issueNumber, issueUrl: input.issueUrl }
+        : {}),
     });
   }
 }

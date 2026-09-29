@@ -29,6 +29,7 @@ import type {
 } from "../pulls/pull-requests-port.js";
 import { defaultBranch as fetchDefaultBranch } from "./platform-github-support.js";
 import * as issues from "./platform-github-issues.js";
+import * as issueLinks from "./platform-github-issue-links.js";
 import * as repoContent from "./platform-github-repo-content.js";
 import * as repoConfig from "./platform-github-repo-config.js";
 import * as pullsRead from "./platform-github-pulls-read.js";
@@ -86,6 +87,27 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     labels: string[] = ["lore-managed"],
   ): Promise<IssueRef> {
     return issues.createIssue(await this.octo(), repo, { title, body, labels });
+  }
+
+  async addSubIssue(
+    repo: string,
+    parentNumber: number,
+    childNumber: number,
+  ): Promise<void> {
+    return issueLinks.addSubIssue(
+      await this.octo(),
+      repo,
+      parentNumber,
+      childNumber,
+    );
+  }
+
+  async updateIssueBody(
+    repo: string,
+    number: number,
+    body: string,
+  ): Promise<void> {
+    return issueLinks.updateIssueBody(await this.octo(), repo, number, body);
   }
 
   async listLabels(repo: string): Promise<string[]> {

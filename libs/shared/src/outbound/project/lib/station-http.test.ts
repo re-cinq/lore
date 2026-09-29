@@ -113,6 +113,27 @@ describe("findOpenLike accepts either wire spelling", () => {
 });
 
 describe("filing a spec-task over HTTP", () => {
+  it("carries the spec-task's own issue #2261 on POST /tasks", async () => {
+    const { fetchImpl, calls } = fakeFetch({
+      "POST /api/repos/o/r/tasks": { task_id: "new", status: "pending" },
+    });
+
+    await createStationProject("o/r", env, fetchImpl).tasks.create({
+      description: "T001",
+      taskType: "spec-task",
+      targetRepo: "o/r",
+      issueNumber: 2261,
+      issueUrl: "https://github.com/o/r/issues/2261",
+    });
+
+    expect(
+      calls.find((c) => c.path === "/api/repos/o/r/tasks")?.body,
+    ).toMatchObject({
+      issueNumber: 2261,
+      issueUrl: "https://github.com/o/r/issues/2261",
+    });
+  });
+
   it("carries the task group g-1 on POST /tasks", async () => {
     const { fetchImpl, calls } = fakeFetch({
       "POST /api/repos/o/r/tasks": { task_id: "new", status: "pending" },
@@ -147,5 +168,31 @@ describe("filing a spec-task over HTTP", () => {
     ).rejects.toThrow(
       new Error('POST /tasks failed: 500 — Task type "spec-task" not allowed'),
     );
+  });
+});
+
+describe("tying task issues to their story issue over HTTP", () => {
+  it("links #2261 under #2260 and rewrites #2260's body", async () => {
+    const { fetchImpl, calls } = fakeFetch({
+      "POST /api/repos/o/r/issues/2260/sub-issues": { ok: true },
+      "PATCH /api/repos/o/r/issues/2260": { ok: true },
+    });
+    const project = createStationProject("o/r", env, fetchImpl);
+
+    await project.issues.addSubIssue(2260, 2261);
+    await project.issues.updateBody(2260, "- [ ] #2261 T001");
+
+    expect(calls).toEqual([
+      {
+        method: "POST",
+        path: "/api/repos/o/r/issues/2260/sub-issues",
+        body: { child: 2261 },
+      },
+      {
+        method: "PATCH",
+        path: "/api/repos/o/r/issues/2260",
+        body: { body: "- [ ] #2261 T001" },
+      },
+    ]);
   });
 });
