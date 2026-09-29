@@ -66,6 +66,16 @@ type CreateFields = {
   createdAt: string;
 };
 
+// The columns a create writes only when the input names them, as the Pg insert does.
+function groupAndIssueColumns(input: CreateTaskInput): Partial<SeedStoreTask> {
+  return {
+    ...(input.taskGroupId ? { task_group_id: input.taskGroupId } : {}),
+    ...(input.issueNumber === undefined
+      ? {}
+      : { issue_number: input.issueNumber, issue_url: input.issueUrl ?? null }),
+  };
+}
+
 function createdFrom(fields: CreateFields, id: string): CreatedTask {
   return {
     task_id: id,
@@ -143,16 +153,7 @@ export class InMemoryTaskStore implements TaskStorePort {
       updated_at: fields.createdAt,
     };
 
-    return {
-      ...task,
-      ...(input.taskGroupId ? { task_group_id: input.taskGroupId } : {}),
-      ...(input.issueNumber === undefined
-        ? {}
-        : {
-            issue_number: input.issueNumber,
-            issue_url: input.issueUrl ?? null,
-          }),
-    };
+    return { ...task, ...groupAndIssueColumns(input) };
   }
 
   private applyContextRefs(task: SeedStoreTask, input: CreateTaskInput): void {

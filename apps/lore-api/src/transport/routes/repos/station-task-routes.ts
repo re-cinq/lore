@@ -20,7 +20,7 @@ import { repoOf, fail } from "./station-helpers.js";
 
 // The station-pod task endpoints: drift/open-like lookups + queueing a new repo task.
 
-const TaskBody = z.object({
+export const TaskBody = z.object({
   description: z.string(),
   taskType: z.string(),
   createdBy: z.string().optional(),

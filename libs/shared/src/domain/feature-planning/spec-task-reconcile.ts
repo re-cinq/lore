@@ -13,13 +13,14 @@ export interface WantedSpecTask {
 }
 
 export interface SpecTaskReconcile<W extends WantedSpecTask> {
-  /** `requeue` puts a task that stopped short back to pending; a live one keeps its status. */
-  update: { id: string; wanted: W; requeue: boolean }[];
+  /** Stopped short of a PR: rewritten and put back to pending. */
+  requeue: { id: string; wanted: W }[];
+  /** Live or done: rewritten, status kept. */
+  update: { id: string; wanted: W }[];
   create: W[];
   cancel: string[];
 }
 
-// Stopped short of a PR: a rerun gives these another go.
 const REQUEUE = new Set(["failed", "cancelled", "retried", "needs-human-help"]);
 // Not started, or stopped short: nothing is lost by cancelling these once their task is gone. A running one is left to finish.
 const CANCELLABLE = new Set([
@@ -35,26 +36,43 @@ export function planSpecTaskReconcile<W extends WantedSpecTask>(
   wanted: readonly W[],
 ): SpecTaskReconcile<W> {
   const unmatched = [...existing];
-  const plan: SpecTaskReconcile<W> = { update: [], create: [], cancel: [] };
+  const plan: SpecTaskReconcile<W> = {
+    requeue: [],
+    update: [],
+    create: [],
+    cancel: [],
+  };
 
   for (const task of wanted) {
-    const match = takeMatch(unmatched, task);
-
-    if (!match) {
-      plan.create.push(task);
-    } else if (match.status !== "merged") {
-      plan.update.push({
-        id: match.id,
-        wanted: task,
-        requeue: REQUEUE.has(match.status),
-      });
-    }
+    placeWanted(plan, task, takeMatch(unmatched, task));
   }
   plan.cancel = unmatched
-    .filter((task) => CANCELLABLE.has(task.status))
-    .map((task) => task.id);
+    .filter((row) => CANCELLABLE.has(row.status))
+    .map((row) => row.id);
 
   return plan;
+}
+
+// A merged match is done and gets nothing.
+function placeWanted<W extends WantedSpecTask>(
+  plan: SpecTaskReconcile<W>,
+  wanted: W,
+  match: ExistingSpecTask | undefined,
+): void {
+  if (!match) {
+    plan.create.push(wanted);
+
+    return;
+  }
+
+  if (match.status === "merged") {
+    return;
+  }
+
+  (REQUEUE.has(match.status) ? plan.requeue : plan.update).push({
+    id: match.id,
+    wanted,
+  });
 }
 
 // The spec-task already on the task's issue, else one with its task id and no issue yet; removed from `unmatched` so no row serves two tasks.

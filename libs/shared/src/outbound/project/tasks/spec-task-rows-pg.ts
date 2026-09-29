@@ -1,7 +1,10 @@
 import type { PgPool } from "../../memory-store.js";
 import { updateTaskStatus } from "../../../domain/pipeline-tasks.js";
-import type { ExistingSpecTask } from "../../../work/feature-planning/spec-task-reconcile.js";
-import type { SpecTaskRows } from "./spec-task-reconcile-store.js";
+import type { ExistingSpecTask } from "../../../domain/feature-planning/spec-task-reconcile.js";
+import type {
+  SpecTaskInput,
+  SpecTaskRows,
+} from "./spec-task-reconcile-store.js";
 import type { CreateTaskInput } from "./task-store-port.js";
 
 // A plan's spec-tasks: those stamped with its plan, or grouped under the run that filed them (the first issues-station runs stamped no plan).
@@ -11,15 +14,17 @@ const PLAN_SPEC_TASKS_SQL = `SELECT id, status, issue_number, context_bundle->>'
     AND task_type = 'spec-task'
     AND (context_bundle->>'plan_id' = $2 OR task_group_id::text = $3)`;
 
-const REFRESH_SPEC_TASK_SQL = `UPDATE pipeline.tasks
-    SET description = $2,
+const REWRITE_COLUMNS = `description = $2,
         context_bundle = $3,
         issue_number = $4,
         issue_url = $5,
         task_group_id = COALESCE($6::uuid, task_group_id),
-        status = CASE WHEN $7 THEN 'pending' ELSE status END,
-        failure_reason = CASE WHEN $7 THEN NULL ELSE failure_reason END,
-        updated_at = now()
+        updated_at = now()`;
+
+const UPDATE_SPEC_TASK_SQL = `UPDATE pipeline.tasks SET ${REWRITE_COLUMNS} WHERE id = $1`;
+
+const REQUEUE_SPEC_TASK_SQL = `UPDATE pipeline.tasks
+    SET ${REWRITE_COLUMNS}, status = 'pending', failure_reason = NULL
   WHERE id = $1`;
 
 interface PlanSpecTaskRow {
@@ -53,20 +58,12 @@ export class PgSpecTaskRows implements SpecTaskRows {
     }));
   }
 
-  async refresh(
-    id: string,
-    input: CreateTaskInput & { issueNumber: number },
-    requeue: boolean,
-  ): Promise<void> {
-    await this.pool.query(REFRESH_SPEC_TASK_SQL, [
-      id,
-      input.description,
-      input.contextBundle ?? null,
-      input.issueNumber,
-      input.issueUrl ?? null,
-      input.taskGroupId ?? null,
-      requeue,
-    ]);
+  async update(id: string, input: SpecTaskInput): Promise<void> {
+    await this.pool.query(UPDATE_SPEC_TASK_SQL, rewriteParams(id, input));
+  }
+
+  async requeue(id: string, input: SpecTaskInput): Promise<void> {
+    await this.pool.query(REQUEUE_SPEC_TASK_SQL, rewriteParams(id, input));
   }
 
   cancel(id: string): Promise<void> {
@@ -75,4 +72,15 @@ export class PgSpecTaskRows implements SpecTaskRows {
       reason: "the plan's decomposition no longer has this task",
     });
   }
+}
+
+function rewriteParams(id: string, input: SpecTaskInput): unknown[] {
+  return [
+    id,
+    input.description,
+    input.contextBundle ?? null,
+    input.issueNumber,
+    input.issueUrl ?? null,
+    input.taskGroupId ?? null,
+  ];
 }

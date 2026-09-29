@@ -17,10 +17,8 @@ describe("planSpecTaskReconcile", () => {
         [wanted("T001", 2261), wanted("T002", 2262), wanted("T003", 2263)],
       ),
     ).toEqual({
-      update: [
-        { id: "a", wanted: wanted("T001", 2261), requeue: true },
-        { id: "b", wanted: wanted("T002", 2262), requeue: false },
-      ],
+      requeue: [{ id: "a", wanted: wanted("T001", 2261) }],
+      update: [{ id: "b", wanted: wanted("T002", 2262) }],
       create: [wanted("T003", 2263)],
       cancel: [],
     });
@@ -38,8 +36,8 @@ describe("planSpecTaskReconcile", () => {
           },
         ],
         [wanted("T001", 2261)],
-      ).update,
-    ).toEqual([{ id: "old", wanted: wanted("T001", 2261), requeue: true }]);
+      ).requeue,
+    ).toEqual([{ id: "old", wanted: wanted("T001", 2261) }]);
   });
 
   it("leaves merged T001 alone and files nothing for it", () => {
@@ -48,7 +46,7 @@ describe("planSpecTaskReconcile", () => {
         [{ id: "a", status: "merged", issueNumber: 2261, specTaskId: "T001" }],
         [wanted("T001", 2261)],
       ),
-    ).toEqual({ update: [], create: [], cancel: [] });
+    ).toEqual({ requeue: [], update: [], create: [], cancel: [] });
   });
 
   it("cancels pending T009 the new decomposition dropped, and leaves running T010 to finish", () => {

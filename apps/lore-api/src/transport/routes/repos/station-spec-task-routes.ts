@@ -10,17 +10,13 @@ import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { repoOf, fail } from "./station-helpers.js";
+import { TaskBody } from "./station-task-routes.js";
 
 // How the issues station files a plan's spec-tasks: the whole set in one call, reconciled against what the plan already has, so a rerun reuses and cancels rather than adds (the station holds no database, D7).
 
-const SpecTaskBody = z.object({
-  description: z.string(),
-  taskType: z.string(),
-  createdBy: z.string().optional(),
-  contextBundle: z.record(z.string(), z.unknown()).optional(),
-  taskGroupId: z.string().optional(),
+// A spec-task is always filed on its task issue, so the number the plain task body leaves optional is required here.
+const SpecTaskBody = TaskBody.extend({
   issueNumber: z.number().int().positive(),
-  issueUrl: z.string().optional(),
 });
 
 const ReconcileBody = z.object({

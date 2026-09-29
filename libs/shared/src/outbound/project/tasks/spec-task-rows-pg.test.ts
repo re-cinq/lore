@@ -47,26 +47,36 @@ describe("PgSpecTaskRows", () => {
     const capture: Query[] = [];
     const rows = new PgSpecTaskRows(fakePool(capture), noCreate);
 
-    await rows.refresh(
-      "a",
-      {
-        description: "T001 again",
-        issueNumber: 2261,
-        issueUrl: "https://github.com/re-cinq/lore/issues/2261",
-        taskGroupId: "18773dbb-5972-43f1-8a2a-5db8831bcc5a",
-        contextBundle: { spec_task_id: "T001" },
-      },
-      true,
-    );
+    await rows.requeue("a", {
+      description: "T001 again",
+      issueNumber: 2261,
+      issueUrl: "https://github.com/re-cinq/lore/issues/2261",
+      taskGroupId: "18773dbb-5972-43f1-8a2a-5db8831bcc5a",
+      contextBundle: { spec_task_id: "T001" },
+    });
 
-    expect(capture[0]?.params).toEqual([
-      "a",
-      "T001 again",
-      { spec_task_id: "T001" },
-      2261,
-      "https://github.com/re-cinq/lore/issues/2261",
-      "18773dbb-5972-43f1-8a2a-5db8831bcc5a",
-      true,
-    ]);
+    expect({
+      requeued: capture[0]?.text.includes("status = 'pending'"),
+      params: capture[0]?.params,
+    }).toEqual({
+      requeued: true,
+      params: [
+        "a",
+        "T001 again",
+        { spec_task_id: "T001" },
+        2261,
+        "https://github.com/re-cinq/lore/issues/2261",
+        "18773dbb-5972-43f1-8a2a-5db8831bcc5a",
+      ],
+    });
+  });
+
+  it("rewrites running spec-task b onto issue #2262 and keeps its status", async () => {
+    const capture: Query[] = [];
+    const rows = new PgSpecTaskRows(fakePool(capture), noCreate);
+
+    await rows.update("b", { description: "T002 again", issueNumber: 2262 });
+
+    expect(capture[0]?.text.includes("status")).toBe(false);
   });
 });

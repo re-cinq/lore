@@ -1,5 +1,8 @@
-import type { ExistingSpecTask } from "../../../work/feature-planning/spec-task-reconcile.js";
-import type { SpecTaskRows } from "./spec-task-reconcile-store.js";
+import type { ExistingSpecTask } from "../../../domain/feature-planning/spec-task-reconcile.js";
+import type {
+  SpecTaskInput,
+  SpecTaskRows,
+} from "./spec-task-reconcile-store.js";
 import type { CreateTaskInput } from "./task-store-port.js";
 import type { SeedStoreTask } from "./task-store-memory.js";
 
@@ -30,11 +33,7 @@ export class MemorySpecTaskRows implements SpecTaskRows {
       }));
   }
 
-  async refresh(
-    id: string,
-    input: CreateTaskInput & { issueNumber: number },
-    requeue: boolean,
-  ): Promise<void> {
+  async update(id: string, input: SpecTaskInput): Promise<void> {
     const task = this.row(id);
 
     Object.assign(task, {
@@ -44,8 +43,12 @@ export class MemorySpecTaskRows implements SpecTaskRows {
       issue_url: input.issueUrl ?? null,
       task_group_id: input.taskGroupId ?? task.task_group_id,
       updated_at: this.now().toISOString(),
-      ...(requeue ? { status: "pending", failure_reason: null } : {}),
     });
+  }
+
+  async requeue(id: string, input: SpecTaskInput): Promise<void> {
+    await this.update(id, input);
+    Object.assign(this.row(id), { status: "pending", failure_reason: null });
   }
 
   async cancel(id: string): Promise<void> {
