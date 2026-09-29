@@ -46,4 +46,39 @@ describe("DECOMPOSITION_EXAMPLE", () => {
 
     expect(everyTask.some((t) => t.depends_on.length > 0)).toBe(true);
   });
+
+  it("writes every example task as a self-contained issue: title, context, changes, acceptance criteria, test plan and references", () => {
+    const everyTask = parseDecomposition(
+      JSON.parse(DECOMPOSITION_EXAMPLE),
+    ).stories.flatMap((s) => s.tasks);
+    const missing = everyTask
+      .filter(
+        (t) =>
+          !t.title ||
+          !t.context ||
+          !t.changes ||
+          !t.acceptance_criteria?.length ||
+          !t.test_plan ||
+          !t.references?.length,
+      )
+      .map((t) => t.id);
+
+    expect(missing).toEqual([]);
+  });
+
+  it("tells the agent each task becomes its own issue a developer implements from alone", () => {
+    expect({
+      ownIssue: DECOMPOSITION_INSTRUCTIONS.includes(
+        "Every task becomes its own GitHub issue",
+      ),
+      fields: [
+        "title",
+        "context",
+        "changes",
+        "acceptance_criteria",
+        "test_plan",
+        "references",
+      ].every((field) => DECOMPOSITION_INSTRUCTIONS.includes(`"${field}"`)),
+    }).toEqual({ ownIssue: true, fields: true });
+  });
 });

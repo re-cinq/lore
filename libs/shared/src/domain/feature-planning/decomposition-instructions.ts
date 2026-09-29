@@ -18,6 +18,18 @@ export const DECOMPOSITION_EXAMPLE = JSON.stringify({
           parallelizable: false,
           phase: 1,
           file_path: "migrations/00NN_favorites.sql",
+          title: "Store which repos each developer starred",
+          context:
+            "Favorites need a durable record before any endpoint or view can read one; every other task in this story builds on this table.",
+          changes:
+            "New migration `migrations/00NN_favorites.sql` (next free number): table `favorites (user_id text, repo text, created_at timestamptz default now())`, primary key `(user_id, repo)`.",
+          acceptance_criteria: [
+            "The migration applies on an empty database and re-runs as a no-op",
+            "Starring the same repo twice keeps one row",
+          ],
+          test_plan:
+            "Apply the migration locally; insert the same (user, repo) twice and see one row.",
+          references: ["specs/favorites/plan.md#data-model"],
         },
         {
           id: "T002",
@@ -25,6 +37,17 @@ export const DECOMPOSITION_EXAMPLE = JSON.stringify({
           depends_on: ["T001"],
           parallelizable: true,
           phase: 2,
+          title: "Toggle a favorite over the API",
+          context:
+            "The star button and the list both go through this endpoint; it is the only writer of the favorites table.",
+          changes:
+            "`POST /api/repos/:owner/:repo/favorite` flips the caller's row and answers `{ favorite: boolean }`; route + test beside the existing repo routes.",
+          acceptance_criteria: [
+            "A first call answers favorite true, a second answers false",
+            "An unauthenticated call answers 401",
+          ],
+          test_plan: "Route test calling it twice for one user and repo.",
+          references: ["specs/favorites/spec.md#FR-001"],
         },
         {
           id: "T003",
@@ -33,6 +56,17 @@ export const DECOMPOSITION_EXAMPLE = JSON.stringify({
           parallelizable: true,
           phase: 2,
           file_path: "web-ui/StarButton.tsx",
+          title: "Star button on the repo page",
+          context:
+            "How a developer marks a favorite; the first user-visible piece of the story.",
+          changes:
+            "New `web-ui/StarButton.tsx` beside the repo page header: filled when favorite, calls the toggle endpoint and shows the answered state.",
+          acceptance_criteria: [
+            "The button reflects the stored state on load",
+            "Clicking it flips the state without a reload",
+          ],
+          test_plan: "Component test with the endpoint stubbed both ways.",
+          references: ["specs/favorites/spec.md#user-story-1"],
         },
         {
           id: "T004",
@@ -40,6 +74,16 @@ export const DECOMPOSITION_EXAMPLE = JSON.stringify({
           depends_on: ["T002"],
           parallelizable: true,
           phase: 3,
+          title: "Favorites list in the navigation",
+          context: "Where a developer finds the repos they starred again.",
+          changes:
+            "A Favorites page listing the caller's starred repos, newest first, and a nav entry to it.",
+          acceptance_criteria: [
+            "The list shows exactly the starred repos",
+            "An empty list says so rather than showing nothing",
+          ],
+          test_plan: "Page test with zero and two favorites.",
+          references: ["specs/favorites/spec.md#user-story-2"],
         },
       ],
     },

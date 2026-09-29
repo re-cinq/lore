@@ -34,7 +34,13 @@ the deliverable:
           "depends_on": ["T000"],
           "parallelizable": true,
           "phase": 1,
-          "file_path": "path/to/likely/file.ts"
+          "file_path": "path/to/likely/file.ts",
+          "title": "<short issue title, imperative>",
+          "context": "<why this task exists and what it is part of>",
+          "changes": "<what to change, file by file, precisely enough to start coding>",
+          "acceptance_criteria": ["<observable outcome that proves it done>", "..."],
+          "test_plan": "<which tests to write or run, and what they show>",
+          "references": ["specs/<slug>/spec.md#<section>", "specs/<slug>/plan.md#<section>"]
         }
       ]
     }
@@ -58,6 +64,15 @@ Rules:
   `depends_on`, a `phase` number (group setup/data-model first, then build, then
   wiring/tests), and `parallelizable` true when it can run alongside its
   phase-peers. Add a `file_path` hint when the spec makes the target obvious.
+- **Every task becomes its own GitHub issue**, a sub-issue of one story issue
+  for the whole plan, and a developer implements it from that issue plus its
+  references ALONE. So write, for every task: `title` (short, imperative);
+  `context` (why it exists, what it is part of, what depends on it); `changes`
+  (what to change, file by file — real paths from plan.md's Mechanisms and
+  Project Structure, not guesses); `acceptance_criteria` (observable outcomes);
+  `test_plan` (which tests prove it); `references` (the spec.md and plan.md
+  sections it implements). Lift them from spec.md, plan.md and tasks.md —
+  never leave a developer to rediscover what the spec already settled.
 - Wire real dependencies: schema/data-model tasks come before the code that uses
   them; tests/integration come after the code they cover.
 - Prefer a handful of well-scoped tasks per story over many trivial ones.

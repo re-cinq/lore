@@ -10,6 +10,13 @@ export interface DecompTask {
   file_path?: string;
   /** Agent labels from repo REAL list; validated (see decideIssueWork) to prevent GitHub silent invention. */
   labels?: string[];
+  /** The task's own issue: a developer implements it from this plus the linked references, nothing else. */
+  title?: string;
+  context?: string;
+  changes?: string;
+  acceptance_criteria?: string[];
+  test_plan?: string;
+  references?: string[];
 }
 
 export interface UserStory {
@@ -167,6 +174,38 @@ function applyTaskOptionals(
 
   if (labels.length) {
     task.labels = labels;
+  }
+  applyTaskIssueDetail(task, t);
+}
+
+/** The issue a task is filed as; each field set only when the agent wrote it. */
+function applyTaskIssueDetail(
+  task: DecompTask,
+  t: Record<string, unknown>,
+): void {
+  const texts = {
+    title: t.title,
+    context: t.context,
+    changes: t.changes,
+    test_plan: t.test_plan ?? t.testPlan,
+  };
+
+  for (const [key, value] of Object.entries(texts)) {
+    if (typeof value === "string" && value.trim()) {
+      task[key as "title" | "context" | "changes" | "test_plan"] = value;
+    }
+  }
+  const lists = {
+    acceptance_criteria: asStringList(
+      t.acceptance_criteria ?? t.acceptanceCriteria,
+    ),
+    references: asStringList(t.references),
+  };
+
+  for (const [key, value] of Object.entries(lists)) {
+    if (value.length) {
+      task[key as "acceptance_criteria" | "references"] = value;
+    }
   }
 }
 
