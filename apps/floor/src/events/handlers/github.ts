@@ -154,31 +154,36 @@ async function alreadyWorkingOnIssue(
   return true;
 }
 
+/** Returns the task type for this label event, or null to skip (not a recognized dispatch trigger). The same table onboarding seeds the repo from — GIVEN and UNDERSTOOD labels must be one declaration, or a seeded label silently dispatches as the default type. */
+function resolveTaskTypeFromLabel(
+  label: string,
+  dispatchLabel: string,
+  dispatchDefaultType: string,
+  issueLabels: string[],
+): string | null {
+  if (label === "lore:triage" || label === "triage: needs-triage") {
+    return "issue-triage";
+  }
+  if (label !== dispatchLabel) {
+    return null;
+  }
+  return dispatchTypeFromLabels(issueLabels) ?? dispatchDefaultType;
+}
+
 export const issuesLabeled: EventHandler = async (params) => {
   const { repo, label, issue } = params as IssuesLabeledParams;
   const repoSettings = await settings().rawSettings(repo);
   const { dispatchLabel, dispatchDefaultType } =
     resolveIssueDispatch(repoSettings);
-
-  const isTriageLabel =
-    label === "lore:triage" || label === "triage: needs-triage";
-
-  // not the dispatch label and not a triage label → no-op
-  if (label !== dispatchLabel && !isTriageLabel) {
-    return;
-  }
-
-  // The same table onboarding seeds the repo from — GIVEN and UNDERSTOOD labels must be one declaration, or a seeded label silently dispatches as the default type.
-  const taskType = isTriageLabel
-    ? "issue-triage"
-    : (dispatchTypeFromLabels(issue.labels) ?? dispatchDefaultType);
-
+  const taskType = resolveTaskTypeFromLabel(
+    label,
+    dispatchLabel,
+    dispatchDefaultType,
+    issue.labels,
+  );
+  if (taskType === null) return;
   const issues = (await projectFor(repo)).issues;
-
-  if (await alreadyWorkingOnIssue(repo, issue.number, issues)) {
-    return;
-  }
-
+  if (await alreadyWorkingOnIssue(repo, issue.number, issues)) return;
   await fileIssueTask(repo, issue, taskType, issues);
 };
 

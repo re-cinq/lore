@@ -83,7 +83,7 @@ After successful diagnosis and verification, the bot waits for human approval be
 - **FR4**: The Verify station MUST cross-reference the diagnosed behavior against existing specs and documentation.
 - **FR5**: The assembly line MUST automatically close issues that the Verify station detects as already implemented or obsolete.
 - **FR6**: The assembly line MUST automatically split large issues into smaller tasks via a decompose node.
-- **FR7**: State transitions MUST be driven by a label taxonomy (`triage: needs-triage`, `triage: needs-reproduction`, `triage: reproduced`, `triage: unable-to-reproduce`, `triage: diagnosed`, `triage: skipped`, `triage: not-actionable`, `triage: failed`) via the `pipeline.events` bus and GitHub webhook ingress.
+- **FR7**: State transitions MUST be driven by a label taxonomy (`triage: needs-triage`, `triage: needs-reproduction`, `triage: reproduced`, `triage: unable-to-reproduce`, `triage: diagnosed`, `triage: skipped`, `triage: not-actionable`, `triage: failed`) via the `pipeline.events` bus and GitHub webhook ingress. ([validated by](apps/floor/src/events/handlers/github.test.ts#L55)) ([validated by](apps/floor/src/events/handlers/github.test.ts#L78))
 - **FR8**: The handoff to the implementation loop MUST be human-gated, requiring manual application of the `lore:implementation` label.
 - **FR9**: Incoming triage tasks MUST be processed in batches, ordering older issues first; how a batch is released is an Open Question below.
 - **FR10**: The success criteria MUST be computable from what the line already records — the `outcome` of each issue-triage row in `pipeline.station_runs` and the `triage:*` labels on the issues — so the line emits no telemetry events of its own.
