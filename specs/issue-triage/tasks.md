@@ -57,4 +57,4 @@ This checklist delivers the Issue Triage Assembly Line to automate bug reproduct
 
 ## Phase 7: Polish
 
-- [ ] T010 Update `README.md` to document the new `triage:*` label taxonomy and issue triage flow.
+- [x] T010 Update `README.md` to document the new `triage:*` label taxonomy and issue triage flow.
