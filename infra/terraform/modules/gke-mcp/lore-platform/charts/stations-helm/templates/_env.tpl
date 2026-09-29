@@ -20,6 +20,14 @@ Usage:
     secretKeyRef:
       name: {{ .Values.ingestTokenSecret.name }}
       key: {{ .Values.ingestTokenSecret.key }}
+{{- if .Values.stationTokenSecret }}
+- name: LORE_STATION_TOKEN
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.stationTokenSecret.name }}
+      key: {{ .Values.stationTokenSecret.key }}
+      optional: true
+{{- end }}
 - name: GITHUB_APP_ID
   valueFrom:
     secretKeyRef:
