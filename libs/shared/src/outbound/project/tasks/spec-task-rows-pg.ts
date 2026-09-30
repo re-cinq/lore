@@ -25,7 +25,7 @@ const REWRITE_COLUMNS = `description = $2,
 const UPDATE_SPEC_TASK_SQL = `UPDATE pipeline.tasks SET ${REWRITE_COLUMNS} WHERE id = $1`;
 
 const REQUEUE_SPEC_TASK_SQL = `UPDATE pipeline.tasks
-    SET ${REWRITE_COLUMNS}, status = 'pending', failure_reason = NULL
+    SET ${REWRITE_COLUMNS}, status = 'pending', failure_reason = NULL, pr_number = NULL, pr_url = NULL
   WHERE id = $1`;
 
 type PlanSpecTaskRow = Pick<
