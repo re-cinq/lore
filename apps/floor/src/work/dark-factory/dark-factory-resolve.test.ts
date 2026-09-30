@@ -23,7 +23,7 @@ describe("resolveDarkFactorySettings (agent-side resolver)", () => {
     expect(r.create_issue).toBe("on_gate");
     expect(r.review).toBe("trust_based");
     expect(r.notify).toEqual([]);
-    expect(r.auto_merge.paths).toContain("CLAUDE.md");
+    expect(r.auto_merge.paths).not.toContain("CLAUDE.md");
     expect(r.auto_merge.min_trust).toBe("docs");
     expect(r.auto_merge.require_green_ci).toBe(true);
     expect(r.auto_merge.require_bot_approval).toBe(true);
@@ -53,6 +53,8 @@ describe("resolveDarkFactorySettings (agent-side resolver)", () => {
       "review",
     ]);
     expect(Object.keys(r.auto_merge).sort()).toEqual([
+      "enabled",
+      "escalate_paths",
       "min_trust",
       "paths",
       "require_bot_approval",

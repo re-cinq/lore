@@ -314,4 +314,19 @@ describe("resolvePrForTaskFromDb — the review verdict on a PR the bot authored
 
     expect(result?.policy.botApproved).toBe(false);
   });
+
+  it("carries auto_merge.enabled and escalate_paths infra/** from the repo settings into the policy", async () => {
+    const result = await resolvePrForTaskFromDb(
+      "t1",
+      resolveDarkFactorySettings({
+        auto_merge: { enabled: true, escalate_paths: ["infra/**"] },
+      }),
+      deps(task({}), {}),
+    );
+
+    expect(result?.policy.autoMerge).toMatchObject({
+      enabled: true,
+      escalate_paths: ["infra/**"],
+    });
+  });
 });

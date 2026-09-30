@@ -6515,7 +6515,17 @@
                   "auto_merge": {
                     "type": "object",
                     "properties": {
+                      "enabled": {
+                        "type": "boolean"
+                      },
                       "paths": {
+                        "maxItems": 32,
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "escalate_paths": {
                         "maxItems": 32,
                         "type": "array",
                         "items": {
@@ -10465,7 +10475,16 @@
           "auto_merge": {
             "type": "object",
             "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
               "paths": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "escalate_paths": {
                 "type": "array",
                 "items": {
                   "type": "string"
@@ -10483,7 +10502,9 @@
               }
             },
             "required": [
+              "enabled",
               "paths",
+              "escalate_paths",
               "min_trust",
               "require_green_ci",
               "require_bot_approval"
@@ -10531,7 +10552,16 @@
               "auto_merge": {
                 "type": "object",
                 "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  },
                   "paths": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "escalate_paths": {
                     "type": "array",
                     "items": {
                       "type": "string"
@@ -10549,7 +10579,9 @@
                   }
                 },
                 "required": [
+                  "enabled",
                   "paths",
+                  "escalate_paths",
                   "min_trust",
                   "require_green_ci",
                   "require_bot_approval"
@@ -13458,7 +13490,16 @@
                       "auto_merge": {
                         "type": "object",
                         "properties": {
+                          "enabled": {
+                            "type": "boolean"
+                          },
                           "paths": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "escalate_paths": {
                             "type": "array",
                             "items": {
                               "type": "string"
@@ -13919,7 +13960,16 @@
                             "auto_merge": {
                               "type": "object",
                               "properties": {
+                                "enabled": {
+                                  "type": "boolean"
+                                },
                                 "paths": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "escalate_paths": {
                                   "type": "array",
                                   "items": {
                                     "type": "string"

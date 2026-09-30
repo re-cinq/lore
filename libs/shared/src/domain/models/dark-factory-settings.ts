@@ -18,7 +18,9 @@ export const CreateIssueModeSchema = z.enum(["never", "on_gate", "always"]);
 export const NotifyChannelSchema = z.enum(["escalation", "watched", "all"]);
 
 export const DarkFactoryAutoMergeSchema = z.object({
+  enabled: z.boolean().optional(),
   paths: z.array(z.string()).optional(),
+  escalate_paths: z.array(z.string()).optional(),
   min_trust: TrustLevelSchema.optional(),
   require_green_ci: z.boolean().optional(),
   require_bot_approval: z.boolean().optional(),
@@ -54,7 +56,9 @@ export const ResolvedDarkFactorySettingsSchema = z.object({
   enabled: z.boolean(),
   create_issue: CreateIssueModeSchema,
   auto_merge: z.object({
+    enabled: z.boolean(),
     paths: z.array(z.string()),
+    escalate_paths: z.array(z.string()),
     min_trust: TrustLevelSchema,
     require_green_ci: z.boolean(),
     require_bot_approval: z.boolean(),

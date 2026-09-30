@@ -1,8 +1,10 @@
 import type { Span } from "@opentelemetry/api";
 import { trace } from "@opentelemetry/api";
 import {
+  AGENT_INSTRUCTION_PATHS,
   allPathsMatch,
   matchingPatterns,
+  pathsMatching,
   type ResolvedDarkFactorySettings,
 } from "@re-cinq/lore-shared";
 import { withBackoff } from "@re-cinq/lore-shared/lib/backoff.js";
@@ -17,8 +19,9 @@ export type AutoMergeOutcome =
   | "deferred:ci_failed"
   | "deferred:bot_changes_requested"
   | "deferred:path_outside_allowlist"
+  | "deferred:sensitive_path"
   | "deferred:trust_too_low"
-  | "deferred:dark_mode_off"
+  | "deferred:auto_merge_off"
   | "deferred:no_changes"
   | "deferred:review_in_flight"
   | "deferred:api_failure";
@@ -27,7 +30,6 @@ export type AutoMergeOutcome =
 export type DarkFactoryAutoMerge = ResolvedDarkFactorySettings["auto_merge"];
 
 export interface AutoMergePolicyInputs {
-  darkFactoryEnabled: boolean;
   autoMerge: DarkFactoryAutoMerge;
   trustLevel: "docs" | "tests" | "implementation" | "full" | undefined;
   changedPaths: string[];
@@ -46,6 +48,7 @@ export interface AutoMergeDecision {
     ci_status: "success" | "failed" | "pending";
     bot_review_state: "APPROVED" | "CHANGES_REQUESTED" | "PENDING";
     human_changes_requested: boolean;
+    escalated_paths: string[];
   };
 }
 
@@ -66,7 +69,9 @@ export function evaluateAutoMerge(
   inputs: AutoMergePolicyInputs,
 ): AutoMergeDecision {
   const rule = buildBaseRule(inputs);
-  const failedGuard = autoMergeGuards(inputs).find((guard) => guard.failed);
+  const failedGuard = autoMergeGuards(inputs, rule).find(
+    (guard) => guard.failed,
+  );
 
   if (failedGuard) {
     return { outcome: failedGuard.outcome, rule };
@@ -88,22 +93,42 @@ function buildBaseRule(
     ci_status: inputs.ciSucceeded ? "success" : "failed",
     bot_review_state: inputs.botApproved ? "APPROVED" : "CHANGES_REQUESTED",
     human_changes_requested: inputs.humanChangesRequested,
+    escalated_paths: escalatedPaths(inputs),
   };
 }
 
-function autoMergeGuards(inputs: AutoMergePolicyInputs): AutoMergeGuard[] {
+/** The repo's own escalate list plus the agent-instruction floor no repo can switch off. */
+function escalatedPaths(inputs: AutoMergePolicyInputs): string[] {
+  return pathsMatching(inputs.changedPaths, [
+    ...AGENT_INSTRUCTION_PATHS,
+    ...inputs.autoMerge.escalate_paths,
+  ]);
+}
+
+/** Deferral guards in priority order — the first one that fails wins. A zero-file PR would pass the path allowlist vacuously and then 422 on GitHub's own merge call, so it is refused where the audit log can say why. A review in flight defers ahead of the escalate check (#1641), and the escalate check runs ahead of CI and the allowlist, so a match always wins over `paths` and a red PR is still routed to a human. */
+function autoMergeGuards(
+  inputs: AutoMergePolicyInputs,
+  rule: AutoMergeDecision["rule"],
+): AutoMergeGuard[] {
   return [
-    { failed: !inputs.darkFactoryEnabled, outcome: "deferred:dark_mode_off" },
+    { failed: !inputs.autoMerge.enabled, outcome: "deferred:auto_merge_off" },
+    {
+      failed: inputs.changedPaths.length === 0,
+      outcome: "deferred:no_changes",
+    },
+    { failed: inputs.reviewInFlight, outcome: "deferred:review_in_flight" },
+    {
+      failed: rule.escalated_paths.length > 0,
+      outcome: "deferred:sensitive_path",
+    },
     ...changeGuards(inputs),
     ...reviewGuards(inputs),
   ];
 }
 
-/** Deferral guards in priority order — the first one that fails wins, exactly like the original if-chain. */
-/** Guards about the PR's REVIEW state: is anyone still looking at it, and did they object. A review in flight defers rather than fails — the answer is coming. */
+/** Guards about the PR's REVIEW verdict: did anyone object. */
 function reviewGuards(inputs: AutoMergePolicyInputs): AutoMergeGuard[] {
   return [
-    { failed: inputs.reviewInFlight, outcome: "deferred:review_in_flight" },
     { failed: inputs.humanChangesRequested, outcome: "deferred:human_review" },
     {
       failed: inputs.autoMerge.require_bot_approval && !inputs.botApproved,
@@ -112,13 +137,9 @@ function reviewGuards(inputs: AutoMergePolicyInputs): AutoMergeGuard[] {
   ];
 }
 
-/** Guards about the CHANGE itself: what it touches, and whether this repo is trusted that far. A zero-file PR would pass the path allowlist vacuously and then 422 on GitHub's own merge call, so it is refused here where the audit log can say why. */
+/** Guards about the CHANGE itself: whether CI passed, what it touches, and whether this repo is trusted that far. */
 function changeGuards(inputs: AutoMergePolicyInputs): AutoMergeGuard[] {
   return [
-    {
-      failed: inputs.changedPaths.length === 0,
-      outcome: "deferred:no_changes",
-    },
     {
       failed: inputs.autoMerge.require_green_ci && !inputs.ciSucceeded,
       outcome: "deferred:ci_failed",
@@ -179,6 +200,8 @@ async function decideAndMerge(
 ): Promise<AutoMergeDecision> {
   const decision = evaluateAutoMerge(inputs.policy);
 
+  await flagIfSensitive(inputs, decision);
+
   if (decision.outcome !== "merged") {
     return decision;
   }
@@ -197,6 +220,45 @@ async function decideAndMerge(
   }
 }
 
+const HUMAN_REVIEW_LABEL = "needs-human-review";
+
+async function flagIfSensitive(
+  inputs: AutoMergeJobInputs,
+  { outcome, rule }: AutoMergeDecision,
+): Promise<void> {
+  if (outcome === "deferred:sensitive_path") {
+    await flagForHumanReview(inputs, rule.escalated_paths);
+  }
+}
+
+/** Labels the PR and names the escalated paths once. Every check run re-evaluates the PR, so the label is what keeps the comment from repeating. CODEOWNERS routing is GitHub's own, requested when the PR opens. A GitHub failure is logged, not thrown: the PR already cannot merge, and the audit row must still be written. */
+async function flagForHumanReview(
+  inputs: AutoMergeJobInputs,
+  escalated: string[],
+): Promise<void> {
+  try {
+    const { pulls } = await projectFor(inputs.repo);
+    const pr = await pulls.get(inputs.prNumber);
+
+    if (pr?.labels.includes(HUMAN_REVIEW_LABEL)) {
+      return;
+    }
+    await pulls.addLabel(inputs.prNumber, HUMAN_REVIEW_LABEL);
+    await pulls.comment(inputs.prNumber, humanReviewComment(escalated));
+  } catch (err) {
+    console.warn(
+      `[auto-merge] PR ${inputs.repo}#${inputs.prNumber} escalation label/comment failed:`,
+      (err as Error).message,
+    );
+  }
+}
+
+function humanReviewComment(escalated: string[]): string {
+  const list = escalated.map((path) => `- \`${path}\``).join("\n");
+
+  return `Auto-merge stopped: this PR touches paths that always need a human review.\n\n${list}`;
+}
+
 // Try to merge a PR with backoff (R3): 3 attempts, 1s then 4s tail — throws on final failure so the caller records `deferred:api_failure` and the PR sits open for a human merge.
 async function mergeWithBackoff(opts: {
   repo: string;
@@ -213,12 +275,16 @@ async function mergeWithBackoff(opts: {
 }
 
 /** The rule trace on the span. Every input that could have deferred the merge is attached, so a "why did this not merge" question is answerable from the trace alone rather than by re-reading the PR. */
-function recordDecision(span: Span, decision: AutoMergeDecision): void {
-  span.setAttribute("decision", decision.outcome);
-  span.setAttribute("path_match_count", decision.rule.path_match_count);
-  span.setAttribute("trust_level", decision.rule.trust_level ?? "unknown");
-  span.setAttribute("ci_status", decision.rule.ci_status);
-  span.setAttribute("bot_review_state", decision.rule.bot_review_state);
+function recordDecision(
+  span: Span,
+  { outcome, rule }: AutoMergeDecision,
+): void {
+  span.setAttribute("decision", outcome);
+  span.setAttribute("path_match_count", rule.path_match_count);
+  span.setAttribute("escalated_path_count", rule.escalated_paths.length);
+  span.setAttribute("trust_level", rule.trust_level ?? "unknown");
+  span.setAttribute("ci_status", rule.ci_status);
+  span.setAttribute("bot_review_state", rule.bot_review_state);
 }
 
 /** The durable half of the same record. Traces expire; `pipeline.audit_log` is what the dark-factory rollback runbook queries months later. */

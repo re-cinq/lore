@@ -108,8 +108,15 @@ curl -X PUT "$LORE_API_URL/api/repos/$REPO/settings/dark-factory" \
   -H "Authorization: Bearer $LORE_TOKEN" \
   -H "X-Lore-Approval-PR: $REPO#$PR_NUMBER" \
   -H "Content-Type: application/json" \
-  -d '{"enabled": false}'
+  -d '{"enabled": false, "auto_merge": {"enabled": false}}'
 ```
+
+Send both flags. Since ADR-049 auto-merge has its own switch: it follows
+`enabled` only while `auto_merge.enabled` is unset, so a repo that set
+`auto_merge.enabled: true` keeps auto-merging after `enabled` goes false.
+Turning `auto_merge.enabled` off needs no approval PR, so in an incident
+send `{"auto_merge": {"enabled": false}}` first, then run the ceremony
+for the rest.
 
 The route merges the patch over the existing `dark_factory` block in a
 transaction and writes the `dark_factory_setting_changed` audit entry
@@ -126,9 +133,9 @@ yet stays open for a human.
 `auto_merge_decision` rows for the repo, not for a `deferred:` row.
 `tryAutoMergeForCompletedTask`
 (`apps/floor/src/work/merge/auto-merge-trigger.ts`) returns early on
-`settings.enabled === false`, deliberately *before* `evaluateAndMerge`,
-so a disabled repo writes no audit row at all — the
-`deferred:dark_mode_off` outcome exists in the enum but is unreachable
+`settings.auto_merge.enabled === false`, deliberately *before*
+`evaluateAndMerge`, so a disabled repo writes no audit row at all — the
+`deferred:auto_merge_off` outcome exists in the enum but is unreachable
 on the production path. A repo that keeps emitting `auto_merge_decision`
 rows after the flip has not actually been disabled; re-check the PUT
 response and the settings row.

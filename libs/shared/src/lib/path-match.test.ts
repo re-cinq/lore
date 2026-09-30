@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { allPathsMatch, matchingPatterns } from "./path-match.js";
+import {
+  allPathsMatch,
+  matchingPatterns,
+  pathsMatching,
+} from "./path-match.js";
 
 const DEFAULT_ALLOWLIST = [
   "specs/**",
@@ -72,5 +76,29 @@ describe("matchingPatterns", () => {
 
   it("returns empty for non-matching path", () => {
     expect(matchingPatterns("agent/src/foo.ts", DEFAULT_ALLOWLIST)).toEqual([]);
+  });
+});
+
+describe("pathsMatching", () => {
+  it("returns the changed paths that match any glob, in changed-path order", () => {
+    expect(
+      pathsMatching(
+        ["apps/api/src/server.ts", "README.md", "infra/main.tf"],
+        ["infra/**", "apps/api/src/server.ts"],
+      ),
+    ).toEqual(["apps/api/src/server.ts", "infra/main.tf"]);
+  });
+
+  it("matches a root CLAUDE.md and a nested .claude directory against **/ globs", () => {
+    expect(
+      pathsMatching(
+        ["CLAUDE.md", "apps/web/.claude/settings.json"],
+        ["**/CLAUDE.md", "**/.claude/**"],
+      ),
+    ).toEqual(["CLAUDE.md", "apps/web/.claude/settings.json"]);
+  });
+
+  it("returns an empty list when no glob is given", () => {
+    expect(pathsMatching(["infra/main.tf"], [])).toEqual([]);
   });
 });

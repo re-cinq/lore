@@ -14,7 +14,9 @@ export interface CurrentSettings {
     notify?: string[];
     execution?: { image?: string };
     auto_merge?: {
+      enabled?: boolean;
       paths?: string[];
+      escalate_paths?: string[];
       min_trust?: string;
       require_green_ci?: boolean;
       require_bot_approval?: boolean;
@@ -126,7 +128,11 @@ function autoMergeChanges(
 ): Record<string, unknown> {
   const changes: Record<string, unknown> = {};
 
-  recordPaths(changes, formData, am.paths ?? []);
+  recordCheckbox(changes, "enabled", {
+    value: checkbox(formData, "df_am_enabled"),
+    stored: am.enabled ?? false,
+  });
+  recordAutoMergeLists(changes, formData, am);
   recordText(
     changes,
     "min_trust",
@@ -206,19 +212,37 @@ function executionChanges(
   return execution;
 }
 
-/** The auto-merge allowlist, recorded only when the field was submitted AND differs. Absence is not emptiness: a form that never rendered the field must not read as clearing the allowlist, which would widen what auto-merge is permitted to touch. */
-function recordPaths(
+/** The allowlist and the escalate list, each diffed on its own. */
+function recordAutoMergeLists(
   changes: Record<string, unknown>,
   formData: FormData,
-  current: string[],
+  am: AutoMergeSettings,
 ): void {
-  const paths = text(formData, "df_am_paths")
+  recordGlobList(changes, formData, {
+    key: "paths",
+    field: "df_am_paths",
+    current: am.paths ?? [],
+  });
+  recordGlobList(changes, formData, {
+    key: "escalate_paths",
+    field: "df_am_escalate_paths",
+    current: am.escalate_paths ?? [],
+  });
+}
+
+/** An auto-merge glob list (the allowlist or the escalate list), recorded only when the field was submitted AND differs. Absence is not emptiness: a form that never rendered the field must not read as clearing the list, which would widen what auto-merge may touch or drop what must go to a human. */
+function recordGlobList(
+  changes: Record<string, unknown>,
+  formData: FormData,
+  list: { key: string; field: string; current: string[] },
+): void {
+  const globs = text(formData, list.field)
     .split(/[\n,]/)
     .map((s) => s.trim())
     .filter(Boolean);
 
-  if (formData.has("df_am_paths") && !sameArray(paths, current)) {
-    changes.paths = paths;
+  if (formData.has(list.field) && !sameArray(globs, list.current)) {
+    changes[list.key] = globs;
   }
 }
 

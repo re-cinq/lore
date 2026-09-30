@@ -237,3 +237,37 @@ describe("parsePrivilegedChanges", () => {
     expect(parsePrivilegedChanges(fd, current, TYPES)).toEqual({});
   });
 });
+
+describe("parsePrivilegedChanges auto-merge switch and escalate list", () => {
+  const OFF = { dark_factory: { auto_merge: { enabled: false } } };
+
+  it("emits auto_merge.enabled true when auto-merge is switched on", () => {
+    expect(
+      parsePrivilegedChanges(form({ df_am_enabled: "yes" }), OFF, []),
+    ).toEqual({
+      dark_factory: { auto_merge: { enabled: true } },
+    });
+  });
+
+  it("emits escalate_paths infra/** and Dockerfile split on newlines", () => {
+    expect(
+      parsePrivilegedChanges(
+        form({ df_am_escalate_paths: "infra/**\nDockerfile" }),
+        OFF,
+        [],
+      ),
+    ).toEqual({
+      dark_factory: {
+        auto_merge: { escalate_paths: ["infra/**", "Dockerfile"] },
+      },
+    });
+  });
+
+  it("emits nothing when the escalate field was not rendered", () => {
+    const current = {
+      dark_factory: { auto_merge: { escalate_paths: ["infra/**"] } },
+    };
+
+    expect(parsePrivilegedChanges(form({}), current, [])).toEqual({});
+  });
+});

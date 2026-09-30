@@ -28,15 +28,16 @@ beforeAll(() => provider.register());
 afterAll(async () => provider.shutdown());
 beforeEach(() => exporter.reset());
 
-function jobInputsDeferredDarkModeOff(): AutoMergeJobInputs {
+function jobInputsDeferredAutoMergeOff(): AutoMergeJobInputs {
   return {
     taskId: "task-123",
     repo: "re-cinq/lore",
     prNumber: 42,
     policy: {
-      darkFactoryEnabled: false,
       autoMerge: {
+        enabled: false,
         paths: ["specs/**", "*.md"],
+        escalate_paths: [],
         min_trust: "docs",
         require_green_ci: true,
         require_bot_approval: true,
@@ -53,7 +54,7 @@ function jobInputsDeferredDarkModeOff(): AutoMergeJobInputs {
 
 describe("lore.auto_merge.decision OTEL span", () => {
   it("emits exactly one span named lore.auto_merge.decision per decision", async () => {
-    await evaluateAndMerge(jobInputsDeferredDarkModeOff());
+    await evaluateAndMerge(jobInputsDeferredAutoMergeOff());
 
     const decisionSpans = exporter
       .getFinishedSpans()
@@ -63,7 +64,7 @@ describe("lore.auto_merge.decision OTEL span", () => {
   });
 
   it("carries the decision rule trace as span attributes", async () => {
-    await evaluateAndMerge(jobInputsDeferredDarkModeOff());
+    await evaluateAndMerge(jobInputsDeferredAutoMergeOff());
 
     const span = exporter
       .getFinishedSpans()
@@ -73,8 +74,9 @@ describe("lore.auto_merge.decision OTEL span", () => {
       repo: "re-cinq/lore",
       pr_number: 42,
       task_id: "task-123",
-      decision: "deferred:dark_mode_off",
+      decision: "deferred:auto_merge_off",
       path_match_count: 1,
+      escalated_path_count: 0,
       trust_level: "docs",
       ci_status: "success",
       bot_review_state: "APPROVED",

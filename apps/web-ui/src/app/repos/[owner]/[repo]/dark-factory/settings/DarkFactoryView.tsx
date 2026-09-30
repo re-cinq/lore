@@ -52,9 +52,9 @@ function DarkFactoryHelp() {
   return (
     <HelpPopover label="What Dark Factory does">
       <p>
-        Autonomous (dark) mode for this repo. Enabling dark mode, widening
-        auto-merge paths, weakening CI/approval requirements, or changing the
-        execution image is security-gated.
+        Autonomous (dark) mode for this repo. Enabling dark mode or auto-merge,
+        changing the auto-merge or escalate paths, weakening CI/approval
+        requirements, or changing the execution image is security-gated.
       </p>
       <ul>
         <li>
@@ -178,22 +178,60 @@ function NotifyField({ selected }: { selected: readonly string[] }) {
 
 type AutoMerge = ResolvedDarkFactorySettings["auto_merge"];
 
-/** When a PR may merge itself: which paths it may touch, and the trust and safety gates it must clear first. */
+/** When a PR may merge itself: whether it may at all, which paths it may touch, which always go to a human, and the trust and safety gates it must clear first. */
 function AutoMergeFields({ resolved }: ResolvedProps) {
   const { auto_merge: autoMerge } = resolved;
 
   return (
     <>
-      <label>Auto-merge paths (one glob per line)</label>
-      <textarea
-        name="df_am_paths"
-        rows={4}
-        defaultValue={autoMerge.paths.join("\n")}
+      <ChoiceField
+        label="Auto-merge enabled (follows dark mode when unset)"
+        name="df_am_enabled"
+        value={autoMerge.enabled ? "yes" : "no"}
+        options={YES_NO_OPTIONS}
       />
+
+      <AutoMergePathLists autoMerge={autoMerge} />
 
       <MinTrustField value={autoMerge.min_trust} />
 
       <AutoMergeRequirements autoMerge={autoMerge} />
+    </>
+  );
+}
+
+/** What may merge, and what always goes to a human whatever the first list says. */
+function AutoMergePathLists({ autoMerge }: { autoMerge: AutoMerge }) {
+  return (
+    <>
+      <GlobListField
+        label="Auto-merge paths (one glob per line)"
+        name="df_am_paths"
+        globs={autoMerge.paths}
+      />
+      <GlobListField
+        label="Always escalate to a human (one glob per line; agent instruction files always escalate)"
+        name="df_am_escalate_paths"
+        globs={autoMerge.escalate_paths}
+      />
+    </>
+  );
+}
+
+/** A glob list edited as one glob per line. */
+function GlobListField({
+  label,
+  name,
+  globs,
+}: {
+  label: string;
+  name: string;
+  globs: string[];
+}) {
+  return (
+    <>
+      <label>{label}</label>
+      <textarea name={name} rows={4} defaultValue={globs.join("\n")} />
     </>
   );
 }

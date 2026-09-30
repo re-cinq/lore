@@ -9,7 +9,9 @@ export interface DarkFactorySettings {
   enabled?: boolean;
   create_issue?: CreateIssueMode;
   auto_merge?: {
+    enabled?: boolean;
     paths?: string[];
+    escalate_paths?: string[];
     min_trust?: TrustLevel;
     require_green_ci?: boolean;
     require_bot_approval?: boolean;
@@ -23,7 +25,9 @@ export interface ResolvedDarkFactorySettings {
   enabled: boolean;
   create_issue: CreateIssueMode;
   auto_merge: {
+    enabled: boolean;
     paths: string[];
+    escalate_paths: string[];
     min_trust: TrustLevel;
     require_green_ci: boolean;
     require_bot_approval: boolean;
@@ -32,13 +36,7 @@ export interface ResolvedDarkFactorySettings {
   notify: NotifyChannel[];
 }
 
-export const DEFAULT_AUTO_MERGE_PATHS = [
-  "specs/**",
-  "adrs/**",
-  "*.md",
-  "CLAUDE.md",
-  ".claude/**",
-];
+export const DEFAULT_AUTO_MERGE_PATHS = ["specs/**", "adrs/**", "*.md"];
 
 export const DEFAULT_EXECUTION_IMAGE =
   "ghcr.io/re-cinq/lore-claude-runner:latest";
@@ -60,8 +58,12 @@ const MODE_DEFAULTS = {
   Pick<ResolvedDarkFactorySettings, "create_issue" | "review" | "notify">
 >;
 
-const DEFAULT_AUTO_MERGE: ResolvedDarkFactorySettings["auto_merge"] = {
+const DEFAULT_AUTO_MERGE: Omit<
+  ResolvedDarkFactorySettings["auto_merge"],
+  "enabled"
+> = {
   paths: DEFAULT_AUTO_MERGE_PATHS,
+  escalate_paths: [],
   min_trust: "docs",
   require_green_ci: true,
   require_bot_approval: true,
@@ -77,27 +79,28 @@ export function resolveDarkFactorySettings(
   return {
     enabled,
     create_issue: orDefault(given.create_issue, fallback.create_issue),
-    auto_merge: resolveAutoMerge(given.auto_merge),
+    auto_merge: resolveAutoMerge(given),
     review: orDefault(given.review, fallback.review),
     notify: orDefault(given.notify, [...fallback.notify]),
   };
 }
 
+/** Auto-merge follows dark mode unless the repo says otherwise. */
 function resolveAutoMerge(
-  autoMerge: DarkFactorySettings["auto_merge"],
+  given: DarkFactorySettings,
 ): ResolvedDarkFactorySettings["auto_merge"] {
-  const given = autoMerge ?? {};
+  const am = given.auto_merge ?? {};
+  const d = DEFAULT_AUTO_MERGE;
 
   return {
-    paths: orDefault(given.paths, DEFAULT_AUTO_MERGE.paths),
-    min_trust: orDefault(given.min_trust, DEFAULT_AUTO_MERGE.min_trust),
-    require_green_ci: orDefault(
-      given.require_green_ci,
-      DEFAULT_AUTO_MERGE.require_green_ci,
-    ),
+    enabled: orDefault(am.enabled, given.enabled ?? false),
+    paths: orDefault(am.paths, d.paths),
+    escalate_paths: orDefault(am.escalate_paths, d.escalate_paths),
+    min_trust: orDefault(am.min_trust, d.min_trust),
+    require_green_ci: orDefault(am.require_green_ci, d.require_green_ci),
     require_bot_approval: orDefault(
-      given.require_bot_approval,
-      DEFAULT_AUTO_MERGE.require_bot_approval,
+      am.require_bot_approval,
+      d.require_bot_approval,
     ),
   };
 }

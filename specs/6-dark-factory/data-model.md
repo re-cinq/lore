@@ -152,13 +152,14 @@ The four dark-factory `event_type` values populate the `payload` JSONB:
   "task_id": "uuid",
   "pr_number": 1234,
   "repo": "owner/repo",
-  "outcome": "merged | deferred:human_review | deferred:ci_failed | deferred:bot_changes_requested | deferred:path_outside_allowlist | deferred:trust_too_low | deferred:api_failure",
+  "outcome": "merged | deferred:auto_merge_off | deferred:no_changes | deferred:review_in_flight | deferred:sensitive_path | deferred:human_review | deferred:ci_failed | deferred:bot_changes_requested | deferred:path_outside_allowlist | deferred:trust_too_low | deferred:api_failure",
   "rule": {
     "path_match_count": 3,
     "trust_level": "docs",
     "ci_status": "success",
     "bot_review_state": "APPROVED",
-    "human_changes_requested": false
+    "human_changes_requested": false,
+    "escalated_paths": ["infra/main.tf"]
   },
   "decided_at": "2026-04-28T12:34:56Z"
 }

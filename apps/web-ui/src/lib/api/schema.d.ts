@@ -2724,7 +2724,9 @@ export interface components {
       /** @enum {string} */
       create_issue: "never" | "on_gate" | "always";
       auto_merge: {
+        enabled: boolean;
         paths: string[];
+        escalate_paths: string[];
         /** @enum {string} */
         min_trust: "docs" | "tests" | "implementation" | "full";
         require_green_ci: boolean;
@@ -2742,7 +2744,9 @@ export interface components {
         /** @enum {string} */
         create_issue: "never" | "on_gate" | "always";
         auto_merge: {
+          enabled: boolean;
           paths: string[];
+          escalate_paths: string[];
           /** @enum {string} */
           min_trust: "docs" | "tests" | "implementation" | "full";
           require_green_ci: boolean;
@@ -3562,7 +3566,9 @@ export interface components {
               /** @enum {string} */
               create_issue?: "never" | "on_gate" | "always";
               auto_merge?: {
+                enabled?: boolean;
                 paths?: string[];
+                escalate_paths?: string[];
                 /** @enum {string} */
                 min_trust?: "docs" | "tests" | "implementation" | "full";
                 require_green_ci?: boolean;
@@ -3699,7 +3705,9 @@ export interface components {
                 /** @enum {string} */
                 create_issue?: "never" | "on_gate" | "always";
                 auto_merge?: {
+                  enabled?: boolean;
                   paths?: string[];
+                  escalate_paths?: string[];
                   /** @enum {string} */
                   min_trust?: "docs" | "tests" | "implementation" | "full";
                   require_green_ci?: boolean;
@@ -7586,7 +7594,9 @@ export interface operations {
           /** @enum {string} */
           create_issue?: "never" | "on_gate" | "always";
           auto_merge?: {
+            enabled?: boolean;
             paths?: string[];
+            escalate_paths?: string[];
             /** @enum {string} */
             min_trust?: "docs" | "tests" | "implementation" | "full";
             require_green_ci?: boolean;

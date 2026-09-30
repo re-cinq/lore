@@ -8,7 +8,9 @@ export type NotifyChannel = "escalation" | "watched" | "all";
 // Held to models/dark-factory-settings.ts's DarkFactoryAutoMergeSchema by a compile-time assertion, same as PipelineTask.
 // eslint-disable-next-line re-lint/no-row-types-outside-models
 export interface DarkFactoryAutoMerge {
+  enabled?: boolean;
   paths?: string[];
+  escalate_paths?: string[];
   min_trust?: TrustLevel;
   require_green_ci?: boolean;
   require_bot_approval?: boolean;
@@ -32,7 +34,9 @@ export interface ResolvedDarkFactorySettings {
   enabled: boolean;
   create_issue: CreateIssueMode;
   auto_merge: {
+    enabled: boolean;
     paths: string[];
+    escalate_paths: string[];
     min_trust: TrustLevel;
     require_green_ci: boolean;
     require_bot_approval: boolean;
@@ -41,12 +45,15 @@ export interface ResolvedDarkFactorySettings {
   notify: NotifyChannel[];
 }
 
-export const DEFAULT_AUTO_MERGE_PATHS = [
-  "specs/**",
-  "adrs/**",
-  "*.md",
-  "CLAUDE.md",
-  ".claude/**",
+export const DEFAULT_AUTO_MERGE_PATHS = ["specs/**", "adrs/**", "*.md"];
+
+/** Agent instructions escalate on every repo, whatever its own lists say: an auto-merged edit here is read by every later agent run, so an injection that lands once persists. */
+export const AGENT_INSTRUCTION_PATHS = [
+  "**/CLAUDE.md",
+  "**/AGENTS.md",
+  "**/GEMINI.md",
+  "**/.claude/**",
+  "**/.gemini/**",
 ];
 
 interface ModeDefaults {
@@ -79,7 +86,7 @@ export function resolveDarkFactorySettings(
   return {
     enabled,
     create_issue: settings.create_issue ?? defaults.create_issue,
-    auto_merge: resolveAutoMerge(settings.auto_merge),
+    auto_merge: resolveAutoMerge(settings),
     review: settings.review ?? defaults.review,
     notify: settings.notify ?? [...defaults.notify],
   };
@@ -91,11 +98,16 @@ function resolveEnabled(
   return partial?.enabled ?? false;
 }
 
+/** Auto-merge follows dark mode unless the repo says otherwise, so a repo already in dark mode keeps merging and one can try auto-merge without the rest of dark mode. */
 function resolveAutoMerge(
-  autoMerge: DarkFactoryAutoMerge = {},
+  settings: DarkFactorySettings,
 ): ResolvedDarkFactorySettings["auto_merge"] {
+  const autoMerge: DarkFactoryAutoMerge = settings.auto_merge ?? {};
+
   return {
+    enabled: autoMerge.enabled ?? resolveEnabled(settings),
     paths: orDefault(autoMerge.paths, DEFAULT_AUTO_MERGE_PATHS),
+    escalate_paths: orDefault(autoMerge.escalate_paths, []),
     min_trust: orDefault(autoMerge.min_trust, "docs"),
     require_green_ci: autoMerge.require_green_ci ?? true,
     require_bot_approval: autoMerge.require_bot_approval ?? true,

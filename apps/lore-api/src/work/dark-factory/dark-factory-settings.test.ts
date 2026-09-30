@@ -84,7 +84,7 @@ describe("resolveSettings", () => {
     expect(r.create_issue).toBe("on_gate");
     expect(r.review).toBe("trust_based");
     expect(r.notify).toEqual([]);
-    expect(r.auto_merge.paths).toContain("CLAUDE.md");
+    expect(r.auto_merge.paths).not.toContain("CLAUDE.md");
   });
 
   it("respects partial overrides", () => {
@@ -211,5 +211,47 @@ describe("trustMeets", () => {
 
   it("returns false when actual is undefined", () => {
     expect(trustMeets(undefined, "docs")).toBe(false);
+  });
+});
+
+describe("auto_merge.enabled and auto_merge.escalate_paths", () => {
+  it("accepts auto_merge.enabled true with escalate_paths infra/**", () => {
+    const patch = {
+      auto_merge: { enabled: true, escalate_paths: ["infra/**"] },
+    };
+
+    expect(parseDarkFactorySettings(patch)).toEqual(patch);
+  });
+
+  it("rejects a non-boolean auto_merge.enabled", () => {
+    expect(() =>
+      parseDarkFactorySettings({ auto_merge: { enabled: "yes" } }),
+    ).toThrow();
+  });
+
+  it("rejects more than 32 escalate paths", () => {
+    expect(() =>
+      parseDarkFactorySettings({
+        auto_merge: {
+          escalate_paths: Array.from({ length: 33 }, (_, i) => `p${i}`),
+        },
+      }),
+    ).toThrow();
+  });
+
+  it("flags turning auto-merge on as two-key", () => {
+    expect(twoKeyFieldsTouched({ auto_merge: { enabled: true } })).toEqual([
+      "auto_merge.enabled",
+    ]);
+  });
+
+  it("lets turning auto-merge off through without two-key", () => {
+    expect(twoKeyFieldsTouched({ auto_merge: { enabled: false } })).toEqual([]);
+  });
+
+  it("flags any escalate_paths change as two-key", () => {
+    expect(twoKeyFieldsTouched({ auto_merge: { escalate_paths: [] } })).toEqual(
+      ["auto_merge.escalate_paths"],
+    );
   });
 });

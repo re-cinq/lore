@@ -334,16 +334,16 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 
 ### `apps/floor/src/work/merge/auto-merge.test.ts`
 
-- merges when all gates pass. ([validated by](apps/floor/src/work/merge/auto-merge.test.ts#L32))
-- deferred:dark_mode_off when not enabled (overrides everything). ([validated by](apps/floor/src/work/merge/auto-merge.test.ts#L41))
-- deferred:no_changes for an empty PR before path-allowlist check. ([validated by](apps/floor/src/work/merge/auto-merge.test.ts#L47))
-- deferred:review_in_flight while a code-review line is open. ([validated by](apps/floor/src/work/merge/auto-merge.test.ts#L53))
-- deferred:human_review when human changes requested. ([validated by](apps/floor/src/work/merge/auto-merge.test.ts#L59))
-- deferred:ci_failed when require_green_ci and CI red. ([validated by](apps/floor/src/work/merge/auto-merge.test.ts#L65))
-- deferred:bot_changes_requested when bot did not APPROVE. ([validated by](apps/floor/src/work/merge/auto-merge.test.ts#L82))
-- deferred:trust_too_low when repo has no trust set. ([validated by](apps/floor/src/work/merge/auto-merge.test.ts#L107))
-- reports CI status as failed when CI red. ([validated by](apps/floor/src/work/merge/auto-merge.test.ts#L139))
-- reports bot review as CHANGES_REQUESTED when not approved. ([validated by](apps/floor/src/work/merge/auto-merge.test.ts#L145))
+- merges when all gates pass. ([validated by](apps/floor/src/work/merge/auto-merge.test.ts#L33))
+- deferred:auto_merge_off when auto-merge is off (overrides everything). ([validated by](apps/floor/src/work/merge/auto-merge.test.ts#L42))
+- deferred:no_changes for an empty PR before path-allowlist check. ([validated by](apps/floor/src/work/merge/auto-merge.test.ts#L50))
+- deferred:review_in_flight while a code-review line is open. ([validated by](apps/floor/src/work/merge/auto-merge.test.ts#L56))
+- deferred:human_review when human changes requested. ([validated by](apps/floor/src/work/merge/auto-merge.test.ts#L62))
+- deferred:ci_failed when require_green_ci and CI red. ([validated by](apps/floor/src/work/merge/auto-merge.test.ts#L68))
+- deferred:bot_changes_requested when bot did not APPROVE. ([validated by](apps/floor/src/work/merge/auto-merge.test.ts#L85))
+- deferred:trust_too_low when repo has no trust set. ([validated by](apps/floor/src/work/merge/auto-merge.test.ts#L110))
+- reports CI status as failed when CI red. ([validated by](apps/floor/src/work/merge/auto-merge.test.ts#L142))
+- reports bot review as CHANGES_REQUESTED when not approved. ([validated by](apps/floor/src/work/merge/auto-merge.test.ts#L148))
 
 ### `apps/floor/src/work/review/code-review.test.ts`
 
