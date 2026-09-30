@@ -361,11 +361,12 @@ describe("what a review pod is given against the agent CLI's own limits", () => 
     expect(missing).toEqual([]);
   });
 
-  it("retries a failed post-review, read-review and post-reply visit once, so a second failure settles the run as iteration_max and not as success", () => {
+  it("retries a failed post-review, read-review, reply and post-reply visit once, so a second failure settles the run as iteration_max and not as success", () => {
     const retries = [
       ["code-review", "post-review"],
       ["code-review-recheck", "post-review"],
       ["code-review-reply", "read-review"],
+      ["code-review-reply", "reply"],
       ["code-review-reply", "post-reply"],
     ].map(([line, node]) =>
       edgesOn(pipelineOf(line).line, node).find((edge) => edge.on === "failed"),
@@ -390,6 +391,7 @@ describe("what a review pod is given against the agent CLI's own limits", () => 
         on: "failed",
         iteration_max: 1,
       },
+      { from: "reply", to: "reply", on: "failed", iteration_max: 1 },
       { from: "post-reply", to: "post-reply", on: "failed", iteration_max: 1 },
     ]);
   });
