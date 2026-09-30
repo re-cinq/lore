@@ -25,6 +25,7 @@ interface Need {
 
 interface Station {
   kind: string;
+  outcomes: string[];
   needs: Need[];
 }
 
@@ -337,7 +338,75 @@ describe("what a review pod is given against the agent CLI's own limits", () => 
 
     expect(told).toEqual([true, true, true]);
   });
+
+  it("sends no failed outcome of a review line to the exit, where the run would settle as success", () => {
+    const failedToExit = [
+      "code-review",
+      "code-review-recheck",
+      "code-review-reply",
+    ]
+      .map((id) => pipelineOf(id).line)
+      .flatMap((line) =>
+        line.edges.filter(
+          (edge) => edge.on === "failed" && edge.to === line.exit,
+        ),
+      );
+
+    expect(failedToExit).toEqual([]);
+  });
+
+  it("gives every outcome a station declares an edge out of its node, in all four pipelines", () => {
+    const missing = [...PIPELINES.values()].flatMap(outcomesWithoutEdge);
+
+    expect(missing).toEqual([]);
+  });
+
+  it("retries a failed post-review, read-review, reply and post-reply visit once, so a second failure settles the run as iteration_max and not as success", () => {
+    const retries = [
+      ["code-review", "post-review"],
+      ["code-review-recheck", "post-review"],
+      ["code-review-reply", "read-review"],
+      ["code-review-reply", "reply"],
+      ["code-review-reply", "post-reply"],
+    ].map(([line, node]) =>
+      edgesOn(pipelineOf(line).line, node).find((edge) => edge.on === "failed"),
+    );
+
+    expect(retries).toEqual([
+      {
+        from: "post-review",
+        to: "post-review",
+        on: "failed",
+        iteration_max: 1,
+      },
+      {
+        from: "post-review",
+        to: "post-review",
+        on: "failed",
+        iteration_max: 1,
+      },
+      {
+        from: "read-review",
+        to: "read-review",
+        on: "failed",
+        iteration_max: 1,
+      },
+      { from: "reply", to: "reply", on: "failed", iteration_max: 1 },
+      { from: "post-reply", to: "post-reply", on: "failed", iteration_max: 1 },
+    ]);
+  });
 });
+
+function outcomesWithoutEdge({ line, stations }: Pipeline): string[] {
+  return line.nodes.flatMap((node) => {
+    const covered = edgesOn(line, node.id).map((edge) => edge.on);
+    const declared = stations[node.station ?? ""]?.outcomes ?? [];
+
+    return declared
+      .filter((outcome) => !covered.includes(outcome))
+      .map((outcome) => `${line.id}: ${node.id} has no edge for ${outcome}`);
+  });
+}
 
 function loadPipelines(): Map<string, Pipeline> {
   const folder = new URL("./", import.meta.url);

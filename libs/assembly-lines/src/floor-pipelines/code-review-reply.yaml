@@ -34,6 +34,10 @@ line:
     - from: read-review
       to: reply
       on: success
+    - from: read-review
+      to: read-review
+      on: failed
+      iteration_max: 1
     - from: reply
       to: post-reply
       on: success
@@ -41,11 +45,16 @@ line:
       to: post-reply
       on: changes_requested
     - from: reply
-      to: done
+      to: reply
       on: failed
+      iteration_max: 1
     - from: post-reply
       to: done
       on: success
+    - from: post-reply
+      to: post-reply
+      on: failed
+      iteration_max: 1
 stations:
   read-review:
     kind: service

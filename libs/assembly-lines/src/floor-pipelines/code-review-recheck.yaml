@@ -39,6 +39,10 @@ line:
     - from: post-review
       to: done
       on: success
+    - from: post-review
+      to: post-review
+      on: failed
+      iteration_max: 1
 stations:
   code-review-recheck:
     kind: agent
