@@ -67,6 +67,7 @@ function nodeResultFromPayload(
   if (STANDARD_OUTCOMES.has(payload as StageOutcome)) {
     return { outcome: payload as StageOutcome, extras: {} };
   }
+
   // Custom declared outcome in bare-word form (FR11).
   if (customOutcomes?.includes(payload)) {
     return { outcome: payload as StageOutcome, extras: {} };
