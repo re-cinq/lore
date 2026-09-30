@@ -161,6 +161,7 @@ layers:
       - events
       - outbound
       - code-review
+      - planning
       - "@re-cinq/lore-shared"
     # The stations the external floor dispatches for the code-review lines, one
     # folder each. They claim their own work from the floor's queue, so nothing
@@ -169,6 +170,17 @@ layers:
       - domain
       - outbound
       - "@re-cinq/floor-client"
+      - "@re-cinq/floor-station"
+      - "@re-cinq/lore-assembly-lines"
+      - "@re-cinq/lore-shared"
+    # The stations the external floor dispatches for the feature-planning line,
+    # one folder each — the same claim-your-own-work shape as code-review. `issues`
+    # reaches into `work/` because it wraps the existing issue-filing logic rather
+    # than reimplementing it.
+    planning:
+      - domain
+      - outbound
+      - work
       - "@re-cinq/floor-station"
       - "@re-cinq/lore-assembly-lines"
       - "@re-cinq/lore-shared"

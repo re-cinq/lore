@@ -39,6 +39,20 @@ export function gitItem(repo: string, branch: string): Item {
   return { kind: "git", ref: `${floorRepoOf(repo)}@${branch}`, by: STARTED_BY };
 }
 
+export interface GitRef {
+  repo: string;
+  branch: string;
+}
+
+/** The inverse of `gitItem`, for a service station handed a git need's ref as `host/owner/name@branch`. Splits on the LAST `@` defensively, since a branch name may itself contain one. */
+export function parseGitRef(ref: string): GitRef {
+  const at = ref.lastIndexOf("@");
+
+  enforceTrue(at > 0, Error, `not a git ref: ${ref}`);
+
+  return { repo: loreRepoOf(ref.slice(0, at)), branch: ref.slice(at + 1) };
+}
+
 export function valueItem(value: string | number): Item {
   return { kind: "value", ref: String(value), by: STARTED_BY };
 }

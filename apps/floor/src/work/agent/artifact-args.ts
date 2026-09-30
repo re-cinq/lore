@@ -7,6 +7,7 @@ import type {
 import { SPEC_REVIEW_RESULT_EVENT } from "@re-cinq/lore-shared/review/spec-review.js";
 import { PLAN_VALIDATION_RESULT_EVENT } from "@re-cinq/lore-shared/review/plan-validation.js";
 import { DIGEST_MESSAGE_EVENT } from "@re-cinq/lore-shared/digest/contract.js";
+import { specPathOfPlan } from "@re-cinq/lore-shared/feature-planning/spec-plan-path.js";
 import { parseAgentSink, type AgentFileEvent } from "./agent-events.js";
 
 /** Written into its plan, its PR or its Slack channel, not the line — see deliverPlanningResult, deliverSpecReviewResult, deliverPlanValidation and receiveDigestUpload. */
@@ -41,31 +42,11 @@ export function argsForArtifact(
 
 const SPEC_PLAN_EVENT = "spec.plan";
 
-// The first spec the plan creates, else the first it updates; nothing when the plan does not parse.
+// Nothing when the plan does not parse or names neither a create nor an update.
 function specPathOf(content: string): { spec_path?: string } {
-  const plan = parseSpecPlan(content);
-  const path = firstPath(plan?.creates) ?? firstPath(plan?.updates);
+  const path = specPathOfPlan(content);
 
   return path ? { spec_path: path } : {};
-}
-
-function firstPath(entries: SpecPlanPaths["creates"]): string | undefined {
-  const path = entries?.[0]?.path;
-
-  return typeof path === "string" ? path : undefined;
-}
-
-interface SpecPlanPaths {
-  creates?: Array<{ path?: unknown }>;
-  updates?: Array<{ path?: unknown }>;
-}
-
-function parseSpecPlan(content: string): SpecPlanPaths | null {
-  try {
-    return JSON.parse(content) as SpecPlanPaths;
-  } catch {
-    return null;
-  }
 }
 
 /** Merge one declared artifact into its line's args; skips silently for an event owned elsewhere, an artifact never produced, or a run with no assembly line behind it. */

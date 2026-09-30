@@ -4,6 +4,7 @@ import {
   floorRepoOf,
   gitItem,
   loreRepoOf,
+  parseGitRef,
   parsePullRequestUrl,
   pullRequestUrl,
   valueItem,
@@ -64,6 +65,19 @@ describe("floor items", () => {
       new Error(
         "not a GitHub pull request url: https://github.com/re-cinq/lore/issues/412",
       ),
+    );
+  });
+
+  it("reads re-cinq/lore and Fix/Login back from github.com/re-cinq/lore@Fix/Login", () => {
+    expect(parseGitRef("github.com/re-cinq/lore@Fix/Login")).toEqual({
+      repo: "re-cinq/lore",
+      branch: "Fix/Login",
+    });
+  });
+
+  it("refuses the ref github.com/re-cinq/lore, which names no branch", () => {
+    expect(() => parseGitRef("github.com/re-cinq/lore")).toThrow(
+      new Error("not a git ref: github.com/re-cinq/lore"),
     );
   });
 });
