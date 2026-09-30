@@ -180,6 +180,16 @@ resource "helm_release" "lore_platform" {
         # so it needs lore-api's public address, not the in-cluster one above
         # (ADR-047, ADR-048).
         LORE_WS_URL = "wss://${local.lore_api_hostname}/api/ws"
+        # The cluster dashboard's public address, which is also the ONLY way the
+        # UI learns that a dashboard exists — enable_headlamp is a Terraform
+        # variable and the browser cannot see it. No address, no sidebar link.
+        #
+        # Set unconditionally, empty when disabled, because this release is
+        # applied with reuse_values = true: a key dropped from this map is
+        # carried forward from the previous release rather than removed, so
+        # omitting it when the feature is turned off would leave the UI pointing
+        # at a dashboard that is no longer deployed.
+        HEADLAMP_URL = var.enable_headlamp ? "https://${var.headlamp_hostname}" : ""
       }
       dbPasswordSecret  = { name = "lore-db-password", key = "password" }
       ingestTokenSecret = { name = "lore-ingest-token", key = "token" }

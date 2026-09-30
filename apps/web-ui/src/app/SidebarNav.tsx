@@ -41,7 +41,12 @@ const groups: NavGroup[] = [
   },
 ];
 
-export default function SidebarNav() {
+interface SidebarNavProps {
+  /** The cluster dashboard's address; absent renders no link at all (lib/headlamp-url.ts). */
+  headlampUrl?: string;
+}
+
+export default function SidebarNav({ headlampUrl }: SidebarNavProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
@@ -51,7 +56,7 @@ export default function SidebarNav() {
   return (
     <>
       <NavGroups pathname={pathname} collapsed={collapsed} onToggle={toggle} />
-      <NavFooter pathname={pathname} />
+      <NavFooter pathname={pathname} headlampUrl={headlampUrl} />
     </>
   );
 }
@@ -79,10 +84,16 @@ function NavGroups({ pathname, collapsed, onToggle }: NavGroupsProps) {
   );
 }
 
-/** The two links that sit below the groups rather than in one. Neither belongs to a section of the app — settings is org-wide, and adding a repo is how the list itself grows. */
-function NavFooter({ pathname }: { pathname: string }) {
+interface NavFooterProps {
+  pathname: string;
+  headlampUrl?: string;
+}
+
+/** The links belonging to no section of the app: settings is org-wide, adding a repo grows the list itself, and the cluster dashboard is a different application. */
+function NavFooter({ pathname, headlampUrl }: NavFooterProps) {
   return (
     <div className={styles.footer}>
+      {headlampUrl && <HeadlampLink href={headlampUrl} />}
       <NavLink
         href="/settings"
         label="Settings"
@@ -96,6 +107,22 @@ function NavFooter({ pathname }: { pathname: string }) {
         className={styles.addRepo}
       />
     </div>
+  );
+}
+
+/** A plain anchor, not a NavLink: a separate application has no route to be active on and nothing for Next to prefetch. */
+function HeadlampLink({ href }: { href: string }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className={styles.footerLink}
+      title="Cluster dashboard (opens in a new tab)"
+    >
+      Headlamp
+      <Icon name="external" size={12} />
+    </a>
   );
 }
 
