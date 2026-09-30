@@ -18,7 +18,6 @@ export type DefinitionNodeType =
 
 export type DefinitionEdgeCondition = string;
 
-// eslint-disable-next-line re-lint/no-row-types-outside-models -- mirrors the assembly-line YAML node, whose keys are snake_case by contract; no table holds this shape
 export interface DefinitionNode {
   id: string;
   type: DefinitionNodeType;
