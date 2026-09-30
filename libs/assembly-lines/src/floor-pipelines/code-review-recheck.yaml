@@ -93,6 +93,15 @@ agent_definitions:
           input_per_million: 2
           output_per_million: 12
       config:
+        # CPU and memory are what a floor agent pod gets when nothing is set (seen 2026-09-30); only the disk is raised, from 1Gi, for the clone.
+        pod_resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+            ephemeral-storage: 2Gi
+          limits:
+            memory: 2Gi
+            ephemeral-storage: 4Gi
         skills:
           - lore-context
         skills_source: ${LORE_SKILLS_URL}

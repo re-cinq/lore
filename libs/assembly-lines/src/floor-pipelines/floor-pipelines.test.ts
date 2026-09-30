@@ -32,7 +32,13 @@ interface Station {
 interface AgentSettings {
   model: string;
   prompt: string;
-  config: { env: Record<string, string> };
+  config: {
+    env: Record<string, string>;
+    pod_resources: {
+      requests: Record<string, string>;
+      limits: Record<string, string>;
+    };
+  };
 }
 
 interface Pipeline {
@@ -327,6 +333,18 @@ describe("what a review pod is given against the agent CLI's own limits", () => 
     );
 
     expect(told).toEqual([true, true, true]);
+  });
+
+  it("keeps every review agent's pod at 500m CPU and 512Mi requested and 2Gi of memory at most, and raises its disk to 2Gi requested and 4Gi at most", () => {
+    const sizes = REVIEW_AGENTS.map(
+      ([, agent]) => settingsOf(agent).config.pod_resources,
+    );
+    const size = {
+      requests: { cpu: "500m", memory: "512Mi", "ephemeral-storage": "2Gi" },
+      limits: { memory: "2Gi", "ephemeral-storage": "4Gi" },
+    };
+
+    expect(sizes).toEqual([size, size, size]);
   });
 
   it("sends no failed outcome of a review line to the exit, where the run would settle as success", () => {
