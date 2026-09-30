@@ -38,7 +38,8 @@ export async function startPlanValidation(
   return { run_id: runId };
 }
 
-function assertValidatable(
+/** The refusals a validation asks before it starts, whichever engine read the line. */
+export function assertValidatable(
   plan: PlanValidateInput["plan"],
   line: PlanLine | null,
 ): asserts line is PlanLine {

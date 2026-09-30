@@ -8,6 +8,7 @@ import {
   floorConfigured,
   type FloorEnv,
 } from "@re-cinq/lore-shared/floor/floor-client.js";
+import { FLOOR_PLAN_EVENTS } from "./floor-plan-handlers.js";
 import { FLOOR_REVIEW_EVENTS } from "./floor-review-handlers.js";
 
 // One subscriber per ROLE not per replica — two stations pods share one backlog, same as two Floors.
@@ -33,16 +34,18 @@ export function stationSubscriptions(
     eventTriggerNames(mod.manifest),
   );
 
-  for (const eventName of [...triggeredEventNames, ...reviewEvents(env)]) {
+  for (const eventName of [...triggeredEventNames, ...floorEvents(env)]) {
     byName.set(eventName, { eventName });
   }
 
   return [...byName.values()];
 }
 
-/** A deployment with no floor starts no review, so it claims none of the events that would. */
-function reviewEvents(env: FloorEnv): readonly string[] {
-  return floorConfigured(env) ? FLOOR_REVIEW_EVENTS : [];
+/** A deployment with no floor starts no review and has no plan run to answer, so it claims none of the events that would. */
+function floorEvents(env: FloorEnv): readonly string[] {
+  return floorConfigured(env)
+    ? [...FLOOR_REVIEW_EVENTS, ...FLOOR_PLAN_EVENTS]
+    : [];
 }
 
 /** The longest a service-form node may take, so its delivery is not reaped mid-run. */

@@ -15,7 +15,10 @@ import {
   summarizeCoverage,
 } from "../transport/openapi/build-document.js";
 import { MAX_JSON_BODY_BYTES } from "@re-cinq/lore-shared/http/body-limits.js";
-import { registerPlanning } from "./register-planning.js";
+import {
+  registerPlanning,
+  type RegisteredPlanning,
+} from "./register-planning.js";
 import { mountLiveSocket } from "../work/assembly-line-station/live-socket.js";
 import { runChannelDepsFromPool } from "../work/assembly-line-station/station-wiring.js";
 
@@ -38,10 +41,7 @@ export function buildServer(getPool: () => Pool | null, port = 0): Hapi.Server {
   registerRateLimit(server);
   registerBearerScope(server, getPool);
 
-  const routes = routeList(getPool);
-
-  server.route(routes);
-  registerLiveSocket(server, getPool);
+  const routes = registerRoutes(server, getPool);
 
   // Surface OpenAPI coverage at boot (FR7, drift-guard test enforces via CI).
   if (!process.env.VITEST) {
@@ -51,12 +51,25 @@ export function buildServer(getPool: () => Pool | null, port = 0): Hapi.Server {
   return server;
 }
 
-/** Plans and the live socket share the listener: the socket tunnels to the collaboration server the plans registration returns (ADR-048). */
+/** Plans register first: the plan routes run on what that registration hands back, and the live socket tunnels to its collaboration server (ADR-048). */
+function registerRoutes(
+  server: Hapi.Server,
+  getPool: () => Pool | null,
+): ServerRoute[] {
+  const { collab, plans } = registerPlanning(server, getPool);
+  const routes = routeList(getPool, plans);
+
+  server.route(routes);
+  registerLiveSocket(server, getPool, collab);
+
+  return routes;
+}
+
 function registerLiveSocket(
   server: Hapi.Server,
   getPool: () => Pool | null,
+  collab: RegisteredPlanning["collab"],
 ): void {
-  const { collab } = registerPlanning(server, getPool);
   const liveSocket = mountLiveSocket(server.listener, {
     run: runChannelDepsFromPool(getPool),
     collab,

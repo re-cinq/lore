@@ -1,0 +1,310 @@
+// A plan's planning line on the external floor (ADR-049): the same verbs planning-line.ts answers on Postgres, each a read of the plan's run and a report or start on the floor.
+
+import type { FloorClient } from "@re-cinq/floor-client";
+import {
+  floorPlanLineState,
+  type ParkedVisit,
+  type PlanLineFloor,
+} from "@re-cinq/lore-shared/feature-planning/floor-plan-runs.js";
+import {
+  fileItem,
+  floorRepoOf,
+  gitItem,
+  valueItem,
+} from "@re-cinq/lore-shared/floor/floor-items.js";
+import { reportToVisit } from "@re-cinq/lore-shared/floor/floor-report.js";
+import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { PLANNING_DEFINITION } from "@re-cinq/lore-shared/project/plans/plan-run.js";
+import { startLine } from "@re-cinq/lore-shared/review/floor-line-start.js";
+import { type RefineRequest } from "./plan-briefs.js";
+import type { PlanSubject } from "./plan-engine.js";
+import { assertValidatable } from "./plan-validate.js";
+import {
+  AGENT_STILL_WORKING,
+  NOT_APPROVED,
+  SPEC_WORK_ENTRY,
+  SPEC_WORK_RUNNING,
+  approvalDecisionOf,
+  reopenTargetOf,
+  type ApprovalDecision,
+  type PlanRef,
+} from "./planning-line.js";
+import {
+  SPEC_PR_NOT_WAITING,
+  assertReworkable,
+  gatherOpenReview,
+  type SpecReviewReads,
+} from "./spec-rework.js";
+
+const VALIDATE_EVENT = "manual.plan.validate";
+const REWRITE_EVENT = "node.write.start";
+
+export interface PlanFloor extends PlanLineFloor {
+  lines: Pick<FloorClient["lines"], "start">;
+  events: Pick<FloorClient["events"], "post">;
+  blobs: Pick<FloorClient["blobs"], "put">;
+}
+
+export interface FloorPlanDeps {
+  floor: PlanFloor;
+  /** The plan's spec branch, made when missing: the branch the run is started on, which `spec-write` pushes and the spec PR opens from. */
+  specBranch(plan: PlanRef): Promise<string>;
+  /** The repository's default branch, which the nodes after the spec PR merges clone. */
+  baseBranch(plan: PlanRef): Promise<string>;
+  pulls: SpecReviewReads;
+}
+
+export interface FloorPlanMarkdown {
+  plan: PlanSubject;
+  planMarkdown: string;
+  /** What this round asks for, as the agent is told it: the draft's own brief, the section a Refine names, or which spec pass this is. Reading the plan cannot tell an agent which of its sections a person just clicked. */
+  brief: string;
+}
+
+export interface FloorRefineInput extends FloorPlanMarkdown {
+  refine: RefineRequest;
+}
+
+export interface FloorPlanAsk {
+  plan: PlanSubject;
+  actor: string;
+}
+
+/** Drafts the plan: a run waiting on its author goes back to the agent with the edited plan and no section (a draft answers none); otherwise a run starts, or joins the one already open. The run's id either way. */
+export async function startFloorDrafting(
+  deps: FloorPlanDeps,
+  { plan, planMarkdown, brief }: FloorPlanMarkdown,
+): Promise<string> {
+  const line = await floorPlanLineState(deps.floor, keyOf(plan));
+  const planMd = await storeMarkdown(deps.floor, planMarkdown);
+
+  if (line?.parkedAuthor) {
+    await reportToVisit(deps.floor.events, line.parkedAuthor.visitId, {
+      outcome: "changes_requested",
+      produced: { plan_md: planMd, description: brief },
+    });
+
+    return line.lineId;
+  }
+
+  return startPlanRun(deps, { plan, planMd, brief });
+}
+
+/** Sends one section back to the agent; refused while the agent is still at work, so the editor withdraws the ask. The refine value is what `plan-pass-end` reads back. */
+export async function askFloorRefine(
+  deps: FloorPlanDeps,
+  { plan, planMarkdown, brief, refine }: FloorRefineInput,
+): Promise<void> {
+  const line = await floorPlanLineState(deps.floor, keyOf(plan));
+  const parked = line?.parkedAuthor;
+  const { slot, baseHash, uses } = refine;
+
+  enforceTrue(parked, apiError(409), AGENT_STILL_WORKING);
+  await reportToVisit(deps.floor.events, parked.visitId, {
+    outcome: "changes_requested",
+    produced: {
+      plan_md: await storeMarkdown(deps.floor, planMarkdown),
+      refine: JSON.stringify({ slot, baseHash, uses }),
+      description: brief,
+    },
+  });
+}
+
+/** The refusal for an approval, before the plan's status flips. */
+export async function decideFloorApproval(
+  deps: FloorPlanDeps,
+  plan: PlanSubject,
+): Promise<ApprovalDecision> {
+  return approvalDecisionOf(await floorPlanLineState(deps.floor, keyOf(plan)));
+}
+
+/** Moves an approved plan on: the author visit reports success with the approved plan, or with no run open a fresh run enters at the spec analysis. A run the agent is on moves nothing, and the refusal comes back as the decision. */
+export async function approveFloorPlan(
+  deps: FloorPlanDeps,
+  input: FloorPlanMarkdown,
+): Promise<ApprovalDecision> {
+  const line = await floorPlanLineState(deps.floor, keyOf(input.plan));
+  const decision = approvalDecisionOf(line);
+
+  if (line?.parkedAuthor) {
+    await reportApproved(
+      deps,
+      line.parkedAuthor,
+      input.planMarkdown,
+      input.brief,
+    );
+
+    return decision;
+  }
+
+  if (decision.kind === "start-spec-work") {
+    await startSpecPass(deps, input);
+  }
+
+  return decision;
+}
+
+/** A fresh spec pass for an approved plan whose run is not open: after a failed pass, or to revise merged specs. */
+export async function startFloorSpecWork(
+  deps: FloorPlanDeps,
+  input: FloorPlanMarkdown,
+): Promise<string> {
+  const line = await floorPlanLineState(deps.floor, keyOf(input.plan));
+
+  enforceTrue(input.plan.status === "approved", apiError(409), NOT_APPROVED);
+  enforceTrue(!line || line.open === null, apiError(409), SPEC_WORK_RUNNING);
+
+  return startSpecPass(deps, input);
+}
+
+/** Sends an open spec PR back to the author: the visit parked on `merged` reports changes_requested. A run already at its author, ended or never started needs no report. */
+export async function reopenFloorPlan(
+  deps: FloorPlanDeps,
+  plan: PlanSubject,
+): Promise<void> {
+  const parked = reopenTargetOf(
+    await floorPlanLineState(deps.floor, keyOf(plan)),
+  );
+
+  if (parked) {
+    await reportToVisit(deps.floor.events, parked.visitId, {
+      outcome: "changes_requested",
+    });
+  }
+}
+
+/** Runs the validate station over a draft plan parked on its author: the start event its node declares. The run's id. */
+export async function validateFloorPlan(
+  deps: FloorPlanDeps,
+  { plan, actor }: FloorPlanAsk,
+): Promise<string> {
+  const line = await floorPlanLineState(deps.floor, keyOf(plan));
+
+  assertValidatable(plan, line);
+
+  return askNode(deps.floor, {
+    event: VALIDATE_EVENT,
+    runId: line.lineId,
+    actor,
+  });
+}
+
+/** Runs the spec writer again in the same run while it waits on the spec PR: the floor cancels the open `merged` visit and reopens it afterwards. The run's id. */
+export async function reworkFloorSpec(
+  deps: FloorPlanDeps,
+  { plan, actor }: FloorPlanAsk,
+): Promise<string> {
+  const line = await floorPlanLineState(deps.floor, keyOf(plan));
+
+  enforceTrue(line !== null, apiError(409), SPEC_PR_NOT_WAITING);
+  await gatherOpenReview(deps.pulls, assertReworkable(plan, line));
+
+  return askNode(deps.floor, {
+    event: REWRITE_EVENT,
+    runId: line.lineId,
+    actor,
+  });
+}
+
+export function keyOf(plan: PlanRef): { repo: string; planId: string } {
+  return { repo: plan.repo, planId: plan.id };
+}
+
+/** The plan as a blob the run's agents download as plan.md; the hash is what a report or a start carries. */
+async function storeMarkdown(
+  floor: Pick<PlanFloor, "blobs">,
+  planMarkdown: string,
+): Promise<string> {
+  const stored = await floor.blobs.put(
+    new TextEncoder().encode(planMarkdown),
+    "text/markdown",
+  );
+
+  return stored.hash;
+}
+
+async function reportApproved(
+  deps: FloorPlanDeps,
+  author: ParkedVisit,
+  planMarkdown: string,
+  brief: string,
+): Promise<void> {
+  await reportToVisit(deps.floor.events, author.visitId, {
+    outcome: "success",
+    produced: {
+      plan_md: await storeMarkdown(deps.floor, planMarkdown),
+      description: brief,
+    },
+  });
+}
+
+async function startSpecPass(
+  deps: FloorPlanDeps,
+  { plan, planMarkdown, brief }: FloorPlanMarkdown,
+): Promise<string> {
+  const planMd = await storeMarkdown(deps.floor, planMarkdown);
+
+  return startPlanRun(deps, { plan, planMd, brief, entry: SPEC_WORK_ENTRY });
+}
+
+interface PlanRunStart {
+  plan: PlanRef;
+  planMd: string;
+  brief: string;
+  entry?: string;
+}
+
+// A start that names an entry skips the nodes before it: the plan is settled, so the run opens at the spec analysis.
+async function startPlanRun(
+  deps: FloorPlanDeps,
+  start: PlanRunStart,
+): Promise<string> {
+  const { plan, entry } = start;
+  const started = await startLine(deps.floor.lines, PLANNING_DEFINITION, {
+    repo: floorRepoOf(plan.repo),
+    startItems: await startItemsOf(deps, start),
+    ...(entry ? { entry } : {}),
+  });
+
+  return started.run.id;
+}
+
+/** What a planning run is started with: the spec branch to write on, the base the nodes after the merge read, the plan and this round's brief. */
+async function startItemsOf(
+  deps: FloorPlanDeps,
+  { plan, planMd, brief }: PlanRunStart,
+): Promise<Record<string, ReturnType<typeof valueItem>>> {
+  const [branch, base] = await Promise.all([
+    deps.specBranch(plan),
+    deps.baseBranch(plan),
+  ]);
+
+  return {
+    repo: gitItem(plan.repo, branch),
+    // After the spec PR merges its branch may be gone, and what it held is on the base anyway.
+    base: gitItem(plan.repo, base),
+    plan_id: valueItem(plan.id),
+    plan_title: valueItem(plan.title),
+    plan_md: fileItem(planMd),
+    description: valueItem(brief),
+  };
+}
+
+interface NodeAsk {
+  event: string;
+  runId: string;
+  actor: string;
+}
+
+async function askNode(
+  floor: Pick<PlanFloor, "events">,
+  { event, runId, actor }: NodeAsk,
+): Promise<string> {
+  await floor.events.post({
+    name: event,
+    payload: { runId, requestedBy: actor },
+  });
+
+  return runId;
+}

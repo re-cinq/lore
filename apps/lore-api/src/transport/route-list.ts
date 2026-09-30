@@ -101,6 +101,7 @@ import { stationDataRoutes } from "./routes/repos/station-data.js";
 import { traceAdrsRoute } from "./routes/trace/trace-adrs.js";
 import { traceSpecsRoute } from "./routes/trace/trace-specs.js";
 import { plansRoutes } from "./routes/plans/plans.js";
+import type { PlanVerbSeams } from "./routes/plans/plan-verbs-for.js";
 import { implementationLoopRoutes } from "./routes/backlog/backlog.js";
 import { openApiJsonRoute, docsRoute } from "./routes/openapi/openapi.js";
 import { githubCredentialsRoute } from "./routes/github-credentials/github-credentials.js";
@@ -113,24 +114,34 @@ import { githubInstallationsListRoute } from "./routes/github-installations/list
 type PoolGetter = () => Pool | null;
 
 /** Every route the API serves, grouped by the thing it acts on. */
-export function routeList(getPool: PoolGetter): ServerRoute[] {
+export function routeList(
+  getPool: PoolGetter,
+  plans: PlanVerbSeams = {},
+): ServerRoute[] {
   return [
     ...platformRoutes(getPool),
     ...repoRoutes(getPool),
-    ...taskRoutes(getPool),
+    ...taskRoutes(getPool, plans),
     ...memoryRoutes(getPool),
     ...ingestRoutes(getPool),
     ...webhookRoutes(getPool),
     ...clusterAgentRoutes(getPool),
+    ...integrationRoutes(getPool),
+    ...agentDefinitionRoutes(getPool),
+    ...analyticsRoutes(getPool),
+    ...traceRoutes(),
+  ];
+}
+
+/** What the platform lends the GitHub App and the floor: credentials, the installations, and the review the run page starts. */
+function integrationRoutes(getPool: PoolGetter): ServerRoute[] {
+  return [
     githubCredentialsRoute(getPool),
     floorGitCredentialRoute(),
     reviewStartRoute(),
     floorRunTurnsRoute(),
     githubInstallationsRoute(getPool),
     githubInstallationsListRoute(getPool),
-    ...agentDefinitionRoutes(getPool),
-    ...analyticsRoutes(getPool),
-    ...traceRoutes(),
   ];
 }
 
@@ -167,8 +178,8 @@ function repoRoutes(getPool: PoolGetter): ServerRoute[] {
 }
 
 /** Pipeline tasks and the assembly runs that execute them; the emitted order is the order the OpenAPI generator walks, so the two halves stay concatenated rather than interleaved. */
-function taskRoutes(getPool: PoolGetter): ServerRoute[] {
-  return [...taskRunRoutes(getPool), ...specTaskRoutes(getPool)];
+function taskRoutes(getPool: PoolGetter, plans: PlanVerbSeams): ServerRoute[] {
+  return [...taskRunRoutes(getPool), ...specTaskRoutes(getPool, plans)];
 }
 
 /** One task: its record, the runs that executed it, and the logs those runs left behind. */
@@ -194,7 +205,10 @@ function taskRunRoutes(getPool: PoolGetter): ServerRoute[] {
 }
 
 /** The spec-task DAG and the feature backlog above it, plus the transcript sinks a running node writes into. */
-function specTaskRoutes(getPool: PoolGetter): ServerRoute[] {
+function specTaskRoutes(
+  getPool: PoolGetter,
+  plans: PlanVerbSeams,
+): ServerRoute[] {
   return [
     specTasksSyncRoute(getPool),
     specTasksReadyRoute(getPool),
@@ -202,7 +216,7 @@ function specTaskRoutes(getPool: PoolGetter): ServerRoute[] {
     specTasksCompleteRoute(getPool),
     taskLogsPostRoute(),
     taskTurnsPostRoute(getPool),
-    ...plansRoutes(getPool),
+    ...plansRoutes(getPool, plans),
     ...implementationLoopRoutes(getPool),
   ];
 }

@@ -21,6 +21,11 @@ import {
   floorReviewHandlers,
   type FloorReviewDeps,
 } from "./floor-review-handlers.js";
+import {
+  floorPlanHandlers,
+  type FloorPlanDeps,
+} from "./floor-plan-handlers.js";
+import { addHandlers } from "./compose-handlers.js";
 
 const floorReviewDeps: FloorReviewDeps = {
   autoReview: async (repo) =>
@@ -36,6 +41,8 @@ const floorReviewDeps: FloorReviewDeps = {
     };
   },
 };
+
+const floorPlanDeps: FloorPlanDeps = { floor: floorClient };
 
 /** Published by the walk when a node's station runs here rather than in a pod. */
 
@@ -81,9 +88,8 @@ export function buildStationHandlers(): Map<string, EventHandler> {
   }
 
   if (floorConfigured()) {
-    floorReviewHandlers(floorReviewDeps).forEach((handler, eventName) =>
-      handlers.set(eventName, handler),
-    );
+    addHandlers(handlers, floorReviewHandlers(floorReviewDeps));
+    addHandlers(handlers, floorPlanHandlers(floorPlanDeps));
   }
 
   return handlers;
