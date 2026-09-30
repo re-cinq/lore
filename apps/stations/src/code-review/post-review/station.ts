@@ -4,6 +4,7 @@ import {
   defineStation,
   type Handle,
   type Brief,
+  type Report,
   type RunningStation,
 } from "@re-cinq/floor-station";
 import { resultTextFromOutput } from "@re-cinq/lore-assembly-lines";
@@ -13,6 +14,7 @@ import { commentablePositions } from "@re-cinq/lore-shared/review/diff-hunks.js"
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { projectFor } from "../../outbound/project-boot.js";
 import { maybePostReview, type ReviewPoster } from "./post-review.js";
+import { reviewModelOf } from "./review-model.js";
 import {
   parsePullRequestUrl,
   type PullRequestLocation,
@@ -33,6 +35,7 @@ export interface ReviewProject {
 
 export interface PostReviewDeps {
   project(repo: string): Promise<ReviewProject>;
+  reviewModel(visitId: string): Promise<string | undefined>;
 }
 
 const productionDeps: PostReviewDeps = {
@@ -44,6 +47,7 @@ const productionDeps: PostReviewDeps = {
       upsertCheckRun: (input) => repository.upsertCheckRun(input),
     };
   },
+  reviewModel: reviewModelOf,
 };
 
 export function postReviewHandle(deps: PostReviewDeps): Handle {
@@ -60,13 +64,20 @@ export function postReviewHandle(deps: PostReviewDeps): Handle {
     const headSha = await headShaOf(brief, project, location.prNumber);
     const summary = verdictSummary(verdict, findingCountOf(agentOutput));
 
-    await postToPullRequest(brief, project, location, agentOutput);
+    await postToPullRequest(brief, project, location, {
+      agentOutput,
+      model: await deps.reviewModel(brief.visitId),
+    });
     await project.upsertCheckRun(reviewCheck({ headSha, verdict, summary }));
 
-    return {
-      outcome: "success",
-      produced: { review_summary: summary, review_url: prUrl },
-    };
+    return reported(summary, prUrl);
+  };
+}
+
+function reported(summary: string, prUrl: string): Report {
+  return {
+    outcome: "success",
+    produced: { review_summary: summary, review_url: prUrl },
   };
 }
 
@@ -93,12 +104,13 @@ async function postToPullRequest(
   brief: Brief,
   project: ReviewProject,
   { prNumber }: PullRequestLocation,
-  agentOutput: string,
+  { agentOutput, model }: { agentOutput: string; model?: string },
 ): Promise<void> {
   const diff = await diffOf(project.pulls, prNumber);
   const posted = await maybePostReview(project.pulls, prNumber, agentOutput, {
     positions: commentablePositions(diff),
     visit: brief,
+    model,
   });
 
   enforceTrue(

@@ -124,7 +124,7 @@ subscribe" has no expressible meaning on the current substrate.
   delivery is reported the same way and for the same reason: dead-lettering
   wrote the row and said nothing, so work the bus had abandoned left no trace
   before the prune deleted it a week later.
-  ([validated by delivers nothing for an event nobody subscribed to](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L106), [`event-deliveries.contract.test.ts:180`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L180), [`event-deliveries.contract.test.ts:350`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L350), [`cron.test.ts:128`](apps/floor/src/events/handlers/cron.test.ts#L142), [`cron.test.ts:142`](apps/floor/src/events/handlers/cron.test.ts#L156), [`cron.test.ts:150`](apps/floor/src/events/handlers/cron.test.ts#L200), [`drain-loop.test.ts:276`](libs/shared/src/outbound/project/events/drain-loop.test.ts#L276), [`drain-loop.test.ts:293`](libs/shared/src/outbound/project/events/drain-loop.test.ts#L293), [`drain-loop.test.ts:306`](libs/shared/src/outbound/project/events/drain-loop.test.ts#L306))
+  ([validated by delivers nothing for an event nobody subscribed to](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L106), [`event-deliveries.contract.test.ts:180`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L180), [`event-deliveries.contract.test.ts:350`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L350), [`cron.test.ts:128`](apps/floor/src/events/handlers/cron.test.ts#L142), [`cron.test.ts:142`](apps/floor/src/events/handlers/cron.test.ts#L156), [`cron.test.ts:150`](apps/floor/src/events/handlers/cron.test.ts#L200), [`drain-loop.test.ts:276`](libs/shared/src/outbound/project/events/drain-loop.test.ts#L299), [`drain-loop.test.ts:293`](libs/shared/src/outbound/project/events/drain-loop.test.ts#L316), [`drain-loop.test.ts:306`](libs/shared/src/outbound/project/events/drain-loop.test.ts#L329))
 
 - **FR9 — a delivery carries its own deadline.** The visibility timeout is
   stamped per delivery from the subscribing station's declared timeout rather
@@ -222,7 +222,7 @@ subscribe" has no expressible meaning on the current substrate.
   handing a large payload onward by reference — is given the event's own id. A
   consumer handed the delivery's id where the event's was meant would read the
   wrong row, or none.
-  ([validated by passes the EVENT id as meta, not the delivery's, so a by-reference payload resolves](libs/shared/src/outbound/project/events/drain-loop.test.ts#L111))
+  ([validated by passes the EVENT id as meta, not the delivery's, so a by-reference payload resolves](libs/shared/src/outbound/project/events/drain-loop.test.ts#L134))
 
 - **FR17 — a station is given its data, never resolves it.** A station that needs
   a database or a code host receives those ports from whichever process hosts it,

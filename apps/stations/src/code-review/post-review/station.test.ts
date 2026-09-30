@@ -34,7 +34,7 @@ const toolsReading = (output: string): Tools => ({
   signal: new AbortController().signal,
 });
 
-function fakeProject(refusal?: string) {
+function fakeProject(refusal?: string, model?: string) {
   const reviews: CreateReviewInput[] = [];
   const comments: string[] = [];
   const checks: CheckRunInput[] = [];
@@ -62,6 +62,7 @@ function fakeProject(refusal?: string) {
 
       return project;
     },
+    reviewModel: async () => model,
   };
 
   return { deps, reviews, comments, checks, repos };
@@ -129,6 +130,30 @@ describe("postReviewHandle", () => {
     await postReviewHandle(deps)(brief(), toolsReading(envelope));
 
     expect(reviews).toHaveLength(1);
+  });
+
+  it("names gemini-3.1-pro-preview in the review body when the floor answers it", async () => {
+    const { deps, reviews } = fakeProject(undefined, "gemini-3.1-pro-preview");
+
+    await postReviewHandle(deps)(
+      brief(),
+      toolsReading("REVIEW_RESULT:APPROVED"),
+    );
+
+    expect(reviews[0]?.body).toContain(
+      "_Reviewed by `gemini-3.1-pro-preview`_",
+    );
+  });
+
+  it("names no reviewer in the review body when the floor answers no model", async () => {
+    const { deps, reviews } = fakeProject();
+
+    await postReviewHandle(deps)(
+      brief(),
+      toolsReading("REVIEW_RESULT:APPROVED"),
+    );
+
+    expect(reviews[0]?.body).not.toContain("Reviewed by");
   });
 
   it("throws when every review shape and the plain comment are refused", async () => {
