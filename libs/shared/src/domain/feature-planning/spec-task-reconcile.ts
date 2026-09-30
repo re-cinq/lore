@@ -5,13 +5,13 @@ export interface ExistingSpecTask {
   status: string;
   issueNumber: number | null;
   specTaskId?: string;
-  description?: string;
+  /** The PR its line recorded when it settled; null when none was. */
+  prNumber?: number | null;
 }
 
 export interface WantedSpecTask {
   specTaskId: string;
   issueNumber: number;
-  description?: string;
 }
 
 export interface SpecTaskReconcile<W extends WantedSpecTask> {
@@ -74,7 +74,7 @@ function placeWanted<W extends WantedSpecTask>(
     return;
   }
 
-  (REQUEUE.has(match.status) || completedOtherWork(match, wanted)
+  (REQUEUE.has(match.status) || completedWithoutPr(match)
     ? plan.requeue
     : plan.update
   ).push({
@@ -101,14 +101,7 @@ function takeMatch(
   return index === undefined ? undefined : unmatched.splice(index, 1)[0];
 }
 
-// `completed` means a PR was opened, not merged: when the new decomposition gave the task different work, that PR is for the old task and the new one is not done — run 18773dbb's T010 row stayed "completed" as a README task after it became the verify node, and T011 would have started on a verify node that never existed.
-function completedOtherWork(
-  match: ExistingSpecTask,
-  wanted: WantedSpecTask,
-): boolean {
-  return (
-    match.status === "completed" &&
-    wanted.description !== undefined &&
-    match.description !== wanted.description
-  );
+// A spec-task's line records its PR when it settles `completed`, and the merge check then follows that PR to merged or failed; a `completed` row with no PR recorded is from before that, and nothing says its work exists — run 18773dbb's T001 and T010 read "completed" after their PRs were closed unmerged, and T011 would have started on a verify node that was never built.
+function completedWithoutPr(match: ExistingSpecTask): boolean {
+  return match.status === "completed" && match.prNumber === null;
 }
