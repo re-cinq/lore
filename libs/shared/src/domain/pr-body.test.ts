@@ -48,10 +48,10 @@ describe("linkedIssueNumber", () => {
     expect(linkedIssueNumber("Closes #12")).toBe(12);
   });
 
-  it("returns 7 for Refs #7 inside a longer body", () => {
+  it("returns null for Refs #7, which relates to an issue without claiming to resolve it", () => {
     expect(
       linkedIssueNumber("Adds the route.\n\nRefs #7\nLore-Task: uuid-1"),
-    ).toBe(7);
+    ).toBeNull();
   });
 
   it("returns 5 when Closes #5 comes before Fixes #8", () => {
