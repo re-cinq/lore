@@ -100,7 +100,7 @@ One `.md` file each in `libs/shared/src/agent-defaults/`:
 #### Task type registration
 
 Four symbols, four files, in sequence:
-1. Add `"issue-triage"` to `TaskTypeSchema` in `libs/shared/src/domain/pipeline-task-core.ts`.
+1. Add `"issue-triage"` to `TaskTypeSchema` in `libs/shared/src/domain/models/pipeline-task.ts`.
 2. Add an `"issue-triage"` entry to `TRUST_LEVELS` in `libs/shared/src/domain/pipeline-task-trust.ts` (tier: `implementation`, matching the trust ladder the feature requires).
 3. Map `"issue-triage"` → `"issue-triage"` (the YAML name) in `assemblyLineFor` in `apps/floor/src/work/task/dispatch-agent-cr.ts`.
 4. Add `"issue-triage"` to the pinned bundled-lines name list in `libs/assembly-lines/src/loader.test.ts` so the "loads all bundled assembly lines without error" test covers it.
@@ -146,7 +146,7 @@ Files touched:
 - `libs/shared/src/agent-defaults/triage-reproduce.md` — reproduce recipe
 - `libs/shared/src/agent-defaults/triage-diagnose.md` — diagnose recipe
 - `libs/shared/src/agent-defaults/triage-verify.md` — verify recipe
-- `libs/shared/src/domain/pipeline-task-core.ts` — `TaskTypeSchema`
+- `libs/shared/src/domain/models/pipeline-task.ts` — `TaskTypeSchema`
 - `libs/shared/src/domain/pipeline-task-trust.ts` — `TRUST_LEVELS`
 - `libs/shared/src/domain/task-types/dispatch-labels.ts` — label → task-type map
 - `apps/floor/src/work/task/dispatch-agent-cr.ts` — `assemblyLineFor`

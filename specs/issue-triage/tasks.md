@@ -22,7 +22,7 @@ This checklist delivers the Issue Triage Assembly Line to automate bug reproduct
 
 ## Phase 1: Setup
 
-- [ ] T001 Add `libs/assembly-lines/src/assembly-lines/issue-triage.yaml` stub with declared nodes and edges but no `prompt_ref` values yet; add `"issue-triage"` to the pinned bundled-lines list in `libs/assembly-lines/src/loader.test.ts`. — test: `libs/assembly-lines/src/loader.test.ts` asserts the stub loads without error and appears in the bundled list
+- [ ] T001 Add `libs/assembly-lines/src/assembly-lines/issue-triage.yaml` stub holding only its terminal `done` node (a `retrospective`) — no agent node yet, because an agent node without a recipe fails `libs/assembly-lines/src/prompt-refs.test.ts`; the triage nodes arrive in T008–T013; add `"issue-triage"` to the pinned bundled-lines list in `libs/assembly-lines/src/loader.test.ts`. — test: `libs/assembly-lines/src/loader.test.ts` asserts the stub loads without error and appears in the bundled list
 
 ## Phase 2: Foundational *(blocks all stories)*
 
@@ -30,7 +30,7 @@ This checklist delivers the Issue Triage Assembly Line to automate bug reproduct
 
 - [ ] T003 Add agent recipe files `libs/shared/src/agent-defaults/triage-reproduce.md`, `libs/shared/src/agent-defaults/triage-diagnose.md`, and `libs/shared/src/agent-defaults/triage-verify.md` — each with frontmatter (`model`, `timeout_minutes`) and a body stating what the agent writes and which `LORE_NODE_RESULT` value it emits for each custom outcome (FR12). (depends on T002) — test: `libs/assembly-lines/src/prompt-refs.test.ts` asserts all three recipe files exist and that each triage node's `prompt_ref` resolves
 
-- [ ] T004 Add `"issue-triage"` to `TaskTypeSchema` in `libs/shared/src/domain/pipeline-task-core.ts`; add an `"issue-triage"` tier entry to `TRUST_LEVELS` in `libs/shared/src/domain/pipeline-task-trust.ts`; map `"issue-triage"` to the line name in `assemblyLineFor` in `apps/floor/src/work/task/dispatch-agent-cr.ts` (FR13). — test: `libs/shared/src/domain/pipeline-tasks.trust.test.ts` asserts `issue-triage` is permitted at the correct trust tier; `libs/assembly-lines/src/loader.test.ts` bundled-lines assertion (T001) confirms the mapping resolves
+- [ ] T004 Add `"issue-triage"` to `TaskTypeSchema` in `libs/shared/src/domain/models/pipeline-task.ts`; add an `"issue-triage"` tier entry to `TRUST_LEVELS` in `libs/shared/src/domain/pipeline-task-trust.ts`; map `"issue-triage"` to the line name in `assemblyLineFor` in `apps/floor/src/work/task/dispatch-agent-cr.ts` (FR13). — test: `libs/shared/src/domain/pipeline-tasks.trust.test.ts` asserts `issue-triage` is permitted at the correct trust tier; `libs/assembly-lines/src/loader.test.ts` bundled-lines assertion (T001) confirms the mapping resolves
 
 - [ ] T005 Add `triage_label` node type to `NodeType` and `PRODUCIBLE_OUTCOMES` in `libs/assembly-lines/src/assembly-line-schema.ts`; implement the `triage_label` service station in `apps/stations/src/work/triage-label/` to apply the `triage:*` label matching the node outcome via `project.issues.addLabel` (FR14). (depends on T002) — test: `apps/stations/src/work/triage-label/triage-label.test.ts` asserts each outcome maps to the correct label and the label is applied
 
