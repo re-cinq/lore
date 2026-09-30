@@ -15,6 +15,10 @@ line:
       kind: git
     pr_url:
       kind: value
+    # The subject: two re-checks of one sha are one run, while a re-check of a newer sha never joins the older one it supersedes.
+    head_sha:
+      kind: value
+      subject: true
     description:
       kind: value
   nodes:

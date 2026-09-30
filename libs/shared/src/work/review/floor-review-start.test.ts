@@ -193,6 +193,34 @@ describe("startReview", () => {
     expect(started(requests)[0].body).not.toHaveProperty("startItems.issue");
   });
 
+  it("cancels the open re-check of sha-old as superseded when sha-new is pushed, before starting the new one", async () => {
+    const { deps, requests } = scene({
+      runs: [
+        run({
+          id: "recheck-old",
+          lineId: "code-review-recheck",
+          finishedAt: null,
+        }),
+        run(),
+      ],
+      commits: [
+        { sha: "sha-old", message: "first", date: "2026-09-30T09:00:00Z" },
+        { sha: "sha-new", message: "second", date: "2026-09-30T09:30:00Z" },
+      ],
+    });
+
+    await reviewOrRecheck(deps, TARGET);
+
+    expect(
+      requests
+        .map((r) => r.path)
+        .filter((p) => !p.startsWith("/assembly-runs?")),
+    ).toEqual([
+      "/assembly-runs/recheck-old/cancel",
+      "/assembly-lines/code-review-recheck/start",
+    ]);
+  });
+
   it("cancels the open re-check as superseded when a review is forced", async () => {
     const { deps, requests } = scene({
       runs: [
