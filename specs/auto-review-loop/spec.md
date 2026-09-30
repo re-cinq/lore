@@ -495,6 +495,7 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
   strictness is the point), and a finding carrying neither spelling of a
   required field still yields null.
   ([validated by](libs/shared/src/work/review/review-findings.test.ts#L162), [validated by](libs/shared/src/work/review/review-findings.test.ts#L176), [validated by](libs/shared/src/work/review/review-findings.test.ts#L184), [validated by](libs/shared/src/work/review/review-findings.test.ts#L193), [validated by](libs/shared/src/work/review/review-findings.test.ts#L211))
+- A `decoration` the contract does not name — a model writing `"none"` for "no decoration", as Gemini did on the first review the external floor ran (HALEngine#123, 2026-09-30), which lost four findings to that one word — is dropped and its finding kept; a named decoration is kept as written. ([validated by keeps the finding and drops the decoration none](libs/shared/src/work/review/review-findings.test.ts#L292), [validated by keeps the decoration non-blocking as written](libs/shared/src/work/review/review-findings.test.ts#L298))
 - A finding written as one `message` — Gemini's shape on #2143's recheck
   (2026-09-23), which lost every finding and failed the run — reads its
   opening sentence as the `subject` (the whole first line when that sentence
