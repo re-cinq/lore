@@ -68,6 +68,52 @@ describe("planSpecTaskReconcile", () => {
     });
   });
 
+  it("re-queues completed T010 on issue #2261 when the new decomposition gave it different work, since its old PR never merged", () => {
+    const wantedVerify = {
+      specTaskId: "T010",
+      issueNumber: 2261,
+      description: "Add the verify node",
+    };
+
+    expect(
+      planSpecTaskReconcile(
+        [
+          {
+            id: "old",
+            status: "completed",
+            issueNumber: 2261,
+            specTaskId: "T010",
+            description: "Update README.md",
+          },
+        ],
+        [wantedVerify],
+      ).requeue,
+    ).toEqual([{ id: "old", wanted: wantedVerify }]);
+  });
+
+  it("keeps completed T001's status when its task is unchanged", () => {
+    const same = {
+      specTaskId: "T001",
+      issueNumber: 2258,
+      description: "Add the stub",
+    };
+
+    expect(
+      planSpecTaskReconcile(
+        [
+          {
+            id: "done",
+            status: "completed",
+            issueNumber: 2258,
+            specTaskId: "T001",
+            description: "Add the stub",
+          },
+        ],
+        [same],
+      ).update,
+    ).toEqual([{ id: "done", wanted: same }]);
+  });
+
   it("leaves merged T001 alone and files nothing for it", () => {
     expect(
       planSpecTaskReconcile(
