@@ -58,16 +58,19 @@ async function ensurePr(
   );
 }
 
-/** What a reader sees in their pull request list: the plan this spec came from, cut to a line, or the branch when the run carries no title. */
+/** What a reader sees in their pull request list: the plan this spec came from, cut to a line, or the branch when the run carries no title. The cap is the whole title's, prefix included — what fills a list is the line, not the part after the colon. */
 function prTitle(branch: string, planTitle: string | undefined): string {
   const named = planTitle?.replace(/\s+/g, " ").trim();
 
   if (!named) {
-    return `spec: ${branch}`;
+    return `${TITLE_PREFIX}${branch}`;
   }
+  const room = TITLE_MAX - TITLE_PREFIX.length;
 
-  return `spec: ${named.length > TITLE_MAX ? `${named.slice(0, TITLE_MAX - 1)}\u2026` : named}`;
+  return `${TITLE_PREFIX}${named.length > room ? `${named.slice(0, room - 1)}\u2026` : named}`;
 }
+
+const TITLE_PREFIX = "spec: ";
 
 // The cap the Floor's own spec-PR titles used, so a long plan title does not fill a reader's list.
 const TITLE_MAX = 70;

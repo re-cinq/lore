@@ -44,9 +44,9 @@ export interface GitRef {
   branch: string;
 }
 
-/** The inverse of `gitItem`, for a service station handed a git need's ref as `host/owner/name@branch`. Splits on the LAST `@` defensively, since a branch name may itself contain one. */
+/** The inverse of `gitItem`, for a service station handed a git need's ref as `host/owner/name@branch`. Splits on the FIRST `@`: a host, owner or repository name can never hold one, while git lets a branch (`feature@v2`), so everything after the first is the branch. */
 export function parseGitRef(ref: string): GitRef {
-  const at = ref.lastIndexOf("@");
+  const at = ref.indexOf("@");
 
   enforceTrue(at > 0, Error, `not a git ref: ${ref}`);
 

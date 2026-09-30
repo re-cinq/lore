@@ -75,6 +75,13 @@ describe("floor items", () => {
     });
   });
 
+  it("keeps the whole branch feature@v2, which git allows an at sign in", () => {
+    expect(parseGitRef("github.com/re-cinq/lore@feature@v2")).toEqual({
+      repo: "re-cinq/lore",
+      branch: "feature@v2",
+    });
+  });
+
   it("refuses the ref github.com/re-cinq/lore, which names no branch", () => {
     expect(() => parseGitRef("github.com/re-cinq/lore")).toThrow(
       new Error("not a git ref: github.com/re-cinq/lore"),

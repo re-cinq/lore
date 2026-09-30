@@ -132,7 +132,7 @@ describe("openSpecPrHandle", () => {
     const title = await openedTitleFor(`${"long plan title ".repeat(8)}end`);
 
     expect({ length: title.length, tail: title.slice(-1) }).toEqual({
-      length: 76,
+      length: 70,
       tail: "\u2026",
     });
   });
