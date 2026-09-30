@@ -153,7 +153,9 @@ makes the sync loop re-render and apply it.
 The Headlamp dashboard (`infra/terraform/headlamp.tf`) is public at
 `headlamp_hostname` and is gated by oauth2-proxy using Google as the identity
 provider, restricted to `@re-cinq.com` addresses. Three secrets, all gated on
-`enable_headlamp`.
+`enable_headlamp`, which Terraform refuses to accept without a non-empty
+`headlamp_hostname` — oauth2-proxy derives its OAuth redirect URL from that
+hostname and will not start without one.
 
 Google OAuth **web** clients have no Terraform resource outside IAP, so the client
 itself is created by hand, once:
@@ -222,13 +224,22 @@ holding.
 
 ## Seed a new environment
 
+The containers have to exist before a value can be written to them, and the
+workloads have to come after both — the Helm provider waits for Ready, and a pod
+whose `secretKeyRef` points at an unseeded secret never gets there. So the first
+apply is targeted:
+
 ```bash
-cd infra/terraform && terraform apply    # creates the empty containers
-./scripts/infra/seed-secrets.sh          # prompts for each missing value
+cd infra/terraform
+terraform apply -target='google_secret_manager_secret.lore'  # the empty containers
+./scripts/infra/seed-secrets.sh                              # prompts for each missing value
+terraform apply                                              # the workloads
 ```
 
 Idempotent: a secret that already has an enabled version is skipped, so
-re-running it is free.
+re-running it is free. On an environment that is already up, the plain
+`terraform apply` is enough on its own — the targeted first pass is only for a
+cold start, or for a newly added secret whose consumer ships in the same apply.
 
 ## Migrating an existing deployment
 

@@ -313,7 +313,7 @@ resource "helm_release" "oauth2_proxy" {
 # any Ingress serving the host, so declaring TLS twice for one hostname would only
 # give cert-manager two Certificates racing for the same secret.
 resource "kubernetes_ingress_v1" "headlamp_oauth2_proxy" {
-  count = var.enable_headlamp && var.headlamp_hostname != "" ? 1 : 0
+  count = var.enable_headlamp ? 1 : 0
 
   metadata {
     name      = "headlamp-oauth2-proxy"
@@ -348,7 +348,7 @@ resource "kubernetes_ingress_v1" "headlamp_oauth2_proxy" {
 }
 
 resource "kubernetes_ingress_v1" "headlamp" {
-  count = var.enable_headlamp && var.headlamp_hostname != "" ? 1 : 0
+  count = var.enable_headlamp ? 1 : 0
 
   metadata {
     name      = "headlamp"
