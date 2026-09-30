@@ -26,8 +26,7 @@ import {
 } from "./run-visualization-hooks";
 import { RunFilesSection } from "./RunFilesSection";
 import { NodeInspectorPanel } from "./NodeInspectorPanel";
-import { transcriptFeed } from "./run-visualization-selectors";
-import { runStateOf } from "./RunStationButton";
+import { inspectorProps } from "./run-inspector-props";
 import { RunGraphSection } from "./RunGraphSection";
 import { RunWorkbenchLayout } from "./RunWorkbenchLayout";
 
@@ -48,6 +47,8 @@ export interface RunVisualizationPanelProps {
   onFrame?: (frame: RunStreamFrame) => void;
   /** The run's pull request, which the per-file diff drawer reads; null when the run opened none. */
   prNumber?: number | null;
+  /** Which engine walks the run; a run on the external floor can be read and watched here but only retried from the floor. */
+  engine?: string;
 }
 
 export default function RunVisualizationPanel(
@@ -113,41 +114,6 @@ function RunGraph({ view, definition }: RunGraphProps) {
       onToggleOutcomes={() => view.setShowOutcomes((shown) => !shown)}
     />
   );
-}
-
-/** Takes the run's own props as `page` rather than threading eight arguments: none of them is derived from the run, they are what the route already knew. */
-type RunDetailPage = Pick<
-  RunVisualizationPanelProps,
-  | "runId"
-  | "runStatus"
-  | "repo"
-  | "reason"
-  | "definition"
-  | "agentEditHrefs"
-  | "nodeModels"
-  | "taskEvents"
->;
-
-/** The inspector's plain values — the page's own facts and the view's derivations, flattened into one bundle because the panel reads them as a flat prop list. */
-function inspectorProps(view: RunView, page: RunDetailPage) {
-  return {
-    selectedNodeId: view.selectedNodeId,
-    runId: page.runId,
-    repo: page.repo,
-    reason: page.reason,
-    definition: page.definition,
-    latestRows: view.graph.latestRows,
-    selectedRows: view.node.selectedRows,
-    selectedAttempts: view.node.selectedAttempts,
-    nodeInputs: view.node.nodeInputs,
-    retrySource: view.graph.retrySource,
-    runState: runStateOf(page.runStatus),
-    agentEditHrefs: page.agentEditHrefs,
-    nodeModels: page.nodeModels,
-    ...transcriptFeed(view.state, page.taskEvents),
-    selectedState: view.node.selected,
-    visibleNodeCount: visibleNodeCount(view),
-  };
 }
 
 /** The files strip's plain values: the touches the reducer folded and the run the drawer reads diffs for. */
@@ -316,12 +282,6 @@ function useNodeMeta(
       [...ids].map((id) => [id, metaLineFor(id, sources)]),
     );
   }, [state, latestRows, nodeModels, now]);
-}
-
-function visibleNodeCount(view: RunView): number {
-  const { visibleGraph } = view.graph;
-
-  return visibleGraph.nodes.length;
 }
 
 function reducePanel(state: RunLiveState, action: PanelAction): RunLiveState {

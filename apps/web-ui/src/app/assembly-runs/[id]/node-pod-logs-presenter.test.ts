@@ -57,6 +57,16 @@ describe("unavailableMessage", () => {
     expect(unavailableMessage("no-agent")).toMatch(/No agent/);
   });
 
+  it("says a floor run's node ran on the external floor even when no agent was launched", () => {
+    expect(unavailableMessage("no-agent", "floor")).toBe(
+      "This node ran on the external floor; its transcript is above.",
+    );
+  });
+
+  it("keeps saying no agent was launched for a node of a run on the lore engine", () => {
+    expect(unavailableMessage("no-agent", "lore")).toMatch(/No agent/);
+  });
+
   it("falls back for an unknown reason", () => {
     expect(unavailableMessage()).toMatch(/not available/);
   });

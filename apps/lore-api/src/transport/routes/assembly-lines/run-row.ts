@@ -76,7 +76,7 @@ export const TokenUsageSchema = z.object({
 });
 
 // The six ENRICH_SELECT columns, picked from the RunRowSchema wire contract declared above.
-type RunEnrichment = Pick<
+export type RunEnrichment = Pick<
   z.infer<typeof RunRowSchema>,
   | "pr_url"
   | "task_pr_number"

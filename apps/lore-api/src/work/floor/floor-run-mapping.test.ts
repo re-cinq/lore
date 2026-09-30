@@ -31,6 +31,7 @@ const openRun: RunView = {
       by: "hook",
     },
   },
+  createdAt: "2026-09-30T10:00:00.000Z",
   outcome: null,
   reason: null,
   finishedAt: null,
@@ -101,7 +102,7 @@ describe("lineBodyToRunGraph", () => {
 
 describe("floorRunToAssemblyRun", () => {
   const convert = (run: RunView, visits: VisitView[] = []) =>
-    floorRunToAssemblyRun({ run, visits, graph, createdAt: CREATED_AT });
+    floorRunToAssemblyRun({ run, visits, graph });
 
   it("maps an open run with no visits to a queued record", () => {
     expect(convert(openRun)).toEqual({

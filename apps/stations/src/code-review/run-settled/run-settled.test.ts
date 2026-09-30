@@ -17,6 +17,7 @@ function run(overrides: Partial<RunView> = {}): RunView {
     repo: "github.com/re-cinq/lore",
     subjectKey: null,
     startItems: { pr_url: { kind: "value", ref: "https://pr/1", by: "lore" } },
+    createdAt: "2026-09-30T09:00:00.000Z",
     outcome: "error",
     reason: "review: iteration limit reached",
     finishedAt: "2026-09-30T10:00:00.000Z",

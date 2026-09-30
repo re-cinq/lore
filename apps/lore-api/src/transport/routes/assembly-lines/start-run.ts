@@ -18,6 +18,11 @@ import { apiError, rethrowBoom } from "@re-cinq/lore-shared/http/api-error.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { zodResponse } from "../../http/zod-response.js";
+import { floorConfigured } from "@re-cinq/lore-shared/floor/floor-client.js";
+import {
+  FLOOR_RUN_REFUSAL,
+  floorRunReader,
+} from "../../../work/floor/floor-backed-runs.js";
 import { repoFullName } from "../common-schemas.js";
 
 // POST /api/assembly-runs — the seam a courier CronJob posts to (#1357), since assemblyRuns.start() was previously reachable only in-process from the Floor; uses start()'s existing atomic CTE, so nothing here knows what the line does.
@@ -56,15 +61,30 @@ type LoadDefinitions = () => Promise<ReadonlyMap<string, AssemblyLine>>;
 const defaultStart: StartRun = async ({ blueprintName, repo, ...opts }) =>
   (await projectFor(repo)).assemblyRuns.start(blueprintName, opts);
 
+/** True for a run the external floor holds: only the floor can retry it. */
+type IsFloorRun = (runId: string) => Promise<boolean>;
+
+interface StartRunDeps {
+  start: StartRun;
+  loadDefinitions: LoadDefinitions;
+  isFloorRun: IsFloorRun;
+}
+
+const defaultIsFloorRun: IsFloorRun = async (runId) =>
+  floorConfigured() && (await floorRunReader().getById(runId)) !== null;
+
 export function startRunRoute(
   start: StartRun = defaultStart,
   loadDefinitions: LoadDefinitions = loadBuiltinAssemblyLines,
+  isFloorRun: IsFloorRun = defaultIsFloorRun,
 ): ServerRoute {
+  const deps = { start, loadDefinitions, isFloorRun };
+
   return {
     method: "POST",
     path: "/api/assembly-runs",
     options: startRunOptions(),
-    handler: (request, h) => serveStartRun(start, loadDefinitions, request, h),
+    handler: (request, h) => serveStartRun(deps, request, h),
   };
 }
 
@@ -87,8 +107,7 @@ function startRunOptions() {
 
 /** Starts a run, or resumes one from a node. The row and its start event are written in ONE atomic statement, so a run is never queued with nothing to claim it. */
 async function serveStartRun(
-  start: StartRun,
-  loadDefinitions: LoadDefinitions,
+  deps: StartRunDeps,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
@@ -96,10 +115,10 @@ async function serveStartRun(
   const input = buildStartInput(body);
 
   if (body.resume_from === undefined) {
-    return h.response({ id: await start(input) }).code(201);
+    return h.response({ id: await deps.start(input) }).code(201);
   }
 
-  const id = await startResumedRun(body, input, start, loadDefinitions);
+  const id = await startResumedRun(body, input, deps);
 
   return h.response({ id }).code(201);
 }
@@ -118,10 +137,29 @@ function buildStartInput(
 async function startResumedRun(
   body: z.infer<typeof StartBody>,
   input: AssemblyRunStartInput,
-  start: StartRun,
-  loadDefinitions: LoadDefinitions,
+  deps: StartRunDeps,
 ): Promise<string> {
-  const definition = (await loadDefinitions()).get(body.definition);
+  const definition = await resumableDefinition(body, deps);
+
+  try {
+    return await deps.start(resumeInput(body, input, definition));
+  } catch (err) {
+    return rethrowResumeFailure(err);
+  }
+}
+
+async function resumableDefinition(
+  body: z.infer<typeof StartBody>,
+  deps: StartRunDeps,
+): Promise<AssemblyLine> {
+  const source = body.resume_from as NonNullable<typeof body.resume_from>;
+
+  enforceTrue(
+    !(await deps.isFloorRun(source.run_id)),
+    apiError(409),
+    FLOOR_RUN_REFUSAL,
+  );
+  const definition = (await deps.loadDefinitions()).get(body.definition);
 
   enforceTrue(
     definition,
@@ -129,11 +167,7 @@ async function startResumedRun(
     `unknown definition "${body.definition}"`,
   );
 
-  try {
-    return await start(resumeInput(body, input, definition));
-  } catch (err) {
-    return rethrowResumeFailure(err);
-  }
+  return definition;
 }
 
 // The fork's drift guard needs the CURRENT definition's hash as its left-hand side; libs/shared can't derive it (the dependency runs the other way).

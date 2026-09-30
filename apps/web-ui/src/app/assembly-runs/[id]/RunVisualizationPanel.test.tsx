@@ -788,7 +788,11 @@ describe("retry from node", () => {
     };
   }
 
-  function renderRun(runStatus: string, nodes: AssemblyRunNode[]) {
+  function renderRun(
+    runStatus: string,
+    nodes: AssemblyRunNode[],
+    engine?: string,
+  ) {
     return render(
       <RunVisualizationPanel
         runId="run-1"
@@ -797,6 +801,7 @@ describe("retry from node", () => {
         nodes={nodes}
         repo="re-cinq/lore"
         reason={null}
+        engine={engine}
       />,
     );
   }
@@ -893,6 +898,28 @@ describe("retry from node", () => {
         iteration: "2",
       },
     );
+  });
+
+  it("offers neither retry nor Run this station on a finished run on the floor engine", async () => {
+    stubHistory([]);
+    useFakeSocket();
+
+    renderRun(
+      "finished",
+      [
+        retryRow({ nodeId: "implement" }),
+        retryRow({ nodeId: "validate", outcome: "failed" }),
+      ],
+      "floor",
+    );
+
+    await settle();
+    await select("validate");
+
+    expect({
+      retry: screen.queryByRole("button", { name: "Retry from this node" }),
+      run: screen.queryByRole("button", { name: "Run this station" }),
+    }).toEqual({ retry: null, run: null });
   });
 
   it("offers no retry while the run is still running", async () => {

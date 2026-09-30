@@ -28,6 +28,7 @@ function brokenRun(headSha?: string): RunView {
         ? { head_sha: { kind: "value", ref: headSha, by: "lore" } }
         : {}),
     },
+    createdAt: "2026-09-30T09:00:00.000Z",
     outcome: "error",
     reason: "post-review: failed",
     finishedAt: "2026-09-30T10:00:00.000Z",
