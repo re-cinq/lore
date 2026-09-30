@@ -643,7 +643,6 @@ edges:
     ).toThrow(/detect node "detect" requires job_ref/);
   });
 
-  // specs/issue-triage/spec.md#FR11
   it("accepts a node with declared custom outcomes (unable-to-reproduce, skipped, etc.)", () => {
     const wf = parseAssemblyLine(`
 name: triage
@@ -689,7 +688,6 @@ edges:
     ]);
   });
 
-  // specs/issue-triage/spec.md#FR11
   it("rejects an edge whose `on` value is not declared in the source node's outcomes", () => {
     expect(() =>
       parseAssemblyLine(`

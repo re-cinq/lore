@@ -108,7 +108,6 @@ describe("the schema mirrors every failure class the platform can produce (a han
   });
 });
 
-// specs/issue-triage/spec.md#FR11 — parse round-trip for declared custom outcome strings
 const TRIAGE_CUSTOM_OUTCOMES = [
   "unable-to-reproduce",
   "needs-reproduction",
