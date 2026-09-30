@@ -292,7 +292,7 @@ and the webhook/verdict plumbing it rides on.
 
 7. A human reply arrives as a created `pull_request_review_comment` mapped to
    `github.pull_request_review_comment.created` with author/id/body; a non-created review comment is
-   ignored. ([validated by `github-map.test.ts:187`](libs/shared/src/outbound/project/events/github-map.test.ts#L190), [`github-map.test.ts:214`](libs/shared/src/outbound/project/events/github-map.test.ts#L217), [`github-map.test.ts:246`](libs/shared/src/outbound/project/events/github-map.test.ts#L249))
+   ignored. ([validated by `github-map.test.ts:187`](libs/shared/src/outbound/project/events/github-map.test.ts#L193), [`github-map.test.ts:214`](libs/shared/src/outbound/project/events/github-map.test.ts#L220), [`github-map.test.ts:246`](libs/shared/src/outbound/project/events/github-map.test.ts#L252))
 
 8. The watcher parses the agent's review verdict from stdout: `REVIEW_RESULT:APPROVED` → `approved`,
    `CHANGES_REQUESTED` (with trailing feedback) → `changes_requested`, and no marker or absent output
@@ -413,9 +413,9 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 
 ### `libs/shared/src/outbound/project/events/github-map.test.ts`
 
-- returns nothing for a check with no backing PRs. ([validated by](libs/shared/src/outbound/project/events/github-map.test.ts#L289))
-- returns nothing when the repository is missing. ([validated by](libs/shared/src/outbound/project/events/github-map.test.ts#L365))
-- returns nothing for an unhandled event type. ([validated by](libs/shared/src/outbound/project/events/github-map.test.ts#L375))
+- returns nothing for a check with no backing PRs. ([validated by](libs/shared/src/outbound/project/events/github-map.test.ts#L292))
+- returns nothing when the repository is missing. ([validated by](libs/shared/src/outbound/project/events/github-map.test.ts#L368))
+- returns nothing for an unhandled event type. ([validated by](libs/shared/src/outbound/project/events/github-map.test.ts#L378))
 
 ### `apps/stations/src/work/comment-triage/comment-triage.test.ts`
 

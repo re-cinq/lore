@@ -12,8 +12,15 @@ import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { clampedLimit } from "../common-schemas.js";
-import type { AssemblyRunsPort } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
-import { PgAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-pg.js";
+import type {
+  AssemblyRunRecord,
+  AssemblyRunsPort,
+} from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
+import {
+  floorRunReader,
+  runsOnFloor,
+  runsReadingFloor,
+} from "../../../work/floor/floor-backed-runs.js";
 import type { AssemblyRunStatus } from "@re-cinq/lore-shared/models/assembly-run.js";
 import {
   enrichmentById,
@@ -53,7 +60,7 @@ export function assemblyLineRoutes(
 ): ServerRoute[] {
   // The port a handler reads through, named once so three handlers don't each rebuild it.
   const portFor = (pool: Pool): AssemblyRunsPort =>
-    runs ?? new PgAssemblyRuns(pool);
+    runs ?? runsReadingFloor(pool);
 
   return withLegacyAlias([
     listRunsRoute(getPool, portFor),
@@ -284,9 +291,11 @@ async function serveRunDetail(
     const run = await portFor(pool).getById(request.params.id);
 
     enforceTrue(run, apiError(404), "Run not found");
-    const enrichment = await enrichmentById(pool, [run]);
+    const enrichment = runsOnFloor(run)
+      ? await floorEnrichment(run)
+      : (await enrichmentById(pool, [run])).get(run.id);
 
-    return h.response(toRunRowWithGraph(run, enrichment.get(run.id)));
+    return h.response(toRunRowWithGraph(run, enrichment));
   } catch (err) {
     // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
     rethrowBoom(err);
@@ -295,4 +304,18 @@ async function serveRunDetail(
 
     throw err;
   }
+}
+
+/** A floor run has no task row to join: its pull request is its own start item, and its cost is the floor's sum. */
+async function floorEnrichment(run: AssemblyRunRecord) {
+  const prUrl = run.args["pr_url"];
+
+  return {
+    pr_url: typeof prUrl === "string" ? prUrl : null,
+    task_pr_number: null,
+    issue_url: null,
+    issue_number: null,
+    created_by: null,
+    cost_usd: await floorRunReader().costUsd(run.id),
+  };
 }

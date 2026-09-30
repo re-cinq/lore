@@ -2,7 +2,11 @@ import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { pipelineOf, readPipelineFile, type Pipeline } from "@re-cinq/floor-pipeline";
+import {
+  pipelineOf,
+  readPipelineFile,
+  type Pipeline,
+} from "@re-cinq/floor-pipeline";
 import {
   pipelinesToSeed,
   seedFloorPipelines,
@@ -28,7 +32,10 @@ function pipelineOfLine(lineId: string): Pipeline {
 function realFiles() {
   return readdirSync(PIPELINES_DIR)
     .filter((name) => name.endsWith(".yaml"))
-    .map((name) => ({ name, text: readFileSync(path.join(PIPELINES_DIR, name), "utf-8") }));
+    .map((name) => ({
+      name,
+      text: readFileSync(path.join(PIPELINES_DIR, name), "utf-8"),
+    }));
 }
 
 function fakeFloor(existing: string[]) {
@@ -50,10 +57,15 @@ function fakeFloor(existing: string[]) {
 
 describe("pipelinesToSeed", () => {
   it("skips code-review when the floor already has it", () => {
-    const pipelines = [pipelineOfLine("code-review"), pipelineOfLine("code-review-reply")];
+    const pipelines = [
+      pipelineOfLine("code-review"),
+      pipelineOfLine("code-review-reply"),
+    ];
 
     expect(
-      pipelinesToSeed(pipelines, new Set(["code-review"])).map((pipeline) => pipeline.line?.id),
+      pipelinesToSeed(pipelines, new Set(["code-review"])).map(
+        (pipeline) => pipeline.line?.id,
+      ),
     ).toEqual(["code-review-reply"]);
   });
 });
@@ -83,7 +95,10 @@ describe("seedFloorPipelines", () => {
   it("imports both lines when the floor has none", async () => {
     const { deps } = fakeFloor([]);
 
-    expect(await seedFloorPipelines(deps)).toEqual(["code-review", "lore-run-settled"]);
+    expect(await seedFloorPipelines(deps)).toEqual([
+      "code-review",
+      "lore-run-settled",
+    ]);
   });
 });
 
@@ -104,8 +119,14 @@ describe("the four pipeline files shipped in libs/assembly-lines", () => {
   it("give every agent definition a non-empty prompt", () => {
     const prompts = pipelines
       .flatMap((pipeline) => pipeline.agentDefinitions)
-      .map((definition) => (definition.body.settings as { prompt: string }).prompt);
+      .map(
+        (definition) => (definition.body.settings as { prompt: string }).prompt,
+      );
 
-    expect(prompts.map((prompt) => prompt.length > 0)).toEqual([true, true, true]);
+    expect(prompts.map((prompt) => prompt.length > 0)).toEqual([
+      true,
+      true,
+      true,
+    ]);
   });
 });

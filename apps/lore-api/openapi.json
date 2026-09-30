@@ -1197,6 +1197,54 @@
         ]
       }
     },
+    "/api/assembly-runs/{id}/turns": {
+      "get": {
+        "operationId": "get_api_assembly-runs_id_turns",
+        "summary": "GET /api/assembly-runs/{id}/turns",
+        "tags": ["Tasks"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "One page of the turns of a run on the external floor, oldest first; empty for a run the floor does not have",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FloorRunTurns"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/api/audit-log": {
       "get": {
         "operationId": "get_api_audit-log",
@@ -2213,7 +2261,7 @@
       "post": {
         "operationId": "post_api_floor_git-credential",
         "summary": "POST /api/floor/git-credential",
-        "tags": ["Other"],
+        "tags": ["Cluster Agents"],
         "security": [],
         "x-rate-limit-bucket": "default",
         "responses": {
@@ -7202,7 +7250,7 @@
       "post": {
         "operationId": "post_api_review_start",
         "summary": "POST /api/review/start",
-        "tags": ["Other"],
+        "tags": ["Tasks"],
         "security": [
           {
             "bearerAuth": []
@@ -9589,6 +9637,9 @@
           "subject_key": {
             "type": ["string", "null"]
           },
+          "engine": {
+            "type": "string"
+          },
           "graph": {},
           "status": {
             "type": "string"
@@ -9641,6 +9692,7 @@
           "repo",
           "branch",
           "subject_key",
+          "engine",
           "status",
           "outcome",
           "reason",
@@ -9686,6 +9738,9 @@
                 },
                 "subject_key": {
                   "type": ["string", "null"]
+                },
+                "engine": {
+                  "type": "string"
                 },
                 "graph": {},
                 "status": {
@@ -9739,6 +9794,7 @@
                 "repo",
                 "branch",
                 "subject_key",
+                "engine",
                 "status",
                 "outcome",
                 "reason",
@@ -11079,6 +11135,20 @@
           }
         },
         "required": ["username", "password"],
+        "additionalProperties": false
+      },
+      "FloorRunTurns": {
+        "type": "object",
+        "properties": {
+          "turns": {
+            "type": "array",
+            "items": {}
+          },
+          "hasMore": {
+            "type": "boolean"
+          }
+        },
+        "required": ["turns", "hasMore"],
         "additionalProperties": false
       },
       "GitCredential": {

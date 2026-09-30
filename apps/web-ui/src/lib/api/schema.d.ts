@@ -328,6 +328,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/assembly-runs/{id}/turns": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/assembly-runs/{id}/turns */
+    get: operations["get_api_assembly-runs_id_turns"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/audit-log": {
     parameters: {
       query?: never;
@@ -679,6 +696,23 @@ export interface paths {
     get: operations["get_api_events"];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/floor/git-credential": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/floor/git-credential */
+    post: operations["post_api_floor_git-credential"];
     delete?: never;
     options?: never;
     head?: never;
@@ -1766,6 +1800,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/review/start": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/review/start */
+    post: operations["post_api_review_start"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/search-context": {
     parameters: {
       query?: never;
@@ -2459,6 +2510,7 @@ export interface components {
       repo: string;
       branch: string | null;
       subject_key: string | null;
+      engine: string;
       graph?: unknown;
       status: string;
       outcome: string | null;
@@ -2484,6 +2536,7 @@ export interface components {
         repo: string;
         branch: string | null;
         subject_key: string | null;
+        engine: string;
         graph?: unknown;
         status: string;
         outcome: string | null;
@@ -2853,6 +2906,14 @@ export interface components {
     };
     EventPayload: {
       [key: string]: unknown;
+    };
+    FloorGitCredential: {
+      username: string;
+      password: string;
+    };
+    FloorRunTurns: {
+      turns: unknown[];
+      hasMore: boolean;
     };
     GitCredential: {
       username: string;
@@ -3828,6 +3889,9 @@ export interface components {
       active?: boolean;
       lastCode?: number | null;
       reason?: string;
+    };
+    ReviewStarted: {
+      started: string | null;
     };
     RunStreamFrame:
       | {
@@ -5053,6 +5117,32 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
+  "get_api_assembly-runs_id_turns": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description One page of the turns of a run on the external floor, oldest first; empty for a run the floor does not have */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["FloorRunTurns"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
   "get_api_audit-log": {
     parameters: {
       query?: never;
@@ -5622,6 +5712,38 @@ export interface operations {
       403: components["responses"]["Forbidden"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "post_api_floor_git-credential": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          repoUrl: string;
+          /** @enum {string} */
+          access: "read" | "write";
+        };
+      };
+    };
+    responses: {
+      /** @description A freshly minted installation token for the requested repo, as the git credential-helper username/password pair */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["FloorGitCredential"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
     };
   };
   "post_api_github-credentials": {
@@ -7873,6 +7995,39 @@ export interface operations {
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_review_start: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          repo: string;
+          pr_number: number;
+        };
+      };
+    };
+    responses: {
+      /** @description A code-review run was started on the floor for the pull request, or joined if one is already open; null when the pull request is not open */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ReviewStarted"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };

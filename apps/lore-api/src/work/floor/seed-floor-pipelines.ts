@@ -68,13 +68,7 @@ export async function seedFloorPipelines(deps: SeedDeps): Promise<string[]> {
 export function productionSeedDeps(
   env: Record<string, string | undefined> = process.env,
 ): SeedDeps {
-  const floor = { url: env.FLOOR_API_URL ?? "", token: env.FLOOR_SERVICE_TOKEN ?? "" };
-
-  enforceTrue(
-    floor.url && floor.token,
-    Error,
-    "FLOOR_API_URL and FLOOR_SERVICE_TOKEN must both be set to seed the floor",
-  );
+  const floor = floorAccessOf(env);
 
   return {
     env,
@@ -85,6 +79,21 @@ export function productionSeedDeps(
       await importPipeline(floor, pipeline);
     },
   };
+}
+
+function floorAccessOf(env: Record<string, string | undefined>) {
+  const access = {
+    url: env.FLOOR_API_URL ?? "",
+    token: env.FLOOR_SERVICE_TOKEN ?? "",
+  };
+
+  enforceTrue(
+    access.url && access.token,
+    Error,
+    "FLOOR_API_URL and FLOOR_SERVICE_TOKEN must both be set to seed the floor",
+  );
+
+  return access;
 }
 
 async function readFloorPipelineFiles(): Promise<PipelineText[]> {

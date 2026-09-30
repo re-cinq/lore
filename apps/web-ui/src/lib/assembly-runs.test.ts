@@ -12,6 +12,7 @@ const baseRow: AssemblyRunRow = {
   blueprint_name: "implementation",
   definition_name: "implementation",
   subject_key: null,
+  engine: "lore",
   graph: null,
   task_id: "task-9",
   repo: "re-cinq/lore",

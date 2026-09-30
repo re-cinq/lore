@@ -4,6 +4,8 @@ import { resolveSessionAccessToken } from "@/lib/session-access-token";
 import { authorizeRepoUpstreamAccess } from "@/lib/floor-access";
 import { serverError } from "@/lib/api-error";
 
+const API = "lore-api";
+
 interface TriggerAuth {
   repo: string;
   prNumber: number;
@@ -48,17 +50,12 @@ async function authorizeTrigger(
     return trigger;
   }
 
-  const upstream = await authorizeRepoUpstreamAccess(
-    accessToken,
-    trigger.repo,
-    "lore-api",
-  );
+  const { repo } = trigger;
+  const upstream = await authorizeRepoUpstreamAccess(accessToken, repo, API);
 
-  if (upstream instanceof NextResponse) {
-    return upstream;
-  }
-
-  return { ...trigger, ...upstream };
+  return upstream instanceof NextResponse
+    ? upstream
+    : { ...trigger, ...upstream };
 }
 
 /** Asks lore-api to start the review, and answers with the 502 if it would not — null means it did. */

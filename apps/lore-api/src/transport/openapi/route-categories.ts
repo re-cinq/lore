@@ -75,6 +75,10 @@ const TAG_RULES: Array<[RegExp, string]> = [
   [/^\/api\/cluster-agents\b/, "Cluster Agents"],
   // The git-credential broker serves the pods that cluster-agent dispatch launches.
   [/^\/api\/github-credentials\b/, "Cluster Agents"],
+  // The external floor's own broker call: the same credential, asked for by the floor on a pod's behalf.
+  [/^\/api\/floor\/git-credential$/, "Cluster Agents"],
+  // A review started by hand is a run started, the same as any other.
+  [/^\/api\/review\/start$/, "Tasks"],
   [/\/settings\/dark-factory\b/, "Dark Factory"],
   [/\/(trace|impact)\b/, "Traceability"],
   [/\/ingest/, "Ingestion"],
