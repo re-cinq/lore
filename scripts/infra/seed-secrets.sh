@@ -51,6 +51,13 @@ OPTIONAL=(
   # runs read as GEMINI_API_KEY (docs/managing-secrets.md has the creation
   # commands).
   lore-gemini-api-key
+  # Behind enable_headlamp: the Google OAuth web client that gates the Headlamp
+  # dashboard, plus the key oauth2-proxy signs its session cookie with. The
+  # cookie secret must be exactly 16, 24 or 32 bytes:
+  #   openssl rand -base64 32 | head -c 32
+  lore-headlamp-oauth-client-id
+  lore-headlamp-oauth-client-secret
+  lore-headlamp-cookie-secret
 )
 
 has_value() {

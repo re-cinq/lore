@@ -1217,3 +1217,57 @@ resource "kubectl_manifest" "es_cluster_agent_github_app" {
 
   depends_on = [kubectl_manifest.cluster_secret_store]
 }
+
+# ===== headlamp namespace ===================================================
+
+# The one secret Headlamp's sign-in needs. The three keys are not named to taste:
+# `client-id` / `client-secret` / `cookie-secret` are the literal keys the
+# oauth2-proxy chart reads (its `config.requiredSecretKeys` default), so renaming
+# any of them leaves the proxy starting with no credential at all.
+resource "kubectl_manifest" "es_headlamp_oauth" {
+  count = var.enable_headlamp ? 1 : 0
+
+  yaml_body = yamlencode({
+    apiVersion = "external-secrets.io/v1beta1"
+    kind       = "ExternalSecret"
+    metadata = {
+      name      = "headlamp-oauth"
+      namespace = "headlamp"
+    }
+    spec = {
+      refreshInterval = "1h"
+      secretStoreRef = {
+        name = "gcp-secret-manager"
+        kind = "ClusterSecretStore"
+      }
+      target = {
+        name = "headlamp-oauth"
+      }
+      data = [
+        {
+          secretKey = "client-id"
+          remoteRef = {
+            key = "lore-headlamp-oauth-client-id"
+          }
+        },
+        {
+          secretKey = "client-secret"
+          remoteRef = {
+            key = "lore-headlamp-oauth-client-secret"
+          }
+        },
+        {
+          secretKey = "cookie-secret"
+          remoteRef = {
+            key = "lore-headlamp-cookie-secret"
+          }
+        },
+      ]
+    }
+  })
+
+  depends_on = [
+    kubectl_manifest.cluster_secret_store,
+    kubernetes_namespace.headlamp,
+  ]
+}
