@@ -58,6 +58,11 @@ OPTIONAL=(
   lore-headlamp-oauth-client-id
   lore-headlamp-oauth-client-secret
   lore-headlamp-cookie-secret
+  # Behind enable_external_floor: the bearer tokens between Lore and the external
+  # floor engine (its service token, and the one it presents to lore-api's
+  # /api/floor/git-credential).
+  lore-floor-service-token
+  lore-floor-git-credential-token
 )
 
 has_value() {

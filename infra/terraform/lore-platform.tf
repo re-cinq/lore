@@ -161,6 +161,11 @@ resource "helm_release" "lore_platform" {
       # ExternalSecret only carries the anthropic-admin-key entry when
       # var.enable_anthropic_admin_key is true; the env stays optional either way.
       anthropicAdminKeySecret = { name = "lore-anthropic-key", key = "anthropic-admin-key" }
+      # The external floor engine (namespace `floor`); see var.enable_external_floor.
+      floor = {
+        enabled   = var.enable_external_floor
+        skillsUrl = "${local.lore_mcp_in_cluster}/skills"
+      }
     }
 
     # ---- Web UI (lore-ui namespace) ----
@@ -281,6 +286,7 @@ resource "helm_release" "lore_platform" {
       # carries the anthropic-admin-key entry only when
       # var.enable_anthropic_admin_key is true; the env stays optional either way.
       anthropicAdminKeySecret = { name = "lore-stations-anthropic-key", key = "anthropic-admin-key" }
+      floor                   = { enabled = var.enable_external_floor }
     }
 
     # ---- Event router (lore-event-router namespace) ----

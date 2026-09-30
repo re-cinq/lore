@@ -121,6 +121,26 @@ spec:
                   key: {{ .Values.slackBotTokenSecret.key }}
                   optional: true
             {{- end }}
+            {{- if .Values.floor.enabled }}
+            - name: FLOOR_API_URL
+              value: {{ .Values.floor.apiUrl | quote }}
+            - name: LORE_AGENT_IMAGE
+              value: {{ .Values.floor.agentImage | quote }}
+            {{- if .Values.floor.skillsUrl }}
+            - name: LORE_SKILLS_URL
+              value: {{ .Values.floor.skillsUrl | quote }}
+            {{- end }}
+            - name: FLOOR_SERVICE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.floor.serviceTokenSecret.name }}
+                  key: {{ .Values.floor.serviceTokenSecret.key }}
+            - name: FLOOR_GIT_CREDENTIAL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.floor.gitCredentialTokenSecret.name }}
+                  key: {{ .Values.floor.gitCredentialTokenSecret.key }}
+            {{- end }}
           livenessProbe:
             tcpSocket:
               port: http

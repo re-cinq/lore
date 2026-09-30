@@ -104,6 +104,22 @@ slackBotTokenSecret:
 # post to). Optional: body (object -> JSON payload), startingDeadlineSeconds,
 # successfulJobsHistoryLimit, failedJobsHistoryLimit.
 #
+# The external floor engine (its own namespace and Helm release). Off by default:
+# nothing below renders until terraform sets enabled from var.enable_external_floor.
+floor:
+  enabled: false
+  apiUrl: http://floor-api.floor.svc.cluster.local:8080
+  # The image agent pods run — keep in step with ai-agents-helm controller.agentImage.
+  agentImage: ghcr.io/re-cinq/ai-agent@sha256:d344760bb071bb80c7ef886f6b8b3d2dfab2bc815762e3d2a26bb26b5466e978
+  # In-cluster lore-mcp gateway skills registry; set by terraform.
+  skillsUrl: ""
+  serviceTokenSecret:
+    name: floor-service-token
+    key: token
+  gitCredentialTokenSecret:
+    name: floor-git-credential-token
+    key: token
+
 # The Anthropic ORG admin key used by the cost-sync maintenance job. Secrets are
 # namespace-scoped, so this names the lore-api-namespace copy that the
 # es_mcp_anthropic ExternalSecret materialises; unset simply makes the job skip.

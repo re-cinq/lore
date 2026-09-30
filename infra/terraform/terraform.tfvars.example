@@ -69,6 +69,11 @@ enable_anthropic_admin_key = false
 # fails run pods on their secretKeyRef.
 enable_gemini = false
 
+# Wiring to the external floor engine in namespace `floor` (FLOOR_* env on
+# lore-api + stations, its service tokens, lore-mcp-auth in its agent-secrets).
+# Seed lore-floor-service-token and lore-floor-git-credential-token first.
+enable_external_floor = false
+
 # Headlamp, the read-only cluster dashboard, behind Google sign-in restricted to
 # the re-cinq email domain (headlamp.tf). Rancher is not an option on this
 # cluster: it is GKE Autopilot, which blocks both a Rancher install and the

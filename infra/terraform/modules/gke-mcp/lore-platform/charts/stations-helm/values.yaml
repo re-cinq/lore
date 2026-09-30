@@ -45,6 +45,15 @@ env:
   LORE_DB_USER: lore
   PORT: "8080"
 
+# The external floor engine (its own namespace and Helm release). Off by default;
+# terraform sets enabled from var.enable_external_floor.
+floor:
+  enabled: false
+  apiUrl: http://floor-api.floor.svc.cluster.local:8080
+  serviceTokenSecret:
+    name: floor-service-token
+    key: token
+
 dbPasswordSecret:
   name: lore-stations-db-password
   key: password
