@@ -103,5 +103,5 @@ function takeMatch(
 
 // A spec-task's line records its PR when it settles `completed`, and the merge check then follows that PR to merged or failed; a `completed` row with no PR recorded is from before that, and nothing says its work exists — run 18773dbb's T001 and T010 read "completed" after their PRs were closed unmerged, and T011 would have started on a verify node that was never built.
 function completedWithoutPr(match: ExistingSpecTask): boolean {
-  return match.status === "completed" && match.prNumber === null;
+  return match.status === "completed" && match.prNumber == null;
 }

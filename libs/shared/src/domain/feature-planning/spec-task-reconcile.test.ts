@@ -85,6 +85,22 @@ describe("planSpecTaskReconcile", () => {
     ).toEqual([{ id: "old", wanted: wanted("T010", 2261) }]);
   });
 
+  it("re-queues completed T010 read without a PR field at all, the same as one read with none", () => {
+    expect(
+      planSpecTaskReconcile(
+        [
+          {
+            id: "old",
+            status: "completed",
+            issueNumber: 2261,
+            specTaskId: "T010",
+          },
+        ],
+        [wanted("T010", 2261)],
+      ).requeue,
+    ).toEqual([{ id: "old", wanted: wanted("T010", 2261) }]);
+  });
+
   it("keeps completed T001's status while its PR #2271 is open, whatever the rerun's wording", () => {
     expect(
       planSpecTaskReconcile(
