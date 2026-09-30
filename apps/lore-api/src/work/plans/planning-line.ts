@@ -141,13 +141,15 @@ function lineArgs(plan: PlanRef, { entryNode, open }: TaskShape) {
 /** Sends one section back to the agent while the line waits on its author; at any other moment it is refused with the reason, so the editor withdraws the ask and the page says why. */
 export async function askRefine(
   deps: ResumeDeps,
-  planId: string,
+  plan: { id: string; status: string },
   projection: PlanView,
   request: RefineRequest,
 ): Promise<void> {
-  const line = await planLineState(deps.runs, planId);
+  const line = await planLineState(deps.runs, plan.id);
+  const refusal =
+    plan.status === "approved" ? approvedRefusal(line) : draftRefusal(line);
 
-  enforceTrue(line?.parkedAuthor, apiError(409), refineRefusal(line));
+  enforceTrue(line?.parkedAuthor, apiError(409), refusal);
   await reportToParkedNode(deps.reporter, line.parkedAuthor, {
     outcome: "changes_requested",
     args: refineArgs(projection, request),
@@ -158,8 +160,8 @@ const OPEN_STATUSES = new Set(["queued", "running"]);
 
 const STILL_WORKING = "the planning agent is still working on this plan";
 
-// Why no author waits on the plan, worded for its page: Regenerate is named only where the page offers it.
-function refineRefusal(line: PlanLine | null): string {
+// Why no author waits on the plan, worded for its page: Regenerate, Retry and Reopen are named only where the page offers them.
+function draftRefusal(line: PlanLine | null): string {
   if (!line) {
     return "the plan has no planning line yet; regenerate the plan to start one";
   }
@@ -191,6 +193,20 @@ function endedInFailure(line: PlanLine): boolean {
 // On the draft itself, or between two nodes before any spec PR merged.
 function agentDrafting(line: PlanLine): boolean {
   return line.open === "analyze" || (line.open === null && !line.merged);
+}
+
+const APPROVED_RETRY =
+  "the plan is approved and its spec work failed; retry the spec work, or reopen the plan to write again";
+const APPROVED_REOPEN =
+  "the plan is approved, so its sections are settled; reopen the plan to write again";
+
+// An approved plan is read-only, so its page offers Reopen, and Retry once the spec work failed; while the spec work runs, neither.
+function approvedRefusal(line: PlanLine | null): string {
+  if (line && OPEN_STATUSES.has(line.status)) {
+    return line.parkedMerged ? APPROVED_REOPEN : reopenRefusal(line);
+  }
+
+  return !line || endedInFailure(line) ? APPROVED_RETRY : APPROVED_REOPEN;
 }
 
 // The run records which Refine this pass answers, so the edited plan.md comes back as that section's proposal without the agent copying anything.

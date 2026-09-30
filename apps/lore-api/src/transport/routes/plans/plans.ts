@@ -172,7 +172,7 @@ const DRAFTING_OPTIONS = zodResponse(
   },
 );
 
-// One section back to the agent; 409 while it is still at work, so the editor withdraws the ask.
+// One section back to the agent; while no author waits on the plan, a 409 naming why, so the editor withdraws the ask and the page says it.
 function refineRoute(
   getPool: () => Pool | null,
   seams: PlanVerbSeams,
