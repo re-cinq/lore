@@ -72,7 +72,7 @@ home for per-unit isolation, hard deadlines, and kill-that-kills is a station po
   triage/github_action) set `clone: false`, because their line branch is a
   synthetic lease key (`detect/<definition>/<repo>`) that `git checkout` cannot
   resolve, and a forced clone would fail their init.
-  ([validated by `spec-trace-dispatch:35`](apps/floor/src/work/spec-trace/spec-trace-dispatch.test.ts#L29), [`spec-trace-dispatch:65`](apps/floor/src/work/spec-trace/spec-trace-dispatch.test.ts#L58), [`spec-trace-dispatch:170`](apps/floor/src/work/spec-trace/spec-trace-dispatch.test.ts#L163), [`spec-trace-dispatch:214`](apps/floor/src/work/spec-trace/spec-trace-dispatch.test.ts#L186), [`floor-assembly-run:197`](apps/floor/src/work/assembly-run/floor-assembly-run.test.ts#L189), [`floor-assembly-run:180`](apps/floor/src/work/assembly-run/floor-assembly-run.test.ts#L172), [`agent-backend:150`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L190), [`per-task-token:64`](libs/shared/src/outbound/cluster/per-task-token.test.ts#L64), [`per-task-token:70`](libs/shared/src/outbound/cluster/per-task-token.test.ts#L70), [`loader:231`](libs/assembly-lines/src/loader.test.ts#L537); implemented by [`spec-trace-dispatch.ts:71`](apps/floor/src/work/spec-trace/spec-trace-dispatch.ts#L99), [`ingest.yaml:1`](libs/assembly-lines/src/assembly-lines/ingest.yaml#L1))
+  ([validated by `spec-trace-dispatch:35`](apps/floor/src/work/spec-trace/spec-trace-dispatch.test.ts#L29), [`spec-trace-dispatch:65`](apps/floor/src/work/spec-trace/spec-trace-dispatch.test.ts#L58), [`spec-trace-dispatch:170`](apps/floor/src/work/spec-trace/spec-trace-dispatch.test.ts#L163), [`spec-trace-dispatch:214`](apps/floor/src/work/spec-trace/spec-trace-dispatch.test.ts#L186), [`floor-assembly-run:197`](apps/floor/src/work/assembly-run/floor-assembly-run.test.ts#L189), [`floor-assembly-run:180`](apps/floor/src/work/assembly-run/floor-assembly-run.test.ts#L172), [`agent-backend:150`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L190), [`per-task-token:64`](libs/shared/src/outbound/cluster/per-task-token.test.ts#L64), [`per-task-token:70`](libs/shared/src/outbound/cluster/per-task-token.test.ts#L70), [`loader:231`](libs/assembly-lines/src/loader.test.ts#L510); implemented by [`spec-trace-dispatch.ts:71`](apps/floor/src/work/spec-trace/spec-trace-dispatch.ts#L99), [`ingest.yaml:1`](libs/assembly-lines/src/assembly-lines/ingest.yaml#L1))
 
 - **FR3 — payload transport.** `station_input` carries kind + a payload *reference*,
   never an inline test-report body: report payloads reach ~1 MB (the HTTP body
@@ -125,7 +125,7 @@ home for per-unit isolation, hard deadlines, and kill-that-kills is a station po
   (`params.repo` narrows it to the ingested repo, job-run bookkeeping and the
   overlap-guard branch included) — the validate core runs in the detect station
   pod on both triggers, never inline in the Floor.
-  ([validated by `registry.test.ts:43`](apps/floor/src/events/main-loop/registry.test.ts#L47); implemented by [`registry.ts:70`](apps/floor/src/events/main-loop/registry.ts#L70))
+  ([validated by `registry.test.ts:43`](apps/floor/src/events/main-loop/registry.test.ts#L66); implemented by [`registry.ts:70`](apps/floor/src/events/main-loop/registry.ts#L70))
 
 - **FR6 — the Floor is pure orchestration.** With no in-process dgraph writer left,
   `SERIAL_FAMILIES` empties (chunk isolation comes from one-pod-per-event, the
