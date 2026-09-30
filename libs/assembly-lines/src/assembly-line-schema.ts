@@ -3,6 +3,14 @@
 import { z } from "zod";
 import { HUMAN_STATION_TYPES } from "./human-station.js";
 
+// Standard edge conditions plus any string; custom values are validated against the source node's `outcomes` list in assembly-line-validate.ts.
+const STANDARD_EDGE_CONDITIONS = [
+  "success",
+  "changes_requested",
+  "failed",
+  "always",
+] as const;
+
 const NodeType = z.enum([
   "agent",
   "validate",
@@ -19,12 +27,7 @@ const NodeType = z.enum([
   ...HUMAN_STATION_TYPES,
 ]);
 
-const EdgeCondition = z.enum([
-  "success",
-  "changes_requested",
-  "failed",
-  "always",
-]);
+export { STANDARD_EDGE_CONDITIONS };
 
 // A field added to NodeSchema/AssemblyLineSchema changes definitionHash by default (denylist in IGNORED_KEYS), refusing stored fork hashes across the change — deliberate; add prose-only fields to IGNORED_KEYS.
 const NodeSchema = z.strictObject({
@@ -56,13 +59,16 @@ const NodeSchema = z.strictObject({
   description: z.string().optional(),
   // A node started only by hand (`run_station`) while the line waits on a person; it needs no inbound edge.
   by_hand: z.boolean().optional(),
+  // Extra outcomes beyond the standard set (success/changes_requested/failed) that this node may emit. Declared values become valid `on:` targets for edges leaving this node; undeclared custom values are rejected at load time (assembly-line-validate.ts FR11).
+  outcomes: z.array(z.string()).optional(),
   // STRICT: a mistyped key (`timeoutMinutes:`, `prompt-ref:`) used to be silently discarded; now a named, sourced load failure. Strictness adds no field, so it doesn't move definitionHash.
 });
 
 const EdgeSchema = z.strictObject({
   from: z.string(),
   to: z.string(),
-  on: EdgeCondition,
+  // Standard values (success/changes_requested/failed/always) are always valid; custom strings must be declared in the source node's `outcomes` list (validated structurally in assembly-line-validate.ts).
+  on: z.string(),
   iteration_max: z.number().int().positive().optional(),
   // STRICT for the same reason, one worse case: a dropped `iterationMax` leaves a back-edge unbounded — exactly what the cycle check exists to refuse.
 });
@@ -84,12 +90,13 @@ export type NodeTypeValue = z.infer<typeof NodeType>;
 export type AssemblyLineNode = z.infer<typeof NodeSchema>;
 export type AssemblyLineEdge = z.infer<typeof EdgeSchema>;
 export type AssemblyLine = z.infer<typeof AssemblyLineSchema>;
-export type EdgeConditionValue = z.infer<typeof EdgeCondition>;
+// Widened to string: edges may carry custom outcome values declared on a node via `outcomes` (FR11); structural validation (assembly-line-validate.ts) ensures only declared customs appear.
+export type EdgeConditionValue = string;
 
-// Outcomes each node type can produce at runtime (`stationNodeOutcome`, specs/6-dark-factory/contracts/station-contract.md): all yield `failed`/`success`; only agent output yields `changes_requested` via LORE_NODE_RESULT/REVIEW_RESULT, except `issues`, which judges its input and can also send the decomposition back — listing it here forces every definition to route that outcome (selectEdge does not fall through).
+// Outcomes each node type can produce at runtime (`stationNodeOutcome`, specs/6-dark-factory/contracts/station-contract.md): all yield `failed`/`success`; only agent output yields `changes_requested` via LORE_NODE_RESULT/REVIEW_RESULT, except `issues`, which judges its input and can also send the decomposition back — listing it here forces every definition to route that outcome (selectEdge does not fall through). Custom outcomes declared per-node via `node.outcomes` are checked separately in `uncoveredOutcomes`.
 const PRODUCIBLE_OUTCOMES: Record<
   z.infer<typeof NodeType>,
-  readonly EdgeConditionValue[]
+  readonly string[]
 > = {
   agent: ["success", "changes_requested", "failed"],
   validate: ["success", "failed"],
@@ -106,11 +113,11 @@ const PRODUCIBLE_OUTCOMES: Record<
   ci_check: ["success", "changes_requested", "failed"],
 };
 
-// Producible outcomes of `node` with no matching edge under `selectEdge` semantics (an `always` edge covers every outcome); empty for the exit node.
+// Producible outcomes of `node` with no matching edge under `selectEdge` semantics (an `always` edge covers every outcome); empty for the exit node. Includes per-node declared custom outcomes (`node.outcomes`) alongside the standard type-based ones.
 export function uncoveredOutcomes(
   wf: AssemblyLine,
   node: AssemblyLineNode,
-): EdgeConditionValue[] {
+): string[] {
   if (node.id === wf.exit) {
     return [];
   }
@@ -121,7 +128,10 @@ export function uncoveredOutcomes(
     return [];
   }
 
-  return PRODUCIBLE_OUTCOMES[node.type].filter((o) => !covered.has(o));
+  const standard = PRODUCIBLE_OUTCOMES[node.type];
+  const custom = node.outcomes ?? [];
+
+  return [...standard, ...custom].filter((o) => !covered.has(o));
 }
 
 export class AssemblyLineLoadError extends Error {

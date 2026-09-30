@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { NodeResultSchema } from "./node-result-schema.js";
 import { FAILURE_CATEGORIES } from "@re-cinq/lore-shared/error-classify.js";
+import { parseNodeResult } from "./node-outcome.js";
 
 describe("NodeResultSchema", () => {
   it("accepts an outcome on its own, which is all a human station reports", () => {
@@ -104,5 +105,51 @@ describe("the schema mirrors every failure class the platform can produce (a han
     expect(
       NodeResultSchema.parse({ outcome: "failed", failureClass: category }),
     ).toMatchObject({ failureClass: category });
+  });
+});
+
+// specs/issue-triage/spec.md#FR11 — parse round-trip for declared custom outcome strings
+const TRIAGE_CUSTOM_OUTCOMES = [
+  "unable-to-reproduce",
+  "needs-reproduction",
+  "skipped",
+  "obsolete",
+  "large-issue",
+  "not-actionable",
+] as const;
+
+describe("custom node outcome parse round-trip (FR11 — declared per-node outcomes on the LORE_NODE_RESULT line)", () => {
+  it.each(TRIAGE_CUSTOM_OUTCOMES)(
+    "accepts %s when it is in the node's declared outcomes list",
+    (customOutcome) => {
+      const output = `LORE_NODE_RESULT: {"outcome":"${customOutcome}"}`;
+      const result = parseNodeResult(output, [customOutcome]);
+
+      expect(result).toMatchObject({ outcome: customOutcome });
+    },
+  );
+
+  it("accepts a declared custom outcome in bare-word form", () => {
+    const result = parseNodeResult("LORE_NODE_RESULT: unable-to-reproduce", [
+      "unable-to-reproduce",
+    ]);
+
+    expect(result).toMatchObject({ outcome: "unable-to-reproduce" });
+  });
+
+  it("rejects a custom outcome absent from the declared outcomes list — the walk cannot route what it never declared", () => {
+    const output = `LORE_NODE_RESULT: {"outcome":"unable-to-reproduce"}`;
+
+    expect(parseNodeResult(output, ["skipped"])).toBeNull();
+    expect(parseNodeResult(output, [])).toBeNull();
+    expect(parseNodeResult(output)).toBeNull();
+  });
+
+  it("still rejects undeclared strings even when other custom outcomes are declared", () => {
+    expect(
+      parseNodeResult(`LORE_NODE_RESULT: {"outcome":"not-declared"}`, [
+        "unable-to-reproduce",
+      ]),
+    ).toBeNull();
   });
 });

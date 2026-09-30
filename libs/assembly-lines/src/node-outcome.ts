@@ -8,7 +8,7 @@ import type { NodeResult, StageOutcome } from "./node-types.js";
 export type { AgentNodeStatus } from "@re-cinq/lore-shared/cluster/agent-node-status.js";
 import type { AgentNodeStatus } from "@re-cinq/lore-shared/cluster/agent-node-status.js";
 
-const OUTCOMES = new Set<StageOutcome>([
+const STANDARD_OUTCOMES = new Set<StageOutcome>([
   "success",
   "changes_requested",
   "failed",
@@ -33,11 +33,16 @@ export function parseReviewVerdict(
   return null;
 }
 
-// Station contract's terminal line (LORE_NODE_RESULT JSON or legacy bare word); null on absence or malformation — see malformedNodeResultLine, which is how the node fails instead.
-export function parseNodeResult(output?: string): NodeResult | null {
+// Station contract's terminal line (LORE_NODE_RESULT JSON or legacy bare word); null on absence or malformation — see malformedNodeResultLine, which is how the node fails instead. Pass `customOutcomes` (from the node's declared `outcomes` field, FR11) to accept non-standard outcome strings.
+export function parseNodeResult(
+  output?: string,
+  customOutcomes?: readonly string[],
+): NodeResult | null {
   const payload = lastNodeResultPayload(output);
 
-  return payload === null ? null : nodeResultFromPayload(payload);
+  return payload === null
+    ? null
+    : nodeResultFromPayload(payload, customOutcomes);
 }
 
 // Payload of the LAST line-start `LORE_NODE_RESULT:` marker, or null — line-start + last-wins together make the marker safe to DISCUSS (an agent quoting it mid-sentence decides nothing; one printing it after explaining it is read by its final word).
@@ -54,16 +59,26 @@ function lastNodeResultPayload(output?: string): string | null {
   return last[1].trim();
 }
 
-function nodeResultFromPayload(payload: string): NodeResult | null {
+function nodeResultFromPayload(
+  payload: string,
+  customOutcomes?: readonly string[],
+): NodeResult | null {
   // The bare word is legacy but LIVE: a deployed recipe instructs exactly it; rejecting it turned a station's objection into a silent success (#1469).
-  if (OUTCOMES.has(payload as StageOutcome)) {
+  if (STANDARD_OUTCOMES.has(payload as StageOutcome)) {
+    return { outcome: payload as StageOutcome, extras: {} };
+  }
+  // Custom declared outcome in bare-word form (FR11).
+  if (customOutcomes?.includes(payload)) {
     return { outcome: payload as StageOutcome, extras: {} };
   }
 
-  return nodeResultFromJson(payload);
+  return nodeResultFromJson(payload, customOutcomes);
 }
 
-function nodeResultFromJson(payload: string): NodeResult | null {
+function nodeResultFromJson(
+  payload: string,
+  customOutcomes?: readonly string[],
+): NodeResult | null {
   const parsed = parseJsonPayload(payload);
 
   if (parsed === undefined) {
@@ -74,7 +89,11 @@ function nodeResultFromJson(payload: string): NodeResult | null {
     extras?: Record<string, unknown>;
   };
 
-  if (!OUTCOMES.has(outcome as StageOutcome)) {
+  const isValidOutcome =
+    STANDARD_OUTCOMES.has(outcome as StageOutcome) ||
+    (!!outcome && !!customOutcomes?.includes(outcome));
+
+  if (!isValidOutcome) {
     return null;
   }
 
@@ -103,20 +122,28 @@ function stringExtrasOf(
   return stringExtras;
 }
 
-// The offending line when a marker is PRESENT but unusable — distinct from the `success` default for no marker at all, so a drifted recipe contract reports itself instead of passing every node.
-export function malformedNodeResultLine(output?: string): string | null {
+// The offending line when a marker is PRESENT but unusable — distinct from the `success` default for no marker at all, so a drifted recipe contract reports itself instead of passing every node. Pass `customOutcomes` so a declared custom outcome is never misreported as malformed.
+export function malformedNodeResultLine(
+  output?: string,
+  customOutcomes?: readonly string[],
+): string | null {
   const payload = lastNodeResultPayload(output);
 
-  if (payload === null || nodeResultFromPayload(payload) !== null) {
+  if (
+    payload === null ||
+    nodeResultFromPayload(payload, customOutcomes) !== null
+  ) {
     return null;
   }
 
   return `LORE_NODE_RESULT: ${payload}`.substring(0, 200);
 }
 
-// All this needs of a node is its TYPE, so a blueprint node and the clone a run carries both satisfy it without conversion.
+// All this needs of a node is its TYPE (and optional declared custom outcomes), so a blueprint node and the clone a run carries both satisfy it without conversion.
 export interface NodeKind {
   type: string;
+  // Per-node declared extra outcomes (FR11); when present, a LORE_NODE_RESULT line carrying one of these values is accepted rather than treated as malformed.
+  outcomes?: readonly string[];
 }
 
 // Maps a terminal Agent status to the node outcome (precedence above); mirrored by PRODUCIBLE_OUTCOMES in loader.ts — keep both in sync when adding an outcome.
@@ -167,13 +194,13 @@ function stationOutputOutcome(
   node: NodeKind,
   output: string | undefined,
 ): NodeResult {
-  const stationResult = parseNodeResult(output);
+  const stationResult = parseNodeResult(output, node.outcomes);
 
   if (stationResult) {
     return withLiftedVerdictDetail(withValidationFailureDetail(stationResult));
   }
 
-  const malformed = malformedNodeResultLine(output);
+  const malformed = malformedNodeResultLine(output, node.outcomes);
 
   if (malformed) {
     const detail = `unparseable LORE_NODE_RESULT line: ${malformed}`.substring(
