@@ -282,28 +282,18 @@ describe("what a review pod is given against the agent CLI's own limits", () => 
     ["code-review-reply", "code-review-refine"],
   ] as const;
 
-  it("ships a 600 second request timeout as the experiments file of every review line", () => {
-    const shipped = REVIEW_AGENTS.map(([line]) =>
-      JSON.parse(pipelineOf(line).line.files?.gemini_exp ?? "null"),
-    );
-
-    expect(shipped).toEqual(
-      REVIEW_AGENTS.map(() => ({
-        flags: [{ flagId: 45773134, intValue: "600" }],
-      })),
-    );
-  });
-
-  it("places that file at gemini-exp.json and points GEMINI_EXP at it for every review agent", () => {
-    const placed = REVIEW_AGENTS.map(([line, agent]) => ({
-      path: needOf(pipelineOf(line).stations[agent], "gemini_exp")?.path,
+  it("ships no experiments file and sets no GEMINI_EXP of its own, since the agent runtime sets the timeout since ai-agent-subsystem v0.11.8", () => {
+    const shipped = REVIEW_AGENTS.map(([line, agent]) => ({
+      file: pipelineOf(line).line.files?.gemini_exp,
+      need: needOf(pipelineOf(line).stations[agent], "gemini_exp"),
       env: settingsOf(agent).config.env.GEMINI_EXP,
     }));
 
-    expect(placed).toEqual(
+    expect(shipped).toEqual(
       REVIEW_AGENTS.map(() => ({
-        path: "gemini-exp.json",
-        env: "/workspace/gemini-exp.json",
+        file: undefined,
+        need: undefined,
+        env: undefined,
       })),
     );
   });
