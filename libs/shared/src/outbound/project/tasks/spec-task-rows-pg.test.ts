@@ -69,9 +69,11 @@ describe("PgSpecTaskRows", () => {
 
     expect({
       requeued: capture[0]?.text.includes("status = 'pending'"),
+      clearsOldPr: capture[0]?.text.includes("pr_number = NULL, pr_url = NULL"),
       params: capture[0]?.params,
     }).toEqual({
       requeued: true,
+      clearsOldPr: true,
       params: [
         "a",
         "T001 again",
