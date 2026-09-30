@@ -35,3 +35,8 @@ export function floorClient(): FloorClient {
 
   return client;
 }
+
+/** The floor, or null on a deployment that was given none: for a read that simply has nothing to add there. */
+export function floorIfConfigured(): FloorClient | null {
+  return floorConfigured() ? floorClient() : null;
+}

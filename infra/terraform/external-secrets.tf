@@ -1342,6 +1342,39 @@ resource "kubectl_manifest" "es_floor_service_token_stations" {
   depends_on = [kubectl_manifest.cluster_secret_store]
 }
 
+resource "kubectl_manifest" "es_floor_service_token_lore_floor" {
+  count = var.enable_external_floor ? 1 : 0
+
+  yaml_body = yamlencode({
+    apiVersion = "external-secrets.io/v1beta1"
+    kind       = "ExternalSecret"
+    metadata = {
+      name      = "floor-service-token"
+      namespace = "lore-floor"
+    }
+    spec = {
+      refreshInterval = "1h"
+      secretStoreRef = {
+        name = "gcp-secret-manager"
+        kind = "ClusterSecretStore"
+      }
+      target = {
+        name = "floor-service-token"
+      }
+      data = [
+        {
+          secretKey = "token"
+          remoteRef = {
+            key = "lore-floor-service-token"
+          }
+        },
+      ]
+    }
+  })
+
+  depends_on = [kubectl_manifest.cluster_secret_store]
+}
+
 resource "kubectl_manifest" "es_floor_git_credential_token" {
   count = var.enable_external_floor ? 1 : 0
 

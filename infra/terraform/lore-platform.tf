@@ -60,6 +60,7 @@ resource "helm_release" "lore_platform" {
     # ---- Floor (lore-floor namespace) ----
     "lore-floor" = {
       gcpProject = var.project_id
+      floor      = { enabled = var.enable_external_floor }
       env = {
         LORE_DB_HOST     = "lore-db-rw.lore-db.svc.cluster.local"
         LORE_DB_PORT     = "5432"

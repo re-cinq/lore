@@ -34,6 +34,10 @@ describe("reviewBroke", () => {
     expect(reviewBroke("code-review", "success")).toBe(false);
   });
 
+  it("is true for code-review settled as iteration_max, its retry spent", () => {
+    expect(reviewBroke("code-review", "iteration_max")).toBe(true);
+  });
+
   it("is false for the line walk-note settled as error", () => {
     expect(reviewBroke("walk-note", "error")).toBe(false);
   });

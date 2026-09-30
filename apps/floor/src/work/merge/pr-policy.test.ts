@@ -5,6 +5,7 @@ import type { PullRequests } from "@re-cinq/lore-shared/project/pulls/pull-reque
 import type { TaskPrInfo } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
 import {
   resolvePrForTaskFromDb,
+  reviewInFlight,
   type PrPolicyDeps,
   type PrInfoReader,
   type RepoSettingsReader,
@@ -313,5 +314,24 @@ describe("resolvePrForTaskFromDb — the review verdict on a PR the bot authored
     );
 
     expect(result?.policy.botApproved).toBe(false);
+  });
+});
+
+describe("reviewInFlight", () => {
+  const counts = (local: number, floor: number) => ({
+    localOpen: () => Promise.resolve(local),
+    floorOpen: () => Promise.resolve(floor),
+  });
+
+  it("is in flight when the floor has 1 open review and Postgres has none", async () => {
+    expect(await reviewInFlight(counts(0, 1))).toBe(true);
+  });
+
+  it("is in flight when Postgres has 1 open review and the floor has none", async () => {
+    expect(await reviewInFlight(counts(1, 0))).toBe(true);
+  });
+
+  it("is not in flight when neither has an open review", async () => {
+    expect(await reviewInFlight(counts(0, 0))).toBe(false);
   });
 });

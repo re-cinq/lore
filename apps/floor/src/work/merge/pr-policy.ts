@@ -4,6 +4,8 @@ import type { PullRequests } from "@re-cinq/lore-shared/project/pulls/pull-reque
 import type { TaskPrInfo } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
 import type { CheckRun } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import { loreReviewVerdict } from "@re-cinq/lore-shared/project/pulls/check-runs.js";
+import { floorIfConfigured } from "@re-cinq/lore-shared/floor/floor-client.js";
+import { openFloorReviewCount } from "@re-cinq/lore-shared/review/floor-review-runs.js";
 import { projectFor } from "../../outbound/project-boot.js";
 import { pipeline, settings } from "../../outbound/queues.js";
 
@@ -201,7 +203,7 @@ function humanRequestedChanges(
   );
 }
 
-/** Defers auto-merge while a review-family line is open for this PR — the required lore/code-review check does the same for human merges; this guards Lore's own. */
+/** Defers auto-merge while a review-family line is open for this PR — the required lore/code-review check does the same for human merges; this guards Lore's own. The review lines run on the external floor, so an open run there counts as much as one in Postgres. */
 async function readReviewInFlight(
   repo: string,
   prNumber: number,
@@ -209,7 +211,12 @@ async function readReviewInFlight(
   try {
     const project = await projectFor(repo);
 
-    return (await project.assemblyRuns.findOpenByPr(prNumber)).length > 0;
+    return await reviewInFlight({
+      localOpen: async () =>
+        (await project.assemblyRuns.findOpenByPr(prNumber)).length,
+      floorOpen: () =>
+        openFloorReviewCount(floorIfConfigured(), { repo, prNumber }),
+    });
   } catch (err) {
     console.warn(
       "[pr-policy] review-in-flight lookup failed:",
@@ -218,6 +225,23 @@ async function readReviewInFlight(
 
     return false;
   }
+}
+
+/** Where an open review of a pull request may be counted. */
+export interface OpenReviewCounts {
+  localOpen(): Promise<number>;
+  floorOpen(): Promise<number>;
+}
+
+export async function reviewInFlight(
+  counts: OpenReviewCounts,
+): Promise<boolean> {
+  const [local, floor] = await Promise.all([
+    counts.localOpen(),
+    counts.floorOpen(),
+  ]);
+
+  return local + floor > 0;
 }
 
 /** The repo's configured trust level; undefined on absence or a settings-read failure, so a DB hiccup leaves the conservative `docs` default. */
