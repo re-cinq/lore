@@ -1,4 +1,4 @@
-// Before the server listens: the floor must know the lines Lore is about to start on it. A floor out of reach must not stop the deploy — a line it already has is still the one that runs.
+// Before the server listens: the floor must hold the pipelines this release ships, so a prompt or setting changed here is what the next run uses. A floor out of reach must not stop the deploy — what it already holds is still what runs.
 import { floorConfigured } from "@re-cinq/lore-shared/floor/floor-client.js";
 import {
   productionSeedDeps,
@@ -26,14 +26,12 @@ export async function seedFloor(
   }
 
   try {
-    const seeded = await seedFloorPipelines(seeding.deps());
+    const changed = await seedFloorPipelines(seeding.deps());
 
-    seeding.log(
-      `floor pipelines seeded: ${seeded.join(", ") || "none missing"}`,
-    );
+    seeding.log(`floor pipelines put: ${changed.join(", ") || "none changed"}`);
   } catch (err) {
     seeding.log(
-      "floor pipeline seed FAILED — the floor keeps the lines it has:",
+      "floor pipeline put FAILED — the floor keeps what it holds:",
       err,
     );
   }

@@ -6,9 +6,9 @@ import {
   pipelineOf,
   readPipelineFile,
   type Pipeline,
+  type Put,
 } from "@re-cinq/floor-pipeline";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { floorClient } from "@re-cinq/lore-shared/floor/floor-client.js";
 
 export interface PipelineText {
   name: string;
@@ -18,20 +18,11 @@ export interface PipelineText {
 export interface SeedDeps {
   files(): Promise<PipelineText[]>;
   env: Record<string, string | undefined>;
-  lineExists(lineId: string): Promise<boolean>;
-  importPipeline(pipeline: Pipeline): Promise<void>;
+  /** Puts a pipeline's definitions and answers for each whether the floor already held that content. */
+  importPipeline(pipeline: Pipeline): Promise<Put[]>;
 }
 
 const PLACEHOLDER = /\$\{([A-Z][A-Z0-9_]*)\}/g;
-
-export function pipelinesToSeed(
-  pipelines: Pipeline[],
-  existingLineIds: ReadonlySet<string>,
-): Pipeline[] {
-  return pipelines.filter(
-    (pipeline) => !existingLineIds.has(pipeline.line?.id ?? ""),
-  );
-}
 
 export function withEnvironment(
   yamlText: string,
@@ -46,23 +37,25 @@ export function withEnvironment(
   });
 }
 
+/** Puts every shipped pipeline, every time. A version is its content, so a definition the floor already holds is left exactly as it is and an edit made on the floor since stays the latest; only a file that CHANGED here becomes a new version. Answers what changed, as `kind/id`. */
 export async function seedFloorPipelines(deps: SeedDeps): Promise<string[]> {
   const files = await deps.files();
-  const pipelines = files.map((file) =>
-    pipelineOf(readPipelineFile(withEnvironment(file.text, deps.env))),
-  );
-  const existing = await Promise.all(
-    pipelines.map(async (pipeline) =>
-      (await deps.lineExists(pipeline.line?.id ?? ""))
-        ? (pipeline.line?.id ?? "")
-        : "",
-    ),
-  );
-  const missing = pipelinesToSeed(pipelines, new Set(existing));
+  const changed: string[] = [];
 
-  await Promise.all(missing.map((pipeline) => deps.importPipeline(pipeline)));
+  for (const file of files) {
+    const pipeline = pipelineOf(
+      readPipelineFile(withEnvironment(file.text, deps.env)),
+    );
+    const puts = await deps.importPipeline(pipeline);
 
-  return missing.map((pipeline) => pipeline.line?.id ?? "");
+    changed.push(...puts.filter((put) => put.changed).map(putName));
+  }
+
+  return [...new Set(changed)];
+}
+
+function putName(put: Put): string {
+  return `${put.kind}/${put.id}`;
 }
 
 export function productionSeedDeps(
@@ -73,11 +66,7 @@ export function productionSeedDeps(
   return {
     env,
     files: readFloorPipelineFiles,
-    lineExists: async (lineId) =>
-      (await floorClient().lines.get(lineId)) !== null,
-    importPipeline: async (pipeline) => {
-      await importPipeline(floor, pipeline);
-    },
+    importPipeline: (pipeline) => importPipeline(floor, pipeline),
   };
 }
 

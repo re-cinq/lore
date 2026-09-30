@@ -8,7 +8,6 @@ import {
   type Pipeline,
 } from "@re-cinq/floor-pipeline";
 import {
-  pipelinesToSeed,
   seedFloorPipelines,
   withEnvironment,
   type SeedDeps,
@@ -25,10 +24,6 @@ const PIPELINES_DIR = path.resolve(
   "../../../../../libs/assembly-lines/src/floor-pipelines",
 );
 
-function pipelineOfLine(lineId: string): Pipeline {
-  return pipelineOf(readPipelineFile(`line:\n  id: ${lineId}\n`));
-}
-
 function realFiles() {
   return readdirSync(PIPELINES_DIR)
     .filter((name) => name.endsWith(".yaml"))
@@ -38,7 +33,7 @@ function realFiles() {
     }));
 }
 
-function fakeFloor(existing: string[]) {
+function fakeFloor(held: string[]) {
   const imported: string[] = [];
   const deps: SeedDeps = {
     files: async () => [
@@ -46,29 +41,17 @@ function fakeFloor(existing: string[]) {
       { name: "b.yaml", text: "line:\n  id: lore-run-settled\n" },
     ],
     env: {},
-    lineExists: async (lineId) => existing.includes(lineId),
     importPipeline: async (pipeline) => {
-      imported.push(pipeline.line?.id ?? "");
+      const id = pipeline.line?.id ?? "";
+
+      imported.push(id);
+
+      return [{ kind: "assembly-lines", id, changed: !held.includes(id) }];
     },
   };
 
   return { deps, imported };
 }
-
-describe("pipelinesToSeed", () => {
-  it("skips code-review when the floor already has it", () => {
-    const pipelines = [
-      pipelineOfLine("code-review"),
-      pipelineOfLine("code-review-reply"),
-    ];
-
-    expect(
-      pipelinesToSeed(pipelines, new Set(["code-review"])).map(
-        (pipeline) => pipeline.line?.id,
-      ),
-    ).toEqual(["code-review-reply"]);
-  });
-});
 
 describe("withEnvironment", () => {
   it("fills ${LORE_MCP_URL} with the value given", () => {
@@ -85,20 +68,37 @@ describe("withEnvironment", () => {
 });
 
 describe("seedFloorPipelines", () => {
-  it("imports only lore-run-settled and returns its id when code-review exists", async () => {
+  it("puts both pipelines and reports only lore-run-settled as changed when the floor holds code-review as written", async () => {
     const { deps, imported } = fakeFloor(["code-review"]);
 
-    expect(await seedFloorPipelines(deps)).toEqual(["lore-run-settled"]);
-    expect(imported).toEqual(["lore-run-settled"]);
+    expect(await seedFloorPipelines(deps)).toEqual([
+      "assembly-lines/lore-run-settled",
+    ]);
+    expect(imported).toEqual(["code-review", "lore-run-settled"]);
   });
 
-  it("imports both lines when the floor has none", async () => {
+  it("reports both lines as changed on a floor that holds neither", async () => {
     const { deps } = fakeFloor([]);
 
     expect(await seedFloorPipelines(deps)).toEqual([
-      "code-review",
-      "lore-run-settled",
+      "assembly-lines/code-review",
+      "assembly-lines/lore-run-settled",
     ]);
+  });
+
+  it("reports nothing changed when the floor holds every pipeline as written", async () => {
+    const { deps } = fakeFloor(["code-review", "lore-run-settled"]);
+
+    expect(await seedFloorPipelines(deps)).toEqual([]);
+  });
+
+  it("names a station two pipelines share once", async () => {
+    const { deps } = fakeFloor([]);
+    const shared = { kind: "stations", id: "post-review", changed: true };
+
+    deps.importPipeline = () => Promise.resolve([shared]);
+
+    expect(await seedFloorPipelines(deps)).toEqual(["stations/post-review"]);
   });
 });
 
