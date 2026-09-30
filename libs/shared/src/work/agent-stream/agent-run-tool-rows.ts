@@ -1,7 +1,7 @@
 // Row builders every stream-json dialect shares: a tool call, its result, and the summary caps.
 
-import type { AgentRunEventInsert } from "@re-cinq/lore-shared";
-import { isRecord } from "@re-cinq/lore-shared/lib/is-record.js";
+import type { AgentRunEventInsert } from "../../outbound/project/agent-run-events/agent-run-events-port.js";
+import { isRecord } from "../../lib/is-record.js";
 import { truncateForStorage } from "../../lib/truncate-for-storage.js";
 
 const SUMMARY_MAX_CHARS = 200;

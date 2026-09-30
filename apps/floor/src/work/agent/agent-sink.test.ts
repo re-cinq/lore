@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { parseAgentSink } from "./agent-events.js";
-import { MAX_RUN_EVENTS_PER_BATCH } from "./agent-run-events.js";
+import { MAX_RUN_EVENTS_PER_BATCH } from "@re-cinq/lore-shared/agent-stream/agent-run-events.js";
 
 const src = { task: "task-uuid-1", agent: "cr-1" };
 const line = (event: unknown): string => JSON.stringify({ source: src, event });

@@ -98,6 +98,10 @@
       "types": "./dist/work/review/*.d.ts",
       "default": "./dist/work/review/*.js"
     },
+    "./agent-stream/*.js": {
+      "types": "./dist/work/agent-stream/*.d.ts",
+      "default": "./dist/work/agent-stream/*.js"
+    },
     "./lib/*.js": {
       "types": "./dist/lib/*.d.ts",
       "default": "./dist/lib/*.js"

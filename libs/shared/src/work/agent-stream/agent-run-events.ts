@@ -1,12 +1,12 @@
 // Run-visualization of Agent NDJSON (#876): NOT gated on ev.usage; correlation in PgAgentRunEvents.insertBatch; truncated payloads, full in agent_run_turns.
 
-import { unwrapAttribution } from "@re-cinq/lore-assembly-lines";
-import { parseCarriedRunIdentity } from "@re-cinq/lore-shared/project/run-identity/carried-run-identity.js";
+import { unwrapAttribution } from "./unwrap-attribution.js";
+import { parseCarriedRunIdentity } from "../../outbound/project/run-identity/carried-run-identity.js";
 import type {
   AgentRunEventInsert,
   AgentRunEventType,
-} from "@re-cinq/lore-shared";
-import { isRecord } from "@re-cinq/lore-shared/lib/is-record.js";
+} from "../../outbound/project/agent-run-events/agent-run-events-port.js";
+import { isRecord } from "../../lib/is-record.js";
 import {
   cap,
   num,

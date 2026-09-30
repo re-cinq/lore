@@ -1,5 +1,5 @@
-import type { AgentRunEventInsert } from "@re-cinq/lore-shared";
-import { isRecord } from "@re-cinq/lore-shared/lib/is-record.js";
+import type { AgentRunEventInsert } from "../../outbound/project/agent-run-events/agent-run-events-port.js";
+import { isRecord } from "../../lib/is-record.js";
 import { cap, str, toolResultRowOf } from "./agent-run-tool-rows.js";
 
 // gemini-cli's flat dialect (top-level init/message/tool_use/tool_result/error), projected into the rows claude's nested shapes produce.
