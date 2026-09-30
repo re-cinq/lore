@@ -38,7 +38,7 @@ const commitEmail = ttlMemo(async (repoAndLogin) => {
 }, DAY_MS);
 
 /** The manual override is read fresh each time, so an edit on the settings page applies to the next digest. */
-async function namesFor(
+export async function namesFor(
   repo: string,
   logins: string[],
 ): Promise<Record<string, string>> {

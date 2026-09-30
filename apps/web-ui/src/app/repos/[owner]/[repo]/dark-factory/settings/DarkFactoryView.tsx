@@ -7,7 +7,7 @@ import SettingsFormShell, {
 } from "../../settings/SettingsFormShell";
 import styles from "../../settings/page.module.css";
 
-const NOTIFY_CHANNELS = ["escalation", "watched", "all"] as const;
+const NOTIFY_CHANNELS = ["escalation", "watched", "pr_open", "all"] as const;
 const TRUST_LEVELS = ["docs", "tests", "implementation", "full"] as const;
 
 export interface DarkFactoryViewProps {
@@ -165,7 +165,12 @@ function NotifyField({ selected }: { selected: readonly string[] }) {
   return (
     <>
       <label>Notify channels</label>
-      <select name="df_notify" multiple size={3} defaultValue={selected}>
+      <select
+        name="df_notify"
+        multiple
+        size={NOTIFY_CHANNELS.length}
+        defaultValue={selected}
+      >
         {NOTIFY_CHANNELS.map((channel) => (
           <option key={channel} value={channel}>
             {channel}

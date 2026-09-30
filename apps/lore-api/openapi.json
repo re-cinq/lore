@@ -6543,7 +6543,7 @@
                     "type": "array",
                     "items": {
                       "type": "string",
-                      "enum": ["escalation", "watched", "all"]
+                      "enum": ["escalation", "watched", "pr_open", "all"]
                     }
                   },
                   "execution": {
@@ -10498,7 +10498,7 @@
             "type": "array",
             "items": {
               "type": "string",
-              "enum": ["escalation", "watched", "all"]
+              "enum": ["escalation", "watched", "pr_open", "all"]
             }
           }
         },
@@ -10564,7 +10564,7 @@
                 "type": "array",
                 "items": {
                   "type": "string",
-                  "enum": ["escalation", "watched", "all"]
+                  "enum": ["escalation", "watched", "pr_open", "all"]
                 }
               }
             },
@@ -13485,7 +13485,7 @@
                         "type": "array",
                         "items": {
                           "type": "string",
-                          "enum": ["escalation", "watched", "all"]
+                          "enum": ["escalation", "watched", "pr_open", "all"]
                         }
                       },
                       "execution": {
@@ -13951,7 +13951,12 @@
                               "type": "array",
                               "items": {
                                 "type": "string",
-                                "enum": ["escalation", "watched", "all"]
+                                "enum": [
+                                  "escalation",
+                                  "watched",
+                                  "pr_open",
+                                  "all"
+                                ]
                               }
                             },
                             "execution": {

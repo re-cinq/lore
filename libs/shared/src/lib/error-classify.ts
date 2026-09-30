@@ -149,6 +149,10 @@ export function failureHint(category: FailureCategory): string {
   return HINTS[category];
 }
 
+export function failureLabel(category: FailureCategory): string {
+  return CATEGORY_LABELS[category];
+}
+
 // `hasOwn`, not `in`: `in` walks the prototype chain, so "toString"/"constructor" would falsely pass.
 export function isFailureCategory(value: string): value is FailureCategory {
   return Object.hasOwn(HINTS, value);

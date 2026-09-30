@@ -6,6 +6,14 @@ export interface NotifySettings {
   channels: NotifyChannel[];
 }
 
+/** The channel that lets each level through on its own; `all` lets every level through. */
+const LEVEL_CHANNEL: Record<NotifyLevel, NotifyChannel> = {
+  escalation: "escalation",
+  watched: "watched",
+  completion: "watched",
+  pr_open: "pr_open",
+};
+
 export function decideNotify(
   level: NotifyLevel,
   settings: NotifySettings,
@@ -16,18 +24,12 @@ export function decideNotify(
     return { fire: true, matchedChannels: ["all"] };
   }
 
-  if (level === "escalation") {
-    return { fire: true, matchedChannels: ["escalation"] };
+  const channel = LEVEL_CHANNEL[level];
+
+  // Escalation is the platform's floor: it fires with or without its channel listed.
+  if (level === "escalation" || channels.includes(channel)) {
+    return { fire: true, matchedChannels: [channel] };
   }
 
-  if (isWatchedLevel(level) && channels.includes("watched")) {
-    return { fire: true, matchedChannels: ["watched"] };
-  }
-
-  // pr_open, or watched/completion without the channel: only `all` lets these through
   return { fire: false, matchedChannels: [] };
-}
-
-function isWatchedLevel(level: NotifyLevel): boolean {
-  return level === "watched" || level === "completion";
 }

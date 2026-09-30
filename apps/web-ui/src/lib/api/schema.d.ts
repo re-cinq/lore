@@ -2732,7 +2732,7 @@ export interface components {
       };
       /** @enum {string} */
       review: "trust_based" | "always" | "never";
-      notify: ("escalation" | "watched" | "all")[];
+      notify: ("escalation" | "watched" | "pr_open" | "all")[];
     };
     DarkFactorySettingsApplied: {
       /** @constant */
@@ -2750,7 +2750,7 @@ export interface components {
         };
         /** @enum {string} */
         review: "trust_based" | "always" | "never";
-        notify: ("escalation" | "watched" | "all")[];
+        notify: ("escalation" | "watched" | "pr_open" | "all")[];
       };
       ceremony: {
         /** @enum {string} */
@@ -3570,7 +3570,7 @@ export interface components {
               };
               /** @enum {string} */
               review?: "trust_based" | "always" | "never";
-              notify?: ("escalation" | "watched" | "all")[];
+              notify?: ("escalation" | "watched" | "pr_open" | "all")[];
               execution?: {
                 image?: string;
               };
@@ -3707,7 +3707,7 @@ export interface components {
                 };
                 /** @enum {string} */
                 review?: "trust_based" | "always" | "never";
-                notify?: ("escalation" | "watched" | "all")[];
+                notify?: ("escalation" | "watched" | "pr_open" | "all")[];
                 execution?: {
                   image?: string;
                 };
@@ -7594,7 +7594,7 @@ export interface operations {
           };
           /** @enum {string} */
           review?: "trust_based" | "always" | "never";
-          notify?: ("escalation" | "watched" | "all")[];
+          notify?: ("escalation" | "watched" | "pr_open" | "all")[];
           execution?: {
             image?: string;
           };
