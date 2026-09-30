@@ -21,6 +21,7 @@ export const FLOOR_RUN: RunView = {
     repo: { kind: "git", ref: "github.com/re-cinq/lore@fix/login", by: "lore" },
     pr_url: { kind: "value", ref: PR_URL, by: "lore" },
   },
+  createdAt: "2026-09-30T10:00:00.000Z",
   outcome: null,
   reason: null,
   finishedAt: null,

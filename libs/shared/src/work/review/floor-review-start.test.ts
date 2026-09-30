@@ -52,6 +52,7 @@ function run(overrides: Partial<RunView> = {}): RunView {
     },
     outcome: "success",
     reason: null,
+    createdAt: "2026-09-30T09:00:00.000Z",
     finishedAt: "2026-09-30T10:00:00.000Z",
     ...overrides,
   };

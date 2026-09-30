@@ -5,15 +5,24 @@ import {
   floorConfigured,
 } from "@re-cinq/lore-shared/floor/floor-client.js";
 import { PgAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-pg.js";
-import type { AssemblyRunsPort } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
+import type {
+  AssemblyRunQuery,
+  AssemblyRunsPort,
+  AssemblyRunSummary,
+} from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { FloorRunReader } from "./floor-run-reader.js";
 
 export type FloorRunReads = Pick<
   AssemblyRunsPort,
-  "getById" | "listStationRuns"
+  "getById" | "listStationRuns" | "listSummaries"
 >;
 
+const DEFAULT_LIST_LIMIT = 50;
+
 export const FLOOR_ENGINE = "floor";
+
+export const FLOOR_RUN_REFUSAL =
+  "this run is on the external floor; retry it from the floor";
 
 /** True for a run the floor answered: its `args.engine` is stamped by the mapping. */
 export function runsOnFloor(run: { args: Record<string, unknown> }): boolean {
@@ -33,8 +42,43 @@ export function floorBackedRuns<Port extends FloorRunReads>(
 
     return visits.length > 0 ? visits : floor.listStationRuns(runId);
   };
+  backed.listSummaries = (query) => mergedSummaries(local, floor, query);
 
   return backed;
+}
+
+async function mergedSummaries(
+  local: FloorRunReads,
+  floor: FloorRunReads,
+  query: AssemblyRunQuery,
+): Promise<AssemblyRunSummary[]> {
+  const [localRuns, floorRuns] = await Promise.all([
+    local.listSummaries(query),
+    floor.listSummaries(query).catch(floorListLost),
+  ]);
+
+  return newestFirst([...localRuns, ...floorRuns]).slice(
+    0,
+    query.limit ?? DEFAULT_LIST_LIMIT,
+  );
+}
+
+/** A floor out of reach costs the list its floor runs, not the whole page: Postgres's runs are still worth showing. */
+function floorListLost(err: unknown): AssemblyRunSummary[] {
+  console.warn(
+    `[floor] run list unavailable, listing Postgres runs only: ${String(err)}`,
+  );
+
+  return [];
+}
+
+function newestFirst<Run extends { id: string; createdAt: Date }>(
+  runs: Run[],
+): Run[] {
+  return runs.sort(
+    (a, b) =>
+      b.createdAt.getTime() - a.createdAt.getTime() || b.id.localeCompare(a.id),
+  );
 }
 
 let reader: FloorRunReader | undefined;

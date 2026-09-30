@@ -1,7 +1,44 @@
 import { describe, expect, it } from "vitest";
 import { recordedFloor } from "@re-cinq/lore-shared/floor/recorded-floor.js";
 import { FloorRunReader } from "./floor-run-reader.js";
-import { floorWithOneRun, PR_URL } from "./floor-run.fixtures.js";
+import type { RunView } from "@re-cinq/floor-client";
+import type { FloorRequest } from "@re-cinq/lore-shared/floor/recorded-floor.js";
+import { FLOOR_RUN, floorWithOneRun, PR_URL } from "./floor-run.fixtures.js";
+
+const FINISHED_RUN: RunView = {
+  ...FLOOR_RUN,
+  id: "run-2",
+  createdAt: "2026-09-30T09:00:00.000Z",
+  outcome: "success",
+  finishedAt: "2026-09-30T09:30:00.000Z",
+};
+
+function listingReader() {
+  const recorded = recordedFloor(floorWithTwoRuns);
+
+  return { reader: new FloorRunReader(recorded.floor), recorded };
+}
+
+function floorWithTwoRuns(request: FloorRequest): unknown {
+  const url = new URL(request.path, "http://floor.test");
+
+  if (url.pathname === "/costs") {
+    return {
+      items: [
+        { key: "run-1", costUsd: 0.42 },
+        { key: "run-2", costUsd: 1.5 },
+      ],
+    };
+  }
+
+  if (url.pathname === "/assembly-runs") {
+    const open = url.searchParams.get("open") === "true";
+
+    return { items: [open ? FLOOR_RUN : FINISHED_RUN], nextCursor: null };
+  }
+
+  return floorWithOneRun(request);
+}
 
 function reader() {
   const recorded = recordedFloor(floorWithOneRun);
@@ -69,5 +106,79 @@ describe("FloorRunReader", () => {
     expect(
       recorded.requests.filter((r) => r.path.includes("/versions/")),
     ).toHaveLength(1);
+  });
+});
+
+describe("FloorRunReader.listSummaries", () => {
+  it("lists run-1 as running and run-2 as finished when the query names no filter", async () => {
+    const { reader: floorReader } = listingReader();
+
+    expect(await floorReader.listSummaries({})).toMatchObject([
+      { id: "run-1", status: "running" },
+      { id: "run-2", status: "finished" },
+    ]);
+  });
+
+  it("reads createdAt of run-2 from the run itself", async () => {
+    const { reader: floorReader } = listingReader();
+    const [, finished] = await floorReader.listSummaries({});
+
+    expect(finished.createdAt).toEqual(new Date("2026-09-30T09:00:00.000Z"));
+  });
+
+  it("asks the floor for open runs of github.com/re-cinq/lore only for repo re-cinq/lore and status running", async () => {
+    const { reader: floorReader, recorded } = listingReader();
+
+    await floorReader.listSummaries({
+      repo: "re-cinq/lore",
+      status: ["running"],
+      limit: 10,
+    });
+
+    expect(recorded.requests.map((request) => request.path)).toContain(
+      "/assembly-runs?repo=github.com%2Fre-cinq%2Flore&open=true&limit=10",
+    );
+  });
+
+  it("lists only run-1 for status running", async () => {
+    const { reader: floorReader } = listingReader();
+    const runs = await floorReader.listSummaries({ status: ["running"] });
+
+    expect(runs.map((run) => run.id)).toEqual(["run-1"]);
+  });
+
+  it("asks the floor nothing for task-1", async () => {
+    const { reader: floorReader, recorded } = listingReader();
+
+    await floorReader.listSummaries({ taskId: "task-1" });
+
+    expect(recorded.requests).toEqual([]);
+  });
+
+  it("reads the costs of run-1 and run-2 in one request", async () => {
+    const { reader: floorReader, recorded } = listingReader();
+
+    const costs = await floorReader.costsByRun([
+      { id: "run-1", createdAt: new Date("2026-09-30T10:00:00.000Z") },
+      { id: "run-2", createdAt: new Date("2026-09-30T09:00:00.000Z") },
+    ]);
+
+    expect([...costs]).toEqual([
+      ["run-1", 0.42],
+      ["run-2", 1.5],
+    ]);
+    expect(recorded.requests).toHaveLength(1);
+  });
+
+  it("asks for the cost of run-1 alone when it is the only run", async () => {
+    const { reader: floorReader, recorded } = listingReader();
+
+    await floorReader.costsByRun([
+      { id: "run-1", createdAt: new Date("2026-09-30T10:00:00.000Z") },
+    ]);
+
+    expect(recorded.requests.map((request) => request.path)).toEqual([
+      "/costs?run=run-1&group=run",
+    ]);
   });
 });

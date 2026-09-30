@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import {
   fetchAssemblyRun,
   fetchAssemblyRunNodes,
+  isFloorEngine,
   type AssemblyRun,
 } from "@/lib/assembly-runs";
 import { fetchTaskEvents, fetchLlmCalls } from "@/lib/task-runtime";
@@ -64,16 +65,30 @@ async function resolveRunView(
   const nodes = await fetchAssemblyRunNodes(id);
   const { events, llmCalls } = await resolveTaskContext(run.taskId);
   const { definition } = definitionForRun(run.blueprintName, nodes, run.graph);
-  const agents = await listAgents(run.repo);
 
   return {
     nodes,
     events,
     llmCalls,
     definition,
+    ...(await agentFacts(run, definition)),
+    issue: await issueRead,
+  };
+}
+
+/** A floor run runs floor agents: the agent definitions in Postgres are not theirs, so there is no catalog model to badge and no definition to link to. */
+async function agentFacts(
+  run: AssemblyRun,
+  definition: ReturnType<typeof definitionForRun>["definition"],
+) {
+  if (isFloorEngine(run.engine)) {
+    return { editHrefs: {}, nodeModels: {} };
+  }
+  const agents = await listAgents(run.repo);
+
+  return {
     editHrefs: agentEditHrefs(definition, agents, run.repo),
     nodeModels: resolveNodeModels(definition, agents),
-    issue: await issueRead,
   };
 }
 

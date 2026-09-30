@@ -43,6 +43,7 @@ async function serverWith(
   definitions: Map<string, AssemblyLine> = new Map([
     ["implementation-loop", implementationLoopLike],
   ]),
+  floorRunIds: readonly string[] = [],
 ): Promise<Started> {
   const calls: AssemblyRunStartInput[] = [];
   const server = Hapi.server();
@@ -60,6 +61,7 @@ async function serverWith(
         return start(input);
       },
       async () => definitions,
+      async (runId) => floorRunIds.includes(runId),
     ),
   );
 
@@ -183,6 +185,60 @@ describe("resume_from (fork-and-rerun)", () => {
         blueprintHash: definitionHash(implementationLoopLike),
         resumeFrom: { lineId: "run-abc", nodeId: "tdd-round" },
       },
+    });
+  });
+
+  it("returns 409 for a resume_from whose source run floor-run-1 is on the external floor", async () => {
+    const { server, calls } = await serverWith(
+      async () => "run-fork",
+      undefined,
+      ["floor-run-1"],
+    );
+    const res = await server.inject(
+      POST({
+        definition: "implementation-loop",
+        repo: "re-cinq/lore",
+        resume_from: { run_id: "floor-run-1", node_id: "implement" },
+      }),
+    );
+
+    expect({
+      status: res.statusCode,
+      body: JSON.parse(res.payload),
+      started: calls.length,
+    }).toEqual({
+      status: 409,
+      body: {
+        error: "this run is on the external floor; retry it from the floor",
+      },
+      started: 0,
+    });
+  });
+
+  it("returns 409 for a floor run floor-run-1 whose line code-review is no Lore definition", async () => {
+    const { server, calls } = await serverWith(
+      async () => "run-fork",
+      undefined,
+      ["floor-run-1"],
+    );
+    const res = await server.inject(
+      POST({
+        definition: "code-review",
+        repo: "re-cinq/lore",
+        resume_from: { run_id: "floor-run-1", node_id: "implement" },
+      }),
+    );
+
+    expect({
+      status: res.statusCode,
+      body: JSON.parse(res.payload),
+      started: calls.length,
+    }).toEqual({
+      status: 409,
+      body: {
+        error: "this run is on the external floor; retry it from the floor",
+      },
+      started: 0,
     });
   });
 

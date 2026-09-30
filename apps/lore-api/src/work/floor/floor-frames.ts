@@ -61,7 +61,6 @@ function settledFrames(
     run: frame.run,
     visits: [],
     graph: run.graph!,
-    createdAt: run.createdAt,
   });
 
   return [runStatusFrame(settled)];

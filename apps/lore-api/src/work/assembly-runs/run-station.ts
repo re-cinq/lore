@@ -8,6 +8,7 @@ import type {
 } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import type { EventReporter } from "@re-cinq/lore-shared/project/events/event-reporter-port.js";
 import { RUN_STATION_EVENT } from "@re-cinq/lore-shared/project/assembly-runs/run-events.js";
+import { FLOOR_RUN_REFUSAL, runsOnFloor } from "../floor/floor-backed-runs.js";
 import type { RunGraph } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 
 export interface RunStationDeps {
@@ -30,7 +31,7 @@ export interface RunStationInput {
 
 const OPEN = new Set(["queued", "running"]);
 
-/** The run's id once the station is asked for. 404 for a run that does not exist, 400 for a node its graph does not have, 409 while a station of it is still working or when another run took its subject since it ended. */
+/** The run's id once the station is asked for. 404 for a run that does not exist, 400 for a node its graph does not have, 409 for a run on the external floor, while a station of it is still working or when another run took its subject since it ended. */
 export async function runStation(
   deps: RunStationDeps,
   { runId, nodeId, actor }: RunStationInput,
@@ -38,6 +39,7 @@ export async function runStation(
   const line = await deps.runs.getById(runId);
 
   enforceTrue(line !== null, apiError(404), "assembly run not found");
+  enforceTrue(!runsOnFloor(line), apiError(409), FLOOR_RUN_REFUSAL);
   const graph = await deps.graphOf(line);
 
   assertNodeOf(line, graph, nodeId);

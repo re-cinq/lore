@@ -19,21 +19,24 @@ import {
   FLOOR_VISIT as FLOOR_VISIT_VIEW,
 } from "./floor-run.fixtures.js";
 
-const STARTED = new Date("2026-09-30T08:00:00.000Z");
 const FLOOR_RUN = floorRunToAssemblyRun({
   run: { ...FLOOR_RUN_VIEW, id: "floor-1" },
   visits: [],
   graph: lineBodyToRunGraph("code-review", FLOOR_LINE, {}),
-  createdAt: STARTED,
 });
 const LOCAL_RUN: AssemblyRunRecord = { ...FLOOR_RUN, id: "local-1", args: {} };
 const FLOOR_VISIT = visitToStationRun(FLOOR_VISIT_VIEW, FLOOR_RUN);
 const LOCAL_VISIT: StationRunRecord = { ...FLOOR_VISIT, id: "local-visit" };
 
-function reads(run: AssemblyRunRecord, visit: StationRunRecord): FloorRunReads {
+function reads(
+  run: AssemblyRunRecord,
+  visit: StationRunRecord,
+  listed: AssemblyRunRecord[] = [run],
+): FloorRunReads {
   return {
     getById: (id) => Promise.resolve(id === run.id ? run : null),
     listStationRuns: (id) => Promise.resolve(id === run.id ? [visit] : []),
+    listSummaries: () => Promise.resolve(listed),
   };
 }
 
@@ -60,6 +63,51 @@ describe("floorBackedRuns", () => {
       await runs.listStationRuns("local-1"),
       await runs.listStationRuns("floor-1"),
     ]).toEqual([[LOCAL_VISIT], [FLOOR_VISIT]]);
+  });
+});
+
+describe("floorBackedRuns listSummaries", () => {
+  const older = {
+    ...LOCAL_RUN,
+    createdAt: new Date("2026-09-30T09:00:00.000Z"),
+  };
+  const newer = {
+    ...FLOOR_RUN,
+    createdAt: new Date("2026-09-30T11:00:00.000Z"),
+  };
+  const sameTimeHigherId = { ...older, id: "local-9" };
+  const merged = floorBackedRuns(
+    reads(older, LOCAL_VISIT, [older, sameTimeHigherId]),
+    reads(newer, FLOOR_VISIT),
+  );
+
+  it("lists the floor run then local-9 then local-1 for runs created at eleven then nine twice", async () => {
+    const listed = await merged.listSummaries({});
+
+    expect(listed.map((run) => run.id)).toEqual([
+      "floor-1",
+      "local-9",
+      "local-1",
+    ]);
+  });
+
+  it("lists local-9 and local-1 alone when the floor's list is out of reach", async () => {
+    const lost = floorBackedRuns(
+      reads(older, LOCAL_VISIT, [older, sameTimeHigherId]),
+      {
+        ...reads(newer, FLOOR_VISIT),
+        listSummaries: () => Promise.reject(new Error("floor down")),
+      },
+    );
+    const listed = await lost.listSummaries({});
+
+    expect(listed.map((run) => run.id)).toEqual(["local-9", "local-1"]);
+  });
+
+  it("slices the merged list to the limit of 2", async () => {
+    const listed = await merged.listSummaries({ limit: 2 });
+
+    expect(listed.map((run) => run.id)).toEqual(["floor-1", "local-9"]);
   });
 });
 

@@ -28,6 +28,10 @@ interface SelectedNodeSectionProps {
   selectedAttempts: Parameters<typeof RunNodeDetail>[0]["attempts"];
   nodeInputs: Parameters<typeof NodeInputCard>[0]["inputs"];
   retrySource: { nodeId: string; iteration: number } | null;
+  /** Whether this run may be run again from here: false for a run on the external floor, which only the floor can re-run. */
+  runActions: boolean;
+  /** Which engine walks the run; it decides what the node's pod logs can say. */
+  engine?: string;
   /** Whether the run is still open; a station run then retires it first. */
   runState: RunState;
   agentEditHrefs?: Record<string, string>;
@@ -88,6 +92,8 @@ interface NodeInspectorProps {
   attempts: Parameters<typeof RunNodeDetail>[0]["attempts"];
   inputs: Parameters<typeof NodeInputCard>[0]["inputs"];
   retrySource: { nodeId: string; iteration: number } | null;
+  runActions: boolean;
+  engine?: string;
   agentEditHref?: string;
   model: NodeModel | null;
 }
@@ -109,7 +115,7 @@ function NodeInspector(props: NodeInspectorProps) {
         actions={nodeActions(props)}
       />
       <NodeInputCard inputs={props.inputs} />
-      <AttemptLogPanels runId={runId} rows={rows} />
+      <AttemptLogPanels runId={runId} rows={rows} engine={props.engine} />
     </section>
   );
 }
@@ -133,15 +139,17 @@ function inspectorPropsFor(
 }
 
 // The facts every node shares: the run, its repo, its definition and its state.
-function pageFacts({
-  runId,
-  repo,
-  reason,
-  definition,
-  retrySource,
-  runState,
-}: SelectedNodeSectionProps) {
-  return { runId, repo, reason, definition, retrySource, runState };
+function pageFacts(props: SelectedNodeSectionProps) {
+  return {
+    runId: props.runId,
+    repo: props.repo,
+    reason: props.reason,
+    definition: props.definition,
+    retrySource: props.retrySource,
+    runActions: props.runActions,
+    engine: props.engine,
+    runState: props.runState,
+  };
 }
 
 type RetrySource = { nodeId: string; iteration: number };
@@ -152,31 +160,35 @@ function nodeActions({
   nodeId,
   runState,
   retrySource,
+  runActions,
   agentEditHref,
 }: NodeInspectorProps): React.ReactNode {
   return (
     <>
       <EditAgentSlot href={agentEditHref} />
       <RerunSlot runId={runId} retrySource={retrySource} />
-      <RunStationButton runId={runId} nodeId={nodeId} runState={runState} />
+      {runActions && (
+        <RunStationButton runId={runId} nodeId={nodeId} runState={runState} />
+      )}
     </>
   );
 }
 
 /** One log panel per attempt that actually ran a pod. An attempt with no Agent CR name never reached a pod — a service-runtime node, or one that failed before dispatch — so there are no logs to offer, and an empty panel would read as logs that failed to load. */
-function AttemptLogPanels({
-  runId,
-  rows,
-}: {
+interface AttemptLogPanelsProps {
   runId: string;
   rows: NodeInspectorProps["rows"];
-}) {
+  engine?: string;
+}
+
+function AttemptLogPanels({ runId, rows, engine }: AttemptLogPanelsProps) {
   return rows
     .filter((attempt) => attempt.agentCrName)
     .map((attempt) => (
       <NodeLogPanel
         key={attempt.agentCrName as string}
         assemblyLineId={runId}
+        engine={engine}
         agentCrName={attempt.agentCrName as string}
         label={`Pod logs · attempt ${attempt.iteration}`}
       />

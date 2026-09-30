@@ -6,13 +6,17 @@ import type {
   VisitView,
 } from "@re-cinq/floor-client";
 import type {
+  AssemblyRunQuery,
   AssemblyRunRecord,
+  AssemblyRunSummary,
   StationRunRecord,
 } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import type { AgentRunTurnRow } from "@re-cinq/lore-shared/project/agent-run-turns/agent-run-turns-port.js";
 import type { RunGraph } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
+import { floorRunFilters, matchesFloorQuery } from "./floor-run-query.js";
 import {
   floorRunToAssemblyRun,
+  floorRunToSummary,
   lineBodyToRunGraph,
   turnRecordToRow,
   visitToStationRun,
@@ -20,12 +24,13 @@ import {
 
 export type FloorRunSource = Pick<
   FloorClient,
-  "runs" | "stationRuns" | "lines" | "stations" | "events" | "costs"
+  "runs" | "stationRuns" | "lines" | "stations" | "costs"
 >;
 
 type StationKind = "agent" | "service" | "human";
 
 const TURNS_PER_READ = 1000;
+const DEFAULT_LIST_LIMIT = 50;
 
 export class FloorRunReader {
   /** A line version is its content, so its graph never changes once read. */
@@ -37,6 +42,21 @@ export class FloorRunReader {
     const found = await this.floor.runs.get(runId);
 
     return found ? this.recordOf(found.run) : null;
+  }
+
+  /** The floor's runs the query matches, newest first within each of the lists it took to ask. */
+  async listSummaries(query: AssemblyRunQuery): Promise<AssemblyRunSummary[]> {
+    const limit = query.limit ?? DEFAULT_LIST_LIMIT;
+    const pages = await Promise.all(
+      floorRunFilters(query).map((filter) =>
+        this.floor.runs.list(filter, { limit }),
+      ),
+    );
+    const summaries = await Promise.all(
+      pages.flatMap((page) => page.items).map((run) => this.summaryOf(run)),
+    );
+
+    return summaries.filter((run) => matchesFloorQuery(run, query));
   }
 
   async listStationRuns(runId: string): Promise<StationRunRecord[]> {
@@ -68,14 +88,40 @@ export class FloorRunReader {
     return totals.at(0)?.costUsd ?? null;
   }
 
+  /** The cost of each run, in ONE read: the list page asks once, not once per row. A lone run asks for just its own; several ask for everything since the oldest began. */
+  async costsByRun(
+    runs: readonly { id: string; createdAt: Date }[],
+  ): Promise<Map<string, number>> {
+    const oldest = Math.min(...runs.map((run) => run.createdAt.getTime()));
+    const filter =
+      runs.length === 1
+        ? { run: runs[0].id }
+        : { since: new Date(oldest).toISOString() };
+    const totals = await this.floor.costs.summary(filter, "run");
+
+    return new Map(
+      totals.flatMap((row) =>
+        row.key === null ? [] : [[row.key, row.costUsd]],
+      ),
+    );
+  }
+
   async recordOf(run: RunView): Promise<AssemblyRunRecord> {
-    const [visits, graph, createdAt] = await Promise.all([
+    const [visits, graph] = await Promise.all([
       this.floor.stationRuns.list({ run: run.id }),
       this.graphOf(run),
-      this.createdAtOf(run),
     ]);
 
-    return floorRunToAssemblyRun({ run, visits, graph, createdAt });
+    return floorRunToAssemblyRun({ run, visits, graph });
+  }
+
+  /** A finished run's status reads from its verdict; only an open one needs its visits to tell queued from running. */
+  private async summaryOf(run: RunView): Promise<AssemblyRunSummary> {
+    const visits = run.finishedAt
+      ? []
+      : await this.floor.stationRuns.list({ run: run.id });
+
+    return floorRunToSummary({ run, visits });
   }
 
   private async turnsOf(visit: VisitView): Promise<AgentRunTurnRow[]> {
@@ -130,23 +176,11 @@ export class FloorRunReader {
       ),
     );
   }
-
-  /** A run carries no start time of its own; its first event is when it began. */
-  private async createdAtOf(run: RunView): Promise<Date> {
-    const events = await this.floor.events.feed({ run: run.id });
-    const times = events.items.map((event) => Date.parse(event.createdAt));
-
-    return new Date(times.length > 0 ? Math.min(...times) : finishedOrNow(run));
-  }
 }
 
 /** A node may pin its station as `name@hash`. */
 function stationNameOf(stationRef: string): string {
   return stationRef.split("@")[0];
-}
-
-function finishedOrNow(run: RunView): number {
-  return run.finishedAt ? Date.parse(run.finishedAt) : Date.now();
 }
 
 function emptyLine(): LineBody {

@@ -12,18 +12,11 @@ import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { clampedLimit } from "../common-schemas.js";
-import type {
-  AssemblyRunRecord,
-  AssemblyRunsPort,
-} from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
-import {
-  floorRunReader,
-  runsOnFloor,
-  runsReadingFloor,
-} from "../../../work/floor/floor-backed-runs.js";
+import type { AssemblyRunsPort } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
+import { runsReadingFloor } from "../../../work/floor/floor-backed-runs.js";
 import type { AssemblyRunStatus } from "@re-cinq/lore-shared/models/assembly-run.js";
+import { enrichmentsFor } from "./floor-run-enrichment.js";
 import {
-  enrichmentById,
   missingTable,
   RunListSchema,
   RunRowSchema,
@@ -144,7 +137,7 @@ async function runListRows(
   query: RunsQuery,
 ) {
   const selected = await selectRuns(port, query);
-  const enrichment = await enrichmentById(pool, selected);
+  const enrichment = await enrichmentsFor(pool, selected);
 
   // A task-centric caller gets the graph so it can draw the DAG; a plain page does not.
   return query.task_id === undefined
@@ -291,9 +284,7 @@ async function serveRunDetail(
     const run = await portFor(pool).getById(request.params.id);
 
     enforceTrue(run, apiError(404), "Run not found");
-    const enrichment = runsOnFloor(run)
-      ? await floorEnrichment(run)
-      : (await enrichmentById(pool, [run])).get(run.id);
+    const enrichment = (await enrichmentsFor(pool, [run])).get(run.id);
 
     return h.response(toRunRowWithGraph(run, enrichment));
   } catch (err) {
@@ -304,18 +295,4 @@ async function serveRunDetail(
 
     throw err;
   }
-}
-
-/** A floor run has no task row to join: its pull request is its own start item, and its cost is the floor's sum. */
-async function floorEnrichment(run: AssemblyRunRecord) {
-  const prUrl = run.args["pr_url"];
-
-  return {
-    pr_url: typeof prUrl === "string" ? prUrl : null,
-    task_pr_number: null,
-    issue_url: null,
-    issue_number: null,
-    created_by: null,
-    cost_usd: await floorRunReader().costUsd(run.id),
-  };
 }

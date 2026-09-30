@@ -8,6 +8,7 @@ import type {
 } from "@re-cinq/floor-client";
 import type {
   AssemblyRunRecord,
+  AssemblyRunSummary,
   StationRunRecord,
 } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import type {
@@ -53,14 +54,22 @@ export function floorRunToAssemblyRun(input: {
   run: RunView;
   visits: VisitView[];
   graph: RunGraph;
-  createdAt: Date;
 }): AssemblyRunRecord {
-  const { run, visits, graph, createdAt } = input;
+  const { run, visits, graph } = input;
+
+  return { ...floorRunToSummary({ run, visits }), graph };
+}
+
+export function floorRunToSummary(input: {
+  run: RunView;
+  visits: VisitView[];
+}): AssemblyRunSummary {
+  const { run, visits } = input;
+  const createdAt = new Date(run.createdAt);
 
   return {
     ...runIdentityOf(run),
     status: runStatusOf(run, visits),
-    graph,
     resumedFromRunId: null,
     resumedFromNodeId: null,
     inheritedNodeCount: 0,
