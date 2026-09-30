@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { handleFloorGitCredential, repoOfUrl } from "./git-credential.js";
+import {
+  configuredToken,
+  handleFloorGitCredential,
+  repoOfUrl,
+} from "./git-credential.js";
 
 const TOKEN = "floor-shared-token";
 
@@ -78,5 +82,15 @@ describe("repoOfUrl", () => {
 
   it("returns null for https://github.com.evil.io/a/b", () => {
     expect(repoOfUrl("https://github.com.evil.io/a/b")).toBeNull();
+  });
+});
+
+describe("configuredToken", () => {
+  it("drops the newline a piped secret ends with", () => {
+    expect(configuredToken("abc123\n")).toBe("abc123");
+  });
+
+  it("reads an empty secret as no token configured", () => {
+    expect(configuredToken("\n")).toBeUndefined();
   });
 });

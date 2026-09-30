@@ -60,7 +60,7 @@ async function serveFloorGitCredential(
   const github = new PlatformGitHub(process.env);
   const result = await handleFloorGitCredential(
     {
-      token: process.env.FLOOR_GIT_CREDENTIAL_TOKEN,
+      token: configuredToken(process.env.FLOOR_GIT_CREDENTIAL_TOKEN),
       mint: (repo) => github.getInstallationToken(repo),
     },
     extractBearer(request.headers.authorization) ?? "",
@@ -102,4 +102,11 @@ export async function handleFloorGitCredential(
     code: 200,
     body: { username: "x-access-token", password: await deps.mint(repo) },
   };
+}
+
+/** A secret written through a pipe often ends in a newline, and an HTTP header never carries one: compared as stored, the right token would be refused forever. */
+export function configuredToken(
+  stored: string | undefined,
+): string | undefined {
+  return stored?.trim() || undefined;
 }
