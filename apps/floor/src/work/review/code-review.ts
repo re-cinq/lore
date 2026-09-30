@@ -15,7 +15,7 @@ import {
   recheckDescription,
   reviewDescription,
   reviewGateOpen,
-} from "./code-review-decisions.js";
+} from "@re-cinq/lore-shared/review/code-review-decisions.js";
 import { REVIEW_DEFINITIONS } from "@re-cinq/lore-shared/review/review-definitions.js";
 
 // Re-exported so callers (and the handlers module) have one import site for the review decisions.
@@ -29,7 +29,7 @@ export {
   reviewFeedback,
   routeTriagedComment,
   type CommentContext,
-} from "./code-review-decisions.js";
+} from "@re-cinq/lore-shared/review/code-review-decisions.js";
 
 /** The narrow project surface the handlers touch — kept minimal so tests use light doubles. */
 export interface CodeReviewProject {

@@ -3,9 +3,9 @@
 import type {
   PullRef,
   ReviewComment,
-} from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
-import type { TriageAction } from "@re-cinq/lore-shared/review/comment-triage.js";
-import { SKIP_CI_MARKERS } from "@re-cinq/lore-shared/project/pulls/check-runs.js";
+} from "../../outbound/project/pulls/pull-requests-port.js";
+import type { TriageAction } from "./comment-triage.js";
+import { SKIP_CI_MARKERS } from "../../outbound/project/pulls/check-runs.js";
 
 /** A GitHub App / bot login ends with `[bot]`; only human actors drive the review. */
 export function isBotActor(login: string): boolean {

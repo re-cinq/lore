@@ -141,6 +141,10 @@
     "./repo-context.js": {
       "types": "./dist/domain/repo-context.d.ts",
       "default": "./dist/domain/repo-context.js"
+    },
+    "./floor/*.js": {
+      "types": "./dist/outbound/floor/*.d.ts",
+      "default": "./dist/outbound/floor/*.js"
     }
   },
   "scripts": {
@@ -156,6 +160,7 @@
     "@google-cloud/storage": "^8.0.1",
     "@hapi/boom": "^10.0.1",
     "@opentelemetry/api": "^1.9.0",
+    "@re-cinq/floor-client": "0.1.2",
     "dgraph-js-http": "^23.0.0-rc1",
     "libsodium-wrappers": "^0.8.2",
     "minimatch": "^10.2.6",

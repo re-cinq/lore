@@ -1,7 +1,7 @@
 {
   "name": "@re-cinq/lore-stations",
   "version": "0.1.0",
-  "description": "Lore stations \u2014 standalone units of work, one endpoint each (ADR-024 service-endpoint stations)",
+  "description": "Lore stations — standalone units of work, one endpoint each (ADR-024 service-endpoint stations)",
   "type": "module",
   "main": "./dist/work/index.js",
   "scripts": {
@@ -16,11 +16,13 @@
   "dependencies": {
     "@hapi/hapi": "21.4.10",
     "@octokit/auth-app": "^8.3.1",
+    "@re-cinq/floor-client": "0.1.2",
+    "@re-cinq/floor-station": "0.1.1",
+    "@re-cinq/lore-assembly-lines": "*",
     "@re-cinq/lore-shared": "*",
     "octokit": "^5.0.5",
     "pg": "^8.23.0",
-    "zod": "^4.5.4",
-    "@re-cinq/lore-assembly-lines": "*"
+    "zod": "^4.5.4"
   },
   "devDependencies": {
     "@types/node": "^22.20.1",

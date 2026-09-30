@@ -24,7 +24,7 @@ import {
   reviewSubmittedFeedback,
   routeTriagedComment,
   type CommentContext,
-} from "./code-review-decisions.js";
+} from "@re-cinq/lore-shared/review/code-review-decisions.js";
 import type {
   PullRef,
   ReviewComment,
