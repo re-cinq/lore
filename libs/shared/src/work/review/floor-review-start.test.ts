@@ -60,6 +60,7 @@ function run(overrides: Partial<RunView> = {}): RunView {
 interface Scene {
   pr?: PullRef | null;
   runs?: RunView[];
+  runsByRead?: RunView[][];
   joined?: boolean;
   commits?: PullCommit[];
   issue?: IssueRef | null;
@@ -67,7 +68,13 @@ interface Scene {
 
 function scene(given: Scene = {}) {
   const comments: string[] = [];
-  const recorded = recordedFloor((request) => answerOf(request, given));
+  const reads: RunView[][] = [...(given.runsByRead ?? [])];
+  const recorded = recordedFloor((request) =>
+    answerOf(request, {
+      ...given,
+      runs: reads.length > 1 ? reads.shift() : (reads[0] ?? given.runs),
+    }),
+  );
   const deps: ReviewStartDeps = {
     floor: recorded.floor,
     pulls: {
@@ -191,6 +198,57 @@ describe("startReview", () => {
     await startReview(deps, TARGET);
 
     expect(started(requests)[0].body).not.toHaveProperty("startItems.issue");
+  });
+
+  it("cancels the open re-check of sha-old as superseded when sha-new is pushed, before starting the new one", async () => {
+    const { deps, requests } = scene({
+      runs: [
+        run({
+          id: "recheck-old",
+          lineId: "code-review-recheck",
+          finishedAt: null,
+        }),
+        run(),
+      ],
+      commits: [
+        { sha: "sha-old", message: "first", date: "2026-09-30T09:00:00Z" },
+        { sha: "sha-new", message: "second", date: "2026-09-30T09:30:00Z" },
+      ],
+    });
+
+    await reviewOrRecheck(deps, TARGET);
+
+    expect(
+      requests
+        .map((r) => r.path)
+        .filter((p) => !p.startsWith("/assembly-runs?")),
+    ).toEqual([
+      "/assembly-runs/recheck-old/cancel",
+      "/assembly-lines/code-review-recheck/start",
+    ]);
+  });
+
+  it("leaves a re-check of sha-new that opened between its reads alone, so a second delivery of the same push joins it", async () => {
+    const recheckNew = run({
+      id: "recheck-new",
+      lineId: "code-review-recheck",
+      finishedAt: null,
+      startItems: {
+        pr_url: { kind: "value", ref: PR_URL, by: "lore" },
+        head_sha: { kind: "value", ref: "sha-new", by: "lore" },
+      },
+    });
+    const { deps, requests } = scene({
+      runsByRead: [[run()], [run()], [recheckNew, run()]],
+      commits: [
+        { sha: "sha-old", message: "first", date: "2026-09-30T09:00:00Z" },
+        { sha: "sha-new", message: "second", date: "2026-09-30T09:30:00Z" },
+      ],
+    });
+
+    await reviewOrRecheck(deps, TARGET);
+
+    expect(requests.filter((r) => r.path.endsWith("/cancel"))).toEqual([]);
   });
 
   it("cancels the open re-check as superseded when a review is forced", async () => {

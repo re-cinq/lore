@@ -106,7 +106,7 @@ export async function startReview(
   return started.run.id;
 }
 
-/** A person asking for a review by hand supersedes the fast pass a push started: left open it would post a second, shallower verdict on the same sha. */
+/** A person asking for a review by hand supersedes the fast pass a push started: left open it would post a second, shallower verdict on the same sha. A re-check of a newer sha supersedes the open one the same way (`supersedeAndRecheck`). */
 async function retireRechecks(
   floor: ReviewFloor,
   input: StartReviewInput,
@@ -148,8 +148,31 @@ export async function startRecheck(
   });
 
   return decision.start
-    ? startRecheckLine(deps, target, pr!, range.sinceSha)
+    ? supersedeAndRecheck(deps, target, pr!, range.sinceSha)
     : skipped(target.prNumber, decision.reason);
+}
+
+/** An open re-check of an older sha is judging code the branch no longer has, and its verdict would land beside the new one. One already judging the head sha is left alone: two deliveries of the same push can reach here together, and the second must join the first, not cancel it. */
+async function supersedeAndRecheck(
+  deps: ReviewStartDeps,
+  target: PullRequestTarget,
+  pr: PullRef,
+  sinceSha?: string,
+): Promise<string> {
+  const { floor } = deps;
+  const runs = await reviewRunsForPr(floor, target);
+  const older = runs.filter(
+    (run) =>
+      isOpen(run) &&
+      run.lineId === RECHECK_LINE &&
+      !headShaOf(run).includes(pr.headSha ?? ""),
+  );
+
+  await Promise.all(
+    older.map((run) => floor.runs.cancel(run.id, "superseded")),
+  );
+
+  return startRecheckLine(deps, target, pr, sinceSha);
 }
 
 /** A submitted request-changes review becomes an `address` work order; the line's own `read-review` station gathers what the review said. */

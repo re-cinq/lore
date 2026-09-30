@@ -119,7 +119,7 @@ describe("the floor pipelines shipped in this folder", () => {
     });
   });
 
-  it("marks pr_url as the subject of code-review only, so a re-check or a reply never joins an open review", () => {
+  it("marks pr_url as the subject of code-review and head_sha as the subject of code-review-recheck, so a re-check never joins an open review and two re-checks of one sha are one run", () => {
     const subjectArgs = (id: string): string[] =>
       Object.entries(pipelineOf(id).line.args)
         .filter(([, arg]) => arg.subject)
@@ -129,7 +129,7 @@ describe("the floor pipelines shipped in this folder", () => {
       review: subjectArgs("code-review"),
       recheck: subjectArgs("code-review-recheck"),
       reply: subjectArgs("code-review-reply"),
-    }).toEqual({ review: ["pr_url"], recheck: [], reply: [] });
+    }).toEqual({ review: ["pr_url"], recheck: ["head_sha"], reply: [] });
   });
 
   it("enters code-review-reply at read-review and clones the repository with write access for its code-review-refine station", () => {
