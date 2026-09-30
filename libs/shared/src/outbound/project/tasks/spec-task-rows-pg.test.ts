@@ -21,7 +21,13 @@ describe("PgSpecTaskRows", () => {
     const capture: Query[] = [];
     const rows = new PgSpecTaskRows(
       fakePool(capture, [
-        { id: "a", status: "failed", issue_number: null, spec_task_id: "T001" },
+        {
+          id: "a",
+          status: "failed",
+          issue_number: null,
+          spec_task_id: "T001",
+          pr_number: 2271,
+        },
       ]),
       noCreate,
     );
@@ -33,7 +39,13 @@ describe("PgSpecTaskRows", () => {
 
     expect({ found, params: capture[0]?.params }).toEqual({
       found: [
-        { id: "a", status: "failed", issueNumber: null, specTaskId: "T001" },
+        {
+          id: "a",
+          status: "failed",
+          issueNumber: null,
+          specTaskId: "T001",
+          prNumber: 2271,
+        },
       ],
       params: [
         "re-cinq/lore",

@@ -1,4 +1,5 @@
 import type { PgPool } from "../../memory-store.js";
+import type { PipelineTask } from "../../../domain/types.js";
 import { updateTaskStatus } from "../../../domain/pipeline-tasks.js";
 import type { ExistingSpecTask } from "../../../domain/feature-planning/spec-task-reconcile.js";
 import type {
@@ -8,7 +9,7 @@ import type {
 import type { CreateTaskInput } from "./task-store-port.js";
 
 // A plan's spec-tasks: those stamped with its plan, or grouped under the run that filed them (the first issues-station runs stamped no plan).
-const PLAN_SPEC_TASKS_SQL = `SELECT id, status, issue_number, description, context_bundle->>'spec_task_id' AS spec_task_id
+const PLAN_SPEC_TASKS_SQL = `SELECT id, status, issue_number, pr_number, context_bundle->>'spec_task_id' AS spec_task_id
    FROM pipeline.tasks
   WHERE target_repo = $1
     AND task_type = 'spec-task'
@@ -27,13 +28,10 @@ const REQUEUE_SPEC_TASK_SQL = `UPDATE pipeline.tasks
     SET ${REWRITE_COLUMNS}, status = 'pending', failure_reason = NULL
   WHERE id = $1`;
 
-interface PlanSpecTaskRow {
-  id: string;
-  status: string;
-  issue_number: number | null;
-  spec_task_id: string | null;
-  description: string | null;
-}
+type PlanSpecTaskRow = Pick<
+  PipelineTask,
+  "id" | "status" | "issue_number" | "pr_number"
+> & { spec_task_id: string | null };
 
 /** {@link SpecTaskRows} over pipeline.tasks. */
 export class PgSpecTaskRows implements SpecTaskRows {
@@ -54,9 +52,9 @@ export class PgSpecTaskRows implements SpecTaskRows {
     return rows.map((row) => ({
       id: row.id,
       status: row.status,
-      issueNumber: row.issue_number,
+      issueNumber: row.issue_number ?? null,
       ...(row.spec_task_id ? { specTaskId: row.spec_task_id } : {}),
-      ...(row.description !== null ? { description: row.description } : {}),
+      prNumber: row.pr_number ?? null,
     }));
   }
 

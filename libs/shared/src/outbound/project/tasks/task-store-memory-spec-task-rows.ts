@@ -30,7 +30,7 @@ export class MemorySpecTaskRows implements SpecTaskRows {
         status: t.status ?? "pending",
         issueNumber: t.issue_number ?? null,
         specTaskId: t.context_bundle?.spec_task_id as string | undefined,
-        ...(t.description !== undefined ? { description: t.description } : {}),
+        prNumber: (t.pr_number as number | null | undefined) ?? null,
       }));
   }
 

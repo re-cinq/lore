@@ -68,13 +68,7 @@ describe("planSpecTaskReconcile", () => {
     });
   });
 
-  it("re-queues completed T010 on issue #2261 when the new decomposition gave it different work, since its old PR never merged", () => {
-    const wantedVerify = {
-      specTaskId: "T010",
-      issueNumber: 2261,
-      description: "Add the verify node",
-    };
-
+  it("re-queues completed T010 on issue #2261 whose PR was never recorded, since nothing says its work exists", () => {
     expect(
       planSpecTaskReconcile(
         [
@@ -83,21 +77,15 @@ describe("planSpecTaskReconcile", () => {
             status: "completed",
             issueNumber: 2261,
             specTaskId: "T010",
-            description: "Update README.md",
+            prNumber: null,
           },
         ],
-        [wantedVerify],
+        [wanted("T010", 2261)],
       ).requeue,
-    ).toEqual([{ id: "old", wanted: wantedVerify }]);
+    ).toEqual([{ id: "old", wanted: wanted("T010", 2261) }]);
   });
 
-  it("keeps completed T001's status when its task is unchanged", () => {
-    const same = {
-      specTaskId: "T001",
-      issueNumber: 2258,
-      description: "Add the stub",
-    };
-
+  it("keeps completed T001's status while its PR #2271 is open, whatever the rerun's wording", () => {
     expect(
       planSpecTaskReconcile(
         [
@@ -106,12 +94,12 @@ describe("planSpecTaskReconcile", () => {
             status: "completed",
             issueNumber: 2258,
             specTaskId: "T001",
-            description: "Add the stub",
+            prNumber: 2271,
           },
         ],
-        [same],
+        [wanted("T001", 2258)],
       ).update,
-    ).toEqual([{ id: "done", wanted: same }]);
+    ).toEqual([{ id: "done", wanted: wanted("T001", 2258) }]);
   });
 
   it("leaves merged T001 alone and files nothing for it", () => {

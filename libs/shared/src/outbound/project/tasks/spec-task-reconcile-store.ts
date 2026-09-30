@@ -28,7 +28,6 @@ export interface SpecTaskRows {
 type Wanted = {
   specTaskId: string;
   issueNumber: number;
-  description: string;
   task: SpecTaskInput;
 };
 
@@ -55,7 +54,6 @@ function wantedOf(task: SpecTaskInput): Wanted {
   return {
     specTaskId: String(task.contextBundle?.spec_task_id),
     issueNumber: task.issueNumber,
-    description: task.description,
     task,
   };
 }
