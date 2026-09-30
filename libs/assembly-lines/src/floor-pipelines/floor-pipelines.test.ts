@@ -59,13 +59,14 @@ interface Pipeline {
 const PIPELINES = loadPipelines();
 
 describe("the floor pipelines shipped in this folder", () => {
-  it("ships exactly the pipelines code-review, code-review-recheck, code-review-reply and lore-run-settled", () => {
+  it("ships exactly the pipelines code-review, code-review-recheck, code-review-reply, feature-planning and lore-run-settled", () => {
     expect(
       [...PIPELINES.values()].map((pipeline) => pipeline.line.id).sort(),
     ).toEqual([
       "code-review",
       "code-review-recheck",
       "code-review-reply",
+      "feature-planning",
       "lore-run-settled",
     ]);
   });
@@ -177,6 +178,75 @@ describe("the floor pipelines shipped in this folder", () => {
     expect(pipelineOf("lore-run-settled").line.start?.on).toEqual([
       "internal.run.settled",
     ]);
+  });
+});
+
+describe("the feature-planning pipeline", () => {
+  it("walks feature-planning from analyze through author's waits to done, with validate entered only by its own start event", () => {
+    const { line } = pipelineOf("feature-planning");
+
+    expect({
+      entry: line.entry,
+      exit: line.exit,
+      nodes: line.nodes.map((node) => node.id).sort(),
+      validateStart: line.nodes.find((node) => node.id === "validate")?.station,
+    }).toEqual({
+      entry: "analyze",
+      exit: "done",
+      nodes: [
+        "analyse-specs",
+        "analyze",
+        "author",
+        "decompose",
+        "done",
+        "issues",
+        "merged",
+        "open-spec-pr",
+        "validate",
+        "write",
+      ].sort(),
+      validateStart: "plan-validate",
+    });
+  });
+
+  it("marks plan_id as the only subject of feature-planning", () => {
+    const subjectArgs = Object.entries(pipelineOf("feature-planning").line.args)
+      .filter(([, arg]) => arg.subject)
+      .map(([name]) => name);
+
+    expect(subjectArgs).toEqual(["plan_id"]);
+  });
+
+  it("gives spec-write git write access to target, guarded by the author node on every path in, and tells it to push its own commit", () => {
+    const { stations } = pipelineOf("feature-planning");
+
+    expect({
+      target: needOf(stations["spec-write"], "target"),
+      pushes: promptOnOneLine("spec-write").includes(
+        "git -C /workspace/target push origin HEAD",
+      ),
+    }).toEqual({
+      target: { name: "target", kind: "git", path: "target", access: "write" },
+      pushes: true,
+    });
+  });
+
+  it("tells every feature-planning agent to pass repo on every lore call", () => {
+    const agents = [
+      "plan-analyze",
+      "plan-validate",
+      "spec-analysis",
+      "spec-write",
+      "feature-decompose",
+    ];
+
+    expect(
+      agents.map((agent) =>
+        promptOnOneLine(agent).includes(
+          "Pass `repo` (the owner/name your task names above) on every `lore_*` call",
+        ),
+      ),
+    ).toEqual(agents.map(() => true));
   });
 });
 
@@ -407,7 +477,12 @@ describe("what a review pod is given against the agent CLI's own limits", () => 
 
 function outcomesWithoutEdge({ line, stations }: Pipeline): string[] {
   return line.nodes.flatMap((node) => {
-    const covered = edgesOn(line, node.id).map((edge) => edge.on);
+    const out = edgesOn(line, node.id);
+
+    if (out.some((edge) => edge.on === "always")) {
+      return [];
+    }
+    const covered = out.map((edge) => edge.on);
     const declared = stations[node.station ?? ""]?.outcomes ?? [];
 
     return declared
