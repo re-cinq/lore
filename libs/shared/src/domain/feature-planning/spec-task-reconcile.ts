@@ -5,11 +5,13 @@ export interface ExistingSpecTask {
   status: string;
   issueNumber: number | null;
   specTaskId?: string;
+  description?: string;
 }
 
 export interface WantedSpecTask {
   specTaskId: string;
   issueNumber: number;
+  description?: string;
 }
 
 export interface SpecTaskReconcile<W extends WantedSpecTask> {
@@ -72,7 +74,10 @@ function placeWanted<W extends WantedSpecTask>(
     return;
   }
 
-  (REQUEUE.has(match.status) ? plan.requeue : plan.update).push({
+  (REQUEUE.has(match.status) || completedOtherWork(match, wanted)
+    ? plan.requeue
+    : plan.update
+  ).push({
     id: match.id,
     wanted,
   });
@@ -94,4 +99,16 @@ function takeMatch(
   ].find((i) => i >= 0);
 
   return index === undefined ? undefined : unmatched.splice(index, 1)[0];
+}
+
+// `completed` means a PR was opened, not merged: when the new decomposition gave the task different work, that PR is for the old task and the new one is not done — run 18773dbb's T010 row stayed "completed" as a README task after it became the verify node, and T011 would have started on a verify node that never existed.
+function completedOtherWork(
+  match: ExistingSpecTask,
+  wanted: WantedSpecTask,
+): boolean {
+  return (
+    match.status === "completed" &&
+    wanted.description !== undefined &&
+    match.description !== wanted.description
+  );
 }
