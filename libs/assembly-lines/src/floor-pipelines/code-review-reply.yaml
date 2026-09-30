@@ -43,8 +43,9 @@ line:
     - from: post-reply
       to: done
       on: success
+    # A post that fails is usually an agent that ended without a reply block; posting again reads the same output, so the agent runs again instead.
     - from: post-reply
-      to: post-reply
+      to: reply
       on: failed
       iteration_max: 1
 stations:
