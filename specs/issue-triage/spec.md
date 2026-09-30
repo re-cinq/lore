@@ -83,10 +83,23 @@ After successful diagnosis and verification, the bot waits for human approval be
 - **FR4**: The Verify station MUST cross-reference the diagnosed behavior against existing specs and documentation.
 - **FR5**: The assembly line MUST automatically close issues that the Verify station detects as already implemented or obsolete.
 - **FR6**: The assembly line MUST automatically split large issues into smaller tasks via a decompose node.
-- **FR7**: State transitions MUST be driven by a label taxonomy (`triage: needs-triage`, `triage: needs-reproduction`, `triage: reproduced`, `triage: unable-to-reproduce`, `triage: diagnosed`, `triage: skipped`, `triage: not-actionable`, `triage: failed`) via the `pipeline.events` bus and GitHub webhook ingress.
+- **FR7**: The `issues.labeled` webhook event MUST dispatch an `issue-triage` task when the applied label is `lore:triage` or `triage: needs-triage`; this mapping is wired in `apps/floor/src/events/handlers/github.ts` and `libs/shared/src/domain/task-types/dispatch-labels.ts`. Subsequent state transitions are driven by the label taxonomy (`triage: needs-triage`, `triage: needs-reproduction`, `triage: reproduced`, `triage: unable-to-reproduce`, `triage: diagnosed`, `triage: skipped`, `triage: not-actionable`, `triage: failed`) applied by the `triage_label` service station at each node outcome, via the `pipeline.events` bus and GitHub webhook ingress.
 - **FR8**: The handoff to the implementation loop MUST be human-gated, requiring manual application of the `lore:implementation` label.
 - **FR9**: Incoming triage tasks MUST be processed in batches, ordering older issues first; how a batch is released is an Open Question below.
 - **FR10**: The success criteria MUST be computable from what the line already records — the `outcome` of each issue-triage row in `pipeline.station_runs` and the `triage:*` labels on the issues — so the line emits no telemetry events of its own.
+- **FR11**: The assembly-line schema (`libs/assembly-lines/src/assembly-line-schema.ts`) MUST accept per-node declared extra outcomes via an `outcomes` field so that `reproduce` can emit `unable-to-reproduce`, `needs-reproduction`, and `skipped`, and `verify` can emit `obsolete`, `large-issue`, and `not-actionable`; `libs/assembly-lines/src/transition.ts` and `libs/assembly-lines/src/node-outcome.ts` MUST route them as valid `EdgeConditionValue` targets.
+- **FR12**: Three agent recipes MUST be shipped as `libs/shared/src/agent-defaults/triage-reproduce.md`, `libs/shared/src/agent-defaults/triage-diagnose.md`, and `libs/shared/src/agent-defaults/triage-verify.md`, each stating what the agent writes and how it reports each of its custom outcomes on its `LORE_NODE_RESULT` line; `libs/assembly-lines/src/prompt-refs.test.ts` MUST fail CI for any agent node whose recipe file does not exist.
+- **FR13**: The `issue-triage` task type MUST be added to `TaskTypeSchema` in `libs/shared/src/domain/pipeline-task-core.ts` and assigned a trust tier in `TRUST_LEVELS` in `libs/shared/src/domain/pipeline-task-trust.ts`; it MUST be mapped to this line in `assemblyLineFor` (`apps/floor/src/work/task/dispatch-agent-cr.ts`) and added to the pinned bundled-lines list in `libs/assembly-lines/src/loader.test.ts`.
+- **FR14**: The eight `triage:*` labels MUST be created in each onboarded repository before the `issues` station runs (which refuses labels that do not exist); a `triage_label` service station in `apps/stations/src/work/triage-label/` MUST apply the label matching each node outcome.
+- **FR15**: `close-obsolete` MUST be implemented as a new `close_issue` service station in `apps/stations/src/work/close-issue/` — posting a comment with the verdict then calling `project.issues.close` — with its `close_issue` node type added to `NodeType` and `PRODUCIBLE_OUTCOMES` in `libs/assembly-lines/src/assembly-line-schema.ts`.
+- **FR16**: `human-gate` MUST be implemented as a new `issue_label` human-station type in `libs/assembly-lines/src/human-station.ts` with a manifest in `apps/stations/`; the `issuesLabeled` handler in `apps/floor/src/events/handlers/github.ts` MUST, before the `alreadyWorkingOnIssue` guard, detect a `lore:implementation` label on an issue whose triage run is parked at `human-gate`, report success to that node via the existing `RUN_RESUME_EVENT` (ending the triage run and its task), and only then dispatch the implementation task.
+
+### Compliance Requirements
+
+- **CR1**: MUST use the Floor's existing 3-layer event bus (`pipeline.events`) and `github.issues.labeled` webhook ingress as defined in ADR-015 and ADR-044.
+- **CR2**: Each triage node's outcome MUST be recorded immutably in `pipeline.station_runs`; the next step MUST be derivable from persisted state alone without an in-memory walker (ADR-016).
+- **CR3**: Executing untrusted reproduction repositories MUST run in a Dedicated Agent Pod; it MUST NOT execute on the Floor coordinator.
+- **CR4**: The `issue-triage.yaml` MUST pass strict schema validation enforced by `libs/assembly-lines/src/loader.ts` at load time.
 
 ## Success Criteria
 
@@ -103,9 +116,8 @@ After successful diagnosis and verification, the bot waits for human approval be
 - **SC-011**: LLM tokens/cost per issue decreases.
 - **SC-012**: Docs/tests added from bot failures increases.
 - **SC-013**: Reporter response latency decreases.
-- **SC-014**: Bot PR merge rate increases.
 
-**Dropped from the plan's KPIs**: Human rework per bot PR — explicitly dropped because it measures implementation-loop/fix work which is out of scope for the triage line.
+**Dropped from the plan's KPIs**: Human rework per bot PR — explicitly dropped because it measures implementation-loop/fix work which is out of scope for the triage line. Bot PR merge rate — not in the plan's KPIs; dropped.
 
 ## Assumptions
 
@@ -113,5 +125,4 @@ After successful diagnosis and verification, the bot waits for human approval be
 
 ## Open Questions
 
-- **Should the triage line automatically decompose large issues into smaller tasks?** — Choices: split automatically via the `decompose` node, or leave the issue whole for a maintainer.
 - **How is a batch of triage work released (FR9)?** — Choices: a `cron.<job>.tick` fan-out that starts the oldest labelled issues each tick, as the detection lines do (`apps/floor/src/work/detect/fan-out.ts`); or a per-repo cap on concurrent issue-triage tasks in the task queue, claimed oldest issue first.
