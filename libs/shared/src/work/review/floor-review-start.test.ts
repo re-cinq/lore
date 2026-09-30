@@ -17,6 +17,7 @@ import {
   startReview,
   type ReviewStartDeps,
 } from "./floor-review-start.js";
+import { openFloorReviewCount } from "./floor-review-runs.js";
 
 const PR_URL = "https://github.com/re-cinq/lore/pull/412";
 const TARGET = { repo: "re-cinq/lore", prNumber: 412, autoReview: true };
@@ -338,6 +339,20 @@ describe("startReply", () => {
 
     expect(replied).toBeNull();
     expect(started(requests)).toEqual([]);
+  });
+});
+
+describe("openFloorReviewCount", () => {
+  it("counts the 1 open run of pull request 412 and not the finished one", async () => {
+    const { deps } = scene({
+      runs: [run({ id: "open-1", finishedAt: null }), run({ id: "done-1" })],
+    });
+
+    expect(await openFloorReviewCount(deps.floor, TARGET)).toBe(1);
+  });
+
+  it("counts 0 on a deployment with no floor", async () => {
+    expect(await openFloorReviewCount(null, TARGET)).toBe(0);
   });
 });
 

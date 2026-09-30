@@ -184,3 +184,13 @@ cronJobs:
       limits:
         cpu: "1000m"
         memory: 2Gi
+
+# The external floor engine (its own namespace and Helm release), which runs the
+# review lines: auto-merge asks it whether a review is still in flight. Off by
+# default; terraform sets enabled from var.enable_external_floor.
+floor:
+  enabled: false
+  apiUrl: http://floor-api.floor.svc.cluster.local:8080
+  serviceTokenSecret:
+    name: floor-service-token
+    key: token

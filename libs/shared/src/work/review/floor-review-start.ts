@@ -26,20 +26,17 @@ import {
   reviewDescription,
   reviewGateOpen,
 } from "./code-review-decisions.js";
-import { REVIEW_HELP } from "./review-summary.js";
-
-export const REVIEW_LINE = "code-review";
-export const RECHECK_LINE = "code-review-recheck";
-export const REPLY_LINE = "code-review-reply";
-
-/** The lines a pull request's close ends, and whose runs say which sha was last judged. */
-export const FLOOR_REVIEW_LINES: readonly string[] = [
-  REVIEW_LINE,
+import {
+  FLOOR_REVIEW_LINES,
   RECHECK_LINE,
   REPLY_LINE,
-];
-
-const RUNS_READ_PER_REPO = 200;
+  REVIEW_LINE,
+  hasReviewedPr,
+  headShaOf,
+  isOpen,
+  reviewRunsForPr,
+} from "./floor-review-runs.js";
+import { REVIEW_HELP } from "./review-summary.js";
 
 export interface ReviewFloor {
   lines: Pick<FloorClient["lines"], "start">;
@@ -186,33 +183,6 @@ export function closeReviewsForPr(
   return cancelOpenRuns(floor, target, FLOOR_REVIEW_LINES, "pr_closed");
 }
 
-export async function hasReviewedPr(
-  floor: ReviewFloor,
-  target: Pick<PullRequestTarget, "repo" | "prNumber">,
-): Promise<boolean> {
-  const runs = await reviewRunsForPr(floor, target);
-
-  return runs.some((run) => run.lineId === REVIEW_LINE);
-}
-
-/** Every review-family run of one pull request, newest first. Read by repository and matched on `pr_url` here, because only the review line keys its run on the pull request: a re-check or a reply that joined an open review would judge nothing. */
-export async function reviewRunsForPr(
-  floor: ReviewFloor,
-  target: Pick<PullRequestTarget, "repo" | "prNumber">,
-): Promise<RunView[]> {
-  const url = pullRequestUrl(target.repo, target.prNumber);
-  const page = await floor.runs.list(
-    { repo: floorRepoOf(target.repo) },
-    { limit: RUNS_READ_PER_REPO },
-  );
-
-  return page.items.filter(
-    (run) =>
-      FLOOR_REVIEW_LINES.includes(run.lineId) &&
-      startValue(run, "pr_url") === url,
-  );
-}
-
 async function cancelOpenRuns(
   floor: ReviewFloor,
   target: Pick<PullRequestTarget, "repo" | "prNumber">,
@@ -340,20 +310,4 @@ function skipped(prNumber: number, reason: string): null {
   console.log(`[code-review] PR #${prNumber}: no re-check — ${reason}`);
 
   return null;
-}
-
-function isOpen(run: RunView): boolean {
-  return run.finishedAt === null;
-}
-
-function headShaOf(run: RunView): string[] {
-  const sha = startValue(run, "head_sha");
-
-  return sha ? [sha] : [];
-}
-
-function startValue(run: RunView, name: string): string | undefined {
-  const startItems: Partial<Record<string, Item>> = run.startItems;
-
-  return startItems[name]?.ref;
 }

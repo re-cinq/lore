@@ -8,7 +8,8 @@ import {
 import { REVIEW_RERUN_HINT } from "@re-cinq/lore-shared/review/review-definitions.js";
 
 const REVIEWING_LINES = ["code-review", "code-review-recheck"];
-const UNFINISHED_OUTCOMES = ["failed", "error"];
+// `iteration_max` is how a run ends when its review agent failed, was retried once and failed again: the retry edge is spent, and that is a broken review like any other.
+const UNFINISHED_OUTCOMES = ["failed", "error", "iteration_max"];
 
 /** A cancelled run is a closed or superseded pull request, which owes nothing; only a review that broke does. */
 export function reviewBroke(lineId: string, outcome: string): boolean {

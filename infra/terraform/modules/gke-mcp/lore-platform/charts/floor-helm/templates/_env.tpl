@@ -57,6 +57,15 @@ Usage:
     secretKeyRef:
       name: {{ .Values.internalTokenSecret.name }}
       key: {{ .Values.internalTokenSecret.key }}
+{{- if .Values.floor.enabled }}
+- name: FLOOR_API_URL
+  value: {{ .Values.floor.apiUrl | quote }}
+- name: FLOOR_SERVICE_TOKEN
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.floor.serviceTokenSecret.name }}
+      key: {{ .Values.floor.serviceTokenSecret.key }}
+{{- end }}
 {{- if .Values.slackBotTokenSecret }}
 - name: LORE_SLACK_BOT_TOKEN
   valueFrom:

@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { ParkedTarget } from "@re-cinq/lore-shared/project/assembly-runs/parked-node.js";
-import { prReadyCheckSweep, type PrReadyCheckDeps } from "./pr-ready-check.js";
+import {
+  openReviewRunCounter,
+  prReadyCheckSweep,
+  type PrReadyCheckDeps,
+} from "./pr-ready-check.js";
 
 import type { RunGraph } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 
@@ -524,5 +528,30 @@ describe("a red end-of-line verdict on an Actions job", () => {
         },
       },
     ]);
+  });
+});
+
+describe("openReviewRunCounter", () => {
+  const counter = (localRuns: number, floorRuns: number) =>
+    openReviewRunCounter(
+      () => ({
+        assemblyRuns: {
+          listSummaries: () =>
+            Promise.resolve(Array.from({ length: localRuns }, () => ({}))),
+        },
+      }),
+      () => Promise.resolve(floorRuns),
+    );
+
+  it("counts 1 for a pull request whose only open review runs on the floor", async () => {
+    expect(await counter(0, 1)("re-cinq/lore", 412)).toBe(1);
+  });
+
+  it("counts 3 for 1 open run in Postgres and 2 on the floor", async () => {
+    expect(await counter(1, 2)("re-cinq/lore", 412)).toBe(3);
+  });
+
+  it("counts 0 when neither holds an open review", async () => {
+    expect(await counter(0, 0)("re-cinq/lore", 412)).toBe(0);
   });
 });
