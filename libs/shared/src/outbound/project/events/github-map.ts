@@ -231,6 +231,7 @@ function closedPrEvent(
       pr_number: prNumber,
       merged: pr.merged === true,
       branch: pr.head?.ref ?? "",
+      base_ref: pr.base?.ref ?? "",
       merge_commit_sha: pr.merge_commit_sha ?? null,
       labels: labelNames(pr.labels),
     },
