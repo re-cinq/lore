@@ -2,11 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import {
-  pipelineOf,
-  readPipelineFile,
-  type Pipeline,
-} from "@re-cinq/floor-pipeline";
+import { pipelineOf, readPipelineFile } from "@re-cinq/floor-pipeline";
 import {
   seedFloorPipelines,
   withEnvironment,
