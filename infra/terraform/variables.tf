@@ -135,7 +135,7 @@ variable "enable_headlamp" {
 }
 
 variable "headlamp_hostname" {
-  description = "Hostname for the Headlamp dashboard ingress (e.g. headlamp.example.com). Also the OAuth redirect host, so changing it invalidates the Google OAuth client's registered callback. Empty disables the ingress, leaving Headlamp reachable only by port-forward."
+  description = "Hostname for the Headlamp dashboard ingress (e.g. headlamp.example.com). Also the OAuth redirect host, so changing it invalidates the Google OAuth client's registered callback. Required when enable_headlamp is true — an empty value is rejected rather than quietly deploying nothing."
   type        = string
   default     = ""
 }

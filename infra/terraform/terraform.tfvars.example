@@ -45,7 +45,9 @@ lore_agent_events_hostname = "lore-agent-events.example.com"
 
 # The Headlamp cluster dashboard. Also the OAuth redirect host, so it must match
 # the Authorized redirect URI on the Google OAuth client
-# (https://<this host>/oauth2/callback). Empty disables the ingress.
+# (https://<this host>/oauth2/callback). Required whenever enable_headlamp is
+# true; Terraform rejects the pair rather than deploying an oauth2-proxy that
+# cannot build its redirect URL.
 headlamp_hostname = "headlamp.example.com"
 
 # --- Feature gates ---
