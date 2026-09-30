@@ -3,6 +3,12 @@
 export type IssueState = "open" | "closed";
 export type CloseReason = "completed" | "not_planned";
 
+/** What an issue update rewrites; a field left out stays as it is. */
+export interface IssueEdit {
+  title?: string;
+  body?: string;
+}
+
 export interface IssueRef {
   repo: string;
   number: number;
@@ -88,6 +94,13 @@ export interface GitHubPort {
     repo: string,
     labels: Array<{ name: string; color?: string; description?: string }>,
   ): Promise<void>;
+  /** Makes `childNumber` a native sub-issue of `parentNumber`. */
+  addSubIssue(
+    repo: string,
+    parentNumber: number,
+    childNumber: number,
+  ): Promise<void>;
+  updateIssue(repo: string, number: number, edit: IssueEdit): Promise<void>;
   commentOnIssue(repo: string, number: number, body: string): Promise<void>;
   closeIssue(repo: string, number: number, reason?: CloseReason): Promise<void>;
   addIssueLabel(repo: string, number: number, label: string): Promise<void>;

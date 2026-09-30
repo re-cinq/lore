@@ -448,19 +448,19 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 
 ### `libs/shared/src/outbound/project/issues/issues.test.ts`
 
-- returns the GitHubPort issues for the project's repo. ([validated by](libs/shared/src/outbound/project/issues/issues.test.ts#L55))
-- creates an issue bound to the repo. ([validated by](libs/shared/src/outbound/project/issues/issues.test.ts#L99))
-- comments, closes, and labels by number bound to the repo. ([validated by](libs/shared/src/outbound/project/issues/issues.test.ts#L112))
+- returns the GitHubPort issues for the project's repo. ([validated by](libs/shared/src/outbound/project/issues/issues.test.ts#L61))
+- creates an issue bound to the repo. ([validated by](libs/shared/src/outbound/project/issues/issues.test.ts#L105))
+- comments, closes, and labels by number bound to the repo. ([validated by](libs/shared/src/outbound/project/issues/issues.test.ts#L118))
 
 ### `libs/shared/src/outbound/project/lib/platform-github.test.ts`
 
-- exposes the github port name. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L191))
-- createLabels swallows a 422 (already exists) and continues. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L601))
-- createLabels rethrows a non-422 error. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L608))
-- createReview posts one review with the mapped comments array. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L615))
-- get exposes the PR head sha as headSha. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L638))
-- listReviewThreads maps GraphQL thread nodes (id, resolution, outdated flag, comment databaseIds) and stitches pages past the first cursor. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L689))
-- resolveReviewThread sends the GraphQL mutation carrying the thread node id. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L739))
+- exposes the github port name. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L203))
+- createLabels swallows a 422 (already exists) and continues. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L647))
+- createLabels rethrows a non-422 error. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L654))
+- createReview posts one review with the mapped comments array. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L661))
+- get exposes the PR head sha as headSha. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L684))
+- listReviewThreads maps GraphQL thread nodes (id, resolution, outdated flag, comment databaseIds) and stitches pages past the first cursor. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L735))
+- resolveReviewThread sends the GraphQL mutation carrying the thread node id. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L785))
 
 ### `libs/shared/src/outbound/project/pulls/pull-requests.test.ts`
 
@@ -478,9 +478,9 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 
 ### `libs/shared/src/outbound/project/repo/repo-files.test.ts`
 
-- reads a file from the repo at the given ref. ([validated by](libs/shared/src/outbound/project/repo/repo-files.test.ts#L51))
-- returns null for a file the repo does not have. ([validated by](libs/shared/src/outbound/project/repo/repo-files.test.ts#L57))
-- creates a branch and commits a file via the API, repo bound. ([validated by](libs/shared/src/outbound/project/repo/repo-files.test.ts#L63))
+- reads a file from the repo at the given ref. ([validated by](libs/shared/src/outbound/project/repo/repo-files.test.ts#L53))
+- returns null for a file the repo does not have. ([validated by](libs/shared/src/outbound/project/repo/repo-files.test.ts#L59))
+- creates a branch and commits a file via the API, repo bound. ([validated by](libs/shared/src/outbound/project/repo/repo-files.test.ts#L65))
 
 ### `libs/shared/src/work/review/comment-triage.test.ts`
 
@@ -545,32 +545,32 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
   verdict read through `lore_get_ci_failures` rather than reasoned about or re-run, each
   diff read once in place, and a `question` when an added spec statement is not what a
   person using that surface would expect.
-  ([validated by](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L524), [validated by](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L534), [validated by](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L545))
+  ([validated by](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L525), [validated by](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L535), [validated by](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L546))
 - *(added 2026-09-25)* A review asked for by hand supersedes the fast pass a push started:
   the open re-check is finished `superseded` before the deep review starts, so one sha
   never collects two verdicts of different depths.
 - Every recipe that asks for a `REVIEW_FINDINGS` block shows a whole finding
   (`path`, `line`, `label`, `decoration`, `subject`) rather than pointing at
   another recipe's schema, so no model has to guess the shape.
-  ([validated by](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L248))
+  ([validated by](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L249))
 - *(added 2026-09-24)* The deep review reads the change as its user before it reads
   it as its reviewer: for every spec statement the PR adds or changes, one line on
   what a person using that surface sees differently, compared with the statements
   beside it and the page or route that renders it, and a mismatch is a `question`
   finding rather than silence — a spec written in the same PR as its code proves
   nothing about intent (the #2130 replay approved a fresh-run design twice).
-  ([validated by](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L438))
+  ([validated by](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L439))
 - Lint, types, formatting and tests are CI's verdict, read through
   `lore_get_ci_failures`; the review runs no eslint, tsc, formatter, test runner or
-  install. ([validated by](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L448))
+  install. ([validated by](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L449))
 - The diff is read once, in place, never dumped to a file and read back.
-  ([validated by](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L458))
+  ([validated by](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L459))
 - Context is queried with the PR title, the spec sections it touches and the surface
   it changes, never with a description of reviewing, which returns the platform
-  overview. ([validated by](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L464))
+  overview. ([validated by](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L465))
 - `changes_requested` is for a defect in the changed code or a mismatch between what
   the spec says and what a person would expect of its surface; a `question` alone
-  never blocks. ([validated by](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L473))
+  never blocks. ([validated by](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L474))
 - parses a valid findings block into a ReviewOutput. ([validated by](libs/shared/src/work/review/review-findings.test.ts#L8))
 - returns null when no findings block is present. ([validated by](libs/shared/src/work/review/review-findings.test.ts#L42))
 - returns null when the block is not valid JSON that a quote/newline repair

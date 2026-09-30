@@ -54,11 +54,11 @@ export type ReadySpecTask = TaskColumn<
   "id" | "description" | "contextBundle" | "targetRepo" | "taskGroupId"
 >;
 
-/** Running/queued spec-task count for one task group (cnt is pg's text COUNT). */
-export interface SpecGroupCount {
-  task_group_id: string;
-  cnt: string;
-}
+/** A running/queued spec-task of a group, as the executor's admission reads it: which file it edits and whether it may run beside its siblings. */
+export type RunningSpecTask = TaskColumn<"taskGroupId"> & {
+  file_path: string | null;
+  parallelizable: boolean;
+};
 
 /** A task parked in `awaiting_approval` that carries an issue (the label gate). */
 export type AwaitingApprovalTask = TaskColumn<"id" | "targetRepo"> & {
@@ -158,10 +158,10 @@ export interface TaskQueueRepository {
   /** Pending spec-tasks whose depends_on are all completed/merged in the same spec; org-wide by default, or scoped via repo (lore_ready_tasks path). */
   findReadySpecTasks(repo?: string): Promise<ReadySpecTask[]>;
 
-  /** running/queued spec-task counts per group, for the concurrency gate. */
-  countRunningSpecTasksByGroup(): Promise<SpecGroupCount[]>;
+  /** Every running/queued spec-task that belongs to a group, for the executor's admission (cap, shared file, parallelizable). */
+  runningSpecTasks(): Promise<RunningSpecTask[]>;
 
-  /** Count of non-merged tasks in groupId (spec-status-upkeep FR1 group-completion signal); a closed-without-merge sibling keeps it above zero so no flip fires on a partially-abandoned group. */
+  /** Count of tasks in groupId neither merged nor cancelled (spec-status-upkeep FR1 group-completion signal). A closed-without-merge sibling (`failed`) keeps it above zero so no flip fires on a partially-abandoned group; a cancelled one was dropped from the plan by a rerun and is no longer owed. */
   countUnmergedInGroup(groupId: string): Promise<number>;
 
   /** Atomically flips a pending spec-task to running; true iff this caller won. agentId records the claimer (default spec-task-executor). */

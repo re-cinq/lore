@@ -17,6 +17,8 @@ import type {
 import { z } from "zod";
 import { createTask } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
 import { PgAgentDefs } from "@re-cinq/lore-shared/project/agents/agent-defs-pg.js";
+import { PgAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-pg.js";
+import { cancelTaskAndItsRuns } from "../../../work/pipeline/cancel-task.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { withPool } from "../with-pool.js";
@@ -126,7 +128,12 @@ const EXISTING_TASK_ACTIONS: Record<
 > = {
   retry: (_pool, h, _parsed, taskId) => retryAction(h, taskId),
   cancel: (pool, h, _parsed, taskId) =>
-    refusable(h, () => cancelPipelineTask(pool, taskId)),
+    refusable(h, () =>
+      cancelTaskAndItsRuns(taskId, {
+        cancelTask: (id) => cancelPipelineTask(pool, id),
+        runs: new PgAssemblyRuns(pool),
+      }),
+    ),
   "run-now": (pool, h, _parsed, taskId) =>
     refusable(h, () => escalatePipelineTask(pool, taskId)),
   revise: reviseAction,

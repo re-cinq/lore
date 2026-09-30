@@ -65,6 +65,19 @@ export interface TaskListResult {
   total: number;
 }
 
+/** A plan's spec-tasks as the issues station files them: one per task issue, matched against the plan's existing spec-tasks (by its plan, or the run that filed them) rather than added beside them. */
+export interface ReconcileSpecTasksInput {
+  planId?: string;
+  groupId?: string;
+  tasks: (CreateTaskInput & { issueNumber: number })[];
+}
+
+export interface ReconciledSpecTasks {
+  created: number;
+  updated: number;
+  cancelled: number;
+}
+
 export interface TaskStorePort {
   // repo-scoped reads
   pending(repo: string): Promise<PipelineTask[]>;
@@ -84,6 +97,11 @@ export interface TaskStorePort {
   ): Promise<DriftTaskRow[]>;
   // writes
   create(input: CreateTaskInput): Promise<CreatedTask>;
+  /** Files a plan's spec-tasks idempotently: reuses the one already on each task, cancels the ones the plan dropped. */
+  reconcileSpecTasks(
+    repo: string,
+    input: ReconcileSpecTasksInput,
+  ): Promise<ReconciledSpecTasks>;
   retry(id: string): Promise<RetriedTask>;
   setStatus(
     id: string,

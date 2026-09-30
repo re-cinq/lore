@@ -29,6 +29,13 @@ describe("PgTaskQueue.claimNextPending", () => {
 
     expect(await new PgTaskQueue(pool).claimNextPending()).toBeNull();
   });
+
+  it("leaves spec-tasks to the spec-task executor", async () => {
+    const { pool, calls } = fakePgPool([{ rows: [] }]);
+
+    await new PgTaskQueue(pool).claimNextPending();
+    expect(calls[0].text).toContain("task_type <> 'spec-task'");
+  });
 });
 
 describe("PgTaskQueue.findRecoverable", () => {
@@ -277,6 +284,27 @@ describe("InMemoryTaskQueue.claimNextPending", () => {
         ]).claimNextPending(),
       ).toBeNull();
     }
+  });
+
+  it("claims the gap-fill behind an older pending spec-task, which only the spec-task executor may take", async () => {
+    const q = queue([
+      {
+        id: "spec-t001",
+        status: "pending",
+        task_type: "spec-task",
+        priority: "normal",
+        created_at: at(NOW, 200),
+      },
+      {
+        id: "gap",
+        status: "pending",
+        task_type: "gap-fill",
+        priority: "normal",
+        created_at: at(NOW, 100),
+      },
+    ]);
+
+    expect((await q.claimNextPending())?.id).toBe("gap");
   });
 
   it("orders immediate before normal, then oldest first", async () => {
@@ -573,13 +601,66 @@ describe("InMemoryTaskQueue.findReadySpecTasks", () => {
   });
 });
 
+describe("runningSpecTasks", () => {
+  it("PgTaskQueue reads each running or queued grouped spec-task's file and whether it is parallelizable", async () => {
+    const row = {
+      task_group_id: "g1",
+      file_path: "libs/assembly-lines/src/assembly-lines/issue-triage.yaml",
+      parallelizable: false,
+    };
+    const { pool, calls } = fakePgPool([{ rows: [row] }]);
+
+    expect({
+      rows: await new PgTaskQueue(pool).runningSpecTasks(),
+      statuses: calls[0].text.includes("status IN ('running', 'queued')"),
+    }).toEqual({ rows: [row], statuses: true });
+  });
+
+  it("InMemory lists running and queued spec-tasks of a group, treating one with no parallelizable mark as not parallelizable", async () => {
+    const q = new InMemoryTaskQueue([
+      {
+        id: "a",
+        task_type: "spec-task",
+        status: "running",
+        task_group_id: "g1",
+        context_bundle: { file_path: "README.md", parallelizable: true },
+      },
+      {
+        id: "b",
+        task_type: "spec-task",
+        status: "queued",
+        task_group_id: "g1",
+        context_bundle: {},
+      },
+      {
+        id: "c",
+        task_type: "spec-task",
+        status: "pending",
+        task_group_id: "g1",
+        context_bundle: {},
+      },
+      {
+        id: "d",
+        task_type: "spec-task",
+        status: "running",
+        context_bundle: {},
+      },
+    ]);
+
+    expect(await q.runningSpecTasks()).toEqual([
+      { task_group_id: "g1", file_path: "README.md", parallelizable: true },
+      { task_group_id: "g1", file_path: null, parallelizable: false },
+    ]);
+  });
+});
+
 describe("countUnmergedInGroup", () => {
-  it("PgTaskQueue counts group rows whose status is not merged", async () => {
+  it("PgTaskQueue counts group rows neither merged nor cancelled", async () => {
     const { pool, calls } = fakePgPool([{ rows: [{ cnt: "2" }] }]);
 
     expect(await new PgTaskQueue(pool).countUnmergedInGroup("g1")).toBe(2);
     expect(calls[0].text).toContain("task_group_id = $1");
-    expect(calls[0].text).toContain("status <> 'merged'");
+    expect(calls[0].text).toContain("status NOT IN ('merged', 'cancelled')");
     expect(calls[0].params).toEqual(["g1"]);
   });
 
@@ -601,6 +682,15 @@ describe("countUnmergedInGroup", () => {
     seed[1].status = "merged";
     expect(await q.countUnmergedInGroup("g1")).toBe(0);
     expect(await q.countUnmergedInGroup("g2")).toBe(1);
+  });
+
+  it("InMemory leaves out a spec-task a rerun cancelled, so the rest merging completes group g1", async () => {
+    const q = new InMemoryTaskQueue([
+      { id: "a", task_group_id: "g1", status: "merged" },
+      { id: "dropped", task_group_id: "g1", status: "cancelled" },
+    ]);
+
+    expect(await q.countUnmergedInGroup("g1")).toBe(0);
   });
 });
 

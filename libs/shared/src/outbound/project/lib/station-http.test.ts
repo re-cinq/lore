@@ -55,6 +55,52 @@ describe("createStationProject", () => {
     expect(calls.every(() => true)).toBe(true);
   });
 
+  it("lists closed lore-managed issues with the label filter on the query", async () => {
+    const { fetchImpl } = fakeFetch({
+      "GET /api/repos/o/r/issues?state=closed&labels=lore-managed": {
+        issues: [
+          {
+            repo: "o/r",
+            number: 2262,
+            title: "T002",
+            state: "closed",
+            labels: [],
+          },
+        ],
+      },
+    });
+    const project = createStationProject("o/r", env, fetchImpl);
+
+    expect(
+      (
+        await project.issues.list({ state: "closed", labels: ["lore-managed"] })
+      ).map((issue) => issue.number),
+    ).toEqual([2262]);
+  });
+
+  it("reconciles plan 3b3a67af's spec-tasks with one PUT /tasks/spec-tasks", async () => {
+    const reconciled = { created: 1, updated: 9, cancelled: 0 };
+    const { fetchImpl, calls } = fakeFetch({
+      "PUT /api/repos/o/r/tasks/spec-tasks": reconciled,
+    });
+    const project = createStationProject("o/r", env, fetchImpl);
+    const input = {
+      planId: "3b3a67af",
+      groupId: "g1",
+      tasks: [{ description: "T001", issueNumber: 2261 }],
+    };
+
+    expect({
+      result: await project.tasks.reconcileSpecTasks(input),
+      calls,
+    }).toEqual({
+      result: reconciled,
+      calls: [
+        { method: "PUT", path: "/api/repos/o/r/tasks/spec-tasks", body: input },
+      ],
+    });
+  });
+
   it("files a task via POST /tasks and opens a PR via POST /pulls", async () => {
     const { fetchImpl, calls } = fakeFetch({
       "POST /api/repos/o/r/tasks": { task_id: "new", status: "pending" },
@@ -109,5 +155,93 @@ describe("findOpenLike accepts either wire spelling", () => {
     expect(
       await find([{ id: "t1", taskType: "gap-fill", status: "running" }]),
     ).toEqual([{ id: "t1", task_type: "gap-fill", status: "running" }]);
+  });
+});
+
+describe("filing a spec-task over HTTP", () => {
+  it("carries the spec-task's own issue #2261 on POST /tasks", async () => {
+    const { fetchImpl, calls } = fakeFetch({
+      "POST /api/repos/o/r/tasks": { task_id: "new", status: "pending" },
+    });
+
+    await createStationProject("o/r", env, fetchImpl).tasks.create({
+      description: "T001",
+      taskType: "spec-task",
+      targetRepo: "o/r",
+      issueNumber: 2261,
+      issueUrl: "https://github.com/o/r/issues/2261",
+    });
+
+    expect(
+      calls.find((c) => c.path === "/api/repos/o/r/tasks")?.body,
+    ).toMatchObject({
+      issueNumber: 2261,
+      issueUrl: "https://github.com/o/r/issues/2261",
+    });
+  });
+
+  it("carries the task group g-1 on POST /tasks", async () => {
+    const { fetchImpl, calls } = fakeFetch({
+      "POST /api/repos/o/r/tasks": { task_id: "new", status: "pending" },
+    });
+
+    await createStationProject("o/r", env, fetchImpl).tasks.create({
+      description: "T001",
+      taskType: "spec-task",
+      targetRepo: "o/r",
+      taskGroupId: "g-1",
+    });
+
+    expect(
+      calls.find((c) => c.path === "/api/repos/o/r/tasks")?.body,
+    ).toMatchObject({ taskType: "spec-task", taskGroupId: "g-1" });
+  });
+
+  it("names lore-api's reason in the error, not only the 500", async () => {
+    const refusing = (async () => ({
+      ok: false,
+      status: 500,
+      text: async () =>
+        JSON.stringify({ error: 'Task type "spec-task" not allowed' }),
+    })) as unknown as typeof fetch;
+
+    await expect(
+      createStationProject("o/r", env, refusing).tasks.create({
+        description: "T001",
+        taskType: "spec-task",
+        targetRepo: "o/r",
+      }),
+    ).rejects.toThrow(
+      new Error('POST /tasks failed: 500 — Task type "spec-task" not allowed'),
+    );
+  });
+});
+
+describe("tying task issues to their story issue over HTTP", () => {
+  it("links #2261 under #2260 and rewrites #2260's title and body", async () => {
+    const { fetchImpl, calls } = fakeFetch({
+      "POST /api/repos/o/r/issues/2260/sub-issues": { ok: true },
+      "PATCH /api/repos/o/r/issues/2260": { ok: true },
+    });
+    const project = createStationProject("o/r", env, fetchImpl);
+
+    await project.issues.addSubIssue(2260, 2261);
+    await project.issues.update(2260, {
+      title: "User story: Issue triage",
+      body: "- [ ] #2261 T001",
+    });
+
+    expect(calls).toEqual([
+      {
+        method: "POST",
+        path: "/api/repos/o/r/issues/2260/sub-issues",
+        body: { child: 2261 },
+      },
+      {
+        method: "PATCH",
+        path: "/api/repos/o/r/issues/2260",
+        body: { title: "User story: Issue triage", body: "- [ ] #2261 T001" },
+      },
+    ]);
   });
 });

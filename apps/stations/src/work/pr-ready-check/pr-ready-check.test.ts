@@ -60,6 +60,7 @@ function deps(overrides: Partial<PrReadyCheckDeps> = {}) {
     listOpenLoopRuns: async () => [
       {
         id: "run-1",
+        blueprintName: "implementation-loop",
         repo: "acme/widgets",
         status: "running",
         args: { pr_number: 12 },
@@ -192,6 +193,7 @@ describe("prReadyCheckSweep", () => {
       listOpenLoopRuns: async () => [
         {
           id: "run-1",
+          blueprintName: "implementation-loop",
           repo: "acme/widgets",
           status: "running",
           args: {},
@@ -210,6 +212,7 @@ describe("prReadyCheckSweep", () => {
       listOpenLoopRuns: async () => [
         {
           id: "run-err",
+          blueprintName: "implementation-loop",
           repo: "acme/widgets",
           status: "running",
           args: { pr_number: 1 },
@@ -217,6 +220,7 @@ describe("prReadyCheckSweep", () => {
         },
         {
           id: "run-ok",
+          blueprintName: "implementation-loop",
           repo: "acme/widgets",
           status: "running",
           args: { pr_number: 2 },
@@ -301,6 +305,7 @@ describe("prReadyCheckSweep", () => {
       listOpenLoopRuns: async () => [
         {
           id: "run-1",
+          blueprintName: "implementation-loop",
           repo: "acme/widgets",
           status: "running",
           args: { pr_number: 12, ci_feedback_sha: "deadbeef" },
@@ -316,6 +321,54 @@ describe("prReadyCheckSweep", () => {
     expect(d.reported[0]).toMatchObject({
       outcome: "failed",
       args: { reason: "ci_red_unchanged" },
+    });
+  });
+
+  it("resumes an implementation run parked at await-ci when its build is green, not only implementation-loop runs", async () => {
+    const d = deps({
+      listOpenLoopRuns: async () => [
+        {
+          id: "run-2",
+          blueprintName: "implementation",
+          repo: "acme/widgets",
+          status: "running",
+          args: { pr_number: 12 },
+          graph: { ...graph, name: "implementation" },
+        },
+      ],
+      listStationRuns: async () => parkedAtCi,
+    });
+
+    await prReadyCheckSweep(d.deps);
+
+    expect(d.reported).toEqual([
+      {
+        target: { lineId: "run-2", nodeId: "await-ci", iteration: 1 },
+        outcome: "success",
+        args: {},
+      },
+    ]);
+  });
+
+  it("leaves a pr_review park of any line but implementation-loop to whatever resumes it", async () => {
+    const d = deps({
+      listOpenLoopRuns: async () => [
+        {
+          id: "run-3",
+          blueprintName: "implementation",
+          repo: "acme/widgets",
+          status: "running",
+          args: { pr_number: 12 },
+          graph: { ...graph, name: "implementation" },
+        },
+      ],
+    });
+
+    const summary = await prReadyCheckSweep(d.deps);
+
+    expect({ reported: d.reported, summary }).toEqual({
+      reported: [],
+      summary: "checked 1, resumed 0, blocked 0, waiting 0",
     });
   });
 

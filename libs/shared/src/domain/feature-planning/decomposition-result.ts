@@ -10,6 +10,13 @@ export interface DecompTask {
   file_path?: string;
   /** Agent labels from repo REAL list; validated (see decideIssueWork) to prevent GitHub silent invention. */
   labels?: string[];
+  /** The task's own issue: a developer implements it from this plus the linked references, nothing else. */
+  title?: string;
+  context?: string;
+  changes?: string;
+  acceptance_criteria?: string[];
+  test_plan?: string;
+  references?: string[];
 }
 
 export interface UserStory {
@@ -168,6 +175,52 @@ function applyTaskOptionals(
   if (labels.length) {
     task.labels = labels;
   }
+  Object.assign(task, taskIssueDetail(t));
+}
+
+/** The detail a task's issue carries, read leniently from anything shaped like a task (the decomposition, or a spec-task's context bundle); each field only when written. */
+export type TaskIssueDetail = Pick<
+  DecompTask,
+  | "title"
+  | "context"
+  | "changes"
+  | "acceptance_criteria"
+  | "test_plan"
+  | "references"
+>;
+
+export function taskIssueDetail(source: object): TaskIssueDetail {
+  const t = source as Record<string, unknown>;
+
+  return {
+    ...textField("title", t.title),
+    ...textField("context", t.context),
+    ...textField("changes", t.changes),
+    ...textField("test_plan", t.test_plan ?? t.testPlan),
+    ...listField(
+      "acceptance_criteria",
+      t.acceptance_criteria ?? t.acceptanceCriteria,
+    ),
+    ...listField("references", t.references),
+  };
+}
+
+function textField<K extends string>(
+  key: K,
+  value: unknown,
+): Partial<Record<K, string>> {
+  return typeof value === "string" && value.trim()
+    ? ({ [key]: value } as Record<K, string>)
+    : {};
+}
+
+function listField<K extends string>(
+  key: K,
+  value: unknown,
+): Partial<Record<K, string[]>> {
+  const list = asStringList(value);
+
+  return list.length ? ({ [key]: list } as Record<K, string[]>) : {};
 }
 
 function taskFilePath(t: Record<string, unknown>): string | undefined {

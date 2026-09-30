@@ -2,7 +2,7 @@ import { unblockedBy } from "./task-queue-port.js";
 import type {
   ReadySpecTask,
   CompletedSpecTask,
-  SpecGroupCount,
+  RunningSpecTask,
 } from "./task-queue-port.js";
 import type { SeedTask } from "./task-queue-memory.js";
 
@@ -77,29 +77,30 @@ export class SpecTaskStore {
       .map(toReadySpecTask);
   }
 
-  async countRunningSpecTasksByGroup(): Promise<SpecGroupCount[]> {
-    const counts = new Map<string, number>();
-
-    for (const t of this.tasks) {
-      if (t.task_type !== "spec-task" || !isRunningOrQueued(t.status)) {
-        continue;
-      }
-
-      if (t.task_group_id == null) {
-        continue;
-      }
-      counts.set(t.task_group_id, (counts.get(t.task_group_id) ?? 0) + 1);
-    }
-
-    return [...counts.entries()].map(([task_group_id, cnt]) => ({
-      task_group_id,
-      cnt: String(cnt),
-    }));
+  async runningSpecTasks(): Promise<RunningSpecTask[]> {
+    return this.tasks
+      .filter(
+        (t) =>
+          t.task_type === "spec-task" &&
+          isRunningOrQueued(t.status) &&
+          t.task_group_id != null,
+      )
+      .map((t) => ({
+        task_group_id: t.task_group_id ?? null,
+        file_path:
+          typeof t.context_bundle?.file_path === "string"
+            ? t.context_bundle.file_path
+            : null,
+        parallelizable: t.context_bundle?.parallelizable === true,
+      }));
   }
 
   async countUnmergedInGroup(groupId: string): Promise<number> {
     return this.tasks.filter(
-      (t) => t.task_group_id === groupId && t.status !== "merged",
+      (t) =>
+        t.task_group_id === groupId &&
+        t.status !== "merged" &&
+        t.status !== "cancelled",
     ).length;
   }
 

@@ -71,6 +71,8 @@ files you read by path, whatever vendor you are:
    artifact's Constitution Check answers to.
 3. `.specify/templates/spec-template.md`, `.specify/templates/plan-template.md`,
    `.specify/templates/tasks-template.md` — the templates you fill.
+4. `.lore/assembly-line-guide.md` — when the change adds or changes an
+   assembly line: every piece a line needs, and where it lives.
 
 When a repository has none of these, follow the conventions of the specs
 that already exist and the metadata-table format.
@@ -141,6 +143,19 @@ Before you commit, check the artifacts you touched:
 - no requirement exists that neither the plan nor the change-set calls for;
 - no statement is duplicated within or across the touched specs;
 - no requirement is left without a named mechanism or an Open Question;
+- every mechanism a requirement names (node type, edge outcome, station,
+  task type, label, table, route, handler) exists in this repository — you
+  searched for it — or a tasks.md task creates it; for an assembly line, each
+  item of `.lore/assembly-line-guide.md` the plan needs is present or tasked;
+- every file the plan artifact's Project Structure lists is changed by at
+  least one task;
+- no MUST requirement depends on an answer its own Open Questions still ask:
+  state it as conditional on that question, or keep it out of Requirements;
+- tasks that edit the same file are chained with `(depends on …)` in build
+  order, and only a task that can truly run beside its phase-peers is `[P]`;
+- every task names the test that proves it (the test file and what it
+  asserts) after its description as `— test: …`; a manual step ("run it on a
+  real repo") is never the test;
 - zero `[NEEDS CLARIFICATION` strings remain in any committed file — each
   resolved marker is either answered from plan+repo, a recorded Assumption,
   or a plan question plus an Open Questions bullet;

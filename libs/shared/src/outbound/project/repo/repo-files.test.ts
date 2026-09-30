@@ -24,6 +24,8 @@ function fakeGitHub(writes: string[] = []): GitHubPort {
     listCommitsSince: async () => [],
     getIssueLabels: async () => [],
     listOpenBlockers: async () => [],
+    addSubIssue: async () => {},
+    updateIssue: async () => {},
     createIssue: async () => ({
       repo: "re-cinq/lore",
       number: 1,

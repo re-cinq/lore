@@ -34,7 +34,13 @@ the deliverable:
           "depends_on": ["T000"],
           "parallelizable": true,
           "phase": 1,
-          "file_path": "path/to/likely/file.ts"
+          "file_path": "path/to/likely/file.ts",
+          "title": "<short issue title, imperative>",
+          "context": "<why this task exists and what it is part of>",
+          "changes": "<what to change, file by file, precisely enough to start coding>",
+          "acceptance_criteria": ["<observable outcome that proves it done>", "..."],
+          "test_plan": "<which tests to write or run, and what they show>",
+          "references": ["specs/<slug>/spec.md#<section>", "specs/<slug>/plan.md#<section>"]
         }
       ]
     }
@@ -46,10 +52,16 @@ Rules:
   planning line's reviewed decomposition), it is the PRIMARY input: lift its
   T-ids, `[P]` markers (→ `parallelizable`), phases, `(depends on …)` marks
   (→ `depends_on`), file paths and `[USn]` story grouping into this JSON
-  1:1 — transcribe the reviewed breakdown, do not re-derive one. A task with
-  no `[USn]` marker (Setup and Foundational phases) belongs to the first
-  user story, the MVP, which it blocks. Fall back
-  to deriving from spec.md only where tasks.md is absent or silent.
+  1:1 — transcribe the reviewed breakdown, do not re-derive one. Tasks with
+  no `[USn]` marker go in a story of their own, named after their phase:
+  Setup and Foundational tasks in a first story "Setup and foundation" (the
+  user stories depend on them), Polish tasks in a last story "Polish". Fall
+  back to deriving from spec.md only where tasks.md is absent or silent.
+- Two exceptions to transcribing. Tasks that edit the same `file_path` get
+  `depends_on` the immediately preceding one of them in T-id order when
+  tasks.md left them unchained, so they form one chain — side by side they can only conflict. And `test_plan` names a
+  test file and what it asserts, from tasks.md's `— test: …`; never a manual
+  step such as "run it on a real repo".
 - A **user story** is a coherent vertical slice of value (what a user/operator can
   now do), ordered by build sequence. Derive stories and their acceptance criteria
   from the spec's scenarios and functional requirements — do not invent new ones.
@@ -58,6 +70,15 @@ Rules:
   `depends_on`, a `phase` number (group setup/data-model first, then build, then
   wiring/tests), and `parallelizable` true when it can run alongside its
   phase-peers. Add a `file_path` hint when the spec makes the target obvious.
+- **Every task becomes its own GitHub issue**, a sub-issue of one story issue
+  for the whole plan, and a developer implements it from that issue plus its
+  references ALONE. So write, for every task: `title` (short, imperative);
+  `context` (why it exists, what it is part of, what depends on it); `changes`
+  (what to change, file by file — real paths from plan.md's Mechanisms and
+  Project Structure, not guesses); `acceptance_criteria` (observable outcomes);
+  `test_plan` (which tests prove it); `references` (the spec.md and plan.md
+  sections it implements). Lift them from spec.md, plan.md and tasks.md —
+  never leave a developer to rediscover what the spec already settled.
 - Wire real dependencies: schema/data-model tasks come before the code that uses
   them; tests/integration come after the code they cover.
 - Prefer a handful of well-scoped tasks per story over many trivial ones.

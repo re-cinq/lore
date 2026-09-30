@@ -33,6 +33,12 @@ function fakeGitHub(issues: IssueRef[], calls: string[] = []): GitHubPort {
     },
     listLabels: async () => [],
     createLabels: async () => {},
+    addSubIssue: async (repo, parent, child) => {
+      calls.push(`sub:${repo}:${parent}:${child}`);
+    },
+    updateIssue: async (repo, number, edit) => {
+      calls.push(`update:${repo}:${number}:${edit.title}:${edit.body}`);
+    },
     commentOnIssue: async (_repo, number, body) => {
       calls.push(`comment:${number}:${body}`);
     },
@@ -123,6 +129,22 @@ describe("IssueCollection", () => {
       "close:7:not_planned",
       "addLabel:7:approved",
       "removeLabel:7:awaiting-approval",
+    ]);
+  });
+
+  it("links #2261 under #2260 and rewrites #2260's title and body in its own repo", async () => {
+    const calls: string[] = [];
+    const issues = new IssueCollection("re-cinq/lore", fakeGitHub([], calls));
+
+    await issues.addSubIssue(2260, 2261);
+    await issues.update(2260, {
+      title: "User story: triage",
+      body: "sections",
+    });
+
+    expect(calls).toEqual([
+      "sub:re-cinq/lore:2260:2261",
+      "update:re-cinq/lore:2260:User story: triage:sections",
     ]);
   });
 });

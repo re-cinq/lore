@@ -6,7 +6,7 @@ import type {
   StaleTask,
   ReadySpecTask,
   CompletedSpecTask,
-  SpecGroupCount,
+  RunningSpecTask,
   AwaitingApprovalTask,
   TaskPrInfo,
   ReviewableTask,
@@ -106,6 +106,7 @@ export class InMemoryTaskQueue implements TaskQueueRepository {
       .filter(
         (t) =>
           t.status === "pending" &&
+          t.task_type !== "spec-task" &&
           (t.priority === "immediate" || ms(t.created_at) < now - GRACE_MS),
       )
       .sort((a, b) => {
@@ -147,8 +148,8 @@ export class InMemoryTaskQueue implements TaskQueueRepository {
     return this.specTasks.findReadySpecTasks(repo);
   }
 
-  countRunningSpecTasksByGroup(): Promise<SpecGroupCount[]> {
-    return this.specTasks.countRunningSpecTasksByGroup();
+  runningSpecTasks(): Promise<RunningSpecTask[]> {
+    return this.specTasks.runningSpecTasks();
   }
 
   countUnmergedInGroup(groupId: string): Promise<number> {

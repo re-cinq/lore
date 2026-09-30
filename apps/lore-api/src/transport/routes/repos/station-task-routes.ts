@@ -20,11 +20,14 @@ import { repoOf, fail } from "./station-helpers.js";
 
 // The station-pod task endpoints: drift/open-like lookups + queueing a new repo task.
 
-const TaskBody = z.object({
+export const TaskBody = z.object({
   description: z.string(),
   taskType: z.string(),
   createdBy: z.string().optional(),
   contextBundle: z.record(z.string(), z.unknown()).optional(),
+  taskGroupId: z.string().optional(),
+  issueNumber: z.number().int().positive().optional(),
+  issueUrl: z.string().optional(),
 });
 
 /** What `tasks.create` answers with — the queued task's identity, not its row. */
@@ -154,17 +157,28 @@ async function serveCreateRepoTask(
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
   try {
-    const body = request.payload as z.infer<typeof TaskBody>;
     const p = await projectFor(repoOf(request.params));
-    const created = await p.tasks.create({
-      description: body.description,
-      taskType: body.taskType,
-      createdBy: body.createdBy,
-      contextBundle: body.contextBundle,
-    });
+    const created = await p.tasks.create(
+      repoTaskInput(request.payload as z.infer<typeof TaskBody>),
+    );
 
     return h.response(created);
   } catch (err) {
     return fail(h, err);
   }
+}
+
+/** What a station's task body queues: its fields as sent, the group only when it carries one — a spec-task that lost its group never counted toward its feature's merge. */
+export function repoTaskInput(body: z.infer<typeof TaskBody>) {
+  return {
+    description: body.description,
+    taskType: body.taskType,
+    ...(body.createdBy ? { createdBy: body.createdBy } : {}),
+    ...(body.contextBundle ? { contextBundle: body.contextBundle } : {}),
+    ...(body.taskGroupId ? { taskGroupId: body.taskGroupId } : {}),
+    ...(body.issueNumber !== undefined
+      ? { issueNumber: body.issueNumber }
+      : {}),
+    ...(body.issueUrl ? { issueUrl: body.issueUrl } : {}),
+  };
 }

@@ -64,6 +64,7 @@ HTTP ingress: the GitHub branch of `POST /api/events` on the event-router (ADR-0
     - `triage: needs-triage` → issue-triage (`apps/floor/src/events/handlers/github.ts` + `libs/shared/src/domain/task-types/dispatch-labels.ts`)
     - `lore` (alone) → the repo's `dispatch_default_type` (general by default)
     ([validated by reads implementation off a lore:implementation label](libs/shared/src/domain/task-types/dispatch-labels.test.ts#L5), [`dispatch-labels.test.ts:11`](libs/shared/src/domain/task-types/dispatch-labels.test.ts#L11), [`dispatch-labels.test.ts:16`](libs/shared/src/domain/task-types/dispatch-labels.test.ts#L16), [`dispatch-labels.test.ts:22`](libs/shared/src/domain/task-types/dispatch-labels.test.ts#L22))
+  - *(Planned — `specs/issue-triage`, not yet implemented:)* `lore:triage` and `triage: needs-triage` → issue-triage.
   - Create pipeline task with issue context
   - Comment on issue: "Lore agent is working on this. Task: `{id}`"
   - Add `lore-managed` label to the issue

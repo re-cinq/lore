@@ -69,7 +69,10 @@ controller:
   replicas: 1
   image:
     repository: ghcr.io/re-cinq/ai-agent-controller
-    # Pinned by digest (never a floating tag) — v0.11.6: a Gemini run's file tools can
+    # Pinned by digest (never a floating tag) — v0.11.7: an Agent can override its
+    # definition's model for one run (spec.model), and that model also picks the vendor
+    # CLI — a line node's YAML model: reaches the pod at last (ai-agent-subsystem#262,
+    # re-cinq/lore#2267). v0.11.6: a Gemini run's file tools can
     # read and write the input files beside its clone — the CLI confines them to the
     # clone, so every read_file/write_file of a planning pod's ../plan.md was refused
     # and the agent fell back to shell heredocs (ai-agent-subsystem#258). v0.11.5: an
@@ -119,11 +122,11 @@ controller:
     # line: informer watch + cache reconcile, /healthz from bind, conversation
     # continuity, tar-free conversation archiving.
     # Digests come from the release's install.yaml
-    # (https://github.com/re-cinq/ai-agent-subsystem/releases/tag/v0.11.6), or:
-    #   skopeo inspect docker://ghcr.io/re-cinq/ai-agent-controller:v0.11.6
-    digest: "sha256:b580a1229c81dfbbc7b91306c0fe362779b5e7599a272ca5f3838e52b1a336f2"
+    # (https://github.com/re-cinq/ai-agent-subsystem/releases/tag/v0.11.7), or:
+    #   skopeo inspect docker://ghcr.io/re-cinq/ai-agent-controller:v0.11.7
+    digest: "sha256:189bce2a9b8bab7e23661b9220f89683160599d043cc9722f5eec50dca292b20"
   # The image whose init container injects the agent runtime + supervisor into each run
-  # pod. Controller + agent ship as a PAIR from the v-tag matrix — pinned to the v0.11.6
+  # pod. Controller + agent ship as a PAIR from the v-tag matrix — pinned to the v0.11.7
   # digest, paired with the controller above. The GeminiSetup installer lives in THIS
   # image (the init container is what installs the vendor CLI), so the pair must move
   # together or a gemini run still boots a pod with no gemini binary in it. The
@@ -138,8 +141,9 @@ controller:
   # clone GitHub refuses moments after minting. THIS image carries the init, so the
   # retry lives here.
   # v0.11.6 declares the workspace as one of gemini-cli's workspace directories.
-  #   skopeo inspect --no-tags docker://ghcr.io/re-cinq/ai-agent:v0.11.6
-  agentImage: "ghcr.io/re-cinq/ai-agent@sha256:dd7ad55176efaf0453fad0ea1486b33ef70fd1c93b49cd6320c08ee9feec8736"
+  # v0.11.7 reads the run's model (spec.model) through AGENT_MODEL.
+  #   skopeo inspect --no-tags docker://ghcr.io/re-cinq/ai-agent:v0.11.7
+  agentImage: "ghcr.io/re-cinq/ai-agent@sha256:d344760bb071bb80c7ef886f6b8b3d2dfab2bc815762e3d2a26bb26b5466e978"
   # Tail of run-pod log kept in Agent.status.output (bounds the object under etcd's limit).
   maxOutputBytes: "262144"
   resources:

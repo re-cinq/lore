@@ -133,4 +133,54 @@ describe("parseDecomposition", () => {
       }),
     ).toThrow(/task.*description/i);
   });
+
+  it("keeps a task's issue detail — title, context, changes, acceptance criteria, test plan and references", () => {
+    const [task] = parseDecomposition({
+      stories: [
+        {
+          title: "S",
+          tasks: [
+            {
+              id: "T001",
+              description: "Add the issue-triage line stub",
+              title: "Add the issue-triage line stub",
+              context: "The line every later task fills in.",
+              changes: "Create issue-triage.yaml with empty nodes and edges.",
+              acceptanceCriteria: ["the loader accepts the file"],
+              test_plan: "Run the assembly-lines loader tests.",
+              references: "specs/issue-triage/plan.md#assembly-line-graph",
+            },
+          ],
+        },
+      ],
+    }).stories[0].tasks;
+
+    expect(task).toEqual({
+      id: "T001",
+      description: "Add the issue-triage line stub",
+      depends_on: [],
+      parallelizable: false,
+      phase: 0,
+      title: "Add the issue-triage line stub",
+      context: "The line every later task fills in.",
+      changes: "Create issue-triage.yaml with empty nodes and edges.",
+      acceptance_criteria: ["the loader accepts the file"],
+      test_plan: "Run the assembly-lines loader tests.",
+      references: ["specs/issue-triage/plan.md#assembly-line-graph"],
+    });
+  });
+
+  it("leaves a task without issue detail with none of those fields", () => {
+    const [task] = parseDecomposition({
+      stories: [{ title: "S", tasks: [{ id: "T001", description: "d" }] }],
+    }).stories[0].tasks;
+
+    expect(Object.keys(task).sort()).toEqual([
+      "depends_on",
+      "description",
+      "id",
+      "parallelizable",
+      "phase",
+    ]);
+  });
 });
