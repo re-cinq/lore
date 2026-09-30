@@ -105,6 +105,7 @@ import { implementationLoopRoutes } from "./routes/backlog/backlog.js";
 import { openApiJsonRoute, docsRoute } from "./routes/openapi/openapi.js";
 import { githubCredentialsRoute } from "./routes/github-credentials/github-credentials.js";
 import { floorGitCredentialRoute } from "./routes/floor/git-credential.js";
+import { reviewStartRoute } from "./routes/floor/review-start.js";
 import { githubInstallationsRoute } from "./routes/github-installations/record-installation.js";
 import { githubInstallationsListRoute } from "./routes/github-installations/list-installations.js";
 
@@ -122,6 +123,7 @@ export function routeList(getPool: PoolGetter): ServerRoute[] {
     ...clusterAgentRoutes(getPool),
     githubCredentialsRoute(getPool),
     floorGitCredentialRoute(),
+    reviewStartRoute(),
     githubInstallationsRoute(getPool),
     githubInstallationsListRoute(getPool),
     ...agentDefinitionRoutes(getPool),

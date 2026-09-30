@@ -7198,6 +7198,73 @@
         ]
       }
     },
+    "/api/review/start": {
+      "post": {
+        "operationId": "post_api_review_start",
+        "summary": "POST /api/review/start",
+        "tags": ["Other"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "202": {
+            "description": "A code-review run was started on the floor for the pull request, or joined if one is already open; null when the pull request is not open",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewStarted"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "task",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "repo": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "pr_number": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": ["repo", "pr_number"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/search-context": {
       "get": {
         "operationId": "get_api_search-context",
@@ -14434,6 +14501,16 @@
           }
         },
         "required": ["state", "canonicalUrl"],
+        "additionalProperties": false
+      },
+      "ReviewStarted": {
+        "type": "object",
+        "properties": {
+          "started": {
+            "type": ["string", "null"]
+          }
+        },
+        "required": ["started"],
         "additionalProperties": false
       },
       "RunStreamFrame": {
