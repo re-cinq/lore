@@ -98,16 +98,17 @@ describe("seedFloorPipelines", () => {
   });
 });
 
-describe("the four pipeline files shipped in libs/assembly-lines", () => {
+describe("the pipeline files shipped in libs/assembly-lines", () => {
   const pipelines = realFiles().map((file) =>
     pipelineOf(readPipelineFile(withEnvironment(file.text, FIXED_ENV))),
   );
 
-  it("declare the lines code-review, code-review-recheck, code-review-reply and lore-run-settled", () => {
+  it("declare the lines code-review, code-review-recheck, code-review-reply, feature-planning and lore-run-settled", () => {
     expect(pipelines.map((pipeline) => pipeline.line?.id).sort()).toEqual([
       "code-review",
       "code-review-recheck",
       "code-review-reply",
+      "feature-planning",
       "lore-run-settled",
     ]);
   });
@@ -119,10 +120,6 @@ describe("the four pipeline files shipped in libs/assembly-lines", () => {
         (definition) => (definition.body.settings as { prompt: string }).prompt,
       );
 
-    expect(prompts.map((prompt) => prompt.length > 0)).toEqual([
-      true,
-      true,
-      true,
-    ]);
+    expect(prompts.every((prompt) => prompt.length > 0)).toBe(true);
   });
 });
