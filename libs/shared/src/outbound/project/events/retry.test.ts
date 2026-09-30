@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { decideRetry, MAX_ATTEMPTS } from "./retry.js";
+import { decideRetry, MAX_ATTEMPTS, retryBudgetOf } from "./retry.js";
 
 describe("decideRetry", () => {
   it("retries with 2s backoff after the first failed attempt", () => {
@@ -36,5 +36,25 @@ describe("decideRetry", () => {
     expect(decideRetry({ attempts: MAX_ATTEMPTS + 3 })).toEqual({
       kind: "dead",
     });
+  });
+});
+
+describe("retryBudgetOf", () => {
+  it("reads 10 off an error carrying maxAttempts 10", () => {
+    expect(
+      retryBudgetOf(Object.assign(new Error("early"), { maxAttempts: 10 })),
+    ).toBe(10);
+  });
+
+  it("is undefined for an error without maxAttempts", () => {
+    expect(retryBudgetOf(new Error("boom"))).toBeUndefined();
+  });
+
+  it("is undefined when maxAttempts is the text 10", () => {
+    expect(retryBudgetOf({ maxAttempts: "10" })).toBeUndefined();
+  });
+
+  it("is undefined for a thrown string", () => {
+    expect(retryBudgetOf("boom")).toBeUndefined();
   });
 });

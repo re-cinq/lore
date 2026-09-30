@@ -11,7 +11,7 @@ export interface FloorRequest {
   body: unknown;
 }
 
-/** The JSON a request is answered with; `undefined` answers 404. */
+/** The JSON a request is answered with, or a whole `Response` to answer with as it is; `undefined` answers 404. */
 export type FloorAnswer = (request: FloorRequest) => unknown;
 
 export interface RecordedFloor {
@@ -59,6 +59,10 @@ function bodyOf(body: BodyInit | null | undefined): unknown {
 }
 
 function responseOf(answered: unknown): Response {
+  if (answered instanceof Response) {
+    return answered;
+  }
+
   return answered === undefined
     ? new Response(JSON.stringify({ title: "Not Found", status: 404 }), {
         status: HTTP_NOT_FOUND,

@@ -36,6 +36,7 @@ import {
   isOpen,
   reviewRunsForPr,
 } from "./floor-review-runs.js";
+import { startLine } from "./floor-line-start.js";
 import { REVIEW_HELP } from "./review-summary.js";
 
 export interface ReviewFloor {
@@ -123,7 +124,7 @@ async function startReviewLine(
   const { floor } = deps;
   const description = reviewDescription(input.repo, input.prNumber, pr.branch);
 
-  return floor.lines.start(REVIEW_LINE, {
+  return startLine(floor.lines, REVIEW_LINE, {
     repo: floorRepoOf(input.repo),
     startItems: await reviewItems(deps, pr, description),
   });
@@ -163,7 +164,7 @@ export async function startReply(
   if (!decideReviewOnReply({ ...input, pr, commentAuthor }).start) {
     return null;
   }
-  const started = await floor.lines.start(REPLY_LINE, {
+  const started = await startLine(floor.lines, REPLY_LINE, {
     repo: floorRepoOf(input.repo),
     startItems: {
       ...(await pullRequestItems(deps, pr!)),
@@ -210,7 +211,7 @@ async function startRecheckLine(
     sinceSha,
   );
   const { floor } = deps;
-  const started = await floor.lines.start(RECHECK_LINE, {
+  const started = await startLine(floor.lines, RECHECK_LINE, {
     repo: floorRepoOf(target.repo),
     startItems: await reviewItems(deps, pr, description),
   });

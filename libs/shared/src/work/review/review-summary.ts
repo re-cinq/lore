@@ -28,6 +28,20 @@ export function buildReviewSummary(
   return blocks.join("\n\n");
 }
 
+/** Body when review skipped due to exhausted LLM budget (approves to unblock). */
+export function budgetSkipBody(model?: string): string {
+  const blocks = [
+    "### Lore review — Approved without review (no LLM budget)",
+    "The review could not run: the account's LLM budget is exhausted. " +
+      "Approving so this PR is not blocked on an operator problem — no " +
+      "judgment of the diff has happened.",
+    model ? `_Reviewer that would have run: \`${model}\`_` : undefined,
+    REVIEW_RERUN_HINT,
+  ];
+
+  return blocks.filter((b): b is string => !!b).join("\n\n");
+}
+
 function tally(output: ReviewOutput): string {
   const { findings } = output;
   const mustFix = findings.filter(

@@ -1,7 +1,6 @@
 // A pull request's lifecycle, as the bus delivers it, turned into starts and cancels on the external floor. The retry and dead-lettering are the bus's, so a floor out of reach costs a delayed review and not a lost one.
 import type { EventHandler } from "@re-cinq/lore-shared/project/events/drain-loop.js";
 import {
-  decideReviewOnReply,
   isBotActor,
   isChangesRequestedReview,
   isReviewRequest,
@@ -82,7 +81,7 @@ function onPush(deps: FloorReviewDeps): EventHandler {
   };
 }
 
-/** Only the explicit `@lore review` drives a comment; a bot's own comment is dropped before any call, which is the loop breaker. */
+/** Only the explicit `@lore review` drives a comment, and like the run page's button it reviews a draft; a bot's own comment is dropped before any call, which is the loop breaker. */
 function onComment(deps: FloorReviewDeps): EventHandler {
   return async (params) => {
     const asked = params as unknown as CommentParams;
@@ -91,17 +90,12 @@ function onComment(deps: FloorReviewDeps): EventHandler {
     if (!autoReview || !asksForReview(asked)) {
       return;
     }
-    const review = await deps.review(asked.repo);
-    const pr = await review.pulls.get(asked.pr_number);
-    const commentAuthor = asked.comment_author;
 
-    if (decideReviewOnReply({ autoReview, pr, commentAuthor }).start) {
-      await startReview(review, {
-        ...targetOf(asked),
-        autoReview,
-        forced: true,
-      });
-    }
+    await startReview(await deps.review(asked.repo), {
+      ...targetOf(asked),
+      autoReview,
+      forced: true,
+    });
   };
 }
 

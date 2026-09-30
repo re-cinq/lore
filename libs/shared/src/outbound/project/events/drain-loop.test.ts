@@ -94,6 +94,29 @@ describe("handleOne", () => {
     expect(rec.failed).toEqual([]);
   });
 
+  it("marks failed with a 256s backoff at attempt 8 when the handler's error carries maxAttempts 10", async () => {
+    const rec = recorder();
+    const early: EventHandler = async () => {
+      throw Object.assign(new Error("floor not ready"), { maxAttempts: 10 });
+    };
+
+    await handleOne(row({ attempts: 8 }), deps(early, rec));
+    expect(rec.failed).toEqual([
+      { id: "1", error: "floor not ready", backoff: 256 },
+    ]);
+    expect(rec.dead).toEqual([]);
+  });
+
+  it("dead-letters at attempt 10 when the handler's error carries maxAttempts 10", async () => {
+    const rec = recorder();
+    const early: EventHandler = async () => {
+      throw Object.assign(new Error("floor not ready"), { maxAttempts: 10 });
+    };
+
+    await handleOne(row({ attempts: 10 }), deps(early, rec));
+    expect(rec.dead).toEqual([{ id: "1", error: "floor not ready" }]);
+  });
+
   it("passes the event params to the handler", async () => {
     const rec = recorder();
     let seen: Record<string, unknown> | undefined;

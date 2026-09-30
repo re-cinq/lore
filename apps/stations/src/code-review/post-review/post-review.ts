@@ -28,6 +28,12 @@ export interface ReviewPoster {
   listIssueComments?(number: number): Promise<IssueComment[]>;
 }
 
+/** The two reads the dedupe probe makes, optional so a poster without them still posts. */
+export type ReviewReads = Pick<
+  ReviewPoster,
+  "listReviews" | "listIssueComments"
+>;
+
 /** One visit of the post-review station: its identity keys the dedupe marker and signs every body. */
 export interface ReviewVisit {
   visitId: string;
@@ -204,7 +210,8 @@ function toReviewComment(finding: ReviewFinding) {
   };
 }
 
-function signed(body: string, visit: ReviewVisit): string {
+/** The body with the identity line and the per-visit marker every posted review ends with. */
+export function signed(body: string, visit: ReviewVisit): string {
   return `${body}\n\n${identityLine(visit)}\n\n${reviewVisitMarker(visit)}`;
 }
 
@@ -301,7 +308,7 @@ function approvedWithoutFindings(agentOutput: string): ReviewOutput | null {
 
 /** Whether this run's review already reached the PR, via either delivery shape; best-effort — a missing read surface or a throwing probe reports "not posted" so the guard never drops a review. */
 export async function reviewAlreadyPosted(
-  pulls: ReviewPoster,
+  pulls: ReviewReads,
   prNumber: number,
   marker: string,
 ): Promise<boolean> {
@@ -321,7 +328,7 @@ export async function reviewAlreadyPosted(
 }
 
 async function markerOnPr(
-  pulls: ReviewPoster,
+  pulls: ReviewReads,
   prNumber: number,
   marker: string,
 ): Promise<boolean> {

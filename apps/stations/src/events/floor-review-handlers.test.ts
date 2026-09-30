@@ -37,7 +37,9 @@ const OPEN_REVIEW_RUN = {
   finishedAt: null,
 };
 
-function scene(given: { autoReview?: boolean; runs?: unknown[] } = {}) {
+function scene(
+  given: { autoReview?: boolean; runs?: unknown[]; pull?: PullRef } = {},
+) {
   const recorded = recordedFloor((request) =>
     answerOf(request, given.runs ?? []),
   );
@@ -47,7 +49,7 @@ function scene(given: { autoReview?: boolean; runs?: unknown[] } = {}) {
       Promise.resolve({
         floor: recorded.floor,
         pulls: {
-          get: () => Promise.resolve(OPEN_PULL),
+          get: () => Promise.resolve(given.pull ?? OPEN_PULL),
           comment: () => Promise.resolve(),
           listCommits: () => Promise.resolve([]),
         },
@@ -105,6 +107,19 @@ describe("floorReviewHandlers", () => {
 
   it("starts a forced code-review when gedaiu comments @lore review", async () => {
     const { deliver, requests } = scene();
+
+    await deliver("github.issue_comment.created", {
+      comment_author: "gedaiu",
+      comment_body: "@lore review",
+    });
+
+    expect(writes(requests)).toEqual(["/assembly-lines/code-review/start"]);
+  });
+
+  it("starts a forced code-review when gedaiu comments @lore review on a draft pull request", async () => {
+    const { deliver, requests } = scene({
+      pull: { ...OPEN_PULL, draft: true },
+    });
 
     await deliver("github.issue_comment.created", {
       comment_author: "gedaiu",
