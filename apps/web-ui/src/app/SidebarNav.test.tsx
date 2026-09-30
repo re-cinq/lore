@@ -152,9 +152,7 @@ describe("SidebarNav cluster dashboard link", () => {
     expect(screen.getAllByRole("status", { name: "loading" })).toHaveLength(
       ALL_LINKS.length,
     );
-    expect(
-      linkByLabel("Headlamp").querySelector('[role="status"]'),
-    ).toBeNull();
+    expect(linkByLabel("Headlamp").querySelector('[role="status"]')).toBeNull();
   });
 
   it("adds exactly one link to the sidebar and changes no other", () => {
