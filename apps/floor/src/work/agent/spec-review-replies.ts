@@ -8,18 +8,25 @@ import {
   type SpecReviewResult,
 } from "@re-cinq/lore-shared/review/spec-review.js";
 import { errorMessage } from "@re-cinq/lore-shared";
-import type { ReplyPoster } from "../assembly-run/reply-post.js";
+import type {
+  IssueComment,
+  ReviewComment,
+  ReviewThread,
+} from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 
-/** The PR surface the replies need: the reply post, the dedupe-probe reads, and the thread resolve — the reads and the resolve optional like on {@link ReplyPoster} (fail open). */
-export type SpecReviewReplyPoster = Pick<
-  ReplyPoster,
-  | "replyToReviewComment"
-  | "comment"
-  | "listComments"
-  | "listIssueComments"
-  | "listReviewThreads"
-  | "resolveReviewThread"
->;
+/** The PR surface the replies need: the reply post, the dedupe-probe reads, and the thread resolve — the reads and the resolve optional, so a poster without them just skips that step (fail open: a rare duplicate beats a dropped reply). */
+export interface SpecReviewReplyPoster {
+  replyToReviewComment(
+    number: number,
+    commentId: number,
+    body: string,
+  ): Promise<void>;
+  comment(number: number, body: string): Promise<void>;
+  listComments?(number: number): Promise<ReviewComment[]>;
+  listIssueComments?(number: number): Promise<IssueComment[]>;
+  listReviewThreads?(number: number): Promise<ReviewThread[]>;
+  resolveReviewThread?(threadId: string): Promise<void>;
+}
 
 /** The run a rework answers for: its plan and its spec PR. */
 export interface ReviewTarget {

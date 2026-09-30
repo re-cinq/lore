@@ -32,6 +32,8 @@ export interface AssemblyRun {
   issueNumber: number | null;
   createdBy: string | null;
   costUsd: number | null;
+  /** Which engine walks the run: `floor` for one on the external floor. Optional so test doubles need not set it; the mapper always does. */
+  engine?: string;
 }
 
 export type AssemblyRunNodeRow =
@@ -75,6 +77,7 @@ export function durationSeconds(
 export function toAssemblyRun(row: AssemblyRunRow): AssemblyRun {
   return {
     id: row.id,
+    engine: row.engine,
     blueprintName: row.blueprint_name,
     graph: row.graph ?? null,
     taskId: row.task_id,

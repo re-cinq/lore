@@ -12,6 +12,8 @@ import { startStationDrain } from "./events/loop-boot.js";
 import { deliveries, eventProxy, usage } from "./outbound/queues.js";
 import { DEFAULT_DRAIN_TIMEOUT_MS } from "@re-cinq/lore-shared/project/events/event-tuning.js";
 import { requiredPort } from "@re-cinq/lore-shared/lib/required-env.js";
+import { floorConfigured } from "@re-cinq/lore-shared/floor/floor-client.js";
+import { startCodeReviewStations } from "./code-review/index.js";
 
 const PORT = requiredPort(process.env, "PORT");
 
@@ -30,8 +32,13 @@ async function main(): Promise<void> {
   await eventProxy().start();
 
   const stopServer = await startServer(PORT);
+  // The floor's stations claim from the floor's queue, not the bus: without a floor there is nothing for them to ask.
+  const floorStations = floorConfigured() ? startCodeReviewStations() : [];
 
-  const shutdown = shutdownHandler(drain, stopServer);
+  const shutdown = shutdownHandler(drain, async () => {
+    await Promise.all(floorStations.map((station) => station.stop()));
+    await stopServer();
+  });
 
   onTerminationSignals(shutdown);
 }

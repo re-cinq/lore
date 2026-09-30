@@ -52,6 +52,15 @@ variable "enable_gemini" {
   default = false
 }
 
+# Gates the wiring to the external floor engine (namespace `floor`): the
+# FLOOR_* env on lore-api and stations, the two service-token secrets, and the
+# `lore-mcp-auth` key merged into the floor's `agent-secrets`. Seed
+# lore-floor-service-token and lore-floor-git-credential-token first.
+variable "enable_external_floor" {
+  type    = bool
+  default = false
+}
+
 # Gates satellite-cluster registration (specs/running-stations-in-any-k8s-cluster
 variable "log_retention_days" {
   description = "Number of days to retain task logs in GCS"

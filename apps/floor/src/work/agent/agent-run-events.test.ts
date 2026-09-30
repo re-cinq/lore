@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { filePathsFromToolInput } from "./agent-run-tool-rows.js";
+import { filePathsFromToolInput } from "@re-cinq/lore-shared/agent-stream/agent-run-tool-rows.js";
 import { parseAgentSink } from "./agent-events.js";
 import type { AgentRunEventInsert } from "@re-cinq/lore-shared";
 

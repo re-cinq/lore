@@ -1,9 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  budgetSkipBody,
-  buildReviewSummary,
-  REVIEW_HELP,
-} from "./review-summary.js";
+import { buildReviewSummary, REVIEW_HELP } from "./review-summary.js";
 import type { ReviewOutput } from "./review-findings.js";
 
 describe("buildReviewSummary", () => {
@@ -65,21 +61,5 @@ describe("buildReviewSummary model disclosure", () => {
     expect(
       buildReviewSummary({ verdict: "approved", findings: [], summary: "" }),
     ).not.toContain("Reviewed by");
-  });
-});
-
-describe("budgetSkipBody", () => {
-  it("approves loudly without judgment and names the reviewer that would have run", () => {
-    const body = budgetSkipBody("gemini-3.1-pro-preview");
-
-    expect(body).toContain("Approved without review (no LLM budget)");
-    expect(body).toContain("no judgment of the diff has happened");
-    expect(body).toContain(
-      "_Reviewer that would have run: `gemini-3.1-pro-preview`_",
-    );
-  });
-
-  it("renders without a reviewer line when the model is unknown", () => {
-    expect(budgetSkipBody()).not.toContain("Reviewer that would have run");
   });
 });
