@@ -47,9 +47,9 @@ Issue gets comment: "Working on this → PR #N"
 
 HTTP ingress: the GitHub branch of `POST /api/events` on the event-router (ADR-044)
 - Validates GitHub webhook signature (HMAC SHA-256)
-- Handles `issues` event with action `labeled` ([validated by `github-map.test.ts:298`](libs/shared/src/outbound/project/events/github-map.test.ts#L298))
+- Handles `issues` event with action `labeled` ([validated by `github-map.test.ts:298`](libs/shared/src/outbound/project/events/github-map.test.ts#L301))
 - The event mapper is a guard at the door: it returns nothing when the `repository` is missing or the
-  event type is unhandled. ([validated by `github-map.test.ts:362`](libs/shared/src/outbound/project/events/github-map.test.ts#L362), [`github-map.test.ts:372`](libs/shared/src/outbound/project/events/github-map.test.ts#L372))
+  event type is unhandled. ([validated by `github-map.test.ts:362`](libs/shared/src/outbound/project/events/github-map.test.ts#L365), [`github-map.test.ts:372`](libs/shared/src/outbound/project/events/github-map.test.ts#L375))
 - If label name is `lore` (configurable):
   - Extract: issue title, body, repo full_name, issue number
   - Determine task type from issue labels, from the SAME table onboarding seeds the
@@ -60,6 +60,8 @@ HTTP ingress: the GitHub branch of `POST /api/events` on the event-router (ADR-0
     - `lore:implementation` → implementation
     - `lore:review` → review
     - `lore:runbook` → runbook
+    - `lore:triage` → issue-triage (`apps/floor/src/events/handlers/github.ts` + `libs/shared/src/domain/task-types/dispatch-labels.ts`)
+    - `triage: needs-triage` → issue-triage (`apps/floor/src/events/handlers/github.ts` + `libs/shared/src/domain/task-types/dispatch-labels.ts`)
     - `lore` (alone) → the repo's `dispatch_default_type` (general by default)
     ([validated by reads implementation off a lore:implementation label](libs/shared/src/domain/task-types/dispatch-labels.test.ts#L5), [`dispatch-labels.test.ts:11`](libs/shared/src/domain/task-types/dispatch-labels.test.ts#L11), [`dispatch-labels.test.ts:16`](libs/shared/src/domain/task-types/dispatch-labels.test.ts#L16), [`dispatch-labels.test.ts:22`](libs/shared/src/domain/task-types/dispatch-labels.test.ts#L22))
   - *(Planned — `specs/issue-triage`, not yet implemented:)* `lore:triage` and `triage: needs-triage` → issue-triage.

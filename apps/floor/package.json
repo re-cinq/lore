@@ -1,7 +1,7 @@
 {
   "name": "@re-cinq/lore-floor",
   "version": "0.1.0",
-  "description": "Lore agent runner \u2014 processes pipeline tasks via Anthropic API, runs scheduled jobs",
+  "description": "Lore agent runner — processes pipeline tasks via Anthropic API, runs scheduled jobs",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
@@ -25,16 +25,16 @@
     "@opentelemetry/sdk-metrics": "^2.11.0",
     "@opentelemetry/sdk-node": "^0.222.0",
     "@opentelemetry/sdk-trace-node": "^2.11.0",
-    "@re-cinq/agent-contracts": "^0.11.1",
+    "@re-cinq/agent-contracts": "^0.11.7",
     "@re-cinq/lore-assembly-lines": "*",
     "@re-cinq/lore-shared": "*",
+    "@re-cinq/lore-stations": "*",
     "cron-parser": "^5.10.0",
     "google-auth-library": "^11.0.2",
     "octokit": "^5.0.5",
     "pg": "^8.23.0",
     "yaml": "^2.7.0",
-    "zod": "^4.5.4",
-    "@re-cinq/lore-stations": "*"
+    "zod": "^4.5.4"
   },
   "devDependencies": {
     "@types/node": "^22.20.1",

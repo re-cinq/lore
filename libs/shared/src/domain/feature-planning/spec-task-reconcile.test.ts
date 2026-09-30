@@ -40,6 +40,34 @@ describe("planSpecTaskReconcile", () => {
     ).toEqual([{ id: "old", wanted: wanted("T001", 2261) }]);
   });
 
+  it("reuses failed T004 still on its first-attempt issue #2246, since that issue is none of the plan's current ones", () => {
+    expect(
+      planSpecTaskReconcile(
+        [
+          {
+            id: "old",
+            status: "failed",
+            issueNumber: 2246,
+            specTaskId: "T004",
+          },
+        ],
+        [wanted("T004", 2262)],
+      ).requeue,
+    ).toEqual([{ id: "old", wanted: wanted("T004", 2262) }]);
+  });
+
+  it("never takes a row by task id when its issue belongs to another of the plan's current tasks", () => {
+    const plan = planSpecTaskReconcile(
+      [{ id: "t005", status: "failed", issueNumber: 2263, specTaskId: "T004" }],
+      [wanted("T004", 2262), wanted("T005", 2263)],
+    );
+
+    expect({ requeue: plan.requeue, create: plan.create }).toEqual({
+      requeue: [{ id: "t005", wanted: wanted("T005", 2263) }],
+      create: [wanted("T004", 2262)],
+    });
+  });
+
   it("leaves merged T001 alone and files nothing for it", () => {
     expect(
       planSpecTaskReconcile(

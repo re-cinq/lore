@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { existsSync, readFileSync } from "node:fs";
 import { DELIVERING_PROMPT_REFS } from "../../../domain/task-types/delivering-recipes.js";
 import { loadAgentDefaults } from "./agent-defaults-files.js";
 
@@ -559,5 +560,79 @@ describe("the gap-fill and general recipes", () => {
       );
       expect(prompt, name).toContain("Report failure when you are STUCK");
     }
+  });
+});
+
+describe("the planning recipes check a plan against what the platform has (issue-triage plan #2257, 2026-09-29)", () => {
+  it("has plan-validate report a mechanism the repository lacks as a blocking INFEASIBILITY, walking the assembly-line guide", () => {
+    const prompt = promptOnOneLine("plan-validate");
+
+    expect({
+      category: prompt.includes("**INFEASIBILITY**"),
+      searched: prompt.includes("Check each one in the code, not by its name"),
+      guide: prompt.includes(".lore/assembly-line-guide.md"),
+      blocker: prompt.includes("or an INFEASIBILITY"),
+    }).toEqual({ category: true, searched: true, guide: true, blocker: true });
+  });
+
+  it("has spec-write commit only when every named mechanism exists or is tasked, every listed file has a task, same-file tasks chain and each task names its test", () => {
+    const prompt = promptOnOneLine("spec-write");
+
+    expect({
+      readsGuide: prompt.includes("4. `.lore/assembly-line-guide.md`"),
+      mechanismExistsOrTasked: prompt.includes(
+        "exists in this repository — you searched for it — or a tasks.md task creates it",
+      ),
+      everyListedFile: prompt.includes(
+        "every file the plan artifact's Project Structure lists is changed by at least one task",
+      ),
+      mustNotHingeOnOpenQuestion: prompt.includes(
+        "no MUST requirement depends on an answer its own Open Questions still ask",
+      ),
+      sameFileChained: prompt.includes(
+        "tasks that edit the same file are chained with `(depends on …)`",
+      ),
+      namedTest: prompt.includes("`— test: …`"),
+    }).toEqual({
+      readsGuide: true,
+      mechanismExistsOrTasked: true,
+      everyListedFile: true,
+      mustNotHingeOnOpenQuestion: true,
+      sameFileChained: true,
+      namedTest: true,
+    });
+  });
+
+  it("has feature-decompose file storyless phases as Setup and foundation / Polish stories, chain same-file tasks and name a runnable test", () => {
+    const prompt = promptOnOneLine("feature-decompose");
+
+    expect({
+      setupStory: prompt.includes('"Setup and foundation"'),
+      polishStory: prompt.includes('"Polish"'),
+      foldedIntoFirstStory: prompt.includes("belongs to the first user story"),
+      sameFileChained: prompt.includes(
+        "Tasks that edit the same `file_path` get `depends_on` the immediately preceding one of them in T-id order",
+      ),
+      noManualTest: prompt.includes("never a manual step"),
+    }).toEqual({
+      setupStory: true,
+      polishStory: true,
+      foldedIntoFirstStory: false,
+      sameFileChained: true,
+      noManualTest: true,
+    });
+  });
+
+  it("keeps every repository path the assembly-line guide names real, so it cannot send a planner to a file that moved", () => {
+    const root = new URL("../../../../../../", import.meta.url).pathname;
+    const guide = readFileSync(`${root}.lore/assembly-line-guide.md`, "utf8");
+    const paths = [
+      ...guide.matchAll(/`((?:libs|apps)\/[^`<>\s]+?\.(?:ts|md))`/g),
+    ].map((match) => match[1]);
+
+    expect({
+      named: paths.length > 5,
+      missing: paths.filter((p) => !existsSync(`${root}${p}`)),
+    }).toEqual({ named: true, missing: [] });
   });
 });

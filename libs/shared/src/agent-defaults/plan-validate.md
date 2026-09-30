@@ -47,10 +47,20 @@ plan says a public API answers a question that in fact asks for a credential.
 - every dependency on other work names its issue;
 - every KPI names where its number comes from.
 
+**INFEASIBILITY** — a mechanism the plan relies on that this repository does
+not have, and that the plan does not say it builds: a node type, an edge
+outcome, a station or human-station type, a task type, a label, a table, a
+route, a handler, a file. Check each one in the code, not by its name —
+search for it. When the plan adds or changes an assembly line, walk
+`.lore/assembly-line-guide.md` item by item: every item the plan needs is
+either present in the repository or named in the plan as work to do. Example:
+the plan routes an agent node on an `obsolete` outcome, but agent nodes only
+produce success, changes_requested or failed.
+
 ## Severity
 
-`blocker` — a contradiction, or a missing definition the spec cannot be
-written without.
+`blocker` — a contradiction, a missing definition the spec cannot be
+written without, or an INFEASIBILITY.
 `warning` — everything else worth flagging.
 
 ## Standing findings

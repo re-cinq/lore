@@ -84,17 +84,13 @@ function llmSpec(
   def: ResolvedAgentDefinition,
   opts: CatalogCrdOptions,
 ): AgentDefinitionSpec {
-  // Key follows the MODEL's family, not the cluster's habit — must never disagree with validateCatalogEntry's default family.
-  const family = def.model ? modelFamily(def.model) : "anthropic";
-  const secretKey = family ? secretKeysOf(opts)[family] : undefined;
-
   return {
     description: `Lore ${def.name} recipe.`,
     ...(def.model ? { model: def.model } : {}),
     prompt: llmPrompt(def, opts),
     permission_mode: "bypass",
     max_turns: AGENT_MAX_TURNS,
-    resources: llmResources(def, opts, secretKey),
+    resources: llmResources(def, opts, llmSecretKeys(def, opts)),
     // Defense-in-depth: an agent must never spawn more pipeline work from inside a run; recipe denies (#1160) append after.
     disallowed_tools: [
       "mcp__lore__lore_create_pipeline_task",
@@ -102,6 +98,18 @@ function llmSpec(
     ],
     output: sinksFor(def, opts),
   };
+}
+
+// The recipe's own family key comes first and must never disagree with validateCatalogEntry's default family; the cluster's other family keys follow, because a line node's model: overrides the recipe's per run (Agent spec.model) and can pick another vendor's CLI — analyse-specs on claude-sonnet-4-6 over a gemini recipe ran with only GEMINI_API_KEY and died "Not logged in" (run 18773dbb, 2026-09-29).
+function llmSecretKeys(
+  def: ResolvedAgentDefinition,
+  opts: CatalogCrdOptions,
+): string[] {
+  const family = def.model ? modelFamily(def.model) : "anthropic";
+  const keys = secretKeysOf(opts);
+  const own = family ? keys[family] : undefined;
+
+  return [...new Set([...(own ? [own] : []), ...Object.values(keys)])];
 }
 
 /** The template renders the `prompt` PARAMETER, not the recipe body: the Floor renders the recipe (resolved row → yaml) and appends the CI verdict and failure blocks, and until 2026-09-13 the template ignored that parameter and every appended block died on the CR (#2051). {context} is filled per run with CONTEXT_BOOTSTRAP; only where the pod has a Lore MCP to call (#1629). */
@@ -125,10 +133,10 @@ export const PROMPT_SLOT = "{prompt}";
 function llmResources(
   def: ResolvedAgentDefinition,
   opts: CatalogCrdOptions,
-  secretKey: string | undefined,
+  secretKeys: readonly string[],
 ) {
   return {
-    ...llmSecretsBlock(secretKey),
+    ...llmSecretsBlock(secretKeys),
     // Every agent pod commits its own work; git refuses without an identity and a pod has no ambient git config.
     env: [...GIT_IDENTITY, ...testPolicyEnv(def.config?.test_policy)],
     ...mcpServersBlock(opts),
@@ -136,8 +144,10 @@ function llmResources(
   };
 }
 
-function llmSecretsBlock(secretKey: string | undefined) {
-  return secretKey ? { secrets: [{ name: secretKey, ref: secretKey }] } : {};
+function llmSecretsBlock(secretKeys: readonly string[]) {
+  return secretKeys.length
+    ? { secrets: secretKeys.map((key) => ({ name: key, ref: key })) }
+    : {};
 }
 
 function mcpServersBlock(opts: CatalogCrdOptions) {

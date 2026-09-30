@@ -52,10 +52,16 @@ Rules:
   planning line's reviewed decomposition), it is the PRIMARY input: lift its
   T-ids, `[P]` markers (→ `parallelizable`), phases, `(depends on …)` marks
   (→ `depends_on`), file paths and `[USn]` story grouping into this JSON
-  1:1 — transcribe the reviewed breakdown, do not re-derive one. A task with
-  no `[USn]` marker (Setup and Foundational phases) belongs to the first
-  user story, the MVP, which it blocks. Fall back
-  to deriving from spec.md only where tasks.md is absent or silent.
+  1:1 — transcribe the reviewed breakdown, do not re-derive one. Tasks with
+  no `[USn]` marker go in a story of their own, named after their phase:
+  Setup and Foundational tasks in a first story "Setup and foundation" (the
+  user stories depend on them), Polish tasks in a last story "Polish". Fall
+  back to deriving from spec.md only where tasks.md is absent or silent.
+- Two exceptions to transcribing. Tasks that edit the same `file_path` get
+  `depends_on` the immediately preceding one of them in T-id order when
+  tasks.md left them unchained, so they form one chain — side by side they can only conflict. And `test_plan` names a
+  test file and what it asserts, from tasks.md's `— test: …`; never a manual
+  step such as "run it on a real repo".
 - A **user story** is a coherent vertical slice of value (what a user/operator can
   now do), ordered by build sequence. Derive stories and their acceptance criteria
   from the spec's scenarios and functional requirements — do not invent new ones.

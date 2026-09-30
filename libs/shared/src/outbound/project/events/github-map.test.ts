@@ -21,7 +21,7 @@ describe("mapGitHubEvent — pull_request", () => {
     ]);
   });
 
-  it("maps closed+merged to github.pull_request.closed carrying merged/branch/sha/labels", () => {
+  it("maps closed+merged to github.pull_request.closed carrying merged/branch/base_ref/sha/labels", () => {
     const payload = {
       ...REPO,
       action: "closed",
@@ -29,6 +29,7 @@ describe("mapGitHubEvent — pull_request", () => {
         number: 9,
         merged: true,
         head: { ref: "lore/feature-request/auth-abcd1234" },
+        base: { ref: "main" },
         merge_commit_sha: "sha9",
         labels: [{ name: "spec" }],
       },
@@ -43,6 +44,7 @@ describe("mapGitHubEvent — pull_request", () => {
           pr_number: 9,
           merged: true,
           branch: "lore/feature-request/auth-abcd1234",
+          base_ref: "main",
           merge_commit_sha: "sha9",
           labels: ["spec"],
         },
@@ -72,6 +74,7 @@ describe("mapGitHubEvent — pull_request", () => {
           pr_number: 9,
           merged: false,
           branch: "feature/x",
+          base_ref: "",
           merge_commit_sha: null,
           labels: [],
         },

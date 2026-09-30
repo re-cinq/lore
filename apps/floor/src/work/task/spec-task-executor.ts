@@ -1,4 +1,4 @@
-/** Every minute, picks up ready spec-tasks and dispatches an Agent CR (ADR-031) to implement each, limited to 3 concurrent dispatches per task_group_id. */
+/** Every minute, picks up ready spec-tasks and dispatches an Agent CR (ADR-031) to implement each, admitted by `admitSpecTasks`: at most 3 per task_group_id, and never two of a group together that edit one file or where either is not parallelizable. */
 import type { ReadySpecTask } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
 import type { IssueRef } from "@re-cinq/lore-shared/project/lib/github-port.js";
 
@@ -9,10 +9,9 @@ import { agentPrompt } from "../../outbound/agent-invocation.js";
 import { pipeline } from "../../outbound/queues.js";
 import { setStatus, insertEvent } from "./task-helpers.js";
 import { ensureTaskBranch } from "./ensure-task-branch.js";
+import { admitSpecTasks } from "./spec-task-admission.js";
 import { taskIssueBody } from "@re-cinq/lore-shared/feature-planning/issue-bodies.js";
 import { taskIssueDetail } from "@re-cinq/lore-shared/feature-planning/decomposition-result.js";
-
-const MAX_CONCURRENT_PER_GROUP = 3;
 
 export async function specTaskExecutorJob(): Promise<string> {
   const readyTasks = await pipeline().taskQueue.findReadySpecTasks();
@@ -35,15 +34,18 @@ export async function specTaskExecutorJob(): Promise<string> {
     : "No ready spec-tasks";
 }
 
-/** Walks the ready tasks in order, carrying the per-group counter across the whole sweep so the cap holds within one tick as well as across ticks. */
+/** Dispatches the ready tasks the admission lets start beside what their groups already run; admission is decided for the whole sweep at once, so it holds within one tick as well as across ticks. */
 async function dispatchReadyTasks(
   readyTasks: ReadySpecTask[],
 ): Promise<number> {
-  const runningByGroup = await runningCountsByGroup();
+  const admitted = admitSpecTasks(
+    readyTasks,
+    await pipeline().taskQueue.runningSpecTasks(),
+  );
   let dispatched = 0;
 
-  for (const task of readyTasks) {
-    if (await dispatchSpecTask(task, runningByGroup)) {
+  for (const task of admitted) {
+    if (await dispatchSpecTask(task)) {
       dispatched++;
     }
   }
@@ -51,31 +53,8 @@ async function dispatchReadyTasks(
   return dispatched;
 }
 
-/** Counts Agent CRs in Running phase too, catching tasks the DB has not caught up with, so the per-group cap cannot be starved by a busy sibling group the way the former global gate was. */
-async function runningCountsByGroup(): Promise<Map<string, number>> {
-  const runningByGroup = new Map<string, number>();
-
-  for (const row of await pipeline().taskQueue.countRunningSpecTasksByGroup()) {
-    runningByGroup.set(row.task_group_id, parseInt(row.cnt, 10));
-  }
-
-  return runningByGroup;
-}
-
 /** Claim one ready spec-task and dispatch its Agent CR; returns whether a CR actually started. A failure after the claim returns the task to `pending` so the next tick retries it. */
-async function dispatchSpecTask(
-  task: ReadySpecTask,
-  runningByGroup: Map<string, number>,
-): Promise<boolean> {
-  const runningInGroup = runningCountForGroup(
-    runningByGroup,
-    task.task_group_id,
-  );
-
-  if (runningInGroup >= MAX_CONCURRENT_PER_GROUP) {
-    return false;
-  }
-
+async function dispatchSpecTask(task: ReadySpecTask): Promise<boolean> {
   if (!(await pipeline().taskQueue.claimSpecTask(task.id))) {
     return false;
   }
@@ -83,29 +62,18 @@ async function dispatchSpecTask(
     claimed_by: "spec-task-executor",
   });
 
-  return runClaimed(task, runningByGroup);
-}
-
-/** Currently-running count for one task group, or 0 when the task has no group. */
-function runningCountForGroup(
-  runningByGroup: Map<string, number>,
-  taskGroupId: string | null | undefined,
-): number {
-  return taskGroupId ? runningByGroup.get(taskGroupId) || 0 : 0;
+  return runClaimed(task);
 }
 
 /** Runs a task this executor has already claimed. A dispatch failure RELEASES the claim back to `pending`: the row is claimed but nothing is running, and only a release lets the next tick try again. */
-async function runClaimed(
-  task: ReadySpecTask,
-  runningByGroup: Map<string, number>,
-): Promise<boolean> {
+async function runClaimed(task: ReadySpecTask): Promise<boolean> {
   const brief = specTaskBrief(task);
 
   try {
     const result = await runSpecTaskAgent(task);
 
     return result.started
-      ? recordDispatch(task, brief, runningByGroup)
+      ? recordDispatch(task, brief)
       : reportDispatchRace(task);
   } catch (err) {
     await setStatus(task.id, "pending");
@@ -189,6 +157,8 @@ function specTaskRunOpts(recipe: ImplementationRecipe, brief: SpecTaskBrief) {
     model: recipe?.model || "claude-sonnet-4-6",
     timeoutMinutes: recipe?.timeout_minutes || 90,
     extraLabels: specTaskLabels(brief),
+    // The draft PR takes the task issue's title (draftPrTitle); without it the PR was titled by its branch name.
+    lineArgs: { issue_title: brief.issueTitle },
   };
 }
 
@@ -221,29 +191,12 @@ function reportDispatchRace(task: ReadySpecTask): boolean {
   return false;
 }
 
-/** Book a started CR against the per-group counter. */
-function recordDispatch(
-  task: ReadySpecTask,
-  brief: SpecTaskBrief,
-  runningByGroup: Map<string, number>,
-): boolean {
-  bumpGroupCounter(runningByGroup, task.task_group_id);
+function recordDispatch(task: ReadySpecTask, brief: SpecTaskBrief): boolean {
   console.log(
     `[spec-task-executor] Dispatched ${brief.specTaskId} (${task.id}) → Agent CR`,
   );
 
   return true;
-}
-
-/** Update the per-group concurrency counter after a successful dispatch. */
-function bumpGroupCounter(
-  runningByGroup: Map<string, number>,
-  taskGroupId: string | null | undefined,
-): void {
-  if (!taskGroupId) {
-    return;
-  }
-  runningByGroup.set(taskGroupId, (runningByGroup.get(taskGroupId) || 0) + 1);
 }
 
 /** What the agent is told to build, and where it builds it. */
@@ -258,6 +211,7 @@ function specTaskBrief(task: ReadySpecTask, live?: LiveIssue) {
     specSlug: cb.spec_slug,
     specTaskId: cb.spec_task_id,
     description: `${briefHeader(task, cb, live?.title)}\n\n${detail}${specRef(cb.spec_slug)}`,
+    issueTitle: issueTitleOf(task, cb, live),
     branchName: specTaskBranch(task, cb),
   };
 }
@@ -277,6 +231,19 @@ function specTaskBranch(
   return `lore/spec-task/${slug}-${(cb.spec_task_id || "").toLowerCase()}-${task.id.substring(0, 8)}`;
 }
 
+// The task issue's title as it reads now, else as the issues station filed it (`T001: <title>`).
+function issueTitleOf(
+  task: ReadySpecTask,
+  cb: Record<string, unknown>,
+  live: LiveIssue | undefined,
+): string {
+  return live?.title ?? `${String(cb.spec_task_id)}: ${filedTitle(task, cb)}`;
+}
+
+function filedTitle(task: ReadySpecTask, cb: Record<string, unknown>): string {
+  return typeof cb.title === "string" ? cb.title : task.description;
+}
+
 // The issue is filed as `T001: <title>`, so its live title is read back without that prefix.
 function briefHeader(
   task: ReadySpecTask,
@@ -286,8 +253,7 @@ function briefHeader(
   const taskId = String(cb.spec_task_id);
   const issue =
     typeof cb.task_issue === "number" ? ` (issue #${cb.task_issue})` : "";
-  const filedTitle = typeof cb.title === "string" ? cb.title : task.description;
-  const title = liveTitle?.replace(`${taskId}: `, "") ?? filedTitle;
+  const title = liveTitle?.replace(`${taskId}: `, "") ?? filedTitle(task, cb);
 
   return `Implement spec-task ${taskId}${issue}: ${title}`;
 }

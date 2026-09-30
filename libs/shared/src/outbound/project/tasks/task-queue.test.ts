@@ -601,6 +601,59 @@ describe("InMemoryTaskQueue.findReadySpecTasks", () => {
   });
 });
 
+describe("runningSpecTasks", () => {
+  it("PgTaskQueue reads each running or queued grouped spec-task's file and whether it is parallelizable", async () => {
+    const row = {
+      task_group_id: "g1",
+      file_path: "libs/assembly-lines/src/assembly-lines/issue-triage.yaml",
+      parallelizable: false,
+    };
+    const { pool, calls } = fakePgPool([{ rows: [row] }]);
+
+    expect({
+      rows: await new PgTaskQueue(pool).runningSpecTasks(),
+      statuses: calls[0].text.includes("status IN ('running', 'queued')"),
+    }).toEqual({ rows: [row], statuses: true });
+  });
+
+  it("InMemory lists running and queued spec-tasks of a group, treating one with no parallelizable mark as not parallelizable", async () => {
+    const q = new InMemoryTaskQueue([
+      {
+        id: "a",
+        task_type: "spec-task",
+        status: "running",
+        task_group_id: "g1",
+        context_bundle: { file_path: "README.md", parallelizable: true },
+      },
+      {
+        id: "b",
+        task_type: "spec-task",
+        status: "queued",
+        task_group_id: "g1",
+        context_bundle: {},
+      },
+      {
+        id: "c",
+        task_type: "spec-task",
+        status: "pending",
+        task_group_id: "g1",
+        context_bundle: {},
+      },
+      {
+        id: "d",
+        task_type: "spec-task",
+        status: "running",
+        context_bundle: {},
+      },
+    ]);
+
+    expect(await q.runningSpecTasks()).toEqual([
+      { task_group_id: "g1", file_path: "README.md", parallelizable: true },
+      { task_group_id: "g1", file_path: null, parallelizable: false },
+    ]);
+  });
+});
+
 describe("countUnmergedInGroup", () => {
   it("PgTaskQueue counts group rows neither merged nor cancelled", async () => {
     const { pool, calls } = fakePgPool([{ rows: [{ cnt: "2" }] }]);
