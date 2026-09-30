@@ -138,20 +138,59 @@ function lineArgs(plan: PlanRef, { entryNode, open }: TaskShape) {
   };
 }
 
-/** Sends one section back to the agent; refused while the agent is still at work, so the editor withdraws the ask. */
+/** Sends one section back to the agent while the line waits on its author; at any other moment it is refused with the reason, so the editor withdraws the ask and the page says why. */
 export async function askRefine(
   deps: ResumeDeps,
   planId: string,
   projection: PlanView,
   request: RefineRequest,
 ): Promise<void> {
-  const { parked } = await findParkedAuthorNode(deps.runs, planId);
+  const line = await planLineState(deps.runs, planId);
 
-  enforceTrue(parked, apiError(409), AGENT_STILL_WORKING);
-  await reportToParkedNode(deps.reporter, parked, {
+  enforceTrue(line?.parkedAuthor, apiError(409), refineRefusal(line));
+  await reportToParkedNode(deps.reporter, line.parkedAuthor, {
     outcome: "changes_requested",
     args: refineArgs(projection, request),
   });
+}
+
+const OPEN_STATUSES = new Set(["queued", "running"]);
+
+const STILL_WORKING = "the planning agent is still working on this plan";
+
+// Why no author waits on the plan, worded for its page: Regenerate is named only where the page offers it.
+function refineRefusal(line: PlanLine | null): string {
+  if (!line) {
+    return "the plan has no planning line yet; regenerate the plan to start one";
+  }
+
+  if (!OPEN_STATUSES.has(line.status)) {
+    return endedRefusal(line);
+  }
+
+  if (line.parkedMerged) {
+    return "the spec PR is being sent back to the author; try again in a moment";
+  }
+
+  return agentDrafting(line) ? STILL_WORKING : reopenRefusal(line);
+}
+
+function endedRefusal(line: PlanLine): string {
+  return endedInFailure(line)
+    ? "the planning line failed, so no agent is waiting to refine this plan; regenerate the plan to draft it again"
+    : "the planning line has ended, so no agent is waiting to refine this plan; edit the section by hand";
+}
+
+// As the plan page reads a closed line: it failed unless it finished with its spec-tasks filed.
+function endedInFailure(line: PlanLine): boolean {
+  return (
+    line.status === "failed" || (line.outcome ?? "completed") !== "completed"
+  );
+}
+
+// On the draft itself, or between two nodes before any spec PR merged.
+function agentDrafting(line: PlanLine): boolean {
+  return line.open === "analyze" || (line.open === null && !line.merged);
 }
 
 // The run records which Refine this pass answers, so the edited plan.md comes back as that section's proposal without the agent copying anything.
