@@ -4,7 +4,7 @@ import {
   floorRepoOf,
   gitItem,
   loreRepoOf,
-  pullRequestSubject,
+  parsePullRequestUrl,
   pullRequestUrl,
   valueItem,
 } from "./floor-items.js";
@@ -21,12 +21,6 @@ describe("floor items", () => {
   it("addresses pull request 412 of re-cinq/lore", () => {
     expect(pullRequestUrl("re-cinq/lore", 412)).toBe(
       "https://github.com/re-cinq/lore/pull/412",
-    );
-  });
-
-  it("keys a review run on pr_url and the pull request address", () => {
-    expect(pullRequestSubject("re-cinq/lore", 412)).toBe(
-      "pr_url:https://github.com/re-cinq/lore/pull/412",
     );
   });
 
@@ -48,5 +42,28 @@ describe("floor items", () => {
       ref: "abc123",
       by: "lore",
     });
+  });
+
+  it("reads re-cinq/lore and 412 from https://github.com/re-cinq/lore/pull/412", () => {
+    expect(
+      parsePullRequestUrl("https://github.com/re-cinq/lore/pull/412"),
+    ).toEqual({ repo: "re-cinq/lore", prNumber: 412 });
+  });
+
+  it("reads number 7 from a pull request url ending with a slash", () => {
+    expect(parsePullRequestUrl("https://github.com/a/b/pull/7/")).toEqual({
+      repo: "a/b",
+      prNumber: 7,
+    });
+  });
+
+  it("refuses the issue url https://github.com/re-cinq/lore/issues/412", () => {
+    expect(() =>
+      parsePullRequestUrl("https://github.com/re-cinq/lore/issues/412"),
+    ).toThrow(
+      new Error(
+        "not a GitHub pull request url: https://github.com/re-cinq/lore/issues/412",
+      ),
+    );
   });
 });

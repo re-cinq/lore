@@ -2209,6 +2209,61 @@
         "x-required-scope": "read"
       }
     },
+    "/api/floor/git-credential": {
+      "post": {
+        "operationId": "post_api_floor_git-credential",
+        "summary": "POST /api/floor/git-credential",
+        "tags": ["Other"],
+        "security": [],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "A freshly minted installation token for the requested repo, as the git credential-helper username/password pair",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FloorGitCredential"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "repoUrl": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "access": {
+                    "type": "string",
+                    "enum": ["read", "write"]
+                  }
+                },
+                "required": ["repoUrl", "access"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/github-credentials": {
       "post": {
         "operationId": "post_api_github-credentials",
@@ -10945,6 +11000,19 @@
           "type": "string"
         },
         "additionalProperties": {}
+      },
+      "FloorGitCredential": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          }
+        },
+        "required": ["username", "password"],
+        "additionalProperties": false
       },
       "GitCredential": {
         "type": "object",

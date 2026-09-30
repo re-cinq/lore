@@ -1,5 +1,6 @@
 // How Lore's names are spelled on the floor: a repository as `github.com/owner/name`, lowered as the floor keeps it, and a run's start items by kind.
 import type { Item } from "@re-cinq/floor-client";
+import { enforceTrue } from "../../lib/enforce.js";
 
 const GITHUB_HOST = "github.com";
 const STARTED_BY = "lore";
@@ -16,9 +17,21 @@ export function pullRequestUrl(repo: string, prNumber: number): string {
   return `https://${GITHUB_HOST}/${repo}/pull/${prNumber}`;
 }
 
-/** The subject a review line keys its one open run on: the argument marked `subject`, by name and value. */
-export function pullRequestSubject(repo: string, prNumber: number): string {
-  return `pr_url:${pullRequestUrl(repo, prNumber)}`;
+export interface PullRequestLocation {
+  repo: string;
+  prNumber: number;
+}
+
+const PULL_REQUEST_URL =
+  /^https:\/\/github\.com\/([^/\s]+\/[^/\s]+)\/pull\/(\d+)\/?$/;
+
+/** The inverse of `pullRequestUrl`, for a station handed the address as a need. */
+export function parsePullRequestUrl(url: string): PullRequestLocation {
+  const match = PULL_REQUEST_URL.exec(url.trim());
+
+  enforceTrue(match, Error, `not a GitHub pull request url: ${url}`);
+
+  return { repo: match[1], prNumber: Number(match[2]) };
 }
 
 /** The branch is kept as written: git reads its case. */

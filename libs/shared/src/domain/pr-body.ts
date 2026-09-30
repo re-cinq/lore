@@ -15,3 +15,15 @@ export function prFooter(opts: {
 
   return `\n\n${lines.join("\n")}`;
 }
+
+const LINKED_ISSUE =
+  /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?|refs)\s+#(\d+)/i;
+
+/** The inverse of `prFooter`: the number of the first `Closes`/`Fixes`/`Resolves`/`Refs #N` the PR body names, or null when it names none. */
+export function linkedIssueNumber(
+  prBody: string | null | undefined,
+): number | null {
+  const match = LINKED_ISSUE.exec(prBody ?? "");
+
+  return match ? Number(match[1]) : null;
+}

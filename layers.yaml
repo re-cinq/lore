@@ -257,6 +257,7 @@ layers:
     test-helpers:
       - domain
       - lib
+      - "@re-cinq/floor-client"
 
   libs/server-core:
     ".":
