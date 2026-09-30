@@ -2,14 +2,6 @@ line:
   id: code-review
   entry: review
   exit: done
-  # gemini-cli gives a model 60 seconds to start answering (its global
-  # `defaultHeadersTimeout`), and Gemini 3.1 Pro thinking over a whole diff often
-  # takes longer: the call fails as "fetch failed sending request" and is retried
-  # with the same context. The CLI reads this experiments file, named by GEMINI_EXP,
-  # and flag 45773134 (DEFAULT_REQUEST_TIMEOUT) is that limit in seconds. The agent
-  # runtime is to set this itself; this copy goes when it does.
-  files:
-    gemini_exp: '{"flags":[{"flagId":45773134,"intValue":"600"}]}'
   args:
     repo:
       kind: git
@@ -64,9 +56,6 @@ stations:
         kind: file
         path: issue.md
         optional: true
-      - name: gemini_exp
-        kind: file
-        path: gemini-exp.json
     produces:
       - name: review_output
         kind: file
@@ -124,7 +113,6 @@ agent_definitions:
           - Bash(sh:*)
         env:
           LORE_TEST_POLICY: none
-          GEMINI_EXP: /workspace/gemini-exp.json
       prompt: |
         {description}
 
