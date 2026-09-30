@@ -25,6 +25,7 @@ interface Need {
 
 interface Station {
   kind: string;
+  outcomes: string[];
   needs: Need[];
 }
 
@@ -170,6 +171,29 @@ describe("the floor pipelines shipped in this folder", () => {
     expect(pipelineOf("lore-run-settled").line.start?.on).toEqual([
       "internal.run.settled",
     ]);
+  });
+
+  it("routes every outcome each station declares out of every node that runs it, since the floor refuses a line with an outcome no edge covers", () => {
+    const unrouted = [...PIPELINES.values()].flatMap(({ line, stations }) =>
+      line.nodes
+        .filter((node) => node.station && node.id !== line.exit)
+        .flatMap((node) => {
+          const edges = edgesOn(line, node.id);
+          const covered = new Set(edges.map((edge) => edge.on));
+          const outcomes = stations[node.station ?? ""]?.outcomes ?? [];
+
+          return covered.has("always")
+            ? []
+            : outcomes
+                .filter((outcome) => !covered.has(outcome))
+                .map(
+                  (outcome) =>
+                    `${line.id}: ${node.id} has no edge for ${outcome}`,
+                );
+        }),
+    );
+
+    expect(unrouted).toEqual([]);
   });
 });
 

@@ -40,6 +40,9 @@ line:
     - from: post-review
       to: done
       on: success
+    - from: post-review
+      to: done
+      on: failed
 stations:
   code-review:
     kind: agent

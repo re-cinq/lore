@@ -46,6 +46,12 @@ line:
     - from: post-reply
       to: done
       on: success
+    - from: read-review
+      to: done
+      on: failed
+    - from: post-reply
+      to: done
+      on: failed
 stations:
   read-review:
     kind: service
