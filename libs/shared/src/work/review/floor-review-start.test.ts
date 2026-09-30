@@ -8,7 +8,7 @@ import type {
 import {
   recordedFloor,
   type FloorRequest,
-} from "../../test-helpers/recorded-floor.js";
+} from "../../outbound/floor/recorded-floor.js";
 import {
   closeReviewsForPr,
   issueMarkdown,

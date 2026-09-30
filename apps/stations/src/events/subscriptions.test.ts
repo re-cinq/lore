@@ -68,3 +68,22 @@ describe("every subscription has something to handle it", () => {
     expect(orphans).toEqual([]);
   });
 });
+
+describe("the review events, which only a deployment with a floor asks for", () => {
+  it("claims github.pull_request.opened when FLOOR_API_URL and FLOOR_SERVICE_TOKEN are set", () => {
+    const names = stationSubscriptions({
+      FLOOR_API_URL: "http://floor-api:8080",
+      FLOOR_SERVICE_TOKEN: "secret",
+    }).map((s) => s.eventName);
+
+    expect(names).toContain("github.pull_request.opened");
+  });
+
+  it("claims no pull request event when no floor is configured", () => {
+    const names = stationSubscriptions({}).map((s) => s.eventName);
+
+    expect(
+      names.filter((name) => name.startsWith("github.pull_request")),
+    ).toEqual([]);
+  });
+});

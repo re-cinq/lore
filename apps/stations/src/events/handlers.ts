@@ -10,6 +10,32 @@ import {
   type SweepStationModule,
 } from "../work/lib/station.js";
 import { stationHost } from "./runner/station-host.js";
+import { autoReviewEnabled } from "@re-cinq/lore-shared/review/code-review-decisions.js";
+import {
+  floorClient,
+  floorConfigured,
+} from "@re-cinq/lore-shared/floor/floor-client.js";
+import { projectFor } from "../outbound/project-boot.js";
+import { settings } from "../outbound/queues.js";
+import {
+  floorReviewHandlers,
+  type FloorReviewDeps,
+} from "./floor-review-handlers.js";
+
+const floorReviewDeps: FloorReviewDeps = {
+  autoReview: async (repo) =>
+    autoReviewEnabled(await settings().rawSettings(repo)),
+  review: async (repo) => {
+    const { pulls, issues } = await projectFor(repo);
+
+    return {
+      floor: floorClient(),
+      pulls,
+      issues,
+      uiUrl: process.env.LORE_UI_URL,
+    };
+  },
+};
 
 /** Published by the walk when a node's station runs here rather than in a pod. */
 
@@ -52,6 +78,12 @@ export function buildStationHandlers(): Map<string, EventHandler> {
 
   for (const { mod, eventName } of sweepBindings) {
     handlers.set(eventName, runSweepFor(mod, eventName));
+  }
+
+  if (floorConfigured()) {
+    floorReviewHandlers(floorReviewDeps).forEach((handler, eventName) =>
+      handlers.set(eventName, handler),
+    );
   }
 
   return handlers;

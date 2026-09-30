@@ -243,3 +243,26 @@ export function reviewSubmittedFeedback(
     "changes requested in a submitted review"
   );
 }
+
+const TRUSTED_ASSOCIATIONS = ["OWNER", "MEMBER", "COLLABORATOR"];
+
+/** What a review says becomes the task of an agent that may push, so only someone GitHub attributes write standing to can start one. */
+export function isTrustedReviewer(authorAssociation: string): boolean {
+  return TRUSTED_ASSOCIATIONS.includes(authorAssociation);
+}
+
+/** The per-repo `auto_review` opt-in, read off the repository's settings however they were stored. */
+export function autoReviewEnabled(rawSettings: unknown): boolean {
+  const parsed =
+    typeof rawSettings === "string" ? parsedJson(rawSettings) : rawSettings;
+
+  return (parsed as { auto_review?: boolean } | null)?.auto_review === true;
+}
+
+function parsedJson(raw: string): unknown {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
