@@ -129,12 +129,6 @@ describe("what may run in the pooled service", () => {
     },
   );
 
-  it("pools comment-triage — its one model call is enum-constrained, not agentic", () => {
-    const triggers = nodeTriggers(STATIONS["comment-triage"].manifest);
-
-    expect(triggers.map((t) => t.runtime)).toEqual(["service"]);
-  });
-
   it("asks for a cloned workspace only where something actually needs one", () => {
     const cloning = Object.values(STATIONS)
       .flatMap((mod) => nodeTriggers(mod.manifest))

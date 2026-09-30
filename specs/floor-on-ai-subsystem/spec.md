@@ -190,7 +190,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     (`success`/`failed`/`changes_requested`) via `stationNodeOutcome` in the Floor's node-event
     handler; a forced Floor restart loses nothing because the walk is derived from the persisted
     `pipeline.assembly_line_nodes` rows, not held in memory — the original lease-heartbeat +
-    stage-trailer-resume mechanics are retired (6-dark-factory FR6.9) ([validated by `node-outcome.test.ts:35`](libs/assembly-lines/src/node-outcome.test.ts#L35), [`advance-line.test.ts:379`](apps/floor/src/work/assembly-run/advance-line.test.ts#L493))
+    stage-trailer-resume mechanics are retired (6-dark-factory FR6.9) ([validated by `node-outcome.test.ts:35`](libs/assembly-lines/src/node-outcome.test.ts#L35), [`advance-line.test.ts:379`](apps/floor/src/work/assembly-run/advance-line.test.ts#L475))
 12. A `github-action` assembly line node dispatches the referenced GitHub Actions run and gates on its
     conclusion.
 13. The cutover is reversible: flipping the cluster gate off routes new tasks back to LoreTask with
@@ -216,7 +216,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     ([validated by accepts station_ref and timeout_minutes on a node](libs/assembly-lines/src/loader.test.ts#L533), [validated by runs a node that names claude-sonnet-4-6 on it, whatever model its Station's definition carries](libs/shared/src/outbound/cluster/agent-backend.test.ts#L70), [validated by names no model on the Agent when the task names none, so its definition's model runs](libs/shared/src/outbound/cluster/agent-backend.test.ts#L76))
 
 17. `nodeStationSpec` builds the CR spec: stationRef, `parameters.station_input` JSON
-    (assembly_line_id/node_id/node_type/repo/branch/task_id/params). ([validated by station-flagged node types dispatch a station CR](apps/floor/src/work/assembly-run/floor-assembly-run.test.ts#L119), [honors an explicit station_ref override](apps/floor/src/work/assembly-run/floor-assembly-run.test.ts#L159), [agent nodes thread station_ref too — a renamed recipe (code-review-refine) still resolves](apps/floor/src/work/assembly-run/floor-assembly-run.test.ts#L98))
+    (assembly_line_id/node_id/node_type/repo/branch/task_id/params). ([validated by station-flagged node types dispatch a station CR](apps/floor/src/work/assembly-run/floor-assembly-run.test.ts#L119), [honors an explicit station_ref override](apps/floor/src/work/assembly-run/floor-assembly-run.test.ts#L156), [agent nodes thread station_ref too — a renamed recipe (code-review-refine) still resolves](apps/floor/src/work/assembly-run/floor-assembly-run.test.ts#L98))
 
 18. A station pod ends with the claude-style result line carrying `LORE_NODE_RESULT: {outcome,
     extras}`; the Floor's `parseNodeResult` maps it (precedence: LORE_NODE_RESULT → REVIEW_RESULT →
@@ -268,15 +268,14 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     budget, and `detect` dispatches by `job_ref` returning the detector's capped summary (throwing on
     an unknown `job_ref`). ([validated by leaves a Node repo's failing lint, typecheck and build to the PR's CI and runs none of them in the pod](apps/stations/src/work/validate/validate.test.ts#L39), [`detect.test.ts:18`](apps/stations/src/work/detect/detect.test.ts#L18), [`detect.test.ts:34`](apps/stations/src/work/detect/detect.test.ts#L34), [`station-input.test.ts:19`](libs/shared/src/domain/station-input.test.ts#L19), [`station-input.test.ts:31`](libs/shared/src/domain/station-input.test.ts#L31), [`station-input.test.ts:46`](libs/shared/src/domain/station-input.test.ts#L46), [`station-input.test.ts:63`](libs/shared/src/domain/station-input.test.ts#L63), [`station-input.test.ts:67`](libs/shared/src/domain/station-input.test.ts#L67), [`station-input.test.ts:73`](libs/shared/src/domain/station-input.test.ts#L73), [`station-input.test.ts:88`](libs/shared/src/domain/station-input.test.ts#L88), [`station-input.test.ts:107`](libs/shared/src/domain/station-input.test.ts#L107))
 
-23. *(added 2026-07-31)* A station that makes its own LLM calls (comment-triage today) MUST report
+23. *(added 2026-07-31)* A station that makes its own LLM calls (the spec-coverage-backfill judge) MUST report
     their usage for cost accounting despite having no Postgres (D7): the node result carries the
     call's usage, `resultLine` lifts it onto the terminal line as the claude-style fields the
     `/api/agent-events` cost sink already reads (`usage` + `total_cost_usd` + `duration_ms` +
     `model`), and the sink maps that line to a `pipeline.llm_calls` row correlated to the
     assembly-line attempt via the CR name — which is how the run list's Cost column covers
     station-only lines. The usage rides the envelope only, never the `LORE_NODE_RESULT` payload; a
-    usage-less terminal line stays byte-identical to the pre-usage envelope, and a failed
-    classification reports no usage. ([validated by `agent-output.test.ts:353`](libs/assembly-lines/src/agent-output.test.ts#L353), [`agent-output.test.ts:368`](libs/assembly-lines/src/agent-output.test.ts#L368), [`agent-output.test.ts:379`](libs/assembly-lines/src/agent-output.test.ts#L379), [`agent-events.test.ts:229`](apps/floor/src/work/agent/agent-events.test.ts#L330), [`agent-events.test.ts:263`](apps/floor/src/work/agent/agent-events.test.ts#L366), [`comment-triage.test.ts:51`](apps/stations/src/work/comment-triage/comment-triage.test.ts#L51), [`comment-triage.test.ts:49`](libs/shared/src/work/review/comment-triage.test.ts#L49), [`comment-triage.test.ts:71`](libs/shared/src/work/review/comment-triage.test.ts#L71); implemented by [`agent-output.ts:180`](libs/assembly-lines/src/agent-output.ts#L177))
+    usage-less terminal line stays byte-identical to the pre-usage envelope. ([validated by `agent-output.test.ts:353`](libs/assembly-lines/src/agent-output.test.ts#L353), [`agent-output.test.ts:368`](libs/assembly-lines/src/agent-output.test.ts#L368), [`agent-output.test.ts:379`](libs/assembly-lines/src/agent-output.test.ts#L379), [`agent-events.test.ts:229`](apps/floor/src/work/agent/agent-events.test.ts#L330), [`agent-events.test.ts:263`](apps/floor/src/work/agent/agent-events.test.ts#L366); implemented by [`agent-output.ts:180`](libs/assembly-lines/src/agent-output.ts#L177))
 
 24. *(added 2026-07-31)* Station LLM usage is captured **generically**: `runStation` wraps the
     process-wide `Llm` in a usage-tracking decorator around every runner, so a station whose model

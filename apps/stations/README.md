@@ -45,7 +45,6 @@ map, the drain subscriptions, and the pod runner can never drift:
 | `issues` | node | service, 10m |
 | `merge-step` | node | service, 5m |
 | `retrospective` | node | service, 10m |
-| `comment-triage` | node | pod, 5m |
 | `detect` | node | pod, 30m |
 | `ingest` | node | pod (clone), 10m |
 | `validate` | node | pod (clone), 15m |

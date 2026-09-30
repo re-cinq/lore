@@ -22,7 +22,7 @@ async function main(): Promise<void> {
   initPool();
   // Module state read by approval-check; the Floor loads the same config for its worker's gate.
   await loadApprovalConfig(getPool());
-  // Service-run stations may call a model (comment-triage's Haiku); wiring the UsagePort here makes those land in pipeline.llm_calls like the Floor's own calls.
+  // Service-run stations may call a model (the retrospective's Haiku curation); wiring the UsagePort here makes those land in pipeline.llm_calls like the Floor's own calls.
   Llm.configure({ usage: usage() });
 
   // Before the server: a published node with nobody claiming it sits open until reaped, and merge_step has no pod fallback.

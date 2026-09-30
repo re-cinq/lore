@@ -86,4 +86,3 @@ Two behaviours of Lore's Floor are not carried over in this slice. A review that
 
 - The runs list reads Postgres only, so a floor run is reachable by its link and not from the list.
 - "Retry from node" and "Run this station" are still offered on a floor run and are refused by lore-api, which has no such run to fork.
-- The `comment-triage` line has no trigger and no follow-up left on Lore's Floor; it is removed with the slice that moves or retires it.

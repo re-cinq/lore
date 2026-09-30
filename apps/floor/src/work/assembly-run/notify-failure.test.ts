@@ -99,7 +99,6 @@ describe("failureNotice", () => {
       "code-review",
       "code-review-recheck",
       "code-review-reply",
-      "comment-triage",
     ]) {
       const notice = failureNotice(
         lineRow({ blueprintName }),

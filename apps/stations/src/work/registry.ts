@@ -11,7 +11,6 @@ import { mergeStep } from "./merge-step/manifest.js";
 import { validate } from "./validate/manifest.js";
 import { retrospective } from "./retrospective/manifest.js";
 import { detect } from "./detect/manifest.js";
-import { commentTriage } from "./comment-triage/manifest.js";
 import { ingest } from "./ingest/manifest.js";
 import { issues } from "./issues/manifest.js";
 import { featureReview } from "./feature-review/manifest.js";
@@ -27,7 +26,6 @@ export const STATION_NAMES = [
   "approval-check",
   "backfill-scan",
   "ci-check",
-  "comment-triage",
   "detect",
   "escalation-step",
   "feature-review",
@@ -51,7 +49,6 @@ export const STATIONS: Record<StationName, StationModule> = {
   "approval-check": approvalCheck,
   "backfill-scan": backfillScan,
   "ci-check": ciCheck,
-  "comment-triage": commentTriage,
   detect,
   "escalation-step": escalationStep,
   "feature-review": featureReview,

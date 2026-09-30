@@ -226,14 +226,14 @@ function stationEnvEntries(
   }));
 }
 
-/** Model credential only where the station calls a model — comment-triage silently dropped a missing key into "ignore" and reported success. */
+/** Model credential only where the station calls a model — a station that lost its key would swallow the failure and report success. */
 function stationSecrets(
   def: ResolvedAgentDefinition,
   anthropicKey: string | undefined,
 ) {
   return [
     { name: "LORE_INGEST_TOKEN", ref: "LORE_INGEST_TOKEN" },
-    // needs_model stations call Anthropic (comment-triage's Haiku); family-specific stations declare their own model instead.
+    // needs_model stations call Anthropic (the detect station's model judgements); family-specific stations declare their own model instead.
     ...(def.config?.needs_model && anthropicKey
       ? [{ name: anthropicKey, ref: anthropicKey }]
       : []),

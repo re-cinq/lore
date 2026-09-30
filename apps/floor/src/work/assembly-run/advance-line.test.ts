@@ -45,13 +45,13 @@ edges:
 
 const triageThenIssues: AssemblyLine = parseAssemblyLine(`
 name: triage-then-issues
-description: a pod station, then one the pooled service runs
+description: two stations the pooled service runs
 version: 1
 entry: triage
 exit: done
 nodes:
   - id: triage
-    type: comment-triage
+    type: issues
   - id: file
     type: issues
   - id: done
@@ -62,6 +62,9 @@ edges:
     on: success
   - from: triage
     to: done
+    on: changes_requested
+  - from: triage
+    to: done
     on: failed
   - from: file
     to: done
@@ -70,26 +73,6 @@ edges:
     to: done
     on: changes_requested
   - from: file
-    to: done
-    on: failed
-`);
-
-const commentTriageLike: AssemblyLine = parseAssemblyLine(`
-name: comment-triage
-description: classify a PR comment
-version: 1
-entry: triage
-exit: done
-nodes:
-  - id: triage
-    type: comment-triage
-  - id: done
-    type: retrospective
-edges:
-  - from: triage
-    to: done
-    on: success
-  - from: triage
     to: done
     on: failed
 `);
@@ -177,7 +160,6 @@ function makeDeps(port: InMemoryAssemblyRuns) {
     definitions: async () =>
       new Map<string, AssemblyLine>([
         ["code-review", codeReviewLike],
-        ["comment-triage", commentTriageLike],
         ["triage-then-issues", triageThenIssues],
         ["push-then-wait", pushThenWait],
         ["feature-planning", featurePlanningLike],

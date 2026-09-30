@@ -82,7 +82,7 @@ function invalidCrdName(name: string): string | null {
     : null;
 }
 
-/** needs_model station calls Anthropic (stationSpec renders the key) — guards the silent-drop comment-triage failure. */
+/** needs_model station calls Anthropic (stationSpec renders the key) — a missing key is refused instead of silently dropped. */
 function validateStationEntry(
   def: ResolvedAgentDefinition,
   keys: Record<string, string>,

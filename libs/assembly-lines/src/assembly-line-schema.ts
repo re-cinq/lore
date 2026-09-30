@@ -8,7 +8,6 @@ const NodeType = z.enum([
   "validate",
   "retrospective",
   "detect",
-  "comment-triage",
   "ingest",
   // Files the GitHub Issues + spec-tasks a decomposition calls for — a station, not an agent, since the judgement already happened upstream.
   "issues",
@@ -95,7 +94,6 @@ const PRODUCIBLE_OUTCOMES: Record<
   validate: ["success", "failed"],
   retrospective: ["success", "failed"],
   detect: ["success", "failed"],
-  "comment-triage": ["success", "failed"],
   ingest: ["success", "failed"],
   issues: ["success", "changes_requested", "failed"],
   merge_step: ["success", "failed"],

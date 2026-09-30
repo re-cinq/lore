@@ -3,7 +3,7 @@
 import type { AssemblyLine } from "./loader.js";
 import { isHumanStation } from "./human-station.js";
 
-// The builtin Station for a node type; underscores aren't valid in an RFC-1123 resource name, so `comment-triage` stays `def-comment-triage`.
+// The builtin Station for a node type; underscores aren't valid in an RFC-1123 resource name, so `merge_step` becomes `def-merge-step`.
 export const builtinStationName = (nodeType: string): string =>
   `def-${nodeType.replaceAll("_", "-")}`;
 
