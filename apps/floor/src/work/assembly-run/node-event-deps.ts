@@ -1,6 +1,5 @@
 // The production dependency wiring for NodeEventDeps: composes the real assembly-runs, prompt, PR, and alert adapters, plus the comment-triage router and rotten-anchor check both terminal doors share.
 
-import { codeReviewOnCommentTriaged } from "../review/code-review-handlers.js";
 import { HttpAgentApi } from "@re-cinq/lore-shared";
 import { clusterAgent } from "../../outbound/queues.js";
 import { centralClusterAgentId } from "../../outbound/central-cluster-agent.js";
@@ -15,7 +14,6 @@ import {
   loreApiPlanOpener,
   loreApiPlans,
 } from "../../outbound/lore-api-plans.js";
-import { type CommentContext } from "../review/code-review.js";
 import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import type { NodeResult } from "@re-cinq/lore-assembly-lines";
@@ -60,8 +58,6 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
   return {
     assemblyRuns: pipeline().assemblyRuns,
     definitions: loadBuiltinAssemblyLines,
-    // Wired HERE so it reaches every door (CR event, reaper resolve, `assembly_run.resume`) — it used to be CR-handler-only, so a REAPER-resolved triage node silently never routed.
-    onNodeFinished: routeCommentTriage,
     // Wired HERE for the same reason: every door that parks the walk on the author (an edge, a resume, a run started at `entry_node: author`) launches through this composition.
     onHumanNodeParked: reopenPlanOnPark({
       plans: loreApiPlanOpener(
@@ -236,53 +232,6 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
         throttle: agentConfigAlertThrottle,
       });
     },
-  };
-}
-
-/** Reads a terminal comment-triage node's classified action and starts the routed follow-up line; best-effort, never fails the walk. */
-async function routeCommentTriage(
-  row: AssemblyRunRecord,
-  node: RunGraphNode,
-  result: NodeResult,
-): Promise<void> {
-  const action = result.extras?.action;
-
-  // Keyed on the node's TYPE, not definition name/node id (the old comparison silently left comment-triage nodes unrouted on rename or reuse).
-  if (node.type !== "comment-triage" || !action) {
-    return;
-  }
-
-  try {
-    await codeReviewOnCommentTriaged({ action, context: contextFromRow(row) });
-  } catch (err) {
-    console.warn(
-      "[code-review] triage routing failed:",
-      (err as Error).message,
-    );
-  }
-}
-
-const numberArg = (value: unknown): number => Number(value) || 0;
-
-const stringArgOrUndefined = (value: unknown): string | undefined =>
-  typeof value === "string" ? value : undefined;
-
-const numberArgOrNull = (value: unknown): number | null =>
-  typeof value === "number" ? value : null;
-
-function contextFromRow(row: AssemblyRunRecord): CommentContext {
-  const a = row.args;
-
-  return {
-    repo: row.repo,
-    pr_number: numberArg(a.pr_number),
-    branch: row.branch ?? "",
-    head_sha: stringArgOrUndefined(a.head_sha),
-    comment_id: numberArg(a.comment_id),
-    comment_body: String(a.comment_body ?? ""),
-    in_reply_to_id: numberArgOrNull(a.in_reply_to_id),
-    // Dropping this left "By" blank on runs a human asked for; the keyword fast path (same destination) kept it.
-    actor: stringArgOrUndefined(a.actor),
   };
 }
 

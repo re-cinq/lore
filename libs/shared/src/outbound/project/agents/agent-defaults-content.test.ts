@@ -231,31 +231,11 @@ describe("the fix-ci recipe when the branch moved", () => {
 
 describe("test_policy", () => {
   it("declares none on every read-only review recipe, so a review pod cannot run tests, installs or builds at all", () => {
-    const readOnly = [
-      "review",
-      "code-review",
-      "code-review-recheck",
-      "code-review-refine",
-      "pr-ready",
-    ];
+    const readOnly = ["review", "pr-ready"];
 
     expect(
       readOnly.map((name) => SHIPPED.get(name)?.config?.test_policy),
     ).toEqual(readOnly.map(() => "none"));
-  });
-});
-
-describe("the review recipes' findings block", () => {
-  it("shows a whole finding with path, line, label, decoration and subject in every recipe that asks for REVIEW_FINDINGS, so no model guesses the shape (#2143's recheck lost every finding)", () => {
-    const shapes = ["code-review", "code-review-recheck"].map((name) => {
-      const prompt = promptOf(name);
-
-      return ['"path"', '"line"', '"label"', '"decoration"', '"subject"'].every(
-        (field) => prompt.includes(field),
-      );
-    });
-
-    expect(shapes).toEqual([true, true]);
   });
 });
 
@@ -435,54 +415,6 @@ function promptOnOneLine(name: string): string {
   return promptOf(name).replace(/\s+/g, " ");
 }
 
-describe("the code-review recipe reads the change as its user first", () => {
-  it("asks, for every spec statement the PR adds or changes, what a person using that surface sees differently, and files a mismatch as a question rather than silence", () => {
-    const prompt = promptOnOneLine("code-review");
-
-    expect({
-      asUser: prompt.includes("what a person using that surface"),
-      neighbours: prompt.includes("the statements beside it"),
-      question: prompt.includes("label it `question`"),
-    }).toEqual({ asUser: true, neighbours: true, question: true });
-  });
-
-  it("names lint, types, formatting and tests as CI's verdict, read through lore_get_ci_failures, so the review spends no commands reproducing them", () => {
-    const prompt = promptOnOneLine("code-review");
-
-    expect({
-      ciJudges: prompt.includes("CI's verdict"),
-      tool: prompt.includes("`lore_get_ci_failures`"),
-      noEslint: prompt.includes("not eslint, tsc or a formatter"),
-    }).toEqual({ ciJudges: true, tool: true, noEslint: true });
-  });
-
-  it("reads the diff once in place and never dumps it to a file to re-read", () => {
-    expect(promptOnOneLine("code-review")).toContain(
-      "Read the diff once, in place",
-    );
-  });
-
-  it("queries context with the PR's subject, spec and surface, never with a description of reviewing", () => {
-    const prompt = promptOnOneLine("code-review");
-
-    expect({
-      subject: prompt.includes("the PR title, the spec sections it touches"),
-      reviewingQueryRuledOut: prompt.includes('not "PR review conventions"'),
-    }).toEqual({ subject: true, reviewingQueryRuledOut: true });
-  });
-
-  it("reserves changes_requested for a defect in the changed code or a mismatch between the spec and what a person would expect, and says a question alone does not block", () => {
-    const prompt = promptOnOneLine("code-review");
-
-    expect({
-      mismatch: prompt.includes(
-        "a mismatch between what the spec says and what a person would expect",
-      ),
-      questionNoBlock: prompt.includes("A `question` alone never blocks"),
-    }).toEqual({ mismatch: true, questionNoBlock: true });
-  });
-});
-
 describe("the plan-validate recipe", () => {
   it("reads plan.md read-only and writes plan-validation.json, never editing the plan", () => {
     const prompt = promptOnOneLine("plan-validate");
@@ -518,35 +450,6 @@ describe("the plan-validate recipe", () => {
       severity: true,
       success: true,
     });
-  });
-});
-
-describe("the code-review-recheck recipe judges the push, not the pull request", () => {
-  it("reads the range since the sha the last verdict judged, rather than the whole PR again", () => {
-    const prompt = promptOnOneLine("code-review-recheck");
-
-    expect({
-      named: prompt.includes("names the sha the last verdict judged"),
-      range: prompt.includes("..HEAD` and judge that range"),
-      whole: prompt.includes("When no sha is named, read `main...HEAD`"),
-    }).toEqual({ named: true, range: true, whole: true });
-  });
-
-  it("carries the same CI-verdict and read-once rules as the deep review, so a re-check runs no linter either", () => {
-    const prompt = promptOnOneLine("code-review-recheck");
-
-    expect({
-      ci: prompt.includes("CI's verdict"),
-      tool: prompt.includes("`lore_get_ci_failures`"),
-      noEslint: prompt.includes("not eslint, tsc or a formatter"),
-      once: prompt.includes("Read each diff once, in place"),
-    }).toEqual({ ci: true, tool: true, noEslint: true, once: true });
-  });
-
-  it("queries context with the PR title and the surface the new commits change", () => {
-    expect(promptOnOneLine("code-review-recheck")).toContain(
-      "the PR title and the surface these commits change",
-    );
   });
 });
 

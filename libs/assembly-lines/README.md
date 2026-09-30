@@ -30,14 +30,13 @@ build time (`loadBuiltinAssemblyLines`):
 | `ingest.yaml` | Project one `internal.ingest.*` payload into the spec-traceability graph |
 | `merge.yaml` | Everything that must happen once a task's PR merges, one recorded step at a time |
 | `escalation.yaml` | File the `needs-human-help` Issue when a task needs a person |
-| `code-review.yaml` | Review a PR: structured findings + REVIEW_RESULT verdict (suggestion-only) |
-| `code-review-reply.yaml` | Act on a human reply — answer in-thread or commit the approved fix |
-| `code-review-recheck.yaml` | Cheap re-check after a new push so the formal verdict tracks the fix |
 | `comment-triage.yaml` | Haiku station classifying a PR comment into review / address / answer / ignore |
 | `gap-detect.yaml` | Per-repo documentation-gap detection; files gap-fill tasks |
 | `spec-drift.yaml` | Per-repo spec-drift detection; files gap-fill tasks for drifted specs |
 | `spec-coverage-validate.yaml` | Resolve every inline `([validated by])` link; file spec-link-rot issues |
 | `spec-coverage-backfill.yaml` | Judge un-linked testable statements; open link-suggestion PRs |
+
+The PR-review lines (`code-review`, `code-review-recheck`, `code-review-reply`) are no longer Floor-run YAMLs: they live in [`src/floor-pipelines/`](./src/floor-pipelines/) and run on the external floor.
 
 ## Loader (`src/loader.ts`)
 

@@ -277,6 +277,8 @@ layers:
       - "@re-cinq/lore-shared"
     relay:
       - "@re-cinq/lore-shared"
+    floor-pipelines:
+      - "@re-cinq/lore-shared"
 
   # The stdio MCP adapter (ADR-032): it holds no pool, so every folder above
   # `features` is transport and the data work is a proxy call.

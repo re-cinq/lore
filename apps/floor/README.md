@@ -70,8 +70,8 @@ src/
                               scheduling/ (cron timer), lease/ (coordination)
                   handlers/   map each event name to the job that answers it —
                               github · kubernetes · cron · internal
-  work/           one folder per job, fifteen of them:
-                  task/ station/ assembly-run/ agent/ watcher/ merge/ review/
+  work/           one folder per job, fourteen of them (the PR-review lines moved to the external floor, `libs/assembly-lines/src/floor-pipelines/`):
+                  task/ station/ assembly-run/ agent/ watcher/ merge/
                   detect/ spec-trace/ memory/ context-jobs/ dark-factory/
                   backlog/ lease/ lib/
   outbound/       every way out: db pool, queues (the lazy port singletons, incl.
