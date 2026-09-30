@@ -339,6 +339,22 @@ describe("what a review pod is given against the agent CLI's own limits", () => 
     expect(told).toEqual([true, true, true]);
   });
 
+  it("sends no failed outcome of a review line to the exit, where the run would settle as success", () => {
+    const failedToExit = [
+      "code-review",
+      "code-review-recheck",
+      "code-review-reply",
+    ]
+      .map((id) => pipelineOf(id).line)
+      .flatMap((line) =>
+        line.edges.filter(
+          (edge) => edge.on === "failed" && edge.to === line.exit,
+        ),
+      );
+
+    expect(failedToExit).toEqual([]);
+  });
+
   it("gives every outcome a station declares an edge out of its node, in all four pipelines", () => {
     const missing = [...PIPELINES.values()].flatMap(outcomesWithoutEdge);
 

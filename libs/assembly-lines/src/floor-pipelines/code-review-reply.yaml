@@ -45,8 +45,9 @@ line:
       to: post-reply
       on: changes_requested
     - from: reply
-      to: done
+      to: reply
       on: failed
+      iteration_max: 1
     - from: post-reply
       to: done
       on: success
