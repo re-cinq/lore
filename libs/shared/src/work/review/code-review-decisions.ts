@@ -65,7 +65,7 @@ export function recheckDescription(
   sinceSha?: string,
 ): string {
   const scope = sinceSha
-    ? ` The last verdict judged ${sinceSha}; read what changed since it with \`git -C /workspace/target diff ${sinceSha}..HEAD\`, and judge only that.`
+    ? ` The last verdict judged ${sinceSha}; read what changed since it with \`git -C /workspace/target diff --no-ext-diff ${sinceSha}..HEAD\`, and judge only that.`
     : "";
 
   return `Re-check pull request #${pr} in ${repo} (branch ${branch}) after a new push.${scope}`;

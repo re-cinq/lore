@@ -199,7 +199,7 @@ describe("recheckDescription", () => {
     expect(
       recheckDescription("re-cinq/lore", 42, "feature/x", "abc123"),
     ).toEqual(
-      "Re-check pull request #42 in re-cinq/lore (branch feature/x) after a new push. The last verdict judged abc123; read what changed since it with `git -C /workspace/target diff abc123..HEAD`, and judge only that.",
+      "Re-check pull request #42 in re-cinq/lore (branch feature/x) after a new push. The last verdict judged abc123; read what changed since it with `git -C /workspace/target diff --no-ext-diff abc123..HEAD`, and judge only that.",
     );
   });
 

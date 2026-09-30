@@ -2,6 +2,14 @@ line:
   id: code-review
   entry: review
   exit: done
+  # gemini-cli gives a model 60 seconds to start answering (its global
+  # `defaultHeadersTimeout`), and Gemini 3.1 Pro thinking over a whole diff often
+  # takes longer: the call fails as "fetch failed sending request" and is retried
+  # with the same context. The CLI reads this experiments file, named by GEMINI_EXP,
+  # and flag 45773134 (DEFAULT_REQUEST_TIMEOUT) is that limit in seconds. The agent
+  # runtime is to set this itself; this copy goes when it does.
+  files:
+    gemini_exp: '{"flags":[{"flagId":45773134,"intValue":"600"}]}'
   args:
     repo:
       kind: git
@@ -52,6 +60,9 @@ stations:
         kind: file
         path: issue.md
         optional: true
+      - name: gemini_exp
+        kind: file
+        path: gemini-exp.json
     produces:
       - name: review_output
         kind: file
@@ -109,6 +120,7 @@ agent_definitions:
           - Bash(sh:*)
         env:
           LORE_TEST_POLICY: none
+          GEMINI_EXP: /workspace/gemini-exp.json
       prompt: |
         {description}
 
@@ -116,7 +128,7 @@ agent_definitions:
         the diff and changed files from there — do NOT use `gh` and do NOT fetch
         the PR over the network (this is a private repo; the pod has neither `gh`
         nor a GitHub token in the shell). Get the diff with:
-          git -C /workspace/target diff main...HEAD
+          git -C /workspace/target diff --no-ext-diff main...HEAD
           git -C /workspace/target log main..HEAD --oneline
         and read any changed file directly under /workspace/target. Read the
         diff once, in place — never dump it to a file to read it back.
@@ -125,6 +137,8 @@ agent_definitions:
         sections it touches and the surface it changes (a page, a route, a
         line), not "PR review conventions" — that returns the platform overview.
         Then read the CI verdict with `lore_get_ci_failures`.
+        Pass `repo` (the owner/name your task names above) on every `lore_*` call:
+        the server has no checkout to detect it from.
 
         Read the change as its user before you read it as its reviewer. For
         every spec statement the PR adds or changes, write one line on what a
@@ -182,4 +196,4 @@ agent_definitions:
         - REVIEW_RESULT:APPROVED
         - REVIEW_RESULT:CHANGES_REQUESTED:<one-line summary>
 
-        If `/workspace/issue.md` exists it is the GitHub issue this pull request answers — judge the change against it.
+        `/workspace/issue.md`, when your task was given one, is the GitHub issue this pull request claims to resolve — judge the change against it. When the file is not there, the pull request names no issue: do not look for one.
