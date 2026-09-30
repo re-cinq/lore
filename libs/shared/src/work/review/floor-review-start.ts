@@ -152,14 +152,25 @@ export async function startRecheck(
     : skipped(target.prNumber, decision.reason);
 }
 
-/** The open re-check is judging code the branch no longer has, and its verdict would land beside the new one. */
+/** An open re-check of an older sha is judging code the branch no longer has, and its verdict would land beside the new one. One already judging the head sha is left alone: two deliveries of the same push can reach here together, and the second must join the first, not cancel it. */
 async function supersedeAndRecheck(
   deps: ReviewStartDeps,
   target: PullRequestTarget,
   pr: PullRef,
   sinceSha?: string,
 ): Promise<string> {
-  await cancelOpenRuns(deps.floor, target, [RECHECK_LINE], "superseded");
+  const { floor } = deps;
+  const runs = await reviewRunsForPr(floor, target);
+  const older = runs.filter(
+    (run) =>
+      isOpen(run) &&
+      run.lineId === RECHECK_LINE &&
+      !headShaOf(run).includes(pr.headSha ?? ""),
+  );
+
+  await Promise.all(
+    older.map((run) => floor.runs.cancel(run.id, "superseded")),
+  );
 
   return startRecheckLine(deps, target, pr, sinceSha);
 }
