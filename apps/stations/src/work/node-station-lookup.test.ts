@@ -6,10 +6,8 @@ describe("nodeStationFor", () => {
     expect(nodeStationFor("validate")?.manifest.name).toBe("validate");
   });
 
-  it("finds a station by its exact node type, hyphen and all", () => {
-    expect(nodeStationFor("comment-triage")?.manifest.name).toBe(
-      "comment-triage",
-    );
+  it("finds a station by its exact node type, underscore and all", () => {
+    expect(nodeStationFor("merge_step")?.manifest.name).toBe("merge-step");
   });
 
   it("returns nothing for a node type no station claims, rather than a wrong one", () => {

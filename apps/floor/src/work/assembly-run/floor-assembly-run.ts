@@ -28,7 +28,7 @@ export interface FloorAssemblyRunTask {
   description: string;
   targetRepo: string;
   branch: string;
-  /** String/number entries thread into a station's params (e.g. comment-triage's comment_body/in_reply_to_id/pr_number). */
+  /** String/number entries thread into a station's params. */
   args?: Record<string, unknown>;
 }
 

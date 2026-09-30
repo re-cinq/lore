@@ -43,7 +43,6 @@ export async function finishNodeAndAdvance(
   if (closed) {
     await maybeStampPr(assemblyLineId, nodeId, result, deps);
     await maybeMarkPrReady(assemblyLineId, nodeId, result, deps);
-    await reactToNodeFinished(assemblyLineId, nodeId, result, deps);
     await settleAnyPlanningPass(assemblyLineId, nodeId, result, deps);
     await recordNodeOutcome(assemblyLineId, closed, result, deps);
   }
@@ -282,52 +281,6 @@ async function settleAnyPlanningPass(
       (err as Error).message,
     );
   }
-}
-
-/** Runs the node-finished reaction and never lets it stop the walk — same bias as `maybeStampPr`: a failed follow-up is a log line, not a permanently parked run. */
-async function reactToNodeFinished(
-  assemblyLineId: string,
-  nodeId: string,
-  result: NodeResult,
-  deps: AdvanceDeps,
-): Promise<void> {
-  if (!deps.onNodeFinished) {
-    return;
-  }
-
-  try {
-    await runNodeFinishedReaction(assemblyLineId, nodeId, result, deps);
-  } catch (err) {
-    console.warn(
-      `[assembly-run] node-finished reaction failed for ${nodeId}:`,
-      (err as Error).message,
-    );
-  }
-}
-
-/** Hands the finished node's row and graph node to the reaction; a node the graph does not know is a wiring bug, logged rather than silently dropped. */
-async function runNodeFinishedReaction(
-  assemblyLineId: string,
-  nodeId: string,
-  result: NodeResult,
-  deps: AdvanceDeps,
-): Promise<void> {
-  const row = await deps.assemblyRuns.getById(assemblyLineId);
-
-  if (!row) {
-    return;
-  }
-  const node = await findRunNode(row, nodeId, deps);
-
-  if (!node) {
-    console.warn(
-      `[assembly-run] ${assemblyLineId}: node ${nodeId} is not in the run's graph — node-finished reaction skipped`,
-    );
-
-    return;
-  }
-
-  await deps.onNodeFinished?.(row, node, result);
 }
 
 /** The node matching `nodeId` in the run's current graph, or undefined when the run has no graph or the graph does not carry that id. */

@@ -30,7 +30,6 @@ build time (`loadBuiltinAssemblyLines`):
 | `ingest.yaml` | Project one `internal.ingest.*` payload into the spec-traceability graph |
 | `merge.yaml` | Everything that must happen once a task's PR merges, one recorded step at a time |
 | `escalation.yaml` | File the `needs-human-help` Issue when a task needs a person |
-| `comment-triage.yaml` | Haiku station classifying a PR comment into review / address / answer / ignore |
 | `gap-detect.yaml` | Per-repo documentation-gap detection; files gap-fill tasks |
 | `spec-drift.yaml` | Per-repo spec-drift detection; files gap-fill tasks for drifted specs |
 | `spec-coverage-validate.yaml` | Resolve every inline `([validated by])` link; file spec-link-rot issues |

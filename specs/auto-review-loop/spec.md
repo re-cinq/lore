@@ -330,7 +330,7 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 
 ### `apps/floor/src/work/assembly-run/advance-line.test.ts`
 
-- A code-review-recheck line opts out of the branch-overlap guard, so a push landing while a review or reply line still holds the PR branch is not silently dropped as `lease_held` (the verdict update always runs). ([validated by does not re-run the inherited node](apps/floor/src/work/assembly-run/advance-line.test.ts#L937))
+- A code-review-recheck line opts out of the branch-overlap guard, so a push landing while a review or reply line still holds the PR branch is not silently dropped as `lease_held` (the verdict update always runs). ([validated by does not re-run the inherited node](apps/floor/src/work/assembly-run/advance-line.test.ts#L919))
 
 ### `apps/floor/src/work/merge/auto-merge.test.ts`
 
@@ -399,12 +399,6 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 - returns nothing when the repository is missing. ([validated by](libs/shared/src/outbound/project/events/github-map.test.ts#L368))
 - returns nothing for an unhandled event type. ([validated by](libs/shared/src/outbound/project/events/github-map.test.ts#L378))
 
-### `apps/stations/src/work/comment-triage/comment-triage.test.ts`
-
-- emits the classified action in LORE_NODE_RESULT extras. ([validated by](apps/stations/src/work/comment-triage/comment-triage.test.ts#L22))
-- defaults to ignore when classification fails. ([validated by](apps/stations/src/work/comment-triage/comment-triage.test.ts#L41))
-- reports the classification call's usage on the node result, so the cost sink records the triage spend. ([validated by](apps/stations/src/work/comment-triage/comment-triage.test.ts#L51))
-
 ### `apps/web-ui/src/app/assembly-runs/[id]/TriggerReviewButton.test.tsx`
 
 - posts the repo and pr_number to the review-trigger proxy. ([validated by](apps/web-ui/src/app/assembly-runs/[id]/TriggerReviewButton.test.tsx#L7))
@@ -412,8 +406,8 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 ### `libs/assembly-lines/src/loader.test.ts`
 
 - code-review is a `review → post-review → done` graph with no refine node. ([validated by walks code-review from review through post-review to done, with no refine node](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L65))
-- gap-fill is a linear flow with retrospective + done as exit pair. ([validated by](libs/assembly-lines/src/loader.test.ts#L673))
-- assemblyLinesDir actually exists on disk (sanity check). ([validated by](libs/assembly-lines/src/loader.test.ts#L727))
+- gap-fill is a linear flow with retrospective + done as exit pair. ([validated by](libs/assembly-lines/src/loader.test.ts#L662))
+- assemblyLinesDir actually exists on disk (sanity check). ([validated by](libs/assembly-lines/src/loader.test.ts#L716))
 - code-review-recheck is a Gemini 3.1 Pro `recheck → post-review → done` graph routing every verdict to `post-review`. ([validated by walks code-review-recheck through recheck, post-review and done on gemini-3.1-pro-preview with edges for changes_requested, failed and success](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L104))
 
 ### `libs/shared/src/outbound/project/assembly-runs/assembly-runs.test.ts`
@@ -463,14 +457,6 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 - reads a file from the repo at the given ref. ([validated by](libs/shared/src/outbound/project/repo/repo-files.test.ts#L53))
 - returns null for a file the repo does not have. ([validated by](libs/shared/src/outbound/project/repo/repo-files.test.ts#L59))
 - creates a branch and commits a file via the API, repo bound. ([validated by](libs/shared/src/outbound/project/repo/repo-files.test.ts#L65))
-
-### `libs/shared/src/work/review/comment-triage.test.ts`
-
-- returns the action the model chose. ([validated by](libs/shared/src/work/review/comment-triage.test.ts#L9))
-- defaults to ignore when the model returns an unknown action. ([validated by](libs/shared/src/work/review/comment-triage.test.ts#L24))
-- passes the replied-to comment into the prompt for a reply. ([validated by](libs/shared/src/work/review/comment-triage.test.ts#L32))
-- returns the classification call's usage for the station cost report. ([validated by](libs/shared/src/work/review/comment-triage.test.ts#L49))
-- returns no usage when the model call throws. ([validated by](libs/shared/src/work/review/comment-triage.test.ts#L71))
 
 ### `libs/shared/src/work/review/conventional-comment.test.ts`
 

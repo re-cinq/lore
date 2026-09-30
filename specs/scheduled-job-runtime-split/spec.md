@@ -229,7 +229,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
 
 - **FR9 — A scheduled job with no steps runs in lore-api, not in a line.** The
   assembly-line node types are a closed set (`agent`, `validate`, `gate`,
-  `retrospective`, `github_action`, `detect`, `comment-triage`, `ingest`,
+  `retrospective`, `github_action`, `detect`, `ingest`,
   `issues`, human stations) and none of them is "do a data operation". A
   one-node line for a single `DELETE` would put a station pod and a Floor walk
   between the alarm and one statement, so the courier posts

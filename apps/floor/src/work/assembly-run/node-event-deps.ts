@@ -1,4 +1,4 @@
-// The production dependency wiring for NodeEventDeps: composes the real assembly-runs, prompt, PR, and alert adapters, plus the comment-triage router and rotten-anchor check both terminal doors share.
+// The production dependency wiring for NodeEventDeps: composes the real assembly-runs, prompt, PR, and alert adapters, plus the rotten-anchor check both terminal doors share.
 
 import { HttpAgentApi } from "@re-cinq/lore-shared";
 import { clusterAgent } from "../../outbound/queues.js";

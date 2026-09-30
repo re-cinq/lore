@@ -33,10 +33,10 @@ Closes the review loop by automatically running an agent review after an impleme
 >   **Conventional Comments** (with ` ```suggestion ` blocks) and posts ONE review whose
 >   GitHub event **is** the verdict — `APPROVE` or `REQUEST_CHANGES`, no longer a neutral
 >   `COMMENT`. It still never commits.
-> - **Comments are triaged.** Every non-keyword human comment starts the `comment-triage`
->   line — a cheap Haiku station classifies it (review / address / answer / ignore) and the
->   Floor routes it: `address` → a `code-review-reply` line commits the approved fix,
->   `answer` → replies in-thread, `ignore` → nothing (no action pod).
+> - **Comments are acted on only when asked.** A human comment starts a pass only when it
+>   carries `@lore review` (*amended 2026-09-30*: the `comment-triage` Haiku classifier that
+>   used to route every other comment was removed with the move to the external floor); a plain
+>   comment starts nothing.
 > - **Fixes are human-gated.** A fix only happens when a human approves it via a reply.
 > - **State + merge gate.** Each PR-linked line publishes a `lore/<definition>` **check
 >   run** (in_progress while running; `neutral` on changes-suggested); required in branch

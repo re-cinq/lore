@@ -3,7 +3,6 @@ export const REVIEW_DEFINITIONS = [
   "code-review",
   "code-review-recheck",
   "code-review-reply",
-  "comment-triage",
 ] as const;
 
 /** The one sentence telling a human how to re-run a review by hand; unifies what used to be three different wordings across four surfaces. */

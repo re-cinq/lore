@@ -642,7 +642,6 @@ describe("loadAssemblyLineDir — bundled assemblyLines", () => {
     const names = Array.from(map.keys()).sort();
 
     expect(names).toEqual([
-      "comment-triage",
       "daily-digest",
       "escalation",
       "feature-planning",
@@ -658,16 +657,6 @@ describe("loadAssemblyLineDir — bundled assemblyLines", () => {
       "spec-coverage-validate",
       "spec-drift",
     ]);
-  });
-
-  it("comment-triage is a triage(station)→done graph", async () => {
-    const map = await loadAssemblyLineDir(assemblyLinesDir);
-    const wf = map.get("comment-triage");
-
-    expect(wf?.entry).toBe("triage");
-    expect(wf?.nodes.find((n) => n.id === "triage")?.type).toBe(
-      "comment-triage",
-    );
   });
 
   it("detection lines are two-node detect → done graphs keyed to their historic job names", async () => {
