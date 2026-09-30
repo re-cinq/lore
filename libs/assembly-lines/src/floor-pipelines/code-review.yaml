@@ -1,0 +1,185 @@
+line:
+  id: code-review
+  entry: review
+  exit: done
+  args:
+    repo:
+      kind: git
+    pr_url:
+      kind: value
+      subject: true
+    description:
+      kind: value
+  nodes:
+    - id: review
+      station: code-review
+      bind:
+        target: repo
+    - id: post-review
+      station: post-review
+    - id: done
+  edges:
+    - from: review
+      to: post-review
+      on: success
+    - from: review
+      to: post-review
+      on: changes_requested
+    - from: review
+      to: review
+      on: failed
+      iteration_max: 1
+    - from: post-review
+      to: done
+      on: success
+stations:
+  code-review:
+    kind: agent
+    agent_definition: code-review
+    conversation: new
+    outcomes:
+      - success
+      - changes_requested
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: read
+      - name: description
+        kind: value
+      - name: issue
+        kind: file
+        path: issue.md
+        optional: true
+    produces:
+      - name: review_output
+        kind: file
+        from: output
+  post-review:
+    kind: service
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: review_output
+        kind: file
+      - name: pr_url
+        kind: value
+      - name: head_sha
+        kind: value
+        optional: true
+    produces:
+      - name: review_summary
+        kind: value
+      - name: review_url
+        kind: value
+agent_definitions:
+  code-review:
+    settings:
+      model: gemini-3.1-pro-preview
+      image: ${LORE_AGENT_IMAGE}
+      timeout_minutes: 25
+      prices:
+        gemini-3.1-pro-preview:
+          input_per_million: 2
+          output_per_million: 12
+      config:
+        skills:
+          - lore-context
+        skills_source: ${LORE_SKILLS_URL}
+        mcp_servers:
+          - name: lore
+            transport: http
+            url: ${LORE_MCP_URL}
+            headers_secret: lore-mcp-auth
+        disallowed_tools:
+          - Bash(npm:*)
+          - Bash(npx:*)
+          - Bash(yarn:*)
+          - Bash(pnpm:*)
+          - Bash(bun:*)
+          - Bash(pip:*)
+          - Bash(pip3:*)
+          - Bash(uv:*)
+          - Bash(cargo:*)
+          - Bash(go:*)
+          - Bash(make:*)
+          - Bash(bash:*)
+          - Bash(sh:*)
+        env:
+          LORE_TEST_POLICY: none
+      prompt: |
+        {description}
+
+        The PR branch is already checked out locally at /workspace/target. Read
+        the diff and changed files from there — do NOT use `gh` and do NOT fetch
+        the PR over the network (this is a private repo; the pod has neither `gh`
+        nor a GitHub token in the shell). Get the diff with:
+          git -C /workspace/target diff main...HEAD
+          git -C /workspace/target log main..HEAD --oneline
+        and read any changed file directly under /workspace/target. Read the
+        diff once, in place — never dump it to a file to read it back.
+
+        Context: query `lore_assemble_context` with the PR title, the spec
+        sections it touches and the surface it changes (a page, a route, a
+        line), not "PR review conventions" — that returns the platform overview.
+        Then read the CI verdict with `lore_get_ci_failures`.
+
+        Read the change as its user before you read it as its reviewer. For
+        every spec statement the PR adds or changes, write one line on what a
+        person using that surface sees differently, and compare it with the
+        statements beside it in the same spec and with the page or route that
+        renders it. When the code, the spec and the PR description all agree
+        but that person would expect something else — a button that opens a new
+        run where they expected the same one — say so and label it `question`:
+        a spec written in the same PR as its code proves nothing about intent.
+
+        Then review against the repo's conventions (CLAUDE.md), ADRs in adrs/,
+        and the specs. Check correctness, type safety, security, and simplicity.
+        Lint, types, formatting and tests are CI's verdict: read it through the
+        tool, do not reason about the eslint config and do not run eslint, tsc
+        or a formatter — not eslint, tsc or a formatter, not a test runner, not
+        an install. The pod has a 1Gi disk budget and one `npx` evicts it
+        mid-review. Do NOT edit code and do NOT post comments yourself — Lore
+        posts your findings for you. Review from the source tree and the diff
+        alone.
+
+        Emit a fenced REVIEW_FINDINGS block (one finding per point) then the
+        verdict. Be liberal with concrete `suggestion` fixes. Each `subject` is
+        ONE short imperative line. Labels: issue | suggestion | nit | question.
+        Report only problems worth acting on — never praise, commentary, or
+        restatements of what the diff does; a clean area gets silence.
+        Reserve `"decoration":"blocking"` for real defects in the changed code:
+        correctness, security, or data loss. `changes_requested` is for such a
+        defect, or for a mismatch between what the spec says and what a person
+        would expect of the surface it describes. A `question` alone never
+        blocks. Convention/doc/spec hygiene, style, and speculative hardening
+        against situations this code cannot reach are `suggestion` or `nit`,
+        never blocking.
+        When one root cause repeats across files, emit ONE finding and list the
+        other occurrences in its subject — not one finding per site.
+        `suggestion` is the replacement text for that exact line(s).
+
+        ```REVIEW_FINDINGS
+        {
+          "verdict": "approved" | "changes_requested",
+          "summary": "<one line>",
+          "findings": [
+            {
+              "path": "src/foo.ts",
+              "line": 42,
+              "label": "issue",
+              "decoration": "blocking",
+              "subject": "user can be null here — guard before deref",
+              "suggestion": "const name = user?.name ?? \"anon\";"
+            }
+          ]
+        }
+        ```
+
+        Then output exactly one of:
+        - REVIEW_RESULT:APPROVED
+        - REVIEW_RESULT:CHANGES_REQUESTED:<one-line summary>
+
+        If `/workspace/issue.md` exists it is the GitHub issue this pull request answers — judge the change against it.
