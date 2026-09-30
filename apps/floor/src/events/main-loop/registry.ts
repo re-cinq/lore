@@ -76,11 +76,7 @@ function githubEntries(): Entry[] {
 function prClosedEntry(): Entry {
   return [
     "github.pull_request.closed",
-    withExtra(
-      github.specPrMerge,
-      github.specPrResumeLine,
-      dropOverlayOnClose,
-    ),
+    withExtra(github.specPrMerge, github.specPrResumeLine, dropOverlayOnClose),
   ];
 }
 

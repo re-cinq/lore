@@ -17,11 +17,11 @@ Closes the review loop by automatically running an agent review after an impleme
 
 > **Widening: the `code-review` assembly line (2026-07 amendment).** The loop above
 > reviewed only Lore's **own** implementation PRs. The `code-review` assembly line
-> ([`code-review.yaml`](../libs/assembly-lines/src/assembly-lines/code-review.yaml)) widens
+> ([`code-review.yaml`](../libs/assembly-lines/src/floor-pipelines/code-review.yaml)) widens
 > this to **any open PR on a repo with `auto_review` enabled** — driven by PR-lifecycle
 > webhooks on the event bus ([ADR-015](./ADR-015-webhook-driven-review-reactor.md)). It is
 > the **sole reviewer** (the legacy `review-reactor` was retired). The engagement is an
-> **event choreography** (wiring in [`code-review.ts`](../apps/floor/src/work/review/code-review.ts)):
+> **event choreography** (wiring in [`floor-review-start.ts`](../libs/shared/src/work/review/floor-review-start.ts)):
 >
 > - **Triggers.** A **first, deep** review runs on `opened` / `reopened` /
 >   `ready_for_review` / the first `synchronize` (`hasReviewedPr`). Every **later push**
@@ -55,11 +55,11 @@ Closes the review loop by automatically running an agent review after an impleme
 >    suggestion-only `COMMENT` of the original design), so it satisfies branch-protection
 >    "require approvals" and the dark-factory `require_bot_approval` gate
 >    ([ADR-016](./ADR-016-dark-factory-mode.md)). Derived in
->    [`post-review.ts`](../apps/floor/src/work/review/post-review.ts) from the
+>    [`post-review.ts`](../apps/stations/src/code-review/post-review/post-review.ts) from the
 >    already-parsed `output.verdict`; the inline findings ride the same review.
 > 2. **A fast re-check on every push.** After the deep review, each new push starts the
 >    cheap Haiku `code-review-recheck` line
->    ([`code-review-recheck.yaml`](../libs/assembly-lines/src/assembly-lines/code-review-recheck.yaml)),
+>    ([`code-review-recheck.yaml`](../libs/assembly-lines/src/floor-pipelines/code-review-recheck.yaml)),
 >    which re-decides the verdict on the updated diff and re-submits it. Auto-merge reads
 >    the bot's **latest** decision, so a later `REQUEST_CHANGES` overrides an earlier
 >    `APPROVE` and vice-versa

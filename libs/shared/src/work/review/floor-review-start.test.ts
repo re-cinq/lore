@@ -247,6 +247,35 @@ describe("reviewOrRecheck", () => {
     });
   });
 
+  it("names no sha after a rebase dropped sha-old from the branch, so the re-check reads the whole pull request", async () => {
+    const { deps, requests } = scene({
+      runs: [run()],
+      commits: [
+        { sha: "sha-rebased", message: "first", date: "2026-09-30T09:00:00Z" },
+      ],
+    });
+
+    await reviewOrRecheck(deps, TARGET);
+
+    expect(started(requests)[0].body).toMatchObject({
+      startItems: {
+        description: {
+          ref: "Re-check pull request #412 in re-cinq/lore (branch fix/login) after a new push.",
+        },
+      },
+    });
+  });
+
+  it("starts no re-check on a pull request the lore bot authored", async () => {
+    const { deps, requests } = scene({
+      pr: pull({ author: "lore[bot]" }),
+      runs: [run()],
+    });
+
+    expect(await reviewOrRecheck(deps, TARGET)).toBeNull();
+    expect(started(requests)).toEqual([]);
+  });
+
   it("starts no re-check while an open run is judging sha-new", async () => {
     const { deps, requests } = scene({
       runs: [
@@ -299,7 +328,7 @@ describe("startReply", () => {
     });
   });
 
-  it("starts no reply for a review submitted by lore[bot]", async () => {
+  it("starts no reply for a review the lore bot submitted", async () => {
     const { deps, requests } = scene();
     const replied = await startReply(deps, {
       ...TARGET,

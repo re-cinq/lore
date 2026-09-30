@@ -125,7 +125,7 @@ describe("floorReviewHandlers", () => {
     expect(requests).toEqual([]);
   });
 
-  it("starts nothing when lore[bot] comments @lore review", async () => {
+  it("starts nothing when the lore bot comments @lore review", async () => {
     const { deliver, requests } = scene();
 
     await deliver("github.pull_request_review_comment.created", {

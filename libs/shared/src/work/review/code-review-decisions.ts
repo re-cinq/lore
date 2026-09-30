@@ -4,7 +4,6 @@ import type {
   PullRef,
   ReviewComment,
 } from "../../outbound/project/pulls/pull-requests-port.js";
-import type { TriageAction } from "./comment-triage.js";
 import { SKIP_CI_MARKERS } from "../../outbound/project/pulls/check-runs.js";
 
 /** A GitHub App / bot login ends with `[bot]`; only human actors drive the review. */
@@ -48,20 +47,6 @@ export function decideReviewOnReply(input: {
       pr.draft !== true &&
       !isBotActor(commentAuthor),
   };
-}
-
-// The thread context threaded through pipeline.events "context" args (comment-triage → follow-up line), GitHub-shaped.
-// eslint-disable-next-line re-lint/no-row-types-outside-models
-export interface CommentContext {
-  repo: string;
-  pr_number: number;
-  branch: string;
-  head_sha?: string;
-  comment_id: number;
-  comment_body: string;
-  in_reply_to_id?: number | null;
-  /** The human who triggered the line; surfaced as the "By" for task-less lines. */
-  actor?: string;
 }
 
 export function reviewDescription(
@@ -123,72 +108,6 @@ function skipsCiOnly(messages: readonly string[]): boolean {
       SKIP_CI_MARKERS.some((marker) => message.toLowerCase().includes(marker)),
     )
   );
-}
-
-/** Route a triaged comment; pure for unit-testability; ignore yields null. */
-type TriageRoute = { definition: string; args: Record<string, unknown> } | null;
-
-export function routeTriagedComment(
-  action: TriageAction,
-  ctx: CommentContext,
-): TriageRoute {
-  if (action === "review") {
-    return reviewRoute(ctx);
-  }
-
-  // `ignore` falls through to null: not every comment is work.
-  return action === "address" || action === "answer"
-    ? replyRoute(action, ctx)
-    : null;
-}
-
-/** A fresh review pass over the whole PR — the comment asked for the work to be redone, not discussed. */
-function reviewRoute(ctx: CommentContext): TriageRoute {
-  return {
-    definition: "code-review",
-    args: {
-      pr_number: ctx.pr_number,
-      head_sha: ctx.head_sha,
-      mode: "review",
-      actor: ctx.actor,
-      description: reviewDescription(ctx.repo, ctx.pr_number, ctx.branch),
-    },
-  };
-}
-
-/** A reply on one thread. `intent` carries whether the line should ANSWER the comment or COMMIT a change for it — the same definition does both, and picking per reply is what keeps a question from becoming a commit. */
-function replyRoute(
-  action: "address" | "answer",
-  ctx: CommentContext,
-): TriageRoute {
-  return {
-    definition: "code-review-reply",
-    args: {
-      pr_number: ctx.pr_number,
-      head_sha: ctx.head_sha,
-      comment_id: ctx.comment_id,
-      in_reply_to_id: ctx.in_reply_to_id,
-      comment_body: ctx.comment_body,
-      mode: "reply",
-      intent: action,
-      actor: ctx.actor,
-      description: replyDescription(action, ctx),
-    },
-  };
-}
-
-function replyDescription(
-  intent: "address" | "answer",
-  ctx: CommentContext,
-): string {
-  const thread = ctx.in_reply_to_id
-    ? ` (reply on review-comment thread ${ctx.in_reply_to_id})`
-    : "";
-  const head = `On pull request #${ctx.pr_number} in ${ctx.repo} (branch ${ctx.branch})${thread}, a human commented: ${ctx.comment_body}`;
-
-  return intent === "address"
-    ? `${head}\n\nThey approved a fix — implement it and commit to the PR branch, then confirm briefly in the thread.`
-    : `${head}\n\nAnswer their question briefly in the review thread; do not change code.`;
 }
 
 /** Review feedback: body plus inline comments with ids for thread targeting. */
