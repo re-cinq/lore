@@ -32,8 +32,9 @@ line:
     - from: post-review
       to: done
       on: success
+    # A post that fails is usually an agent that ended without a verdict; posting again reads the same output, so the agent runs again instead.
     - from: post-review
-      to: post-review
+      to: review
       on: failed
       iteration_max: 1
 stations:

@@ -351,7 +351,7 @@ describe("what a review pod is given against the agent CLI's own limits", () => 
     expect(missing).toEqual([]);
   });
 
-  it("retries a failed post-review, read-review, reply and post-reply visit once, so a second failure settles the run as iteration_max and not as success", () => {
+  it("sends a failed post-review back to its review agent once, and retries a failed read-review, reply and post-reply visit once, so a second failure settles the run as iteration_max and not as success", () => {
     const retries = [
       ["code-review", "post-review"],
       ["code-review-recheck", "post-review"],
@@ -365,13 +365,13 @@ describe("what a review pod is given against the agent CLI's own limits", () => 
     expect(retries).toEqual([
       {
         from: "post-review",
-        to: "post-review",
+        to: "review",
         on: "failed",
         iteration_max: 1,
       },
       {
         from: "post-review",
-        to: "post-review",
+        to: "recheck",
         on: "failed",
         iteration_max: 1,
       },
