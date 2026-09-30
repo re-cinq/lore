@@ -13,6 +13,11 @@ line:
       station: plan-analyze
       bind:
         target: repo
+    # Not a review: every pass settles here before the author waits again, so a
+    # Refine round that died tells its person rather than leaving them watching a
+    # plan that will never answer. See the plan-pass-end station.
+    - id: plan-pass-end
+      station: plan-pass-end
     - id: author
       station: plan-author
     # No inbound edge — the plan page's own Validate button fires this event while
@@ -48,23 +53,32 @@ line:
         target: repo
     - id: issues
       station: issues
+      bind:
+        target: repo
     - id: done
   edges:
     - from: analyze
-      to: author
+      to: plan-pass-end
       on: success
     # An agent visit can produce this outcome, so the graph must route it; planning
-    # asks for no review, so it reaches the author exactly as success does.
+    # asks for no review, so it settles exactly as success does.
     - from: analyze
-      to: author
+      to: plan-pass-end
       on: changes_requested
     # A pass that died — a crashed pod, a non-zero exit, a timeout — hands the plan
     # back to its people rather than retrying on its own. Every pass is asked for by
     # a person (the first draft, Regenerate, each Refine), so there is no runaway to
-    # bound: the page names the failure and they ask again.
+    # bound: the page names the failure and they ask again. plan-pass-end is what
+    # tells a Refine's person their round died, before the author waits again.
     - from: analyze
-      to: author
+      to: plan-pass-end
       on: failed
+    # Every one of analyze's outcomes reaches here; plan-pass-end reports only
+    # success or failed of its own (posting the Refine-failure notice, or not), and
+    # either way the plan waits on its author next.
+    - from: plan-pass-end
+      to: author
+      on: always
     # Unbounded on purpose. The back-edge rule exists to stop two agents arguing
     # forever; here a person decides each pass, so there is no runaway to bound — and
     # any number picked would silently kill a feature that needed one more round.
@@ -191,6 +205,26 @@ stations:
     produces:
       - name: plan_md
         kind: file
+      # Written only on a changes_requested report — the person clicked Refine on
+      # one section, naming it and the hash they read it at. plan-pass-end reads it
+      # back on the analyze pass it asks for.
+      - name: refine
+        kind: value
+  plan-pass-end:
+    kind: service
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: plan_id
+        kind: value
+      # Present only on a Refine round — the person who clicked Refine on the plan
+      # page produced it when `author` answered changes_requested; a first draft
+      # has none.
+      - name: refine
+        kind: value
+        optional: true
+    produces: []
   plan-validate:
     kind: agent
     agent_definition: plan-validate
@@ -267,6 +301,11 @@ stations:
         kind: git
         path: target
         access: read
+      # The pull request is titled after the plan, as every spec PR opened by hand
+      # was; the branch name is the fallback, not the intent.
+      - name: plan_title
+        kind: value
+        optional: true
     produces:
       - name: pr_url
         kind: value
@@ -301,12 +340,21 @@ stations:
       - changes_requested
       - failed
     needs:
+      - name: target
+        kind: git
+        path: target
+        access: read
       - name: decomposition
         kind: file
       # For the spec_path it derives — the decomposition names stories and tasks,
       # not which spec they belong to; that is spec-plan.json's creates/updates.
       - name: spec_plan
         kind: file
+      - name: plan_id
+        kind: value
+      - name: plan_title
+        kind: value
+        optional: true
     produces: []
 agent_definitions:
   plan-analyze:

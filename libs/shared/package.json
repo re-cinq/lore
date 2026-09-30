@@ -78,6 +78,10 @@
       "types": "./dist/domain/feature-planning/decomposition-instructions.d.ts",
       "default": "./dist/domain/feature-planning/decomposition-instructions.js"
     },
+    "./feature-planning/spec-plan-path.js": {
+      "types": "./dist/domain/feature-planning/spec-plan-path.d.ts",
+      "default": "./dist/domain/feature-planning/spec-plan-path.js"
+    },
     "./feature-planning/*.js": {
       "types": "./dist/work/feature-planning/*.d.ts",
       "default": "./dist/work/feature-planning/*.js"

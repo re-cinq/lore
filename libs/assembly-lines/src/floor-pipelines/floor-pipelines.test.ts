@@ -202,6 +202,7 @@ describe("the feature-planning pipeline", () => {
         "issues",
         "merged",
         "open-spec-pr",
+        "plan-pass-end",
         "validate",
         "write",
       ].sort(),
