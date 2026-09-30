@@ -40,6 +40,7 @@ interface Pipeline {
     entry: string;
     exit: string;
     start?: { on: string[] };
+    files?: Record<string, string>;
     args: Record<string, Arg>;
     nodes: { id: string; station?: string }[];
     edges: Edge[];
@@ -253,9 +254,9 @@ describe("test_policy on the review agent definitions", () => {
   it("declares LORE_TEST_POLICY none on code-review, code-review-recheck and code-review-refine, so a review pod cannot run tests, installs or builds at all", () => {
     const names = ["code-review", "code-review-recheck", "code-review-refine"];
 
-    expect(names.map((name) => settingsOf(name).config.env)).toEqual(
-      names.map(() => ({ LORE_TEST_POLICY: "none" })),
-    );
+    expect(
+      names.map((name) => settingsOf(name).config.env.LORE_TEST_POLICY),
+    ).toEqual(["none", "none", "none"]);
   });
 });
 
@@ -270,6 +271,71 @@ describe("the review definitions' findings block", () => {
     });
 
     expect(shapes).toEqual([true, true]);
+  });
+});
+
+describe("what a review pod is given against the agent CLI's own limits", () => {
+  const REVIEW_AGENTS = [
+    ["code-review", "code-review"],
+    ["code-review-recheck", "code-review-recheck"],
+    ["code-review-reply", "code-review-refine"],
+  ] as const;
+
+  it("ships a 600 second request timeout as the experiments file of every review line", () => {
+    const shipped = REVIEW_AGENTS.map(([line]) =>
+      JSON.parse(pipelineOf(line).line.files?.gemini_exp ?? "null"),
+    );
+
+    expect(shipped).toEqual(
+      REVIEW_AGENTS.map(() => ({
+        flags: [{ flagId: 45773134, intValue: "600" }],
+      })),
+    );
+  });
+
+  it("places that file at gemini-exp.json and points GEMINI_EXP at it for every review agent", () => {
+    const placed = REVIEW_AGENTS.map(([line, agent]) => ({
+      path: needOf(pipelineOf(line).stations[agent], "gemini_exp")?.path,
+      env: settingsOf(agent).config.env.GEMINI_EXP,
+    }));
+
+    expect(placed).toEqual(
+      REVIEW_AGENTS.map(() => ({
+        path: "gemini-exp.json",
+        env: "/workspace/gemini-exp.json",
+      })),
+    );
+  });
+
+  it("reads every diff with --no-ext-diff, since the agent's shell sets an empty external diff", () => {
+    expect({
+      review: promptOnOneLine("code-review").includes(
+        "git -C /workspace/target diff --no-ext-diff main...HEAD",
+      ),
+      recheck: promptOnOneLine("code-review-recheck").includes(
+        "git -C /workspace/target diff --no-ext-diff <that sha>..HEAD",
+      ),
+    }).toEqual({ review: true, recheck: true });
+  });
+
+  it("tells the review and the re-check to pass repo on every lore call", () => {
+    const told = ["code-review", "code-review-recheck"].map((agent) =>
+      promptOnOneLine(agent).includes(
+        "Pass `repo` (the owner/name your task names above) on every `lore_*` call",
+      ),
+    );
+
+    expect(told).toEqual([true, true]);
+  });
+
+  it("tells every review agent not to look for an issue file it was not given", () => {
+    const told = REVIEW_AGENTS.map(([, agent]) =>
+      promptOnOneLine(agent).includes(
+        "When the file is not there, the pull request names no issue: do not look for one.",
+      ),
+    );
+
+    expect(told).toEqual([true, true, true]);
   });
 });
 

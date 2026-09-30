@@ -241,7 +241,9 @@ describe("reviewOrRecheck", () => {
       body: {
         startItems: {
           description: {
-            ref: expect.stringContaining("diff sha-old..HEAD") as string,
+            ref: expect.stringContaining(
+              "diff --no-ext-diff sha-old..HEAD",
+            ) as string,
           },
         },
       },

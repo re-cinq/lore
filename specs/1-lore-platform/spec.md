@@ -591,14 +591,14 @@ ai-agent-subsystem per ADR-031). ([validated by starts code-review when a pull r
 - FR-13.3: On a formal `APPROVE` the PR becomes eligible for (auto-)merge once the
   remaining gates pass; auto-merge reads the bot's latest review, so a later push's re-check verdict supersedes the earlier one. ([validated by posts a visible APPROVE review for a bare REVIEW_RESULT:APPROVED with no findings block](apps/stations/src/code-review/post-review/post-review.test.ts#L282), [`auto-merge.test.ts:32`](apps/floor/src/work/merge/auto-merge.test.ts#L32))
 - FR-13.4: When changes are requested, a follow-up round is started on the same
-  branch carrying the feedback (the code-review-reply path). ([validated by starts code-review-reply for review 99 with the address intent](libs/shared/src/work/review/floor-review-start.test.ts#L316), [validated by starts code-review-reply for a MEMBER's request-changes review 99](apps/stations/src/events/floor-review-handlers.test.ts#L139))
+  branch carrying the feedback (the code-review-reply path). ([validated by starts code-review-reply for review 99 with the address intent](libs/shared/src/work/review/floor-review-start.test.ts#L318), [validated by starts code-review-reply for a MEMBER's request-changes review 99](apps/stations/src/events/floor-review-handlers.test.ts#L139))
 - FR-13.5: After further iterations the loop escalates to human review via a
   `needs-human-help` Issue, with no further autonomous iterations. ([validated by opens the issue and carries its url forward for the notify step](apps/stations/src/work/escalation-step/escalation-step.test.ts#L27), [`escalation-line.test.ts:37`](libs/assembly-lines/src/escalation-line.test.ts#L37))
 - FR-13.6: The primary trigger is GitHub webhooks (ADR-015): the stations
   service turns qualifying `pull_request`, `pull_request_review`, and PR
   `issue_comment` events into calls that start or reply on a code-review
   pipeline of the external floor (`apps/stations/src/events/floor-review-handlers.ts`);
-  bot-authored events are skipped as a loop guard. ([validated by starts code-review when a pull request opens in a repository with auto_review on](apps/stations/src/events/floor-review-handlers.test.ts#L90), [validated by starts nothing when the lore bot comments @lore review](apps/stations/src/events/floor-review-handlers.test.ts#L128), [validated by starts no reply for a review the lore bot submitted](libs/shared/src/work/review/floor-review-start.test.ts#L332))
+  bot-authored events are skipped as a loop guard. ([validated by starts code-review when a pull request opens in a repository with auto_review on](apps/stations/src/events/floor-review-handlers.test.ts#L90), [validated by starts nothing when the lore bot comments @lore review](apps/stations/src/events/floor-review-handlers.test.ts#L128), [validated by starts no reply for a review the lore bot submitted](libs/shared/src/work/review/floor-review-start.test.ts#L334))
 - FR-13.7: **Safety-net cron** fires at `7 7-17 * * 1-5` (UTC,
   Mon-Fri) to catch dropped webhook deliveries. Cron-triggered runs
   are gated by `isBusinessHours()` (default: Europe/Berlin, 09:00-18:00

@@ -2,6 +2,14 @@ line:
   id: code-review-recheck
   entry: recheck
   exit: done
+  # gemini-cli gives a model 60 seconds to start answering (its global
+  # `defaultHeadersTimeout`), and Gemini 3.1 Pro thinking over a whole diff often
+  # takes longer: the call fails as "fetch failed sending request" and is retried
+  # with the same context. The CLI reads this experiments file, named by GEMINI_EXP,
+  # and flag 45773134 (DEFAULT_REQUEST_TIMEOUT) is that limit in seconds. The agent
+  # runtime is to set this itself; this copy goes when it does.
+  files:
+    gemini_exp: '{"flags":[{"flagId":45773134,"intValue":"600"}]}'
   args:
     repo:
       kind: git
@@ -51,6 +59,9 @@ stations:
         kind: file
         path: issue.md
         optional: true
+      - name: gemini_exp
+        kind: file
+        path: gemini-exp.json
     produces:
       - name: review_output
         kind: file
@@ -108,6 +119,7 @@ agent_definitions:
           - Bash(sh:*)
         env:
           LORE_TEST_POLICY: none
+          GEMINI_EXP: /workspace/gemini-exp.json
       prompt: |
         {description}
 
@@ -121,14 +133,16 @@ agent_definitions:
         GitHub token in the shell).
 
         Scope: your instruction above names the sha the last verdict judged. Read
-        `git -C /workspace/target diff <that sha>..HEAD` and judge that range. Read
-        the wider `main...HEAD` diff only for the context a hunk needs. When no sha
+        `git -C /workspace/target diff --no-ext-diff <that sha>..HEAD` and judge that
+        range. Read the wider `main...HEAD` diff only for the context a hunk needs. When no sha
         is named, read `main...HEAD`. Read each diff once, in place — never dump it
         to a file to read it back.
 
         Context: query `lore_assemble_context` with the PR title and the surface
         these commits change, not "PR review conventions" — that returns the
         platform overview. Then read the CI verdict with `lore_get_ci_failures`.
+        Pass `repo` (the owner/name your task names above) on every `lore_*` call:
+        the server has no checkout to detect it from.
 
         Re-assess against the repo's conventions (CLAUDE.md), ADRs, and specs:
         confirm the prior concerns are resolved and flag only NEW significant issues
@@ -174,4 +188,4 @@ agent_definitions:
         - REVIEW_RESULT:APPROVED
         - REVIEW_RESULT:CHANGES_REQUESTED:<one-line summary>
 
-        If `/workspace/issue.md` exists it is the GitHub issue this pull request answers — judge the change against it.
+        `/workspace/issue.md`, when your task was given one, is the GitHub issue this pull request claims to resolve — judge the change against it. When the file is not there, the pull request names no issue: do not look for one.
