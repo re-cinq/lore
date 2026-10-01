@@ -101,6 +101,7 @@ import { chunksPruneRoute } from "./routes/repos/chunks-prune.js";
 import { stationDataRoutes } from "./routes/repos/station-data.js";
 import { traceAdrsRoute } from "./routes/trace/trace-adrs.js";
 import { traceSpecsRoute } from "./routes/trace/trace-specs.js";
+import { traceOverlayDropRoute } from "./routes/trace/trace-overlay-drop.js";
 import { plansRoutes } from "./routes/plans/plans.js";
 import type { PlanVerbSeams } from "./routes/plans/plan-verbs-for.js";
 import { implementationLoopRoutes } from "./routes/backlog/backlog.js";
@@ -318,5 +319,6 @@ function traceRoutes(): ServerRoute[] {
     ...stationDataRoutes(),
     traceAdrsRoute(),
     traceSpecsRoute(),
+    traceOverlayDropRoute(),
   ];
 }

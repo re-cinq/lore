@@ -18,7 +18,6 @@ import {
   RUN_STATION_EVENT,
 } from "@re-cinq/lore-shared/project/assembly-runs/run-events.js";
 import { agentNodeTerminal } from "../../work/assembly-run/node-event-handler.js";
-import { dropOverlayOnClose } from "../../work/assembly-run/drop-overlay.js";
 import {
   podLogAppended,
   telemetryPrune,
@@ -68,16 +67,14 @@ function githubEntries(): Entry[] {
     ["github.pull_request_review.submitted", github.onReviewSubmitted],
     ["github.check_run.completed", github.autoMerge],
     ["github.check_suite.completed", github.autoMerge],
-    ["github.issues.labeled", github.issuesLabeled],
-    ["github.repository.renamed", github.repositoryRenamed],
   ];
 }
 
-/** Everything a closed PR finishes here: the spec-task sync, the parked line's wake, and its head branch's graph overlay. The review lines a close ends run on the external floor, and the stations drain cancels them. */
+/** What a closed PR finishes here: the spec-task sync and the parked line's wake. Its head branch's graph overlay is dropped by the stations service, which also cancels the review lines a close ends on the external floor. */
 function prClosedEntry(): Entry {
   return [
     "github.pull_request.closed",
-    withExtra(github.specPrMerge, github.specPrResumeLine, dropOverlayOnClose),
+    withExtra(github.specPrMerge, github.specPrResumeLine),
   ];
 }
 
