@@ -255,6 +255,7 @@ export {
   type KubeConfigLoader,
 } from "./outbound/kube-config.js";
 export { prFooter } from "./domain/pr-body.js";
+export { clampPrTitle } from "./domain/pr-title.js";
 export {
   ciConclusionOf,
   ciJudgedSha,

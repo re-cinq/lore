@@ -9,24 +9,20 @@ import {
 import { prFooter } from "@re-cinq/lore-shared";
 import { parseGitRef } from "@re-cinq/lore-shared/floor/floor-items.js";
 import { errorMessage } from "@re-cinq/lore-shared/lib/error-classify.js";
-import type { PullRef } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
+import {
+  ensurePull,
+  type PullOpener,
+} from "@re-cinq/lore-shared/project/pulls/ensure-pull.js";
 import { projectFor } from "../../outbound/project-boot.js";
 import { settings } from "../../outbound/queues.js";
 
 export interface OpenOnboardPrDeps {
-  listOpen(repo: string): Promise<PullRef[]>;
-  open(
-    repo: string,
-    branch: string,
-    pr: { title: string; body: string },
-  ): Promise<PullRef>;
+  pulls(repo: string): Promise<PullOpener>;
   recordOnboardingPr(repo: string, url: string): Promise<void>;
 }
 
 const productionDeps: OpenOnboardPrDeps = {
-  listOpen: async (repo) => (await projectFor(repo)).pulls.list(),
-  open: async (repo, branch, pr) =>
-    (await projectFor(repo)).pulls.open(branch, pr),
+  pulls: async (repo) => (await projectFor(repo)).pulls,
   recordOnboardingPr: (repo, url) => settings().setOnboardingPrUrl(repo, url),
 };
 
@@ -77,13 +73,10 @@ async function opened(
   onboarding: Onboarding,
 ): Promise<Report> {
   const { repo, branch } = onboarding;
-  const open = await deps.listOpen(repo);
-  const pr =
-    open.find((candidate) => candidate.branch === branch) ??
-    (await deps.open(repo, branch, {
-      title: `lore: onboard ${repo}`,
-      body: prBody(onboarding),
-    }));
+  const pr = await ensurePull(await deps.pulls(repo), branch, {
+    title: `lore: onboard ${repo}`,
+    body: prBody(onboarding),
+  });
 
   await deps.recordOnboardingPr(repo, pr.url);
 

@@ -42,22 +42,29 @@ interface Opened {
   body: string;
 }
 
-function scene(overrides: Partial<OpenOnboardPrDeps> = {}) {
+interface Pulls {
+  open: PullRef[];
+  refusal?: Error;
+}
+
+function scene({ open = [], refusal }: Partial<Pulls> = {}) {
   const opened: Opened[] = [];
   const recorded: string[] = [];
   const deps: OpenOnboardPrDeps = {
-    listOpen: () => Promise.resolve([]),
-    open: (_repo, branch, pr) => {
-      opened.push({ branch, ...pr });
+    pulls: () =>
+      Promise.resolve({
+        list: () => Promise.resolve(open),
+        open: (branch, { title, body }) => {
+          opened.push({ branch, title, body });
 
-      return Promise.resolve(pullRef());
-    },
+          return refusal ? Promise.reject(refusal) : Promise.resolve(pullRef());
+        },
+      }),
     recordOnboardingPr: (repo, url) => {
       recorded.push(`${repo} ${url}`);
 
       return Promise.resolve();
     },
-    ...overrides,
   };
 
   return { handle: openOnboardPrHandle(deps), opened, recorded };
@@ -99,9 +106,7 @@ describe("the onboard-open-pr station", () => {
   });
 
   it("reuses the pull request already open on the branch instead of opening a second", async () => {
-    const { handle, opened } = scene({
-      listOpen: () => Promise.resolve([pullRef()]),
-    });
+    const { handle, opened } = scene({ open: [pullRef()] });
 
     expect(await handle(brief(), TOOLS)).toEqual({
       outcome: "success",
@@ -112,10 +117,9 @@ describe("the onboard-open-pr station", () => {
 
   it("reports changes_requested and records nothing when the branch has no commits to open a pull request from", async () => {
     const { handle, recorded } = scene({
-      open: () =>
-        Promise.reject(
-          new Error("Validation Failed: No commits between main and lore/x"),
-        ),
+      refusal: new Error(
+        "Validation Failed: No commits between main and lore/x",
+      ),
     });
 
     expect(await handle(brief(), TOOLS)).toEqual({
@@ -125,9 +129,7 @@ describe("the onboard-open-pr station", () => {
   });
 
   it("reports failed with the error when GitHub refuses for any other reason", async () => {
-    const { handle } = scene({
-      open: () => Promise.reject(new Error("Bad credentials")),
-    });
+    const { handle } = scene({ refusal: new Error("Bad credentials") });
 
     expect(await handle(brief(), TOOLS)).toEqual({
       outcome: "failed",

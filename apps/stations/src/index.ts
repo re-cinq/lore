@@ -18,6 +18,7 @@ import { startPlanningStations } from "./planning/index.js";
 import { startMergeStations } from "./merge/index.js";
 import { startDigestStations } from "./digest/index.js";
 import { startOnboardStations } from "./onboard/index.js";
+import { startImplementationLoopStations } from "./implementation-loop/index.js";
 
 const PORT = requiredPort(process.env, "PORT");
 
@@ -55,6 +56,7 @@ function startFloorStations() {
         ...startMergeStations(),
         ...startDigestStations(),
         ...startOnboardStations(),
+        ...startImplementationLoopStations(),
       ]
     : [];
 }
