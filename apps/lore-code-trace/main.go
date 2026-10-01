@@ -36,27 +36,41 @@ const (
 	runConcurrency  = 4
 )
 
-// invocation is the command line, read once: the `docs` subcommand ingests
-// specs and ADRs, and no subcommand runs the tests and ingests their report.
+// invocation is the command line, read once: `docs` ingests specs and ADRs,
+// `links` checks their test links, and no subcommand runs the tests and ingests
+// their report.
 type invocation struct {
 	docs  bool
+	links bool
 	post  bool
 	force bool
+	all   bool
+	base  string
 }
 
-func parseArgs(args []string) invocation {
+func parseArgs(args []string) (invocation, error) {
 	parsed := invocation{}
-	for _, arg := range args {
-		switch arg {
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
 		case "docs":
 			parsed.docs = true
+		case "links":
+			parsed.links = true
 		case "--post":
 			parsed.post = true
 		case "--force":
 			parsed.force = true
+		case "--all":
+			parsed.all = true
+		case "--base":
+			if i+1 == len(args) {
+				return invocation{}, fmt.Errorf("--base needs the name of the branch the change targets")
+			}
+			i++
+			parsed.base = args[i]
 		}
 	}
-	return parsed
+	return parsed, nil
 }
 
 func main() {
@@ -65,7 +79,11 @@ func main() {
 		fmt.Fprintln(os.Stderr, "lore-code-trace:", err)
 		os.Exit(1)
 	}
-	if err := dispatch(parseArgs(os.Args[1:]), wd); err != nil {
+	parsed, err := parseArgs(os.Args[1:])
+	if err == nil {
+		err = dispatch(parsed, wd)
+	}
+	if err != nil {
 		fmt.Fprintln(os.Stderr, "lore-code-trace:", err)
 		os.Exit(1)
 	}
@@ -74,6 +92,9 @@ func main() {
 func dispatch(parsed invocation, wd string) error {
 	if parsed.docs {
 		return runDocs(wd, docsOptions{post: parsed.post, force: parsed.force}, os.Stdout)
+	}
+	if parsed.links {
+		return runLinks(wd, linksOptions{all: parsed.all, base: parsed.base}, os.Stdout)
 	}
 	return run(wd, parsed.post, os.Stdout)
 }

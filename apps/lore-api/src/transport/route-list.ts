@@ -52,6 +52,7 @@ import { ingestRoute } from "./routes/ingest/ingest.js";
 import { ingestGraphRoute } from "./routes/ingest/ingest-graph.js";
 import { ingestStateRoute } from "./routes/ingest/ingest-state.js";
 import { ingestDeltaRoute } from "./routes/ingest/ingest-delta.js";
+import { specLinksParseRoute } from "./routes/spec-links/spec-links-parse.js";
 import { eventPayloadRoute } from "./routes/ingest/event-payload.js";
 import { embeddingsRoute } from "./routes/ingest/embeddings.js";
 import { reembedRoute } from "./routes/ingest/reembed.js";
@@ -242,6 +243,7 @@ function ingestRoutes(getPool: PoolGetter): ServerRoute[] {
     ingestGraphRoute(getPool),
     ingestStateRoute(getPool),
     ingestDeltaRoute(getPool),
+    specLinksParseRoute(),
     eventPayloadRoute(getPool),
     embeddingsRoute(),
     // The sweep is a write of knowledge (rows leave the store), not a graph read.

@@ -89,7 +89,7 @@ func runDocsFlow(ctx context.Context, deps docsDeps, run docsRun) error {
 		if err != nil {
 			return err
 		}
-		files, err := readDocFiles(deps, scope.paths)
+		files, err := readDocFiles(deps.read, scope.paths)
 		if err != nil {
 			return err
 		}
@@ -138,10 +138,10 @@ func valueOrZero(scope *docScope) docScope {
 	return *scope
 }
 
-func readDocFiles(deps docsDeps, paths []string) ([]docFile, error) {
+func readDocFiles(read func(path string) (string, error), paths []string) ([]docFile, error) {
 	files := []docFile{}
 	for _, path := range paths {
-		content, err := deps.read(path)
+		content, err := read(path)
 		if err != nil {
 			return nil, fmt.Errorf("reading %s: %w", path, err)
 		}

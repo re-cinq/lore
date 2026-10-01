@@ -7663,6 +7663,80 @@
         }
       }
     },
+    "/api/spec-links/parse": {
+      "post": {
+        "operationId": "post_api_spec-links_parse",
+        "summary": "POST /api/spec-links/parse",
+        "tags": ["Traceability"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The test links the posted specs and ADRs carry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpecLinksParseResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "docs": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "path": {
+                          "type": "string"
+                        },
+                        "content": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["path", "content"],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": ["docs"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/spec-tasks/claim": {
       "post": {
         "operationId": "post_api_spec-tasks_claim",
@@ -15320,6 +15394,48 @@
       },
       "SlackEventAck": {
         "type": "string"
+      },
+      "SpecLinksParseResult": {
+        "type": "object",
+        "properties": {
+          "links": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "doc_path": {
+                  "type": "string"
+                },
+                "statement_line": {
+                  "type": ["number", "null"]
+                },
+                "label": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "line": {
+                  "type": ["number", "null"]
+                },
+                "misplaced": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "doc_path",
+                "statement_line",
+                "label",
+                "path",
+                "line",
+                "misplaced"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["links"],
+        "additionalProperties": false
       },
       "SpecList": {
         "type": "object",

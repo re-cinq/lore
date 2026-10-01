@@ -110,13 +110,21 @@ func postIngestDelta(ctx context.Context, apiBase, token, repo string, d any, cl
 	if err != nil {
 		return fmt.Errorf("encoding delta: %w", err)
 	}
+	return retryTransient(func() (error, bool) {
+		return sendIngestDelta(ctx, apiBase, token, repo, b, client)
+	})
+}
+
+// retryTransient runs one attempt at a time under the webhook path's budget and
+// backoff. An attempt answers its error and whether another try could help.
+func retryTransient(attempt func() (error, bool)) error {
 	var lastErr error
-	for attempt := 1; attempt <= postAttempts; attempt++ {
-		if attempt > 1 {
-			failed := attempt - 1
+	for n := 1; n <= postAttempts; n++ {
+		if n > 1 {
+			failed := n - 1
 			retrySleep(time.Duration(failed*failed) * 2 * time.Second)
 		}
-		err, retry := sendIngestDelta(ctx, apiBase, token, repo, b, client)
+		err, retry := attempt()
 		if !retry {
 			return err
 		}
