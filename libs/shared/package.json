@@ -42,6 +42,10 @@
       "types": "./dist/work/onboard/*.d.ts",
       "default": "./dist/work/onboard/*.js"
     },
+    "./spec-upkeep/*.js": {
+      "types": "./dist/work/spec-upkeep/*.d.ts",
+      "default": "./dist/work/spec-upkeep/*.js"
+    },
     "./backlog/*.js": {
       "types": "./dist/work/backlog/*.d.ts",
       "default": "./dist/work/backlog/*.js"

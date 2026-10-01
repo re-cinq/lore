@@ -16,6 +16,7 @@ import type { LoopRunSlice, ParkedReport } from "./sweep-contract.js";
 export const FLOOR_CI_WAIT_LINES: readonly string[] = [
   "onboard",
   "implementation-loop",
+  "spec-upkeep",
 ];
 
 /** The per-push wait: CI alone decides. */

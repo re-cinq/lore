@@ -1,4 +1,4 @@
-// Asks the code-review line for a review of the onboarding pull request. Asked for by name because that line starts on its own only for pull requests a person opened.
+// Asks the code-review line for a review of a pull request a Lore line opened. Asked for by name because that line starts on its own only for pull requests a person opened.
 
 import {
   defineStation,
@@ -45,9 +45,9 @@ export function requestReviewHandle(deps: RequestReviewDeps): Handle {
   };
 }
 
-export function startRequestReviewStation(): RunningStation {
-  return defineStation(
-    "onboard-request-review",
-    requestReviewHandle(productionDeps),
-  );
+/** The same station under the name each line's pipeline file declares it by. */
+export function startRequestReviewStation(
+  name = "onboard-request-review",
+): RunningStation {
+  return defineStation(name, requestReviewHandle(productionDeps));
 }

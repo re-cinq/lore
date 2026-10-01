@@ -8,6 +8,7 @@ import { importanceDecayStation } from "./importance-decay/manifest.js";
 import { memoryTtl } from "./memory-ttl/manifest.js";
 import { mergeCheck } from "./merge-check/manifest.js";
 import { mergeStep } from "./merge-step/manifest.js";
+import { specUpkeepTickStation } from "./spec-upkeep-tick/manifest.js";
 import { validate } from "./validate/manifest.js";
 import { retrospective } from "./retrospective/manifest.js";
 import { detect } from "./detect/manifest.js";
@@ -43,6 +44,7 @@ export const STATION_NAMES = [
   "pr-ready-check",
   "pr-review",
   "retrospective",
+  "spec-upkeep-tick",
   "validate",
 ] as const;
 
@@ -68,5 +70,6 @@ export const STATIONS: Record<StationName, StationModule> = {
   "pr-ready-check": prReadyCheck,
   "pr-review": prReview,
   retrospective,
+  "spec-upkeep-tick": specUpkeepTickStation,
   validate,
 };

@@ -2,14 +2,13 @@
 
 import {
   defineStation,
-  type Brief,
   type Handle,
   type RunningStation,
-  type Tools,
 } from "@re-cinq/floor-station";
 import { clampPrTitle, prFooter } from "@re-cinq/lore-shared";
 import { parsePullRequestUrl } from "@re-cinq/lore-shared/floor/floor-items.js";
 import { errorMessage } from "@re-cinq/lore-shared/lib/error-classify.js";
+import { optionalNeedText } from "../../domain/need-text.js";
 import { projectFor } from "../../outbound/project-boot.js";
 
 export interface MarkReadyPulls {
@@ -42,7 +41,10 @@ export function markReadyHandle(deps: MarkReadyDeps): Handle {
 
     try {
       const pulls = await deps.pulls(repo);
-      const rewrite = rewriteOf(ready, await proseOf(brief, tools));
+      const rewrite = rewriteOf(
+        ready,
+        await optionalNeedText(brief.needs, tools, BODY),
+      );
 
       if (Object.keys(rewrite).length > 0) {
         await pulls.update(prNumber, rewrite);
@@ -54,12 +56,6 @@ export function markReadyHandle(deps: MarkReadyDeps): Handle {
       return { outcome: "failed", error: errorMessage(err) };
     }
   };
-}
-
-async function proseOf(brief: Brief, tools: Tools): Promise<string> {
-  return BODY in brief.needs
-    ? (await tools.read(BODY)).toString("utf8").trim()
-    : "";
 }
 
 /** The fields to rewrite. The footer is rebuilt with the description, because rewriting a body with prose alone would drop the `Closes` and `Lore-Task` lines the draft opened with. */
