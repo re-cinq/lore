@@ -1,4 +1,4 @@
-import { scoreImportance } from "@re-cinq/lore-shared";
+import { errorMessage, scoreImportance } from "@re-cinq/lore-shared";
 import type { MemoryLifecyclePort } from "@re-cinq/lore-shared/project/memory/memory-lifecycle-port.js";
 
 // Importance decay — evicts low-value memories past a per-agent cap, drops old invalidated facts, and ages unretrieved facts to stale. Moved from the Floor (#1350): pure scoring plus database writes, none of the Floor's three exclusive powers (ADR-024); behaviour unchanged from `memory-lifecycle.ts`, just with the port injected instead of a Floor singleton.
@@ -41,7 +41,12 @@ async function evictExcessFactsSafely(
 ): Promise<number> {
   try {
     return await evictExcessFacts(memory);
-  } catch {
+  } catch (err) {
+    console.warn(
+      "[importance-decay] invalidated-fact purge failed:",
+      errorMessage(err),
+    );
+
     return 0;
   }
 }
@@ -74,7 +79,12 @@ async function transitionStaleFactsSafely(
 ): Promise<number> {
   try {
     return await memory.transitionStaleFacts();
-  } catch {
+  } catch (err) {
+    console.warn(
+      "[importance-decay] stale-fact transition failed:",
+      errorMessage(err),
+    );
+
     return 0;
   }
 }
