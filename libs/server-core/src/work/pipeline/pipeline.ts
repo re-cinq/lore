@@ -70,11 +70,8 @@ const DEFAULT_TARGET_REPO = "re-cinq/lore";
 export function createTask(
   input: CreateTaskInput,
 ): Promise<Awaited<ReturnType<typeof createPipelineTask>>> {
-  const taskType = input.taskType ?? "general";
-
   return createPipelineTask(getPool(), {
     ...input,
-    taskType,
     // The pipeline cannot dispatch a task that names no repo at all.
     targetRepo: input.targetRepo || DEFAULT_TARGET_REPO,
     createdBy: input.createdBy ?? "ui",

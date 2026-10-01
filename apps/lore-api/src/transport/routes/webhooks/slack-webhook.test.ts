@@ -61,22 +61,27 @@ describe("Slack HMAC verification", () => {
 });
 
 describe("Slack command parsing", () => {
-  it("parses /lore implementation add auth", () => {
-    const { taskType, description } = parseSlashCommand(
-      "implementation add auth",
-    );
-
-    expect(taskType).toBe("implementation");
-    expect(description).toBe("add auth");
+  it("parses /lore runbook database failover as a runbook task", () => {
+    expect(parseSlashCommand("runbook database failover")).toEqual({
+      priority: "normal",
+      taskType: "runbook",
+      description: "database failover",
+    });
   });
 
-  it("defaults to general when no type specified", () => {
-    const { taskType, description } = parseSlashCommand(
-      "what tests do we have",
-    );
+  it("names no task type for /lore what tests do we have, so creating it is refused", () => {
+    expect(parseSlashCommand("what tests do we have")).toEqual({
+      priority: "normal",
+      description: "what tests do we have",
+    });
+  });
 
-    expect(taskType).toBe("general");
-    expect(description).toBe("what tests do we have");
+  it("still reads implementation as a type word, so creating it answers that the type was removed", () => {
+    expect(parseSlashCommand("implementation add auth")).toEqual({
+      priority: "normal",
+      taskType: "implementation",
+      description: "add auth",
+    });
   });
 
   it("handles gap-fill type", () => {
@@ -89,55 +94,43 @@ describe("Slack command parsing", () => {
   });
 
   it("does not match partial type names", () => {
-    const { taskType } = parseSlashCommand("implement something");
+    const { taskType } = parseSlashCommand("runbooks for everyone");
 
-    expect(taskType).toBe("general");
+    expect(taskType).toBeUndefined();
   });
 
-  it("handles single word (no description after type)", () => {
-    const { taskType, description } = parseSlashCommand("implementation");
-
-    expect(taskType).toBe("general");
-    expect(description).toBe("implementation");
+  it("reads a single word as the description, not as a type", () => {
+    expect(parseSlashCommand("runbook")).toEqual({
+      priority: "normal",
+      description: "runbook",
+    });
   });
 
   it("handles empty text", () => {
-    const { taskType, description } = parseSlashCommand("");
-
-    expect(taskType).toBe("general");
-    expect(description).toBe("");
+    expect(parseSlashCommand("")).toEqual({
+      priority: "normal",
+      description: "",
+    });
   });
 
-  it("preserves extra whitespace in description", () => {
-    const { description } = parseSlashCommand("general   hello    world");
+  it("collapses extra whitespace in the description", () => {
+    const { description } = parseSlashCommand("runbook   hello    world");
 
     expect(description).toBe("hello world");
   });
 
   it("parses ! prefix as immediate priority", () => {
-    const { taskType, description, priority } = parseSlashCommand(
-      "! implementation add caching",
-    );
-
-    expect(priority).toBe("immediate");
-    expect(taskType).toBe("implementation");
-    expect(description).toBe("add caching");
+    expect(parseSlashCommand("! runbook database failover")).toEqual({
+      priority: "immediate",
+      taskType: "runbook",
+      description: "database failover",
+    });
   });
 
   it("defaults to normal priority without ! prefix", () => {
-    const { priority } = parseSlashCommand("implementation add caching");
+    const { priority } = parseSlashCommand("runbook database failover");
 
     expect(priority).toBe("normal");
-  });
-
-  it("handles ! with general task (no explicit type)", () => {
-    const { taskType, description, priority } = parseSlashCommand(
-      "! fix the login bug",
-    );
-
-    expect(priority).toBe("immediate");
-    expect(taskType).toBe("general");
-    expect(description).toBe("fix the login bug");
   });
 
   it("handles ! alone", () => {
@@ -145,5 +138,13 @@ describe("Slack command parsing", () => {
 
     expect(priority).toBe("immediate");
     expect(description).toBe("");
+  });
+
+  it("parses /lore retry t-1 as a retry of task t-1", () => {
+    expect(parseSlashCommand("retry t-1")).toEqual({
+      priority: "normal",
+      description: "",
+      retryTaskId: "t-1",
+    });
   });
 });

@@ -175,7 +175,7 @@ describe("POST /api/webhook/slack", () => {
     vi.mocked(createTask).mockResolvedValue({ task_id: "s1" } as any);
     const res = await slack(
       {
-        text: "! implementation add caching",
+        text: "! runbook database failover",
         channel_id: "C1",
         user_name: "bob",
       },
@@ -185,8 +185,8 @@ describe("POST /api/webhook/slack", () => {
 
     expect(text(res.result)).toContain("Priority: `immediate`");
     expect(createTask).toHaveBeenCalledWith({
-      description: "add caching",
-      taskType: "implementation",
+      description: "database failover",
+      taskType: "runbook",
       targetRepo: "o/r",
       createdBy: "slack:bob",
       contextBundle: { slack_channel_id: "C1", slack_user: "bob" },
@@ -222,7 +222,7 @@ describe("POST /api/webhook/slack", () => {
     expect(text(res.result)).toContain("Failed to create task");
   });
 
-  it("treats a bare retry with no task id as a general-task description", async () => {
+  it("treats a bare retry with no task id as a description that names no task type", async () => {
     const pool = makePool();
 
     pool.query.mockResolvedValue({ rows: [{ full_name: "o/r" }] });
@@ -235,20 +235,21 @@ describe("POST /api/webhook/slack", () => {
 
     expect(createTask).toHaveBeenCalledWith({
       description: "retry",
-      taskType: "general",
       targetRepo: "o/r",
       createdBy: "slack:bob",
       contextBundle: { slack_channel_id: "C1", slack_user: "bob" },
       priority: "normal",
     });
-    expect(text(res.result)).toContain("Type: `general`");
+    expect(text(res.result)).toContain("ID: `r1`");
   });
 
-  it("creates an immediate general-typed task when no known type follows the bang", async () => {
+  it("asks for an immediate task with no task type when no known type follows the bang, and reports the refusal", async () => {
     const pool = makePool();
 
     pool.query.mockResolvedValue({ rows: [{ full_name: "o/r" }] });
-    vi.mocked(createTask).mockResolvedValue({ task_id: "b1" } as any);
+    vi.mocked(createTask).mockRejectedValue(
+      new Error("task_type is required"),
+    );
     const res = await slack(
       { text: "! fix the login bug", channel_id: "C1", user_name: "bob" },
       {},
@@ -257,12 +258,13 @@ describe("POST /api/webhook/slack", () => {
 
     expect(createTask).toHaveBeenCalledWith({
       description: "fix the login bug",
-      taskType: "general",
       targetRepo: "o/r",
       createdBy: "slack:bob",
       contextBundle: { slack_channel_id: "C1", slack_user: "bob" },
       priority: "immediate",
     });
-    expect(text(res.result)).toContain("Priority: `immediate`");
+    expect(text(res.result)).toBe(
+      "Failed to create task: task_type is required",
+    );
   });
 });
