@@ -1132,6 +1132,41 @@ resource "kubectl_manifest" "es_stations_anthropic_key" {
   depends_on = [kubectl_manifest.cluster_secret_store]
 }
 
+# The Slack bot token for the stations that post to Slack: the escalation notify
+# step (which posted nothing without it, #2201) and the daily digest once its
+# line runs on the external floor (#2337). Same GSM secret the lore-api and
+# lore-floor namespaces already mirror.
+resource "kubectl_manifest" "es_stations_slack" {
+  yaml_body = yamlencode({
+    apiVersion = "external-secrets.io/v1beta1"
+    kind       = "ExternalSecret"
+    metadata = {
+      name      = "lore-stations-slack"
+      namespace = "lore-stations"
+    }
+    spec = {
+      refreshInterval = "1h"
+      secretStoreRef = {
+        name = "gcp-secret-manager"
+        kind = "ClusterSecretStore"
+      }
+      target = {
+        name = "lore-stations-slack"
+      }
+      data = [
+        {
+          secretKey = "bot-token"
+          remoteRef = {
+            key = "lore-slack-bot-token"
+          }
+        },
+      ]
+    }
+  })
+
+  depends_on = [kubectl_manifest.cluster_secret_store]
+}
+
 # --------------------------------------------------------------------------
 # Cluster agent (lore-cluster-agent namespace) — ADR-024
 #
