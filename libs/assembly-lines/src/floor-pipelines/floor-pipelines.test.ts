@@ -332,6 +332,20 @@ describe("the floor pipelines shipped in this folder", () => {
     expect(told).toHaveLength(6);
   });
 
+  it("tells the upkeep repair it cannot run tests, linters or builds, to read CI's verdict, and to leave a failure that is not a spec's alone", () => {
+    const { prompt } =
+      pipelineOf("spec-upkeep").agent_definitions!["spec-upkeep-fix-ci"]
+        .settings;
+    const told = [
+      "YOU CANNOT RUN TESTS, LINTERS, TYPECHECKS, BUILDS OR INSTALLS HERE",
+      "/workspace/round-brief.md",
+      "NEVER change code, tests, build files or workflows",
+    ].filter((phrase) => prompt.includes(phrase));
+
+    expect(told).toHaveLength(3);
+    expect(prompt).not.toMatch(/npm run|vitest|run only that step/);
+  });
+
   it("lets neither upkeep agent run tests, installs or builds", () => {
     const policies = ["spec-upkeep-update-specs", "spec-upkeep-fix-ci"].map(
       (agent) =>

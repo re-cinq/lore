@@ -64,7 +64,7 @@ A **statement-level** spec → test linkage where the source of truth
 is markdown in `spec.md`:
 
 ```markdown
-_(Added 2026-10-01.)_ Where an external floor is configured, the weekly backfill of links is done by the `spec-upkeep` line (`specs/external-floor` FR14) instead of `spec-coverage-backfill`: a station lists the testable statements no test validates from the graph, and an agent with the repository checked out judges each candidate test by reading it and adds the link. ([validated by finds the testable statement of specs/cart/spec.md that no test validates](../../libs/shared/src/work/spec-upkeep/findings.test.ts#L136))
+_(Added 2026-10-01.)_ Where an external floor is configured, the weekly backfill of links is done by the `spec-upkeep` line (`specs/external-floor` FR14) instead of `spec-coverage-backfill`: a station lists the testable statements no test validates from the graph, and an agent with the repository checked out judges each candidate test by reading it and adds the link. ([validated by finds the testable statement of specs/cart/spec.md that no test validates](../../libs/shared/src/work/spec-upkeep/findings.test.ts#L163))
 
 ## Acceptance Criteria
 

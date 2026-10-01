@@ -132,6 +132,33 @@ describe("findDrift", () => {
   });
 });
 
+describe("when the graph cannot be read at all", () => {
+  const down: UpkeepSources = {
+    specPaths: () => Promise.resolve(["specs/a/spec.md", "specs/b/spec.md"]),
+    document: () => Promise.reject(new Error("502")),
+  };
+
+  it("throws from findDrift rather than answer that nothing drifted", async () => {
+    await expect(findDrift(down, 3)).rejects.toThrow(
+      new Error(
+        "none of the 2 spec(s) could be read from the traceability graph",
+      ),
+    );
+  });
+
+  it("throws from findUnlinked rather than answer that nothing is unlinked", async () => {
+    await expect(findUnlinked(down, 25)).rejects.toThrow(
+      new Error(
+        "none of the 2 spec(s) could be read from the traceability graph",
+      ),
+    );
+  });
+
+  it("finds nothing, without throwing, in a repository that lists no spec", async () => {
+    expect(await findDrift(sources([]), 3)).toEqual([]);
+  });
+});
+
 describe("findUnlinked", () => {
   it("finds the testable statement of specs/cart/spec.md that no test validates", async () => {
     const found = await findUnlinked(

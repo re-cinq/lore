@@ -1,4 +1,5 @@
 // What a repository's specs need, read from the traceability graph with no model call: statements a failing test or the projection says have drifted, and testable statements no test validates. Each is rendered as the brief the upkeep agent works from.
+import { enforceTrue } from "../../lib/enforce.js";
 import type { TraceDocument } from "../../domain/spec-trace/assemble-trace-document.js";
 import {
   decideGraphDrift,
@@ -67,14 +68,21 @@ export async function findUnlinked(
   return unlinked;
 }
 
-/** The documents worth reading: prose artifacts assert nothing, and a spec the graph cannot be read for is left for the next run. */
+/** The documents worth reading: prose artifacts assert nothing, and a spec the graph cannot be read for is left for the next run. When specs are listed and NONE can be read, the graph is down, and saying "nothing to fix" would pass a week having examined nothing: that throws, so the station fails and is retried. */
 async function documentsOf(sources: UpkeepSources): Promise<TraceDocument[]> {
   const paths = (await sources.specPaths()).filter(isAssertionSource);
   const read = await Promise.all(
     paths.map((path) => sources.document(path).catch(() => null)),
   );
+  const documents = read.filter((doc) => doc !== null);
 
-  return read.filter((doc) => doc !== null);
+  enforceTrue(
+    paths.length === 0 || documents.length > 0,
+    Error,
+    `none of the ${paths.length} spec(s) could be read from the traceability graph`,
+  );
+
+  return documents;
 }
 
 function untestedOf(doc: TraceDocument): UnlinkedStatement[] {
