@@ -139,8 +139,8 @@ describe("onboardTicketBody", () => {
   it("owes the starter ADRs only for a repo with no adrs/ or docs/ directory", () => {
     expect(
       missingFrom([
-        "adrs/ADR-001-language-choice.md",
-        "adrs/ADR-003-deployment.md",
+        "`language-choice`",
+        "`deployment`",
         "no `adrs/` or `docs/` directory",
         ...ADR_TOPICS.map((adr) => adr.prompt),
       ]),
@@ -149,7 +149,7 @@ describe("onboardTicketBody", () => {
 
   it("numbers the starter ADRs it writes sequentially, so a skipped topic leaves no gap", () => {
     expect(body).toContain(
-      "Number the ADRs you write sequentially from 001 with no gaps",
+      "NNN numbers the ADRs you actually write sequentially from 001 with no gaps",
     );
   });
 

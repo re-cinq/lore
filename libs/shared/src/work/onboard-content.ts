@@ -168,14 +168,6 @@ export const ONBOARD_DETERMINISTIC_PATHS: readonly string[] = [
   ...ONBOARD_STATIC_FILES.map((file) => file.path),
 ];
 
-/** The starter ADR paths, numbered from 1 in ADR_TOPICS order. */
-export function starterAdrPaths(): string[] {
-  return ADR_TOPICS.map(
-    (adr, index) =>
-      `adrs/ADR-${String(index + 1).padStart(3, "0")}-${adr.slug}.md`,
-  );
-}
-
 // The onboarding TICKET: the issue body the onboard assembly line implements. It is the whole spec the agent gets, so it names every file owed, with its prompt, and every rule — a one-line description once let an agent redefine the job (#1745).
 export function onboardTicketBody(repo: string): string {
   return [
@@ -261,12 +253,8 @@ function ruleLines(): string[] {
 }
 
 function adrLines(): string[] {
-  const paths = starterAdrPaths();
-
   return [
-    `- Starter ADRs, only when the repo has no \`adrs/\` or \`docs/\` directory yet — MADR format with YAML frontmatter (adr_number, title, status: accepted, date: today, domains). Skip an ADR whose subject the repo shows no evidence of. Number the ADRs you write sequentially from 001 with no gaps — the paths below assume none is skipped, so a skipped ADR moves every later one down a number (and its \`adr_number\` with it):`,
-    ...ADR_TOPICS.map(
-      (adr, index) => `  - \`${paths[index]}\` — ${adr.prompt}`,
-    ),
+    `- Starter ADRs, only when the repo has no \`adrs/\` or \`docs/\` directory yet — MADR format with YAML frontmatter (adr_number, title, status: accepted, date: today, domains). Skip an ADR whose subject the repo shows no evidence of. Write each as \`adrs/ADR-NNN-<slug>.md\`, where NNN numbers the ADRs you actually write sequentially from 001 with no gaps, in the order below, and \`adr_number\` matches it:`,
+    ...ADR_TOPICS.map((adr) => `  - \`${adr.slug}\` — ${adr.prompt}`),
   ];
 }
