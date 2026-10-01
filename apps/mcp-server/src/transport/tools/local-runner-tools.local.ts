@@ -17,6 +17,9 @@ export {
   fetchPendingTaskFromApi,
 } from "./local-runner-api.js";
 
+/** Free-form work run on this machine: not a pipeline task type, so nothing is filed for it. */
+const LOCAL_ONLY_TASK_TYPE = "local";
+
 // Tool input schemas live as data beside their tool: a zod object is a contract, not a step in registering one.
 const RUN_TASK_LOCALLY_INPUT = {
   description: z
@@ -25,10 +28,10 @@ const RUN_TASK_LOCALLY_INPUT = {
       "Free-text instruction for the agent. Must reference the current repo; cross-repo references are refused with a wrong-repo warning.",
     ),
   task_type: z
-    .enum(["implementation", "general", "runbook", "gap-fill"])
-    .default("implementation")
+    .enum([LOCAL_ONLY_TASK_TYPE, "runbook", "gap-fill"])
+    .default(LOCAL_ONLY_TASK_TYPE)
     .describe(
-      "Kind of work: 'implementation' (code), 'general' (open-ended), 'runbook' (incident runbook), 'gap-fill' (missing docs).",
+      "Kind of work: 'local' (free-form work on this machine; it is tracked here only and files no pipeline task), 'runbook' (incident runbook), 'gap-fill' (missing docs).",
     ),
   model: z
     .string()
@@ -105,7 +108,7 @@ function registerRunTaskLocallyTool(server: McpServer) {
   );
 }
 
-/** Starts a brand-new task here. The pipeline row is created first so the task has an id the org can see; offline it falls back to a generated uuid rather than refusing to run, because the worktree run is the point and the row is bookkeeping. */
+/** Starts a brand-new task here. For a pipeline task type the row is created first so the task has an id the org can see; offline it falls back to a generated uuid rather than refusing to run, because the worktree run is the point and the row is bookkeeping. Free-form local work has no pipeline task type to file under (the `implementation` and `general` types are gone, #2328), so it runs under a generated id. */
 async function runTaskLocally(args: {
   description: string;
   task_type: string;
@@ -123,11 +126,19 @@ async function runTaskLocally(args: {
   if (warning) {
     return textResult(warning);
   }
-  const taskId =
-    (await createPipelineTaskViaApi(args.description, args.task_type, repo)) ??
-    crypto.randomUUID();
+  return await spawnWorktreeRun(args, repo, await localTaskId(args, repo));
+}
 
-  return await spawnWorktreeRun(args, repo, taskId);
+export async function localTaskId(
+  args: { description: string; task_type: string },
+  repo: string,
+): Promise<string> {
+  const filed =
+    args.task_type === LOCAL_ONLY_TASK_TYPE
+      ? null
+      : await createPipelineTaskViaApi(args.description, args.task_type, repo);
+
+  return filed ?? crypto.randomUUID();
 }
 
 /** Warns when `description` references an `owner/repo` other than the one the caller is in. */

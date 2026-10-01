@@ -2,6 +2,7 @@ import { describe, it, expect, afterEach, vi } from "vitest";
 import {
   createPipelineTaskViaApi,
   fetchPendingTaskFromApi,
+  localTaskId,
 } from "./local-runner-tools.local.js";
 
 describe("createPipelineTaskViaApi", () => {
@@ -156,5 +157,48 @@ describe("fetchPendingTaskFromApi", () => {
     const task = await fetchPendingTaskFromApi("task-1");
 
     expect(task).toBeUndefined();
+  });
+});
+
+describe("localTaskId", () => {
+  afterEach(() => {
+    delete process.env.LORE_API_URL;
+    delete process.env.LORE_INGEST_TOKEN;
+    vi.unstubAllGlobals();
+  });
+
+  function apiAnswering(taskId: string) {
+    process.env.LORE_API_URL = "http://lore-api.test";
+    process.env.LORE_INGEST_TOKEN = "test-token";
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({ json: async () => ({ task_id: taskId }) });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    return fetchMock;
+  }
+
+  it("files no pipeline task for free-form local work and runs it under a generated id", async () => {
+    const fetchMock = apiAnswering("task-123");
+
+    const taskId = await localTaskId(
+      { description: "tidy the README", task_type: "local" },
+      "re-cinq/lore",
+    );
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(taskId).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it("files a runbook task and runs it under the server's id task-123", async () => {
+    apiAnswering("task-123");
+
+    const taskId = await localTaskId(
+      { description: "database failover", task_type: "runbook" },
+      "re-cinq/lore",
+    );
+
+    expect(taskId).toBe("task-123");
   });
 });
