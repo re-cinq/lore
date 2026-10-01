@@ -160,7 +160,8 @@ subscribe" has no expressible meaning on the current substrate.
   pass, and an explicit per-repository cap replaces the rate limit the old
   deadline was accidentally providing.
 
-  ([validated by starts one unit per specification, not one per repository](apps/stations/src/work/backfill-scan/backfill-scan.test.ts#L14), [`backfill-scan.test.ts:33`](apps/stations/src/work/backfill-scan/backfill-scan.test.ts#L33), [`backfill-scan.test.ts:54`](apps/stations/src/work/backfill-scan/backfill-scan.test.ts#L54), [`backfill-scan.test.ts:65`](apps/stations/src/work/backfill-scan/backfill-scan.test.ts#L65), [`backfill-scan.test.ts:88`](apps/stations/src/work/backfill-scan/backfill-scan.test.ts#L88), [`detect.test.ts:46`](apps/stations/src/work/detect/detect.test.ts#L46), [`detect.test.ts:79`](apps/stations/src/work/detect/detect.test.ts#L79))
+  *(Removed 2026-10-02: the `backfill-scan` sweep is deleted with the backfill tick, `specs/external-floor` FR16.6.)*
+  ([validated by `detect.test.ts:46`](apps/stations/src/work/detect/detect.test.ts#L46), [`detect.test.ts:79`](apps/stations/src/work/detect/detect.test.ts#L79))
 
 - **FR12 — a merged pull request walks an assembly line.** The work that follows
   a merge is a line of recorded steps rather than one function behind swallowing

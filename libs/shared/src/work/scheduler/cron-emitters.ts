@@ -58,29 +58,9 @@ export const CRON_EMITTERS: CronEmitter[] = [
     note: "coarse tick; each repo's time, days and timezone live in settings.digest, the watermark in lore.digest_posts; one run per Slack channel (ADR-019 amendment 2026-09-25)",
   },
   {
-    name: "gap_detection",
-    schedule: "0 9 * * 1",
-    note: "detection fan-out: one gap-detect assembly line per onboarded repo",
-  },
-  {
-    name: "spec_drift",
-    schedule: "0 10 * * 1",
-    note: "detection fan-out: one spec-drift assembly line per active repo with specs",
-  },
-  {
-    name: "spec_coverage_backfill",
-    schedule: "0 11 * * 1",
-    note: "detection fan-out: one backfill assembly line per active repo with specs",
-  },
-  {
     name: "spec_upkeep",
     schedule: "0 10 * * 1",
-    note: "one spec-upkeep run per onboarded repo on the external floor, started by the stations service; where a floor is configured it replaces spec_drift and spec_coverage_backfill, which stand down",
-  },
-  {
-    name: "spec_coverage_validate",
-    schedule: "0 6 * * *",
-    note: "detection fan-out: one link-validate assembly line per repo with specs",
+    note: "one spec-upkeep run per onboarded repo on the external floor, started by the stations service; it replaced the spec_drift and spec_coverage_backfill fan-outs",
   },
 ];
 

@@ -1,11 +1,10 @@
 /** The event registry (layer 2 → layer 3): maps a fully-qualified event_name to exactly one handler; a producer emitting an unregistered name dead-letters with "no handler". */
 
-import { takenByStations, unlessOnTheFloor } from "./floor-stand-down.js";
+import { takenByStations } from "./floor-stand-down.js";
 import type { EventHandler } from "../../domain/event-types.js";
 import * as github from "../handlers/github.js";
 import * as internal from "../handlers/internal.js";
 import * as cron from "../handlers/cron.js";
-import * as detect from "../../work/detect/fan-out.js";
 import { dailyDigestTick } from "../../work/digest/fan-out.js";
 import { implementationLoopTick } from "../../work/backlog/implementation-loop.js";
 import * as kubernetes from "../handlers/kubernetes.js";
@@ -80,8 +79,6 @@ function internalEntries(): Entry[] {
   return [
     ["internal.ingest.spec_trace", internal.specTrace],
     ["internal.repo.team_changed", internal.repoTeamChanged],
-    // FR5 (specs/ingest-station): post-ingest validate rides the SAME detect tick as the weekly cron; params.repo narrows it, core runs in a station pod.
-    ["internal.ingest.spec_coverage_validate", detect.specCoverageValidateTick],
     [RUN_START_EVENT, assemblyLineStart],
     // A HUMAN station's worker reporting in (planning wizard or spec-PR webhook): same two steps as a terminal CR.
     [RUN_RESUME_EVENT, assemblyLineResume],
@@ -102,7 +99,7 @@ function kubernetesEntries(): Entry[] {
   ];
 }
 
-/** The in-process scheduler's ticks. The last four fan out: one tick starts one per-repo assembly line each, rather than doing the detection work in the handler. */
+/** The ticks this process still answers; the stations service emits them. */
 function cronEntries(): Entry[] {
   return [
     ["cron.merge_check.tick", takenByStations],
@@ -121,17 +118,10 @@ function cronEntries(): Entry[] {
   ];
 }
 
-/** The fan-out ticks: one tick starts one per-repo assembly line each. */
+/** The ticks that start a run per repository or per channel. */
 function detectTickEntries(): Entry[] {
   return [
-    ["cron.gap_detection.tick", detect.gapDetectionTick],
-    ["cron.spec_drift.tick", unlessOnTheFloor(detect.specDriftTick)],
-    [
-      "cron.spec_coverage_backfill.tick",
-      unlessOnTheFloor(cron.specCoverageBackfill),
-    ],
     ["cron.spec_upkeep.tick", takenByStations],
-    ["cron.spec_coverage_validate.tick", detect.specCoverageValidateTick],
     ["cron.daily_digest.tick", dailyDigestTick],
   ];
 }

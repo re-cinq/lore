@@ -345,7 +345,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
    (team schemas ∪ org_shared), not a fixed org_shared: the schema list intersects
    `information_schema` with `lore.repos.team` behind a schema-name injection gate, one grouped
    UNION ALL query spans all schemas, and the active variant gates each repo on a code chunk
-   ingested inside the 7-day activity window. ([validated by `fan-out.test.ts:33`](apps/floor/src/work/detect/fan-out.test.ts#L34), [`fan-out.test.ts:42`](apps/floor/src/work/detect/fan-out.test.ts#L42), [`fan-out.test.ts:87`](apps/floor/src/work/detect/fan-out.test.ts#L87), [`fan-out.test.ts:110`](apps/floor/src/work/detect/fan-out.test.ts#L110), [`fan-out.test.ts:180`](apps/floor/src/work/detect/fan-out.test.ts#L180), [`fan-out.test.ts:215`](apps/floor/src/work/detect/fan-out.test.ts#L215), [`fan-out.test.ts:226`](apps/floor/src/work/detect/fan-out.test.ts#L226), [`fan-out.test.ts:240`](apps/floor/src/work/detect/fan-out.test.ts#L240), [`fan-out.test.ts:248`](apps/floor/src/work/detect/fan-out.test.ts#L248), [`fan-out.test.ts:258`](apps/floor/src/work/detect/fan-out.test.ts#L258), [`fan-out.test.ts:268`](apps/floor/src/work/detect/fan-out.test.ts#L268), [`fan-out.test.ts:282`](apps/floor/src/work/detect/fan-out.test.ts#L282))
+   ingested inside the 7-day activity window. *(Removed 2026-10-02: the fan-out and its four ticks are gone, `specs/external-floor` FR16.6. Kept as the record of what ran.)*
 
 11. `context_reindex` was retired on 2026-09-08 (ADR-019 amendment): the CronJob, the job
    code, its verification / chunker-heal / never-ingested-backfill sweeps and the stale-content

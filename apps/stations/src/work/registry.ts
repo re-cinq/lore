@@ -3,7 +3,6 @@
 import type { StationModule } from "./lib/station.js";
 import { anthropicCostSync } from "./anthropic-cost-sync/manifest.js";
 import { approvalCheck } from "./approval-check/manifest.js";
-import { backfillScan } from "./backfill-scan/manifest.js";
 import { importanceDecayStation } from "./importance-decay/manifest.js";
 import { memoryTtl } from "./memory-ttl/manifest.js";
 import { mergeCheck } from "./merge-check/manifest.js";
@@ -29,7 +28,6 @@ import { prReview } from "./pr-review/manifest.js";
 export const STATION_NAMES = [
   "anthropic-cost-sync",
   "approval-check",
-  "backfill-scan",
   "bus-prune",
   "ci-check",
   "detect",
@@ -57,7 +55,6 @@ export type StationName = (typeof STATION_NAMES)[number];
 export const STATIONS: Record<StationName, StationModule> = {
   "anthropic-cost-sync": anthropicCostSync,
   "approval-check": approvalCheck,
-  "backfill-scan": backfillScan,
   "bus-prune": busPrune,
   "ci-check": ciCheck,
   detect,

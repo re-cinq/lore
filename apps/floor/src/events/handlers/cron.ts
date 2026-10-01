@@ -2,7 +2,6 @@
 
 import { staleTaskCheckJob } from "../../work/task/stale-task-check.js";
 import { leaseReaperJob } from "../../work/lease/lease-reaper.js";
-import { stationClient } from "../../outbound/queues.js";
 import { reconcileAgents } from "../../work/watcher/agent-reconcile.js";
 import type { EventHandler } from "../../domain/event-types.js";
 
@@ -13,12 +12,6 @@ const fromJob =
     await job();
   };
 
-/** Run a station in the stations service over HTTP. Only the link backfill is still started this way; the sweeps on a tick are claimed by the stations service itself. */
-const fromStation = (name: string): EventHandler =>
-  fromJob(() => stationClient().run(name));
-
-/** Weekly link backfill fans out per SPECIFICATION, not per repository. */
-export const specCoverageBackfill = fromStation("backfill-scan");
 export const staleTaskCheck = fromJob(staleTaskCheckJob);
 /** Delete leases >5min past expiry, writing a `lease_expired` audit entry per row. */
 export const leaseReaper = fromJob(() => leaseReaperJob());

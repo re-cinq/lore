@@ -170,9 +170,9 @@ which ships first. Phasing in [`plan.md`](./plan.md).
 The projection sets the per-statement `violated`/`drifted` flags above; the
 weekly `spec_drift` detection
 ([spec-drift.ts](../../libs/shared/src/work/detect/spec-drift.ts),
-run per repo as the `detect` node of the `spec-drift` assembly line, fanned out
-by the `cron.spec_drift.tick` handler in
-[fan-out.ts](../../apps/floor/src/work/detect/fan-out.ts) — ADR-019 amendment) is the
+which ran per repo as the `detect` node of the `spec-drift` assembly line until its
+tick was removed on 2026-10-02 — `spec-upkeep` on the external floor reads the same flags now,
+`specs/external-floor` FR14) is the
 **consumer** that turns them into gap-fill tasks. It is the single detector of
 record; [ADR-026](../../adrs/ADR-026-spec-drift-graph-primary-detection.md) records
 the decision.
