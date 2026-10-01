@@ -63,7 +63,15 @@ export interface DraftingInput {
 }
 
 /** The node the spec work enters when a plan is approved with no line waiting on its author: the draft is settled, so the line skips it. */
-const SPEC_WORK_ENTRY = "analyse-specs";
+export const SPEC_WORK_ENTRY = "analyse-specs";
+
+export const NOT_APPROVED = "the plan is not approved";
+
+export const SPEC_WORK_RUNNING = "the spec work is already running";
+
+/** Why a Refine is refused while the agent has the plan. */
+export const AGENT_STILL_WORKING =
+  "the planning agent is still working on this plan";
 
 /** Drafts the plan: a line parked on its people is sent back to the agent with the draft brief (a plan has one open line, so a new run would only join it and do nothing); otherwise a new line starts. The run's args carry what its route and its PR are named from. */
 export async function startDrafting(
@@ -139,11 +147,7 @@ export async function askRefine(
 ): Promise<void> {
   const { parked } = await findParkedAuthorNode(deps.runs, planId);
 
-  enforceTrue(
-    parked,
-    apiError(409),
-    "the planning agent is still working on this plan",
-  );
+  enforceTrue(parked, apiError(409), AGENT_STILL_WORKING);
   await reportToParkedNode(deps.reporter, parked, {
     outcome: "changes_requested",
     args: refineArgs(projection, request),
@@ -176,8 +180,11 @@ export async function decideApproval(
   runs: PlanningRunPort,
   planId: string,
 ): Promise<ApprovalDecision> {
-  const line = await planLineState(runs, planId);
+  return approvalDecisionOf(await planLineState(runs, planId));
+}
 
+/** The decision for a line already read, whichever engine read it. */
+export function approvalDecisionOf(line: PlanLine | null): ApprovalDecision {
   if (line?.parkedAuthor) {
     return { kind: "hand-over" };
   }
@@ -283,20 +290,38 @@ export async function reopenPlan(
   planId: string,
   actor: string,
 ): Promise<void> {
-  const line = await planLineState(deps.runs, planId);
+  const parked = reopenTargetOf(await planLineState(deps.runs, planId));
 
+  if (parked) {
+    await reportToParkedNode(deps.reporter, parked, {
+      outcome: "changes_requested",
+      args: {
+        round_feedback: `${actor} reopened the plan to revise it`,
+        refine: null,
+        [SPEC_REVIEW_ARG]: null,
+      },
+    });
+  }
+}
+
+/** A line for `reopenTargetOf`, whichever engine read it: the park it may report to is typed by that engine. */
+export interface ReopenableLine<Parked extends ParkedTarget> extends Pick<
+  PlanLine,
+  "open" | "parkedAuthor" | "merged"
+> {
+  parkedMerged: Parked | null;
+}
+
+/** The spec-PR park a reopen reports to; null when the line needs no report. A line the spec work is on is refused. */
+export function reopenTargetOf<Parked extends ParkedTarget>(
+  line: ReopenableLine<Parked> | null,
+): Parked | null {
   if (!line || line.open === null || line.parkedAuthor) {
-    return;
+    return null;
   }
   enforceTrue(line.parkedMerged, apiError(409), reopenRefusal(line));
-  await reportToParkedNode(deps.reporter, line.parkedMerged, {
-    outcome: "changes_requested",
-    args: {
-      round_feedback: `${actor} reopened the plan to revise it`,
-      refine: null,
-      [SPEC_REVIEW_ARG]: null,
-    },
-  });
+
+  return line.parkedMerged;
 }
 
 /** A line waiting on its author means the plan is open for writing: an approved plan whose line came back to the author (the spec analysis asked something, or someone ran the station by hand) is reopened, since its read-only editor would leave nobody able to answer. True when it reopened the plan. */
@@ -305,7 +330,19 @@ export async function openForAuthor(
   plan: { id: string; status: string },
   reopen: (planId: string) => Promise<unknown>,
 ): Promise<boolean> {
-  const line = await planLineState(runs, plan.id);
+  return reopenWhenAuthorWaits(
+    await planLineState(runs, plan.id),
+    plan,
+    reopen,
+  );
+}
+
+/** `openForAuthor` for a line already read, whichever engine read it. */
+export async function reopenWhenAuthorWaits(
+  line: Pick<PlanLine, "parkedAuthor"> | null,
+  plan: { id: string; status: string },
+  reopen: (planId: string) => Promise<unknown>,
+): Promise<boolean> {
   const locked = plan.status === "approved" && Boolean(line?.parkedAuthor);
 
   if (locked) {
@@ -315,7 +352,7 @@ export async function openForAuthor(
   return locked;
 }
 
-function reopenRefusal(line: PlanLine): string {
+function reopenRefusal(line: Pick<PlanLine, "merged">): string {
   return line.merged
     ? "wait until the spec-tasks are filed"
     : "the specs are being written; wait for the spec PR";

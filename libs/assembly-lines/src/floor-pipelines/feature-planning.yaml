@@ -8,6 +8,11 @@ line:
     plan_id:
       kind: value
       subject: true
+    # The repository at its default branch. What runs after the spec PR merges
+    # reads the merged spec, and the spec branch is gone by then: a git item
+    # carrying no sha clones the branch as it stands when the visit opens.
+    base:
+      kind: git
   nodes:
     - id: analyze
       station: plan-analyze
@@ -47,14 +52,16 @@ line:
     - id: merged
       station: spec-pr-merged
       route: "{args.pr_url}"
+    # Reads the merged spec, so it clones the base branch: after the merge the
+    # spec branch may be deleted, and what it held is on the base anyway.
     - id: decompose
       station: feature-decompose
       bind:
-        target: repo
+        target: base
     - id: issues
       station: issues
       bind:
-        target: repo
+        target: base
     - id: done
   edges:
     - from: analyze
@@ -194,6 +201,12 @@ stations:
         access: read
       - name: plan_id
         kind: value
+      # What THIS round asks for: the first draft's brief with what its author
+      # already knows, or the one section a Refine names. Reading the plan cannot
+      # tell the agent which of its sections a person just asked about.
+      - name: description
+        kind: value
+        optional: true
     produces: []
   plan-author:
     kind: human
@@ -209,6 +222,11 @@ stations:
       # one section, naming it and the hash they read it at. plan-pass-end reads it
       # back on the analyze pass it asks for.
       - name: refine
+        kind: value
+      # What the round this report asks for is for: the Refine's section, or the
+      # draft's own brief. The agent is told, rather than having to guess from the
+      # plan which section a person just clicked.
+      - name: description
         kind: value
   plan-pass-end:
     kind: service
@@ -262,6 +280,11 @@ stations:
       - name: plan_md
         kind: file
         path: plan.md
+      # Which spec pass this is: the first one, or an amendment to specs an
+      # earlier pass already merged or left open on this branch.
+      - name: description
+        kind: value
+        optional: true
     produces:
       - name: spec_plan
         kind: file
@@ -519,13 +542,15 @@ agent_definitions:
 
         On a Refine round, edit the section this round's brief names as
         asked; change another section only where a settled answer you are
-        working with makes what it says wrong. The plan's `questions` slot
-        and its open threads tell you which round this is and what it asks
-        for — `lore_plan_read` is your briefing, not a prompt field.
+        working with makes what it says wrong.
 
         When you are done, stop: every edit is already in the live plan.
         End your final message with the line
         `LORE_NODE_RESULT: {"outcome":"success"}`.
+
+        ## This round
+
+        {description}
   plan-validate:
     settings:
       model: claude-sonnet-4-6
@@ -705,6 +730,10 @@ agent_definitions:
         You decide WHICH SPECIFICATIONS a newly accepted feature plan
         changes, and how. You do not write them — a later step does that
         from your answer.
+
+        ## This pass
+
+        {description}
 
         The accepted plan is at `{plan_md_path}`. It was settled with its
         author over one or more planning rounds and is now ACCEPTED. Its

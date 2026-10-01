@@ -12,36 +12,44 @@ import { livePlanOf } from "../outbound/plans/live-plan.js";
 import { planFileRoutes } from "../transport/routes/plans/plan-file.js";
 import { planLifecycleRoutes } from "../transport/routes/plans/plan-lifecycle.js";
 import { collabAuthenticator } from "../work/plans/collab-tokens.js";
-import { handOverApproved } from "../work/plans/planning-line.js";
 import {
-  projectionOf,
-  specWorkDepsFor,
-} from "../transport/routes/plans/plan-line-deps.js";
+  planVerbsFor,
+  type PlanVerbSeams,
+} from "../transport/routes/plans/plan-verbs-for.js";
 import { DB_UNAVAILABLE } from "../transport/routes/common-schemas.js";
 import type { TokenScope } from "../transport/http/auth.js";
 
 export const PLANS_PREFIX = "/api/plans";
 
-/** Plans hosted in this process (@re-cinq/planning-sync): REST under /api/plans and the collaboration socket at /api/plans/collab, on lore-api's own listener. Returns the collaboration server so the live socket can tunnel to it (ADR-048). */
+/** What the plans registration hands the rest of the server: the collaboration server the live socket tunnels to (ADR-048), and what the plan routes need to run their verbs. */
+export interface RegisteredPlanning {
+  collab: PlanningSync["collab"];
+  plans: PlanVerbSeams;
+}
+
+/** Plans hosted in this process (@re-cinq/planning-sync): REST under /api/plans and the collaboration socket at /api/plans/collab, on lore-api's own listener. */
 export function registerPlanning(
   server: Server,
   getPool: () => Pool | null,
-): { collab: PlanningSync["collab"] } {
+): RegisteredPlanning {
   const pool = livePool(getPool);
+  const seams: PlanVerbSeams = {};
 
   const sync = registerPlanningSync(server, {
     store: pgPlanStore(pool),
     authenticator: collabAuthenticator(pool),
-    onApproved: (meta) => startSpecWork(pool, meta),
+    onApproved: (meta) => startSpecWork(pool, meta, seams),
   });
 
-  server.route(
-    planFileRoutes({ livePlan: livePlanOf(sync), writer: sync.writer }),
-  );
-  server.route(planLifecycleRoutes({ service: sync.service, getPool }));
+  // onApproved reaches the library before the sync it reads the plan through exists, so the seams are filled once it does.
+  seams.livePlan = livePlanOf(sync);
+  server.route([
+    ...planFileRoutes({ livePlan: seams.livePlan, writer: sync.writer }),
+    ...planLifecycleRoutes({ service: sync.service, getPool, ...seams }),
+  ]);
   server.ext("onPreHandler", planRouteGuard(server));
 
-  return { collab: sync.collab };
+  return { collab: sync.collab, plans: seams };
 }
 
 // The pool, answering 503 while the database is away.
@@ -59,11 +67,12 @@ function livePool(getPool: () => Pool | null): () => Pool {
 async function startSpecWork(
   pool: () => Pool,
   meta: Parameters<NonNullable<PlanLifecycleHooks["onApproved"]>>[0],
+  seams: PlanVerbSeams,
 ): Promise<void> {
-  await handOverApproved(
-    specWorkDepsFor(meta.repo, pool()),
+  const verbs = await planVerbsFor(pool(), meta, seams);
+
+  await verbs.handOverApproved(
     meta,
-    await projectionOf(pool, meta.id),
     meta.approval?.approvedBy ?? meta.createdBy,
   );
 }

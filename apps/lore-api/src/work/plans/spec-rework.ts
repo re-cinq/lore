@@ -16,6 +16,7 @@ import {
   runStation,
   type RunStationDeps,
 } from "../assembly-runs/run-station.js";
+import { NOT_APPROVED } from "./planning-line.js";
 
 /** The repo-bound reads the review is gathered from. */
 export type SpecReviewReads = Pick<
@@ -39,6 +40,8 @@ export interface SpecReworkInput {
 /** The writer's node in the planning line. */
 const WRITE_NODE = "write";
 
+export const SPEC_PR_NOT_WAITING = "the spec PR is not waiting for review";
+
 const NOTHING_OPEN =
   "nothing on the spec PR is waiting for the writer: no unresolved comment and no review body";
 
@@ -48,9 +51,8 @@ export async function startSpecRework(
   { plan, line, actor }: SpecReworkInput,
 ): Promise<string> {
   const prNumber = assertReworkable(plan, line);
-  const review = await gatherReview(deps.pulls, prNumber);
+  const review = await gatherOpenReview(deps.pulls, prNumber);
 
-  enforceTrue(!specReviewIsEmpty(review), apiError(409), NOTHING_OPEN);
   await deps.runs.mergeArgs(line.lineId, {
     [SPEC_REVIEW_ARG]: JSON.stringify(review),
     [SPEC_REVIEW_REOPEN_ARG]: null,
@@ -63,23 +65,32 @@ export async function startSpecRework(
   });
 }
 
-function assertReworkable(
+/** The refusals a rework asks before it starts, whichever engine read the line; the spec PR's number once it passes. */
+export function assertReworkable(
   plan: SpecReworkInput["plan"],
   line: PlanLine,
 ): number {
-  enforceTrue(
-    plan.status === "approved",
-    apiError(409),
-    "the plan is not approved",
-  );
+  enforceTrue(plan.status === "approved", apiError(409), NOT_APPROVED);
   enforceTrue(
     line.open !== null && line.parkedMerged !== null,
     apiError(409),
-    "the spec PR is not waiting for review",
+    SPEC_PR_NOT_WAITING,
   );
   enforceTrue(line.prNumber !== null, apiError(409), "the line has no spec PR");
 
   return line.prNumber;
+}
+
+/** What the spec PR's review left open; refused when there is nothing for the writer to do. */
+export async function gatherOpenReview(
+  pulls: SpecReviewReads,
+  prNumber: number,
+): Promise<SpecReview> {
+  const review = await gatherReview(pulls, prNumber);
+
+  enforceTrue(!specReviewIsEmpty(review), apiError(409), NOTHING_OPEN);
+
+  return review;
 }
 
 async function gatherReview(

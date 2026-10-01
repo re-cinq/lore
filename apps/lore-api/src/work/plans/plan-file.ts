@@ -48,7 +48,7 @@ export interface PlanFileOutcome {
 
 export async function planMarkdown(
   planId: string,
-  ports: PlanFilePorts,
+  ports: Pick<PlanFilePorts, "livePlan">,
 ): Promise<string> {
   const { meta, blocks } = await ports.livePlan(planId);
 

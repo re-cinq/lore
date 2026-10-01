@@ -10,12 +10,7 @@ import {
   pgPlanStore,
 } from "../../../outbound/plans/plan-store-pg.js";
 import { mintCollabToken } from "../../../work/plans/collab-tokens.js";
-import { askRefine, startDrafting } from "../../../work/plans/planning-line.js";
-import {
-  projectionOf,
-  resumeDepsFor,
-  specWorkDepsFor,
-} from "./plan-line-deps.js";
+import { planVerbsFor, type PlanVerbSeams } from "./plan-verbs-for.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
@@ -39,13 +34,16 @@ const repoOf = (request: Request): string =>
   `${request.params.owner}/${request.params.repo}`;
 
 /** Lore's own plan routes beside the library's /api/plans: a repo's plan list, deleting a plan, the collab token the web tier mints for a signed-in person, and the planning line's drafting and Refine. */
-export function plansRoutes(getPool: () => Pool | null): ServerRoute[] {
+export function plansRoutes(
+  getPool: () => Pool | null,
+  seams: PlanVerbSeams = {},
+): ServerRoute[] {
   return [
     listPlansRoute(getPool),
     deletePlanRoute(getPool),
     collabTokenRoute(getPool),
-    draftingRoute(getPool),
-    refineRoute(getPool),
+    draftingRoute(getPool, seams),
+    refineRoute(getPool, seams),
   ];
 }
 
@@ -137,21 +135,20 @@ async function serveCollabToken(
 }
 
 // The agent's first draft of a plan this repo owns, from what its author already knows.
-function draftingRoute(getPool: () => Pool | null): ServerRoute {
+function draftingRoute(
+  getPool: () => Pool | null,
+  seams: PlanVerbSeams,
+): ServerRoute {
   return {
     method: "POST",
     path: `${BASE}/{id}/drafting`,
     options: DRAFTING_OPTIONS,
     handler: withPool(getPool, async (pool, request, h) => {
       const plan = await repoPlan(() => pool, request);
+      const verbs = await planVerbsFor(pool, plan, seams);
       const body = request.payload as z.infer<typeof DraftingBody>;
-      const taskId = await startDrafting(specWorkDepsFor(plan.repo, pool), {
-        plan,
-        projection: await projectionOf(() => pool, plan.id),
-        ...body,
-      });
 
-      return h.response({ task_id: taskId }).code(202);
+      return h.response({ task_id: await verbs.draft(plan, body) }).code(202);
     }),
   };
 }
@@ -176,22 +173,20 @@ const DRAFTING_OPTIONS = zodResponse(
 );
 
 // One section back to the agent; 409 while it is still at work, so the editor withdraws the ask.
-function refineRoute(getPool: () => Pool | null): ServerRoute {
+function refineRoute(
+  getPool: () => Pool | null,
+  seams: PlanVerbSeams,
+): ServerRoute {
   return {
     method: "POST",
     path: `${BASE}/{id}/refine`,
     options: REFINE_OPTIONS,
     handler: withPool(getPool, async (pool, request, h) => {
       const plan = await repoPlan(() => pool, request);
-
+      const verbs = await planVerbsFor(pool, plan, seams);
       const refine = request.payload as z.infer<typeof RefineBody>;
 
-      await askRefine(
-        resumeDepsFor(plan.repo, pool),
-        plan.id,
-        await projectionOf(() => pool, plan.id),
-        refine,
-      );
+      await verbs.refine(plan, refine);
 
       return h.response({ slot: refine.slot }).code(202);
     }),
