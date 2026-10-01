@@ -305,7 +305,7 @@ async function handleMcpSession(
   const transport = sessionId ? sessions.get(sessionId) : undefined;
 
   if (!transport) {
-    const unknown = sessionId !== undefined;
+    const unknown = Boolean(sessionId);
 
     jsonRpcError(
       res,
