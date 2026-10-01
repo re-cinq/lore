@@ -16,6 +16,7 @@ import { floorConfigured } from "@re-cinq/lore-shared/floor/floor-client.js";
 import { startCodeReviewStations } from "./code-review/index.js";
 import { startPlanningStations } from "./planning/index.js";
 import { startMergeStations } from "./merge/index.js";
+import { startDigestStations } from "./digest/index.js";
 
 const PORT = requiredPort(process.env, "PORT");
 
@@ -40,6 +41,7 @@ async function main(): Promise<void> {
         ...startCodeReviewStations(),
         ...startPlanningStations(),
         ...startMergeStations(),
+        ...startDigestStations(),
       ]
     : [];
 

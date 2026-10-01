@@ -23,29 +23,33 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export function digestDraftSources(
   io: DraftSourceIo,
 ): Pick<DraftDeps, "collect" | "namesFor"> {
-  const slackIdByEmail = ttlMemo(
-    (email: string) => io.directory.idByEmail(email),
-    DAY_MS,
-  );
-  const slackName = ttlMemo(
-    (id: string) => io.directory.displayName(id),
-    DAY_MS,
-  );
-  const commitEmail = ttlMemo(async (repoAndLogin: string) => {
-    const [repo, login] = repoAndLogin.split(" ");
-
-    return (await io.project(repo)).repo.commitEmailOf(login);
-  }, DAY_MS);
+  const people = peopleLookups(io);
 
   return {
     collect: (entry) => collectChanges(io, entry),
     namesFor: async (repo, logins) =>
       resolveNames(logins, {
         override: parseSlackUsers((await io.slackUsersSetting()) ?? undefined),
-        emailOf: (login) => commitEmail(`${repo} ${login}`),
-        slackIdByEmail,
-        slackName,
+        emailOf: (login) => people.commitEmail(`${repo} ${login}`),
+        slackIdByEmail: people.slackIdByEmail,
+        slackName: people.slackName,
       }),
+  };
+}
+
+/** The lookups that rarely change, each remembered for a day. */
+function peopleLookups(io: DraftSourceIo) {
+  return {
+    slackIdByEmail: ttlMemo(
+      (email: string) => io.directory.idByEmail(email),
+      DAY_MS,
+    ),
+    slackName: ttlMemo((id: string) => io.directory.displayName(id), DAY_MS),
+    commitEmail: ttlMemo(async (repoAndLogin: string) => {
+      const [repo, login] = repoAndLogin.split(" ");
+
+      return (await io.project(repo)).repo.commitEmailOf(login);
+    }, DAY_MS),
   };
 }
 

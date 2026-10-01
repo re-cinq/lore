@@ -163,15 +163,16 @@ function channelRunOf(
 
 /** What a channel's run carries, whichever engine walks it. */
 export function digestRunArgs(run: ChannelRun, now: Date) {
-  const repoNames = run.repos.map((r) => r.repo);
+  const { host, repos } = run;
+  const repoNames = repos.map((r) => r.repo);
 
   return {
     channel: run.channel,
     channel_repos: run.members.join(","),
-    week_key: isoWeekKey(now, run.host.settings.timezone),
+    week_key: isoWeekKey(now, host.settings.timezone),
     digest_date: run.date,
-    digest_repos: encodeDigestRepos(run.repos.map(digestRepoOf)),
-    voice: voiceOf(run.repos),
+    digest_repos: encodeDigestRepos(repos.map(digestRepoOf)),
+    voice: voiceOf(repos),
     description: `Daily digest for ${run.channel}: ${repoNames.join(", ")}, ${run.date}`,
   };
 }
