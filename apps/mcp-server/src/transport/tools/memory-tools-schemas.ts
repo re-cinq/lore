@@ -56,7 +56,7 @@ export const LIST_MEMORIES_INPUT = {
     .string()
     .optional()
     .describe(
-      "Agent scope when no repo is detected (ignored when repo is detected).",
+      "Agent scope when no repo is given or detected (ignored when one is).",
     ),
   limit: z.number().default(50),
   offset: z
