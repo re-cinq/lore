@@ -171,12 +171,19 @@ describe("FloorRunReader.listSummaries", () => {
     expect(runs.map((run) => run.id)).toEqual(["run-1"]);
   });
 
-  it("asks the floor nothing for task-1", async () => {
+  it("asks the floor for the open and the finished runs on subject task_id:task-1 for task-1", async () => {
     const { reader: floorReader, recorded } = listingReader();
 
     await floorReader.listSummaries({ taskId: "task-1" });
 
-    expect(recorded.requests).toEqual([]);
+    const listed = recorded.requests
+      .map((request) => request.path)
+      .filter((path) => path.startsWith("/assembly-runs?"));
+
+    expect(listed).toEqual([
+      "/assembly-runs?subject=task_id%3Atask-1&open=true&limit=50",
+      "/assembly-runs?subject=task_id%3Atask-1&open=false&limit=50",
+    ]);
   });
 
   it("reads the costs of run-1 and run-2 in one request", async () => {

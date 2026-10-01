@@ -1,6 +1,7 @@
 // Lore's run-list filters spelled the floor's way: which floor lists to read, and what the floor cannot filter on is checked here on what it returned.
 import type { RunFilter } from "@re-cinq/floor-client";
 import { floorRepoOf } from "@re-cinq/lore-shared/floor/floor-items.js";
+import { floorTaskSubject } from "@re-cinq/lore-shared/floor/floor-task-runs.js";
 import { floorPlanSubject } from "@re-cinq/lore-shared/feature-planning/floor-plan-runs.js";
 import type {
   AssemblyRunQuery,
@@ -9,16 +10,15 @@ import type {
 
 const OPEN_STATUSES: readonly string[] = ["queued", "running"];
 
-/** One floor list per line and open/finished half the query asks for; none when the floor holds nothing the query could match (it knows no task and no cluster-agent claim). */
+/** One floor list per line and open/finished half the query asks for; none when the floor holds nothing the query could match (it knows no cluster-agent claim). */
 export function floorRunFilters(query: AssemblyRunQuery): RunFilter[] {
-  if (query.taskId !== undefined || query.clusterAgentId !== undefined) {
+  if (query.clusterAgentId !== undefined) {
     return [];
   }
+  const subject = subjectAsked(query);
   const shared = {
     ...(query.repo === undefined ? {} : { repo: floorRepoOf(query.repo) }),
-    ...(query.subjectKey === undefined
-      ? {}
-      : { subject: floorSubjectOf(query.subjectKey) }),
+    ...(subject === undefined ? {} : { subject }),
   };
 
   return linesOf(query).flatMap((line) =>
@@ -28,6 +28,17 @@ export function floorRunFilters(query: AssemblyRunQuery): RunFilter[] {
       open,
     })),
   );
+}
+
+/** A task's runs are the ones keyed on it: a floor line that keeps a task makes `task_id` its subject. */
+function subjectAsked(query: AssemblyRunQuery): string | undefined {
+  if (query.taskId !== undefined) {
+    return floorTaskSubject(query.taskId);
+  }
+
+  return query.subjectKey === undefined
+    ? undefined
+    : floorSubjectOf(query.subjectKey);
 }
 
 /** Lore's subject key spelled the floor's way. The floor keys a run `<subject argument>:<value>`, so a plan it holds is `plan_id:<id>` where Lore says `plan:<id>`; every other subject Lore asks about is already the floor's own spelling. Passed through unchanged, a plan's own run page and card would find nothing. */
