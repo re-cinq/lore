@@ -51,7 +51,7 @@ function specRef(specSlug: string | undefined): string {
 function specTaskBranch(task: ReadySpecTask, cb: Bundle): string {
   const slug = cb.spec_slug || "spec-task";
 
-  return `lore/spec-task/${slug}-${(cb.spec_task_id || "").toLowerCase()}-${task.id.substring(0, 8)}`;
+  return `lore/spec-task/${slug}-${String(cb.spec_task_id || "").toLowerCase()}-${task.id.substring(0, 8)}`;
 }
 
 // The task issue's title as it reads now, else as the issues station filed it (`T001: <title>`).
