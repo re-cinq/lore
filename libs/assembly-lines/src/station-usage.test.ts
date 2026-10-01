@@ -63,10 +63,10 @@ describe("stationUsage", () => {
     });
   });
 
-  it("the builtin catalog references implementation and def-validate but never runbook (runbook has no blueprint — it runs as a single Agent CR)", async () => {
+  it("the builtin catalog references onboard and def-validate but never runbook (runbook has no blueprint — it runs as a single Agent CR)", async () => {
     const usage = stationUsage(await loadBuiltinAssemblyLines());
 
-    expect(usage.get("implementation")?.length).toBeGreaterThan(0);
+    expect(usage.get("onboard")?.length).toBeGreaterThan(0);
     expect(usage.get("def-validate")?.length).toBeGreaterThan(0);
     expect(usage.get("runbook")).toBeUndefined();
   });

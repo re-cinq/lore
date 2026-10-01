@@ -11,10 +11,10 @@ describe("loadBuiltinAssemblyLines", () => {
     expect(loadBuiltinAssemblyLines()).toBe(loadBuiltinAssemblyLines());
   });
 
-  it("resolves the builtin catalog including implementation", async () => {
+  it("resolves the builtin catalog including onboard", async () => {
     const definitions = await loadBuiltinAssemblyLines();
 
-    expect(definitions.get("implementation")?.name).toBe("implementation");
+    expect(definitions.get("onboard")?.name).toBe("onboard");
   });
 
   it("loads every YAML in the directory, none skipped (a per-file catch swallowing one would leave the map short, undetected by 'the catalog resolved' alone)", async () => {

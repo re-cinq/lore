@@ -29,18 +29,18 @@ describe("GET /api/assembly-line-definitions/{name}", () => {
     process.env.LORE_INGEST_TOKEN = "ingest-secret";
     const res = await definitionsServer().inject({
       method: "GET",
-      url: "/api/assembly-line-definitions/implementation",
+      url: "/api/assembly-line-definitions/gap-fill",
       headers: { authorization: "Bearer wrong" },
     });
 
     expect(res.statusCode).toBe(401);
   });
 
-  it("returns the parsed implementation definition including its self-loop edge", async () => {
+  it("returns the parsed gap-fill definition including its self-loop edge", async () => {
     process.env.LORE_INGEST_TOKEN = "ingest-secret";
     const res = await definitionsServer().inject({
       method: "GET",
-      url: "/api/assembly-line-definitions/implementation",
+      url: "/api/assembly-line-definitions/gap-fill",
       headers: { authorization: "Bearer ingest-secret" },
     });
 
@@ -51,7 +51,7 @@ describe("GET /api/assembly-line-definitions/{name}", () => {
       edges: { from: string; to: string; iteration_max?: number }[];
     };
 
-    expect(body.name).toBe("implementation");
+    expect(body.name).toBe("gap-fill");
     expect(body.nodes.length).toBeGreaterThan(0);
     expect(
       body.edges.some(
@@ -64,12 +64,12 @@ describe("GET /api/assembly-line-definitions/{name}", () => {
     process.env.LORE_INGEST_TOKEN = "ingest-secret";
     const res = await definitionsServer().inject({
       method: "GET",
-      url: "/api/assembly-line-definitions/implementation",
+      url: "/api/assembly-line-definitions/gap-fill",
       headers: { authorization: "Bearer ingest-secret" },
     });
 
     expect(JSON.parse(res.payload)).toMatchObject({
-      name: "implementation",
+      name: "gap-fill",
       version: 1,
       description: expect.any(String) as unknown as string,
       entry: expect.any(String) as unknown as string,
@@ -95,7 +95,7 @@ describe("GET /api/assembly-line-definitions/{name}", () => {
     const request = () =>
       server.inject({
         method: "GET",
-        url: "/api/assembly-line-definitions/implementation",
+        url: "/api/assembly-line-definitions/gap-fill",
         headers: { authorization: "Bearer ingest-secret" },
       });
 
