@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { pruneTelemetry, RETENTION_DAYS } from "./log-retention.js";
+import { pruneTelemetry, RETENTION_DAYS } from "./telemetry-retention.js";
 
 const store = (removed: number) => ({
   pruneOld: (_days: number) => Promise.resolve(removed),

@@ -18,10 +18,7 @@ import {
   RUN_STATION_EVENT,
 } from "@re-cinq/lore-shared/project/assembly-runs/run-events.js";
 import { agentNodeTerminal } from "../../work/assembly-run/node-event-handler.js";
-import {
-  podLogAppended,
-  telemetryPrune,
-} from "../../work/station/pod-log-handler.js";
+import { podLogAppended } from "../../work/station/pod-log-handler.js";
 
 /** Compose one primary handler with best-effort secondaries under one event name; the primary's throw propagates (retry/dead-letter unchanged), a secondary's is logged and swallowed. */
 export function withExtra(
@@ -108,18 +105,18 @@ function kubernetesEntries(): Entry[] {
 /** The in-process scheduler's ticks. The last four fan out: one tick starts one per-repo assembly line each, rather than doing the detection work in the handler. */
 function cronEntries(): Entry[] {
   return [
-    ["cron.merge_check.tick", cron.mergeCheck],
+    ["cron.merge_check.tick", takenByStations],
     ["cron.implementation_loop.tick", implementationLoopTick],
-    ["cron.pr_ready_check.tick", cron.prReadyCheck],
-    ["cron.approval_check.tick", cron.approvalCheck],
+    ["cron.pr_ready_check.tick", takenByStations],
+    ["cron.approval_check.tick", takenByStations],
     ["cron.spec_task_executor.tick", takenByStations],
     ["cron.stale_task_check.tick", cron.staleTaskCheck],
-    ["cron.telemetry_prune.tick", telemetryPrune],
+    ["cron.telemetry_prune.tick", takenByStations],
     ["cron.assembly_line_reaper.tick", cron.assemblyLineReaper],
     ["cron.llm_credit_probe.tick", cron.llmCreditProbe],
     ["cron.agent_watcher_reconcile.tick", cron.agentWatcherReconcile],
     ["cron.lease_reaper.tick", cron.leaseReaper],
-    ["cron.events_prune.tick", cron.eventsPrune],
+    ["cron.events_prune.tick", takenByStations],
     ...detectTickEntries(),
   ];
 }
