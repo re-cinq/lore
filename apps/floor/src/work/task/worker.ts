@@ -12,6 +12,7 @@ import { pipeline } from "../../outbound/queues.js";
 import type { TaskQueueRepository } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
 import { handleFeatureRequest } from "./handle-feature-request.js";
 import { handleOnboard } from "./handle-onboard.js";
+import { taskHasOpenLine } from "./task-open-line.js";
 import { dispatchAgentCr, type DispatchInput } from "./dispatch-agent-cr.js";
 import {
   awaitApprovalIfRequired,
@@ -62,10 +63,7 @@ function liveRecoverStaleDeps(): RecoverStaleDeps {
     queue: pipeline().taskQueue,
     setStatus,
     insertEvent,
-    hasOpenLine: async (taskId) =>
-      (await pipeline().assemblyRuns.listForTask(taskId)).some(
-        (line) => line.status === "running" || line.status === "queued",
-      ),
+    hasOpenLine: taskHasOpenLine,
   };
 }
 
