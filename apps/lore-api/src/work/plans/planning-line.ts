@@ -12,6 +12,7 @@ import {
   reportToParkedNode,
   type ParkedTarget,
 } from "@re-cinq/lore-shared/project/assembly-runs/parked-node.js";
+import { refineRefusal, reopenRefusal } from "./refine-refusal.js";
 import {
   approvedBrief,
   draftBrief,
@@ -68,10 +69,6 @@ export const SPEC_WORK_ENTRY = "analyse-specs";
 export const NOT_APPROVED = "the plan is not approved";
 
 export const SPEC_WORK_RUNNING = "the spec work is already running";
-
-/** Why a Refine is refused while the agent has the plan. */
-export const AGENT_STILL_WORKING =
-  "the planning agent is still working on this plan";
 
 /** Drafts the plan: a line parked on its people is sent back to the agent with the draft brief (a plan has one open line, so a new run would only join it and do nothing); otherwise a new line starts. The run's args carry what its route and its PR are named from. */
 export async function startDrafting(
@@ -138,17 +135,17 @@ function lineArgs(plan: PlanRef, { entryNode, open }: TaskShape) {
   };
 }
 
-/** Sends one section back to the agent; refused while the agent is still at work, so the editor withdraws the ask. */
+/** Sends one section back to the agent while the line waits on its author; at any other moment it is refused with the reason, so the editor withdraws the ask and the page says why. */
 export async function askRefine(
   deps: ResumeDeps,
-  planId: string,
+  plan: { id: string; status: string },
   projection: PlanView,
   request: RefineRequest,
 ): Promise<void> {
-  const { parked } = await findParkedAuthorNode(deps.runs, planId);
+  const line = await planLineState(deps.runs, plan.id);
 
-  enforceTrue(parked, apiError(409), AGENT_STILL_WORKING);
-  await reportToParkedNode(deps.reporter, parked, {
+  enforceTrue(line?.parkedAuthor, apiError(409), refineRefusal(plan, line));
+  await reportToParkedNode(deps.reporter, line.parkedAuthor, {
     outcome: "changes_requested",
     args: refineArgs(projection, request),
   });
@@ -350,10 +347,4 @@ export async function reopenWhenAuthorWaits(
   }
 
   return locked;
-}
-
-function reopenRefusal(line: Pick<PlanLine, "merged">): string {
-  return line.merged
-    ? "wait until the spec-tasks are filed"
-    : "the specs are being written; wait for the spec PR";
 }

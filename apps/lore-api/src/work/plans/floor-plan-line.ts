@@ -21,7 +21,6 @@ import { type RefineRequest } from "./plan-briefs.js";
 import type { PlanSubject } from "./plan-engine.js";
 import { assertValidatable } from "./plan-validate.js";
 import {
-  AGENT_STILL_WORKING,
   NOT_APPROVED,
   SPEC_WORK_ENTRY,
   SPEC_WORK_RUNNING,
@@ -30,6 +29,7 @@ import {
   type ApprovalDecision,
   type PlanRef,
 } from "./planning-line.js";
+import { refineRefusal } from "./refine-refusal.js";
 import {
   SPEC_PR_NOT_WAITING,
   assertReworkable,
@@ -91,7 +91,7 @@ export async function startFloorDrafting(
   return startPlanRun(deps, { plan, planMd, brief });
 }
 
-/** Sends one section back to the agent; refused while the agent is still at work, so the editor withdraws the ask. The refine value is what `plan-pass-end` reads back. */
+/** Sends one section back to the agent while the run waits on its author; at any other moment it is refused with the reason, so the editor withdraws the ask and the page says why. The refine value is what `plan-pass-end` reads back. */
 export async function askFloorRefine(
   deps: FloorPlanDeps,
   { plan, planMarkdown, brief, refine }: FloorRefineInput,
@@ -100,7 +100,7 @@ export async function askFloorRefine(
   const parked = line?.parkedAuthor;
   const { slot, baseHash, uses } = refine;
 
-  enforceTrue(parked, apiError(409), AGENT_STILL_WORKING);
+  enforceTrue(parked, apiError(409), refineRefusal(plan, line));
   await reportToVisit(deps.floor.events, parked.visitId, {
     outcome: "changes_requested",
     produced: {

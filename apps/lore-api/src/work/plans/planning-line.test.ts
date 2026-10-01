@@ -12,7 +12,13 @@ import {
   type SpecPrState,
 } from "./planning-line.js";
 
-const PLAN = { id: "p1", repo: "re-cinq/lore", title: "Faster checkout" };
+const PLAN = {
+  id: "p1",
+  repo: "re-cinq/lore",
+  title: "Faster checkout",
+  status: "draft",
+};
+const APPROVED = { ...PLAN, status: "approved" };
 const REFINE = {
   slot: "intent",
   title: "Intent",
@@ -126,7 +132,7 @@ describe("askRefine", () => {
 
     await askRefine(
       { runs: parkedOnAuthor, reporter },
-      PLAN.id,
+      PLAN,
       { title: "Faster checkout" },
       REFINE,
     );
@@ -152,7 +158,7 @@ describe("askRefine", () => {
     await expect(
       askRefine(
         { runs: stillDrafting, reporter },
-        PLAN.id,
+        PLAN,
         { title: "Faster checkout" },
         REFINE,
       ),
@@ -539,6 +545,126 @@ describe("openForAuthor", () => {
     expect({ answers, reopened }).toEqual({
       answers: [false, false, false, false, false],
       reopened: [],
+    });
+  });
+});
+
+describe("askRefine while no author waits on the plan", () => {
+  const noLine: PlanningRunPort = {
+    listForSubject: async () => [],
+    listStationRuns: async () => [],
+  };
+
+  const cancelled = lineWith({ status: "finished", outcome: "cancelled" }, [
+    v("analyze", "success"),
+    v("author", "failed"),
+  ]);
+
+  const refusalOf = (
+    plan: typeof PLAN,
+    runs: PlanningRunPort,
+    reporter: InMemoryEventReporter,
+  ) =>
+    askRefine({ runs, reporter }, plan, { title: "Faster checkout" }, REFINE)
+      .then(() => "resumed")
+      .catch(
+        (error: Error & { output?: { statusCode: number } }) =>
+          `${error.output?.statusCode}: ${error.message}`,
+      );
+
+  const refusalsOf = async (
+    plan: typeof PLAN,
+    lines: Record<string, PlanningRunPort>,
+    reporter: InMemoryEventReporter,
+  ) =>
+    Object.fromEntries(
+      await Promise.all(
+        Object.entries(lines).map(async ([state, runs]) => [
+          state,
+          await refusalOf(plan, runs, reporter),
+        ]),
+      ),
+    );
+
+  it("refuses a Refine on plan p1 with 409 naming why for each state its line is in, resuming nothing", async () => {
+    const reporter = new InMemoryEventReporter();
+    const lines = {
+      noLine,
+      specWorkFailed,
+      specPrOpenLineEnded,
+      cancelled,
+      specsMerged,
+      specPrOpen,
+      stillDrafting,
+      refining,
+      runningWithNoVisits: runWith([]),
+      writingSpecs,
+      decomposing,
+    };
+
+    const refusals = await refusalsOf(PLAN, lines, reporter);
+
+    expect({ refusals, resumed: reporter.rows }).toEqual({
+      refusals: {
+        noLine:
+          "409: the plan has no planning line yet; regenerate the plan to start one",
+        specWorkFailed:
+          "409: the planning line failed, so no agent is waiting to refine this plan; regenerate the plan to draft it again",
+        specPrOpenLineEnded:
+          "409: the planning line failed, so no agent is waiting to refine this plan; regenerate the plan to draft it again",
+        cancelled:
+          "409: the planning line failed, so no agent is waiting to refine this plan; regenerate the plan to draft it again",
+        specsMerged:
+          "409: the planning line has ended, so no agent is waiting to refine this plan; edit the section by hand",
+        specPrOpen:
+          "409: the spec PR is being sent back to the author; try again in a moment",
+        stillDrafting: "409: the planning agent is still working on this plan",
+        refining: "409: the planning agent is still working on this plan",
+        runningWithNoVisits:
+          "409: the planning agent is still working on this plan",
+        writingSpecs: "409: the specs are being written; wait for the spec PR",
+        decomposing: "409: wait until the spec-tasks are filed",
+      },
+      resumed: [],
+    });
+  });
+
+  it("names Retry and Reopen, never Regenerate, when approved plan p1 is refined, as its read-only page offers them", async () => {
+    const reporter = new InMemoryEventReporter();
+    const lines = {
+      noLine,
+      specWorkFailed,
+      specPrOpenLineEnded,
+      cancelled,
+      specsMerged,
+      specPrOpen,
+      runningWithNoVisits: runWith([]),
+      writingSpecs,
+      decomposing,
+    };
+
+    const refusals = await refusalsOf(APPROVED, lines, reporter);
+
+    expect({ refusals, resumed: reporter.rows }).toEqual({
+      refusals: {
+        noLine:
+          "409: the plan is approved and its spec work failed; retry the spec work, or reopen the plan to write again",
+        specWorkFailed:
+          "409: the plan is approved and its spec work failed; retry the spec work, or reopen the plan to write again",
+        specPrOpenLineEnded:
+          "409: the plan is approved and its spec work failed; retry the spec work, or reopen the plan to write again",
+        cancelled:
+          "409: the plan is approved and its spec work failed; retry the spec work, or reopen the plan to write again",
+        specsMerged:
+          "409: the plan is approved, so its sections are settled; reopen the plan to write again",
+        specPrOpen:
+          "409: the plan is approved, so its sections are settled; reopen the plan to write again",
+        runningWithNoVisits:
+          "409: the specs are being written; wait for the spec PR",
+        writingSpecs: "409: the specs are being written; wait for the spec PR",
+        decomposing: "409: wait until the spec-tasks are filed",
+      },
+      resumed: [],
     });
   });
 });

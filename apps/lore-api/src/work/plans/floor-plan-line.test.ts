@@ -282,7 +282,126 @@ describe("askFloorRefine", () => {
       }),
     ).rejects.toMatchObject({ output: { statusCode: 409 } });
   });
+
+  it("refuses a Refine on draft plan p1 with 409 naming why for each state its floor run is in, reporting nothing", async () => {
+    const scenes = {
+      noRun: NO_RUN,
+      specWorkFailed: { runs: [FAILED], visits: AFTER_FAILED_SPECS },
+      cancelled: { runs: [CANCELLED], visits: WHILE_ANALYZING },
+      delivered: { runs: [FINISHED], visits: DELIVERED },
+      specPrOpen: { visits: ON_MERGED },
+      whileAnalyzing: { visits: WHILE_ANALYZING },
+      settlingThePass: { visits: SETTLING_PASS },
+      writingSpecs: { visits: WHILE_WRITING },
+      decomposing: { visits: DECOMPOSING },
+    };
+
+    expect(await refusalsOf(DRAFT, scenes)).toEqual({
+      refusals: {
+        noRun:
+          "409: the plan has no planning line yet; regenerate the plan to start one",
+        specWorkFailed:
+          "409: the planning line failed, so no agent is waiting to refine this plan; regenerate the plan to draft it again",
+        cancelled:
+          "409: the planning line failed, so no agent is waiting to refine this plan; regenerate the plan to draft it again",
+        delivered:
+          "409: the planning line has ended, so no agent is waiting to refine this plan; edit the section by hand",
+        specPrOpen:
+          "409: the spec PR is being sent back to the author; try again in a moment",
+        whileAnalyzing: "409: the planning agent is still working on this plan",
+        settlingThePass:
+          "409: the planning agent is still working on this plan",
+        writingSpecs: "409: the specs are being written; wait for the spec PR",
+        decomposing: "409: wait until the spec-tasks are filed",
+      },
+      reported: 0,
+    });
+  });
+
+  it("names Retry and Reopen, never Regenerate, when approved plan p1 is refined on the floor, as its read-only page offers them", async () => {
+    const scenes = {
+      noRun: NO_RUN,
+      specWorkFailed: { runs: [FAILED], visits: AFTER_FAILED_SPECS },
+      delivered: { runs: [FINISHED], visits: DELIVERED },
+      specPrOpen: { visits: ON_MERGED },
+      writingSpecs: { visits: WHILE_WRITING },
+      decomposing: { visits: DECOMPOSING },
+    };
+
+    expect(await refusalsOf(APPROVED, scenes)).toEqual({
+      refusals: {
+        noRun:
+          "409: the plan is approved and its spec work failed; retry the spec work, or reopen the plan to write again",
+        specWorkFailed:
+          "409: the plan is approved and its spec work failed; retry the spec work, or reopen the plan to write again",
+        delivered:
+          "409: the plan is approved, so its sections are settled; reopen the plan to write again",
+        specPrOpen:
+          "409: the plan is approved, so its sections are settled; reopen the plan to write again",
+        writingSpecs: "409: the specs are being written; wait for the spec PR",
+        decomposing: "409: wait until the spec-tasks are filed",
+      },
+      reported: 0,
+    });
+  });
 });
+
+const FAILED = planRun({
+  outcome: "failed",
+  finishedAt: "2026-10-01T10:00:00.000Z",
+});
+const CANCELLED = planRun({
+  outcome: "cancelled",
+  finishedAt: "2026-10-01T10:00:00.000Z",
+});
+const AFTER_FAILED_SPECS = [
+  planVisit("author", SUCCESS),
+  planVisit("analyse-specs", { outcome: "failed" }),
+];
+const DELIVERED = [
+  planVisit("author", SUCCESS),
+  planVisit("merged", SUCCESS),
+  planVisit("decompose", SUCCESS),
+];
+const SETTLING_PASS = [
+  planVisit("analyze", SUCCESS),
+  planVisit("plan-pass-end", null),
+];
+const DECOMPOSING = [
+  planVisit("merged", SUCCESS),
+  planVisit("decompose", null),
+];
+
+async function refusalsOf(
+  plan: typeof DRAFT,
+  scenes: Record<string, Parameters<typeof scene>[0]>,
+) {
+  const answers = await Promise.all(
+    Object.entries(scenes).map(async ([state, given]) => {
+      const { deps, requests } = scene(given);
+      const refusal = await askFloorRefine(deps, {
+        plan,
+        planMarkdown: MARKDOWN,
+        brief: BRIEF,
+        refine: REFINE,
+      })
+        .then(() => "resumed")
+        .catch(
+          (error: Error & { output?: { statusCode: number } }) =>
+            `${error.output?.statusCode}: ${error.message}`,
+        );
+
+      return [state, refusal, posts(requests).length] as const;
+    }),
+  );
+
+  return {
+    refusals: Object.fromEntries(
+      answers.map(([state, refusal]) => [state, refusal]),
+    ),
+    reported: answers.reduce((sum, [, , reported]) => sum + reported, 0),
+  };
+}
 
 describe("approveFloorPlan", () => {
   it("reports success on the author visit with the approved plan.md when the run waits on author", async () => {
