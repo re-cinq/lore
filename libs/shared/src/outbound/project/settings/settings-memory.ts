@@ -88,7 +88,14 @@ export class InMemorySettings implements SettingsPort {
   readonly vars: Array<{ repo: string; name: string; value: string }> = [];
   readonly secrets: Array<{ repo: string; name: string; value: string }> = [];
 
+  /** Org-wide settings by key, seeded by a test that reads one. */
+  readonly org: Record<string, string> = {};
+
   constructor(public readonly repos: SeedRepo[] = []) {}
+
+  async orgSetting(key: string): Promise<string | null> {
+    return this.org[key] ?? null;
+  }
 
   private row(repo: string): SeedRepo | undefined {
     return this.repos.find((r) => r.full_name === repo);

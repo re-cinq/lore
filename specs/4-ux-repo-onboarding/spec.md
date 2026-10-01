@@ -231,7 +231,7 @@ post-merge ingestion task — could leave three PRs open for one onboarding. ([v
   not stamp `last_ingested_at`; only an ingest does. The stamp used to be set
   on merge although nothing had read the repo, which silenced the
   seven-day staleness warning on a repo no ingest had reached.
-  ([validated by marks repo-42's onboarding merged without stamping last_ingested_at](libs/shared/src/outbound/project/settings/settings-pg.test.ts#L101),
+  ([validated by marks repo-42's onboarding merged without stamping last_ingested_at](libs/shared/src/outbound/project/settings/settings-pg.test.ts#L118),
   [validated by marks the onboarding merged and leaves a never-ingested repo's last_ingested_at unset](libs/shared/src/outbound/project/settings/settings.test.ts#L85))
 - FR-2.7: When enrolment leaves gaps — a file that could not be committed,
   a callback value that could not be set — the onboarding still proceeds and

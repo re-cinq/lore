@@ -2,7 +2,10 @@
 
 import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { DAILY_DIGEST_LINE } from "@re-cinq/lore-shared/digest/contract.js";
-import { deliverDigestRun, type DeliverDeps } from "./deliver-digest.js";
+import {
+  deliverDigestRun,
+  type DeliverDeps,
+} from "@re-cinq/lore-shared/digest/deliver-digest.js";
 
 export async function digestRunClosed(
   run: AssemblyRunRecord,

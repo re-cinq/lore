@@ -27,6 +27,7 @@ interface Station {
   kind: string;
   outcomes: string[];
   needs: Need[];
+  produces: Array<{ name: string; kind: string; path?: string }>;
 }
 
 interface AgentSettings {
@@ -59,17 +60,72 @@ interface Pipeline {
 const PIPELINES = loadPipelines();
 
 describe("the floor pipelines shipped in this folder", () => {
-  it("ships exactly the pipelines code-review, code-review-recheck, code-review-reply, feature-planning, lore-run-settled and merge", () => {
+  it("ships exactly the pipelines code-review, code-review-recheck, code-review-reply, daily-digest, feature-planning, lore-run-settled and merge", () => {
     expect(
       [...PIPELINES.values()].map((pipeline) => pipeline.line.id).sort(),
     ).toEqual([
       "code-review",
       "code-review-recheck",
       "code-review-reply",
+      "daily-digest",
       "feature-planning",
       "lore-run-settled",
       "merge",
     ]);
+  });
+
+  it("walks daily-digest from collect through refine to post, reaching post on every outcome of refine", () => {
+    const { line } = pipelineOf("daily-digest");
+
+    expect(line.nodes).toEqual([
+      { id: "collect", station: "digest-collect" },
+      { id: "refine", station: "digest-refine" },
+      { id: "post", station: "digest-post" },
+      { id: "done" },
+    ]);
+    expect(edgesOn(line, "refine")).toEqual([
+      { from: "refine", to: "post", on: "always" },
+    ]);
+  });
+
+  it("retries a failed digest collect or post once, so a second failure settles the run as iteration_max and not as success", () => {
+    const { line } = pipelineOf("daily-digest");
+    const failed = ["collect", "post"].map((node) =>
+      edgesOn(line, node).find((edge) => edge.on === "failed"),
+    );
+
+    expect(failed).toEqual([
+      { from: "collect", to: "collect", on: "failed", iteration_max: 1 },
+      { from: "post", to: "post", on: "failed", iteration_max: 1 },
+    ]);
+  });
+
+  it("keys a daily-digest run on digest_key, hands the agent the draft as digest-draft.md and takes digest.md back as an optional need of digest-post", () => {
+    const { line, stations } = pipelineOf("daily-digest");
+    const refine = stations["digest-refine"];
+    const post = stations["digest-post"];
+
+    expect({
+      subject: line.args.digest_key,
+      draft: refine.needs[0],
+      message: refine.produces,
+      messageNeed: post.needs.find((need) => need.name === "digest_message"),
+    }).toEqual({
+      subject: { kind: "value", subject: true },
+      draft: { name: "digest_draft", kind: "file", path: "digest-draft.md" },
+      message: [{ name: "digest_message", kind: "file", path: "digest.md" }],
+      messageNeed: { name: "digest_message", kind: "file", optional: true },
+    });
+  });
+
+  it("tells the digest agent the draft's and the message's paths, and names no repository clone", () => {
+    const prompt =
+      pipelineOf("daily-digest").agent_definitions?.["digest-refine"].settings
+        .prompt ?? "";
+
+    expect(prompt).toContain("{digest_draft_path}");
+    expect(prompt).toContain("{digest_message_path}");
+    expect(prompt).not.toContain("clone");
   });
 
   it("walks merge from settle through spec-status, close-issue, outcome-stats, curate, memory-feedback, trust and spec-tasks to done", () => {

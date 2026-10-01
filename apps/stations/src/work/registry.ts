@@ -11,6 +11,7 @@ import { mergeStep } from "./merge-step/manifest.js";
 import { validate } from "./validate/manifest.js";
 import { retrospective } from "./retrospective/manifest.js";
 import { detect } from "./detect/manifest.js";
+import { digestTickStation } from "./digest-tick/manifest.js";
 import { ingest } from "./ingest/manifest.js";
 import { issues } from "./issues/manifest.js";
 import { featureReview } from "./feature-review/manifest.js";
@@ -27,6 +28,7 @@ export const STATION_NAMES = [
   "backfill-scan",
   "ci-check",
   "detect",
+  "digest-tick",
   "escalation-step",
   "feature-review",
   "gcp-cost-sync",
@@ -50,6 +52,7 @@ export const STATIONS: Record<StationName, StationModule> = {
   "backfill-scan": backfillScan,
   "ci-check": ciCheck,
   detect,
+  "digest-tick": digestTickStation,
   "escalation-step": escalationStep,
   "feature-review": featureReview,
   "gcp-cost-sync": gcpCostSync,
