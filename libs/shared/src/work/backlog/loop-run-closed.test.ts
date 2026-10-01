@@ -268,6 +268,43 @@ describe("handleLoopRunClosed", () => {
     expect(ticks).toEqual(["acme/widgets"]);
   });
 
+  it("comments on issue 7 of a plan's task without labelling it, and says to retry the task", async () => {
+    const { d, labeled, comments } = deps(walkEndingAtReview("failed"));
+
+    await handleLoopRunClosed(run({ source: "plan" }), "completed", undefined, d);
+
+    expect(labeled).toEqual([]);
+    expect(comments).toEqual([
+      {
+        number: 7,
+        body: expect.stringContaining("Retry its task to run it again."),
+      },
+    ]);
+    expect(comments[0]?.body).not.toContain("lore:blocked");
+  });
+
+  it("parks a plan's task whose run no cluster-agent claimed instead of deferring it, because no tick would pick it again", async () => {
+    const { d, comments } = deps([
+      {
+        nodeId: "dod",
+        iteration: 1,
+        outcome: "failed",
+        failureClass: "unclaimed",
+      },
+    ]);
+
+    await handleLoopRunClosed(
+      run({ source: "plan" }),
+      "failed",
+      "no cluster-agent claimed this run within 30m",
+      d,
+    );
+
+    expect(comments[0]?.body).toContain(
+      "parking this ticket: the run ended failed: no cluster-agent claimed this run within 30m",
+    );
+  });
+
   it("labels lore:blocked when the run itself failed", async () => {
     const { d, labeled, ticks } = deps(walkEndingAtReview(null));
 

@@ -66,6 +66,34 @@ describe("closedLoopRunOf", () => {
     });
   });
 
+  it("reads a run keyed on backlog tickets as a backlog ticket's", () => {
+    const { run } = closedLoopRunOf(
+      loopRun({
+        startItems: {
+          ...loopRun().startItems,
+          backlog: { kind: "value", ref: "tickets", by: "lore" },
+        },
+      }),
+      [OPENED],
+    );
+
+    expect(run.source).toBe("backlog");
+  });
+
+  it("reads a run keyed on spec-task-5e7c01d7 as a plan's task", () => {
+    const { run } = closedLoopRunOf(
+      loopRun({
+        startItems: {
+          ...loopRun().startItems,
+          backlog: { kind: "value", ref: "spec-task-5e7c01d7", by: "lore" },
+        },
+      }),
+      [OPENED],
+    );
+
+    expect(run.source).toBe("plan");
+  });
+
   it("reads a run settled as success as completed, ending on a done visit after its last real one", () => {
     const settled = closedLoopRunOf(loopRun(), [
       OPENED,

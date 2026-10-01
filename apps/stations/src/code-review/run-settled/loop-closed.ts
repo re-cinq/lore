@@ -1,7 +1,10 @@
 // What a settled implementation-loop run on the external floor owes its ticket. The rules are the ones a run Lore's own Floor walked is settled by (`handleLoopRunClosed`): this file only reads a floor run as the run and the visits those rules take.
 import type { Handle } from "@re-cinq/floor-station";
 import type { FloorClient, RunView, VisitView } from "@re-cinq/floor-client";
-import { LOOP_LINE } from "@re-cinq/lore-shared/backlog/floor-loop.js";
+import {
+  isPlanTaskBacklog,
+  LOOP_LINE,
+} from "@re-cinq/lore-shared/backlog/floor-loop.js";
 import {
   isInfraFailure,
   type InfraFailureCountInput,
@@ -117,6 +120,9 @@ export function closedLoopRunOf(
       branch: branchOf(run),
       args: pullRequestOf(visits),
       graph: LOOP_GRAPH,
+      source: isPlanTaskBacklog(startValueOf(run, "backlog"))
+        ? "plan"
+        : "backlog",
     },
     visits: reachedExit ? [...read, REACHED_EXIT] : read,
     outcome: reachedExit ? COMPLETED : (run.outcome ?? "error"),

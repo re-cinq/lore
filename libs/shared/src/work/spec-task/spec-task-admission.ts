@@ -3,7 +3,7 @@
 import type {
   ReadySpecTask,
   RunningSpecTask,
-} from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
+} from "../../outbound/project/tasks/task-queue-port.js";
 
 const MAX_CONCURRENT_PER_GROUP = 3;
 

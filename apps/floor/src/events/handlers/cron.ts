@@ -1,6 +1,5 @@
 /** Layer-3 handlers for `cron.*.tick` events: light/operational jobs safe in Floor pod. */
 
-import { specTaskExecutorJob } from "../../work/task/spec-task-executor.js";
 import { staleTaskCheckJob } from "../../work/task/stale-task-check.js";
 import { leaseReaperJob } from "../../work/lease/lease-reaper.js";
 import {
@@ -60,7 +59,6 @@ export const approvalCheck = fromStation("approval-check");
 
 /** Weekly link backfill fans out per SPECIFICATION, not per repository. */
 export const specCoverageBackfill = fromStation("backfill-scan");
-export const specTaskExecutor = fromJob(specTaskExecutorJob);
 export const staleTaskCheck = fromJob(staleTaskCheckJob);
 /** Delete leases >5min past expiry, writing a `lease_expired` audit entry per row. */
 export const leaseReaper = fromJob(() => leaseReaperJob());

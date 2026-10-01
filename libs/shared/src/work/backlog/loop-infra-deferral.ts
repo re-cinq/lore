@@ -102,7 +102,7 @@ export async function erroredVerdict(
     : `the run ended ${outcome}`;
   const visits = await deps.listStationRuns(run.id);
 
-  if (!isInfraFailure(run, visits) || !run.branch) {
+  if (!deferrable(run) || !isInfraFailure(run, visits)) {
     return { why, askForRewrite: false };
   }
   const since = new Date(Date.now() - DEFERRAL_WINDOW_MS);
@@ -110,6 +110,11 @@ export async function erroredVerdict(
     (await deps.priorInfraFailures(run.repo, run.branch, since, run.id)) + 1;
 
   return boundedDeferral(why, attempt, deps.maxInfraDeferrals);
+}
+
+/** Deferring promises that the next tick picks the ticket again, which holds for a backlog ticket on a branch and not for a plan's task: its executor starts it once. */
+function deferrable(run: ClosedLoopRun): run is ClosedLoopRun & { branch: string } {
+  return Boolean(run.branch) && run.source !== "plan";
 }
 
 /** Under the bound the ticket is deferred; the failure that reaches it parks the ticket with the count, so an outage that outlives the bound still reaches a human. */
