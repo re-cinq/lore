@@ -299,6 +299,9 @@ and the webhook/verdict plumbing it rides on.
    `CHANGES_REQUESTED` (with trailing feedback) → `changes_requested`, and no marker or absent output
    → undefined. ([validated by `agent-watcher-logic.test.ts:34`](apps/floor/src/domain/agent-watcher-logic.test.ts#L37), [`agent-watcher-logic.test.ts:43`](apps/floor/src/domain/agent-watcher-logic.test.ts#L42), [`agent-watcher-logic.test.ts:48`](apps/floor/src/domain/agent-watcher-logic.test.ts#L47), [`agent-watcher-logic.test.ts:208`](apps/floor/src/domain/agent-watcher-logic.test.ts#L179))
 
+9. The line's `review` recipe posts nothing itself — the pod has no `gh` and no GitHub token — so
+   it carries every finding in its `REVIEW_RESULT:CHANGES_REQUESTED:` line. ([validated by reports its findings in the REVIEW_RESULT line instead of posting them with gh, which the pod does not have](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L233))
+
 
 
 ## Validated behavior — code-review line overhaul (2026-07)

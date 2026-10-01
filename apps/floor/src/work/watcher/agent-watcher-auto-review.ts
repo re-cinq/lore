@@ -6,7 +6,7 @@ import type { AgentContext } from "./agent-watcher-notify.js";
 import type { OpenedPr } from "./agent-watcher-pr-delivery.js";
 
 const REVIEW_PROMPT_TEMPLATE = (prNumber: number) =>
-  `Review PR #${prNumber} on this branch. Read the spec in specs/ for the feature requirements. Check all changes against CLAUDE.md conventions and ADRs in adrs/. Post specific review comments on the PR using 'gh pr review'. Then output exactly one of:\n- REVIEW_RESULT:APPROVED\n- REVIEW_RESULT:CHANGES_REQUESTED:<specific actionable feedback>`;
+  `Review PR #${prNumber} on this branch. Read the spec in specs/ for the feature requirements. Check all changes against CLAUDE.md conventions and ADRs in adrs/. Do not post comments on the PR: you have no gh and no GitHub token. Then output exactly one of, on a single line:\n- REVIEW_RESULT:APPROVED\n- REVIEW_RESULT:CHANGES_REQUESTED:<every finding, each as path:line — what is wrong and the fix, separated by '; '>`;
 
 /** Dispatches a review Agent against the just-opened PR when the repo opted in. */
 export async function maybeStartAutoReview(

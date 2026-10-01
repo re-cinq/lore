@@ -1,6 +1,6 @@
 /** Module: open and record the PR a push node produced (load-bearing for the merged node's resumability). */
 
-import { prFooter } from "@re-cinq/lore-shared";
+import { onboardPrBody, prFooter } from "@re-cinq/lore-shared";
 import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import type { PullRef } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 
@@ -243,20 +243,27 @@ export function readyPrBody(
 
 /** Line's PR body with standard footer; adds Lore-Task for PR-to-task resolution and closes merged tickets. */
 function prBody(branch: string, run: AssemblyRunRecord): string {
+  const head = prBodyHead(branch, run);
+  const issueNumber = issueNumberArg(run.args);
+
+  return run.taskId
+    ? head + prFooter({ issueNumber, taskId: run.taskId })
+    : head;
+}
+
+function prBodyHead(branch: string, run: AssemblyRunRecord): string {
+  if (decideOnboardingPrRecord(run)) {
+    return onboardPrBody(run.repo);
+  }
   const plan = planTitleArg(run.args);
-  const head = plan
+
+  return plan
     ? [
         `## ${plan}`,
         "",
         `Planned together in Lore; this PR carries the approved plan's spec from \`${branch}\`.`,
       ].join("\n")
     : `Opened by the Lore assembly line from \`${branch}\`.`;
-
-  const issueNumber = issueNumberArg(run.args);
-
-  return run.taskId
-    ? head + prFooter({ issueNumber, taskId: run.taskId })
-    : head;
 }
 
 function coverageFromExtras(

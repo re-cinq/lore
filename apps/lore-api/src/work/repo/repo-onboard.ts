@@ -4,7 +4,9 @@ import {
   decideOnboard,
   onboardLockKey,
   onboardTicketBody,
+  onboardTicketTitle,
   onboardUpdateTicketBody,
+  onboardUpdateTicketTitle,
   toOnboardState,
   IN_FLIGHT_TASK_STATUSES,
   ONBOARD_IN_FLIGHT_TASK_SQL,
@@ -290,17 +292,28 @@ async function refuseOnboard(
 function ticketFor(
   fullName: string,
   state: Pick<OnboardState, "onboardingPrMerged">,
-): string {
+): OnboardTicket {
   return state.onboardingPrMerged
-    ? onboardUpdateTicketBody(fullName)
-    : onboardTicketBody(fullName);
+    ? {
+        title: onboardUpdateTicketTitle(fullName),
+        body: onboardUpdateTicketBody(fullName),
+      }
+    : {
+        title: onboardTicketTitle(fullName),
+        body: onboardTicketBody(fullName),
+      };
+}
+
+interface OnboardTicket {
+  title: string;
+  body: string;
 }
 
 /** The repo row FIRST, then its task. The order is load-bearing: the task's trust gate reads that row, so a task created before it would be judged against a repo that does not exist yet. Re-onboarding refreshes the timestamp rather than inserting a second row. */
 async function insertRepoAndTask(
   client: PoolClient,
   { fullName, owner, name }: RepoIdentity,
-  ticket: string,
+  ticket: OnboardTicket,
 ): Promise<OnboardWrite> {
   const { rows } = await client.query<{ id: string }>(
     `INSERT INTO lore.repos (owner, name, full_name) VALUES ($1, $2, $3)
@@ -308,14 +321,18 @@ async function insertRepoAndTask(
     [owner, name, fullName],
   );
   const task = await createPipelineTask(client, {
-    description: ticket,
+    description: ticket.body,
     taskType: "onboard",
     targetRepo: fullName,
     createdBy: "onboard-system",
-    contextBundle: { repo: fullName },
+    contextBundle: onboardContextBundle(fullName, ticket),
   });
 
   return { repoId: rows[0].id, taskId: task.task_id };
+}
+
+function onboardContextBundle(fullName: string, ticket: OnboardTicket) {
+  return { repo: fullName, line_args: { issue_title: ticket.title } };
 }
 
 /** Webhook wiring is best-effort — a skip is worth a warning, never a failure. */

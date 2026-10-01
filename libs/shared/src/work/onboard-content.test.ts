@@ -7,8 +7,12 @@ import {
   ADR_TOPICS,
   TEST_COMMAND_MANIFEST_SCAFFOLD_PROMPT,
   ONBOARD_INSTRUCTED_WORKFLOWS,
+  ONBOARD_DETERMINISTIC_PATHS,
+  onboardPrBody,
   onboardTicketBody,
+  onboardTicketTitle,
   onboardUpdateTicketBody,
+  onboardUpdateTicketTitle,
 } from "./onboard-content.js";
 
 const staticPaths = ONBOARD_STATIC_FILES.map((f) => f.path);
@@ -16,14 +20,30 @@ const llmPaths = ONBOARD_FILES.map((f) => f.path);
 const allPaths = [...staticPaths, ...llmPaths];
 
 describe("ONBOARD_STATIC_FILES", () => {
-  it("commits .claude/settings.json carrying the Lore MCP system-prompt suffix", () => {
+  it("commits .claude/settings.json whose SessionStart hook tells the session to call lore_assemble_context first", () => {
     const settings = ONBOARD_STATIC_FILES.find(
       (f) => f.path === ".claude/settings.json",
     );
-    const suffix = JSON.parse(settings?.content ?? "{}").systemPromptSuffix;
+    const parsed: unknown = JSON.parse(settings?.content ?? "{}");
 
-    expect(suffix).toContain("Lore MCP server");
-    expect(suffix).toContain("get_context");
+    expect(Object.keys(parsed as object)).toEqual(["hooks"]);
+    expect(parsed).toMatchObject({
+      hooks: {
+        SessionStart: [
+          {
+            hooks: [
+              {
+                type: "command",
+                command: expect.stringContaining(
+                  "Lore MCP server: ALWAYS call lore_assemble_context as your FIRST action",
+                ),
+              },
+            ],
+          },
+        ],
+      },
+    });
+    expect(settings?.content).not.toContain("get_context");
   });
 
   it("commits the four .github/ISSUE_TEMPLATE task templates verbatim", () => {
@@ -60,6 +80,23 @@ describe("ONBOARD_FILES", () => {
     ]) {
       expect(template?.prompt).toContain(section);
     }
+  });
+
+  it("has the pr-description-check workflow read the PR body only through a step env entry, under read-only permissions (#1567)", () => {
+    const check = ONBOARD_FILES.find(
+      (f) => f.path === ".github/workflows/pr-description-check.yml",
+    );
+
+    const prompt = check?.prompt ?? "";
+
+    expect(
+      [
+        "PR_BODY: ${{ github.event.pull_request.body }}",
+        '"$PR_BODY"',
+        "Never write a `${{ }}` expression inside a `run:` block",
+        "permissions: {contents: read, pull-requests: read}",
+      ].filter((fragment) => !prompt.includes(fragment)),
+    ).toEqual([]);
   });
 
   it("LLM-drafts the pr-description-check workflow and the .specify spec", () => {
@@ -110,6 +147,12 @@ describe("onboardTicketBody", () => {
     ).toEqual([]);
   });
 
+  it("numbers the starter ADRs it writes sequentially, so a skipped topic leaves no gap", () => {
+    expect(body).toContain(
+      "Number the ADRs you write sequentially from 001 with no gaps",
+    );
+  });
+
   it("owes the test-command manifest and lore-tests.yml with their own instructions, only when absent", () => {
     expect(
       missingFrom([
@@ -139,6 +182,42 @@ describe("onboardTicketBody", () => {
         "Change no source code",
         "Lore opens the pull request",
       ]),
+    ).toEqual([]);
+  });
+});
+
+describe("TEST_COMMAND_MANIFEST_SCAFFOLD_PROMPT", () => {
+  it("demands real line ranges from list and coverage tooling the repo already has", () => {
+    expect(TEST_COMMAND_MANIFEST_SCAFFOLD_PROMPT).toContain(
+      "never a placeholder such as 1/1",
+    );
+    expect(TEST_COMMAND_MANIFEST_SCAFFOLD_PROMPT).toContain(
+      "only use coverage tooling the repo already declares as a dependency",
+    );
+  });
+});
+
+describe("onboarding PR title and body", () => {
+  it("titles a first onboarding and an update after the repository", () => {
+    expect(onboardTicketTitle("re-cinq/app")).toBe(
+      "Onboard re-cinq/app into Lore",
+    );
+    expect(onboardUpdateTicketTitle("re-cinq/app")).toBe(
+      "Update re-cinq/app's Lore setup",
+    );
+  });
+
+  it("lists every file an onboarding may add", () => {
+    const body = onboardPrBody("re-cinq/app");
+
+    expect(
+      [
+        ...ONBOARD_DETERMINISTIC_PATHS,
+        ...llmPaths,
+        "adrs/",
+        ".lore/test-commands.yml",
+        ".github/workflows/lore-tests.yml",
+      ].filter((path) => !body.includes(`\`${path}\``)),
     ).toEqual([]);
   });
 });

@@ -240,6 +240,29 @@ describe("stampLinePr onboarding record", () => {
     expect(recorded).toEqual([]);
   });
 
+  it("opens an onboard line's PR under its ticket title, with a body listing what onboarding adds", async () => {
+    const h = await harness({ blueprintName: "onboard", withPlan: false });
+
+    await h.lines.mergeArgs(h.lineId, {
+      issue_title: `Onboard ${REPO} into Lore`,
+      issue_number: 12,
+    });
+    await stampLinePr(await lineRow(h), h.ports);
+    const body = h.pulls.opened.map((pr) => pr.body).join("");
+
+    expect(h.pulls.opened).toMatchObject([
+      { title: `Onboard ${REPO} into Lore` },
+    ]);
+    expect(body.startsWith(`Lore setup for ${REPO}.`)).toBe(true);
+    expect(
+      [
+        "`.github/workflows/lore-ingest.yml`",
+        "`AGENTS.md`",
+        "Closes #12",
+      ].filter((fragment) => !body.includes(fragment)),
+    ).toEqual([]);
+  });
+
   it("decides the record by the onboard blueprint name alone", () => {
     expect(decideOnboardingPrRecord({ blueprintName: "onboard" })).toBe(true);
     expect(decideOnboardingPrRecord({ blueprintName: "implementation" })).toBe(

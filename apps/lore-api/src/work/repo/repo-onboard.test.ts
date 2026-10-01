@@ -147,6 +147,24 @@ describe("onboardRepo", () => {
     });
   });
 
+  it("hands the onboard line the PR title Onboard o/r into Lore", async () => {
+    vi.mocked(ensureLoreWebhook).mockResolvedValue({
+      ok: true,
+      hookId: 1,
+      created: true,
+    });
+    const { pool } = poolWith();
+
+    await onboardRepo(pool, "o/r");
+
+    expect(vi.mocked(createPipelineTask).mock.calls[0][1]).toMatchObject({
+      contextBundle: {
+        repo: "o/r",
+        line_args: { issue_title: "Onboard o/r into Lore" },
+      },
+    });
+  });
+
   it("rolls back and creates nothing when a write fails", async () => {
     const { pool, query } = poolWith();
 
@@ -246,6 +264,9 @@ describe("onboardRepo", () => {
       description: expect.stringContaining(
         "Update o/r's Lore setup to the current requirements",
       ),
+      contextBundle: {
+        line_args: { issue_title: "Update o/r's Lore setup" },
+      },
     });
   });
 
