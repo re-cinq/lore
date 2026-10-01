@@ -71,6 +71,9 @@ line:
     # resolved": a scoping verdict, not a failure. A retry cannot make an
     # unclear ticket clear, so the run ends and Lore reads `dod_blocked` or
     # `dod_resolved` off the visit to say so on the ticket.
+    # The run itself settles as success, as the Postgres-walked line settles it
+    # `completed`: the floor has no failing exit yet (re-cinq/floor#20), and
+    # these edges move to it when it has one.
     - from: dod
       to: done
       on: changes_requested
