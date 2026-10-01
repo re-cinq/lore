@@ -539,3 +539,44 @@ describe("hybridChunkItems", () => {
     expect(sources[1].score).toBeCloseTo(0.5);
   });
 });
+
+describe("cross_repo merge", () => {
+  it("interleaves linked repos by rank, since each repo's scores are normalized on their own", async () => {
+    const pool: Parameters<typeof hybridChunkItems>[0] = {
+      async query<T>(text: string, params?: unknown[]) {
+        if (text.includes("SELECT settings")) {
+          return {
+            rows: [{ settings: { cross_repo_repos: ["o/a", "o/b"] } }] as T[],
+          };
+        }
+
+        if (
+          text.includes("SELECT team") ||
+          text.includes("information_schema")
+        ) {
+          return { rows: [] as T[] };
+        }
+        const repo = String(params?.[0]);
+
+        return {
+          rows: [1, 2, 3].map((n) => ({
+            content: `${repo} ${n}`,
+            file_path: `${repo}-${n}.md`,
+            content_type: "doc",
+            score: 1 / n,
+          })) as T[],
+        };
+      },
+    };
+
+    const res = await fetchers.cross_repo(pool, "q", "re-cinq/lore");
+
+    expect(res.sources.map((s) => s.text)).toEqual([
+      "o/a 1",
+      "o/b 1",
+      "o/a 2",
+      "o/b 2",
+      "o/a 3",
+    ]);
+  });
+});

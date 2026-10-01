@@ -197,7 +197,7 @@ The tool retrieves from all available sources:
 - FR-2.17: **Linked repos reach the context.** The default, implementation and
   review templates each carry a `Linked Repos` section on the `cross_repo`
   source, so a request for cross-repo context yields that section in the trace
-  instead of nothing. ([validated by `%s carries a cross_repo trace section when crossRepo is requested`](libs/server-core/src/work/context/context-assembly.test.ts#L331))
+  instead of nothing. ([validated by `%s carries a cross_repo trace section when crossRepo is requested`](libs/server-core/src/work/context/context-assembly.test.ts#L331), [validated by `interleaves linked repos by rank, since each repo's scores are normalized on their own`](../../libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L544))
 - FR-2.18: **No linked repos, no cross-repo search.** With no repo linked in
   settings the `cross_repo` section is `disabled` and no chunk query runs; the
   org is never searched. Chunks from a linked repo are not transfer-scored, since
