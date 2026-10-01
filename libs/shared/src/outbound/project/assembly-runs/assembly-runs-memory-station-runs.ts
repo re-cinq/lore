@@ -9,6 +9,7 @@ import type {
   StationRunReleaseResult,
   StationRunStartInput,
 } from "./assembly-runs-port.js";
+import { releaseRefusal } from "./assembly-runs-memory-rows.js";
 
 export interface SeedAssemblyLineNode {
   id: string;
@@ -270,13 +271,19 @@ export class StationRunStore {
 
   async releaseStationRun(
     nodeRowId: string,
+    clusterAgentId: string,
     release: StationRunRelease,
   ): Promise<StationRunReleaseResult> {
-    const node = this.nodes.find((n) => n.id === nodeRowId);
+    return (
+      releaseRefusal(this.nodes, nodeRowId, clusterAgentId) ??
+      this.countRelease(nodeRowId, release)
+    );
+  }
 
-    if (!node || node.outcome !== null) {
-      return "settled";
-    }
+  private async countRelease(
+    nodeRowId: string,
+    release: StationRunRelease,
+  ): Promise<"requeued" | "failed"> {
     const attempts = this.attemptsOf(nodeRowId) + 1;
 
     this.launchAttempts.set(nodeRowId, attempts);

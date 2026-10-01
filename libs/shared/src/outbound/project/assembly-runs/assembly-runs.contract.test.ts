@@ -94,6 +94,7 @@ afterAll(async () => {
 });
 
 const AGENT = "44444444-4444-4444-4444-444444444444";
+const OTHER_AGENT = "55555555-5555-5555-5555-555555555555";
 
 function releaseOf(reason: string) {
   return { reason, failureClass: "unknown", permanent: false, maxAttempts: 3 };
@@ -122,15 +123,16 @@ async function nextOwnClaim(
   port: AssemblyRunsPort,
   tag: string,
   own: string[],
+  clusterAgentId: string = AGENT,
 ): Promise<string | null> {
   let claimed = await port.claimNextStationRun({
-    clusterAgentId: AGENT,
+    clusterAgentId,
     tags: [tag],
   });
 
   while (claimed && !own.includes(claimed.nodeRowId)) {
     claimed = await port.claimNextStationRun({
-      clusterAgentId: AGENT,
+      clusterAgentId,
       tags: [tag],
     });
   }
@@ -1235,6 +1237,7 @@ describe.each(IMPLEMENTATIONS)(
       expect(
         await port.releaseStationRun(
           nodeRowId,
+          AGENT,
           releaseOf("image pull timed out"),
         ),
       ).toBe("requeued");
@@ -1254,6 +1257,7 @@ describe.each(IMPLEMENTATIONS)(
         expect(
           await port.releaseStationRun(
             nodeRowId,
+            AGENT,
             releaseOf(`attempt ${attempt}`),
           ),
         ).toBe("requeued");
@@ -1261,7 +1265,7 @@ describe.each(IMPLEMENTATIONS)(
       }
 
       expect(
-        await port.releaseStationRun(nodeRowId, releaseOf("attempt 3")),
+        await port.releaseStationRun(nodeRowId, AGENT, releaseOf("attempt 3")),
       ).toBe("failed");
       expect(await visitById(port, runId, nodeRowId)).toMatchObject({
         outcome: "failed",
@@ -1278,7 +1282,7 @@ describe.each(IMPLEMENTATIONS)(
       const { nodeRowId, runId } = await claimedVisit(port, repo);
 
       expect(
-        await port.releaseStationRun(nodeRowId, {
+        await port.releaseStationRun(nodeRowId, AGENT, {
           reason: "not accessible to the parent installation",
           failureClass: "github-permission",
           permanent: true,
@@ -1296,7 +1300,11 @@ describe.each(IMPLEMENTATIONS)(
       const { port, repo } = make();
       const { nodeRowId, tag } = await claimedVisit(port, repo);
 
-      await port.releaseStationRun(nodeRowId, releaseOf("launch failed"));
+      await port.releaseStationRun(
+        nodeRowId,
+        AGENT,
+        releaseOf("launch failed"),
+      );
       const fresh = await armedVisit(port, repo, tag);
       const own = [nodeRowId, fresh.nodeRowId];
 
@@ -1311,11 +1319,69 @@ describe.each(IMPLEMENTATIONS)(
       await port.finishStationRunOnce(nodeRowId, "success");
 
       expect(
-        await port.releaseStationRun(nodeRowId, releaseOf("late hand-back")),
+        await port.releaseStationRun(
+          nodeRowId,
+          AGENT,
+          releaseOf("late hand-back"),
+        ),
       ).toBe("settled");
       expect(await visitById(port, runId, nodeRowId)).toMatchObject({
         outcome: "success",
         failureDetail: null,
+      });
+    });
+
+    it("a release naming another cluster-agent's claim answers not-claimant and leaves the claim", async () => {
+      const { port, repo } = make();
+      const { nodeRowId, runId } = await claimedVisit(port, repo);
+
+      expect(
+        await port.releaseStationRun(
+          nodeRowId,
+          OTHER_AGENT,
+          releaseOf("not mine"),
+        ),
+      ).toBe("not-claimant");
+      expect(await visitById(port, runId, nodeRowId)).toMatchObject({
+        status: "claimed",
+        clusterAgentId: AGENT,
+        outcome: null,
+      });
+    });
+
+    it("a late release after the visit was requeued and re-claimed elsewhere leaves the new claim", async () => {
+      const { port, repo } = make();
+      const { nodeRowId, runId, tag } = await claimedVisit(port, repo);
+
+      await port.requeueStationRun(nodeRowId);
+      await nextOwnClaim(port, tag, [nodeRowId], OTHER_AGENT);
+
+      expect(
+        await port.releaseStationRun(nodeRowId, AGENT, releaseOf("late")),
+      ).toBe("not-claimant");
+      expect(await visitById(port, runId, nodeRowId)).toMatchObject({
+        status: "claimed",
+        clusterAgentId: OTHER_AGENT,
+        outcome: null,
+        failureDetail: null,
+      });
+    });
+
+    it("a release of a visit already running answers not-claimant and leaves it running", async () => {
+      const { port, repo } = make();
+      const runId = await port.start({ blueprintName: "code-review", repo });
+      const { nodeRowId } = await port.ensureStationRun({
+        assemblyRunId: runId,
+        nodeId: "review",
+        iteration: 1,
+      });
+
+      expect(
+        await port.releaseStationRun(nodeRowId, AGENT, releaseOf("running")),
+      ).toBe("not-claimant");
+      expect(await visitById(port, runId, nodeRowId)).toMatchObject({
+        status: "running",
+        outcome: null,
       });
     });
 

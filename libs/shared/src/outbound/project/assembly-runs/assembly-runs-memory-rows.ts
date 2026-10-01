@@ -5,6 +5,7 @@ import type {
   AssemblyRunStartInput,
 } from "./assembly-runs-port.js";
 import { forkSubjectKey } from "./resume.js";
+import type { SeedAssemblyLineNode } from "./assembly-runs-memory-station-runs.js";
 
 /** Fork inherits branch/taskId/subject (+args unless overridden) from source — the subject rides along because a fork re-runs the same work and must hold its source's guard. */
 export function inheritFromSource(
@@ -63,4 +64,20 @@ export function reopenRow(row: AssemblyRunRecord): boolean {
   });
 
   return true;
+}
+
+export function releaseRefusal(
+  nodes: SeedAssemblyLineNode[],
+  nodeRowId: string,
+  clusterAgentId: string,
+): "settled" | "not-claimant" | null {
+  const node = nodes.find((n) => n.id === nodeRowId);
+
+  if (!node || node.outcome !== null) {
+    return "settled";
+  }
+
+  return node.status === "claimed" && node.clusterAgentId === clusterAgentId
+    ? null
+    : "not-claimant";
 }

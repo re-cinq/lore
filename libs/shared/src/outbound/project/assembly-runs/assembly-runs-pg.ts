@@ -91,9 +91,15 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
 
   async releaseStationRun(
     nodeRowId: string,
+    clusterAgentId: string,
     release: StationRunRelease,
   ): Promise<StationRunReleaseResult> {
-    return stationRuns.releaseStationRun(this.pool, nodeRowId, release);
+    return stationRuns.releaseStationRun(
+      this.pool,
+      nodeRowId,
+      clusterAgentId,
+      release,
+    );
   }
 
   async countOpenClaimsByAgent(): Promise<Record<string, number>> {

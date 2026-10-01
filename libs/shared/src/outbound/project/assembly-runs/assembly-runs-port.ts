@@ -92,7 +92,8 @@ export interface StationRunRelease {
   maxAttempts: number;
 }
 
-export type StationRunReleaseResult = "requeued" | "failed" | "settled";
+export type StationRunReleaseResult =
+  "requeued" | "failed" | "settled" | "not-claimant";
 
 export interface StationRunFailure {
   failureClass?: string;
@@ -175,9 +176,10 @@ export interface AssemblyRunsPort {
   }): Promise<ClaimedStationRun | null>;
   /** Resets a claimed-but-lost visit to queued on the same row; false if it already reached an outcome. */
   requeueStationRun(nodeRowId: string): Promise<boolean>;
-  /** A claimant could not launch the visit: requeue it, or fail it once the error is permanent or the attempts reach the bound; `settled` when it already had an outcome. */
+  /** A claimant could not launch the visit: requeue it, or fail it once the error is permanent or the attempts reach the bound; `settled` when it already had an outcome, `not-claimant` (and unchanged) when it is open but not claimed by this cluster-agent, or already running. */
   releaseStationRun(
     nodeRowId: string,
+    clusterAgentId: string,
     release: StationRunRelease,
   ): Promise<StationRunReleaseResult>;
   /** Open claims per cluster-agent id (registered-clusters page's "currently executing" column, FR7). */
