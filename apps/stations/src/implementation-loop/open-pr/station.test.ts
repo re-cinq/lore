@@ -28,18 +28,6 @@ function brief(needs: Record<string, string> = {}) {
   };
 }
 
-function pullRef(): PullRef {
-  return {
-    repo: "re-cinq/app",
-    number: 42,
-    title: "Add the export button",
-    branch: BRANCH,
-    state: "open",
-    labels: [],
-    url: PR_URL,
-  };
-}
-
 function scene(
   open: (pr: PullDraft) => Promise<PullRef> = () => Promise.resolve(pullRef()),
 ) {
@@ -57,6 +45,18 @@ function scene(
   });
 
   return { handle, opened };
+}
+
+function pullRef(): PullRef {
+  return {
+    repo: "re-cinq/app",
+    number: 42,
+    title: "Add the export button",
+    branch: BRANCH,
+    state: "open",
+    labels: [],
+    url: PR_URL,
+  };
 }
 
 describe("the loop-open-pr station", () => {

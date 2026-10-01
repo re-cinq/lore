@@ -24,14 +24,15 @@ const MAX_FEEDBACK_CHARS = 2500;
 
 export function roundBriefOf({ feedback, handoff }: RoundBriefInput): string {
   const sections = [
-    feedbackSection(feedback),
+    ciFeedbackSection(feedback),
     ...(handoff ? [handoffSection(handoff)] : []),
   ];
 
   return sections.join("\n");
 }
 
-function feedbackSection(feedback: CiFeedback): string {
+/** The section a red build is told to the next agent as, whether it rides in a round brief or at the end of a prompt. */
+export function ciFeedbackSection(feedback: CiFeedback): string {
   return `## CI reported failures on ${feedback.sha}
 
 The build for your last push is red. These checks failed: ${feedback.failedChecks}

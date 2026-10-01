@@ -25,11 +25,6 @@ const PR_NODE = "await-pr";
 const WAIT_NODES: readonly string[] = [CI_NODE, PR_NODE];
 const PULL_NUMBER = /\/pull\/(\d+)\/?$/;
 const CLOSED_REASON = "the pull request was closed without merging";
-const FEEDBACK_VALUES = [
-  "ci_feedback_sha",
-  "ci_failed_checks",
-  "ci_failure_summary",
-] as const;
 
 type Floor = ReturnType<typeof floorClient>;
 type RunView = Awaited<ReturnType<Floor["runs"]["list"]>>["items"][number];
@@ -109,14 +104,19 @@ function ciWaitOf(run: RunView, visits: VisitView[]): CiWait | null {
     nodeId: newest.nodeId,
     prNumber,
     handoff: handoffOf(visits),
-    run: {
-      id: run.id,
-      blueprintName: run.lineId,
-      repo: loreRepoOf(run.repo),
-      status: "running",
-      args: { pr_number: prNumber, ...lastRedSha(visits) },
-      graph: null,
-    },
+    run: sliceOf(run, { pr_number: prNumber, ...lastRedSha(visits) }),
+  };
+}
+
+/** A floor run as the readers that judge a Postgres-walked run take it. */
+function sliceOf(run: RunView, args: Record<string, unknown>): LoopRunSlice {
+  return {
+    id: run.id,
+    blueprintName: run.lineId,
+    repo: loreRepoOf(run.repo),
+    status: "running",
+    args,
+    graph: null,
   };
 }
 
@@ -190,11 +190,7 @@ async function producedOf(
   judged: ParkedReport,
   handoff: RoundHandoff | null,
 ): Promise<Record<string, string>> {
-  const values = Object.fromEntries(
-    FEEDBACK_VALUES.flatMap((name) =>
-      typeof judged.args[name] === "string" ? [[name, judged.args[name]]] : [],
-    ),
-  ) as Partial<Record<(typeof FEEDBACK_VALUES)[number], string>>;
+  const values = feedbackValuesOf(judged);
   const feedback = feedbackOf(values);
 
   if (!feedback) {
@@ -209,9 +205,23 @@ async function producedOf(
   return { ...values, round_brief: stored.hash };
 }
 
-function feedbackOf(
-  values: Partial<Record<(typeof FEEDBACK_VALUES)[number], string>>,
-): CiFeedback | null {
+const FEEDBACK_VALUES = [
+  "ci_feedback_sha",
+  "ci_failed_checks",
+  "ci_failure_summary",
+] as const;
+
+type FeedbackValues = Partial<Record<(typeof FEEDBACK_VALUES)[number], string>>;
+
+function feedbackValuesOf(judged: ParkedReport): FeedbackValues {
+  return Object.fromEntries(
+    FEEDBACK_VALUES.flatMap((name) =>
+      typeof judged.args[name] === "string" ? [[name, judged.args[name]]] : [],
+    ),
+  );
+}
+
+function feedbackOf(values: FeedbackValues): CiFeedback | null {
   const { ci_feedback_sha: sha, ci_failed_checks: failedChecks } = values;
 
   return sha && failedChecks
