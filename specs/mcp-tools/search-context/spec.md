@@ -70,7 +70,7 @@ Use this when you want chunk-level evidence or the exact wording of a convention
 4. **File fallback** (no pool and no API) — the offline path, and it says so: the
    no-results message names the substring scan and points at `LORE_API_URL`,
    because a bare miss from a local grep is otherwise indistinguishable from a
-   genuine miss against the corpus. ([validated by `says the offline scan is not the corpus when the local files match nothing`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L84))
+   genuine miss against the corpus. ([validated by `says the offline scan is not the corpus when the local files match nothing`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L74))
    1. `searchRoot = team ? {CONTEXT_PATH}/teams/{team} : {CONTEXT_PATH}`
       (`CONTEXT_PATH` env, default `process.cwd()`).
    2. If `searchRoot` does not exist ⇒ return `Error: search path not found at {searchRoot}.`
@@ -96,19 +96,19 @@ strings, or the path-not-found error. Never throws.
 
 ## Acceptance Criteria
 
-A matching paragraph is returned with its source path. ([validated by `returns the matching paragraph with its source path`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L56))
+A matching paragraph is returned with its source path. ([validated by `returns the matching paragraph with its source path`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L46))
 
-Matching is case-insensitive. ([validated by `matches case-insensitively`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L67))
+Matching is case-insensitive. ([validated by `matches case-insensitively`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L57))
 
-Paragraphs that do not contain the query are excluded. ([validated by `excludes paragraphs that do not contain the query`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L76))
+Paragraphs that do not contain the query are excluded. ([validated by `excludes paragraphs that do not contain the query`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L66))
 
-When nothing matches, a no-results message is returned. ([validated by `returns a no-results message when nothing matches`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L84))
+When nothing matches, a no-results message is returned. ([validated by `returns a no-results message when nothing matches`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L74))
 
-The number of returned paragraphs is capped at `limit`. ([validated by `caps the number of returned paragraphs at the limit`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L95))
+The number of returned paragraphs is capped at `limit`. ([validated by `caps the number of returned paragraphs at the limit`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L85))
 
-A `team` scopes the search to that team subtree. ([validated by `scopes the search to a team subtree when team is given`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L102))
+A `team` scopes the search to that team subtree. ([validated by `scopes the search to a team subtree when team is given`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L92))
 
-An unknown team yields a path-not-found error. ([validated by `returns a path-not-found error for an unknown team`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L112))
+An unknown team yields a path-not-found error. ([validated by `returns a path-not-found error for an unknown team`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L102))
 
 `hybridSearch` searches a provisioned team schema directly. ([validated by `searches a provisioned team schema directly`](libs/server-core/src/outbound/db.test.ts#L29))
 

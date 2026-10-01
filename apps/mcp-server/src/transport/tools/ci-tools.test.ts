@@ -16,27 +16,11 @@ import {
 } from "@re-cinq/lore-server-core/features/repo/repo-detect.js";
 import { proxyGetApi } from "./deps.js";
 import { registerCiTools } from "./ci-tools.js";
+import type { ServerMode } from "./repo-scope.js";
+import { toolHandlers } from "./tool-test-helpers.js";
 
-type ToolHandler = (args: Record<string, unknown>) => Promise<{
-  content: { type: string; text: string }[];
-}>;
-
-function handlerFor(name: string): ToolHandler {
-  const handlers: Record<string, ToolHandler> = {};
-  const fakeServer = {
-    tool(
-      toolName: string,
-      _desc: string,
-      _schema: unknown,
-      handler: ToolHandler,
-    ) {
-      handlers[toolName] = handler;
-    },
-  };
-
-  registerCiTools(fakeServer as never);
-
-  return handlers[name];
+function handlerFor(name: string, mode: ServerMode = "full") {
+  return toolHandlers(registerCiTools, mode)[name];
 }
 
 const proxy = vi.mocked(proxyGetApi);
@@ -52,7 +36,7 @@ afterEach(() => {
 });
 
 describe("lore_get_ci_failures", () => {
-  it("asks for the checked-out branch of the detected repo when called with no arguments, which is all a pod knows", async () => {
+  it("asks for the checked-out branch of the detected repo when called with no arguments on a laptop", async () => {
     vi.mocked(detectCurrentRepo).mockReturnValue("re-cinq/lore");
     vi.mocked(detectCurrentBranch).mockReturnValue("lore/loop/issue-1510");
     proxy.mockResolvedValue({ ok: true, body: JSON.stringify(REPORT) });
@@ -108,6 +92,30 @@ describe("lore_get_ci_failures", () => {
     expect(result.content[0].text).toBe(
       "Could not detect repo. Specify repo parameter (e.g., 're-cinq/my-service').",
     );
+  });
+
+  it("in the agent gateway asks for the repo and branch rather than running git, which it does not have", async () => {
+    const noRepo = await handlerFor("lore_get_ci_failures", "agent")({});
+    const noBranch = await handlerFor(
+      "lore_get_ci_failures",
+      "agent",
+    )({ repo: "re-cinq/lore" });
+
+    expect({
+      noRepo: noRepo.content[0].text,
+      noBranch: noBranch.content[0].text,
+      gitAsked:
+        vi.mocked(detectCurrentRepo).mock.calls.length +
+        vi.mocked(detectCurrentBranch).mock.calls.length,
+      proxied: proxy.mock.calls.length,
+    }).toEqual({
+      noRepo:
+        "No repo given. Pass repo as owner/name (e.g. 're-cinq/lore'): the shared Lore server has no checkout to detect it from.",
+      noBranch:
+        "Could not detect the branch. Specify branch (e.g. 'feat/x') or pr_number.",
+      gitAsked: 0,
+      proxied: 0,
+    });
   });
 
   it("surfaces the server's own refusal rather than a generic unreachable line", async () => {

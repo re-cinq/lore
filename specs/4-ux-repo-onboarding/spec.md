@@ -173,7 +173,7 @@ The system MUST maintain a registry of onboarded repos. ([validated by `repos.te
 - FR-1.2: Repos are written to the registry on onboard (from the set the
   GitHub App has access to). ([validated by `repo-onboard.test.ts:120`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L118))
 - FR-1.3: Repo list shown as the home page of the UI. ([validated by `HomeView.test.tsx:45`](apps/web-ui/src/app/HomeView.test.tsx#L45))
-- FR-1.4: MCP tool `lore_list_repos` returns all onboarded repos. ([validated by `repo-tools.test.ts:252`](apps/mcp-server/src/transport/tools/repo-tools.test.ts#L252))
+- FR-1.4: MCP tool `lore_list_repos` returns all onboarded repos. ([validated by `repo-tools.test.ts:252`](apps/mcp-server/src/transport/tools/repo-tools.test.ts#L236))
 
 ### FR-2: Repo Onboarding via PR
 

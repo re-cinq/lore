@@ -2,10 +2,6 @@ import { errorMessage } from "@re-cinq/lore-shared";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import {
-  detectCurrentBranch,
-  detectCurrentRepo,
-} from "@re-cinq/lore-server-core/features/repo/repo-detect.js";
-import {
   deniedError,
   unconfiguredError,
   textResult,
@@ -13,22 +9,22 @@ import {
   type ProxyResult,
 } from "./deps.js";
 import { GET_PR_STATUS_INPUT } from "./pipeline-tools-schemas.js";
+import {
+  repoParam,
+  resolveBranch,
+  withRepo,
+  type ServerMode,
+} from "./repo-scope.js";
 
 // The CI reads: what GitHub Actions said about a branch, and one job's log. Served in agent mode too, so a pod repairing a red build reads the verdict instead of reproducing the build — run 997026f5 rebuilt its whole workspace to learn one lint error, and died at 1Gi doing it.
 
-const REPO_PARAM = z
-  .string()
-  .optional()
-  .describe("'owner/repo'. Auto-detected from the git remote when omitted.");
+const BRANCH_DESCRIPTION: Record<ServerMode, string> = {
+  full: "Branch name. Defaults to the checked-out branch of the current directory.",
+  agent:
+    "Branch name, e.g. the output of `git branch --show-current`. Required unless pr_number is given: this server has no checkout to read it from.",
+};
 
 const CI_FAILURES_INPUT = {
-  repo: REPO_PARAM,
-  branch: z
-    .string()
-    .optional()
-    .describe(
-      "Branch name. Defaults to the checked-out branch of the current directory, so a pod on its own branch passes nothing.",
-    ),
   pr_number: z
     .number()
     .int()
@@ -46,7 +42,6 @@ const MAX_TAIL = 2000;
 const DEFAULT_TAIL = 200;
 
 const CI_JOB_LOG_INPUT = {
-  repo: REPO_PARAM,
   job_id: z
     .number()
     .int()
@@ -69,37 +64,37 @@ const CI_JOB_LOG_INPUT = {
     ),
 };
 
-const NO_REPO =
-  "Could not detect repo. Specify repo parameter (e.g., 're-cinq/my-service').";
 const NO_BRANCH =
   "Could not detect the branch. Specify branch (e.g. 'feat/x') or pr_number.";
 
-export function registerCiTools(server: McpServer) {
-  registerGetCiFailuresTool(server);
-  registerGetCiJobLogTool(server);
+export function registerCiTools(server: McpServer, mode: ServerMode) {
+  registerGetCiFailuresTool(server, mode);
+  registerGetCiJobLogTool(server, mode);
   registerGetPrStatusTool(server);
 }
 
-function registerGetCiFailuresTool(server: McpServer) {
+function registerGetCiFailuresTool(server: McpServer, mode: ServerMode) {
   server.tool(
     "lore_get_ci_failures",
     "What CI said about a branch: the sha it judged (the newest commit not marked [skip ci]), the conclusion (success | failure | pending | none), and every failed check with its annotations (path:line message — the file to open), the steps that failed, and the failing step's log tail. A failure's `unreadable` lists the reads GitHub refused, as `what (status)`: an empty part beside an entry there could not be read, which is a permission gap to report and not a silent job. Call this before reproducing any build: CI already ran it. Instead: lore_get_ci_job_log for more of one job's log; lore_get_pr_status for the pull request's review state.",
-    CI_FAILURES_INPUT,
-    ciFailuresHandler,
+    {
+      repo: repoParam(mode),
+      branch: z.string().optional().describe(BRANCH_DESCRIPTION[mode]),
+      ...CI_FAILURES_INPUT,
+    },
+    (args) => withRepo(args, mode, (a) => ciFailuresHandler(a, mode)),
   );
 }
 
-async function ciFailuresHandler(args: {
-  repo?: string;
-  branch?: string;
-  pr_number?: number;
-}) {
-  const repo = args.repo ?? detectCurrentRepo();
-
-  if (!repo) {
-    return textResult(NO_REPO);
-  }
-  const target = ciTarget(args);
+async function ciFailuresHandler(
+  args: {
+    repo: string;
+    branch?: string;
+    pr_number?: number;
+  },
+  mode: ServerMode,
+) {
+  const target = ciTarget(args, mode);
 
   if (!target) {
     return textResult(NO_BRANCH);
@@ -107,46 +102,44 @@ async function ciFailuresHandler(args: {
 
   return readThroughApi(
     "lore_get_ci_failures",
-    `/api/repos/${repo}/ci-failures?${target}`,
+    `/api/repos/${args.repo}/ci-failures?${target}`,
     "CI failures",
   );
 }
 
 /** The query naming what to report on: a pull request number when given, else the branch given or checked out. */
-function ciTarget(args: {
-  branch?: string;
-  pr_number?: number;
-}): string | null {
+function ciTarget(
+  args: {
+    branch?: string;
+    pr_number?: number;
+  },
+  mode: ServerMode,
+): string | null {
   if (args.pr_number !== undefined) {
     return new URLSearchParams({
       pr_number: String(args.pr_number),
     }).toString();
   }
-  const branch = args.branch ?? detectCurrentBranch();
+  const branch = resolveBranch(args.branch, mode);
 
   return branch ? new URLSearchParams({ branch }).toString() : null;
 }
 
-function registerGetCiJobLogTool(server: McpServer) {
+function registerGetCiJobLogTool(server: McpServer, mode: ServerMode) {
   server.tool(
     "lore_get_ci_job_log",
     "The tail of one GitHub Actions job's log, timestamps stripped, optionally filtered to lines containing grep. Use it when a failure from lore_get_ci_failures needs more than its annotations and tail — never to re-run the job locally. Instead: lore_get_ci_failures to find the job_id.",
-    CI_JOB_LOG_INPUT,
-    ciJobLogHandler,
+    { repo: repoParam(mode), ...CI_JOB_LOG_INPUT },
+    (args) => withRepo(args, mode, ciJobLogHandler),
   );
 }
 
 async function ciJobLogHandler(args: {
-  repo?: string;
+  repo: string;
   job_id: number;
   tail?: number;
   grep?: string;
 }) {
-  const repo = args.repo ?? detectCurrentRepo();
-
-  if (!repo) {
-    return textResult(NO_REPO);
-  }
   const query = new URLSearchParams({
     tail: String(args.tail ?? DEFAULT_TAIL),
     ...(args.grep ? { grep: args.grep } : {}),
@@ -154,7 +147,7 @@ async function ciJobLogHandler(args: {
 
   return readThroughApi(
     "lore_get_ci_job_log",
-    `/api/repos/${repo}/ci-jobs/${args.job_id}/log?${query}`,
+    `/api/repos/${args.repo}/ci-jobs/${args.job_id}/log?${query}`,
     "the CI job log",
   );
 }

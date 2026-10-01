@@ -155,7 +155,7 @@ available to agents — the authoritative interface.
 - **`lore_query_graph(entity?, relation?, repo?, limit?)`** — queries the
   live knowledge graph for entities and their relationships. Entities
   carry temporal validity (`valid_from`/`valid_to`). Returns matching
-  entities with their edge relationships. ([validated by `graph.test.ts:31`](apps/lore-api/src/transport/routes/graph/graph.test.ts#L31), [`graph.test.ts:55`](apps/lore-api/src/transport/routes/graph/graph.test.ts#L55), [`memory-tools.test.ts:50`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L50))
+  entities with their edge relationships. ([validated by `graph.test.ts:31`](apps/lore-api/src/transport/routes/graph/graph.test.ts#L31), [`graph.test.ts:55`](apps/lore-api/src/transport/routes/graph/graph.test.ts#L55), [`memory-tools.test.ts:50`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L41))
 
 ### Monitoring
 
@@ -396,7 +396,7 @@ Tools without a file representation proxy to the GKE server over
 `LORE_API_URL` instead: `lore_write_episode` (`POST /api/episode`) and
 `lore_query_graph` (`GET /api/graph`, so the live knowledge graph is readable
 without a direct DB); `lore_agent_stats` has neither a file fallback nor a
-proxy and returns a "requires PostgreSQL" message in local mode. ([validated by `episode.test.ts:84`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L84), [`memory-tools.test.ts:50`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L50), [`memory-tools.test.ts:72`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L72))
+proxy and returns a "requires PostgreSQL" message in local mode. ([validated by `episode.test.ts:84`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L84), [`memory-tools.test.ts:50`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L41), [`memory-tools.test.ts:72`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L63))
 
 ## Transfer Scoring (Cross-Repo Context)
 

@@ -27,7 +27,7 @@ import type {
   TokenProvisioner,
 } from "./cluster-ports.js";
 import {
-  CONTEXT_BOOTSTRAP,
+  contextBootstrap,
   renderPodPrompt,
 } from "../../domain/agents/recipe-prompt.js";
 
@@ -105,7 +105,7 @@ export function agentParameters(spec: LoreTaskSpec): Record<string, string> {
     // The review recipe's `{pr_number}` used to be filled by the pod from the parameter below; the template now renders `{prompt}` in one pass, so the Floor fills it here, where the parameter is minted.
     prompt: renderPodPrompt(spec.prompt, prNumber),
     // Always present: renderPrompt leaves an unmatched placeholder intact (so typos surface), so omitting this would ship the literal `{context}` token to the model.
-    context: CONTEXT_BOOTSTRAP,
+    context: contextBootstrap(spec.targetRepo),
     ...spec.parameters,
     ...prNumber,
   };

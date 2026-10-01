@@ -9,6 +9,7 @@ export {
   proxyGetApi,
   withReadCache,
   unreachableError,
+  failedProxyError,
   deniedError,
   unconfiguredError,
   textResult,

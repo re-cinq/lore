@@ -145,7 +145,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
    parameters populated, `taskId` label), and resolves activeness by label. `taskIdOf`/`taskTypeOf`
    read exactly the `lore.re-cinq.com/task-id` + `task-type` labels `AgentCrBackend` sets and return
    undefined when they are absent. `AgentCrBackend.launch` fills the `context` CR parameter with the
-   fixed `CONTEXT_BOOTSTRAP` instruction — always present, never fetched — maps the task to the CR
+   `contextBootstrap(targetRepo)` instruction — always present, never fetched — maps the task to the CR
    (stationRef=taskType, task-id/task-type labels, description/prompt/pr_number parameters, explicit
    name + extraLabels honoured), returns `launched:false` on a 409, runs the Agent on the per-task
    Station the provisioner returns (falling back to the catalog Station, skipping provisioning for a
@@ -353,7 +353,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     ([validated by config disallowed_tools append after the pipeline deny and watch rides output](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L126), [repo_workdir false omits workingDir for read-only recipes](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L183); implemented by [`agent-crd.ts`](libs/shared/src/outbound/project/agents/agent-crd.ts))
 
 32. *(added 2026-08-28)* Every agent run opens with the same instruction in the CR
-    parameter the assembled context used to occupy: `CONTEXT_BOOTSTRAP` names
+    parameter the assembled context used to occupy: `contextBootstrap` names
     `lore_assemble_context` before `lore_search_memory`, states that nothing is
     pre-loaded for this run — the one fact the installed `lore-context` skill cannot
     know — and carries no `{placeholder}` of its own, since a parameter VALUE is
@@ -365,8 +365,11 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     shared gateway has no checkout to detect it from (an omitted repo was a 400 on the
     first call of every Gemini review), and to query with what the work is ABOUT — the
     title, the spec sections, the surfaces — not the words of the instruction, which
-    returned the platform overview
-    ([validated by `recipe-prompt.test.ts:5`](libs/shared/src/domain/agents/recipe-prompt.test.ts#L5), [`recipe-prompt.test.ts:11`](libs/shared/src/domain/agents/recipe-prompt.test.ts#L11), [`recipe-prompt.test.ts:15`](libs/shared/src/domain/agents/recipe-prompt.test.ts#L15), [`recipe-prompt.test.ts:19`](libs/shared/src/domain/agents/recipe-prompt.test.ts#L19), [`recipe-prompt.test.ts:23`](libs/shared/src/domain/agents/recipe-prompt.test.ts#L23); implemented by [`recipe-prompt.ts:19`](libs/shared/src/domain/agents/recipe-prompt.ts#L19))
+    returned the platform overview. *(amended 2026-10-01, #2103)* It names the run's
+    own target repo (`repo: "owner/name"`), since no recipe states it and the pod
+    would otherwise have to read it off its checkout, and asks for owner/name when
+    the run has no repo
+    ([validated by `names lore_assemble_context and lore_search_memory in that order`](libs/shared/src/domain/agents/recipe-prompt.test.ts#L7), [`says nothing is pre-loaded, the one fact the installed skill cannot know`](libs/shared/src/domain/agents/recipe-prompt.test.ts#L13), [`carries no {placeholder} the subsystem would ship to the model verbatim`](libs/shared/src/domain/agents/recipe-prompt.test.ts#L17), [`names the tools as the Lore MCP server's, so a CLI that prefixes them with the server still finds them`](libs/shared/src/domain/agents/recipe-prompt.test.ts#L21), [`tells the agent to pass the repo and to query with the subject of the work, not with the words of the instruction`](libs/shared/src/domain/agents/recipe-prompt.test.ts#L25), [`names the run's own repo, so the pod's first call carries it without reading a git remote, and asks for owner/name when the run has none`](libs/shared/src/domain/agents/recipe-prompt.test.ts#L35); implemented by [`contextBootstrap`](libs/shared/src/domain/agents/recipe-prompt.ts#L2))
 
 33. *(added 2026-08-28, #1629)* The `{context}` placeholder is guarded on the
     cluster's MCP URL, the same value as the `mcp_servers` block it points at, so

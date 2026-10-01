@@ -13,29 +13,13 @@ vi.mock("./deps.js", async (importOriginal) => ({
 import { detectCurrentRepo } from "@re-cinq/lore-server-core/features/repo/repo-detect.js";
 import { proxyGetApi, proxyToApi } from "./deps.js";
 import { registerRepoTools } from "./repo-tools.js";
-
-type ToolHandler = (args: Record<string, unknown>) => Promise<{
-  content: { type: string; text: string }[];
-}>;
+import type { ServerMode } from "./repo-scope.js";
+import { toolHandlers } from "./tool-test-helpers.js";
 
 const originalEnv = { ...process.env };
 
-function handlerFor(name: string): ToolHandler {
-  const handlers: Record<string, ToolHandler> = {};
-  const fakeServer = {
-    tool(
-      toolName: string,
-      _desc: string,
-      _schema: unknown,
-      handler: ToolHandler,
-    ) {
-      handlers[toolName] = handler;
-    },
-  };
-
-  registerRepoTools(fakeServer as never);
-
-  return handlers[name];
+function handlerFor(name: string, mode: ServerMode = "full") {
+  return toolHandlers(registerRepoTools, mode)[name];
 }
 
 function page(repos: unknown[], total: number) {
@@ -295,5 +279,24 @@ describe("lore_list_repos", () => {
     const result = await handlerFor("lore_list_repos")({});
 
     expect(result.content[0].text).toContain("invalid token");
+  });
+});
+
+describe("lore_ingest_files in the agent gateway, which has no checkout", () => {
+  it("asks for the repo as owner/name instead of trying to detect one", async () => {
+    const result = await handlerFor(
+      "lore_ingest_files",
+      "agent",
+    )({
+      files: ["CLAUDE.md"],
+    });
+
+    expect({
+      text: result.content[0].text,
+      gitAsked: vi.mocked(detectCurrentRepo).mock.calls.length,
+    }).toEqual({
+      text: "No repo given. Pass repo as owner/name (e.g. 're-cinq/lore'): the shared Lore server has no checkout to detect it from.",
+      gitAsked: 0,
+    });
   });
 });

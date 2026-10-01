@@ -18,7 +18,7 @@ Run 997026f5 (2026-09-09) reached `repair-build` with a red `format` job whose w
 
 ## Interface
 
-Registered via `server.tool` ([registration + handler](../../../apps/mcp-server/src/transport/tools/ci-tools.ts#L83)), in `registerSharedTools`, so the agent-mode gateway serves it.
+Registered via `server.tool` ([registration + handler](../../../apps/mcp-server/src/transport/tools/ci-tools.ts#L80)), in `registerSharedTools`, so the agent-mode gateway serves it.
 
 ### Input schema (Zod)
 
@@ -30,10 +30,11 @@ Registered via `server.tool` ([registration + handler](../../../apps/mcp-server/
 
 ## Behavior
 
-- With no arguments it asks for the checked-out branch of the detected repo, which is all a pod on its own branch knows; it never needs a pull request number. ([validated by asks for the checked-out branch of the detected repo when called with no arguments, which is all a pod knows](../../../apps/mcp-server/src/transport/tools/ci-tools.test.ts#L55))
-- Given `pr_number` it asks by number and does not consult git. ([validated by asks by pull request number when given one, without touching git](../../../apps/mcp-server/src/transport/tools/ci-tools.test.ts#L71))
-- When neither a branch nor a pull request can be found, or the repo cannot be detected, it says which parameter to pass instead of calling the API. ([validated by says what to pass when neither a branch nor a pull request can be found](../../../apps/mcp-server/src/transport/tools/ci-tools.test.ts#L86), [validated by says what to pass when the repo cannot be detected](../../../apps/mcp-server/src/transport/tools/ci-tools.test.ts#L101))
-- It proxies `GET /api/repos/{owner}/{repo}/ci-failures` ([route spec](../../api-routes/ci-failures/spec.md)) and returns the report as pretty JSON; a refusal surfaces the server's own reason. ([validated by surfaces the server's own refusal rather than a generic unreachable line](../../../apps/mcp-server/src/transport/tools/ci-tools.test.ts#L113))
+- On a laptop, with no arguments it asks for the checked-out branch of the detected repo; it never needs a pull request number. A pod has no checkout to detect from, so it passes `repo` and `branch` (the output of `git branch --show-current`). ([validated by asks for the checked-out branch of the detected repo when called with no arguments on a laptop](../../../apps/mcp-server/src/transport/tools/ci-tools.test.ts#L39))
+- Given `pr_number` it asks by number and does not consult git. ([validated by asks by pull request number when given one, without touching git](../../../apps/mcp-server/src/transport/tools/ci-tools.test.ts#L55))
+- When neither a branch nor a pull request can be found, or the repo cannot be detected, it says which parameter to pass instead of calling the API. ([validated by says what to pass when neither a branch nor a pull request can be found](../../../apps/mcp-server/src/transport/tools/ci-tools.test.ts#L70), [validated by says what to pass when the repo cannot be detected](../../../apps/mcp-server/src/transport/tools/ci-tools.test.ts#L85))
+- *(added 2026-10-01, #2103)* In the agent gateway, which has no checkout, it never runs git: a call without `repo` is told to pass it as owner/name, and one without `branch` or `pr_number` is told to pass one, before any API call. ([validated by in the agent gateway asks for the repo and branch rather than running git, which it does not have](../../../apps/mcp-server/src/transport/tools/ci-tools.test.ts#L97))
+- It proxies `GET /api/repos/{owner}/{repo}/ci-failures` ([route spec](../../api-routes/ci-failures/spec.md)) and returns the report as pretty JSON; a refusal surfaces the server's own reason. ([validated by surfaces the server's own refusal rather than a generic unreachable line](../../../apps/mcp-server/src/transport/tools/ci-tools.test.ts#L121))
 - The checked-out branch is read from git on every call and is null on a detached HEAD, which names no branch CI could have judged. ([validated by returns the checked-out branch](../../../libs/server-core/src/work/repo/repo-detect.test.ts#L63), [validated by returns null on a detached HEAD, which names no branch CI could have judged](../../../libs/server-core/src/work/repo/repo-detect.test.ts#L68), [validated by re-runs git on every call, since a checkout can switch branches between two calls](../../../libs/server-core/src/work/repo/repo-detect.test.ts#L80))
 
 ## Output

@@ -75,9 +75,9 @@ describe("the fix-ci recipe behind repair-build", () => {
         "open that file at that line and fix what it says",
       ),
       forbidsInstall: says("needs an editor, not `npm ci`"),
-      asksCi: says("call `lore_get_ci_failures` with no arguments"),
+      asksCi: says("call `lore_get_ci_failures` with `repo` and `branch`"),
       readsTheLog: says(
-        "call `lore_get_ci_job_log` with that failure's `job_id`",
+        "call `lore_get_ci_job_log` with `repo` and that failure's `job_id`",
       ),
       forbidsRebuild: says(
         "Never reinstall or rebuild the workspace to learn what CI already printed.",

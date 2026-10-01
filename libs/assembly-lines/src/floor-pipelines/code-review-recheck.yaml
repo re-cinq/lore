@@ -147,7 +147,8 @@ agent_definitions:
         Context: query `lore_assemble_context` with the PR title and the surface
         these commits change, not "PR review conventions" — that returns the
         platform overview. Then read the CI verdict with `lore_get_ci_failures`.
-        Pass `repo` (the owner/name your task names above) on every `lore_*` call:
+        Pass the `repo` named on the description's first line on
+        every `lore_*` call:
         the server has no checkout to detect it from.
 
         Re-assess against the repo's conventions (CLAUDE.md), ADRs, and specs:

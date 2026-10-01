@@ -10,6 +10,7 @@ import { registerLocalRunnerTools } from "./tools/local-runner-tools.local.js";
 import { registerSpecTraceLocalTools } from "./tools/spec-trace-tools.local.js";
 import { registerUpdateTools } from "./tools/update-tools.js";
 import { registerCiTools } from "./tools/ci-tools.js";
+import type { ServerMode } from "./tools/repo-scope.js";
 
 // Conventions that hold for every lore_ tool, stated once here instead of in each tool description to keep the always-loaded tool schema small.
 const SERVER_INSTRUCTIONS = `Lore serves shared org context (conventions, ADRs, memories, facts, knowledge graph) plus a task pipeline to Claude Code. Tool names share the lore_ prefix as a namespace.
@@ -21,7 +22,7 @@ These hold for every lore_ tool, so individual descriptions omit them:
 
 Start a task with lore_assemble_context (one ordered bundle), then lore_search_memory for prior learnings. For full return shapes, path-specific argument behavior, and a "choosing between similar tools" matrix, see docs/mcp-tools-reference.md.`;
 
-export type ServerMode = "full" | "agent";
+export type { ServerMode };
 
 // Builds the McpServer; in `agent` mode the pipeline tools (lore_create_pipeline_task, the recursion vector), local-runner tools, local spec-trace runners, and lore_update are NOT registered.
 export function buildMcpServer(
@@ -33,7 +34,7 @@ export function buildMcpServer(
   );
   const serverMode = opts.serverMode ?? resolveServerMode();
 
-  registerSharedTools(server);
+  registerSharedTools(server, serverMode);
 
   if (serverMode !== "agent") {
     registerLaptopOnlyTools(server);
@@ -47,14 +48,14 @@ function resolveServerMode(): ServerMode {
   return process.env.LORE_MCP_SERVER_MODE === "agent" ? "agent" : "full";
 }
 
-function registerSharedTools(server: McpServer): void {
-  registerContextTools(server);
-  registerMemoryTools(server);
+function registerSharedTools(server: McpServer, mode: ServerMode): void {
+  registerContextTools(server, mode);
+  registerMemoryTools(server, mode);
   registerPlanTools(server);
-  registerSpecTraceTools(server);
+  registerSpecTraceTools(server, mode);
   registerUsageTools(server);
-  registerRepoTools(server);
-  registerCiTools(server);
+  registerRepoTools(server, mode);
+  registerCiTools(server, mode);
 }
 
 // Registered only outside `agent` mode: lore_create_pipeline_task is the recursion vector, and the rest need a developer's own machine.

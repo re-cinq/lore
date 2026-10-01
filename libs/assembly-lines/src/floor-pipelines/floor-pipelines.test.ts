@@ -303,7 +303,7 @@ describe("the feature-planning pipeline", () => {
     expect(
       agents.map((agent) =>
         promptOnOneLine(agent).includes(
-          "Pass `repo` (the owner/name your task names above) on every `lore_*` call",
+          "Pass the `repo` named on the description's first line on every `lore_*` call",
         ),
       ),
     ).toEqual(agents.map(() => true));
@@ -448,7 +448,7 @@ describe("what a review pod is given against the agent CLI's own limits", () => 
   it("tells the review and the re-check to pass repo on every lore call", () => {
     const told = ["code-review", "code-review-recheck"].map((agent) =>
       promptOnOneLine(agent).includes(
-        "Pass `repo` (the owner/name your task names above) on every `lore_*` call",
+        "Pass the `repo` named on the description's first line on every `lore_*` call",
       ),
     );
 
