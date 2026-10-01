@@ -155,7 +155,9 @@ describe("POST /api/task", () => {
 
     pool.query
       .mockResolvedValueOnce({
-        rows: [{ id: "t1", status: "pr-created", task_type: "implementation" }],
+        rows: [
+          { id: "t1", status: "pr-created", task_type: "feature-request" },
+        ],
       })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [{ id: "rev-1" }] })
@@ -166,6 +168,26 @@ describe("POST /api/task", () => {
     );
 
     expect(res.result).toEqual({ task_id: "t1", revision_task_id: "rev-1" });
+  });
+
+  it("answers 409 when revising a runbook task, pointing at a review on its pull request", async () => {
+    const pool = makePool();
+
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ id: "t1", status: "pr-created", task_type: "runbook" }],
+      })
+      .mockResolvedValue({ rows: [] });
+    const res = await post(
+      { action: "revise", task_id: "t1", feedback: "tighten it" },
+      pool,
+    );
+
+    expect(res.statusCode).toBe(409);
+    expect(res.result).toEqual({
+      error:
+        "Only a feature-request task is revised from here. For any other pull request, leave the feedback as a review that requests changes: Lore answers it on the pull request.",
+    });
   });
 
   it("returns 404 when revising a task that does not exist", async () => {

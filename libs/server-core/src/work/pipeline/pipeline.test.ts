@@ -32,7 +32,7 @@ function scriptedPool(scripts: ScriptedRow[]) {
 
 const taskRow = (reviewIteration: number): Record<string, unknown> => ({
   id: "t1",
-  task_type: "general",
+  task_type: "runbook",
   status: "review",
   target_repo: "o/r",
   target_branch: "feat/x",
@@ -139,7 +139,7 @@ describe("handleReviewResult", () => {
     expect(iterationUpdate?.params).toEqual([1, "t1"]);
     expect(insert?.params).toEqual([
       "Address review feedback on PR: needs a guard clause",
-      "general",
+      "runbook",
       "o/r",
       "review-agent",
       JSON.stringify({

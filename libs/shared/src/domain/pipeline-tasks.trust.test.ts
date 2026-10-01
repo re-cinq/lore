@@ -45,13 +45,13 @@ describe("createTask trust gate", () => {
     },
   );
 
-  it("still refuses an implementation task at trust level docs", async () => {
+  it("still refuses a feature-request task at trust level docs", async () => {
     const { pool } = poolWithTrust("docs");
 
     await expect(
       createTask(pool, {
         description: "build it",
-        taskType: "implementation",
+        taskType: "feature-request",
         targetRepo: "o/r",
       }),
     ).rejects.toThrow(/not allowed at trust level "docs"/);
