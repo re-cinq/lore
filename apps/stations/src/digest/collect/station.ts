@@ -4,6 +4,7 @@ import {
   type Handle,
   type RunningStation,
 } from "@re-cinq/floor-station";
+import { errorMessage } from "@re-cinq/lore-shared";
 import { digestRunOfArgs } from "@re-cinq/lore-shared/digest/digest-run.js";
 import {
   collectDraft,
@@ -35,7 +36,7 @@ export function digestCollectHandle(deps: DigestCollectDeps): Handle {
 
       return { outcome: "success" };
     } catch (err) {
-      return { outcome: "failed", error: (err as Error).message };
+      return { outcome: "failed", error: errorMessage(err) };
     }
   };
 }

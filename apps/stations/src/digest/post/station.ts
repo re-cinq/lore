@@ -7,6 +7,7 @@ import {
   type RunningStation,
   type Tools,
 } from "@re-cinq/floor-station";
+import { errorMessage } from "@re-cinq/lore-shared";
 import { digestRunOfArgs } from "@re-cinq/lore-shared/digest/digest-run.js";
 import {
   deliverDigest,
@@ -38,20 +39,20 @@ export function digestPostHandle(deps: DeliverDeps): Handle {
         ? { outcome: "failed", error: delivery.error }
         : { outcome: "success" };
     } catch (err) {
-      return afterRefusal(err as Error);
+      return afterRefusal(err);
     }
   };
 }
 
 /** A refusal before anything reached the channel is a failed visit, which the line retries. One after part of the digest landed is settled as posted, so it reports success: a retry would post that part a second time (FR7). */
-function afterRefusal(err: Error): Report {
+function afterRefusal(err: unknown): Report {
   if (err instanceof DigestPartlyPosted) {
     console.warn(`[digest] posted in part, then Slack refused: ${err.message}`);
 
     return { outcome: "success" };
   }
 
-  return { outcome: "failed", error: err.message };
+  return { outcome: "failed", error: errorMessage(err) };
 }
 
 /** The agent's message as an upload the delivery can judge; null when the agent produced none, which is what makes the draft the message. */
