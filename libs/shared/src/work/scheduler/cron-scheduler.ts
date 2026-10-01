@@ -10,17 +10,10 @@ interface JobDef {
   handler: () => Promise<string>;
 }
 
-export interface JobStatus {
-  lastRun: string | null;
-  status: string;
-  nextRun: string;
-}
-
 export interface CronScheduler {
   register(name: string, cron: string, handler: () => Promise<string>): void;
   /** Runs what is already due, then checks again every 30 seconds. */
   start(): Promise<void>;
-  status(): Record<string, JobStatus>;
 }
 
 export type SchedulerJobRuns = Pick<
@@ -37,7 +30,6 @@ export function createCronScheduler(jobRuns: SchedulerJobRuns): CronScheduler {
 class JobRunScheduler implements CronScheduler {
   private readonly jobs = new Map<string, JobDef>();
   private readonly running = new Set<string>();
-  private readonly lastRuns = new Map<string, string>();
 
   constructor(private readonly jobRuns: SchedulerJobRuns) {}
 
@@ -49,18 +41,6 @@ class JobRunScheduler implements CronScheduler {
     console.log(`[scheduler] Started with ${this.jobs.size} jobs`);
     await this.runDueJobs("missed run");
     setInterval(() => void this.runDueJobs("job"), TICK_MS);
-  }
-
-  status(): Record<string, JobStatus> {
-    return Object.fromEntries(
-      [...this.jobs.values()].map((job) => [
-        job.name,
-        jobStatus(job, {
-          lastRun: this.lastRuns.get(job.name) ?? null,
-          running: this.running.has(job.name),
-        }),
-      ]),
-    );
   }
 
   private async runDueJobs(label: string): Promise<void> {
@@ -91,7 +71,6 @@ class JobRunScheduler implements CronScheduler {
     const status = await recordedRun(job, this.jobRuns);
 
     this.running.delete(job.name);
-    this.lastRuns.set(job.name, new Date(start).toISOString());
     console.log(
       `[scheduler] Job ${job.name}: ${status} (${Date.now() - start}ms)`,
     );
@@ -136,27 +115,6 @@ async function recordFailure(
     return;
   }
   await jobRuns.fail(runId, err instanceof Error ? err.message : String(err));
-}
-
-/** An unparseable cron is reported per job rather than failing the whole status read. */
-function jobStatus(
-  job: JobDef,
-  seen: { lastRun: string | null; running: boolean },
-): JobStatus {
-  try {
-    const nextRun = CronExpressionParser.parse(job.cron)
-      .next()
-      .toDate()
-      .toISOString();
-
-    return {
-      lastRun: seen.lastRun,
-      status: seen.running ? "running" : "idle",
-      nextRun,
-    };
-  } catch {
-    return { lastRun: null, status: "error", nextRun: "invalid cron" };
-  }
 }
 
 /** What a cron emitter inserts: one idempotent tick per minute slot, so a tick both an old and a new process emit during a rollout is one event. */

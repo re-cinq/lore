@@ -143,36 +143,6 @@ describe("createCronScheduler", () => {
 
     expect(calls).toEqual([]);
   });
-
-  it("reports idle with the attempt timestamp after a failed start", async () => {
-    const { jobRuns } = jobRunsThat({
-      start: () => Promise.reject(new Error("connection refused")),
-    });
-    const scheduler = createCronScheduler(jobRuns);
-
-    scheduler.register("merge_check", EVERY_MINUTE, () =>
-      Promise.resolve("done"),
-    );
-    await scheduler.start();
-
-    expect(scheduler.status().merge_check).toMatchObject({
-      status: "idle",
-      lastRun: new Date().toISOString(),
-    });
-  });
-
-  it("reports a null lastRun for a job that never ran", () => {
-    const scheduler = createCronScheduler(jobRunsThat().jobRuns);
-
-    scheduler.register("merge_check", "0 0 1 1 *", () =>
-      Promise.resolve("done"),
-    );
-
-    expect(scheduler.status().merge_check).toMatchObject({
-      status: "idle",
-      lastRun: null,
-    });
-  });
 });
 
 describe("registerCronEmitters", () => {

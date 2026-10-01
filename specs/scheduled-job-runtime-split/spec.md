@@ -308,11 +308,9 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
    without a phantom failure record and the job runs again on the next tick
    instead of staying wedged for the process lifetime; a handler failure passes
    its message to the run's failure and likewise leaves the job re-eligible; a
-   successful run completes with the handler result; and the status read
-   reports `idle` plus the in-memory last-attempt timestamp
-   (`null` before the first attempt in this process). Since 2026-10-02 the
+   successful run completes with the handler result. Since 2026-10-02 the
    scheduler is shared code run by the stations service (`specs/external-floor` FR16).
-   ([validated by runs the job again on the next tick after starting its run rejects](libs/shared/src/work/scheduler/cron-scheduler.test.ts#L76), [validated by records no failure when starting the run itself rejects, since there is no row to fail](libs/shared/src/work/scheduler/cron-scheduler.test.ts#L100), [validated by fails the run with the handler's error and leaves the job due again](libs/shared/src/work/scheduler/cron-scheduler.test.ts#L114), [validated by completes the run with the handler result on success](libs/shared/src/work/scheduler/cron-scheduler.test.ts#L61), [validated by reports idle with the attempt timestamp after a failed start](libs/shared/src/work/scheduler/cron-scheduler.test.ts#L147), [validated by reports a null lastRun for a job that never ran](libs/shared/src/work/scheduler/cron-scheduler.test.ts#L164))
+   ([validated by runs the job again on the next tick after starting its run rejects](libs/shared/src/work/scheduler/cron-scheduler.test.ts#L76), [validated by records no failure when starting the run itself rejects, since there is no row to fail](libs/shared/src/work/scheduler/cron-scheduler.test.ts#L100), [validated by fails the run with the handler's error and leaves the job due again](libs/shared/src/work/scheduler/cron-scheduler.test.ts#L114), [validated by completes the run with the handler result on success](libs/shared/src/work/scheduler/cron-scheduler.test.ts#L61))
 
 2. Ten CronJobs exist, one per batch job, with schedules exactly matching the
    prior in-process schedules.
