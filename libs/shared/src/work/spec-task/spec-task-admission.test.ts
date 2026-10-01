@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { admitSpecTasks } from "./spec-task-admission.js";
-import type { ReadySpecTask } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
+import type { ReadySpecTask } from "../../outbound/project/tasks/task-queue-port.js";
 
 const GROUP = "18773dbb";
 const YAML = "libs/assembly-lines/src/assembly-lines/issue-triage.yaml";

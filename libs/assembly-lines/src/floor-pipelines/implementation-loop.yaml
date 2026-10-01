@@ -7,8 +7,10 @@
 # pr-ready-check sweep reads the pull request and reports to the parked visit.
 # A red verdict rides along as the round brief, a file the next agent reads.
 #
-# One ticket per repository at a time: the run is keyed on `backlog`, a value
-# that is the same for every ticket of a repository.
+# One backlog ticket per repository at a time: the run is keyed on `backlog`, a
+# value that is the same for every backlog ticket of a repository. A plan's
+# task is keyed on itself instead (`spec-task-<task id>`), so the tasks of a
+# plan run side by side and beside the backlog's ticket (FR15).
 line:
   id: implementation-loop
   entry: dod

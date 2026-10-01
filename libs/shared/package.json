@@ -46,6 +46,10 @@
       "types": "./dist/work/spec-upkeep/*.d.ts",
       "default": "./dist/work/spec-upkeep/*.js"
     },
+    "./spec-task/*.js": {
+      "types": "./dist/work/spec-task/*.d.ts",
+      "default": "./dist/work/spec-task/*.js"
+    },
     "./backlog/*.js": {
       "types": "./dist/work/backlog/*.d.ts",
       "default": "./dist/work/backlog/*.js"

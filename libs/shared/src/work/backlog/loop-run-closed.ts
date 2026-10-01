@@ -19,6 +19,8 @@ export interface ClosedLoopRun {
   branch?: string | null;
   args: Record<string, unknown>;
   graph: RunGraph | null;
+  /** Where the ticket came from: the repository's backlog (the default), or a plan, whose task the executor starts once and no tick picks again. */
+  source?: "backlog" | "plan";
 }
 
 /** One recorded node visit, as the hook reads it: `failureDetail` is where a node's own words about why it stopped are persisted (the definition-of-done verdict rides it, FR8). */
@@ -187,7 +189,9 @@ async function markIssueBlocked(
     return;
   }
 
-  await deps.addLabel(run.repo, issueNumber, LORE_BLOCKED_LABEL);
+  if (run.source !== "plan") {
+    await deps.addLabel(run.repo, issueNumber, LORE_BLOCKED_LABEL);
+  }
   await deps.comment(run.repo, issueNumber, blockedComment(run, verdict));
 }
 
@@ -253,6 +257,13 @@ function blockedComment(run: ClosedLoopRun, verdict: ParkVerdict): string {
 
   return (
     `Lore's implementation loop is parking this ticket: ${verdict.why}.` +
-    `${prLine}${ask}\n\nRemove the \`${LORE_BLOCKED_LABEL}\` label to re-queue it. Run: \`${run.id}\``
+    `${prLine}${ask}\n\n${requeueLine(run)} Run: \`${run.id}\``
   );
+}
+
+/** A backlog ticket is picked again once its label is gone; a plan's task only when its task is retried. */
+function requeueLine(run: ClosedLoopRun): string {
+  return run.source === "plan"
+    ? "Retry its task to run it again."
+    : `Remove the \`${LORE_BLOCKED_LABEL}\` label to re-queue it.`;
 }

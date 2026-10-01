@@ -12,8 +12,19 @@ import type { StartedTicket } from "./implementation-loop-tick.js";
 
 export const LOOP_LINE = "implementation-loop";
 
-/** The value every loop run of a repository is keyed on, so the floor holds one open run per repository: one ticket at a time. */
+/** The value every backlog ticket's run of a repository is keyed on, so the floor holds one open run per repository: one ticket at a time. */
 const BACKLOG = "tickets";
+
+const PLAN_TASK_BACKLOG = "spec-task-";
+
+/** What a plan's task is keyed on instead: itself. Its run goes beside the backlog's, so it neither waits for the repository's ticket nor holds the next one back. */
+export function planTaskBacklog(taskId: string): string {
+  return `${PLAN_TASK_BACKLOG}${taskId}`;
+}
+
+export function isPlanTaskBacklog(backlog: string | undefined): boolean {
+  return backlog?.startsWith(PLAN_TASK_BACKLOG) ?? false;
+}
 
 /** The floor's subject key for a repository's loop run: `<the line's subject argument>:<its value>`. */
 export const FLOOR_BACKLOG_SUBJECT = `backlog:${BACKLOG}`;
@@ -52,9 +63,22 @@ export async function startTicketOnFloor(
   }
 }
 
-async function startLoopRun(
+/** What a loop run is started for: a backlog ticket, or a plan's task. */
+export interface LoopRunStart {
+  repo: string;
+  taskId: string;
+  branch: string;
+  /** A plan's task that was never filed as an issue has a title and no number. */
+  issue: { title: string; number?: number };
+  /** The work as the agents read it. */
+  description: string;
+  /** The value the run is keyed on; left out, the repository's one backlog. */
+  backlog?: string;
+}
+
+export async function startLoopRun(
   floor: LoopFloor,
-  { repo, branch, taskId, issue, description }: StartedTicket,
+  { repo, branch, taskId, issue, description, backlog }: LoopRunStart,
 ): Promise<void> {
   const stored = await floor.blobs.put(
     new TextEncoder().encode(description),
@@ -65,11 +89,11 @@ async function startLoopRun(
     repo: floorRepoOf(repo),
     startItems: {
       repo: gitItem(repo, branch),
-      backlog: valueItem(BACKLOG),
+      backlog: valueItem(backlog ?? BACKLOG),
       task_id: valueItem(taskId),
       ticket: fileItem(stored.hash),
       issue_title: valueItem(issue.title),
-      issue_number: valueItem(issue.number),
+      ...(issue.number ? { issue_number: valueItem(issue.number) } : {}),
     },
   });
 }

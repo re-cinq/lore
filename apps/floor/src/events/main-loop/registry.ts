@@ -115,7 +115,7 @@ function cronEntries(): Entry[] {
     ["cron.implementation_loop.tick", implementationLoopTick],
     ["cron.pr_ready_check.tick", cron.prReadyCheck],
     ["cron.approval_check.tick", cron.approvalCheck],
-    ["cron.spec_task_executor.tick", cron.specTaskExecutor],
+    ["cron.spec_task_executor.tick", takenByStations],
     ["cron.stale_task_check.tick", cron.staleTaskCheck],
     ["cron.telemetry_prune.tick", telemetryPrune],
     ["cron.assembly_line_reaper.tick", cron.assemblyLineReaper],
