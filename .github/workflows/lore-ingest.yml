@@ -1,7 +1,7 @@
 # lore-ingest-version: 5
 # Lore's own ingest workflow — a deliberate superset of the canonical
-# template (extra paths, manual dispatch, LORE_API_URL/LORE_WEBHOOK_URL vars,
-# the Floor ci-ingest graph job) carrying the v4 hardened error handling in
+# template (extra paths, manual dispatch, the lore-code-trace graph job)
+# carrying the v4 hardened error handling in
 # its ingest step. The version marker above is what the dashboard reads to
 # mark this repo's ingest workflow aligned.
 name: Lore Context Ingest
@@ -17,6 +17,8 @@ on:
       - 'specs/**'
       - 'teams/**'
       - '.specify/**'
+      # Which files are specs and ADRs; a change re-selects the whole corpus.
+      - '.lore/ingest.yml'
       - 'scripts/agent-prompts/**'
       - '.claude/skills/**'
   # Manual lever: a push-to-main can silently fail to dispatch (a dropped GitHub
@@ -30,6 +32,11 @@ on:
         description: 'JSON array of files to ingest; empty = re-ingest all tracked doc paths'
         required: false
         default: ''
+      force_graph:
+        description: 'Re-project every spec and ADR into the graph, even unchanged ones (after a parser change)'
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -138,38 +145,49 @@ jobs:
               ;;
           esac
 
-  # Spec/ADR → spec-traceability graph projection. Each kind is its own job
-  # (parallel via the matrix) so specs and ADRs project independently. The CI
-  # ingress is the Floor event bus: this POST registers an internal.ingest.spec_trace
-  # event and the Floor loop projects it (no pipeline task). Soft-fail.
+  # Spec/ADR → spec-traceability graph. lore-code-trace posts the changed
+  # specs and ADRs, content inline, to lore-api, which projects them in-process
+  # (specs/ci-incremental-ingest FR8): no event, no assembly run, no pod. The
+  # graph holds one copy per repo, so only the default branch may write it.
   graph:
+    if: github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        kind: [specs, adrs]
     steps:
-      - name: Project ${{ matrix.kind }} into the graph
+      # Full history: the delta is a diff against the last commit Lore ingested,
+      # which a shallow clone cannot reach.
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch lore-code-trace
         env:
-          LORE_INGEST_TOKEN: ${{ secrets.LORE_INGEST_TOKEN }}
-          LORE_WEBHOOK_URL: ${{ vars.LORE_WEBHOOK_URL }}
+          LORE_API_URL: ${{ vars.LORE_API_URL }}
         run: |
-          # Canary: doc projection moved to the Floor event-bus ingress. Until the
-          # operator provisions LORE_WEBHOOK_URL (+ exposes the Floor ingress), this
-          # repo hasn't cut over yet — warn and skip (nothing backstops it: ingestion is merge-time only),
-          # don't red-fail main. A SET-but-broken URL red-fails via curl below.
-          if [ -z "${LORE_WEBHOOK_URL}" ]; then
-            echo "::warning::LORE_WEBHOOK_URL not set — ${{ matrix.kind }} projection skipped (pending Floor ci-ingest cutover)"
-            exit 0
-          fi
-          # Hard-fail: a swallowed warning here let the ci-ingest 404 silently for
-          # weeks (ingress only routed /api/webhook/github) and stalled graph doc
-          # projection. This runs on push to main only — red is pure signal.
-          if ! curl -sf -X POST \
-            -H "Authorization: Bearer ${LORE_INGEST_TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d "{\"repo\": \"${{ github.repository }}\", \"kinds\": [\"${{ matrix.kind }}\"], \"commit\": \"${{ github.sha }}\"}" \
-            "${LORE_WEBHOOK_URL}/api/webhook/ci-ingest"; then
-            echo "::error::Lore ci-ingest endpoint returned an error for ${{ matrix.kind }} — graph doc projection is NOT running"
+          if [ -z "${LORE_API_URL}" ]; then
+            echo "::error::LORE_API_URL repository variable is not set — specs and ADRs were NOT projected"
             exit 1
+          fi
+          curl -fsSL "${LORE_API_URL}/dist/lore-code-trace/linux-amd64" -o lore-code-trace
+          curl -fsSL "${LORE_API_URL}/dist/lore-code-trace/checksums.txt" -o checksums.txt
+          echo "$(awk '/ linux-amd64$/{print $1}' checksums.txt)  lore-code-trace" | sha256sum -c -
+          chmod +x lore-code-trace
+
+      - name: Project specs and ADRs into the graph
+        env:
+          LORE_API_URL: ${{ vars.LORE_API_URL }}
+          LORE_INGEST_TOKEN: ${{ secrets.LORE_INGEST_TOKEN }}
+          FORCE: ${{ github.event.inputs.force_graph }}
+        run: |
+          # A binary older than the docs subcommand ignores the argument and
+          # runs the test suite instead. Printing the selection proves the
+          # subcommand exists before anything is posted.
+          if ! ./lore-code-trace docs | jq -e 'has("specs") and has("adrs")' > /dev/null; then
+            echo "::error::the served lore-code-trace has no docs subcommand — specs and ADRs were NOT projected"
+            exit 1
+          fi
+          if [ "${FORCE}" = "true" ]; then
+            ./lore-code-trace docs --post --force
+          else
+            ./lore-code-trace docs --post
           fi
