@@ -7,7 +7,6 @@ import type {
   StationRunRecordView,
   VisitView,
 } from "@re-cinq/floor-client";
-import type { AgentRunEvent } from "@re-cinq/lore-shared/models/agent-run-event.js";
 import type {
   AssemblyRunQuery,
   AssemblyRunRecord,
@@ -28,7 +27,6 @@ import {
 import {
   floorVisitIdOf,
   nodeLogsOf,
-  recordToAgentEvents,
   type FloorNodeLogs,
 } from "./floor-records.js";
 
@@ -88,30 +86,6 @@ export class FloorRunReader {
     return perVisit
       .flat()
       .map((turn, place) => ({ ...turn, id: String(place + 1) }));
-  }
-
-  /** Every agent event of the run, visit by visit in the order the walk opened them, with the ids the live relay gives the same turns: what the run page folds before it opens the channel, and all it has of a run that ended. */
-  async agentEvents(runId: string): Promise<AgentRunEvent[]> {
-    const found = await this.floor.runs.get(runId);
-
-    if (!found) {
-      return [];
-    }
-    const visits = await this.floor.stationRuns.list({ run: runId });
-    const perVisit = await Promise.all(
-      visits.map(async (visit) =>
-        (await this.recordsOf(visit, "turn")).flatMap((record) =>
-          recordToAgentEvents(record, {
-            runId,
-            visitId: visit.id,
-            nodeId: visit.nodeId,
-            iteration: visit.iteration,
-          }),
-        ),
-      ),
-    );
-
-    return perVisit.flat();
   }
 
   /** The log the floor kept for one of the run's visits, named as the run page names it (`floor-<visit id>`); null for a name of no visit of this run. */

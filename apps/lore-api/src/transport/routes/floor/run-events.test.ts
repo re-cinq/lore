@@ -40,15 +40,34 @@ describe("eventPage", () => {
     ]);
   });
 
-  it("answers event 100 alone at limit 1", () => {
-    expect(ids(eventPage(THREE_EVENTS, { limit: "1" }))).toEqual(["100"]);
-  });
-
   it("compares a cursor past the safe integer range as a bigint", () => {
     const far = event("9007199254740993");
 
     expect(ids(eventPage([far], { after: "9007199254740992" }))).toEqual([
       far.id,
+    ]);
+  });
+
+  it("ends the page after the whole turn the limit landed in: 100 and 101 at limit 1, not 100 alone", () => {
+    expect(ids(eventPage(THREE_EVENTS, { limit: "1" }))).toEqual([
+      "100",
+      "101",
+    ]);
+  });
+
+  it("answers every event for a limit of -5, which is no page size", () => {
+    expect(ids(eventPage(THREE_EVENTS, { limit: "-5" }))).toEqual([
+      "100",
+      "101",
+      "200",
+    ]);
+  });
+
+  it("answers every event for a cursor that is no number, rather than failing", () => {
+    expect(ids(eventPage(THREE_EVENTS, { after: "abc" }))).toEqual([
+      "100",
+      "101",
+      "200",
     ]);
   });
 
