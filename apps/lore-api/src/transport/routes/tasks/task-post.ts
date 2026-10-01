@@ -147,7 +147,7 @@ async function retryAction(
   const { retryTask } =
     await import("@re-cinq/lore-server-core/features/pipeline/pipeline.js");
 
-  return h.response(await retryTask(taskId));
+  return refusable(h, () => retryTask(taskId));
 }
 
 function reviseAction(
@@ -161,7 +161,7 @@ function reviseAction(
   return refusable(h, () => revisePipelineTask(pool, taskId, feedback));
 }
 
-// Refusable state transition (cancel, run-now): both shared seams throw "Task not found" (404) or a state message (409) — one mapping so the branches can't drift.
+// Refusable state transition (retry, cancel, run-now, revise): the shared seams throw "Task not found" (404) or a state message (409) — one mapping so the branches can't drift. A retry is refused when the task is not failed, and when its type was removed.
 async function refusable<T extends object>(
   h: ResponseToolkit,
   transition: () => Promise<T>,

@@ -77,6 +77,25 @@ describe("POST /api/task", () => {
     expect(res.result).toEqual({ task_id: "new" });
   });
 
+  it("answers 409 with the reason when retrying a failed implementation task, whose type was removed", async () => {
+    vi.mocked(retryTask).mockRejectedValue(
+      new Error('The "implementation" task type was removed.'),
+    );
+    const res = await post({ action: "retry", task_id: "old" });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.result).toEqual({
+      error: 'The "implementation" task type was removed.',
+    });
+  });
+
+  it("answers 404 when retrying a task that does not exist", async () => {
+    vi.mocked(retryTask).mockRejectedValue(new Error("Task not found"));
+    const res = await post({ action: "retry", task_id: "gone" });
+
+    expect(res.statusCode).toBe(404);
+  });
+
   function poolWithTask(status: string) {
     const pool = makePool();
 
