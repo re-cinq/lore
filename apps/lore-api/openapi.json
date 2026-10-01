@@ -3100,6 +3100,9 @@
                       "agent_id": {
                         "type": "string"
                       },
+                      "repo": {
+                        "type": "string"
+                      },
                       "limit": {
                         "type": "integer",
                         "exclusiveMinimum": 0,

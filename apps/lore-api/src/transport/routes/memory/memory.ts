@@ -80,6 +80,7 @@ const MemoryBody = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("list"),
     agent_id: z.string().optional(),
+    repo: z.string().optional(),
     limit: listLimit,
     offset: listOffset,
   }),
@@ -311,7 +312,7 @@ async function listAction(
   body: Extract<MemoryBody, { action: "list" }>,
 ): Promise<object> {
   const result = isMemoryDbAvailable()
-    ? await listMemories(body.agent_id, body.limit, body.offset)
+    ? await listMemories(body.agent_id, body.limit, body.offset, body.repo)
     : listMemoriesFile(body.agent_id, body.limit, body.offset);
 
   return { ...result, limit: body.limit, offset: body.offset };

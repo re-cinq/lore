@@ -19,7 +19,7 @@ import {
 } from "./memory-tools-schemas.js";
 import { registerGraphEpisodeTools } from "./graph-episode-tools.js";
 import { interpretMemoryProxy } from "./interpret-memory-proxy.js";
-import { resolveRepo, type ServerMode } from "./repo-scope.js";
+import { repoParam, resolveRepo, type ServerMode } from "./repo-scope.js";
 
 export { interpretMemoryProxy } from "./interpret-memory-proxy.js";
 
@@ -219,14 +219,14 @@ async function deleteMemoryHandler({ key, agent_id }: KeyedMemoryArgs) {
 function registerListMemoriesTool(server: McpServer, mode: ServerMode) {
   server.tool(
     "lore_list_memories",
-    `Lists memory keys for the current repo (newest-first, paginated), returning {memories: [{key, agent_id, repo, version, created_at, ttl_seconds, has_facts}], total}. Scope: detected repo wins; falls back to agent_id; then org-wide. Excludes expired and soft-deleted entries. Use to browse existing keys without ranking. Instead: lore_search_memory to find memories by meaning; lore_read_memory to fetch one specific value.`,
-    LIST_MEMORIES_INPUT,
-    ({ agent_id, limit, offset }) =>
+    `Lists memory keys for a repo (newest-first, paginated), returning {memories: [{key, agent_id, repo, version, created_at, ttl_seconds, has_facts}], total}. Scope: the given or detected repo wins; falls back to agent_id; then org-wide. Excludes expired and soft-deleted entries. Use to browse existing keys without ranking. Instead: lore_search_memory to find memories by meaning; lore_read_memory to fetch one specific value.`,
+    { ...LIST_MEMORIES_INPUT, repo: repoParam(mode) },
+    ({ agent_id, limit, offset, repo }) =>
       listMemoriesHandler({
         agent_id,
         limit,
         offset,
-        repo: resolveRepo(undefined, mode) || undefined,
+        repo: resolveRepo(repo, mode) || undefined,
       }),
   );
 }

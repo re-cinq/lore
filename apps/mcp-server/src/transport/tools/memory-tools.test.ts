@@ -332,3 +332,47 @@ describe("lore_agent_stats remote proxy (no local DB)", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+describe("lore_list_memories in the agent gateway", () => {
+  beforeEach(() => {
+    process.env.LORE_API_URL = "https://lore-api.example.com";
+    process.env.LORE_INGEST_TOKEN = "tok";
+    fetchMock.mockReset();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+  afterEach(() => {
+    process.env = { ...originalEnv };
+    vi.unstubAllGlobals();
+  });
+
+  it("scopes the listing to the repo the call names", async () => {
+    const { registerMemoryTools } = await import("./memory-tools.js");
+    const handlers: Record<string, ToolHandler> = {};
+    const fakeServer = {
+      tool(
+        name: string,
+        _desc: string,
+        _schema: unknown,
+        handler: ToolHandler,
+      ) {
+        handlers[name] = handler;
+      },
+    };
+
+    registerMemoryTools(fakeServer as never, "agent");
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ memories: [], total: 0 }),
+    });
+
+    await handlers["lore_list_memories"]({
+      limit: 10,
+      offset: 0,
+      repo: "re-cinq/lore",
+    });
+
+    expect(
+      JSON.parse((fetchMock.mock.calls[0][1] as { body: string }).body),
+    ).toMatchObject({ action: "list", repo: "re-cinq/lore" });
+  });
+});
