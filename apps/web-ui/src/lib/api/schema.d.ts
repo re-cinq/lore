@@ -1903,6 +1903,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/spec-links/parse": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/spec-links/parse */
+    post: operations["post_api_spec-links_parse"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/spec-tasks/claim": {
     parameters: {
       query?: never;
@@ -4106,6 +4123,16 @@ export interface components {
       blocks?: unknown[];
     };
     SlackEventAck: string;
+    SpecLinksParseResult: {
+      links: {
+        doc_path: string;
+        statement_line: number | null;
+        label: string;
+        path: string;
+        line: number | null;
+        misplaced: boolean;
+      }[];
+    };
     SpecList: {
       specs: {
         [key: string]: unknown;
@@ -8250,6 +8277,41 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["OrgSettingsSaved"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "post_api_spec-links_parse": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          docs: {
+            path: string;
+            content: string;
+          }[];
+        };
+      };
+    };
+    responses: {
+      /** @description The test links the posted specs and ADRs carry */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SpecLinksParseResult"];
         };
       };
       400: components["responses"]["BadRequest"];

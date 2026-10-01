@@ -91,16 +91,7 @@ export function testLinksOfDoc(
   content: string,
 ): DocTestLink[] {
   return segmentStatements(content).flatMap((statement) =>
-    [
-      ...parseTestLinksInStatement(statement.text).map((link) => ({
-        ...link,
-        misplaced: false,
-      })),
-      ...findMisplacedCoverageLinks(statement.text).map((link) => ({
-        ...link,
-        misplaced: true,
-      })),
-    ]
+    placedTestLinks(statement.text)
       .filter((link) => !NON_REPO_PATH_RE.test(link.path))
       .map((link) => ({
         ...link,
@@ -108,6 +99,22 @@ export function testLinksOfDoc(
         statementLine: statement.line ?? null,
       })),
   );
+}
+
+/** A statement's test links, each saying whether it sits in the trailing parenthetical or before it. */
+function placedTestLinks(
+  statement: string,
+): Array<SpecLinkRef & { misplaced: boolean }> {
+  return [
+    ...parseTestLinksInStatement(statement).map((link) => ({
+      ...link,
+      misplaced: false,
+    })),
+    ...findMisplacedCoverageLinks(statement).map((link) => ({
+      ...link,
+      misplaced: true,
+    })),
+  ];
 }
 
 /** Keeps only links whose path is a test file (VALIDATED_BY edges). */
