@@ -42,6 +42,10 @@
       "types": "./dist/work/onboard/*.d.ts",
       "default": "./dist/work/onboard/*.js"
     },
+    "./ci-wait/*.js": {
+      "types": "./dist/work/ci-wait/*.d.ts",
+      "default": "./dist/work/ci-wait/*.js"
+    },
     "./digest-settings.js": {
       "types": "./dist/domain/digest-settings.d.ts",
       "default": "./dist/domain/digest-settings.js"
