@@ -58,6 +58,12 @@ describe("floorRunFilters", () => {
     ).toEqual([{ subject: "pr_url:412", open: true }]);
   });
 
+  it("spells the plan subject plan:p1 as the floor's plan_id:p1, which is how a plan's own card finds its run", () => {
+    expect(
+      floorRunFilters({ subjectKey: "plan:p1", status: ["queued"] }),
+    ).toEqual([{ subject: "plan_id:p1", open: true }]);
+  });
+
   it("reads nothing for a query on task-1", () => {
     expect(floorRunFilters({ taskId: "task-1" })).toEqual([]);
   });

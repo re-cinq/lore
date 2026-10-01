@@ -46,8 +46,8 @@ export function planRunsFilter({ repo, planId }: PlanKey) {
   };
 }
 
-/** The floor's subject key for a plan: the line marks its `plan_id` argument as the subject. */
-function floorPlanSubject(planId: string): string {
+/** The floor's subject key for a plan: the line marks its `plan_id` argument as the subject, and the floor keys a run `<argument>:<value>`. Lore spells the same subject `plan:<id>` (`planSubject`), so a query crossing to the floor is translated rather than passed through. */
+export function floorPlanSubject(planId: string): string {
   return `plan_id:${planId}`;
 }
 

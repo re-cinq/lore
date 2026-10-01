@@ -1,6 +1,7 @@
 // Lore's run-list filters spelled the floor's way: which floor lists to read, and what the floor cannot filter on is checked here on what it returned.
 import type { RunFilter } from "@re-cinq/floor-client";
 import { floorRepoOf } from "@re-cinq/lore-shared/floor/floor-items.js";
+import { floorPlanSubject } from "@re-cinq/lore-shared/feature-planning/floor-plan-runs.js";
 import type {
   AssemblyRunQuery,
   AssemblyRunSummary,
@@ -15,7 +16,9 @@ export function floorRunFilters(query: AssemblyRunQuery): RunFilter[] {
   }
   const shared = {
     ...(query.repo === undefined ? {} : { repo: floorRepoOf(query.repo) }),
-    ...(query.subjectKey === undefined ? {} : { subject: query.subjectKey }),
+    ...(query.subjectKey === undefined
+      ? {}
+      : { subject: floorSubjectOf(query.subjectKey) }),
   };
 
   return linesOf(query).flatMap((line) =>
@@ -26,6 +29,17 @@ export function floorRunFilters(query: AssemblyRunQuery): RunFilter[] {
     })),
   );
 }
+
+/** Lore's subject key spelled the floor's way. The floor keys a run `<subject argument>:<value>`, so a plan it holds is `plan_id:<id>` where Lore says `plan:<id>`; every other subject Lore asks about is already the floor's own spelling. Passed through unchanged, a plan's own run page and card would find nothing. */
+function floorSubjectOf(subjectKey: string): string {
+  const planId = subjectKey.startsWith(LORE_PLAN_SUBJECT)
+    ? subjectKey.slice(LORE_PLAN_SUBJECT.length)
+    : null;
+
+  return planId === null ? subjectKey : floorPlanSubject(planId);
+}
+
+const LORE_PLAN_SUBJECT = "plan:";
 
 /** What the floor's own filters leave open: the exact status (queued and running are both "open" there), the branch, the pull request and the start time. */
 export function matchesFloorQuery(
