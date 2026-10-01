@@ -23,8 +23,6 @@ build time (`loadBuiltinAssemblyLines`):
 
 | Definition | Purpose |
 | --- | --- |
-| `implementation.yaml` | Implement a spec, validate, push, review; feedback loop up to 2 iterations |
-| `general.yaml` | Linear implement → validate → push → review → retrospective for general tasks |
 | `gap-fill.yaml` | Draft missing docs (CLAUDE.md / ADR / runbook), validate, push |
 | `feature-planning.yaml` | One interactive planning round emitting a structured GapResult (no commit/PR) |
 | `ingest.yaml` | Project one `internal.ingest.*` payload into the spec-traceability graph |

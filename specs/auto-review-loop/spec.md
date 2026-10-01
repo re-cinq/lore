@@ -404,8 +404,8 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 ### `libs/assembly-lines/src/loader.test.ts`
 
 - code-review is a `review → post-review → done` graph with no refine node. ([validated by walks code-review from review through post-review to done, with no refine node](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L560))
-- gap-fill is a linear flow with retrospective + done as exit pair. ([validated by](libs/assembly-lines/src/loader.test.ts#L662))
-- assemblyLinesDir actually exists on disk (sanity check). ([validated by](libs/assembly-lines/src/loader.test.ts#L716))
+- gap-fill is a linear flow with retrospective + done as exit pair. ([validated by](libs/assembly-lines/src/loader.test.ts#L660))
+- assemblyLinesDir actually exists on disk (sanity check). ([validated by](libs/assembly-lines/src/loader.test.ts#L701))
 - code-review-recheck is a Gemini 3.1 Pro `recheck → post-review → done` graph routing every verdict to `post-review`. ([validated by walks code-review-recheck through recheck, post-review and done on gemini-3.1-pro-preview with edges for changes_requested, failed and success](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L599))
 
 ### `libs/shared/src/outbound/project/assembly-runs/assembly-runs.test.ts`
