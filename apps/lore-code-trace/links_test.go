@@ -34,6 +34,23 @@ func TestDocsToCheckKeepsChangedDocsAndDocsNamingAChangedFile(t *testing.T) {
 	}
 }
 
+func TestDocsToCheckKeepsADocThatNamesATouchedFileByARelativePath(t *testing.T) {
+	// A `../` href resolves against the doc's folder, so the doc's text never
+	// holds the repo-root path the diff names. Missing the doc here would pass a
+	// link the change broke.
+	contents := map[string]string{
+		"apps/x/docs/spec.md": "([validated by claims](../a.test.ts#L2))",
+		"specs/b/spec.md":     "links to apps/x/other.test.ts",
+	}
+	scope := linkScope{touched: setOf("apps/x/a.test.ts")}
+
+	got := docsToCheck([]string{"apps/x/docs/spec.md", "specs/b/spec.md"}, contents, scope)
+
+	if want := []string{"apps/x/docs/spec.md"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("docs = %v, want %v", got, want)
+	}
+}
+
 func TestDocsToCheckKeepsEveryDocWhenTheScopeIsEverything(t *testing.T) {
 	docs := []string{"specs/a/spec.md", "specs/b/spec.md"}
 

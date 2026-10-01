@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"path"
 	"strings"
 )
 
@@ -124,23 +125,36 @@ func pathsOfDocs(docs []docFile) []string {
 }
 
 // docsToCheck keeps the docs a scoped check has to parse: the ones the change
-// touched, and the ones whose text names a path it touched.
+// touched, and the ones whose text names a file it touched. This is only a
+// pre-filter that saves parsing every doc: scope.covers judges each link by its
+// resolved path afterwards. It matches on the file NAME because a `../` href is
+// relative to the doc, so the doc's text need not hold the repo-root path; a
+// name that matches too much costs one extra doc parsed, never a missed link.
 func docsToCheck(docs []string, contents map[string]string, scope linkScope) []string {
 	if scope.everything {
 		return docs
 	}
+	names := fileNamesOf(scope.touched)
 	kept := []string{}
 	for _, doc := range docs {
-		if scope.touches(doc) || namesAny(contents[doc], scope.touched) {
+		if scope.touches(doc) || containsAny(contents[doc], names) {
 			kept = append(kept, doc)
 		}
 	}
 	return kept
 }
 
-func namesAny(content string, paths map[string]struct{}) bool {
-	for path := range paths {
-		if strings.Contains(content, path) {
+func fileNamesOf(paths map[string]struct{}) []string {
+	names := make([]string, 0, len(paths))
+	for touched := range paths {
+		names = append(names, path.Base(touched))
+	}
+	return names
+}
+
+func containsAny(content string, names []string) bool {
+	for _, name := range names {
+		if strings.Contains(content, name) {
 			return true
 		}
 	}
