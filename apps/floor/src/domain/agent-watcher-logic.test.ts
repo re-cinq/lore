@@ -3,7 +3,6 @@ import type { Agent } from "@re-cinq/agent-contracts";
 import {
   taskIdOf,
   taskTypeOf,
-  parseReviewResult,
   decideCiGate,
   decideTokenReclaim,
   runOutcomeFromTaskStatus,
@@ -30,23 +29,6 @@ describe("taskIdOf / taskTypeOf", () => {
   it("returns undefined when the labels are absent", () => {
     expect(taskIdOf({})).toBeUndefined();
     expect(taskTypeOf({})).toBeUndefined();
-  });
-});
-
-describe("parseReviewResult", () => {
-  it("parses APPROVED", () => {
-    expect(parseReviewResult("notes\nREVIEW_RESULT:APPROVED\n")).toBe(
-      "approved",
-    );
-  });
-  it("parses CHANGES_REQUESTED with trailing feedback", () => {
-    expect(
-      parseReviewResult("REVIEW_RESULT: CHANGES_REQUESTED: fix the thing"),
-    ).toBe("changes_requested");
-  });
-  it("returns undefined when there is no marker or no output", () => {
-    expect(parseReviewResult("looks fine")).toBeUndefined();
-    expect(parseReviewResult(undefined)).toBeUndefined();
   });
 });
 
@@ -172,17 +154,6 @@ describe("stampPrOnOpenRuns", () => {
     );
 
     expect(patched).toEqual([]);
-  });
-});
-
-describe("a review output that names both verdict markers", () => {
-  it("reads CHANGES_REQUESTED when the agent quotes APPROVED first, since parseReviewVerdict checks CHANGES_REQUESTED before APPROVED", () => {
-    const output = [
-      "I was told to print REVIEW_RESULT:APPROVED or REVIEW_RESULT:CHANGES_REQUESTED.",
-      "REVIEW_RESULT:CHANGES_REQUESTED: the base branch is wrong",
-    ].join("\n");
-
-    expect(parseReviewResult(output)).toBe("changes_requested");
   });
 });
 

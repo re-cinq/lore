@@ -272,9 +272,10 @@ describe("TaskDetailView", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("wires the feedback form to the injected action with a hidden task_id", () => {
+  it("wires the feedback form of a feature-request task to the injected action with a hidden task_id", () => {
     const { container } = renderView({
       task: task({
+        task_type: "feature-request",
         pr_url: "https://github.com/re-cinq/lore/pull/7",
         pr_number: 7,
         status: "running",
@@ -293,8 +294,22 @@ describe("TaskDetailView", () => {
     expect(container.querySelector('textarea[name="feedback"]')).toBeTruthy();
   });
 
+  it("hides the feedback form of a runbook task with a PR: it is revised by a review on the pull request", () => {
+    renderView({
+      task: task({
+        task_type: "runbook",
+        pr_url: "https://github.com/re-cinq/lore/pull/7",
+        pr_number: 7,
+        status: "running",
+      }),
+    });
+    expect(
+      screen.queryByRole("heading", { level: 3, name: "Give Feedback" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("hides the feedback form when the task has no PR", () => {
-    renderView({ task: task({ pr_url: null }) });
+    renderView({ task: task({ task_type: "feature-request", pr_url: null }) });
     expect(
       screen.queryByRole("heading", { level: 3, name: "Give Feedback" }),
     ).not.toBeInTheDocument();
@@ -303,6 +318,7 @@ describe("TaskDetailView", () => {
   it("hides the feedback form for cancelled tasks even with a PR", () => {
     renderView({
       task: task({
+        task_type: "feature-request",
         pr_url: "https://example.com/pr/1",
         pr_number: 1,
         status: "cancelled",

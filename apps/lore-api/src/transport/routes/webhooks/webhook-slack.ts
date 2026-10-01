@@ -11,6 +11,7 @@ import type {
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { createTask } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
 import { rawBody } from "@re-cinq/lore-shared/http/raw-body.js";
+import { RETIRED_TASK_TYPES } from "@re-cinq/lore-shared/task-types/retired-task-types.js";
 
 /** Constant-time HMAC compare for the Slack `v0=…` signature. */
 // Slack renders this body as-is (response_type + text or blocks format).
@@ -28,18 +29,20 @@ export interface SlackSender {
 
 export interface SlashCommand {
   priority: string;
-  taskType: string;
+  /** Absent when the command names no type: there is no default one, and creating the task says so. */
+  taskType?: string;
   description: string;
   retryTaskId?: string;
 }
 
 const USAGE =
-  "Usage: `/lore [task_type] <description>`\nTask types: general, implementation, runbook, gap-fill, review\n\n" +
-  "Prefix with `!` to execute immediately: `/lore ! implementation add caching`\nRetry a failed task: `/lore retry <task_id>`";
+  "Usage: `/lore <task_type> <description>`\nTask types: runbook, gap-fill, review, feature-request\n" +
+  "To have something implemented, open an issue with a `priority:*` label: the implementation loop picks it up.\n\n" +
+  "Prefix with `!` to execute immediately: `/lore ! runbook database failover`\nRetry a failed task: `/lore retry <task_id>`";
 
+// The removed types are still recognised as a type word, so creating the task answers that they are gone instead of filing their name as a description.
 const KNOWN_TASK_TYPES = [
-  "general",
-  "implementation",
+  ...RETIRED_TASK_TYPES,
   "runbook",
   "gap-fill",
   "review",
@@ -200,12 +203,7 @@ function retryCommand(words: string[], priority: string): SlashCommand | null {
     return null;
   }
 
-  return {
-    priority,
-    taskType: "general",
-    description: "",
-    retryTaskId: words[1],
-  };
+  return { priority, description: "", retryTaskId: words[1] };
 }
 
 /** A first word that names a known type claims it, otherwise the whole text is the description. */
@@ -214,7 +212,7 @@ function namedTaskCommand(words: string[], priority: string): SlashCommand {
 
   return {
     priority,
-    taskType: named ? words[0] : "general",
+    ...(named ? { taskType: words[0] } : {}),
     description: named ? words.slice(1).join(" ") : words.join(" "),
   };
 }

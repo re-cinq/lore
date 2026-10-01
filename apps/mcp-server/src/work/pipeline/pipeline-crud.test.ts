@@ -113,7 +113,7 @@ describe("retryTask", () => {
             id: TASK_ID,
             status: "failed",
             description: "do x",
-            task_type: "general",
+            task_type: "runbook",
             target_repo: "re-cinq/lore",
             created_by: "mcp",
           },

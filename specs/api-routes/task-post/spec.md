@@ -53,8 +53,8 @@ the `by-pr` / `timeline` / `/api/tasks` GET routes; method `POST` + exact path
 | _(none)_ create | `description` (non-blank)       | `task_type`, `target_repo`, `priority`, `context`, `created_by` |
 
 `status` must be one of `running`, `pr-created`, `completed`, `failed`,
-`needs-human-help`, `cancelled`. `task_type` is validated against
-`getTaskTypes()`; an unknown or missing type falls back to `general`.
+`needs-human-help`, `cancelled`. `task_type` is required and must name a task type `lore.agent_definitions`
+resolves; a missing, unknown or removed type is refused with `400` (there is no default type since #2329).
 `priority` on create defaults to `normal`.
 
 ### Response status codes
@@ -116,7 +116,7 @@ the `by-pr` / `timeline` / `/api/tasks` GET routes; method `POST` + exact path
 8. **Create (default)** — destructure `{ description, task_type, target_repo,
    priority, context, created_by }`:
    1. If `description?.trim()` is falsy → `400 { error: "description is required" }`.
-   2. `resolvedType = getTaskTypes().includes(task_type || "") ? task_type : "general"`.
+   2. `resolvedType = task_type`, refused with `400` when it is missing, names a removed type (`implementation`, `general`), or resolves to no agent definition a task can run as.
    3. `createTask(description, resolvedType, target_repo, created_by || "remote-mcp", context || undefined, priority || "normal")`.
       `created_by` is what preserves authorship now that the web UI's create
       pages queue through this route: they name the signed-in author, and an
@@ -162,55 +162,59 @@ Branch precedence is strict top-to-bottom: a `set-priority` action with no
 
 A null pool returns 503 before any body is read. ([validated by returns 503 when pool is null](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L67))
 
-A `retry` action returns the `retryTask` result verbatim. ([validated by retries a task](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L73))
+A `retry` action returns the `retryTask` result verbatim. A retry that is refused answers `409` with the reason, and `404` for a task that does not exist, as cancel, run-now and revise do; a failed `implementation` or `general` task cannot be retried, because its type was removed, and stays failed. ([validated by retries a task](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L73), [validated by answers 409 with the reason when retrying a failed implementation task, whose type was removed](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L80), [validated by answers 404 when retrying a task that does not exist](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L92), [validated by refuses to retry a failed implementation task, whose type was removed, and leaves it failed](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L227))
 
-A `cancel` action returns the cancelled task and its new status. ([validated by cancels a task](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L91))
+A `cancel` action returns the cancelled task and its new status. ([validated by cancels a task](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L110))
 
-Cancelling an unknown task id answers 404 rather than reporting success. ([validated by returns 404 when cancelling a task that does not exist](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L100))
+Cancelling an unknown task id answers 404 rather than reporting success. ([validated by returns 404 when cancelling a task that does not exist](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L119))
 
-Cancelling a merged task answers 409 with the refusal reason. ([validated by returns 409 when cancelling a merged task](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L110))
+Cancelling a merged task answers 409 with the refusal reason. ([validated by returns 409 when cancelling a merged task](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L129))
 
-A `cancel` action records the status transition in `pipeline.task_events`. ([validated by cancel records a task_events row for the status transition](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L382))
+A `cancel` action records the status transition in `pipeline.task_events`. ([validated by cancel records a task_events row for the status transition](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L458))
 
 A `cancel` action also ends every assembly run still open for the task, as `finished` with outcome `cancelled`, leaving other tasks' runs alone — a run left running kept its plan's subject lock, kept waiting on a closed spec PR, and was resumed by a later Retry (plan 3b3a67af, run 18773dbb, 2026-09-28). ([validated by cancels task t1 and ends its open run as cancelled, leaving task t2's run running](apps/lore-api/src/work/pipeline/cancel-task.test.ts#L20))
 
 A cancel the task refuses ends no run. ([validated by ends no run when the task itself cannot be cancelled](apps/lore-api/src/work/pipeline/cancel-task.test.ts#L52))
 
-A `run-now` action escalates a pending task and answers with its new priority. ([validated by escalates a pending task to immediate](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L122))
+A `run-now` action escalates a pending task and answers with its new priority. ([validated by escalates a pending task to immediate](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L141))
 
-Escalating an unknown task id answers 404 rather than reporting success. ([validated by returns 404 when escalating a task that does not exist](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L131))
+Escalating an unknown task id answers 404 rather than reporting success. ([validated by returns 404 when escalating a task that does not exist](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L150))
 
-Escalating a task past `pending` answers 409 with the refusal reason, because a caller told "ok" for a task that never moved cannot tell the difference. ([validated by returns 409 when escalating a running task](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L141))
+Escalating a task past `pending` answers 409 with the refusal reason, because a caller told "ok" for a task that never moved cannot tell the difference. ([validated by returns 409 when escalating a running task](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L160))
 
-A `revise` action queues a follow-up task from human feedback and answers with its id; an unknown task is 404 and blank feedback is 409, because an empty revision is worse than a refusal. ([validated by queues a revision and answers with the new task id](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L153), [returns 404 when revising a task that does not exist](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L171), [returns 409 when revising with blank feedback](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L183), [returns 409 when revising with no feedback field at all](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L193))
+A `revise` action queues a follow-up task from human feedback and answers with its id; an unknown task is 404 and blank feedback is 409, because an empty revision is worse than a refusal. ([validated by queues a revision and answers with the new task id](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L172), [returns 404 when revising a task that does not exist](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L212), [returns 409 when revising with blank feedback](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L224), [returns 409 when revising with no feedback field at all](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L234))
 
-`set-priority` with `immediate` echoes `immediate`. ([validated by sets immediate priority](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L203))
+`set-priority` with `immediate` echoes `immediate`. ([validated by sets immediate priority](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L244))
 
-`set-priority` with any other value normalizes to `normal`. ([validated by normalizes a non-immediate priority](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L219))
+`set-priority` with any other value normalizes to `normal`. ([validated by normalizes a non-immediate priority](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L260))
 
-`set-priority` updates only `pending` tasks with the resolved priority. ([validated by set-priority updates only pending tasks with the resolved priority](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L398))
+`set-priority` updates only `pending` tasks with the resolved priority. ([validated by set-priority updates only pending tasks with the resolved priority](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L474))
 
-`set-priority` missing `priority` falls through to the create branch and 400s on the missing description. ([validated by set-priority without a priority falls through to create and 400s](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L412))
+`set-priority` missing `priority` falls through to the create branch and 400s on the missing description. ([validated by set-priority without a priority falls through to create and 400s](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L488))
 
-A status update with `pr_url` and `error` returns the status envelope and writes all three columns. ([validated by updates status with pr_url and error](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L231))
+A status update with `pr_url` and `error` returns the status envelope and writes all three columns. ([validated by updates status with pr_url and error](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L272))
 
-A status update without optional fields still returns the status envelope. ([validated by updates status without optional fields](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L247))
+A status update without optional fields still returns the status envelope. ([validated by updates status without optional fields](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L288))
 
-An out-of-allow-list status returns 400. ([validated by rejects an invalid status](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L256))
+An out-of-allow-list status returns 400. ([validated by rejects an invalid status](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L297))
 
-A create with a known `task_type` calls `createTask` with that type: a type is known when `lore.agent_definitions` resolves it for the repo — an org default or the repo's own override. ([validated by creates a review task when lore.agent_definitions holds a review row](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L262))
+A create with a known `task_type` calls `createTask` with that type: a type is known when `lore.agent_definitions` resolves it for the repo — an org default or the repo's own override. ([validated by creates a review task when lore.agent_definitions holds a review row](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L303))
 
-A create attributes the task to the caller's `created_by`, falling back to `remote-mcp` when none is named. ([validated by attributes the task to the caller-supplied created_by](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L276), [attributes to remote-mcp when the caller names nobody](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L288))
+A create attributes the task to the caller's `created_by`, falling back to `remote-mcp` when none is named. ([validated by attributes the task to the caller-supplied created_by](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L317), [attributes to remote-mcp when the caller names nobody](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L336))
 
-A create with an unknown `task_type` falls back to `general`, and so does a station recipe (`execution_mode: station`), which runs as an assembly-line node, never as a task. ([validated by falls back to general for a zzz type no definition row names](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L300), [validated by falls back to general for def-validate, a station recipe no task can run as](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L323))
+A create with an unknown `task_type` is refused with `400` and creates nothing, and so is a station recipe (`execution_mode: station`), which runs as an assembly-line node, never as a task. ([validated by refuses a zzz type no definition row names, creating nothing](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L351), [validated by refuses def-validate, a station recipe no task can run as](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L365))
 
-A create with no `task_type` defaults to `general`. ([validated by defaults to general when no task_type is provided](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L337))
+A create with no `task_type` is refused with `400`: there is no default type since the `general` type was removed (#2329). So is a create naming `implementation` or `general`. Both answers point at the implementation loop: code is implemented from an issue with a `priority:*` label. ([validated by refuses a task with no task_type and points at the implementation loop](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L375), [validated by refuses the removed %s task type and points at the implementation loop](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L386))
 
-A create threads `group_id` through to `createTask` as its trailing argument when provided. ([validated by threads group_id through to createTask when provided](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L348))
+A create carries `context` and `priority` through to `createTask`. ([validated by carries the context and the priority of a runbook task through to createTask](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L401))
 
-A blank `description` returns 400. ([validated by returns 400 when description is blank](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L360))
+A `revise` of a task that is not a feature-request answers `409` and points at a review on the pull request. ([validated by answers 409 when revising a runbook task, pointing at a review on its pull request](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L192))
 
-Invalid JSON returns 500. ([validated by returns 400 on invalid JSON, not 500](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L366))
+A create threads `group_id` through to `createTask` as its trailing argument when provided. ([validated by threads group_id through to createTask when provided](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L421))
+
+A blank `description` returns 400. ([validated by returns 400 when description is blank](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L436))
+
+Invalid JSON returns 500. ([validated by returns 400 on invalid JSON, not 500](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L442))
 
 The route counts against the `task` rate bucket (60/min): the 61st POST to `/api/task` in the window trips 429. ([validated by `rate-limit.test.ts:71`](apps/lore-api/src/transport/http/rate-limit.test.ts#L68))
 

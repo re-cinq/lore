@@ -17,6 +17,7 @@ import type {
 import { z } from "zod";
 import { createTask } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
 import { PgAgentDefs } from "@re-cinq/lore-shared/project/agents/agent-defs-pg.js";
+import { namedTaskType } from "@re-cinq/lore-shared/task-types/retired-task-types.js";
 import { PgAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-pg.js";
 import { cancelTaskAndItsRuns } from "../../../work/pipeline/cancel-task.js";
 import { bearerScope } from "../../http/bearer-scope.js";
@@ -146,7 +147,7 @@ async function retryAction(
   const { retryTask } =
     await import("@re-cinq/lore-server-core/features/pipeline/pipeline.js");
 
-  return h.response(await retryTask(taskId));
+  return refusable(h, () => retryTask(taskId));
 }
 
 function reviseAction(
@@ -160,7 +161,7 @@ function reviseAction(
   return refusable(h, () => revisePipelineTask(pool, taskId, feedback));
 }
 
-// Refusable state transition (cancel, run-now): both shared seams throw "Task not found" (404) or a state message (409) — one mapping so the branches can't drift.
+// Refusable state transition (retry, cancel, run-now, revise): the shared seams throw "Task not found" (404) or a state message (409) — one mapping so the branches can't drift. A retry is refused when the task is not failed, and when its type was removed.
 async function refusable<T extends object>(
   h: ResponseToolkit,
   transition: () => Promise<T>,
@@ -324,15 +325,19 @@ function createTaskArgs(
   };
 }
 
-// A task type is one lore.agent_definitions resolves for the repo, org default or the repo's own; a station recipe is not a task.
+// A task type is one lore.agent_definitions resolves for the repo, org default or the repo's own; a station recipe is not a task. There is no default type: the one that stood in for a missing or unknown type is gone (#2329).
 async function resolvedTaskType(pool: Pool, parsed: TaskBody): Promise<string> {
-  if (!parsed.task_type) {
-    return "general";
-  }
+  const taskType = namedTaskType(parsed.task_type, apiError(400));
   const def = await new PgAgentDefs(pool).resolve(
     parsed.target_repo ?? "",
-    parsed.task_type,
+    taskType,
   );
 
-  return def && def.execution_mode !== "station" ? parsed.task_type : "general";
+  enforceTrue(
+    def && def.execution_mode !== "station",
+    apiError(400),
+    `"${taskType}" is not a task type: no agent definition of that name can run a task`,
+  );
+
+  return taskType;
 }

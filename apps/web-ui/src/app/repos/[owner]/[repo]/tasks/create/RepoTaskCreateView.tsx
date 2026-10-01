@@ -8,12 +8,10 @@ export interface RepoTaskCreateViewProps {
   createTaskAction: (formData: FormData) => void | Promise<void>;
 }
 
-/** The task types offerable from this form. A narrower set than the pipeline supports: `onboard` and `review` are started by the platform rather than typed in here. */
+/** The task types offerable from this form. A narrower set than the pipeline supports: `onboard` and `review` are started by the platform rather than typed in here. Code is not implemented from here: that is a ticket in the repository's backlog, which the implementation loop picks up. */
 const TASK_TYPE_OPTIONS = [
   { value: "feature-request", label: "Feature Request" },
-  { value: "general", label: "General" },
   { value: "runbook", label: "Runbook" },
-  { value: "implementation", label: "Implementation" },
   { value: "gap-fill", label: "Gap Fill" },
 ];
 

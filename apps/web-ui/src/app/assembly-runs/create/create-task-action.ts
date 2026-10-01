@@ -39,7 +39,7 @@ export async function createTask(formData: FormData) {
 function readCreateTaskFields(formData: FormData): CreateTaskFields {
   return {
     description: formData.get("description") as string | null,
-    taskType: (formData.get("task_type") as string) || "general",
+    taskType: formData.get("task_type") as string,
     targetRepo: (formData.get("target_repo") as string) || "re-cinq/lore",
     priority: formData.get("priority") === "immediate" ? "immediate" : "normal",
   };

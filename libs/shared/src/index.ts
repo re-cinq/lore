@@ -286,10 +286,6 @@ export {
   type LeasePool,
   type AcquireResult,
 } from "./outbound/project/leases/lease-backends.js";
-export {
-  buildReviewFixDescription,
-  formatReviewFeedback,
-} from "./work/review-feedback.js";
 // Deterministic repo validation (lint/typecheck), relocated from mcp-server for the BYO toolchain sidecar (ADR-025).
 export {
   detectTooling,

@@ -57,15 +57,16 @@ HTTP ingress: the GitHub branch of `POST /api/events` on the event-router (ADR-0
     are one declaration, or a seeded label dispatches as the repo's default type
     instead of the one it names, and a task type removed from `task-types.yaml`
     leaves a label behind that creates tasks no handler serves:
-    - `lore:implementation` → implementation
+    - `lore:implementation` → the implementation loop's backlog (no task; see below)
     - `lore:review` → review
     - `lore:runbook` → runbook
     - `lore:triage` → issue-triage (`apps/floor/src/events/handlers/github.ts` + `libs/shared/src/domain/task-types/dispatch-labels.ts`)
     - `triage: needs-triage` → issue-triage (`apps/floor/src/events/handlers/github.ts` + `libs/shared/src/domain/task-types/dispatch-labels.ts`)
-    - `lore` (alone) → the repo's `dispatch_default_type` (general by default)
-    ([validated by reads implementation off a lore:implementation label](libs/shared/src/domain/task-types/dispatch-labels.test.ts#L5), [`dispatch-labels.test.ts:11`](libs/shared/src/domain/task-types/dispatch-labels.test.ts#L11), [`dispatch-labels.test.ts:16`](libs/shared/src/domain/task-types/dispatch-labels.test.ts#L16), [`dispatch-labels.test.ts:22`](libs/shared/src/domain/task-types/dispatch-labels.test.ts#L22))
+    - `lore` (alone) → the repo's `dispatch_default_type`; with none configured, or one still naming the removed `general` or `implementation` type, the implementation loop's backlog
+    ([validated by reads the backlog off a lore:implementation label](libs/shared/src/domain/task-types/dispatch-labels.test.ts#L9), [`dispatch-labels.test.ts:11`](libs/shared/src/domain/task-types/dispatch-labels.test.ts#L15), [`dispatch-labels.test.ts:16`](libs/shared/src/domain/task-types/dispatch-labels.test.ts#L20), [`dispatch-labels.test.ts:22`](libs/shared/src/domain/task-types/dispatch-labels.test.ts#L26))
   - *(Planned — `specs/issue-triage`, not yet implemented:)* `lore:triage` and `triage: needs-triage` → issue-triage.
-  - Create pipeline task with issue context
+  - *(Since 2026-10-01, #2328 and #2329.)* An Issue to be implemented becomes no task: it joins the repository's backlog. It gets `priority:medium` when it carries no priority label, and a comment saying it is queued, or that the loop is switched off for the repository and nothing picks it up until it is switched on. ([validated by sends an issue labelled only lore to the backlog when the repository configures no default](libs/shared/src/domain/task-types/dispatch-labels.test.ts#L34), [validated by sends an issue labelled only lore to a runbook task when the repository's default is runbook](libs/shared/src/domain/task-types/dispatch-labels.test.ts#L38), [validated by sends an issue to the backlog when the repository's default is still the removed %s type](libs/shared/src/domain/task-types/dispatch-labels.test.ts#L42), [validated by lets a lore:review label win over the repository's runbook default](libs/shared/src/domain/task-types/dispatch-labels.test.ts#L49), [validated by labels issue 7 priority:medium and says the loop picks it up, when it carries no priority](libs/shared/src/work/backlog/queue-ticket.test.ts#L24), [validated by leaves the priority:high of issue 7 as it is](libs/shared/src/work/backlog/queue-ticket.test.ts#L38), [validated by queues issue 7 and says nothing will pick it up while the loop is off for acme/widgets](libs/shared/src/work/backlog/queue-ticket.test.ts#L51))
+  - Otherwise: create pipeline task with issue context
   - Comment on issue: "Lore agent is working on this. Task: `{id}`"
   - Add `lore-managed` label to the issue
 
@@ -111,11 +112,11 @@ Per-repo setting in `lore.repos.settings`:
 ```json
 {
   "dispatch_label": "lore",
-  "dispatch_default_type": "implementation"
+  "dispatch_default_type": "runbook"
 }
 ```
 
-Defaults: label=`lore`, type=`general`.
+Defaults: label=`lore`, type none (the Issue joins the implementation loop's backlog).
 
 ### Webhook Payload (issues.labeled)
 

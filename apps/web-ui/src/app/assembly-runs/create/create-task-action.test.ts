@@ -47,14 +47,16 @@ describe("createTask", () => {
     expect(redirect).not.toHaveBeenCalled();
   });
 
-  it("queues a task with defaults when only description is given", async () => {
+  it("queues a runbook task on re-cinq/lore at normal priority when only the description and the type are given", async () => {
     queueTask.mockResolvedValue({ status: "ok", data: { task_id: "t-1" } });
 
-    await createTask(formData({ description: "fix the thing" }));
+    await createTask(
+      formData({ description: "fix the thing", task_type: "runbook" }),
+    );
 
     expect(queueTask).toHaveBeenCalledWith({
       description: "fix the thing",
-      taskType: "general",
+      taskType: "runbook",
       targetRepo: "re-cinq/lore",
       priority: "normal",
       createdBy: "ui",

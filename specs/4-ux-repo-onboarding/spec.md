@@ -125,7 +125,7 @@ the Functional Requirements below. The acceptance-criteria bullets that carry
 - Task creation is scoped to the current repo (no free-text input):
   the heading names the full repo, a hidden `target_repo` carries it,
   and the form exposes a description textarea and immediate-priority
-  checkbox. ([validated by `RepoTaskCreateView.test.tsx:21`](apps/web-ui/src/app/repos/[owner]/[repo]/tasks/create/RepoTaskCreateView.test.tsx#L21), [`RepoTaskCreateView.test.tsx:9`](apps/web-ui/src/app/repos/[owner]/[repo]/tasks/create/RepoTaskCreateView.test.tsx#L9), [`RepoTaskCreateView.test.tsx:55`](apps/web-ui/src/app/repos/[owner]/[repo]/tasks/create/RepoTaskCreateView.test.tsx#L55))
+  checkbox. ([validated by `RepoTaskCreateView.test.tsx:21`](apps/web-ui/src/app/repos/[owner]/[repo]/tasks/create/RepoTaskCreateView.test.tsx#L21), [`RepoTaskCreateView.test.tsx:9`](apps/web-ui/src/app/repos/[owner]/[repo]/tasks/create/RepoTaskCreateView.test.tsx#L9), [`RepoTaskCreateView.test.tsx:55`](apps/web-ui/src/app/repos/[owner]/[repo]/tasks/create/RepoTaskCreateView.test.tsx#L45))
 - Repo dropdown only shows repos where the GitHub App is installed.
 - Task appears in the repo's task list immediately.
 
@@ -420,10 +420,10 @@ The system MUST reorganize the UI around repos. ([validated by `HomeView.test.ts
   native `<select>` option popups are pinned to theme surface tokens (no
   per-control hardcoding). ([validated by `globals-styling.test.ts:11`](apps/web-ui/src/app/globals-styling.test.ts#L11), [`globals-styling.test.ts:15`](apps/web-ui/src/app/globals-styling.test.ts#L15), [`globals-styling.test.ts:23`](apps/web-ui/src/app/globals-styling.test.ts#L23))
 - FR-4.2: Repo selector is a dropdown populated from the registry,
-  not free text. ([validated by `AssemblyRunCreateView.test.tsx:39`](apps/web-ui/src/app/assembly-runs/create/AssemblyRunCreateView.test.tsx#L39))
+  not free text. ([validated by `AssemblyRunCreateView.test.tsx:39`](apps/web-ui/src/app/assembly-runs/create/AssemblyRunCreateView.test.tsx#L32))
 - FR-4.3: Task type selector shows descriptions, not just names —
   describing the first option by default, updating the description on
-  change, and keeping the `task_type` field name for submission. ([validated by `RepoTaskCreateView.test.tsx:34`](apps/web-ui/src/app/repos/[owner]/[repo]/tasks/create/RepoTaskCreateView.test.tsx#L34), [`TaskTypeSelect.test.tsx:12`](apps/web-ui/src/components/TaskTypeSelect.test.tsx#L12), [`TaskTypeSelect.test.tsx:19`](apps/web-ui/src/components/TaskTypeSelect.test.tsx#L19), [`TaskTypeSelect.test.tsx:29`](apps/web-ui/src/components/TaskTypeSelect.test.tsx#L29))
+  change, and keeping the `task_type` field name for submission. ([validated by offers the Feature Request, Runbook and Gap Fill task types, and no type that implements code](apps/web-ui/src/app/repos/[owner]/[repo]/tasks/create/RepoTaskCreateView.test.tsx#L34), [`TaskTypeSelect.test.tsx:12`](apps/web-ui/src/components/TaskTypeSelect.test.tsx#L12), [`TaskTypeSelect.test.tsx:19`](apps/web-ui/src/components/TaskTypeSelect.test.tsx#L19), [`TaskTypeSelect.test.tsx:29`](apps/web-ui/src/components/TaskTypeSelect.test.tsx#L29))
 - FR-4.4: Forms have proper labels, validation, and error states; the
   shared submit button shows its idle label while enabled and swaps to
   the pending label and disables while the form is pending (keeping its

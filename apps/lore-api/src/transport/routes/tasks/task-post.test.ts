@@ -77,6 +77,25 @@ describe("POST /api/task", () => {
     expect(res.result).toEqual({ task_id: "new" });
   });
 
+  it("answers 409 with the reason when retrying a failed implementation task, whose type was removed", async () => {
+    vi.mocked(retryTask).mockRejectedValue(
+      new Error('The "implementation" task type was removed.'),
+    );
+    const res = await post({ action: "retry", task_id: "old" });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.result).toEqual({
+      error: 'The "implementation" task type was removed.',
+    });
+  });
+
+  it("answers 404 when retrying a task that does not exist", async () => {
+    vi.mocked(retryTask).mockRejectedValue(new Error("Task not found"));
+    const res = await post({ action: "retry", task_id: "gone" });
+
+    expect(res.statusCode).toBe(404);
+  });
+
   function poolWithTask(status: string) {
     const pool = makePool();
 
@@ -155,7 +174,9 @@ describe("POST /api/task", () => {
 
     pool.query
       .mockResolvedValueOnce({
-        rows: [{ id: "t1", status: "pr-created", task_type: "implementation" }],
+        rows: [
+          { id: "t1", status: "pr-created", task_type: "feature-request" },
+        ],
       })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [{ id: "rev-1" }] })
@@ -166,6 +187,26 @@ describe("POST /api/task", () => {
     );
 
     expect(res.result).toEqual({ task_id: "t1", revision_task_id: "rev-1" });
+  });
+
+  it("answers 409 when revising a runbook task, pointing at a review on its pull request", async () => {
+    const pool = makePool();
+
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ id: "t1", status: "pr-created", task_type: "runbook" }],
+      })
+      .mockResolvedValue({ rows: [] });
+    const res = await post(
+      { action: "revise", task_id: "t1", feedback: "tighten it" },
+      pool,
+    );
+
+    expect(res.statusCode).toBe(409);
+    expect(res.result).toEqual({
+      error:
+        "Only a feature-request task is revised from here. For any other pull request, leave the feedback as a review that requests changes: Lore answers it on the pull request.",
+    });
   });
 
   it("returns 404 when revising a task that does not exist", async () => {
@@ -275,11 +316,18 @@ describe("POST /api/task", () => {
 
   it("attributes the task to the caller-supplied created_by", async () => {
     vi.mocked(createTask).mockResolvedValue({ task_id: "t1" } as never);
-    await post({ description: "d", created_by: "bogdan@re-cinq.com" });
+    await post(
+      {
+        description: "d",
+        task_type: "runbook",
+        created_by: "bogdan@re-cinq.com",
+      },
+      poolWithDefinition("runbook", "claude-code"),
+    );
 
     expect(createTask).toHaveBeenCalledWith({
       description: "d",
-      taskType: "general",
+      taskType: "runbook",
       createdBy: "bogdan@re-cinq.com",
       priority: "normal",
     });
@@ -287,70 +335,98 @@ describe("POST /api/task", () => {
 
   it("attributes to remote-mcp when the caller names nobody", async () => {
     vi.mocked(createTask).mockResolvedValue({ task_id: "t1" } as never);
-    await post({ description: "d" });
+    await post(
+      { description: "d", task_type: "runbook" },
+      poolWithDefinition("runbook", "claude-code"),
+    );
 
     expect(createTask).toHaveBeenCalledWith({
       description: "d",
-      taskType: "general",
+      taskType: "runbook",
       createdBy: "remote-mcp",
       priority: "normal",
     });
   });
 
-  it("falls back to general for a zzz type no definition row names", async () => {
+  it("refuses a zzz type no definition row names, creating nothing", async () => {
     const pool = makePool();
 
     pool.query.mockResolvedValue({ rows: [] });
+    const res = await post({ description: "do it", task_type: "zzz" }, pool);
+
+    expect(res.statusCode).toBe(400);
+    expect(res.result).toEqual({
+      error:
+        '"zzz" is not a task type: no agent definition of that name can run a task',
+    });
+    expect(createTask).not.toHaveBeenCalled();
+  });
+
+  it("refuses def-validate, a station recipe no task can run as", async () => {
+    const res = await post(
+      { description: "do it", task_type: "def-validate" },
+      poolWithDefinition("def-validate", "station"),
+    );
+
+    expect(res.statusCode).toBe(400);
+    expect(createTask).not.toHaveBeenCalled();
+  });
+
+  it("refuses a task with no task_type and points at the implementation loop", async () => {
+    const res = await post({ description: "do it" });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.result).toEqual({
+      error:
+        "task_type is required: a task with no type has nothing to run it. To have something implemented, open an issue with a priority:high, priority:medium or priority:low label and the implementation loop picks it up.",
+    });
+    expect(createTask).not.toHaveBeenCalled();
+  });
+
+  it.each(["implementation", "general"])(
+    "refuses the removed %s task type and points at the implementation loop",
+    async (removed) => {
+      const res = await post({ description: "do it", task_type: removed });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.result).toMatchObject({
+        error: expect.stringContaining(
+          `The "${removed}" task type was removed.`,
+        ),
+      });
+      expect(createTask).not.toHaveBeenCalled();
+    },
+  );
+
+  it("carries the context and the priority of a runbook task through to createTask", async () => {
     vi.mocked(createTask).mockResolvedValue({ task_id: "c2" } as any);
     await post(
       {
         description: "do it",
-        task_type: "zzz",
+        task_type: "runbook",
         context: { a: 1 },
         priority: "immediate",
       },
-      pool,
+      poolWithDefinition("runbook", "claude-code"),
     );
     expect(createTask).toHaveBeenCalledWith({
       description: "do it",
-      taskType: "general",
+      taskType: "runbook",
       createdBy: "remote-mcp",
       contextBundle: { a: 1 },
       priority: "immediate",
     });
   });
 
-  it("falls back to general for def-validate, a station recipe no task can run as", async () => {
-    vi.mocked(createTask).mockResolvedValue({ task_id: "c5" } as any);
+  it("threads group_id through to createTask when provided", async () => {
+    vi.mocked(createTask).mockResolvedValue({ task_id: "c4" } as any);
     await post(
-      { description: "do it", task_type: "def-validate" },
-      poolWithDefinition("def-validate", "station"),
+      { description: "do it", task_type: "runbook", group_id: "g-1" },
+      poolWithDefinition("runbook", "claude-code"),
     );
     expect(createTask).toHaveBeenCalledWith({
       description: "do it",
-      taskType: "general",
-      createdBy: "remote-mcp",
-      priority: "normal",
-    });
-  });
-
-  it("defaults to general when no task_type is provided", async () => {
-    vi.mocked(createTask).mockResolvedValue({ task_id: "c3" } as any);
-    await post({ description: "do it" });
-    expect(createTask).toHaveBeenCalledWith({
-      description: "do it",
-      taskType: "general",
-      createdBy: "remote-mcp",
-      priority: "normal",
-    });
-  });
-
-  it("threads group_id through to createTask when provided", async () => {
-    vi.mocked(createTask).mockResolvedValue({ task_id: "c4" } as any);
-    await post({ description: "do it", group_id: "g-1" });
-    expect(createTask).toHaveBeenCalledWith({
-      description: "do it",
-      taskType: "general",
+      taskType: "runbook",
       createdBy: "remote-mcp",
       priority: "normal",
       taskGroupId: "g-1",

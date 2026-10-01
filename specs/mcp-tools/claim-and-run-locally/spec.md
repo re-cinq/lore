@@ -82,13 +82,13 @@ the ingest result, the "Claimed and running locally" report, or `"Error: …"`.
 ## Acceptance Criteria
 
 `skipTask` removes a task from the pending list by id, leaving the rest.
-([validated by `skipTask filters a task by id from the pending file`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L151))
+([validated by `skipTask filters a task by id from the pending file`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L152))
 
 `listPendingTasks` returns an array (empty when the backing file is absent).
-([validated by `listPendingTasks returns empty array when file is missing`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L145))
+([validated by `listPendingTasks returns empty array when file is missing`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L146))
 
 `validateRepoMatch` (invoked inside `spawnLocalTask`) throws on a cwd/target-repo
-mismatch. ([validated by `throws when cwd repo differs from task repo`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L206))
+mismatch. ([validated by `throws when cwd repo differs from task repo`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L207))
 
 The full claim flow (API fetch, claim POST, ingest dispatch, worktree spawn) is
 exercised only end-to-end. *(untested: the orchestration depends on network
@@ -102,15 +102,15 @@ credentials are absent, `undefined` on a non-ok response or a non-`pending`
 status, the mapped task fields on success, and `undefined` when the request
 throws. ([validated by `returns undefined without fetching when the API URL or
 token is not
-configured`](../../../apps/mcp-server/src/transport/tools/local-runner-tools.local.test.ts#L73),
+configured`](../../../apps/mcp-server/src/transport/tools/local-runner-tools.local.test.ts#L74),
 [`returns undefined when the API responds
-non-ok`](../../../apps/mcp-server/src/transport/tools/local-runner-tools.local.test.ts#L84),
+non-ok`](../../../apps/mcp-server/src/transport/tools/local-runner-tools.local.test.ts#L85),
 [`returns undefined when the fetched task is not
-pending`](../../../apps/mcp-server/src/transport/tools/local-runner-tools.local.test.ts#L94),
+pending`](../../../apps/mcp-server/src/transport/tools/local-runner-tools.local.test.ts#L95),
 [`returns the pending task's fields on
-success`](../../../apps/mcp-server/src/transport/tools/local-runner-tools.local.test.ts#L117),
+success`](../../../apps/mcp-server/src/transport/tools/local-runner-tools.local.test.ts#L118),
 [`returns undefined when the request
-throws`](../../../apps/mcp-server/src/transport/tools/local-runner-tools.local.test.ts#L148))
+throws`](../../../apps/mcp-server/src/transport/tools/local-runner-tools.local.test.ts#L149))
 
 ## Out of Scope
 

@@ -40,7 +40,7 @@ Enqueues a new server-side pipeline task and returns its UUID and a pickup hint.
 | Param | Type | Required | Default | Constraint / notes |
 |-------|------|----------|---------|--------------------|
 | `description` | string | yes | — | Primary natural-language instruction; max 32000 chars, non-empty. |
-| `task_type` | string | no | `"general"` | `feature-request` \| `onboard` \| `general` \| `runbook` \| `implementation` \| `gap-fill` \| `review`. Unknown → falls back to `general`. |
+| `task_type` | string | yes | — | `feature-request` \| `runbook` \| `gap-fill` \| `review`. No default; an unknown or removed type (`implementation`, `general`) is refused. `onboard` is refused here. |
 | `target_repo` | string | no | — | `owner/repo`. Auto-detected from git remote when omitted. |
 | `priority` | enum | no | `"normal"` | `normal` = backlog; `immediate` = GKE agent auto-executes within ~30s. |
 | `group_id` | string | no | — | Task-group UUID to link into a multi-repo feature rollup. |
@@ -64,7 +64,7 @@ Enqueues a new server-side pipeline task and returns its UUID and a pickup hint.
      On success format the success message (below) using `result.task_id` and
      `result.task_type || task_type`.
    - **DB mode (`LORE_DB_HOST` set)** — `validTypes = getTaskTypes()`;
-     `resolvedType = validTypes.includes(task_type) ? task_type : "general"`.
+     `resolvedType = task_type`; a missing or removed type is refused (`namedTaskType`).
      Call `createTask(desc, resolvedType, resolvedRepo, "mcp", context || undefined, priority, group_id)`
      ([handler wrapper](../../../libs/server-core/src/work/pipeline/pipeline.ts#L71)).
 4. **Shared CRUD** ([`createTask`](../../../libs/shared/src/domain/pipeline-task-core.ts#L114)) — rejects descriptions
@@ -106,14 +106,14 @@ retry path, which calls the same shared `createTask`.
 
 An empty or whitespace-only description is rejected by the input schema before
 any insert; a normal description is accepted.
-([validated by `rejects an empty task description`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L164), [validated by `rejects a whitespace-only task description`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L172), [validated by `accepts an in-range task description`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L180))
+([validated by `rejects an empty task description`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L164), [validated by `rejects a whitespace-only task description`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L172), [validated by accepts an in-range description for a runbook task](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L180))
 
 The target repo defaults to the git remote when `target_repo` is omitted; an
 explicit value wins.
 *(untested: `detectCurrentRepo()` reads the ambient git remote — no deterministic seam without live repo state.)*
 
-A task type outside the known catalogue falls back to `general`.
-*(untested: the fallback is inline in the handler closure and not separately exported.)*
+A task must name its type: the input schema rejects a call with no `task_type`, and task creation refuses a missing type and the removed `implementation` and `general` types, pointing at the implementation loop, in the Postgres store and the in-memory one alike.
+([validated by rejects a task that names no task_type, since there is no default type](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L188), [validated by answers runbook for a task of type runbook](libs/shared/src/domain/task-types/retired-task-types.test.ts#L5), [validated by refuses a task with no type, pointing at the implementation loop](libs/shared/src/domain/task-types/retired-task-types.test.ts#L9), [validated by refuses the removed %s task type, pointing at the implementation loop](libs/shared/src/domain/task-types/retired-task-types.test.ts#L17), [validated by refuses a task with no type, as the Postgres store does](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L99))
 
 A description over 32000 chars (`MAX_TASK_DESCRIPTION_CHARS`, one shared constant) is rejected by the input schema (and, on the DB
 path, by the shared CRUD).
@@ -121,22 +121,22 @@ path, by the shared CRUD).
 
 `task_type: "onboard"` is refused before the local/remote split and the caller is
 pointed at `lore_onboard_repo`, whose transaction holds the duplicate-onboard
-guard. ([validated by `refuses task_type onboard and names lore_onboard_repo instead`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L263))
+guard. ([validated by `refuses task_type onboard and names lore_onboard_repo instead`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L271))
 
 With no `LORE_API_URL`/`LORE_INGEST_TOKEN` configured, the tool returns a
 not-configured message; on success the response names the immediate-priority
 pickup hint; a 401 is reported as a denied error. ([validated by `returns the
 not-configured message when the env is
-unset`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L283), [`reports
+unset`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L291), [`reports
 the immediate pickup hint on
-success`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L298), [`reports
+success`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L306), [`reports
 a denied error on a
-401`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L318))
+401`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L326))
 
 The shared trust gate allows `onboard` at every trust tier — it produces a
 docs-only scaffolding PR and is guarded against duplicates by its own route, so
 restricting it to `full` would only break the reonboard repair path on
-auto-promoted repos — while a genuinely disallowed type is still refused. ([validated by `allows an onboard task at trust level %s`](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L33), [`still refuses an implementation task at trust level docs`](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L48))
+auto-promoted repos — while a genuinely disallowed type is still refused. ([validated by `allows an onboard task at trust level %s`](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L33), [validated by still refuses a feature-request task at trust level docs](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L48))
 
 `buildContextBundle` (`apps/lore-api/src/work/pipeline/context-bundle.ts`) assembles this same `context` shape (`pipeline_task_id`, `spec_file`, `seed_query`, `branch`) into the markdown sections handed to an agent: an absent or empty `context` renders an empty string. ([validated by `returns an empty string for no context`](apps/lore-api/src/work/pipeline/context-bundle.test.ts#L14), [`returns an empty string for an empty context object`](apps/lore-api/src/work/pipeline/context-bundle.test.ts#L18))
 

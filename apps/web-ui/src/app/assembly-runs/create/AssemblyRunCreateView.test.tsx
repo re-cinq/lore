@@ -18,22 +18,15 @@ describe("AssemblyRunCreateView", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders all four task-type options", () => {
-    render(
+  it("offers the Runbook and Gap Fill task types, and no type that implements code", () => {
+    const { container } = render(
       <AssemblyRunCreateView onboardedRepos={[]} createTaskAction={action} />,
     );
-    expect(screen.getByRole("option", { name: "General" })).toHaveValue(
-      "general",
+    const taskTypes = [...container.querySelectorAll("#task_type option")].map(
+      (option) => (option as HTMLOptionElement).value,
     );
-    expect(screen.getByRole("option", { name: "Runbook" })).toHaveValue(
-      "runbook",
-    );
-    expect(screen.getByRole("option", { name: "Implementation" })).toHaveValue(
-      "implementation",
-    );
-    expect(screen.getByRole("option", { name: "Gap Fill" })).toHaveValue(
-      "gap-fill",
-    );
+
+    expect(taskTypes).toEqual(["runbook", "gap-fill"]);
   });
 
   it("renders a target_repo dropdown option per onboarded repo when repos exist", () => {

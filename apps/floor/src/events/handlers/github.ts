@@ -22,7 +22,11 @@ import {
   resumeDecomposition,
 } from "@re-cinq/lore-shared/project/assembly-runs/decompose-resume.js";
 import type { EventHandler } from "../../domain/event-types.js";
-import { dispatchTypeFromLabels } from "@re-cinq/lore-shared/task-types/dispatch-labels.js";
+import {
+  BACKLOG_DISPATCH,
+  issueDispatchTarget,
+} from "@re-cinq/lore-shared/task-types/dispatch-labels.js";
+import { queueTicket } from "@re-cinq/lore-shared/backlog/queue-ticket.js";
 
 /** Resolve the backing pipeline task for a PR and re-evaluate auto-merge (no-op if none). */
 async function autoMergeForPR(repo: string, prNumber: number): Promise<void> {
@@ -51,30 +55,22 @@ export const onReviewSubmitted: EventHandler = async (params) => {
 
 interface IssueDispatchSettings {
   dispatchLabel: string;
-  dispatchDefaultType: string;
+  /** Absent unless the repository configured one: with none, a labelled Issue joins the backlog. */
+  dispatchDefaultType?: string;
 }
 
-/** Parses the repo's raw settings blob (string or already-parsed) into dispatch label/type, falling back to defaults. */
+/** Parses the repo's raw settings blob (string or already-parsed) into dispatch label/type. */
 function resolveIssueDispatch(repoSettings: unknown): IssueDispatchSettings {
-  const defaults: IssueDispatchSettings = {
-    dispatchLabel: "lore",
-    dispatchDefaultType: "general",
-  };
-
-  if (!repoSettings) {
-    return defaults;
-  }
-  const parsed = (
-    typeof repoSettings === "string" ? JSON.parse(repoSettings) : repoSettings
-  ) as {
+  const parsed = ((typeof repoSettings === "string"
+    ? JSON.parse(repoSettings)
+    : repoSettings) ?? {}) as {
     dispatch_label?: string;
     dispatch_default_type?: string;
   };
 
   return {
-    dispatchLabel: parsed.dispatch_label || defaults.dispatchLabel,
-    dispatchDefaultType:
-      parsed.dispatch_default_type || defaults.dispatchDefaultType,
+    dispatchLabel: parsed.dispatch_label || "lore",
+    dispatchDefaultType: parsed.dispatch_default_type,
   };
 }
 
@@ -166,7 +162,7 @@ export const issuesLabeled: EventHandler = async (params) => {
   }
 
   // The same table onboarding seeds the repo from — GIVEN and UNDERSTOOD labels must be one declaration, or a seeded label silently dispatches as the default type.
-  const taskType = dispatchTypeFromLabels(issue.labels) ?? dispatchDefaultType;
+  const target = issueDispatchTarget(issue.labels, dispatchDefaultType);
 
   const issues = (await projectFor(repo)).issues;
 
@@ -174,8 +170,24 @@ export const issuesLabeled: EventHandler = async (params) => {
     return;
   }
 
-  await fileIssueTask(repo, issue, taskType, issues);
+  if (target === BACKLOG_DISPATCH) {
+    await queueTicket(backlogDeps(issues), { repo, issue });
+
+    return;
+  }
+
+  await fileIssueTask(repo, issue, target, issues);
 };
+
+function backlogDeps(
+  issues: Awaited<ReturnType<typeof projectFor>>["issues"],
+): Parameters<typeof queueTicket>[0] {
+  return {
+    rawSettings: (repo) => settings().rawSettings(repo),
+    addLabel: (issueNumber, label) => issues.addLabel(issueNumber, label),
+    comment: (issueNumber, body) => issues.comment(issueNumber, body),
+  };
+}
 
 /** pull_request closed+merged: wake the line waiting for that PR. Previously unreachable — a feature-planning task's null `pr_number` (the push node stamps only the LINE's args) meant a merged spec PR decomposed on no deployment; this reads the merge directly, needing no task row, and still targets a NODE so a line sharing the PR but not waiting on it is passed over. */
 export const specPrResumeLine: EventHandler = async (params) => {

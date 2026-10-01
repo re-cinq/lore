@@ -7,11 +7,9 @@ export interface AssemblyRunCreateViewProps {
   createTaskAction: (formData: FormData) => void | Promise<void>;
 }
 
-/** The task types a human can start from this form. Narrower than the full set on purpose: onboard and review are started by the platform in response to something, not typed in here. */
+/** The task types a human can start from this form. Narrower than the full set on purpose: onboard and review are started by the platform in response to something, not typed in here. Code is not implemented from here: that is a ticket in the repository's backlog, which the implementation loop picks up. */
 const TASK_TYPE_OPTIONS = [
-  { value: "general", label: "General" },
   { value: "runbook", label: "Runbook" },
-  { value: "implementation", label: "Implementation" },
   { value: "gap-fill", label: "Gap Fill" },
 ];
 

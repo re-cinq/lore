@@ -31,25 +31,15 @@ describe("RepoTaskCreateView", () => {
     );
   });
 
-  it("renders every task-type option", () => {
-    render(
+  it("offers the Feature Request, Runbook and Gap Fill task types, and no type that implements code", () => {
+    const { container } = render(
       <RepoTaskCreateView fullName="re-cinq/lore" createTaskAction={action} />,
     );
-    expect(screen.getByRole("option", { name: "Feature Request" })).toHaveValue(
-      "feature-request",
+    const taskTypes = [...container.querySelectorAll("#task_type option")].map(
+      (option) => (option as HTMLOptionElement).value,
     );
-    expect(screen.getByRole("option", { name: "General" })).toHaveValue(
-      "general",
-    );
-    expect(screen.getByRole("option", { name: "Runbook" })).toHaveValue(
-      "runbook",
-    );
-    expect(screen.getByRole("option", { name: "Implementation" })).toHaveValue(
-      "implementation",
-    );
-    expect(screen.getByRole("option", { name: "Gap Fill" })).toHaveValue(
-      "gap-fill",
-    );
+
+    expect(taskTypes).toEqual(["feature-request", "runbook", "gap-fill"]);
   });
 
   it("renders the description textarea and the immediate-priority checkbox", () => {

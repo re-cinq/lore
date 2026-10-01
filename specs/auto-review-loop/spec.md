@@ -257,7 +257,7 @@ review:
 1. Implementation PR → review LoreTask CR created automatically (when auto_review enabled)
 2. Review Job pod clones repo, reads spec + diff, posts PR comments
 3. Approved: parent task marked as `review/approved` ([validated by `pipeline.test.ts:69`](libs/server-core/src/work/pipeline/pipeline.test.ts#L64), [`pipeline.test.ts:53`](libs/server-core/src/work/pipeline/pipeline.test.ts#L53))
-4. Changes requested (iteration < 2): new implementation LoreTask with feedback, same branch ([validated by `review-feedback.test.ts`](libs/shared/src/work/review-feedback.test.ts), [`pipeline.test.ts:113`](libs/server-core/src/work/pipeline/pipeline.test.ts#L113))
+4. Changes requested (iteration < 2): new task with the feedback, same branch. _(Retired 2026-10-01 for the Floor watcher: it no longer starts a review of the pull requests it opens, reads a review verdict, or files an `implementation` fix task; that task type is gone (#2328). The `code-review` line reviews the pull request and `code-review-reply` answers a request for changes on it.)_ ([validated by `pipeline.test.ts:113`](libs/server-core/src/work/pipeline/pipeline.test.ts#L113))
 
 5. Changes requested (iteration >= 2): escalate with `needs-human-review` label ([validated by `pipeline.test.ts:90`](libs/server-core/src/work/pipeline/pipeline.test.ts#L85))
 6. Review completes in <5 min
@@ -295,9 +295,7 @@ and the webhook/verdict plumbing it rides on.
    `github.pull_request_review_comment.created` with author/id/body; a non-created review comment is
    ignored. ([validated by `github-map.test.ts:187`](libs/shared/src/outbound/project/events/github-map.test.ts#L193), [`github-map.test.ts:214`](libs/shared/src/outbound/project/events/github-map.test.ts#L220), [`github-map.test.ts:246`](libs/shared/src/outbound/project/events/github-map.test.ts#L252))
 
-8. The watcher parses the agent's review verdict from stdout: `REVIEW_RESULT:APPROVED` → `approved`,
-   `CHANGES_REQUESTED` (with trailing feedback) → `changes_requested`, and no marker or absent output
-   → undefined. ([validated by `agent-watcher-logic.test.ts:34`](apps/floor/src/domain/agent-watcher-logic.test.ts#L37), [`agent-watcher-logic.test.ts:43`](apps/floor/src/domain/agent-watcher-logic.test.ts#L42), [`agent-watcher-logic.test.ts:48`](apps/floor/src/domain/agent-watcher-logic.test.ts#L47), [`agent-watcher-logic.test.ts:208`](apps/floor/src/domain/agent-watcher-logic.test.ts#L179))
+8. _(Retired 2026-10-01.)_ The Floor watcher no longer parses a review verdict from an agent's stdout: nothing acts on one since its fix loop was removed (#2328). A review node's verdict is still read by the station contract's `parseReviewVerdict`.
 
 
 
