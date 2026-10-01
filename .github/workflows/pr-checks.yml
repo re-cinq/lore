@@ -307,11 +307,17 @@ jobs:
             echo "::warning::lore-code-trace could not be fetched from ${LORE_API_URL} — spec links were NOT checked"
             rm -f lore-code-trace; exit 0
           fi
-          curl -fsSL "${LORE_API_URL}/dist/lore-code-trace/checksums.txt" -o checksums.txt
+          if ! curl -fsSL "${LORE_API_URL}/dist/lore-code-trace/checksums.txt" -o checksums.txt; then
+            echo "::warning::the checksums could not be fetched from ${LORE_API_URL} — spec links were NOT checked"
+            rm -f lore-code-trace; exit 0
+          fi
+          # A binary that does not match its checksum is never run, and that is
+          # a failure, not a skip.
           echo "$(awk '/ linux-amd64$/{print $1}' checksums.txt)  lore-code-trace" | sha256sum -c -
           chmod +x lore-code-trace
 
-      # The base branch reaches the binary as GITHUB_BASE_REF.
+      # The base branch reaches the binary as GITHUB_BASE_REF. A pull request from
+      # a fork has no token: the binary says the links were not checked and passes.
       - name: Check spec links
         if: hashFiles('lore-code-trace') != ''
         env:

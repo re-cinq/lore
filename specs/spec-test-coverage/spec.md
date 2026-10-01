@@ -165,7 +165,8 @@ A link that points nowhere is caught on the pull request that broke it: the
 `spec-links` job of `.github/workflows/pr-checks.yml` runs `lore-code-trace
 links` (acceptance criteria 29 to 35) after the `format` job, against the base
 branch of the pull request, so the check judges the head that carries the
-re-anchored links.
+re-anchored links. A pull request from a fork runs without the repository's
+secrets, so its links are not checked: the job says so in a warning and passes.
 
 Reporting is gated by lifecycle status, consistently for specs and ADRs, which
 `parseDocStatus` folds into the same buckets. `statusTier` maps them: a
