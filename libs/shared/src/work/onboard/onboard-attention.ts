@@ -4,7 +4,7 @@ import {
   classifyError,
   failureHint,
   type StepFailure,
-} from "@re-cinq/lore-shared";
+} from "../../lib/error-classify.js";
 
 /** Failure message safe for markdown bullets: collapsed newlines and length-capped. */
 const asBulletText = (error: string): string => {
