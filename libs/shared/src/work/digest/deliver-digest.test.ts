@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
-import { InMemoryDigestPosts } from "@re-cinq/lore-shared/project/digest-posts/digest-posts-memory.js";
-import { InMemorySlackPoster } from "@re-cinq/lore-shared/project/notify/slack-poster-memory.js";
-import { encodeDigestRepos } from "@re-cinq/lore-shared/digest/codec.js";
-import { APPENDIX_MARKER } from "@re-cinq/lore-shared/digest/render.js";
+import { InMemoryAssemblyRuns } from "../../outbound/project/assembly-runs/assembly-runs-memory.js";
+import { InMemoryDigestPosts } from "../../outbound/project/digest-posts/digest-posts-memory.js";
+import { InMemorySlackPoster } from "../../outbound/project/notify/slack-poster-memory.js";
+import { encodeDigestRepos } from "./codec.js";
+import { APPENDIX_MARKER } from "./render.js";
 import { deliverDigestRun, receiveDigestUpload } from "./deliver-digest.js";
 
 const DRAFT = `Intro placeholder.\n\n*re-cinq/lore*\n• item\n\nEnding placeholder.\n\n${APPENDIX_MARKER}\n- intro: Old`;

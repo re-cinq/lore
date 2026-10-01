@@ -1,14 +1,14 @@
 // Posting a channel's digest (specs/daily-digest FR7/FR9): the refined message the pod uploaded, or the stored draft when the agent failed or never reported. The run is CLAIMED in digest_posts before Slack is called, so the upload receiver and the run-closed fallback racing for one run post once; a run whose Slack call failed is marked failed, keeping the week's thread, so the next tick may try again.
 
-import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
-import type { DigestPostsPort } from "@re-cinq/lore-shared/project/digest-posts/digest-posts-port.js";
-import type { SlackPosterPort } from "@re-cinq/lore-shared/project/notify/slack-poster-port.js";
+import type { AssemblyRunRecord } from "../../outbound/project/assembly-runs/assembly-runs-port.js";
+import type { DigestPostsPort } from "../../outbound/project/digest-posts/digest-posts-port.js";
+import type { SlackPosterPort } from "../../outbound/project/notify/slack-poster-port.js";
 import {
   renderThreadParent,
   splitDigestMessage,
   stripAppendix,
-} from "@re-cinq/lore-shared/digest/render.js";
-import { splitForSlack } from "@re-cinq/lore-shared/digest/split-for-slack.js";
+} from "./render.js";
+import { splitForSlack } from "./split-for-slack.js";
 import { digestRunOf, type DigestRun } from "./digest-run.js";
 
 /** A digest.md the supervisor uploaded after its agent exited; `exitCode` is null when the supervisor did not say. */

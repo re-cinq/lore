@@ -1,10 +1,10 @@
 // What a daily-digest run carries in its args, read once and typed: the channel, the week, the local date, the repos with their windows, and the draft once the Floor served it (specs/daily-digest FR8/FR10).
 
-import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
+import type { AssemblyRunRecord } from "../../outbound/project/assembly-runs/assembly-runs-port.js";
 import {
   decodeDigestRepos,
   type DigestRepo,
-} from "@re-cinq/lore-shared/digest/codec.js";
+} from "./codec.js";
 
 export interface DigestRun {
   id: string;

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { enforceTrue } from "../../lib/enforce.js";
 import { ttlMemo } from "./ttl-memo.js";
 
 describe("ttlMemo", () => {

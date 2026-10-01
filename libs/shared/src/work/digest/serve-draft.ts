@@ -1,21 +1,21 @@
 // The refine pod's input file, built when the pod asks for it (specs/daily-digest FR9): GitHub is read for every repo of the channel, the sections are rendered around the intro/ending markers, and the draft is kept on the run so a retrying init downloads the same one and the run page shows what the agent read.
 
-import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
-import type { DigestTexts } from "@re-cinq/lore-shared/project/digest-posts/digest-posts-port.js";
-import type { IssueRef } from "@re-cinq/lore-shared/project/lib/github-port.js";
-import type { PullRef } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
-import { resolveDigestSettings } from "@re-cinq/lore-shared/digest-settings.js";
-import type { DigestRepo } from "@re-cinq/lore-shared/digest/codec.js";
-import { dedupeImplemented } from "@re-cinq/lore-shared/digest/dedupe.js";
+import type { AssemblyRunRecord } from "../../outbound/project/assembly-runs/assembly-runs-port.js";
+import type { DigestTexts } from "../../outbound/project/digest-posts/digest-posts-port.js";
+import type { IssueRef } from "../../outbound/project/lib/github-port.js";
+import type { PullRef } from "../../outbound/project/pulls/pull-requests-port.js";
+import { resolveDigestSettings } from "../../domain/digest-settings.js";
+import type { DigestRepo } from "./codec.js";
+import { dedupeImplemented } from "./dedupe.js";
 import {
   groupImplemented,
   groupRoadmap,
-} from "@re-cinq/lore-shared/digest/group.js";
+} from "./group.js";
 import {
   renderDigestDraft,
   renderRepoSection,
-} from "@re-cinq/lore-shared/digest/render.js";
-import { RECENT_TEXTS_LIMIT } from "@re-cinq/lore-shared/digest/contract.js";
+} from "./render.js";
+import { RECENT_TEXTS_LIMIT } from "./contract.js";
 import { digestRunOf, type DigestRun } from "./digest-run.js";
 
 /** What one repo's GitHub reads answer for its window. */

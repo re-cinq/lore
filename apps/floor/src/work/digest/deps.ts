@@ -8,12 +8,15 @@ import {
   type SlackUsers,
 } from "@re-cinq/lore-shared/digest/people.js";
 import { query } from "../../outbound/db.js";
-import { ttlMemo } from "./ttl-memo.js";
+import { ttlMemo } from "@re-cinq/lore-shared/digest/ttl-memo.js";
 import type { DigestRepo } from "@re-cinq/lore-shared/digest/codec.js";
 import { pipeline } from "../../outbound/queues.js";
 import { projectFor } from "../../outbound/project-boot.js";
-import type { DraftDeps, RepoChanges } from "./serve-draft.js";
-import type { UploadDeps } from "./deliver-digest.js";
+import type {
+  DraftDeps,
+  RepoChanges,
+} from "@re-cinq/lore-shared/digest/serve-draft.js";
+import type { UploadDeps } from "@re-cinq/lore-shared/digest/deliver-digest.js";
 
 export function draftDeps(): DraftDeps {
   return {
