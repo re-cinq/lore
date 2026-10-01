@@ -59,7 +59,7 @@ interface Pipeline {
 const PIPELINES = loadPipelines();
 
 describe("the floor pipelines shipped in this folder", () => {
-  it("ships exactly the pipelines code-review, code-review-recheck, code-review-reply, feature-planning and lore-run-settled", () => {
+  it("ships exactly the pipelines code-review, code-review-recheck, code-review-reply, feature-planning, lore-run-settled and merge", () => {
     expect(
       [...PIPELINES.values()].map((pipeline) => pipeline.line.id).sort(),
     ).toEqual([
@@ -68,7 +68,54 @@ describe("the floor pipelines shipped in this folder", () => {
       "code-review-reply",
       "feature-planning",
       "lore-run-settled",
+      "merge",
     ]);
+  });
+
+  it("walks merge from settle through spec-status, close-issue, outcome-stats, curate, memory-feedback, trust and spec-tasks to done", () => {
+    const { line } = pipelineOf("merge");
+
+    expect(line.nodes).toEqual([
+      { id: "settle", station: "merge-settle" },
+      { id: "spec-status", station: "merge-spec-status" },
+      { id: "close-issue", station: "merge-close-issue" },
+      { id: "outcome-stats", station: "merge-outcome-stats" },
+      { id: "curate", station: "merge-curate" },
+      { id: "memory-feedback", station: "merge-memory-feedback" },
+      { id: "trust", station: "merge-trust" },
+      { id: "spec-tasks", station: "merge-spec-tasks" },
+      { id: "done" },
+    ]);
+  });
+
+  it("walks merge on from every step after settle whatever its outcome, and retries a failed settle once so a second failure settles the run as iteration_max", () => {
+    const { line } = pipelineOf("merge");
+
+    expect(line.edges).toEqual([
+      { from: "settle", to: "spec-status", on: "success" },
+      { from: "settle", to: "settle", on: "failed", iteration_max: 1 },
+      { from: "spec-status", to: "close-issue", on: "always" },
+      { from: "close-issue", to: "outcome-stats", on: "always" },
+      { from: "outcome-stats", to: "curate", on: "always" },
+      { from: "curate", to: "memory-feedback", on: "always" },
+      { from: "memory-feedback", to: "trust", on: "always" },
+      { from: "trust", to: "spec-tasks", on: "always" },
+      { from: "spec-tasks", to: "done", on: "always" },
+    ]);
+  });
+
+  it("keys a merge run on its task_id and hands every merge station that one value", () => {
+    const { line, stations } = pipelineOf("merge");
+
+    expect(line.args).toEqual({ task_id: { kind: "value", subject: true } });
+    expect(Object.values(stations)).toEqual(
+      Array.from({ length: 8 }, () => ({
+        kind: "service",
+        outcomes: ["success", "failed"],
+        needs: [{ name: "task_id", kind: "value" }],
+        produces: [],
+      })),
+    );
   });
 
   it("walks code-review from review through post-review to done, with no refine node", () => {
@@ -446,7 +493,7 @@ describe("what a review pod is given against the agent CLI's own limits", () => 
     expect(failedToExit).toEqual([]);
   });
 
-  it("gives every outcome a station declares an edge out of its node, in all four pipelines", () => {
+  it("gives every outcome a station declares an edge out of its node, in every pipeline", () => {
     const missing = [...PIPELINES.values()].flatMap(outcomesWithoutEdge);
 
     expect(missing).toEqual([]);
