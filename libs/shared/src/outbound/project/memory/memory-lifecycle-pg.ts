@@ -245,6 +245,7 @@ const REFERENCE_CLEANUP = `drop_conflicts AS (
          UPDATE memory.facts
          SET invalidated_by = NULL
          WHERE invalidated_by IN (SELECT id FROM oldest)
+           AND id NOT IN (SELECT id FROM oldest)
        )`;
 
 /** A fact carries no agent_id, so the oldest-first cut resolves ownership through memory_id or episode_id. */
