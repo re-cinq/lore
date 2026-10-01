@@ -77,7 +77,18 @@ describe("floorRunHistory", () => {
     await floorRunHistory(watch, "run-1", "300");
     await floorRunHistory(watch, "run-1", undefined);
 
-    expect(asked).toEqual([{ after: 3 }, { after: undefined }]);
+    expect(asked.map((options) => options?.after)).toEqual([3, undefined]);
+  });
+
+  it("reads the journal in one attempt under a deadline, so a floor out of reach cannot hang the read", async () => {
+    const { watch, asked } = scriptedWatch([{ type: "caught_up", seq: 0 }]);
+
+    await floorRunHistory(watch, "run-1", undefined);
+
+    expect({
+      reconnect: asked[0]?.reconnect,
+      deadline: asked[0]?.signal instanceof AbortSignal,
+    }).toEqual({ reconnect: false, deadline: true });
   });
 
   it("stops watching run-1 once the journal has caught up, leaving what comes later to the live channel", async () => {

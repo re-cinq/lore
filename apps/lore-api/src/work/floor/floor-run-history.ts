@@ -6,13 +6,20 @@ import { floorCursorOf } from "./floor-run-mapping.js";
 
 export type WatchRun = FloorClient["runs"]["watch"];
 
+const READ_DEADLINE_MS = 20_000;
+
 /** The events after the cursor, up to where the journal stands now. The watch is left the moment it has caught up — what comes later is the live channel's to deliver — and a run the floor refuses answers nothing. */
 export async function floorRunHistory(
   watch: WatchRun,
   runId: string,
   after: string | undefined,
 ): Promise<AgentRunEvent[]> {
-  const journal = watch(runId, { after: floorCursorOf(after) });
+  const journal = watch(runId, {
+    after: floorCursorOf(after),
+    // One attempt, within a deadline: a floor out of reach answers what was read so far, where the watch's own endless reconnect would leave the request hanging.
+    reconnect: false,
+    signal: AbortSignal.timeout(READ_DEADLINE_MS),
+  });
 
   try {
     return await eventsUntilCaughtUp(journal, runId);
