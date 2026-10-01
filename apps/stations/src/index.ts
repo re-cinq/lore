@@ -35,15 +35,7 @@ async function main(): Promise<void> {
   await eventProxy().start();
 
   const stopServer = await startServer(PORT);
-  // The floor's stations claim from the floor's queue, not the bus: without a floor there is nothing for them to ask.
-  const floorStations = floorConfigured()
-    ? [
-        ...startCodeReviewStations(),
-        ...startPlanningStations(),
-        ...startMergeStations(),
-        ...startDigestStations(),
-      ]
-    : [];
+  const floorStations = startFloorStations();
 
   const shutdown = shutdownHandler(drain, async () => {
     await Promise.all(floorStations.map((station) => station.stop()));
@@ -51,6 +43,18 @@ async function main(): Promise<void> {
   });
 
   onTerminationSignals(shutdown);
+}
+
+/** The floor's stations claim from the floor's queue, not the bus: without a floor there is nothing for them to ask. */
+function startFloorStations() {
+  return floorConfigured()
+    ? [
+        ...startCodeReviewStations(),
+        ...startPlanningStations(),
+        ...startMergeStations(),
+        ...startDigestStations(),
+      ]
+    : [];
 }
 
 /** Each call goes through `deliveries()` rather than capturing it — the singleton is lazy because it needs an initialised pool, which `main` has only just arranged. */
