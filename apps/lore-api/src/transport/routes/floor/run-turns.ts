@@ -7,6 +7,7 @@ import { floorRunReader } from "../../../work/floor/floor-backed-runs.js";
 import type { StoredRunHistory } from "../../../work/floor/stored-run-history.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
+import { pageLimit } from "./page-limit.js";
 
 const DEFAULT_LIMIT = 200;
 const MAX_LIMIT = 1000;
@@ -59,14 +60,8 @@ export function runTurnsRoute(pageOf: TurnPageOf): ServerRoute {
   };
 }
 
-// A limit that is no positive whole number reads as the default: it reaches Postgres as a LIMIT, which refuses a negative or fractional one.
-function limitOf(value: unknown): number {
-  const asked = Number(value);
-
-  return Number.isInteger(asked) && asked > 0
-    ? Math.min(asked, MAX_LIMIT)
-    : DEFAULT_LIMIT;
-}
+const limitOf = (value: unknown): number =>
+  pageLimit(value, { fallback: DEFAULT_LIMIT, max: MAX_LIMIT });
 
 function cursorOf(value: unknown): string {
   return typeof value === "string" && /^\d+$/.test(value) ? value : "0";

@@ -10,6 +10,7 @@ import { floorRunHistory } from "../../../work/floor/floor-run-history.js";
 import type { StoredRunHistory } from "../../../work/floor/stored-run-history.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
+import { pageLimit } from "./page-limit.js";
 
 /** The Floor's own page size, which the page reads as the end-of-history signal: a page shorter than this is the last. */
 const DEFAULT_LIMIT = 1000;
@@ -87,14 +88,8 @@ export function eventPage(
   return { events: unseen.slice(0, wholeTurns(unseen, limit)) };
 }
 
-// A limit that is no positive number reads as the default, so a malformed query pages like an unqualified one.
-function limitOf(value: unknown): number {
-  const asked = Number(value);
-
-  return Number.isInteger(asked) && asked > 0
-    ? Math.min(asked, MAX_LIMIT)
-    : DEFAULT_LIMIT;
-}
+const limitOf = (value: unknown): number =>
+  pageLimit(value, { fallback: DEFAULT_LIMIT, max: MAX_LIMIT });
 
 // Where the page ends: at the limit, moved on past the rest of the turn the limit landed in.
 function wholeTurns(events: AgentRunEvent[], limit: number): number {
