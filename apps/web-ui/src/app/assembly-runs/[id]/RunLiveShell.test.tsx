@@ -3,7 +3,10 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, act } from "@testing-library/react";
 import RunLiveShell, { type RunLiveShellProps } from "./RunLiveShell";
 import type { AssemblyRun } from "@/lib/assembly-runs";
-import { implementationDefinition } from "@/lib/definition-fixtures";
+import {
+  featurePlanningDefinition,
+  implementationDefinition,
+} from "@/lib/definition-fixtures";
 import { LiveSocketProvider } from "@/lib/live-socket/LiveSocketProvider";
 import { FakeWebSocket } from "@/lib/live-socket/fake-web-socket";
 import type { RunStreamFrame } from "@/lib/run-stream-types";
@@ -85,6 +88,27 @@ afterEach(() => {
 });
 
 describe("RunLiveShell", () => {
+  it("reads the header Waiting for you, not Running, while the run's only open visit is on author", () => {
+    renderShell({
+      run: { ...run, status: "running" },
+      definition: featurePlanningDefinition,
+      nodes: [
+        {
+          nodeId: "author",
+          iteration: 2,
+          outcome: null,
+          agentCrName: null,
+          commitSha: null,
+          durationSeconds: null,
+        },
+      ],
+    });
+
+    expect(
+      screen.getByRole("heading", { level: 1 }).parentElement,
+    ).toHaveTextContent("Waiting for you");
+  });
+
   it("flips the header to the run's terminal status on a run_status frame without a reload", async () => {
     renderShell();
     await settle();

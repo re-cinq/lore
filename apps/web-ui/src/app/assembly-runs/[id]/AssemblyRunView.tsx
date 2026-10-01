@@ -1,17 +1,22 @@
 import Link from "next/link";
 import type { AssemblyRun } from "@/lib/assembly-runs";
-import { formatDuration, runStatusVisual } from "@/lib/assembly-run-presenter";
+import { formatDuration, runHeaderVisual } from "@/lib/assembly-run-presenter";
 import styles from "./AssemblyRunView.module.css";
 
 const EM_DASH = "—";
 
 export interface AssemblyRunViewProps {
   run: AssemblyRun;
+  /** Whose move it is when only people hold the open run; null while a pod runs or the run ended. */
+  waitingOn?: string | null;
 }
 
 // Run header — line-level facts only; per-node state lives in the visualization panel below.
-export default function AssemblyRunView({ run }: AssemblyRunViewProps) {
-  const visual = runStatusVisual(run.status, run.outcome);
+export default function AssemblyRunView({
+  run,
+  waitingOn = null,
+}: AssemblyRunViewProps) {
+  const visual = runHeaderVisual(run, waitingOn);
 
   return (
     <div>

@@ -171,6 +171,54 @@ describe("floorRunToAssemblyRun", () => {
   });
 });
 
+describe("a visit waiting on a person", () => {
+  const authored = lineBodyToRunGraph(
+    "feature-planning",
+    {
+      entry: "author",
+      exit: "done",
+      args: {},
+      nodes: [
+        { id: "author", station: "plan-author" },
+        { id: "merged", station: "spec-pr-merged" },
+        { id: "analyze", station: "plan-analyze" },
+        { id: "done" },
+      ],
+      edges: [],
+    },
+    {
+      "plan-author": "author",
+      "spec-pr-merged": "human",
+      "plan-analyze": "agent",
+    },
+  );
+  const run = {
+    id: "run-1",
+    repo: "re-cinq/lore",
+    createdAt: CREATED_AT,
+    graph: authored,
+  };
+
+  it("draws the human station that produces something as feature_review and the one that waits outside as pr_review, neither naming a station", () => {
+    expect(authored.nodes.slice(0, 2)).toMatchObject([
+      { id: "author", type: "feature_review", station: null },
+      { id: "merged", type: "pr_review", station: null },
+    ]);
+  });
+
+  it("gives the author visit no pod name, since no pod runs it", () => {
+    expect(
+      visitToStationRun({ ...visit, nodeId: "author" }, run).agentCrName,
+    ).toBeNull();
+  });
+
+  it("keeps the pod name floor-visit-1 on the analyze visit of the same run", () => {
+    expect(
+      visitToStationRun({ ...visit, nodeId: "analyze" }, run).agentCrName,
+    ).toBe("floor-visit-1");
+  });
+});
+
 describe("visitToStationRun", () => {
   const run = { id: "run-1", repo: "re-cinq/lore", createdAt: CREATED_AT };
 
