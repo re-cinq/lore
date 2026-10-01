@@ -230,4 +230,14 @@ describe("startHttpGateway routing", () => {
     expect(del.status).toBe(200);
     expect(gone.status).toBe(404);
   });
+
+  it("400s a GET /mcp whose session id header is empty, as POST does", async () => {
+    const base = start({ port: 0 });
+    const res = await fetch(`${base}/mcp`, {
+      headers: { "mcp-session-id": "" },
+      signal: AbortSignal.timeout(TEST_TIMEOUT_MS),
+    });
+
+    expect(res.status).toBe(400);
+  });
 });

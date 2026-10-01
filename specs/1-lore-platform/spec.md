@@ -300,7 +300,7 @@ system is performing.
   `-32001` (POST, GET and DELETE alike), which tells a spec-compliant client
   to re-initialize; a fresh `initialize` mints a new session, and a live
   session keeps being served until it is deleted.
-  ([validated by `404s a POST /mcp carrying an unknown session id so the client re-initializes`](apps/mcp-server/src/transport/http-transport.test.ts#L154), [`404s a GET and a DELETE /mcp carrying an unknown session id`](apps/mcp-server/src/transport/http-transport.test.ts#L173), [`mints a fresh session on initialize after an unknown session 404`](apps/mcp-server/src/transport/http-transport.test.ts#L190), [`keeps serving a live session and 404s it once it is deleted`](apps/mcp-server/src/transport/http-transport.test.ts#L205))
+  ([validated by `404s a POST /mcp carrying an unknown session id so the client re-initializes`](apps/mcp-server/src/transport/http-transport.test.ts#L154), [`404s a GET and a DELETE /mcp carrying an unknown session id`](apps/mcp-server/src/transport/http-transport.test.ts#L173), [`mints a fresh session on initialize after an unknown session 404`](apps/mcp-server/src/transport/http-transport.test.ts#L190), [`keeps serving a live session and 404s it once it is deleted`](apps/mcp-server/src/transport/http-transport.test.ts#L205), [validated by `400s a GET /mcp whose session id header is empty, as POST does`](apps/mcp-server/src/transport/http-transport.test.ts#L234))
 - Developer can check task status and retrieve results without
   leaving Claude Code.
 - The pipeline task is visible in the shared task tracker — no
