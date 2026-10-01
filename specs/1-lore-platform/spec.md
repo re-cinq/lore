@@ -369,16 +369,19 @@ serves as the source of truth for organizational context.
 
 ### FR-3: Developer Onboarding
 
-The system MUST provide a single-command install experience. ([validated by `install-contract.test.mjs:13`](scripts/install-contract.test.mjs#L13))
+The system MUST provide a single-command install experience. ([validated by `install-contract.test.mjs:13`](scripts/install-contract.test.mjs#L16))
 
 - FR-3.1: Install script clones the context repo, builds the MCP
   server, detects team, configures Claude Code settings, installs
-  platform skills, and runs health checks. ([validated by `install-contract.test.mjs:13`](scripts/install-contract.test.mjs#L13), [`install-contract.test.mjs:52`](scripts/install-contract.test.mjs#L52), [`install-contract.test.mjs:68`](scripts/install-contract.test.mjs#L68), [`install-contract.test.mjs:81`](scripts/install-contract.test.mjs#L81), [`install-contract.test.mjs:94`](scripts/install-contract.test.mjs#L94), [`install-contract.test.mjs:102`](scripts/install-contract.test.mjs#L102), [`install-contract.test.mjs:141`](scripts/install-contract.test.mjs#L141))
+  platform skills, and runs health checks. ([validated by `install-contract.test.mjs:13`](scripts/install-contract.test.mjs#L16), [`install-contract.test.mjs:52`](scripts/install-contract.test.mjs#L55), [`install-contract.test.mjs:68`](scripts/install-contract.test.mjs#L71), [`install-contract.test.mjs:81`](scripts/install-contract.test.mjs#L84), [`install-contract.test.mjs:94`](scripts/install-contract.test.mjs#L174), [`install-contract.test.mjs:102`](scripts/install-contract.test.mjs#L182), [`install-contract.test.mjs:141`](scripts/install-contract.test.mjs#L221))
 - FR-3.2: Install script is idempotent — re-running always produces
-  correct state. ([validated by `install-contract.test.mjs:120`](scripts/install-contract.test.mjs#L120), [`install-contract.test.mjs:120`](scripts/install-contract.test.mjs#L120), [`install-contract.test.mjs:154`](scripts/install-contract.test.mjs#L154))
-- FR-3.3: Install script works without pre-cloning the repository. ([validated by `install-contract.test.mjs:26`](scripts/install-contract.test.mjs#L26), [`install-contract.test.mjs:39`](scripts/install-contract.test.mjs#L39))
+  correct state. ([validated by `install-contract.test.mjs:120`](scripts/install-contract.test.mjs#L200), [`install-contract.test.mjs:120`](scripts/install-contract.test.mjs#L200), [`install-contract.test.mjs:154`](scripts/install-contract.test.mjs#L234))
+- FR-3.3: Install script works without pre-cloning the repository. ([validated by `install-contract.test.mjs:26`](scripts/install-contract.test.mjs#L29), [`install-contract.test.mjs:39`](scripts/install-contract.test.mjs#L42))
 - FR-3.4: Settings merge (via helper script) appends platform hooks
   without overwriting personal developer hooks. ([validated by `lore-merge-settings.test.mjs:25`](scripts/lore-merge-settings.test.mjs#L25), [`lore-merge-settings.test.mjs:41`](scripts/lore-merge-settings.test.mjs#L41))
+- FR-3.5: Install script registers the `lore-context` MCP server at user scope so Lore works in every repo, and fails with a clear error when `claude` is missing or registration fails. ([validated by `install-contract.test.mjs:97`](scripts/install-contract.test.mjs#L97), [`install-contract.test.mjs:124`](scripts/install-contract.test.mjs#L124))
+- FR-3.6: Install script honours an environment-provided `LORE_API_URL` and `LORE_INGEST_TOKEN` over git config, prompts for a missing URL, and never writes an empty value to git config. ([validated by `install-contract.test.mjs:142`](scripts/install-contract.test.mjs#L142), [`install-contract.test.mjs:155`](scripts/install-contract.test.mjs#L155))
+- FR-3.7: `lore-doctor` requires the API URL, the token and a user-scope registration, tells a rejected token apart from an outage, and prints its results line last. ([validated by `install-contract.test.mjs:313`](scripts/install-contract.test.mjs#L313), [`install-contract.test.mjs:321`](scripts/install-contract.test.mjs#L321), [`install-contract.test.mjs:327`](scripts/install-contract.test.mjs#L327), [`install-contract.test.mjs:357`](scripts/install-contract.test.mjs#L357))
 - Decision: the `lore-doctor` health-check script tests all connections and
   prints clear pass/fail with fix instructions for each.
 
