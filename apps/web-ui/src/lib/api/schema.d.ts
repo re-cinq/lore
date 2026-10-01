@@ -1766,6 +1766,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/repos/{owner}/{repo}/trace/overlay-drop": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/trace/overlay-drop */
+    post: operations["post_api_repos_owner_repo_trace_overlay-drop"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/repos/{owner}/{repo}/trace/{kind}": {
     parameters: {
       query?: never;
@@ -3584,6 +3601,9 @@ export interface components {
     OrgSettingsSaved: {
       /** @constant */
       ok: true;
+    };
+    OverlayDrop: {
+      dropped: boolean;
     };
     PipelineAnalytics: {
       [key: string]: unknown;
@@ -8006,6 +8026,41 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["SpecTasksReconciled"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "post_api_repos_owner_repo_trace_overlay-drop": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          branch: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Whether the graph was asked to drop the branch's overlay; false when no graph is configured */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OverlayDrop"];
         };
       };
       400: components["responses"]["BadRequest"];

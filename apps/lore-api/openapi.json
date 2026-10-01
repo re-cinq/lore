@@ -7118,6 +7118,87 @@
         }
       }
     },
+    "/api/repos/{owner}/{repo}/trace/overlay-drop": {
+      "post": {
+        "operationId": "post_api_repos_owner_repo_trace_overlay-drop",
+        "summary": "POST /api/repos/{owner}/{repo}/trace/overlay-drop",
+        "tags": ["Traceability"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Whether the graph was asked to drop the branch's overlay; false when no graph is configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OverlayDrop"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "write",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "branch": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  }
+                },
+                "required": ["branch"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/repos/{owner}/{repo}/trace/{kind}": {
       "get": {
         "operationId": "get_api_repos_owner_repo_trace_kind",
@@ -13530,6 +13611,16 @@
           }
         },
         "required": ["ok"],
+        "additionalProperties": false
+      },
+      "OverlayDrop": {
+        "type": "object",
+        "properties": {
+          "dropped": {
+            "type": "boolean"
+          }
+        },
+        "required": ["dropped"],
         "additionalProperties": false
       },
       "PipelineAnalytics": {

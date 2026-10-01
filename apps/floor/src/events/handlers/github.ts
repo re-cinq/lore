@@ -1,4 +1,4 @@
-/** Layer-3 handlers for GitHub events; issues-labeled dispatch and the spec-PR-merge spec-task sync were MOVED here from the mcp-server webhook (real DB + GitHub work, not just a fan-out). */
+/** Layer-3 handlers for GitHub events still answered here: the auto-merge re-evaluation and what a merged spec PR starts. The label dispatch, the repository rename and the overlay drop moved to the stations service (specs/external-floor FR16). */
 
 import { randomUUID } from "node:crypto";
 import {
@@ -9,12 +9,7 @@ import {
 } from "@re-cinq/lore-shared";
 import { getPool } from "../../outbound/db.js";
 import { projectFor } from "../../outbound/project-boot.js";
-import {
-  eventReporter,
-  pipeline,
-  settings,
-  taskStore,
-} from "../../outbound/queues.js";
+import { eventReporter, pipeline } from "../../outbound/queues.js";
 import { tryAutoMergeForCompletedTask } from "../../work/merge/auto-merge-trigger.js";
 import {
   decideResumeFromClosedPr,
@@ -22,11 +17,6 @@ import {
   resumeDecomposition,
 } from "@re-cinq/lore-shared/project/assembly-runs/decompose-resume.js";
 import type { EventHandler } from "../../domain/event-types.js";
-import {
-  BACKLOG_DISPATCH,
-  issueDispatchTarget,
-} from "@re-cinq/lore-shared/task-types/dispatch-labels.js";
-import { queueTicket } from "@re-cinq/lore-shared/backlog/queue-ticket.js";
 
 /** Resolve the backing pipeline task for a PR and re-evaluate auto-merge (no-op if none). */
 async function autoMergeForPR(repo: string, prNumber: number): Promise<void> {
@@ -52,142 +42,6 @@ export const onReviewSubmitted: EventHandler = async (params) => {
 
   await autoMergeForPR(repo, pr_number);
 };
-
-interface IssueDispatchSettings {
-  dispatchLabel: string;
-  /** Absent unless the repository configured one: with none, a labelled Issue joins the backlog. */
-  dispatchDefaultType?: string;
-}
-
-/** Parses the repo's raw settings blob (string or already-parsed) into dispatch label/type. */
-function resolveIssueDispatch(repoSettings: unknown): IssueDispatchSettings {
-  const parsed = ((typeof repoSettings === "string"
-    ? JSON.parse(repoSettings)
-    : repoSettings) ?? {}) as {
-    dispatch_label?: string;
-    dispatch_default_type?: string;
-  };
-
-  return {
-    dispatchLabel: parsed.dispatch_label || "lore",
-    dispatchDefaultType: parsed.dispatch_default_type,
-  };
-}
-
-/** issues.labeled dispatch: a configured label on an Issue creates a pipeline task. */
-type IssuesLabeledParams = {
-  repo: string;
-  label: string;
-  issue: {
-    number: number;
-    title: string;
-    body: string;
-    html_url: string;
-    labels: string[];
-  };
-};
-
-/** Files the task an Issue dispatched, and marks the Issue as ours. The two GitHub writes are `allSettled`: the task exists by then, so a failed comment or label must not look like a failed dispatch. */
-async function fileIssueTask(
-  repo: string,
-  issue: IssuesLabeledParams["issue"],
-  taskType: string,
-  issues: Awaited<ReturnType<typeof projectFor>>["issues"],
-): Promise<void> {
-  const task = await taskStore().create(issueTaskInput(repo, issue, taskType));
-
-  await pipeline().taskQueue.setColumns(task.task_id, {
-    issue_number: issue.number,
-    issue_url: issue.html_url,
-  });
-  await Promise.allSettled([
-    issues.comment(
-      issue.number,
-      `Lore agent is working on this. Task: \`${task.task_id}\``,
-    ),
-    issues.addLabel(issue.number, "lore-managed"),
-  ]);
-}
-
-/** Builds the task-store payload for an Issue dispatch; the Issue's identifiers ride the context bundle so the agent can read them back. */
-function issueTaskInput(
-  repo: string,
-  issue: IssuesLabeledParams["issue"],
-  taskType: string,
-) {
-  return {
-    description: `${issue.title}\n\n${issue.body}`.trim(),
-    taskType,
-    targetRepo: repo,
-    createdBy: "github-webhook",
-    contextBundle: {
-      github_issue_number: issue.number,
-      github_issue_url: issue.html_url,
-      github_issue_body: issue.body,
-    },
-  };
-}
-
-/** True when an Issue already has an active task; comments the existing task id on the Issue so the duplicate label is answered. */
-async function alreadyWorkingOnIssue(
-  repo: string,
-  issueNumber: number,
-  issues: Awaited<ReturnType<typeof projectFor>>["issues"],
-): Promise<boolean> {
-  const existing = await pipeline().taskQueue.activeTaskByIssue(
-    repo,
-    issueNumber,
-  );
-
-  if (!existing) {
-    return false;
-  }
-  await issues.comment(
-    issueNumber,
-    `Already being worked on: task \`${existing.id}\``,
-  );
-
-  return true;
-}
-
-export const issuesLabeled: EventHandler = async (params) => {
-  const { repo, label, issue } = params as IssuesLabeledParams;
-  const repoSettings = await settings().rawSettings(repo);
-  const { dispatchLabel, dispatchDefaultType } =
-    resolveIssueDispatch(repoSettings);
-
-  // not the dispatch label → no-op
-  if (label !== dispatchLabel) {
-    return;
-  }
-
-  // The same table onboarding seeds the repo from — GIVEN and UNDERSTOOD labels must be one declaration, or a seeded label silently dispatches as the default type.
-  const target = issueDispatchTarget(issue.labels, dispatchDefaultType);
-
-  const issues = (await projectFor(repo)).issues;
-
-  if (await alreadyWorkingOnIssue(repo, issue.number, issues)) {
-    return;
-  }
-
-  if (target === BACKLOG_DISPATCH) {
-    await queueTicket(backlogDeps(issues), { repo, issue });
-
-    return;
-  }
-
-  await fileIssueTask(repo, issue, target, issues);
-};
-
-function backlogDeps(
-  issues: Awaited<ReturnType<typeof projectFor>>["issues"],
-): Parameters<typeof queueTicket>[0] {
-  return {
-    rawSettings: (repo) => settings().rawSettings(repo),
-    addLabel: (issueNumber, label) => issues.addLabel(issueNumber, label),
-    comment: (issueNumber, body) => issues.comment(issueNumber, body),
-  };
-}
 
 /** pull_request closed+merged: wake the line waiting for that PR. Previously unreachable — a feature-planning task's null `pr_number` (the push node stamps only the LINE's args) meant a merged spec PR decomposed on no deployment; this reads the merge directly, needing no task row, and still targets a NODE so a line sharing the PR but not waiting on it is passed over. */
 export const specPrResumeLine: EventHandler = async (params) => {
@@ -281,12 +135,4 @@ export const specPrMerge: EventHandler = async (params) => {
   }
 
   await syncSpecTasks(repo, branch, specSlug, merge_commit_sha);
-};
-
-/** repository renamed (#2040): the lore.repos row follows the new name, so runs stop minting installation tokens for a name GitHub no longer serves. */
-export const repositoryRenamed: EventHandler = async (params) => {
-  const { from, to } = params as { from: string; to: string };
-  const outcome = await settings().renameRepo(from, to);
-
-  console.log(`[floor] repository ${from} renamed to ${to}: ${outcome}`);
 };

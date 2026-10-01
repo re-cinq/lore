@@ -359,17 +359,18 @@ nothing. ([validated by replaces main's answer for the file when the overlay cov
 
 ### Ending a branch's overlay
 
-The Floor never writes Dgraph itself, so a closing PR does not delete its
-branch's overlay directly: the Floor emits the same `internal.ingest.spec_trace`
-event a test report rides, with kind `overlay-drop` naming the PR's repo and
-head branch, and the ingest station performs the delete. ([validated by asks the ingest to drop the feat/x overlay when the merged feat/x PR closes](apps/floor/src/work/assembly-run/drop-overlay.test.ts#L18))
+The stations service answers a closing PR and holds no graph client, so it does
+not delete the branch's overlay itself: it asks lore-api, which does
+(`POST /api/repos/{owner}/{repo}/trace/overlay-drop`). Until 2026-10-02 the old
+Floor sent the drop through the `ingest` assembly line as a pod per drop. ([validated by drops the graph overlay of branch feat/x when its pull request closes](apps/stations/src/events/repo-handlers.test.ts#L75), [validated by posts branch feat/x to /trace/overlay-drop of o/r](libs/shared/src/outbound/project/lib/station-http.test.ts#L250), [validated by drops the overlay of branch lore/implementation-loop/issue-7 for o/r and answers dropped](apps/lore-api/src/transport/routes/trace/trace-overlay-drop.test.ts#L40), [validated by answers dropped false and writes nothing when no graph is configured](apps/lore-api/src/transport/routes/trace/trace-overlay-drop.test.ts#L57), [validated by answers 400 when no branch is named](apps/lore-api/src/transport/routes/trace/trace-overlay-drop.test.ts#L50))
 
 The drop follows the PR, not a run: review, triage and reply runs all work on
 the PR's head branch, so the first of them to finish would otherwise wipe an
 overlay the implementation loop is still writing. A PR closed without merging
-drops its overlay the same way. ([validated by asks for the same drop when the feat/x PR closes unmerged](apps/floor/src/work/assembly-run/drop-overlay.test.ts#L39))
+drops its overlay the same way, and the stations service claims the close
+whether or not an external floor is configured. ([validated by claims only the closed pull request, for its overlay drop, when no floor is configured](apps/stations/src/events/subscriptions.test.ts#L82))
 
-A closed PR that names no head branch asks for nothing. ([validated by asks for nothing when the closed PR names no head branch](apps/floor/src/work/assembly-run/drop-overlay.test.ts#L50))
+A closed PR that names no head branch asks for nothing. ([validated by drops nothing for a closed pull request that names no head branch](apps/stations/src/events/repo-handlers.test.ts#L87))
 
 The drop can still be missed — a branch that never opened a PR, a lost event —
 so a retention sweep reaps every overlay a repo has not restamped since a

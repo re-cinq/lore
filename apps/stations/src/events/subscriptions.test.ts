@@ -79,11 +79,21 @@ describe("the review events, which only a deployment with a floor asks for", () 
     expect(names).toContain("github.pull_request.opened");
   });
 
-  it("claims no pull request event when no floor is configured", () => {
+  it("claims only the closed pull request, for its overlay drop, when no floor is configured", () => {
     const names = stationSubscriptions({}).map((s) => s.eventName);
 
     expect(
       names.filter((name) => name.startsWith("github.pull_request")),
-    ).toEqual([]);
+    ).toEqual(["github.pull_request.closed"]);
+  });
+
+  it("claims the label and rename events whether or not a floor is configured", () => {
+    const names = stationSubscriptions({}).map((s) => s.eventName);
+
+    expect(
+      names.filter((name) =>
+        ["github.issues.labeled", "github.repository.renamed"].includes(name),
+      ),
+    ).toEqual(["github.issues.labeled", "github.repository.renamed"]);
   });
 });

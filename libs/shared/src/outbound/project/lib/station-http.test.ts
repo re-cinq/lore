@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createStationProject } from "./station-http.js";
+import { createStationProject, dropOverlayOverHttp } from "./station-http.js";
 
 function fakeFetch(routes: Record<string, unknown>): {
   fetchImpl: typeof fetch;
@@ -241,6 +241,28 @@ describe("tying task issues to their story issue over HTTP", () => {
         method: "PATCH",
         path: "/api/repos/o/r/issues/2260",
         body: { title: "User story: Issue triage", body: "- [ ] #2261 T001" },
+      },
+    ]);
+  });
+});
+
+describe("dropping a branch's graph overlay over HTTP", () => {
+  it("posts branch feat/x to /trace/overlay-drop of o/r", async () => {
+    const { fetchImpl, calls } = fakeFetch({
+      "POST /api/repos/o/r/trace/overlay-drop": { dropped: true },
+    });
+
+    await dropOverlayOverHttp(
+      { repo: "o/r", branch: "feat/x" },
+      env,
+      fetchImpl,
+    );
+
+    expect(calls).toEqual([
+      {
+        method: "POST",
+        path: "/api/repos/o/r/trace/overlay-drop",
+        body: { branch: "feat/x" },
       },
     ]);
   });

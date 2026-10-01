@@ -17,10 +17,17 @@ const EXTERNAL_FLOOR_EVENT_NAMES = [
   "github.issue_comment.created",
 ];
 
+const STATIONS_EVENT_NAMES = [
+  "github.issues.labeled",
+  "github.repository.renamed",
+];
+
 function producibleEventNames(): string[] {
   return [
     ...GITHUB_EVENT_NAMES.filter(
-      (name) => !EXTERNAL_FLOOR_EVENT_NAMES.includes(name),
+      (name) =>
+        !EXTERNAL_FLOOR_EVENT_NAMES.includes(name) &&
+        !STATIONS_EVENT_NAMES.includes(name),
     ),
     ...AGENT_EVENT_NAMES,
     "internal.ingest.spec_trace",
@@ -46,6 +53,14 @@ describe("buildRegistry", () => {
     expect(
       EXTERNAL_FLOOR_EVENT_NAMES.filter((name) => registry.has(name)),
     ).toEqual([]);
+  });
+
+  it("leaves the label and rename events the stations service answers unregistered", () => {
+    const registry = buildRegistry();
+
+    expect(STATIONS_EVENT_NAMES.filter((name) => registry.has(name))).toEqual(
+      [],
+    );
   });
 
   it("maps every registered name to a defined handler", () => {

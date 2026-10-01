@@ -50,25 +50,10 @@ HTTP ingress: the GitHub branch of `POST /api/events` on the event-router (ADR-0
 - Handles `issues` event with action `labeled` ([validated by `github-map.test.ts:298`](libs/shared/src/outbound/project/events/github-map.test.ts#L304))
 - The event mapper is a guard at the door: it returns nothing when the `repository` is missing or the
   event type is unhandled. ([validated by `github-map.test.ts:362`](libs/shared/src/outbound/project/events/github-map.test.ts#L368), [`github-map.test.ts:372`](libs/shared/src/outbound/project/events/github-map.test.ts#L378))
-- If label name is `lore` (configurable):
-  - Extract: issue title, body, repo full_name, issue number
-  - Determine task type from issue labels, from the SAME table onboarding seeds the
-    repo's labels from — a label a repo is given and a label this reader understands
-    are one declaration, or a seeded label dispatches as the repo's default type
-    instead of the one it names, and a task type removed from `task-types.yaml`
-    leaves a label behind that creates tasks no handler serves:
-    - `lore:implementation` → the implementation loop's backlog (no task; see below)
-    - `lore:review` → review
-    - `lore:runbook` → runbook
-    - `lore:triage` → issue-triage (`apps/floor/src/events/handlers/github.ts` + `libs/shared/src/domain/task-types/dispatch-labels.ts`)
-    - `triage: needs-triage` → issue-triage (`apps/floor/src/events/handlers/github.ts` + `libs/shared/src/domain/task-types/dispatch-labels.ts`)
-    - `lore` (alone) → the repo's `dispatch_default_type`; with none configured, or one still naming the removed `general` or `implementation` type, the implementation loop's backlog
-    ([validated by reads the backlog off a lore:implementation label](libs/shared/src/domain/task-types/dispatch-labels.test.ts#L9), [`dispatch-labels.test.ts:11`](libs/shared/src/domain/task-types/dispatch-labels.test.ts#L15), [`dispatch-labels.test.ts:16`](libs/shared/src/domain/task-types/dispatch-labels.test.ts#L20), [`dispatch-labels.test.ts:22`](libs/shared/src/domain/task-types/dispatch-labels.test.ts#L26))
+- If label name is `lore` (configurable through the repository's `dispatch_label` setting):
+  - *(Since 2026-10-02.)* The Issue becomes no task: it joins the repository's backlog, where the implementation loop picks it up. It gets `priority:medium` when it carries no priority label, and a comment saying it is queued, or that the loop is switched off for the repository and nothing picks it up until it is switched on. A label other than the dispatch label does nothing, and an Issue a task still holds is answered with that task's id instead of being queued. The handler runs in the stations service (`apps/stations/src/events/repo-handlers.ts`, `libs/shared/src/work/backlog/label-dispatch.ts`). ([validated by queues issue 7 at priority:medium when it is labelled lore](libs/shared/src/work/backlog/label-dispatch.test.ts#L32), [validated by does nothing for a label that is not the repository's dispatch label](libs/shared/src/work/backlog/label-dispatch.test.ts#L47), [validated by answers to the label a repository configured as its dispatch label, here agent](libs/shared/src/work/backlog/label-dispatch.test.ts#L59), [validated by says issue 7 is already being worked on by task t-1 and queues nothing](libs/shared/src/work/backlog/label-dispatch.test.ts#L75), [validated by labels issue 7 priority:medium and says the loop picks it up, when it carries no priority](libs/shared/src/work/backlog/queue-ticket.test.ts#L24), [validated by leaves the priority:high of issue 7 as it is](libs/shared/src/work/backlog/queue-ticket.test.ts#L38), [validated by queues issue 7 and says nothing will pick it up while the loop is off for acme/widgets](libs/shared/src/work/backlog/queue-ticket.test.ts#L51), [validated by queues issue 7 of acme/widgets in the loop's backlog when it is labelled lore](apps/stations/src/events/repo-handlers.test.ts#L52))
+  - The label used to name a task type (`lore:implementation`, `lore:review`, `lore:runbook`, and the repository's `dispatch_default_type` for a bare `lore`). Those task types are gone, so the labels name nothing: onboarding seeds only `lore:implementation`, kept as the label that says "implement this". ([validated by seeds only lore:implementation, the label that means the loop's backlog](libs/shared/src/domain/task-types/dispatch-labels.test.ts#L5))
   - *(Planned — `specs/issue-triage`, not yet implemented:)* `lore:triage` and `triage: needs-triage` → issue-triage.
-  - *(Since 2026-10-01, #2328 and #2329.)* An Issue to be implemented becomes no task: it joins the repository's backlog. It gets `priority:medium` when it carries no priority label, and a comment saying it is queued, or that the loop is switched off for the repository and nothing picks it up until it is switched on. ([validated by sends an issue labelled only lore to the backlog when the repository configures no default](libs/shared/src/domain/task-types/dispatch-labels.test.ts#L34), [validated by sends an issue labelled only lore to a runbook task when the repository's default is runbook](libs/shared/src/domain/task-types/dispatch-labels.test.ts#L38), [validated by sends an issue to the backlog when the repository's default is still the removed %s type](libs/shared/src/domain/task-types/dispatch-labels.test.ts#L42), [validated by lets a lore:review label win over the repository's runbook default](libs/shared/src/domain/task-types/dispatch-labels.test.ts#L49), [validated by labels issue 7 priority:medium and says the loop picks it up, when it carries no priority](libs/shared/src/work/backlog/queue-ticket.test.ts#L24), [validated by leaves the priority:high of issue 7 as it is](libs/shared/src/work/backlog/queue-ticket.test.ts#L38), [validated by queues issue 7 and says nothing will pick it up while the loop is off for acme/widgets](libs/shared/src/work/backlog/queue-ticket.test.ts#L51))
-  - Otherwise: create pipeline task with issue context
-  - Comment on issue: "Lore agent is working on this. Task: `{id}`"
-  - Add `lore-managed` label to the issue
 
 **2. Task context enrichment**
 
@@ -111,12 +96,11 @@ If exists, skip and comment "Already being worked on: task `{id}`"
 Per-repo setting in `lore.repos.settings`:
 ```json
 {
-  "dispatch_label": "lore",
-  "dispatch_default_type": "runbook"
+  "dispatch_label": "lore"
 }
 ```
 
-Defaults: label=`lore`, type none (the Issue joins the implementation loop's backlog).
+Default: label=`lore`. There is no dispatch type any more: the Issue joins the implementation loop's backlog.
 
 ### Webhook Payload (issues.labeled)
 
