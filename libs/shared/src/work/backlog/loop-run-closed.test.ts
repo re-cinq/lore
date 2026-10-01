@@ -7,7 +7,7 @@ import {
   countInfraFailures,
   infraDeferralsFromEnv,
 } from "./loop-infra-deferral.js";
-import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
+import { InMemoryAssemblyRuns } from "../../outbound/project/assembly-runs/assembly-runs-memory.js";
 
 const graph = {
   name: "implementation-loop",

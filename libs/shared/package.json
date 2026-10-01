@@ -42,6 +42,14 @@
       "types": "./dist/work/onboard/*.d.ts",
       "default": "./dist/work/onboard/*.js"
     },
+    "./backlog/*.js": {
+      "types": "./dist/work/backlog/*.d.ts",
+      "default": "./dist/work/backlog/*.js"
+    },
+    "./dod-verdict.js": {
+      "types": "./dist/domain/dod-verdict.d.ts",
+      "default": "./dist/domain/dod-verdict.js"
+    },
     "./ci-wait/*.js": {
       "types": "./dist/work/ci-wait/*.d.ts",
       "default": "./dist/work/ci-wait/*.js"

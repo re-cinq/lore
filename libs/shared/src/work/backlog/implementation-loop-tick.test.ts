@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import type { IssueRef } from "@re-cinq/lore-shared";
+import { enforceTrue } from "../../lib/enforce.js";
+import type { IssueRef } from "../../outbound/project/lib/github-port.js";
 import {
   createImplementationLoopTickHandler,
   type LoopTickDeps,
-} from "./implementation-loop.js";
+  type StartedTicket,
+} from "./implementation-loop-tick.js";
 
 const issue = (number: number, labels: string[]): IssueRef => ({
   repo: "acme/widgets",
@@ -19,7 +20,11 @@ const issue = (number: number, labels: string[]): IssueRef => ({
 function deps(overrides: Partial<LoopTickDeps> = {}) {
   const minted: Array<Record<string, unknown>> = [];
   const columns: Array<Record<string, unknown>> = [];
+  const started: StartedTicket[] = [];
   const base: LoopTickDeps = {
+    started: async (ticket) => {
+      started.push(ticket);
+    },
     listRepos: async () => ["acme/widgets"],
     rawSettings: async () => ({ implementation_loop: { enabled: true } }),
     isOnboarded: async () => true,
@@ -39,7 +44,7 @@ function deps(overrides: Partial<LoopTickDeps> = {}) {
     openBlockers: async () => [],
   };
 
-  return { deps: { ...base, ...overrides }, minted, columns };
+  return { deps: { ...base, ...overrides }, minted, columns, started };
 }
 
 async function loggedLines(run: () => Promise<void>): Promise<string[]> {
@@ -401,5 +406,29 @@ describe("a ticket whose blockers are still open", () => {
     await createImplementationLoopTickHandler(d.deps)({});
 
     expect(asked).toEqual([5]);
+  });
+
+  it("hands the minted task, its branch, issue 7 and the ticket text to started", async () => {
+    const d = deps();
+
+    await createImplementationLoopTickHandler(d.deps)({});
+
+    expect(d.started).toEqual([
+      {
+        repo: "acme/widgets",
+        taskId: "task-1",
+        branch: "lore/implementation-loop/issue-7",
+        issue: issue(7, ["priority:high"]),
+        description: "Ticket 7",
+      },
+    ]);
+  });
+
+  it("starts nothing when no ticket is picked", async () => {
+    const d = deps({ listIssues: async () => [] });
+
+    await createImplementationLoopTickHandler(d.deps)({});
+
+    expect(d.started).toEqual([]);
   });
 });

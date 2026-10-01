@@ -1,6 +1,6 @@
 // The implementation loop's answer to a failure that was the CLUSTER's, not the ticket's (specs/implementation-loop FR8, 2026-09-13): defer the ticket to the next tick a bounded number of times before parking it.
 
-import type { AssemblyRunsPort } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
+import type { AssemblyRunsPort } from "../../outbound/project/assembly-runs/assembly-runs-port.js";
 import type {
   ClosedLoopRun,
   LoopRunClosedDeps,
