@@ -1,8 +1,9 @@
-// Command lore-code-trace is the portable CI test-ingestion orchestrator: it reads
-// a repo's .lore/test-commands.yml, runs the list + per-file run commands, and
-// (with --post) sends the report to Lore's Floor ci-tests hook. It is a faithful
+// Command lore-code-trace is the portable CI ingestion orchestrator. With no
+// subcommand it reads a repo's .lore/test-commands.yml, runs the list + per-file
+// run commands, and (with --post) sends the report to Lore; it is a faithful
 // port of the TS buildTestReport/run-tests CLI so any onboarded repo runs one
-// blessed binary instead of drifting inlined bash.
+// blessed binary instead of drifting inlined bash. `docs` sends the repo's
+// changed specs and ADRs instead (docs_run.go).
 package main
 
 import (
@@ -35,23 +36,46 @@ const (
 	runConcurrency  = 4
 )
 
-func main() {
-	args := os.Args[1:]
-	post := false
-	for _, a := range args {
-		if a == "--post" {
-			post = true
+// invocation is the command line, read once: the `docs` subcommand ingests
+// specs and ADRs, and no subcommand runs the tests and ingests their report.
+type invocation struct {
+	docs  bool
+	post  bool
+	force bool
+}
+
+func parseArgs(args []string) invocation {
+	parsed := invocation{}
+	for _, arg := range args {
+		switch arg {
+		case "docs":
+			parsed.docs = true
+		case "--post":
+			parsed.post = true
+		case "--force":
+			parsed.force = true
 		}
 	}
+	return parsed
+}
+
+func main() {
 	wd, err := os.Getwd()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "lore-code-trace:", err)
 		os.Exit(1)
 	}
-	if err := run(wd, post, os.Stdout); err != nil {
+	if err := dispatch(parseArgs(os.Args[1:]), wd); err != nil {
 		fmt.Fprintln(os.Stderr, "lore-code-trace:", err)
 		os.Exit(1)
 	}
+}
+
+func dispatch(parsed invocation, wd string) error {
+	if parsed.docs {
+		return runDocs(wd, docsOptions{post: parsed.post, force: parsed.force}, os.Stdout)
+	}
+	return run(wd, parsed.post, os.Stdout)
 }
 
 func run(startDir string, post bool, stdout io.Writer) error {
