@@ -442,7 +442,7 @@ CronJob via `node dist/job-runner.js spec_coverage_backfill`.
 
 33. `--all`, or no known base, checks every link of every spec and ADR. ([validated by TestCheckLinksSendsEverySpecAndReturnsTheBrokenOnes](apps/lore-code-trace/links_test.go#L152), [validated by TestDocsToCheckKeepsEveryDocWhenTheScopeIsEverything](apps/lore-code-trace/links_test.go#L37))
 
-34. A base that cannot be found fails the check by name. ([validated by TestRunLinksFailsWhenTheBaseCannotBeFound](apps/lore-code-trace/links_run_test.go#L157))
+34. A base that cannot be found fails the check by name, and so does `--base` given no value. ([validated by TestRunLinksFailsWhenTheBaseCannotBeFound](apps/lore-code-trace/links_run_test.go#L157), [validated by TestParseArgsRefusesBaseWithNoValue](apps/lore-code-trace/docs_run_test.go#L262))
 
 35. The check is skipped with a `::warning::` and passes when lore-api does not answer or `LORE_API_URL` / `LORE_INGEST_TOKEN` is unset, so a Lore outage or a fork without secrets blocks no pull request; a refused token fails it. ([validated by TestRunLinksWarnsAndPassesWhenLoreIsUnreachable](apps/lore-code-trace/links_run_test.go#L117), [validated by TestRunLinksWarnsAndPassesWithoutAToken](apps/lore-code-trace/links_run_test.go#L131), [validated by TestRunLinksFailsWhenLoreRefusesTheToken](apps/lore-code-trace/links_run_test.go#L145), [validated by TestCheckLinksReturnsTheParseFailure](apps/lore-code-trace/links_test.go#L182))
 

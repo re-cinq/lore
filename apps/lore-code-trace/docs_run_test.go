@@ -253,8 +253,14 @@ func TestParseArgsReadsTheSubcommandsAndTheirFlags(t *testing.T) {
 		{[]string{"links", "--base", "main"}, invocation{links: true, base: "main"}},
 	}
 	for _, c := range cases {
-		if got := parseArgs(c.args); got != c.want {
-			t.Errorf("parseArgs(%v) = %+v, want %+v", c.args, got, c.want)
+		if got, err := parseArgs(c.args); err != nil || got != c.want {
+			t.Errorf("parseArgs(%v) = %+v, %v, want %+v", c.args, got, err, c.want)
 		}
+	}
+}
+
+func TestParseArgsRefusesBaseWithNoValue(t *testing.T) {
+	if _, err := parseArgs([]string{"links", "--base"}); err == nil || !strings.Contains(err.Error(), "--base") {
+		t.Errorf("err = %v, want it to name --base", err)
 	}
 }

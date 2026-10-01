@@ -48,7 +48,7 @@ type invocation struct {
 	base  string
 }
 
-func parseArgs(args []string) invocation {
+func parseArgs(args []string) (invocation, error) {
 	parsed := invocation{}
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
@@ -63,13 +63,14 @@ func parseArgs(args []string) invocation {
 		case "--all":
 			parsed.all = true
 		case "--base":
-			if i+1 < len(args) {
-				i++
-				parsed.base = args[i]
+			if i+1 == len(args) {
+				return invocation{}, fmt.Errorf("--base needs the name of the branch the change targets")
 			}
+			i++
+			parsed.base = args[i]
 		}
 	}
-	return parsed
+	return parsed, nil
 }
 
 func main() {
@@ -78,7 +79,11 @@ func main() {
 		fmt.Fprintln(os.Stderr, "lore-code-trace:", err)
 		os.Exit(1)
 	}
-	if err := dispatch(parseArgs(os.Args[1:]), wd); err != nil {
+	parsed, err := parseArgs(os.Args[1:])
+	if err == nil {
+		err = dispatch(parsed, wd)
+	}
+	if err != nil {
 		fmt.Fprintln(os.Stderr, "lore-code-trace:", err)
 		os.Exit(1)
 	}
