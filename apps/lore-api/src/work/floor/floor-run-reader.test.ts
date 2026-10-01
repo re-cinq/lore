@@ -93,21 +93,6 @@ describe("FloorRunReader", () => {
     ]);
   });
 
-  it("reads visit-1's assistant turn as agent event 100 of run-1", async () => {
-    expect(await reader().reader.agentEvents("run-1")).toMatchObject([
-      {
-        id: "100",
-        stationRunId: "visit-1",
-        agentCrName: "floor-visit-1",
-        eventType: "message",
-      },
-    ]);
-  });
-
-  it("reads no agent event for a run the floor does not have", async () => {
-    expect(await reader().reader.agentEvents("run-unknown")).toEqual([]);
-  });
-
   it("reads floor-visit-1's log as one available line of run-1", async () => {
     expect(
       await reader().reader.nodeLogs("run-1", "floor-visit-1", undefined),

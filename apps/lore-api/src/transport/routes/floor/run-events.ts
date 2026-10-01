@@ -2,23 +2,33 @@
 import type { Request, ResponseToolkit, ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
 import type { AgentRunEvent } from "@re-cinq/lore-shared/models/agent-run-event.js";
-import { floorConfigured } from "@re-cinq/lore-shared/floor/floor-client.js";
-import { floorRunReader } from "../../../work/floor/floor-backed-runs.js";
+import {
+  floorClient,
+  floorConfigured,
+} from "@re-cinq/lore-shared/floor/floor-client.js";
+import { floorRunHistory } from "../../../work/floor/floor-run-history.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
 
 /** The Floor's own page size, which the page reads as the end-of-history signal: a page shorter than this is the last. */
 const DEFAULT_LIMIT = 1000;
 const MAX_LIMIT = 1000;
+const ROWS_PER_TURN = 100n;
 
 const EventPageSchema = z.object({
   events: z.array(z.record(z.string(), z.unknown())),
 });
 
-export type EventsOf = (runId: string) => Promise<AgentRunEvent[]>;
+/** The run's events after a cursor, read off the floor's journal. */
+export type EventsOf = (
+  runId: string,
+  after: string | undefined,
+) => Promise<AgentRunEvent[]>;
 
-const floorEvents: EventsOf = (runId) =>
-  floorConfigured() ? floorRunReader().agentEvents(runId) : Promise.resolve([]);
+const floorEvents: EventsOf = (runId, after) =>
+  floorConfigured()
+    ? floorRunHistory(floorClient().runs.watch, runId, after)
+    : Promise.resolve([]);
 
 export function floorRunEventsRoute(
   eventsOf: EventsOf = floorEvents,
@@ -32,21 +42,45 @@ export function floorRunEventsRoute(
         "One page of the agent events of a run on the external floor, oldest first; empty for a run the floor does not have",
     }),
     handler: async (request: Request, h: ResponseToolkit) =>
-      h.response(
-        eventPage(await eventsOf(request.params.id as string), request.query),
-      ),
+      h.response(await servePage(eventsOf, request)),
   };
 }
 
-/** The events after the cursor, one page of them. Ids outgrow a JS number, so the cursor compares as a bigint, as the Floor's own read does. */
+async function servePage(eventsOf: EventsOf, request: Request) {
+  const events = await eventsOf(
+    request.params.id as string,
+    cursorOf(request.query.after),
+  );
+
+  return eventPage(events, request.query);
+}
+
+function cursorOf(value: unknown): string | undefined {
+  return typeof value === "string" && /^\d+$/.test(value) ? value : undefined;
+}
+
+/** The events after the cursor, one page of them. Ids outgrow a JS number, so the cursor compares as a bigint, as the Floor's own read does. A page never ends inside a turn: the next read asks the journal for what follows the last turn it saw, so the rows of a turn cut in two would be lost. */
 export function eventPage(
   events: AgentRunEvent[],
   query: { after?: unknown; limit?: unknown },
 ): { events: AgentRunEvent[] } {
   const after = BigInt(String(query.after ?? "0") || "0");
   const limit = Math.min(Number(query.limit) || DEFAULT_LIMIT, MAX_LIMIT);
+  const unseen = events.filter((event) => BigInt(event.id) > after);
 
-  return {
-    events: events.filter((event) => BigInt(event.id) > after).slice(0, limit),
-  };
+  return { events: unseen.slice(0, wholeTurns(unseen, limit)) };
+}
+
+// Where the page ends: at the limit, moved on past the rest of the turn the limit landed in.
+function wholeTurns(events: AgentRunEvent[], limit: number): number {
+  const landed = Math.min(limit, events.length);
+  const rest = events
+    .slice(landed)
+    .findIndex((event) => turnOf(event) !== turnOf(events[landed - 1]));
+
+  return rest < 0 ? events.length : landed + rest;
+}
+
+function turnOf(event: AgentRunEvent | undefined): bigint | null {
+  return event ? BigInt(event.id) / ROWS_PER_TURN : null;
 }
