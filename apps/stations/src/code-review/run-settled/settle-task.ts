@@ -1,11 +1,12 @@
 // What a settled run owes the `pipeline.tasks` row it was started for. A line that keeps a task keys its run on it, and nothing else tells the row the work ended: left `running`, the repository would look mid-onboarding forever and the onboard guard would refuse the next attempt.
 import type { Handle } from "@re-cinq/floor-station";
 import type { RunView } from "@re-cinq/floor-client";
+import { LOOP_LINE } from "@re-cinq/lore-shared/backlog/floor-loop.js";
 import { ONBOARD_LINE } from "@re-cinq/lore-shared/onboard/floor-onboard.js";
 import { startValueOf } from "./run-settled.js";
 
 /** The floor lines whose runs carry a task to settle. */
-const TASK_LINES: readonly string[] = [ONBOARD_LINE];
+const TASK_LINES: readonly string[] = [ONBOARD_LINE, LOOP_LINE];
 
 export interface TaskSettlement {
   taskId: string;
