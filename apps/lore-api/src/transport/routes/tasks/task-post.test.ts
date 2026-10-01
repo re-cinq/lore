@@ -21,6 +21,9 @@ import {
 
 const originalEnv = { ...process.env };
 
+const NO_TYPED_TASKS =
+  "Lore no longer runs typed tasks, so nothing is created here. To have something implemented or written, open an issue with a priority:high, priority:medium or priority:low label and the implementation loop picks it up. To have a feature specified, start a plan on the repository's Plans page. Every open pull request is reviewed already; comment `@lore review` on one to have it reviewed again.";
+
 describe("POST /api/task", () => {
   useRateLimitSafeClock();
   beforeEach(() => {
@@ -169,34 +172,8 @@ describe("POST /api/task", () => {
     });
   });
 
-  it("queues a revision and answers with the new task id", async () => {
+  it("queues no revision of task t1 and points at a review on its pull request", async () => {
     const pool = makePool();
-
-    pool.query
-      .mockResolvedValueOnce({
-        rows: [
-          { id: "t1", status: "pr-created", task_type: "feature-request" },
-        ],
-      })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [{ id: "rev-1" }] })
-      .mockResolvedValue({ rows: [] });
-    const res = await post(
-      { action: "revise", task_id: "t1", feedback: "tighten it" },
-      pool,
-    );
-
-    expect(res.result).toEqual({ task_id: "t1", revision_task_id: "rev-1" });
-  });
-
-  it("answers 409 when revising a runbook task, pointing at a review on its pull request", async () => {
-    const pool = makePool();
-
-    pool.query
-      .mockResolvedValueOnce({
-        rows: [{ id: "t1", status: "pr-created", task_type: "runbook" }],
-      })
-      .mockResolvedValue({ rows: [] });
     const res = await post(
       { action: "revise", task_id: "t1", feedback: "tighten it" },
       pool,
@@ -205,40 +182,9 @@ describe("POST /api/task", () => {
     expect(res.statusCode).toBe(409);
     expect(res.result).toEqual({
       error:
-        "Only a feature-request task is revised from here. For any other pull request, leave the feedback as a review that requests changes: Lore answers it on the pull request.",
+        "A task is no longer revised from here. Leave the feedback as a review that requests changes on its pull request: Lore answers it there.",
     });
-  });
-
-  it("returns 404 when revising a task that does not exist", async () => {
-    const pool = makePool();
-
-    pool.query.mockResolvedValue({ rows: [] });
-    const res = await post(
-      { action: "revise", task_id: "gone", feedback: "x" },
-      pool,
-    );
-
-    expect(res.statusCode).toBe(404);
-  });
-
-  it("returns 409 when revising with blank feedback", async () => {
-    const res = await post(
-      { action: "revise", task_id: "t1", feedback: "   " },
-      poolWithTask("pr-created"),
-    );
-
-    expect(res.statusCode).toBe(409);
-    expect(res.result).toEqual({ error: "Feedback is required" });
-  });
-
-  it("returns 409 when revising with no feedback field at all", async () => {
-    const res = await post(
-      { action: "revise", task_id: "t1" },
-      poolWithTask("pr-created"),
-    );
-
-    expect(res.statusCode).toBe(409);
-    expect(res.result).toEqual({ error: "Feedback is required" });
+    expect(pool.query).not.toHaveBeenCalled();
   });
 
   it("sets immediate priority", async () => {
@@ -300,159 +246,31 @@ describe("POST /api/task", () => {
     expect(res.statusCode).toBe(400);
   });
 
-  it("creates a review task when lore.agent_definitions holds a review row", async () => {
-    vi.mocked(createTask).mockResolvedValue({ task_id: "c1" } as any);
-    await post(
-      { description: "do it", task_type: "review" },
-      poolWithDefinition("review", "claude-code"),
-    );
-    expect(createTask).toHaveBeenCalledWith({
-      description: "do it",
-      taskType: "review",
-      createdBy: "remote-mcp",
-      priority: "normal",
-    });
-  });
-
-  it("attributes the task to the caller-supplied created_by", async () => {
-    vi.mocked(createTask).mockResolvedValue({ task_id: "t1" } as never);
-    await post(
-      {
-        description: "d",
-        task_type: "runbook",
-        created_by: "bogdan@re-cinq.com",
-      },
-      poolWithDefinition("runbook", "claude-code"),
-    );
-
-    expect(createTask).toHaveBeenCalledWith({
-      description: "d",
-      taskType: "runbook",
-      createdBy: "bogdan@re-cinq.com",
-      priority: "normal",
-    });
-  });
-
-  it("attributes to remote-mcp when the caller names nobody", async () => {
-    vi.mocked(createTask).mockResolvedValue({ task_id: "t1" } as never);
-    await post(
-      { description: "d", task_type: "runbook" },
-      poolWithDefinition("runbook", "claude-code"),
-    );
-
-    expect(createTask).toHaveBeenCalledWith({
-      description: "d",
-      taskType: "runbook",
-      createdBy: "remote-mcp",
-      priority: "normal",
-    });
-  });
-
-  it("refuses a zzz type no definition row names, creating nothing", async () => {
-    const pool = makePool();
-
-    pool.query.mockResolvedValue({ rows: [] });
-    const res = await post({ description: "do it", task_type: "zzz" }, pool);
-
-    expect(res.statusCode).toBe(400);
-    expect(res.result).toEqual({
-      error:
-        '"zzz" is not a task type: no agent definition of that name can run a task',
-    });
-    expect(createTask).not.toHaveBeenCalled();
-  });
-
-  it("refuses def-validate, a station recipe no task can run as", async () => {
-    const res = await post(
-      { description: "do it", task_type: "def-validate" },
-      poolWithDefinition("def-validate", "station"),
-    );
-
-    expect(res.statusCode).toBe(400);
-    expect(createTask).not.toHaveBeenCalled();
-  });
-
-  it("refuses a task with no task_type and points at the implementation loop", async () => {
-    const res = await post({ description: "do it" });
-
-    expect(res.statusCode).toBe(400);
-    expect(res.result).toEqual({
-      error:
-        "task_type is required: a task with no type has nothing to run it. To have something implemented, open an issue with a priority:high, priority:medium or priority:low label and the implementation loop picks it up.",
-    });
-    expect(createTask).not.toHaveBeenCalled();
-  });
-
-  it.each(["implementation", "general"])(
-    "refuses the removed %s task type and points at the implementation loop",
-    async (removed) => {
-      const res = await post({ description: "do it", task_type: removed });
+  it.each(["review", "runbook", "gap-fill", "feature-request", "general"])(
+    "creates no %s task and says where that work goes now",
+    async (taskType) => {
+      const res = await post(
+        { description: "do it", task_type: taskType },
+        poolWithDefinition(taskType, "claude-code"),
+      );
 
       expect(res.statusCode).toBe(400);
-      expect(res.result).toMatchObject({
-        error: expect.stringContaining(
-          `The "${removed}" task type was removed.`,
-        ),
-      });
+      expect(res.result).toEqual({ error: NO_TYPED_TASKS });
       expect(createTask).not.toHaveBeenCalled();
     },
   );
 
-  it("carries the context and the priority of a runbook task through to createTask", async () => {
-    vi.mocked(createTask).mockResolvedValue({ task_id: "c2" } as any);
-    await post(
-      {
-        description: "do it",
-        task_type: "runbook",
-        context: { a: 1 },
-        priority: "immediate",
-      },
-      poolWithDefinition("runbook", "claude-code"),
-    );
-    expect(createTask).toHaveBeenCalledWith({
-      description: "do it",
-      taskType: "runbook",
-      createdBy: "remote-mcp",
-      contextBundle: { a: 1 },
-      priority: "immediate",
-    });
-  });
-
-  it("threads group_id through to createTask when provided", async () => {
-    vi.mocked(createTask).mockResolvedValue({ task_id: "c4" } as any);
-    await post(
-      { description: "do it", task_type: "runbook", group_id: "g-1" },
-      poolWithDefinition("runbook", "claude-code"),
-    );
-    expect(createTask).toHaveBeenCalledWith({
-      description: "do it",
-      taskType: "runbook",
-      createdBy: "remote-mcp",
-      priority: "normal",
-      taskGroupId: "g-1",
-    });
-  });
-
-  it("returns 400 when description is blank", async () => {
-    const res = await post({ description: "   " });
+  it("creates nothing for a body that names neither a task nor a type", async () => {
+    const res = await post({ description: "do it" });
 
     expect(res.statusCode).toBe(400);
+    expect(res.result).toEqual({ error: NO_TYPED_TASKS });
   });
 
   it("returns 400 on invalid JSON, not 500", async () => {
     const res = await post("{bad");
 
     expect(res.statusCode).toBe(400);
-  });
-
-  it("refuses task_type onboard and points at the guarded onboard route", async () => {
-    const res = await post({ description: "onboard us", task_type: "onboard" });
-
-    expect(res.statusCode).toBe(400);
-    expect(res.result).toMatchObject({
-      error: expect.stringContaining("/api/onboard"),
-    });
-    expect(createTask).not.toHaveBeenCalled();
   });
 
   it("cancel records a task_events row for the status transition", async () => {
@@ -485,10 +303,10 @@ describe("POST /api/task", () => {
     expect(params).toEqual(["immediate", "t1"]);
   });
 
-  it("set-priority without a priority falls through to create and 400s", async () => {
+  it("set-priority without a priority changes nothing and answers 400", async () => {
     const res = await post({ action: "set-priority", task_id: "t1" });
 
     expect(res.statusCode).toBe(400);
-    expect(res.result).toEqual({ error: "description is required" });
+    expect(res.result).toEqual({ error: NO_TYPED_TASKS });
   });
 });

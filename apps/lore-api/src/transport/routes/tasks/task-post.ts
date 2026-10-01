@@ -5,7 +5,6 @@ import {
   errorMessage,
   cancelPipelineTask,
   escalatePipelineTask,
-  revisePipelineTask,
 } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
 import type {
@@ -15,16 +14,14 @@ import type {
   ServerRoute,
 } from "@hapi/hapi";
 import { z } from "zod";
-import { createTask } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
-import { PgAgentDefs } from "@re-cinq/lore-shared/project/agents/agent-defs-pg.js";
-import { namedTaskType } from "@re-cinq/lore-shared/task-types/retired-task-types.js";
+import { NO_TYPED_TASKS } from "@re-cinq/lore-shared/task-types/retired-task-types.js";
 import { PgAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-pg.js";
 import { cancelTaskAndItsRuns } from "../../../work/pipeline/cancel-task.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { withPool } from "../with-pool.js";
 
-// POST /api/task multiplexes 5 shapes with irregular dispatch (status-update has no `action`, create is the fallback), so a discriminated union would contort (ADR-034 FR6) — branch selection stays in the handler.
+// POST /api/task multiplexes its shapes with irregular dispatch (status-update has no `action`, a body naming no task is refused), so a discriminated union would contort (ADR-034 FR6) — branch selection stays in the handler.
 const TaskBody = z.object({
   action: z.string().optional(),
   task_id: z.string().optional(),
@@ -32,20 +29,11 @@ const TaskBody = z.object({
   priority: z.string().optional(),
   pr_url: z.string().optional(),
   error: z.string().optional(),
-  description: z.string().optional(),
-  /** Who queued it; an unnamed caller is the remote MCP adapter (the historical default). */
-  created_by: z.string().optional(),
-  /** The human's words, carried into the revision task's context bundle. */
-  feedback: z.string().optional(),
-  task_type: z.string().optional(),
-  target_repo: z.string().optional(),
-  group_id: z.string().optional(),
-  context: z.unknown().optional(),
 });
 
 type TaskBody = z.infer<typeof TaskBody>;
 
-// One POST multiplexes create/cancel/retry/run-now/revise/set-priority; the contract is the union of what those answer.
+// One POST multiplexes cancel/retry/run-now/revise/set-priority; the contract is the union of what those answer.
 const TaskWriteSchema = z.record(z.string(), z.unknown());
 
 export function taskPostRoute(getPool: () => Pool | null): ServerRoute {
@@ -60,7 +48,7 @@ export function taskPostRoute(getPool: () => Pool | null): ServerRoute {
       TaskWriteSchema,
       {
         name: "TaskWriteResult",
-        description: "The created task, or the transition's acknowledgement",
+        description: "The transition's acknowledgement",
         errors: [400, 404, 409],
       },
     ),
@@ -68,7 +56,7 @@ export function taskPostRoute(getPool: () => Pool | null): ServerRoute {
   };
 }
 
-/** Creating a task, or acknowledging a transition on one — the same endpoint, because the caller is the same MCP tool and the action rides in the body. */
+/** Acknowledging a transition on a task; the action rides in the body. */
 async function serveTaskPost(
   pool: Pool,
   request: Request,
@@ -77,10 +65,7 @@ async function serveTaskPost(
   try {
     const parsed = request.payload as TaskBody;
 
-    return (
-      (await actOnExistingTask(pool, h, parsed)) ??
-      (await createTaskFromBody(pool, h, parsed))
-    );
+    return (await actOnExistingTask(pool, h, parsed)) ?? refuseTypedTask();
   } catch (err) {
     // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
     rethrowBoom(err);
@@ -91,7 +76,7 @@ async function serveTaskPost(
   }
 }
 
-/** Every shape that names an EXISTING task; null when the body names none, which means "create". */
+/** Every shape that names an existing task; null when the body names none. */
 async function actOnExistingTask(
   pool: Pool,
   h: ResponseToolkit,
@@ -116,6 +101,9 @@ async function actOnExistingTask(
     (await reportRunnerStatus(pool, h, parsed, taskId))
   );
 }
+
+const REVISED_ON_THE_PR =
+  "A task is no longer revised from here. Leave the feedback as a review that requests changes on its pull request: Lore answers it there.";
 
 // Refuse rather than silently no-op on unknown id, terminal state, or past pending.
 const EXISTING_TASK_ACTIONS: Record<
@@ -150,18 +138,15 @@ async function retryAction(
   return refusable(h, () => retryTask(taskId));
 }
 
+/** A task used to be revised by queueing a follow-up task from a person's feedback. The task type that ran it is gone, and a pull request is revised where it is reviewed. */
 function reviseAction(
-  pool: Pool,
+  _pool: Pool,
   h: ResponseToolkit,
-  parsed: TaskBody,
-  taskId: string,
 ): Promise<ResponseObject> {
-  const feedback = parsed.feedback ?? "";
-
-  return refusable(h, () => revisePipelineTask(pool, taskId, feedback));
+  return Promise.resolve(h.response({ error: REVISED_ON_THE_PR }).code(409));
 }
 
-// Refusable state transition (retry, cancel, run-now, revise): the shared seams throw "Task not found" (404) or a state message (409) — one mapping so the branches can't drift. A retry is refused when the task is not failed, and when its type was removed.
+// Refusable state transition (retry, cancel, run-now): the shared seams throw "Task not found" (404) or a state message (409) — one mapping so the branches can't drift. A retry is refused when the task is not failed, and when its type was removed.
 async function refusable<T extends object>(
   h: ResponseToolkit,
   transition: () => Promise<T>,
@@ -277,67 +262,7 @@ function statusSetClauses({ status, prUrl, error }: RunnerStatusUpdate): {
   return { clauses, values };
 }
 
-/** The default: a body with no task id creates one. */
-async function createTaskFromBody(
-  pool: Pool,
-  h: ResponseToolkit,
-  parsed: TaskBody,
-): Promise<ResponseObject> {
-  const description = creatableDescription(parsed);
-  const taskType = await resolvedTaskType(pool, parsed);
-
-  return h.response(
-    await createTask(createTaskArgs(parsed, description, taskType)),
-  );
-}
-
-function creatableDescription({ description, task_type }: TaskBody): string {
-  // `typeof` first so the assertion narrows `description` itself — an optional-chained CALL isn't a reference TS can narrow on.
-  enforceTrue(
-    typeof description === "string" && description.trim() !== "",
-    apiError(400),
-    "description is required",
-  );
-  // Onboarding's duplicate-guard lives in the /api/onboard transaction (dupes race their own Issue+PR — #968); refuse here rather than route around it.
-  enforceTrue(
-    task_type !== "onboard",
-    apiError(400),
-    "onboard tasks are created via POST /api/onboard, which guards against duplicates",
-  );
-
-  return description;
-}
-
-function createTaskArgs(
-  parsed: TaskBody,
-  description: string,
-  taskType: string,
-) {
-  return {
-    description,
-    taskType,
-    targetRepo: parsed.target_repo,
-    createdBy: parsed.created_by || "remote-mcp",
-    contextBundle:
-      (parsed.context as Record<string, unknown> | undefined) || undefined,
-    priority: parsed.priority || "normal",
-    taskGroupId: parsed.group_id || undefined,
-  };
-}
-
-// A task type is one lore.agent_definitions resolves for the repo, org default or the repo's own; a station recipe is not a task. There is no default type: the one that stood in for a missing or unknown type is gone (#2329).
-async function resolvedTaskType(pool: Pool, parsed: TaskBody): Promise<string> {
-  const taskType = namedTaskType(parsed.task_type, apiError(400));
-  const def = await new PgAgentDefs(pool).resolve(
-    parsed.target_repo ?? "",
-    taskType,
-  );
-
-  enforceTrue(
-    def && def.execution_mode !== "station",
-    apiError(400),
-    `"${taskType}" is not a task type: no agent definition of that name can run a task`,
-  );
-
-  return taskType;
+/** A body with no task id used to create a task. None is created from a description any more, so the caller is told where that work goes instead. */
+function refuseTypedTask(): never {
+  throw apiError(400)(NO_TYPED_TASKS);
 }

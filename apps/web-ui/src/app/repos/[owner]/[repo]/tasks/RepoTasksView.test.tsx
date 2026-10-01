@@ -34,8 +34,8 @@ const run = (over: Partial<AssemblyRun> = {}): AssemblyRun => ({
 });
 
 describe("RepoTasksView", () => {
-  it("renders the Assembly Runs heading, intro copy and New Task link", () => {
-    render(<RepoTasksView owner="re-cinq" repo="lore" runs={[]} />);
+  it("renders the Assembly Runs heading and intro copy, and offers no way to create a task", () => {
+    render(<RepoTasksView runs={[]} />);
 
     expect(
       screen.getByRole("heading", { level: 2, name: "Assembly Runs" }),
@@ -43,25 +43,16 @@ describe("RepoTasksView", () => {
     expect(
       screen.getByText(/Assembly lines targeting this repo/),
     ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "+ New Task" })).toHaveAttribute(
-      "href",
-      "/repos/re-cinq/lore/tasks/create",
-    );
+    expect(screen.queryByRole("link", { name: /New Task/ })).toBeNull();
   });
 
   it("renders the empty-state row when there are no runs", () => {
-    render(<RepoTasksView owner="re-cinq" repo="lore" runs={[]} />);
+    render(<RepoTasksView runs={[]} />);
     expect(screen.getByText("No assembly line runs.")).toBeInTheDocument();
   });
 
   it("renders a repo run with its summed task cost", () => {
-    render(
-      <RepoTasksView
-        owner="re-cinq"
-        repo="lore"
-        runs={[run({ costUsd: 1.5 })]}
-      />,
-    );
+    render(<RepoTasksView runs={[run({ costUsd: 1.5 })]} />);
 
     expect(screen.getByText("$1.50")).toBeInTheDocument();
     expect(

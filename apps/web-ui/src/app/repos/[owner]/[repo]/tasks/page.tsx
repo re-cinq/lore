@@ -13,5 +13,5 @@ export default async function RepoTasks({
     limit: 100,
   });
 
-  return <RepoTasksView owner={owner} repo={repo} runs={runs} />;
+  return <RepoTasksView runs={runs} />;
 }
