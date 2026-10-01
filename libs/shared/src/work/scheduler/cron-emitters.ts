@@ -1,4 +1,4 @@
-/** The cron emitters, single-sourced — the registry cross-check test derives tick names from here, so a new emitter without a handler fails the build (ADR-019). */
+/** The cron emitters, single-sourced: the stations service emits them, and the old Floor's registry cross-check test derives tick names from here while it still consumes some. */
 
 export interface CronEmitter {
   name: string;

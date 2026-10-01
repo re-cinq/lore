@@ -46,6 +46,10 @@
       "types": "./dist/work/spec-upkeep/*.d.ts",
       "default": "./dist/work/spec-upkeep/*.js"
     },
+    "./scheduler/*.js": {
+      "types": "./dist/work/scheduler/*.d.ts",
+      "default": "./dist/work/scheduler/*.js"
+    },
     "./spec-task/*.js": {
       "types": "./dist/work/spec-task/*.d.ts",
       "default": "./dist/work/spec-task/*.js"
@@ -189,6 +193,7 @@
     "@hapi/boom": "^10.0.1",
     "@opentelemetry/api": "^1.9.0",
     "@re-cinq/floor-client": "0.1.4",
+    "cron-parser": "^5.10.0",
     "dgraph-js-http": "^23.0.0-rc1",
     "libsodium-wrappers": "^0.8.2",
     "minimatch": "^10.2.6",
