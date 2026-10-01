@@ -1,4 +1,4 @@
-// The stations process: opens the pool, loads shared approval config, serves — schedules nothing itself (the Floor owns WHEN) but drains the bus for nodes whose station runs here.
+// The stations process: opens the pool, loads shared approval config, serves, emits the cron ticks every scheduled sweep hangs off, and drains the bus for the events and nodes whose station runs here.
 
 import {
   onTerminationSignals,
@@ -9,7 +9,18 @@ import { getPool, initPool } from "@re-cinq/lore-shared/db/pg-pool.js";
 import { Llm } from "@re-cinq/lore-shared/llm/llm.js";
 import { startServer } from "./transport/server.js";
 import { startStationDrain } from "./events/loop-boot.js";
-import { deliveries, eventProxy, usage } from "./outbound/queues.js";
+import {
+  deliveries,
+  eventProxy,
+  eventReporter,
+  pipeline,
+  usage,
+} from "./outbound/queues.js";
+import { CRON_EMITTERS } from "@re-cinq/lore-shared/scheduler/cron-emitters.js";
+import {
+  createCronScheduler,
+  registerCronEmitters,
+} from "@re-cinq/lore-shared/scheduler/cron-scheduler.js";
 import { DEFAULT_DRAIN_TIMEOUT_MS } from "@re-cinq/lore-shared/project/events/event-tuning.js";
 import { requiredPort } from "@re-cinq/lore-shared/lib/required-env.js";
 import { floorConfigured } from "@re-cinq/lore-shared/floor/floor-client.js";
@@ -36,6 +47,7 @@ async function main(): Promise<void> {
 
   // Started before the server: the queue only drains while its loop runs, so an earlier emit would sit in memory until shutdown noticed it.
   await eventProxy().start();
+  void startCronTicks();
 
   const stopServer = await startServer(PORT);
   const floorStations = startFloorStations();
@@ -46,6 +58,17 @@ async function main(): Promise<void> {
   });
 
   onTerminationSignals(shutdown);
+}
+
+/** The `cron.<name>.tick` events every scheduled sweep and line start hangs off. This service is their one emitter (specs/external-floor FR16); it runs a single replica, and the scheduler reads each job's last run from `pipeline.job_runs`, so an emitter still running elsewhere during a rollout takes turns with it. */
+function startCronTicks(): Promise<void> {
+  const scheduler = createCronScheduler(pipeline().jobRuns);
+
+  registerCronEmitters(scheduler, CRON_EMITTERS, (event) =>
+    eventReporter().insert(event),
+  );
+
+  return scheduler.start();
 }
 
 /** The floor's stations claim from the floor's queue, not the bus: without a floor there is nothing for them to ask. */

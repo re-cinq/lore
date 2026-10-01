@@ -6,7 +6,7 @@ import {
 } from "@re-cinq/lore-shared/project/assembly-runs/run-events.js";
 import { GITHUB_EVENT_NAMES } from "@re-cinq/lore-shared/project/events/github-map.js";
 import { AGENT_EVENT_NAMES } from "@re-cinq/lore-shared/project/events/k8s-map.js";
-import { cronTickEventNames } from "../listeners/cron-emitters.js";
+import { cronTickEventNames } from "@re-cinq/lore-shared/scheduler/cron-emitters.js";
 
 const EXTERNAL_FLOOR_EVENT_NAMES = [
   "github.pull_request.opened",
