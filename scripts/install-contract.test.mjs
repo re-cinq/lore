@@ -1,6 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, chmodSync, rmSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -81,13 +84,90 @@ test("detects the team from git config and defaults to platform when unset", () 
 test("registers the MCP server with the claude CLI pointing at the built adapter", () => {
   assert.match(
     script,
-    /claude mcp remove lore-context 2>\/dev\/null \|\| true/,
-    "a stale lore-context registration is removed before re-adding",
+    /claude mcp remove -s local lore-context[^\n]*\|\| true\n\s*claude mcp remove -s user lore-context[^\n]*\|\| true/,
+    "a stale local or user lore-context registration is removed before re-adding",
   );
   assert.match(
     script,
-    /claude mcp add lore-context node \\\n\s*"\$LORE_DIR\/apps\/mcp-server\/dist\/index\.js"/,
-    "the MCP server is registered as node running the built dist/index.js",
+    /claude mcp add -s user \\\n(\s*-e "[A-Z_]+=\$[A-Za-z_]+" \\\n)+\s*lore-context -- node "\$LORE_DIR\/apps\/mcp-server\/dist\/index\.js"/,
+    "options precede the name and -- precedes the command running the built dist/index.js",
+  );
+});
+
+test("registers at user scope so Lore works in every repo, never the cwd-bound local scope", () => {
+  assert.doesNotMatch(
+    script,
+    /claude mcp add (?!-s user)/,
+    "every claude mcp add names the user scope",
+  );
+  assert.match(
+    script,
+    /-e "CONTEXT_PATH=\$LORE_DIR"/,
+    "the adapter learns where the context checkout lives",
+  );
+  assert.match(
+    script,
+    /-e "LORE_API_URL=\$LORE_API_URL"/,
+    "the adapter receives the API URL",
+  );
+  assert.match(
+    script,
+    /-e "LORE_INGEST_TOKEN=\$LORE_TOKEN"/,
+    "the adapter receives the token",
+  );
+});
+
+test("does not pass LORE_TEAM, which nothing reads", () => {
+  assert.doesNotMatch(script, /LORE_TEAM/, "no LORE_TEAM env var is registered");
+});
+
+test("fails with a clear error when claude is missing or registration fails", () => {
+  assert.match(
+    script,
+    /if ! command -v claude &>\/dev\/null; then\n\s*echo "\[lore\] Error: 'claude' is required[^\n]*\n[^\n]*\n\s*return 1/,
+    "a missing claude CLI is an error, not a silent skip",
+  );
+  assert.match(
+    script,
+    /else\n\s*echo "\[lore\] Error: 'claude mcp add -s user lore-context' failed[^\n]*\n[^\n]*\n\s*return 1/,
+    "a failed claude mcp add is an error",
+  );
+  assert.doesNotMatch(
+    script,
+    /falling back to settings\.json/,
+    "the settings.json fallback never existed and is not promised",
+  );
+});
+
+test("an env-provided API URL and token win over git config", () => {
+  assert.match(
+    script,
+    /LORE_API_URL="\$\{LORE_API_URL:-\$\(git config --global lore\.api-url 2>\/dev\/null \|\| true\)\}"/,
+    "LORE_API_URL from the environment is kept; git config is only the fallback",
+  );
+  assert.match(
+    script,
+    /LORE_TOKEN="\$\{LORE_INGEST_TOKEN:-\$\(git config --global lore\.ingest-token 2>\/dev\/null \|\| true\)\}"/,
+    "LORE_INGEST_TOKEN from the environment is kept; git config is only the fallback",
+  );
+});
+
+test("prompts for the API URL on the tty and never writes an empty value to git config", () => {
+  assert.match(
+    script,
+    /read -r -p "\[lore\] Lore API URL: " LORE_API_URL < \/dev\/tty/,
+    "the URL prompt reads the terminal like the token prompt",
+  );
+  const urlGuard = script.indexOf('if [ -z "$LORE_API_URL" ]; then\n    echo "[lore] Error: no Lore API URL');
+  const tokenGuard = script.indexOf('if [ -z "$LORE_TOKEN" ]; then\n    echo "[lore] Error: no Lore API token');
+  const urlWrite = script.indexOf('git config --global lore.api-url "$LORE_API_URL"');
+  const tokenWrite = script.indexOf('git config --global lore.ingest-token "$LORE_TOKEN"');
+  assert.ok(urlGuard !== -1 && tokenGuard !== -1, "both values are guarded");
+  assert.ok(urlGuard < urlWrite && tokenGuard < tokenWrite, "each write follows its non-empty guard");
+  assert.equal(
+    script.split('git config --global lore.api-url "$LORE_API_URL"').length - 1,
+    1,
+    "the URL is written to git config in exactly one place",
   );
 });
 
@@ -189,4 +269,95 @@ test("runs the install steps in the documented order", () => {
     sorted,
     "steps are invoked in the documented order",
   );
+});
+
+const doctorPath = join(dirname(fileURLToPath(import.meta.url)), "lore-doctor.sh");
+
+function runDoctor({ env = {}, claudeOk = true, httpCode = "200", health = "{}" } = {}) {
+  const home = mkdtempSync(join(tmpdir(), "lore-doctor-"));
+  const bin = join(home, "bin");
+  mkdirSync(bin);
+  const stub = (name, body) => {
+    writeFileSync(join(bin, name), `#!/bin/sh\n${body}\n`);
+    chmodSync(join(bin, name), 0o755);
+  };
+  stub("claude", claudeOk ? "exit 0" : "exit 1");
+  stub(
+    "curl",
+    `case "$*" in *"-w"*) printf '%s' "$STUB_HTTP_CODE";; *) printf '%s' "$STUB_HEALTH";; esac`,
+  );
+  stub("ssh", "exit 1");
+  const result = spawnSync("bash", [doctorPath], {
+    encoding: "utf8",
+    env: {
+      PATH: `${bin}:${process.env.PATH}`,
+      HOME: home,
+      GIT_CONFIG_GLOBAL: join(home, ".gitconfig"),
+      GIT_CONFIG_SYSTEM: "/dev/null",
+      STUB_HTTP_CODE: httpCode,
+      STUB_HEALTH: health,
+      ...env,
+    },
+  });
+  rmSync(home, { recursive: true, force: true });
+  return { ...result, lines: result.stdout.trimEnd().split("\n") };
+}
+
+const fixtureToken = () => `fixture-${randomBytes(6).toString("hex")}`;
+const hasJq = spawnSync("jq", ["--version"]).status === 0;
+const apiEnv = () => ({
+  LORE_API_URL: "https://lore-api.example.test",
+  LORE_INGEST_TOKEN: fixtureToken(),
+});
+
+test("lore-doctor fails, not 'optional', when the API URL and token are missing", () => {
+  const { stdout, status } = runDoctor();
+  assert.match(stdout, /✗ {2}Lore API URL configured/);
+  assert.match(stdout, /✗ {2}Lore API token configured/);
+  assert.doesNotMatch(stdout, /optional\)\n.*Task delegation/);
+  assert.notEqual(status, 0);
+});
+
+test("lore-doctor checks lore-context is registered by running claude mcp get from HOME", () => {
+  assert.match(readFileSync(doctorPath, "utf8"), /\(cd "\$HOME" && claude mcp get lore-context\)/);
+  assert.match(runDoctor({ claudeOk: true }).stdout, /✓ {2}lore-context MCP server registered/);
+  assert.match(runDoctor({ claudeOk: false }).stdout, /✗ {2}lore-context MCP server registered/);
+});
+
+test("lore-doctor reports a rejected token separately from an outage", () => {
+  const env = apiEnv();
+  for (const httpCode of ["401", "403"]) {
+    const { stdout } = runDoctor({ env, httpCode });
+    assert.match(stdout, new RegExp(`token rejected \\(HTTP ${httpCode}\\)`));
+    assert.doesNotMatch(stdout, /unreachable/);
+  }
+  const outage = runDoctor({ env, httpCode: "000" }).stdout;
+  assert.match(outage, /Lore API unreachable/);
+  assert.doesNotMatch(outage, /token rejected/);
+  assert.match(runDoctor({ env, httpCode: "200" }).stdout, /Lore API accepts the token/);
+});
+
+test("lore-doctor reads the URL and token from the environment before git config", () => {
+  const { stdout } = runDoctor({ env: apiEnv() });
+  assert.match(stdout, /✓ {2}Lore API URL configured/);
+  assert.match(stdout, /✓ {2}Lore API token configured/);
+});
+
+test("lore-doctor blames the token scope, not Vertex AI, when healthz has no embeddings key", { skip: !hasJq }, () => {
+  const env = apiEnv();
+  const noKey = runDoctor({ env, health: '{"status":"ok"}' }).stdout;
+  assert.match(noKey, /token lacks read scope/);
+  assert.doesNotMatch(noKey, /Vertex AI/);
+  const bad = runDoctor({ env, health: '{"embeddings":{"consecutiveFailures":3}}' }).stdout;
+  assert.match(bad, /cannot reach Vertex AI/);
+  const good = runDoctor({ env, health: '{"embeddings":{"consecutiveFailures":0}}' }).stdout;
+  assert.match(good, /✓ {2}Embeddings healthy/);
+});
+
+test("lore-doctor prints the Results line last", () => {
+  const env = apiEnv();
+  for (const httpCode of ["200", "401", "000"]) {
+    const { lines } = runDoctor({ env, httpCode, health: '{"status":"ok"}' });
+    assert.match(lines[lines.length - 1], /^\[lore\] Results: \d+ passed, \d+ failed$/);
+  }
 });
