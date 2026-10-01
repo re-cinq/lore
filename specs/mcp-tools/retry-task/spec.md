@@ -84,7 +84,7 @@ A task that is not in a retryable state (e.g. running) is rejected with a
 ([validated by `throws cannot retry when the task is still running`](apps/mcp-server/src/work/pipeline/pipeline-crud.test.ts#L145))
 
 A task id with no matching row is rejected with `Task not found`.
-([validated by `throws task not found when no row matches`](apps/mcp-server/src/work/pipeline/pipeline-crud.test.ts#L158))
+([validated by `throws task not found when no row matches`](apps/mcp-server/src/work/pipeline/pipeline-crud.test.ts#L81))
 
 The retry action is posted to `/api/task` and the new task is returned
 verbatim. ([validated by `lore_retry_task posts the retry action and returns the new task`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L430))

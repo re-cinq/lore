@@ -97,7 +97,7 @@ An empty command returns the ephemeral usage help. ([validated by `returns usage
 
 `retry <id>` retries the task and reports the new id; a failing retry reports it ephemerally. ([validated by `retries a task`](apps/lore-api/src/transport/routes/webhooks/webhook-slack.test.ts#L113), [`reports a failed retry`](apps/lore-api/src/transport/routes/webhooks/webhook-slack.test.ts#L121))
 
-Any other command, a bare `retry` with no id included, creates no task and answers ephemerally with where that work goes now. ([validated by creates no task for /lore %s and says where that work goes now](apps/lore-api/src/transport/routes/webhooks/webhook-slack.test.ts#L129))
+Any other command, a bare `retry` with no id included, creates no task and answers ephemerally with where that work goes now. ([validated by creates no task for /lore %s and says where that work goes now](apps/lore-api/src/transport/routes/webhooks/webhook-slack.test.ts#L128))
 
 ## Out of Scope
 

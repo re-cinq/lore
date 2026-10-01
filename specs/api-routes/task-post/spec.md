@@ -149,7 +149,7 @@ Branch precedence is strict top-to-bottom: a `set-priority` action with no
 
 A null pool returns 503 before any body is read. ([validated by returns 503 when pool is null](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L70))
 
-A `retry` action returns the `retryTask` result verbatim. A retry that is refused answers `409` with the reason, and `404` for a task that does not exist, as cancel, run-now and revise do; a failed `implementation` or `general` task cannot be retried, because its type was removed, and stays failed. ([validated by retries a task](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L76), [validated by answers 409 with the reason when retrying a failed implementation task, whose type was removed](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L83), [validated by answers 404 when retrying a task that does not exist](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L95), [validated by refuses to retry a failed implementation task, whose type was removed, and leaves it failed](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L95))
+A `retry` action returns the `retryTask` result verbatim. A retry that is refused answers `409` with the reason, and `404` for a task that does not exist, as cancel, run-now and revise do; a failed `implementation` or `general` task cannot be retried, because its type was removed, and stays failed. ([validated by retries a task](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L76), [validated by answers 409 with the reason when retrying a failed implementation task, whose type was removed](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L83), [validated by answers 404 when retrying a task that does not exist](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L95), [validated by refuses to retry a failed implementation task, whose type was removed, and leaves it failed](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L91))
 
 A `cancel` action returns the cancelled task and its new status. ([validated by cancels a task](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L113))
 
@@ -185,7 +185,7 @@ A status update without optional fields still returns the status envelope. ([val
 
 An out-of-allow-list status returns 400. ([validated by rejects an invalid status](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L243))
 
-No task is created from a description, whatever type the body names: the answer is `400` with where that work goes now (an issue with a `priority:*` label, a plan, or the review every pull request already gets). ([validated by creates no %s task and says where that work goes now](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L250), [validated by creates nothing for a body that names neither a task nor a type](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L263))
+No task is created from a description, whatever type the body names: the answer is `400` with where that work goes now (an issue with a `priority:*` label, a plan, or the review every pull request already gets). ([validated by creates no %s task and says where that work goes now](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L249), [validated by creates nothing for a body that names neither a task nor a type](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L263))
 
 Invalid JSON returns 500. ([validated by returns 400 on invalid JSON, not 500](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L270))
 

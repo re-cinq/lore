@@ -624,7 +624,7 @@ The system MUST detect when specifications diverge from implementation. ([valida
 ### FR-15: Progressive Trust (Phase 1)
 
 The system MUST gate task types per-repo based on demonstrated
-reliability. ([validated by `pipeline-tasks.trust.test.ts:33`](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L34))
+reliability. ([validated by `pipeline-tasks.trust.test.ts:33`](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L33))
 
 - FR-15.1: `settings.trust.level` controls which task types are
   allowed: `docs` (gap-fill/runbook/onboard + feature-planning
@@ -633,7 +633,7 @@ reliability. ([validated by `pipeline-tasks.trust.test.ts:33`](libs/shared/src/d
   every one was refused until 2026-09-29),
   `full` (all). `onboard` is allowed at every tier — it produces a
   docs-only scaffolding PR and duplicate protection lives in its own
-  route's guard, not the trust ladder. ([validated by `allows an onboard task at trust level %s`](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L34), [validated by still refuses a spec-task at trust level docs](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L48), [validated by allows a spec-task at trust level implementation](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L171), [validated by allows a spec-task at trust level full](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L177), [validated by refuses a spec-task at trust level tests](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L181))
+  route's guard, not the trust ladder. ([validated by `allows an onboard task at trust level %s`](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L33), [validated by still refuses a spec-task at trust level docs](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L48), [validated by allows a spec-task at trust level implementation](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L171), [validated by allows a spec-task at trust level full](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L177), [validated by refuses a spec-task at trust level tests](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L181))
 - FR-15.2: Trust auto-promotes after 3 successful merges at the current level
   (overridable per repo via `auto_promote_threshold`), climbing
   `docs → tests → implementation → full` and resetting the merge counter on
@@ -830,7 +830,7 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   and records the transition carrying the priority it replaced.
   `cancelTask` treats `completed`, `merged`, `failed` and `cancelled` as
   terminal — `completed` was missing, so the web UI's own guard refused
-  a click the API accepted. ([validated by `sets priority immediate on a pending task`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L24), [`pipeline-tasks.escalate.test.ts:34`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L38), [`pipeline-tasks.escalate.test.ts:51`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L55), [`pipeline-tasks.escalate.test.ts:59`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L63), [`pipeline-tasks.escalate.test.ts:69`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L74), [`pipeline-tasks.escalate.test.ts:80`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L84))
+  a click the API accepted. ([validated by `sets priority immediate on a pending task`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L20), [`pipeline-tasks.escalate.test.ts:34`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L34), [`pipeline-tasks.escalate.test.ts:51`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L51), [`pipeline-tasks.escalate.test.ts:59`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L59), [`pipeline-tasks.escalate.test.ts:69`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L69), [`pipeline-tasks.escalate.test.ts:80`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L80))
 
 - FR-19.17: lore-api serves one `lore.repos` row at
   `GET /api/repos/{owner}/{repo}` under the `read` scope, reading it

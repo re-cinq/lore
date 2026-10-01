@@ -113,7 +113,7 @@ explicit value wins.
 *(untested: `detectCurrentRepo()` reads the ambient git remote — no deterministic seam without live repo state.)*
 
 A task must name its type: the input schema rejects a call with no `task_type`, and task creation refuses a missing type and the removed `implementation` and `general` types, pointing at the implementation loop, in the Postgres store and the in-memory one alike.
-([validated by rejects a task that names no task_type, since there is no default type](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L188), [validated by answers onboard for a task of type onboard](libs/shared/src/domain/task-types/retired-task-types.test.ts#L5), [validated by refuses a task with no type, pointing at the implementation loop](libs/shared/src/domain/task-types/retired-task-types.test.ts#L9), [validated by refuses the removed %s task type, pointing at the implementation loop](libs/shared/src/domain/task-types/retired-task-types.test.ts#L18), [validated by refuses a task with no type, as the Postgres store does](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L99))
+([validated by rejects a task that names no task_type, since there is no default type](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L188), [validated by answers onboard for a task of type onboard](libs/shared/src/domain/task-types/retired-task-types.test.ts#L5), [validated by refuses a task with no type, pointing at the implementation loop](libs/shared/src/domain/task-types/retired-task-types.test.ts#L9), [validated by refuses the removed %s task type, pointing at the implementation loop](libs/shared/src/domain/task-types/retired-task-types.test.ts#L17), [validated by refuses a task with no type, as the Postgres store does](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L99))
 
 A description over 32000 chars (`MAX_TASK_DESCRIPTION_CHARS`, one shared constant) is rejected by the input schema (and, on the DB
 path, by the shared CRUD).
@@ -136,7 +136,7 @@ a denied error on a
 The shared trust gate allows `onboard` at every trust tier — it produces a
 docs-only scaffolding PR and is guarded against duplicates by its own route, so
 restricting it to `full` would only break the reonboard repair path on
-auto-promoted repos — while a genuinely disallowed type is still refused. ([validated by `allows an onboard task at trust level %s`](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L34), [validated by still refuses a spec-task at trust level docs](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L48))
+auto-promoted repos — while a genuinely disallowed type is still refused. ([validated by `allows an onboard task at trust level %s`](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L33), [validated by still refuses a spec-task at trust level docs](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L48))
 
 `buildContextBundle` (`apps/lore-api/src/work/pipeline/context-bundle.ts`) assembles this same `context` shape (`pipeline_task_id`, `spec_file`, `seed_query`, `branch`) into the markdown sections handed to an agent: an absent or empty `context` renders an empty string. ([validated by `returns an empty string for no context`](apps/lore-api/src/work/pipeline/context-bundle.test.ts#L14), [`returns an empty string for an empty context object`](apps/lore-api/src/work/pipeline/context-bundle.test.ts#L18))
 
