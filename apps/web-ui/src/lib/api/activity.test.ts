@@ -92,9 +92,7 @@ describe("getRepoActivityCounts", () => {
 
   it("returns the counters on 200, a null figure included", async () => {
     fetchMock.mockResolvedValue(
-      new Response(
-        JSON.stringify({ tasks: 12, auto_merged: null }),
-      ),
+      new Response(JSON.stringify({ tasks: 12, auto_merged: null })),
     );
 
     expect(await getRepoActivityCounts("re-cinq/lore")).toEqual({

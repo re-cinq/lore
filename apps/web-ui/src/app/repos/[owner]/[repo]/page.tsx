@@ -142,9 +142,7 @@ async function fetchIntegrationPanels(fullName: string) {
       fetchOnboardingFiles(fullName),
       getWebhookStatus(fullName).catch(() => null),
       getRepoActivityCounts(fullName).then((r) =>
-        r.status === "ok"
-          ? r.data
-          : { tasks: null, auto_merged: null },
+        r.status === "ok" ? r.data : { tasks: null, auto_merged: null },
       ),
     ],
   );

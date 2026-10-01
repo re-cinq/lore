@@ -69,10 +69,7 @@ type RepoLinkProps = Pick<RepoOverviewViewProps, "owner" | "repo">;
 
 type DarkFactoryStatsProps = Pick<
   RepoOverviewViewProps,
-  | "darkFactoryEnabled"
-  | "trustLevel"
-  | "darkTasksWeek"
-  | "autoMergedWeek"
+  "darkFactoryEnabled" | "trustLevel" | "darkTasksWeek" | "autoMergedWeek"
 >;
 
 /** The repo's dark-factory posture at a glance: whether it is on, how far it is trusted, and what the last seven days produced. */
