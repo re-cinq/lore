@@ -13,10 +13,10 @@ import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { clampedLimit } from "../common-schemas.js";
 import type { AssemblyRunsPort } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
-import { PgAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-pg.js";
+import { runsReadingFloor } from "../../../work/floor/floor-backed-runs.js";
 import type { AssemblyRunStatus } from "@re-cinq/lore-shared/models/assembly-run.js";
+import { enrichmentsFor } from "./floor-run-enrichment.js";
 import {
-  enrichmentById,
   missingTable,
   RunListSchema,
   RunRowSchema,
@@ -53,7 +53,7 @@ export function assemblyLineRoutes(
 ): ServerRoute[] {
   // The port a handler reads through, named once so three handlers don't each rebuild it.
   const portFor = (pool: Pool): AssemblyRunsPort =>
-    runs ?? new PgAssemblyRuns(pool);
+    runs ?? runsReadingFloor(pool);
 
   return withLegacyAlias([
     listRunsRoute(getPool, portFor),
@@ -137,7 +137,7 @@ async function runListRows(
   query: RunsQuery,
 ) {
   const selected = await selectRuns(port, query);
-  const enrichment = await enrichmentById(pool, selected);
+  const enrichment = await enrichmentsFor(pool, selected);
 
   // A task-centric caller gets the graph so it can draw the DAG; a plain page does not.
   return query.task_id === undefined
@@ -284,9 +284,9 @@ async function serveRunDetail(
     const run = await portFor(pool).getById(request.params.id);
 
     enforceTrue(run, apiError(404), "Run not found");
-    const enrichment = await enrichmentById(pool, [run]);
+    const enrichment = (await enrichmentsFor(pool, [run])).get(run.id);
 
-    return h.response(toRunRowWithGraph(run, enrichment.get(run.id)));
+    return h.response(toRunRowWithGraph(run, enrichment));
   } catch (err) {
     // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
     rethrowBoom(err);

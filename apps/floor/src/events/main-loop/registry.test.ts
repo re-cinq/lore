@@ -8,9 +8,20 @@ import { GITHUB_EVENT_NAMES } from "@re-cinq/lore-shared/project/events/github-m
 import { AGENT_EVENT_NAMES } from "@re-cinq/lore-shared/project/events/k8s-map.js";
 import { cronTickEventNames } from "../listeners/cron-emitters.js";
 
+const EXTERNAL_FLOOR_EVENT_NAMES = [
+  "github.pull_request.opened",
+  "github.pull_request.synchronize",
+  "github.pull_request.reopened",
+  "github.pull_request.ready_for_review",
+  "github.pull_request_review_comment.created",
+  "github.issue_comment.created",
+];
+
 function producibleEventNames(): string[] {
   return [
-    ...GITHUB_EVENT_NAMES,
+    ...GITHUB_EVENT_NAMES.filter(
+      (name) => !EXTERNAL_FLOOR_EVENT_NAMES.includes(name),
+    ),
     ...AGENT_EVENT_NAMES,
     "internal.ingest.spec_trace",
     RUN_START_EVENT,
@@ -27,6 +38,14 @@ describe("buildRegistry", () => {
     );
 
     expect(missing).toEqual([]);
+  });
+
+  it("leaves the pull-request and comment events the external floor now takes unregistered", () => {
+    const registry = buildRegistry();
+
+    expect(
+      EXTERNAL_FLOOR_EVENT_NAMES.filter((name) => registry.has(name)),
+    ).toEqual([]);
   });
 
   it("maps every registered name to a defined handler", () => {

@@ -43,6 +43,15 @@ Usage:
     secretKeyRef:
       name: {{ .Values.githubAppSecret.name }}
       key: {{ .Values.githubAppSecret.installationIdKey }}
+{{- if .Values.floor.enabled }}
+- name: FLOOR_API_URL
+  value: {{ .Values.floor.apiUrl | quote }}
+- name: FLOOR_SERVICE_TOKEN
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.floor.serviceTokenSecret.name }}
+      key: {{ .Values.floor.serviceTokenSecret.key }}
+{{- end }}
 {{- if .Values.anthropicKeySecret }}
 - name: ANTHROPIC_API_KEY
   valueFrom:

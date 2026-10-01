@@ -60,6 +60,7 @@ resource "helm_release" "lore_platform" {
     # ---- Floor (lore-floor namespace) ----
     "lore-floor" = {
       gcpProject = var.project_id
+      floor      = { enabled = var.enable_external_floor }
       env = {
         LORE_DB_HOST     = "lore-db-rw.lore-db.svc.cluster.local"
         LORE_DB_PORT     = "5432"
@@ -161,6 +162,11 @@ resource "helm_release" "lore_platform" {
       # ExternalSecret only carries the anthropic-admin-key entry when
       # var.enable_anthropic_admin_key is true; the env stays optional either way.
       anthropicAdminKeySecret = { name = "lore-anthropic-key", key = "anthropic-admin-key" }
+      # The external floor engine (namespace `floor`); see var.enable_external_floor.
+      floor = {
+        enabled   = var.enable_external_floor
+        skillsUrl = "${local.lore_mcp_in_cluster}/skills"
+      }
     }
 
     # ---- Web UI (lore-ui namespace) ----
@@ -180,6 +186,16 @@ resource "helm_release" "lore_platform" {
         # so it needs lore-api's public address, not the in-cluster one above
         # (ADR-047, ADR-048).
         LORE_WS_URL = "wss://${local.lore_api_hostname}/api/ws"
+        # The cluster dashboard's public address, which is also the ONLY way the
+        # UI learns that a dashboard exists — enable_headlamp is a Terraform
+        # variable and the browser cannot see it. No address, no sidebar link.
+        #
+        # Set unconditionally, empty when disabled, because this release is
+        # applied with reuse_values = true: a key dropped from this map is
+        # carried forward from the previous release rather than removed, so
+        # omitting it when the feature is turned off would leave the UI pointing
+        # at a dashboard that is no longer deployed.
+        HEADLAMP_URL = var.enable_headlamp ? "https://${var.headlamp_hostname}" : ""
       }
       dbPasswordSecret  = { name = "lore-db-password", key = "password" }
       ingestTokenSecret = { name = "lore-ingest-token", key = "token" }
@@ -281,6 +297,7 @@ resource "helm_release" "lore_platform" {
       # carries the anthropic-admin-key entry only when
       # var.enable_anthropic_admin_key is true; the env stays optional either way.
       anthropicAdminKeySecret = { name = "lore-stations-anthropic-key", key = "anthropic-admin-key" }
+      floor                   = { enabled = var.enable_external_floor }
     }
 
     # ---- Event router (lore-event-router namespace) ----

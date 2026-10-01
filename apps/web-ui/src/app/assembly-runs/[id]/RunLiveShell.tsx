@@ -78,6 +78,7 @@ function LiveSections(sections: LiveSectionsProps) {
         taskId={run.taskId}
         llmCalls={props.llmCalls}
         repo={run.repo}
+        costUsd={run.costUsd}
       />
     </>
   );
@@ -92,7 +93,9 @@ function panelProps({ props, run, live, applyFrame }: LiveSectionsProps) {
     nodes: live.nodes,
     repo: run.repo,
     reason: run.reason,
+    runOutcome: run.outcome,
     prNumber: run.prNumber,
+    engine: run.engine,
     agentEditHrefs: props.agentEditHrefs,
     nodeModels: props.nodeModels,
     taskEvents: live.taskEvents,
@@ -104,22 +107,27 @@ interface TaskContextProps {
   taskId: string | null;
   llmCalls: readonly TaskRuntimeLlmCall[];
   repo: string;
+  costUsd: number | null;
 }
 
 /** The task's cost table; its status transitions now live inside the selected node's transcript. */
-function TaskContextSection({ taskId, llmCalls, repo }: TaskContextProps) {
+function TaskContextSection(props: TaskContextProps) {
+  const { taskId, llmCalls, repo, costUsd } = props;
+
   if (!taskId) {
-    return <TaskLessRunAlert />;
+    return <TaskLessRunAlert costKnown={costUsd !== null} />;
   }
 
   return <LlmCallsTable llmCalls={[...llmCalls]} repo={repo} />;
 }
 
-function TaskLessRunAlert() {
+/** A task-less run (a code-review one, or a floor run) keeps no status-transition history; its cost is still said when the run row carries one. */
+function TaskLessRunAlert({ costKnown }: { costKnown: boolean }) {
   return (
     <Alert variant="secondary">
-      This run has no backing task — cost and status-transition history are not
-      available.
+      {costKnown
+        ? "This run has no backing task — status-transition history is not available."
+        : "This run has no backing task — cost and status-transition history are not available."}
     </Alert>
   );
 }

@@ -290,6 +290,18 @@ describe("refinePlanAction", () => {
       error: "The planning agent is still working on this plan.",
     });
   });
+
+  it("reports lore-api's reason when plan p1's planning line has ended", async () => {
+    answer(409, {
+      error:
+        "the planning line has ended, so no agent is waiting to refine this plan; edit the section by hand",
+    });
+
+    expect(await refinePlanAction("re-cinq/lore", "p1", REFINE)).toEqual({
+      error:
+        "The planning line has ended, so no agent is waiting to refine this plan; edit the section by hand.",
+    });
+  });
 });
 
 describe("draftAgainAction", () => {

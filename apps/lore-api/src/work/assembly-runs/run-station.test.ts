@@ -68,6 +68,23 @@ function subject() {
 }
 
 describe("runStation", () => {
+  it("answers 409 for a run on the external floor and asks for nothing", async () => {
+    const { runs, reporter, deps } = subject();
+    const id = await runs.start({
+      blueprintName: "code-review",
+      repo: "re-cinq/lore",
+      args: { engine: "floor" },
+    });
+
+    await expect(
+      runStation(deps, { runId: id, nodeId: "write", actor: "gedaiu" }),
+    ).rejects.toMatchObject({
+      message: "this run is on the external floor; retry it from the floor",
+      output: { statusCode: 409 },
+    });
+    expect(reporter.rows).toEqual([]);
+  });
+
   it("asks the Floor to run write in the same run parked on its author, naming gedaiu", async () => {
     const { runs, reporter, deps } = subject();
     const id = await lineWith(runs, { nodeId: "author" });

@@ -69,14 +69,18 @@ function normalizeAliases(value: unknown): unknown {
   };
 }
 
+// A decoration is optional emphasis, so one the contract does not name — a model writing `"none"` for "no decoration" — is dropped rather than allowed to reject the whole review: the first review on the external floor lost four findings to that one word.
 function normalizeFinding(finding: Record<string, unknown>): unknown {
   const discussion = findingDiscussion(finding);
 
+  const { decoration, ...stated } = finding;
+
   return {
-    ...finding,
+    ...stated,
     path: text(finding.path) ?? text(finding.file),
     subject: findingSubject(finding),
     label: findingLabel(finding),
+    ...(includes(DECORATIONS, decoration) ? { decoration } : {}),
     ...(discussion === undefined ? {} : { discussion }),
   };
 }

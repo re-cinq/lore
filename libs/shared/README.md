@@ -81,7 +81,7 @@ ones:
 
 Also here: `http/` (bearer/HMAC/raw-body helpers), `db/pg-pool.ts`,
 `cluster/` (the cluster-agent client + ports), `escalation/`,
-`feature-planning/`, `review/`, and the memory/embedding stores.
+`feature-planning/`, `review/` (the review lines' agent prompts now live in `libs/assembly-lines/src/floor-pipelines/`), and the memory/embedding stores.
 
 ## Testing
 

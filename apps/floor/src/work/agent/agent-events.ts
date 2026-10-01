@@ -12,8 +12,8 @@ import type {
 import {
   rowsFromEnvelope,
   MAX_RUN_EVENTS_PER_BATCH,
-} from "./agent-run-events.js";
-import { foldedDelta } from "./gemini-run-events.js";
+} from "@re-cinq/lore-shared/agent-stream/agent-run-events.js";
+import { foldedDelta } from "@re-cinq/lore-shared/agent-stream/gemini-run-events.js";
 import {
   turnFromEnvelope,
   MAX_RUN_TURNS_PER_BATCH,

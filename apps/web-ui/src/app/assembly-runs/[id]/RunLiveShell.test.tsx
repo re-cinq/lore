@@ -190,4 +190,26 @@ describe("RunLiveShell", () => {
       screen.getByText("Issue #42 · Show the issue on the run page"),
     ).toBeInTheDocument();
   });
+
+  it("says a task-less run has no cost when its cost is unknown", async () => {
+    renderShell({ run: { ...run, taskId: null, costUsd: null } });
+    await settle();
+
+    expect(
+      screen.getByText(
+        "This run has no backing task — cost and status-transition history are not available.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("leaves cost out of the task-less notice when the run cost 0.42 dollars", async () => {
+    renderShell({ run: { ...run, taskId: null, costUsd: 0.42 } });
+    await settle();
+
+    expect(
+      screen.getByText(
+        "This run has no backing task — status-transition history is not available.",
+      ),
+    ).toBeInTheDocument();
+  });
 });

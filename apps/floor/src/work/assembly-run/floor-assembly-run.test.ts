@@ -136,18 +136,15 @@ describe("nodeStationSpec (station pod contract)", () => {
   });
 
   it("threads string + number line args into params, skipping non-primitive values", () => {
-    const spec = nodeStationSpec(
-      cloneNode({ id: "triage", type: "comment-triage" }),
-      {
-        ...task,
-        args: {
-          comment_body: "ok, fix it",
-          in_reply_to_id: 5,
-          nested: { skip: true },
-          description: "prose",
-        },
+    const spec = nodeStationSpec(cloneNode({ id: "triage", type: "detect" }), {
+      ...task,
+      args: {
+        comment_body: "ok, fix it",
+        in_reply_to_id: 5,
+        nested: { skip: true },
+        description: "prose",
       },
-    );
+    });
 
     expect(JSON.parse(spec.parameters!.station_input).params).toEqual({
       comment_body: "ok, fix it",
@@ -169,7 +166,7 @@ describe("nodeStationSpec (station pod contract)", () => {
     ).toBe("def-custom-detect");
   });
 
-  it("marks only ingest and validate nodes for cloning — detect/gate/retrospective/triage read via the API and a checkout of their synthetic lease-key branch would fail the init", () => {
+  it("marks only ingest and validate nodes for cloning — detect/gate/retrospective read via the API and a checkout of their synthetic lease-key branch would fail the init", () => {
     const cloneByType = (type: string) =>
       nodeStationSpec(cloneNode({ id: type, type }), task).clone;
 
@@ -178,7 +175,6 @@ describe("nodeStationSpec (station pod contract)", () => {
     expect(cloneByType("detect")).toBe(false);
     expect(cloneByType("gate")).toBe(false);
     expect(cloneByType("retrospective")).toBe(false);
-    expect(cloneByType("comment-triage")).toBe(false);
     expect(cloneByType("github_action")).toBe(false);
     expect(
       nodeAgentSpec(cloneNode({ id: "implement", type: "agent" }), task, "p")

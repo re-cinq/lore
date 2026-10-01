@@ -1,5 +1,4 @@
 import { describe, it, expect } from "vitest";
-import type { NodeResult } from "@re-cinq/lore-assembly-lines";
 import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 import {
@@ -77,57 +76,6 @@ edges:
     iteration_max: 2
 `);
 
-const triageThenIssues: AssemblyLine = parseAssemblyLine(`
-name: triage-then-issues
-description: a pod station, then one the pooled service runs
-version: 1
-entry: triage
-exit: done
-nodes:
-  - id: triage
-    type: comment-triage
-  - id: file
-    type: issues
-  - id: done
-    type: retrospective
-edges:
-  - from: triage
-    to: file
-    on: success
-  - from: triage
-    to: done
-    on: failed
-  - from: file
-    to: done
-    on: success
-  - from: file
-    to: done
-    on: changes_requested
-  - from: file
-    to: done
-    on: failed
-`);
-
-const commentTriageLike: AssemblyLine = parseAssemblyLine(`
-name: comment-triage
-description: classify a PR comment
-version: 1
-entry: triage
-exit: done
-nodes:
-  - id: triage
-    type: comment-triage
-  - id: done
-    type: retrospective
-edges:
-  - from: triage
-    to: done
-    on: success
-  - from: triage
-    to: done
-    on: failed
-`);
-
 const pushThenWait = parseAssemblyLine(`
 name: push-then-wait
 description: push, then wait for the PR to merge
@@ -175,8 +123,6 @@ function makeDeps(port: InMemoryAssemblyRuns) {
     definitions: async () =>
       new Map<string, AssemblyLine>([
         ["code-review", codeReviewLike],
-        ["comment-triage", commentTriageLike],
-        ["triage-then-issues", triageThenIssues],
         ["push-then-wait", pushThenWait],
       ]),
     repoSettings: async () => null,
@@ -590,87 +536,6 @@ describe("the ready flip hands the node's result to the markPrReady seam", () =>
   });
 });
 
-describe("a node finishing reaches its follow-up from every door", () => {
-  it("hands the finished node's result to the reaction hook", async () => {
-    const port = new InMemoryAssemblyRuns();
-    const id = await runningLine(port);
-    const { deps } = makeDeps(port);
-    const seen: Array<{ nodeId: string; result: NodeResult }> = [];
-
-    deps.onNodeFinished = async (_row, node, result) => {
-      seen.push({ nodeId: node.id, result });
-    };
-
-    await advanceLine(id, deps);
-    await finishNodeAndAdvance(
-      {
-        assemblyLineId: id,
-        nodeId: "review",
-        iteration: 1,
-        result: { outcome: "success", extras: { action: "address" } },
-      },
-      deps,
-    );
-
-    expect(seen).toEqual([
-      {
-        nodeId: "review",
-        result: { outcome: "success", extras: { action: "address" } },
-      },
-    ]);
-  });
-
-  it("does not react twice when a redelivered event finds the node already closed", async () => {
-    const port = new InMemoryAssemblyRuns();
-    const id = await runningLine(port);
-    const { deps } = makeDeps(port);
-    const seen: string[] = [];
-
-    deps.onNodeFinished = async (_row, node) => {
-      seen.push(node.id);
-    };
-
-    await advanceLine(id, deps);
-
-    const finish = {
-      assemblyLineId: id,
-      nodeId: "review",
-      iteration: 1,
-      result: { outcome: "success" as const, extras: { action: "address" } },
-    };
-
-    await finishNodeAndAdvance(finish, deps);
-    await finishNodeAndAdvance(finish, deps);
-
-    expect(seen).toEqual(["review"]);
-  });
-
-  it("advances the walk even when the reaction throws, so routing cannot wedge a run", async () => {
-    const port = new InMemoryAssemblyRuns();
-    const id = await runningLine(port);
-    const { deps } = makeDeps(port);
-
-    deps.onNodeFinished = async () => {
-      throw new Error("routing is down");
-    };
-
-    await advanceLine(id, deps);
-    await finishNodeAndAdvance(
-      {
-        assemblyLineId: id,
-        nodeId: "review",
-        iteration: 1,
-        result: { outcome: "success" },
-      },
-      deps,
-    );
-
-    expect(port.nodes.find((n) => n.nodeId === "review")?.outcome).toBe(
-      "success",
-    );
-  });
-});
-
 describe("a finished run records what happened", () => {
   it("writes the run's episode when the line reaches its exit", async () => {
     const port = new InMemoryAssemblyRuns();
@@ -763,31 +628,7 @@ describe("a losing finisher's once-only side effects", () => {
   });
 });
 
-describe("what the node-finished reaction is told about the node", () => {
-  it("hands over the node's type, so a reaction need not match its id or definition name by string (routeCommentTriage regression)", async () => {
-    const port = new InMemoryAssemblyRuns();
-    const id = await runningLine(port);
-    const { deps } = makeDeps(port);
-    const seen: Array<{ id: string; type: string }> = [];
-
-    deps.onNodeFinished = async (_row, node) => {
-      seen.push({ id: node.id, type: node.type });
-    };
-
-    await advanceLine(id, deps);
-    await finishNodeAndAdvance(
-      {
-        assemblyLineId: id,
-        nodeId: "review",
-        iteration: 1,
-        result: { outcome: "success" },
-      },
-      deps,
-    );
-
-    expect(seen).toEqual([{ id: "review", type: "agent" }]);
-  });
-
+describe("what a finished node records", () => {
   it("hands the graph the delivery's failure detail, not the row read before the finish wrote it", async () => {
     const port = new InMemoryAssemblyRuns();
     const id = await runningLine(port);

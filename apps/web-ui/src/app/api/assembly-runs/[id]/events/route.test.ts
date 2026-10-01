@@ -94,6 +94,23 @@ describe("upstream proxying", () => {
     );
   });
 
+  it("requests /api/assembly-runs/run-1/events on lore-api for a run on the floor engine", async () => {
+    authorized();
+    fetchAssemblyRun.mockResolvedValue({
+      id: "run-1",
+      repo: "re-cinq/lore",
+      engine: "floor",
+    });
+    process.env.LORE_API_URL = "http://api:3000";
+
+    await GET(new Request("http://ui/x?after=42"), { params });
+
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      "http://api:3000/api/assembly-runs/run-1/events?after=42",
+    );
+    delete process.env.LORE_API_URL;
+  });
+
   it("sends the ingest token as a bearer header", async () => {
     authorized();
 

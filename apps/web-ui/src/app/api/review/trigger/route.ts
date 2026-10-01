@@ -1,17 +1,19 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { resolveSessionAccessToken } from "@/lib/session-access-token";
-import { authorizeRepoFloorAccess } from "@/lib/floor-access";
+import { authorizeRepoUpstreamAccess } from "@/lib/floor-access";
 import { serverError } from "@/lib/api-error";
+
+const API = "lore-api";
 
 interface TriggerAuth {
   repo: string;
   prNumber: number;
-  floorUrl: string;
+  upstreamUrl: string;
   token: string;
 }
 
-// "Trigger review" backend: authorizes against the target repo, then proxies to the Floor's /api/review/start (UI has no cluster/DB write path for assembly lines).
+// "Trigger review" backend: authorizes against the target repo, then asks lore-api to start the review on the floor (UI has no write path for assembly lines of its own).
 export async function POST(req: Request) {
   try {
     const auth = await authorizeTrigger(req);
@@ -32,7 +34,7 @@ export async function POST(req: Request) {
   }
 }
 
-/** Session → form → repo-access → Floor-env ladder for the trigger request. */
+/** Session → form → repo-access → lore-api-env ladder for the trigger request. */
 async function authorizeTrigger(
   req: Request,
 ): Promise<TriggerAuth | NextResponse> {
@@ -48,19 +50,18 @@ async function authorizeTrigger(
     return trigger;
   }
 
-  const floorConfig = await authorizeRepoFloorAccess(accessToken, trigger.repo);
+  const { repo } = trigger;
+  const upstream = await authorizeRepoUpstreamAccess(accessToken, repo, API);
 
-  if (floorConfig instanceof NextResponse) {
-    return floorConfig;
-  }
-
-  return { ...trigger, ...floorConfig };
+  return upstream instanceof NextResponse
+    ? upstream
+    : { ...trigger, ...upstream };
 }
 
-/** Asks the Floor to start the review, and answers with the 502 if it would not — null means it did. */
+/** Asks lore-api to start the review, and answers with the 502 if it would not — null means it did. */
 async function startReview(auth: TriggerAuth): Promise<NextResponse | null> {
-  const { repo, prNumber, floorUrl, token } = auth;
-  const upstream = await fetch(`${floorUrl}/api/review/start`, {
+  const { repo, prNumber, upstreamUrl, token } = auth;
+  const upstream = await fetch(`${upstreamUrl}/api/review/start`, {
     signal: AbortSignal.timeout(30_000),
     method: "POST",
     headers: {
@@ -75,7 +76,7 @@ async function startReview(auth: TriggerAuth): Promise<NextResponse | null> {
   }
 
   return NextResponse.json(
-    { error: `Floor returned ${upstream.status}` },
+    { error: `lore-api returned ${upstream.status}` },
     { status: 502 },
   );
 }

@@ -65,9 +65,11 @@ const CATEGORY_MATCHERS: ((
   message: string,
   step?: string,
 ) => FailureCategory | undefined)[] = [
-  // Matches all known phrasings of the credit error (API, agent terminal line, older copy).
+  // Matches all known phrasings of the credit error: Anthropic's API, the agent terminal line, older copy, and Gemini's spent quota (a 429, so this runs before the rate-limit matcher).
   (m) =>
-    /credit balance is too low|insufficient credits?/i.test(m)
+    /credit balance is too low|insufficient credits?|exceeded your current quota|insufficient_quota|prepayment credits are depleted/i.test(
+      m,
+    )
       ? "anthropic-credit"
       : undefined,
   (m) => (/rate.?limit|\b429\b/i.test(m) ? "anthropic-rate-limit" : undefined),

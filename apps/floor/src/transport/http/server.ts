@@ -31,7 +31,6 @@ import {
 } from "./routes/assembly-line-reads.js";
 import { ciIngestRoute } from "./routes/ci-ingest.js";
 import { ciTestsRoute, type CiTestsRouteDeps } from "./routes/ci-tests.js";
-import { reviewStartRoute } from "./routes/review-start.js";
 import type {
   PodLogSource,
   PodLogArchive,
@@ -96,7 +95,7 @@ function floorRoutes(opts: FloorServerOptions): Hapi.ServerRoute[] {
 
 /** The write side: what CI and the review choreography post in. */
 function ingestRoutes(deps: CiTestsRouteDeps): Hapi.ServerRoute[] {
-  return [ciIngestRoute, ciTestsRoute(deps), reviewStartRoute];
+  return [ciIngestRoute, ciTestsRoute(deps)];
 }
 
 /** Start the HTTP server and return how to stop it. No signal handlers: process lifecycle owns single exit (index.ts). */

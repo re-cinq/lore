@@ -30,12 +30,6 @@ export interface AdvanceDeps {
   publishRunCheck?: (assemblyRunId: string) => Promise<void>;
   /** Reclaim the run's per-task token once the line is terminal. */
   cleanupToken: (runTaskId: string) => Promise<void>;
-  /** React to a node FINISHING (CR event, reaper resolve, or `assembly_run.resume`), passed RESOLVED so a reaction can read its TYPE rather than compare hardcoded ids. Injected so this module keeps importing only its own folder. */
-  onNodeFinished?: (
-    row: AssemblyRunRecord,
-    node: RunGraphNode,
-    result: NodeResult,
-  ) => Promise<void>;
   /** React to the walk PARKING on a human station, once its row is recorded — whatever sent it there (an edge, a resume, an `entry_node`). Resolved node, so a reaction reads its TYPE. Best-effort: a throw is logged and the node stays parked. Optional seam. */
   onHumanNodeParked?: (
     row: AssemblyRunRecord,

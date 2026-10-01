@@ -47,9 +47,9 @@ Issue gets comment: "Working on this → PR #N"
 
 HTTP ingress: the GitHub branch of `POST /api/events` on the event-router (ADR-044)
 - Validates GitHub webhook signature (HMAC SHA-256)
-- Handles `issues` event with action `labeled` ([validated by `github-map.test.ts:298`](libs/shared/src/outbound/project/events/github-map.test.ts#L301))
+- Handles `issues` event with action `labeled` ([validated by `github-map.test.ts:298`](libs/shared/src/outbound/project/events/github-map.test.ts#L304))
 - The event mapper is a guard at the door: it returns nothing when the `repository` is missing or the
-  event type is unhandled. ([validated by `github-map.test.ts:362`](libs/shared/src/outbound/project/events/github-map.test.ts#L365), [`github-map.test.ts:372`](libs/shared/src/outbound/project/events/github-map.test.ts#L375))
+  event type is unhandled. ([validated by `github-map.test.ts:362`](libs/shared/src/outbound/project/events/github-map.test.ts#L368), [`github-map.test.ts:372`](libs/shared/src/outbound/project/events/github-map.test.ts#L378))
 - If label name is `lore` (configurable):
   - Extract: issue title, body, repo full_name, issue number
   - Determine task type from issue labels, from the SAME table onboarding seeds the

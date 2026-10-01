@@ -4,6 +4,12 @@ import type { EventSubscription } from "@re-cinq/lore-shared/project/events/even
 import { STATIONS } from "../work/registry.js";
 import { eventTriggerNames, nodeTriggers } from "../work/lib/station.js";
 import { SERVICE_NODE_EVENT } from "@re-cinq/lore-shared/project/events/service-node-event.js";
+import {
+  floorConfigured,
+  type FloorEnv,
+} from "@re-cinq/lore-shared/floor/floor-client.js";
+import { FLOOR_PLAN_EVENTS } from "./floor-plan-handlers.js";
+import { FLOOR_REVIEW_EVENTS } from "./floor-review-handlers.js";
 
 // One subscriber per ROLE not per replica — two stations pods share one backlog, same as two Floors.
 export const STATIONS_SUBSCRIBER = "stations";
@@ -11,7 +17,9 @@ export const STATIONS_SUBSCRIBER = "stations";
 /** Fallback budget for a node whose station declares none. */
 const DEFAULT_NODE_MINUTES = 10;
 
-export function stationSubscriptions(): EventSubscription[] {
+export function stationSubscriptions(
+  env: FloorEnv = process.env,
+): EventSubscription[] {
   const byName = new Map<string, EventSubscription>([
     [
       SERVICE_NODE_EVENT,
@@ -26,11 +34,18 @@ export function stationSubscriptions(): EventSubscription[] {
     eventTriggerNames(mod.manifest),
   );
 
-  for (const eventName of triggeredEventNames) {
+  for (const eventName of [...triggeredEventNames, ...floorEvents(env)]) {
     byName.set(eventName, { eventName });
   }
 
   return [...byName.values()];
+}
+
+/** A deployment with no floor starts no review and has no plan run to answer, so it claims none of the events that would. */
+function floorEvents(env: FloorEnv): readonly string[] {
+  return floorConfigured(env)
+    ? [...FLOOR_REVIEW_EVENTS, ...FLOOR_PLAN_EVENTS]
+    : [];
 }
 
 /** The longest a service-form node may take, so its delivery is not reaped mid-run. */

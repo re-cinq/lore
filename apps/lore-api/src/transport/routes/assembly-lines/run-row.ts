@@ -40,6 +40,8 @@ export const RunRowSchema = z.object({
   repo: z.string(),
   branch: z.string().nullable(),
   subject_key: z.string().nullable(),
+  /** Which engine walks the run: `floor` for one on the external floor, which the run page may read and watch but not re-run. */
+  engine: z.string(),
   graph: z.unknown().optional(),
   status: z.string(),
   outcome: z.string().nullable(),
@@ -74,7 +76,7 @@ export const TokenUsageSchema = z.object({
 });
 
 // The six ENRICH_SELECT columns, picked from the RunRowSchema wire contract declared above.
-type RunEnrichment = Pick<
+export type RunEnrichment = Pick<
   z.infer<typeof RunRowSchema>,
   | "pr_url"
   | "task_pr_number"
@@ -142,6 +144,7 @@ function identity(run: AssemblyRunSummary) {
     repo: run.repo,
     branch: run.branch,
     subject_key: run.subjectKey,
+    engine: run.args["engine"] === "floor" ? "floor" : "lore",
   };
 }
 

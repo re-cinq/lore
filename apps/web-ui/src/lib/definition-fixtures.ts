@@ -65,23 +65,6 @@ export const codeReviewReplyDefinition: AssemblyLineDefinition = {
   ],
 };
 
-export const commentTriageDefinition: AssemblyLineDefinition = {
-  name: "comment-triage",
-  description:
-    "Classify a human PR comment (Haiku station) and route it — the Floor reads the triage action and starts the review / address / answer follow-up (or nothing, on ignore).",
-  version: 1,
-  entry: "triage",
-  exit: "done",
-  nodes: [
-    { id: "triage", type: "comment-triage" },
-    { id: "done", type: "retrospective" },
-  ],
-  edges: [
-    { from: "triage", to: "done", on: "success" },
-    { from: "triage", to: "done", on: "failed" },
-  ],
-};
-
 export const featurePlanningDefinition: AssemblyLineDefinition = {
   name: "feature-planning",
   description:
@@ -240,7 +223,6 @@ export const builtinDefinitions: AssemblyLineDefinition[] = [
   codeReviewDefinition,
   codeReviewRecheckDefinition,
   codeReviewReplyDefinition,
-  commentTriageDefinition,
   featurePlanningDefinition,
   gapDetectDefinition,
   gapFillDefinition,

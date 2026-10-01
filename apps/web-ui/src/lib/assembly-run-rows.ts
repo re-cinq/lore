@@ -32,6 +32,15 @@ export interface AssemblyRun {
   issueNumber: number | null;
   createdBy: string | null;
   costUsd: number | null;
+  /** Which engine walks the run: `floor` for one on the external floor. Optional so test doubles need not set it; the mapper always does. */
+  engine?: string;
+}
+
+const FLOOR_ENGINE = "floor";
+
+/** True for a run the external floor walks: the run page may read and watch it, but only the floor can re-run it. */
+export function isFloorEngine(engine: string | undefined): boolean {
+  return engine === FLOOR_ENGINE;
 }
 
 export type AssemblyRunNodeRow =
@@ -75,6 +84,7 @@ export function durationSeconds(
 export function toAssemblyRun(row: AssemblyRunRow): AssemblyRun {
   return {
     id: row.id,
+    engine: row.engine,
     blueprintName: row.blueprint_name,
     graph: row.graph ?? null,
     taskId: row.task_id,

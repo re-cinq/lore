@@ -160,6 +160,29 @@ layers:
       - transport
       - events
       - outbound
+      - code-review
+      - planning
+      - "@re-cinq/lore-shared"
+    # The stations the external floor dispatches for the code-review lines, one
+    # folder each. They claim their own work from the floor's queue, so nothing
+    # in `events/` or `transport/` reaches them.
+    code-review:
+      - domain
+      - outbound
+      - "@re-cinq/floor-client"
+      - "@re-cinq/floor-station"
+      - "@re-cinq/lore-assembly-lines"
+      - "@re-cinq/lore-shared"
+    # The stations the external floor dispatches for the feature-planning line,
+    # one folder each — the same claim-your-own-work shape as code-review. `issues`
+    # reaches into `work/` because it wraps the existing issue-filing logic rather
+    # than reimplementing it.
+    planning:
+      - domain
+      - outbound
+      - work
+      - "@re-cinq/floor-station"
+      - "@re-cinq/lore-assembly-lines"
       - "@re-cinq/lore-shared"
     transport:
       - events
@@ -222,17 +245,21 @@ layers:
       - lib
     # Every way out: the Project facade and its adapters, the pg pool, the
     # Kubernetes and Dgraph clients, the LLM providers, embeddings.
+    # `outbound/floor` is the one importer of the floor's client: everything else
+    # in Lore reaches the external floor through it.
     outbound:
       - domain
       - lib
       - test-helpers
       - "@re-cinq/agent-contracts"
+      - "@re-cinq/floor-client"
     work:
       - outbound
       - domain
       - lib
       - test-helpers
       - "@re-cinq/agent-contracts"
+      - "@re-cinq/floor-client"
     domain:
       - lib
       - "@re-cinq/agent-contracts"
@@ -261,6 +288,8 @@ layers:
       - "@re-cinq/lore-assembly-lines"
       - "@re-cinq/lore-shared"
     relay:
+      - "@re-cinq/lore-shared"
+    floor-pipelines:
       - "@re-cinq/lore-shared"
 
   # The stdio MCP adapter (ADR-032): it holds no pool, so every folder above
@@ -321,6 +350,8 @@ layers:
     # (planning-station); the ports and the plan contract are ordinary imports.
     work:
       - outbound
+      - "@re-cinq/floor-client"
+      - "@re-cinq/floor-pipeline"
       - "@re-cinq/lore-server-core"
       - "@re-cinq/lore-shared"
       - "@re-cinq/planning-document"

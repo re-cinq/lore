@@ -4,7 +4,6 @@ export type DefinitionNodeType =
   | "validate"
   | "retrospective"
   | "detect"
-  | "comment-triage"
   | "ingest"
   | "issues"
   // One step of the merge line, parameterised by job_ref.

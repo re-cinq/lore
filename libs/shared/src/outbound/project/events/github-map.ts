@@ -252,24 +252,22 @@ function reviewTriggerEvent(
   );
 }
 
-function reviewFields(review?: {
+interface SubmittedReview {
   id?: number;
   state?: string;
   user?: { login?: string };
   body?: string;
-}): {
-  review_id: number | null;
-  review_state: string;
-  review_author: string;
-  review_body: string;
-} {
-  const r = review ?? {};
+  author_association?: string;
+}
 
+/** `review_author_association` is GitHub's own word on the reviewer's standing; the reply line starts only for one who may write. */
+function reviewFields(review: SubmittedReview = {}): Record<string, unknown> {
   return {
-    review_id: r.id ?? null,
-    review_state: r.state ?? "",
-    review_author: commentAuthor(r.user),
-    review_body: r.body ?? "",
+    review_id: review.id ?? null,
+    review_state: review.state ?? "",
+    review_author: commentAuthor(review.user),
+    review_author_association: review.author_association ?? "",
+    review_body: review.body ?? "",
   };
 }
 

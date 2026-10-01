@@ -10,6 +10,7 @@ import { loadDefaultTemplates } from "@re-cinq/lore-server-core/features/context
 import { startHttpServer } from "./app/http-server.js";
 import { dbConfigFromEnv } from "@re-cinq/lore-shared/db/pg-pool.js";
 import { loadAgentDefaults } from "@re-cinq/lore-shared/project/agents/agent-defaults-files.js";
+import { seedFloor } from "./app/seed-floor.js";
 import { seedAgentDefaults } from "@re-cinq/lore-shared/project/agents/agent-defaults-seed.js";
 
 // Shared mutable state: the DB pool is created in main() and read lazily by route handlers via getPool().
@@ -34,6 +35,7 @@ async function main() {
   if (state.pool) {
     await seedShippedAgents(state.pool);
   }
+  await seedFloor();
 
   await startHttpServer(getPool);
 }

@@ -463,7 +463,7 @@ describe("validate/render agreement on defaults and merges", () => {
     expect(
       validateCatalogEntry(
         row({
-          name: "def-comment-triage",
+          name: "def-detect",
           execution_mode: "station",
           prompt: null,
           config: { needs_model: true },

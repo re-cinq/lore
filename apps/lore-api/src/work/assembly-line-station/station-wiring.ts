@@ -2,7 +2,12 @@
 
 import type { Pool } from "pg";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { PgAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-pg.js";
+import { floorClient } from "@re-cinq/lore-shared/floor/floor-client.js";
+import { runsOnFloor, runsReadingFloor } from "../floor/floor-backed-runs.js";
+import {
+  FloorRunFeeds,
+  type FloorRunFeedDeps,
+} from "../floor/floor-run-feed.js";
 import { PgAgentRunEvents } from "@re-cinq/lore-shared/project/agent-run-events/agent-run-events-pg.js";
 import { PgTaskEvents } from "@re-cinq/lore-shared/project/task-events/task-events-pg.js";
 import { fetchPrStatus } from "../../outbound/github-client.js";
@@ -44,17 +49,36 @@ function boundOnce(getPool: () => Pool | null): () => RunChannelDeps {
 }
 
 function bind(pool: Pool): RunChannelDeps {
-  const runs = new PgAssemblyRuns(pool);
+  const runs = runsReadingFloor(pool);
+  const local = new RunFeedRegistry({
+    runs,
+    events: new PgAgentRunEvents(pool),
+    taskEvents: new PgTaskEvents(pool),
+    prStatus: fetchPrStatus,
+    notifier: pgRunNotifier(),
+  });
 
   return {
     verifyToken: liveTokenVerifier(() => pool),
     runs,
-    feeds: new RunFeedRegistry({
-      runs,
-      events: new PgAgentRunEvents(pool),
-      taskEvents: new PgTaskEvents(pool),
-      prStatus: fetchPrStatus,
-      notifier: pgRunNotifier(),
-    }),
+    feeds: feedsByEngine(local, floorFeeds(runs)),
   };
+}
+
+/** A run is followed where it runs: the floor's own journal for a floor run, Postgres for every other. */
+export function feedsByEngine(
+  local: RunChannelDeps["feeds"],
+  floor: RunChannelDeps["feeds"],
+): RunChannelDeps["feeds"] {
+  return {
+    join: (run, sink, after) =>
+      (runsOnFloor(run) ? floor : local).join(run, sink, after),
+  };
+}
+
+function floorFeeds(runs: FloorRunFeedDeps["runs"]): RunChannelDeps["feeds"] {
+  return new FloorRunFeeds({
+    watch: (runId, options) => floorClient().runs.watch(runId, options),
+    runs,
+  });
 }

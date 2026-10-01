@@ -1,6 +1,9 @@
 import type { PipelineRepositories } from "@re-cinq/lore-shared";
+import type { AssemblyRunQuery } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import type { Project } from "@re-cinq/lore-shared";
 import { REVIEW_DEFINITIONS } from "@re-cinq/lore-shared/review/review-definitions.js";
+import { floorIfConfigured } from "@re-cinq/lore-shared/floor/floor-client.js";
+import { openFloorReviewCount } from "@re-cinq/lore-shared/review/floor-review-runs.js";
 import {
   parkedHumanNode,
   type ParkedTarget,
@@ -146,23 +149,40 @@ function runReads(
         status: OPEN_RUN_STATUS,
       }),
     listStationRuns: (runId) => pipeline().assemblyRuns.listStationRuns(runId),
-    countOpenReviewRuns: openReviewRunCounter(pipeline),
+    countOpenReviewRuns: openReviewRunCounter(pipeline, floorReviewCount),
   };
 }
 
-/** How many reviews of this PR are still running. This is what keeps a PR parked while a review of it is in flight — resuming then would judge CI that the review is about to invalidate. */
-function openReviewRunCounter(
-  pipeline: () => Pick<PipelineRepositories, "assemblyRuns">,
-) {
-  return async (repo: string, number: number) =>
-    (
-      await pipeline().assemblyRuns.listSummaries({
+/** The one read the count makes of Postgres; only how many rows answer matters. */
+interface OpenRunLister {
+  listSummaries(query: AssemblyRunQuery): Promise<readonly unknown[]>;
+}
+
+/** How many review-family runs a pull request has open somewhere Lore cannot count in Postgres. */
+export type OpenReviewCount = (repo: string, number: number) => Promise<number>;
+
+/** The reviews the external floor is running for this pull request. */
+const floorReviewCount: OpenReviewCount = (repo, prNumber) =>
+  openFloorReviewCount(floorIfConfigured(), { repo, prNumber });
+
+/** How many reviews of this PR are still running. This is what keeps a PR parked while a review of it is in flight — resuming then would judge CI that the review is about to invalidate. The review lines run on the external floor, so its open runs count beside whatever Postgres still holds. */
+export function openReviewRunCounter(
+  pipeline: () => { assemblyRuns: OpenRunLister },
+  onFloor: OpenReviewCount,
+): OpenReviewCount {
+  return async (repo, number) => {
+    const [local, floor] = await Promise.all([
+      pipeline().assemblyRuns.listSummaries({
         repo,
         blueprintName: REVIEW_DEFINITIONS,
         status: OPEN_RUN_STATUS,
         prNumber: number,
-      })
-    ).length;
+      }),
+      onFloor(repo, number),
+    ]);
+
+    return local.length + floor;
+  };
 }
 
 /** The sweep's reads that go to the pull request itself. */

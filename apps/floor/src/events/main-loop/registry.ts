@@ -1,11 +1,5 @@
 /** The event registry (layer 2 → layer 3): maps a fully-qualified event_name to exactly one handler; a producer emitting an unregistered name dead-letters with "no handler". */
 
-import {
-  codeReviewOnTrigger,
-  codeReviewOnComment,
-  codeReviewOnReviewSubmitted,
-  codeReviewOnClose,
-} from "../../work/review/code-review-handlers.js";
 import type { EventHandler } from "../../domain/event-types.js";
 import * as github from "../handlers/github.js";
 import * as internal from "../handlers/internal.js";
@@ -28,7 +22,6 @@ import {
   podLogAppended,
   telemetryPrune,
 } from "../../work/station/pod-log-handler.js";
-import {} from "../../work/review/code-review.js";
 
 /** Compose one primary handler with best-effort secondaries under one event name; the primary's throw propagates (retry/dead-letter unchanged), a secondary's is logged and swallowed. */
 export function withExtra(
@@ -41,7 +34,7 @@ export function withExtra(
     for (const handler of extra) {
       await handler(params).catch((err) =>
         console.warn(
-          "[code-review] secondary handler failed:",
+          "[registry] secondary handler failed:",
           (err as Error).message,
         ),
       );
@@ -70,41 +63,20 @@ export function resolve(
 /** Layer 1's webhook ingress. `withExtra` rides a second handler alongside the first so neither can break the other — a spec-task sync must not be lost because a parked line failed to wake, or vice versa. */
 function githubEntries(): Entry[] {
   return [
-    ...prReviewTriggerEntries(),
     prClosedEntry(),
-    [
-      "github.pull_request_review.submitted",
-      withExtra(github.onReviewSubmitted, codeReviewOnReviewSubmitted),
-    ],
-    ["github.pull_request_review_comment.created", codeReviewOnComment],
+    ["github.pull_request_review.submitted", github.onReviewSubmitted],
     ["github.check_run.completed", github.autoMerge],
     ["github.check_suite.completed", github.autoMerge],
-    ["github.issue_comment.created", codeReviewOnComment],
     ["github.issues.labeled", github.issuesLabeled],
     ["github.repository.renamed", github.repositoryRenamed],
   ];
 }
 
-/** Everything a closed PR finishes: the spec-task sync, the parked line's wake, the review choreography, and its head branch's graph overlay. */
+/** Everything a closed PR finishes here: the spec-task sync, the parked line's wake, and its head branch's graph overlay. The review lines a close ends run on the external floor, and the stations drain cancels them. */
 function prClosedEntry(): Entry {
   return [
     "github.pull_request.closed",
-    withExtra(
-      github.specPrMerge,
-      github.specPrResumeLine,
-      codeReviewOnClose,
-      dropOverlayOnClose,
-    ),
-  ];
-}
-
-/** The PR-lifecycle events that all start (or restart) the code-review line. */
-function prReviewTriggerEntries(): Entry[] {
-  return [
-    ["github.pull_request.opened", codeReviewOnTrigger],
-    ["github.pull_request.synchronize", codeReviewOnTrigger],
-    ["github.pull_request.reopened", codeReviewOnTrigger],
-    ["github.pull_request.ready_for_review", codeReviewOnTrigger],
+    withExtra(github.specPrMerge, github.specPrResumeLine, dropOverlayOnClose),
   ];
 }
 

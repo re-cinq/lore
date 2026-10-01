@@ -524,7 +524,7 @@ The system MUST automatically identify and address knowledge gaps. ([validated b
   per node, so 17 of 36 gap-fill branches carried zero commits (2026-08-15 to
   2026-09-25): validate diffed nothing, ran the checks unscoped over the whole
   tree, and was OOM-killed in its 1Gi pod, or passed and the push found nothing,
-  so no PR could open. ([validated by let a draft that finds the context already current report changes_requested, so a true no-op ends the run without a PR instead of failing an empty branch](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L554), [validated by counts gap-fill and general as delivering, since validate and push after them are other pods (17 of 36 gap-fill branches shipped 0 commits between 2026-08-15 and 2026-09-25)](libs/shared/src/domain/task-types/delivering-recipes.test.ts#L13), [validated by lifts a draft's already-current reason into the row, so a run that opened no PR says what already did the work](libs/assembly-lines/src/node-outcome.test.ts#L142))
+  so no PR could open. ([validated by let a draft that finds the context already current report changes_requested, so a true no-op ends the run without a PR instead of failing an empty branch](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L457), [validated by counts gap-fill and general as delivering, since validate and push after them are other pods (17 of 36 gap-fill branches shipped 0 commits between 2026-08-15 and 2026-09-25)](libs/shared/src/domain/task-types/delivering-recipes.test.ts#L13), [validated by lifts a draft's already-current reason into the row, so a run that opened no PR says what already did the work](libs/assembly-lines/src/node-outcome.test.ts#L142))
 
 ### FR-11: Live Knowledge Graph (Phase 1+)
 
@@ -580,25 +580,25 @@ cooperation. ([validated by `session-tracker.test.ts:193`](libs/server-core/src/
 
 The system MUST support an opt-in, webhook-driven autonomous review loop per
 repo with a safety-net cron (ADR-015; the review agent runs on the
-ai-agent-subsystem per ADR-031). ([validated by `code-review.test.ts:91`](apps/floor/src/work/review/code-review.test.ts#L103))
+ai-agent-subsystem per ADR-031). ([validated by starts code-review when a pull request opens in a repository with auto_review on](apps/stations/src/events/floor-review-handlers.test.ts#L92), [validated by asks the floor nothing when auto_review is off](apps/stations/src/events/floor-review-handlers.test.ts#L100))
 
 - FR-13.1: After an implementation PR is created, an auto-review is started on
   the ai-agent-subsystem when `auto_review` is enabled on the repo (ADR-031
-  retired the loretask-watcher). ([validated by `should-auto-review.test.ts:5`](apps/floor/src/outbound/should-auto-review.test.ts#L5), [`code-review.test.ts:100`](apps/floor/src/work/review/code-review.test.ts#L103))
-- FR-13.2: The review agent reads spec + conventions and posts ONE formal PR
-  review — inline comments per finding plus a summary, carrying the verdict as its
-  GitHub review event (`APPROVE` / `REQUEST_CHANGES`, always on, no longer a neutral comment). ([validated by `post-review.test.ts:78`](apps/floor/src/work/review/post-review.test.ts#L85), [`post-review.test.ts:180`](apps/floor/src/work/review/post-review.test.ts#L188))
+  retired the loretask-watcher). ([validated by `auto-review-enabled.test.ts:5`](libs/shared/src/work/review/auto-review-enabled.test.ts#L5), [[starts code-review when a pull request opens in a repository with auto_review on](apps/stations/src/events/floor-review-handlers.test.ts#L92), [starts code-review for a pull request no review has run on](libs/shared/src/work/review/floor-review-start.test.ts#L277))
+- FR-13.2: The review agent reads spec + conventions and the `post-review`
+  station posts ONE formal PR review — inline comments per finding plus a summary, carrying the verdict as its
+  GitHub review event (`APPROVE` / `REQUEST_CHANGES`, always on, no longer a neutral comment). ([validated by posts one REQUEST_CHANGES review with a rendered comment per commentable finding](apps/stations/src/code-review/post-review/post-review.test.ts#L94), [validated by submits an APPROVE review carrying the inline findings for an approved verdict](apps/stations/src/code-review/post-review/post-review.test.ts#L250))
 - FR-13.3: On a formal `APPROVE` the PR becomes eligible for (auto-)merge once the
-  remaining gates pass; auto-merge reads the bot's latest review, so a later push's re-check verdict supersedes the earlier one. ([validated by `post-review.test.ts:181`](apps/floor/src/work/review/post-review.test.ts#L188), [`auto-merge.test.ts:32`](apps/floor/src/work/merge/auto-merge.test.ts#L32))
+  remaining gates pass; auto-merge reads the bot's latest review, so a later push's re-check verdict supersedes the earlier one. ([validated by posts a visible APPROVE review for a bare REVIEW_RESULT:APPROVED with no findings block](apps/stations/src/code-review/post-review/post-review.test.ts#L282), [`auto-merge.test.ts:32`](apps/floor/src/work/merge/auto-merge.test.ts#L32))
 - FR-13.4: When changes are requested, a follow-up round is started on the same
-  branch carrying the feedback (the code-review-reply path). ([validated by `code-review.test.ts:113`](apps/floor/src/work/review/code-review.test.ts#L125))
+  branch carrying the feedback (the code-review-reply path). ([validated by starts code-review-reply for review 99 with the address intent](libs/shared/src/work/review/floor-review-start.test.ts#L377), [validated by starts code-review-reply for a MEMBER's request-changes review 99](apps/stations/src/events/floor-review-handlers.test.ts#L154))
 - FR-13.5: After further iterations the loop escalates to human review via a
   `needs-human-help` Issue, with no further autonomous iterations. ([validated by opens the issue and carries its url forward for the notify step](apps/stations/src/work/escalation-step/escalation-step.test.ts#L27), [`escalation-line.test.ts:37`](libs/assembly-lines/src/escalation-line.test.ts#L37))
-- FR-13.6: The primary trigger is GitHub webhooks (ADR-015): the Floor webhook
-  ingress maps qualifying `pull_request`, `pull_request_review`, and PR
-  `issue_comment` events to the code-review choreography, which starts or
-  replies on a code-review assembly line; bot-authored events are skipped as a
-  loop guard. ([validated by `code-review.test.ts:91`](apps/floor/src/work/review/code-review.test.ts#L103), [`code-review.test.ts:246`](apps/floor/src/work/review/code-review.test.ts#L249))
+- FR-13.6: The primary trigger is GitHub webhooks (ADR-015): the stations
+  service turns qualifying `pull_request`, `pull_request_review`, and PR
+  `issue_comment` events into calls that start or reply on a code-review
+  pipeline of the external floor (`apps/stations/src/events/floor-review-handlers.ts`);
+  bot-authored events are skipped as a loop guard. ([validated by starts code-review when a pull request opens in a repository with auto_review on](apps/stations/src/events/floor-review-handlers.test.ts#L92), [validated by starts nothing when the lore bot comments @lore review](apps/stations/src/events/floor-review-handlers.test.ts#L143), [validated by starts no reply for a review the lore bot submitted](libs/shared/src/work/review/floor-review-start.test.ts#L393))
 - FR-13.7: **Safety-net cron** fires at `7 7-17 * * 1-5` (UTC,
   Mon-Fri) to catch dropped webhook deliveries. Cron-triggered runs
   are gated by `isBusinessHours()` (default: Europe/Berlin, 09:00-18:00
