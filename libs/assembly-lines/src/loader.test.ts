@@ -616,6 +616,84 @@ edges:
     ).toThrow(/detect node "detect" requires job_ref/);
   });
 
+  it("accepts a node with declared custom outcomes (unable-to-reproduce, skipped, etc.)", () => {
+    const wf = parseAssemblyLine(`
+name: triage
+description: issue triage
+version: 1
+entry: reproduce
+exit: done
+nodes:
+  - id: reproduce
+    type: agent
+    prompt_ref: triage-reproduce
+    outcomes:
+      - unable-to-reproduce
+      - needs-reproduction
+      - skipped
+  - id: done
+    type: retrospective
+edges:
+  - from: reproduce
+    to: done
+    on: success
+  - from: reproduce
+    to: done
+    on: changes_requested
+  - from: reproduce
+    to: done
+    on: failed
+  - from: reproduce
+    to: done
+    on: unable-to-reproduce
+  - from: reproduce
+    to: done
+    on: needs-reproduction
+  - from: reproduce
+    to: done
+    on: skipped
+`);
+
+    expect(wf.nodes.find((n) => n.id === "reproduce")?.outcomes).toEqual([
+      "unable-to-reproduce",
+      "needs-reproduction",
+      "skipped",
+    ]);
+  });
+
+  it("rejects an edge whose `on` value is not declared in the source node's outcomes", () => {
+    expect(() =>
+      parseAssemblyLine(`
+name: triage
+description: issue triage
+version: 1
+entry: reproduce
+exit: done
+nodes:
+  - id: reproduce
+    type: agent
+    prompt_ref: triage-reproduce
+    outcomes:
+      - unable-to-reproduce
+  - id: done
+    type: retrospective
+edges:
+  - from: reproduce
+    to: done
+    on: success
+  - from: reproduce
+    to: done
+    on: changes_requested
+  - from: reproduce
+    to: done
+    on: failed
+  - from: reproduce
+    to: done
+    on: not-declared-outcome
+`),
+    ).toThrow(/undeclared outcome "not-declared-outcome"/);
+  });
+
   it("rejects invalid node id format", () => {
     expect(() =>
       parseAssemblyLine(`

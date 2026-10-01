@@ -6,6 +6,7 @@ import {
   AssemblyLineLoadError,
   uncoveredOutcomes,
   PARAMETERISED_NODE_TYPES,
+  STANDARD_EDGE_CONDITIONS,
   type AssemblyLine,
   type AssemblyLineEdge,
 } from "./assembly-line-schema.js";
@@ -26,6 +27,7 @@ export function validateAssemblyLine(wf: AssemblyLine, source: string): void {
 
   validateEntryAndExit(wf, nodeIds, loadError);
   validateEdgeEndpoints(wf, nodeIds, loadError);
+  validateCustomEdgeOutcomes(wf, loadError);
   validateReachability(wf, loadError);
   validateTerminalNodes(wf, loadError);
   validateParameterisedNodes(wf);
@@ -65,6 +67,31 @@ function validateEdgeEndpoints(
       `edge from unknown node "${e.from}"`,
     );
     enforceTrue(nodeIds.has(e.to), loadError, `edge to unknown node "${e.to}"`);
+  }
+}
+
+// Custom (non-standard) edge `on` values must be declared in the source node's `outcomes` list (FR11); a typo or undeclared outcome is rejected here rather than silently routing the walk to a dead end at runtime.
+const STANDARD_EDGE_SET = new Set<string>(STANDARD_EDGE_CONDITIONS);
+
+function validateCustomEdgeOutcomes(
+  wf: AssemblyLine,
+  loadError: LoadErrorFactory,
+): void {
+  const nodeOutcomes = new Map(
+    wf.nodes.map((n) => [n.id, new Set<string>(n.outcomes ?? [])]),
+  );
+
+  for (const e of wf.edges) {
+    if (STANDARD_EDGE_SET.has(e.on)) {
+      continue;
+    }
+    const declared = nodeOutcomes.get(e.from);
+
+    enforceTrue(
+      !!declared?.has(e.on),
+      loadError,
+      `edge from "${e.from}" uses undeclared outcome "${e.on}"; add it to node "${e.from}".outcomes`,
+    );
   }
 }
 

@@ -41,11 +41,11 @@ export type Transition =
 
 const DEFAULT_MAX_NODES = 200;
 
-// The executor's edge rule: exact-outcome match preferred over `always`; null when nothing matches.
+// The executor's edge rule: exact-outcome match preferred over `always`; null when nothing matches. Accepts any string so custom outcomes declared on a node (FR11) route correctly without a type cast.
 export function selectEdge(
   assemblyLine: WalkGraph,
   from: string,
-  outcome: StageOutcome,
+  outcome: string,
 ): WalkEdge | null {
   const candidates = assemblyLine.edges.filter(
     (e) => e.from === from && (e.on === outcome || e.on === "always"),

@@ -15,10 +15,8 @@ export type DefinitionNodeType =
   | "pr_review"
   | "ci_check";
 
-export type DefinitionEdgeCondition =
-  "success" | "changes_requested" | "failed" | "always";
+export type DefinitionEdgeCondition = string;
 
-// eslint-disable-next-line re-lint/no-row-types-outside-models -- mirrors the assembly-line YAML node, whose keys are snake_case by contract; no table holds this shape
 export interface DefinitionNode {
   id: string;
   type: DefinitionNodeType;
@@ -37,6 +35,8 @@ export interface DefinitionNode {
   route?: string;
   /** Capability tags a claiming cluster-agent must carry. */
   required_tags?: string[];
+  /** Extra outcomes this node may emit beyond the standard set (FR11). */
+  outcomes?: string[];
 }
 
 export interface DefinitionEdge {
