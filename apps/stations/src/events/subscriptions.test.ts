@@ -97,3 +97,17 @@ describe("the review events, which only a deployment with a floor asks for", () 
     ).toEqual(["github.issues.labeled", "github.repository.renamed"]);
   });
 });
+
+describe("the sweeps that run on a tick", () => {
+  it("claims the merge-check, pr-ready-check and approval-check ticks, so no other service has to start those sweeps", () => {
+    const names = stationSubscriptions({}).map((s) => s.eventName);
+
+    expect(
+      [
+        "cron.merge_check.tick",
+        "cron.pr_ready_check.tick",
+        "cron.approval_check.tick",
+      ].filter((tick) => !names.includes(tick)),
+    ).toEqual([]);
+  });
+});

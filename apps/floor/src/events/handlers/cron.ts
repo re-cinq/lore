@@ -49,13 +49,9 @@ const fromJob =
     await job();
   };
 
-/** Run a station in the stations service; Floor keeps schedule and overlap guard. */
+/** Run a station in the stations service over HTTP. Only the link backfill is still started this way; the sweeps on a tick are claimed by the stations service itself. */
 const fromStation = (name: string): EventHandler =>
   fromJob(() => stationClient().run(name));
-
-export const mergeCheck = fromStation("merge-check");
-export const prReadyCheck = fromStation("pr-ready-check");
-export const approvalCheck = fromStation("approval-check");
 
 /** Weekly link backfill fans out per SPECIFICATION, not per repository. */
 export const specCoverageBackfill = fromStation("backfill-scan");

@@ -108,10 +108,10 @@ function kubernetesEntries(): Entry[] {
 /** The in-process scheduler's ticks. The last four fan out: one tick starts one per-repo assembly line each, rather than doing the detection work in the handler. */
 function cronEntries(): Entry[] {
   return [
-    ["cron.merge_check.tick", cron.mergeCheck],
+    ["cron.merge_check.tick", takenByStations],
     ["cron.implementation_loop.tick", implementationLoopTick],
-    ["cron.pr_ready_check.tick", cron.prReadyCheck],
-    ["cron.approval_check.tick", cron.approvalCheck],
+    ["cron.pr_ready_check.tick", takenByStations],
+    ["cron.approval_check.tick", takenByStations],
     ["cron.spec_task_executor.tick", takenByStations],
     ["cron.stale_task_check.tick", cron.staleTaskCheck],
     ["cron.telemetry_prune.tick", telemetryPrune],
