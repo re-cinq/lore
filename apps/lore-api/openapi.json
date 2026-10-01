@@ -8069,7 +8069,7 @@
         "x-rate-limit-bucket": "task",
         "responses": {
           "200": {
-            "description": "The created task, or the transition's acknowledgement",
+            "description": "The transition's acknowledgement",
             "content": {
               "application/json": {
                 "schema": {
@@ -8133,9 +8133,6 @@
                     "type": "string"
                   },
                   "created_by": {
-                    "type": "string"
-                  },
-                  "feedback": {
                     "type": "string"
                   },
                   "task_type": {

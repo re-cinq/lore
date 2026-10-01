@@ -8517,7 +8517,6 @@ export interface operations {
           error?: string;
           description?: string;
           created_by?: string;
-          feedback?: string;
           task_type?: string;
           target_repo?: string;
           group_id?: string;
@@ -8526,7 +8525,7 @@ export interface operations {
       };
     };
     responses: {
-      /** @description The created task, or the transition's acknowledgement */
+      /** @description The transition's acknowledgement */
       200: {
         headers: {
           [name: string]: unknown;

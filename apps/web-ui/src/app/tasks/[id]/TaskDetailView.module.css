@@ -19,32 +19,6 @@
   cursor: pointer;
 }
 
-.feedbackCard {
-  margin-top: var(--space-5);
-}
-
-.feedbackHeading {
-  margin: 0 0 var(--space-3) 0;
-}
-
-.feedbackLede {
-  margin-bottom: var(--space-3);
-}
-
-.feedbackTextarea {
-  width: 100%;
-  margin-bottom: var(--space-3);
-}
-
-.feedbackBtn {
-  background: var(--accent);
-  color: var(--text-on-accent);
-  border: none;
-  padding: var(--space-3) var(--space-6);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-}
-
 .event {
   margin-bottom: var(--space-4);
 }

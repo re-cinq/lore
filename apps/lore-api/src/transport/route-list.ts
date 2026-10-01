@@ -256,7 +256,7 @@ function ingestRoutes(getPool: PoolGetter): ServerRoute[] {
 /** Inbound from other systems, and the credentials that gate them. */
 function webhookRoutes(getPool: PoolGetter): ServerRoute[] {
   return [
-    slackWebhookRoute(getPool),
+    slackWebhookRoute(),
     slackEventsRoute(),
     incidentWebhookRoute(getPool),
     webhookStatusRoute(),

@@ -449,15 +449,12 @@ Task types are the rows of `lore.agent_definitions`; their shipped defaults
 are `libs/shared/src/agent-defaults/<name>.md` (frontmatter = settings,
 body = prompt), which lore-api seeds into the org rows at boot:
 
-- **feature-request**: PM describes intent in plain language → agent generates spec.md, data-model.md, tasks.md following repo conventions. Opens a PR for engineer review.
 - **onboard**: runs on the external floor where one is configured (`libs/assembly-lines/src/floor-pipelines/onboard.yaml`, `specs/external-floor` FR11): lore-api creates the task already running, cuts `lore/onboard/<task8>` and starts the run; `enrol` (labels, ingest callback, verbatim workflows + templates on the branch, `libs/shared/src/work/onboard/enrol-repo.ts`) → `author` (AGENTS.md, ADRs, spec and PR template from the onboarding ticket, `onboardTicketBody`) → `open-pr` (the ONE PR, recorded as `lore.repos.onboarding_pr_url`) → `await-ci` ⇄ `fix-ci` (a human station the pr-ready-check sweep answers, `apps/stations/src/work/pr-ready-check/floor-ci-wait.ts`) → `request-review`; the `run-settled` station settles the task. With no floor, the old Floor enrols and walks `libs/assembly-lines/src/assembly-lines/onboard.yaml`
 
-- **runbook**: generates incident runbook
-
-- **gap-fill**: drafts missing documentation
-- **review**: reviews a PR against conventions
 
 There is no `implementation` or `general` task type any more (#2328, #2329): their assembly lines, their recipes (`implementation-tdd` with them) and their `lore.agent_definitions` rows (migration 0094) are deleted. There is no default type either: creating a task with no type, or with either of those, is refused with a pointer to the implementation loop (`namedTaskType`, `libs/shared/src/domain/task-types/retired-task-types.ts`). Code is implemented from a ticket in the repository's backlog: an issue with a `priority:*` label, which a `lore` or `lore:implementation` label also gives it (`queueTicket`, `libs/shared/src/work/backlog/queue-ticket.ts`). A plan's spec-tasks run on the same loop. A free-form `lore_run_task_locally` run is tracked on the laptop only.
+
+No task is created from a description at all since 2026-10-02 (`specs/external-floor` FR16.7): `feature-request`, `feature-finalize`, `runbook`, `review` and `gap-fill` are refused like the two above, each with where its work goes (the backlog, a plan, or the review every pull request already gets). `POST /api/task` only acts on an existing task, Slack's `/lore` keeps `retry`, and the web UI has no create-task form. `lore_create_pipeline_task` still exists and reports that refusal; its removal follows.
 
 Agent creates branch + PR when done. Simple tasks use direct
 Anthropic API calls. Implementation and review tasks run on the
@@ -517,8 +514,8 @@ NetworkPolicy allows only public `:443` egress.
 loaded conditionally during context assembly based on task query
 keywords. All four templates include a `rules` source at priority 1.
 
-**Slack integration**: `/lore <task_type> description` slash command
-creates pipeline tasks (the type is required: runbook, gap-fill, review or feature-request). Channel-to-repo mapping in
+**Slack integration**: the `/lore` slash command retries a failed task
+(`/lore retry <task_id>`) and creates none. Channel-to-repo mapping in
 `lore.repos.settings.slack_channel_id`. Watcher posts PR links,
 issue links, and failure messages back to the originating channel
 via `LORE_SLACK_BOT_TOKEN`.
@@ -656,8 +653,8 @@ floor, and a request for changes from a trusted reviewer is answered on the
 pull request by `code-review-reply` (see External floor above). The Floor
 watcher's own loop (a review task per pull request it opened, then an
 `implementation` fix task on changes requested) was removed on 2026-10-01
-with that task type. The task page's "Give Feedback" form remains for
-feature-request tasks only.
+with that task type. The task page's "Give Feedback" form went on 2026-10-02 with the
+feature-request task type.
 
 **Event bus — the 3-layer trigger substrate** (ADR-015 amendment;
 `apps/floor/src/{listeners,main-loop,jobs}/`): every Floor trigger flows through one

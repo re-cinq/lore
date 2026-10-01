@@ -8,7 +8,6 @@ export {
   setTaskStatus,
   cancelTask as cancelPipelineTask,
   escalateTask as escalatePipelineTask,
-  reviseTask as revisePipelineTask,
   markTaskMerged,
   type TaskListRow,
 } from "./domain/pipeline-tasks.js";

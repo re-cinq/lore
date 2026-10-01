@@ -49,13 +49,13 @@ describe("InMemoryTaskStore.create", () => {
     const store = new InMemoryTaskStore([], { now: tick(T0) });
     const created = await store.create({
       description: "do the thing",
-      taskType: "runbook",
+      taskType: "onboard",
       targetRepo: "a/b",
       priority: "whatever",
     });
 
     expect(created).toMatchObject({
-      task_type: "runbook",
+      task_type: "onboard",
       status: "pending",
       priority: "normal",
     });
@@ -75,14 +75,14 @@ describe("InMemoryTaskStore.create", () => {
     await expect(
       store.create({
         description: "impl",
-        taskType: "feature-request",
+        taskType: "spec-task",
         targetRepo: "a/b",
       }),
     ).rejects.toThrow(/not allowed at trust level "docs"/);
     await expect(
       store.create({
         description: "impl",
-        taskType: "feature-request",
+        taskType: "spec-task",
         targetRepo: "unseeded/repo",
       }),
     ).resolves.toMatchObject({ status: "pending" });
@@ -92,7 +92,7 @@ describe("InMemoryTaskStore.create", () => {
     const store = new InMemoryTaskStore();
 
     await expect(
-      store.create({ description: "x".repeat(32001), taskType: "runbook" }),
+      store.create({ description: "x".repeat(32001), taskType: "onboard" }),
     ).rejects.toThrow(new Error("Description too long (max 32000 chars)"));
   });
 
@@ -112,7 +112,7 @@ describe("InMemoryTaskStore.retry", () => {
         {
           id: "t1",
           description: "broken run",
-          task_type: "runbook",
+          task_type: "onboard",
           status: "failed",
           target_repo: "a/b",
           created_by: "ui",

@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { zodResponse } from "../../http/zod-response.js";
 import { errorMessage } from "@re-cinq/lore-shared";
-import type { Pool } from "pg";
 import type {
   ServerRoute,
   Request,
@@ -9,9 +8,8 @@ import type {
   ResponseObject,
 } from "@hapi/hapi";
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { createTask } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
 import { rawBody } from "@re-cinq/lore-shared/http/raw-body.js";
-import { RETIRED_TASK_TYPES } from "@re-cinq/lore-shared/task-types/retired-task-types.js";
+import { NO_TYPED_TASKS } from "@re-cinq/lore-shared/task-types/retired-task-types.js";
 
 /** Constant-time HMAC compare for the Slack `v0=…` signature. */
 // Slack renders this body as-is (response_type + text or blocks format).
@@ -21,35 +19,11 @@ const SlackAckSchema = z.object({
   blocks: z.array(z.unknown()).optional(),
 });
 
-/** Who typed the command and where, as the reply plumbing needs it. */
-export interface SlackSender {
-  channelId: string;
-  userName: string;
-}
-
-export interface SlashCommand {
-  priority: string;
-  /** Absent when the command names no type: there is no default one, and creating the task says so. */
-  taskType?: string;
-  description: string;
-  retryTaskId?: string;
-}
-
 const USAGE =
-  "Usage: `/lore <task_type> <description>`\nTask types: runbook, gap-fill, review, feature-request\n" +
-  "To have something implemented, open an issue with a `priority:*` label: the implementation loop picks it up.\n\n" +
-  "Prefix with `!` to execute immediately: `/lore ! runbook database failover`\nRetry a failed task: `/lore retry <task_id>`";
+  "Retry a failed task: `/lore retry <task_id>`\n" +
+  "To have something implemented, open an issue with a `priority:*` label: the implementation loop picks it up.";
 
-// The removed types are still recognised as a type word, so creating the task answers that they are gone instead of filing their name as a description.
-const KNOWN_TASK_TYPES = [
-  ...RETIRED_TASK_TYPES,
-  "runbook",
-  "gap-fill",
-  "review",
-  "feature-request",
-];
-
-export function slackWebhookRoute(getPool: () => Pool | null): ServerRoute {
+export function slackWebhookRoute(): ServerRoute {
   return {
     method: "POST",
     path: "/api/webhook/slack",
@@ -62,13 +36,12 @@ export function slackWebhookRoute(getPool: () => Pool | null): ServerRoute {
         description: "The message Slack renders back in the channel",
       },
     ),
-    handler: (request, h) => serveSlackCommand(getPool, request, h),
+    handler: serveSlackCommand,
   };
 }
 
 /** The /lore slash command. Answers with the message Slack renders back in the channel, so the reply IS the user-visible result rather than a status code. */
 async function serveSlackCommand(
-  getPool: () => Pool | null,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
@@ -84,7 +57,7 @@ async function serveSlackCommand(
     return challengeResponse(h, params);
   }
 
-  return commandReply(getPool, params, h);
+  return commandReply(params, h);
 }
 
 /** Slack's own request check: the shared secret must be configured, the request signed, and recent enough that a replayed one is refused. Returns the refusal, or null when the request is genuine. */
@@ -156,65 +129,22 @@ function challengeResponse(h: ResponseToolkit, params: URLSearchParams) {
     .code(200);
 }
 
-/** What the typed command becomes: the usage note, a retry, or a new task. Reached only for an already-verified request. */
+/** What the typed command becomes: the usage note, a retry, or the answer that Lore takes no typed task from a description any more. Reached only for an already-verified request. */
 async function commandReply(
-  getPool: () => Pool | null,
   params: URLSearchParams,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const commandText = commandTextFrom(params);
+  const words = (params.get("text") || "").trim().split(/\s+/);
 
-  if (!commandText) {
+  if (!words[0]) {
     return h.response({ response_type: "ephemeral", text: USAGE });
   }
-  const command = parseSlashCommand(commandText);
 
-  if (command.retryTaskId) {
-    return h.response(await retryReply(command.retryTaskId));
+  if (words[0] === "retry" && words[1]) {
+    return h.response(await retryReply(words[1]));
   }
 
-  return h.response(await createReply(getPool(), command, slackSender(params)));
-}
-
-function commandTextFrom(params: URLSearchParams): string {
-  return (params.get("text") || "").trim();
-}
-
-/** `/lore [!] [task_type] <description>`, or `/lore retry <task_id>`. */
-export function parseSlashCommand(commandText: string): SlashCommand {
-  const { priority, rest } = extractPriority(commandText.split(/\s+/));
-
-  return retryCommand(rest, priority) ?? namedTaskCommand(rest, priority);
-}
-
-/** A leading `!` asks for immediate priority; the remaining words are handed on. */
-function extractPriority(words: string[]): {
-  priority: string;
-  rest: string[];
-} {
-  return words[0] === "!"
-    ? { priority: "immediate", rest: words.slice(1) }
-    : { priority: "normal", rest: words };
-}
-
-/** `retry <task_id>`, or null when the words don't shape a retry command. */
-function retryCommand(words: string[], priority: string): SlashCommand | null {
-  if (words[0] !== "retry" || !words[1]) {
-    return null;
-  }
-
-  return { priority, description: "", retryTaskId: words[1] };
-}
-
-/** A first word that names a known type claims it, otherwise the whole text is the description. */
-function namedTaskCommand(words: string[], priority: string): SlashCommand {
-  const named = words.length > 1 && KNOWN_TASK_TYPES.includes(words[0]);
-
-  return {
-    priority,
-    ...(named ? { taskType: words[0] } : {}),
-    description: named ? words.slice(1).join(" ") : words.join(" "),
-  };
+  return h.response({ response_type: "ephemeral", text: NO_TYPED_TASKS });
 }
 
 async function retryReply(retryTaskId: string): Promise<object> {
@@ -233,106 +163,4 @@ async function retryReply(retryTaskId: string): Promise<object> {
       text: `Retry failed: ${errorMessage(err)}`,
     };
   }
-}
-
-async function createReply(
-  pool: Pool | null,
-  command: SlashCommand,
-  from: SlackSender,
-): Promise<object> {
-  const targetRepo = await repoForSlackChannel(pool, from.channelId);
-
-  if (!targetRepo) {
-    return {
-      response_type: "ephemeral",
-      text: "No repo mapped to this channel. Set `slack_channel_id` in repo settings.",
-    };
-  }
-
-  return createdReply(command, targetRepo, from);
-}
-
-/** The repo mapped to a Slack channel via `settings.slack_channel_id`, or "" when unmapped. */
-async function repoForSlackChannel(
-  pool: Pool | null,
-  channelId: string,
-): Promise<string> {
-  if (!pool) {
-    return "";
-  }
-
-  try {
-    const { rows } = await pool.query(
-      `SELECT full_name FROM lore.repos WHERE settings->>'slack_channel_id' = $1`,
-      [channelId],
-    );
-
-    return rows.length > 0 ? rows[0].full_name : "";
-  } catch {
-    return "";
-  }
-}
-
-/** Creates the task and answers with the channel message, or with the failure spelled out — a slash command that silently created nothing is worse than one that says why. */
-async function createdReply(
-  command: SlashCommand,
-  targetRepo: string,
-  from: SlackSender,
-): Promise<object> {
-  try {
-    const taskResult = await createTask(taskInput(command, targetRepo, from));
-
-    return createdMessage(command, targetRepo, taskResult.task_id);
-  } catch (err) {
-    return {
-      response_type: "ephemeral",
-      text: `Failed to create task: ${errorMessage(err)}`,
-    };
-  }
-}
-
-/** The task a slash command becomes. The channel id rides in the context bundle because the watcher posts the PR link BACK to it — without that, a task created from Slack finishes silently somewhere the person who asked cannot see. */
-function taskInput(
-  command: SlashCommand,
-  targetRepo: string,
-  from: SlackSender,
-) {
-  return {
-    description: command.description,
-    taskType: command.taskType,
-    targetRepo,
-    createdBy: `slack:${from.userName}`,
-    contextBundle: {
-      slack_channel_id: from.channelId,
-      slack_user: from.userName,
-    },
-    priority: command.priority,
-  };
-}
-
-/** Which repo the command lands on comes from the channel it was typed in; an unmapped channel is told so rather than defaulting somewhere surprising. */
-/** What the channel sees. `in_channel` rather than ephemeral, deliberately: a task created from Slack is team work, and the people who would otherwise duplicate it are the ones reading that channel. The follow-up line differs by priority because a backlog task needs somebody to pick it up, and an immediate one does not. */
-function createdMessage(
-  command: SlashCommand,
-  targetRepo: string,
-  taskId: string,
-): object {
-  const priorityLabel =
-    command.priority === "immediate" ? " | Priority: `immediate`" : "";
-  const followUp =
-    command.priority === "immediate"
-      ? "Agent will pick this up shortly."
-      : "Task in backlog — claim locally or use the UI to run now.";
-
-  return {
-    response_type: "in_channel",
-    text: `Task created on \`${targetRepo}\`:\n> ${command.description}\n\nType: \`${command.taskType}\`${priorityLabel} | ID: \`${taskId}\`\n${followUp}`,
-  };
-}
-
-function slackSender(params: URLSearchParams): SlackSender {
-  return {
-    channelId: params.get("channel_id") || "",
-    userName: params.get("user_name") || "unknown",
-  };
 }

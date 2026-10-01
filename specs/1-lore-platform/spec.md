@@ -298,7 +298,7 @@ system is performing.
 - Developer can check task status and retrieve results without
   leaving Claude Code.
 - The pipeline task is visible in the shared task tracker — no
-  duplicate work. ([validated by `AssemblyRunListView.test.tsx:14`](apps/web-ui/src/app/assembly-runs/AssemblyRunListView.test.tsx#L14))
+  duplicate work. ([validated by renders the heading and offers no way to create a task](apps/web-ui/src/app/assembly-runs/AssemblyRunListView.test.tsx#L14))
 - Watcher posts the PR link and any Slack notifications on completion.
 
 **Scenario 8 — Automated Gap Detection (Phase 2)**
@@ -624,7 +624,7 @@ The system MUST detect when specifications diverge from implementation. ([valida
 ### FR-15: Progressive Trust (Phase 1)
 
 The system MUST gate task types per-repo based on demonstrated
-reliability. ([validated by `pipeline-tasks.trust.test.ts:33`](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L33))
+reliability. ([validated by `pipeline-tasks.trust.test.ts:33`](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L34))
 
 - FR-15.1: `settings.trust.level` controls which task types are
   allowed: `docs` (gap-fill/runbook/onboard + feature-planning
@@ -633,7 +633,7 @@ reliability. ([validated by `pipeline-tasks.trust.test.ts:33`](libs/shared/src/d
   every one was refused until 2026-09-29),
   `full` (all). `onboard` is allowed at every tier — it produces a
   docs-only scaffolding PR and duplicate protection lives in its own
-  route's guard, not the trust ladder. ([validated by `allows an onboard task at trust level %s`](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L33), [validated by still refuses a feature-request task at trust level docs](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L48), [validated by allows a spec-task at trust level implementation](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L171), [validated by allows a spec-task at trust level full](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L177), [validated by refuses a spec-task at trust level tests](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L181))
+  route's guard, not the trust ladder. ([validated by `allows an onboard task at trust level %s`](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L34), [validated by still refuses a spec-task at trust level docs](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L48), [validated by allows a spec-task at trust level implementation](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L171), [validated by allows a spec-task at trust level full](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L177), [validated by refuses a spec-task at trust level tests](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L181))
 - FR-15.2: Trust auto-promotes after 3 successful merges at the current level
   (overridable per repo via `auto_promote_threshold`), climbing
   `docs → tests → implementation → full` and resetting the merge counter on
@@ -717,37 +717,36 @@ cancel/revision controls, and the list of run attempts — while all
 execution detail (per-node timeline, transcript, pod logs, event
 history, LLM-call ledger) lives on the run detail page at
 `/assembly-runs/[id]` (issue #1608: task = the request, run = one
-attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L109), [`TaskDetailView.test.tsx:316`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L332))
+attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L99), [`TaskDetailView.test.tsx:316`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L280))
 
 - FR-19.1: The detail heading reads `Task: <description>` with the
   description truncated to 80 characters, and the view shows the task
   type, target repo, creator, and a sentence-cased status badge.
   Priority renders as a red badge when `immediate` and falls back to a
-  plain `normal` meta label when empty. ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L109), [`TaskDetailView.test.tsx:128`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L128), [`TaskDetailView.test.tsx:136`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L136), [`TaskDetailView.test.tsx:148`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L148), [`TaskDetailView.test.tsx:155`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L155))
+  plain `normal` meta label when empty. ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L99), [`TaskDetailView.test.tsx:128`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L118), [`TaskDetailView.test.tsx:136`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L126), [`TaskDetailView.test.tsx:148`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L138), [`TaskDetailView.test.tsx:155`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L145))
 - FR-19.2: The agent row, failure row, and review-iterations row each
   render only when their value is present (agent assigned, failure
   reason set, review iteration greater than zero) and are omitted
-  otherwise. ([validated by `TaskDetailView.test.tsx:209`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L207), [`TaskDetailView.test.tsx:213`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L213), [`TaskDetailView.test.tsx:235`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L235), [`TaskDetailView.test.tsx:241`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L241), [`TaskDetailView.test.tsx:247`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L247))
+  otherwise. ([validated by `TaskDetailView.test.tsx:209`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L197), [`TaskDetailView.test.tsx:213`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L203), [`TaskDetailView.test.tsx:235`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L225), [`TaskDetailView.test.tsx:241`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L231), [`TaskDetailView.test.tsx:247`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L237))
 - FR-19.3: The view lists the task's run attempts under a "Runs"
   heading, each linking to its run detail at `/assembly-runs/<run-id>`
   with a status-classed badge showing the run's outcome (falling back
   to its status) and its start time, and omits the section entirely
-  when the task has no runs. ([validated by `TaskDetailView.test.tsx:54`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L54), [`TaskDetailView.test.tsx:75`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L75), [`TaskDetailView.test.tsx:101`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L101))
+  when the task has no runs. ([validated by `TaskDetailView.test.tsx:54`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L44), [`TaskDetailView.test.tsx:75`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L65), [`TaskDetailView.test.tsx:101`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L91))
 - FR-19.3a: When the task has exactly one run attempt, the page
   redirects straight to that run's detail page — the run page links
   back via "View task →"; with zero or several attempts the lifecycle
-  shell renders with its runs list. ([validated by `TaskDetailView.test.tsx:340`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L354), [`TaskDetailView.test.tsx:344`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L360), [`TaskDetailView.test.tsx:348`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L364))
+  shell renders with its runs list. ([validated by `TaskDetailView.test.tsx:340`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L302), [`TaskDetailView.test.tsx:344`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L308), [`TaskDetailView.test.tsx:348`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L312))
 - FR-19.4: In-flight controls follow actions-up: a "Run Now" form
   posting to `/api/tasks/<id>/run-now` appears only for pending
   normal-priority tasks; a "Cancel Task" control appears for
   non-terminal tasks and is hidden once merged or completed; the
   confirm-gated `CancelTaskButton` shows only its trigger until clicked,
   then reveals a form posting to `/api/tasks/<id>/cancel` that "Keep
-  task" backs out of; and a "Give Feedback" form wired to the injected
-  server action (with a hidden `task_id`) shows only for a feature-request task that has a PR and is not cancelled. ([validated by `TaskDetailView.test.tsx:162`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L162), [`TaskDetailView.test.tsx:173`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L173), [`TaskDetailView.test.tsx:180`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L180), [`TaskDetailView.test.tsx:187`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L187), [`TaskDetailView.test.tsx:200`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L200), [validated by wires the feedback form of a feature-request task to the injected action with a hidden task_id](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L275), [`TaskDetailView.test.tsx:296`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L311), [`TaskDetailView.test.tsx:303`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L318), [`CancelTaskButton.test.tsx:7`](apps/web-ui/src/app/tasks/[id]/CancelTaskButton.test.tsx#L7), [`CancelTaskButton.test.tsx:17`](apps/web-ui/src/app/tasks/[id]/CancelTaskButton.test.tsx#L17), [`CancelTaskButton.test.tsx:30`](apps/web-ui/src/app/tasks/[id]/CancelTaskButton.test.tsx#L30), [validated by hides the feedback form of a runbook task with a PR: it is revised by a review on the pull request](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L297))
+  task" backs out of. *(Since 2026-10-02 the page has no "Give Feedback" form: a pull request is revised by a review that requests changes on it, FR-19.24.)* ([validated by `TaskDetailView.test.tsx:162`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L152), [`TaskDetailView.test.tsx:173`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L163), [`TaskDetailView.test.tsx:180`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L170), [`TaskDetailView.test.tsx:187`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L177), [`TaskDetailView.test.tsx:200`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L190), [`CancelTaskButton.test.tsx:7`](apps/web-ui/src/app/tasks/[id]/CancelTaskButton.test.tsx#L7), [`CancelTaskButton.test.tsx:17`](apps/web-ui/src/app/tasks/[id]/CancelTaskButton.test.tsx#L17), [`CancelTaskButton.test.tsx:30`](apps/web-ui/src/app/tasks/[id]/CancelTaskButton.test.tsx#L30), [validated by offers no feedback form on a feature-request task with a PR: a pull request is revised by a review on it](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L265))
 - FR-19.5: When a failed task carries a failed-event with metadata, the
   view renders a "Failure" panel surfacing the error; absent that
-  metadata no panel is shown. ([validated by `TaskDetailView.test.tsx:254`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L252), [`TaskDetailView.test.tsx:268`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L268))
+  metadata no panel is shown. ([validated by `TaskDetailView.test.tsx:254`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L242), [`TaskDetailView.test.tsx:268`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L258))
 - FR-19.6: _(Restated 2026-09-09.)_ The run detail page renders the task's status transitions inside the selected node's transcript rather than as a separate Event Timeline card: each transition that fell inside that node's visits reads as a `· task From → To` system line in the conversation, with its metadata folded behind the line and the from-status omitted on the first transition; a run with no backing task shows the note that no status history is available. ([validated by `transcript-entries.test.ts:116`](apps/web-ui/src/lib/transcript-entries.test.ts#L117), [`transcript-entries.test.ts:141`](apps/web-ui/src/lib/transcript-entries.test.ts#L142), [`TranscriptView.test.tsx:56`](apps/web-ui/src/app/assembly-runs/[id]/TranscriptView.test.tsx#L56), [adds a task transition the stream reports to the selected node's transcript](apps/web-ui/src/app/assembly-runs/[id]/RunLiveShell.test.tsx#L162))
 - FR-19.7: The run detail page renders the task's LLM-call table: one
   row per call with the model, `input / output` token counts, duration,
@@ -831,7 +830,7 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   and records the transition carrying the priority it replaced.
   `cancelTask` treats `completed`, `merged`, `failed` and `cancelled` as
   terminal — `completed` was missing, so the web UI's own guard refused
-  a click the API accepted. ([validated by `sets priority immediate on a pending task`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L25), [`pipeline-tasks.escalate.test.ts:34`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L39), [`pipeline-tasks.escalate.test.ts:51`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L56), [`pipeline-tasks.escalate.test.ts:59`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L64), [`pipeline-tasks.escalate.test.ts:69`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L74), [`pipeline-tasks.escalate.test.ts:80`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L85))
+  a click the API accepted. ([validated by `sets priority immediate on a pending task`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L24), [`pipeline-tasks.escalate.test.ts:34`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L38), [`pipeline-tasks.escalate.test.ts:51`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L55), [`pipeline-tasks.escalate.test.ts:59`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L63), [`pipeline-tasks.escalate.test.ts:69`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L74), [`pipeline-tasks.escalate.test.ts:80`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L84))
 
 - FR-19.17: lore-api serves one `lore.repos` row at
   `GET /api/repos/{owner}/{repo}` under the `read` scope, reading it
@@ -924,15 +923,7 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   and the view hides the section for the second instead of showing a
   confident zero. ([validated by [`spend.test.ts:30`](apps/lore-api/src/transport/routes/analytics/spend.test.ts#L30), [`spend.test.ts:34`](apps/lore-api/src/transport/routes/analytics/spend.test.ts#L34), [`spend.test.ts:46`](apps/lore-api/src/transport/routes/analytics/spend.test.ts#L46), [`spend-window.test.ts:145`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L197), [`spend-window.test.ts:339`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L421), [`spend-window.test.ts:360`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L442), [`spend-window.test.ts:378`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L460))
 
-- FR-19.24: `reviseTask` is the human feedback loop as ONE seam: it
-  queues a follow-up task on the parent's branch and PR at immediate
-  priority (a person is waiting), records the request on the parent
-  naming the revision it spawned, and parks the parent at
-  `revision-requested`. Only a feature-request is revised this way, as a feature-request; since 2026-10-01 any other task is refused with a pointer to a review on its pull request, which the `code-review-reply` line answers (the `implementation` task a revision used to run as is gone, #2328). It refuses an unknown id and refuses blank feedback rather than queueing an empty revision. The web
-  UI reaches it through `POST /api/task` with `action: "revise"`; the
-  three writes were previously three separate statements in a server
-  action, where a dropped event left a parent pointing at a revision the
-  timeline could not explain. ([validated by [`pipeline-tasks.escalate.test.ts:116`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L121), [`pipeline-tasks.escalate.test.ts:125`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L130), [`pipeline-tasks.escalate.test.ts:145`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L150), [validated by refuses to revise a runbook task, pointing at a review on its pull request, and queues nothing](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L162), [`pipeline-tasks.escalate.test.ts:172`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L177), [`pipeline-tasks.escalate.test.ts:192`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L197), [`pipeline-tasks.escalate.test.ts:204`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L209), [`pipeline-tasks.escalate.test.ts:212`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L217))
+- FR-19.24: *(Rewritten 2026-10-02.)* A task is not revised by queueing another task. `POST /api/task` with `action: "revise"` answers `409` and points at a review that requests changes on the pull request, which the `code-review-reply` line answers there. The `reviseTask` seam that queued a follow-up feature-request task on the parent's branch is deleted with the last task type it ran as (`specs/external-floor` FR16.7). ([validated by queues no revision of task t1 and points at a review on its pull request](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L175))
 
 - FR-19.25: lore-api serves the org-wide `lore.settings` under the
   `admin` scope — `GET /api/settings` (the entries plus the repo count

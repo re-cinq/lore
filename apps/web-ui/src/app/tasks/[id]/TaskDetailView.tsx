@@ -1,12 +1,10 @@
 import Link from "next/link";
-import { SubmitButton } from "@/components/SubmitButton";
 import TaskRefreshProvider from "./TaskRefreshProvider";
 import TaskSummaryCard from "./TaskSummaryCard";
 import FailurePanel from "./FailurePanel";
 import { TimeAgo } from "@/components/TimeAgo";
 import { formatEnumLabel } from "@/lib/enum-label";
 import type { TaskRuntimeEvent } from "@/lib/task-runtime";
-import styles from "./TaskDetailView.module.css";
 import type { components } from "@/lib/api/schema";
 
 /** The fifteen task fields this page renders — the field TYPES come from the contract. */
@@ -43,14 +41,12 @@ export interface TaskDetailViewProps {
   task: TaskDetailTask;
   failedEvent: TaskDetailEvent | undefined;
   runs?: TaskRunRow[];
-  submitFeedback: (formData: FormData) => void | Promise<void>;
 }
 
 export default function TaskDetailView({
   task,
   failedEvent,
   runs = [],
-  submitFeedback,
 }: TaskDetailViewProps) {
   return (
     <TaskRefreshProvider taskId={task.id} taskStatus={task.status} runs={runs}>
@@ -59,8 +55,6 @@ export default function TaskDetailView({
         <TaskSummaryCard task={task} />
 
         <TaskFailurePanel task={task} failedEvent={failedEvent} />
-
-        <FeedbackSection task={task} submitFeedback={submitFeedback} />
 
         <RunsSection runs={runs} />
       </div>
@@ -81,65 +75,6 @@ function TaskFailurePanel({
 
   return (
     <FailurePanel metadata={failedEvent.metadata} repo={task.target_repo} />
-  );
-}
-
-const TERMINAL_TASK_STATUSES = ["merged", "cancelled"];
-
-interface FeedbackSectionProps {
-  task: TaskDetailTask;
-  submitFeedback: (formData: FormData) => void | Promise<void>;
-}
-
-/** Visible when a feature-request task has a PR and isn't in a terminal state. Any other pull request is revised by a review that requests changes on it, which Lore answers there. */
-function FeedbackSection({ task, submitFeedback }: FeedbackSectionProps) {
-  const { id: taskId } = task;
-
-  if (!takesFeedback(task)) {
-    return null;
-  }
-
-  return (
-    <div className={`spec-card ${styles.feedbackCard}`}>
-      <h3 className={styles.feedbackHeading}>Give Feedback</h3>
-      <p className={`meta ${styles.feedbackLede}`}>
-        Tell the agent what to change. A revision task will be created on the
-        same branch.
-      </p>
-      <FeedbackForm taskId={taskId} submitFeedback={submitFeedback} />
-    </div>
-  );
-}
-
-function takesFeedback(task: TaskDetailTask): boolean {
-  return (
-    task.task_type === "feature-request" &&
-    Boolean(task.pr_url) &&
-    !TERMINAL_TASK_STATUSES.includes(task.status)
-  );
-}
-
-/** What the reader tells the agent to change. The placeholder is a worked example rather than a prompt: feedback that names the approach produces a revision, feedback that says "fix it" produces another guess. */
-interface FeedbackFormProps {
-  taskId: string;
-  submitFeedback: (formData: FormData) => void | Promise<void>;
-}
-
-function FeedbackForm({ taskId, submitFeedback }: FeedbackFormProps) {
-  return (
-    <form action={submitFeedback}>
-      <input type="hidden" name="task_id" value={taskId} />
-      <textarea
-        name="feedback"
-        rows={3}
-        required
-        placeholder="e.g. Don't use a custom CLI — use the existing MCP tools instead. The approach should be..."
-        className={styles.feedbackTextarea}
-      />
-      <SubmitButton className={styles.feedbackBtn} pendingLabel="Requesting…">
-        Request Revision
-      </SubmitButton>
-    </form>
   );
 }
 

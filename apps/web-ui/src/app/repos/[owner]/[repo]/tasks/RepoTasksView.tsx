@@ -1,48 +1,38 @@
-import Link from "next/link";
 import HelpPopover from "@/components/HelpPopover";
 import AssemblyRunsTable from "@/app/assembly-runs/AssemblyRunsTable";
 import { type AssemblyRun } from "@/lib/assembly-runs";
 import styles from "./RepoTasksView.module.css";
 
 export interface RepoTasksViewProps {
-  owner: string;
-  repo: string;
   runs: AssemblyRun[];
 }
 
 /** Per-repo assembly-runs tab: pure render of runs via shared <AssemblyRunsTable>. */
-export default function RepoTasksView(props: RepoTasksViewProps) {
-  const { owner, repo, runs } = props;
-
+export default function RepoTasksView({ runs }: RepoTasksViewProps) {
   return (
     <div>
-      <TasksHeader owner={owner} repo={repo} />
+      <TasksHeader />
       <p className={`meta ${styles.intro}`}>
-        Assembly lines targeting this repo. Delegate work to agents and track
-        their status, stages, PRs, and cost.
+        Assembly lines targeting this repo. Track their status, stages, PRs, and
+        cost.
       </p>
       <AssemblyRunsTable runs={runs} />
     </div>
   );
 }
 
-type TasksHeaderProps = Pick<RepoTasksViewProps, "owner" | "repo">;
-
-function TasksHeader({ owner, repo }: TasksHeaderProps) {
+function TasksHeader() {
   return (
     <div className={styles.header}>
       <div className={styles.heading}>
         <h2 className={styles.title}>Assembly Runs</h2>
         <AssemblyLineHelp />
       </div>
-      <Link href={`/repos/${owner}/${repo}/tasks/create`}>
-        <button>+ New Task</button>
-      </Link>
     </div>
   );
 }
 
-/** What a run on this tab actually is. Answers the three questions the table raises but cannot: what one row represents, where the work happens, and why some task types are missing from this repo. */
+/** What a run on this tab actually is. */
 function AssemblyLineHelp() {
   return (
     <HelpPopover label="How assembly lines work">
@@ -55,20 +45,17 @@ function AssemblyLineHelp() {
   );
 }
 
-/** The three questions the table raises but cannot answer: what one row represents, where the work happens, and why some task types are missing from this repo. */
+/** The three questions the table raises but cannot answer: where work starts, where it runs, and why some lines are missing from this repo. */
 function AssemblyLinePoints() {
   return (
     <ul>
       <li>
-        Each task runs the pipeline: pull repo context → agent works →
-        deterministic validation (lint/typecheck) → branch + PR.
+        Work starts from a ticket in the backlog, a plan, or a pull request;
+        nothing is started from this page.
       </li>
+      <li>Each agent node runs in its own pod; CI judges what it pushed.</li>
       <li>
-        Simple types run via direct API calls; <strong>implementation</strong>{" "}
-        and <strong>review</strong> run in ephemeral Job pods.
-      </li>
-      <li>
-        Which types are allowed is gated by the repo&apos;s{" "}
+        Which lines may run is gated by the repo&apos;s{" "}
         <strong>trust level</strong> (see Settings).
       </li>
     </ul>

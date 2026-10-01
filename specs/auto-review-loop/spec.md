@@ -256,10 +256,9 @@ review:
 
 1. Implementation PR → review LoreTask CR created automatically (when auto_review enabled)
 2. Review Job pod clones repo, reads spec + diff, posts PR comments
-3. Approved: parent task marked as `review/approved` ([validated by `pipeline.test.ts:69`](libs/server-core/src/work/pipeline/pipeline.test.ts#L64), [`pipeline.test.ts:53`](libs/server-core/src/work/pipeline/pipeline.test.ts#L53))
-4. Changes requested (iteration < 2): new task with the feedback, same branch. _(Retired 2026-10-01 for the Floor watcher: it no longer starts a review of the pull requests it opens, reads a review verdict, or files an `implementation` fix task; that task type is gone (#2328). The `code-review` line reviews the pull request and `code-review-reply` answers a request for changes on it.)_ ([validated by `pipeline.test.ts:113`](libs/server-core/src/work/pipeline/pipeline.test.ts#L113))
-
-5. Changes requested (iteration >= 2): escalate with `needs-human-review` label ([validated by `pipeline.test.ts:90`](libs/server-core/src/work/pipeline/pipeline.test.ts#L85))
+3. Approved: parent task marked as `review/approved`. _(Retired 2026-10-02 with criteria 4 and 5: the review-result handler that recorded a verdict on the task and queued a follow-up task had no caller left and is deleted. The `code-review` line reviews every pull request and `code-review-reply` answers a request for changes on it; see `specs/external-floor`.)_
+4. Changes requested (iteration < 2): new task with the feedback, same branch. _(Retired.)_
+5. Changes requested (iteration >= 2): escalate with `needs-human-review` label. _(Retired.)_
 6. Review completes in <5 min
 7. Review result visible in pipeline UI
 8. Auto-review is opt-in per repo
