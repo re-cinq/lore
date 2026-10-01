@@ -64,11 +64,20 @@ export function eventPage(
   events: AgentRunEvent[],
   query: { after?: unknown; limit?: unknown },
 ): { events: AgentRunEvent[] } {
-  const after = BigInt(String(query.after ?? "0") || "0");
-  const limit = Math.min(Number(query.limit) || DEFAULT_LIMIT, MAX_LIMIT);
+  const after = BigInt(cursorOf(query.after) ?? "0");
+  const limit = limitOf(query.limit);
   const unseen = events.filter((event) => BigInt(event.id) > after);
 
   return { events: unseen.slice(0, wholeTurns(unseen, limit)) };
+}
+
+// A limit that is no positive number reads as the default, so a malformed query pages like an unqualified one.
+function limitOf(value: unknown): number {
+  const asked = Number(value);
+
+  return Number.isInteger(asked) && asked > 0
+    ? Math.min(asked, MAX_LIMIT)
+    : DEFAULT_LIMIT;
 }
 
 // Where the page ends: at the limit, moved on past the rest of the turn the limit landed in.

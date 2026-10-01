@@ -55,6 +55,22 @@ describe("eventPage", () => {
     ]);
   });
 
+  it("answers every event for a limit of -5, which is no page size", () => {
+    expect(ids(eventPage(THREE_EVENTS, { limit: "-5" }))).toEqual([
+      "100",
+      "101",
+      "200",
+    ]);
+  });
+
+  it("answers every event for a cursor that is no number, rather than failing", () => {
+    expect(ids(eventPage(THREE_EVENTS, { after: "abc" }))).toEqual([
+      "100",
+      "101",
+      "200",
+    ]);
+  });
+
   it("answers an empty page for a run with no events", () => {
     expect(eventPage([], { after: "5" })).toEqual({ events: [] });
   });

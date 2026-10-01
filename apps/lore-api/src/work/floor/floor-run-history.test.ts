@@ -95,6 +95,24 @@ describe("floorRunHistory", () => {
     });
   });
 
+  it("stops watching run-1 even when reading the journal throws", async () => {
+    const stopped: string[] = [];
+    const failing = (runId: string): RunWatch => ({
+      seq: 0,
+      ended: Promise.resolve({ reason: "stopped" }),
+      stop: () => stopped.push(runId),
+      // eslint-disable-next-line require-yield -- the journal that fails before its first frame
+      async *[Symbol.asyncIterator]() {
+        throw new Error("socket dropped");
+      },
+    });
+
+    await expect(floorRunHistory(failing, "run-1", undefined)).rejects.toThrow(
+      new Error("socket dropped"),
+    );
+    expect(stopped).toEqual(["run-1"]);
+  });
+
   it("answers no event for a run the floor refuses to watch", async () => {
     const { watch } = scriptedWatch([], {
       reason: "refused",

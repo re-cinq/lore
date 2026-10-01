@@ -13,6 +13,19 @@ export async function floorRunHistory(
   after: string | undefined,
 ): Promise<AgentRunEvent[]> {
   const journal = watch(runId, { after: floorCursorOf(after) });
+
+  try {
+    return await eventsUntilCaughtUp(journal, runId);
+  } finally {
+    // A watch is a socket on the floor: it is let go however the read ended.
+    journal.stop();
+  }
+}
+
+async function eventsUntilCaughtUp(
+  journal: ReturnType<WatchRun>,
+  runId: string,
+): Promise<AgentRunEvent[]> {
   const events: AgentRunEvent[] = [];
 
   for await (const frame of journal) {
@@ -24,7 +37,6 @@ export async function floorRunHistory(
       events.push(...recordToAgentEvents(frame.record, { ...frame, runId }));
     }
   }
-  journal.stop();
 
   return events;
 }
