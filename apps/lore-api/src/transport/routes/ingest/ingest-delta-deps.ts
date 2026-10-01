@@ -53,6 +53,30 @@ function requireClient(
   return client!;
 }
 
+type DocDeps = Pick<
+  IngestDeltaDeps,
+  | "projectSpec"
+  | "projectAdr"
+  | "listSpecs"
+  | "listAdrs"
+  | "deleteSpec"
+  | "deleteAdr"
+>;
+
+/** The doc-kind writes: project one file, list what the graph holds, delete one subtree. */
+function docDeps(must: () => DgraphClientPort): DocDeps {
+  return {
+    projectSpec: (repo, path, content, projection) =>
+      projectSpecFile({ repo, filePath: path, content }, must(), projection),
+    projectAdr: (repo, path, content, projection) =>
+      projectAdrFile({ repo, filePath: path, content }, must(), projection),
+    listSpecs: (repo) => listGraphDocPaths(must(), "Spec", repo),
+    listAdrs: (repo) => listGraphDocPaths(must(), "ADR", repo),
+    deleteSpec: (repo, path) => deleteSpecSubtree(must(), repo, path),
+    deleteAdr: (repo, path) => deleteAdrSubtree(must(), repo, path),
+  };
+}
+
 /** The production deps, with the dgraph client created once and shared by every projector. */
 export const defaultDeps = (): IngestDeltaDeps => {
   let client: DgraphClientPort | null | undefined;
@@ -62,14 +86,7 @@ export const defaultDeps = (): IngestDeltaDeps => {
 
   return {
     dgraph,
-    projectSpec: (repo, path, content, projection) =>
-      projectSpecFile({ repo, filePath: path, content }, must(), projection),
-    projectAdr: (repo, path, content, projection) =>
-      projectAdrFile({ repo, filePath: path, content }, must(), projection),
-    listSpecs: (repo) => listGraphDocPaths(must(), "Spec", repo),
-    listAdrs: (repo) => listGraphDocPaths(must(), "ADR", repo),
-    deleteSpec: (repo, path) => deleteSpecSubtree(must(), repo, path),
-    deleteAdr: (repo, path) => deleteAdrSubtree(must(), repo, path),
+    ...docDeps(must),
     ingestReport: (repo, payload) =>
       ingestSpecTrace(must(), repo, "test-report", payload),
     pruneTests: (repo, files) => pruneTestFiles(must(), repo, files),

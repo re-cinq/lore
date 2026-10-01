@@ -10,31 +10,31 @@ interface Issued {
   params: unknown[];
 }
 
-/** What the graph already holds, per kind, for the deltas that prune against it. */
-interface GraphDocs {
-  specs?: string[];
-  adrs?: string[];
-}
-
-function fakeDeps(graph: GraphDocs = {}): IngestDeltaDeps & {
+function fakeDeps(
+  graph: { specs?: string[]; adrs?: string[] } = {},
+): IngestDeltaDeps & {
   calls: Array<[string, ...unknown[]]>;
 } {
   const calls: Array<[string, ...unknown[]]> = [];
-  const forcedMark = (force: boolean) => (force ? ["forced"] : []);
+  const recordProjection =
+    (name: string): IngestDeltaDeps["projectSpec"] =>
+    async (repo, path, content, projection) => {
+      calls.push([
+        name,
+        repo,
+        path,
+        content,
+        ...(projection.force ? ["forced"] : []),
+      ]);
+
+      return { projected: true };
+    };
 
   return {
     calls,
     dgraph: () => ({}) as never,
-    projectSpec: async (repo, path, content, { force }) => {
-      calls.push(["projectSpec", repo, path, content, ...forcedMark(force)]);
-
-      return { projected: true };
-    },
-    projectAdr: async (repo, path, content, { force }) => {
-      calls.push(["projectAdr", repo, path, content, ...forcedMark(force)]);
-
-      return { projected: true };
-    },
+    projectSpec: recordProjection("projectSpec"),
+    projectAdr: recordProjection("projectAdr"),
     listSpecs: async () => graph.specs ?? [],
     listAdrs: async () => graph.adrs ?? [],
     deleteSpec: async (repo, path) => {
@@ -463,10 +463,7 @@ describe("POST /api/repos/{owner}/{repo}/ingest with a forced or full doc delta"
       specs: ["a", "b", "c", "d", "e", "f"].map((n) => `specs/${n}/spec.md`),
     });
     const server = await serverWith(deps, casFirstIngest);
-    const res = await post(
-      server,
-      fullSpecs({ present: ["specs/a/spec.md"] }),
-    );
+    const res = await post(server, fullSpecs({ present: ["specs/a/spec.md"] }));
 
     expect(deps.calls).toEqual([
       ["projectSpec", "re-cinq/lore", "specs/a/spec.md", "a"],
