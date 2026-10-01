@@ -8128,23 +8128,7 @@
                   },
                   "error": {
                     "type": "string"
-                  },
-                  "description": {
-                    "type": "string"
-                  },
-                  "created_by": {
-                    "type": "string"
-                  },
-                  "task_type": {
-                    "type": "string"
-                  },
-                  "target_repo": {
-                    "type": "string"
-                  },
-                  "group_id": {
-                    "type": "string"
-                  },
-                  "context": {}
+                  }
                 },
                 "additionalProperties": false
               }

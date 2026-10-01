@@ -29,13 +29,6 @@ const TaskBody = z.object({
   priority: z.string().optional(),
   pr_url: z.string().optional(),
   error: z.string().optional(),
-  description: z.string().optional(),
-  /** Who queued it; an unnamed caller is the remote MCP adapter (the historical default). */
-  created_by: z.string().optional(),
-  task_type: z.string().optional(),
-  target_repo: z.string().optional(),
-  group_id: z.string().optional(),
-  context: z.unknown().optional(),
 });
 
 type TaskBody = z.infer<typeof TaskBody>;
