@@ -7667,7 +7667,7 @@
       "post": {
         "operationId": "post_api_spec-links_parse",
         "summary": "POST /api/spec-links/parse",
-        "tags": ["Other"],
+        "tags": ["Traceability"],
         "security": [
           {
             "bearerAuth": []
