@@ -209,6 +209,7 @@ layers:
     # The stations the external floor dispatches for the implementation-loop
     # line, one folder each.
     implementation-loop:
+      - domain
       - outbound
       - "@re-cinq/floor-station"
       - "@re-cinq/lore-shared"
@@ -216,6 +217,7 @@ layers:
     # folder each. `onboard` is reached for the request-review station, which
     # this line registers under its own name.
     spec-upkeep:
+      - domain
       - outbound
       - onboard
       - "@re-cinq/floor-station"

@@ -17,13 +17,13 @@ export const MAX_UNLINKED_STATEMENTS = 25;
 const BRANCH_PREFIX = "lore/spec-upkeep/";
 const DAY_LENGTH = "2026-10-05".length;
 
-function dayOf(now: Date): string {
-  return now.toISOString().slice(0, DAY_LENGTH);
-}
-
 /** One branch per run day. The branch is cut only once a detector found something, so a repository with nothing to fix is left with no empty branch. */
 export function upkeepBranch(now: Date): string {
   return `${BRANCH_PREFIX}${dayOf(now)}`;
+}
+
+function dayOf(now: Date): string {
+  return now.toISOString().slice(0, DAY_LENGTH);
 }
 
 export interface UpkeepTickDeps {

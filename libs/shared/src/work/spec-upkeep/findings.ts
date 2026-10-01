@@ -79,14 +79,15 @@ async function documentsOf(sources: UpkeepSources): Promise<TraceDocument[]> {
 
 function untestedOf(doc: TraceDocument): UnlinkedStatement[] {
   const headings = new Map(doc.sections.map((s) => [s.uid, s.heading]));
+  const untested = doc.statements.filter(
+    (statement) => statement.state === "untested",
+  );
 
-  return doc.statements
-    .filter((statement) => statement.state === "untested")
-    .map(({ text, ordinal, sectionUid }) => ({
-      text,
-      ordinal,
-      section: sectionUid ? headings.get(sectionUid) : undefined,
-    }));
+  return untested.map(({ text, ordinal, sectionUid }) => ({
+    text,
+    ordinal,
+    section: sectionUid ? headings.get(sectionUid) : undefined,
+  }));
 }
 
 const WHY: Record<DriftedStatement["reason"], string> = {
@@ -103,18 +104,21 @@ export function driftBrief(drifted: readonly DriftedSpec[]): string {
 }
 
 function driftLines(statement: DriftedStatement): string[] {
-  const tests = statement.links
-    .filter((link) => link.kind === "test" && link.path)
-    .map(
-      (link) =>
-        `  - Test: ${link.path}${link.line ? `:${link.line}` : ""} (${link.label})`,
-    );
+  const tests = statement.links.filter(
+    (link) => link.kind === "test" && link.path,
+  );
 
   return [
     statementLine(statement),
     `  - Why: ${WHY[statement.reason]}`,
-    ...tests,
+    ...tests.map(testLine),
   ];
+}
+
+function testLine(link: DriftedStatement["links"][number]): string {
+  const line = link.line ? `:${link.line}` : "";
+
+  return `  - Test: ${link.path}${line} (${link.label})`;
 }
 
 export function unlinkedBrief(unlinked: readonly UnlinkedSpec[]): string {
