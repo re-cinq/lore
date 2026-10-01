@@ -6,6 +6,7 @@ import type {
   RunView,
   StationRunRecordView,
   VisitView,
+  RunFilter,
 } from "@re-cinq/floor-client";
 import type {
   AssemblyRunQuery,
@@ -15,6 +16,7 @@ import type {
 } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import type { AgentRunTurnRow } from "@re-cinq/lore-shared/project/agent-run-turns/agent-run-turns-port.js";
 import type { RunGraph } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
+import { startValue } from "@re-cinq/lore-shared/review/floor-review-runs.js";
 import { floorRunFilters, matchesFloorQuery } from "./floor-run-query.js";
 import {
   floorRunToAssemblyRun,
@@ -38,6 +40,9 @@ export type FloorRunSource = Pick<
 const RECORDS_PER_READ = 1000;
 const DEFAULT_LIST_LIMIT = 50;
 
+/** How many pages a search for a task's run reads before giving up: 500 runs of one line. */
+const TASK_SEARCH_PAGES = 10;
+
 export class FloorRunReader {
   /** A line version is its content, so its graph never changes once read. */
   private readonly graphs = new Map<string, Promise<RunGraph>>();
@@ -52,17 +57,52 @@ export class FloorRunReader {
 
   /** The floor's runs the query matches, newest first within each of the lists it took to ask. */
   async listSummaries(query: AssemblyRunQuery): Promise<AssemblyRunSummary[]> {
-    const limit = query.limit ?? DEFAULT_LIST_LIMIT;
-    const pages = await Promise.all(
-      floorRunFilters(query).map((filter) =>
-        this.floor.runs.list(filter, { limit }),
-      ),
+    const lists = await Promise.all(
+      floorRunFilters(query).map((filter) => this.runsFor(filter, query)),
     );
     const summaries = await Promise.all(
-      pages.flatMap((page) => page.items).map((run) => this.summaryOf(run)),
+      lists.flat().map((run) => this.summaryOf(run)),
     );
 
     return summaries.filter((run) => matchesFloorQuery(run, query));
+  }
+
+  /** One list of the floor's, or a search through it when the list is not keyed on the task asked for. */
+  private async runsFor(
+    filter: RunFilter,
+    query: AssemblyRunQuery,
+  ): Promise<RunView[]> {
+    if (query.taskId !== undefined && filter.subject === undefined) {
+      return this.runOfTask(filter, query.taskId);
+    }
+    const limit = query.limit ?? DEFAULT_LIST_LIMIT;
+
+    return (await this.floor.runs.list(filter, { limit })).items;
+  }
+
+  /** The task's run in a line keyed on something else (the loop keys on the repository's backlog), paged for rather than read off the first page: a repository's finished loop runs keep growing, and the task's run falls off the newest fifty. A task has one run there, so the search stops at it. */
+  private async runOfTask(
+    filter: RunFilter,
+    taskId: string,
+  ): Promise<RunView[]> {
+    let cursor: string | undefined;
+
+    for (let page = 0; page < TASK_SEARCH_PAGES; page++) {
+      const listed = await this.floor.runs.list(filter, {
+        limit: DEFAULT_LIST_LIMIT,
+        ...(cursor ? { cursor } : {}),
+      });
+      const started = listed.items.filter(
+        (run) => startValue(run, "task_id") === taskId,
+      );
+
+      if (started.length > 0 || !listed.nextCursor) {
+        return started;
+      }
+      cursor = listed.nextCursor;
+    }
+
+    return [];
   }
 
   async listStationRuns(runId: string): Promise<StationRunRecord[]> {
