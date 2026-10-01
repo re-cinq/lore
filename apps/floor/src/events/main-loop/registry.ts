@@ -78,7 +78,6 @@ function prClosedEntry(): Entry {
 function internalEntries(): Entry[] {
   return [
     ["internal.ingest.spec_trace", internal.specTrace],
-    ["internal.repo.team_changed", internal.repoTeamChanged],
     [RUN_START_EVENT, assemblyLineStart],
     // A HUMAN station's worker reporting in (planning wizard or spec-PR webhook): same two steps as a terminal CR.
     [RUN_RESUME_EVENT, assemblyLineResume],

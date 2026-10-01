@@ -1,5 +1,28 @@
-import { describe, it, expect } from "vitest";
-import { parseConsolidationPatterns } from "./memory-lifecycle.js";
+import { afterEach, describe, it, expect, vi } from "vitest";
+import { InMemoryMemoryLifecycle } from "@re-cinq/lore-shared/project/memory/memory-lifecycle-memory.js";
+import { consolidation, parseConsolidationPatterns } from "./consolidation.js";
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
+describe("consolidation", () => {
+  it("skips, calling no model, when no ANTHROPIC_API_KEY is set", async () => {
+    vi.stubEnv("ANTHROPIC_API_KEY", "");
+
+    expect(await consolidation(new InMemoryMemoryLifecycle())).toBe(
+      "Skipped: no ANTHROPIC_API_KEY",
+    );
+  });
+
+  it("skips with 0 recent facts, 5 being the least worth consolidating", async () => {
+    vi.stubEnv("ANTHROPIC_API_KEY", "sk-test");
+
+    expect(await consolidation(new InMemoryMemoryLifecycle())).toBe(
+      "Skipped: only 0 recent facts (need 5)",
+    );
+  });
+});
 
 describe("parseConsolidationPatterns", () => {
   it("extracts PATTERN: prefixed lines and drops the prose around them", () => {

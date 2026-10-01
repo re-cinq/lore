@@ -6,7 +6,6 @@ import { usage } from "../outbound/queues.js";
 import { Llm } from "@re-cinq/lore-shared";
 import { contextCoreBuilderJob } from "../work/context-jobs/context-core-builder/index.js";
 import { evalRunnerJob } from "../work/context-jobs/eval-runner/index.js";
-import { consolidationJob } from "../work/memory/memory-lifecycle/index.js";
 import {
   startJobRun,
   completeJobRun,
@@ -23,7 +22,6 @@ type JobHandler = () => Promise<string>;
 export const dispatch: Record<string, JobHandler> = {
   eval_runner: evalRunnerJob,
   context_core_builder: contextCoreBuilderJob,
-  consolidation: consolidationJob,
 };
 
 export function resolveJob(name: string): JobHandler | null {

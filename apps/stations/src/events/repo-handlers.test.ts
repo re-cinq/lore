@@ -34,6 +34,11 @@ function scene() {
 
       return Promise.resolve();
     },
+    relocateChunks: (repo) => {
+      steps.push(`relocate ${repo}`);
+
+      return Promise.resolve("moved 5 of 7");
+    },
   };
   const handlers = repoEventHandlers(deps);
   const fire = (eventName: string, params: Record<string, unknown>) =>
@@ -43,7 +48,7 @@ function scene() {
 }
 
 describe("repoEventHandlers", () => {
-  it("answers exactly the label, rename and pull-request-closed events", () => {
+  it("answers exactly the label, rename, pull-request-closed and team-changed events", () => {
     expect([...scene().handlers.keys()].sort()).toEqual(
       [...REPO_EVENTS].sort(),
     );
@@ -90,5 +95,13 @@ describe("repoEventHandlers", () => {
     await fire("github.pull_request.closed", { repo: "acme/widgets" });
 
     expect(steps).toEqual([]);
+  });
+
+  it("relocates acme/widgets's context when its team changes", async () => {
+    const { fire, steps } = scene();
+
+    await fire("internal.repo.team_changed", { repo: "acme/widgets" });
+
+    expect(steps).toEqual(["relocate acme/widgets"]);
   });
 });

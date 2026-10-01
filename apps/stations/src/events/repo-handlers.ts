@@ -1,4 +1,4 @@
-// The repository events that need no assembly line: an Issue labelled for Lore, a repository renamed, a pull request closed. They were handled by Lore's own Floor; they are answered here so it can be switched off (specs/external-floor FR16).
+// The repository events that need no assembly line: an Issue labelled for Lore, a repository renamed, a pull request closed, a repository moved to another team. They were handled by Lore's own Floor; they are answered here so it can be switched off (specs/external-floor FR16).
 import type { EventHandler } from "@re-cinq/lore-shared/project/events/drain-loop.js";
 import {
   dispatchLabeledIssue,
@@ -13,12 +13,15 @@ export interface RepoEventDeps {
   renameRepo(from: string, to: string): Promise<string>;
   /** Tells the graph a branch is done: every run on a pull request's head branch shares one overlay, so it goes when the pull request closes, merged or not (#1769). */
   dropOverlay(repo: string, branch: string): Promise<void>;
+  /** A team change moves the repository's stored context into the team's schema, where reads now look; answers what it did. */
+  relocateChunks(repo: string): Promise<string>;
 }
 
 export const REPO_EVENTS: readonly string[] = [
   "github.issues.labeled",
   "github.repository.renamed",
   "github.pull_request.closed",
+  "internal.repo.team_changed",
 ];
 
 export function repoEventHandlers(
@@ -28,6 +31,7 @@ export function repoEventHandlers(
     ["github.issues.labeled", issueLabeled(deps)],
     ["github.repository.renamed", repositoryRenamed(deps)],
     ["github.pull_request.closed", pullRequestClosed(deps)],
+    ["internal.repo.team_changed", teamChanged(deps)],
   ]);
 }
 
@@ -56,5 +60,14 @@ function pullRequestClosed(deps: RepoEventDeps): EventHandler {
     if (repo && branch) {
       await deps.dropOverlay(repo, branch);
     }
+  };
+}
+
+function teamChanged(deps: RepoEventDeps): EventHandler {
+  return async (params) => {
+    const { repo } = params as { repo: string };
+    const outcome = await deps.relocateChunks(repo);
+
+    console.log(`[stations] team changed for ${repo}: ${outcome}`);
   };
 }

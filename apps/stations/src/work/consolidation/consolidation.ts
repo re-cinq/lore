@@ -1,7 +1,7 @@
-/** Memory lifecycle — automatic consolidation: periodically groups related facts and synthesizes higher-level patterns via Haiku. The importance-decay half moved to lore-api in #1350; this half stays only because it calls Haiku (#1346 moves it to a station). */
+// Consolidation: groups the week's facts per repository and asks a model for the higher-level patterns in them, stored as `consolidated/<repo>/<timestamp>` memories. Moved from the Floor's CronJob (specs/external-floor FR16.8) with the port injected instead of a Floor singleton; behaviour unchanged.
 
-import { memoryLifecycle } from "../../../outbound/queues.js";
-import { Llm } from "@re-cinq/lore-shared";
+import type { MemoryLifecyclePort } from "@re-cinq/lore-shared/project/memory/memory-lifecycle-port.js";
+import { Llm } from "@re-cinq/lore-shared/llm/llm.js";
 
 // ── Config ──────────────────────────────────────────────────────────
 
@@ -19,13 +19,15 @@ export function parseConsolidationPatterns(text: string): string[] {
 
 // ── Consolidation job ───────────────────────────────────────────────
 
-export async function consolidationJob(): Promise<string> {
+export async function consolidation(
+  memory: MemoryLifecyclePort,
+): Promise<string> {
   if (!process.env.ANTHROPIC_API_KEY) {
     return "Skipped: no ANTHROPIC_API_KEY";
   }
 
   // Get recent facts from the last N days that haven't been consolidated
-  const recentFacts = await memoryLifecycle().findRecentValidFacts(
+  const recentFacts = await memory.findRecentValidFacts(
     CONSOLIDATION_LOOKBACK_DAYS,
     50,
   );
@@ -34,11 +36,21 @@ export async function consolidationJob(): Promise<string> {
     return `Skipped: only ${recentFacts.length} recent facts (need ${CONSOLIDATION_MIN_FACTS})`;
   }
 
-  const consolidated = await consolidateAll(groupFactsByRepo(recentFacts));
+  return consolidateFacts(memory, recentFacts);
+}
+
+async function consolidateFacts(
+  memory: MemoryLifecyclePort,
+  recentFacts: Array<{ repo: string; fact_text: string }>,
+): Promise<string> {
+  const consolidated = await consolidateAll(
+    memory,
+    groupFactsByRepo(recentFacts),
+  );
 
   if (consolidated > 0) {
     console.log(
-      `[job] consolidation: created ${consolidated} pattern memories from ${recentFacts.length} facts`,
+      `[station] consolidation: created ${consolidated} pattern memories from ${recentFacts.length} facts`,
     );
   }
 
@@ -64,7 +76,10 @@ function groupFactsByRepo(
 }
 
 /** Consolidates every repo bucket that clears the 3-fact floor, returning how many pattern memories landed. */
-async function consolidateAll(byRepo: Map<string, string[]>): Promise<number> {
+async function consolidateAll(
+  memory: MemoryLifecyclePort,
+  byRepo: Map<string, string[]>,
+): Promise<number> {
   let consolidated = 0;
 
   for (const [repo, facts] of byRepo) {
@@ -73,7 +88,7 @@ async function consolidateAll(byRepo: Map<string, string[]>): Promise<number> {
       continue;
     }
 
-    consolidated += await consolidateRepoFacts(repo, facts);
+    consolidated += await consolidateRepoFacts(memory, repo, facts);
   }
 
   return consolidated;
@@ -81,6 +96,7 @@ async function consolidateAll(byRepo: Map<string, string[]>): Promise<number> {
 
 /** Asks Haiku for patterns across one repo's facts and stores whatever it finds; best effort — a failure here just consolidates zero for this repo. */
 async function consolidateRepoFacts(
+  memory: MemoryLifecyclePort,
   repo: string,
   facts: string[],
 ): Promise<number> {
@@ -89,7 +105,7 @@ async function consolidateRepoFacts(
 
     return patterns.length === 0
       ? 0
-      : await storeConsolidatedPatterns(repo, patterns);
+      : await storeConsolidatedPatterns(memory, repo, patterns);
   } catch {
     return 0;
   }
@@ -116,6 +132,7 @@ function consolidationPrompt(repo: string, facts: string[]): string {
 
 /** Store each extracted pattern as a memory; best effort — a partial store still counts what landed. */
 async function storeConsolidatedPatterns(
+  memory: MemoryLifecyclePort,
   repo: string,
   patterns: string[],
 ): Promise<number> {
@@ -125,7 +142,7 @@ async function storeConsolidatedPatterns(
     for (const pattern of patterns) {
       const key = `consolidated/${repo.replace(/\//g, "-")}/${Date.now()}`;
 
-      await memoryLifecycle().insertConsolidatedMemory(key, pattern);
+      await memory.insertConsolidatedMemory(key, pattern);
       stored++;
     }
   } catch {

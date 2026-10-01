@@ -156,7 +156,7 @@ status pill — a stale header misreports the org's backlog.
 - `scripts/slack-app-manifest.yaml` — Slack app manifest for /lore slash command
 - `libs/shared/src/work/episode-writer.ts` — shared episode writer with Haiku-driven auto-curation
 - `libs/shared/src/outbound/llm/prompt-cache.ts` — `getCacheControl(jobName)` (ephemeral + optional `ttl: "1h"`), `computeCachePrefixHash` (djb2 over system + tool schemas), `analyzeCacheBreak` (in-memory per-job tracker classifying hit / first-call / prompt-changed / ttl-expired)
-- `apps/floor/src/work/memory/memory-lifecycle/memory-lifecycle.ts` — importance decay (eviction) + fact consolidation (pattern extraction)
+- `apps/stations/src/work/consolidation/consolidation.ts` — the nightly fact consolidation (pattern extraction), a stations sweep posted to by a courier; importance decay is its sibling sweep `importance-decay`
 - `libs/server-core/src/outbound/session-tracker.ts` — passive session tracking (tool calls, ring buffer, exit dump)
 - `evals/` — PromptFoo eval configs per team
 
