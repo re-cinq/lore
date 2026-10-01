@@ -64,8 +64,11 @@ describe("floorRunFilters", () => {
     ).toEqual([{ subject: "plan_id:p1", open: true }]);
   });
 
-  it("reads nothing for a query on task-1", () => {
-    expect(floorRunFilters({ taskId: "task-1" })).toEqual([]);
+  it("reads the runs keyed on subject task_id:task-1 for a query on task-1", () => {
+    expect(floorRunFilters({ taskId: "task-1" })).toEqual([
+      { subject: "task_id:task-1", open: true },
+      { subject: "task_id:task-1", open: false },
+    ]);
   });
 
   it("reads nothing for a query on a cluster-agent", () => {

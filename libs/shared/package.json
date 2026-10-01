@@ -38,6 +38,10 @@
       "types": "./dist/work/digest/*.d.ts",
       "default": "./dist/work/digest/*.js"
     },
+    "./onboard/*.js": {
+      "types": "./dist/work/onboard/*.d.ts",
+      "default": "./dist/work/onboard/*.js"
+    },
     "./digest-settings.js": {
       "types": "./dist/domain/digest-settings.d.ts",
       "default": "./dist/domain/digest-settings.js"

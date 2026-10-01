@@ -448,7 +448,7 @@ are `libs/shared/src/agent-defaults/<name>.md` (frontmatter = settings,
 body = prompt), which lore-api seeds into the org rows at boot:
 
 - **feature-request**: PM describes intent in plain language → agent generates spec.md, data-model.md, tasks.md following repo conventions. Opens a PR for engineer review.
-- **onboard**: the Floor enrols the repo (labels, webhook, ingest callback, verbatim workflows + templates on the branch), then the `onboard` assembly line (`libs/assembly-lines/src/assembly-lines/onboard.yaml`, the implementation shape with the `onboard` recipe) authors AGENTS.md, ADRs, spec and PR template from the onboarding ticket (`onboardTicketBody`) and opens the ONE PR; the push node records it as `lore.repos.onboarding_pr_url`
+- **onboard**: runs on the external floor where one is configured (`libs/assembly-lines/src/floor-pipelines/onboard.yaml`, `specs/external-floor` FR11): lore-api creates the task already running, cuts `lore/onboard/<task8>` and starts the run; `enrol` (labels, ingest callback, verbatim workflows + templates on the branch, `libs/shared/src/work/onboard/enrol-repo.ts`) → `author` (AGENTS.md, ADRs, spec and PR template from the onboarding ticket, `onboardTicketBody`) → `open-pr` (the ONE PR, recorded as `lore.repos.onboarding_pr_url`) → `await-ci` ⇄ `fix-ci` (a human station the pr-ready-check sweep answers, `apps/stations/src/work/pr-ready-check/floor-ci-wait.ts`) → `request-review`; the `run-settled` station settles the task. With no floor, the old Floor enrols and walks `libs/assembly-lines/src/assembly-lines/onboard.yaml`
 - **general**: open-ended task with Lore context
 - **runbook**: generates incident runbook
 - **implementation**: implements from a spec file

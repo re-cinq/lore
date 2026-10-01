@@ -59,8 +59,13 @@ interface Pipeline {
 
 const PIPELINES = loadPipelines();
 
+const ONBOARD_AGENT_NEEDS = [
+  { name: "target", kind: "git", path: "target", access: "write" },
+  { name: "ticket", kind: "file", path: "ticket.md" },
+];
+
 describe("the floor pipelines shipped in this folder", () => {
-  it("ships exactly the pipelines code-review, code-review-recheck, code-review-reply, daily-digest, feature-planning, lore-run-settled and merge", () => {
+  it("ships exactly the pipelines code-review, code-review-recheck, code-review-reply, daily-digest, feature-planning, lore-run-settled, merge and onboard", () => {
     expect(
       [...PIPELINES.values()].map((pipeline) => pipeline.line.id).sort(),
     ).toEqual([
@@ -71,7 +76,109 @@ describe("the floor pipelines shipped in this folder", () => {
       "feature-planning",
       "lore-run-settled",
       "merge",
+      "onboard",
     ]);
+  });
+
+  it("walks onboard from enrol through author, open-pr, await-ci and request-review to done", () => {
+    const { line } = pipelineOf("onboard");
+    const forward = line.edges
+      .filter((edge) => edge.on === "success" && edge.from !== "fix-ci")
+      .map((edge) => `${edge.from}>${edge.to}`);
+
+    expect(line.entry).toBe("enrol");
+    expect(forward).toEqual([
+      "enrol>author",
+      "author>open-pr",
+      "open-pr>await-ci",
+      "await-ci>request-review",
+      "request-review>done",
+    ]);
+  });
+
+  it("sends a red onboard build to fix-ci twice at most and every fix-ci verdict back to the await-ci wait", () => {
+    const { line } = pipelineOf("onboard");
+
+    expect(
+      edgesOn(line, "await-ci").filter((edge) => edge.to === "fix-ci"),
+    ).toEqual([
+      {
+        from: "await-ci",
+        to: "fix-ci",
+        on: "changes_requested",
+        iteration_max: 2,
+      },
+      { from: "await-ci", to: "fix-ci", on: "failed", iteration_max: 2 },
+    ]);
+    expect(
+      edgesOn(line, "fix-ci").filter((edge) => edge.to === "await-ci"),
+    ).toEqual([
+      { from: "fix-ci", to: "await-ci", on: "success" },
+      { from: "fix-ci", to: "await-ci", on: "changes_requested" },
+    ]);
+  });
+
+  it("ends an onboard run at done when open-pr found nothing on the branch to open a pull request from", () => {
+    expect(
+      edgesOn(pipelineOf("onboard").line, "open-pr").find(
+        (edge) => edge.on === "changes_requested",
+      ),
+    ).toEqual({ from: "open-pr", to: "done", on: "changes_requested" });
+  });
+
+  it("sends no failed outcome of onboard to the exit, and retries every failed station once", () => {
+    const { line } = pipelineOf("onboard");
+    const failed = line.edges.filter(
+      (edge) => edge.on === "failed" && edge.from !== "await-ci",
+    );
+
+    expect(
+      failed.map((edge) => `${edge.from}>${edge.to}:${edge.iteration_max}`),
+    ).toEqual([
+      "enrol>enrol:1",
+      "author>author:1",
+      "open-pr>open-pr:1",
+      "fix-ci>fix-ci:1",
+      "request-review>request-review:1",
+    ]);
+  });
+
+  it("keys an onboard run on task_id and makes await-ci a human station producing the three CI feedback values fix-ci needs", () => {
+    const { line, stations } = pipelineOf("onboard");
+    const produced = stations["onboard-await-ci"].produces.map(
+      (value) => value.name,
+    );
+    const needed = stations["onboard-fix-ci"].needs
+      .filter((need) => need.kind === "value")
+      .map((need) => need.name);
+
+    expect(subjectsOf(line)).toEqual(["task_id"]);
+    expect(stations["onboard-await-ci"].kind).toBe("human");
+    expect(needed).toEqual(produced);
+  });
+
+  it("hands both onboard agents the ticket as ticket.md and the branch with write access, and tells them its path", () => {
+    const { stations, agent_definitions: agents } = pipelineOf("onboard");
+    const agentNeeds = ["onboard-author", "onboard-fix-ci"].map((station) =>
+      stations[station].needs.filter((need) => need.kind !== "value"),
+    );
+    const prompts = ["onboard-author", "onboard-fix-ci"].map(
+      (agent) => agents![agent].settings.prompt,
+    );
+
+    expect(agentNeeds).toEqual([ONBOARD_AGENT_NEEDS, ONBOARD_AGENT_NEEDS]);
+    expect(prompts.every((prompt) => prompt.includes("{ticket_path}"))).toBe(
+      true,
+    );
+  });
+
+  it("hands fix-ci the sha, the failed checks and what they printed in its prompt", () => {
+    const { prompt } =
+      pipelineOf("onboard").agent_definitions!["onboard-fix-ci"].settings;
+
+    expect(prompt).toContain("## CI reported failures on {ci_feedback_sha}");
+    expect(prompt).toContain("These checks failed: {ci_failed_checks}");
+    expect(prompt).toContain("{ci_failure_summary}");
   });
 
   it("walks daily-digest from collect through refine to post, reaching post on every outcome of refine", () => {
@@ -624,6 +731,12 @@ function pipelineOf(id: string): Pipeline {
   enforceTrue(pipeline !== undefined, Error, `no floor pipeline ${id}`);
 
   return pipeline;
+}
+
+function subjectsOf(line: Pipeline["line"]): string[] {
+  return Object.entries(line.args)
+    .filter(([, arg]) => arg.subject)
+    .map(([name]) => name);
 }
 
 function edgesOn(line: Pipeline["line"], from: string): Edge[] {

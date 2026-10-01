@@ -1,15 +1,18 @@
-// The verbatim half of onboarding: the canonical workflows and the static templates, committed by the Floor before the onboard line's agent runs — an LLM retyping YAML it was handed is how a workflow drifts from its canonical version.
+// The verbatim half of onboarding: the canonical workflows and the static templates, committed by Lore before the onboard line's agent runs — an LLM retyping YAML it was handed is how a workflow drifts from its canonical version.
 
+import { errorMessage, type StepFailure } from "../../lib/error-classify.js";
 import {
-  errorMessage,
   LORE_INGEST_WORKFLOW_PATH,
   LORE_INGEST_WORKFLOW_CONTENT,
+} from "../ingest-workflow.js";
+import {
   ONBOARD_STATIC_FILES,
   type OnboardFileOwner,
+} from "../onboard-content.js";
+import {
   TRACE_IMPACT_WORKFLOW_PATH,
   TRACE_IMPACT_WORKFLOW_CONTENT,
-  type StepFailure,
-} from "@re-cinq/lore-shared";
+} from "../trace-impact-workflow.js";
 
 /** The slice of `project.repo` the scaffold needs — narrow so tests need no Project. */
 export interface ScaffoldRepo {
@@ -85,7 +88,7 @@ async function commitScaffoldFile(
     await repo.commitFile(branch, path, content, `lore: update ${path}`);
     result.committed.push(path);
   } catch (err) {
-    console.error(`[floor] Onboard: failed ${path}: ${errorMessage(err)}`);
+    console.error(`[onboard] failed ${path}: ${errorMessage(err)}`);
     result.failures.push({ step: path, error: errorMessage(err) });
   }
 }
