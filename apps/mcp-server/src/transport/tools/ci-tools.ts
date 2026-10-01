@@ -10,10 +10,9 @@ import {
 } from "./deps.js";
 import { GET_PR_STATUS_INPUT } from "./pipeline-tools-schemas.js";
 import {
-  NO_REPO_GIVEN,
   repoParam,
   resolveBranch,
-  resolveRepo,
+  withRepo,
   type ServerMode,
 } from "./repo-scope.js";
 
@@ -65,12 +64,10 @@ const CI_JOB_LOG_INPUT = {
     ),
 };
 
-const NO_REPO =
-  "Could not detect repo. Specify repo parameter (e.g., 're-cinq/my-service').";
 const NO_BRANCH =
   "Could not detect the branch. Specify branch (e.g. 'feat/x') or pr_number.";
 
-export function registerCiTools(server: McpServer, mode: ServerMode = "full") {
+export function registerCiTools(server: McpServer, mode: ServerMode) {
   registerGetCiFailuresTool(server, mode);
   registerGetCiJobLogTool(server, mode);
   registerGetPrStatusTool(server);
@@ -153,20 +150,6 @@ async function ciJobLogHandler(args: {
     `/api/repos/${args.repo}/ci-jobs/${args.job_id}/log?${query}`,
     "the CI job log",
   );
-}
-
-async function withRepo<A extends { repo?: string }, R>(
-  args: A,
-  mode: ServerMode,
-  read: (args: A & { repo: string }) => Promise<R>,
-): Promise<R | ReturnType<typeof textResult>> {
-  const repo = resolveRepo(args.repo, mode);
-
-  if (!repo) {
-    return textResult(mode === "agent" ? NO_REPO_GIVEN : NO_REPO);
-  }
-
-  return read({ ...args, repo });
 }
 
 function registerGetPrStatusTool(server: McpServer) {

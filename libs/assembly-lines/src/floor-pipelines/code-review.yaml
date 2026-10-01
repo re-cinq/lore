@@ -139,7 +139,8 @@ agent_definitions:
         sections it touches and the surface it changes (a page, a route, a
         line), not "PR review conventions" — that returns the platform overview.
         Then read the CI verdict with `lore_get_ci_failures`.
-        Pass `repo` (the owner/name your task names above) on every `lore_*` call:
+        Pass the `repo` named on the description's first line on
+        every `lore_*` call:
         the server has no checkout to detect it from.
 
         Read the change as its user before you read it as its reviewer. For

@@ -168,13 +168,13 @@ function storeWhenCacheable(
   store(policy, body);
 }
 
-// Falls back to a stale cached copy only for a genuine "unreachable" outcome; denials pass through.
+// Falls back to a stale cached copy only for a genuine "unreachable" outcome with no status; denials and refusals the API answered pass through.
 function serveStaleFallback({
   policy,
   result,
   label,
 }: StaleFallbackInput): ProxyResult {
-  if (result.reason !== "unreachable") {
+  if (result.reason !== "unreachable" || result.status !== undefined) {
     return result;
   }
   const stale = readAny(policy);

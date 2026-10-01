@@ -12,12 +12,7 @@ import {
   proxyGetApi,
   type ProxyResult,
 } from "./deps.js";
-import {
-  NO_REPO_GIVEN,
-  repoParam,
-  resolveRepo,
-  type ServerMode,
-} from "./repo-scope.js";
+import { repoParam, withRepo, type ServerMode } from "./repo-scope.js";
 import { updateBanner } from "../../work/update/mcp-update.js";
 
 // MCP tool input args (lore_assemble_context's own snake_case schema), not a DB row.
@@ -61,7 +56,7 @@ const ASSEMBLE_CONTEXT_INPUT = {
 
 export function registerAssembleContextTool(
   server: McpServer,
-  mode: ServerMode = "full",
+  mode: ServerMode,
 ) {
   server.tool(
     "lore_assemble_context",
@@ -80,16 +75,12 @@ Instead: use lore_search_context for raw passages/exact wording from ingested do
 }
 
 async function assembleForMode(
-  args: Parameters<typeof assembleContext>[0],
+  args: Omit<Parameters<typeof assembleContext>[0], "repo"> & {
+    repo?: string;
+  },
   mode: ServerMode,
 ) {
-  const repo = resolveRepo(args.repo, mode);
-
-  if (!repo && mode === "agent") {
-    return textResult(NO_REPO_GIVEN);
-  }
-
-  return assembleContext({ ...args, repo: repo ?? undefined });
+  return withRepo(args, mode, assembleContext);
 }
 
 /** The mandatory first call, served entirely by the API — the adapter holds no pool, so with no LORE_API_URL there is nothing to degrade to and it says so instead of returning an empty bundle. */
@@ -97,7 +88,7 @@ async function assembleContext(args: {
   query: string;
   template: string;
   max_tokens?: number;
-  repo?: string;
+  repo: string;
   agent_id?: string;
   cross_repo?: boolean;
 }) {
@@ -111,7 +102,7 @@ async function assembleContext(args: {
   const extras = buildAssembleExtras({ max_tokens, cross_repo, agent_id });
 
   return interpretProxiedContext(
-    await cachedAssemble({ query, template, repo: repo ?? "" }, extras),
+    await cachedAssemble({ query, template, repo }, extras),
   );
 }
 

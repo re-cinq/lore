@@ -19,7 +19,13 @@ import {
 } from "./memory-tools-schemas.js";
 import { registerGraphEpisodeTools } from "./graph-episode-tools.js";
 import { interpretMemoryProxy } from "./interpret-memory-proxy.js";
-import { repoParam, resolveRepo, type ServerMode } from "./repo-scope.js";
+import {
+  invalidRepoRefusal,
+  NO_REPO_GIVEN,
+  repoParam,
+  resolveRepo,
+  type ServerMode,
+} from "./repo-scope.js";
 
 export { interpretMemoryProxy } from "./interpret-memory-proxy.js";
 
@@ -56,10 +62,7 @@ interface SearchMemoryArgs {
   graph_augment?: boolean;
 }
 
-export function registerMemoryTools(
-  server: McpServer,
-  mode: ServerMode = "full",
-) {
+export function registerMemoryTools(server: McpServer, mode: ServerMode) {
   registerWriteMemoryTool(server, mode);
   registerReadMemoryTool(server);
   registerDeleteMemoryTool(server);
@@ -80,6 +83,11 @@ function registerWriteMemoryTool(server: McpServer, mode: ServerMode) {
 // Writes through the API, falling back to the file store ONLY when LORE_API_URL is unset — true offline mode. A configured API that refused is reported, not quietly written to disk, or the two stores would diverge.
 async function writeMemoryHandler(args: WriteMemoryArgs, mode: ServerMode) {
   const { key, value, agent_id, ttl } = args;
+  const refusal = invalidRepoRefusal(args.repo);
+
+  if (refusal) {
+    return textResult(refusal);
+  }
 
   try {
     const handled = interpretMemoryProxy(
@@ -222,13 +230,26 @@ function registerListMemoriesTool(server: McpServer, mode: ServerMode) {
     `Lists memory keys for a repo (newest-first, paginated), returning {memories: [{key, agent_id, repo, version, created_at, ttl_seconds, has_facts}], total}. Scope: the given or detected repo wins; falls back to agent_id; then org-wide. Excludes expired and soft-deleted entries. Use to browse existing keys without ranking. Instead: lore_search_memory to find memories by meaning; lore_read_memory to fetch one specific value.`,
     { ...LIST_MEMORIES_INPUT, repo: repoParam(mode) },
     ({ agent_id, limit, offset, repo }) =>
-      listMemoriesHandler({
-        agent_id,
-        limit,
-        offset,
-        repo: resolveRepo(repo, mode) || undefined,
-      }),
+      listMemoriesScoped({ agent_id, limit, offset, repo }, mode),
   );
+}
+
+function listMemoriesScoped(
+  args: { agent_id?: string; limit: number; offset: number; repo?: string },
+  mode: ServerMode,
+) {
+  const refusal =
+    invalidRepoRefusal(args.repo) ??
+    (mode === "agent" && !args.repo ? NO_REPO_GIVEN : null);
+
+  if (refusal) {
+    return textResult(refusal);
+  }
+
+  return listMemoriesHandler({
+    ...args,
+    repo: resolveRepo(args.repo, mode) || undefined,
+  });
 }
 
 // The detected repo scopes the listing; without one it falls back to the agent, then org-wide.

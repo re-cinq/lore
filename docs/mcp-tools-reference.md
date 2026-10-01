@@ -83,7 +83,7 @@ One-line purpose: search the ingested-document corpus (CLAUDE.md, ADRs, team doc
 
 #### `lore_write_memory`
 
-One-line purpose: store one curated, addressable key/value memory scoped to the current repo (or to `agent_id` when no repo is detected).
+One-line purpose: store one curated, addressable key/value memory scoped to the repo the call names (or the one detected on a laptop), else to `agent_id`.
 
 - **When to use:** you have a nugget to retrieve later by a key YOU choose — a decision, convention, correction, or session summary.
 - **When not to use:** for raw uncurated text you want passively stored with auto fact-extraction and no chosen key, use `lore_write_episode`.
@@ -93,12 +93,13 @@ One-line purpose: store one curated, addressable key/value memory scoped to the 
 | `key` | yes | — | Caller-chosen retrieval key, slash-namespaced by convention (e.g. `auth-pattern`, `session-summary/2026-03-30`). |
 | `value` | yes | — | The memory text; this exact string is the canonical stored value and is embedded for semantic search. |
 | `agent_id` | no | ambient | Override the resolved agent ID for this write. |
+| `repo` | no | auto-detect on a laptop | Repo the memory is scoped to, as `owner/repo`. Detected from the git remote only on a laptop; the shared agent gateway has no checkout, so there only a named `repo` scopes the memory and an omitted one writes an agent-scoped memory. A value that is not owner/name is rejected before any API call. |
 | `ttl` | no | none | Time-to-live in seconds; sets `expires_at`. Omit for a permanent memory. |
 | `extract_facts` | no | `false` | When true, fire async fact extraction from `value` (fire-and-forget; does not block). |
 
 - **Returns:** the write result `{key, version, agent_id, created_at}`.
 - **Where it runs:** local DB when `LORE_DB_HOST` is set; else proxies to `/api/memory` (write scope); `~/.lore` file fallback only when no API is configured.
-- **Cache/mutation:** WRITE. Versioned (a repeat key bumps version, never overwrites). Embeds the value and invalidates memory-derived read caches (`lore_search_memory`, `lore_read_memory`, `lore_list_memories`, `lore_assemble_context`). Repo-detected memories are shared org-wide with everyone in the same repo; no-repo memories are agent-scoped.
+- **Cache/mutation:** WRITE. Versioned (a repeat key bumps version, never overwrites). Embeds the value and invalidates memory-derived read caches (`lore_search_memory`, `lore_read_memory`, `lore_list_memories`, `lore_assemble_context`). Repo-scoped memories (an explicit `repo`, or the repo detected on a laptop) are shared org-wide with everyone in the same repo; no-repo memories are agent-scoped.
 
 #### `lore_read_memory`
 
@@ -135,18 +136,19 @@ One-line purpose: soft-delete a memory by key for the resolved agent.
 
 #### `lore_list_memories`
 
-One-line purpose: list memory keys for the current repo, newest-first and paginated.
+One-line purpose: list memory keys for a repo, newest-first and paginated.
 
 - **When to use:** browse what memories exist by key without ranking.
 - **When not to use:** find by meaning → `lore_search_memory`; fetch one value → `lore_read_memory`.
 
 | Parameter | Required | Default | Description |
 |---|---|---|---|
-| `agent_id` | no | — | Scope to one agent when no repo is detected (ignored when a repo is detected — repo scope wins). |
+| `repo` | gateway: yes; laptop: no | auto-detect on a laptop | Repo to list, as `owner/repo`. Detected from the git remote only on a laptop; the shared agent gateway has no checkout and answers "No repo given" when it is omitted. A value that is not owner/name is rejected before any API call. |
+| `agent_id` | no | — | Scope to one agent when no repo is given or detected (ignored when one is — repo scope wins). |
 | `limit` | no | `50` | Maximum number of memories to return. |
 | `offset` | no | `0` | Rows to skip for pagination. **DB path only; not forwarded over the proxy.** |
 
-- **Returns:** `{memories: [{key, agent_id, repo, version, created_at, ttl_seconds, has_facts}], total}`. Expired and soft-deleted memories are excluded. Scope precedence: detected repo, then `agent_id`, then org-wide.
+- **Returns:** `{memories: [{key, agent_id, repo, version, created_at, ttl_seconds, has_facts}], total}`. Expired and soft-deleted memories are excluded. Scope precedence: the given or detected repo, then `agent_id`, then org-wide.
 - **Where it runs:** local DB when `LORE_DB_HOST` is set; else a ~5min cached proxy to `/api/memory` (read scope); `~/.lore` file fallback when no API is configured.
 - **Cache/mutation:** read.
 
@@ -283,8 +285,8 @@ One-line purpose: what CI said about a branch — the judged sha, the verdict, a
 
 | Parameter | Required | Default | Description |
 |---|---|---|---|
-| `repo` | no | git remote of the cwd | Repository as `owner/name`. |
-| `branch` | no | checked-out branch of the cwd | Branch to report on. A pod on its own branch passes nothing. |
+| `repo` | gateway: yes; laptop: no | git remote of the cwd (laptop) | Repository as `owner/name`; required on the shared agent gateway, which has no checkout. |
+| `branch` | no | checked-out branch of the cwd | Branch to report on. A pod has no checkout, so it passes `branch` (the output of `git branch --show-current`) or `pr_number`. |
 | `pr_number` | no | — | Alternative to `branch`: the pull request whose head branch to report on. |
 
 - **Returns:** JSON `{branch, judged_sha, conclusion, failures[]}`; each failure is `{name, app, job_id, annotations[], steps[], tail[], npm_script, unreadable[]}`; `unreadable` names the reads GitHub refused as `what (status)` (e.g. `log (403)` when the GitHub App lacks Actions read), so an empty part beside an entry there was not readable rather than silent; `npm_script` is `{package, script}` when the failed step ran through npm — reproduce it as `npm run <script> -w <package>`, never at the repo root. `conclusion` is `success | failure | pending | none`; `judged_sha` is the newest commit not marked `[skip ci]`.
@@ -300,7 +302,7 @@ One-line purpose: the tail of one GitHub Actions job's log, timestamps stripped,
 
 | Parameter | Required | Default | Description |
 |---|---|---|---|
-| `repo` | no | git remote of the cwd | Repository as `owner/name`. |
+| `repo` | gateway: yes; laptop: no | git remote of the cwd (laptop) | Repository as `owner/name`; required on the shared agent gateway, which has no checkout. |
 | `job_id` | yes | — | The `job_id` of a failure reported by `lore_get_ci_failures`. |
 | `tail` | no | 200 | Last N lines to return, max 2000. |
 | `grep` | no | — | Case-insensitive substring; only matching lines are kept, before the tail is taken. |

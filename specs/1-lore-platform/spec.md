@@ -538,7 +538,7 @@ live knowledge graph. ([validated by `graph.test.ts:47`](libs/server-core/src/wo
   Concept, Runbook. Typed relationships: OWNS, CALLS, IMPLEMENTS,
   SUPERSEDES, REFERENCES, AUTHORED_BY, DEFINES. ([validated by `graph.test.ts:47`](libs/server-core/src/work/memory/graph.test.ts#L5), [`graph.test.ts:73`](libs/server-core/src/work/memory/graph.test.ts#L73))
 - FR-11.3: `lore_query_graph(query)` MCP tool traverses the live graph
-  for multi-hop relationship results. ([validated by `memory-tools.test.ts:50`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L50))
+  for multi-hop relationship results. ([validated by `memory-tools.test.ts:50`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L41))
 - FR-11.4: Facts carry temporal validity (`valid_from`/`valid_to`),
   confidence tiers (`verified` / `observed` / `inferred` / `stale`),
   and retrieval metadata (`retrieval_count`, `last_retrieved_at`,
@@ -1345,7 +1345,7 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   the last-synced local copy of CLAUDE.md files and ADRs in
   `~/.re-cinq/lore` and display a one-time warning to the developer
   that search quality may be degraded. Semantic search is unavailable
-  in this mode; convention and ADR lookups continue from local files. ([validated by `context-tools.test.ts:56`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L56), [`context-tools.test.ts:102`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L102))
+  in this mode; convention and ADR lookups continue from local files. ([validated by `context-tools.test.ts:56`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L46), [`context-tools.test.ts:102`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L92))
 
 ## Operational Targets & Constraints (Background)
 

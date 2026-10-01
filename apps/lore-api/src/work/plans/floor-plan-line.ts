@@ -79,7 +79,11 @@ export async function startFloorDrafting(
   if (line?.parkedAuthor) {
     await reportToVisit(deps.floor.events, line.parkedAuthor.visitId, {
       outcome: "changes_requested",
-      produced: { plan_md: planMd, description: brief, refine: NO_REFINE },
+      produced: {
+        plan_md: planMd,
+        description: briefFor(plan.repo, brief),
+        refine: NO_REFINE,
+      },
     });
 
     return line.lineId;
@@ -104,7 +108,7 @@ export async function askFloorRefine(
     produced: {
       plan_md: await storeMarkdown(deps.floor, planMarkdown),
       refine: refineValue(refine),
-      description: brief,
+      description: briefFor(plan.repo, brief),
     },
   });
 }
@@ -168,7 +172,7 @@ export async function approveFloorPlan(
       deps,
       line.parkedAuthor,
       input.planMarkdown,
-      input.brief,
+      briefFor(input.plan.repo, input.brief),
     );
 
     return decision;
@@ -261,6 +265,11 @@ async function storeMarkdown(
   return stored.hash;
 }
 
+/** The brief a station is given, led by the repo on a line of its own: the floor's prompts only render the description, and the gateway has no checkout to read the repo from. */
+function briefFor(repo: string, brief: string): string {
+  return `repo: "${repo}"\n${brief}`;
+}
+
 async function reportApproved(
   deps: FloorPlanDeps,
   author: ParkedVisit,
@@ -327,7 +336,7 @@ async function startItemsOf(
     plan_id: valueItem(plan.id),
     plan_title: valueItem(plan.title),
     plan_md: fileItem(planMd),
-    description: valueItem(brief),
+    description: valueItem(briefFor(plan.repo, brief)),
     refine: valueItem(refine ?? NO_REFINE),
   };
 }

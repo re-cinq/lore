@@ -30,6 +30,7 @@ const DRAFT = {
 const APPROVED = { ...DRAFT, status: "approved" };
 const MARKDOWN = "# Faster checkout\n\nCheckout is slow.\n";
 const BRIEF = 'Draft the plan "Widget" in plan.md.';
+const BRIEFED = `repo: "re-cinq/lore"\n${BRIEF}`;
 const SUCCESS: Report = { outcome: "success" };
 const SPEC_PR_URL = "https://github.com/re-cinq/lore/pull/12";
 
@@ -166,7 +167,7 @@ function started(entry?: string): FloorRequest {
         plan_id: { kind: "value", ref: "p1", by: "lore" },
         plan_title: { kind: "value", ref: "Faster checkout", by: "lore" },
         plan_md: { kind: "file", ref: PLAN_BLOB_HASH, by: "lore" },
-        description: { kind: "value", ref: BRIEF, by: "lore" },
+        description: { kind: "value", ref: BRIEFED, by: "lore" },
         refine: { kind: "value", ref: "", by: "lore" },
       },
       ...(entry ? { entry } : {}),
@@ -188,7 +189,7 @@ describe("startFloorDrafting", () => {
     expect(posts(requests).at(-1)).toEqual(
       reported("visit-author", {
         outcome: "changes_requested",
-        produced: { plan_md: PLAN_BLOB_HASH, description: BRIEF, refine: "" },
+        produced: { plan_md: PLAN_BLOB_HASH, description: BRIEFED, refine: "" },
       }),
     );
   });
@@ -265,7 +266,7 @@ describe("askFloorRefine", () => {
           plan_md: PLAN_BLOB_HASH,
           refine:
             '{"slot":"intent","baseHash":"3f9a","uses":{"answers":["a1"]}}',
-          description: BRIEF,
+          description: BRIEFED,
         },
       }),
     );
@@ -434,7 +435,7 @@ describe("approveFloorPlan", () => {
     expect(posts(requests).at(-1)).toEqual(
       reported("visit-author", {
         outcome: "success",
-        produced: { plan_md: PLAN_BLOB_HASH, description: BRIEF, refine: "" },
+        produced: { plan_md: PLAN_BLOB_HASH, description: BRIEFED, refine: "" },
       }),
     );
   });

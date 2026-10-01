@@ -9,7 +9,13 @@ import {
   detectCurrentBranch,
   detectCurrentRepo,
 } from "@re-cinq/lore-server-core/features/repo/repo-detect.js";
-import { repoParam, resolveBranch, resolveRepo } from "./repo-scope.js";
+import {
+  invalidRepoRefusal,
+  repoParam,
+  resolveBranch,
+  resolveRepo,
+  withRepo,
+} from "./repo-scope.js";
 
 afterEach(() => {
   vi.clearAllMocks();
@@ -50,6 +56,76 @@ describe("repoParam", () => {
       agent:
         "'owner/repo'. Required: this server has no checkout to detect it from.",
       full: "'owner/repo'. Auto-detected from the git remote when omitted.",
+    });
+  });
+});
+
+describe("an explicit repo is validated before any API path is built from it", () => {
+  const hostile = [
+    "re-cinq/lore/../../pr-status",
+    "re-cinq/lore?x=1",
+    "re-cinq/lore/extra",
+    "re-cinq",
+    "../lore",
+    "re-cinq/..",
+  ];
+
+  it("refuses a repo that is not owner/name, with `..`, `?` or extra slashes", () => {
+    expect(
+      hostile.map((repo) => ({
+        refusal: invalidRepoRefusal(repo),
+        resolved: resolveRepo(repo, "agent"),
+      })),
+    ).toEqual(
+      hostile.map((repo) => ({
+        refusal: `Invalid repo '${repo}'. Pass repo as owner/name (e.g. 're-cinq/lore').`,
+        resolved: null,
+      })),
+    );
+  });
+
+  it("accepts owner/name with dots, dashes and underscores", () => {
+    expect(
+      ["re-cinq/lore", "owner/my.repo_name-2"].map((repo) =>
+        invalidRepoRefusal(repo),
+      ),
+    ).toEqual([null, null]);
+  });
+
+  it("answers with the refusal and never calls the read for a hostile repo", async () => {
+    const read = vi.fn();
+    const result = await withRepo(
+      { repo: "re-cinq/lore?x=1" },
+      "full",
+      async (a) => read(a),
+    );
+
+    expect({ result, called: read.mock.calls.length }).toEqual({
+      result: {
+        content: [
+          {
+            type: "text",
+            text: "Invalid repo 're-cinq/lore?x=1'. Pass repo as owner/name (e.g. 're-cinq/lore').",
+          },
+        ],
+      },
+      called: 0,
+    });
+  });
+
+  it("answers that no repo could be detected on a laptop outside a checkout, instead of sending an empty repo", async () => {
+    vi.mocked(detectCurrentRepo).mockReturnValueOnce(null);
+    const read = vi.fn();
+    const result = (await withRepo({}, "full", async (a) => read(a))) as {
+      content: { text: string }[];
+    };
+
+    expect({
+      text: result.content[0].text,
+      called: read.mock.calls.length,
+    }).toEqual({
+      text: "Could not detect repo. Specify repo parameter (e.g., 're-cinq/my-service').",
+      called: 0,
     });
   });
 });

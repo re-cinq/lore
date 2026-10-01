@@ -7,10 +7,7 @@ import {
   beforeEach,
   vi,
 } from "vitest";
-
-type ToolHandler = (
-  args: Record<string, unknown>,
-) => Promise<{ content: { type: string; text: string }[] }>;
+import { toolHandlers, type ToolHandler } from "./tool-test-helpers.js";
 
 let queryGraph: ToolHandler;
 let writeMemory: ToolHandler;
@@ -21,14 +18,8 @@ const fetchMock = vi.fn();
 
 beforeAll(async () => {
   const { registerMemoryTools } = await import("./memory-tools.js");
-  const handlers: Record<string, ToolHandler> = {};
-  const fakeServer = {
-    tool(name: string, _desc: string, _schema: unknown, handler: ToolHandler) {
-      handlers[name] = handler;
-    },
-  };
+  const handlers = toolHandlers(registerMemoryTools, "full");
 
-  registerMemoryTools(fakeServer as never);
   queryGraph = handlers["lore_query_graph"];
   writeMemory = handlers["lore_write_memory"];
   readMemory = handlers["lore_read_memory"];
@@ -123,19 +114,8 @@ describe("lore_write_memory remote proxy (no local DB)", () => {
 
   it("in the agent gateway scopes the write to the repo the call names", async () => {
     const { registerMemoryTools } = await import("./memory-tools.js");
-    const handlers: Record<string, ToolHandler> = {};
-    const fakeServer = {
-      tool(
-        name: string,
-        _desc: string,
-        _schema: unknown,
-        handler: ToolHandler,
-      ) {
-        handlers[name] = handler;
-      },
-    };
+    const handlers = toolHandlers(registerMemoryTools, "agent");
 
-    registerMemoryTools(fakeServer as never, "agent");
     fetchMock.mockResolvedValue({ ok: true, json: async () => ({}) });
 
     await handlers["lore_write_memory"]({
@@ -279,19 +259,8 @@ describe("lore_agent_stats remote proxy (no local DB)", () => {
 
   beforeEach(async () => {
     const { registerMemoryTools } = await import("./memory-tools.js");
-    const handlers: Record<string, ToolHandler> = {};
-    const fakeServer = {
-      tool(
-        name: string,
-        _desc: string,
-        _schema: unknown,
-        handler: ToolHandler,
-      ) {
-        handlers[name] = handler;
-      },
-    };
+    const handlers = toolHandlers(registerMemoryTools, "full");
 
-    registerMemoryTools(fakeServer as never);
     agentStats = handlers["lore_agent_stats"];
     process.env.LORE_API_URL = "https://lore-api.example.com";
     process.env.LORE_INGEST_TOKEN = "tok";
@@ -347,19 +316,8 @@ describe("lore_list_memories in the agent gateway", () => {
 
   it("scopes the listing to the repo the call names", async () => {
     const { registerMemoryTools } = await import("./memory-tools.js");
-    const handlers: Record<string, ToolHandler> = {};
-    const fakeServer = {
-      tool(
-        name: string,
-        _desc: string,
-        _schema: unknown,
-        handler: ToolHandler,
-      ) {
-        handlers[name] = handler;
-      },
-    };
+    const handlers = toolHandlers(registerMemoryTools, "agent");
 
-    registerMemoryTools(fakeServer as never, "agent");
     fetchMock.mockResolvedValue({
       ok: true,
       json: async () => ({ memories: [], total: 0 }),
@@ -374,5 +332,65 @@ describe("lore_list_memories in the agent gateway", () => {
     expect(
       JSON.parse((fetchMock.mock.calls[0][1] as { body: string }).body),
     ).toMatchObject({ action: "list", repo: "re-cinq/lore" });
+  });
+});
+
+describe("lore_list_memories and lore_write_memory refuse a repo they cannot scope to", () => {
+  beforeEach(() => {
+    process.env.LORE_API_URL = "https://lore-api.example.com";
+    process.env.LORE_INGEST_TOKEN = "tok";
+    fetchMock.mockReset();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+  afterEach(() => {
+    process.env = { ...originalEnv };
+    vi.unstubAllGlobals();
+  });
+
+  it("asks the agent gateway's caller for the repo instead of listing agent-scoped or org-wide", async () => {
+    const { registerMemoryTools } = await import("./memory-tools.js");
+    const handlers = toolHandlers(registerMemoryTools, "agent");
+
+    const result = await handlers["lore_list_memories"]({
+      limit: 10,
+      offset: 0,
+    });
+
+    expect({
+      text: result.content[0].text,
+      proxied: fetchMock.mock.calls.length,
+    }).toEqual({
+      text: "No repo given. Pass repo as owner/name (e.g. 're-cinq/lore'): the shared Lore server has no checkout to detect it from.",
+      proxied: 0,
+    });
+  });
+
+  it("rejects a repo that is not owner/name before any API call", async () => {
+    const { registerMemoryTools } = await import("./memory-tools.js");
+    const handlers = toolHandlers(registerMemoryTools, "agent");
+
+    const results = await Promise.all([
+      handlers["lore_list_memories"]({
+        limit: 10,
+        offset: 0,
+        repo: "re-cinq/lore?x=1",
+      }),
+      handlers["lore_write_memory"]({
+        key: "k",
+        value: "v",
+        repo: "../lore",
+      }),
+    ]);
+
+    expect({
+      texts: results.map((r) => r.content[0].text),
+      proxied: fetchMock.mock.calls.length,
+    }).toEqual({
+      texts: [
+        "Invalid repo 're-cinq/lore?x=1'. Pass repo as owner/name (e.g. 're-cinq/lore').",
+        "Invalid repo '../lore'. Pass repo as owner/name (e.g. 're-cinq/lore').",
+      ],
+      proxied: 0,
+    });
   });
 });

@@ -115,12 +115,14 @@ the `unreachableError` message, or `"Error writing memory: {message}"`.
    proxied body on success; a 401 is reported as a denied error on the first
    attempt, without the retriable-status backoff loop. ([validated by `returns
    the proxied body on a successful
-   write`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L96), [`reports a
+   write`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L87), [`reports a
    denied error on a 401 without
-   retrying`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L110))
+   retrying`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L101))
 
 5. *(added 2026-10-01, #2103)* In the agent gateway, which has no checkout to
-   detect a repo from, the write is scoped to the `repo` the call names. ([validated by `in the agent gateway scopes the write to the repo the call names`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L124))
+   detect a repo from, the write is scoped to the `repo` the call names. ([validated by `in the agent gateway scopes the write to the repo the call names`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L115))
+
+6. *(added 2026-10-01, #2344)* A `repo` that is not owner/name is rejected before any API call, rather than being dropped or interpolated. ([validated by `rejects a repo that is not owner/name before any API call`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L368))
 
 ## Out of Scope
 

@@ -10,7 +10,12 @@ import {
   type ProxyResult,
 } from "./deps.js";
 import { invalidate as invalidateCache } from "@re-cinq/lore-server-core/platform/proxy-cache.js";
-import { repoParam, resolveRepo, type ServerMode } from "./repo-scope.js";
+import {
+  repoParam,
+  resolveRepo,
+  withRepo,
+  type ServerMode,
+} from "./repo-scope.js";
 
 const NOT_CONFIGURED =
   "Repo management requires LORE_API_URL + LORE_INGEST_TOKEN. Run install.sh to configure.";
@@ -45,10 +50,7 @@ interface IngestOutcome {
   message: string;
 }
 
-export function registerRepoTools(
-  server: McpServer,
-  mode: ServerMode = "full",
-) {
+export function registerRepoTools(server: McpServer, mode: ServerMode) {
   registerListReposTool(server);
   registerOnboardRepoTool(server);
   registerIngestFilesTool(server, mode);
@@ -199,7 +201,9 @@ function registerIngestFilesTool(server: McpServer, mode: ServerMode) {
     ingestFilesInput(mode),
     async ({ files, repo }) => {
       try {
-        return await ingestFiles(files, mode, repo);
+        return await withRepo({ repo }, mode, (a) =>
+          ingestFiles(files, mode, a.repo),
+        );
       } catch (err) {
         return textResult(`Error: ${errorMessage(err)}`);
       }
@@ -208,14 +212,11 @@ function registerIngestFilesTool(server: McpServer, mode: ServerMode) {
 }
 
 /** Ingests now rather than waiting for the nightly pass, then drops the assemble cache for that repo — a freshly merged ADR that the next bundle does not contain is the whole reason somebody reaches for this tool. */
-async function ingestFiles(files: string[], mode: ServerMode, repo?: string) {
-  const resolvedRepo = resolveRepo(repo, mode);
-
-  if (!resolvedRepo) {
-    return textResult(
-      "Could not detect repo. Specify repo parameter (e.g., 're-cinq/my-service').",
-    );
-  }
+async function ingestFiles(
+  files: string[],
+  mode: ServerMode,
+  resolvedRepo: string,
+) {
   const credentials = ingestCredentials();
 
   if (!credentials) {

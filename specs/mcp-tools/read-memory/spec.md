@@ -96,9 +96,9 @@ proxied body, the `unreachableError` message, or
    proxied body on success; a 401 is reported as a denied error on the first
    attempt, without the retriable-status backoff loop. ([validated by `returns
    the proxied body on a successful
-   read`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L180), [`reports a
+   read`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L160), [`reports a
    denied error on a 401 without
-   retrying`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L194))
+   retrying`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L174))
 
 ## Out of Scope
 

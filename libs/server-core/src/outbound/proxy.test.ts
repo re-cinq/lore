@@ -410,6 +410,28 @@ describe("withReadCache", () => {
     });
   });
 
+  it("returns the API's refusal rather than a stale copy when the failure carries a status", async () => {
+    const expiredPolicy = { ...policy, ttlSeconds: 0 };
+
+    await withReadCache(expiredPolicy, async () => ({
+      ok: true,
+      body: "cached",
+    }));
+    const refused = await withReadCache(expiredPolicy, async () => ({
+      ok: false,
+      reason: "unreachable",
+      detail: "HTTP 400 Bad Request: repo: expected owner/name",
+      status: 400,
+    }));
+
+    expect(refused).toEqual({
+      ok: false,
+      reason: "unreachable",
+      detail: "HTTP 400 Bad Request: repo: expected owner/name",
+      status: 400,
+    });
+  });
+
   it("omits the HIT/STALE label when opts.label is false", async () => {
     await withReadCache(policy, async () => ({ ok: true, body: "results" }));
     const hit = await withReadCache(

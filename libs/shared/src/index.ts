@@ -35,10 +35,7 @@ export {
 } from "./outbound/cluster/per-task-token.js";
 export { preserveUnownedFields } from "./outbound/cluster/preserve-unowned.js";
 export { AGENT_MAX_TURNS } from "./outbound/cluster/agent-limits.js";
-export {
-  CONTEXT_BOOTSTRAP,
-  contextBootstrap,
-} from "./domain/agents/recipe-prompt.js";
+export { contextBootstrap } from "./domain/agents/recipe-prompt.js";
 export type { AgentNodeStatus } from "./outbound/cluster/agent-node-status.js";
 export { statusFromAgentCr } from "./outbound/cluster/agent-node-status.js";
 export type {

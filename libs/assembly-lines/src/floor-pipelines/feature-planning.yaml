@@ -260,6 +260,9 @@ stations:
       # new blob, so a snapshot here would validate text nobody is looking at.
       - name: plan_id
         kind: value
+      - name: description
+        kind: value
+        optional: true
     produces:
       - name: plan_validation
         kind: file
@@ -309,6 +312,9 @@ stations:
       - name: spec_plan
         kind: file
         path: spec-plan.json
+      - name: description
+        kind: value
+        optional: true
     produces:
       - name: spec_review
         kind: file
@@ -351,6 +357,9 @@ stations:
         kind: git
         path: target
         access: read
+      - name: description
+        kind: value
+        optional: true
     produces:
       - name: decomposition
         kind: file
@@ -434,8 +443,9 @@ agent_definitions:
         ## Gather before you write
 
         Ground every statement in what the organisation already knows. Before
-        you touch the plan, use the Lore MCP tools. Pass `repo` (the
-        owner/name your task names above) on every `lore_*` call: the gateway
+        you touch the plan, use the Lore MCP tools.
+        Pass the `repo` named on the description's first line on
+        every `lore_*` call: the gateway
         has no checkout to detect it from.
 
         1. `lore_assemble_context` with the plan's subject — conventions,
@@ -601,8 +611,9 @@ agent_definitions:
         clone at /workspace/target, so you can tell a claim that holds from one
         that doesn't. Call
         `lore_assemble_context` first, and `lore_search_memory` for prior
-        decisions the plan may be repeating or contradicting. Pass `repo`
-        (the owner/name your task names above) on every `lore_*` call: the
+        decisions the plan may be repeating or contradicting.
+        Pass the `repo` named on the description's first line on
+        every `lore_*` call: the
         gateway has no checkout to detect it from.
 
         Never edit the plan. Never edit the repository. Your only output is
@@ -688,6 +699,10 @@ agent_definitions:
         The findings are the delivery, not the outcome — this line always
         reports success, whether the plan is clean or you reported ten
         blockers.
+
+        ## This run
+
+        {description}
   spec-analysis:
     settings:
       model: claude-sonnet-4-6
@@ -742,8 +757,9 @@ agent_definitions:
         agreed feature onto this repository's existing body of specs, so the
         writing step never has to guess which file to touch. The repository
         is checked out read-only at /workspace/target. Call
-        `lore_assemble_context` first. Pass `repo` (the owner/name your task
-        names above) on every `lore_*` call: the gateway has no checkout to
+        `lore_assemble_context` first.
+        Pass the `repo` named on the description's first line on
+        every `lore_*` call: the gateway has no checkout to
         detect it from.
 
         ## Your deliverable
@@ -886,8 +902,9 @@ agent_definitions:
         Turn an approved plan into committable specifications. The plan was
         written and approved by its people; do not re-open it. It is at
         `{plan_md_path}` — call it "the approved plan" throughout. The PR
-        branch is checked out with write access at /workspace/target. Pass
-        `repo` (the owner/name your task names above) on every `lore_*`
+        branch is checked out with write access at /workspace/target.
+        Pass the `repo` named on the description's first line on
+        every `lore_*`
         call: the gateway has no checkout to detect it from.
 
         Never confuse `{plan_md_path}` (the approved PLANNING DOCUMENT,
@@ -1129,6 +1146,10 @@ agent_definitions:
           `LORE_NODE_RESULT: {"outcome":"success"}` and no commit.
         - Do not open a pull request: you have no `gh` and no GitHub token.
           Lore opens the PR from the branch you pushed.
+
+        ## This run
+
+        {description}
   feature-decompose:
     settings:
       model: claude-sonnet-4-6
@@ -1175,8 +1196,9 @@ agent_definitions:
         default branch, checked out read-only at /workspace/target. Your job
         is to turn it into the units an engineering pipeline can execute —
         NOT to re-open it. Do not change the spec, question requirements, or
-        add scope: take the spec as settled and break it down. Pass `repo`
-        (the owner/name your task names above) on every `lore_*` call: the
+        add scope: take the spec as settled and break it down.
+        Pass the `repo` named on the description's first line on
+        every `lore_*` call: the
         gateway has no checkout to detect it from.
 
         Read the merged spec.md (and project context) and emit JSON only.
@@ -1256,3 +1278,7 @@ agent_definitions:
         - Output ONLY the JSON object — no prose, no markdown fences, then
           end your final message with the line
           `LORE_NODE_RESULT: {"outcome":"success"}`.
+
+        ## This run
+
+        {description}

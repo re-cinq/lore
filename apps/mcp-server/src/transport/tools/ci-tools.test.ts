@@ -16,30 +16,11 @@ import {
 } from "@re-cinq/lore-server-core/features/repo/repo-detect.js";
 import { proxyGetApi } from "./deps.js";
 import { registerCiTools } from "./ci-tools.js";
+import type { ServerMode } from "./repo-scope.js";
+import { toolHandlers } from "./tool-test-helpers.js";
 
-type ToolHandler = (args: Record<string, unknown>) => Promise<{
-  content: { type: string; text: string }[];
-}>;
-
-function handlerFor(
-  name: string,
-  mode: "full" | "agent" = "full",
-): ToolHandler {
-  const handlers: Record<string, ToolHandler> = {};
-  const fakeServer = {
-    tool(
-      toolName: string,
-      _desc: string,
-      _schema: unknown,
-      handler: ToolHandler,
-    ) {
-      handlers[toolName] = handler;
-    },
-  };
-
-  registerCiTools(fakeServer as never, mode);
-
-  return handlers[name];
+function handlerFor(name: string, mode: ServerMode = "full") {
+  return toolHandlers(registerCiTools, mode)[name];
 }
 
 const proxy = vi.mocked(proxyGetApi);
@@ -55,7 +36,7 @@ afterEach(() => {
 });
 
 describe("lore_get_ci_failures", () => {
-  it("asks for the checked-out branch of the detected repo when called with no arguments, which is all a pod knows", async () => {
+  it("asks for the checked-out branch of the detected repo when called with no arguments on a laptop", async () => {
     vi.mocked(detectCurrentRepo).mockReturnValue("re-cinq/lore");
     vi.mocked(detectCurrentBranch).mockReturnValue("lore/loop/issue-1510");
     proxy.mockResolvedValue({ ok: true, body: JSON.stringify(REPORT) });

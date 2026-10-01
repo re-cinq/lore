@@ -86,7 +86,7 @@ A well-formed repo returns the onboard result on 200. ([validated by `onboard.te
 A 409 from the route is the guard refusing a duplicate, not an outage: the tool
 returns the refusal body verbatim so the caller keeps `blocked` and the in-flight
 `task_id`, while a genuine transport failure still reports as unreachable. The
-`reonboard` flag is passed straight through. ([validated by `returns the guard's refusal body verbatim on a 409`](apps/mcp-server/src/transport/tools/repo-tools.test.ts#L183), [`still reports a genuine outage as unreachable`](apps/mcp-server/src/transport/tools/repo-tools.test.ts#L203), [`passes reonboard through to the API`](apps/mcp-server/src/transport/tools/repo-tools.test.ts#L215))
+`reonboard` flag is passed straight through. ([validated by `returns the guard's refusal body verbatim on a 409`](apps/mcp-server/src/transport/tools/repo-tools.test.ts#L167), [`still reports a genuine outage as unreachable`](apps/mcp-server/src/transport/tools/repo-tools.test.ts#L187), [`passes reonboard through to the API`](apps/mcp-server/src/transport/tools/repo-tools.test.ts#L199))
 
 The MCP-tool wrapper's own `LORE_DB_HOST` gate and JSON-envelope framing reuse
 the same `onboardRepo` handler the route covers. *(untested: the tool wrapper has

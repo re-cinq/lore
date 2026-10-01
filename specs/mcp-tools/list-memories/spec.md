@@ -100,17 +100,22 @@ version, created_at, ttl_seconds, has_facts }`; the proxied body; the
    proxied body on success; a 401 is reported as a denied error on the first
    attempt, without the retriable-status backoff loop. ([validated by `returns
    the proxied body on a successful
-   list`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L221), [`reports a
+   list`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L201), [`reports a
    denied error on a 401 without
-   retrying`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L235))
+   retrying`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L215))
 
 6. *(added 2026-10-01, #2347)* A call may name its `repo`; it wins over the
    detected one, and in the agent gateway, which has no checkout, it is the only
    way to scope the listing. The API's `list` action carries that repo through to
    the repo-scoped query. ([validated by `scopes the listing to the repo the call
-   names`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L348), [`scopes
+   names`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L317), [`scopes
    a listing to the repo the caller
    names`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L386))
+
+7. *(added 2026-10-01, #2344)* In the agent gateway a call with no `repo` is
+   answered with "No repo given" instead of an agent-scoped or org-wide listing,
+   and a `repo` that is not owner/name is rejected, both before any API call.
+   ([validated by `asks the agent gateway's caller for the repo instead of listing agent-scoped or org-wide`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L350), [`rejects a repo that is not owner/name before any API call`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L368))
 
 ## Out of Scope
 

@@ -5,7 +5,7 @@ import {
   runQueryTrace,
   type QueryTraceArgs,
 } from "@re-cinq/lore-server-core/features/spec-trace/query-trace.js";
-import { repoParam, resolveRepo, type ServerMode } from "./repo-scope.js";
+import { repoParam, withRepo, type ServerMode } from "./repo-scope.js";
 
 const QUERY_TRACE_INPUT = {
   spec: z
@@ -64,24 +64,23 @@ const QUERY_TRACE_INPUT = {
     ),
 };
 
-export function registerSpecTraceTools(
-  server: McpServer,
-  mode: ServerMode = "full",
-) {
+export function registerSpecTraceTools(server: McpServer, mode: ServerMode) {
   server.tool(
     "lore-query-trace",
     `READ side of spec-traceability: returns per-statement coverage for a spec — which tests validate each statement and which are drifted or violated. Read-only; executes and builds nothing. The graph is (re)projected by CI — specs/adrs on push, tests via lore-tests.yml — not by an MCP tool. Instead: to enumerate or run tests locally use lore_list_tests / lore_run_test.`,
     { ...QUERY_TRACE_INPUT, repo: repoParam(mode) },
-    async (args) => textResult(await queryTrace(args, mode)),
+    async (args) => withRepo(args, mode, queryTrace),
   );
 }
 
 /** Reads one spec's coverage, the call graph around a symbol, or the tests covering a source span. */
-function queryTrace(args: QueryTraceArgs, mode: ServerMode): Promise<string> {
-  return runQueryTrace(args, {
-    proxyGet: traceGet(args),
-    detectRepo: () => resolveRepo(undefined, mode),
-  });
+async function queryTrace(args: QueryTraceArgs & { repo: string }) {
+  return textResult(
+    await runQueryTrace(args, {
+      proxyGet: traceGet(args),
+      detectRepo: () => args.repo,
+    }),
+  );
 }
 
 function traceGet(args: QueryTraceArgs) {

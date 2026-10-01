@@ -13,8 +13,6 @@ export function contextBootstrap(targetRepo: string): string {
   );
 }
 
-export const CONTEXT_BOOTSTRAP = contextBootstrap("");
-
 const PLACEHOLDER = /\{([A-Za-z0-9_.-]+)\}/g;
 
 /** What the pod's model actually receives: the subsystem's `renderPrompt` rule (plain `{name}` substitution from the Agent CR's parameters, an unmatched placeholder left literal). Kept here so a Floor-side test can assert on the POD's view of a dispatch, not only on the string the Floor sent — #2051 hid for weeks because every test read the parameter nothing rendered. */

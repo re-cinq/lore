@@ -37,10 +37,7 @@ interface ParagraphScan {
   limit: number;
 }
 
-export function registerContextTools(
-  server: McpServer,
-  mode: ServerMode = "full",
-) {
+export function registerContextTools(server: McpServer, mode: ServerMode) {
   registerSearchContextTool(server, mode);
   registerAssembleContextTool(server, mode);
 }

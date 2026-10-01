@@ -11,11 +11,8 @@ import {
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { toolHandlers, type ToolHandler } from "./tool-test-helpers.js";
 import { store } from "@re-cinq/lore-server-core/platform/proxy-cache.js";
-
-type ToolHandler = (args: Record<string, unknown>) => Promise<{
-  content: { type: string; text: string }[];
-}>;
 
 const contextRoot = mkdtempSync(join(tmpdir(), "lore-search-context-"));
 let searchContext: ToolHandler;
@@ -34,15 +31,8 @@ beforeAll(async () => {
 
   process.env.CONTEXT_PATH = contextRoot;
   const { registerContextTools } = await import("./context-tools.js");
+  const handlers = toolHandlers(registerContextTools, "full");
 
-  const handlers: Record<string, ToolHandler> = {};
-  const fakeServer = {
-    tool(name: string, _desc: string, _schema: unknown, handler: ToolHandler) {
-      handlers[name] = handler;
-    },
-  };
-
-  registerContextTools(fakeServer as never);
   searchContext = handlers["lore_search_context"];
   assembleContext = handlers["lore_assemble_context"];
 });
@@ -206,20 +196,10 @@ describe("lore_assemble_context in the agent gateway, which has no checkout", ()
 
   beforeAll(async () => {
     const { registerContextTools } = await import("./context-tools.js");
-    const handlers: Record<string, ToolHandler> = {};
-    const fakeServer = {
-      tool(
-        name: string,
-        _desc: string,
-        _schema: unknown,
-        handler: ToolHandler,
-      ) {
-        handlers[name] = handler;
-      },
-    };
 
-    registerContextTools(fakeServer as never, "agent");
-    agentAssemble = handlers["lore_assemble_context"];
+    agentAssemble = toolHandlers(registerContextTools, "agent")[
+      "lore_assemble_context"
+    ];
   });
 
   beforeEach(() => {
@@ -262,7 +242,7 @@ describe("lore_assemble_context in the agent gateway, which has no checkout", ()
     const result = await agentAssemble({
       query: "q-refused",
       template: "default",
-      repo: "not-a-repo",
+      repo: "owner/refused",
     });
 
     expect(result.content[0].text).toBe(
