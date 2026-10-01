@@ -146,7 +146,7 @@ describe("the floor pipelines shipped in this folder", () => {
   it("keys an onboard run on task_id and makes await-ci a human station producing the three CI feedback values fix-ci needs", () => {
     const { line, stations } = pipelineOf("onboard");
     const produced = stations["onboard-await-ci"].produces.map(
-      (item) => item.name,
+      (value) => value.name,
     );
     const needed = stations["onboard-fix-ci"].needs
       .filter((need) => need.kind === "value")

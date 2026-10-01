@@ -17,10 +17,10 @@ export async function hasOpenFloorRunForTask(
   if (!floor) {
     return false;
   }
-  const { items } = await floor.runs.list({
+  const { items: openRuns } = await floor.runs.list({
     subject: floorTaskSubject(taskId),
     open: true,
   });
 
-  return items.length > 0;
+  return openRuns.length > 0;
 }

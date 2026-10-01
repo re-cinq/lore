@@ -164,6 +164,7 @@ layers:
       - planning
       - merge
       - digest
+      - onboard
       - "@re-cinq/lore-shared"
     # The stations the external floor dispatches for the code-review lines, one
     # folder each. They claim their own work from the floor's queue, so nothing
@@ -194,6 +195,12 @@ layers:
     # The stations the external floor dispatches for the daily-digest line, one
     # folder each, sharing one composition root.
     digest:
+      - outbound
+      - "@re-cinq/floor-station"
+      - "@re-cinq/lore-shared"
+    # The stations the external floor dispatches for the onboard line, one
+    # folder each.
+    onboard:
       - outbound
       - "@re-cinq/floor-station"
       - "@re-cinq/lore-shared"

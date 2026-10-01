@@ -47,11 +47,7 @@ interface Onboarding {
 
 export function openOnboardPrHandle(deps: OpenOnboardPrDeps): Handle {
   return async ({ needs }) => {
-    const onboarding = {
-      ...parseGitRef(needs.target),
-      taskId: needs.task_id,
-      attention: needs.attention ?? "",
-    };
+    const onboarding = onboardingOf(needs);
 
     try {
       return await opened(deps, onboarding);
@@ -61,6 +57,19 @@ export function openOnboardPrHandle(deps: OpenOnboardPrDeps): Handle {
         : { outcome: "failed", error: errorMessage(err) };
     }
   };
+}
+
+function onboardingOf(needs: Record<string, string>): Onboarding {
+  return {
+    ...parseGitRef(needs.target),
+    taskId: needs.task_id,
+    attention: attentionOf(needs),
+  };
+}
+
+/** `attention` is an optional need, so a brief may carry none. */
+function attentionOf(needs: Partial<Record<string, string>>): string {
+  return needs.attention ?? "";
 }
 
 async function opened(

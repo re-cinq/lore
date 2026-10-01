@@ -66,24 +66,12 @@ const OPEN_RUN_STATUS = ["queued", "running"] as const;
 
 /** Production entry — the manifest's run. Deps bound to the stations kernel. */
 export async function prReadyCheckJob(): Promise<string> {
-  const { pipeline, eventProxy } = await import("../../outbound/queues.js");
-  const { queuedReporter } =
-    await import("@re-cinq/lore-shared/project/events/event-proxy.js");
   const { projectFor } = await import("../../outbound/project-boot.js");
-  const { reportToParkedNode } =
-    await import("@re-cinq/lore-shared/project/assembly-runs/parked-node.js");
   const { projectOf, hasCiHistory } = sweepRepoCache(projectFor);
-
   const deps: PrReadyCheckDeps = {
-    ...runReads(pipeline),
+    ...(await runSideDeps()),
     ...prReads(projectOf),
     hasCiHistory,
-    // Reported through the queue rather than inserted directly, and the sweep resolves whether or not delivery lands — a router blip must not cost the run its resume.
-    report: (target, outcome, args) =>
-      reportToParkedNode(queuedReporter(eventProxy()), target, {
-        outcome,
-        args,
-      }),
   };
   const summaries = [
     await prReadyCheckSweep(deps),
@@ -91,6 +79,30 @@ export async function prReadyCheckJob(): Promise<string> {
   ];
 
   return summaries.join("; ");
+}
+
+/** The run reads and the report, bound to this process's queues. */
+async function runSideDeps(): Promise<
+  Pick<
+    PrReadyCheckDeps,
+    "listOpenLoopRuns" | "listStationRuns" | "countOpenReviewRuns" | "report"
+  >
+> {
+  const { pipeline, eventProxy } = await import("../../outbound/queues.js");
+  const { queuedReporter } =
+    await import("@re-cinq/lore-shared/project/events/event-proxy.js");
+  const { reportToParkedNode } =
+    await import("@re-cinq/lore-shared/project/assembly-runs/parked-node.js");
+
+  return {
+    ...runReads(pipeline),
+    // Reported through the queue rather than inserted directly, and the sweep resolves whether or not delivery lands — a router blip must not cost the run its resume.
+    report: (target, outcome, args) =>
+      reportToParkedNode(queuedReporter(eventProxy()), target, {
+        outcome,
+        args,
+      }),
+  };
 }
 
 /** The runs the external floor holds parked on CI, judged by the same reader; nothing on a deployment with no floor. */

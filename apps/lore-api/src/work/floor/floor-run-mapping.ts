@@ -1,3 +1,4 @@
+import { startValue } from "@re-cinq/lore-shared/review/floor-review-runs.js";
 import type {
   Item,
   LineBody,
@@ -195,7 +196,7 @@ function runIdentityOf(run: RunView): RunIdentity {
     id: run.id,
     blueprintName: run.lineId,
     // A line that keeps a `pipeline.tasks` row is started with it as `task_id`.
-    taskId: run.startItems.task_id?.ref ?? null,
+    taskId: startValue(run, "task_id") ?? null,
     repo: run.repo.replace(GITHUB_PREFIX, ""),
     branch: branchOf(run.startItems),
     subjectKey: run.subjectKey,

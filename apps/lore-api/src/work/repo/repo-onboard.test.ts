@@ -280,7 +280,7 @@ describe("onboardRepo", () => {
   it("creates task-1 already running and hands o/r, the task and its ticket to the floor", async () => {
     vi.mocked(ensureLoreWebhook).mockResolvedValue({
       ok: false,
-      reason: "skipped",
+      reason: "app_no_webhook_permission",
     });
     const { pool, query } = poolWith();
     const handed: unknown[] = [];
@@ -311,7 +311,7 @@ describe("onboardRepo", () => {
   it("leaves task-1 pending for the old Floor when the deployment has no floor", async () => {
     vi.mocked(ensureLoreWebhook).mockResolvedValue({
       ok: false,
-      reason: "skipped",
+      reason: "app_no_webhook_permission",
     });
     const { pool, query } = poolWith();
 

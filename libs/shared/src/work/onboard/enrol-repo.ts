@@ -3,6 +3,7 @@
 import {
   anyWorkflowsPermissionFailure,
   onboardAttentionSection,
+  type OnboardAttention,
 } from "./onboard-attention.js";
 import {
   auditOnboardFailuresIfAny,
@@ -15,7 +16,10 @@ import {
   logIngestConfigResult,
   type IngestCallbackSettings,
 } from "./onboard-ingest-callback.js";
-import { commitOnboardScaffold, type ScaffoldRepo } from "./onboard-scaffold.js";
+import {
+  commitOnboardScaffold,
+  type ScaffoldRepo,
+} from "./onboard-scaffold.js";
 
 export interface EnrolRepoDeps {
   repo: ScaffoldRepo;
@@ -55,10 +59,18 @@ export async function enrolRepo(
     workflowsPermissionDenied: anyWorkflowsPermissionFailure(failures),
   };
 
-  await auditOnboardFailuresIfAny(
+  await auditGaps(deps, target, gaps);
+
+  return { committed, attention: onboardAttentionSection(gaps) };
+}
+
+function auditGaps(
+  deps: EnrolRepoDeps,
+  target: EnrolTarget,
+  gaps: OnboardAttention,
+): Promise<void> {
+  return auditOnboardFailuresIfAny(
     { taskId: target.taskId, targetRepo: target.repo, ...gaps },
     deps.audit,
   );
-
-  return { committed, attention: onboardAttentionSection(gaps) };
 }

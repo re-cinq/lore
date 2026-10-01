@@ -1,11 +1,6 @@
 // The CI wait of lines that run on the external floor: a run parked on its `await-ci` human station is judged by the same reader the Postgres-backed runs use, and the verdict is reported to the parked visit. A red build's failing checks ride along as produced values, which is how the repair agent is handed them.
 
-import type {
-  FloorClient,
-  Report,
-  RunView,
-  VisitView,
-} from "@re-cinq/floor-client";
+import type { floorClient } from "@re-cinq/lore-shared/floor/floor-client.js";
 import { loreRepoOf } from "@re-cinq/lore-shared/floor/floor-items.js";
 import { reportToVisit } from "@re-cinq/lore-shared/floor/floor-report.js";
 import { errorMessage } from "@re-cinq/lore-shared/lib/error-classify.js";
@@ -24,10 +19,15 @@ const FEEDBACK_VALUES = [
   "ci_failure_summary",
 ] as const;
 
+type Floor = ReturnType<typeof floorClient>;
+type RunView = Awaited<ReturnType<Floor["runs"]["list"]>>["items"][number];
+type VisitView = Awaited<ReturnType<Floor["stationRuns"]["list"]>>[number];
+type Report = Parameters<typeof reportToVisit>[2];
+
 export interface CiWaitFloor {
-  runs: Pick<FloorClient["runs"], "list" | "cancel">;
-  stationRuns: Pick<FloorClient["stationRuns"], "list">;
-  events: Pick<FloorClient["events"], "post">;
+  runs: Pick<Floor["runs"], "list" | "cancel">;
+  stationRuns: Pick<Floor["stationRuns"], "list">;
+  events: Pick<Floor["events"], "post">;
 }
 
 export interface FloorCiWaitDeps {
@@ -67,7 +67,7 @@ async function parkedCiWaits(floor: CiWaitFloor): Promise<CiWait[]> {
   const pages = await Promise.all(
     FLOOR_CI_WAIT_LINES.map((line) => floor.runs.list({ line, open: true })),
   );
-  const runs = pages.flatMap((page) => page.items);
+  const runs = pages.flatMap(({ items: openRuns }) => openRuns);
   const waits = await Promise.all(
     runs.map(async (run) =>
       ciWaitOf(run, await floor.stationRuns.list({ run: run.id })),
