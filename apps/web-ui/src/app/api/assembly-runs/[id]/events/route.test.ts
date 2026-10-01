@@ -25,7 +25,7 @@ let fetchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   vi.clearAllMocks();
-  process.env.LORE_FLOOR_URL = "http://floor:3000";
+  process.env.LORE_API_URL = "http://api:3000";
   process.env.LORE_INGEST_TOKEN = "tok";
   fetchMock = vi
     .fn()
@@ -73,9 +73,9 @@ describe("auth ladder", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("returns 500 when LORE_FLOOR_URL is unset", async () => {
+  it("returns 500 when LORE_API_URL is unset", async () => {
     authorized();
-    delete process.env.LORE_FLOOR_URL;
+    delete process.env.LORE_API_URL;
 
     const res = await GET(new Request("http://ui/x"), { params });
 
@@ -84,31 +84,14 @@ describe("auth ladder", () => {
 });
 
 describe("upstream proxying", () => {
-  it("requests /api/agent-events/run-1 on the Floor", async () => {
+  it("requests /api/assembly-runs/run-1/events on lore-api", async () => {
     authorized();
 
     await GET(new Request("http://ui/x"), { params });
 
     expect(fetchMock.mock.calls[0][0]).toContain(
-      "http://floor:3000/api/agent-events/run-1",
+      "http://api:3000/api/assembly-runs/run-1/events",
     );
-  });
-
-  it("requests /api/assembly-runs/run-1/events on lore-api for a run on the floor engine", async () => {
-    authorized();
-    fetchAssemblyRun.mockResolvedValue({
-      id: "run-1",
-      repo: "re-cinq/lore",
-      engine: "floor",
-    });
-    process.env.LORE_API_URL = "http://api:3000";
-
-    await GET(new Request("http://ui/x?after=42"), { params });
-
-    expect(fetchMock.mock.calls[0][0]).toBe(
-      "http://api:3000/api/assembly-runs/run-1/events?after=42",
-    );
-    delete process.env.LORE_API_URL;
   });
 
   it("sends the ingest token as a bearer header", async () => {
@@ -121,7 +104,7 @@ describe("upstream proxying", () => {
     });
   });
 
-  it("forwards after and limit to the Floor", async () => {
+  it("forwards after and limit to lore-api", async () => {
     authorized();
 
     await GET(new Request("http://ui/x?after=42&limit=10"), { params });
@@ -149,7 +132,7 @@ describe("upstream proxying", () => {
     expect(fetchMock.mock.calls[0][1].signal).toBe(req.signal);
   });
 
-  it("returns the Floor status and body verbatim", async () => {
+  it("returns the upstream status and body verbatim", async () => {
     authorized();
     fetchMock.mockResolvedValue(
       new Response(JSON.stringify({ events: [{ id: "1" }] }), { status: 207 }),
@@ -161,7 +144,7 @@ describe("upstream proxying", () => {
     expect(await res.json()).toEqual({ events: [{ id: "1" }] });
   });
 
-  it("surfaces a Floor 401 as 502 so it cannot masquerade as the proxy's own auth ladder", async () => {
+  it("surfaces an upstream 401 as 502 so it cannot masquerade as the proxy's own auth ladder", async () => {
     authorized();
     fetchMock.mockResolvedValue(
       new Response(JSON.stringify({ error: "bad token" }), { status: 401 }),
@@ -173,7 +156,7 @@ describe("upstream proxying", () => {
     expect(await res.json()).toEqual({ error: "bad token" });
   });
 
-  it("surfaces a Floor 403 as 502", async () => {
+  it("surfaces an upstream 403 as 502", async () => {
     authorized();
     fetchMock.mockResolvedValue(new Response("{}", { status: 403 }));
 
@@ -182,7 +165,7 @@ describe("upstream proxying", () => {
     expect(res.status).toBe(502);
   });
 
-  it("passes a non-auth Floor error like 500 through unchanged", async () => {
+  it("passes a non-auth upstream error like 500 through unchanged", async () => {
     authorized();
     fetchMock.mockResolvedValue(new Response("{}", { status: 500 }));
 

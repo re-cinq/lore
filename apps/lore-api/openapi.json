@@ -944,11 +944,11 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "One page of the agent events of a run on the external floor, oldest first; empty for a run the floor does not have",
+            "description": "One page of a run's agent events, oldest first; empty for a run neither Postgres nor the floor has",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FloorRunEvents"
+                  "$ref": "#/components/schemas/RunEvents"
                 }
               }
             }
@@ -1040,11 +1040,11 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "The log the external floor kept for one visit of a run, named floor-<visit id>; 404 for a name of no visit of this run",
+            "description": "One node's log: stored stdout for a node of a run Postgres has, the floor's log for a visit named floor-<visit id>; 404 for a name of no node of this run",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FloorNodeLogs"
+                  "$ref": "#/components/schemas/NodeLogs"
                 }
               }
             }
@@ -1317,11 +1317,11 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "One page of the turns of a run on the external floor, oldest first; empty for a run the floor does not have",
+            "description": "One page of a run's turns, oldest first; empty for a run neither Postgres nor the floor has",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FloorRunTurns"
+                  "$ref": "#/components/schemas/RunTurns"
                 }
               }
             }
@@ -11389,63 +11389,6 @@
         "required": ["username", "password"],
         "additionalProperties": false
       },
-      "FloorNodeLogs": {
-        "type": "object",
-        "properties": {
-          "available": {
-            "type": "boolean"
-          },
-          "logs": {
-            "type": ["string", "null"]
-          },
-          "phase": {
-            "type": "string"
-          },
-          "podName": {
-            "type": "null"
-          },
-          "archived": {
-            "type": "boolean"
-          },
-          "reason": {
-            "type": "string",
-            "const": "no-records"
-          }
-        },
-        "required": ["available", "logs", "phase", "podName", "archived"],
-        "additionalProperties": false
-      },
-      "FloorRunEvents": {
-        "type": "object",
-        "properties": {
-          "events": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "propertyNames": {
-                "type": "string"
-              },
-              "additionalProperties": {}
-            }
-          }
-        },
-        "required": ["events"],
-        "additionalProperties": false
-      },
-      "FloorRunTurns": {
-        "type": "object",
-        "properties": {
-          "turns": {
-            "type": "array",
-            "items": {}
-          },
-          "hasMore": {
-            "type": "boolean"
-          }
-        },
-        "required": ["turns", "hasMore"],
-        "additionalProperties": false
-      },
       "GitCredential": {
         "type": "object",
         "properties": {
@@ -13029,6 +12972,32 @@
           }
         },
         "required": ["results"],
+        "additionalProperties": false
+      },
+      "NodeLogs": {
+        "type": "object",
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "logs": {
+            "type": ["string", "null"]
+          },
+          "phase": {
+            "type": "string"
+          },
+          "podName": {
+            "type": "null"
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string",
+            "const": "no-records"
+          }
+        },
+        "required": ["available", "logs", "phase", "podName", "archived"],
         "additionalProperties": false
       },
       "OnboardResult": {
@@ -14885,6 +14854,23 @@
         "required": ["started"],
         "additionalProperties": false
       },
+      "RunEvents": {
+        "type": "object",
+        "properties": {
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {}
+            }
+          }
+        },
+        "required": ["events"],
+        "additionalProperties": false
+      },
       "RunStreamFrame": {
         "oneOf": [
           {
@@ -15268,6 +15254,20 @@
           }
         },
         "required": ["token", "expires_at"],
+        "additionalProperties": false
+      },
+      "RunTurns": {
+        "type": "object",
+        "properties": {
+          "turns": {
+            "type": "array",
+            "items": {}
+          },
+          "hasMore": {
+            "type": "boolean"
+          }
+        },
+        "required": ["turns", "hasMore"],
         "additionalProperties": false
       },
       "SearchContextResults": {

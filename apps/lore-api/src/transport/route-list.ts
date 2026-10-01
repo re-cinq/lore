@@ -109,9 +109,10 @@ import { openApiJsonRoute, docsRoute } from "./routes/openapi/openapi.js";
 import { githubCredentialsRoute } from "./routes/github-credentials/github-credentials.js";
 import { floorGitCredentialRoute } from "./routes/floor/git-credential.js";
 import { reviewStartRoute } from "./routes/floor/review-start.js";
-import { floorRunTurnsRoute } from "./routes/floor/run-turns.js";
-import { floorRunEventsRoute } from "./routes/floor/run-events.js";
-import { floorNodeLogsRoute } from "./routes/floor/node-logs.js";
+import { runTurnsRoute, turnPageReader } from "./routes/floor/run-turns.js";
+import { runEventsRoute, eventPageReader } from "./routes/floor/run-events.js";
+import { nodeLogsRoute, nodeLogsReader } from "./routes/floor/node-logs.js";
+import { storedRunHistoryOf } from "../work/floor/stored-run-history-pg.js";
 import { githubInstallationsRoute } from "./routes/github-installations/record-installation.js";
 import { githubInstallationsListRoute } from "./routes/github-installations/list-installations.js";
 
@@ -143,9 +144,7 @@ function integrationRoutes(getPool: PoolGetter): ServerRoute[] {
     githubCredentialsRoute(getPool),
     floorGitCredentialRoute(),
     reviewStartRoute(),
-    floorRunTurnsRoute(),
-    floorRunEventsRoute(),
-    floorNodeLogsRoute(),
+    ...runHistoryRoutes(getPool),
     githubInstallationsRoute(getPool),
     githubInstallationsListRoute(getPool),
   ];
@@ -320,5 +319,16 @@ function traceRoutes(): ServerRoute[] {
     traceAdrsRoute(),
     traceSpecsRoute(),
     traceOverlayDropRoute(),
+  ];
+}
+
+/** A run's turns, events and node logs, answered from Postgres for a run it has and from the external floor otherwise. */
+function runHistoryRoutes(getPool: PoolGetter): ServerRoute[] {
+  const stored = storedRunHistoryOf(getPool);
+
+  return [
+    runTurnsRoute(turnPageReader(stored)),
+    runEventsRoute(eventPageReader(stored)),
+    nodeLogsRoute(nodeLogsReader(stored)),
   ];
 }
