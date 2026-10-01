@@ -8,6 +8,7 @@ import {
   parkedHumanNode,
   type ParkedTarget,
 } from "@re-cinq/lore-shared/project/assembly-runs/parked-node.js";
+import { floorCiWaitSweep } from "./floor-ci-wait.js";
 import { ciReportForRun, prReportForRun } from "./park-readers.js";
 import {
   CI_WAIT_BLUEPRINTS,
@@ -73,7 +74,7 @@ export async function prReadyCheckJob(): Promise<string> {
     await import("@re-cinq/lore-shared/project/assembly-runs/parked-node.js");
   const { projectOf, hasCiHistory } = sweepRepoCache(projectFor);
 
-  return prReadyCheckSweep({
+  const deps: PrReadyCheckDeps = {
     ...runReads(pipeline),
     ...prReads(projectOf),
     hasCiHistory,
@@ -83,7 +84,34 @@ export async function prReadyCheckJob(): Promise<string> {
         outcome,
         args,
       }),
-  });
+  };
+  const summaries = [
+    await prReadyCheckSweep(deps),
+    ...(await floorSummary(deps, projectOf)),
+  ];
+
+  return summaries.join("; ");
+}
+
+/** The runs the external floor holds parked on CI, judged by the same reader; nothing on a deployment with no floor. */
+async function floorSummary(
+  deps: PrReadyCheckDeps,
+  projectOf: (repo: string) => Promise<Pick<Project, "pulls">>,
+): Promise<string[]> {
+  const floor = floorIfConfigured();
+
+  if (!floor) {
+    return [];
+  }
+
+  return [
+    await floorCiWaitSweep({
+      floor,
+      judge: (run) => ciReportForRun(run, deps),
+      prState: async (repo, prNumber) =>
+        (await (await projectOf(repo)).pulls.get(prNumber))?.state ?? null,
+    }),
+  ];
 }
 
 /** Both caches hold REPO facts across one sweep: a sweep reads many PRs of the same repo, so the facade is built once and CI history is asked once rather than per PR. */

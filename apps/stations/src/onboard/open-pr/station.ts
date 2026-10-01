@@ -25,7 +25,8 @@ export interface OpenOnboardPrDeps {
 
 const productionDeps: OpenOnboardPrDeps = {
   listOpen: async (repo) => (await projectFor(repo)).pulls.list(),
-  open: async (repo, branch, pr) => (await projectFor(repo)).pulls.open(branch, pr),
+  open: async (repo, branch, pr) =>
+    (await projectFor(repo)).pulls.open(branch, pr),
   recordOnboardingPr: (repo, url) => settings().setOnboardingPrUrl(repo, url),
 };
 
