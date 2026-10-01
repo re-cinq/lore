@@ -12,7 +12,6 @@ function loopRunFor(taskId: string): RunView {
   });
 }
 
-/** A floor that answers the two lists apart: the recorded plan floor does not filter on subject. */
 function floorAnswering({ loop }: { loop: RunView[] }) {
   return recordedFloor(({ path }) => ({
     items: path.includes("line=implementation-loop") ? loop : [],

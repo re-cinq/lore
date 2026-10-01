@@ -24,10 +24,10 @@ function scene(overrides: Partial<Omit<FloorTicketDeps, "floor">> = {}) {
   const steps: string[] = [];
   const deps: FloorTicketDeps = {
     floor: recorded.floor,
-    claim: (taskId) => {
+    claim: async (taskId) => {
       steps.push(`claim ${taskId}`);
 
-      return Promise.resolve(true);
+      return true;
     },
     ensureBranch: (repo, branch) => {
       steps.push(`branch ${repo} ${branch}`);
@@ -89,9 +89,7 @@ describe("startTicketOnFloor", () => {
   });
 
   it("starts nothing when another process claimed task-1 first", async () => {
-    const { deps, steps, started } = scene({
-      claim: () => Promise.resolve(false),
-    });
+    const { deps, steps, started } = scene({ claim: async () => false });
 
     await startTicketOnFloor(deps, TICKET);
 

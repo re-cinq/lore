@@ -163,15 +163,25 @@ const BLOCKED_VALUES = [
 ];
 
 function detailOf(report: VisitView["report"]): string | null {
-  const produced = report?.produced ?? {};
+  if (!report) {
+    return null;
+  }
+
+  return ownWordsOf(report.produced ?? {}) ?? report.error ?? null;
+}
+
+function ownWordsOf(produced: Record<string, string>): string | undefined {
+  return resolvedOf(produced) ?? blockedOf(produced);
+}
+
+function resolvedOf(produced: Record<string, string>): string | undefined {
   const resolved: string | undefined = produced.dod_resolved;
 
-  if (resolved) {
-    return `${DOD_RESOLVED_PREFIX}${resolved}`;
-  }
-  const blocked = BLOCKED_VALUES.flatMap((name) => produced[name] ?? []).at(0);
+  return resolved ? `${DOD_RESOLVED_PREFIX}${resolved}` : undefined;
+}
 
-  return blocked ?? report?.error ?? null;
+function blockedOf(produced: Record<string, string>): string | undefined {
+  return BLOCKED_VALUES.flatMap((name) => produced[name] ?? []).at(0);
 }
 
 /** The floor's own word for a dispatch no worker took. */
@@ -204,15 +214,20 @@ export async function floorInfraFailures(
       branchOf(run) === branch,
   );
   const judged = await Promise.all(
-    earlier.map(async (run) => {
-      const settled = closedLoopRunOf(
-        run,
-        await floor.stationRuns.list({ run: run.id }),
-      );
-
-      return isInfraFailure(settled.run, settled.visits);
-    }),
+    earlier.map((run) => endedOnTheCluster(floor, run)),
   );
 
   return judged.filter(Boolean).length;
+}
+
+async function endedOnTheCluster(
+  floor: InfraFailuresFloor,
+  run: RunView,
+): Promise<boolean> {
+  const settled = closedLoopRunOf(
+    run,
+    await floor.stationRuns.list({ run: run.id }),
+  );
+
+  return isInfraFailure(settled.run, settled.visits);
 }

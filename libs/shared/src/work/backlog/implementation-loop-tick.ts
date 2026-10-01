@@ -211,13 +211,25 @@ interface LoopDispatchInput {
   resume: ReturnType<typeof decideBranchResume>;
 }
 
-/** Creates the backlog task and stamps the issue link onto it; console-logs whether it resumed an existing branch. */
+/** Creates the backlog task, stamps the issue link onto it, and hands it to whoever starts it. */
 async function dispatchLoopTask(
   input: LoopDispatchInput,
   deps: LoopTickDeps,
 ): Promise<void> {
   const { repo, picked, branch } = input;
   const description = implementationTicketDescription(picked);
+  const taskId = await mintTask(input, description, deps);
+
+  logDispatch(input, taskId);
+  await deps.started({ repo, taskId, branch, issue: picked, description });
+}
+
+async function mintTask(
+  input: LoopDispatchInput,
+  description: string,
+  deps: LoopTickDeps,
+): Promise<string> {
+  const { repo, picked } = input;
   const task = await deps.createTask({
     description,
     taskType: "implementation-loop",
@@ -230,14 +242,8 @@ async function dispatchLoopTask(
     issue_number: picked.number,
     ...(picked.url ? { issue_url: picked.url } : {}),
   });
-  logDispatch(input, task.task_id);
-  await deps.started({
-    repo,
-    taskId: task.task_id,
-    branch,
-    issue: picked,
-    description,
-  });
+
+  return task.task_id;
 }
 
 function logDispatch(input: LoopDispatchInput, taskId: string): void {

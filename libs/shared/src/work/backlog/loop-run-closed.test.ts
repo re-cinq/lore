@@ -161,15 +161,13 @@ describe("handleLoopRunClosed", () => {
       d,
     );
 
-    expect(labeled).toEqual([]);
+    expect([labeled, closedIssues, closedPrs]).toEqual([[], [7], [12]]);
     expect(comments).toEqual([
       {
         number: 7,
         body: expect.stringContaining("fixed on main by #2064"),
       },
     ]);
-    expect(closedIssues).toEqual([7]);
-    expect(closedPrs).toEqual([12]);
   });
 
   it("closes only the issue when the resolved ticket's run opened no pull request", async () => {
@@ -252,8 +250,9 @@ describe("handleLoopRunClosed", () => {
     await handleLoopRunClosed(run(), "completed", undefined, d);
 
     expect(labeled).toEqual([{ number: 7, label: "lore:blocked" }]);
-    expect(comments).toHaveLength(1);
-    expect(comments[0]?.body).toContain("https://gh/pr/12");
+    expect(comments).toEqual([
+      { number: 7, body: expect.stringContaining("https://gh/pr/12") },
+    ]);
     expect(ticks).toEqual(["acme/widgets"]);
   });
 

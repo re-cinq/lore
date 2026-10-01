@@ -64,10 +64,12 @@ describe("floorRunFilters", () => {
     ).toEqual([{ subject: "plan_id:p1", open: true }]);
   });
 
-  it("reads the runs keyed on subject task_id:task-1 for a query on task-1", () => {
+  it("reads the runs keyed on subject task_id:task-1, and the implementation-loop runs, for a query on task-1", () => {
     expect(floorRunFilters({ taskId: "task-1" })).toEqual([
       { subject: "task_id:task-1", open: true },
       { subject: "task_id:task-1", open: false },
+      { line: "implementation-loop", open: true },
+      { line: "implementation-loop", open: false },
     ]);
   });
 
@@ -77,6 +79,16 @@ describe("floorRunFilters", () => {
 });
 
 describe("matchesFloorQuery", () => {
+  it("rejects a run started with no task when the task asked is task-1", () => {
+    expect(matchesFloorQuery(RUN, { taskId: "task-1" })).toBe(false);
+  });
+
+  it("accepts a run started with task-1 when the task asked is task-1", () => {
+    expect(
+      matchesFloorQuery({ ...RUN, taskId: "task-1" }, { taskId: "task-1" }),
+    ).toBe(true);
+  });
+
   it("rejects a running run when the status asked is queued", () => {
     expect(matchesFloorQuery(RUN, { status: ["queued"] })).toBe(false);
   });

@@ -1,5 +1,6 @@
 // The implementation loop's terminal hook bound to this process: what a run Lore's own Floor walked owes its ticket when it ends.
 import type { EventProxy } from "@re-cinq/lore-shared/project/events/event-proxy.js";
+import { ticketPortsOf } from "@re-cinq/lore-shared/backlog/driver-ports.js";
 import {
   countInfraFailures,
   infraDeferralsFromEnv,
@@ -43,14 +44,7 @@ function productionDeps(
     getTaskIssueNumber: (taskId) => taskIssueNumber(taskStore, taskId),
     listStationRuns: (runId) => pipeline().assemblyRuns.listStationRuns(runId),
     ...deferralDeps(pipeline),
-    addLabel: async (repo, issueNumber, label) =>
-      (await projectFor(repo)).issues.addLabel(issueNumber, label),
-    comment: async (repo, issueNumber, body) =>
-      (await projectFor(repo)).issues.comment(issueNumber, body),
-    closeIssue: async (repo, issueNumber) =>
-      (await projectFor(repo)).issues.close(issueNumber, "completed"),
-    closePr: async (repo, prNumber) =>
-      (await projectFor(repo)).pulls.close(prNumber),
+    ...ticketPortsOf(projectFor),
     emitTick: (repo) => queueLoopTick(repo, eventProxy),
   };
 }

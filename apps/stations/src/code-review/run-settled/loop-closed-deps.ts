@@ -1,4 +1,5 @@
 // Binds the loop's settling rules to the ports this process holds (composition root).
+import { ticketPortsOf } from "@re-cinq/lore-shared/backlog/driver-ports.js";
 import { infraDeferralsFromEnv } from "@re-cinq/lore-shared/backlog/loop-infra-deferral.js";
 import type { LoopRunClosedDeps } from "@re-cinq/lore-shared/backlog/loop-run-closed.js";
 import { floorClient } from "@re-cinq/lore-shared/floor/floor-client.js";
@@ -28,24 +29,8 @@ function closedDepsFor(settled: FloorLoopRun): LoopRunClosedDeps {
         excludeRunId,
       }),
     maxInfraDeferrals: infraDeferralsFromEnv(process.env),
-    ...issuePorts(),
+    ...ticketPortsOf(projectFor),
     emitTick: queueLoopTick,
-  };
-}
-
-function issuePorts(): Pick<
-  LoopRunClosedDeps,
-  "addLabel" | "comment" | "closeIssue" | "closePr"
-> {
-  return {
-    addLabel: async (repo, issueNumber, label) =>
-      (await projectFor(repo)).issues.addLabel(issueNumber, label),
-    comment: async (repo, issueNumber, body) =>
-      (await projectFor(repo)).issues.comment(issueNumber, body),
-    closeIssue: async (repo, issueNumber) =>
-      (await projectFor(repo)).issues.close(issueNumber, "completed"),
-    closePr: async (repo, prNumber) =>
-      (await projectFor(repo)).pulls.close(prNumber),
   };
 }
 

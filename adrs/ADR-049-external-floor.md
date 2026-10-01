@@ -17,7 +17,7 @@ The Floor was rewritten as a standalone engine, [re-cinq/floor](https://github.c
 
 That split leaves Lore three jobs the external floor names itself: start its lines, run a service station for every GitHub action a line takes, and mint the git credentials its agent pods ask for.
 
-The move is made one family of lines per slice: detection, ingest, merge, implementation and planning follow the code-review lines, each as its own slice that converts the lines, writes their stations, re-points what starts them and deletes their path from `apps/floor`. Onboarding moved on 2026-10-01 (`specs/external-floor` FR11); it is the first floor line that keeps a `pipeline.tasks` row and the first that waits on a pull request's CI, which it does as a human station the pr-ready-check sweep answers.
+The move is made one family of lines per slice: detection, ingest, merge, implementation and planning follow the code-review lines, each as its own slice that converts the lines, writes their stations, re-points what starts them and deletes their path from `apps/floor`. Onboarding moved on 2026-10-01 (`specs/external-floor` FR11); it is the first floor line that keeps a `pipeline.tasks` row and the first that waits on a pull request's CI, which it does as a human station the pr-ready-check sweep answers. The implementation loop followed the same day (`specs/external-floor` FR12, FR13): its backlog tick and its ticket settling moved to `libs/shared/src/work/backlog/` and run in the stations service, and the old Floor's tick stands down where a floor is configured.
 
 ## Decision
 

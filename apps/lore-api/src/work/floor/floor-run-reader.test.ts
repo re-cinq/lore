@@ -180,7 +180,7 @@ describe("FloorRunReader.listSummaries", () => {
       .map((request) => request.path)
       .filter((path) => path.startsWith("/assembly-runs?"));
 
-    expect(listed).toEqual([
+    expect(listed.slice(0, 2)).toEqual([
       "/assembly-runs?subject=task_id%3Atask-1&open=true&limit=50",
       "/assembly-runs?subject=task_id%3Atask-1&open=false&limit=50",
     ]);

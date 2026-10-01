@@ -3,9 +3,7 @@ import type { RunGraph } from "../../domain/run-graph.js";
 import { LORE_BLOCKED_LABEL } from "./labels.js";
 import {
   commentDeferral,
-  countInfraFailures,
   erroredVerdict,
-  infraDeferralsFromEnv,
   nodeIdsOfType,
   routedIntoRetrospective,
   type ParkVerdict,

@@ -1,5 +1,5 @@
 // Binds the implementation loop's backlog tick to the ports this process holds (composition root).
-import type { Project } from "@re-cinq/lore-shared";
+import { tickPortsOf } from "@re-cinq/lore-shared/backlog/driver-ports.js";
 import {
   openFloorLoopRun,
   startTicketOnFloor,
@@ -33,16 +33,13 @@ export async function runLoopTick(
 
 function tickDeps(): LoopTickDeps {
   return {
-    listRepos: () => settings().allRepos(),
-    rawSettings: (repo) => settings().rawSettings(repo),
-    isOnboarded: (repo) => settings().isOnboarded(repo),
+    ...tickPortsOf({
+      settings: settings(),
+      taskQueue: pipeline().taskQueue,
+      tasks: taskStore(),
+      projectOf: projectFor,
+    }),
     findOpenBySubject: openRunOf,
-    activeTaskByIssue: (repo, issueNumber) =>
-      pipeline().taskQueue.activeTaskByIssue(repo, issueNumber),
-    createTask: (input) => taskStore().create(input),
-    setTaskColumns: (taskId, columns) =>
-      pipeline().taskQueue.setColumns(taskId, columns),
-    ...repoPorts(projectFor),
     started: (ticket) => startTicketOnFloor(floorTicketDeps(), ticket),
   };
 }
@@ -56,26 +53,6 @@ async function openRunOf(
     (await pipeline().assemblyRuns.findOpenBySubject(repo, subjectKey)) ??
     (await openFloorLoopRun(floorClient(), repo))
   );
-}
-
-/** What the tick reads from GitHub. `branchExists` is passed straight through: `decideBranchResume` reads an undefined answer as "unknown" and starts fresh. */
-function repoPorts(projectOf: (repo: string) => Promise<Project>) {
-  return {
-    listIssues: async (repo: string) =>
-      (await projectOf(repo)).issues.list({ state: "open" }),
-    branchExists: async (repo: string, branch: string) =>
-      (await projectOf(repo)).repo.branchExists(branch),
-    openBlockers: async (repo: string, issueNumber: number) =>
-      (await projectOf(repo)).issues.openBlockers(issueNumber),
-    openPrForBranch: async (repo: string, branch: string) => {
-      const open = await (await projectOf(repo)).pulls.list();
-      const forBranch = open.find((pr) => pr.branch === branch);
-
-      return forBranch
-        ? { number: forBranch.number, url: forBranch.url }
-        : null;
-    },
-  };
 }
 
 function floorTicketDeps(): FloorTicketDeps {

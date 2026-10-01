@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { ensureBranch, type BranchRepo } from "./ensure-branch.js";
 
-function repoWhere(exists: boolean | undefined) {
+type Existence = () => Promise<boolean> | undefined;
+
+const missing: Existence = async () => false;
+const present: Existence = async () => true;
+const unknown: Existence = () => undefined;
+
+function repoWhere(branchExists: Existence) {
   const created: string[] = [];
   const repo: BranchRepo = {
-    branchExists: () =>
-      exists === undefined ? undefined : Promise.resolve(exists),
+    branchExists,
     createBranch: (branch, base) => {
       created.push(`${branch} from ${base}`);
 
@@ -19,7 +24,7 @@ function repoWhere(exists: boolean | undefined) {
 
 describe("ensureBranch", () => {
   it("cuts lore/x from the default branch develop when it is missing", async () => {
-    const { repo, created } = repoWhere(false);
+    const { repo, created } = repoWhere(missing);
 
     await ensureBranch(repo, "lore/x");
 
@@ -27,7 +32,7 @@ describe("ensureBranch", () => {
   });
 
   it("creates nothing when lore/x exists", async () => {
-    const { repo, created } = repoWhere(true);
+    const { repo, created } = repoWhere(present);
 
     await ensureBranch(repo, "lore/x");
 
@@ -35,7 +40,7 @@ describe("ensureBranch", () => {
   });
 
   it("creates nothing when the port cannot say whether lore/x exists", async () => {
-    const { repo, created } = repoWhere(undefined);
+    const { repo, created } = repoWhere(unknown);
 
     await ensureBranch(repo, "lore/x");
 
