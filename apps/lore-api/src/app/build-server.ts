@@ -15,6 +15,7 @@ import {
   summarizeCoverage,
 } from "../transport/openapi/build-document.js";
 import { MAX_JSON_BODY_BYTES } from "@re-cinq/lore-shared/http/body-limits.js";
+import { logRequestErrors } from "@re-cinq/lore-shared/http/server-boot.js";
 import {
   registerPlanning,
   type RegisteredPlanning,
@@ -37,6 +38,7 @@ export function buildServer(getPool: () => Pool | null, port = 0): Hapi.Server {
     },
   });
 
+  logRequestErrors(server);
   registerRequestTracing(server, TRACING);
   registerRateLimit(server);
   registerBearerScope(server, getPool);
