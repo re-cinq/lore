@@ -17,7 +17,6 @@ import DarkFactoryConsoleView from "./DarkFactoryConsoleView";
 
 const DF_EVENT_TYPES = [
   "auto_merge_decision",
-  "escalation_issued",
   "lease_expired",
   "spec_trace_ingest",
 ];

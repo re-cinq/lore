@@ -643,7 +643,6 @@ describe("loadAssemblyLineDir — bundled assemblyLines", () => {
 
     expect(names).toEqual([
       "daily-digest",
-      "escalation",
       "feature-planning",
       "gap-detect",
       "gap-fill",

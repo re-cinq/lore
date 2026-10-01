@@ -87,7 +87,6 @@ function weeklyCounts(activityCounts: OverviewPanels["activityCounts"]) {
   return {
     darkTasksWeek: activityCounts.tasks ?? 0,
     autoMergedWeek: activityCounts.auto_merged ?? 0,
-    escalationsWeek: activityCounts.escalations ?? 0,
   };
 }
 
@@ -145,7 +144,7 @@ async function fetchIntegrationPanels(fullName: string) {
       getRepoActivityCounts(fullName).then((r) =>
         r.status === "ok"
           ? r.data
-          : { tasks: null, auto_merged: null, escalations: null },
+          : { tasks: null, auto_merged: null },
       ),
     ],
   );

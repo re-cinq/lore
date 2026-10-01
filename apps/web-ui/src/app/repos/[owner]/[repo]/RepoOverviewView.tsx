@@ -35,7 +35,6 @@ export interface RepoOverviewViewProps {
   trustLevel: string;
   darkTasksWeek: number;
   autoMergedWeek: number;
-  escalationsWeek: number;
   recentTasks: RecentTask[];
   /** The 10 most recent event-bus rows for this repo (newest first). */
   latestEvents: RepoEvent[];
@@ -74,7 +73,6 @@ type DarkFactoryStatsProps = Pick<
   | "trustLevel"
   | "darkTasksWeek"
   | "autoMergedWeek"
-  | "escalationsWeek"
 >;
 
 /** The repo's dark-factory posture at a glance: whether it is on, how far it is trusted, and what the last seven days produced. */
@@ -154,23 +152,14 @@ function ModeValue({ enabled }: { enabled: boolean }) {
   );
 }
 
-/** Auto-merges are toned as success and escalations as danger only when NON-ZERO, so a quiet week reads as quiet rather than as good or bad news. */
-function WeeklyOutcomeStats(props: DarkFactoryStatsProps) {
-  const { autoMergedWeek, escalationsWeek } = props;
-
+/** Auto-merges are toned as success only when NON-ZERO, so a quiet week reads as quiet rather than as good news. */
+function WeeklyOutcomeStats({ autoMergedWeek }: DarkFactoryStatsProps) {
   return (
-    <>
-      <Stat
-        label="Auto-merged (7d)"
-        value={autoMergedWeek}
-        tone={tonedWhenNonZero(autoMergedWeek, styles.success)}
-      />
-      <Stat
-        label="Escalations (7d)"
-        value={escalationsWeek}
-        tone={tonedWhenNonZero(escalationsWeek, styles.danger)}
-      />
-    </>
+    <Stat
+      label="Auto-merged (7d)"
+      value={autoMergedWeek}
+      tone={tonedWhenNonZero(autoMergedWeek, styles.success)}
+    />
   );
 }
 

@@ -65,10 +65,6 @@ function summarizeAutoMerge(payload: AuditPayload): string {
   return `Auto-merge: ${payload.outcome ?? "unknown"}`;
 }
 
-function summarizeEscalation(payload: AuditPayload): string {
-  return `Escalation: ${payload.reason ?? "needs-human-help"}`;
-}
-
 function summarizeLeaseExpired(payload: AuditPayload): string {
   return `Lease takeover (prev ${payload.previous_holder ?? "unknown"})`;
 }
@@ -80,7 +76,6 @@ function summarizeSpecTraceIngest(payload: AuditPayload): string {
 const SUMMARIZERS: Partial<Record<string, (payload: AuditPayload) => string>> =
   {
     auto_merge_decision: summarizeAutoMerge,
-    escalation_issued: summarizeEscalation,
     lease_expired: summarizeLeaseExpired,
     spec_trace_ingest: summarizeSpecTraceIngest,
   };
