@@ -108,7 +108,7 @@ func run(startDir string, post bool, stdout io.Writer) error {
 	if apiBase := strings.TrimRight(os.Getenv("LORE_API_URL"), "/"); apiBase != "" {
 		err := runDeltaFlow(ctx, deltaDeps{
 			fetchState: func(ctx context.Context) (*string, error) {
-				return fetchIngestState(ctx, apiBase, token, repo, deltaClient)
+				return fetchIngestState(ctx, apiBase, token, repo, testReportKind, deltaClient)
 			},
 			reachable:    func(sha string) bool { return commitReachable(root, sha) },
 			changedSince: func(base string) ([]string, []string, error) { return changedSince(root, base) },
