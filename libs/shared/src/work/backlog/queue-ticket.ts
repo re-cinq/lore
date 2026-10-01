@@ -25,22 +25,12 @@ export async function queueTicket(
   if (!carried) {
     await deps.addLabel(issue.number, DEFAULT_PRIORITY);
   }
-  const loopOn = implementationLoopEnabled(await deps.rawSettings(repo));
+  const queued = `Queued for Lore's implementation loop at \`${carried ?? DEFAULT_PRIORITY}\``;
 
   await deps.comment(
     issue.number,
-    queuedComment(repo, carried ?? DEFAULT_PRIORITY, loopOn),
+    implementationLoopEnabled(await deps.rawSettings(repo))
+      ? `${queued}. The loop works one ticket of this repository at a time and picks this one up in priority order.`
+      : `${queued}, but the loop is switched off for ${repo}, so nothing picks this ticket up until it is switched on in the repository's settings.`,
   );
-}
-
-function queuedComment(
-  repo: string,
-  priority: PriorityLabel,
-  loopOn: boolean,
-): string {
-  const queued = `Queued for Lore's implementation loop at \`${priority}\``;
-
-  return loopOn
-    ? `${queued}. The loop works one ticket of this repository at a time and picks this one up in priority order.`
-    : `${queued}, but the loop is switched off for ${repo}, so nothing picks this ticket up until it is switched on in the repository's settings.`;
 }

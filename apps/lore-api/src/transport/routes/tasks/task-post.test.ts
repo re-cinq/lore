@@ -298,7 +298,11 @@ describe("POST /api/task", () => {
   it("attributes the task to the caller-supplied created_by", async () => {
     vi.mocked(createTask).mockResolvedValue({ task_id: "t1" } as never);
     await post(
-      { description: "d", task_type: "runbook", created_by: "bogdan@re-cinq.com" },
+      {
+        description: "d",
+        task_type: "runbook",
+        created_by: "bogdan@re-cinq.com",
+      },
       poolWithDefinition("runbook", "claude-code"),
     );
 
@@ -312,7 +316,10 @@ describe("POST /api/task", () => {
 
   it("attributes to remote-mcp when the caller names nobody", async () => {
     vi.mocked(createTask).mockResolvedValue({ task_id: "t1" } as never);
-    await post({ description: "d", task_type: "runbook" }, poolWithDefinition("runbook", "claude-code"));
+    await post(
+      { description: "d", task_type: "runbook" },
+      poolWithDefinition("runbook", "claude-code"),
+    );
 
     expect(createTask).toHaveBeenCalledWith({
       description: "d",

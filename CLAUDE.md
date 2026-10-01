@@ -451,11 +451,13 @@ body = prompt), which lore-api seeds into the org rows at boot:
 
 - **feature-request**: PM describes intent in plain language → agent generates spec.md, data-model.md, tasks.md following repo conventions. Opens a PR for engineer review.
 - **onboard**: runs on the external floor where one is configured (`libs/assembly-lines/src/floor-pipelines/onboard.yaml`, `specs/external-floor` FR11): lore-api creates the task already running, cuts `lore/onboard/<task8>` and starts the run; `enrol` (labels, ingest callback, verbatim workflows + templates on the branch, `libs/shared/src/work/onboard/enrol-repo.ts`) → `author` (AGENTS.md, ADRs, spec and PR template from the onboarding ticket, `onboardTicketBody`) → `open-pr` (the ONE PR, recorded as `lore.repos.onboarding_pr_url`) → `await-ci` ⇄ `fix-ci` (a human station the pr-ready-check sweep answers, `apps/stations/src/work/pr-ready-check/floor-ci-wait.ts`) → `request-review`; the `run-settled` station settles the task. With no floor, the old Floor enrols and walks `libs/assembly-lines/src/assembly-lines/onboard.yaml`
-- **general**: open-ended task with Lore context
+
 - **runbook**: generates incident runbook
-- **implementation**: implements from a spec file
+
 - **gap-fill**: drafts missing documentation
 - **review**: reviews a PR against conventions
+
+There is no `implementation` or `general` task type any more (#2328, #2329), and no default type: creating a task with no type, or with either of those, is refused with a pointer to the implementation loop (`namedTaskType`, `libs/shared/src/domain/task-types/retired-task-types.ts`). Code is implemented from a ticket in the repository's backlog: an issue with a `priority:*` label, which a `lore` or `lore:implementation` label also gives it (`queueTicket`, `libs/shared/src/work/backlog/queue-ticket.ts`). A plan's spec-tasks run on the same loop. A free-form `lore_run_task_locally` run is tracked on the laptop only.
 
 Agent creates branch + PR when done. Simple tasks use direct
 Anthropic API calls. Implementation and review tasks run on the
@@ -515,8 +517,8 @@ NetworkPolicy allows only public `:443` egress.
 loaded conditionally during context assembly based on task query
 keywords. All four templates include a `rules` source at priority 1.
 
-**Slack integration**: `/lore [task_type] description` slash command
-creates pipeline tasks. Channel-to-repo mapping in
+**Slack integration**: `/lore <task_type> description` slash command
+creates pipeline tasks (the type is required: runbook, gap-fill, review or feature-request). Channel-to-repo mapping in
 `lore.repos.settings.slack_channel_id`. Watcher posts PR links,
 issue links, and failure messages back to the originating channel
 via `LORE_SLACK_BOT_TOKEN`.
@@ -593,7 +595,7 @@ nor the API reads the files read-only through `AgentDefsFiles`.
 **Progressive trust**: `settings.trust.level` controls which task
 types are allowed per repo: docs (gap-fill/runbook/onboard +
 feature-planning), tests (+review), implementation
-(+implementation/feature-request/general), full (all). `onboard` is
+(+implementation-loop/feature-request/spec-task), full (all). `onboard` is
 allowed at every tier — duplicate protection lives in the onboard
 route's own guard, not the trust ladder. Auto-promotes after 3
 successful merges at current level. Defaults to `implementation`
@@ -648,15 +650,14 @@ failed check's annotations/steps/log tail — and one job's log tail, via
 `GET /api/repos/:o/:r/ci-failures` and `/ci-jobs/:job_id/log`; a pod reads
 the verdict instead of reproducing the build (run 997026f5 died at 1Gi doing that).
 
-**Autonomous review loop** (opt-in per repo via `auto_review` setting):
-- After implementation PR is created, watcher auto-creates a review
-  task (a review Agent on the ai-agent-subsystem)
-- The review Agent clones the PR branch, reads spec + conventions,
-  posts PR comments via `gh`, outputs APPROVED or CHANGES_REQUESTED
-- Approved: task marked reviewed, PR ready for human merge
-- Changes requested (iteration < 2): new implementation task
-  with feedback on the same branch
-- Changes requested (iteration >= 2): escalate to human review
+**Autonomous review** (opt-in per repo via `auto_review` setting): every
+open pull request is reviewed by the `code-review` line on the external
+floor, and a request for changes from a trusted reviewer is answered on the
+pull request by `code-review-reply` (see External floor above). The Floor
+watcher's own loop (a review task per pull request it opened, then an
+`implementation` fix task on changes requested) was removed on 2026-10-01
+with that task type. The task page's "Give Feedback" form remains for
+feature-request tasks only.
 
 **Event bus — the 3-layer trigger substrate** (ADR-015 amendment;
 `apps/floor/src/{listeners,main-loop,jobs}/`): every Floor trigger flows through one

@@ -86,14 +86,6 @@ function TaskFailurePanel({
 
 const TERMINAL_TASK_STATUSES = ["merged", "cancelled"];
 
-function takesFeedback(task: TaskDetailTask): boolean {
-  return (
-    task.task_type === "feature-request" &&
-    Boolean(task.pr_url) &&
-    !TERMINAL_TASK_STATUSES.includes(task.status)
-  );
-}
-
 interface FeedbackSectionProps {
   task: TaskDetailTask;
   submitFeedback: (formData: FormData) => void | Promise<void>;
@@ -116,6 +108,14 @@ function FeedbackSection({ task, submitFeedback }: FeedbackSectionProps) {
       </p>
       <FeedbackForm taskId={taskId} submitFeedback={submitFeedback} />
     </div>
+  );
+}
+
+function takesFeedback(task: TaskDetailTask): boolean {
+  return (
+    task.task_type === "feature-request" &&
+    Boolean(task.pr_url) &&
+    !TERMINAL_TASK_STATUSES.includes(task.status)
   );
 }
 

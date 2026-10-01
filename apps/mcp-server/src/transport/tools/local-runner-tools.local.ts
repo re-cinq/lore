@@ -7,7 +7,8 @@ import type {
   PendingTask,
 } from "../../work/pipeline/runner.local.js";
 import {
-  createPipelineTaskViaApi,
+  LOCAL_ONLY_TASK_TYPE,
+  localTaskId,
   resolvePendingTask,
   claimTaskBestEffort,
 } from "./local-runner-api.js";
@@ -15,10 +16,8 @@ import {
 export {
   createPipelineTaskViaApi,
   fetchPendingTaskFromApi,
+  localTaskId,
 } from "./local-runner-api.js";
-
-/** Free-form work run on this machine: not a pipeline task type, so nothing is filed for it. */
-const LOCAL_ONLY_TASK_TYPE = "local";
 
 // Tool input schemas live as data beside their tool: a zod object is a contract, not a step in registering one.
 const RUN_TASK_LOCALLY_INPUT = {
@@ -126,19 +125,8 @@ async function runTaskLocally(args: {
   if (warning) {
     return textResult(warning);
   }
+
   return await spawnWorktreeRun(args, repo, await localTaskId(args, repo));
-}
-
-export async function localTaskId(
-  args: { description: string; task_type: string },
-  repo: string,
-): Promise<string> {
-  const filed =
-    args.task_type === LOCAL_ONLY_TASK_TYPE
-      ? null
-      : await createPipelineTaskViaApi(args.description, args.task_type, repo);
-
-  return filed ?? crypto.randomUUID();
 }
 
 /** Warns when `description` references an `owner/repo` other than the one the caller is in. */

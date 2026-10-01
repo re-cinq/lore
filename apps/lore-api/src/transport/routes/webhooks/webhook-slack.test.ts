@@ -247,9 +247,7 @@ describe("POST /api/webhook/slack", () => {
     const pool = makePool();
 
     pool.query.mockResolvedValue({ rows: [{ full_name: "o/r" }] });
-    vi.mocked(createTask).mockRejectedValue(
-      new Error("task_type is required"),
-    );
+    vi.mocked(createTask).mockRejectedValue(new Error("task_type is required"));
     const res = await slack(
       { text: "! fix the login bug", channel_id: "C1", user_name: "bob" },
       {},
