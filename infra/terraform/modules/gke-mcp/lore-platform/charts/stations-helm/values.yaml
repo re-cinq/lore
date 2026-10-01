@@ -93,6 +93,13 @@ anthropicAdminKeySecret:
   name: lore-stations-anthropic-key
   key: anthropic-admin-key
 
+# Optional Slack bot token for the stations that post to Slack (escalation
+# notify, the daily digest). Mirrored by the es_stations_slack ExternalSecret;
+# absent, those stations report the missing token instead of posting.
+slackBotTokenSecret:
+  name: lore-stations-slack
+  key: bot-token
+
 # path is per-entry because the two kinds of scheduled work land in different
 # places: work with STEPS posts /api/assembly-runs and runs as a real assembly
 # line; a single data operation posts /api/stations/<job> and runs inside
