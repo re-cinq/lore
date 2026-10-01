@@ -292,9 +292,15 @@ system is performing.
 - The gateway's top-level router tries `/healthz`, then `/skills/*`, before
   falling through to `/mcp`: a non-`/mcp` path 404s, an `/mcp` request missing
   the configured bearer token 401s, and on `/mcp` itself POST mints or resumes
-  a session (400 without a valid session on a non-initialize body) while
-  GET/DELETE require an already-minted session id (400 otherwise) and any
-  other method 405s. ([validated by `answers /healthz without touching /mcp or /skills routing`](apps/mcp-server/src/transport/http-transport.test.ts#L51), [`falls through to the skills registry for a /skills path`](apps/mcp-server/src/transport/http-transport.test.ts#L61), [`404s a path that is neither /healthz, /skills, nor /mcp`](apps/mcp-server/src/transport/http-transport.test.ts#L71), [`401s an /mcp request missing the configured bearer token`](apps/mcp-server/src/transport/http-transport.test.ts#L80), [`400s a POST /mcp with no session and a non-initialize body`](apps/mcp-server/src/transport/http-transport.test.ts#L90), [`400s a GET /mcp with an unknown session id`](apps/mcp-server/src/transport/http-transport.test.ts#L105), [`405s an unsupported method on /mcp`](apps/mcp-server/src/transport/http-transport.test.ts#L118))
+  a session (400 without a session id on a non-initialize body) while
+  GET/DELETE require an already-minted session id (400 without one) and any
+  other method 405s. ([validated by `answers /healthz without touching /mcp or /skills routing`](apps/mcp-server/src/transport/http-transport.test.ts#L51), [`falls through to the skills registry for a /skills path`](apps/mcp-server/src/transport/http-transport.test.ts#L61), [`404s a path that is neither /healthz, /skills, nor /mcp`](apps/mcp-server/src/transport/http-transport.test.ts#L71), [`401s an /mcp request missing the configured bearer token`](apps/mcp-server/src/transport/http-transport.test.ts#L80), [`400s a POST /mcp with no session and a non-initialize body`](apps/mcp-server/src/transport/http-transport.test.ts#L90), [`400s a GET /mcp with no session id`](apps/mcp-server/src/transport/http-transport.test.ts#L105), [`405s an unsupported method on /mcp`](apps/mcp-server/src/transport/http-transport.test.ts#L118))
+- A gateway restart forgets every in-memory session, so a request carrying a
+  session id the gateway does not know answers `404` with JSON-RPC code
+  `-32001` (POST, GET and DELETE alike), which tells a spec-compliant client
+  to re-initialize; a fresh `initialize` mints a new session, and a live
+  session keeps being served until it is deleted.
+  ([validated by `404s a POST /mcp carrying an unknown session id so the client re-initializes`](apps/mcp-server/src/transport/http-transport.test.ts#L154), [`404s a GET and a DELETE /mcp carrying an unknown session id`](apps/mcp-server/src/transport/http-transport.test.ts#L173), [`mints a fresh session on initialize after an unknown session 404`](apps/mcp-server/src/transport/http-transport.test.ts#L190), [`keeps serving a live session and 404s it once it is deleted`](apps/mcp-server/src/transport/http-transport.test.ts#L205))
 - Developer can check task status and retrieve results without
   leaving Claude Code.
 - The pipeline task is visible in the shared task tracker — no
