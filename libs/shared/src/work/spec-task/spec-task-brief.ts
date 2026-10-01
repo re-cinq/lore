@@ -8,7 +8,6 @@ import { taskIssueBody } from "../feature-planning/issue-bodies.js";
 export type LiveIssue = Pick<IssueRef, "title" | "body">;
 
 export interface SpecTaskBrief {
-  specTaskId: string | undefined;
   /** The task issue's number, absent for a task that was never filed as one. */
   issueNumber: number | undefined;
   description: string;
@@ -30,7 +29,6 @@ export function specTaskBrief(
   const detail = live?.body ?? briefDetail(task, cb);
 
   return {
-    specTaskId: cb.spec_task_id,
     issueNumber: taskIssueOf(task),
     description: `${briefHeader(task, cb, live?.title)}\n\n${detail}${specRef(cb.spec_slug)}`,
     issueTitle: issueTitleOf(task, cb, live),

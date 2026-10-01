@@ -271,7 +271,12 @@ describe("handleLoopRunClosed", () => {
   it("comments on issue 7 of a plan's task without labelling it, and says to retry the task", async () => {
     const { d, labeled, comments } = deps(walkEndingAtReview("failed"));
 
-    await handleLoopRunClosed(run({ source: "plan" }), "completed", undefined, d);
+    await handleLoopRunClosed(
+      run({ source: "plan" }),
+      "completed",
+      undefined,
+      d,
+    );
 
     expect(labeled).toEqual([]);
     expect(comments).toEqual([

@@ -45,11 +45,11 @@ function scene({ ready = [T001], liveIssues = {}, overrides }: Scene = {}) {
   const deps: SpecTaskExecutorDeps = {
     readyTasks: () => Promise.resolve(ready),
     runningTasks: () => Promise.resolve([]),
-    creditsExhausted: () => Promise.resolve(false),
-    claim: (taskId) => {
+    creditsExhausted: async () => false,
+    claim: async (taskId) => {
       steps.push(`claim ${taskId.substring(0, 8)}`);
 
-      return Promise.resolve(true);
+      return true;
     },
     release: (taskId) => {
       steps.push(`release ${taskId.substring(0, 8)}`);
@@ -90,7 +90,9 @@ describe("runSpecTaskExecutor", () => {
   });
 
   it("keys T001's run on the task itself, on its branch, with the task issue #2261 as its ticket", async () => {
-    const { deps, started } = scene({ ready: [withBundle({ task_issue: 2261 })] });
+    const { deps, started } = scene({
+      ready: [withBundle({ task_issue: 2261 })],
+    });
 
     await runSpecTaskExecutor(deps);
 
@@ -238,7 +240,9 @@ describe("runSpecTaskExecutor", () => {
 
   it("briefs from the filed detail when GitHub cannot be read", async () => {
     const { deps, ticket } = scene({
-      ready: [withBundle({ task_issue: 2261, changes: "The detail as filed." })],
+      ready: [
+        withBundle({ task_issue: 2261, changes: "The detail as filed." }),
+      ],
       overrides: { liveIssue: () => Promise.reject(new Error("GitHub 502")) },
     });
 
@@ -263,7 +267,7 @@ describe("runSpecTaskExecutor", () => {
 
   it("starts nothing for a task another dispatcher claimed first", async () => {
     const { deps, started } = scene({
-      overrides: { claim: () => Promise.resolve(false) },
+      overrides: { claim: async () => false },
     });
 
     await runSpecTaskExecutor(deps);
@@ -273,7 +277,7 @@ describe("runSpecTaskExecutor", () => {
 
   it("starts nothing while the Anthropic account is out of credits", async () => {
     const { deps, steps } = scene({
-      overrides: { creditsExhausted: () => Promise.resolve(true) },
+      overrides: { creditsExhausted: async () => true },
     });
 
     expect(await runSpecTaskExecutor(deps)).toBe(

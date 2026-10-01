@@ -13,7 +13,6 @@ import {
   specTaskBrief,
   taskIssueOf,
   type LiveIssue,
-  type SpecTaskBrief,
 } from "./spec-task-brief.js";
 
 export interface SpecTaskExecutorDeps {
@@ -81,11 +80,8 @@ async function startClaimed(
   }
 
   try {
-    const brief = await startSpecTask(task, deps);
-
-    console.log(
-      `[spec-task-executor] started ${brief.specTaskId} (${task.id}) on the floor`,
-    );
+    await startSpecTask(task, deps);
+    console.log(`[spec-task-executor] started ${task.id} on the floor`);
 
     return true;
   } catch (err) {
@@ -102,7 +98,7 @@ async function startClaimed(
 export async function startSpecTask(
   task: ReadySpecTask,
   deps: Pick<SpecTaskExecutorDeps, "liveIssue" | "ensureBranch" | "floor">,
-): Promise<SpecTaskBrief> {
+): Promise<void> {
   const brief = specTaskBrief(task, await liveIssueOf(task, deps));
 
   await deps.ensureBranch(task.target_repo, brief.branchName);
@@ -114,8 +110,6 @@ export async function startSpecTask(
     description: brief.description,
     backlog: planTaskBacklog(task.id),
   });
-
-  return brief;
 }
 
 // A task with no issue, or a GitHub read that fails, briefs from what was filed instead of holding the start.

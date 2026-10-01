@@ -113,7 +113,9 @@ export async function erroredVerdict(
 }
 
 /** Deferring promises that the next tick picks the ticket again, which holds for a backlog ticket on a branch and not for a plan's task: its executor starts it once. */
-function deferrable(run: ClosedLoopRun): run is ClosedLoopRun & { branch: string } {
+function deferrable(
+  run: ClosedLoopRun,
+): run is ClosedLoopRun & { branch: string } {
   return Boolean(run.branch) && run.source !== "plan";
 }
 

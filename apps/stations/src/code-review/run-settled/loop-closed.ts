@@ -112,21 +112,28 @@ export function closedLoopRunOf(
   const read = visits.map(stationVisitOf);
 
   return {
-    run: {
-      id: run.id,
-      repo: loreRepoOf(run.repo),
-      blueprintName: run.lineId,
-      taskId: startValueOf(run, "task_id") ?? null,
-      branch: branchOf(run),
-      args: pullRequestOf(visits),
-      graph: LOOP_GRAPH,
-      source: isPlanTaskBacklog(startValueOf(run, "backlog"))
-        ? "plan"
-        : "backlog",
-    },
+    run: ticketRunOf(run, visits),
     visits: reachedExit ? [...read, REACHED_EXIT] : read,
     outcome: reachedExit ? COMPLETED : (run.outcome ?? "error"),
   };
+}
+
+function ticketRunOf(run: RunView, visits: VisitView[]): ClosedLoopRun {
+  return {
+    id: run.id,
+    repo: loreRepoOf(run.repo),
+    blueprintName: run.lineId,
+    taskId: startValueOf(run, "task_id") ?? null,
+    branch: branchOf(run),
+    args: pullRequestOf(visits),
+    graph: LOOP_GRAPH,
+    source: sourceOf(run),
+  };
+}
+
+/** A plan's task is told from a backlog ticket by the value its run is keyed on. */
+function sourceOf(run: RunView): ClosedLoopRun["source"] {
+  return isPlanTaskBacklog(startValueOf(run, "backlog")) ? "plan" : "backlog";
 }
 
 function branchOf(run: RunView): string | null {
