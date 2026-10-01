@@ -69,10 +69,15 @@ async function linkedRepoSources(
     ),
   );
 
-  return perRepo
-    .flat()
-    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
-    .slice(0, CROSS_REPO_SEARCH.limit);
+  return byRank(perRepo).slice(0, CROSS_REPO_SEARCH.limit);
+}
+
+function byRank(perRepo: SourceItem[][]): SourceItem[] {
+  const depth = Math.max(0, ...perRepo.map((hits) => hits.length));
+
+  return Array.from({ length: depth }, (_, rank) =>
+    perRepo.flatMap((hits) => hits.slice(rank, rank + 1)),
+  ).flat();
 }
 
 const CROSS_REPO_SEARCH = { contentTypes: ["doc", "spec", "adr"], limit: 5 };
