@@ -23,6 +23,7 @@ import {
   lineBodyToRunGraph,
   turnRecordToRow,
   visitToStationRun,
+  type StationKindName,
 } from "./floor-run-mapping.js";
 import {
   floorVisitIdOf,
@@ -35,8 +36,6 @@ export type FloorRunSource = Pick<
   FloorClient,
   "runs" | "stationRuns" | "lines" | "stations" | "costs"
 >;
-
-type StationKind = "agent" | "service" | "human";
 
 const RECORDS_PER_READ = 1000;
 const DEFAULT_LIST_LIMIT = 50;
@@ -221,7 +220,9 @@ export class FloorRunReader {
     return lineBodyToRunGraph(run.lineId, body, await this.kindsOf(body));
   }
 
-  private async kindsOf(body: LineBody): Promise<Record<string, StationKind>> {
+  private async kindsOf(
+    body: LineBody,
+  ): Promise<Record<string, StationKindName>> {
     const names = body.nodes.flatMap((node) =>
       node.station ? [stationNameOf(node.station)] : [],
     );
@@ -231,10 +232,20 @@ export class FloorRunReader {
 
     return Object.fromEntries(
       stations.flatMap((station) =>
-        station ? [[station.id, station.body.kind]] : [],
+        station ? [[station.id, kindNameOf(station.body)]] : [],
       ),
     );
   }
+}
+
+// A human station that produces something is where a person writes what the line runs on.
+function kindNameOf(body: {
+  kind: "agent" | "service" | "human";
+  produces?: readonly unknown[];
+}): StationKindName {
+  return body.kind === "human" && (body.produces?.length ?? 0) > 0
+    ? "author"
+    : body.kind;
 }
 
 /** A node may pin its station as `name@hash`. */

@@ -11,8 +11,8 @@ const TOOLS: Tools = {
   signal: new AbortController().signal,
 };
 
-function refineNeed(slot: string): string {
-  return JSON.stringify({ slot, baseHash: "h1" });
+function refineNeed(slot: string, uses?: unknown): string {
+  return JSON.stringify({ slot, baseHash: "h1", ...(uses ? { uses } : {}) });
 }
 
 function brief(needs: Partial<Record<string, string>> = {}) {
@@ -33,6 +33,7 @@ function scene(
   }) => Promise<void>,
 ) {
   const calls: { planId: string; slot: string; reason: string }[] = [];
+  const done: { planId: string; slot: string; uses: unknown }[] = [];
   const deps: PlanPassEndDeps = {
     runOf: () => Promise.resolve(runId),
     visitsOf: () => Promise.resolve(visits),
@@ -40,9 +41,12 @@ function scene(
       calls.push(input);
       await refineFailedImpl?.(input);
     },
+    refineDone: async (input) => {
+      done.push(input);
+    },
   };
 
-  return { handle: planPassEndHandle(deps), calls };
+  return { handle: planPassEndHandle(deps), calls, done, deps };
 }
 
 describe("planPassEndHandle", () => {
@@ -112,15 +116,50 @@ describe("planPassEndHandle", () => {
     expect(calls).toEqual([]);
   });
 
-  it("posts nothing when the analyze pass it asks for settled success", async () => {
-    const { handle, calls } = scene("run-1", [
+  it("posts refine-done for section kpis with the question it used, and no failure, when the analyze pass settled success", async () => {
+    const uses = { questions: ["q-1"], comments: [] };
+    const { handle, calls, done } = scene("run-1", [
       { nodeId: "analyze", report: { outcome: "success" } },
     ]);
 
-    const result = await handle(brief({ refine: refineNeed("kpis") }), TOOLS);
+    const result = await handle(
+      brief({ refine: refineNeed("kpis", uses) }),
+      TOOLS,
+    );
 
-    expect(result).toEqual({ outcome: "success" });
-    expect(calls).toEqual([]);
+    expect({ result, done, calls }).toEqual({
+      result: { outcome: "success" },
+      done: [{ planId: PLAN_ID, slot: "kpis", uses }],
+      calls: [],
+    });
+  });
+
+  it("posts refine-done with nothing used for an ask that named no settled input", async () => {
+    const { handle, done } = scene("run-1", [
+      { nodeId: "analyze", report: { outcome: "success" } },
+    ]);
+
+    await handle(brief({ refine: refineNeed("scope") }), TOOLS);
+
+    expect(done).toEqual([
+      { planId: PLAN_ID, slot: "scope", uses: { questions: [], comments: [] } },
+    ]);
+  });
+
+  it("reports failed with the error message when the refine-done post itself fails", async () => {
+    const { deps } = scene("run-1", [
+      { nodeId: "analyze", report: { outcome: "success" } },
+    ]);
+    const handle = planPassEndHandle({
+      ...deps,
+      refineDone: () =>
+        Promise.reject(new Error("refine-done post failed: 502")),
+    });
+
+    expect(await handle(brief({ refine: refineNeed("kpis") }), TOOLS)).toEqual({
+      outcome: "failed",
+      error: "refine-done post failed: 502",
+    });
   });
 
   it("reports failed with the error message when the refine-failed post itself fails", async () => {

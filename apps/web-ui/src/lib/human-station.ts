@@ -38,3 +38,28 @@ export function humanStation(
     ? HUMAN_STATIONS[nodeType as HumanStationType]
     : null;
 }
+
+/** What an open run waits on when only people hold it: the label of the human station its newest open visit is on. Null while a pod-run visit is open, or none is: then something is running, or nothing is. */
+export function waitingOnPerson(
+  definition: { nodes: readonly { id: string; type: string }[] } | null,
+  visits: readonly { nodeId: string; outcome: string | null }[],
+): string | null {
+  const held = visits
+    .filter((visit) => visit.outcome === null)
+    .map((visit) => humanStation(nodeTypeOf(definition, visit.nodeId)));
+
+  return held.every((meta) => meta !== null)
+    ? (held.at(-1)?.label ?? null)
+    : null;
+}
+
+/** The type the definition gives a node, or undefined for a node it does not know. */
+export function nodeTypeOf(
+  definition: { nodes: readonly { id: string; type: string }[] } | null,
+  nodeId: string,
+): string | undefined {
+  const nodes = definition?.nodes ?? [];
+  const node = nodes.find((known) => known.id === nodeId);
+
+  return node?.type;
+}
