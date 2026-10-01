@@ -1,4 +1,4 @@
-// Every analyze pass on the feature-planning line settles here before the author waits again: a draft has nothing to settle, a dead Refine pass gets its `refine-failed` posted so its person is told (see specs/external-floor/spec.md FR8.5).
+// Every analyze pass on the feature-planning line settles here before the author waits again: a draft has nothing to settle, a Refine pass that succeeded is marked done on the section it was asked for, and a dead one gets its `refine-failed` posted, so its person is told either way (see specs/external-floor/spec.md FR8.5).
 
 import {
   defineStation,
@@ -30,6 +30,12 @@ export interface PlanPassEndDeps {
     slot: string;
     reason: string;
   }): Promise<void>;
+  /** The section's ask is answered: without it the section keeps saying the agent is refining it. */
+  refineDone(input: {
+    planId: string;
+    slot: string;
+    uses: unknown;
+  }): Promise<void>;
 }
 
 const SUCCESS: Report = { outcome: "success" };
@@ -43,10 +49,38 @@ export function planPassEndHandle(deps: PlanPassEndDeps): Handle {
     }
     const outcome = await analyzeOutcomeOf(deps, brief.visitId);
 
-    return outcome === "success"
-      ? SUCCESS
-      : reportRefineFailed(deps, brief.needs.plan_id, refine.slot, outcome);
+    const planId = brief.needs.plan_id;
+
+    return settled(() =>
+      outcome === "success"
+        ? deps.refineDone({ planId, slot: refine.slot, uses: usesOf(refine) })
+        : deps.refineFailed({
+            planId,
+            slot: refine.slot,
+            reason: stopped(outcome),
+          }),
+    );
   };
+}
+
+// A post that will not go through fails the node with what lore-api said: the person's section would otherwise be left with no answer and nothing to show why.
+async function settled(post: () => Promise<void>): Promise<Report> {
+  try {
+    await post();
+
+    return SUCCESS;
+  } catch (err) {
+    return { outcome: "failed", error: (err as Error).message };
+  }
+}
+
+function stopped(outcome: string | undefined): string {
+  return `the planning agent stopped with outcome ${outcome ?? "missing"} before it answered`;
+}
+
+// What the Refine built on, as its person settled it; an ask that named none used nothing.
+function usesOf(refine: RefineRequest): unknown {
+  return refine.uses ?? { questions: [], comments: [] };
 }
 
 /** The Refine this pass answered, or null for a draft. A value that will not parse, or names no slot, reads as a draft: there is no section to tell, and failing the node over it would say nothing to anybody. */
@@ -61,25 +95,6 @@ function refineOf(raw: string | undefined): RefineRequest | null {
     return typeof parsed.slot === "string" ? (parsed as RefineRequest) : null;
   } catch {
     return null;
-  }
-}
-
-async function reportRefineFailed(
-  deps: PlanPassEndDeps,
-  planId: string,
-  slot: string,
-  outcome: string | undefined,
-): Promise<Report> {
-  try {
-    await deps.refineFailed({
-      planId,
-      slot,
-      reason: `the planning agent stopped with outcome ${outcome ?? "missing"} before it answered`,
-    });
-
-    return SUCCESS;
-  } catch (err) {
-    return { outcome: "failed", error: (err as Error).message };
   }
 }
 
@@ -105,31 +120,27 @@ const productionDeps: PlanPassEndDeps = {
   runOf: async (visitId) =>
     (await floorClient().stationRuns.get(visitId))?.runId ?? null,
   visitsOf: (runId) => floorClient().stationRuns.list({ run: runId }),
-  refineFailed: postRefineFailed,
+  refineFailed: ({ planId, ...failed }) =>
+    postToPlan(planId, "refine-failed", failed),
+  refineDone: ({ planId, ...done }) => postToPlan(planId, "refine-done", done),
 };
 
-interface RefineFailedInput {
-  planId: string;
-  slot: string;
-  reason: string;
-}
-
-async function postRefineFailed(input: RefineFailedInput): Promise<void> {
-  const baseUrl = requiredApiUrl();
-  const res = await fetch(
-    `${baseUrl}/api/plans/${input.planId}/refine-failed`,
-    {
-      method: "POST",
-      signal: AbortSignal.timeout(30_000),
-      headers: bearerJsonHeaders(stationToken()),
-      body: JSON.stringify({ slot: input.slot, reason: input.reason }),
-    },
-  );
+async function postToPlan(
+  planId: string,
+  verb: "refine-failed" | "refine-done",
+  body: object,
+): Promise<void> {
+  const res = await fetch(`${requiredApiUrl()}/api/plans/${planId}/${verb}`, {
+    method: "POST",
+    signal: AbortSignal.timeout(30_000),
+    headers: bearerJsonHeaders(stationToken()),
+    body: JSON.stringify(body),
+  });
 
   enforceTrue(
     res.ok,
     Error,
-    `refine-failed post for plan ${input.planId} failed: ${res.status}`,
+    `${verb} post for plan ${planId} failed: ${res.status}`,
   );
 }
 
@@ -140,7 +151,7 @@ function requiredApiUrl(): string {
   enforceTrue(
     baseUrl,
     Error,
-    "plan-pass-end requires LORE_API_URL to report a refine failure",
+    "plan-pass-end requires LORE_API_URL to settle a refine",
   );
 
   return baseUrl;
