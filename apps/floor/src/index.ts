@@ -18,7 +18,6 @@ import {
   markDone,
   markFailed,
 } from "./outbound/event-store.js";
-import { startEventReaper } from "./events/main-loop/reaper.js";
 import { subscribe, reconcileDeliveries } from "./outbound/event-store.js";
 import { RECONCILE_WINDOW_MINUTES } from "@re-cinq/lore-shared/project/events/event-deliveries-port.js";
 import { DEFAULT_DRAIN_TIMEOUT_MS } from "@re-cinq/lore-shared/project/events/event-tuning.js";
@@ -88,7 +87,6 @@ async function startEventPlane(): Promise<void> {
     markFailed,
     markDead,
   });
-  startEventReaper();
 
   // The cron ticks this loop drains are emitted by the stations service (specs/external-floor FR16): this Floor only consumes them.
   void startWorker();

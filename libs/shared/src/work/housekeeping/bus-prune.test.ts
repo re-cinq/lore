@@ -20,23 +20,19 @@ const deadLettered = vi.fn<
   >
 >();
 
-vi.mock("../../outbound/event-store.js", () => ({
-  pruneHandled: (days: number) => pruneHandled(days),
-  orphanedEvents: (minutes: number) => orphanedEvents(minutes),
-  deadLettered: (minutes: number) => deadLettered(minutes),
-}));
+const { pruneBus } = await import("./bus-prune.js");
 
-vi.mock("../../outbound/queues.js", () => ({
-  clusterAgent: () => ({}),
-  pipeline: () => ({
-    agentRunEvents: { pruneOld: (days: number) => pruneOld(days) },
-    agentRunTurns: { pruneOld: (days: number) => pruneTurns(days) },
-  }),
-}));
+const deps = {
+  deliveries: {
+    pruneHandled: (days: number) => pruneHandled(days),
+    orphanedEvents: (minutes: number) => orphanedEvents(minutes),
+    deadLettered: (minutes: number) => deadLettered(minutes),
+  },
+  agentRunEvents: { pruneOld: (days: number) => pruneOld(days) },
+  agentRunTurns: { pruneOld: (days: number) => pruneTurns(days) },
+} as never;
 
-const { eventsPrune } = await import("./cron.js");
-
-const tick = { id: "1", name: "cron.events_prune.tick" };
+const eventsPrune = (env: Record<string, string> = {}) => pruneBus(deps, env);
 
 beforeEach(() => {
   pruneHandled.mockReset().mockResolvedValue(0);
@@ -52,7 +48,7 @@ afterEach(() => {
 
 describe("eventsPrune", () => {
   it("prunes agent run events older than 14 days alongside handled events", async () => {
-    await eventsPrune(tick as never);
+    await eventsPrune();
 
     expect(pruneHandled).toHaveBeenCalledWith(7);
     expect(pruneOld).toHaveBeenCalledWith(14);
@@ -62,7 +58,7 @@ describe("eventsPrune", () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
 
     pruneOld.mockResolvedValueOnce(3);
-    await eventsPrune(tick as never);
+    await eventsPrune();
 
     expect(
       log.mock.calls.some((c) => String(c[0]).includes("3 agent run event")),
@@ -72,7 +68,7 @@ describe("eventsPrune", () => {
   it("logs nothing for agent run events when none were deleted", async () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
 
-    await eventsPrune(tick as never);
+    await eventsPrune();
 
     expect(
       log.mock.calls.some((c) => String(c[0]).includes("agent run event")),
@@ -82,7 +78,7 @@ describe("eventsPrune", () => {
 
 describe("eventsPrune turn retention", () => {
   it("prunes agent run turns at 30 days, longer than the projection's 14", async () => {
-    await eventsPrune(tick as never);
+    await eventsPrune();
 
     expect(pruneTurns).toHaveBeenCalledWith(30);
     expect(pruneOld).toHaveBeenCalledWith(14);
@@ -92,7 +88,7 @@ describe("eventsPrune turn retention", () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
 
     pruneTurns.mockResolvedValueOnce(4);
-    await eventsPrune(tick as never);
+    await eventsPrune();
 
     expect(
       log.mock.calls.some((c) => String(c[0]).includes("4 agent run turn")),
@@ -101,40 +97,26 @@ describe("eventsPrune turn retention", () => {
 });
 
 describe("eventsPrune turn retention override", () => {
-  afterEach(() => {
-    delete process.env.LORE_AGENT_RUN_TURN_RETENTION_DAYS;
-  });
-
   it("prunes agent run turns at 90 days when LORE_AGENT_RUN_TURN_RETENTION_DAYS=90", async () => {
-    process.env.LORE_AGENT_RUN_TURN_RETENTION_DAYS = "90";
-
-    await eventsPrune(tick as never);
+    await eventsPrune({ LORE_AGENT_RUN_TURN_RETENTION_DAYS: "90" });
 
     expect(pruneTurns).toHaveBeenCalledWith(90);
   });
 
   it("falls back to 30 days with a warning when the override is not a positive integer within 3650", async () => {
-    // eslint-disable-next-line re-lint/declare-near-use -- the spy must be installed before the eventsPrune calls it records
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    process.env.LORE_AGENT_RUN_TURN_RETENTION_DAYS = "0";
-    await eventsPrune(tick as never);
-    expect(pruneTurns).toHaveBeenCalledWith(30);
+    for (const raw of ["0", "ninety", "99999999999999999"]) {
+      await eventsPrune({ LORE_AGENT_RUN_TURN_RETENTION_DAYS: raw });
+    }
 
-    pruneTurns.mockClear();
-    process.env.LORE_AGENT_RUN_TURN_RETENTION_DAYS = "ninety";
-    await eventsPrune(tick as never);
-    expect(pruneTurns).toHaveBeenCalledWith(30);
-
-    pruneTurns.mockClear();
-    process.env.LORE_AGENT_RUN_TURN_RETENTION_DAYS = "99999999999999999";
-    await eventsPrune(tick as never);
-    expect(pruneTurns).toHaveBeenCalledWith(30);
-
-    expect(warn).toHaveBeenCalledTimes(3);
-    expect(String(warn.mock.calls[0]?.[0])).toContain(
-      "LORE_AGENT_RUN_TURN_RETENTION_DAYS=0",
-    );
+    expect({
+      keptDays: pruneTurns.mock.calls.map(([days]) => days),
+      warnings: warn.mock.calls.length,
+      firstWarning: String(warn.mock.calls[0]?.[0]).includes(
+        "LORE_AGENT_RUN_TURN_RETENTION_DAYS=0",
+      ),
+    }).toEqual({ keptDays: [30, 30, 30], warnings: 3, firstWarning: true });
   });
 });
 
@@ -146,7 +128,7 @@ describe("eventsPrune orphan report", () => {
       { event_name: "internal.repo.team_changed", count: 3 },
       { event_name: "github.issues.labeled", count: 1 },
     ]);
-    await eventsPrune({}, { eventId: "1" });
+    await eventsPrune();
 
     expect(err.mock.calls[0]?.[0]).toContain(
       "internal.repo.team_changed x3, github.issues.labeled x1",
@@ -156,7 +138,7 @@ describe("eventsPrune orphan report", () => {
   it("says nothing when every event reached a subscriber", async () => {
     const err = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    await eventsPrune({}, { eventId: "1" });
+    await eventsPrune();
 
     expect(err).not.toHaveBeenCalled();
   });
@@ -172,7 +154,7 @@ describe("eventsPrune orphan report", () => {
         last_error: "fetch failed",
       },
     ]);
-    await eventsPrune({}, { eventId: "1" });
+    await eventsPrune();
 
     expect(err.mock.calls[0]?.[0]).toContain(
       "cron.agent_watcher_reconcile.tick x60 (fetch failed)",
@@ -190,7 +172,7 @@ describe("eventsPrune orphan report", () => {
         last_error: null,
       },
     ]);
-    await eventsPrune({}, { eventId: "1" });
+    await eventsPrune();
 
     expect(err.mock.calls[0]?.[0]).toContain(
       "cron.merge_check.tick x1 (no error)",
@@ -198,7 +180,7 @@ describe("eventsPrune orphan report", () => {
   });
 
   it("looks back exactly one hour, matching its own tick, so no window is skipped or doubled", async () => {
-    await eventsPrune({}, { eventId: "1" });
+    await eventsPrune();
 
     expect(orphanedEvents).toHaveBeenCalledWith(60);
     expect(deadLettered).toHaveBeenCalledWith(60);

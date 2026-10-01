@@ -22,6 +22,7 @@ import {
   registerCronEmitters,
 } from "@re-cinq/lore-shared/scheduler/cron-scheduler.js";
 import { DEFAULT_DRAIN_TIMEOUT_MS } from "@re-cinq/lore-shared/project/events/event-tuning.js";
+import { startDeliveryReaper } from "@re-cinq/lore-shared/housekeeping/delivery-reaper.js";
 import { requiredPort } from "@re-cinq/lore-shared/lib/required-env.js";
 import { floorConfigured } from "@re-cinq/lore-shared/floor/floor-client.js";
 import { startCodeReviewStations } from "./code-review/index.js";
@@ -48,6 +49,8 @@ async function main(): Promise<void> {
   // Started before the server: the queue only drains while its loop runs, so an earlier emit would sit in memory until shutdown noticed it.
   await eventProxy().start();
   void startCronTicks();
+  // The bus's crash recovery for every subscriber: this service is the one that keeps it now (specs/external-floor FR16).
+  startDeliveryReaper(() => deliveries().reapStuck());
 
   const stopServer = await startServer(PORT);
   const floorStations = startFloorStations();

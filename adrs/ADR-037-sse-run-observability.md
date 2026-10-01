@@ -268,10 +268,10 @@ wired and closes the older gap on the way past.
 
 #### Decisions
 
-- One nightly `cron.telemetry_prune.tick` reaps both at the same window. ([validated by [prunes both tables at the retention window](apps/floor/src/work/station/log-retention.test.ts#L9), [prunes rows past the retention window and reports the count](libs/shared/src/outbound/project/pod-logs/pod-logs.test.ts#L67))
+- One nightly `cron.telemetry_prune.tick` reaps both at the same window. ([validated by [prunes both tables at the retention window](libs/shared/src/work/housekeeping/telemetry-retention.test.ts#L9), [prunes rows past the retention window and reports the count](libs/shared/src/outbound/project/pod-logs/pod-logs.test.ts#L67))
 - The two sweeps settle independently: one failing must not skip the other,
-  which is how a table quietly outgrows its window. ([validated by [still prunes the other table when one fails](apps/floor/src/work/station/log-retention.test.ts#L17))
-- The window is overridable, so a deployment can keep less. ([validated by [honours an explicit window](apps/floor/src/work/station/log-retention.test.ts#L30))
+  which is how a table quietly outgrows its window. ([validated by [still prunes the other table when one fails](libs/shared/src/work/housekeeping/telemetry-retention.test.ts#L17))
+- The window is overridable, so a deployment can keep less. ([validated by [honours an explicit window](libs/shared/src/work/housekeeping/telemetry-retention.test.ts#L30))
 
 ## Amendment (2026-09-09): the stream moves to lore-api, and the bus becomes Postgres
 

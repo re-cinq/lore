@@ -50,6 +50,10 @@
       "types": "./dist/work/scheduler/*.d.ts",
       "default": "./dist/work/scheduler/*.js"
     },
+    "./housekeeping/*.js": {
+      "types": "./dist/work/housekeeping/*.d.ts",
+      "default": "./dist/work/housekeeping/*.js"
+    },
     "./spec-task/*.js": {
       "types": "./dist/work/spec-task/*.d.ts",
       "default": "./dist/work/spec-task/*.js"

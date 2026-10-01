@@ -16,6 +16,8 @@ import { detect } from "./detect/manifest.js";
 import { digestTickStation } from "./digest-tick/manifest.js";
 import { ingest } from "./ingest/manifest.js";
 import { loopTickStation } from "./loop-tick/manifest.js";
+import { busPrune } from "./bus-prune/manifest.js";
+import { telemetryPrune } from "./telemetry-prune/manifest.js";
 import { issues } from "./issues/manifest.js";
 import { featureReview } from "./feature-review/manifest.js";
 import { gcpCostSync } from "./gcp-cost-sync/manifest.js";
@@ -28,6 +30,7 @@ export const STATION_NAMES = [
   "anthropic-cost-sync",
   "approval-check",
   "backfill-scan",
+  "bus-prune",
   "ci-check",
   "detect",
   "digest-tick",
@@ -45,6 +48,7 @@ export const STATION_NAMES = [
   "retrospective",
   "spec-task-tick",
   "spec-upkeep-tick",
+  "telemetry-prune",
   "validate",
 ] as const;
 
@@ -54,6 +58,7 @@ export const STATIONS: Record<StationName, StationModule> = {
   "anthropic-cost-sync": anthropicCostSync,
   "approval-check": approvalCheck,
   "backfill-scan": backfillScan,
+  "bus-prune": busPrune,
   "ci-check": ciCheck,
   detect,
   "digest-tick": digestTickStation,
@@ -71,5 +76,6 @@ export const STATIONS: Record<StationName, StationModule> = {
   retrospective,
   "spec-task-tick": specTaskTickStation,
   "spec-upkeep-tick": specUpkeepTickStation,
+  "telemetry-prune": telemetryPrune,
   validate,
 };
