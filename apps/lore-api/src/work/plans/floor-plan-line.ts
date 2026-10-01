@@ -265,7 +265,6 @@ async function storeMarkdown(
   return stored.hash;
 }
 
-/** The brief a station is given, led by the repo on a line of its own: the floor's prompts only render the description, and the gateway has no checkout to read the repo from. */
 function briefFor(repo: string, brief: string): string {
   return `repo: "${repo}"\n${brief}`;
 }

@@ -168,7 +168,6 @@ function storeWhenCacheable(
   store(policy, body);
 }
 
-// Falls back to a stale cached copy only for a genuine "unreachable" outcome with no status; denials and refusals the API answered pass through.
 function serveStaleFallback({
   policy,
   result,

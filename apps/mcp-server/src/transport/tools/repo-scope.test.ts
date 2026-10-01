@@ -67,6 +67,7 @@ describe("an explicit repo is validated before any API path is built from it", (
     "re-cinq/lore/extra",
     "re-cinq",
     "../lore",
+    "re-cinq/.",
     "re-cinq/..",
   ];
 

@@ -15,7 +15,6 @@ export const NO_REPO_DETECTED =
 
 const REPO_PATTERN = /^[A-Za-z0-9][A-Za-z0-9-]*\/[A-Za-z0-9._-]+$/;
 
-/** The tool error for a repo that is not an owner/name, or null when none was given or it is well formed. Checked before any API path is built from it. */
 export function invalidRepoRefusal(
   explicit: string | undefined,
 ): string | null {
@@ -27,7 +26,9 @@ export function invalidRepoRefusal(
 }
 
 function isRepoName(repo: string): boolean {
-  return REPO_PATTERN.test(repo) && !repo.includes("..");
+  return (
+    REPO_PATTERN.test(repo) && !repo.includes("..") && !repo.endsWith("/.")
+  );
 }
 
 export function resolveRepo(
