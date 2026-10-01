@@ -1,22 +1,19 @@
-import { computeTransferScore } from "../../../domain/memory-ranking.js";
 import { queryLiveGraph } from "./live-graph.js";
-import { listChunkSchemas } from "../chunks/chunk-schema.js";
 import type { PgPool } from "../../memory-store.js";
 import type { SourceItem } from "./context-assembly-format.js";
 import type { FetchResult } from "./context-assembly-types.js";
 import {
   mkItem,
-  toScore,
   addUniqueGraphLines,
   extractKeyTerms,
 } from "./context-assembly-items.js";
-import type {
-  ChunkSearchHit,
-  Incident,
+import {
+  hybridChunkItems,
+  type Incident,
 } from "./context-assembly-chunk-search.js";
 import type { SourceFetcher } from "./context-assembly-fetchers-types.js";
 
-/** Social/environmental context sources: the live knowledge graph, cross-repo transfer, and production incidents. */
+/** Social/environmental context sources: the live knowledge graph, linked-repo search, and production incidents. */
 
 async function fetchGraph(
   pool: PgPool,
@@ -49,32 +46,36 @@ async function fetchCrossRepo(
   query: string,
   repo: string,
 ): Promise<FetchResult> {
-  const rows = await crossRepoChunks(pool, query, repo);
+  const linkedRepos = await linkedReposFor(pool, repo);
 
-  if (rows.length === 0) {
-    return { sources: [], status: "empty" };
+  if (linkedRepos.length === 0) {
+    return { sources: [], status: "disabled" };
   }
-  const scored = onlyTransferable(rows);
+  const sources = await linkedRepoSources(pool, query, linkedRepos);
 
-  if (scored.length === 0) {
-    return { sources: [], status: "empty" };
-  }
-
-  return { sources: scored.map(toCrossRepoItem), status: "ok" };
+  return { sources, status: sources.length > 0 ? "ok" : "empty" };
 }
 
-async function crossRepoChunks(
+async function linkedRepoSources(
   pool: PgPool,
   query: string,
-  repo: string,
-): Promise<ChunkSearchHit[]> {
-  const [linkedRepos, schemas] = await Promise.all([
-    linkedReposFor(pool, repo),
-    listChunkSchemas(pool),
-  ]);
+  linkedRepos: string[],
+): Promise<SourceItem[]> {
+  const perRepo = await Promise.all(
+    linkedRepos.map(async (linked) =>
+      (await hybridChunkItems(pool, query, linked, CROSS_REPO_SEARCH)).map(
+        (hit) => toCrossRepoItem(hit, linked),
+      ),
+    ),
+  );
 
-  return searchCrossRepoChunks(pool, query, repo, { linkedRepos, schemas });
+  return perRepo
+    .flat()
+    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+    .slice(0, CROSS_REPO_SEARCH.limit);
 }
+
+const CROSS_REPO_SEARCH = { contentTypes: ["doc", "spec", "adr"], limit: 5 };
 
 async function linkedReposFor(pool: PgPool, repo: string): Promise<string[]> {
   const { rows } = await pool.query<{
@@ -86,46 +87,9 @@ async function linkedReposFor(pool: PgPool, repo: string): Promise<string[]> {
   return first?.settings?.cross_repo_repos || [];
 }
 
-/** Linked repos may live in any team schema, so the search spans every provisioned chunk schema plus org_shared. */
-async function searchCrossRepoChunks(
-  pool: PgPool,
-  query: string,
-  repo: string,
-  { linkedRepos, schemas }: { linkedRepos: string[]; schemas: string[] },
-): Promise<ChunkSearchHit[]> {
-  const repoFilter = linkedRepos.length > 0 ? "repo = ANY($1)" : "repo != $1";
-  const branches = schemas.map(
-    (schema) =>
-      `SELECT content, repo, file_path, ts_rank(search_tsv, plainto_tsquery($2)) AS score
-       FROM ${schema}.chunks
-       WHERE ${repoFilter} AND search_tsv @@ plainto_tsquery($2)`,
-  );
-  const { rows } = await pool.query<ChunkSearchHit>(
-    `SELECT content, repo, file_path, score FROM (${branches.join(" UNION ALL ")}) AS matches
-     ORDER BY score DESC LIMIT 5`,
-    [linkedRepos.length > 0 ? linkedRepos : repo, query],
-  );
-
-  return rows;
-}
-
-/** Only portable, high-transfer-score content from other repos passes through. */
-function onlyTransferable(
-  rows: ChunkSearchHit[],
-): (ChunkSearchHit & { transferScore: number })[] {
-  return rows
-    .map((r) => ({ ...r, transferScore: computeTransferScore(r.content) }))
-    .filter((r) => r.transferScore >= 0.5);
-}
-
-/** A hit from another repo, tagged `cross_repo` so the assembled block can say where it came from — context borrowed from elsewhere is worth less to the reader if they cannot tell it is borrowed. */
-function toCrossRepoItem(row: ChunkSearchHit): SourceItem {
-  return mkItem(row.content, {
-    source_path: row.file_path,
-    repo: row.repo,
-    content_type: "cross_repo",
-    score: toScore(row.score),
-  });
+/** A hit from a linked repo, tagged with that repo so the assembled block can say where it came from — context borrowed from elsewhere is worth less to the reader if they cannot tell it is borrowed. Linking is an explicit opt-in, so no transfer score filters it. */
+function toCrossRepoItem(hit: SourceItem, repo: string): SourceItem {
+  return { ...hit, repo };
 }
 
 async function fetchIncidents(
