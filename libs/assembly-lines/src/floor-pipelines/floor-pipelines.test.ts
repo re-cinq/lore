@@ -84,7 +84,7 @@ const ONBOARD_AGENT_NEEDS = [
 ];
 
 describe("the floor pipelines shipped in this folder", () => {
-  it("ships exactly the pipelines code-review, code-review-recheck, code-review-reply, daily-digest, feature-planning, implementation-loop, lore-run-settled, merge and onboard", () => {
+  it("ships exactly the pipelines code-review, code-review-recheck, code-review-reply, daily-digest, feature-planning, implementation-loop, lore-run-settled, merge, onboard and spec-upkeep", () => {
     expect(
       [...PIPELINES.values()].map((pipeline) => pipeline.line.id).sort(),
     ).toEqual([
@@ -97,6 +97,7 @@ describe("the floor pipelines shipped in this folder", () => {
       "lore-run-settled",
       "merge",
       "onboard",
+      "spec-upkeep",
     ]);
   });
 
@@ -257,6 +258,88 @@ describe("the floor pipelines shipped in this folder", () => {
     expect(prompt("loop-tdd-round")).toContain("/workspace/round-brief.md");
     expect(prompt("loop-fix-ci")).toContain("/workspace/round-brief.md");
     expect(prompt("loop-pr-ready")).toContain("WRITE `{pr_body_path}`");
+  });
+
+  it("walks spec-upkeep from detect-drift through detect-unlinked, update-specs, open-pr, await-ci and request-review to done", () => {
+    const { line } = pipelineOf("spec-upkeep");
+    const forward = line.edges
+      .filter((edge) => edge.on === "success" && edge.from !== "fix-ci")
+      .map((edge) => `${edge.from}>${edge.to}`);
+
+    expect(line.entry).toBe("detect-drift");
+    expect(forward).toEqual([
+      "detect-drift>detect-unlinked",
+      "detect-unlinked>update-specs",
+      "update-specs>open-pr",
+      "open-pr>await-ci",
+      "await-ci>request-review",
+      "request-review>done",
+    ]);
+  });
+
+  it("ends a spec-upkeep run at done, before any agent, when the detectors found nothing, and after one when it left no commit", () => {
+    const nothing = pipelineOf("spec-upkeep").line.edges.filter(
+      (edge) => edge.on === "nothing",
+    );
+
+    expect(nothing).toEqual([
+      { from: "detect-unlinked", to: "done", on: "nothing" },
+      { from: "open-pr", to: "done", on: "nothing" },
+    ]);
+  });
+
+  it("keys a spec-upkeep run on its day, and hands the agent the two briefs as drift.md and unlinked.md with write access to the branch", () => {
+    const { line, stations } = pipelineOf("spec-upkeep");
+
+    expect(subjectsOf(line)).toEqual(["upkeep"]);
+    expect(stations["spec-upkeep-update-specs"].needs).toEqual([
+      { name: "target", kind: "git", path: "target", access: "write" },
+      { name: "drift", kind: "file", path: "drift.md" },
+      { name: "unlinked", kind: "file", path: "unlinked.md" },
+    ]);
+  });
+
+  it("sends a red spec-upkeep build to fix-ci twice at most, retries every failed station once and sends no failed outcome to the exit", () => {
+    const { line } = pipelineOf("spec-upkeep");
+    const failed = line.edges
+      .filter((edge) => edge.on === "failed")
+      .map((edge) => `${edge.from}>${edge.to}:${edge.iteration_max}`);
+
+    expect(failed).toEqual([
+      "detect-drift>detect-drift:1",
+      "detect-unlinked>detect-unlinked:1",
+      "update-specs>update-specs:1",
+      "open-pr>open-pr:1",
+      "await-ci>fix-ci:2",
+      "fix-ci>fix-ci:1",
+      "request-review>request-review:1",
+    ]);
+  });
+
+  it("tells the upkeep agent to change specification files only, to commit drift and links separately, and where its briefs and its description are", () => {
+    const { prompt } =
+      pipelineOf("spec-upkeep").agent_definitions!["spec-upkeep-update-specs"]
+        .settings;
+    const told = [
+      "NEVER change code, tests, build files or workflows",
+      "spec: update statements that drifted from the code",
+      "spec: link statements to the tests that validate them",
+      "{drift_path}",
+      "{unlinked_path}",
+      "{pr_body_path}",
+    ].filter((phrase) => prompt.includes(phrase));
+
+    expect(told).toHaveLength(6);
+  });
+
+  it("lets neither upkeep agent run tests, installs or builds", () => {
+    const policies = ["spec-upkeep-update-specs", "spec-upkeep-fix-ci"].map(
+      (agent) =>
+        pipelineOf("spec-upkeep").agent_definitions![agent].settings.config.env
+          .LORE_TEST_POLICY,
+    );
+
+    expect(policies).toEqual(["none", "none"]);
   });
 
   it("walks onboard from enrol through author, open-pr, await-ci and request-review to done", () => {

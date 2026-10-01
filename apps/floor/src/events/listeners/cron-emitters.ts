@@ -73,6 +73,11 @@ export const CRON_EMITTERS: CronEmitter[] = [
     note: "detection fan-out: one backfill assembly line per active repo with specs",
   },
   {
+    name: "spec_upkeep",
+    schedule: "0 10 * * 1",
+    note: "one spec-upkeep run per onboarded repo on the external floor, started by the stations service; where a floor is configured it replaces spec_drift and spec_coverage_backfill, which stand down",
+  },
+  {
     name: "spec_coverage_validate",
     schedule: "0 6 * * *",
     note: "detection fan-out: one link-validate assembly line per repo with specs",

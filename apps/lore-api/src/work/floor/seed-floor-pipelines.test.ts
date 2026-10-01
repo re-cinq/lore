@@ -103,7 +103,7 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
     pipelineOf(readPipelineFile(withEnvironment(file.text, FIXED_ENV))),
   );
 
-  it("declare the lines code-review, code-review-recheck, code-review-reply, daily-digest, feature-planning, implementation-loop, lore-run-settled, merge and onboard", () => {
+  it("declare the lines code-review, code-review-recheck, code-review-reply, daily-digest, feature-planning, implementation-loop, lore-run-settled, merge, onboard and spec-upkeep", () => {
     expect(pipelines.map((pipeline) => pipeline.line?.id).sort()).toEqual([
       "code-review",
       "code-review-recheck",
@@ -114,6 +114,7 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
       "lore-run-settled",
       "merge",
       "onboard",
+      "spec-upkeep",
     ]);
   });
 

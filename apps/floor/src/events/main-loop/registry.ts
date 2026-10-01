@@ -1,5 +1,6 @@
 /** The event registry (layer 2 → layer 3): maps a fully-qualified event_name to exactly one handler; a producer emitting an unregistered name dead-letters with "no handler". */
 
+import { takenByStations, unlessOnTheFloor } from "./floor-stand-down.js";
 import type { EventHandler } from "../../domain/event-types.js";
 import * as github from "../handlers/github.js";
 import * as internal from "../handlers/internal.js";
@@ -130,8 +131,12 @@ function cronEntries(): Entry[] {
 function detectTickEntries(): Entry[] {
   return [
     ["cron.gap_detection.tick", detect.gapDetectionTick],
-    ["cron.spec_drift.tick", detect.specDriftTick],
-    ["cron.spec_coverage_backfill.tick", cron.specCoverageBackfill],
+    ["cron.spec_drift.tick", unlessOnTheFloor(detect.specDriftTick)],
+    [
+      "cron.spec_coverage_backfill.tick",
+      unlessOnTheFloor(cron.specCoverageBackfill),
+    ],
+    ["cron.spec_upkeep.tick", takenByStations],
     ["cron.spec_coverage_validate.tick", detect.specCoverageValidateTick],
     ["cron.daily_digest.tick", dailyDigestTick],
   ];
