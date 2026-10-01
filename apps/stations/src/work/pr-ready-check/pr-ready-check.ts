@@ -120,6 +120,7 @@ async function floorSummary(
     await floorCiWaitSweep({
       floor,
       judge: (run) => ciReportForRun(run, deps),
+      judgePr: (run) => prReportForRun(run, deps),
       prState: async (repo, prNumber) =>
         (await (await projectOf(repo)).pulls.get(prNumber))?.state ?? null,
     }),

@@ -165,6 +165,7 @@ layers:
       - merge
       - digest
       - onboard
+      - implementation-loop
       - "@re-cinq/lore-shared"
     # The stations the external floor dispatches for the code-review lines, one
     # folder each. They claim their own work from the floor's queue, so nothing
@@ -201,6 +202,12 @@ layers:
     # The stations the external floor dispatches for the onboard line, one
     # folder each.
     onboard:
+      - outbound
+      - "@re-cinq/floor-station"
+      - "@re-cinq/lore-shared"
+    # The stations the external floor dispatches for the implementation-loop
+    # line, one folder each.
+    implementation-loop:
       - outbound
       - "@re-cinq/floor-station"
       - "@re-cinq/lore-shared"

@@ -1,12 +1,9 @@
-/** What CI said about the push this node is being launched to repair. */
-export interface CiFeedback {
-  sha: string;
-  failedChecks: string;
-  summary: string;
-}
+import {
+  ciFeedbackSection,
+  type CiFeedback,
+} from "@re-cinq/lore-shared/ci-wait/round-brief.js";
 
-/** How much of a CI report the prompt carries, matching the cap on every other appended failure. */
-const MAX_FEEDBACK_CHARS = 2500;
+export type { CiFeedback };
 
 /** The outcomes a CI wait reports a red build under: `changes_requested` sends the branch back to a round, `failed` (the sha already reported red) sends it to repair-build. Both carry the same feedback args, and gating on the first alone launched run 997026f5's repair-build with no verdict at all — it rebuilt the world to learn one lint error, and died doing it. */
 const RED_BUILD_OUTCOMES = new Set(["changes_requested", "failed"]);
@@ -42,34 +39,5 @@ export function withCiFeedback(
   prompt: string,
   feedback: CiFeedback | null,
 ): string {
-  if (!feedback) {
-    return prompt;
-  }
-
-  return `${prompt}
-
-## CI reported failures on ${feedback.sha}
-
-The build for your last push is red. These checks failed: ${feedback.failedChecks}
-
-Where a failed step is named below, run only that step's command; otherwise map each name to the job that publishes it and run only that job's command.
-${reportedDetail(feedback.summary)}`;
-}
-
-/** What the jobs said, fenced — or nothing at all. An Actions job usually reports no output, and an empty fence reads as "CI said nothing about this" when the truth is that it said nothing HERE. */
-function reportedDetail(summary: string): string {
-  if (summary === "") {
-    return "";
-  }
-
-  const capped =
-    summary.length > MAX_FEEDBACK_CHARS
-      ? `${summary.substring(0, MAX_FEEDBACK_CHARS)}\n...(truncated)`
-      : summary;
-
-  return `
-\`\`\`
-${capped}
-\`\`\`
-`;
+  return feedback ? `${prompt}\n\n${ciFeedbackSection(feedback)}` : prompt;
 }

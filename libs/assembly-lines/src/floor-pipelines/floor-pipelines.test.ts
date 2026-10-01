@@ -59,13 +59,32 @@ interface Pipeline {
 
 const PIPELINES = loadPipelines();
 
+const REPAIRS = ["repair-build", "fix-ci"];
+
+const LOOP_WAIT = {
+  kind: "human",
+  produces: [
+    { name: "ci_feedback_sha", kind: "value" },
+    { name: "ci_failed_checks", kind: "value" },
+    { name: "ci_failure_summary", kind: "value" },
+    { name: "round_brief", kind: "file" },
+  ],
+};
+
+const ROUND_BRIEF = {
+  name: "round_brief",
+  kind: "file",
+  path: "round-brief.md",
+  optional: true,
+};
+
 const ONBOARD_AGENT_NEEDS = [
   { name: "target", kind: "git", path: "target", access: "write" },
   { name: "ticket", kind: "file", path: "ticket.md" },
 ];
 
 describe("the floor pipelines shipped in this folder", () => {
-  it("ships exactly the pipelines code-review, code-review-recheck, code-review-reply, daily-digest, feature-planning, lore-run-settled, merge and onboard", () => {
+  it("ships exactly the pipelines code-review, code-review-recheck, code-review-reply, daily-digest, feature-planning, implementation-loop, lore-run-settled, merge and onboard", () => {
     expect(
       [...PIPELINES.values()].map((pipeline) => pipeline.line.id).sort(),
     ).toEqual([
@@ -74,10 +93,170 @@ describe("the floor pipelines shipped in this folder", () => {
       "code-review-reply",
       "daily-digest",
       "feature-planning",
+      "implementation-loop",
       "lore-run-settled",
       "merge",
       "onboard",
     ]);
+  });
+
+  it("walks implementation-loop from dod through open-pr, tdd-round, await-ci, ready-for-review, mark-ready and await-pr to done", () => {
+    const { line } = pipelineOf("implementation-loop");
+    const forward = line.edges
+      .filter((edge) => edge.on === "success" && !REPAIRS.includes(edge.from))
+      .map((edge) => `${edge.from}>${edge.to}`);
+
+    expect(line.entry).toBe("dod");
+    expect(forward).toEqual([
+      "dod>open-pr",
+      "open-pr>tdd-round",
+      "tdd-round>await-ci",
+      "await-ci>ready-for-review",
+      "ready-for-review>mark-ready",
+      "mark-ready>await-pr",
+      "await-pr>done",
+    ]);
+  });
+
+  it("gives the loop twelve rounds and two repairs on a red await-ci, and three fix-ci visits on a red await-pr", () => {
+    const { line } = pipelineOf("implementation-loop");
+    const budgets = line.edges
+      .filter((edge) => ["await-ci", "await-pr"].includes(edge.from))
+      .filter((edge) => edge.iteration_max !== undefined)
+      .map(
+        (edge) =>
+          `${edge.from}>${edge.to} on ${edge.on}: ${edge.iteration_max}`,
+      );
+
+    expect(budgets).toEqual([
+      "await-ci>tdd-round on changes_requested: 12",
+      "await-ci>repair-build on failed: 2",
+      "await-pr>fix-ci on changes_requested: 3",
+    ]);
+  });
+
+  it("sends every verdict of repair-build back to await-ci and of fix-ci back to await-pr, so the build judges the repair", () => {
+    const { line } = pipelineOf("implementation-loop");
+    const back = REPAIRS.flatMap((repair) => edgesOn(line, repair))
+      .filter((edge) => edge.on !== "failed")
+      .map((edge) => `${edge.from}>${edge.to} on ${edge.on}`);
+
+    expect(back).toEqual([
+      "repair-build>await-ci on success",
+      "repair-build>await-ci on changes_requested",
+      "fix-ci>await-pr on success",
+      "fix-ci>await-pr on changes_requested",
+    ]);
+  });
+
+  it("ends a loop run at done on a dod scoping verdict and on await-pr's unresolved threads, and retries every other failed station once", () => {
+    const { line } = pipelineOf("implementation-loop");
+    const toExit = line.edges
+      .filter((edge) => edge.to === "done" && edge.on !== "success")
+      .map((edge) => `${edge.from} on ${edge.on}`);
+    const retried = line.edges
+      .filter((edge) => edge.on === "failed" && edge.from === edge.to)
+      .map((edge) => `${edge.from}:${edge.iteration_max}`);
+
+    expect(toExit).toEqual(["dod on changes_requested", "await-pr on failed"]);
+    expect(retried).toEqual([
+      "dod:1",
+      "open-pr:1",
+      "tdd-round:1",
+      "repair-build:1",
+      "ready-for-review:1",
+      "mark-ready:1",
+      "fix-ci:1",
+    ]);
+  });
+
+  it("keys a loop run on backlog, so a repository works one ticket at a time, and takes the task and the ticket beside it", () => {
+    const { line } = pipelineOf("implementation-loop");
+
+    expect(subjectsOf(line)).toEqual(["backlog"]);
+    expect(Object.keys(line.args)).toEqual([
+      "repo",
+      "backlog",
+      "task_id",
+      "ticket",
+    ]);
+  });
+
+  it("makes both loop waits human stations that produce the three CI values and the round brief as a file", () => {
+    const { stations } = pipelineOf("implementation-loop");
+    const waits = ["loop-await-ci", "loop-await-pr"].map((name) => ({
+      kind: stations[name].kind,
+      produces: stations[name].produces,
+    }));
+
+    expect(waits).toEqual([LOOP_WAIT, LOOP_WAIT]);
+  });
+
+  it("hands tdd-round, repair-build and fix-ci the round brief as the optional file round-brief.md", () => {
+    const { stations } = pipelineOf("implementation-loop");
+    const briefs = ["loop-tdd-round", "loop-repair-build", "loop-fix-ci"].map(
+      (name) => needOf(stations[name], "round_brief"),
+    );
+
+    expect(briefs).toEqual([ROUND_BRIEF, ROUND_BRIEF, ROUND_BRIEF]);
+  });
+
+  it("has ready-for-review produce the description as pr-body.md with a title and coverage, each an optional need of mark-ready", () => {
+    const { stations } = pipelineOf("implementation-loop");
+    const produced = stations["loop-ready-for-review"].produces.map(
+      (made) => made.name,
+    );
+    const optional = stations["loop-mark-ready"].needs
+      .filter((need) => need.optional)
+      .map((need) => need.name);
+
+    expect(produced).toEqual([
+      "pr_body",
+      "pr_title",
+      "issue_coverage",
+      "pr_blocked",
+    ]);
+    expect(optional).toEqual([
+      "issue_number",
+      "pr_body",
+      "pr_title",
+      "issue_coverage",
+    ]);
+  });
+
+  it("tells every loop agent the ticket's path and to work inside /workspace/target, and names no value an agent's extras cannot produce", () => {
+    const { stations, agent_definitions: agents } = pipelineOf(
+      "implementation-loop",
+    );
+    const prompts = Object.values(agents!).map(
+      (agent) => agent.settings.prompt,
+    );
+    const reported = prompts.flatMap((prompt) =>
+      [...prompt.matchAll(/"extras":\{"([a-z_]+)"/g)].map((match) => match[1]),
+    );
+    const declared = Object.values(stations).flatMap((station) =>
+      station.produces.map((made) => made.name),
+    );
+
+    expect(prompts.every((prompt) => prompt.includes("{ticket_path}"))).toBe(
+      true,
+    );
+    expect(
+      prompts.every((prompt) => prompt.includes("cd /workspace/target")),
+    ).toBe(true);
+    expect(reported.filter((name) => !declared.includes(name))).toEqual([
+      "pr_ready",
+    ]);
+  });
+
+  it("tells the round and the repair to read /workspace/round-brief.md for CI's verdict, and the ready agent to write the description at its produced path", () => {
+    const prompt = (agent: string) =>
+      pipelineOf("implementation-loop").agent_definitions![agent].settings
+        .prompt;
+
+    expect(prompt("loop-tdd-round")).toContain("/workspace/round-brief.md");
+    expect(prompt("loop-fix-ci")).toContain("/workspace/round-brief.md");
+    expect(prompt("loop-pr-ready")).toContain("WRITE `{pr_body_path}`");
   });
 
   it("walks onboard from enrol through author, open-pr, await-ci and request-review to done", () => {

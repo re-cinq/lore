@@ -8,6 +8,7 @@ import {
 } from "@re-cinq/floor-station";
 import type { PullRef } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import { parseGitRef } from "@re-cinq/lore-shared/floor/floor-items.js";
+import { ensurePull } from "@re-cinq/lore-shared/project/pulls/ensure-pull.js";
 import { projectFor } from "../../outbound/project-boot.js";
 
 export interface OpenSpecPrProject {
@@ -44,18 +45,15 @@ export function openSpecPrHandle(deps: OpenSpecPrDeps): Handle {
   };
 }
 
-async function ensurePr(
+function ensurePr(
   pulls: OpenSpecPrProject["pulls"],
   branch: string,
   planTitle: string | undefined,
 ): Promise<PullRef> {
-  return (
-    (await existingPrFor(pulls, branch)) ??
-    (await pulls.open(branch, {
-      title: prTitle(branch, planTitle),
-      body: `Opened by the Lore feature-planning line from \`${branch}\`.`,
-    }))
-  );
+  return ensurePull(pulls, branch, {
+    title: prTitle(branch, planTitle),
+    body: `Opened by the Lore feature-planning line from \`${branch}\`.`,
+  });
 }
 
 /** What a reader sees in their pull request list: the plan this spec came from, cut to a line, or the branch when the run carries no title. The cap is the whole title's, prefix included — what fills a list is the line, not the part after the colon. */
@@ -74,16 +72,6 @@ const TITLE_PREFIX = "spec: ";
 
 // The cap the Floor's own spec-PR titles used, so a long plan title does not fill a reader's list.
 const TITLE_MAX = 70;
-
-/** Finds the open PR already on this branch, so a re-dispatch of this node never forks review across two PRs. */
-async function existingPrFor(
-  pulls: OpenSpecPrProject["pulls"],
-  branch: string,
-): Promise<PullRef | null> {
-  const open = await pulls.list();
-
-  return open.find((pr) => pr.branch === branch) ?? null;
-}
 
 function reported(prUrl: string): Report {
   return { outcome: "success", produced: { pr_url: prUrl } };
