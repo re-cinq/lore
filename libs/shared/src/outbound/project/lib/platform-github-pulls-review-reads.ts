@@ -227,7 +227,7 @@ function toIssueComment(c: {
   };
 }
 
-/** All check runs for a ref, paginated once — source for both ciConclusion and the raw listChecks the auto-merge gate reads. */
+/** All check runs for a ref, paginated once, plus its commit statuses read as runs — source for both ciConclusion and the raw listChecks the auto-merge gate reads. */
 export async function checkRuns(
   ok: Octokit,
   repo: string,
@@ -242,7 +242,42 @@ export async function checkRuns(
     per_page: 100,
   });
 
-  return runs.map(checkRunOf);
+  return [
+    ...runs.map(checkRunOf),
+    ...(await commitStatusRuns(ok, owner, name, ref)),
+  ];
+}
+
+/** The commit statuses of a ref as the check runs they stand for: CI that reports through statuses (an OAuth or PAT service connection) publishes no check runs at all, so without this such a ref reads as having no CI. */
+async function commitStatusRuns(
+  ok: Octokit,
+  owner: string,
+  repo: string,
+  ref: string,
+): Promise<CheckRun[]> {
+  const { repos } = ok.rest;
+  const { data: combined } = await repos.getCombinedStatusForRef({
+    owner,
+    repo,
+    ref,
+    per_page: 100,
+  });
+
+  return combined.statuses.map(statusAsRun);
+}
+
+const STATUS_CONCLUSION: Record<string, string | null> = {
+  success: "success",
+  pending: null,
+};
+
+function statusAsRun(s: { context: string; state: string }): CheckRun {
+  return {
+    name: s.context,
+    status: s.state === "pending" ? "in_progress" : "completed",
+    conclusion: STATUS_CONCLUSION[s.state] ?? "failure",
+    output: { title: null, summary: null },
+  };
 }
 
 /** The fields of a listed check run that Lore reads. */
