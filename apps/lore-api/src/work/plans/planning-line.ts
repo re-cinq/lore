@@ -12,6 +12,7 @@ import {
   reportToParkedNode,
   type ParkedTarget,
 } from "@re-cinq/lore-shared/project/assembly-runs/parked-node.js";
+import { refineRefusal, reopenRefusal } from "./refine-refusal.js";
 import {
   approvedBrief,
   draftBrief,
@@ -68,10 +69,6 @@ export const SPEC_WORK_ENTRY = "analyse-specs";
 export const NOT_APPROVED = "the plan is not approved";
 
 export const SPEC_WORK_RUNNING = "the spec work is already running";
-
-/** Why a Refine is refused while the agent has the plan. */
-export const AGENT_STILL_WORKING =
-  "the planning agent is still working on this plan";
 
 /** Drafts the plan: a line parked on its people is sent back to the agent with the draft brief (a plan has one open line, so a new run would only join it and do nothing); otherwise a new line starts. The run's args carry what its route and its PR are named from. */
 export async function startDrafting(
@@ -146,67 +143,12 @@ export async function askRefine(
   request: RefineRequest,
 ): Promise<void> {
   const line = await planLineState(deps.runs, plan.id);
-  const refusal =
-    plan.status === "approved" ? approvedRefusal(line) : draftRefusal(line);
 
-  enforceTrue(line?.parkedAuthor, apiError(409), refusal);
+  enforceTrue(line?.parkedAuthor, apiError(409), refineRefusal(plan, line));
   await reportToParkedNode(deps.reporter, line.parkedAuthor, {
     outcome: "changes_requested",
     args: refineArgs(projection, request),
   });
-}
-
-const OPEN_STATUSES = new Set(["queued", "running"]);
-
-const STILL_WORKING = "the planning agent is still working on this plan";
-
-// Why no author waits on the plan, worded for its page: Regenerate, Retry and Reopen are named only where the page offers them.
-function draftRefusal(line: PlanLine | null): string {
-  if (!line) {
-    return "the plan has no planning line yet; regenerate the plan to start one";
-  }
-
-  if (!OPEN_STATUSES.has(line.status)) {
-    return endedRefusal(line);
-  }
-
-  if (line.parkedMerged) {
-    return "the spec PR is being sent back to the author; try again in a moment";
-  }
-
-  return agentDrafting(line) ? STILL_WORKING : reopenRefusal(line);
-}
-
-function endedRefusal(line: PlanLine): string {
-  return endedInFailure(line)
-    ? "the planning line failed, so no agent is waiting to refine this plan; regenerate the plan to draft it again"
-    : "the planning line has ended, so no agent is waiting to refine this plan; edit the section by hand";
-}
-
-// As the plan page reads a closed line: it failed unless it finished with its spec-tasks filed.
-function endedInFailure(line: PlanLine): boolean {
-  return (
-    line.status === "failed" || (line.outcome ?? "completed") !== "completed"
-  );
-}
-
-// On the draft itself, or between two nodes before any spec PR merged.
-function agentDrafting(line: PlanLine): boolean {
-  return line.open === "analyze" || (line.open === null && !line.merged);
-}
-
-const APPROVED_RETRY =
-  "the plan is approved and its spec work failed; retry the spec work, or reopen the plan to write again";
-const APPROVED_REOPEN =
-  "the plan is approved, so its sections are settled; reopen the plan to write again";
-
-// An approved plan is read-only, so its page offers Reopen, and Retry once the spec work failed; while the spec work runs, neither.
-function approvedRefusal(line: PlanLine | null): string {
-  if (line && OPEN_STATUSES.has(line.status)) {
-    return line.parkedMerged ? APPROVED_REOPEN : reopenRefusal(line);
-  }
-
-  return !line || endedInFailure(line) ? APPROVED_RETRY : APPROVED_REOPEN;
 }
 
 // The run records which Refine this pass answers, so the edited plan.md comes back as that section's proposal without the agent copying anything.
@@ -405,10 +347,4 @@ export async function reopenWhenAuthorWaits(
   }
 
   return locked;
-}
-
-function reopenRefusal(line: Pick<PlanLine, "merged">): string {
-  return line.merged
-    ? "wait until the spec-tasks are filed"
-    : "the specs are being written; wait for the spec PR";
 }

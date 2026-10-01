@@ -53,7 +53,7 @@ function projectionVerbs(deps: PostgresPlanDeps): PlanContentVerbs {
         createdBy,
       }),
     refine: async (plan, request) =>
-      askRefine(specWork, plan.id, await projection(plan.id), request),
+      askRefine(specWork, plan, await projection(plan.id), request),
     handOverApproved: async (plan, approvedBy) =>
       handOverApproved(specWork, plan, await projection(plan.id), approvedBy),
     startSpecWork: (plan, createdBy) => specWorkOf(deps, plan, createdBy),
