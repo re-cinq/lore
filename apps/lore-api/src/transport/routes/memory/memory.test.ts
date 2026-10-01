@@ -385,7 +385,10 @@ describe("POST /api/memory list scope", () => {
 
   it("scopes a listing to the repo the caller names", async () => {
     memoryDbUp();
-    vi.mocked(listMemories).mockResolvedValue({ memories: [], total: 0 } as any);
+    vi.mocked(listMemories).mockResolvedValue({
+      memories: [],
+      total: 0,
+    } as any);
     await post({ action: "list", repo: "o/r" });
 
     expect(listMemories).toHaveBeenCalledWith(undefined, 50, 0, "o/r");
