@@ -260,6 +260,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/assembly-runs/{id}/events": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/assembly-runs/{id}/events */
+    get: operations["get_api_assembly-runs_id_events"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/assembly-runs/{id}/nodes": {
     parameters: {
       query?: never;
@@ -269,6 +286,23 @@ export interface paths {
     };
     /** GET /api/assembly-runs/{id}/nodes */
     get: operations["get_api_assembly-runs_id_nodes"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/assembly-runs/{id}/nodes/{name}/logs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/assembly-runs/{id}/nodes/{name}/logs */
+    get: operations["get_api_assembly-runs_id_nodes_name_logs"];
     put?: never;
     post?: never;
     delete?: never;
@@ -2911,6 +2945,20 @@ export interface components {
       username: string;
       password: string;
     };
+    FloorNodeLogs: {
+      available: boolean;
+      logs: string | null;
+      phase: string;
+      podName: null;
+      archived: boolean;
+      /** @constant */
+      reason?: "no-records";
+    };
+    FloorRunEvents: {
+      events: {
+        [key: string]: unknown;
+      }[];
+    };
     FloorRunTurns: {
       turns: unknown[];
       hasMore: boolean;
@@ -4990,6 +5038,32 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
+  "get_api_assembly-runs_id_events": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description One page of the agent events of a run on the external floor, oldest first; empty for a run the floor does not have */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["FloorRunEvents"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
   "get_api_assembly-runs_id_nodes": {
     parameters: {
       query?: never;
@@ -5012,6 +5086,34 @@ export interface operations {
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_assembly-runs_id_nodes_name_logs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The log the external floor kept for one visit of a run, named floor-<visit id>; 404 for a name of no visit of this run */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["FloorNodeLogs"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };

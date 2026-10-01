@@ -6,7 +6,9 @@ import {
   isAssemblyRunAuthError,
 } from "@/lib/assembly-run-auth";
 import { serverError } from "@/lib/api-error";
+import { resolveUpstreamConfig, type UpstreamConfig } from "@/lib/floor-config";
 import { proxyJson } from "@/lib/floor-proxy";
+import { nodeLogsUpstream } from "@/lib/run-read-upstream";
 
 // Proxy for one node's live pod logs via the Floor's /api/agent-logs/{name} (UI SA has no cluster access); Floor 401/403 surface as 502.
 export async function GET(
@@ -31,7 +33,6 @@ async function nodeLogsResponse(req: Request, id: string, name: string) {
     return auth;
   }
 
-  const { upstreamUrl, token } = auth;
   const nodes = await fetchAssemblyRunNodes(id);
 
   if (!nodes.some((n) => n.agentCrName === name)) {
@@ -42,23 +43,31 @@ async function nodeLogsResponse(req: Request, id: string, name: string) {
   }
   const tail = new URL(req.url).searchParams.get("tail");
 
-  return proxyJson(await fetchNodeLogs(upstreamUrl, token, name, tail));
+  return proxyJson(await fetchNodeLogs(logsUpstreamOf(auth, name), tail));
 }
 
-/** One node's logs from the Floor. The 30s ceiling is deliberate: reading a pod's logs is a cluster round trip, and a reader waiting on a spinner is better served by an error than by a request that never returns. */
-function fetchNodeLogs(
-  upstreamUrl: string,
-  token: string,
+/** lore-api for a run on the external floor, the Floor's pod read otherwise. */
+function logsUpstreamOf(
+  auth: { run: { id: string; engine?: string } } & UpstreamConfig,
   name: string,
+) {
+  return nodeLogsUpstream(
+    auth.run,
+    name,
+    { upstreamUrl: auth.upstreamUrl, token: auth.token },
+    resolveUpstreamConfig("lore-api"),
+  );
+}
+
+/** One node's logs from the Floor, or from lore-api for a run on the external floor. The 30s ceiling is deliberate: reading a pod's logs is a cluster round trip, and a reader waiting on a spinner is better served by an error than by a request that never returns. */
+function fetchNodeLogs(
+  upstream: { url: string; token: string },
   tail: string | null,
 ) {
   const query = tail ? `?tail=${encodeURIComponent(tail)}` : "";
 
-  return fetch(
-    `${upstreamUrl}/api/agent-logs/${encodeURIComponent(name)}${query}`,
-    {
-      signal: AbortSignal.timeout(30_000),
-      headers: { Authorization: `Bearer ${token}` },
-    },
-  );
+  return fetch(`${upstream.url}${query}`, {
+    signal: AbortSignal.timeout(30_000),
+    headers: { Authorization: `Bearer ${upstream.token}` },
+  });
 }

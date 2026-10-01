@@ -2,9 +2,12 @@
 import type {
   FloorClient,
   LineBody,
+  RecordKind,
   RunView,
+  StationRunRecordView,
   VisitView,
 } from "@re-cinq/floor-client";
+import type { AgentRunEvent } from "@re-cinq/lore-shared/models/agent-run-event.js";
 import type {
   AssemblyRunQuery,
   AssemblyRunRecord,
@@ -21,6 +24,12 @@ import {
   turnRecordToRow,
   visitToStationRun,
 } from "./floor-run-mapping.js";
+import {
+  floorVisitIdOf,
+  nodeLogsOf,
+  recordToAgentEvents,
+  type FloorNodeLogs,
+} from "./floor-records.js";
 
 export type FloorRunSource = Pick<
   FloorClient,
@@ -29,7 +38,7 @@ export type FloorRunSource = Pick<
 
 type StationKind = "agent" | "service" | "human";
 
-const TURNS_PER_READ = 1000;
+const RECORDS_PER_READ = 1000;
 const DEFAULT_LIST_LIMIT = 50;
 
 export class FloorRunReader {
@@ -82,6 +91,46 @@ export class FloorRunReader {
       .map((turn, place) => ({ ...turn, id: String(place + 1) }));
   }
 
+  /** Every agent event of the run, visit by visit in the order the walk opened them, with the ids the live relay gives the same turns: what the run page folds before it opens the channel, and all it has of a run that ended. */
+  async agentEvents(runId: string): Promise<AgentRunEvent[]> {
+    const found = await this.floor.runs.get(runId);
+
+    if (!found) {
+      return [];
+    }
+    const visits = await this.floor.stationRuns.list({ run: runId });
+    const perVisit = await Promise.all(
+      visits.map(async (visit) =>
+        (await this.recordsOf(visit, "turn")).flatMap((record) =>
+          recordToAgentEvents(record, {
+            runId,
+            visitId: visit.id,
+            nodeId: visit.nodeId,
+            iteration: visit.iteration,
+          }),
+        ),
+      ),
+    );
+
+    return perVisit.flat();
+  }
+
+  /** The log the floor kept for one of the run's visits, named as the run page names it (`floor-<visit id>`); null for a name of no visit of this run. */
+  async nodeLogs(
+    runId: string,
+    agentCrName: string,
+    tail: number | undefined,
+  ): Promise<FloorNodeLogs | null> {
+    const visitId = floorVisitIdOf(agentCrName);
+    const visit = visitId ? await this.floor.stationRuns.get(visitId) : null;
+
+    if (!visit || visit.runId !== runId) {
+      return null;
+    }
+
+    return nodeLogsOf(visit, await this.recordsOf(visit, "log"), tail);
+  }
+
   async costUsd(runId: string): Promise<number | null> {
     const totals = await this.floor.costs.summary({ run: runId }, "run");
 
@@ -125,21 +174,31 @@ export class FloorRunReader {
   }
 
   private async turnsOf(visit: VisitView): Promise<AgentRunTurnRow[]> {
-    const rows: AgentRunTurnRow[] = [];
+    const turns = await this.recordsOf(visit, "turn");
+
+    return turns.map((turn) => turnRecordToRow(turn, visit));
+  }
+
+  /** Every record of one kind the visit has, read to the end. */
+  private async recordsOf(
+    visit: VisitView,
+    kind: RecordKind,
+  ): Promise<StationRunRecordView[]> {
+    const records: StationRunRecordView[] = [];
     let since: number | null = 0;
 
     while (since !== null) {
       const page = await this.floor.stationRuns.records(visit.id, {
-        kind: "turn",
+        kind,
         since,
-        limit: TURNS_PER_READ,
+        limit: RECORDS_PER_READ,
       });
 
-      rows.push(...page.items.map((turn) => turnRecordToRow(turn, visit)));
+      records.push(...page.items);
       since = page.nextCursor;
     }
 
-    return rows;
+    return records;
   }
 
   private graphOf(run: RunView): Promise<RunGraph> {

@@ -93,6 +93,45 @@ describe("FloorRunReader", () => {
     ]);
   });
 
+  it("reads visit-1's assistant turn as agent event 100 of run-1", async () => {
+    expect(await reader().reader.agentEvents("run-1")).toMatchObject([
+      {
+        id: "100",
+        stationRunId: "visit-1",
+        agentCrName: "floor-visit-1",
+        eventType: "message",
+      },
+    ]);
+  });
+
+  it("reads no agent event for a run the floor does not have", async () => {
+    expect(await reader().reader.agentEvents("run-unknown")).toEqual([]);
+  });
+
+  it("reads floor-visit-1's log as one available line of run-1", async () => {
+    expect(
+      await reader().reader.nodeLogs("run-1", "floor-visit-1", undefined),
+    ).toMatchObject({
+      available: true,
+      logs: "2026-09-30T10:01:00.000Z kind=lifecycle tool=git phase=init status=running",
+    });
+  });
+
+  it("answers null for floor-visit-1 asked of run-2, which it is no visit of", async () => {
+    expect(
+      await reader().reader.nodeLogs("run-2", "floor-visit-1", undefined),
+    ).toBeNull();
+  });
+
+  it("answers null for a Lore pod's name cr-implement without asking the floor", async () => {
+    const { reader: floorReader, recorded } = reader();
+
+    expect(
+      await floorReader.nodeLogs("run-1", "cr-implement", undefined),
+    ).toBeNull();
+    expect(recorded.requests).toEqual([]);
+  });
+
   it("reads the run's cost as 0.42 dollars", async () => {
     expect(await reader().reader.costUsd("run-1")).toBe(0.42);
   });

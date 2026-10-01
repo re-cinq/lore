@@ -57,9 +57,9 @@ describe("unavailableMessage", () => {
     expect(unavailableMessage("no-agent")).toMatch(/No agent/);
   });
 
-  it("says a floor run's node ran on the external floor even when no agent was launched", () => {
-    expect(unavailableMessage("no-agent", "floor")).toBe(
-      "This node ran on the external floor; its transcript is above.",
+  it("says the floor kept no log for a floor run's node whose visit has no records", () => {
+    expect(unavailableMessage("no-records", "floor")).toBe(
+      "The floor kept no log for this node; its transcript is above.",
     );
   });
 

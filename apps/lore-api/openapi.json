@@ -931,6 +931,54 @@
         ]
       }
     },
+    "/api/assembly-runs/{id}/events": {
+      "get": {
+        "operationId": "get_api_assembly-runs_id_events",
+        "summary": "GET /api/assembly-runs/{id}/events",
+        "tags": ["Tasks"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "One page of the agent events of a run on the external floor, oldest first; empty for a run the floor does not have",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FloorRunEvents"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/api/assembly-runs/{id}/nodes": {
       "get": {
         "operationId": "get_api_assembly-runs_id_nodes",
@@ -970,6 +1018,65 @@
         "parameters": [
           {
             "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/assembly-runs/{id}/nodes/{name}/logs": {
+      "get": {
+        "operationId": "get_api_assembly-runs_id_nodes_name_logs",
+        "summary": "GET /api/assembly-runs/{id}/nodes/{name}/logs",
+        "tags": ["Tasks"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The log the external floor kept for one visit of a run, named floor-<visit id>; 404 for a name of no visit of this run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FloorNodeLogs"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
             "in": "path",
             "required": true,
             "schema": {
@@ -11135,6 +11242,49 @@
           }
         },
         "required": ["username", "password"],
+        "additionalProperties": false
+      },
+      "FloorNodeLogs": {
+        "type": "object",
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "logs": {
+            "type": ["string", "null"]
+          },
+          "phase": {
+            "type": "string"
+          },
+          "podName": {
+            "type": "null"
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string",
+            "const": "no-records"
+          }
+        },
+        "required": ["available", "logs", "phase", "podName", "archived"],
+        "additionalProperties": false
+      },
+      "FloorRunEvents": {
+        "type": "object",
+        "properties": {
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {}
+            }
+          }
+        },
+        "required": ["events"],
         "additionalProperties": false
       },
       "FloorRunTurns": {
