@@ -125,7 +125,7 @@ async function applySettlement(
     task.id,
     previousStatus,
     settlement.status,
-    settlementExtra(settlement),
+    { ...settlementExtra(settlement), ...linePr(row, settlement) },
   );
 
   if (!won) {
@@ -135,6 +135,20 @@ async function applySettlement(
     assembly_run_id: row.id,
     outcome,
   });
+}
+
+// The PR the line opened (its push node stamps the LINE's args) lands on the task too; without it the merge check never sees the task, so it stayed "completed" through a merge or a close — run 18773dbb's T001 and T010 kept "completed" after their PRs were closed unmerged.
+function linePr(
+  row: SettleRow,
+  settlement: TaskSettlement,
+): Record<string, unknown> {
+  const { pr_number: prNumber, pr_url: prUrl } = row.args ?? {};
+
+  return settlement.status === "completed" &&
+    typeof prNumber === "number" &&
+    typeof prUrl === "string"
+    ? { pr_number: prNumber, pr_url: prUrl }
+    : {};
 }
 
 function settlementExtra(settlement: TaskSettlement): Record<string, unknown> {

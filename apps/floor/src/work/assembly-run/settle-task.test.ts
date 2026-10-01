@@ -95,6 +95,39 @@ describe("settleTaskForLine", () => {
     expect(await tasks.getById("t3")).toMatchObject({ status: "completed" });
   });
 
+  it("records PR #2271 on spec-task T001 when its line completes, so the merge check can follow what happens to it", async () => {
+    const tasks = new InMemoryTaskStore([
+      {
+        id: "t001",
+        task_type: "spec-task",
+        status: "running",
+        target_repo: REPO,
+        description: "Add the stub",
+      },
+    ]);
+
+    await settleTaskForLine(
+      {
+        id: "line-4",
+        taskId: "t001",
+        repo: REPO,
+        args: {
+          pr_number: 2271,
+          pr_url: "https://github.com/re-cinq/lore/pull/2271",
+        },
+      },
+      "completed",
+      undefined,
+      { tasks },
+    );
+
+    expect(await tasks.getById("t001")).toMatchObject({
+      status: "completed",
+      pr_number: 2271,
+      pr_url: "https://github.com/re-cinq/lore/pull/2271",
+    });
+  });
+
   it("leaves a task-less line alone", async () => {
     const tasks = new InMemoryTaskStore([]);
 
