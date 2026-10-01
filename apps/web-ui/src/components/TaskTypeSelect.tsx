@@ -5,9 +5,7 @@ import { useState } from "react";
 const DESCRIPTIONS: Record<string, string> = {
   "feature-request":
     "PM intent in plain language becomes a spec, plan, and tasks for review.",
-  general: "Open-ended task with full Lore context.",
   runbook: "Generates an incident runbook.",
-  implementation: "Implements from an existing spec file.",
   "gap-fill": "Drafts missing documentation.",
   review: "Reviews a PR against the repo conventions.",
   onboard: "Inspects the repo and generates its Lore scaffolding.",

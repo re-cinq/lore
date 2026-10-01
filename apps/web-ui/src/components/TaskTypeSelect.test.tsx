@@ -4,7 +4,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { TaskTypeSelect } from "./TaskTypeSelect";
 
 const OPTIONS = [
-  { value: "general", label: "General" },
+  { value: "gap-fill", label: "Gap Fill" },
   { value: "runbook", label: "Runbook" },
 ];
 
@@ -12,7 +12,7 @@ describe("TaskTypeSelect", () => {
   it("describes the first option by default", () => {
     render(<TaskTypeSelect options={OPTIONS} />);
     expect(
-      screen.getByText("Open-ended task with full Lore context."),
+      screen.getByText("Drafts missing documentation."),
     ).toBeInTheDocument();
   });
 

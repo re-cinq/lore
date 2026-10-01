@@ -42,7 +42,7 @@ async function createTask(formData: FormData) {
 function taskFormFields(formData: FormData) {
   return {
     description: formData.get("description") as string | null,
-    taskType: (formData.get("task_type") as string) || "general",
+    taskType: formData.get("task_type") as string,
     targetRepo: formData.get("target_repo") as string,
     priority:
       (formData.get("priority") as string) === "immediate"
