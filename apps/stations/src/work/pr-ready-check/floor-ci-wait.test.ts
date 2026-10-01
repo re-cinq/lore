@@ -102,14 +102,15 @@ function reportedOn(visitId: string, report: unknown) {
 }
 
 describe("floorCiWaitSweep", () => {
-  it("asks the floor for the open runs of the onboard and the implementation-loop lines", async () => {
+  it("asks the floor for the open runs of the onboard, the implementation-loop and the spec-upkeep lines", async () => {
     const { deps, requests } = scene();
 
     await floorCiWaitSweep(deps);
 
-    expect(requests.slice(0, 2).map((request) => request.path)).toEqual([
+    expect(requests.slice(0, 3).map((request) => request.path)).toEqual([
       "/assembly-runs?line=onboard&open=true",
       "/assembly-runs?line=implementation-loop&open=true",
+      "/assembly-runs?line=spec-upkeep&open=true",
     ]);
   });
 
