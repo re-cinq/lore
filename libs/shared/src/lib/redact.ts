@@ -28,7 +28,7 @@ const PATTERNS: Array<{ name: string; re: RegExp }> = [
   },
   {
     name: "basic-auth",
-    re: /\bBasic\s+(?=[A-Za-z0-9+/]*[0-9+/])[A-Za-z0-9+/]{16,}={0,2}/gi,
+    re: /\bBasic\s+(?=[A-Za-z0-9+/]*[0-9+/])[A-Za-z0-9+/]{12,}={0,2}/gi,
   },
   {
     name: "url-credentials",

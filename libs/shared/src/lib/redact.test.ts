@@ -203,6 +203,12 @@ describe("redactSecrets token shapes", () => {
     },
   );
 
+  it("redacts a short Basic credential", () => {
+    expect(redactSecrets("Authorization: Basic YWRtaW46YWRtaW4=")).toBe(
+      "Authorization: [REDACTED:basic-auth]",
+    );
+  });
+
   it("redacts a lower-case basic header", () => {
     expect(
       redactSecrets("authorization: basic dXNlcjpwYXNzd29yZDEyMzQ1Njc4"),

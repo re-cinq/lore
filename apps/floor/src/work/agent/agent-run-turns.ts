@@ -25,7 +25,7 @@ export function turnFromEnvelope(
 
 export function turnFromRedactedLine(
   parsed: unknown,
-  envelope: string,
+  redactedEnvelope: string,
 ): AgentRunTurnInsert {
   const { source, event } = unwrapAttribution(parsed);
 
@@ -33,7 +33,7 @@ export function turnFromRedactedLine(
     ...turnSourceFields(source),
     carried: parseCarriedRunIdentity(source),
     eventType: isRecord(event) ? str(event.type) : null,
-    envelope,
+    envelope: redactedEnvelope,
   };
 }
 
