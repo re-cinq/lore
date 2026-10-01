@@ -14,7 +14,7 @@ export async function importanceDecay(
   const now = Date.now();
 
   const totalEvicted = await evictExcessMemories(memory, now);
-  const factsEvicted = await evictExcessFacts(memory);
+  const factsEvicted = await evictExcessFactsSafely(memory);
   const staleTransitioned = await transitionStaleFactsSafely(memory);
 
   return `Evicted ${totalEvicted} memories, ${factsEvicted} old facts, ${staleTransitioned} stale transitions`;
@@ -34,6 +34,16 @@ async function evictExcessMemories(
   }
 
   return totalEvicted;
+}
+
+async function evictExcessFactsSafely(
+  memory: MemoryLifecyclePort,
+): Promise<number> {
+  try {
+    return await evictExcessFacts(memory);
+  } catch {
+    return 0;
+  }
 }
 
 async function evictExcessFacts(memory: MemoryLifecyclePort): Promise<number> {
