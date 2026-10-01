@@ -46,8 +46,8 @@ function endedRefusal(line: RefinableLine): string {
     : "the planning line has ended, so no agent is waiting to refine this plan; edit the section by hand";
 }
 
-// As the plan page reads a closed line: it failed unless it finished with its spec-tasks filed.
-function endedInFailure(line: RefinableLine): boolean {
+/** As the plan page reads a closed line: it failed unless it finished with its spec-tasks filed. A line that failed is one the page offers Regenerate for, which is what makes a Refine able to start its own round instead. */
+export function endedInFailure(line: RefinableLine): boolean {
   return (
     line.status === "failed" ||
     !SUCCESS_OUTCOMES.has(line.outcome ?? "completed")

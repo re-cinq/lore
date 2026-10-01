@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { reworkFloorSpec, validateFloorPlan } from "./floor-plan-by-hand.js";
 import { floorPlanVerbs } from "./floor-plan-verbs.js";
 import type { Report, RunView, VisitView } from "@re-cinq/floor-client";
 import {
@@ -13,10 +14,8 @@ import {
   askFloorRefine,
   decideFloorApproval,
   reopenFloorPlan,
-  reworkFloorSpec,
   startFloorDrafting,
   startFloorSpecWork,
-  validateFloorPlan,
   type FloorPlanDeps,
 } from "./floor-plan-line.js";
 import type { SpecReviewReads } from "./spec-rework.js";
@@ -304,7 +303,7 @@ describe("askFloorRefine", () => {
     );
   });
 
-  it("refuses a Refine on draft plan p1 with 409 naming why for each state its floor run is in, reporting nothing", async () => {
+  it("starts its own round where the page would say Regenerate, and refuses the rest with the reason it shows, on draft plan p1", async () => {
     const scenes = {
       noRun: NO_RUN,
       specWorkFailed: { runs: [FAILED], visits: AFTER_FAILED_SPECS },
@@ -319,12 +318,9 @@ describe("askFloorRefine", () => {
 
     expect(await refusalsOf(DRAFT, scenes)).toEqual({
       refusals: {
-        noRun:
-          "409: the plan has no planning line yet; regenerate the plan to start one",
-        specWorkFailed:
-          "409: the planning line failed, so no agent is waiting to refine this plan; regenerate the plan to draft it again",
-        cancelled:
-          "409: the planning line failed, so no agent is waiting to refine this plan; regenerate the plan to draft it again",
+        noRun: "resumed",
+        specWorkFailed: "resumed",
+        cancelled: "resumed",
         delivered:
           "409: the planning line has ended, so no agent is waiting to refine this plan; edit the section by hand",
         specPrOpen:
@@ -335,7 +331,7 @@ describe("askFloorRefine", () => {
         writingSpecs: "409: the specs are being written; wait for the spec PR",
         decomposing: "409: wait until the spec-tasks are filed",
       },
-      reported: 0,
+      reported: 6,
     });
   });
 

@@ -43,7 +43,7 @@ async function floorHoldsRun(
   return held.length > 0;
 }
 
-/** Only a run still OPEN keeps a plan on the old engine. A plan whose runs all ended has nothing left to finish there, and counting those pinned it to the Floor for good — a plan whose last run was cancelled in September could never reach the floor, and the Refine it was offered had nothing to report to. */
+/** Only a run still OPEN keeps a plan on the old engine. A plan whose runs all ended has nothing left to finish there, and counting those pinned it to the old engine for good — a plan whose last run was cancelled in September could never reach the floor, and the Refine it was offered had nothing to report to. */
 async function postgresHoldsRun(
   runs: PlanEngineReads["runs"],
   planId: string,
