@@ -184,6 +184,17 @@ describe("the delivering recipes", () => {
     expect(ready).toContain("never a comment or blank line");
   });
 
+  it("has the loop's own recipes demand red before green, inline validated-by links, and the status flip", () => {
+    expect({
+      redFirst: promptOf("acceptance-dod").includes("FAIL right now"),
+      oneRedTest: promptOf("tdd-round").includes(
+        "one failing test for the smallest facet",
+      ),
+      links: promptOf("pr-ready").includes("([validated by name](path#Lnn))"),
+      status: promptOf("pr-ready").includes("`| Status |` header row"),
+    }).toEqual({ redFirst: true, oneRedTest: true, links: true, status: true });
+  });
+
   it("has tdd-round ask which tests already cover a symbol before editing it", () => {
     const round = promptOf("tdd-round");
 
