@@ -1,6 +1,7 @@
 // The plan routes' verbs over the floor (ADR-049): each one briefs the round it asks for and hands the plan's markdown to it, then the line verbs report to wherever the run is waiting.
 
 import { approvedBrief, draftBrief, refineBrief } from "./plan-briefs.js";
+import { reworkFloorSpec, validateFloorPlan } from "./floor-plan-by-hand.js";
 import { floorPlanLineState } from "@re-cinq/lore-shared/feature-planning/floor-plan-runs.js";
 import { reopenWhenAuthorWaits } from "./planning-line.js";
 import type {
@@ -14,10 +15,8 @@ import {
   decideFloorApproval,
   keyOf,
   reopenFloorPlan,
-  reworkFloorSpec,
   startFloorDrafting,
   startFloorSpecWork,
-  validateFloorPlan,
   type FloorPlanDeps,
   type FloorPlanMarkdown,
 } from "./floor-plan-line.js";

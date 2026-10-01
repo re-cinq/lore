@@ -232,6 +232,18 @@ describe("the feature-planning pipeline", () => {
     });
   });
 
+  it("has the validation read the live plan through lore_plan_read rather than a plan.md snapshot", () => {
+    const { stations } = pipelineOf("feature-planning");
+
+    expect({
+      planId: needOf(stations["plan-validate"], "plan_id")?.kind,
+      snapshot: needOf(stations["plan-validate"], "plan_md"),
+      readsLive: promptOnOneLine("plan-validate").includes(
+        "lore_plan_read {plan_id}",
+      ),
+    }).toEqual({ planId: "value", snapshot: undefined, readsLive: true });
+  });
+
   it("tells every feature-planning agent to pass repo on every lore call", () => {
     const agents = [
       "plan-analyze",

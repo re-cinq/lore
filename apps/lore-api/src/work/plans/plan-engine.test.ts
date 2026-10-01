@@ -15,19 +15,28 @@ const FINISHED = planRun({
 });
 
 async function postgresHolding(...blueprints: string[]) {
+  const { runs } = await postgresStore(blueprints);
+
+  return runs;
+}
+
+async function postgresStore(blueprints: readonly string[]) {
   const store = new InMemoryAssemblyRuns();
+  const ids: string[] = [];
 
   for (const blueprintName of blueprints) {
-    await store.start({
-      blueprintName,
-      repo: REPO,
-      branch: "lore/feature-planning/faster-checkout-abcd1234",
-      subjectKey: "plan:p1",
-      args: {},
-    });
+    ids.push(
+      await store.start({
+        blueprintName,
+        repo: REPO,
+        branch: "lore/feature-planning/faster-checkout-abcd1234",
+        subjectKey: "plan:p1",
+        args: {},
+      }),
+    );
   }
 
-  return new AssemblyRuns(REPO, store);
+  return { store, ids, runs: new AssemblyRuns(REPO, store) };
 }
 
 describe("planEngineOf", () => {
@@ -82,6 +91,16 @@ describe("planEngineOf", () => {
     );
 
     expect(engine).toBe("postgres");
+  });
+
+  it("uses the floor for a plan whose only Postgres run was cancelled, which leaves nothing to finish there", async () => {
+    const { store, ids, runs } = await postgresStore(["feature-planning"]);
+
+    await store.finish(ids[0], "cancelled");
+
+    const { floor } = recordedPlanFloor({ runs: [] });
+
+    expect(await planEngineOf({ floor, runs }, PLAN)).toBe("floor");
   });
 
   it("ignores a Postgres run of another blueprint on the plan's subject", async () => {

@@ -80,6 +80,7 @@ function subject(
       floor: recorded.floor,
       specBranch: async (plan) => specBranchOf(plan),
       baseBranch: () => Promise.resolve("main"),
+      specPrState: () => Promise.resolve(null),
       pulls: {
         listReviewThreads: async () => [],
         listComments: async () => [],

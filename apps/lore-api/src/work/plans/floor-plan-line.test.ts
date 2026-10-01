@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { reworkFloorSpec, validateFloorPlan } from "./floor-plan-by-hand.js";
 import { floorPlanVerbs } from "./floor-plan-verbs.js";
 import type { Report, RunView, VisitView } from "@re-cinq/floor-client";
 import {
@@ -13,10 +14,8 @@ import {
   askFloorRefine,
   decideFloorApproval,
   reopenFloorPlan,
-  reworkFloorSpec,
   startFloorDrafting,
   startFloorSpecWork,
-  validateFloorPlan,
   type FloorPlanDeps,
 } from "./floor-plan-line.js";
 import type { SpecReviewReads } from "./spec-rework.js";
@@ -80,6 +79,7 @@ function scene(
     runs?: RunView[];
     visits?: VisitView[];
     pulls?: SpecReviewReads;
+    specPrState?: "open" | "closed" | "merged" | null;
   } = {},
 ) {
   const recorded = recordedPlanFloor({
@@ -91,6 +91,7 @@ function scene(
     floor: recorded.floor,
     specBranch: async (plan) => (branchesFor.push(plan.id), specBranchOf(plan)),
     baseBranch: () => Promise.resolve("main"),
+    specPrState: () => Promise.resolve(given.specPrState ?? null),
     pulls: given.pulls ?? REVIEWED,
   };
 
@@ -105,6 +106,22 @@ const FINISHED = planRun({
 
 function posts(requests: FloorRequest[]): FloorRequest[] {
   return requests.filter((request) => request.method === "POST");
+}
+
+function startedRefine(requests: FloorRequest[]): string {
+  const body = posts(requests).at(-1)?.body as {
+    startItems?: { refine?: { ref?: string } };
+  };
+
+  return body?.startItems?.refine?.ref ?? "";
+}
+
+function startedDescription(requests: FloorRequest[]): string {
+  const body = posts(requests).at(-1)?.body as {
+    startItems?: { description?: { ref?: string } };
+  };
+
+  return body?.startItems?.description?.ref ?? "";
 }
 
 function reportedProduced(
@@ -150,6 +167,7 @@ function started(entry?: string): FloorRequest {
         plan_title: { kind: "value", ref: "Faster checkout", by: "lore" },
         plan_md: { kind: "file", ref: PLAN_BLOB_HASH, by: "lore" },
         description: { kind: "value", ref: BRIEF, by: "lore" },
+        refine: { kind: "value", ref: "", by: "lore" },
       },
       ...(entry ? { entry } : {}),
     },
@@ -170,7 +188,7 @@ describe("startFloorDrafting", () => {
     expect(posts(requests).at(-1)).toEqual(
       reported("visit-author", {
         outcome: "changes_requested",
-        produced: { plan_md: PLAN_BLOB_HASH, description: BRIEF },
+        produced: { plan_md: PLAN_BLOB_HASH, description: BRIEF, refine: "" },
       }),
     );
   });
@@ -270,20 +288,22 @@ describe("askFloorRefine", () => {
     expect(posts(requests)).toEqual([]);
   });
 
-  it("refuses with 409 a plan the floor holds no run for", async () => {
-    const { deps } = scene(NO_RUN);
+  it("starts a round carrying the section when the plan's last run already ended, rather than refusing", async () => {
+    const { deps, requests } = scene(NO_RUN);
 
-    await expect(
-      askFloorRefine(deps, {
-        plan: DRAFT,
-        planMarkdown: MARKDOWN,
-        brief: BRIEF,
-        refine: REFINE,
-      }),
-    ).rejects.toMatchObject({ output: { statusCode: 409 } });
+    await askFloorRefine(deps, {
+      plan: DRAFT,
+      planMarkdown: MARKDOWN,
+      brief: BRIEF,
+      refine: REFINE,
+    });
+
+    expect(startedRefine(requests)).toBe(
+      '{"slot":"intent","baseHash":"3f9a","uses":{"answers":["a1"]}}',
+    );
   });
 
-  it("refuses a Refine on draft plan p1 with 409 naming why for each state its floor run is in, reporting nothing", async () => {
+  it("starts its own round where the page would say Regenerate, and refuses the rest with the reason it shows, on draft plan p1", async () => {
     const scenes = {
       noRun: NO_RUN,
       specWorkFailed: { runs: [FAILED], visits: AFTER_FAILED_SPECS },
@@ -298,12 +318,9 @@ describe("askFloorRefine", () => {
 
     expect(await refusalsOf(DRAFT, scenes)).toEqual({
       refusals: {
-        noRun:
-          "409: the plan has no planning line yet; regenerate the plan to start one",
-        specWorkFailed:
-          "409: the planning line failed, so no agent is waiting to refine this plan; regenerate the plan to draft it again",
-        cancelled:
-          "409: the planning line failed, so no agent is waiting to refine this plan; regenerate the plan to draft it again",
+        noRun: "resumed",
+        specWorkFailed: "resumed",
+        cancelled: "resumed",
         delivered:
           "409: the planning line has ended, so no agent is waiting to refine this plan; edit the section by hand",
         specPrOpen:
@@ -314,7 +331,7 @@ describe("askFloorRefine", () => {
         writingSpecs: "409: the specs are being written; wait for the spec PR",
         decomposing: "409: wait until the spec-tasks are filed",
       },
-      reported: 0,
+      reported: 6,
     });
   });
 
@@ -417,7 +434,7 @@ describe("approveFloorPlan", () => {
     expect(posts(requests).at(-1)).toEqual(
       reported("visit-author", {
         outcome: "success",
-        produced: { plan_md: PLAN_BLOB_HASH, description: BRIEF },
+        produced: { plan_md: PLAN_BLOB_HASH, description: BRIEF, refine: "" },
       }),
     );
   });
@@ -461,6 +478,32 @@ describe("approveFloorPlan", () => {
       reason: "the planning agent is still refining a section",
     });
     expect(posts(requests)).toEqual([]);
+  });
+});
+
+describe("a round that answers no section says so", () => {
+  it("clears the refine the bag still holds from an earlier Refine when a draft is asked for", async () => {
+    const { deps, requests } = scene({ visits: ON_AUTHOR });
+
+    await startFloorDrafting(deps, {
+      plan: DRAFT,
+      planMarkdown: MARKDOWN,
+      brief: BRIEF,
+    });
+
+    expect(reportedProduced(requests).refine).toBe("");
+  });
+
+  it("clears it on an approval too, so a later failed pass tells no section it was never asked about", async () => {
+    const { deps, requests } = scene({ visits: ON_AUTHOR });
+
+    await approveFloorPlan(deps, {
+      plan: APPROVED,
+      planMarkdown: MARKDOWN,
+      brief: BRIEF,
+    });
+
+    expect(reportedProduced(requests).refine).toBe("");
   });
 });
 
@@ -523,6 +566,51 @@ describe("startFloorSpecWork", () => {
 
     expect(runId).toBe("run-new");
     expect(posts(requests).at(-1)).toEqual(started("analyse-specs"));
+  });
+
+  it("briefs the pass as an amendment to the specs on main when an earlier spec PR merged", async () => {
+    const merged = [
+      planVisit("open-spec-pr", {
+        outcome: "success",
+        produced: { pr_url: "https://github.com/re-cinq/lore/pull/7" },
+      }),
+      planVisit("merged", { outcome: "success" }),
+    ];
+    const { deps, requests } = scene({
+      runs: [FINISHED],
+      visits: merged,
+      specPrState: "merged",
+    });
+
+    await startFloorSpecWork(deps, {
+      plan: APPROVED,
+      planMarkdown: MARKDOWN,
+      brief: BRIEF,
+    });
+
+    expect(startedDescription(requests)).toContain("spec PR #7");
+  });
+
+  it("briefs the pass as amending the branch of a spec PR still open", async () => {
+    const open = [
+      planVisit("open-spec-pr", {
+        outcome: "success",
+        produced: { pr_url: "https://github.com/re-cinq/lore/pull/9" },
+      }),
+    ];
+    const { deps, requests } = scene({
+      runs: [FINISHED],
+      visits: open,
+      specPrState: "open",
+    });
+
+    await startFloorSpecWork(deps, {
+      plan: APPROVED,
+      planMarkdown: MARKDOWN,
+      brief: BRIEF,
+    });
+
+    expect(startedDescription(requests)).toContain("Spec PR #9 is open");
   });
 
   it("refuses with 409 the spec work is already running while the run is on write", async () => {

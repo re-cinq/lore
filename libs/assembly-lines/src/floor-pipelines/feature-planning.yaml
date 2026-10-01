@@ -254,13 +254,12 @@ stations:
         kind: git
         path: target
         access: read
-      # Not seeded at start (a custom-start node can only be given a seeded need)
-      # and no station produces it before this one fires — mirrors `issue` on the
-      # review stations: read it when it happens to be there, proceed without it.
-      - name: plan_md
-        kind: file
-        path: plan.md
-        optional: true
+      # The plan is read live through lore_plan_read, not from a file: a person
+      # clicks Validate after editing, and the bag's plan.md is only as fresh as
+      # the last Draft, Refine or approval. A hand-started node cannot be handed a
+      # new blob, so a snapshot here would validate text nobody is looking at.
+      - name: plan_id
+        kind: value
     produces:
       - name: plan_validation
         kind: file
@@ -595,11 +594,12 @@ agent_definitions:
         contradiction and gap you find as findings. You never fix anything
         yourself.
 
-        The plan, when it was given to you, is at `{plan_md_path}` — a
-        snapshot, not a live document. Read it whole. Then read this
-        repository's `specs/`, `adrs/`, `CLAUDE.md`, and any code or file the
-        plan names, from the read-only clone at /workspace/target, so you can
-        tell a claim that holds from one that doesn't. Call
+        Read the plan with `lore_plan_read {plan_id}` — it is a live document
+        and people edit it while you work, so read it yourself rather than
+        trusting any copy. Then read this repository's `specs/`, `adrs/`,
+        `CLAUDE.md`, and any code or file the plan names, from the read-only
+        clone at /workspace/target, so you can tell a claim that holds from one
+        that doesn't. Call
         `lore_assemble_context` first, and `lore_search_memory` for prior
         decisions the plan may be repeating or contradicting. Pass `repo`
         (the owner/name your task names above) on every `lore_*` call: the
