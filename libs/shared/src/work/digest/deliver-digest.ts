@@ -109,6 +109,14 @@ function messageOf(
   return digest.draft ? stripAppendix(digest.draft) : null;
 }
 
+/** Slack refused after part of the digest was already in the channel. The delivery is settled as posted, so whoever catches this must not deliver again: a second delivery would repeat the part that landed (FR7). It carries Slack's own message. */
+export class DigestPartlyPosted extends Error {
+  constructor(cause: Error) {
+    super(cause.message, { cause });
+    this.name = "DigestPartlyPosted";
+  }
+}
+
 /** How far a delivery got, so a failure can be settled without posting anything twice. */
 interface Progress {
   threadTs: string;
@@ -128,7 +136,7 @@ async function postClaimed(
     await postChunks(digest, chunks, progress, deps.poster);
   } catch (err) {
     await settleFailure(digest, message, progress, deps.posts);
-    throw err;
+    throw progress.replies > 0 ? new DigestPartlyPosted(err as Error) : err;
   }
   await finishPosted(digest, message, progress.threadTs, deps.posts);
 

@@ -117,6 +117,20 @@ describe("the digest-post station", () => {
     expect(await refused.posts.lastPostedAt("re-cinq/lore")).toEqual(NOW);
   });
 
+  it("reports success when Slack refuses after the first part reached the channel, so the floor's retry never posts that part twice", async () => {
+    const long = Array.from(
+      { length: 400 },
+      (_, i) => `• <https://gh/pr/${i}|Change number ${i}> (#${i})`,
+    ).join("\n");
+    const poster = new InMemorySlackPoster("ratelimited", 2);
+    const { handle, tools, posts } = scene({ digest_draft: long }, poster);
+    const report = await handle(brief(NEEDS), tools);
+
+    expect(report).toEqual({ outcome: "success" });
+    expect(poster.posts).toHaveLength(2);
+    expect(await posts.lastPostedAt("re-cinq/lore")).toEqual(NOW);
+  });
+
   it("reports failed when the run carries no channel", async () => {
     const { channel: _dropped, ...incomplete } = NEEDS;
     const { handle, tools } = scene({ digest_draft: DRAFT });

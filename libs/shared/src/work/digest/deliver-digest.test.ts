@@ -4,7 +4,11 @@ import { InMemoryDigestPosts } from "../../outbound/project/digest-posts/digest-
 import { InMemorySlackPoster } from "../../outbound/project/notify/slack-poster-memory.js";
 import { encodeDigestRepos } from "./codec.js";
 import { APPENDIX_MARKER } from "./render.js";
-import { deliverDigestRun, receiveDigestUpload } from "./deliver-digest.js";
+import {
+  deliverDigestRun,
+  DigestPartlyPosted,
+  receiveDigestUpload,
+} from "./deliver-digest.js";
 
 const DRAFT = `Intro placeholder.\n\n*re-cinq/lore*\n• item\n\nEnding placeholder.\n\n${APPENDIX_MARKER}\n- intro: Old`;
 const REFINED = "Fresh intro.\n\n*re-cinq/lore*\n• item\n\nFresh ending!";
@@ -261,7 +265,9 @@ describe("receiveDigestUpload", () => {
         { agentCrName: agent, markdown: long, exitCode: 0 },
         deps,
       ),
-    ).rejects.toThrow(new Error("slack chat.postMessage: ratelimited"));
+    ).rejects.toThrow(
+      new DigestPartlyPosted(new Error("slack chat.postMessage: ratelimited")),
+    );
     expect(await posts.lastPostedAt("re-cinq/lore")).not.toBe(null);
   });
 
