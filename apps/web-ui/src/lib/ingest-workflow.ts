@@ -4,7 +4,7 @@ export const LORE_INGEST_WORKFLOW_PATH = ".github/workflows/lore-ingest.yml";
 
 export const LORE_INGEST_WORKFLOW_VERSION = 6;
 
-// v4 (#1545): fail loudly on misconfig/4xx, warn on 5xx/network; v5: `--no-renames`, so a moved file's old path is posted as a delete and its chunks do not outlive it.
+// v4 (#1545): fail loudly on misconfig/4xx, warn on 5xx/network; v5: `--no-renames`, so a moved file's old path is posted as a delete and its chunks do not outlive it. v6 (#2327): the graph job posts changed specs and ADRs as a delta through `lore-code-trace docs --post` instead of asking `ingest-graph` for a pod that clones the repo.
 export const LORE_INGEST_WORKFLOW_CONTENT = `# lore-ingest-version: 6
 name: Lore Context Ingest
 
