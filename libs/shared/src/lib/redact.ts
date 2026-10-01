@@ -8,6 +8,7 @@ const PATTERNS: Array<{ name: string; re: RegExp }> = [
     re: /(?:sk-|AKIA|xoxb-|xoxp-|gl(?:pat|dt|rt|cbt|ptt|ft|soat)-|GR1348941)[A-Za-z0-9_-]{20,}|gh[psour]_[A-Za-z0-9_.-]{20,}|github_pat_[A-Za-z0-9_]{20,}/g,
   },
   { name: "aws-access-key-id", re: /\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/g },
+  { name: "google-api-key", re: /\bAIza[0-9A-Za-z_-]{35}\b/g },
   {
     name: "jwt",
     re: /eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}/g,
