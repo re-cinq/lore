@@ -109,6 +109,14 @@ function posts(requests: FloorRequest[]): FloorRequest[] {
   return requests.filter((request) => request.method === "POST");
 }
 
+function startedRefine(requests: FloorRequest[]): string {
+  const body = posts(requests).at(-1)?.body as {
+    startItems?: { refine?: { ref?: string } };
+  };
+
+  return body?.startItems?.refine?.ref ?? "";
+}
+
 function startedDescription(requests: FloorRequest[]): string {
   const body = posts(requests).at(-1)?.body as {
     startItems?: { description?: { ref?: string } };
@@ -160,6 +168,7 @@ function started(entry?: string): FloorRequest {
         plan_title: { kind: "value", ref: "Faster checkout", by: "lore" },
         plan_md: { kind: "file", ref: PLAN_BLOB_HASH, by: "lore" },
         description: { kind: "value", ref: BRIEF, by: "lore" },
+        refine: { kind: "value", ref: "", by: "lore" },
       },
       ...(entry ? { entry } : {}),
     },
@@ -280,17 +289,19 @@ describe("askFloorRefine", () => {
     expect(posts(requests)).toEqual([]);
   });
 
-  it("refuses with 409 a plan the floor holds no run for", async () => {
-    const { deps } = scene(NO_RUN);
+  it("starts a round carrying the section when the plan's last run already ended, rather than refusing", async () => {
+    const { deps, requests } = scene(NO_RUN);
 
-    await expect(
-      askFloorRefine(deps, {
-        plan: DRAFT,
-        planMarkdown: MARKDOWN,
-        brief: BRIEF,
-        refine: REFINE,
-      }),
-    ).rejects.toMatchObject({ output: { statusCode: 409 } });
+    await askFloorRefine(deps, {
+      plan: DRAFT,
+      planMarkdown: MARKDOWN,
+      brief: BRIEF,
+      refine: REFINE,
+    });
+
+    expect(startedRefine(requests)).toBe(
+      '{"slot":"intent","baseHash":"3f9a","uses":{"answers":["a1"]}}',
+    );
   });
 
   it("refuses a Refine on draft plan p1 with 409 naming why for each state its floor run is in, reporting nothing", async () => {

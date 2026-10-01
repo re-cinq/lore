@@ -109,17 +109,44 @@ export async function askFloorRefine(
 ): Promise<void> {
   const line = await floorPlanLineState(deps.floor, keyOf(plan));
   const parked = line?.parkedAuthor;
-  const { slot, baseHash, uses } = refine;
 
-  enforceTrue(parked, apiError(409), refineRefusal(plan, line));
+  if (!parked) {
+    return startRefineRound(deps, { plan, planMarkdown, brief, refine }, line);
+  }
   await reportToVisit(deps.floor.events, parked.visitId, {
     outcome: "changes_requested",
     produced: {
       plan_md: await storeMarkdown(deps.floor, planMarkdown),
-      refine: JSON.stringify({ slot, baseHash, uses }),
+      refine: refineValue(refine),
       description: brief,
     },
   });
+}
+
+/** No author waits, so the ask starts the round that answers it — a draft plan whose last round ended still has sections to refine, and sending its author to Regenerate would redraft the whole plan instead of the one section asked about. Every other case is refused with the reason its page shows. */
+async function startRefineRound(
+  deps: FloorPlanDeps,
+  { plan, planMarkdown, brief, refine }: FloorRefineInput,
+  line: FloorPlanLine | null,
+): Promise<void> {
+  enforceTrue(
+    plan.status !== "approved" && !line?.open,
+    apiError(409),
+    refineRefusal(plan, line),
+  );
+  const planMd = await storeMarkdown(deps.floor, planMarkdown);
+
+  await startPlanRun(deps, {
+    plan,
+    planMd,
+    brief,
+    refine: refineValue(refine),
+  });
+}
+
+/** The section a round was asked about, as `plan-pass-end` reads it back. */
+function refineValue({ slot, baseHash, uses }: RefineRequest): string {
+  return JSON.stringify({ slot, baseHash, uses });
 }
 
 /** The refusal for an approval, before the plan's status flips. */
@@ -297,6 +324,8 @@ interface PlanRunStart {
   plan: PlanRef;
   planMd: string;
   brief: string;
+  /** The section this round answers, for a Refine that had no round waiting to take it. */
+  refine?: string;
   entry?: string;
 }
 
@@ -318,7 +347,7 @@ async function startPlanRun(
 /** What a planning run is started with: the spec branch to write on, the base the nodes after the merge read, the plan and this round's brief. */
 async function startItemsOf(
   deps: FloorPlanDeps,
-  { plan, planMd, brief }: PlanRunStart,
+  { plan, planMd, brief, refine }: PlanRunStart,
 ): Promise<Record<string, ReturnType<typeof valueItem>>> {
   const [branch, base] = await Promise.all([
     deps.specBranch(plan),
@@ -333,6 +362,7 @@ async function startItemsOf(
     plan_title: valueItem(plan.title),
     plan_md: fileItem(planMd),
     description: valueItem(brief),
+    refine: valueItem(refine ?? NO_REFINE),
   };
 }
 

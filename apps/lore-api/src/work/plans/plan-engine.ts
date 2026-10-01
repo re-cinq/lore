@@ -17,7 +17,7 @@ export interface PlanEngineReads {
   runs: Pick<PlanningRunPort, "listForSubject">;
 }
 
-/** A plan goes to the floor when the deployment has one and either the floor already holds a run for the plan or Postgres holds no planning run for it at all; a plan already running on the old Floor finishes there. */
+/** A plan goes to the floor when the deployment has one and either the floor already holds a run for the plan or Postgres holds no OPEN planning run for it; a plan still running on the old Floor finishes there, while one whose runs all ended moves on. */
 export async function planEngineOf(
   { floor, runs }: PlanEngineReads,
   plan: { id: string; repo: string },
@@ -43,14 +43,20 @@ async function floorHoldsRun(
   return held.length > 0;
 }
 
+/** Only a run still OPEN keeps a plan on the old engine. A plan whose runs all ended has nothing left to finish there, and counting those pinned it to the Floor for good — a plan whose last run was cancelled in September could never reach the floor, and the Refine it was offered had nothing to report to. */
 async function postgresHoldsRun(
   runs: PlanEngineReads["runs"],
   planId: string,
 ): Promise<boolean> {
   const held = await runs.listForSubject(planSubject(planId));
 
-  return held.some((line) => line.blueprintName === PLANNING_DEFINITION);
+  return held.some(
+    (line) =>
+      line.blueprintName === PLANNING_DEFINITION && OPEN_RUN.has(line.status),
+  );
 }
+
+const OPEN_RUN = new Set(["queued", "running"]);
 
 /** A plan as the routes hold it. */
 export type PlanSubject = PlanRef & { status: string };
