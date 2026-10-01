@@ -135,4 +135,14 @@ courierJobs:
   - name: gcp-cost-sync
     schedule: "0 8 * * *"
     path: /api/stations/gcp-cost-sync
+  # Was the Floor's consolidation CronJob, the last scheduled job that ran from
+  # the Floor's image and did real work. Same hour. It calls a model, so the
+  # post takes as long as those calls do: a few seconds per repository.
+  - name: consolidation
+    schedule: "30 5 * * *"
+    path: /api/stations/consolidation
+    # 10 to 17 seconds on a normal night; a retried post would store the same
+    # patterns twice, so the post gets most of the job's deadline instead.
+    maxTimeSeconds: 110
+    retries: 0
 

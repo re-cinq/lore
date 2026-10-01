@@ -21,6 +21,7 @@ import { issues } from "./issues/manifest.js";
 import { featureReview } from "./feature-review/manifest.js";
 import { gcpCostSync } from "./gcp-cost-sync/manifest.js";
 import { ciCheck } from "./ci-check/manifest.js";
+import { consolidationStation } from "./consolidation/manifest.js";
 import { prReadyCheck } from "./pr-ready-check/manifest.js";
 import { prReview } from "./pr-review/manifest.js";
 
@@ -30,6 +31,7 @@ export const STATION_NAMES = [
   "approval-check",
   "bus-prune",
   "ci-check",
+  "consolidation",
   "detect",
   "digest-tick",
   "feature-review",
@@ -57,6 +59,7 @@ export const STATIONS: Record<StationName, StationModule> = {
   "approval-check": approvalCheck,
   "bus-prune": busPrune,
   "ci-check": ciCheck,
+  consolidation: consolidationStation,
   detect,
   "digest-tick": digestTickStation,
   "feature-review": featureReview,
