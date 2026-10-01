@@ -7,14 +7,8 @@ import type { PullRef } from "../../outbound/project/pulls/pull-requests-port.js
 import { resolveDigestSettings } from "../../domain/digest-settings.js";
 import type { DigestRepo } from "./codec.js";
 import { dedupeImplemented } from "./dedupe.js";
-import {
-  groupImplemented,
-  groupRoadmap,
-} from "./group.js";
-import {
-  renderDigestDraft,
-  renderRepoSection,
-} from "./render.js";
+import { groupImplemented, groupRoadmap } from "./group.js";
+import { renderDigestDraft, renderRepoSection } from "./render.js";
 import { RECENT_TEXTS_LIMIT } from "./contract.js";
 import { digestRunOf, type DigestRun } from "./digest-run.js";
 
@@ -60,7 +54,8 @@ export async function digestDraftOf(
   return draft;
 }
 
-async function collectDraft(
+/** The draft itself, for a caller that already holds the run's facts and keeps the result where its engine keeps things. */
+export async function collectDraft(
   digest: DigestRun,
   deps: Pick<DraftDeps, "recentTexts" | "collect" | "namesFor">,
 ): Promise<string> {

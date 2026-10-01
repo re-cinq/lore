@@ -58,9 +58,17 @@ export async function deliverDigestRun(
 ): Promise<DigestDelivery> {
   const digest = digestRunOf(run);
 
-  if (!digest) {
-    return { outcome: "skipped", error: "not a digest run" };
-  }
+  return digest
+    ? deliverDigest(digest, upload, deps)
+    : { outcome: "skipped", error: "not a digest run" };
+}
+
+/** The delivery itself, for a caller that already holds the run's facts; `digest.id` is what the claim is taken under. */
+export async function deliverDigest(
+  digest: DigestRun,
+  upload: Pick<DigestUpload, "markdown" | "exitCode"> | null,
+  deps: DeliverDeps,
+): Promise<DigestDelivery> {
   const message = messageOf(digest, upload);
 
   if (message === null) {

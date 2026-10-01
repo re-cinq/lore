@@ -120,6 +120,15 @@ export class PgSettings implements SettingsPort {
     return this.repoConfig;
   }
 
+  async orgSetting(key: string): Promise<string | null> {
+    const { rows } = await this.pool.query<{ value: string }>(
+      "SELECT value FROM lore.settings WHERE key = $1",
+      [key],
+    );
+
+    return rows[0]?.value ?? null;
+  }
+
   async resolve(repo: string): Promise<ResolvedDarkFactorySettings> {
     const { rows } = await this.pool.query(
       "SELECT settings FROM lore.repos WHERE full_name = $1",

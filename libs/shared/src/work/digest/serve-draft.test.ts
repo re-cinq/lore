@@ -2,11 +2,7 @@ import { describe, it, expect } from "vitest";
 import { InMemoryAssemblyRuns } from "../../outbound/project/assembly-runs/assembly-runs-memory.js";
 import { InMemoryDigestPosts } from "../../outbound/project/digest-posts/digest-posts-memory.js";
 import { encodeDigestRepos } from "./codec.js";
-import {
-  APPENDIX_MARKER,
-  INTRO_MARKER,
-  ASIDE_MARKER,
-} from "./render.js";
+import { APPENDIX_MARKER, INTRO_MARKER, ASIDE_MARKER } from "./render.js";
 import { digestDraftOf, type RepoCollector } from "./serve-draft.js";
 
 const runs = () => new InMemoryAssemblyRuns();
