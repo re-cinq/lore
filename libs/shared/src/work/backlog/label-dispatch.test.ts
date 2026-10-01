@@ -44,6 +44,20 @@ describe("dispatchLabeledIssue", () => {
     ]);
   });
 
+  it("queues issue 7 when it is labelled lore:implementation, the label onboarding seeds", async () => {
+    const { deps, steps } = scene();
+
+    await dispatchLabeledIssue(deps, {
+      repo: "acme/widgets",
+      label: "lore:implementation",
+      issue: { number: 7, labels: ["lore:implementation", "priority:low"] },
+    });
+
+    expect(steps).toEqual([
+      "comment #7: Queued for Lore's implementation loop at `priority:low`",
+    ]);
+  });
+
   it("does nothing for a label that is not the repository's dispatch label", async () => {
     const { deps, steps } = scene();
 
