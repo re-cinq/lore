@@ -204,9 +204,11 @@ describe("redactSecrets token shapes", () => {
   );
 
   it("redacts a Google API key", () => {
-    expect(
-      redactSecrets("GEMINI_API_KEY=AIzaSyA1bC2dE3fG4hI5jK6lM7nO8pQ9rS0tU1v"),
-    ).toBe("GEMINI_API_KEY=[REDACTED:google-api-key]");
+    const key = ["AI", "za", "0".repeat(35)].join("");
+
+    expect(redactSecrets(`GEMINI_API_KEY=${key}`)).toBe(
+      "GEMINI_API_KEY=[REDACTED:google-api-key]",
+    );
   });
 
   it("redacts a short Basic credential", () => {
