@@ -2979,24 +2979,6 @@ export interface components {
       username: string;
       password: string;
     };
-    FloorNodeLogs: {
-      available: boolean;
-      logs: string | null;
-      phase: string;
-      podName: null;
-      archived: boolean;
-      /** @constant */
-      reason?: "no-records";
-    };
-    FloorRunEvents: {
-      events: {
-        [key: string]: unknown;
-      }[];
-    };
-    FloorRunTurns: {
-      turns: unknown[];
-      hasMore: boolean;
-    };
     GitCredential: {
       username: string;
       password: string;
@@ -3434,6 +3416,15 @@ export interface components {
       results: {
         [key: string]: unknown;
       }[];
+    };
+    NodeLogs: {
+      available: boolean;
+      logs: string | null;
+      phase: string;
+      podName: null;
+      archived: boolean;
+      /** @constant */
+      reason?: "no-records";
     };
     OnboardResult:
       | {
@@ -3977,6 +3968,11 @@ export interface components {
     ReviewStarted: {
       started: string | null;
     };
+    RunEvents: {
+      events: {
+        [key: string]: unknown;
+      }[];
+    };
     RunStreamFrame:
       | {
           /** @constant */
@@ -4084,6 +4080,10 @@ export interface components {
       token: string;
       /** Format: date-time */
       expires_at: string;
+    };
+    RunTurns: {
+      turns: unknown[];
+      hasMore: boolean;
     };
     SearchContextResults: {
       results: {
@@ -5095,13 +5095,13 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description One page of the agent events of a run on the external floor, oldest first; empty for a run the floor does not have */
+      /** @description One page of a run's agent events, oldest first; empty for a run neither Postgres nor the floor has */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["FloorRunEvents"];
+          "application/json": components["schemas"]["RunEvents"];
         };
       };
       401: components["responses"]["Unauthorized"];
@@ -5148,13 +5148,13 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The log the external floor kept for one visit of a run, named floor-<visit id>; 404 for a name of no visit of this run */
+      /** @description One node's log: stored stdout for a node of a run Postgres has, the floor's log for a visit named floor-<visit id>; 404 for a name of no node of this run */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["FloorNodeLogs"];
+          "application/json": components["schemas"]["NodeLogs"];
         };
       };
       401: components["responses"]["Unauthorized"];
@@ -5276,13 +5276,13 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description One page of the turns of a run on the external floor, oldest first; empty for a run the floor does not have */
+      /** @description One page of a run's turns, oldest first; empty for a run neither Postgres nor the floor has */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["FloorRunTurns"];
+          "application/json": components["schemas"]["RunTurns"];
         };
       };
       401: components["responses"]["Unauthorized"];

@@ -1,4 +1,4 @@
-// GET /api/assembly-runs/{id}/events — the agent events of a run on the external floor, in the shape and with the ids the Floor's own `/api/agent-events/{id}` and the live relay give them, so the run page folds a floor run's history without knowing which engine ran it.
+// GET /api/assembly-runs/{id}/events — a run's agent events, whichever engine ran it: the stored events of a run Postgres has, and for any other the external floor's, in the same shape and with the ids the live relay gives them.
 import type { Request, ResponseToolkit, ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
 import type { AgentRunEvent } from "@re-cinq/lore-shared/models/agent-run-event.js";
@@ -7,6 +7,7 @@ import {
   floorConfigured,
 } from "@re-cinq/lore-shared/floor/floor-client.js";
 import { floorRunHistory } from "../../../work/floor/floor-run-history.js";
+import type { StoredRunHistory } from "../../../work/floor/stored-run-history.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
 
@@ -30,29 +31,44 @@ const floorEvents: EventsOf = (runId, after) =>
     ? floorRunHistory(floorClient().runs.watch, runId, after)
     : Promise.resolve([]);
 
-export function floorRunEventsRoute(
-  eventsOf: EventsOf = floorEvents,
-): ServerRoute {
+type PageQuery = { after?: unknown; limit?: unknown };
+
+export type EventPageOf = (
+  runId: string,
+  query: PageQuery,
+) => Promise<{ events: unknown[] }>;
+
+/** Postgres first: a run it has is paged in the database. Any other run is read off the floor's journal. */
+export function eventPageReader(
+  stored: () => StoredRunHistory | null,
+  floorEventsOf: EventsOf = floorEvents,
+): EventPageOf {
+  return async (runId, query) => {
+    const after = cursorOf(query.after);
+    const rows = await stored()?.events(
+      runId,
+      after ?? "0",
+      limitOf(query.limit),
+    );
+
+    return rows
+      ? { events: rows }
+      : eventPage(await floorEventsOf(runId, after), query);
+  };
+}
+
+export function runEventsRoute(pageOf: EventPageOf): ServerRoute {
   return {
     method: "GET",
     path: "/api/assembly-runs/{id}/events",
     options: zodResponse(bearerScope("read"), EventPageSchema, {
-      name: "FloorRunEvents",
+      name: "RunEvents",
       description:
-        "One page of the agent events of a run on the external floor, oldest first; empty for a run the floor does not have",
+        "One page of a run's agent events, oldest first; empty for a run neither Postgres nor the floor has",
     }),
     handler: async (request: Request, h: ResponseToolkit) =>
-      h.response(await servePage(eventsOf, request)),
+      h.response(await pageOf(request.params.id as string, request.query)),
   };
-}
-
-async function servePage(eventsOf: EventsOf, request: Request) {
-  const events = await eventsOf(
-    request.params.id as string,
-    cursorOf(request.query.after),
-  );
-
-  return eventPage(events, request.query);
 }
 
 function cursorOf(value: unknown): string | undefined {
@@ -62,7 +78,7 @@ function cursorOf(value: unknown): string | undefined {
 /** The events after the cursor, one page of them. Ids outgrow a JS number, so the cursor compares as a bigint, as the Floor's own read does. A page never ends inside a turn: the next read asks the journal for what follows the last turn it saw, so the rows of a turn cut in two would be lost. */
 export function eventPage(
   events: AgentRunEvent[],
-  query: { after?: unknown; limit?: unknown },
+  query: PageQuery,
 ): { events: AgentRunEvent[] } {
   const after = BigInt(cursorOf(query.after) ?? "0");
   const limit = limitOf(query.limit);
