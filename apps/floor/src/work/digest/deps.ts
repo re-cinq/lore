@@ -2,21 +2,17 @@
 
 import { SlackPosterHttp } from "@re-cinq/lore-shared/project/notify/slack-poster-http.js";
 import { SlackDirectoryHttp } from "@re-cinq/lore-shared/project/notify/slack-directory-http.js";
-import {
-  parseSlackUsers,
-  resolveNames,
-  type SlackUsers,
-} from "@re-cinq/lore-shared/digest/people.js";
-import { query } from "../../outbound/db.js";
-import { ttlMemo } from "@re-cinq/lore-shared/digest/ttl-memo.js";
-import type { DigestRepo } from "@re-cinq/lore-shared/digest/codec.js";
-import { pipeline } from "../../outbound/queues.js";
-import { projectFor } from "../../outbound/project-boot.js";
-import type {
-  DraftDeps,
-  RepoChanges,
-} from "@re-cinq/lore-shared/digest/serve-draft.js";
+import { digestDraftSources } from "@re-cinq/lore-shared/digest/draft-sources.js";
+import type { DraftDeps } from "@re-cinq/lore-shared/digest/serve-draft.js";
 import type { UploadDeps } from "@re-cinq/lore-shared/digest/deliver-digest.js";
+import { pipeline, settings } from "../../outbound/queues.js";
+import { projectFor } from "../../outbound/project-boot.js";
+
+const sources = digestDraftSources({
+  project: projectFor,
+  slackUsersSetting: () => settings().orgSetting("slack_users"),
+  directory: new SlackDirectoryHttp(process.env),
+});
 
 export function draftDeps(): DraftDeps {
   return {
@@ -25,40 +21,8 @@ export function draftDeps(): DraftDeps {
       pipeline().assemblyRuns.mergeArgs(runId, patch),
     recentTexts: (channel, limit) =>
       pipeline().digestPosts.recentTexts(channel, limit),
-    collect: collectChanges,
-    namesFor,
+    ...sources,
   };
-}
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-const directory = new SlackDirectoryHttp(process.env);
-const slackIdByEmail = ttlMemo((email) => directory.idByEmail(email), DAY_MS);
-const slackName = ttlMemo((id) => directory.displayName(id), DAY_MS);
-const commitEmail = ttlMemo(async (repoAndLogin) => {
-  const [repo, login] = repoAndLogin.split(" ");
-
-  return (await projectFor(repo)).repo.commitEmailOf(login);
-}, DAY_MS);
-
-/** The manual override is read fresh each time, so an edit on the settings page applies to the next digest. */
-async function namesFor(
-  repo: string,
-  logins: string[],
-): Promise<Record<string, string>> {
-  return resolveNames(logins, {
-    override: await slackUsersOverride(),
-    emailOf: (login) => commitEmail(`${repo} ${login}`),
-    slackIdByEmail,
-    slackName,
-  });
-}
-
-async function slackUsersOverride(): Promise<SlackUsers> {
-  const rows = await query<{ value: string }>(
-    "SELECT value FROM lore.settings WHERE key = 'slack_users'",
-  );
-
-  return parseSlackUsers(rows[0]?.value);
 }
 
 export function uploadDeps(): UploadDeps {
@@ -74,16 +38,4 @@ export function uploadDeps(): UploadDeps {
         : null;
     },
   };
-}
-
-/** The three GitHub reads of one repo's window, in parallel. */
-async function collectChanges(entry: DigestRepo): Promise<RepoChanges> {
-  const project = await projectFor(entry.repo);
-  const [merged, closed, open] = await Promise.all([
-    project.pulls.listMergedSince(entry.since),
-    project.issues.list({ state: "closed", since: entry.since }),
-    project.issues.list({ state: "open" }),
-  ]);
-
-  return { merged, closed, open };
 }
