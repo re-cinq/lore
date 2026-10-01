@@ -17,9 +17,9 @@ function resp(over: Partial<NodeLogsResponse>): NodeLogsResponse {
 }
 
 describe("nodeLogsUrl", () => {
-  it("builds the proxy path and encodes the agent CR name", () => {
-    expect(nodeLogsUrl("run-1", "05fc5491-review")).toBe(
-      "/api/assembly-runs/run-1/nodes/05fc5491-review/logs",
+  it("builds the proxy path and encodes the run id and the agent CR name", () => {
+    expect(nodeLogsUrl("run/1", "05fc5491-review")).toBe(
+      "/api/assembly-runs/run%2F1/nodes/05fc5491-review/logs",
     );
   });
 });

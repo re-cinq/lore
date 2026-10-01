@@ -12,6 +12,7 @@ import {
 
 const TURN_KIND = "turn";
 const DEFAULT_LOG_TAIL = 500;
+const RUNNING = "Running";
 
 /** Where a record was made: the visit and the run it belongs to, as both a live frame and a listed record name them. */
 export interface RecordPlace {
@@ -58,7 +59,7 @@ export function floorVisitIdOf(agentCrName: string): string | null {
     : null;
 }
 
-/** The visit's log records as the lines a log panel shows, newest last and cut to the tail asked for; a visit the floor kept no log for is told so rather than shown empty. */
+/** The visit's log records as the lines a log panel shows, newest last and cut to the tail asked for. An open visit with none yet is available and empty, so the panel keeps polling for them; a visit that ended with none is told the floor kept no log rather than shown empty. */
 export function nodeLogsOf(
   visit: VisitView,
   records: StationRunRecordView[],
@@ -66,7 +67,7 @@ export function nodeLogsOf(
 ): FloorNodeLogs {
   const phase = visitPhaseOf(visit);
 
-  return records.length === 0
+  return records.length === 0 && phase !== RUNNING
     ? { ...NO_RECORDS, phase }
     : { ...KEPT, phase, logs: logTextOf(records, tail) };
 }
@@ -121,7 +122,7 @@ function definedOnly(row: AgentRunEventInsert) {
 // A pod's phases, which the log panel polls on: it keeps reading while the visit is open and stops once it reported.
 function visitPhaseOf(visit: VisitView): string {
   if (visit.report === null) {
-    return "Running";
+    return RUNNING;
   }
 
   return FAILED_OUTCOMES.has(visit.report.outcome) ? "Failed" : "Succeeded";

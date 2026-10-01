@@ -68,6 +68,14 @@ describe("nodeLogsOf", () => {
     });
   });
 
+  it("answers an empty but available log, Running, for an open visit with no record yet, so the panel keeps polling", () => {
+    expect(nodeLogsOf(FLOOR_VISIT, [], undefined)).toMatchObject({
+      available: true,
+      logs: "",
+      phase: "Running",
+    });
+  });
+
   it("says the floor kept no records, Failed, for a failed visit with no log", () => {
     const failed = { ...FLOOR_VISIT, report: { outcome: "failed" } };
 

@@ -15,7 +15,7 @@ export function nodeLogsUrl(
   assemblyLineId: string,
   agentCrName: string,
 ): string {
-  return `/api/assembly-runs/${assemblyLineId}/nodes/${encodeURIComponent(
+  return `/api/assembly-runs/${encodeURIComponent(assemblyLineId)}/nodes/${encodeURIComponent(
     agentCrName,
   )}/logs`;
 }
