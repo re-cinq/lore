@@ -272,3 +272,49 @@ jobs:
           version: v3.19.0
 
       - run: bash scripts/check-charts.sh
+
+  # Every test link a spec or ADR carries must point at a file this checkout
+  # holds and a line inside it (specs/spec-test-coverage, criteria 29 to 35).
+  # Judged for what this change could have broken: the docs it touched, and
+  # links pointing at files it touched. Runs after `format`, on the head that
+  # includes the re-anchored links.
+  #
+  # lore-api parses the links and the binary judges them against the tree. A
+  # Lore that does not answer, or a fork with no secrets, is a warning and a
+  # pass: an outage must not block every pull request.
+  spec-links:
+    name: spec-links
+    needs: format
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.head_ref }}
+          persist-credentials: false
+          # Full history and every branch: the scope is the diff against where
+          # this change left its base branch.
+          fetch-depth: 0
+
+      - name: Fetch lore-code-trace
+        env:
+          LORE_API_URL: ${{ vars.LORE_API_URL }}
+        run: |
+          if [ -z "${LORE_API_URL}" ]; then
+            echo "::warning::LORE_API_URL not set — spec links were NOT checked"; exit 0
+          fi
+          if ! curl -fsSL "${LORE_API_URL}/dist/lore-code-trace/linux-amd64" -o lore-code-trace; then
+            echo "::warning::lore-code-trace could not be fetched from ${LORE_API_URL} — spec links were NOT checked"
+            rm -f lore-code-trace; exit 0
+          fi
+          curl -fsSL "${LORE_API_URL}/dist/lore-code-trace/checksums.txt" -o checksums.txt
+          echo "$(awk '/ linux-amd64$/{print $1}' checksums.txt)  lore-code-trace" | sha256sum -c -
+          chmod +x lore-code-trace
+
+      # The base branch reaches the binary as GITHUB_BASE_REF.
+      - name: Check spec links
+        if: hashFiles('lore-code-trace') != ''
+        env:
+          LORE_API_URL: ${{ vars.LORE_API_URL }}
+          LORE_INGEST_TOKEN: ${{ secrets.LORE_INGEST_TOKEN }}
+        run: ./lore-code-trace links

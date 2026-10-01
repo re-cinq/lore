@@ -161,6 +161,12 @@ section heuristic calls it **testable** and it carries zero test links — the
 narrative/intro exemptions above apply unchanged, so the linter and the
 coverage bar never disagree about what counts as a gap.
 
+A link that points nowhere is caught on the pull request that broke it: the
+`spec-links` job of `.github/workflows/pr-checks.yml` runs `lore-code-trace
+links` (acceptance criteria 29 to 35) after the `format` job, against the base
+branch of the pull request, so the check judges the head that carries the
+re-anchored links.
+
 Reporting is gated by lifecycle status, consistently for specs and ADRs, which
 `parseDocStatus` folds into the same buckets. `statusTier` maps them: a
 **rejected** (never accepted) or **retired** (shipped then superseded/removed)
