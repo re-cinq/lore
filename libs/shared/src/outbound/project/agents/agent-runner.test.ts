@@ -75,6 +75,7 @@ describe("AgentRunner", () => {
 
     await runner.run("re-cinq/lore", "task-9", {
       mode: "cluster",
+      taskType: "feature-planning",
       planId: "plan-9",
       roundFeedback: '<RoundFeedback round="4"/>',
       resumeFromTask: "task-round-2",
@@ -101,10 +102,27 @@ describe("AgentRunner", () => {
 
     await runner.run("re-cinq/lore", "task-img", {
       mode: "cluster",
+      taskType: "runbook",
       image: "golang:1.23",
     });
 
     expect(created[0]?.image).toBe("golang:1.23");
+  });
+
+  it("refuses a cluster run that names no task type, since no recipe stands in for a missing one", async () => {
+    const station: StationBackend = {
+      launch: async () => ({ ref: "r", launched: true }),
+      isActive: async () => true,
+    };
+    const runner = new AgentRunner(process.env, { station });
+
+    await expect(
+      runner.run("re-cinq/lore", "task-9", { mode: "cluster" }),
+    ).rejects.toThrow(
+      new Error(
+        'agents.run mode "cluster" needs a taskType: it names the recipe the pod runs',
+      ),
+    );
   });
 
   it("direct mode calls the injected LlmPort", async () => {

@@ -647,8 +647,6 @@ describe("loadAssemblyLineDir — bundled assemblyLines", () => {
       "feature-planning",
       "gap-detect",
       "gap-fill",
-      "general",
-      "implementation",
       "implementation-loop",
       "ingest",
       "merge",
@@ -689,28 +687,15 @@ describe("loadAssemblyLineDir — bundled assemblyLines", () => {
     expect(wf?.nodes.find((n) => n.id === "draft")?.type).toBe("agent");
   });
 
-  it("implementation has a back-edge with iteration_max=2 (review→address)", async () => {
+  it("onboard has a back-edge with iteration_max=2 (review→address)", async () => {
     const map = await loadAssemblyLineDir(assemblyLinesDir);
-    const wf = map.get("implementation");
+    const wf = map.get("onboard");
     const reviewToAddress = wf?.edges.find(
       (e) => e.from === "review" && e.to === "address",
     );
 
     expect(reviewToAddress?.iteration_max).toBe(2);
     expect(reviewToAddress?.on).toBe("changes_requested");
-  });
-
-  it("general has a single review node with success/changes/failed all routing to retrospective", async () => {
-    const map = await loadAssemblyLineDir(assemblyLinesDir);
-    const wf = map.get("general");
-    const reviewEdges = wf?.edges.filter((e) => e.from === "review") ?? [];
-    const conditions = reviewEdges.map((e) => e.on).sort();
-
-    expect(conditions).toEqual(["changes_requested", "failed", "success"]);
-
-    for (const e of reviewEdges) {
-      expect(e.to).toBe("retrospective");
-    }
   });
 
   it("assemblyLinesDir actually exists on disk (sanity check)", async () => {
