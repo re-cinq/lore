@@ -240,7 +240,7 @@ func TestRunDocsReportsAFailedKindAndStillPostsTheOther(t *testing.T) {
 	}
 }
 
-func TestParseArgsReadsTheDocsSubcommandAndItsFlags(t *testing.T) {
+func TestParseArgsReadsTheSubcommandsAndTheirFlags(t *testing.T) {
 	cases := []struct {
 		args []string
 		want invocation
@@ -249,6 +249,8 @@ func TestParseArgsReadsTheDocsSubcommandAndItsFlags(t *testing.T) {
 		{[]string{"--post"}, invocation{post: true}},
 		{[]string{"docs"}, invocation{docs: true}},
 		{[]string{"docs", "--post", "--force"}, invocation{docs: true, post: true, force: true}},
+		{[]string{"links", "--all"}, invocation{links: true, all: true}},
+		{[]string{"links", "--base", "main"}, invocation{links: true, base: "main"}},
 	}
 	for _, c := range cases {
 		if got := parseArgs(c.args); got != c.want {
