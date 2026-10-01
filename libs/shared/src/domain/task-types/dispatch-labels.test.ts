@@ -1,10 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { DISPATCH_LABELS, dispatchTypeFromLabels } from "./dispatch-labels.js";
+import {
+  DISPATCH_LABELS,
+  dispatchTypeFromLabels,
+  issueDispatchTarget,
+} from "./dispatch-labels.js";
 
 describe("dispatchTypeFromLabels", () => {
-  it("reads implementation off a lore:implementation label", () => {
+  it("reads the backlog off a lore:implementation label", () => {
     expect(dispatchTypeFromLabels(["lore", "lore:implementation"])).toBe(
-      "implementation",
+      "backlog",
     );
   });
 
@@ -23,5 +27,28 @@ describe("dispatchTypeFromLabels", () => {
     for (const label of DISPATCH_LABELS) {
       expect(dispatchTypeFromLabels([label.name])).toBe(label.taskType);
     }
+  });
+});
+
+describe("issueDispatchTarget", () => {
+  it("sends an issue labelled only lore to the backlog when the repository configures no default", () => {
+    expect(issueDispatchTarget(["lore", "bug"])).toBe("backlog");
+  });
+
+  it("sends an issue labelled only lore to a runbook task when the repository's default is runbook", () => {
+    expect(issueDispatchTarget(["lore"], "runbook")).toBe("runbook");
+  });
+
+  it.each(["general", "implementation"])(
+    "sends an issue to the backlog when the repository's default is still the removed %s type",
+    (removed) => {
+      expect(issueDispatchTarget(["lore"], removed)).toBe("backlog");
+    },
+  );
+
+  it("lets a lore:review label win over the repository's runbook default", () => {
+    expect(issueDispatchTarget(["lore", "lore:review"], "runbook")).toBe(
+      "review",
+    );
   });
 });
