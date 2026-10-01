@@ -59,8 +59,13 @@ export function runTurnsRoute(pageOf: TurnPageOf): ServerRoute {
   };
 }
 
+// A limit that is no positive whole number reads as the default: it reaches Postgres as a LIMIT, which refuses a negative or fractional one.
 function limitOf(value: unknown): number {
-  return Math.min(Number(value) || DEFAULT_LIMIT, MAX_LIMIT);
+  const asked = Number(value);
+
+  return Number.isInteger(asked) && asked > 0
+    ? Math.min(asked, MAX_LIMIT)
+    : DEFAULT_LIMIT;
 }
 
 function cursorOf(value: unknown): string {
