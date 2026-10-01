@@ -20,23 +20,27 @@ export function turnFromEnvelope(
 ): AgentRunTurnInsert | null {
   const envelope = redactedLine(rawLine, redact);
 
-  if (envelope === null) {
-    return null;
-  }
+  return envelope === null ? null : turnFromRedactedLine(parsed, envelope);
+}
+
+export function turnFromRedactedLine(
+  parsed: unknown,
+  redactedEnvelope: string,
+): AgentRunTurnInsert {
   const { source, event } = unwrapAttribution(parsed);
 
   return {
     ...turnSourceFields(source),
     carried: parseCarriedRunIdentity(source),
     eventType: isRecord(event) ? str(event.type) : null,
-    envelope,
+    envelope: redactedEnvelope,
   };
 }
 
 /** Redact the raw line and refuse it if redaction broke its JSON (a replacement can span a JSON boundary), since one dropped line beats the whole batch's `::jsonb` cast failing. */
-function redactedLine(
+export function redactedLine(
   rawLine: string,
-  redact: (text: string) => string,
+  redact: (text: string) => string = redactSecrets,
 ): string | null {
   const redacted = redact(rawLine);
 

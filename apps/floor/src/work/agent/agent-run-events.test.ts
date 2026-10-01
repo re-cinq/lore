@@ -456,7 +456,7 @@ describe("run-event projection through parseAgentSink", () => {
     const rows = parseRunEvents(
       line(
         user([
-          { type: "tool_result", tool_use_id: "t", content: "x".repeat(5000) },
+          { type: "tool_result", tool_use_id: "t", content: "x.".repeat(2500) },
         ]),
       ),
     );
@@ -464,7 +464,7 @@ describe("run-event projection through parseAgentSink", () => {
 
     expect(typeof content).toBe("string");
     expect(String(content)).toContain("[truncated");
-    expect(String(content).startsWith("x".repeat(2048))).toBe(true);
+    expect(String(content).startsWith("x.".repeat(1024))).toBe(true);
   });
 
   it("truncates each tool input value at 1024 bytes", () => {
@@ -475,7 +475,7 @@ describe("run-event projection through parseAgentSink", () => {
             type: "tool_use",
             id: "t",
             name: "Write",
-            input: { content: "y".repeat(3000) },
+            input: { content: "y.".repeat(1500) },
           },
         ]),
       ),
@@ -483,11 +483,11 @@ describe("run-event projection through parseAgentSink", () => {
     const input = rows[0].payload?.input as Record<string, unknown>;
 
     expect(String(input.content)).toContain("[truncated");
-    expect(String(input.content).startsWith("y".repeat(1024))).toBe(true);
+    expect(String(input.content).startsWith("y.".repeat(512))).toBe(true);
   });
 
   it("drops trailing tool input keys once the whole input exceeds 4096 bytes", () => {
-    const big = "z".repeat(1000);
+    const big = "z.".repeat(500);
     const rows = parseRunEvents(
       line(
         assistant([
@@ -551,7 +551,7 @@ describe("run-event projection through parseAgentSink", () => {
 
   it("caps summary at 200 characters", () => {
     const rows = parseRunEvents(
-      line(assistant([{ type: "text", text: "w".repeat(500) }])),
+      line(assistant([{ type: "text", text: "w.".repeat(250) }])),
     );
 
     expect(rows[0].summary).toHaveLength(200);
@@ -646,7 +646,7 @@ describe("station log-line projection", () => {
 
   it("truncates a log message longer than 200 chars to the summary cap", () => {
     const rows = parseRunEvents(
-      line({ type: "log", message: "x".repeat(300) }),
+      line({ type: "log", message: "x.".repeat(150) }),
     );
 
     expect(rows[0].summary).toHaveLength(200);
@@ -781,7 +781,7 @@ describe("gemini-cli flat dialect projection", () => {
   });
 
   it("caps a folded delta message row at 200 characters", () => {
-    const chunk = { ...GEMINI_DELTA_FIRST, content: "x".repeat(150) };
+    const chunk = { ...GEMINI_DELTA_FIRST, content: "x.".repeat(75) };
     const rows = geminiRows([chunk, chunk, chunk]);
 
     expect(rows).toHaveLength(1);

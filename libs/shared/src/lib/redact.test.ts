@@ -122,3 +122,138 @@ describe("redactSecrets", () => {
     );
   });
 });
+
+describe("redactSecrets token shapes", () => {
+  const inJson = (secret: string): string =>
+    JSON.stringify({ text: JSON.stringify({ cmd: `echo ${secret}` }) });
+
+  const shapes: Array<[string, string, string]> = [
+    [
+      "fine-grained GitHub PATs",
+      `${"github_pat"}_11ABCDEFG0123456789_abcdefghijklmnopqrstuvwxyz`,
+      "api-key",
+    ],
+    [
+      "ghs_ tokens with dots and dashes",
+      `${"ghs"}_abc.DEF-ghi_jkl.mno-pqr_stu`,
+      "api-key",
+    ],
+    ["gho_ tokens", `${"gho"}_abcdefghijklmnopqrstuvwxyz0123`, "api-key"],
+    ["ghu_ tokens", `${"ghu"}_abcdefghijklmnopqrstuvwxyz0123`, "api-key"],
+    ["ghr_ tokens", `${"ghr"}_abcdefghijklmnopqrstuvwxyz0123`, "api-key"],
+    [
+      "AWS AKIA access key ids",
+      `${"AKIA"}IOSFODNN7EXAMPLE`,
+      "aws-access-key-id",
+    ],
+    [
+      "AWS ASIA access key ids",
+      `${"ASIA"}IOSFODNN7EXAMPLE`,
+      "aws-access-key-id",
+    ],
+    ["GitLab deploy tokens", `${"gldt"}-abcdefghijklmnopqrstuvwx`, "api-key"],
+    [
+      "GitLab runner auth tokens",
+      `${"glrt"}-t1_abcdefghijklmnopqrstuvwx`,
+      "api-key",
+    ],
+    [
+      "GitLab CI build tokens",
+      `${"glcbt"}-64_abcdefghijklmnopqrstuvwx`,
+      "api-key",
+    ],
+    [
+      "GitLab trigger tokens",
+      `${"glptt"}-abcdefghijklmnopqrstuvwxyz0123`,
+      "api-key",
+    ],
+    ["GitLab feed tokens", `${"glft"}-abcdefghijklmnopqrstuvwx`, "api-key"],
+    ["GitLab SCIM tokens", `${"glsoat"}-abcdefghijklmnopqrstuvwx`, "api-key"],
+    [
+      "GitLab runner registration tokens",
+      `${"GR1348941"}abcdefghijklmnopqrstuvwx`,
+      "api-key",
+    ],
+    [
+      "HTTP Basic auth headers",
+      "Authorization: Basic dXNlcjpwYXNzd29yZDEyMzQ1Njc4",
+      "basic-auth",
+    ],
+    [
+      "base64 x-access-token credentials",
+      "eC1hY2Nlc3MtdG9rZW46Z2hzX2FiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6",
+      "github-token-base64",
+    ],
+  ];
+
+  it.each(shapes)("redacts %s", (_label, secret, name) => {
+    const result = redactSecrets(`value: ${secret} end`);
+
+    expect(result).toContain(`[REDACTED:${name}]`);
+    expect(result).not.toContain(secret);
+  });
+
+  it.each(shapes)(
+    "redacts %s inside a JSON-escaped string",
+    (_label, secret) => {
+      const result = redactSecrets(inJson(secret));
+
+      expect(result).not.toContain(secret);
+      expect(() => JSON.parse(result)).not.toThrow();
+    },
+  );
+
+  it("redacts a Google API key", () => {
+    const key = ["AI", "za", "0".repeat(35)].join("");
+
+    expect(redactSecrets(`GEMINI_API_KEY=${key}`)).toBe(
+      "GEMINI_API_KEY=[REDACTED:google-api-key]",
+    );
+  });
+
+  it("redacts a short Basic credential", () => {
+    expect(redactSecrets("Authorization: Basic YWRtaW46YWRtaW4=")).toBe(
+      "Authorization: [REDACTED:basic-auth]",
+    );
+  });
+
+  it("redacts a lower-case basic header", () => {
+    expect(
+      redactSecrets("authorization: basic dXNlcjpwYXNzd29yZDEyMzQ1Njc4"),
+    ).toBe("authorization: [REDACTED:basic-auth]");
+  });
+
+  it("redacts URL userinfo credentials but keeps scheme and host", () => {
+    expect(
+      redactSecrets(
+        "clone https://deploy:s3cr3t-value@code.example.com/org/repo",
+      ),
+    ).toBe(
+      "clone https://[REDACTED:url-credentials]@code.example.com/org/repo",
+    );
+  });
+
+  it("redacts URL userinfo credentials inside a JSON-escaped string", () => {
+    const result = redactSecrets(inJson("http://user:hunter2@example.com/x"));
+
+    expect(result).not.toContain("hunter2");
+    expect(result).toContain("http://[REDACTED:url-credentials]@example.com");
+    expect(() => JSON.parse(result)).not.toThrow();
+  });
+
+  it.each([
+    "see https://example.com/re-cinq/lore/pull/12 for details",
+    "https://example.com:8080/path?q=a:b",
+    "mailto user@example.com at https://example.com/a",
+    "the basic idea is simple",
+    "Basic auth is configured",
+    "basic internationalization support",
+    "ghs_short",
+    "github_pat_short",
+    "AKIA is a prefix",
+    "glpat-short",
+    "ASIAN cuisine",
+  ])("leaves %j untouched", (input) => {
+    expect(redactSecrets(input)).toBe(input);
+  });
+});

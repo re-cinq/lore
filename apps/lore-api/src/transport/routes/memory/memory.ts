@@ -1,5 +1,5 @@
 import { zodResponse } from "../../http/zod-response.js";
-import { errorMessage } from "@re-cinq/lore-shared";
+import { errorMessage, redactSecrets } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
 import type {
   Request,
@@ -178,13 +178,19 @@ async function serveMemoryAction(
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
   const pool = getPool();
-  const body = request.payload as MemoryBody;
+  const body = redactedBody(request.payload as MemoryBody);
 
   try {
     return h.response(await memoryActionResult(pool, body));
   } catch (err) {
     return h.response({ error: errorMessage(err) }).code(500);
   }
+}
+
+function redactedBody(body: MemoryBody): MemoryBody {
+  return body.action === "write"
+    ? { ...body, value: redactSecrets(body.value) }
+    : body;
 }
 
 /** Dispatches the body's `action` to the verb that answers it. */

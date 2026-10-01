@@ -1,7 +1,7 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { rethrowBoom, apiError } from "@re-cinq/lore-shared/http/api-error.js";
-import { errorMessage } from "@re-cinq/lore-shared";
+import { errorMessage, redactSecrets } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
 import type {
   Request,
@@ -80,7 +80,7 @@ async function ingestSession(
   payload: SessionSummaryBody,
 ): Promise<{ status: string; reason?: string; episode_id?: string }> {
   const { session_log, repo, agent_id } = payload;
-  const summary = summaryText(session_log);
+  const summary = redactSecrets(summaryText(session_log));
 
   if (isEmptySummary(summary)) {
     return { status: "skipped", reason: "empty session" };

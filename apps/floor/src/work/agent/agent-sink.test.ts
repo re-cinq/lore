@@ -42,3 +42,61 @@ describe("parseAgentSink", () => {
     expect(sink.runEvents).toEqual([]);
   });
 });
+
+describe("parseAgentSink redaction (#2013)", () => {
+  const token = `${"ghs"}_abcdefghijklmnopqrstuvwxyz0123456789`;
+  const basic =
+    "Basic eC1hY2Nlc3MtdG9rZW46Z2hzX2FiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6";
+  const body = [
+    line(
+      assistant([
+        {
+          type: "tool_use",
+          id: "tu-1",
+          name: "Bash",
+          input: { command: `curl -H "Authorization: token ${token}" api` },
+        },
+      ]),
+    ),
+    line({
+      type: "user",
+      message: {
+        content: [
+          {
+            type: "tool_result",
+            tool_use_id: "tu-1",
+            content: `extraheader = AUTHORIZATION: ${basic}`,
+          },
+        ],
+      },
+    }),
+    line(result({ input_tokens: 10 })),
+  ].join("\n");
+
+  it("stores redacted summaries and payloads in run events and turns", () => {
+    const sink = parseAgentSink(body);
+    const [call, toolResult] = sink.runEvents;
+
+    expect({
+      callSummary: String(call.summary).includes("[REDACTED:api-key]"),
+      callPayload: JSON.stringify(call.payload).includes("[REDACTED:api-key]"),
+      resultPayload: JSON.stringify(toolResult.payload).includes("[REDACTED:"),
+      costRows: sink.costRows.length,
+      turns: sink.turns.length,
+    }).toEqual({
+      callSummary: true,
+      callPayload: true,
+      resultPayload: true,
+      costRows: 1,
+      turns: 3,
+    });
+  });
+
+  it("leaves neither secret anywhere in the stored run events or turns", () => {
+    const sink = parseAgentSink(body);
+    const stored = JSON.stringify([sink.runEvents, sink.turns]);
+
+    expect(stored).not.toContain(token);
+    expect(stored).not.toContain("eC1hY2Nlc3MtdG9rZW46");
+  });
+});

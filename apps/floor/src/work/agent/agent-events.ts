@@ -15,7 +15,8 @@ import {
 } from "@re-cinq/lore-shared/agent-stream/agent-run-events.js";
 import { foldedDelta } from "@re-cinq/lore-shared/agent-stream/gemini-run-events.js";
 import {
-  turnFromEnvelope,
+  redactedLine,
+  turnFromRedactedLine,
   MAX_RUN_TURNS_PER_BATCH,
 } from "./agent-run-turns.js";
 import { isRecord } from "@re-cinq/lore-shared/lib/is-record.js";
@@ -128,12 +129,32 @@ function ingestLine(
 
   ingestCostAndFileRows(sink, envelope);
 
+  if (projections.collectTurns || projections.projectRunEvents) {
+    ingestRedactedLine(
+      sink,
+      { line, envelope, redacted: redactedLine(line) },
+      projections,
+    );
+  }
+}
+
+interface RedactedLine {
+  line: string;
+  envelope: unknown;
+  redacted: string | null;
+}
+
+function ingestRedactedLine(
+  sink: AgentSink,
+  { line, envelope, redacted }: RedactedLine,
+  projections: SinkProjections,
+): void {
   if (projections.collectTurns) {
-    ingestTurn(sink, envelope, line);
+    ingestTurn(sink, envelope, redacted);
   }
 
-  if (projections.projectRunEvents) {
-    ingestRunEvents(sink, envelope);
+  if (projections.projectRunEvents && redacted !== null) {
+    ingestRunEvents(sink, redacted === line ? envelope : JSON.parse(redacted));
   }
 }
 
@@ -236,20 +257,23 @@ function fileEventFromEnvelope(envelope: unknown): AgentFileEvent | null {
   };
 }
 
-function ingestTurn(sink: AgentSink, envelope: unknown, line: string): void {
+function ingestTurn(
+  sink: AgentSink,
+  envelope: unknown,
+  redacted: string | null,
+): void {
   if (sink.turns.length >= MAX_RUN_TURNS_PER_BATCH) {
     sink.turnsCapped++;
 
     return;
   }
-  const turn = turnFromEnvelope(envelope, line);
 
-  if (turn === null) {
+  if (redacted === null) {
     sink.turnsDropped++;
 
     return;
   }
-  sink.turns.push(turn);
+  sink.turns.push(turnFromRedactedLine(envelope, redacted));
 }
 
 function ingestRunEvents(sink: AgentSink, envelope: unknown): void {
