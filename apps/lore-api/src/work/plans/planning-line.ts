@@ -190,11 +190,15 @@ export function approvalDecisionOf(line: PlanLine | null): ApprovalDecision {
     return { kind: "start-spec-work" };
   }
 
-  return {
-    kind: "refused",
-    reason: line.open === "analyze" ? STILL_REFINING : WRITING_SPECS,
-  };
+  return { kind: "refused", reason: refusalFor(line.open) };
 }
+
+/** Which "not now" the approval gets. Every node before the spec analysis is still the plan being written — the planning pass, the bookkeeping after it, a validation someone asked for — and saying "the specs are being written" of any of them would name work that has not started. */
+function refusalFor(open: string): string {
+  return PLANNING_NODES.has(open) ? STILL_REFINING : WRITING_SPECS;
+}
+
+const PLANNING_NODES = new Set(["analyze", "plan-pass-end", "validate"]);
 
 /** Moves an approved plan on to its spec work: the parked author node resumes with the approved brief, or, with no line waiting, a fresh line starts at the spec analysis. A line the agent is on moves nothing. */
 export async function handOverApproved(

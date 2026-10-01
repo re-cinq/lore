@@ -5,6 +5,7 @@ import {
   floorPlanLineState,
   type ParkedVisit,
   type PlanLineFloor,
+  type FloorPlanLine,
 } from "@re-cinq/lore-shared/feature-planning/floor-plan-runs.js";
 import {
   fileItem,
@@ -17,7 +18,11 @@ import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { PLANNING_DEFINITION } from "@re-cinq/lore-shared/project/plans/plan-run.js";
 import { startLine } from "@re-cinq/lore-shared/review/floor-line-start.js";
-import { type RefineRequest } from "./plan-briefs.js";
+import {
+  openPrBrief,
+  revisedBrief,
+  type RefineRequest,
+} from "./plan-briefs.js";
 import type { PlanSubject } from "./plan-engine.js";
 import { assertValidatable } from "./plan-validate.js";
 import {
@@ -28,6 +33,7 @@ import {
   reopenTargetOf,
   type ApprovalDecision,
   type PlanRef,
+  type SpecPrState,
 } from "./planning-line.js";
 import { refineRefusal } from "./refine-refusal.js";
 import {
@@ -36,6 +42,9 @@ import {
   gatherOpenReview,
   type SpecReviewReads,
 } from "./spec-rework.js";
+
+/** What a report that answers no section produces for `refine`. The floor's bag only ever takes a key, never drops one, so a round that said nothing about `refine` would leave the last Refine's section standing: a later failed draft would then tell a section nobody asked about. The Postgres path said `refine: null` for the same reason. */
+const NO_REFINE = "";
 
 const VALIDATE_EVENT = "manual.plan.validate";
 const REWRITE_EVENT = "node.write.start";
@@ -52,6 +61,8 @@ export interface FloorPlanDeps {
   specBranch(plan: PlanRef): Promise<string>;
   /** The repository's default branch, which the nodes after the spec PR merges clone. */
   baseBranch(plan: PlanRef): Promise<string>;
+  /** What GitHub says of a spec PR now, so a later pass is briefed as the amendment it is; null when the PR is gone. */
+  specPrState(repo: string, prNumber: number): Promise<SpecPrState>;
   pulls: SpecReviewReads;
 }
 
@@ -82,7 +93,7 @@ export async function startFloorDrafting(
   if (line?.parkedAuthor) {
     await reportToVisit(deps.floor.events, line.parkedAuthor.visitId, {
       outcome: "changes_requested",
-      produced: { plan_md: planMd, description: brief },
+      produced: { plan_md: planMd, description: brief, refine: NO_REFINE },
     });
 
     return line.lineId;
@@ -155,7 +166,40 @@ export async function startFloorSpecWork(
   enforceTrue(input.plan.status === "approved", apiError(409), NOT_APPROVED);
   enforceTrue(!line || line.open === null, apiError(409), SPEC_WORK_RUNNING);
 
-  return startSpecPass(deps, input);
+  return startSpecPass(deps, await amended(deps, input, line));
+}
+
+/** A pass over specs an earlier one already wrote is briefed as the amendment it is: onto the branch of a spec PR still open, or onto what reached main. A plan reaching its specs for the first time keeps the approved brief it came with. */
+async function amended(
+  deps: FloorPlanDeps,
+  input: FloorPlanMarkdown,
+  line: FloorPlanLine | null,
+): Promise<FloorPlanMarkdown> {
+  const prNumber = line?.prNumber ?? null;
+
+  if (prNumber === null) {
+    return input;
+  }
+  const state = await deps.specPrState(input.plan.repo, prNumber);
+  const brief = amendmentBrief(input.plan, prNumber, {
+    open: state === "open",
+    merged: line?.merged === true,
+  });
+
+  return brief === null ? input : { ...input, brief };
+}
+
+/** Which amendment a later pass is told it is making, or null when the earlier pass left nothing to amend. */
+function amendmentBrief(
+  plan: PlanSubject,
+  prNumber: number,
+  spec: { open: boolean; merged: boolean },
+): string | null {
+  if (spec.open) {
+    return openPrBrief(plan, prNumber);
+  }
+
+  return spec.merged ? revisedBrief(plan, prNumber) : null;
 }
 
 /** Sends an open spec PR back to the author: the visit parked on `merged` reports changes_requested. A run already at its author, ended or never started needs no report. */
@@ -235,6 +279,7 @@ async function reportApproved(
     produced: {
       plan_md: await storeMarkdown(deps.floor, planMarkdown),
       description: brief,
+      refine: NO_REFINE,
     },
   });
 }

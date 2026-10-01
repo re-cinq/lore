@@ -98,6 +98,8 @@ async function deploymentFloorDeps(
     floor,
     specBranch: (plan) => ensureSpecBranch(files, plan),
     baseBranch: () => files.defaultBranch(),
+    specPrState: async (_repo, prNumber) =>
+      (await pulls.get(prNumber))?.state ?? null,
     pulls,
   };
 }

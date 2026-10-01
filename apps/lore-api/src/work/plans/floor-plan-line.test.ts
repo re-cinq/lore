@@ -80,6 +80,7 @@ function scene(
     runs?: RunView[];
     visits?: VisitView[];
     pulls?: SpecReviewReads;
+    specPrState?: "open" | "closed" | "merged" | null;
   } = {},
 ) {
   const recorded = recordedPlanFloor({
@@ -91,6 +92,7 @@ function scene(
     floor: recorded.floor,
     specBranch: async (plan) => (branchesFor.push(plan.id), specBranchOf(plan)),
     baseBranch: () => Promise.resolve("main"),
+    specPrState: () => Promise.resolve(given.specPrState ?? null),
     pulls: given.pulls ?? REVIEWED,
   };
 
@@ -105,6 +107,14 @@ const FINISHED = planRun({
 
 function posts(requests: FloorRequest[]): FloorRequest[] {
   return requests.filter((request) => request.method === "POST");
+}
+
+function startedDescription(requests: FloorRequest[]): string {
+  const body = posts(requests).at(-1)?.body as {
+    startItems?: { description?: { ref?: string } };
+  };
+
+  return body?.startItems?.description?.ref ?? "";
 }
 
 function reportedProduced(
@@ -170,7 +180,7 @@ describe("startFloorDrafting", () => {
     expect(posts(requests).at(-1)).toEqual(
       reported("visit-author", {
         outcome: "changes_requested",
-        produced: { plan_md: PLAN_BLOB_HASH, description: BRIEF },
+        produced: { plan_md: PLAN_BLOB_HASH, description: BRIEF, refine: "" },
       }),
     );
   });
@@ -417,7 +427,7 @@ describe("approveFloorPlan", () => {
     expect(posts(requests).at(-1)).toEqual(
       reported("visit-author", {
         outcome: "success",
-        produced: { plan_md: PLAN_BLOB_HASH, description: BRIEF },
+        produced: { plan_md: PLAN_BLOB_HASH, description: BRIEF, refine: "" },
       }),
     );
   });
@@ -461,6 +471,32 @@ describe("approveFloorPlan", () => {
       reason: "the planning agent is still refining a section",
     });
     expect(posts(requests)).toEqual([]);
+  });
+});
+
+describe("a round that answers no section says so", () => {
+  it("clears the refine the bag still holds from an earlier Refine when a draft is asked for", async () => {
+    const { deps, requests } = scene({ visits: ON_AUTHOR });
+
+    await startFloorDrafting(deps, {
+      plan: DRAFT,
+      planMarkdown: MARKDOWN,
+      brief: BRIEF,
+    });
+
+    expect(reportedProduced(requests).refine).toBe("");
+  });
+
+  it("clears it on an approval too, so a later failed pass tells no section it was never asked about", async () => {
+    const { deps, requests } = scene({ visits: ON_AUTHOR });
+
+    await approveFloorPlan(deps, {
+      plan: APPROVED,
+      planMarkdown: MARKDOWN,
+      brief: BRIEF,
+    });
+
+    expect(reportedProduced(requests).refine).toBe("");
   });
 });
 
@@ -523,6 +559,51 @@ describe("startFloorSpecWork", () => {
 
     expect(runId).toBe("run-new");
     expect(posts(requests).at(-1)).toEqual(started("analyse-specs"));
+  });
+
+  it("briefs the pass as an amendment to the specs on main when an earlier spec PR merged", async () => {
+    const merged = [
+      planVisit("open-spec-pr", {
+        outcome: "success",
+        produced: { pr_url: "https://github.com/re-cinq/lore/pull/7" },
+      }),
+      planVisit("merged", { outcome: "success" }),
+    ];
+    const { deps, requests } = scene({
+      runs: [FINISHED],
+      visits: merged,
+      specPrState: "merged",
+    });
+
+    await startFloorSpecWork(deps, {
+      plan: APPROVED,
+      planMarkdown: MARKDOWN,
+      brief: BRIEF,
+    });
+
+    expect(startedDescription(requests)).toContain("spec PR #7");
+  });
+
+  it("briefs the pass as amending the branch of a spec PR still open", async () => {
+    const open = [
+      planVisit("open-spec-pr", {
+        outcome: "success",
+        produced: { pr_url: "https://github.com/re-cinq/lore/pull/9" },
+      }),
+    ];
+    const { deps, requests } = scene({
+      runs: [FINISHED],
+      visits: open,
+      specPrState: "open",
+    });
+
+    await startFloorSpecWork(deps, {
+      plan: APPROVED,
+      planMarkdown: MARKDOWN,
+      brief: BRIEF,
+    });
+
+    expect(startedDescription(requests)).toContain("Spec PR #9 is open");
   });
 
   it("refuses with 409 the spec work is already running while the run is on write", async () => {
