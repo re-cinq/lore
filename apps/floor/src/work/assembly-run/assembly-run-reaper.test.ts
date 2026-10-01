@@ -589,7 +589,7 @@ describe("assemblyLineReaperJob", () => {
       clusterAgentId: "a-1",
       tags: ["node:agent"],
     });
-    await h.port.releaseStationRun(nodeRowId, {
+    await h.port.releaseStationRun(nodeRowId, "a-1", {
       reason: "not accessible to the parent installation",
       failureClass: "github-permission",
       permanent: true,
