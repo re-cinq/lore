@@ -206,8 +206,7 @@ export async function proxyGetApi(path: string): Promise<ProxyResult> {
         signal: AbortSignal.timeout(15_000),
       }),
     `proxy GET ${path}`,
-    // Non-retriable 4xx: surface server's message to caller (no status/body carried for GET).
-    (_status, detail) => ({ ok: false, reason: "unreachable", detail }),
+    refusalResult,
   );
 }
 
@@ -224,6 +223,24 @@ export function unreachableError(
           `Lore API unreachable for ${op} after ${PROXY_RETRY_DELAYS_MS.length + 1} attempts: ${detail}. ` +
           `Refusing local-file fallback to prevent silent divergence from the org-wide DB. ` +
           `Check the GKE service (lore-api pods) and retry.`,
+      },
+    ],
+  };
+}
+
+export function failedProxyError(
+  op: string,
+  failure: Extract<ProxyResult, { reason: "unreachable" }>,
+): { content: [{ type: "text"; text: string }] } {
+  if (!failure.status) {
+    return unreachableError(op, failure.detail);
+  }
+
+  return {
+    content: [
+      {
+        type: "text" as const,
+        text: `Lore API rejected ${op}: ${failure.detail}`,
       },
     ],
   };

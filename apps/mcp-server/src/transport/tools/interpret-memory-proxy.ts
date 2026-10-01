@@ -1,5 +1,5 @@
 import {
-  unreachableError,
+  failedProxyError,
   deniedError,
   textResult,
   type ProxyResult,
@@ -18,7 +18,7 @@ export function interpretMemoryProxy(
   }
 
   if (proxied.reason === "unreachable") {
-    return unreachableError(toolName, proxied.detail);
+    return failedProxyError(toolName, proxied);
   }
 
   if (proxied.reason === "denied") {

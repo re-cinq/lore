@@ -1,11 +1,11 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { detectCurrentRepo } from "@re-cinq/lore-server-core/features/repo/repo-detect.js";
 import { proxyGetApi, withReadCache, textResult } from "./deps.js";
 import {
   runQueryTrace,
   type QueryTraceArgs,
 } from "@re-cinq/lore-server-core/features/spec-trace/query-trace.js";
+import { repoParam, resolveRepo, type ServerMode } from "./repo-scope.js";
 
 const QUERY_TRACE_INPUT = {
   spec: z
@@ -62,28 +62,25 @@ const QUERY_TRACE_INPUT = {
     .describe(
       "1-based ordinal (e.g. '3') or unique text substring to narrow to a single statement. Omit for whole-spec summary.",
     ),
-  repo: z
-    .string()
-    .optional()
-    .describe(
-      "Target repo as 'owner/repo'. Defaults to the repo detected from cwd git remote.",
-    ),
 };
 
-export function registerSpecTraceTools(server: McpServer) {
+export function registerSpecTraceTools(
+  server: McpServer,
+  mode: ServerMode = "full",
+) {
   server.tool(
     "lore-query-trace",
     `READ side of spec-traceability: returns per-statement coverage for a spec — which tests validate each statement and which are drifted or violated. Read-only; executes and builds nothing. The graph is (re)projected by CI — specs/adrs on push, tests via lore-tests.yml — not by an MCP tool. Instead: to enumerate or run tests locally use lore_list_tests / lore_run_test.`,
-    QUERY_TRACE_INPUT,
-    async (args) => textResult(await queryTrace(args)),
+    { ...QUERY_TRACE_INPUT, repo: repoParam(mode) },
+    async (args) => textResult(await queryTrace(args, mode)),
   );
 }
 
 /** Reads one spec's coverage, the call graph around a symbol, or the tests covering a source span. */
-function queryTrace(args: QueryTraceArgs): Promise<string> {
+function queryTrace(args: QueryTraceArgs, mode: ServerMode): Promise<string> {
   return runQueryTrace(args, {
     proxyGet: traceGet(args),
-    detectRepo: detectCurrentRepo,
+    detectRepo: () => resolveRepo(undefined, mode),
   });
 }
 

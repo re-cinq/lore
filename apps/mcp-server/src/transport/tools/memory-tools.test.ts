@@ -120,6 +120,49 @@ describe("lore_write_memory remote proxy (no local DB)", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(result.content[0].text).toContain("denied");
   });
+
+  it("in the agent gateway scopes the write to the repo the call names", async () => {
+    const { registerMemoryTools } = await import("./memory-tools.js");
+    const handlers: Record<string, ToolHandler> = {};
+    const fakeServer = {
+      tool(
+        name: string,
+        _desc: string,
+        _schema: unknown,
+        handler: ToolHandler,
+      ) {
+        handlers[name] = handler;
+      },
+    };
+
+    registerMemoryTools(fakeServer as never, "agent");
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({}) });
+
+    await handlers["lore_write_memory"]({
+      key: "k",
+      value: "v",
+      repo: "re-cinq/lore",
+    });
+
+    expect(
+      JSON.parse((fetchMock.mock.calls[0][1] as { body: string }).body),
+    ).toMatchObject({ action: "write", key: "k", repo: "re-cinq/lore" });
+  });
+
+  it("reports a 400 as the API rejecting the call with its reason, not as an unreachable API", async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 400,
+      statusText: "Bad Request",
+      text: async () => JSON.stringify({ error: "key: required" }),
+    });
+
+    const result = await writeMemory({ key: "k", value: "v" });
+
+    expect(result.content[0].text).toBe(
+      "Lore API rejected lore_write_memory: HTTP 400 Bad Request: key: required",
+    );
+  });
 });
 
 describe("lore_read_memory remote proxy (no local DB)", () => {

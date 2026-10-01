@@ -7,10 +7,10 @@ import {
   hybridSearch,
   isDbAvailable,
 } from "@re-cinq/lore-server-core/platform/db.js";
-import { detectCurrentRepo } from "@re-cinq/lore-server-core/features/repo/repo-detect.js";
 import { traceRetrieval } from "@re-cinq/lore-server-core/platform/otel.js";
 import { textResult, proxyGetApi } from "./deps.js";
 import { registerAssembleContextTool } from "./context-tools-assemble.js";
+import { resolveRepo, type ServerMode } from "./repo-scope.js";
 
 const CONTEXT_PATH = process.env.CONTEXT_PATH || process.cwd();
 
@@ -37,19 +37,22 @@ interface ParagraphScan {
   limit: number;
 }
 
-export function registerContextTools(server: McpServer) {
-  registerSearchContextTool(server);
-  registerAssembleContextTool(server);
+export function registerContextTools(
+  server: McpServer,
+  mode: ServerMode = "full",
+) {
+  registerSearchContextTool(server, mode);
+  registerAssembleContextTool(server, mode);
 }
 
-function registerSearchContextTool(server: McpServer) {
+function registerSearchContextTool(server: McpServer, mode: ServerMode) {
   server.tool(
     "lore_search_context",
     `Searches the repo/org ingested-document corpus (CLAUDE.md, ADRs, team docs, specs) and returns raw matching passages as source-scored snippets. Uses hybrid vector+BM25 retrieval over the ingested corpus, through the API when the adapter holds no pool of its own; only with neither does it fall back to a substring scan of local .md files, and it says so when it does.
 Use this when you want chunk-level evidence or the exact wording of a convention/ADR. For a ONE token-budgeted bundle combining all sources (conventions, ADRs, memories, facts, graph) call lore_assemble_context — that is the mandatory first call. For past learnings, decisions, and extracted facts from prior sessions call lore_search_memory. For entity relationships call lore_query_graph.`,
     SEARCH_CONTEXT_INPUT,
     async ({ query, team, limit }) => {
-      logDetectedRepo(team);
+      logDetectedRepo(team, mode);
 
       if (await isDbAvailable()) {
         return searchDbContext(query, team, limit);
@@ -64,8 +67,8 @@ Use this when you want chunk-level evidence or the exact wording of a convention
 }
 
 // Auto-detects repo from git remote when no team is specified, to scope DB search to its context namespace.
-function logDetectedRepo(team: string | undefined): void {
-  const detectedRepo = !team ? detectCurrentRepo() : null;
+function logDetectedRepo(team: string | undefined, mode: ServerMode): void {
+  const detectedRepo = !team ? resolveRepo(undefined, mode) : null;
 
   if (detectedRepo) {
     console.error(

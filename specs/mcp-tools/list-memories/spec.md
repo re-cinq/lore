@@ -99,9 +99,9 @@ version, created_at, ttl_seconds, has_facts }`; the proxied body; the
    proxied body on success; a 401 is reported as a denied error on the first
    attempt, without the retriable-status backoff loop. ([validated by `returns
    the proxied body on a successful
-   list`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L178), [`reports a
+   list`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L221), [`reports a
    denied error on a 401 without
-   retrying`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L192))
+   retrying`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L235))
 
 ## Out of Scope
 

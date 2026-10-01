@@ -6,13 +6,18 @@ import { z } from "zod";
 import {
   textResult,
   deniedError,
-  unreachableError,
+  failedProxyError,
   withReadCache,
   trackLatency,
   proxyGetApi,
   type ProxyResult,
 } from "./deps.js";
-import { detectCurrentRepo } from "@re-cinq/lore-server-core/features/repo/repo-detect.js";
+import {
+  NO_REPO_GIVEN,
+  repoParam,
+  resolveRepo,
+  type ServerMode,
+} from "./repo-scope.js";
 import { updateBanner } from "../../work/update/mcp-update.js";
 
 // MCP tool input args (lore_assemble_context's own snake_case schema), not a DB row.
@@ -42,10 +47,6 @@ const ASSEMBLE_CONTEXT_INPUT = {
     .describe(
       "Token budget for the assembled block; floor 2000. Raise to ~16000 for research-heavy queries. Defaults to 8000.",
     ),
-  repo: z
-    .string()
-    .optional()
-    .describe("'owner/repo'. Auto-detected from the git remote when omitted."),
   agent_id: z
     .string()
     .optional()
@@ -58,21 +59,37 @@ const ASSEMBLE_CONTEXT_INPUT = {
     ),
 };
 
-export function registerAssembleContextTool(server: McpServer) {
+export function registerAssembleContextTool(
+  server: McpServer,
+  mode: ServerMode = "full",
+) {
   server.tool(
     "lore_assemble_context",
     `Assembles ONE token-budgeted, template-ordered context block by pulling from every source at once (repo conventions/docs, ADRs, memories, facts, episodes, graph relationships) and returning a single provenance-tagged text block. This is the mandatory first call when starting any task — use it before the narrower retrieval tools.
 Instead: use lore_search_context for raw passages/exact wording from ingested docs; use lore_search_memory for past learnings, decisions, and extracted facts from prior sessions; use lore_query_graph for entity relationships. Those three are the building blocks this tool already combines.`,
-    ASSEMBLE_CONTEXT_INPUT,
+    { ...ASSEMBLE_CONTEXT_INPUT, repo: repoParam(mode) },
     async (args) =>
       trackLatency("lore_assemble_context", async () => {
         try {
-          return await assembleContext(args);
+          return await assembleForMode(args, mode);
         } catch (err) {
           return textResult(`Error assembling context: ${errorMessage(err)}`);
         }
       }),
   );
+}
+
+async function assembleForMode(
+  args: Parameters<typeof assembleContext>[0],
+  mode: ServerMode,
+) {
+  const repo = resolveRepo(args.repo, mode);
+
+  if (!repo && mode === "agent") {
+    return textResult(NO_REPO_GIVEN);
+  }
+
+  return assembleContext({ ...args, repo: repo ?? undefined });
 }
 
 /** The mandatory first call, served entirely by the API — the adapter holds no pool, so with no LORE_API_URL there is nothing to degrade to and it says so instead of returning an empty bundle. */
@@ -91,16 +108,11 @@ async function assembleContext(args: {
       "Context assembly requires PostgreSQL or LORE_API_URL. Neither is configured.",
     );
   }
-  const resolvedRepo = resolveRepoLabel(repo);
   const extras = buildAssembleExtras({ max_tokens, cross_repo, agent_id });
 
   return interpretProxiedContext(
-    await cachedAssemble({ query, template, repo: resolvedRepo }, extras),
+    await cachedAssemble({ query, template, repo: repo ?? "" }, extras),
   );
-}
-
-function resolveRepoLabel(repo: string | undefined): string {
-  return repo || detectCurrentRepo() || "";
 }
 
 function buildAssembleExtras(
@@ -163,7 +175,7 @@ async function interpretProxiedContext(
   }
 
   if (proxied.reason === "unreachable") {
-    return unreachableError("lore_assemble_context", proxied.detail);
+    return failedProxyError("lore_assemble_context", proxied);
   }
 
   if (proxied.reason === "denied") {

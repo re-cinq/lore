@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ServerMode } from "./repo-scope.js";
 
 // Tool input schemas live as data beside their tool: a zod object is a contract, not a step in registering one.
 
@@ -21,6 +22,18 @@ export const WRITE_MEMORY_INPUT = {
       "When true, the API fires async fact extraction from value (fire-and-forget; does not block the write).",
     ),
 };
+
+export const writeMemoryInput = (mode: ServerMode) => ({
+  ...WRITE_MEMORY_INPUT,
+  repo: z
+    .string()
+    .optional()
+    .describe(
+      mode === "agent"
+        ? "'owner/repo' the memory is scoped to. Omit for an agent-scoped memory: this server has no checkout to detect a repo from."
+        : "'owner/repo' the memory is scoped to. Auto-detected from the git remote when omitted.",
+    ),
+});
 
 export const READ_MEMORY_INPUT = {
   key: z.string().describe("Exact memory key; no wildcards or fuzzy matching."),

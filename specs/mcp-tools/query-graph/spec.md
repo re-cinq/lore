@@ -119,7 +119,7 @@ A single MCP text content block. One of: pretty-printed JSON array of
 7a. A 401/403 from the proxied `GET /api/graph` is reported as a denied error
     on the first attempt, without the retriable-status backoff loop.
     ([validated by `reports a denied error on a 403 without
-    retrying`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L219))
+    retrying`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L262))
 
 8. The `GET /api/graph` endpoint passes the params to `queryLiveGraph` and
    returns its rows, 503 without a pool, 500 on error. ([validated by `graph.test.ts:31`](apps/lore-api/src/transport/routes/graph/graph.test.ts#L31))

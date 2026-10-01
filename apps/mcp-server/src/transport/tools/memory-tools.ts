@@ -8,11 +8,10 @@ import {
   listMemoriesFile,
   searchMemoryFile,
 } from "@re-cinq/lore-server-core/features/memory/memory-file.js";
-import { detectCurrentRepo } from "@re-cinq/lore-server-core/features/repo/repo-detect.js";
 import { proxyMemory, withReadCache, textResult } from "./deps.js";
 import { invalidate as invalidateCache } from "@re-cinq/lore-server-core/platform/proxy-cache.js";
 import {
-  WRITE_MEMORY_INPUT,
+  writeMemoryInput,
   READ_MEMORY_INPUT,
   DELETE_MEMORY_INPUT,
   LIST_MEMORIES_INPUT,
@@ -20,6 +19,7 @@ import {
 } from "./memory-tools-schemas.js";
 import { registerGraphEpisodeTools } from "./graph-episode-tools.js";
 import { interpretMemoryProxy } from "./interpret-memory-proxy.js";
+import { resolveRepo, type ServerMode } from "./repo-scope.js";
 
 export { interpretMemoryProxy } from "./interpret-memory-proxy.js";
 
@@ -41,6 +41,7 @@ interface WriteMemoryArgs extends KeyedMemoryArgs {
   value: string;
   ttl?: number;
   extract_facts?: boolean;
+  repo?: string;
 }
 
 /** What these tools resolve to. `textResult` returns a one-element tuple and the proxy interpreter returns an array; naming the wider shape lets both flow out of one function. */
@@ -55,32 +56,35 @@ interface SearchMemoryArgs {
   graph_augment?: boolean;
 }
 
-export function registerMemoryTools(server: McpServer) {
-  registerWriteMemoryTool(server);
+export function registerMemoryTools(
+  server: McpServer,
+  mode: ServerMode = "full",
+) {
+  registerWriteMemoryTool(server, mode);
   registerReadMemoryTool(server);
   registerDeleteMemoryTool(server);
-  registerListMemoriesTool(server);
+  registerListMemoriesTool(server, mode);
   registerSearchMemoryTool(server);
   registerGraphEpisodeTools(server);
 }
 
-function registerWriteMemoryTool(server: McpServer) {
+function registerWriteMemoryTool(server: McpServer, mode: ServerMode) {
   server.tool(
     "lore_write_memory",
-    `Stores one curated key/value memory (versioned, repo-scoped when a repo is detected, agent-scoped otherwise) and returns {key, version, agent_id, created_at}. Use when you have a decision, convention, correction, or session summary you want to retrieve later by a key you choose. Instead: lore_write_episode for raw uncurated text with no chosen key.`,
-    WRITE_MEMORY_INPUT,
-    writeMemoryHandler,
+    `Stores one curated key/value memory (versioned, repo-scoped when a repo is given or detected, agent-scoped otherwise) and returns {key, version, agent_id, created_at}. Use when you have a decision, convention, correction, or session summary you want to retrieve later by a key you choose. Instead: lore_write_episode for raw uncurated text with no chosen key.`,
+    writeMemoryInput(mode),
+    (args) => writeMemoryHandler(args, mode),
   );
 }
 
 // Writes through the API, falling back to the file store ONLY when LORE_API_URL is unset — true offline mode. A configured API that refused is reported, not quietly written to disk, or the two stores would diverge.
-async function writeMemoryHandler(args: WriteMemoryArgs) {
+async function writeMemoryHandler(args: WriteMemoryArgs, mode: ServerMode) {
   const { key, value, agent_id, ttl } = args;
 
   try {
     const handled = interpretMemoryProxy(
       "lore_write_memory",
-      await proxyMemory("write", writeProxyArgs(args)),
+      await proxyMemory("write", writeProxyArgs(args, mode)),
       () => invalidateCache(MEMORY_DERIVED_READS),
     );
 
@@ -93,14 +97,14 @@ async function writeMemoryHandler(args: WriteMemoryArgs) {
   }
 }
 
-// The write as the API takes it. The repo is detected HERE rather than passed in: the caller is a tool invocation with no notion of where it is running, and a repo-scoped memory must be scoped by the repo the session is actually in.
-function writeProxyArgs(args: WriteMemoryArgs) {
+// The write as the API takes it. The repo is the one the caller names, else the checkout the session is in; the shared gateway has no checkout, so there only a named repo scopes the memory.
+function writeProxyArgs(args: WriteMemoryArgs, mode: ServerMode) {
   return {
     key: args.key,
     value: args.value,
     agent_id: args.agent_id || resolveAgentId(),
     ttl: args.ttl,
-    repo: detectCurrentRepo() || undefined,
+    repo: resolveRepo(args.repo, mode) || undefined,
     extract_facts: args.extract_facts,
   };
 }
@@ -212,13 +216,18 @@ async function deleteMemoryHandler({ key, agent_id }: KeyedMemoryArgs) {
   }
 }
 
-function registerListMemoriesTool(server: McpServer) {
+function registerListMemoriesTool(server: McpServer, mode: ServerMode) {
   server.tool(
     "lore_list_memories",
     `Lists memory keys for the current repo (newest-first, paginated), returning {memories: [{key, agent_id, repo, version, created_at, ttl_seconds, has_facts}], total}. Scope: detected repo wins; falls back to agent_id; then org-wide. Excludes expired and soft-deleted entries. Use to browse existing keys without ranking. Instead: lore_search_memory to find memories by meaning; lore_read_memory to fetch one specific value.`,
     LIST_MEMORIES_INPUT,
     ({ agent_id, limit, offset }) =>
-      listMemoriesHandler({ agent_id, limit, offset }),
+      listMemoriesHandler({
+        agent_id,
+        limit,
+        offset,
+        repo: resolveRepo(undefined, mode) || undefined,
+      }),
   );
 }
 
@@ -227,13 +236,13 @@ async function listMemoriesHandler({
   agent_id,
   limit,
   offset,
+  repo,
 }: {
   agent_id?: string;
   limit: number;
   offset: number;
+  repo?: string;
 }) {
-  const repo = detectCurrentRepo() || undefined;
-
   try {
     return await cachedMemoryRead(
       listReadSpec(agent_id, limit, offset, repo),

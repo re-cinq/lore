@@ -1,16 +1,16 @@
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { detectCurrentRepo } from "@re-cinq/lore-server-core/features/repo/repo-detect.js";
 import {
   proxyToApi,
   proxyGetApi,
   deniedError,
-  unreachableError,
+  failedProxyError,
   textResult,
   type ProxyResult,
 } from "./deps.js";
 import { invalidate as invalidateCache } from "@re-cinq/lore-server-core/platform/proxy-cache.js";
+import { repoParam, resolveRepo, type ServerMode } from "./repo-scope.js";
 
 const NOT_CONFIGURED =
   "Repo management requires LORE_API_URL + LORE_INGEST_TOKEN. Run install.sh to configure.";
@@ -28,15 +28,10 @@ const ONBOARD_REPO_INPUT = {
     ),
 };
 
-const INGEST_FILES_INPUT = {
+const ingestFilesInput = (mode: ServerMode) => ({
   files: z.array(z.string()).describe("Repo-relative file paths to ingest."),
-  repo: z
-    .string()
-    .optional()
-    .describe(
-      '"owner/repo" format. Auto-detected from cwd git remote when omitted.',
-    ),
-};
+  repo: repoParam(mode),
+});
 
 type ToolTextResult = ReturnType<typeof textResult>;
 
@@ -50,10 +45,13 @@ interface IngestOutcome {
   message: string;
 }
 
-export function registerRepoTools(server: McpServer) {
+export function registerRepoTools(
+  server: McpServer,
+  mode: ServerMode = "full",
+) {
   registerListReposTool(server);
   registerOnboardRepoTool(server);
-  registerIngestFilesTool(server);
+  registerIngestFilesTool(server, mode);
 }
 
 function registerListReposTool(server: McpServer) {
@@ -152,7 +150,7 @@ function proxyFailure(
     return deniedError(toolName, proxied.detail);
   }
 
-  return unreachableError(toolName, proxied.detail);
+  return failedProxyError(toolName, proxied);
 }
 
 function registerOnboardRepoTool(server: McpServer) {
@@ -194,14 +192,14 @@ function onboardFailure(
   return proxyFailure("lore_onboard_repo", NOT_CONFIGURED, proxied);
 }
 
-function registerIngestFilesTool(server: McpServer) {
+function registerIngestFilesTool(server: McpServer, mode: ServerMode) {
   server.tool(
     "lore_ingest_files",
     `Fetches specific repo files from GitHub, embeds them, and writes them into Lore's context store immediately so they are searchable without waiting for nightly ingestion. Returns "Ingested N files into Lore for <repo>. M errors." Use after merging a new ADR or updated CLAUDE.md to make it searchable now. Instead: to onboard a new repo use lore_onboard_repo; to search existing content use lore_search_context or lore_assemble_context.`,
-    INGEST_FILES_INPUT,
+    ingestFilesInput(mode),
     async ({ files, repo }) => {
       try {
-        return await ingestFiles(files, repo);
+        return await ingestFiles(files, mode, repo);
       } catch (err) {
         return textResult(`Error: ${errorMessage(err)}`);
       }
@@ -210,8 +208,8 @@ function registerIngestFilesTool(server: McpServer) {
 }
 
 /** Ingests now rather than waiting for the nightly pass, then drops the assemble cache for that repo — a freshly merged ADR that the next bundle does not contain is the whole reason somebody reaches for this tool. */
-async function ingestFiles(files: string[], repo?: string) {
-  const resolvedRepo = repo || detectCurrentRepo();
+async function ingestFiles(files: string[], mode: ServerMode, repo?: string) {
+  const resolvedRepo = resolveRepo(repo, mode);
 
   if (!resolvedRepo) {
     return textResult(
@@ -225,7 +223,7 @@ async function ingestFiles(files: string[], repo?: string) {
       "Ingestion requires LORE_API_URL + LORE_INGEST_TOKEN. Run install.sh to configure.",
     );
   }
-  const commit = await resolveCommitSha(resolvedRepo);
+  const commit = await resolveCommitSha(resolvedRepo, mode);
   const outcome = await postIngest(credentials, files, resolvedRepo, commit);
 
   if (outcome.ingested) {
@@ -247,11 +245,14 @@ function ingestCredentials(): IngestCredentials | null {
 }
 
 // The local HEAD commit only stands in for the target repo when the caller's cwd git remote actually IS that repo; otherwise "HEAD" tells GitHub to resolve the default branch.
-async function resolveCommitSha(resolvedRepo: string): Promise<string> {
+async function resolveCommitSha(
+  resolvedRepo: string,
+  mode: ServerMode,
+): Promise<string> {
   try {
     const { execSync } = await import("node:child_process");
 
-    if (detectCurrentRepo() !== resolvedRepo) {
+    if (resolveRepo(undefined, mode) !== resolvedRepo) {
       return "HEAD";
     }
 

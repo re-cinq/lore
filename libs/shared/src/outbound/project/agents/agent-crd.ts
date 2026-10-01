@@ -112,7 +112,7 @@ function llmSecretKeys(
   return [...new Set([...(own ? [own] : []), ...Object.values(keys)])];
 }
 
-/** The template renders the `prompt` PARAMETER, not the recipe body: the Floor renders the recipe (resolved row → yaml) and appends the CI verdict and failure blocks, and until 2026-09-13 the template ignored that parameter and every appended block died on the CR (#2051). {context} is filled per run with CONTEXT_BOOTSTRAP; only where the pod has a Lore MCP to call (#1629). */
+/** The template renders the `prompt` PARAMETER, not the recipe body: the Floor renders the recipe (resolved row → yaml) and appends the CI verdict and failure blocks, and until 2026-09-13 the template ignored that parameter and every appended block died on the CR (#2051). {context} is filled per run with contextBootstrap(targetRepo); only where the pod has a Lore MCP to call (#1629). */
 function llmPrompt(
   def: ResolvedAgentDefinition,
   opts: CatalogCrdOptions,

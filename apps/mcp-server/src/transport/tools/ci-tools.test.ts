@@ -21,7 +21,10 @@ type ToolHandler = (args: Record<string, unknown>) => Promise<{
   content: { type: string; text: string }[];
 }>;
 
-function handlerFor(name: string): ToolHandler {
+function handlerFor(
+  name: string,
+  mode: "full" | "agent" = "full",
+): ToolHandler {
   const handlers: Record<string, ToolHandler> = {};
   const fakeServer = {
     tool(
@@ -34,7 +37,7 @@ function handlerFor(name: string): ToolHandler {
     },
   };
 
-  registerCiTools(fakeServer as never);
+  registerCiTools(fakeServer as never, mode);
 
   return handlers[name];
 }
@@ -108,6 +111,30 @@ describe("lore_get_ci_failures", () => {
     expect(result.content[0].text).toBe(
       "Could not detect repo. Specify repo parameter (e.g., 're-cinq/my-service').",
     );
+  });
+
+  it("in the agent gateway asks for the repo and branch rather than running git, which it does not have", async () => {
+    const noRepo = await handlerFor("lore_get_ci_failures", "agent")({});
+    const noBranch = await handlerFor(
+      "lore_get_ci_failures",
+      "agent",
+    )({ repo: "re-cinq/lore" });
+
+    expect({
+      noRepo: noRepo.content[0].text,
+      noBranch: noBranch.content[0].text,
+      gitAsked:
+        vi.mocked(detectCurrentRepo).mock.calls.length +
+        vi.mocked(detectCurrentBranch).mock.calls.length,
+      proxied: proxy.mock.calls.length,
+    }).toEqual({
+      noRepo:
+        "No repo given. Pass repo as owner/name (e.g. 're-cinq/lore'): the shared Lore server has no checkout to detect it from.",
+      noBranch:
+        "Could not detect the branch. Specify branch (e.g. 'feat/x') or pr_number.",
+      gitAsked: 0,
+      proxied: 0,
+    });
   });
 
   it("surfaces the server's own refusal rather than a generic unreachable line", async () => {

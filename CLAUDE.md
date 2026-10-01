@@ -483,7 +483,7 @@ cold and assembles its own context. The dispatch-time `/api/context`
 fetch needed `LORE_INGEST_TOKEN`, which never leaves the central
 cluster, so it made a central run and a satellite run of the same
 recipe open differently. The `{context}` slot every recipe declares is
-now filled with the constant `CONTEXT_BOOTSTRAP`
+now filled with `contextBootstrap(targetRepo)`
 (`libs/shared/src/domain/agents/recipe-prompt.ts`) — an instruction to call
 `lore_assemble_context` first. The parameter is always present:
 `renderPrompt` leaves an unmatched placeholder intact, so omitting it

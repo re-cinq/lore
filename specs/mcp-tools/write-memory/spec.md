@@ -30,7 +30,7 @@ Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools
 - **description** (verbatim):
 
 ```text
-Stores one curated key/value memory (versioned, repo-scoped when a repo is detected, agent-scoped otherwise) and returns {key, version, agent_id, created_at}. Use when you have a decision, convention, correction, or session summary you want to retrieve later by a key you choose. Instead: lore_write_episode for raw uncurated text with no chosen key.
+Stores one curated key/value memory (versioned, repo-scoped when a repo is given or detected, agent-scoped otherwise) and returns {key, version, agent_id, created_at}. Use when you have a decision, convention, correction, or session summary you want to retrieve later by a key you choose. Instead: lore_write_episode for raw uncurated text with no chosen key.
 ```
 
 ### Input schema (Zod)
@@ -42,10 +42,11 @@ Stores one curated key/value memory (versioned, repo-scoped when a repo is detec
 | `agent_id` | string | no | — | Override the resolved agent ID. |
 | `ttl` | number | no | — | Time-to-live in seconds. Omit for no expiry. |
 | `extract_facts` | boolean | no | — | When true, triggers async fact extraction from value (fire-and-forget). |
+| `repo` | string | no | — | 'owner/repo' the memory is scoped to. Auto-detected from the checkout when omitted, except in the agent gateway, which has none. |
 
 ## Behavior
 
-1. Resolve `repo = detectCurrentRepo() || undefined`.
+1. Resolve `repo` from the argument, else (outside the agent gateway) `detectCurrentRepo()`, else `undefined`.
 2. Compute `embedding = await getQueryEmbedding(value)` (Vertex; may be null).
 3. **DB path** — if `isMemoryDbAvailable()`:
    1. Call `writeMemory(key, value, agent_id, ttl, embedding || undefined, repo)`
@@ -117,6 +118,9 @@ the `unreachableError` message, or `"Error writing memory: {message}"`.
    write`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L96), [`reports a
    denied error on a 401 without
    retrying`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L110))
+
+5. *(added 2026-10-01, #2103)* In the agent gateway, which has no checkout to
+   detect a repo from, the write is scoped to the `repo` the call names. ([validated by `in the agent gateway scopes the write to the repo the call names`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L124))
 
 ## Out of Scope
 

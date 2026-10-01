@@ -9,7 +9,7 @@ import {
   type AgentApi,
   type TokenProvisioner,
 } from "./agent-backend.js";
-import { CONTEXT_BOOTSTRAP } from "../../domain/agents/recipe-prompt.js";
+import { contextBootstrap } from "../../domain/agents/recipe-prompt.js";
 
 const baseSpec: LoreTaskSpec = {
   taskId: "abcdef1234567890",
@@ -61,7 +61,7 @@ describe("specToAgent", () => {
         parameters: {
           description: "Implement the thing",
           prompt: "do it",
-          context: CONTEXT_BOOTSTRAP,
+          context: contextBootstrap("re-cinq/lore"),
         },
       },
     });

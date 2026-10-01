@@ -200,3 +200,73 @@ describe("lore_assemble_context proxy path (read-through cache, enabled here sin
     expect(result.content[0].text).toBe("FRESH CONTEXT");
   });
 });
+
+describe("lore_assemble_context in the agent gateway, which has no checkout", () => {
+  let agentAssemble: ToolHandler;
+
+  beforeAll(async () => {
+    const { registerContextTools } = await import("./context-tools.js");
+    const handlers: Record<string, ToolHandler> = {};
+    const fakeServer = {
+      tool(
+        name: string,
+        _desc: string,
+        _schema: unknown,
+        handler: ToolHandler,
+      ) {
+        handlers[name] = handler;
+      },
+    };
+
+    registerContextTools(fakeServer as never, "agent");
+    agentAssemble = handlers["lore_assemble_context"];
+  });
+
+  beforeEach(() => {
+    process.env.LORE_API_URL = "https://lore.example";
+    process.env.LORE_INGEST_TOKEN = "test-token";
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete process.env.LORE_API_URL;
+    delete process.env.LORE_INGEST_TOKEN;
+  });
+
+  it("asks for the repo instead of proxying an empty one when the call names none", async () => {
+    const fetchMock = vi.fn();
+
+    vi.stubGlobal("fetch", fetchMock);
+    const result = await agentAssemble({ query: "q", template: "default" });
+
+    expect({
+      text: result.content[0].text,
+      proxied: fetchMock.mock.calls.length,
+    }).toEqual({
+      text: "No repo given. Pass repo as owner/name (e.g. 're-cinq/lore'): the shared Lore server has no checkout to detect it from.",
+      proxied: 0,
+    });
+  });
+
+  it("reports the API's refusal as a rejection with its reason, not as an unreachable API", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: false,
+        status: 400,
+        statusText: "Bad Request",
+        text: async () =>
+          JSON.stringify({ error: "repo: expected owner/name" }),
+      })),
+    );
+    const result = await agentAssemble({
+      query: "q-refused",
+      template: "default",
+      repo: "not-a-repo",
+    });
+
+    expect(result.content[0].text).toBe(
+      "Lore API rejected lore_assemble_context: HTTP 400 Bad Request: repo: expected owner/name",
+    );
+  });
+});
