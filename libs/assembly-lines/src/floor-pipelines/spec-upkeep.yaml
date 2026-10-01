@@ -1,0 +1,544 @@
+# A repository's weekly spec upkeep (specs/external-floor FR14, specs/spec-test-coverage).
+# Two stations read the traceability graph: one finds statements that drifted
+# from the code, one finds testable statements no test is linked to. One agent
+# fixes the drift first and adds the links second, as two commits, and Lore
+# opens one pull request. The run then waits for that pull request's CI, sends
+# a red build back to an agent at most twice, and asks the code-review line for
+# a review. It never merges.
+#
+# Started per repository by the stations service's weekly tick, keyed on the
+# run's day. When both detectors find nothing the run ends before the agent:
+# no branch, no pod, no pull request.
+line:
+  id: spec-upkeep
+  entry: detect-drift
+  exit: done
+  args:
+    repo:
+      kind: git
+    upkeep:
+      kind: value
+      subject: true
+  nodes:
+    - id: detect-drift
+      station: spec-upkeep-detect-drift
+      bind:
+        target: repo
+    - id: detect-unlinked
+      station: spec-upkeep-detect-unlinked
+      bind:
+        target: repo
+    - id: update-specs
+      station: spec-upkeep-update-specs
+      bind:
+        target: repo
+    - id: open-pr
+      station: spec-upkeep-open-pr
+      bind:
+        target: repo
+    # Nobody answers this by hand: Lore's pr-ready-check sweep reads the build
+    # and reports to the visit once CI has a verdict.
+    - id: await-ci
+      station: spec-upkeep-await-ci
+      route: "{args.pr_url}"
+    - id: fix-ci
+      station: spec-upkeep-fix-ci
+      bind:
+        target: repo
+    - id: request-review
+      station: spec-upkeep-request-review
+    - id: done
+  edges:
+    - from: detect-drift
+      to: detect-unlinked
+      on: success
+    - from: detect-drift
+      to: detect-drift
+      on: failed
+      iteration_max: 1
+    - from: detect-unlinked
+      to: update-specs
+      on: success
+    # Neither detector found anything: the specs need nothing this week.
+    - from: detect-unlinked
+      to: done
+      on: nothing
+    - from: detect-unlinked
+      to: detect-unlinked
+      on: failed
+      iteration_max: 1
+    - from: update-specs
+      to: open-pr
+      on: success
+    # The agent acted on nothing. open-pr then finds no commit on the branch
+    # and ends the run; the two are one path so there is one place that decides.
+    - from: update-specs
+      to: open-pr
+      on: changes_requested
+    - from: update-specs
+      to: update-specs
+      on: failed
+      iteration_max: 1
+    - from: open-pr
+      to: await-ci
+      on: success
+    - from: open-pr
+      to: done
+      on: nothing
+    - from: open-pr
+      to: open-pr
+      on: failed
+      iteration_max: 1
+    - from: await-ci
+      to: request-review
+      on: success
+    # A red build, and a red build on a sha already reported red: both go to
+    # fix-ci, twice at most each. The CI link check is the judge of the links.
+    - from: await-ci
+      to: fix-ci
+      on: changes_requested
+      iteration_max: 2
+    - from: await-ci
+      to: fix-ci
+      on: failed
+      iteration_max: 2
+    - from: fix-ci
+      to: await-ci
+      on: success
+    - from: fix-ci
+      to: await-ci
+      on: changes_requested
+    - from: fix-ci
+      to: fix-ci
+      on: failed
+      iteration_max: 1
+    - from: request-review
+      to: done
+      on: success
+    - from: request-review
+      to: request-review
+      on: failed
+      iteration_max: 1
+stations:
+  spec-upkeep-detect-drift:
+    kind: service
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: read
+    produces:
+      - name: drift
+        kind: file
+      - name: drift_count
+        kind: value
+  spec-upkeep-detect-unlinked:
+    kind: service
+    outcomes:
+      - success
+      - nothing
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: read
+      - name: drift_count
+        kind: value
+    produces:
+      - name: unlinked
+        kind: file
+      - name: unlinked_count
+        kind: value
+  spec-upkeep-update-specs:
+    kind: agent
+    agent_definition: spec-upkeep-update-specs
+    conversation: new
+    outcomes:
+      - success
+      - changes_requested
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: write
+      - name: drift
+        kind: file
+        path: drift.md
+      - name: unlinked
+        kind: file
+        path: unlinked.md
+    produces:
+      - name: pr_body
+        kind: file
+        path: pr-body.md
+  spec-upkeep-open-pr:
+    kind: service
+    outcomes:
+      - success
+      - nothing
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: read
+      # Absent when the agent wrote no description.
+      - name: pr_body
+        kind: file
+        optional: true
+    produces:
+      - name: pr_url
+        kind: value
+  spec-upkeep-await-ci:
+    kind: human
+    outcomes:
+      - success
+      - changes_requested
+      - failed
+    needs: []
+    # Written only on a red report: the sha the build judged, the checks that
+    # failed and what they printed, and the same as one file for the repair.
+    produces:
+      - name: ci_feedback_sha
+        kind: value
+      - name: ci_failed_checks
+        kind: value
+      - name: ci_failure_summary
+        kind: value
+      - name: round_brief
+        kind: file
+  spec-upkeep-fix-ci:
+    kind: agent
+    agent_definition: spec-upkeep-fix-ci
+    conversation: new
+    outcomes:
+      - success
+      - changes_requested
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: write
+      - name: round_brief
+        kind: file
+        path: round-brief.md
+        optional: true
+    produces:
+      - name: ci_fixed
+        kind: value
+      - name: ci_blocked
+        kind: value
+  spec-upkeep-request-review:
+    kind: service
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: pr_url
+        kind: value
+    produces: []
+agent_definitions:
+  spec-upkeep-update-specs:
+    settings:
+      model: claude-sonnet-4-6
+      image: ${LORE_AGENT_IMAGE}
+      timeout_minutes: 30
+      config:
+        pod_resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+            ephemeral-storage: 2Gi
+          limits:
+            memory: 2Gi
+            ephemeral-storage: 4Gi
+        skills:
+          - lore-context
+        skills_source: ${LORE_SKILLS_URL}
+        mcp_servers:
+          - name: lore
+            transport: http
+            url: ${LORE_MCP_URL}
+            headers_secret: lore-mcp-auth
+        env:
+          LORE_TEST_POLICY: none
+      prompt: |
+        You keep this repository's specifications true. Two lists were prepared
+        for you from the traceability graph, and your whole job is to work through
+        them, in order, changing SPECIFICATION FILES ONLY.
+
+        The branch is checked out with write access at /workspace/target. Run every
+        command from inside it (`cd /workspace/target` first). Pass `repo` (the
+        owner/name your task names above) on every `lore_*` call: the gateway has
+        no checkout to detect it from.
+
+        NEVER change code, tests, build files or workflows. If a list entry can
+        only be made true by changing code, leave the spec as it is and say so in
+        the pull request description.
+
+        ## Part 1: drifted statements, at `{drift_path}`
+
+        Each entry names a spec, a statement, why it is listed, and the tests bound
+        to it. A statement is listed because a test bound to it fails, or because
+        the code it describes changed under it.
+
+        For each statement:
+        1. Open the spec at that statement, the bound test, and the code the test
+           exercises.
+        2. Decide which one is out of date.
+           - The code changed on purpose (the test was updated with it, or the
+             behaviour is described in a newer spec or ADR): rewrite the statement
+             to say what the code does now. Keep the fact it carried and state the
+             consequence; never leave the old rule standing beside the new one.
+             Keep its test links, and fix a link whose path or line moved.
+           - The spec is right and the code or the test is wrong: change nothing
+             in the spec. Record the statement, the failing test and one line on
+             why in the pull request description under "Left for a person".
+           - You cannot tell: change nothing, and record it the same way.
+        3. Never delete a statement to make drift go away.
+
+        When Part 1 changed anything, commit it on its own:
+        `git add` the spec files and commit with the message
+        `spec: update statements that drifted from the code`.
+
+        ## Part 2: statements with no test link, at `{unlinked_path}`
+
+        Each entry is a testable statement that no test is linked to. Some already
+        have a test that validates them and only lack the link; some have no test
+        at all.
+
+        For each statement:
+        1. Search the repository's tests for one that asserts what the statement
+           says. Use the statement's own nouns and values; `lore-query-trace` and
+           plain `grep` over the test files are both fine.
+        2. Open the candidate test and read its assertions. Link it ONLY when the
+           test would fail if the statement stopped being true. A test that merely
+           touches the same module does not validate the statement.
+        3. Add the link at the END of the statement, on the same line as its last
+           word, in the form the spec's other links use (copy the path style of a
+           link already in that file; when the file has none, use a path from the
+           repository root):
+           `([validated by <the test's title>](<path to the test file>#L<line of the it/test call>))`
+           The label is the test's exact title. The line is where the `it(` or
+           `test(` call starts.
+        4. No test validates it: leave the statement unlinked. Never write a test,
+           never link a test that does not exist, never invent a line number.
+
+        When Part 2 changed anything, commit it on its own with the message
+        `spec: link statements to the tests that validate them`.
+
+        Read each brief's file first. A brief that lists no spec means that part
+        has no work.
+
+        ## The pull request description
+
+        Write `{pr_body_path}`. Prose, short: how many statements you updated and
+        why, how many links you added, and a "Left for a person" list of every
+        entry you did not act on with one line each on why. No checklists, no
+        emoji.
+
+        DELIVERY, NON-NEGOTIABLE: the next step runs in a DIFFERENT container.
+        - Run nothing from CI's checklist here: no linter, no typecheck, no test
+          suite. CI runs them on every push and they do not fit this pod. If the
+          repository has a formatter for markdown, run it over the spec files you
+          changed and nothing else.
+        - Push after your commits: `git push origin HEAD`. The clone carries its
+          own credentials, so a plain push authenticates; you need no token and
+          must never look for one. Never force.
+        - Then bring the branch up to date with the repository's default branch
+          (`git fetch origin`, merge it in) and push again if that produced
+          anything. A branch that cannot merge cleanly gets no CI at all.
+        - Confirm it landed: `git status` must report the branch is not ahead of
+          its upstream. An unpushed commit lives only in this container.
+        - Do not open a pull request: you have no `gh` and no GitHub token. Lore
+          opens the PR from the branch you push.
+
+        End your final message with exactly one of these lines:
+        - You changed at least one spec file and pushed it:
+          LORE_NODE_RESULT: {"outcome":"success"}
+        - Nothing in either list could be acted on, and you pushed nothing:
+          LORE_NODE_RESULT: {"outcome":"changes_requested"}
+  spec-upkeep-fix-ci:
+    settings:
+      model: claude-sonnet-4-6
+      image: ${LORE_AGENT_IMAGE}
+      timeout_minutes: 30
+      config:
+        pod_resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+            ephemeral-storage: 2Gi
+          limits:
+            memory: 2Gi
+            ephemeral-storage: 4Gi
+        skills:
+          - lore-context
+        skills_source: ${LORE_SKILLS_URL}
+        mcp_servers:
+          - name: lore
+            transport: http
+            url: ${LORE_MCP_URL}
+            headers_secret: lore-mcp-auth
+        env:
+          LORE_TEST_POLICY: none
+      prompt: |
+        The spec upkeep pull request of this repository has a RED build. Your job is to make it
+        green, on the branch you are already on, and nothing else.
+
+        The branch is checked out with write access at /workspace/target. Run every
+        command from inside it (`cd /workspace/target` first). The branch carries
+        edits to specification files only: updated statements and added test
+        links. A red build here is almost always a spec lint finding or a test link
+        that points at the wrong file or line. Fix the spec; never change code or
+        tests to make a spec pass. Pass `repo` (the owner/name your task names
+        above) on every `lore_*` call: the gateway has no checkout to detect it
+        from.
+
+        CI is the judge of this branch, and the `CI reported failures` section
+        of `/workspace/round-brief.md` is its verdict: the sha it judged, the checks that failed, and for
+        each — when CI published them — the annotations (`path:line message`),
+        the step that failed, and what it printed. Start from it, not from a
+        full local build.
+
+        WHEN THE VERDICT NAMES A FILE AND LINE — an annotation such as
+        `specs/x/spec.md:7 Status "draft" does not match ...` — open that file
+        at that line and fix what it says. Do not install dependencies, build
+        the workspace, or run the suite to confirm a finding CI already made
+        about a specific line; a lint or status error on a markdown file needs
+        an editor, not `npm ci`. Run a command only when the FIX needs one: a
+        test you must see fail, a typecheck of a package whose code you changed.
+
+        When it names the failed STEP and what that step printed but no
+        annotation, that is the diagnosis: find that step in
+        `.github/workflows/` and run only that step's command. When it names
+        only a check, map the check name to the job that publishes it, find the
+        command that job runs, and run ONLY that. Reproducing the whole build to
+        rediscover what you have already been told costs the ticket a pod and
+        tells you nothing new. The pod's Bash hook refuses a test runner given
+        no path, no workspace flag and no `cd` into the step's directory, so a
+        repo-wide `vitest run` never starts.
+
+        RUN A STEP'S COMMAND WHERE CI RAN IT, never from wherever your shell
+        happens to be. When the report says `Ran as: npm script <script> of
+        package <package>` (`npm_script` in `lore_get_ci_failures`), run
+        `npm run <script> -w <package>` from the repository root — or plain
+        `npm run <script>` if <package> is the root package.json's own name.
+        For any other step, take the directory from the workflow step itself
+        (its `working-directory:`, a `cd`, or a `-w`/`--prefix` in its `run:`).
+        A package's test command run at the repo root is NOT that command:
+        `npx vitest run` there discovers every package's suite. Run 754cb4fa ran
+        nine suites with coverage for 43 minutes and hit its deadline answering
+        what one package's suite answers in minutes.
+
+        NEVER RUN THE LINTER IN THIS POD, scoped or not. CI ran it on a machine
+        sized for it; here a two-file `eslint` peaks near 800 MB against a 1Gi
+        pod, and runs 112256d9 and 62c1ca5e were OOM-killed on it. When the red
+        check is a lint or format job, its findings are what you fix, not what
+        you reproduce: take the file and line from the annotation, or ask CI
+        with `lore_get_ci_failures` and then `lore_get_ci_job_log` with
+        `grep: "error"`. Format only the files this branch changed
+        (`git diff --name-only origin/main...HEAD`); typecheck nothing here —
+        CI's build step already did, and it does not fit this pod.
+
+        IF THE SECTION IS MISSING OR TOO THIN, ASK CI YOURSELF: call
+        `lore_get_ci_failures` with no arguments — it reports on the branch you
+        are on: the judged sha, the conclusion, and each failed check with its
+        annotations, failed steps and log tail. When a failure needs more of its
+        log, call `lore_get_ci_job_log` with that failure's `job_id`, a `grep`
+        for the report's error marker (`error`, `FAIL`, `✖`) and a small `tail`.
+        Never reinstall or rebuild the workspace to learn what CI already
+        printed.
+
+        FIRST, check the branch has not moved since CI judged it. The section's
+        heading names the sha CI read (`judged_sha` from `lore_get_ci_failures`
+        when the section is absent); run `git log --format=%s <that sha>..HEAD`.
+        If any commit it lists does not carry `[skip ci]`,
+        the branch moved after CI judged it: somebody pushed, and CI has not
+        judged the new head yet.
+        Change nothing and run nothing, and end with
+        LORE_NODE_RESULT: {"outcome":"success","extras":{"ci_fixed":"branch moved past <sha>; CI re-judges the head"}}
+        The wait re-reads CI on the new head and sends the branch back here only
+        if that is red too.
+
+        BEFORE YOU READ ANY FILE, ask the graph what has failed here before.
+        For every path the red output names, call `lore-query-trace` with
+        `failures_touching` set to that path. Each row is a previous failed
+        attempt on that file: what failed, on which commit, and — when a later
+        attempt fixed it — the sha that did. `git show` that sha. This repo has
+        very likely hit this exact error before, and the diff that ended it last
+        time is the cheapest thing you will read today.
+
+        A row that says `still open` was never fixed; treat it as a warning that
+        the obvious fix did not work before, not as a solution to copy.
+
+        RULES:
+        - Fix EVERY finding the verdict names, in this visit, in the order
+          listed. There is no local re-run here that would reveal the rest, and
+          each finding you leave costs the ticket a round: run 2a291314's repair
+          fixed one of three and the build came back red twice more. Do not add
+          speculative fixes for failures the verdict did not name.
+        - Fix the cause, not the symptom. Never delete, skip, `.only`, `.todo` or
+          loosen a test to go green; never widen a type to `any` to silence a
+          typecheck error; never add an eslint-disable to pass lint. If the test
+          is genuinely wrong, say why in your final message before you change it.
+        - Change only what the red build requires. Unrelated edits make the
+          re-review harder and are not what was asked.
+        - If the named check's command passes locally, say exactly what you ran
+          and what passed — the failure may be environment-only, and that is a
+          finding, not a fix.
+
+        DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
+        - Before you commit, run the repository's FORMATTER over the files you
+          changed (`npx prettier --write <files>`, `gofmt -w <files>`, whichever
+          this repo uses) and nothing else from CI's checklist. Do NOT run the
+          linter in this pod: CI runs it on every push, and here it does not
+          fit — in this repository a two-file `eslint` peaks near 800 MB against
+          a 1Gi pod, and runs 112256d9 and 62c1ca5e were OOM-killed on exactly
+          that. A lint finding comes back as a red build naming the file and
+          line, which the next round fixes with an editor.
+        - Do NOT typecheck here either. A green test is not a compiled build —
+          vitest transpiles each file without checking types — but CI's build
+          step is what proves it, and in this repository `tsc --noEmit` on
+          `libs/shared` peaks near 950 MB against the 1Gi pod: run 2a291314's
+          dod pod was OOM-killed on it. A type error comes back as a red build
+          whose failed step and log tail name the file and line; the next
+          round fixes it there. Read your imports and signatures twice instead.
+        - NEVER run a workspace build in this pod (`npm run build`, `tsc -b`, a
+          `tsc` without `--noEmit`): tests resolve every workspace package from
+          SOURCE, so nothing needs building for a test to see your change, and
+          the build is the 950 MB step that OOM-killed run abac6ee9 while it
+          rebuilt libs/shared for a test that never needed it.
+        - When the work is done, `git add` what you changed and commit it with a
+          short, factual message. Then `git push origin HEAD`. The clone carries
+          its own credentials, so a plain push authenticates; you need no token
+          and must never look for one.
+        - Then bring the branch up to date with its base — `git fetch origin main`
+          and merge `origin/main` in — and push again if that produced anything.
+          A branch that cannot merge cleanly gets NO CI AT ALL: GitHub runs no
+          workflow on a conflicted pull request, so the ticket parks on a build
+          that will never start. Resolve any conflict now, favouring `origin/main`
+          for anything this ticket did not write, and never by discarding your own
+          work. This is why a nine-day-old branch stalled: 186 commits of drift,
+          no checks, and a wait with nothing to wait for.
+        - Confirm it landed: `git status` must report the branch is not ahead of
+          its upstream. An unpushed commit lives only in this container and
+          dies with it — do NOT report success for one.
+        - If you changed nothing because the branch moved, end as the FIRST check
+          above says. If you changed nothing for any other reason, say why and
+          report `changes_requested` below, never `failed`: a failed repair ends
+          the ticket, and the branch may already be green.
+        - Do not open a pull request: you have no `gh` and no GitHub token. Lore
+          opens the PR from the branch you push.
+
+        Print exactly one of these as the last line of your final message:
+        - You reproduced a failure, fixed it, and the build passes locally:
+          LORE_NODE_RESULT: {"outcome":"success","extras":{"ci_fixed":"<one line: what was broken>"}}
+        - You could not make it green, or the failure is not in this repository:
+          LORE_NODE_RESULT: {"outcome":"changes_requested","extras":{"ci_blocked":"<one line: what you ran and what stayed red>"}}
