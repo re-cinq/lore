@@ -56,7 +56,7 @@ no pod, no clone.
 
 Which files belong to a kind: markdown under `specs/` and `.specify/` (specs)
 or `adrs/` (ADRs), unless `.lore/ingest.yml` declares glob patterns for the
-kind (`**`, `*`, `?`). Without `--post`, `docs` prints the selection as JSON,
+kind (`**`, `*`, `?`). A manifest that does not parse fails the run. Without `--post`, `docs` prints the selection as JSON,
 which is how to check a manifest's patterns locally.
 
 ## Flags

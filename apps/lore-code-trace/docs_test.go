@@ -41,20 +41,22 @@ func TestSelectDocPathsLetsDeclaredPatternsReplaceThePrefixes(t *testing.T) {
 func TestParseIngestPatternsReadsGlobListsPerKind(t *testing.T) {
 	manifest := "specs:\n  - \"specs/**/*.md\"\nadrs:\n  - \"docs/decisions/*.md\"\nnotes: not-a-list\n"
 
-	got := parseIngestPatterns([]byte(manifest))
+	got, err := parseIngestPatterns([]byte(manifest))
 
 	want := map[string][]string{
 		"specs": {"specs/**/*.md"},
 		"adrs":  {"docs/decisions/*.md"},
 	}
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("patterns = %v, want %v", got, want)
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Errorf("patterns = %v, err = %v, want %v", got, err, want)
 	}
 }
 
-func TestParseIngestPatternsReadsAnUnparseableManifestAsNoPatterns(t *testing.T) {
-	if got := parseIngestPatterns([]byte("specs: [unclosed")); len(got) != 0 {
-		t.Errorf("patterns = %v, want none", got)
+func TestParseIngestPatternsRefusesAnUnparseableManifest(t *testing.T) {
+	// Falling back to the built-in prefixes would select a different set of
+	// files, and a full ingest prunes whatever its selection leaves out.
+	if _, err := parseIngestPatterns([]byte("specs: [unclosed")); err == nil {
+		t.Error("err = nil, want the parse failure")
 	}
 }
 

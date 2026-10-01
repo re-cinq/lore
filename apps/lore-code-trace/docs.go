@@ -222,12 +222,13 @@ func isDocOfKind(path, kind string, patterns []string) bool {
 }
 
 // parseIngestPatterns reads .lore/ingest.yml as kind → globs, dropping any
-// value that is not a list of strings. An unreadable manifest is no patterns,
-// the same fallback the server's loadKindPatterns takes.
-func parseIngestPatterns(data []byte) map[string][]string {
+// value that is not a list of strings. A manifest that does not parse is an
+// error, not "no patterns": the built-in prefixes select different files, and a
+// full ingest prunes whatever its selection leaves out.
+func parseIngestPatterns(data []byte) (map[string][]string, error) {
 	var raw map[string]any
 	if err := yaml.Unmarshal(data, &raw); err != nil {
-		return map[string][]string{}
+		return nil, fmt.Errorf("parsing %s: %w", ingestManifestPath, err)
 	}
 	patterns := map[string][]string{}
 	for kind, value := range raw {
@@ -235,7 +236,7 @@ func parseIngestPatterns(data []byte) map[string][]string {
 			patterns[kind] = globs
 		}
 	}
-	return patterns
+	return patterns, nil
 }
 
 func stringsOf(value any) []string {

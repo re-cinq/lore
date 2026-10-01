@@ -162,6 +162,23 @@ func TestRunDocsSelectsByTheRepositorysIngestManifest(t *testing.T) {
 	}
 }
 
+func TestRunDocsPostsNothingWhenTheIngestManifestDoesNotParse(t *testing.T) {
+	dir := docsRepo(t)
+	writeFile(t, dir, ".lore/ingest.yml", "adrs: [unclosed\n")
+	gitRun(t, dir, "add", "-A")
+	gitRun(t, dir, "commit", "-q", "-m", "broken manifest")
+	_, posts := ingestServer(t, nil)
+
+	err := runDocs(dir, docsOptions{post: true}, io.Discard)
+
+	if err == nil || !strings.Contains(err.Error(), ".lore/ingest.yml") {
+		t.Fatalf("err = %v, want it to name .lore/ingest.yml", err)
+	}
+	if len(*posts) != 0 {
+		t.Errorf("posts = %d, want none", len(*posts))
+	}
+}
+
 func TestRunDocsWithoutPostPrintsTheSelectionAndCallsNothing(t *testing.T) {
 	dir := docsRepo(t)
 

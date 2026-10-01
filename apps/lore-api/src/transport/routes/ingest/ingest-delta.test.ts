@@ -474,6 +474,22 @@ describe("POST /api/repos/{owner}/{repo}/ingest with a forced or full doc delta"
     });
   });
 
+  it("prunes nothing when present is empty, forced or not", async () => {
+    const deps = fakeDeps({ specs: ["specs/a/spec.md", "specs/b/spec.md"] });
+    const server = await serverWith(deps, casFirstIngest);
+    const res = await post(server, {
+      kind: "specs",
+      commit: SHA_B,
+      base_commit: null,
+      files: [],
+      present: [],
+      force: true,
+    });
+
+    expect(deps.calls).toEqual([]);
+    expect(JSON.parse(res.payload)).toMatchObject({ deleted: 0 });
+  });
+
   it("prunes 5 of the graph's 6 specs when the delta is forced", async () => {
     const deps = fakeDeps({
       specs: ["a", "b", "c", "d", "e", "f"].map((n) => `specs/${n}/spec.md`),

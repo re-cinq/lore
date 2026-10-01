@@ -26,7 +26,10 @@ func runDocs(startDir string, opts docsOptions, stdout io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("not inside a git repo: %w", err)
 	}
-	patterns := ingestPatternsOf(root)
+	patterns, err := ingestPatternsOf(root)
+	if err != nil {
+		return err
+	}
 	if !opts.post {
 		return printDocSelection(root, patterns, stdout)
 	}
@@ -77,10 +80,13 @@ func docsDepsFor(root, apiBase, token, repo, kind string, client *http.Client) d
 
 // ingestPatternsOf reads the repository's .lore/ingest.yml; an absent manifest
 // is no patterns, so every kind falls back to its built-in prefixes.
-func ingestPatternsOf(root string) map[string][]string {
+func ingestPatternsOf(root string) (map[string][]string, error) {
 	data, err := os.ReadFile(filepath.Join(root, ingestManifestPath))
+	if errors.Is(err, os.ErrNotExist) {
+		return map[string][]string{}, nil
+	}
 	if err != nil {
-		return map[string][]string{}
+		return nil, fmt.Errorf("reading %s: %w", ingestManifestPath, err)
 	}
 	return parseIngestPatterns(data)
 }
