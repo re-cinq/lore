@@ -3757,7 +3757,6 @@ export interface components {
     RepoActivityCounts: {
       tasks: number | null;
       auto_merged: number | null;
-      escalations: number | null;
     };
     RepoChunkSummary: {
       count: number;

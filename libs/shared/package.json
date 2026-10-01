@@ -90,10 +90,6 @@
       "types": "./dist/outbound/k8s-pod-failure.d.ts",
       "default": "./dist/outbound/k8s-pod-failure.js"
     },
-    "./escalation/*.js": {
-      "types": "./dist/work/escalation/*.d.ts",
-      "default": "./dist/work/escalation/*.js"
-    },
     "./feature-planning/decomposition-result.js": {
       "types": "./dist/domain/feature-planning/decomposition-result.d.ts",
       "default": "./dist/domain/feature-planning/decomposition-result.js"

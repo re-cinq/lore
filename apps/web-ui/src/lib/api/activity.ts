@@ -50,7 +50,6 @@ export function getRepoActivityCounts(repo: string): Promise<
   ApiResult<{
     tasks: number | null;
     auto_merged: number | null;
-    escalations: number | null;
   }>
 > {
   return apiFetch("lore-api", `/api/repos/${repo}/activity-counts`);

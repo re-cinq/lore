@@ -22,7 +22,6 @@ import { gcpCostSync } from "./gcp-cost-sync/manifest.js";
 import { ciCheck } from "./ci-check/manifest.js";
 import { prReadyCheck } from "./pr-ready-check/manifest.js";
 import { prReview } from "./pr-review/manifest.js";
-import { escalationStep } from "./escalation-step/manifest.js";
 
 /** The single list. A folder missing from it fails the registry's own test. */
 export const STATION_NAMES = [
@@ -32,7 +31,6 @@ export const STATION_NAMES = [
   "ci-check",
   "detect",
   "digest-tick",
-  "escalation-step",
   "feature-review",
   "gcp-cost-sync",
   "importance-decay",
@@ -59,7 +57,6 @@ export const STATIONS: Record<StationName, StationModule> = {
   "ci-check": ciCheck,
   detect,
   "digest-tick": digestTickStation,
-  "escalation-step": escalationStep,
   "feature-review": featureReview,
   "gcp-cost-sync": gcpCostSync,
   "importance-decay": importanceDecayStation,

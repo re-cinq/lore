@@ -14125,12 +14125,9 @@
           },
           "auto_merged": {
             "type": ["number", "null"]
-          },
-          "escalations": {
-            "type": ["number", "null"]
           }
         },
-        "required": ["tasks", "auto_merged", "escalations"],
+        "required": ["tasks", "auto_merged"],
         "additionalProperties": false
       },
       "RepoChunkSummary": {
