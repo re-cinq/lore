@@ -1060,3 +1060,65 @@ describe("file diff drawer", () => {
     expect(screen.getByText("Diff · src/a.ts")).toBeInTheDocument();
   });
 });
+
+describe("a run that ended", () => {
+  function renderEnded(
+    runStatus: string,
+    runOutcome: string | null,
+    reason: string | null,
+  ) {
+    return render(
+      <LiveSocketProvider url="ws://test/api/ws" socket={FakeWebSocket}>
+        <RunVisualizationPanel
+          runId="run-1"
+          runStatus={runStatus}
+          runOutcome={runOutcome}
+          definition={definition}
+          nodes={[]}
+          repo="re-cinq/lore"
+          reason={reason}
+        />
+      </LiveSocketProvider>,
+    );
+  }
+
+  it("labels the chip Cancelled for a finished run whose outcome is cancelled", async () => {
+    stubHistory([]);
+    useFakeSocket();
+
+    renderEnded("finished", "cancelled", null);
+    await settle();
+
+    expect(screen.getByRole("status")).toHaveTextContent("Cancelled");
+    expect(screen.queryByText("Offline")).not.toBeInTheDocument();
+  });
+
+  it("labels the chip Failed for a failed run", async () => {
+    stubHistory([]);
+    useFakeSocket();
+
+    renderEnded("failed", "failed", null);
+    await settle();
+
+    expect(screen.getByRole("status")).toHaveTextContent("Failed");
+  });
+
+  it("says no step ran and quotes the reason for a run with a graph and no node rows, offering no outcomes toggle", async () => {
+    stubHistory([]);
+    useFakeSocket();
+
+    renderEnded(
+      "finished",
+      "cancelled",
+      "merged back into run 01750e85 (Run this station now runs in the same run)",
+    );
+    await settle();
+
+    expect(screen.getByRole("note")).toHaveTextContent(
+      "No step ran in this run. merged back into run 01750e85 (Run this station now runs in the same run)",
+    );
+    expect(
+      screen.queryByRole("button", { name: "Show possible outcomes" }),
+    ).not.toBeInTheDocument();
+  });
+});

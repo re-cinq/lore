@@ -93,6 +93,7 @@ function panelProps({ props, run, live, applyFrame }: LiveSectionsProps) {
     nodes: live.nodes,
     repo: run.repo,
     reason: run.reason,
+    runOutcome: run.outcome,
     prNumber: run.prNumber,
     engine: run.engine,
     agentEditHrefs: props.agentEditHrefs,

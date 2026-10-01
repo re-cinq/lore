@@ -108,6 +108,8 @@ import { githubCredentialsRoute } from "./routes/github-credentials/github-crede
 import { floorGitCredentialRoute } from "./routes/floor/git-credential.js";
 import { reviewStartRoute } from "./routes/floor/review-start.js";
 import { floorRunTurnsRoute } from "./routes/floor/run-turns.js";
+import { floorRunEventsRoute } from "./routes/floor/run-events.js";
+import { floorNodeLogsRoute } from "./routes/floor/node-logs.js";
 import { githubInstallationsRoute } from "./routes/github-installations/record-installation.js";
 import { githubInstallationsListRoute } from "./routes/github-installations/list-installations.js";
 
@@ -140,6 +142,8 @@ function integrationRoutes(getPool: PoolGetter): ServerRoute[] {
     floorGitCredentialRoute(),
     reviewStartRoute(),
     floorRunTurnsRoute(),
+    floorRunEventsRoute(),
+    floorNodeLogsRoute(),
     githubInstallationsRoute(getPool),
     githubInstallationsListRoute(getPool),
   ];

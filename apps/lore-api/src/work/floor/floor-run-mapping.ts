@@ -25,11 +25,13 @@ const NODE_TYPE_BY_STATION_KIND: Record<StationKindName, string> = {
   human: "pr_review",
 };
 const MARKER_NODE_TYPE = "retrospective";
-const FAILED_OUTCOMES = new Set(["error", "failed", "cancelled"]);
 const GITHUB_PREFIX = /^github\.com\//;
 const PULL_REQUEST_URL = /\/pull\/(\d+)$/;
 const MILLIS_PER_MINUTE = 60_000;
 const EVENT_ID_ROW_SPAN = 100;
+
+export const AGENT_CR_PREFIX = "floor-";
+export const FAILED_OUTCOMES = new Set(["error", "failed", "cancelled"]);
 
 export function lineBodyToRunGraph(
   lineId: string,
@@ -253,8 +255,8 @@ function visitVerdictOf(
   };
 }
 
-function agentCrNameOf(visitId: string): string {
-  return `floor-${visitId}`;
+export function agentCrNameOf(visitId: string): string {
+  return `${AGENT_CR_PREFIX}${visitId}`;
 }
 
 function claimedAtOf(visit: VisitView): Date | null {
