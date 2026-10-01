@@ -107,7 +107,7 @@ describe("reviseTask", () => {
   const PARENT = {
     id: "task-1",
     status: "pr-created",
-    task_type: "implementation",
+    task_type: "feature-request",
     target_repo: "re-cinq/lore",
     target_branch: "lore/impl-x",
     pr_number: 42,
@@ -143,10 +143,7 @@ describe("reviseTask", () => {
   });
 
   it("keeps a feature-request revision a feature-request", async () => {
-    const { pool, query } = poolWithParent({
-      ...PARENT,
-      task_type: "feature-request",
-    });
+    const { pool, query } = poolWithParent(PARENT);
 
     await reviseTask(pool, "task-1", "again");
 
@@ -157,16 +154,19 @@ describe("reviseTask", () => {
     expect(insert?.[1]?.[1]).toEqual("feature-request");
   });
 
-  it("revises any other task type as an implementation", async () => {
-    const { pool, query } = poolWithParent({ ...PARENT, task_type: "review" });
+  it("refuses to revise a runbook task, pointing at a review on its pull request, and queues nothing", async () => {
+    const { pool, query } = poolWithParent({ ...PARENT, task_type: "runbook" });
 
-    await reviseTask(pool, "task-1", "again");
-
-    const insert = query.mock.calls.find(([sql]) =>
-      sql.includes("INSERT INTO pipeline.tasks"),
+    await expect(reviseTask(pool, "task-1", "again")).rejects.toThrow(
+      new Error(
+        "Only a feature-request task is revised from here. For any other pull request, leave the feedback as a review that requests changes: Lore answers it on the pull request.",
+      ),
     );
-
-    expect(insert?.[1]?.[1]).toEqual("implementation");
+    expect(
+      query.mock.calls.filter(([sql]) =>
+        sql.includes("INSERT INTO pipeline.tasks"),
+      ),
+    ).toEqual([]);
   });
 
   it("records the request on the parent, naming the revision it spawned", async () => {

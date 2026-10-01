@@ -106,6 +106,12 @@ async function applyEscalation(
   );
 }
 
+/** The one task type a revision task still exists for. Every other pull request is revised where it is reviewed: the code-review line answers a request for changes on the pull request itself, and the `implementation` task a revision used to run as is gone (#2328). */
+const REVISABLE_TASK_TYPE = "feature-request";
+
+const NOT_REVISABLE =
+  "Only a feature-request task is revised from here. For any other pull request, leave the feedback as a review that requests changes: Lore answers it on the pull request.";
+
 /** Queues a revision of a task from human feedback: a follow-up task on the SAME branch/PR at immediate priority, with the parent moved to `revision-requested`. */
 export async function reviseTask(
   pool: PgPool,
@@ -116,6 +122,7 @@ export async function reviseTask(
 
   enforceTrue(task, Error, "Task not found");
   enforceTrue(Boolean(feedback.trim()), Error, "Feedback is required");
+  enforceTrue(task.task_type === REVISABLE_TASK_TYPE, Error, NOT_REVISABLE);
 
   const revisionTaskId = await insertRevisionTask(pool, task, taskId, feedback);
 
@@ -144,7 +151,6 @@ async function insertRevisionTask(
   return rows[0].id;
 }
 
-/** Everything but a feature-request revises as an `implementation`: the feedback is on code, whatever produced it. */
 function revisionTaskParams(
   task: LoadedTask,
   taskId: string,
@@ -152,7 +158,7 @@ function revisionTaskParams(
 ): unknown[] {
   return [
     `Revise based on feedback: ${feedback.substring(0, 200)}`,
-    task.task_type === "feature-request" ? "feature-request" : "implementation",
+    REVISABLE_TASK_TYPE,
     task.target_repo,
     "ui-feedback",
     JSON.stringify({

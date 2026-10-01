@@ -86,16 +86,24 @@ function TaskFailurePanel({
 
 const TERMINAL_TASK_STATUSES = ["merged", "cancelled"];
 
+function takesFeedback(task: TaskDetailTask): boolean {
+  return (
+    task.task_type === "feature-request" &&
+    Boolean(task.pr_url) &&
+    !TERMINAL_TASK_STATUSES.includes(task.status)
+  );
+}
+
 interface FeedbackSectionProps {
   task: TaskDetailTask;
   submitFeedback: (formData: FormData) => void | Promise<void>;
 }
 
-/** Visible when the task has a PR and isn't in a terminal state. */
+/** Visible when a feature-request task has a PR and isn't in a terminal state. Any other pull request is revised by a review that requests changes on it, which Lore answers there. */
 function FeedbackSection({ task, submitFeedback }: FeedbackSectionProps) {
-  const { id: taskId, pr_url: prUrl, status } = task;
+  const { id: taskId } = task;
 
-  if (!prUrl || TERMINAL_TASK_STATUSES.includes(status)) {
+  if (!takesFeedback(task)) {
     return null;
   }
 
