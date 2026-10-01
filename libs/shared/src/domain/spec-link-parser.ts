@@ -77,6 +77,39 @@ export function findMisplacedCoverageLinks(statement: string): SpecLinkRef[] {
   return refs;
 }
 
+/** A test link as a whole-document check needs it: resolved to a repo path, with the line of the statement that carries it. */
+export interface DocTestLink extends SpecLinkRef {
+  /** 1-based line of the statement in the doc, or null when the segmenter did not record one. */
+  statementLine: number | null;
+  /** A link outside its statement's trailing parenthetical: valid markdown, but attached to no statement. */
+  misplaced: boolean;
+}
+
+/** Every test link a spec or ADR carries that can be checked against a checkout: URLs and the placeholder paths prose uses to show the convention are left out. */
+export function testLinksOfDoc(
+  docPath: string,
+  content: string,
+): DocTestLink[] {
+  return segmentStatements(content).flatMap((statement) =>
+    [
+      ...parseTestLinksInStatement(statement.text).map((link) => ({
+        ...link,
+        misplaced: false,
+      })),
+      ...findMisplacedCoverageLinks(statement.text).map((link) => ({
+        ...link,
+        misplaced: true,
+      })),
+    ]
+      .filter((link) => !NON_REPO_PATH_RE.test(link.path))
+      .map((link) => ({
+        ...link,
+        path: resolveLinkPath(link.path, docPath),
+        statementLine: statement.line ?? null,
+      })),
+  );
+}
+
 /** Keeps only links whose path is a test file (VALIDATED_BY edges). */
 export function parseTestLinksInStatement(statement: string): TestLinkRef[] {
   return parseLinksInStatement(statement, isTestFile);
