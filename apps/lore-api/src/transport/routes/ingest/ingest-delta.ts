@@ -1,5 +1,5 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { overlayBranchOf } from "@re-cinq/lore-shared";
+import { overlayBranchOf, selectPruneCandidates } from "@re-cinq/lore-shared";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
@@ -40,6 +40,10 @@ const IngestDeltaBody = z.object({
     .optional(),
   /** Paths deleted (or renamed away) since base_commit. */
   deleted: z.array(z.string()).optional(),
+  /** Every path of the kind the tree holds, sent with a FULL doc ingest's last chunk: with no diff to name what went away, whatever the graph holds beyond this list is pruned. */
+  present: z.array(z.string()).optional(),
+  /** Re-project doc files whose content hash is unchanged, and prune past the suspicious-tree fuse. */
+  force: z.boolean().optional(),
   /** The incremental test report (`test-report` kind only). */
   report: z.unknown().optional(),
 });
@@ -238,11 +242,27 @@ async function applyDocDelta(
   repo: string,
   body: IngestDeltaBody,
 ): Promise<{ projected: number; deleted: number }> {
-  const { project, remove } = docFunctions(deps, body.kind);
-  const projected = await projectFiles(project, repo, body.files);
-  const deleted = await removeFiles(remove, repo, body.deleted);
+  const { project, remove, list } = docFunctions(deps, body.kind);
+  const projected = await projectFiles(project, repo, body);
+  const gone = [
+    ...(body.deleted ?? []),
+    ...(await vanishedDocs(list, repo, body)),
+  ];
 
-  return { projected, deleted };
+  await removeDocs(remove, repo, gone);
+
+  return { projected, deleted: gone.length };
+}
+
+/** One at a time, like the projections: every subtree delete rewrites the shared Repo node's edges. */
+async function removeDocs(
+  remove: IngestDeltaDeps["deleteSpec"],
+  repo: string,
+  paths: string[],
+): Promise<void> {
+  for (const path of paths) {
+    await remove(repo, path);
+  }
 }
 
 function docFunctions(
@@ -251,21 +271,25 @@ function docFunctions(
 ): {
   project: IngestDeltaDeps["projectSpec"];
   remove: IngestDeltaDeps["deleteSpec"];
+  list: IngestDeltaDeps["listSpecs"];
 } {
   return kind === "specs"
-    ? { project: deps.projectSpec, remove: deps.deleteSpec }
-    : { project: deps.projectAdr, remove: deps.deleteAdr };
+    ? { project: deps.projectSpec, remove: deps.deleteSpec, list: deps.listSpecs }
+    : { project: deps.projectAdr, remove: deps.deleteAdr, list: deps.listAdrs };
 }
 
+/** SEQUENTIAL on purpose: every projection upserts the shared Repo node, so concurrent ones abort each other's Dgraph transactions. */
 async function projectFiles(
   project: IngestDeltaDeps["projectSpec"],
   repo: string,
-  files: IngestDeltaBody["files"],
+  body: IngestDeltaBody,
 ): Promise<number> {
   let projected = 0;
 
-  for (const file of files ?? []) {
-    const outcome = await project(repo, file.path, file.content);
+  for (const file of body.files ?? []) {
+    const outcome = await project(repo, file.path, file.content, {
+      force: body.force ?? false,
+    });
 
     if (outcome.projected) {
       projected += 1;
@@ -275,16 +299,30 @@ async function projectFiles(
   return projected;
 }
 
-async function removeFiles(
-  remove: IngestDeltaDeps["deleteSpec"],
+/** The graph docs a full ingest no longer names. The shared fuse refuses a set that looks like a bad tree read (more than 2 docs AND more than half of what the graph holds) unless the delta is forced, and a refusal prunes nothing rather than failing an ingest whose files did land. */
+async function vanishedDocs(
+  list: IngestDeltaDeps["listSpecs"],
   repo: string,
-  paths: IngestDeltaBody["deleted"],
-): Promise<number> {
-  for (const path of paths ?? []) {
-    await remove(repo, path);
+  body: IngestDeltaBody,
+): Promise<string[]> {
+  if (!body.present?.length) {
+    return [];
   }
+  const selection = selectPruneCandidates(
+    await list(repo),
+    body.present,
+    () => true,
+    body.force ? "forced" : "guarded",
+  );
 
-  return paths?.length ?? 0;
+  if (selection.outcome === "ok") {
+    return selection.candidates;
+  }
+  console.warn(
+    `[ingest-delta] ${body.kind} ${repo}: refusing to prune ${selection.candidateCount} of ${selection.inScopeDocCount} graph docs absent from the posted tree — re-run forced if they are really gone`,
+  );
+
+  return [];
 }
 
 /** What this delta did to the STORED commit, once its chunks have been projected. A partial upload projects its share but must NOT advance the commit — the next chunk still needs the same base — and an unmigrated `ingest_state` is not a failure either, because the graph has already absorbed the delta. Only a commit that moved under us is a conflict. */

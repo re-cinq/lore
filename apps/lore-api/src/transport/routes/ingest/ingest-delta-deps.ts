@@ -4,6 +4,7 @@ import {
   ingestSpecTrace,
   projectAdrFile,
   projectSpecFile,
+  listGraphDocPaths,
   deleteSpecSubtree,
   deleteAdrSubtree,
   pruneTestFiles,
@@ -12,20 +13,27 @@ import {
 } from "@re-cinq/lore-shared";
 import { projectFor } from "../../../outbound/project-boot.js";
 
+/** How one doc file is projected: `force` re-projects a file whose content hash has not changed. */
+export interface DocProjection {
+  force: boolean;
+}
+
+type ProjectDoc = (
+  repo: string,
+  path: string,
+  content: string,
+  projection: DocProjection,
+) => Promise<{ projected: boolean }>;
+
 /** The graph writes one incremental delta needs, as a seam the route's tests can replace. */
 export interface IngestDeltaDeps {
   /** Availability gate + the client the default projectors close over. */
   dgraph(): DgraphClientPort | null;
-  projectSpec(
-    repo: string,
-    path: string,
-    content: string,
-  ): Promise<{ projected: boolean }>;
-  projectAdr(
-    repo: string,
-    path: string,
-    content: string,
-  ): Promise<{ projected: boolean }>;
+  projectSpec: ProjectDoc;
+  projectAdr: ProjectDoc;
+  /** Every spec path the graph holds for the repo, which a full ingest prunes against. */
+  listSpecs(repo: string): Promise<string[]>;
+  listAdrs(repo: string): Promise<string[]>;
   deleteSpec(repo: string, path: string): Promise<void>;
   deleteAdr(repo: string, path: string): Promise<void>;
   ingestReport(repo: string, payload: unknown): Promise<SpecTraceOutcome>;
@@ -54,10 +62,12 @@ export const defaultDeps = (): IngestDeltaDeps => {
 
   return {
     dgraph,
-    projectSpec: (repo, path, content) =>
-      projectSpecFile({ repo, filePath: path, content }, must()),
-    projectAdr: (repo, path, content) =>
-      projectAdrFile({ repo, filePath: path, content }, must()),
+    projectSpec: (repo, path, content, projection) =>
+      projectSpecFile({ repo, filePath: path, content }, must(), projection),
+    projectAdr: (repo, path, content, projection) =>
+      projectAdrFile({ repo, filePath: path, content }, must(), projection),
+    listSpecs: (repo) => listGraphDocPaths(must(), "Spec", repo),
+    listAdrs: (repo) => listGraphDocPaths(must(), "ADR", repo),
     deleteSpec: (repo, path) => deleteSpecSubtree(must(), repo, path),
     deleteAdr: (repo, path) => deleteAdrSubtree(must(), repo, path),
     ingestReport: (repo, payload) =>

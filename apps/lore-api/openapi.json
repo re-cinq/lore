@@ -5200,6 +5200,15 @@
                       "type": "string"
                     }
                   },
+                  "present": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "force": {
+                    "type": "boolean"
+                  },
                   "report": {}
                 },
                 "required": ["kind", "commit", "base_commit"],

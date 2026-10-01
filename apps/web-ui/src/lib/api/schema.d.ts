@@ -7144,6 +7144,8 @@ export interface operations {
             content: string;
           }[];
           deleted?: string[];
+          present?: string[];
+          force?: boolean;
           report?: unknown;
         };
       };
