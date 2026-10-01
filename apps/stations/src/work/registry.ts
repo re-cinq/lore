@@ -13,6 +13,7 @@ import { retrospective } from "./retrospective/manifest.js";
 import { detect } from "./detect/manifest.js";
 import { digestTickStation } from "./digest-tick/manifest.js";
 import { ingest } from "./ingest/manifest.js";
+import { loopTickStation } from "./loop-tick/manifest.js";
 import { issues } from "./issues/manifest.js";
 import { featureReview } from "./feature-review/manifest.js";
 import { gcpCostSync } from "./gcp-cost-sync/manifest.js";
@@ -35,6 +36,7 @@ export const STATION_NAMES = [
   "importance-decay",
   "ingest",
   "issues",
+  "loop-tick",
   "memory-ttl",
   "merge-check",
   "merge-step",
@@ -59,6 +61,7 @@ export const STATIONS: Record<StationName, StationModule> = {
   "importance-decay": importanceDecayStation,
   ingest,
   issues,
+  "loop-tick": loopTickStation,
   "memory-ttl": memoryTtl,
   "merge-check": mergeCheck,
   "merge-step": mergeStep,

@@ -101,6 +101,32 @@ describe("settlingTasks", () => {
     );
   });
 
+  it("completes task-1 when its implementation-loop run settled as success", async () => {
+    const { settle, settled } = scene(
+      onboardRun({ lineId: "implementation-loop" }),
+    );
+
+    await settle("implementation-loop", "success");
+
+    expect(settled).toMatchObject([{ taskId: "task-1", status: "completed" }]);
+  });
+
+  it("fails task-1 when its implementation-loop run spent a retry budget, so the next tick may pick the ticket again", async () => {
+    const { settle, settled } = scene(
+      onboardRun({ lineId: "implementation-loop", outcome: "iteration_max" }),
+    );
+
+    await settle("implementation-loop", "iteration_max");
+
+    expect(settled).toMatchObject([
+      {
+        taskId: "task-1",
+        status: "failed",
+        failureReason: "the implementation-loop run ended as iteration_max",
+      },
+    ]);
+  });
+
   it("settles no task for a code-review run", async () => {
     const { settle, settled } = scene(onboardRun({ lineId: "code-review" }));
 

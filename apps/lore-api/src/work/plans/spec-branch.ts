@@ -1,4 +1,7 @@
-import { ensureBranch, type BranchRepo } from "../repo/ensure-branch.js";
+import {
+  ensureBranch,
+  type BranchRepo,
+} from "@re-cinq/lore-shared/project/repo/ensure-branch.js";
 
 export type SpecBranchRepo = BranchRepo;
 

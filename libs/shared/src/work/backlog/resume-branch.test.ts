@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { LORE_BLOCKED_LABEL } from "@re-cinq/lore-shared";
+import { LORE_BLOCKED_LABEL } from "./labels.js";
 import { decideBranchResume } from "./resume-branch.js";
 
 const base = {

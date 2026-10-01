@@ -40,6 +40,32 @@ function floorWithTwoRuns(request: FloorRequest): unknown {
   return floorWithOneRun(request);
 }
 
+function loopRunsInTwoPages(request: FloorRequest): unknown {
+  const url = new URL(request.path, "http://floor.test");
+
+  if (url.pathname === "/station-runs") {
+    return { items: [] };
+  }
+
+  if (url.searchParams.get("line") !== "implementation-loop") {
+    return { items: [], nextCursor: null };
+  }
+
+  return url.searchParams.get("cursor") === "page-2"
+    ? { items: [loopRun("run-task-9", "task-9")], nextCursor: null }
+    : { items: [loopRun("run-task-1", "task-1")], nextCursor: "page-2" };
+}
+
+function loopRun(id: string, taskId: string): RunView {
+  return {
+    ...FLOOR_RUN,
+    id,
+    lineId: "implementation-loop",
+    subjectKey: "backlog:tickets",
+    startItems: { task_id: { kind: "value", ref: taskId, by: "lore" } },
+  };
+}
+
 function reader() {
   const recorded = recordedFloor(floorWithOneRun);
 
@@ -180,9 +206,27 @@ describe("FloorRunReader.listSummaries", () => {
       .map((request) => request.path)
       .filter((path) => path.startsWith("/assembly-runs?"));
 
-    expect(listed).toEqual([
+    expect(listed.slice(0, 2)).toEqual([
       "/assembly-runs?subject=task_id%3Atask-1&open=true&limit=50",
       "/assembly-runs?subject=task_id%3Atask-1&open=false&limit=50",
+    ]);
+  });
+
+  it("pages through the implementation-loop runs until it finds the one started with task-9", async () => {
+    const recorded = recordedFloor(loopRunsInTwoPages);
+    const found = await new FloorRunReader(recorded.floor).listSummaries({
+      taskId: "task-9",
+      status: ["queued"],
+    });
+
+    expect(found.map((run) => run.id)).toEqual(["run-task-9"]);
+    expect(
+      recorded.requests
+        .map((request) => request.path)
+        .filter((path) => path.includes("line=implementation-loop")),
+    ).toEqual([
+      "/assembly-runs?line=implementation-loop&open=true&limit=50",
+      "/assembly-runs?line=implementation-loop&open=true&limit=50&cursor=page-2",
     ]);
   });
 

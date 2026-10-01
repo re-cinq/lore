@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
-import { handleLoopRunClosed } from "../backlog/loop-run-closed.js";
+import { handleLoopRunClosed } from "@re-cinq/lore-shared/backlog/loop-run-closed.js";
 import {
   createLineHarness,
   resultEnvelope,

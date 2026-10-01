@@ -14,7 +14,7 @@ import {
 import type { PgPool } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
 import { projectFor } from "../../outbound/project-boot.js";
-import { ensureBranch } from "./ensure-branch.js";
+import { ensureBranch } from "@re-cinq/lore-shared/project/repo/ensure-branch.js";
 
 export interface OnboardOnFloorDeps {
   floor: OnboardFloor;
