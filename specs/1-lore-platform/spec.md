@@ -608,8 +608,8 @@ ai-agent-subsystem per ADR-031). ([validated by starts code-review when a pull r
 
 The system MUST detect when specifications diverge from implementation. ([validated by `chunks.test.ts:203`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L204), [`chunks.test.ts:225`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L226))
 
-- FR-14.1: Weekly job reads spec assertions and checks against
-  current code via AST analysis. ([validated by `fan-out.test.ts:41`](apps/floor/src/work/detect/fan-out.test.ts#L42))
+- FR-14.1: *(Since 2026-10-02.)* A weekly line reads each spec's statements from the traceability graph and
+  finds those whose bound test fails. It is the `spec-upkeep` line on the external floor (`specs/external-floor` FR14); the per-repo `spec-drift` fan-out on Lore's own Floor that did this before is gone. ([validated by finds the statement of specs/cart/spec.md whose bound test fails, with its section and the test](libs/shared/src/work/spec-upkeep/findings.test.ts#L65))
 - Decision: divergence above 20% of a spec's assertions triggers a `gap-fill`
   pipeline task for the owning team.
 - FR-14.3: Test files and generated files are excluded. ([validated by `chunks.test.ts:681`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L713), [`chunks.test.ts:714`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L746))

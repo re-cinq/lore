@@ -77,12 +77,6 @@ describe("buildRegistry", () => {
     expect(registry.get("assembly_run.start")).toBeTypeOf("function");
     expect(registry.get("assembly_run.resume")).toBeTypeOf("function");
   });
-
-  it("routes the post-ingest validate event through the detect tick (one substrate, FR5) — same handler serves the weekly cron and the trigger, running in the detect station pod either way", () => {
-    expect(buildRegistry().get("internal.ingest.spec_coverage_validate")).toBe(
-      buildRegistry().get("cron.spec_coverage_validate.tick"),
-    );
-  });
 });
 
 describe("withExtra", () => {
