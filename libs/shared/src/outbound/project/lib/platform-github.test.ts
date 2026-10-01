@@ -1107,4 +1107,15 @@ describe("PlatformGitHub commit statuses", () => {
   it("ciConclusion reports none for a ref with neither check runs nor statuses", async () => {
     expect(await gh().ciConclusion("re-cinq/lore", "abc")).toBe("none");
   });
+
+  it("listChecks reports a pending commit status as in progress with no conclusion", async () => {
+    state.statuses = [{ context: "ci/azure", state: "pending" }];
+    expect(await gh().listChecks("re-cinq/lore", "abc")).toContainEqual(
+      expect.objectContaining({
+        name: "ci/azure",
+        status: "in_progress",
+        conclusion: null,
+      }),
+    );
+  });
 });

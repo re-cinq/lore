@@ -275,7 +275,8 @@ function statusAsRun(s: { context: string; state: string }): CheckRun {
   return {
     name: s.context,
     status: s.state === "pending" ? "in_progress" : "completed",
-    conclusion: STATUS_CONCLUSION[s.state] ?? "failure",
+    conclusion:
+      s.state in STATUS_CONCLUSION ? STATUS_CONCLUSION[s.state] : "failure",
     output: { title: null, summary: null },
   };
 }
