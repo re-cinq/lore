@@ -439,7 +439,7 @@ now `emit`, so a router blip retries instead of dropping.
   flushes — after, because an event produced by an in-flight request has to
   reach the queue first; before exit, because `process.exit` takes the queue
   with it. Every step stays best-effort: a drain that cannot finish must still
-  terminate, or the zombie the shutdown handler exists to kill comes back. ([validated by drains queued events after it stops serving and before it exits](apps/floor/src/shutdown.test.ts#L25), [exits even when the event drain throws, rather than holding the rollout open](apps/floor/src/shutdown.test.ts#L44))
+  terminate, or the zombie the shutdown handler exists to kill comes back.
 
 ### Inputs, and a shutdown that says what it lost
 
@@ -533,10 +533,10 @@ done here.
   central cluster-agent's registry id — which the live event door now receives
   from production wiring, where it used to receive nothing and treat even a
   central-claimed row as unreadable. The pod-log route and the token reclaim
-  take the same test. ([validated by `agent-logs.test.ts:143`](../apps/floor/src/transport/http/routes/agent-logs.test.ts#L143), [`agent-logs.test.ts:154`](../apps/floor/src/transport/http/routes/agent-logs.test.ts#L154), [`per-task-token.test.ts:27`](../apps/floor/src/work/watcher/per-task-token.test.ts#L27))
+  take the same test.
 - A duplicate terminal delivery for an already-settled node is dropped rather
   than re-read; the walk advances on the first delivery and the second has
-  nothing to add. ([validated by `node-event-handler.test.ts:441`](../apps/floor/src/work/assembly-run/node-event-handler.test.ts#L468))
+  nothing to add.
 - The remaining central reads are enumerated above, and a new read of a
   cluster from the Floor is a design change to this table rather than a local
   decision.

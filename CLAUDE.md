@@ -65,8 +65,8 @@ clear error messages.
 idempotent — safe to re-run. Prefix output with `[lore]`. Exit 0 on
 success, 1 on failure.
 
-**Helm charts** for K8s deployments. All nine service workloads ship as
-ONE umbrella chart, `lore-platform` (vendoring floor/event-router/cluster-agent/
+**Helm charts** for K8s deployments. All eight service workloads ship as
+ONE umbrella chart, `lore-platform` (vendoring event-router/cluster-agent/
 lore-api/lore-mcp/stations/ui/lore-db/ai-agents subcharts under `charts/`); one
 `helm_release.lore_platform` deploys them. Every service has a `build-*.yml`
 workflow that builds its image and deploys it into the umbrella release via
@@ -91,32 +91,26 @@ status pill — a stale header misreports the org's backlog.
 - `apps/lore-api/src/work/dark-factory/dark-factory-settings.ts` — Zod schema + `resolveSettings()` defaults + `twoKeyFieldsTouched()` for the privileged-field gate
 - `apps/lore-api/src/work/dark-factory/dark-factory-authz.ts` — `verifyApproval()` runs the CODEOWNERS-approval-PR ceremony (open PR labeled `dark-factory-approval` by a CODEOWNER of the repo's `CLAUDE.md`)
 - `libs/shared/src/outbound/project/leases/lease-backends.ts` — `DbLeaseBackend` (Postgres CTE-based atomic acquire with takeover detection) + `FileLeaseBackend` (worktree mode under `~/.lore/leases/`) sharing a `LeaseBackend` interface (FR1.6)
-- `libs/assembly-lines/src/transition.ts` — `nextTransition()`: the pure replay that derives the walk's next step (launch / await / finish / fail) purely from the persisted `pipeline.station_runs` rows + the definition graph (exact edge + `iteration_max` accounting via `selectEdge`). The event-driven walk (`apps/floor/src/work/assembly-run/advance.ts`) is its Floor-side driver; the old in-process `executeAssemblyLine` (stage commits, branch-trailer resume, per-node lease) was retired in the cutover (spec 6-dark-factory FR6.9)
+- `libs/assembly-lines/src/transition.ts` — `nextTransition()`: the pure replay that derived the old walk's next step from the persisted `pipeline.station_runs` rows + the definition graph. Its driver was Lore's own Floor (`apps/floor`), deleted on 2026-10-02; the module, the old line files beside it and the node stations under `apps/stations/src/work/` that only that walk dispatched are left to delete in a follow-up (#2342)
 - `libs/assembly-lines/src/loader.ts` — Zod schema for assembly line YAML, cycle detection (DFS coloring; back-edges require `iteration_max`), reachability check; nodes carry optional `station_ref` (custom station image) + `timeout_minutes`, and detect nodes require `job_ref`
-- `libs/assembly-lines/src/assembly-lines/*.yaml` — declarative assembly line definitions Lore's own Floor walks (gap-fill, feature-planning, ingest, the detection lines spec-drift/gap-detect/spec-coverage-{validate,backfill}; more extensible)
-- **External floor** (ADR-049, `specs/external-floor/`) — the rewritten Floor ([re-cinq/floor](https://github.com/re-cinq/floor)) runs in the same cluster and replaces `apps/floor` one family of lines at a time; Lore reaches it only through `@re-cinq/floor-client` (`libs/shared/src/outbound/floor/floor-client.ts`, `FLOOR_API_URL` + `FLOOR_SERVICE_TOKEN`, terraform `enable_external_floor`). **The code-review family runs there**: `libs/assembly-lines/src/floor-pipelines/{code-review,code-review-recheck,code-review-reply,lore-run-settled}.yaml` are floor pipeline files (line + stations + agent definitions, prompt inline) that lore-api puts to the floor at every boot — a version is its content, so only a file that changed becomes a new version (`apps/lore-api/src/work/floor/seed-floor-pipelines.ts`). The stations drain turns PR-lifecycle events into `lines.start` / `runs.cancel` (`apps/stations/src/events/floor-review-handlers.ts` → `libs/shared/src/work/review/floor-review-start.ts`: opened→review + started-comment, push→re-check, request-changes review from a trusted reviewer→reply, closed→cancel; gated on `auto_review`, bots skipped; the linked issue's text rides along as the `issue` file). Lore's floor stations live one folder each under `apps/stations/src/code-review/` (`post-review`, `read-review`, `post-reply`, `run-settled`), written with `@re-cinq/floor-station`. lore-api mints the floor's git credentials (`POST /api/floor/git-credential`) and shows floor runs on the existing run page (`apps/lore-api/src/work/floor/`: `floorBackedRuns` answers from Postgres first, the floor otherwise; `FloorRunFeeds` relays the floor's per-run socket onto the `run` channel)
+- `libs/assembly-lines/src/assembly-lines/*.yaml` — the line files Lore's own Floor walked. Nothing walks them since `apps/floor` was deleted (2026-10-02); they are history until the follow-up removes them. The lines that run are `libs/assembly-lines/src/floor-pipelines/*.yaml`, on the external floor
+- **External floor** (ADR-049, `specs/external-floor/`) — the rewritten Floor ([re-cinq/floor](https://github.com/re-cinq/floor)) runs in the same cluster and is the only engine: `apps/floor`, which it replaced one family of lines at a time, was deleted on 2026-10-02 (`specs/external-floor` FR16); Lore reaches it only through `@re-cinq/floor-client` (`libs/shared/src/outbound/floor/floor-client.ts`, `FLOOR_API_URL` + `FLOOR_SERVICE_TOKEN`, terraform `enable_external_floor`). **The code-review family runs there**: `libs/assembly-lines/src/floor-pipelines/{code-review,code-review-recheck,code-review-reply,lore-run-settled}.yaml` are floor pipeline files (line + stations + agent definitions, prompt inline) that lore-api puts to the floor at every boot — a version is its content, so only a file that changed becomes a new version (`apps/lore-api/src/work/floor/seed-floor-pipelines.ts`). The stations drain turns PR-lifecycle events into `lines.start` / `runs.cancel` (`apps/stations/src/events/floor-review-handlers.ts` → `libs/shared/src/work/review/floor-review-start.ts`: opened→review + started-comment, push→re-check, request-changes review from a trusted reviewer→reply, closed→cancel; gated on `auto_review`, bots skipped; the linked issue's text rides along as the `issue` file). Lore's floor stations live one folder each under `apps/stations/src/code-review/` (`post-review`, `read-review`, `post-reply`, `run-settled`), written with `@re-cinq/floor-station`. lore-api mints the floor's git credentials (`POST /api/floor/git-credential`) and shows floor runs on the existing run page (`apps/lore-api/src/work/floor/`: `floorBackedRuns` answers from Postgres first, the floor otherwise; `FloorRunFeeds` relays the floor's per-run socket onto the `run` channel)
 - **Spec upkeep on the external floor** (`specs/external-floor` FR14, 2026-10-01) — `libs/assembly-lines/src/floor-pipelines/spec-upkeep.yaml`: `detect-drift → detect-unlinked → update-specs → open-pr → await-ci ⇄ fix-ci → request-review`, one run per onboarded repo started by the stations tick `cron.spec_upkeep.tick` (Mondays 10:00 UTC, `apps/stations/src/work/spec-upkeep-tick/`). The detectors (`libs/shared/src/work/spec-upkeep/findings.ts`) read the traceability graph and call no model; the agent fixes drift and adds test links as two commits. The old `spec_drift` and `spec_coverage_backfill` ticks are gone (2026-10-02, FR16.6), with `gap_detection` and `spec_coverage_validate`: nothing starts a detection line on Lore's own Floor
-- **Implementation loop on the external floor** (`specs/external-floor` FR12/FR13, 2026-10-01) — `libs/assembly-lines/src/floor-pipelines/implementation-loop.yaml` (`dod → open-pr → tdd-round ⇄ await-ci → ready-for-review → mark-ready → await-pr ⇄ fix-ci`); the driver is shared code in `libs/shared/src/work/backlog/` (`implementation-loop-tick.ts` picks, `floor-loop.ts` starts, `loop-run-closed.ts` + `loop-infra-deferral.ts` settle and defer). With a floor configured the stations service runs the tick (`apps/stations/src/work/loop-tick/`) and settles tickets in the `run-settled` station (`apps/stations/src/code-review/run-settled/loop-closed.ts`); `apps/floor/src/work/backlog/` holds only the old Floor's wiring, whose tick stands down. A loop run is keyed on `backlog:tickets` (one ticket per repo), not on its task. **A plan's spec-tasks run on the same line** (FR15): the executor (`libs/shared/src/work/spec-task/`, stations tick `apps/stations/src/work/spec-task-tick/` on `cron.spec_task_executor.tick`) starts one run per ready task keyed on `backlog:spec-task-<task id>`, so they run beside the backlog; a parked task gets a comment on its task issue and no `lore:blocked` label
-- `libs/assembly-lines/src/node-outcome.ts` — `stationNodeOutcome()` + `parseNodeResult()`/`parseReviewVerdict()` for the station contract's `LORE_NODE_RESULT` line; outcome precedence LORE_NODE_RESULT → REVIEW_RESULT → success, CR `Failed` → `<kind>-failed`. Consumed by the Floor's node-event handler + reaper (`apps/floor/src/work/assembly-run/`) and by the `lore-station` pods. Node-execution types (`StageOutcome`/`NodeResult`/`NodeContext`) live in `node-types.ts`. (The old `station-node-handler.ts` poll loop retired with the in-process walk.)
+- **Implementation loop on the external floor** (`specs/external-floor` FR12/FR13, 2026-10-01) — `libs/assembly-lines/src/floor-pipelines/implementation-loop.yaml` (`dod → open-pr → tdd-round ⇄ await-ci → ready-for-review → mark-ready → await-pr ⇄ fix-ci`); the driver is shared code in `libs/shared/src/work/backlog/` (`implementation-loop-tick.ts` picks, `floor-loop.ts` starts, `loop-run-closed.ts` + `loop-infra-deferral.ts` settle and defer). With a floor configured the stations service runs the tick (`apps/stations/src/work/loop-tick/`) and settles tickets in the `run-settled` station (`apps/stations/src/code-review/run-settled/loop-closed.ts`); The old Floor's own wiring of it went with `apps/floor`. A loop run is keyed on `backlog:tickets` (one ticket per repo), not on its task. **A plan's spec-tasks run on the same line** (FR15): the executor (`libs/shared/src/work/spec-task/`, stations tick `apps/stations/src/work/spec-task-tick/` on `cron.spec_task_executor.tick`) starts one run per ready task keyed on `backlog:spec-task-<task id>`, so they run beside the backlog; a parked task gets a comment on its task issue and no `lore:blocked` label
+- `libs/assembly-lines/src/node-outcome.ts` — `stationNodeOutcome()` + `parseNodeResult()`/`parseReviewVerdict()` for the station contract's `LORE_NODE_RESULT` line; outcome precedence LORE_NODE_RESULT → REVIEW_RESULT → success, CR `Failed` → `<kind>-failed`. Consumed by the `lore-station` pods; the Floor-side node-event handler and reaper went with `apps/floor`. Node-execution types (`StageOutcome`/`NodeResult`/`NodeContext`) live in `node-types.ts`. (The old `station-node-handler.ts` poll loop retired with the in-process walk.)
 - `apps/lore-station/` — the station pod entrypoint image (`ghcr.io/re-cinq/lore-station`, `lore-station <type> '<station_input json>'`): runs one non-agent node per pod (validate/gate/github_action/detect/ingest) via the subsystem's `exec` vendor; service-runtime node types (retrospective, merge_step, issues) run in the pooled `lore-stations` service instead, published over the bus. Reads/writes over HTTP through `createStationProject(repo)` (no Postgres/App creds in the pod, D7); the detector cores live in `@re-cinq/lore-shared/detect` (facade-driven, shared by Floor + station). Contract in `specs/6-dark-factory/contracts/station-contract.md`. **Cutover complete** (ADR-031 amendment): every non-agent Floor-assembly-line node dispatches a station — the `LORE_STATION_NODES` flag + in-process node handlers are gone. The last in-process execution path (the gap-fill/runbook JSON-supervisor, `processTaskViaSupervisor`) was also removed: gap-fill now runs on the Floor AssemblyLine (per-node Agent CRs, same as implementation) and runbook (no assembly-line YAML) runs as a single Agent CR — both via `handleClaudeCodeTask`, no Floor-side clone or App token. Builtin `def-<type>` recipes are `lore.agent_definitions` rows (migrations 0027/0028/0054) that each cluster-agent's catalog sync renders into CRs; custom stations register via an `execution_mode: 'station'` agent-definitions row.
-- `apps/floor/src/work/merge/auto-merge.ts` — pure `evaluateAutoMerge()` decision + `evaluateAndMerge()` end-to-end with backoff. Outcome enum captures all 7 deferral reasons + `merged`. OTEL span `lore.auto_merge.decision` carries the rule trace
 - `apps/stations/src/work/merge-check/spec-status-flip.ts` — the merge-check also runs the **spec-status-upkeep FR1** hook (`specs/spec-status-upkeep/`): when a merged `spec-task` leaves no unmerged siblings in its `task_group_id` (via `taskQueue().countUnmergedInGroup`), the pure `decideSpecStatusFlip()` gate reads the spec path the task carries in `context_bundle.spec_path` (stamped by the `issues` station from the planning line's `spec_path` arg, which the Floor derives from `spec-plan.json`) and `openSpecStatusFlipPr` (`@re-cinq/lore-shared`) opens a deterministic one-line `lore-managed`+`spec-status-upkeep` PR flipping the spec's `| Status |` row to `Implemented` (mirrors the spec-coverage-backfill PR plumbing; `rewriteSpecStatusRow` is the idempotent pure rewriter). No LLM. Human-review PRs (no auto-merge wiring). FR2 (weekly `status-staleness` detect line) is a pending follow-up
-- **Plans** (ADR-047, `specs/7-feature-planning/`) — a feature is planned as a plan people and the planning agent write together, hosted by lore-api through the [planning-station](https://github.com/re-cinq/planning-station) packages (git deps on its `*-dist-v*` tags; the repo is public). `apps/lore-api/src/app/register-planning.ts` mounts `@re-cinq/planning-sync` (`/api/plans/*` + the `/api/plans/collab` WebSocket) with `pgPlanStore` (`outbound/plans/plan-store-pg.ts`, `lore.plans`/`plan_state`/`plan_versions`) and DB-backed collab tokens (`work/plans/collab-tokens.ts`); its `onApproved` hook resumes the planning line. Lore's own routes (`transport/routes/plans/plans.ts`): list, collab-token, `drafting`, `refine`. The `feature-planning` assembly line keys on `args.plan_id` (`planSubject`), its agent writes `result.json` as agent ops or a section proposal, and the Floor posts it to lore-api (`apps/floor/src/work/agent/planning-result.ts`). web-ui: `app/repos/[owner]/[repo]/plans/` mounts `@re-cinq/planning-editor` on a `plan` channel of the tab's one live socket (`LORE_WS_URL`, ADR-048), built with `transportFor` + Hocuspocus's `WebSocketPolyfill` seam (`src/lib/live-socket/channel-websocket.ts`). lore-api runs ONE replica while plans are live in it. `lore.features` is gone (migration 0088)
-- `apps/floor/src/events/main-loop/lease/lease-reaper.ts` — 60s tick deletes leases >5min past expiry, writes `lease_expired` audit entries
-- `apps/floor/src/work/dark-factory/dark-factory-baseline.ts` — pre-feature 30-day counter snapshot per repo, written to `pipeline.dark_factory_baseline` for SC1/SC4/SC6 deltas
-- `apps/floor/src/work/dark-factory/dark-factory.ts` — `decideIssueCreate()` and `decideReviewMode()` pure helpers + DB-backed `shouldCreateIssue()` / `resolveReviewMode()` wrappers
-- **No escalation line** (deleted 2026-10-01, #2330): the two-node `file-issue → notify` line, its `escalation-step` station and the `escalation_step` node type are gone, having never run in production. A task whose pull request cannot be opened is parked `needs-human-help` with the reason (`apps/floor/src/work/watcher/agent-watcher-pr-failure.ts`); the implementation loop comments on its own tickets (`libs/shared/src/work/backlog/loop-run-closed.ts`)
+- **Plans** (ADR-047, `specs/7-feature-planning/`) — a feature is planned as a plan people and the planning agent write together, hosted by lore-api through the [planning-station](https://github.com/re-cinq/planning-station) packages (git deps on its `*-dist-v*` tags; the repo is public). `apps/lore-api/src/app/register-planning.ts` mounts `@re-cinq/planning-sync` (`/api/plans/*` + the `/api/plans/collab` WebSocket) with `pgPlanStore` (`outbound/plans/plan-store-pg.ts`, `lore.plans`/`plan_state`/`plan_versions`) and DB-backed collab tokens (`work/plans/collab-tokens.ts`); its `onApproved` hook resumes the planning line. Lore's own routes (`transport/routes/plans/plans.ts`): list, collab-token, `drafting`, `refine`. The `feature-planning` assembly line keys on `args.plan_id` (`planSubject`), and it runs on the external floor, where its agent edits the plan through `lore_plan_edit`. web-ui: `app/repos/[owner]/[repo]/plans/` mounts `@re-cinq/planning-editor` on a `plan` channel of the tab's one live socket (`LORE_WS_URL`, ADR-048), built with `transportFor` + Hocuspocus's `WebSocketPolyfill` seam (`src/lib/live-socket/channel-websocket.ts`). lore-api runs ONE replica while plans are live in it. `lore.features` is gone (migration 0088)
+- **No escalation line** (deleted 2026-10-01, #2330): the two-node `file-issue → notify` line, its `escalation-step` station and the `escalation_step` node type are gone, having never run in production. The implementation loop comments on its own tickets (`libs/shared/src/work/backlog/loop-run-closed.ts`)
 - `libs/shared/src/domain/models/` — **the single source of truth for every persisted shape** (32 tables, 308 columns). One file per entity: a Zod schema, the type inferred from it, and a `ColumnMap` binding each camelCase field to the snake_case column that stores it. Adapters build their SELECT lists with `selectList()` and map rows with `fromRow()`; API contracts derive their stored fields with `wireSchema()`, so one declaration reaches from the column to the generated web-ui type. `models.test.ts` discovers the folder rather than taking a registry, and FAILS on a table model whose schema will not resolve
 - `libs/shared/src/lib/path-match.ts` — `allPathsMatch()` minimatch wrapper; returns true only when **every** changed path matches at least one allowlist glob
 - `libs/shared/src/outbound/project/notify/notify.ts` — `decideNotify()` filters notifications by `dark_factory.notify` channel list
-- `apps/floor/src/outbound/audit.ts` — `writeAuditLog()` writer for the new `pipeline.audit_log` table
 - `libs/shared/src/domain/pr-body.ts` — `prFooter()` composes the standard `Lore-Task: <uuid>` (+ optional `Refs #N`) PR-body footer used by every Lore-authored PR
 - `libs/shared/src/domain/commit-trailers.ts` — `formatTrailers()` / `parseTrailers()` / `formatValidatesTrailer()` / `parseValidatesTrailers()` exported via `@re-cinq/lore-shared`. (There is no `lastStageOnBranch()`: the branch-trailer resume it belonged to was retired with the in-process walk, and "where did this run get to" is answered by the `pipeline.station_runs` replay in `libs/assembly-lines/src/transition.ts`.) Trailers are emitted unconditionally on every Lore-authored commit regardless of dark-mode setting (audit substrate for both modes)
 - `libs/shared/src/outbound/project/tasks/task-queue-{port,pg,memory}.ts` — `TaskQueueRepository`: the org-wide (repo-agnostic) `pipeline.tasks` claim/sweep mechanics single-sourced out of Floor — `claimNextPending` (worker poll, immediate-first + 30s grace), `findRecoverable`/`findStaleRunning` (crash-recovery + safety-net sweeps), `findReadySpecTasks`/`countRunningSpecTasksByGroup`/`claimSpecTask` (spec-task DAG dispatch). Pg adapter + InMemory double (the behavioral spec) + colocated tests. Repo-scoped task *record* ops stay on `project.tasks`
-- `libs/shared/src/outbound/project/events/event-reporter-{port,pg,memory}.ts` — `EventReporter`: the `pipeline.events` PRODUCE side, `insert` only, delegating to the shared `events.ts insertEvent` (idempotent on `dedupe_key`, fans out one `pipeline.event_deliveries` row per subscriber in the same statement). The CONSUME side is `event-deliveries-{port,pg,memory,http}.ts` (`claim` with `FOR UPDATE SKIP LOCKED`, `markDone`/`markFailed`/`markDead`, `reapStuck`, `pruneHandled`), always on the subscriber's own delivery row. `pipeline.events` carries NO status: the legacy `status`/`attempts`/`claimed_at`/`next_attempt_at`/`handled_at`/`error` columns were dropped by migration 0072 after every event ever captured sat at `pending` forever and read as a 104,000-row backlog on 2026-09-09. The Floor event **loop/registry/scheduler** stay in `apps/floor/src/events/main-loop/`
-- `libs/shared/src/outbound/project/agent-run-events/agent-run-events-{port,pg,memory}.ts` — `AgentRunEventsRepository`: the `pipeline.agent_run_events` per-tool-call agent telemetry behind the live run visualization (`specs/assembly-line-run-viz`, ADR-037). Three methods — `insertBatch` (the ingest write, which resolves `agent_cr_name` → `assembly_line_id`/`node_id`/`iteration` against `pipeline.station_runs` at write time via a `LEFT JOIN LATERAL`, newest node wins, and keeps an uncorrelated row rather than dropping it), `listSince` (the SSE catch-up read, scoped to one run and a cursor) and `pruneOld` (the retention reap). `AgentRunEventRow.id` is a string-encoded bigint — it outgrows `Number.MAX_SAFE_INTEGER` and doubles as the SSE `Last-Event-ID` cursor, so it is never narrowed to a JS number. Table + the correlation index come from migration `0031_agent_run_events.sql` (no FKs, deliberately: skip-not-fail ingest must never drop a batch). Bound Floor-side as the lazy `agentRunEvents()` singleton in `apps/floor/src/outbound/queues.ts`
+- `libs/shared/src/outbound/project/events/event-reporter-{port,pg,memory}.ts` — `EventReporter`: the `pipeline.events` PRODUCE side, `insert` only, delegating to the shared `events.ts insertEvent` (idempotent on `dedupe_key`, fans out one `pipeline.event_deliveries` row per subscriber in the same statement). The CONSUME side is `event-deliveries-{port,pg,memory,http}.ts` (`claim` with `FOR UPDATE SKIP LOCKED`, `markDone`/`markFailed`/`markDead`, `reapStuck`, `pruneHandled`), always on the subscriber's own delivery row. `pipeline.events` carries NO status: the legacy `status`/`attempts`/`claimed_at`/`next_attempt_at`/`handled_at`/`error` columns were dropped by migration 0072 after every event ever captured sat at `pending` forever and read as a 104,000-row backlog on 2026-09-09. The consumers are the stations drain (`apps/stations/src/events/`) and the event-router; the Floor's own loop and registry went with `apps/floor`
+- `libs/shared/src/outbound/project/agent-run-events/agent-run-events-{port,pg,memory}.ts` — `AgentRunEventsRepository`: the `pipeline.agent_run_events` per-tool-call agent telemetry behind the live run visualization (`specs/assembly-line-run-viz`, ADR-037). Three methods — `insertBatch` (the ingest write, which resolves `agent_cr_name` → `assembly_line_id`/`node_id`/`iteration` against `pipeline.station_runs` at write time via a `LEFT JOIN LATERAL`, newest node wins, and keeps an uncorrelated row rather than dropping it), `listSince` (the SSE catch-up read, scoped to one run and a cursor) and `pruneOld` (the retention reap). `AgentRunEventRow.id` is a string-encoded bigint — it outgrows `Number.MAX_SAFE_INTEGER` and doubles as the SSE `Last-Event-ID` cursor, so it is never narrowed to a JS number. Table + the correlation index come from migration `0031_agent_run_events.sql` (no FKs, deliberately: skip-not-fail ingest must never drop a batch).
 - `libs/shared/src/outbound/project/leases/lease-backends.ts` — `LeaseBackend` gained `reapExpired(cutoff)` (Db DELETE…RETURNING with OTEL span, File scan, `InMemoryLeaseReaper` double) so the lease-reaper goes through `project.leases` instead of a Floor-local repo
-- `apps/floor/src/outbound/queues.ts` — Floor-side lazy singletons binding the agent pool to the shared `Pg…` adapters (lazy because `getPool()` requires `initPool()` first). All Floor DB access goes through these (cross-repo/no-repo jobs) or `projectFor(repo)` (repo-scoped); inline `query()` SQL was extracted into `@re-cinq/lore-shared/project/*` ports (ADR-024 "Floor data access"). Singletons: `taskQueue`/`taskStore` (pipeline.tasks queue + record ops, incl. `setStatusIf` CAS / `setColumns` / `insertTask` gate-free), `eventReporter`/`eventProxy` (the produce side), `deliveries` (the consume side), `leaseBackend`, `auditLog`, `usage` (llm_calls), `settings` (lore.repos record ops), `jobRuns`, `evalRuns`, `cost`, `contextCore`, `research`, `baseline`, `chunks`, `memoryLifecycle` (memory.* decay/feedback/episodes). Deleted the Floor-local `kernel/repositories/*`. Remaining inline-SQL holdouts (chunk-content reads in spec-coverage/gap-detect/spec-drift, global lore.settings/lore.features) are a Phase-2 knowledge-read port
 - `apps/web-ui/src/app/tasks/[id]/TimelinePanel.tsx` (+ `TimelineView.tsx`) — client container + pure presentational view for the vertical stage-commit timeline (node-type icons, outcome badges, lease indicator). `TimelinePanel` fetches `/api/tasks/:id/timeline` on mount and re-fetches on the page refresh coordinator's ticks while a non-terminal stage is in flight
 - `apps/lore-api/src/outbound/github-client.ts` — consolidated GitHub auth (App + token fallback)
 - `apps/mcp-server/src/transport/tools/local-runner-tools.local.ts` — local task runner (worktrees, background Claude Code). Guards against pushing to the wrong repo via `validateRepoMatch(taskRepo, cwdRepo)` at spawn time; skips PR creation if `git diff --cached --name-only` is empty after stage. Task state lives in `~/.lore/local-tasks.json` only — never inside the worktree.
@@ -125,7 +119,7 @@ status pill — a stale header misreports the org's backlog.
 - `infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/` — ordered, idempotent `NNNN_*.sql` applied to `lore-db` on every deploy by a `pre-install,pre-upgrade` Helm hook Job (`lore-platform/charts/ui-helm/templates/migrate-{job,configmap}.yaml`), tracked in `lore.schema_migrations`, connecting as `lore` (the DB owner — no superuser needed) via the chart's `dbPasswordSecret`. Runs on both deploy paths (CI `helm upgrade` of the umbrella and terraform `helm_release.lore_platform`). The hook now fires on every umbrella upgrade regardless of which service changed; it is idempotent (skip-if-applied) so re-running on a floor/mcp deploy is a no-op. Baseline schema still comes from `setup-*-schema.sh`; incremental changes go here.
 - `scripts/agent-prompts/` — Lore Agent prompt templates for scheduled jobs (gap detection, spec drift, autoresearch, etc.); ingested as context, not loaded as runtime code
 - `.claude/skills/` — platform skills (lore-help, lore-feature, lore-pr, lore-init, lore-agents, lore-suggest-links, lore-test-commands), installed to `~/.claude/skills` by `install.sh`. **Every skill documents itself**: each `SKILL.md` ends with a `## Help` block fenced by `<!-- lore-help:begin -->` / `<!-- lore-help:end -->` (required `**Summary.**` + `**Usage:**`), which `/lore-help` extracts verbatim to build its index, per-skill detail, and task router — there is no second copy to keep in sync. `scripts/check-skill-help.sh` (the `skill-help` PR check) fails a skill that ships without one. `install.sh` refreshes a changed skill rather than skipping it, and `lore-doctor` fails when an installed skill differs from the checkout — a stale copy would make `/lore-help` describe behaviour that is not installed. See `specs/lore-help/spec.md`
-- `infra/terraform/modules/gke-mcp/lore-platform/` — the single umbrella Helm chart for all five service workloads (floor/lore-api/ui/lore-db/ai-agents subcharts under `charts/`); each subchart stamps its own namespace so one release spans them. `infra/terraform/modules/gke-mcp/` also holds the standalone bootstrap root (cluster + node pools)
+- `infra/terraform/modules/gke-mcp/lore-platform/` — the single umbrella Helm chart for the service workloads (lore-api/ui/lore-db/ai-agents and the other subcharts under `charts/`); each subchart stamps its own namespace so one release spans them. `infra/terraform/modules/gke-mcp/` also holds the standalone bootstrap root (cluster + node pools)
 - `specs/` — speckit artifacts (spec, plan, tasks, research, contracts)
 - `specs/assembly-line-run-viz/spec.md` — live assembly-line run observability (Shipped): projects every claude stream-json line POSTed to `POST /api/agent-events` into `pipeline.agent_run_events` (write-time truncation + `file_paths` extraction, correlated to `station_runs` via `source.agent` == `agent_cr_name`, 14-day prune), and since 2026-09-23 (FR7, ADR-048) streams it as the `run` channel of the browser's ONE live WebSocket at `/api/ws` on lore-api (was one SSE connection per run at `GET /api/assembly-runs/{id}/stream`, 2026-09-09) — `agent_event` (cursored by row id, resumed via the open's `after`), `node_status`, `run_status`, `task_event`, `ci_check` (snapshots, re-sent on every open) — fanned out by Postgres `NOTIFY` triggers (migration 0070) into ONE feed per run (`apps/lore-api/src/work/assembly-line-station/run-feed.ts`) that re-reads once and forwards to every registered viewer; the channel opens with a run-bound token minted by `POST /api/assembly-runs/{id}/stream-token` (`lore.live_tokens`, migration 0091). The page (`RunLiveShell` → `RunVisualizationPanel`) renders the DAG with a persistent inspector beside it (auto-selects running → failed → last finished; model badge per agent node from the resolved catalog), the transcript as a terminal session with the task's transitions folded in, a Definition of Done card (implementation-loop FR16) and per-file PR diffs (FR8); the 10 s `router.refresh()`, the Timeline card, the replay scrubber and the Event Timeline card are retired. Adding an unlinked statement REQUIRES flipping its `| Status |` row to `In Progress`, or `eslint .` goes red repo-wide
 - `adrs/` — architecture decision records (MADR format)
@@ -142,7 +136,6 @@ status pill — a stale header misreports the org's backlog.
 - `apps/web-ui/src/app/tasks/[id]/TaskLogs.tsx` — live Job log viewer on the task detail page
 - `apps/web-ui/src/app/tasks/[id]/PRStatusCard.tsx` — live PR status card
 - `libs/shared/src/lib/business-hours.ts` — IANA-TZ-aware gate used by safety crons
-- `apps/floor/src/transport/http/server.ts` (+ `routes/health.ts`) — the Floor HTTP server: the `/api/agent-events` NDJSON cost sink (the live fan-out is the Postgres NOTIFY trigger on the insert, not a Floor publish — the SSE stream itself moved to lore-api on 2026-09-09), `GET /api/agent-events/{assemblyRunId}` (run-event history), `GET /api/assembly-line-definitions/{name}`, and `/healthz`. GitHub webhooks no longer land on the Floor: the ingress is the event-router's `POST /api/events` (ADR-044, cutover 2026-09-08), and the legacy `/api/webhook/github` path on the Floor host is rewritten onto it by the ingress. The old `/api/trigger/*` fan-out endpoints were replaced by the event bus (`apps/floor/src/{listeners,main-loop,jobs}/`): listeners insert into `pipeline.events`, the loop dispatches to handlers. spec-coverage validate / spec-trace now run as `internal.ingest.*` event handlers (mcp-server inserts the events post-ingest via the shared `insertEvent`).
 - **`spec-test-coverage` v3 (2026-06-02):** source of truth for spec→test links is markdown inside `spec.md` — `Statement. ([validated by name](path/to/test.ts#L42))` at end of each statement. The web UI renders them from the traceability graph: `lib/trace-api.ts` fetches the `/trace` document, `lib/trace-statement-info.ts` adapts its statements, and `SpecDetails.tsx` colors them (the parsing itself lives in `libs/shared/src/spec-{segment,link-parser}.ts`); no DB linker tables (`spec_statements` / `spec_test_links` / `spec_coverage_runs` dropped in migration 0008). Three write-paths:
   - **Authors hand-write the links** (free; just edit `spec.md`). Line anchors drift when tests are inserted above them: `npm run format` ends with `scripts/spec-links/reanchor.mjs`, which moves every `#Lnn` whose test moved (by test title, then by diff hunk) for the test files the branch changed — `--all` sweeps the whole corpus — and the CI `format` job commits the result back to the PR branch.
   - **`/lore-suggest-links`** (subscription-billed, on-demand, single-spec) — Claude Code skill that walks through the same judge pipeline locally and opens a PR against the spec's repo. See `specs/local-link-suggester/`. Subscription tokens, no API spend.
@@ -191,13 +184,12 @@ three (specs/adrs/tests) is a pipeline task.
   `specs`/`adrs` fire the spec-trace trigger per kind (no task); any other kind is
   rejected `400` (test projection is CI-only via the lore-code-trace binary).
   Scope `write`. `apps/lore-api/src/transport/routes/ingest/ingest-graph.ts`.
-- **Test ingest = the Floor `ci-tests` hook** (the old mcp `/test-report` + `/coverage`
-  routes were removed in the cutover). The `lore-code-trace` binary runs the repo's suite
-  in CI and POSTs `{repo, commit, branch, tests[], results[]}` to `POST /api/webhook/ci-tests`
-  on the Floor server (`apps/floor/src/events/listeners/ci-tests-map.ts`, bearer `LORE_INGEST_TOKEN`),
-  which emits `internal.ingest.spec_trace` (kind `test-report`) → `ingestTestReport`. The
-  binary parses json / lcov (incl. `TN:`) / cobertura to canonical ranges itself
-  (`apps/lore-code-trace/coverage.go`) — the server never parses coverage.
+- **Test ingest = lore-api's delta route.** The `lore-code-trace` binary runs the repo's suite
+  in CI and posts what changed to `POST /api/repos/:o/:r/ingest` (after reading
+  `GET /api/repos/:o/:r/ingest-state`), which writes the graph. The Floor's `ci-tests`
+  webhook it used to post to went with `apps/floor`. The binary parses json / lcov
+  (incl. `TN:`) / cobertura to canonical ranges itself (`apps/lore-code-trace/coverage.go`) —
+  the server never parses coverage.
 
 **MCP tools** (`apps/mcp-server/src/index.ts` → `apps/mcp-server/src/transport/tools/spec-trace-tools.ts`):
 `lore_list_tests` / `lore_run_test` (run the manifest commands in the **caller's local
@@ -207,8 +199,8 @@ CI / agent pod); the shared GKE server refuses (`executionRefusal`
 keyed on `LORE_DB_HOST`) and returns a "run in CI / locally" error.
 
 **Local + CI orchestrator** — the `lore-code-trace` Go binary (`apps/lore-code-trace`):
-loads the manifest, runs the full suite, and prints the report (or `--post`s it to the
-Floor `ci-tests` ingress). Baked into the mcp image + served at
+loads the manifest, runs the full suite, and prints the report (or `--post`s it to
+lore-api's delta route). Baked into the mcp image + served at
 `GET /dist/lore-code-trace/<os>-<arch>`; each repo's `lore-tests.yml` downloads + runs it.
 (Replaced the old `npm run trace:run-tests` CLI + `buildTestReport`.)
 
@@ -371,14 +363,13 @@ first session in a fresh worktree, never again after. After editing
 types (tsc reads `dist`). **Tests never need a build**: every package's vitest
 config resolves `@re-cinq/lore-*` imports to the package's `src` through
 `tools/vitest/workspace-source.ts` (aliases derived from each export map), so a
-change in `libs/shared` is visible to a Floor test without rebuilding — the
+change in `libs/shared` is visible to a stations test without rebuilding — the
 rebuild is the 950 MB step that OOM-killed agent pods on 2026-09-13.
 
 ## GKE Deployment
 
-Nine service workloads on GKE (one umbrella chart, `lore-platform`, spanning a namespace per subchart):
+Eight service workloads on GKE (one umbrella chart, `lore-platform`, spanning a namespace per subchart; the release record itself lives in the `lore-floor` namespace, which is all that is left of the Floor Lore ran itself):
 - PostgreSQL + pgvector: `lore-db` namespace
-- The Floor (coordinator): `lore-floor` namespace
 - event-router (sole writer of `pipeline.events`, ADR-044): `lore-event-router` namespace
 - cluster-agent (the only process holding a Kubernetes client): `lore-cluster-agent` namespace. **Every** cluster-agent registers with lore-api and CLAIMS its work — the platform's own (registered as `central`) exactly as much as a satellite. Dispatch is pull-only, so there is no unregistered mode: the process refuses to boot without `LORE_API_URL`/`LORE_CLUSTER_AGENT_REGISTRATION_TOKEN`/`LORE_CLUSTER_AGENT_NAME`, nothing is ever pushed to it, and the terminal-run handler settles a task from the reported event rather than by reading a CR back (a run may have executed in a cluster the Floor cannot reach)
 - Lore API server (remote REST): `lore-api` namespace
@@ -456,21 +447,14 @@ There is no `implementation` or `general` task type any more (#2328, #2329): the
 
 No task is created from a description at all since 2026-10-02 (`specs/external-floor` FR16.7): `feature-request`, `feature-finalize`, `runbook`, `review` and `gap-fill` are refused like the two above, each with where its work goes (the backlog, a plan, or the review every pull request already gets). `POST /api/task` only acts on an existing task, Slack's `/lore` keeps `retry`, and the web UI has no create-task form. `lore_create_pipeline_task` still exists and reports that refusal; its removal follows.
 
-Agent creates branch + PR when done. Simple tasks use direct
-Anthropic API calls. Implementation and review tasks run on the
-**ai-agent-subsystem** (agent-cr, ADR-031):
-
-1. The Floor worker dispatches an `Agent` custom resource (or, for task
-   types with a workflow, the Floor-side AssemblyLine graph: one Agent
-   CR per node)
-2. The external ai-agent controller runs the Agent (Claude + prompt) in
-   its own pod: pre-loads context via API → runs → deterministic
-   validation (lint/typecheck) → commit → push
-3. If validation fails: one retry with fix prompt → if still fails,
-   mark `needs-human-help` (no PR created)
-4. The `agent_watcher` job creates a PR when the Agent completes
-5. Floor deploys do NOT affect running Agents — tasks survive rollout
-   restarts
+Work runs as a run of a line on the **external floor** (ADR-049): a pipeline
+file under `libs/assembly-lines/src/floor-pipelines/` names the line, its
+stations and its agents; the floor's own cluster agent runs each agent in a
+pod, and Lore's stations (`apps/stations/src/`, written with
+`@re-cinq/floor-station`) do the deterministic steps: open the pull request,
+wait for CI, post the review, settle the task. Lore's own Floor, whose worker
+dispatched one `Agent` custom resource per task and whose watcher opened the
+pull request, was deleted on 2026-10-02.
 
 **Deterministic validation** (Minions-inspired): After the agent
 edits code, the runner detects repo tooling (package.json, go.mod,
@@ -493,9 +477,8 @@ would ship the literal `{context}` to the model. **The LLM template is
 Floor renders the recipe from the resolved `lore.agent_definitions` row
 (`renderNodePrompt`, project → org → yaml) and appends the CI verdict,
 failure and round hand-off blocks into the CR parameter `prompt`; the old
-template rendered `{description}` and silently dropped every block. Assert
-on the pod's view with `podPromptOf` (`apps/floor/src/work/assembly-run/pod-prompt-view.ts`),
-not on `spec.prompt`.
+template rendered `{description}` and silently dropped every block. That renderer went with `apps/floor`: on the external floor a pipeline file
+carries its agents' prompts inline (`libs/assembly-lines/src/floor-pipelines/`).
 
 **Live agent MCP access**: this is the only context path now; agent *pods* get a
 **live, scoped** Lore MCP for the whole run via the shared `lore-mcp` HTTP
@@ -573,8 +556,9 @@ context. Links are bidirectional — adding repo B from repo A's
 settings auto-adds repo A to repo B's list.
 
 **Per-repo customization**: `settings.task_overrides` allows per-repo
-overrides for any task type (`model`, `timeout_minutes`), read by the Floor
-under the resolved agent definition at task creation time.
+overrides for a task type (`model`, `timeout_minutes`). Lore's own Floor read
+them at task creation; nothing reads them since it was deleted, and an agent's
+model on the external floor is set in its pipeline file.
 
 **Agent definitions** (`lore.agent_definitions`): per-task-type config
 (`prompt`, `model`, `timeout_minutes`, `image`) resolved by name via
@@ -656,37 +640,25 @@ watcher's own loop (a review task per pull request it opened, then an
 with that task type. The task page's "Give Feedback" form went on 2026-10-02 with the
 feature-request task type.
 
-**Event bus — the 3-layer trigger substrate** (ADR-015 amendment;
-`apps/floor/src/{listeners,main-loop,jobs}/`): every Floor trigger flows through one
-`pipeline.events` table (migration 0023). **Layer 1 — listeners** only
-write rows: the GitHub webhook ingress moved into the Floor
-(`POST /api/webhook/github`, HMAC-verified, maps to `github.*` events); a
-Kubernetes watch on Agent CRs emits `kubernetes.agent.{succeeded,failed}`
-on terminal phase (replacing the polled `agent_watcher`, with a reconcile
-cron as the dropped-event safety net). That watch runs in **cluster-agent**,
-not the router: a WATCH is the one cluster capability that cannot be a
-request — Kubernetes streams it down a connection the process opens
-outward — so cluster-agent owns it and reports terminal phases onward to
-the router over HTTP. One cluster-agent per cluster reporting inward is
-what lets there be more than one execution cluster; a router that watched
-directly could only ever see the one it runs in. The in-process scheduler emits
-`cron.<job>.tick`; mcp-server's post-ingest triggers insert
-`internal.ingest.*` (was `POST /api/trigger/*`). **Layer 2 — the loop**
-atomically claims runnable rows (`FOR UPDATE SKIP LOCKED`), dispatches by
-`event_name` via the registry, retry/backoff → dead-letter + a stuck-row
-reaper. **Layer 3 — tasks/jobs** are the existing handlers (review-reactor,
-auto-merge, agent-watcher `processAgentCr`, the cron jobs, spec-trace/
-coverage, issue-dispatch, spec-PR-merge). The `review_reactor` business-hours
-safety cron (`7 7-17 * * 1-5` UTC, gated by `isBusinessHours()` reading
-`LORE_BUSINESS_HOURS_{TZ,START,END}` / `LORE_BUSINESS_DAYS`; default
-Europe/Berlin 9-18 Mon-Fri) becomes a `cron.review_reactor.tick` emitter
-that catches dropped webhook deliveries. **Carve-out (ADR-019, amended
-2026-07):** heavy batch jobs (eval/core-builder/memory/cost-sync; the nightly reindex was retired 2026-09-08 — ingestion is merge-time CI only) stay
-as K8s CronJobs running their work directly. The detection family
+**Event bus** (ADR-015, ADR-044): every trigger flows through one
+`pipeline.events` table. The **event-router** is its sole writer for what
+comes from outside: the GitHub webhook ingress (`POST /api/events`,
+HMAC-verified, mapped to `github.*` events). The **stations service** emits
+the cron ticks (`cron.<job>.tick`, `libs/shared/src/work/scheduler/`) and
+drains its own subscription (`apps/stations/src/events/`): a claim with
+`FOR UPDATE SKIP LOCKED`, dispatch by `event_name`, retry with backoff, then
+dead-letter. It also keeps the bus: the reaper that returns stuck deliveries
+and the `bus-prune` and `telemetry-prune` sweeps
+(`libs/shared/src/work/housekeeping/`). Lore's own Floor, which was the bus's
+first consumer and scheduler, was deleted on 2026-10-02 (`specs/external-floor`
+FR16); its subscription was removed by migration 0095. A tick's work is a
+stations sweep (`apps/stations/src/work/*/manifest.ts` declares the event) or
+a run started on the external floor. The single-operation jobs (memory TTL,
+importance decay, cost syncs, consolidation) are stations sweeps posted to by
+courier CronJobs (`stations-helm` `courierJobs`). The detection family
 (`gap_detection`, `spec_drift`, `spec_coverage_validate`,
-`spec_coverage_backfill`) is gone: its ticks and its per-repo fan-out were removed
-on 2026-10-02 (`specs/external-floor` FR16.6). `spec-upkeep` on the external floor
-fixes drift and adds links; gap detection is to be rebuilt (#2333).
+`spec_coverage_backfill`) is gone (FR16.6): `spec-upkeep` on the external
+floor fixes drift and adds links; gap detection is to be rebuilt (#2333).
 
 **Prompt caching on agent LLM calls**: the Anthropic provider
 (`libs/shared/src/outbound/llm/anthropic-provider.ts`, behind the `Llm` abstraction) uses
@@ -715,10 +687,10 @@ MCP tool's `max_tokens` parameter default is also 8K.
 
 **Dark Factory mode** (per-repo, off by default; ADR-016):
 - `lore.repos.settings.dark_factory` block: `enabled`, `create_issue`, `auto_merge.{paths,min_trust,require_*}`, `review`, `notify`. Three files, three jobs: the INPUT-VALIDATION schema for the settings API edge is `apps/lore-api/src/work/dark-factory/dark-factory-settings.ts` (with `resolveSettings()` defaults); the RESOLVER and its plain types are `libs/shared/src/domain/dark-factory-settings.ts`, kept dependency-free because web-ui reaches it by relative path; and the SHAPE is `libs/shared/src/domain/models/dark-factory-settings.ts`, which asserts at compile time that its schema infers exactly those types.
-- **Enablement.** Per-repo `dark_factory.enabled = true` turns on dark mode for the task types that still run on Lore's own Floor. All tasks execute on the ai-agent-subsystem (agent-cr); the legacy LoreTask path and its cluster gate were removed (ADR-031).
+- **Enablement.** Per-repo `dark_factory.enabled = true` is still stored and guarded by the two-key ceremony below, but nothing reads it to decide a merge: the task types it governed are gone, and the Floor-side auto-merge evaluation was deleted with `apps/floor` on 2026-10-02, never having run for any repository. Merges are made by people, or by the `merge` line on the external floor for a pull request someone merged.
 - Privileged changes (`enabled` toggle, `auto_merge.paths`, downgrade of `require_*` to false) need two-key authorization: admin scope + an open PR labeled `dark-factory-approval` by a CODEOWNER of the repo's `CLAUDE.md` (`dark-factory-authz.ts`).
-- Branch-as-state: every workflow phase commits with `Lore-Stage:`/`Lore-Iteration:`/`Lore-Task:` trailers; the supervisor reads `git log` to resume after pod death.
-- Assembly line definitions live as YAML files at `libs/assembly-lines/src/assembly-lines/*.yaml`, executed only by the Floor today (the mcp-server local runner spawns Claude Code directly and does not load them — FR2.3's shared-interpretation goal is aspirational until the local runner adopts the library).
-- **Assembly run identity + start API** (migration 0025, renamed to `assembly_runs`/`station_runs` by 0040): every execution gets a per-attempt uuid in `pipeline.assembly_runs` (+ `pipeline.station_runs` per node: iteration, outcome, Agent CR name, stage-commit sha). `project.assemblyRuns.start({ blueprintName, taskId, branch, args, subjectKey? })` persists the row and the `assembly_run.start` event in one atomic CTE and returns the id; the Floor event loop claims the event (`start-event-handler.ts` — the sole executor entry: unknown definition → row failed, no retry; detect-shaped definitions → the repo-less detect runner, everything else → the Floor AssemblyLine) and fire-and-backgrounds the walk. Agent CR names key per attempt (`<assemblyLineId:12>-<nodeId>`, `-<iteration>` appended on revisits); stage commits carry `Lore-Assembly-Run:` alongside `Lore-Task:`. `assembly_run.*` is the one subject-first event family (multiple producers, `source: internal`).
-- Auto-merge runs Floor-side after the `retrospective` node completes (the retrospective station writes the episode; merge authority never rides in a pod): green CI + bot APPROVED + path matches every changed file + repo trust ≥ `min_trust` → squash-merge. Decision and rule recorded in `pipeline.audit_log` as `auto_merge_decision`.
+- Trailers: every Lore-authored commit carries `Lore-Task:` (and the stage trailers where a station writes them), the audit substrate that outlived the branch-as-state resume.
+- The old line definitions at `libs/assembly-lines/src/assembly-lines/*.yaml` are walked by nothing since `apps/floor` was deleted; the lines that run are the floor pipeline files beside them.
+- **Run records.** `pipeline.assembly_runs` and `pipeline.station_runs` hold the runs Lore's own Floor walked, kept as history: the run page reads them through lore-api, with their turns, events and stored node logs (`specs/external-floor` FR16.9). A run on the external floor lives in the floor and is read through `@re-cinq/floor-client`.
+- There is no auto-merge: see Enablement above. `pipeline.audit_log` holds no `auto_merge_decision` row, because none was ever written.
 - Rollout, rollback, pilot procedure, audit-log queries: `runbooks/dark-factory-rollback.md`.

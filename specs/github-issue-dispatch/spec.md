@@ -137,7 +137,7 @@ Default: label=`lore`. The seeded `lore:implementation` label asks for the same 
 2. Task type determined from `lore:*` label variants
 3. Agent works on the task, creates PR linked to the issue
 4. Issue gets comment with task ID and PR link; `loreTaskRef` links the task uuid to its deployed
-   assembly-line page and trims a trailing slash on the UI url. ([validated by `task-ref.test.ts:11`](apps/floor/src/domain/task-ref.test.ts#L11))
+   assembly-line page and trims a trailing slash on the UI url.
 
 5. Duplicate issues (same issue, active task) are skipped ([validated by `webhook.test.ts:43`](apps/lore-api/src/integration-tests/webhook.test.ts#L42))
 
@@ -149,4 +149,4 @@ Default: label=`lore`. The seeded `lore:implementation` label asks for the same 
    to no work; `parseJsonBody` returns the typed object and throws a 400 on a
    malformed body, naming the ingress that was parsing it and quoting the parser's own
    objection — five routes parse bodies this way, and a bare "invalid JSON" said a body
-   was rejected without saying which ingress rejected it or where the body went wrong. ([validated by `events.test.ts:118`](apps/event-router/src/transport/routes/events.test.ts#L118), [`events.test.ts:99`](apps/event-router/src/transport/routes/events.test.ts#L99), [`raw-body.test.ts:6`](apps/floor/src/transport/http/raw-body.test.ts#L6), [`raw-body.test.ts:12`](apps/floor/src/transport/http/raw-body.test.ts#L12))
+   was rejected without saying which ingress rejected it or where the body went wrong. ([validated by `events.test.ts:118`](apps/event-router/src/transport/routes/events.test.ts#L118), [`events.test.ts:99`](apps/event-router/src/transport/routes/events.test.ts#L99))

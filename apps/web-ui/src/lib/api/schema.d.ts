@@ -7236,7 +7236,7 @@ export interface operations {
       };
     };
     responses: {
-      /** @description The projections this push started */
+      /** @description Never answered: the route refuses with 410 */
       200: {
         headers: {
           [name: string]: unknown;

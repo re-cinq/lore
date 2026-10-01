@@ -35,7 +35,6 @@ require() {
 }
 
 # Every vendored subchart must contribute at least one rendered resource.
-require "# Source: lore-platform/charts/lore-floor/"
 require "# Source: lore-platform/charts/lore-api/"
 require "# Source: lore-platform/charts/lore-ui/"
 require "# Source: lore-platform/charts/lore-db-helm/"

@@ -2,7 +2,7 @@
 
 | Field      | Value                                                                  |
 |------------|------------------------------------------------------------------------|
-| Feature    | Local-run transcript relay                                             |
+| Feature    | Local-run transcript store                                             |
 | Status     | In Progress                                                            |
 | Created    | 2026-08-18                                                             |
 | Owner      | Platform Engineering                                                   |
@@ -10,22 +10,18 @@
 | Auth scope | `write`                                                                |
 | Module     | Tasks (`api/routes/tasks/task-turns.ts` → `taskTurnsPostRoute`)        |
 
-POST /api/task-turns/{taskId} relays a locally-run task's redacted claude
-stream-json transcript to the Floor's `/api/agent-events` sink, so local runs
-land in `pipeline.agent_run_turns` like cluster runs (issue #1295, the
-write-side precondition of the #1148 GCS-logs cutover).
+POST /api/task-turns/{taskId} stores a locally-run task's redacted claude
+stream-json transcript in `pipeline.agent_run_turns`, keyed by its task, so a
+local run's turns sit beside a cluster run's (issue #1295).
 
 ## Problem Statement
 
-Cluster pods stream their run output to the Floor's `/api/agent-events` ingest
-and land in the turn-level transcript store; local runs only uploaded a plain
-text log to GCS. The Floor's ingress is deliberately cluster-internal
-(`infra/terraform/lore-floor.tf` exposes only the `/api/webhook` prefix), and
-its sink is authorized by `LORE_AGENT_INTERNAL_TOKEN`, which laptops must never
-hold. lore-api already mounts both the Floor's in-cluster URL
-(`LORE_AGENT_URL`) and the internal token, so it relays: the laptop posts with
-the write-scoped token it already has, and lore-api attaches the internal
-credentials.
+Local runs only uploaded a plain text log; their turns were not in the
+turn-level transcript store. Until 2026-10-02 this route relayed the lines to
+the sink of Lore's own Floor (`/api/agent-events`), attaching the internal
+token a laptop must never hold. The Floor is deleted (`specs/external-floor`
+FR16.10), so lore-api writes the rows itself: same envelope, same keys, same
+dedup.
 
 ## Interface
 
@@ -47,33 +43,30 @@ Registered in `routeList`
 
 | Status | Body                              | When                                        |
 |--------|-----------------------------------|---------------------------------------------|
-| 200    | `{ forwarded, skipped }`          | Relayed (or nothing relayable — no upstream call). |
+| 200    | `{ forwarded, skipped }`          | Stored (or nothing storable — nothing written).    |
 | 400    | zod error                         | `taskId` is not a UUID.                     |
 | 404    | `{ error: "task not found: …" }`  | No `pipeline.tasks` row for `taskId`.       |
-| 502    | `{ error: "floor relay failed…" }`| The Floor rejected the forward.             |
 | 503    | `{ error: … }`                    | Relay env or DB pool unavailable.           |
 
 ## Behavior
 
-1. Require `LORE_AGENT_URL` + `LORE_AGENT_INTERNAL_TOKEN`, else 503; require
-   the pool, else 503. ([validated by returns 503 when the Floor relay env is not configured](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L136), [validated by returns 503 when the internal token is missing even though the floor URL is set](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L175), [validated by returns 503 when no pool is available](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L130))
-2. The task id keys everything the Floor sink writes (`llm_calls`, run events,
+1. Require the pool, else 503. ([validated by returns 503 when no pool is available](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L149))
+2. The task id keys everything this route writes (`llm_calls`, run events,
    turns), so an unknown id is refused with 404 rather than stored
    uncorrelated. Ownership is NOT checked — any write-scoped token may post
    under any existing task id, matching the `/api/task-logs` precedent (which
    checks nothing at all); the guarantee here is only that fabricated ids are
-   refused. ([validated by returns 404 when the task does not exist](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L120), [validated by returns 400 when taskId is not a uuid](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L151))
+   refused. ([validated by returns 404 when the task does not exist](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L139), [validated by returns 400 when taskId is not a uuid](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L155))
 3. Split the body on newlines; a relayable line must parse as a plain JSON
    object and must NOT be an attributed envelope (`source` + `event` keys —
    the double-peel in `unwrapAttribution` would let a forged inner source
    correlate fake turns to a real assembly run) and must NOT be a
    `kind: "file"` event (it drives planning-round settlement and artifact
-   merge). Everything else is counted in `skipped`. ([validated by skips non-JSON lines, file-kind events, and pre-attributed envelopes](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L84), [`task-turns.test.ts:105`](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L105))
+   merge). Everything else is counted in `skipped`. ([validated by skips non-JSON lines, file-kind events, and pre-attributed envelopes](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L95), [`task-turns.test.ts:105`](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L113))
 4. Wrap each survivor as
    `{"source":{"task":<taskId>,"turn_key":<key>},"event":<line>}` — the
    station contract's attribution envelope, raw line embedded verbatim — and
-   forward the joined NDJSON to `${LORE_AGENT_URL}/api/agent-events` with
-   `Bearer LORE_AGENT_INTERNAL_TOKEN`. ([validated by wraps each line in the task attribution envelope and forwards NDJSON to the Floor](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L54))
+   store each as one row of `pipeline.agent_run_turns`: the task id, the event's `type`, the envelope, and the key as the row's dedup key. ([validated by wraps each line in the task attribution envelope and stores it in the turn store, keyed by the task](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L70))
 5. *(Added by #1389 — the relay used to be append-only where the GCS path it
    replaced was idempotent by overwrite.)* `turn_key` is the line's dedup
    identity: sha256 over (task id, slot, line bytes), where the slot is
@@ -92,15 +85,14 @@ Registered in `routeList`
    re-inserts `pipeline.llm_calls` cost rows and `agent_run_events` viz rows
    (follow-up #1394), and rows duplicated before #1389 stay until the 30-day
    prune ages them out. ([validated by
-   stamps the same keys when the same body is retried](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L207),
-   [validated by keys byte-identical lines within one POST apart](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L220),
-   [validated by keys byte-identical lines apart under an offset header too](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L240),
-   [validated by keys a line by its x-turn-offset position so a tail-only re-POST reproduces its key](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L227),
-   [validated by keys identical lines under different tasks apart](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L251),
-   [validated by falls back to per-POST occurrence keying when the offset header is not a number](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L262))
-6. Zero survivors → 200 `{ forwarded: 0, skipped }` without calling the Floor. ([validated by returns 200 without calling the Floor when no line survives filtering](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L113))
-7. A non-OK upstream response → 502. ([validated by returns 502 when the Floor rejects the forward](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L144))
-8. Write scope is enforced like every task route. ([validated by returns 403 when the token has task scope but not write](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L162))
+   stamps the same keys when the same body is retried](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L196),
+   [validated by keys byte-identical lines within one POST apart](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L209),
+   [validated by keys byte-identical lines apart under an offset header too](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L229),
+   [validated by keys a line by its x-turn-offset position so a tail-only re-POST reproduces its key](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L216),
+   [validated by keys identical lines under different tasks apart](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L240),
+   [validated by falls back to per-POST occurrence keying when the offset header is not a number](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L251))
+6. Zero survivors → 200 `{ forwarded: 0, skipped }` and stores nothing. ([validated by returns 200 and stores nothing when no line survives filtering](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L121))
+8. Write scope is enforced like every task route. ([validated by returns 403 when the token has task scope but not write](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L166))
 
 ## Producer (mcp-server local runner)
 

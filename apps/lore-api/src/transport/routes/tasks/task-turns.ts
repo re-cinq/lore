@@ -15,6 +15,8 @@ import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { rawBody } from "@re-cinq/lore-shared/http/raw-body.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
+import { PgAgentRunTurns } from "@re-cinq/lore-shared/project/agent-run-turns/agent-run-turns-pg.js";
+import type { AgentRunTurnInsert } from "@re-cinq/lore-shared/project/agent-run-turns/agent-run-turns-port.js";
 
 const TaskTurnsParams = z.object({
   taskId: z.string().uuid(),
@@ -61,32 +63,18 @@ async function serveTurnsPost(
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
   const { taskId } = request.params as z.infer<typeof TaskTurnsParams>;
-  const floor = relayTarget();
   const pool = getPool();
 
   enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
 
   try {
-    return relayResponse(
-      await relayTurns(pool, taskId, turnsBody(request), floor),
-      h,
-    );
+    return h.response(await storeTurns(pool, taskId, turnsBody(request)));
   } catch (err) {
     // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
     rethrowBoom(err);
 
     return h.response({ error: errorMessage(err) }).code(500);
   }
-}
-
-/** Where turns are relayed to. Refused as 503 rather than dropped when unconfigured: a local runner posting into a deployment with no Floor should hear that its transcript is going nowhere. */
-function relayTarget(): { url: string; token: string } {
-  const url = process.env.LORE_AGENT_URL;
-  const token = process.env.LORE_AGENT_INTERNAL_TOKEN;
-
-  enforceTrue(url && token, apiError(503), "floor relay not configured");
-
-  return { url, token };
 }
 
 /** The POST's own payload: the raw NDJSON plus the offset that keys it into the whole transcript. */
@@ -106,29 +94,46 @@ function parseTurnOffset(value: unknown): number | null {
   return Number(value);
 }
 
-type RelayResult = { forwarded: number; skipped: number } | { error: string };
+type StoreResult = { forwarded: number; skipped: number };
 
-// Relays a local run's redacted transcript to the Floor's cluster-internal /api/agent-events sink so it lands in pipeline.agent_run_turns like cluster runs (#1295); lore-api attaches the internal token laptops can't hold.
-async function relayTurns(
+// Stores a local run's redacted transcript in pipeline.agent_run_turns, keyed by its task, like a cluster run's (#1295). Lore's own Floor used to take these through its agent-events sink; this service writes them itself now that the Floor is gone.
+async function storeTurns(
   pool: Pool,
   taskId: string,
   body: { raw: string; offset: number | null },
-  floor: { url: string; token: string },
-): Promise<RelayResult> {
+): Promise<StoreResult> {
   await enforceTaskExists(pool, taskId);
   const lines = transcriptLines(body.raw);
-  const relayable = keyedRelayableLines(taskId, lines, body.offset);
-  const skipped = lines.length - relayable.length;
+  const storable = keyedRelayableLines(taskId, lines, body.offset);
 
-  if (relayable.length === 0) {
-    return { forwarded: 0, skipped };
-  }
+  await new PgAgentRunTurns(pool).insertBatch(
+    storable.map((turn) => turnRow(taskId, turn)),
+  );
 
-  const forwarded = await forwardToFloor(taskId, relayable, floor);
+  return {
+    forwarded: storable.length,
+    skipped: lines.length - storable.length,
+  };
+}
 
-  return forwarded.ok
-    ? { forwarded: relayable.length, skipped }
-    : { error: `floor relay failed: ${forwarded.status}` };
+/** One row of the turn store. The envelope is the line wrapped with its task and its KEY, and the key is also the row's dedup key, which is what makes a resend idempotent: a retried POST skips the rows already stored. */
+function turnRow(
+  taskId: string,
+  { line, key }: { line: string; key: string },
+): AgentRunTurnInsert {
+  return {
+    taskId,
+    agentCrName: null,
+    eventType: eventTypeOf(line),
+    envelope: wrapTaskEnvelope(taskId, line, key),
+    dedupKey: key,
+  };
+}
+
+function eventTypeOf(line: string): string | null {
+  const type = (JSON.parse(line) as { type?: unknown }).type;
+
+  return typeof type === "string" ? type : null;
 }
 
 /** The task id keys everything the sink writes, so an unknown id is REFUSED rather than stored uncorrelated. */
@@ -148,7 +153,7 @@ function transcriptLines(raw: string): string[] {
     .filter(Boolean);
 }
 
-// Dedup key = sha256(task, slot, line); with an offset the slot is the line's position in the whole transcript so a re-POST reproduces prior keys, else an occurrence fallback keys same-body retries identically (known limit: byte-identical lines across DIFFERENT POSTs collide at occurrence 0 — Floor counts these as `turn_deduped`).
+// Dedup key = sha256(task, slot, line); with an offset the slot is the line's position in the whole transcript so a re-POST reproduces prior keys, else an occurrence fallback keys same-body retries identically (known limit: byte-identical lines across DIFFERENT POSTs collide at occurrence 0 and the second is skipped as a duplicate).
 function keyedRelayableLines(
   taskId: string,
   lines: string[],
@@ -204,42 +209,11 @@ function turnKey(taskId: string, slot: number, line: string): string {
     .digest("hex");
 }
 
-/** Forwards the batch to the Floor's own sink. Each line is wrapped with its KEY, which is what makes a resend idempotent — the Floor dedupes on it, so a retried relay replaces rather than duplicates. */
-async function forwardToFloor(
-  taskId: string,
-  relayable: Array<{ line: string; key: string }>,
-  floor: { url: string; token: string },
-): Promise<{ ok: boolean; status: number }> {
-  const upstream = await fetch(`${floor.url}/api/agent-events`, {
-    signal: AbortSignal.timeout(30_000),
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${floor.token}`,
-      "Content-Type": "application/x-ndjson",
-    },
-    body: relayable
-      .map(({ line, key }) => wrapTaskEnvelope(taskId, line, key))
-      .join("\n"),
-  });
-
-  return { ok: upstream.ok, status: upstream.status };
-}
-
-// Wrap side of the station contract's attribution envelope (unwrap is agent-output.ts); `turn_key` is this relay's idempotency stamp (#1389) — the Floor's turn store skips a key it already holds.
+// The attribution envelope a turn is stored in, the same shape a cluster run's turns carry; `turn_key` is this route's idempotency stamp (#1389).
 function wrapTaskEnvelope(
   taskId: string,
   rawLine: string,
   key: string,
 ): string {
   return `{"source":{"task":${JSON.stringify(taskId)},"turn_key":${JSON.stringify(key)}},"event":${rawLine}}`;
-}
-
-// 502, not 500: the relay itself worked and the FLOOR refused, which is a different thing for a caller deciding whether to retry.
-function relayResponse(
-  relayed: RelayResult,
-  h: ResponseToolkit,
-): ResponseObject {
-  return "error" in relayed
-    ? h.response({ error: relayed.error }).code(502)
-    : h.response(relayed);
 }

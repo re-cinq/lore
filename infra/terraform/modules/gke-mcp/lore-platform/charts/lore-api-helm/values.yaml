@@ -52,9 +52,6 @@ env:
   # Shared Dgraph endpoint (memory + spec-trace graphs). Empty → /impact + graph
   # reads fail soft. Overridden by terraform set to the in-cluster service DNS.
   LORE_DGRAPH_HTTP: ""
-  # Internal cluster URL for the lore-floor health server. lore-api
-  # uses this to POST /api/trigger/review-reactor on GitHub webhooks.
-  LORE_AGENT_URL: http://lore-floor.lore-floor.svc.cluster.local:8080
 
 dbPasswordSecret:
   name: lore-api-db-password
@@ -81,8 +78,8 @@ webhookSecret:
   name: lore-webhook-secret
   key: secret
 
-# Shared secret with lore-floor used to POST to
-# /api/trigger/review-reactor in the lore-floor namespace.
+# The service-to-service token lore-api accepts from the stations service and
+# the cluster agents.
 internalTokenSecret:
   name: lore-agent-internal-token
   key: token
