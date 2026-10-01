@@ -519,12 +519,10 @@ The system MUST automatically identify and address knowledge gaps. ([validated b
   are other pods with fresh clones, and a draft that finds the context already
   current reports `changes_requested` naming the file or commit that already
   does the work, lifted into the row's `failure_detail` as `already current: …`,
-  so the run ends without a pull request instead of validating an empty branch. Neither the
-  `gap-fill` nor the `general` recipe said push after their lines moved to a pod
-  per node, so 17 of 36 gap-fill branches carried zero commits (2026-08-15 to
+  so the run ends without a pull request instead of validating an empty branch. The `gap-fill` recipe did not say push after its line moved to a pod per node (nor did the `general` recipe, deleted with its line on 2026-10-01), so 17 of 36 gap-fill branches carried zero commits (2026-08-15 to
   2026-09-25): validate diffed nothing, ran the checks unscoped over the whole
   tree, and was OOM-killed in its 1Gi pod, or passed and the push found nothing,
-  so no PR could open. ([validated by lets a draft that finds the context already current report changes_requested, so a true no-op ends the run without a PR instead of failing an empty branch](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L453), [validated by counts gap-fill and general as delivering, since validate and push after them are other pods (17 of 36 gap-fill branches shipped 0 commits between 2026-08-15 and 2026-09-25)](libs/shared/src/domain/task-types/delivering-recipes.test.ts#L13), [validated by lifts a draft's already-current reason into the row, so a run that opened no PR says what already did the work](libs/assembly-lines/src/node-outcome.test.ts#L142))
+  so no PR could open. ([validated by lets a draft that finds the context already current report changes_requested, so a true no-op ends the run without a PR instead of failing an empty branch](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L453), [validated by counts gap-fill as delivering, since validate and push after it are other pods (17 of 36 gap-fill branches shipped 0 commits between 2026-08-15 and 2026-09-25)](libs/shared/src/domain/task-types/delivering-recipes.test.ts#L13), [validated by lifts a draft's already-current reason into the row, so a run that opened no PR says what already did the work](libs/assembly-lines/src/node-outcome.test.ts#L142))
 
 ### FR-11: Live Knowledge Graph (Phase 1+)
 
@@ -632,8 +630,7 @@ reliability. ([validated by `pipeline-tasks.trust.test.ts:33`](libs/shared/src/d
 - FR-15.1: `settings.trust.level` controls which task types are
   allowed: `docs` (gap-fill/runbook/onboard + feature-planning
   per ADR-027), `tests` (+review),
-  `implementation` (+implementation/feature-request/general, and
-  `spec-task` — the issues station's filings, which no tier listed, so
+  `implementation` (+implementation-loop/feature-request, and `spec-task` — the issues station's filings, which no tier listed, so
   every one was refused until 2026-09-29),
   `full` (all). `onboard` is allowed at every tier — it produces a
   docs-only scaffolding PR and duplicate protection lives in its own
