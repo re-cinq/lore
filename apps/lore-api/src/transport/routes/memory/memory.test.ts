@@ -363,6 +363,27 @@ describe("POST /api/memory", () => {
     expect(res.statusCode).toBe(403);
     expect(JSON.parse(res.payload)).toEqual({ error: "insufficient scope" });
   });
+
+  it("redacts secrets before the value is stored, embedded or sent to fact extraction", async () => {
+    memoryDbUp();
+    vi.mocked(writeMemory).mockResolvedValue({ key: "k", version: 1 } as never);
+    vi.mocked(extractFactsForMemory).mockResolvedValue(undefined);
+    const token = `${"ghs"}_abcdefghijklmnopqrstuvwxyz0123456789`;
+    const redacted = "token is [REDACTED:api-key]";
+
+    await post({
+      action: "write",
+      key: "k",
+      value: `token is ${token}`,
+      extract_facts: true,
+    });
+
+    expect(vi.mocked(writeMemory).mock.calls[0][0].value).toBe(redacted);
+    expect(getQueryEmbedding).toHaveBeenCalledWith(redacted);
+    expect(vi.mocked(extractFactsForMemory).mock.calls[0][1].value).toBe(
+      redacted,
+    );
+  });
 });
 
 function memoryDbUp(): void {
