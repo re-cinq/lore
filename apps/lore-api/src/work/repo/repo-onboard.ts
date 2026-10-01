@@ -18,8 +18,15 @@ import {
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { selectList, fromRow } from "@re-cinq/lore-shared/lib/row.js";
 import { REPO_COLUMNS, type Repo } from "@re-cinq/lore-shared/models/repo.js";
+import { floorConfigured } from "@re-cinq/lore-shared/floor/floor-client.js";
+import { PgTaskStore } from "@re-cinq/lore-shared/project/tasks/task-store-pg.js";
 
 import { getOctokit } from "../../outbound/github-client.js";
+import {
+  onboardOnFloorDeps,
+  startOnboardingOnFloor,
+  type FloorOnboarding,
+} from "./onboard-on-floor.js";
 import {
   ensureLoreWebhook,
   type EnsureLoreWebhookResult,
@@ -153,8 +160,26 @@ export interface OnboardBlockedResult {
   task_id: string | null;
 }
 
-/** What the guarded transaction produced: the two ids, or the refusal. */
-type OnboardWrite = { repoId: string; taskId: string } | OnboardBlockedResult;
+/** What the guarded transaction produced: the two ids and the ticket the task carries, or the refusal. */
+type OnboardWrite =
+  { repoId: string; taskId: string; ticket: string } | OnboardBlockedResult;
+
+/** Hands a committed onboarding to the external floor; null on a deployment with no floor, where the old Floor's worker claims the pending task. */
+export type FloorStart =
+  ((onboarding: FloorOnboarding) => Promise<void>) | null;
+
+function floorStartFor(pool: Pool): FloorStart {
+  return floorConfigured()
+    ? (onboarding) =>
+        startOnboardingOnFloor(onboardOnFloorDeps(pool), onboarding)
+    : null;
+}
+
+export interface OnboardOptions {
+  reonboard?: boolean;
+  /** Left out, the deployment decides: the floor when one is configured. */
+  floorStart?: FloorStart;
+}
 
 interface RepoIdentity {
   fullName: string;
@@ -166,9 +191,14 @@ interface RepoIdentity {
 export async function onboardRepo(
   pool: Pool,
   fullName: string,
-  options: { reonboard?: boolean } = {},
+  options: OnboardOptions = {},
 ): Promise<OnboardResult | OnboardBlockedResult> {
-  const written = await writeOnboardTx(pool, repoIdentity(fullName), options);
+  const floorStart =
+    options.floorStart === undefined ? floorStartFor(pool) : options.floorStart;
+  const written = await writeOnboardTx(pool, repoIdentity(fullName), {
+    reonboard: options.reonboard,
+    onFloor: floorStart !== null,
+  });
 
   if ("blocked" in written) {
     return written;
@@ -178,6 +208,11 @@ export async function onboardRepo(
   const webhook = await ensureLoreWebhook(fullName);
 
   logWebhookOutcome(webhook, fullName);
+  await floorStart?.({
+    repo: fullName,
+    taskId: written.taskId,
+    ticket: written.ticket,
+  });
 
   return {
     repo_id: written.repoId,
@@ -204,7 +239,7 @@ function repoIdentity(fullName: string): RepoIdentity {
 async function writeOnboardTx(
   pool: Pool,
   identity: RepoIdentity,
-  options: { reonboard?: boolean },
+  options: OnboardWriteOptions,
 ): Promise<OnboardWrite> {
   const client = await pool.connect();
 
@@ -218,33 +253,54 @@ async function writeOnboardTx(
   }
 }
 
+interface OnboardWriteOptions {
+  reonboard?: boolean;
+  /** The task is created already running, because the floor runs it and nothing may claim it. */
+  onFloor: boolean;
+}
+
 /** Runs both writes (repos upsert + task) on ONE connection + transaction, holding per-repo advisory lock to avoid deadlocks and ensure atomicity. */
 async function writeOnboard(
   client: PoolClient,
   { fullName, owner, name }: RepoIdentity,
-  options: { reonboard?: boolean },
+  options: OnboardWriteOptions,
 ): Promise<OnboardWrite> {
   const { decision, state } = await beginAndDecide(client, fullName, options);
 
   if (!decision.allowed) {
     return refuseOnboard(client, fullName, decision);
   }
+  const ticket = ticketFor(fullName, state);
   const written = await insertRepoAndTask(
     client,
     { fullName, owner, name },
-    ticketFor(fullName, state),
+    ticket,
   );
 
+  if (options.onFloor) {
+    await markRunningOnFloor(client, written.taskId);
+  }
   await client.query("COMMIT");
 
-  return written;
+  return { ...written, ticket };
+}
+
+/** Inside the transaction that creates the task, so there is no moment at which the old Floor's worker could claim it as pending. */
+async function markRunningOnFloor(
+  client: PoolClient,
+  taskId: string,
+): Promise<void> {
+  const tasks = new PgTaskStore(client);
+
+  await tasks.setStatusIf(taskId, "pending", "running");
+  await tasks.recordEvent(taskId, "pending", "running", { runner: "floor" });
 }
 
 /** The advisory lock is taken INSIDE the transaction so it releases with it — two concurrent submissions for one repo must not both read a clear state. */
 async function beginAndDecide(
   client: PoolClient,
   fullName: string,
-  options: { reonboard?: boolean },
+  options: Pick<OnboardWriteOptions, "reonboard">,
 ): Promise<{ decision: OnboardDecision; state: OnboardState }> {
   await client.query("BEGIN");
   await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
@@ -301,7 +357,7 @@ async function insertRepoAndTask(
   client: PoolClient,
   { fullName, owner, name }: RepoIdentity,
   ticket: string,
-): Promise<OnboardWrite> {
+): Promise<{ repoId: string; taskId: string }> {
   const { rows } = await client.query<{ id: string }>(
     `INSERT INTO lore.repos (owner, name, full_name) VALUES ($1, $2, $3)
        ON CONFLICT (full_name) DO UPDATE SET onboarded_at = now() RETURNING id`,
