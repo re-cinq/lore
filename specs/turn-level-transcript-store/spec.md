@@ -95,6 +95,8 @@ colocated test suite exercising both.
 
 ## FR3 — The ingest tee
 
+> **2026-10-02.** This section describes Lore's own Floor (`apps/floor`), which was deleted (`specs/external-floor` FR16.10). A run on the external floor keeps its turns in the floor; the rows already in `pipeline.agent_run_turns` are history, read through lore-api (FR16.9); and a local run's turns are stored by lore-api itself (`specs/api-routes/task-turns`). The statements below are kept as the record of how the store was fed and read.
+
 The collector lives at `apps/floor/src/work/agent/agent-run-turns.ts` and
 is driven from the **existing single pass** in `parseAgentSink`
 (`apps/floor/src/work/agent/agent-events.ts`), the same loop that already
@@ -122,6 +124,8 @@ task id but no agent CR name, so they land uncorrelated to any assembly line —
 the rows FR1 preserves and `listByTask` exists to reach.
 
 ## FR4 — The read API
+
+> **2026-10-02.** This section describes Lore's own Floor (`apps/floor`), which was deleted (`specs/external-floor` FR16.10). A run on the external floor keeps its turns in the floor; the rows already in `pipeline.agent_run_turns` are history, read through lore-api (FR16.9); and a local run's turns are stored by lore-api itself (`specs/api-routes/task-turns`). The statements below are kept as the record of how the store was read before lore-api took the reads over.
 
 `GET /api/agent-turns/{assemblyLineId}` on the Floor HTTP server mirrors
 the existing `GET /api/agent-events/{assemblyLineId}` history route.
