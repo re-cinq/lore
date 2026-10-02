@@ -391,7 +391,10 @@ shared `@re-cinq/lore-shared/project/*` ports**, not inline SQL.
   port singleton in `apps/floor/src/outbound/queues.ts` (`taskStore()`,
   `settings()`, `evalRuns()`, `cost()`, `contextCore()`, `research()`,
   `baseline()`, `chunks()`, `memoryLifecycle()`) that binds the shared `Pg…`
-  adapter to the pool.
+  adapter to the pool. *(Amended 2026-10-02: `evalRuns()`, `contextCore()` and
+  `research()` have no adapter left — the nightly `eval_runner` and
+  `context_core_builder` jobs were deleted with Lore's own Floor, and migration
+  0101 dropped their tables.)*
 - **The `pipeline` schema's own tables travel as ONE bundle**, not as one
   accessor each: `PipelineRepositories`
   (`libs/shared/src/outbound/project/pipeline/`) carries `taskQueue`, `eventReporter`,

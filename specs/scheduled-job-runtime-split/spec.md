@@ -88,11 +88,11 @@ resident process.
 
 | Job | Schedule | Runtime | Folder |
 |-----|----------|---------|--------|
-| `eval_runner` | `0 3 * * *` | **CronJob** | `cron/` |
-| `context_core_builder` | `0 4 * * *` | **CronJob** | `cron/` |
+| `eval_runner` | `0 3 * * *` | **deleted 2026-10-02** with Lore's own Floor; context evals are a nightly GitHub Actions job that asks lore-api (#2443) | — |
+| `context_core_builder` | `0 4 * * *` | **deleted 2026-10-02** with Lore's own Floor; the new evals keep no stored baseline (migration 0101 dropped its tables) | — |
 | `importance_decay` | `0 5 * * *` | **CronJob** | `cron/` |
 | `consolidation` | `30 5 * * *` | **CronJob** | `cron/` |
-| `autoresearch` | `0 6 * * 1` | **CronJob** | `cron/` |
+| `autoresearch` | `0 6 * * 1` | **deleted** with the eval jobs it depended on | — |
 | `gap_detection` | `0 9 * * 1` | **event-driven assembly line** (2026-07 amendment) | `jobs/detect/` |
 | `spec_drift` | `0 10 * * 1` | **event-driven assembly line** (2026-07 amendment) | `jobs/detect/` |
 | `spec_test_linker` | `0 11 * * 1` | **event-driven assembly line** (2026-07 amendment; split into `spec_coverage_validate` daily + `spec_coverage_backfill` weekly by spec-test-coverage v3) | `jobs/detect/` |
@@ -182,9 +182,10 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
   resource `requests` **and** `limits` (CPU + memory) and an
   `activeDeadlineSeconds` wall-clock cap so a hung or runaway LLM-heavy run is
   killed rather than consuming the node indefinitely. A default block lives in
-  `values.yaml`, **per-job overridable** (the LLM/embedding-heavy jobs —
-  `eval_runner`, `autoresearch` — get higher memory/longer
-  deadlines than the lightweight cleanups like `memory_ttl`). No CronJob ships
+  `values.yaml`, **per-job overridable** (the LLM/embedding-heavy jobs get
+  higher memory/longer deadlines than the lightweight cleanups like
+  `memory_ttl`; `eval_runner` and `autoresearch` were the examples until they
+  were deleted on 2026-10-02). No CronJob ships
   without explicit `limits` — the migration must not leave an unbounded pod on
   the cluster. `backoffLimit` caps retries.
 - **FR3 — No env drift.** CronJob pods reuse the agent image and the *same*

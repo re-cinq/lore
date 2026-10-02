@@ -6,14 +6,13 @@
 | Status  | Shipped                  |
 | Owner   | Platform Engineering     |
 
-Platform Infrastructure documents the cross-cutting plumbing beneath Lore's features — health and readiness probes, the GitHub App/token client adapter, git-remote repo detection, schema migrations, the context-core store, and the autoresearch store — so each capability's tests trace to a written statement.
+Platform Infrastructure documents the cross-cutting plumbing beneath Lore's features — health and readiness probes, the GitHub App/token client adapter, git-remote repo detection, and schema migrations — so each capability's tests trace to a written statement.
 
 ## Problem Statement
 
 Several cross-cutting platform capabilities have no single feature spec but carry
 real, tested contracts: the health/readiness probes, the GitHub App/token client
-adapter, git-remote repo detection, schema migrations, the eval-score/namespace
-context-core store, and the autoresearch store. This spec documents each so its
+adapter, git-remote repo detection, and schema migrations. This spec documents each so its
 tests trace to a statement (features → their own specs; this covers the platform
 plumbing beneath them).
 
@@ -68,22 +67,6 @@ drift on repos bootstrapped before it entered the baseline scripts: the four
 (`verified`/`observed`/`inferred`/`stale`), and both `memory.fact_conflicts` and
 `pipeline.audit_log` are created `if not exists`. ([validated by `migrations.test.ts:36`](apps/lore-api/src/migrations.test.ts#L31), [`migrations.test.ts:46`](apps/lore-api/src/migrations.test.ts#L46), [`migrations.test.ts:60`](apps/lore-api/src/migrations.test.ts#L60), [`migrations.test.ts:66`](apps/lore-api/src/migrations.test.ts#L66), [`migrations.test.ts:70`](apps/lore-api/src/migrations.test.ts#L70))
 
-### Context-core store
-
-The context-core store tracks the latest production eval score per namespace:
-`latest(namespace)` reads the most-recent `status = 'production'`
-`eval_score` from `pipeline.context_core_history` (null when a namespace has no
-production history, ignoring other namespaces and non-production rows), and
-`insert` writes a history row in `version, namespace, score, status` order. The
-`InMemoryContextCore` double mirrors this resolution and retains every inserted
-record for assertion. ([validated by `context-core.test.ts:23`](libs/shared/src/outbound/project/context-core/context-core.test.ts#L23), [`context-core.test.ts:34`](libs/shared/src/outbound/project/context-core/context-core.test.ts#L34), [`context-core.test.ts:40`](libs/shared/src/outbound/project/context-core/context-core.test.ts#L40), [`context-core.test.ts:63`](libs/shared/src/outbound/project/context-core/context-core.test.ts#L63), [`context-core.test.ts:88`](libs/shared/src/outbound/project/context-core/context-core.test.ts#L88), [`context-core.test.ts:107`](libs/shared/src/outbound/project/context-core/context-core.test.ts#L107))
-
-### Research store
-
-`PgResearch.recordAttempt` inserts into `pipeline.research_attempts` in
-`cluster_id, namespace, approach, content, eval_score, delta` parameter order,
-and the `InMemoryResearch` double retains every recorded attempt for assertion.
-
 ### Route plumbing
 
 `makeGraphLlmCall` returns undefined when `ANTHROPIC_API_KEY` is unset, and
@@ -103,3 +86,23 @@ would exclude the current day's bucket — leaving exactly 31 candidate daily
 buckets, the documented `1d` maximum, so the limit can never truncate one, the
 first of the month is still covered on the 31st, and a window crossing a month
 boundary loses no bucket. ([validated by `anthropic-cost-sync.test.ts:29`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost-sync.test.ts#L29), [`anthropic-cost-sync.test.ts:35`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost-sync.test.ts#L35), [`anthropic-cost-sync.test.ts:41`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost-sync.test.ts#L41), [`anthropic-cost-sync.test.ts:47`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost-sync.test.ts#L47), [`anthropic-cost-sync.test.ts:54`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost-sync.test.ts#L54), [`anthropic-cost-sync.test.ts:60`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost-sync.test.ts#L60))
+
+## Background: retired with Lore's own Floor (2026-10-02)
+
+These statements described two stores whose only callers were nightly jobs of `apps/floor`, the assembly-line engine Lore ran itself. The `eval_runner` and `context_core_builder` jobs and the autoresearch loop were deleted with it on 2026-10-02, so the adapters and the tests that validated them went with the code, and migration 0101 dropped `pipeline.eval_runs`, `pipeline.context_core_history` and `pipeline.research_attempts`. Context evals are now a nightly GitHub Actions job that asks lore-api to write a question from each sampled document, assemble the context, and judge the answer (#2443); it keeps no stored baseline. They are kept as the record of what the old stores did.
+
+### Context-core store
+
+The context-core store tracked the latest production eval score per namespace:
+`latest(namespace)` read the most-recent `status = 'production'`
+`eval_score` from `pipeline.context_core_history` (null when a namespace had no
+production history, ignoring other namespaces and non-production rows), and
+`insert` wrote a history row in `version, namespace, score, status` order. The
+`InMemoryContextCore` double mirrored this resolution and retained every inserted
+record for assertion.
+
+### Research store
+
+`PgResearch.recordAttempt` inserted into `pipeline.research_attempts` in
+`cluster_id, namespace, approach, content, eval_score, delta` parameter order,
+and the `InMemoryResearch` double retained every recorded attempt for assertion.

@@ -433,12 +433,12 @@ One-line purpose: fetch the execution transcript of one pipeline TASK by UUID (N
 
 One-line purpose: fetch the FULL stdout/stderr of one scheduled batch/CronJob RUN.
 
-- **When to use:** scheduled jobs like `eval_runner` or `spec_test_linker`.
+- **When to use:** scheduled jobs like `daily_digest` or `spec_upkeep`.
 - **When not to use:** for a user-created pipeline task's logs use `lore_get_task_logs` (by task UUID).
 
 | Parameter | Required | Default | Description |
 |---|---|---|---|
-| `job_name` | yes | — | Name of the scheduled job (e.g. `eval_runner`, `spec_test_linker`). |
+| `job_name` | yes | — | Name of the scheduled job (e.g. `daily_digest`, `spec_upkeep`). |
 | `run_id` | yes | — | UUID of the specific run, from `pipeline.job_runs.id`. |
 
 - **Returns:** JSON `{logs, complete:true}` — the whole body, no offset slicing (runs are bounded). A missing object returns empty logs.
@@ -775,7 +775,7 @@ Quick-reference for the confusable clusters.
 | Use | Tool |
 |---|---|
 | Execution transcript of a specific pipeline TASK (by task UUID), with code-unit-offset polling for a still-running task. | `lore_get_task_logs` |
-| Full output of a scheduled batch/CronJob RUN (by `job_name` + `run_id`), e.g. `eval_runner` or `spec_test_linker`. | `lore_get_job_logs` |
+| Full output of a scheduled batch/CronJob RUN (by `job_name` + `run_id`), e.g. `daily_digest` or `spec_upkeep`. | `lore_get_job_logs` |
 
 ### Running work
 

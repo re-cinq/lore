@@ -222,13 +222,9 @@ Add a step at the end of each build workflow (after deploy):
    logs the port-in-use message, any other start failure logs the generic error,
    and both exit 1.
 
-6c. The nightly context-core builder is characterized — a namespace whose score
-   improved past the threshold is promoted, a regressed one is rejected with a
-   gap-fill alert task, a flat delta records a no-change row, and a missing
-   config or crashed eval counts as unchanged with distinct logs.
-
-6d. The nightly eval runner is characterized — a crashed eval and a stat-less
-   eval are logged apart and skipped, and a passing team's stats are recorded.
+6c. _(Retired 2026-10-02.)_ The nightly context-core builder and eval runner were
+   deleted with Lore's own Floor, and their characterization tests with them;
+   context evals are a nightly GitHub Actions job that asks lore-api (#2443).
 
 7. Watcher re-entry guard has a test
 8. 409 CR handling has a test — `isAlreadyExistsError` returns true for a Kubernetes
