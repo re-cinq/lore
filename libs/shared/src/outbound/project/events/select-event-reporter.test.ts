@@ -1,5 +1,6 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import {
+  localEventProxy,
   selectEventProxy,
   selectEventReporter,
 } from "./select-event-reporter.js";
@@ -143,5 +144,24 @@ describe("selectEventProxy", () => {
     });
 
     expect(resolved).toBe(0);
+  });
+});
+
+describe("localEventProxy", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("inserts into the local queue while EVENT_ROUTER_URL names a router", async () => {
+    vi.stubEnv("EVENT_ROUTER_URL", "https://router.example");
+    const local = new InMemoryEventReporter();
+
+    const proxy = localEventProxy({ local: () => local });
+
+    await proxy.insert({ eventName: "cron.merge_check.tick", source: "cron" });
+
+    expect(local.rows.map((row) => row.event_name)).toEqual([
+      "cron.merge_check.tick",
+    ]);
   });
 });
