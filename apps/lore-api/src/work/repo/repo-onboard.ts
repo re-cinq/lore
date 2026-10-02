@@ -4,7 +4,9 @@ import {
   decideOnboard,
   onboardLockKey,
   onboardTicketBody,
+  onboardTicketTitle,
   onboardUpdateTicketBody,
+  onboardUpdateTicketTitle,
   toOnboardState,
   IN_FLIGHT_TASK_STATUSES,
   ONBOARD_IN_FLIGHT_TASK_SQL,
@@ -236,7 +238,7 @@ async function writeOnboard(
 
   await client.query("COMMIT");
 
-  return { ...written, ticket };
+  return { ...written, ticket: ticket.body };
 }
 
 /** The advisory lock is taken INSIDE the transaction so it releases with it — two concurrent submissions for one repo must not both read a clear state. */
@@ -289,25 +291,36 @@ async function refuseOnboard(
 function ticketFor(
   fullName: string,
   state: Pick<OnboardState, "onboardingPrMerged">,
-): string {
+): OnboardTicket {
   return state.onboardingPrMerged
-    ? onboardUpdateTicketBody(fullName)
-    : onboardTicketBody(fullName);
+    ? {
+        title: onboardUpdateTicketTitle(fullName),
+        body: onboardUpdateTicketBody(fullName),
+      }
+    : {
+        title: onboardTicketTitle(fullName),
+        body: onboardTicketBody(fullName),
+      };
+}
+
+interface OnboardTicket {
+  title: string;
+  body: string;
 }
 
 /** The repo row FIRST, then its task. The order is load-bearing: the task's trust gate reads that row, so a task created before it would be judged against a repo that does not exist yet. Re-onboarding refreshes the timestamp rather than inserting a second row. */
 async function insertRepoAndTask(
   client: PoolClient,
   identity: RepoIdentity,
-  { ticket, onFloor }: { ticket: string; onFloor: boolean },
+  { ticket, onFloor }: { ticket: OnboardTicket; onFloor: boolean },
 ): Promise<{ repoId: string; taskId: string }> {
   const repoId = await upsertRepo(client, identity);
   const task = await createPipelineTask(client, {
-    description: ticket,
+    description: ticket.body,
     taskType: "onboard",
     targetRepo: identity.fullName,
     createdBy: "onboard-system",
-    contextBundle: { repo: identity.fullName },
+    contextBundle: onboardContextBundle(identity.fullName, ticket),
   });
 
   if (onFloor) {
@@ -328,6 +341,10 @@ async function upsertRepo(
   );
 
   return rows[0].id;
+}
+
+function onboardContextBundle(fullName: string, ticket: OnboardTicket) {
+  return { repo: fullName, line_args: { issue_title: ticket.title } };
 }
 
 /** Webhook wiring is best-effort — a skip is worth a warning, never a failure. */

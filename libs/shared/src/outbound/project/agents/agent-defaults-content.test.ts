@@ -225,6 +225,16 @@ describe("the fix-ci recipe when the branch moved", () => {
   });
 });
 
+describe("the review recipe", () => {
+  it("reports its findings in the REVIEW_RESULT line instead of posting them with gh, which the pod does not have", () => {
+    const prompt = promptOf("review");
+
+    expect(prompt).not.toContain("gh pr review");
+    expect(prompt).toContain("you have no `gh` and no GitHub token");
+    expect(prompt).toContain("REVIEW_RESULT:CHANGES_REQUESTED:<every finding");
+  });
+});
+
 describe("test_policy", () => {
   it("declares none on every read-only review recipe, so a review pod cannot run tests, installs or builds at all", () => {
     const readOnly = ["review", "pr-ready"];

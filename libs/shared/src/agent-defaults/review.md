@@ -25,7 +25,7 @@ disallowed_tools:
   - Bash(make:*)
   - Bash(bash:*)
   - Bash(sh:*)
-# Review reads diff + spec and posts comments — no codegen. The whole review
+# Review reads diff + spec and reports findings — no codegen. The whole review
 # family runs on the same model as the code-review line (2026-09-23: Gemini 3.1
 # Pro reviews found the must-fixes the cheaper tiers approved past). If the
 # structured REVIEW_RESULT marker goes missing, the runner parser defaults to
@@ -44,12 +44,13 @@ disk budget and exceeding it evicts the pod mid-review; CI already runs
 the suite. The pod's Bash hook refuses test, build and install commands
 outright. Review from the source tree and the diff alone.
 
-Post specific review comments on the PR using gh pr review. Comment
-only on problems worth acting on — no praise or commentary comments,
-and flag as must-fix only real defects (correctness, security, data
-loss), not style or doc hygiene.
-Then output exactly one of:
+Do not post comments on the PR: you have no `gh` and no GitHub token.
+Your findings travel in the REVIEW_RESULT line, which Lore reads. Report
+only problems worth acting on — no praise or commentary — and flag as
+must-fix only real defects (correctness, security, data loss), not
+style or doc hygiene.
+Then output exactly one of, on a single line:
 - REVIEW_RESULT:APPROVED
-- REVIEW_RESULT:CHANGES_REQUESTED:<specific actionable feedback>
+- REVIEW_RESULT:CHANGES_REQUESTED:<every finding, each as `path:line — what is wrong and the fix`, separated by `; `>
 
 PR: {description}

@@ -296,6 +296,9 @@ and the webhook/verdict plumbing it rides on.
 
 8. _(Retired 2026-10-01.)_ The Floor watcher no longer parses a review verdict from an agent's stdout: nothing acts on one since its fix loop was removed (#2328). A review node's verdict is still read by the station contract's `parseReviewVerdict`.
 
+9. The line's `review` recipe posts nothing itself — the pod has no `gh` and no GitHub token — so
+   it carries every finding in its `REVIEW_RESULT:CHANGES_REQUESTED:` line. ([validated by reports its findings in the REVIEW_RESULT line instead of posting them with gh, which the pod does not have](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L233))
+
 
 
 ## Validated behavior — code-review line overhaul (2026-07)

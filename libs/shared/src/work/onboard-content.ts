@@ -15,8 +15,19 @@ export const ONBOARD_STATIC_FILES: {
     owner: "repo",
     content: JSON.stringify(
       {
-        systemPromptSuffix:
-          "\n\nYou have access to the Lore MCP server. ALWAYS call get_context as your FIRST action before reading files or answering. Then use lore_search_memory to check what other developers learned. Before session ends, call lore_write_memory with a session summary.",
+        hooks: {
+          SessionStart: [
+            {
+              hooks: [
+                {
+                  type: "command",
+                  command:
+                    "echo 'This repository is onboarded into Lore. You have access to the Lore MCP server: ALWAYS call lore_assemble_context as your FIRST action, before reading files or answering. Then use lore_search_memory to check what other developers learned. Before the session ends, call lore_write_memory with a session summary.'",
+                },
+              ],
+            },
+          ],
+        },
       },
       null,
       2,
@@ -117,7 +128,7 @@ export const ONBOARD_FILES: {
     path: ".github/workflows/pr-description-check.yml",
     description: "CI check for PR description quality",
     prompt:
-      "Generate a GitHub Actions workflow that checks PR descriptions have required sections (## Why, ## What Changed, ## Testing). Use the github.event.pull_request.body context. Run on pull_request opened/edited. Fail if sections are missing.",
+      'Generate a GitHub Actions workflow that checks PR descriptions have required sections (## Why, ## What Changed, ## Testing). Run on pull_request opened/edited. Fail if sections are missing. Declare `permissions: {contents: read, pull-requests: read}`. The PR body is attacker-controlled: pass it to the script ONLY through the step\'s `env:` block (`PR_BODY: ${{ github.event.pull_request.body }}`) and read it in the script as a double-quoted `"$PR_BODY"`. Never write a `${{ }}` expression inside a `run:` block.',
   },
   {
     path: ".specify/spec.md",
@@ -129,7 +140,7 @@ export const ONBOARD_FILES: {
 
 /** Onboard scaffold prompt for suggested .lore/test-commands.yml (AC12); language-agnostic, team-reviewed. */
 export const TEST_COMMAND_MANIFEST_SCAFFOLD_PROMPT =
-  "Generate a suggested `.lore/test-commands.yml` test-command manifest for this repository. Detect the actual test framework and coverage tooling from the repo's build files and config — never assume a runner. Declare three keys: `list` (a shell command that prints to stdout a JSON array of test descriptors `{id, name, file, startLine, endLine, spec?}`, where `id` is the framework's native, stable test node id), `run` (a shell command containing the literal `{selector}` placeholder that runs the single test named by that id with coverage and prints `{passed, covered:[{file, startLine, endLine}]}` or emits an lcov/cobertura report), and `coverage_format` (one of lcov | cobertura | json). For a monorepo, emit a top-level list with one entry per package, each carrying its own `cwd`. This is a suggested scaffold the team reviews and adjusts — do not change any test behaviour.";
+  "Generate a suggested `.lore/test-commands.yml` test-command manifest for this repository. Detect the actual test framework and coverage tooling from the repo's build files and config — never assume a runner. Declare three keys: `list` (a shell command that prints to stdout a JSON array of test descriptors `{id, name, file, startLine, endLine, spec?}`, where `id` is the framework's native, stable test node id and `startLine`/`endLine` are the real first and last lines of that test in its file — never a placeholder such as 1/1; if the runner's listing carries no line numbers, resolve them from the test file), `run` (a shell command containing the literal `{selector}` placeholder that runs the single test named by that id with coverage and prints `{passed, covered:[{file, startLine, endLine}]}` or emits an lcov/cobertura report), and `coverage_format` (one of lcov | cobertura | json). The `run` command may only use coverage tooling the repo already declares as a dependency — do not add one and never reference a coverage provider that is not installed; when none is declared, choose a coverage mechanism that needs no extra package (for example a runtime's built-in coverage) or emit `json` from what the runner reports. For a monorepo, emit a top-level list with one entry per package, each carrying its own `cwd`. This is a suggested scaffold the team reviews and adjusts — do not change any test behaviour.";
 
 /** ADR files are generated dynamically based on what's in the repo. */
 export const ADR_TOPICS = [
@@ -156,14 +167,6 @@ export const ONBOARD_DETERMINISTIC_PATHS: readonly string[] = [
   ".github/workflows/lore-trace-impact.yml",
   ...ONBOARD_STATIC_FILES.map((file) => file.path),
 ];
-
-/** The starter ADR paths, numbered from 1 in ADR_TOPICS order. */
-export function starterAdrPaths(): string[] {
-  return ADR_TOPICS.map(
-    (adr, index) =>
-      `adrs/ADR-${String(index + 1).padStart(3, "0")}-${adr.slug}.md`,
-  );
-}
 
 // The onboarding TICKET: the issue body the onboard assembly line implements. It is the whole spec the agent gets, so it names every file owed, with its prompt, and every rule — a one-line description once let an agent redefine the job (#1745).
 export function onboardTicketBody(repo: string): string {
@@ -205,6 +208,31 @@ export function onboardUpdateTicketBody(repo: string): string {
   ].join("\n");
 }
 
+export function onboardTicketTitle(repo: string): string {
+  return `Onboard ${repo} into Lore`;
+}
+
+export function onboardUpdateTicketTitle(repo: string): string {
+  return `Update ${repo}'s Lore setup`;
+}
+
+export function onboardPrBody(repo: string): string {
+  return [
+    `Lore setup for ${repo}. This pull request adds each of these files the repository did not have yet, and refreshes Lore's own files where they had drifted.`,
+    "",
+    "Committed by Lore, verbatim:",
+    ...ONBOARD_DETERMINISTIC_PATHS.map((path) => `- \`${path}\``),
+    "",
+    "Authored for this repository by the onboarding agent:",
+    ...ONBOARD_FILES.map((file) => `- \`${file.path}\` — ${file.description}`),
+    "- `adrs/` — starter architecture decision records",
+    "- `.lore/test-commands.yml` — how Lore lists and runs this repository's tests",
+    "- `.github/workflows/lore-tests.yml` — runs the tests in CI and reports them to Lore",
+    "",
+    "Review each file and adjust it to the repository before merging; the merge starts ingesting this repository's context.",
+  ].join("\n");
+}
+
 function owedFileLines(): string[] {
   return [
     ...ONBOARD_FILES.map((file) => `- \`${file.path}\` — ${file.prompt}`),
@@ -225,12 +253,8 @@ function ruleLines(): string[] {
 }
 
 function adrLines(): string[] {
-  const paths = starterAdrPaths();
-
   return [
-    `- Starter ADRs, only when the repo has no \`adrs/\` or \`docs/\` directory yet — MADR format with YAML frontmatter (adr_number, title, status: accepted, date: today, domains). Skip an ADR whose subject the repo shows no evidence of:`,
-    ...ADR_TOPICS.map(
-      (adr, index) => `  - \`${paths[index]}\` — ${adr.prompt}`,
-    ),
+    `- Starter ADRs, only when the repo has no \`adrs/\` or \`docs/\` directory yet — MADR format with YAML frontmatter (adr_number, title, status: accepted, date: today, domains). Skip an ADR whose subject the repo shows no evidence of. Write each as \`adrs/ADR-NNN-<slug>.md\`, where NNN numbers the ADRs you actually write sequentially from 001 with no gaps, in the order below, and \`adr_number\` matches it:`,
+    ...ADR_TOPICS.map((adr) => `  - \`${adr.slug}\` — ${adr.prompt}`),
   ];
 }
