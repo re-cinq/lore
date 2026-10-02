@@ -1,11 +1,12 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
 import { InMemoryDigestPosts } from "@re-cinq/lore-shared/project/digest-posts/digest-posts-memory.js";
 import { digestSubject } from "@re-cinq/lore-shared/project/assembly-runs/subject-keys.js";
 import { decodeDigestRepos } from "@re-cinq/lore-shared/digest/codec.js";
 import {
   createDailyDigestTickHandler,
+  dailyDigestTick,
   type DigestFanOutDeps,
 } from "./fan-out.js";
 
@@ -343,5 +344,16 @@ describe("createDailyDigestTickHandler", () => {
       started: ["daily_digest:C1"],
       subject: digestSubject("C1", "2026-09-25", "09:00"),
     });
+  });
+});
+
+describe("dailyDigestTick where the external floor is configured", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("starts nothing and reads nothing, because the stations service starts the digest on the floor", async () => {
+    vi.stubEnv("FLOOR_API_URL", "http://floor.test");
+    vi.stubEnv("FLOOR_SERVICE_TOKEN", "token");
+
+    await expect(dailyDigestTick({})).resolves.toBeUndefined();
   });
 });

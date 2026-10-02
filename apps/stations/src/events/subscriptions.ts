@@ -10,6 +10,7 @@ import {
 } from "@re-cinq/lore-shared/floor/floor-client.js";
 import { FLOOR_PLAN_EVENTS } from "./floor-plan-handlers.js";
 import { FLOOR_REVIEW_EVENTS } from "./floor-review-handlers.js";
+import { REPO_EVENTS } from "./repo-handlers.js";
 
 // One subscriber per ROLE not per replica — two stations pods share one backlog, same as two Floors.
 export const STATIONS_SUBSCRIBER = "stations";
@@ -30,15 +31,20 @@ export function stationSubscriptions(
     ],
   ]);
 
-  const triggeredEventNames = Object.values(STATIONS).flatMap((mod) =>
-    eventTriggerNames(mod.manifest),
-  );
-
-  for (const eventName of [...triggeredEventNames, ...floorEvents(env)]) {
+  for (const eventName of plainEventNames(env)) {
     byName.set(eventName, { eventName });
   }
 
   return [...byName.values()];
+}
+
+/** Every event claimed with the default visibility budget: what the sweeps declare, the repository events, and the floor's. */
+function plainEventNames(env: FloorEnv): string[] {
+  const triggered = Object.values(STATIONS).flatMap((mod) =>
+    eventTriggerNames(mod.manifest),
+  );
+
+  return [...triggered, ...REPO_EVENTS, ...floorEvents(env)];
 }
 
 /** A deployment with no floor starts no review and has no plan run to answer, so it claims none of the events that would. */

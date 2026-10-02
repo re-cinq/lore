@@ -1,7 +1,6 @@
 // Pure logic for the agent-watcher (ADR-031): the new decisions from retargeting loretask-watcher onto `Agent` CRs — status carries no changedFiles/reviewResult/taskType, so the gate is now the repo's CI conclusion (D3); the IO-bound shell (agent-watcher.ts) stays untested.
 
 import type { Agent as AgentCr } from "@re-cinq/agent-contracts";
-import { parseReviewVerdict } from "@re-cinq/lore-assembly-lines";
 
 export const TASK_ID_LABEL = "lore.re-cinq.com/task-id";
 export const TASK_TYPE_LABEL = "lore.re-cinq.com/task-type";
@@ -19,21 +18,6 @@ function labelOf(agent: AgentCr, label: string): string | undefined {
   const { labels } = agent.metadata ?? {};
 
   return labels?.[label];
-}
-
-export type ReviewResult = "approved" | "changes_requested";
-
-// Parses the `REVIEW_RESULT:` marker into the watcher's vocabulary via `parseReviewVerdict` (the station contract's own reader) — a second local regex once drifted, testing APPROVED first, so echoing both markers approved here but rejected on every assembly-line review node.
-export function parseReviewResult(
-  output: string | undefined,
-): ReviewResult | undefined {
-  const verdict = parseReviewVerdict(output);
-
-  if (verdict === "changes_requested") {
-    return "changes_requested";
-  }
-
-  return verdict === "success" ? "approved" : undefined;
 }
 
 export type CiConclusion = "success" | "failure" | "pending" | "none";

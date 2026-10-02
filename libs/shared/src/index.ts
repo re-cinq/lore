@@ -8,7 +8,6 @@ export {
   setTaskStatus,
   cancelTask as cancelPipelineTask,
   escalateTask as escalatePipelineTask,
-  reviseTask as revisePipelineTask,
   markTaskMerged,
   type TaskListRow,
 } from "./domain/pipeline-tasks.js";
@@ -255,6 +254,7 @@ export {
   type KubeConfigLoader,
 } from "./outbound/kube-config.js";
 export { prFooter } from "./domain/pr-body.js";
+export { clampPrTitle } from "./domain/pr-title.js";
 export {
   ciConclusionOf,
   ciJudgedSha,
@@ -285,10 +285,6 @@ export {
   type LeasePool,
   type AcquireResult,
 } from "./outbound/project/leases/lease-backends.js";
-export {
-  buildReviewFixDescription,
-  formatReviewFeedback,
-} from "./work/review-feedback.js";
 // Deterministic repo validation (lint/typecheck), relocated from mcp-server for the BYO toolchain sidecar (ADR-025).
 export {
   detectTooling,

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import TaskDetailView, {
   soleRunHref,
@@ -36,19 +36,9 @@ const event = (over: Partial<TaskDetailEvent> = {}): TaskDetailEvent => ({
   ...over,
 });
 
-const action = vi.fn();
-
 const renderView = (
   over: Partial<React.ComponentProps<typeof TaskDetailView>> = {},
-) =>
-  render(
-    <TaskDetailView
-      task={task()}
-      failedEvent={undefined}
-      submitFeedback={action}
-      {...over}
-    />,
-  );
+) => render(<TaskDetailView task={task()} failedEvent={undefined} {...over} />);
 
 describe("TaskDetailView", () => {
   it("lists the task's run attempts, each linking to its run detail", () => {
@@ -272,9 +262,10 @@ describe("TaskDetailView", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("wires the feedback form to the injected action with a hidden task_id", () => {
-    const { container } = renderView({
+  it("offers no feedback form on a feature-request task with a PR: a pull request is revised by a review on it", () => {
+    renderView({
       task: task({
+        task_type: "feature-request",
         pr_url: "https://github.com/re-cinq/lore/pull/7",
         pr_number: 7,
         status: "running",
@@ -282,34 +273,7 @@ describe("TaskDetailView", () => {
     });
 
     expect(
-      screen.getByRole("heading", { level: 3, name: "Give Feedback" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Request Revision" }),
-    ).toBeInTheDocument();
-    expect(container.querySelector('input[name="task_id"]')).toHaveValue(
-      "task-1",
-    );
-    expect(container.querySelector('textarea[name="feedback"]')).toBeTruthy();
-  });
-
-  it("hides the feedback form when the task has no PR", () => {
-    renderView({ task: task({ pr_url: null }) });
-    expect(
       screen.queryByRole("heading", { level: 3, name: "Give Feedback" }),
-    ).not.toBeInTheDocument();
-  });
-
-  it("hides the feedback form for cancelled tasks even with a PR", () => {
-    renderView({
-      task: task({
-        pr_url: "https://example.com/pr/1",
-        pr_number: 1,
-        status: "cancelled",
-      }),
-    });
-    expect(
-      screen.queryByRole("button", { name: "Request Revision" }),
     ).not.toBeInTheDocument();
   });
 

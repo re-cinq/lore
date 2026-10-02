@@ -26,6 +26,13 @@ import {
   type FloorPlanDeps,
 } from "./floor-plan-handlers.js";
 import { addHandlers } from "./compose-handlers.js";
+import { dropOverlayOverHttp } from "@re-cinq/lore-shared/project/lib/station-http.js";
+import { pipeline } from "../outbound/queues.js";
+import { repoEventHandlers, type RepoEventDeps } from "./repo-handlers.js";
+import { relocateOnTeamChange } from "./team-changed.js";
+import { chunkSchemaOrOrgShared } from "@re-cinq/lore-shared/project/chunks/chunk-schema.js";
+import { PgChunks } from "@re-cinq/lore-shared/project/chunks/chunks-pg.js";
+import { getPool } from "@re-cinq/lore-shared/db/pg-pool.js";
 
 const floorReviewDeps: FloorReviewDeps = {
   autoReview: async (repo) =>
@@ -43,6 +50,33 @@ const floorReviewDeps: FloorReviewDeps = {
 };
 
 const floorPlanDeps: FloorPlanDeps = { floor: floorClient };
+
+const repoEventDeps: RepoEventDeps = {
+  labelDispatch: async (repo) => {
+    const { issues } = await projectFor(repo);
+
+    return {
+      rawSettings: (name) => settings().rawSettings(name),
+      activeTaskByIssue: (name, issueNumber) =>
+        pipeline().taskQueue.activeTaskByIssue(name, issueNumber),
+      addLabel: (issueNumber, label) => issues.addLabel(issueNumber, label),
+      comment: (issueNumber, body) => issues.comment(issueNumber, body),
+    };
+  },
+  renameRepo: (from, to) => settings().renameRepo(from, to),
+  // This service holds no graph client: the drop goes through lore-api.
+  dropOverlay: (repo, branch) => dropOverlayOverHttp({ repo, branch }),
+  relocateChunks: (repo) =>
+    relocateOnTeamChange(
+      {
+        team: (name) => settings().team(name),
+        chunkSchema: (team) => chunkSchemaOrOrgShared(getPool(), team),
+        relocate: (schema, name) =>
+          new PgChunks(getPool()).relocateLegacyChunks(schema, name),
+      },
+      repo,
+    ),
+};
 
 /** Published by the walk when a node's station runs here rather than in a pod. */
 
@@ -86,6 +120,8 @@ export function buildStationHandlers(): Map<string, EventHandler> {
   for (const { mod, eventName } of sweepBindings) {
     handlers.set(eventName, runSweepFor(mod, eventName));
   }
+
+  addHandlers(handlers, repoEventHandlers(repoEventDeps));
 
   if (floorConfigured()) {
     addHandlers(handlers, floorReviewHandlers(floorReviewDeps));

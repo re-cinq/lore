@@ -11,16 +11,13 @@ beforeEach(() => {
 });
 
 describe("AssemblyRunListView", () => {
-  it("renders the heading and the Create Task link", () => {
+  it("renders the heading and offers no way to create a task", () => {
     render(<AssemblyRunListView runs={[]} />);
 
     expect(
       screen.getByRole("heading", { name: "Assembly Runs" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "+ Create Task" })).toHaveAttribute(
-      "href",
-      "/assembly-runs/create",
-    );
+    expect(screen.queryByRole("link", { name: /Create Task/ })).toBeNull();
   });
 
   it("marks All active and links the four run statuses when none is selected", () => {

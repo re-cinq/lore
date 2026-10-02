@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AgentRunEvent } from "@re-cinq/lore-shared/models/agent-run-event.js";
-import { eventPage } from "./run-events.js";
+import { eventPage, eventPageReader } from "./run-events.js";
 
 function event(id: string): AgentRunEvent {
   return {
@@ -73,5 +73,44 @@ describe("eventPage", () => {
 
   it("answers an empty page for a run with no events", () => {
     expect(eventPage([], { after: "5" })).toEqual({ events: [] });
+  });
+});
+
+describe("eventPageReader", () => {
+  it("reads a Postgres run's events from the store, after cursor 7 at the default limit of 1000", async () => {
+    const asked: unknown[] = [];
+    const read = eventPageReader(
+      () =>
+        ({
+          events: async (...args: unknown[]) => {
+            asked.push(args);
+
+            return [{ id: "8" }];
+          },
+        }) as never,
+      async () => [],
+    );
+
+    expect({ page: await read("run-1", { after: "7" }), asked }).toEqual({
+      page: { events: [{ id: "8" }] },
+      asked: [["run-1", "7", 1000]],
+    });
+  });
+
+  it("reads the floor's journal for a run Postgres does not have", async () => {
+    const asked: unknown[] = [];
+    const read = eventPageReader(
+      () => ({ events: async () => null }) as never,
+      async (...args) => {
+        asked.push(args);
+
+        return [];
+      },
+    );
+
+    expect({ page: await read("floor-run", {}), asked }).toEqual({
+      page: { events: [] },
+      asked: [["floor-run", undefined]],
+    });
   });
 });

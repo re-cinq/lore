@@ -944,11 +944,11 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "One page of the agent events of a run on the external floor, oldest first; empty for a run the floor does not have",
+            "description": "One page of a run's agent events, oldest first; empty for a run neither Postgres nor the floor has",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FloorRunEvents"
+                  "$ref": "#/components/schemas/RunEvents"
                 }
               }
             }
@@ -1040,11 +1040,11 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "The log the external floor kept for one visit of a run, named floor-<visit id>; 404 for a name of no visit of this run",
+            "description": "One node's log: stored stdout for a node of a run Postgres has, the floor's log for a visit named floor-<visit id>; 404 for a name of no node of this run",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FloorNodeLogs"
+                  "$ref": "#/components/schemas/NodeLogs"
                 }
               }
             }
@@ -1317,11 +1317,11 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "One page of the turns of a run on the external floor, oldest first; empty for a run the floor does not have",
+            "description": "One page of a run's turns, oldest first; empty for a run neither Postgres nor the floor has",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FloorRunTurns"
+                  "$ref": "#/components/schemas/RunTurns"
                 }
               }
             }
@@ -7118,6 +7118,87 @@
         }
       }
     },
+    "/api/repos/{owner}/{repo}/trace/overlay-drop": {
+      "post": {
+        "operationId": "post_api_repos_owner_repo_trace_overlay-drop",
+        "summary": "POST /api/repos/{owner}/{repo}/trace/overlay-drop",
+        "tags": ["Traceability"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Whether the graph was asked to drop the branch's overlay; false when no graph is configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OverlayDrop"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "write",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "branch": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  }
+                },
+                "required": ["branch"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/repos/{owner}/{repo}/trace/{kind}": {
       "get": {
         "operationId": "get_api_repos_owner_repo_trace_kind",
@@ -7988,7 +8069,7 @@
         "x-rate-limit-bucket": "task",
         "responses": {
           "200": {
-            "description": "The created task, or the transition's acknowledgement",
+            "description": "The transition's acknowledgement",
             "content": {
               "application/json": {
                 "schema": {
@@ -8047,26 +8128,7 @@
                   },
                   "error": {
                     "type": "string"
-                  },
-                  "description": {
-                    "type": "string"
-                  },
-                  "created_by": {
-                    "type": "string"
-                  },
-                  "feedback": {
-                    "type": "string"
-                  },
-                  "task_type": {
-                    "type": "string"
-                  },
-                  "target_repo": {
-                    "type": "string"
-                  },
-                  "group_id": {
-                    "type": "string"
-                  },
-                  "context": {}
+                  }
                 },
                 "additionalProperties": false
               }
@@ -11327,63 +11389,6 @@
         "required": ["username", "password"],
         "additionalProperties": false
       },
-      "FloorNodeLogs": {
-        "type": "object",
-        "properties": {
-          "available": {
-            "type": "boolean"
-          },
-          "logs": {
-            "type": ["string", "null"]
-          },
-          "phase": {
-            "type": "string"
-          },
-          "podName": {
-            "type": "null"
-          },
-          "archived": {
-            "type": "boolean"
-          },
-          "reason": {
-            "type": "string",
-            "const": "no-records"
-          }
-        },
-        "required": ["available", "logs", "phase", "podName", "archived"],
-        "additionalProperties": false
-      },
-      "FloorRunEvents": {
-        "type": "object",
-        "properties": {
-          "events": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "propertyNames": {
-                "type": "string"
-              },
-              "additionalProperties": {}
-            }
-          }
-        },
-        "required": ["events"],
-        "additionalProperties": false
-      },
-      "FloorRunTurns": {
-        "type": "object",
-        "properties": {
-          "turns": {
-            "type": "array",
-            "items": {}
-          },
-          "hasMore": {
-            "type": "boolean"
-          }
-        },
-        "required": ["turns", "hasMore"],
-        "additionalProperties": false
-      },
       "GitCredential": {
         "type": "object",
         "properties": {
@@ -12969,6 +12974,32 @@
         "required": ["results"],
         "additionalProperties": false
       },
+      "NodeLogs": {
+        "type": "object",
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "logs": {
+            "type": ["string", "null"]
+          },
+          "phase": {
+            "type": "string"
+          },
+          "podName": {
+            "type": "null"
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string",
+            "const": "no-records"
+          }
+        },
+        "required": ["available", "logs", "phase", "podName", "archived"],
+        "additionalProperties": false
+      },
       "OnboardResult": {
         "anyOf": [
           {
@@ -13530,6 +13561,16 @@
           }
         },
         "required": ["ok"],
+        "additionalProperties": false
+      },
+      "OverlayDrop": {
+        "type": "object",
+        "properties": {
+          "dropped": {
+            "type": "boolean"
+          }
+        },
+        "required": ["dropped"],
         "additionalProperties": false
       },
       "PipelineAnalytics": {
@@ -14125,12 +14166,9 @@
           },
           "auto_merged": {
             "type": ["number", "null"]
-          },
-          "escalations": {
-            "type": ["number", "null"]
           }
         },
-        "required": ["tasks", "auto_merged", "escalations"],
+        "required": ["tasks", "auto_merged"],
         "additionalProperties": false
       },
       "RepoChunkSummary": {
@@ -14816,6 +14854,23 @@
         "required": ["started"],
         "additionalProperties": false
       },
+      "RunEvents": {
+        "type": "object",
+        "properties": {
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {}
+            }
+          }
+        },
+        "required": ["events"],
+        "additionalProperties": false
+      },
       "RunStreamFrame": {
         "oneOf": [
           {
@@ -15199,6 +15254,20 @@
           }
         },
         "required": ["token", "expires_at"],
+        "additionalProperties": false
+      },
+      "RunTurns": {
+        "type": "object",
+        "properties": {
+          "turns": {
+            "type": "array",
+            "items": {}
+          },
+          "hasMore": {
+            "type": "boolean"
+          }
+        },
+        "required": ["turns", "hasMore"],
         "additionalProperties": false
       },
       "SearchContextResults": {

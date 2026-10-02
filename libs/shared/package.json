@@ -38,6 +38,38 @@
       "types": "./dist/work/digest/*.d.ts",
       "default": "./dist/work/digest/*.js"
     },
+    "./onboard/*.js": {
+      "types": "./dist/work/onboard/*.d.ts",
+      "default": "./dist/work/onboard/*.js"
+    },
+    "./spec-upkeep/*.js": {
+      "types": "./dist/work/spec-upkeep/*.d.ts",
+      "default": "./dist/work/spec-upkeep/*.js"
+    },
+    "./scheduler/*.js": {
+      "types": "./dist/work/scheduler/*.d.ts",
+      "default": "./dist/work/scheduler/*.js"
+    },
+    "./housekeeping/*.js": {
+      "types": "./dist/work/housekeeping/*.d.ts",
+      "default": "./dist/work/housekeeping/*.js"
+    },
+    "./spec-task/*.js": {
+      "types": "./dist/work/spec-task/*.d.ts",
+      "default": "./dist/work/spec-task/*.js"
+    },
+    "./backlog/*.js": {
+      "types": "./dist/work/backlog/*.d.ts",
+      "default": "./dist/work/backlog/*.js"
+    },
+    "./dod-verdict.js": {
+      "types": "./dist/domain/dod-verdict.d.ts",
+      "default": "./dist/domain/dod-verdict.js"
+    },
+    "./ci-wait/*.js": {
+      "types": "./dist/work/ci-wait/*.d.ts",
+      "default": "./dist/work/ci-wait/*.js"
+    },
     "./digest-settings.js": {
       "types": "./dist/domain/digest-settings.d.ts",
       "default": "./dist/domain/digest-settings.js"
@@ -65,10 +97,6 @@
     "./k8s-pod-failure.js": {
       "types": "./dist/outbound/k8s-pod-failure.d.ts",
       "default": "./dist/outbound/k8s-pod-failure.js"
-    },
-    "./escalation/*.js": {
-      "types": "./dist/work/escalation/*.d.ts",
-      "default": "./dist/work/escalation/*.js"
     },
     "./feature-planning/decomposition-result.js": {
       "types": "./dist/domain/feature-planning/decomposition-result.d.ts",
@@ -169,6 +197,7 @@
     "@hapi/boom": "^10.0.1",
     "@opentelemetry/api": "^1.9.0",
     "@re-cinq/floor-client": "0.1.4",
+    "cron-parser": "^5.10.0",
     "dgraph-js-http": "^23.0.0-rc1",
     "libsodium-wrappers": "^0.8.2",
     "minimatch": "^10.2.6",

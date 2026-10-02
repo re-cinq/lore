@@ -3,19 +3,6 @@
 import type { EventHandler } from "../../domain/event-types.js";
 import { pipeline } from "../../outbound/queues.js";
 import { ingestPodLogChunks } from "./pod-log-ingest.js";
-import { pruneTelemetry } from "./log-retention.js";
 
 export const podLogAppended: EventHandler = (params) =>
   ingestPodLogChunks(params, pipeline().podLogs);
-
-/** `cron.telemetry_prune.tick` — the 14-day reap for both telemetry tables. */
-export const telemetryPrune: EventHandler = async () => {
-  const repos = pipeline();
-
-  console.log(
-    `[telemetry-prune] ${await pruneTelemetry({
-      runEvents: repos.agentRunEvents,
-      podLogs: repos.podLogs,
-    })}`,
-  );
-};

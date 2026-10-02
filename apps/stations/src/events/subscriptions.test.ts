@@ -79,11 +79,35 @@ describe("the review events, which only a deployment with a floor asks for", () 
     expect(names).toContain("github.pull_request.opened");
   });
 
-  it("claims no pull request event when no floor is configured", () => {
+  it("claims only the closed pull request, for its overlay drop, when no floor is configured", () => {
     const names = stationSubscriptions({}).map((s) => s.eventName);
 
     expect(
       names.filter((name) => name.startsWith("github.pull_request")),
+    ).toEqual(["github.pull_request.closed"]);
+  });
+
+  it("claims the label and rename events whether or not a floor is configured", () => {
+    const names = stationSubscriptions({}).map((s) => s.eventName);
+
+    expect(
+      names.filter((name) =>
+        ["github.issues.labeled", "github.repository.renamed"].includes(name),
+      ),
+    ).toEqual(["github.issues.labeled", "github.repository.renamed"]);
+  });
+});
+
+describe("the sweeps that run on a tick", () => {
+  it("claims the merge-check, pr-ready-check and approval-check ticks, so no other service has to start those sweeps", () => {
+    const names = stationSubscriptions({}).map((s) => s.eventName);
+
+    expect(
+      [
+        "cron.merge_check.tick",
+        "cron.pr_ready_check.tick",
+        "cron.approval_check.tick",
+      ].filter((tick) => !names.includes(tick)),
     ).toEqual([]);
   });
 });

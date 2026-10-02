@@ -41,7 +41,6 @@ map, the drain subscriptions, and the pod runner can never drift:
 | `memory-ttl` | sweep | cron hourly (chart courier CronJob) + http |
 | `importance-decay` | sweep | cron 05:00 (courier CronJob) + http |
 | `anthropic-cost-sync` | sweep | cron 07:00 (courier CronJob) + http |
-| `escalation-step` | node | service, 5m |
 | `issues` | node | service, 10m |
 | `merge-step` | node | service, 5m |
 | `retrospective` | node | service, 10m |

@@ -20,8 +20,6 @@ export const TaskStatusSchema = z.enum([
 ]);
 
 export const TaskTypeSchema = z.enum([
-  "general",
-  "implementation",
   "runbook",
   "gap-fill",
   "review",

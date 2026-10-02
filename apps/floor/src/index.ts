@@ -6,10 +6,6 @@ import { awaitSoleFloor } from "./outbound/single-instance.js";
 import { eventProxy, usage } from "./outbound/queues.js";
 import { wireProject } from "./app/project-boot.js";
 import { recoverStaleTasks, startWorker } from "./work/task/worker.js";
-import {
-  startScheduler,
-  getJobStatus,
-} from "./events/main-loop/scheduling/scheduler.js";
 import { startHealthServer } from "./transport/http/server.js";
 import { loadApprovalConfig } from "@re-cinq/lore-shared";
 
@@ -22,11 +18,8 @@ import {
   markDone,
   markFailed,
 } from "./outbound/event-store.js";
-import { startEventReaper } from "./events/main-loop/reaper.js";
 import { subscribe, reconcileDeliveries } from "./outbound/event-store.js";
 import { RECONCILE_WINDOW_MINUTES } from "@re-cinq/lore-shared/project/events/event-deliveries-port.js";
-import { registerCronEmitter } from "./events/listeners/scheduler-emitter.js";
-import { CRON_EMITTERS } from "./events/listeners/cron-emitters.js";
 import { DEFAULT_DRAIN_TIMEOUT_MS } from "@re-cinq/lore-shared/project/events/event-tuning.js";
 import { requiredPort } from "@re-cinq/lore-shared/lib/required-env.js";
 
@@ -37,7 +30,7 @@ async function main(): Promise<void> {
 
   const port = requiredPort(process.env, "PORT");
   // Awaited: the stop function is half of the shutdown contract — a fire-and-forgotten start left a late failure with nowhere to surface.
-  const stopServing = await startHealthServer(port, getJobStatus);
+  const stopServing = await startHealthServer(port, () => ({}));
 
   // ONE owner of the process lifecycle; started before anything can report, so an `emit` before this would otherwise sit in memory until shutdown noticed it.
   await eventProxy().start();
@@ -78,7 +71,7 @@ async function bootRuntime(): Promise<void> {
   }
 }
 
-/** Layers 1 and 2: what this Floor subscribes to, the loop that drains it, and the cron emitters that feed it. Order is load-bearing — the subscription set is read at INSERT time, so an event published before this call is delivered to nobody, and the boot reconcile after it is a REPAIR rather than a precondition, which is why its failure never stops the loop. */
+/** Layers 1 and 2: what this Floor subscribes to and the loop that drains it. Order is load-bearing — the subscription set is read at INSERT time, so an event published before this call is delivered to nobody, and the boot reconcile after it is a REPAIR rather than a precondition, which is why its failure never stops the loop. */
 async function startEventPlane(): Promise<void> {
   const registry = buildRegistry();
 
@@ -94,14 +87,8 @@ async function startEventPlane(): Promise<void> {
     markFailed,
     markDead,
   });
-  startEventReaper();
 
-  // Heavy batch jobs stay K8s CronJob pods (the ADR-019 carve-out) and are NOT emitted here.
-  for (const { name, schedule } of CRON_EMITTERS) {
-    registerCronEmitter(name, schedule);
-  }
-
-  void startScheduler();
+  // The cron ticks this loop drains are emitted by the stations service (specs/external-floor FR16): this Floor only consumes them.
   void startWorker();
 }
 

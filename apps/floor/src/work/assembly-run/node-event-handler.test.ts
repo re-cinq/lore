@@ -563,8 +563,8 @@ exit: done
 nodes:
   - id: implement
     type: agent
-    prompt_ref: implementation-tdd
-    station_ref: implementation-tdd
+    prompt_ref: tdd-round
+    station_ref: tdd-round
   - id: validate
     type: validate
   - id: done

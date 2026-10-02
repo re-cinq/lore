@@ -1289,7 +1289,7 @@ describe("a feature-planning run's analyze node settling through the reaper", ()
   });
 });
 
-describe("the implementation line's unclaimed validate node", () => {
+describe("the onboard line's unclaimed validate node (the shape of the implementation line the incident happened on)", () => {
   it("fails the run once and never re-dispatches implement (2026-08-29 incident: validate needed a tag only paused central offered)", async () => {
     const h = harness();
     const builtins = await loadBuiltinAssemblyLines();
@@ -1302,7 +1302,7 @@ describe("the implementation line's unclaimed validate node", () => {
       clusterAgent("satellite", ["node:agent"]),
     ];
     const id = await h.port.start({
-      blueprintName: "implementation",
+      blueprintName: "onboard",
       repo: "re-cinq/lore",
       branch: "lore/impl/1650",
       args: { description: "the ticket" },

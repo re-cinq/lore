@@ -32,6 +32,8 @@ export type RepoRenameOutcome = "renamed" | "merged" | "absent";
 
 /** Repo settings port; resolve() returns fully-resolved lore.repos.settings (settings-pg reads the row then calls resolveDarkFactorySettings). Also covers repo config writes and raw lore.repos record ops (relocated from Floor inline SQL). */
 export interface SettingsPort {
+  /** An org-wide setting (`lore.settings`) by key; null when unset. */
+  orgSetting(key: string): Promise<string | null>;
   resolve(repo: string): Promise<ResolvedDarkFactorySettings>;
   /** Resolved settings, or null when the repo is not onboarded (no lore.repos row). */
   resolveOrNull(repo: string): Promise<ResolvedDarkFactorySettings | null>;

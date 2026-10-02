@@ -149,7 +149,7 @@ export async function runMergeStepNode(
   }
 
   try {
-    await runMergeStep(step, taskId, productionDeps());
+    await runMergeStep(step, taskId, mergeStepProductionDeps());
 
     return { outcome: "success", extras: { "Lore-Merge-Step": step } };
   } catch (err) {
@@ -166,7 +166,8 @@ function stepFailed(step: string, detail: string): NodeResult {
   };
 }
 
-function productionDeps(): MergeStepDeps {
+/** The steps' ports over this process's pool and GitHub App; one per run of a step, because it caches the task row it reads. */
+export function mergeStepProductionDeps(): MergeStepDeps {
   // Cache the whole row to hand to helpers rather than widening the step contract.
   let row: PipelineTask | null = null;
 

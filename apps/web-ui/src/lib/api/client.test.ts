@@ -10,7 +10,6 @@ let fetchMock: ReturnType<typeof vi.fn>;
 beforeEach(() => {
   vi.clearAllMocks();
   process.env.LORE_API_URL = "http://api:3000";
-  process.env.LORE_FLOOR_URL = "http://floor:8080";
   process.env.LORE_ADMIN_TOKEN = "admin";
   process.env.LORE_INGEST_TOKEN = "ingest";
   fetchMock = vi
@@ -35,12 +34,6 @@ describe("apiFetch", () => {
   it("falls back to the ingest token when no admin token is set", async () => {
     delete process.env.LORE_ADMIN_TOKEN;
     await apiFetch("lore-api", "/api/x");
-    expect(init().headers.authorization).toBe("Bearer ingest");
-  });
-
-  it("targets the floor with the ingest token", async () => {
-    await apiFetch("floor", "/api/y");
-    expect(fetchMock.mock.calls[0][0]).toBe("http://floor:8080/api/y");
     expect(init().headers.authorization).toBe("Bearer ingest");
   });
 

@@ -328,16 +328,16 @@ describe("prReadyCheckSweep", () => {
     });
   });
 
-  it("resumes an implementation run parked at await-ci when its build is green, not only implementation-loop runs", async () => {
+  it("resumes a gap-fill run parked at await-ci when its build is green, not only implementation-loop runs", async () => {
     const d = deps({
       listOpenLoopRuns: async () => [
         {
           id: "run-2",
-          blueprintName: "implementation",
+          blueprintName: "gap-fill",
           repo: "acme/widgets",
           status: "running",
           args: { pr_number: 12 },
-          graph: { ...graph, name: "implementation" },
+          graph: { ...graph, name: "gap-fill" },
         },
       ],
       listStationRuns: async () => parkedAtCi,
@@ -359,11 +359,11 @@ describe("prReadyCheckSweep", () => {
       listOpenLoopRuns: async () => [
         {
           id: "run-3",
-          blueprintName: "implementation",
+          blueprintName: "gap-fill",
           repo: "acme/widgets",
           status: "running",
           args: { pr_number: 12 },
-          graph: { ...graph, name: "implementation" },
+          graph: { ...graph, name: "gap-fill" },
         },
       ],
     });

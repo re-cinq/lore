@@ -104,6 +104,18 @@ describe("floorRunToAssemblyRun", () => {
   const convert = (run: RunView, visits: VisitView[] = []) =>
     floorRunToAssemblyRun({ run, visits, graph });
 
+  it("carries task-1 as the task of a run started with task_id task-1", () => {
+    const started = {
+      ...openRun,
+      startItems: {
+        ...openRun.startItems,
+        task_id: { kind: "value" as const, ref: "task-1", by: "lore" },
+      },
+    };
+
+    expect(convert(started).taskId).toBe("task-1");
+  });
+
   it("maps an open run with no visits to a queued record", () => {
     expect(convert(openRun)).toEqual({
       id: "run-1",
