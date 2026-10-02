@@ -23,6 +23,7 @@ const VERDICT = {
   used_sources: [ADR, "docs/mcp-tools-reference.md"],
   addresses_question: true,
   contradicted_sentence: "",
+  both_can_hold: false,
   reason: "Agrees with the decision.",
 };
 
