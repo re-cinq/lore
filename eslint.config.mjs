@@ -335,6 +335,26 @@ export default tseslint.config(
     },
   },
 
+  // The stations service reaches infrastructure through the shared port
+  // adapters, never the vendor SDK directly.
+  {
+    files: ["apps/stations/src/**/*.ts"],
+    rules: {
+      "re-lint/no-forbidden-imports": [
+        "error",
+        {
+          forbidden: [
+            {
+              specifier: "@google-cloud/storage",
+              message:
+                "The stations service reaches infrastructure through @re-cinq/lore-shared port adapters, not @google-cloud/storage directly.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+
   // An in-memory double restates the table it stands in for; that is its job.
   // A contract's parameters name their shape: an inline `opts: { limit: number }`
   // gets restated by every caller instead of imported. Scoped to cluster-agent,

@@ -238,6 +238,8 @@ subscribe" has no expressible meaning on the current substrate.
   host does not serve fails by name rather than as an undefined call.
   ([validated by reports nothing to do when no task is waiting](apps/stations/src/work/approval-check/approval-check.test.ts#L47), [`approval-check.test.ts:53`](apps/stations/src/work/approval-check/approval-check.test.ts#L53), [`approval-check.test.ts:61`](apps/stations/src/work/approval-check/approval-check.test.ts#L61), [`approval-check.test.ts:70`](apps/stations/src/work/approval-check/approval-check.test.ts#L70), [`approval-check.test.ts:78`](apps/stations/src/work/approval-check/approval-check.test.ts#L78), [`approval-check.test.ts:87`](apps/stations/src/work/approval-check/approval-check.test.ts#L87), [`service-stations.test.ts:17`](apps/stations/src/events/runner/service-stations.test.ts#L17), [`service-stations.test.ts:27`](apps/stations/src/events/runner/service-stations.test.ts#L27), [`service-stations.test.ts:37`](apps/stations/src/events/runner/service-stations.test.ts#L37), [`service-stations.test.ts:43`](apps/stations/src/events/runner/service-stations.test.ts#L43), [`station.test.ts:5`](apps/stations/src/work/lib/station.test.ts#L5), [`station.test.ts:9`](apps/stations/src/work/lib/station.test.ts#L9))
 
+> **2026-10-02.** This describes Lore's own Floor (`apps/floor`), which was deleted (`specs/external-floor` FR16.10); it is kept as the record of what the old engine did.
+
 - **FR18 — a finished run records what it did.** Reaching the exit writes the
   run's episode. This was the terminal station's job and it never ran: every
   blueprint names that station as its EXIT, and the walk finishes AT the exit
