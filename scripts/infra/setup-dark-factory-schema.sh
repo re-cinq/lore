@@ -43,10 +43,6 @@ kubectl exec -n "$NS" "$POD" -- psql -U postgres -d lore -c "
     ON pipeline.audit_log(event_type, created_at DESC);
   CREATE INDEX IF NOT EXISTS audit_log_repo_idx
     ON pipeline.audit_log(repo, created_at DESC);
-
-  -- Per-task overrides over per-repo dark_factory settings (FR3.6).
-  ALTER TABLE pipeline.tasks
-    ADD COLUMN IF NOT EXISTS dark_factory_overrides JSONB DEFAULT NULL;
 "
 
 echo "[lore] Dark-factory schema migration complete."
