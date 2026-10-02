@@ -461,8 +461,6 @@ store via the Lore Agent service. ([validated by `content-classify.test.ts:5`](l
 - FR-7.4: Secret and credential redaction runs at ingest time via
   `redactSecrets()`; matched secrets are stripped before content is
   embedded and made searchable. ([validated by `redact.test.ts:5`](libs/shared/src/lib/redact.test.ts#L5), [`redact.test.ts:30`](libs/shared/src/lib/redact.test.ts#L30))
-- FR-7.5: Beyond chunking and embedding, the Lore Agent drafts missing
-  content and opens PRs (the gap-detection drafting path, FR-10). ([validated by `gap-detect.test.ts:123`](libs/shared/src/work/detect/gap-detect.test.ts#L124))
 
 ### FR-8: Observability (Phase 1)
 
@@ -492,25 +490,13 @@ The system MUST validate context quality via CI.
 
 ### FR-10: Gap Detection (Phase 2)
 
-The system MUST automatically identify and address knowledge gaps. ([validated by `gap-detect.test.ts:105`](libs/shared/src/work/detect/gap-detect.test.ts#L106))
-
 - See ADR-010: a weekly job analyzes low-confidence retrievals from the
   previous week (the autoresearch gap loop).
 - Decision: candidate gaps are clustered by embedding similarity.
-- FR-10.3: For a repo missing a documentation kind (CLAUDE.md, ADRs, or
-  specs), the `gap-detect` job drafts the missing content as a `gap-fill`
-  task. ([validated by `gap-detect.test.ts:123`](libs/shared/src/work/detect/gap-detect.test.ts#L124))
 - Decision: the agent opens PRs to the context repo with the drafted content,
   assigned to the relevant team.
 - Decision: human review is required before any auto-drafted content is merged.
-- FR-10.6: The per-repo `gap-detect` job skips repos that are not
-  onboarded. ([validated by `gap-detect.test.ts:105`](libs/shared/src/work/detect/gap-detect.test.ts#L106))
-- FR-10.7: It checks the repo's resolved-schema chunks for a CLAUDE.md
-  doc chunk, ADR chunks, and spec chunks — filing a `gap-fill` task per
-  missing kind, and none when all are present.
-  ([validated by `gap-detect.test.ts:114`](libs/shared/src/work/detect/gap-detect.test.ts#L115), [`gap-detect.test.ts:123`](libs/shared/src/work/detect/gap-detect.test.ts#L124))
-- FR-10.9: An in-flight or failed matching `gap-fill` task suppresses a
-  duplicate filing. ([validated by `gap-detect.test.ts:175`](libs/shared/src/work/detect/gap-detect.test.ts#L136))
+ 
 - FR-10.10 *(added 2026-09-28)*: The `gap-fill` draft is a delivering recipe: it
   commits and pushes what it wrote, because the validate and push nodes after it
   are other pods with fresh clones, and a draft that finds the context already
@@ -519,7 +505,7 @@ The system MUST automatically identify and address knowledge gaps. ([validated b
   so the run ends without a pull request instead of validating an empty branch. The `gap-fill` recipe did not say push after its line moved to a pod per node (nor did the `general` recipe, deleted with its line on 2026-10-01), so 17 of 36 gap-fill branches carried zero commits (2026-08-15 to
   2026-09-25): validate diffed nothing, ran the checks unscoped over the whole
   tree, and was OOM-killed in its 1Gi pod, or passed and the push found nothing,
-  so no PR could open. ([validated by lets a draft that finds the context already current report changes_requested, so a true no-op ends the run without a PR instead of failing an empty branch](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L453), [validated by counts gap-fill as delivering, since validate and push after it are other pods (17 of 36 gap-fill branches shipped 0 commits between 2026-08-15 and 2026-09-25)](libs/shared/src/domain/task-types/delivering-recipes.test.ts#L13), [validated by lifts a draft's already-current reason into the row, so a run that opened no PR says what already did the work](libs/assembly-lines/src/node-outcome.test.ts#L142))
+  so no PR could open. ([validated by lets a draft that finds the context already current report changes_requested, so a true no-op ends the run without a PR instead of failing an empty branch](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L453), [validated by counts gap-fill as delivering, since validate and push after it are other pods (17 of 36 gap-fill branches shipped 0 commits between 2026-08-15 and 2026-09-25)](libs/shared/src/domain/task-types/delivering-recipes.test.ts#L13))
 
 ### FR-11: Live Knowledge Graph (Phase 1+)
 
@@ -1489,3 +1475,26 @@ enforced by benchmarking, infrastructure configuration, and review process.
 7. No long-lived credentials exist anywhere in the deployed system.
 8. Pilot team (platform engineering) completes a full feature loop
    naturally before infrastructure investment begins.
+
+## Background: retired with Lore's own Floor (2026-10-02)
+
+These statements described behaviour of `apps/floor`, the assembly-line engine Lore ran itself. It was deleted on 2026-10-02 (epic #2342, ADR-049): the external floor runs every line now, so the tests that validated these went with the code. They are kept as the record of what the old engine did.
+
+- FR-7.5: Beyond chunking and embedding, the Lore Agent drafts missing
+  content and opens PRs (the gap-detection drafting path, FR-10).
+
+The system MUST automatically identify and address knowledge gaps.
+
+- FR-10.3: For a repo missing a documentation kind (CLAUDE.md, ADRs, or
+  specs), the `gap-detect` job drafts the missing content as a `gap-fill`
+  task.
+
+- FR-10.6: The per-repo `gap-detect` job skips repos that are not
+  onboarded.
+
+- FR-10.7: It checks the repo's resolved-schema chunks for a CLAUDE.md
+  doc chunk, ADR chunks, and spec chunks — filing a `gap-fill` task per
+  missing kind, and none when all are present.
+
+- FR-10.9: An in-flight or failed matching `gap-fill` task suppresses a
+  duplicate filing.

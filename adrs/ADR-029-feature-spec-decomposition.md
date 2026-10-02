@@ -24,7 +24,7 @@ This ADR adds a feature-decompose agent that runs in-process when a feature's sp
 > never starts** — silently, with nothing logged. Every feature planned on the merged line
 > is affected.
 >
-> **The replacement.** [feature-planning.yaml](../libs/assembly-lines/src/assembly-lines/feature-planning.yaml)
+> **The replacement.** feature-planning.yaml
 > gains a `merged` node of type `wait` with `signal: pr_merged`, followed by the
 > `decompose` and `issues` nodes lifted from
 > `feature-decompose.yaml`,
@@ -37,7 +37,7 @@ This ADR adds a feature-decompose agent that runs in-process when a feature's sp
 >
 > **Why a wait node rather than a fixed predicate.** The `pr_merged` signal is already
 > declared in the loader's `WaitSignal` union
-> ([loader.ts](../libs/assembly-lines/src/loader.ts)) and already rendered by the run
+> and already rendered by the run
 > visualization as "Waiting for the spec PR"
 > ([run-node-status.ts](../apps/web-ui/src/lib/run-node-status.ts)) — no definition had
 > ever used it. The seam existed; this uses it. A person merging a PR is a station in

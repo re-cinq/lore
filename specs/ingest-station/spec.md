@@ -74,7 +74,7 @@ home for per-unit isolation, hard deadlines, and kill-that-kills is a station po
   triage/github_action) set `clone: false`, because their line branch is a
   synthetic lease key (`detect/<definition>/<repo>`) that `git checkout` cannot
   resolve, and a forced clone would fail their init.
-  ([`agent-backend:150`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L190), [`per-task-token:64`](libs/shared/src/outbound/cluster/per-task-token.test.ts#L64), [`per-task-token:70`](libs/shared/src/outbound/cluster/per-task-token.test.ts#L70), [`loader:231`](libs/assembly-lines/src/loader.test.ts#L510); implemented by `spec-trace-dispatch.ts:71`, [`ingest.yaml:1`](libs/assembly-lines/src/assembly-lines/ingest.yaml#L1))
+  ([`agent-backend:150`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L190), [`per-task-token:64`](libs/shared/src/outbound/cluster/per-task-token.test.ts#L64), [`per-task-token:70`](libs/shared/src/outbound/cluster/per-task-token.test.ts#L70), `loader:231`; implemented by `spec-trace-dispatch.ts:71`)
 
 - **FR3 — payload transport.** `station_input` carries kind + a payload *reference*,
   never an inline test-report body: report payloads reach ~1 MB (the HTTP body

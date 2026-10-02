@@ -1,9 +1,5 @@
 import { describe, it, expect } from "vitest";
 import { usageResponse } from "./usage.js";
-import {
-  loadBuiltinAssemblyLines,
-  stationUsage,
-} from "@re-cinq/lore-assembly-lines";
 
 describe("usageResponse", () => {
   it("maps the walk's refs to snake_case wire entries sorted by name", () => {
@@ -43,16 +39,6 @@ describe("usageResponse", () => {
         },
       ],
     });
-  });
-
-  it("the builtin catalog's response names onboard but never runbook", async () => {
-    const { usage } = usageResponse(
-      stationUsage(await loadBuiltinAssemblyLines()),
-    );
-    const names = usage.map((entry) => entry.name);
-
-    expect(names).toContain("onboard");
-    expect(names).not.toContain("runbook");
   });
 });
 

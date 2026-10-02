@@ -74,10 +74,6 @@
       "types": "./dist/domain/digest-settings.d.ts",
       "default": "./dist/domain/digest-settings.js"
     },
-    "./detect/*.js": {
-      "types": "./dist/work/detect/*.d.ts",
-      "default": "./dist/work/detect/*.js"
-    },
     "./project/leases/lease-backends.js": {
       "types": "./dist/outbound/project/leases/lease-backends.d.ts",
       "default": "./dist/outbound/project/leases/lease-backends.js"

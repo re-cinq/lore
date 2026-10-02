@@ -1,9 +1,5 @@
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
-import {
-  loadBuiltinAssemblyLines,
-  stationUsage,
-} from "@re-cinq/lore-assembly-lines";
 import type { Pool } from "pg";
 import { PgCatalogStatus } from "@re-cinq/lore-shared/project/agents/catalog-status-pg.js";
 import { bearerScope } from "../../http/bearer-scope.js";
@@ -52,13 +48,13 @@ export function agentDefinitionUsageRoute(
     options: zodResponse(bearerScope("read"), UsageResponse, {
       name: "AgentDefinitionUsage",
       description:
-        "Every station name a builtin blueprint node dispatches, with the nodes that reference it",
+        "Which lines use each stored definition (none: a floor pipeline carries its agents inline), and what each cluster did with it",
     }),
     handler: async (_request, h) => {
-      const applied = await appliedStatuses(getPool());
-      const lines = await loadBuiltinAssemblyLines();
-
-      return h.response(usageResponse(stationUsage(lines), applied));
+      // No line names a stored definition: a floor pipeline file carries its agents inline.
+      return h.response(
+        usageResponse(new Map(), await appliedStatuses(getPool())),
+      );
     },
   };
 }
