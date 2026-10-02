@@ -637,6 +637,43 @@ describe("the floor pipelines shipped in this folder", () => {
     });
   });
 
+  it("starts code-review-reply from the repository, the pull request and the review alone, and gives post-reply the review id so each answer lands under a comment of that review", () => {
+    const { line, stations } = pipelineOf("code-review-reply");
+
+    expect({
+      args: Object.keys(line.args),
+      readReview: stations["read-review"]?.needs.map((need) => need.name),
+      postReply: stations["post-reply"]?.needs.map((need) => need.name),
+    }).toEqual({
+      args: ["repo", "pr_url", "review_id"],
+      readReview: ["pr_url", "review_id"],
+      postReply: ["reply_output", "pr_url", "review_id"],
+    });
+  });
+
+  it("tells the reply agent to answer each line comment by its id, shows both reply blocks whole, and promises it no intent and no thread it was not given", () => {
+    const prompt = promptOnOneLine("code-review-refine");
+
+    expect({
+      answersById: prompt.includes("`inline comment <id> on <path>`"),
+      replyBlock: prompt.includes("```REVIEW_REPLY"),
+      threadBlock: [
+        "```REVIEW_THREAD_REPLIES",
+        '"comment_id"',
+        '"reply"',
+        '"resolved"',
+      ].every((part) => prompt.includes(part)),
+      namesAnIntent: /intent/i.test(prompt),
+      postsItself: prompt.includes("post one clarifying question"),
+    }).toEqual({
+      answersById: true,
+      replyBlock: true,
+      threadBlock: true,
+      namesAnIntent: false,
+      postsItself: false,
+    });
+  });
+
   it("declares the optional file need issue at issue.md on every review agent station", () => {
     const stations = [
       pipelineOf("code-review").stations["code-review"],
