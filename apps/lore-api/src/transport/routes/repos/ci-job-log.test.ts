@@ -14,8 +14,18 @@ const GITHUB_ERRORS: Record<number, Error> = {
   10: githubError(429, "API rate limit exceeded"),
 };
 
+const GHOST = "re-cinq/ghost";
+
+const fakeSettings = (repo: string) => ({
+  record: async () => (repo === GHOST ? null : { fullName: repo }),
+});
+
+const githubReads = vi.fn();
+
 const fakePulls = {
   jobLog: async (jobId: number) => {
+    githubReads();
+
     if (GITHUB_ERRORS[jobId]) {
       throw GITHUB_ERRORS[jobId];
     }
@@ -25,7 +35,10 @@ const fakePulls = {
 };
 
 vi.mock("../../../outbound/project-boot.js", () => ({
-  projectFor: async () => ({ pulls: fakePulls }),
+  projectFor: async (repo: string) => ({
+    pulls: fakePulls,
+    settings: fakeSettings(repo),
+  }),
 }));
 
 import { buildServer } from "../../../app/build-server.js";
@@ -46,6 +59,7 @@ describe("GET /api/repos/{owner}/{repo}/ci-jobs/{job_id}/log", () => {
   });
   afterEach(() => {
     process.env = { ...originalEnv };
+    githubReads.mockClear();
   });
 
   it("returns the job's log tail without timestamps, 200 lines by default", async () => {
@@ -113,5 +127,17 @@ describe("GET /api/repos/{owner}/{repo}/ci-jobs/{job_id}/log", () => {
     expect(
       (await get("/api/repos/re-cinq/lore/ci-jobs/7/log?tail=5000")).statusCode,
     ).toBe(400);
+  });
+
+  it("returns 404 without reading GitHub for a repo that is not onboarded", async () => {
+    const res = await get("/api/repos/re-cinq/ghost/ci-jobs/7/log");
+
+    expect({
+      status: res.statusCode,
+      reads: githubReads.mock.calls.length,
+    }).toEqual({
+      status: 404,
+      reads: 0,
+    });
   });
 });
