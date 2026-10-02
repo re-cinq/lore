@@ -158,7 +158,7 @@ Default `--tags` is `node:agent` only — deliberately. Every *station* recipe (
 
 Optionally set `GITHUB_TOKEN` (a PAT scoped to the repos this satellite may push to) — without it, a claimed run needing a git push (`agent`, `github_action`, `retrospective` node types) fails "GitHub not configured" after launch, while tag-only work (`validate`, `gate`, `detect`) is unaffected. Handing a satellite any GitHub credential is deliberate, so it is never required; the chart also accepts the full GitHub App triple (`github.app.appId`/`privateKey`/`installationId`) via plain `helm --set` for a satellite acting as the org's own identity.
 
-**Live telemetry.** A satellite's runs report their terminal outcome only. The public telemetry door they could post to (`/api/agent-events` on the Floor Lore ran itself) was removed with that Floor on 2026-10-02. The installer still accepts `--telemetry-url`; there is nothing for it to point at. Satellites are part of the cluster agent, whose future is tracked in #2428.
+**Live telemetry.** A satellite's runs report their terminal outcome only. The public telemetry door they could post to (`/api/agent-events` on the Floor Lore ran itself) was removed with that Floor on 2026-10-02. The installer still accepts `--telemetry-url`; there is nothing for it to point at. Satellites are part of the cluster agent, whose future is tracked in #2428. Pod logs (`kubectl -n ai-agents logs`) remain the way to watch a satellite's runs.
 
 Under the hood both drive the standalone chart at `infra/terraform/modules/gke-mcp/lore-platform/charts/cluster-agent-standalone-helm` (deliberately *not* part of the `lore-platform` umbrella); install it with plain `helm` if you need values the script does not surface.
 
