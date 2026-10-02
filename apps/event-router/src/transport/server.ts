@@ -9,7 +9,7 @@ import {
 import { eventsRoute } from "./routes/events.js";
 import { eventDeliveryRoutes } from "./routes/event-deliveries.js";
 import { dbHealthRoute } from "@re-cinq/lore-shared/http/db-health-route.js";
-import { pipeline, deliveries, clusterAgents } from "../outbound/queues.js";
+import { pipeline, deliveries } from "../outbound/queues.js";
 import { MAX_SERVER_BODY_BYTES } from "@re-cinq/lore-shared/http/body-limits.js";
 
 export function buildServer(opts: { port?: number } = {}): Hapi.Server {
@@ -33,7 +33,6 @@ function allRoutes(): Hapi.ServerRoute[] {
       insert: (event) => pipeline().eventReporter.insert(event),
       webhookSecret: process.env.LORE_WEBHOOK_SECRET,
       bearerToken: process.env.LORE_INGEST_TOKEN,
-      findByTokenHash: (hash) => clusterAgents().findByTokenHash(hash),
     }),
     ...eventDeliveryRoutes({
       deliveries: () => deliveries(),

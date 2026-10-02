@@ -27,7 +27,7 @@ captured.
 
 ## Interface
 
-Registered on the event-router ([registration](../../../apps/event-router/src/transport/routes/events.ts#L34)).
+Registered on the event-router ([registration](../../../apps/event-router/src/transport/routes/events.ts#L31)).
 
 - **Method + path**: `POST /api/events`. The pre-ADR-044 hook URL,
   `https://<lore_webhook_hostname>/api/webhook/github`, is still served: an

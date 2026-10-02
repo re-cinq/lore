@@ -467,19 +467,24 @@ pull, so recovery splits by who holds the claim:
 
 ## FR5 — Reporting credentials for satellites
 
+> **Removed on 2026-10-02.** The event-router accepts the bus-wide token
+> only: the per-agent lookup in `pipeline.cluster_agents` went with Lore's
+> cluster agent, the one reporter that used it. The statements below record
+> how a satellite reported.
+
 A satellite must report outcomes without holding the bus-wide credential.
 
 - The event-router's `POST /api/events` accepts, in addition to
   `LORE_INGEST_TOKEN`, per-agent bearer tokens verified against
   `pipeline.cluster_agents.token_hash` (the router already holds the pool;
-  this is a lookup, not a new dependency). ([validated by [`reporter-auth.test.ts:57`](apps/event-router/src/transport/routes/reporter-auth.test.ts#L57), [`reporter-auth.test.ts:93`](apps/event-router/src/transport/routes/reporter-auth.test.ts#L93), [`reporter-auth.test.ts:103`](apps/event-router/src/transport/routes/reporter-auth.test.ts#L103))
+  this is a lookup, not a new dependency).
 - Satellites report with their per-agent token; `LORE_INGEST_TOKEN` never
   leaves the central cluster — and a per-agent token authorises the
   reporting front door only, never the router's other surfaces. The
   satellite's reporter RESOLVES that token per call rather than capturing it:
   a re-registration rotates it, and a captured value would 401 every report
   from then on — which is what the watch did silently until the credential
-  was wired at all, leaving every node to the reaper instead. ([validated by [`server-auth.test.ts:40`](apps/event-router/src/transport/server-auth.test.ts#L40), [`event-reporter-http.test.ts:65`](libs/shared/src/outbound/project/events/event-reporter-http.test.ts#L65), [`event-reporter-http.test.ts:93`](libs/shared/src/outbound/project/events/event-reporter-http.test.ts#L93), [validated by falls back to LORE_INGEST_TOKEN during the boot window before the per-agent token is available](apps/cluster-agent/src/events/claim/select-reporter-token.test.ts#L5), [validated by returns the agentToken thunk unchanged on a satellite, so rotations are still picked up](apps/cluster-agent/src/events/claim/select-reporter-token.test.ts#L14), [validated by does not pick up LORE_INGEST_TOKEN that appears in the env after the satellite's token is selected](apps/cluster-agent/src/events/claim/select-reporter-token.test.ts#L23))
+  was wired at all, leaving every node to the reaper instead. ([validated by [`event-reporter-http.test.ts:65`](libs/shared/src/outbound/project/events/event-reporter-http.test.ts#L65), [`event-reporter-http.test.ts:93`](libs/shared/src/outbound/project/events/event-reporter-http.test.ts#L93), [validated by falls back to LORE_INGEST_TOKEN during the boot window before the per-agent token is available](apps/cluster-agent/src/events/claim/select-reporter-token.test.ts#L5), [validated by returns the agentToken thunk unchanged on a satellite, so rotations are still picked up](apps/cluster-agent/src/events/claim/select-reporter-token.test.ts#L14), [validated by does not pick up LORE_INGEST_TOKEN that appears in the env after the satellite's token is selected](apps/cluster-agent/src/events/claim/select-reporter-token.test.ts#L23))
 - The central cluster-agent likewise prefers its per-agent token once
   registration has completed; `LORE_INGEST_TOKEN` is the boot-window
   fallback only — used while the first registration is still in flight,
@@ -500,7 +505,7 @@ A satellite must report outcomes without holding the bus-wide credential.
   its reporting credential — one revocation surface for both claiming and
   reporting. An agent already marked offline still delivers a late terminal
   report — dedupe keys make a duplicate safe, and losing the report would
-  lose the work. ([validated by [`reporter-auth.test.ts:68`](apps/event-router/src/transport/routes/reporter-auth.test.ts#L68), [`reporter-auth.test.ts:81`](apps/event-router/src/transport/routes/reporter-auth.test.ts#L81))
+  lose the work.
 
 ## FR6 — Standalone satellite chart
 
