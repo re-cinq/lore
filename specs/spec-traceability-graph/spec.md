@@ -169,8 +169,7 @@ which ships first. Phasing in [`plan.md`](./plan.md).
 
 The projection sets the per-statement `violated`/`drifted` flags above; the
 weekly `spec_drift` detection
-(
-which ran per repo as the `detect` node of the `spec-drift` assembly line until its
+(which ran per repo as the `detect` node of the `spec-drift` assembly line until its
 tick was removed on 2026-10-02 — `spec-upkeep` on the external floor reads the same flags now,
 `specs/external-floor` FR14) is the
 **consumer** that turns them into gap-fill tasks. It is the single detector of

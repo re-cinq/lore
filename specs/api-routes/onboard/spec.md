@@ -92,6 +92,7 @@ through their own mirror of the guard, which decides identically. ([validated by
 - **Duplicate submission**: 409, `{ blocked, error, task_id }`. ([validated by `returns 409 with the reason when the guard blocks the submission`](apps/lore-api/src/transport/routes/repos/onboard.test.ts#L62))
 - **Engine / parse error**: 500, `{ error: "<message>" }`.
 - **No DB**: 503, `{ error: "database not available" }`.
+- **No external floor**: 503, `{ error: "onboarding needs the external floor, and this deployment has none" }`. ([validated by `returns 503 with the reason when onboarding is refused for lack of a floor`](apps/lore-api/src/transport/routes/repos/onboard.test.ts#L83))
 
 ## Dependencies & side effects
 

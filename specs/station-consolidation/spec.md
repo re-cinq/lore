@@ -147,7 +147,6 @@ subscribe" has no expressible meaning on the current substrate.
   The event carries the outcome twice — once beside the result and once inside
   it — and the two must agree, since only one of them is checked against the set
   of outcomes a node may produce.
- 
 
 - **FR11 — detection is short units, not one long one.** No detection work runs
   as a long-lived unit or requires a pod merely to obtain a deadline. Two of the

@@ -71,9 +71,12 @@ case). **Never throws** — every path returns text.
   `onboard` task to `pipeline.tasks` (via `createTask`, which also records a
   `pending` task event).
 - Env: `LORE_DB_HOST` (presence gate only).
-- The actual PR creation happens later: the Floor's `handleOnboard` enrols the
-  repo and commits the verbatim scaffold, and the `onboard` assembly line's push
-  node opens the PR — never this handler.
+- The actual PR creation happens later, on the external floor: the `onboard`
+  line's `enrol` station commits the verbatim scaffold and its `open-pr` station
+  opens the PR — never this handler.
+- A deployment with no external floor refuses: the API answers 503 with
+  "onboarding needs the external floor, and this deployment has none", and the
+  tool returns that text.
 
 ## Acceptance Criteria
 
