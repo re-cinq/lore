@@ -1,19 +1,12 @@
 # --------------------------------------------------------------------------
 # The GitHub webhook hostname (lore_event_router_hostname)
 #
-# This host carried the event-router's one front door until 2026-10-02 (ADR-044
-# and its amendment). The router is deleted; lore-api serves GitHub's
-# deliveries at `POST /api/webhook/github`. The hostname and the `/api/events`
-# path do not change, so no repository's hook is registered again: nginx
-# rewrites the public path onto lore-api's route.
-#
-# The ingress lives in the lore-api namespace, beside the Service it names.
-# Its certificate is a Certificate resource rather than the usual
-# cert-manager annotation, so it can be issued BEFORE the ingress moves here:
-# an ingress that arrives with no certificate serves nginx's default one for
-# as long as issuance takes, and GitHub does not redeliver what fails TLS.
-# Apply this file in two steps (see the pull request that introduced it):
-# the certificate first, the rest once it is Ready.
+# Step 1 of moving this ingress out of the event-router's namespace: the
+# certificate for the hostname is issued in the lore-api namespace BEFORE the
+# ingress moves there. An ingress that arrives with no certificate serves
+# nginx's default one for as long as issuance takes, and GitHub does not
+# redeliver a delivery that fails TLS. Step 2 recreates the ingress beside
+# lore-api and removes the event-router namespace.
 # --------------------------------------------------------------------------
 
 resource "kubectl_manifest" "lore_webhook_certificate" {
@@ -39,13 +32,33 @@ resource "kubectl_manifest" "lore_webhook_certificate" {
   depends_on = [kubernetes_namespace.lore_api]
 }
 
-resource "kubernetes_ingress_v1" "lore_webhook" {
+resource "kubernetes_service_v1" "lore_api_webhook_alias" {
   count = var.lore_event_router_hostname != "" ? 1 : 0
 
   metadata {
-    name      = "lore-webhook"
-    namespace = "lore-api"
+    name      = "lore-api-webhook"
+    namespace = "lore-event-router"
+  }
+
+  spec {
+    type          = "ExternalName"
+    external_name = "lore-api.lore-api.svc.cluster.local"
+    port {
+      port = 3000
+    }
+  }
+
+  depends_on = [kubernetes_namespace.lore_event_router]
+}
+
+resource "kubernetes_ingress_v1" "lore_event_router" {
+  count = var.lore_event_router_hostname != "" ? 1 : 0
+
+  metadata {
+    name      = "lore-event-router"
+    namespace = "lore-event-router"
     annotations = {
+      "cert-manager.io/cluster-issuer"            = "letsencrypt-prod"
       "external-dns.alpha.kubernetes.io/hostname" = var.lore_event_router_hostname
       # A GitHub push delivery can reach 25MB; nginx's 1MB default would refuse
       # it before lore-api ever verifies the signature.
@@ -58,7 +71,7 @@ resource "kubernetes_ingress_v1" "lore_webhook" {
     ingress_class_name = "nginx-ingress"
     tls {
       hosts       = [var.lore_event_router_hostname]
-      secret_name = "lore-webhook-tls"
+      secret_name = "lore-event-router-tls"
     }
     rule {
       host = var.lore_event_router_hostname
@@ -68,7 +81,7 @@ resource "kubernetes_ingress_v1" "lore_webhook" {
           path_type = "Exact"
           backend {
             service {
-              name = "lore-api"
+              name = "lore-api-webhook"
               port {
                 number = 3000
               }
@@ -79,5 +92,5 @@ resource "kubernetes_ingress_v1" "lore_webhook" {
     }
   }
 
-  depends_on = [kubectl_manifest.lore_webhook_certificate]
+  depends_on = [kubernetes_service_v1.lore_api_webhook_alias]
 }
