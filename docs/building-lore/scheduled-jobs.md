@@ -20,7 +20,7 @@
 | Anthropic cost sync | Daily 07:00 | courier CronJob | Reconciles Anthropic usage and cost for the prior billing day |
 | GCP cost sync | Daily 08:00 | courier CronJob | Reconciles GCP cost for the `/spend` page |
 
-**Tick → sweep**: the stations service emits a `cron.<name>.tick` event through the [event-router](../../apps/event-router/README.md) (`libs/shared/src/work/scheduler/cron-emitters.ts`), claims its own delivery, and runs the sweep that declared that tick. **Courier CronJob**: a Kubernetes CronJob that posts `POST /api/stations/<name>` on the stations service and exits ([ADR-019](../../adrs/ADR-019-scheduled-job-runtime-split.md)).
+**Tick → sweep**: the stations service writes a `cron.<name>.tick` event to `pipeline.events` from its own database pool (`libs/shared/src/work/scheduler/cron-emitters.ts`), claims its own delivery, and runs the sweep that declared that tick. **Courier CronJob**: a Kubernetes CronJob that posts `POST /api/stations/<name>` on the stations service and exits ([ADR-019](../../adrs/ADR-019-scheduled-job-runtime-split.md)).
 
 What is not on a schedule: reviews and plans start from GitHub and UI events; specs, ADRs and test reports reach the stores from CI on every push to `main`.
 

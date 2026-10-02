@@ -2,11 +2,9 @@
 
 import { internalToken } from "../../../lib/internal-token.js";
 import { HttpEventReporter } from "./event-reporter-http.js";
-import { HttpEventDeliveries } from "./event-deliveries-http.js";
 import { EventProxy } from "./event-proxy.js";
 import { EventSink, UnconfiguredSink } from "./event-sink.js";
 import type { Sink } from "./event-input-port.js";
-import type { EventDeliveriesPort } from "./event-deliveries-port.js";
 import type { EventReporter } from "./event-reporter-port.js";
 import {
   DEFAULT_QUEUE_CAPACITY,
@@ -57,8 +55,23 @@ export interface SelectProxyDeps extends SelectReporterDeps {
 
 /** The {@link EventProxy} this process reports through — always a proxy so callers hold one type; call once at a composition root and memoize. Local mode retries once, since a failed Postgres insert is not a wire blip. */
 export function selectEventProxy(deps: SelectProxyDeps): EventProxy {
-  const reporter = selectEventReporter(deps);
+  return proxyOver(selectEventReporter(deps), deps);
+}
 
+export type LocalProxyDeps = Pick<
+  SelectProxyDeps,
+  "local" | "capacity" | "retry" | "telemetry"
+>;
+
+/** The {@link EventProxy} of a process that holds a pool: it reports straight to `pipeline.events`, whatever `EVENT_ROUTER_URL` says. */
+export function localEventProxy(deps: LocalProxyDeps): EventProxy {
+  return proxyOver(deps.local(), deps);
+}
+
+function proxyOver(
+  reporter: EventReporter,
+  deps: Omit<SelectProxyDeps, "local">,
+): EventProxy {
   return new EventProxy({
     sinks: {
       event: new EventSink(reporter),
@@ -68,31 +81,4 @@ export function selectEventProxy(deps: SelectProxyDeps): EventProxy {
     retry: deps.retry ?? DEFAULT_REPORT_RETRY,
     onUnauthorized: deps.onUnauthorized,
   });
-}
-
-export interface SelectDeliveriesDeps {
-  /** The pool-backed deliveries to fall back to. */
-  local: () => EventDeliveriesPort;
-  env?: NodeJS.ProcessEnv;
-  log?: (message: string) => void;
-}
-
-/** Resolve the DELIVERY side for a subscriber, same three ways as above — separate because consuming a subscriber's own copies is a different privilege from draining the shared queue. */
-export function selectEventDeliveries(
-  deps: SelectDeliveriesDeps,
-): EventDeliveriesPort {
-  const env = deps.env ?? process.env;
-  const log = deps.log ?? console.log;
-  const url = env.EVENT_ROUTER_URL;
-
-  if (!url) {
-    log(
-      "[events] EVENT_ROUTER_URL unset — consuming deliveries directly (local mode)",
-    );
-
-    return deps.local();
-  }
-  log(`[events] consuming deliveries through the event-router at ${url}`);
-
-  return new HttpEventDeliveries(url, internalToken(env));
 }

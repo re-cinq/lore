@@ -192,12 +192,12 @@ A producer keeps its code and its location; only its write changes. The
 selection is the same three-way shape `agentDefs` already uses:
 
 - A producer that can see the router reports over HTTP, and never resolves the
-  pool it would otherwise fall back to. ([validated by reports over HTTP when EVENT_ROUTER_URL names a router](libs/shared/src/outbound/project/events/select-event-reporter.test.ts#L12), [`select-event-reporter.test.ts:22`](libs/shared/src/outbound/project/events/select-event-reporter.test.ts#L22))
+  pool it would otherwise fall back to. ([validated by reports over HTTP when EVENT_ROUTER_URL names a router](libs/shared/src/outbound/project/events/select-event-reporter.test.ts#L13), [`select-event-reporter.test.ts:23`](libs/shared/src/outbound/project/events/select-event-reporter.test.ts#L23))
 - One that cannot falls back to the pool it already holds, which is what keeps
-  a local `npm start` — a Floor and a Postgres, no router — working. ([validated by falls back to the local queue when EVENT_ROUTER_URL is unset](libs/shared/src/outbound/project/events/select-event-reporter.test.ts#L38))
+  a local `npm start` — a Floor and a Postgres, no router — working. ([validated by falls back to the local queue when EVENT_ROUTER_URL is unset](libs/shared/src/outbound/project/events/select-event-reporter.test.ts#L39))
 - The choice is logged at construction, because the fallback is right locally
   and wrong in a cluster: a deployment that means to route and has lost
-  `EVENT_ROUTER_URL` would write directly and look perfectly healthy. ([validated by says which way it resolved](libs/shared/src/outbound/project/events/select-event-reporter.test.ts#L50))
+  `EVENT_ROUTER_URL` would write directly and look perfectly healthy. ([validated by says which way it resolved](libs/shared/src/outbound/project/events/select-event-reporter.test.ts#L51))
 
 ### What moves, and what deliberately does not
 
@@ -377,10 +377,10 @@ against it and declare only what they observed.
   a drop-in `EventReporter`. Three Floor ingress routes and two lore-api routes
   answer `202` only once the insert lands and turn a throw into a `500` so the
   sender redelivers; queueing underneath them would convert at-least-once
-  GitHub/CI delivery into best-effort. ([validated by delivers straight to the event sink](libs/shared/src/outbound/project/events/event-proxy.test.ts#L70), [propagates the sink's failure](libs/shared/src/outbound/project/events/event-proxy.test.ts#L80), [inserts straight through to the local queue](libs/shared/src/outbound/project/events/select-event-reporter.test.ts#L66))
+  GitHub/CI delivery into best-effort. ([validated by delivers straight to the event sink](libs/shared/src/outbound/project/events/event-proxy.test.ts#L70), [propagates the sink's failure](libs/shared/src/outbound/project/events/event-proxy.test.ts#L80), [inserts straight through to the local queue](libs/shared/src/outbound/project/events/select-event-reporter.test.ts#L67))
 - `emit` queues and resolves before delivery, for producers with nobody to
   return a status to — a watch callback, a sweep — where the choice was
-  previously between an inline ladder and silent loss. ([validated by resolves before the sink has delivered](libs/shared/src/outbound/project/events/event-proxy.test.ts#L93), [delivers queued messages once started](libs/shared/src/outbound/project/events/event-proxy.test.ts#L104), [queues an emitted message](libs/shared/src/outbound/project/events/select-event-reporter.test.ts#L82))
+  previously between an inline ladder and silent loss. ([validated by resolves before the sink has delivered](libs/shared/src/outbound/project/events/event-proxy.test.ts#L93), [delivers queued messages once started](libs/shared/src/outbound/project/events/event-proxy.test.ts#L104), [queues an emitted message](libs/shared/src/outbound/project/events/select-event-reporter.test.ts#L83))
 - A message is routed by its kind, so a telemetry passthrough never lands on the
   bus: `pipeline.events` is a dispatch queue with dedupe keys and handler
   fan-out, and per-tool-call volume does not belong on it. ([validated by routes each message to the sink for its kind](libs/shared/src/outbound/project/events/event-proxy.test.ts#L117), [unwraps an event message into an insert](libs/shared/src/outbound/project/events/event-sink.test.ts#L6), [refuses a telemetry message](libs/shared/src/outbound/project/events/event-sink.test.ts#L19))
@@ -453,7 +453,7 @@ now `emit`, so a router blip retries instead of dropping.
   wraps, and never resolves the local pool when a router is configured — a
   pool-less process must be able to hold one. In local mode the event sink is
   the pool-backed reporter with a single attempt, since a failed same-process
-  Postgres insert is not a wire blip. ([validated by never resolves the local queue when a router is configured, so a pool-less process can hold one](libs/shared/src/outbound/project/events/select-event-reporter.test.ts#L132), [presents a token thunk per call, so a rotated per-agent credential is picked up](libs/shared/src/outbound/project/events/select-event-reporter.test.ts#L102))
+  Postgres insert is not a wire blip. ([validated by never resolves the local queue when a router is configured, so a pool-less process can hold one](libs/shared/src/outbound/project/events/select-event-reporter.test.ts#L133), [presents a token thunk per call, so a rotated per-agent credential is picked up](libs/shared/src/outbound/project/events/select-event-reporter.test.ts#L103))
 
 ## Amendment (2026-09-08): GitHub delivers to the router; the Floor route is gone
 
