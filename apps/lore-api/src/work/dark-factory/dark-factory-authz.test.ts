@@ -15,12 +15,14 @@ function fakeOctokit(init: {
   pullsGetError?: unknown;
   events?: unknown[];
   listEventsError?: unknown;
+  reviews?: unknown[][];
   codeownersContent?: string | null;
 }) {
   return {
     rest: {
       pulls: {
         get: mockPullsGet(init.prState, init.pullsGetError, init.prLabels),
+        listReviews: mockListReviews(init.reviews),
       },
       issues: { listEvents: mockListEvents(init.events, init.listEventsError) },
       repos: { getContent: mockGetContent(init.codeownersContent) },
@@ -45,6 +47,17 @@ function mockPullsGet(
     },
   });
 }
+
+function mockListReviews(pages: unknown[][] = []) {
+  const fn = vi.fn();
+
+  fn.mockResolvedValue({ data: [] });
+  pages.forEach((rows) => fn.mockResolvedValueOnce({ data: rows }));
+
+  return fn;
+}
+
+const review = (login: string, state: string) => ({ user: { login }, state });
 
 function mockListEvents(events: unknown[] | undefined, error: unknown) {
   if (error) {
@@ -383,6 +396,95 @@ describe("verifyApproval revocation and CLAUDE.md ownership", () => {
       .mockResolvedValueOnce({ data: [labeledEvent("alice")] } as never);
 
     await expect(run(octokit)).resolves.toMatchObject({ approver: "alice" });
+  });
+});
+
+describe("verifyApproval review approval", () => {
+  const ownerRules = "* @alice\n";
+
+  it("accepts an owner's APPROVED review when a non-owner applied the label", async () => {
+    const octokit = fakeOctokit({
+      events: [labeledEvent("mallory")],
+      reviews: [[review("alice", "APPROVED")]],
+      codeownersContent: ownerRules,
+    });
+
+    await expect(run(octokit)).resolves.toMatchObject({ approver: "alice" });
+  });
+
+  it("refuses an owner approval later withdrawn by CHANGES_REQUESTED", async () => {
+    const octokit = fakeOctokit({
+      events: [labeledEvent("mallory")],
+      reviews: [
+        [review("alice", "APPROVED"), review("alice", "CHANGES_REQUESTED")],
+      ],
+      codeownersContent: ownerRules,
+    });
+
+    await expect(run(octokit)).rejects.toMatchObject({
+      code: "approver_not_codeowner",
+    });
+  });
+
+  it("refuses an owner approval that was DISMISSED", async () => {
+    const octokit = fakeOctokit({
+      events: [labeledEvent("mallory")],
+      reviews: [[review("alice", "APPROVED"), review("alice", "DISMISSED")]],
+      codeownersContent: ownerRules,
+    });
+
+    await expect(run(octokit)).rejects.toMatchObject({
+      code: "approver_not_codeowner",
+    });
+  });
+
+  it("refuses an owner approval when the label has been removed", async () => {
+    const octokit = fakeOctokit({
+      prLabels: [],
+      events: [labeledEvent("mallory"), unlabeledEvent("mallory")],
+      reviews: [[review("alice", "APPROVED")]],
+      codeownersContent: ownerRules,
+    });
+
+    await expect(run(octokit)).rejects.toMatchObject({
+      code: "label_missing",
+    });
+  });
+
+  it("refuses an APPROVED review from a non-owner", async () => {
+    const octokit = fakeOctokit({
+      events: [labeledEvent("mallory")],
+      reviews: [[review("mallory", "APPROVED")]],
+      codeownersContent: ownerRules,
+    });
+
+    await expect(run(octokit)).rejects.toMatchObject({
+      code: "approver_not_codeowner",
+    });
+  });
+
+  it("keeps an owner approval standing through a later plain comment", async () => {
+    const octokit = fakeOctokit({
+      events: [labeledEvent("mallory")],
+      reviews: [[review("alice", "APPROVED"), review("alice", "COMMENTED")]],
+      codeownersContent: ownerRules,
+    });
+
+    await expect(run(octokit)).resolves.toMatchObject({ approver: "alice" });
+  });
+
+  it("reads reviews across pages", async () => {
+    const filler = Array.from({ length: 100 }, () =>
+      review("bob", "COMMENTED"),
+    );
+    const octokit = fakeOctokit({
+      events: [labeledEvent("mallory")],
+      reviews: [filler, [review("alice", "APPROVED")]],
+      codeownersContent: ownerRules,
+    });
+
+    await expect(run(octokit)).resolves.toMatchObject({ approver: "alice" });
+    expect(octokit.rest.pulls.listReviews).toHaveBeenCalledTimes(2);
   });
 });
 

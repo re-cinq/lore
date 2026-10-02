@@ -1,5 +1,6 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { Octokit } from "octokit";
+import { standingApprovers } from "./approval-reviews.js";
 import {
   isCodeowner,
   isTeamOnlyOwners,
@@ -16,7 +17,7 @@ export const APPROVAL_LABEL = "dark-factory-approval";
 export interface ApprovalEvidence {
   /** "owner/repo#42" form, from the X-Lore-Approval-PR header. */
   prRef: string;
-  /** GitHub login of the user who applied the approval label. */
+  /** GitHub login of the CLAUDE.md owner who applied the label or whose review approval stands. */
   approver: string;
   /** PR URL, recorded in the audit log. */
   prUrl: string;
@@ -49,7 +50,7 @@ type IssueEvents = Awaited<ReturnType<Octokit["rest"]["issues"]["listEvents"]>>;
 type LabelEvent = IssueEvents["data"][number];
 const EVENTS_PAGE_SIZE = 100;
 
-interface PrLookup {
+export interface PrLookup {
   octokit: Octokit;
   owner: string;
   repo: string;
@@ -82,15 +83,8 @@ export async function verifyApproval(opts: {
 
   const target = { octokit, owner, repo, number, prRef };
   const pr = await fetchOpenApprovalPr(target);
-  const approver = await resolveLabelApprover(target, pr);
-
-  await enforceApproverIsCodeowner({
-    octokit,
-    owner,
-    repo,
-    targetRepo,
-    approver,
-  });
+  const labeler = await resolveLabelApprover(target, pr);
+  const approver = await resolveApprover(target, targetRepo, labeler);
 
   return { prRef, approver, prUrl: pr.data.html_url };
 }
@@ -174,11 +168,11 @@ function throwApprovalPrFetchError(err: unknown, prRef: string): never {
   );
 }
 
-/** The approver is whoever APPLIED the label, read from the issue-events log: the label's presence alone names nobody, and the ceremony has to attribute the approval to an account it can then check against CODEOWNERS. */
+/** The label's most recent applier, read from the issue-events log: the label's presence alone names nobody. Undefined when the log shows no live application, which only a CLAUDE.md owner's review approval can still satisfy. */
 async function resolveLabelApprover(
   target: PrLookup,
   pr: PullRequest,
-): Promise<string> {
+): Promise<string | undefined> {
   const { octokit, owner, repo, number, prRef } = target;
 
   const { labels } = pr.data;
@@ -193,9 +187,7 @@ async function resolveLabelApprover(
     await fetchApprovalEvents(octokit.rest.issues, owner, repo, number),
   );
 
-  assertLabelPresent(labelEvent, prRef);
-
-  return labelEvent.actor.login;
+  return (labelEvent?.actor as { login?: string } | null | undefined)?.login;
 }
 
 async function fetchApprovalEvents(
@@ -257,34 +249,49 @@ function findApprovalLabelEvent(events: LabelEvent[]): LabelEvent | undefined {
   return current;
 }
 
-function assertLabelPresent(
-  labelEvent: LabelEvent | undefined,
-  prRef: string,
-): asserts labelEvent is LabelEvent & { actor: { login: string } } {
-  enforceTrue(
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- octokit types `actor` as required, but GitHub returns null for a deleted/anonymized account.
-    !(!labelEvent || !labelEvent.actor?.login),
-    (message) => new TwoKeyError(message, "label_missing"),
-    `Approval label "${APPROVAL_LABEL}" missing on PR ${prRef}`,
-  );
-}
+/** The label is the live-decision marker; the second key is then either its applier owning CLAUDE.md or a CLAUDE.md owner whose latest review of the PR is still an approval. */
+async function resolveApprover(
+  target: PrLookup,
+  targetRepo: string,
+  labeler: string | undefined,
+): Promise<string> {
+  const codeowners = await fetchCodeowners(target);
 
-/** The person who applied the label must own the code. A CODEOWNERS file of only team handles is refused EXPLICITLY rather than treated as "no owners": team-membership lookup is not implemented, and silently failing closed would read as the approver being unauthorized when the real problem is this checker. */
-async function enforceApproverIsCodeowner(check: {
-  octokit: Octokit;
-  owner: string;
-  repo: string;
-  targetRepo: string;
-  approver: string;
-}): Promise<void> {
-  const { octokit, owner, repo, targetRepo, approver } = check;
-  const codeowners = await fetchCodeowners({ octokit, owner, repo });
-
-  if (isCodeowner(approver, codeowners)) {
-    return;
+  if (labeler !== undefined && isCodeowner(labeler, codeowners)) {
+    return labeler;
   }
 
-  throwApproverRejected({ codeowners, approver, targetRepo });
+  const reviewer = (await fetchApprovers(target)).find((login) =>
+    isCodeowner(login, codeowners),
+  );
+
+  return reviewer ?? throwUnapproved(target, targetRepo, labeler, codeowners);
+}
+
+async function fetchApprovers(target: PrLookup): Promise<string[]> {
+  try {
+    return await standingApprovers(target);
+  } catch (err) {
+    throw new TwoKeyError(
+      `GitHub API error fetching reviews: ${(err as Error).message}`,
+      "github_api",
+    );
+  }
+}
+
+function throwUnapproved(
+  target: PrLookup,
+  targetRepo: string,
+  labeler: string | undefined,
+  codeowners: CodeownersRow[],
+): never {
+  enforceTrue(
+    labeler !== undefined,
+    (message) => new TwoKeyError(message, "label_missing"),
+    `Approval label "${APPROVAL_LABEL}" missing on PR ${target.prRef}`,
+  );
+
+  return throwApproverRejected({ codeowners, approver: labeler, targetRepo });
 }
 
 /** Fetch CODEOWNERS file (.github/, root, docs/); returns [pattern, owners[]] or empty array. */
