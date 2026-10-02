@@ -3344,7 +3344,8 @@ export interface components {
             | "bad_message"
             | "channel_in_use"
             | "too_many_channels"
-            | "unknown_channel";
+            | "unknown_channel"
+            | "rate_limited";
         };
     MemoryAuditPage: {
       entries: {

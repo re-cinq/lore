@@ -4,7 +4,12 @@ import { WebSocket } from "ws";
 import { InMemoryRunNotifier } from "./run-notify-hub.js";
 import { memoryLiveTokens } from "./live-tokens.js";
 import { RunFeedRegistry } from "./run-feed.js";
-import { mountLiveSocket, type LiveSocketMount } from "./live-socket.js";
+import {
+  mountLiveSocket,
+  type LiveSocketDeps,
+  type LiveSocketLimits,
+  type LiveSocketMount,
+} from "./live-socket.js";
 import type { CollabServer, TunnelSocket } from "./plan-channel.js";
 import {
   base64ToBytes,
@@ -336,5 +341,109 @@ describe("the live socket", () => {
     await new Promise((resolve) => setTimeout(resolve, 20));
 
     expect(feeds.feedCount).toBe(0);
+  });
+
+  const upgradeStatus = (): Promise<number> => {
+    const attempt = queuedClient(port);
+
+    opened.push(attempt);
+
+    return new Promise<number>((resolve) => {
+      attempt.ws.once("open", () => resolve(101));
+      attempt.ws.once("unexpected-response", (_, res) =>
+        resolve(res.statusCode ?? 0),
+      );
+      attempt.ws.once("error", () => {});
+    });
+  };
+
+  const remount = (extra: Partial<LiveSocketDeps>) => {
+    mount.close();
+    mount = mountLiveSocket(http, {
+      run: { verifyToken: tokens.verify, runs: seed.runs, feeds },
+      collab: echoingCollabThatRefusesOnByte(),
+      log: () => {},
+      ...extra,
+    });
+  };
+
+  const allowing = (
+    upgrades: number,
+    opens: number,
+    address: string | null = "caller",
+  ): LiveSocketLimits => {
+    let upgradesLeft = upgrades;
+    let opensLeft = opens;
+
+    return {
+      addressOf: () => address ?? undefined,
+      allowUpgrade: () => upgradesLeft-- > 0,
+      allowOpen: () => opensLeft-- > 0,
+    };
+  };
+
+  it("refuses an upgrade the limiter denies, with 429", async () => {
+    remount({ limits: allowing(2, 0) });
+    const statuses = [
+      await upgradeStatus(),
+      await upgradeStatus(),
+      await upgradeStatus(),
+    ];
+
+    expect(statuses).toEqual([101, 101, 429]);
+  });
+
+  it("refuses an upgrade while the global socket ceiling is reached, with 503", async () => {
+    remount({ maxSockets: 1 });
+    const first = await upgradeStatus();
+    const second = await upgradeStatus();
+
+    expect({ first, second }).toEqual({ first: 101, second: 503 });
+  });
+
+  it("caps the sockets one address holds open and admits another once one closes", async () => {
+    remount({ maxSocketsPerAddress: 2, limits: allowing(99, 0) });
+    const held = [await connect(), await connect()];
+    const refused = await upgradeStatus();
+
+    held[0].ws.close();
+    await held[0].closed();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const admitted = await upgradeStatus();
+
+    expect({ refused, admitted }).toEqual({ refused: 429, admitted: 101 });
+  });
+
+  it("applies neither the per-address cap nor the upgrade rate when no trusted client address is known", async () => {
+    remount({
+      maxSocketsPerAddress: 1,
+      limits: allowing(0, 0, null),
+    });
+    const statuses = [
+      await upgradeStatus(),
+      await upgradeStatus(),
+      await upgradeStatus(),
+    ];
+
+    expect(statuses).toEqual([101, 101, 101]);
+  });
+
+  it("answers an open the limiter denies with a rate_limited error and opens no channel", async () => {
+    remount({ limits: allowing(5, 1) });
+    const c = await connect();
+
+    openRun(c, "a");
+    openRun(c, "b");
+    let reply = await c.next();
+
+    while (reply.type !== "error") {
+      reply = await c.next();
+    }
+
+    expect(reply).toEqual({
+      type: "error",
+      channel: "b",
+      code: "rate_limited",
+    });
   });
 });
