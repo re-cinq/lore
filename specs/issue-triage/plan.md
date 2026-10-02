@@ -107,7 +107,7 @@ Four symbols, four files, in sequence:
 
 #### Label creation and `triage_label` service station
 
-The `issues` station (`apps/stations/src/work/issues/`) calls the GitHub API to apply labels and refuses a label that does not exist in the repository. The eight `triage:*` labels must be created in each onboarded repository (onboarding scaffolding or a one-time setup step) before any triage run reaches the `issues` station.
+The `issues` station (`apps/stations/src/planning/file-issues/`) calls the GitHub API to apply labels and refuses a label that does not exist in the repository. The eight `triage:*` labels must be created in each onboarded repository (onboarding scaffolding or a one-time setup step) before any triage run reaches the `issues` station.
 
 `triage_label` is a new `runtime: service` station in `apps/stations/src/work/triage-label/`: it reads the node outcome from its input and calls `project.issues.addLabel(issueNumber, triageLabelForOutcome(outcome))`. Its node type is `triage_label`; it must be added to `NodeType` and `PRODUCIBLE_OUTCOMES` (`["success", "failed"]`) in `libs/assembly-lines/src/assembly-line-schema.ts`. Test: `apps/stations/src/work/triage-label/triage-label.test.ts` (applies the correct label per outcome).
 

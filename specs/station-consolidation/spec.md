@@ -15,6 +15,8 @@ the three defects that shape caused: work polled from the database that the even
 bus already reported, six name registries that cannot drift-check each other, and
 a bus that structurally cannot fan one event out to two consumers.
 
+> **Amended 2026-10-02.** The registry holds sweeps only. The node stations the old walk dispatched (`detect`, `ingest`, `validate`, `retrospective`, `feature-review`, `pr-review`, `ci-check`), the `approval-check` sweep, the pod form and its `lore-station` image are deleted with that engine (`specs/external-floor` FR16.12). The issue-filing and merge-step logic moved beside the floor stations that use them (`apps/stations/src/planning/file-issues/`, `apps/stations/src/merge/merge-step/`). Statements below that describe a node or human station describe what was.
+
 ## Problem Statement
 
 "Station" names three unrelated things in three homes. `apps/lore-station` is a
@@ -47,7 +49,7 @@ subscribe" has no expressible meaning on the current substrate.
   `Record<StationName, StationModule>`, replacing the three hand-maintained
   registries. The folder name is the station name is the registry key is the URL
   segment — one string, not four.
-  ([validated by registers every station folder, so adding one and forgetting the barrel fails here](apps/stations/src/work/registry.test.ts#L18), [`index.test.ts:29`](apps/stations/src/work/registry.test.ts#L22), [`index.test.ts:33`](apps/stations/src/work/registry.test.ts#L26))
+  ([validated by registers every station folder, so adding one and forgetting the barrel fails here](apps/stations/src/work/registry.test.ts#L15), [`index.test.ts:29`](apps/stations/src/work/registry.test.ts#L19), [`index.test.ts:33`](apps/stations/src/work/registry.test.ts#L23))
 
 - **FR2 — a station declares its triggers.** Each station's manifest names how
   work reaches it, covering all five classes in one declaration: an
@@ -64,7 +66,7 @@ subscribe" has no expressible meaning on the current substrate.
   node in the blueprint and resolved from that run's args, and one station's
   nodes park in different places — so a station-level route would be a second
   declaration with no reader.
-  ([validated by declares at least one trigger per station, so none is unreachable](apps/stations/src/work/registry.test.ts#L34), [`index.test.ts:94`](apps/stations/src/work/registry.test.ts#L85), [`index.test.ts:105`](apps/stations/src/work/registry.test.ts#L96), [`index.test.ts:115`](apps/stations/src/work/registry.test.ts#L106), [`registry.test.ts:150`](apps/stations/src/work/registry.test.ts#L144), [`registry.test.ts:164`](apps/stations/src/work/registry.test.ts#L158))
+  ([validated by declares at least one trigger per station, so none is unreachable](apps/stations/src/work/registry.test.ts#L31), [`index.test.ts:94`](apps/stations/src/work/registry.test.ts#L41), [`index.test.ts:105`](apps/stations/src/work/registry.test.ts#L52))
 
 - **FR3 — the contract discriminates rather than merges.** A node station keeps
   `(input, env) => Promise<NodeResult>` and a sweep station keeps
@@ -72,7 +74,7 @@ subscribe" has no expressible meaning on the current substrate.
   handler shape, so a folder declaring a cron trigger cannot export a node
   runner. Neither existing signature changes, so every moved station moves
   without an edit.
-  ([validated by pairs a node manifest with a node runner, never a sweep's](apps/stations/src/work/registry.test.ts#L74))
+ 
 
 - **FR4 — drift is a compile error, not a runtime death.** The registry's
   `Record<StationName, StationModule>` makes a missing module fail typechecking;
@@ -81,7 +83,7 @@ subscribe" has no expressible meaning on the current substrate.
   a discovery test asserts the folder listing equals the barrel, that no two
   manifests claim the same name or node type, and that every declared cron
   schedule parses.
-  ([validated by has a station for every dispatchable node type, so none dies at runtime](apps/stations/src/work/registry.test.ts#L48), [`index.test.ts:67`](apps/stations/src/work/registry.test.ts#L58), [`index.test.ts:75`](apps/stations/src/work/registry.test.ts#L66), [`node-station-lookup.test.ts:5`](apps/stations/src/work/node-station-lookup.test.ts#L5), [`node-station-lookup.test.ts:9`](apps/stations/src/work/node-station-lookup.test.ts#L9), [`node-station-lookup.test.ts:15`](apps/stations/src/work/node-station-lookup.test.ts#L13), [`node-station-lookup.test.ts:19`](apps/stations/src/work/node-station-lookup.test.ts#L17))
+ 
 
 - **FR5 — untrusted execution decides what may pool, not credentials.** A
   station that executes code it did not author, or walks a working tree it did
@@ -94,7 +96,7 @@ subscribe" has no expressible meaning on the current substrate.
   completion whose output is parsed against a closed action enum — see FR13 for
   why that may pool. Deterministic work over data the platform itself produced
   may pool.
-  ([validated by keeps validate in its own pod](apps/stations/src/work/registry.test.ts#L121), [`registry.test.ts:138`](apps/stations/src/work/registry.test.ts#L132), [`registry.test.ts:106`](apps/stations/src/work/registry.test.ts#L106))
+ 
 
 - **FR6 — an event is delivered per subscriber.** Each subscribed consumer gets
   its own delivery row for an event, claimed and retried independently, so two
@@ -146,7 +148,7 @@ subscribe" has no expressible meaning on the current substrate.
   The event carries the outcome twice — once beside the result and once inside
   it — and the two must agree, since only one of them is checked against the set
   of outcomes a node may produce.
-  ([validated by accepts an outcome on its own, which is all a human station reports](libs/assembly-lines/src/node-result-schema.test.ts#L6), [`node-result-schema.test.ts:12`](libs/assembly-lines/src/node-result-schema.test.ts#L12), [`node-result-schema.test.ts:21`](libs/assembly-lines/src/node-result-schema.test.ts#L21), [`node-result-schema.test.ts:43`](libs/assembly-lines/src/node-result-schema.test.ts#L43), [`node-result-schema.test.ts:47`](libs/assembly-lines/src/node-result-schema.test.ts#L47), [`node-result-schema.test.ts:53`](libs/assembly-lines/src/node-result-schema.test.ts#L53), [`node-result-schema.test.ts:61`](libs/assembly-lines/src/node-result-schema.test.ts#L61), [`node-result-schema.test.ts:75`](libs/assembly-lines/src/node-result-schema.test.ts#L75), [`run-node.test.ts:34`](apps/stations/src/events/runner/run-node.test.ts#L34), [`run-node.test.ts:48`](apps/stations/src/events/runner/run-node.test.ts#L48), [`run-node.test.ts:68`](apps/stations/src/events/runner/run-node.test.ts#L68), [`run-node.test.ts:81`](apps/stations/src/events/runner/run-node.test.ts#L81))
+  ([validated by accepts an outcome on its own, which is all a human station reports](libs/assembly-lines/src/node-result-schema.test.ts#L6), [`node-result-schema.test.ts:12`](libs/assembly-lines/src/node-result-schema.test.ts#L12), [`node-result-schema.test.ts:21`](libs/assembly-lines/src/node-result-schema.test.ts#L21), [`node-result-schema.test.ts:43`](libs/assembly-lines/src/node-result-schema.test.ts#L43), [`node-result-schema.test.ts:47`](libs/assembly-lines/src/node-result-schema.test.ts#L47), [`node-result-schema.test.ts:53`](libs/assembly-lines/src/node-result-schema.test.ts#L53), [`node-result-schema.test.ts:61`](libs/assembly-lines/src/node-result-schema.test.ts#L61), [`node-result-schema.test.ts:75`](libs/assembly-lines/src/node-result-schema.test.ts#L75))
 
 - **FR11 — detection is short units, not one long one.** No detection work runs
   as a long-lived unit or requires a pod merely to obtain a deadline. Two of the
@@ -161,7 +163,7 @@ subscribe" has no expressible meaning on the current substrate.
   deadline was accidentally providing.
 
   *(Removed 2026-10-02: the `backfill-scan` sweep is deleted with the backfill tick, `specs/external-floor` FR16.6.)*
-  ([validated by `detect.test.ts:46`](apps/stations/src/work/detect/detect.test.ts#L46), [`detect.test.ts:79`](apps/stations/src/work/detect/detect.test.ts#L79))
+ 
 
 - **FR12 — a merged pull request walks an assembly line.** The work that follows
   a merge is a line of recorded steps rather than one function behind swallowing
@@ -181,7 +183,7 @@ subscribe" has no expressible meaning on the current substrate.
   recorded. The line is WALKED, not merely shaped: the replay reaches every step
   in order and terminates, a failing step in the middle still reaches the last
   one, and a failing settle stops after itself.
-  ([validated by routes a failed step FORWARD, so one failure cannot skip the steps after it](libs/assembly-lines/src/merge-line.test.ts#L31), [`merge-line.test.ts:16`](libs/assembly-lines/src/merge-line.test.ts#L16), [`merge-line.test.ts:45`](libs/assembly-lines/src/merge-line.test.ts#L45), [`merge-line.test.ts:45`](libs/assembly-lines/src/merge-line.test.ts#L45), [`merge-step.test.ts:32`](apps/stations/src/work/merge-step/merge-step.test.ts#L32), [`merge-step.test.ts:46`](apps/stations/src/work/merge-step/merge-step.test.ts#L46), [`merge-step.test.ts:65`](apps/stations/src/work/merge-step/merge-step.test.ts#L65), [`merge-step.test.ts:81`](apps/stations/src/work/merge-step/merge-step.test.ts#L81), [`merge-step.test.ts:95`](apps/stations/src/work/merge-step/merge-step.test.ts#L95), [`merge-step.test.ts:112`](apps/stations/src/work/merge-step/merge-step.test.ts#L112), [`merge-step.test.ts:129`](apps/stations/src/work/merge-step/merge-step.test.ts#L129), [`merge-step.test.ts:135`](apps/stations/src/work/merge-step/merge-step.test.ts#L135), [`start-merge-line.test.ts:17`](apps/stations/src/work/merge-check/start-merge-line.test.ts#L17), [`start-merge-line.test.ts:38`](apps/stations/src/work/merge-check/start-merge-line.test.ts#L38), [`start-merge-line.test.ts:55`](apps/stations/src/work/merge-check/start-merge-line.test.ts#L55), [`start-merge-line.test.ts:74`](apps/stations/src/work/merge-check/start-merge-line.test.ts#L74), [`start-merge-line.test.ts:93`](apps/stations/src/work/merge-check/start-merge-line.test.ts#L93), [`assembly-runs.contract.test.ts:787`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L787), [`loader.test.ts:548`](libs/assembly-lines/src/loader.test.ts#L577), [`merge-line.test.ts:49`](libs/assembly-lines/src/merge-line.test.ts#L49), [`merge-line.test.ts:85`](libs/assembly-lines/src/merge-line.test.ts#L85), [`merge-line.test.ts:102`](libs/assembly-lines/src/merge-line.test.ts#L102), [`merge-line.test.ts:111`](libs/assembly-lines/src/merge-line.test.ts#L111), [`run.test.ts:25`](apps/stations/src/work/merge-step/run.test.ts#L25), [`run.test.ts:29`](apps/stations/src/work/merge-step/run.test.ts#L29), [`run.test.ts:33`](apps/stations/src/work/merge-step/run.test.ts#L33), [`run.test.ts:39`](apps/stations/src/work/merge-step/run.test.ts#L39), [`run.test.ts:54`](apps/stations/src/work/merge-step/run.test.ts#L54), [`run.test.ts:63`](apps/stations/src/work/merge-step/run.test.ts#L63), [`run.test.ts:86`](apps/stations/src/work/merge-step/run.test.ts#L86), [`run.test.ts:109`](apps/stations/src/work/merge-step/run.test.ts#L109))
+  ([validated by routes a failed step FORWARD, so one failure cannot skip the steps after it](libs/assembly-lines/src/merge-line.test.ts#L31), [`merge-line.test.ts:16`](libs/assembly-lines/src/merge-line.test.ts#L16), [`merge-line.test.ts:45`](libs/assembly-lines/src/merge-line.test.ts#L45), [`merge-line.test.ts:45`](libs/assembly-lines/src/merge-line.test.ts#L45), [`merge-step.test.ts:32`](apps/stations/src/merge/merge-step/merge-step.test.ts#L32), [`merge-step.test.ts:46`](apps/stations/src/merge/merge-step/merge-step.test.ts#L46), [`merge-step.test.ts:65`](apps/stations/src/merge/merge-step/merge-step.test.ts#L65), [`merge-step.test.ts:81`](apps/stations/src/merge/merge-step/merge-step.test.ts#L81), [`merge-step.test.ts:95`](apps/stations/src/merge/merge-step/merge-step.test.ts#L95), [`merge-step.test.ts:112`](apps/stations/src/merge/merge-step/merge-step.test.ts#L112), [`merge-step.test.ts:129`](apps/stations/src/merge/merge-step/merge-step.test.ts#L129), [`merge-step.test.ts:135`](apps/stations/src/merge/merge-step/merge-step.test.ts#L135), [`start-merge-line.test.ts:17`](apps/stations/src/work/merge-check/start-merge-line.test.ts#L17), [`start-merge-line.test.ts:38`](apps/stations/src/work/merge-check/start-merge-line.test.ts#L38), [`start-merge-line.test.ts:55`](apps/stations/src/work/merge-check/start-merge-line.test.ts#L55), [`start-merge-line.test.ts:74`](apps/stations/src/work/merge-check/start-merge-line.test.ts#L74), [`start-merge-line.test.ts:93`](apps/stations/src/work/merge-check/start-merge-line.test.ts#L93), [`assembly-runs.contract.test.ts:787`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L787), [`loader.test.ts:548`](libs/assembly-lines/src/loader.test.ts#L577), [`merge-line.test.ts:49`](libs/assembly-lines/src/merge-line.test.ts#L49), [`merge-line.test.ts:85`](libs/assembly-lines/src/merge-line.test.ts#L85), [`merge-line.test.ts:102`](libs/assembly-lines/src/merge-line.test.ts#L102), [`merge-line.test.ts:111`](libs/assembly-lines/src/merge-line.test.ts#L111), [`run.test.ts:25`](apps/stations/src/merge/merge-step/run.test.ts#L25), [`run.test.ts:29`](apps/stations/src/merge/merge-step/run.test.ts#L29), [`run.test.ts:33`](apps/stations/src/merge/merge-step/run.test.ts#L33), [`run.test.ts:39`](apps/stations/src/merge/merge-step/run.test.ts#L39), [`run.test.ts:54`](apps/stations/src/merge/merge-step/run.test.ts#L54), [`run.test.ts:63`](apps/stations/src/merge/merge-step/run.test.ts#L63), [`run.test.ts:86`](apps/stations/src/merge/merge-step/run.test.ts#L86), [`run.test.ts:109`](apps/stations/src/merge/merge-step/run.test.ts#L109))
 
 - **FR13 — a model call runs where a compromise is contained.** The original
   form of this requirement said every model call must be an agent node, then
@@ -203,7 +205,7 @@ subscribe" has no expressible meaning on the current substrate.
   consequence a curation that fails is a recorded step rather than a swallowed
   one. It is a node of the merge line; the two callers that still curate inline
   when an agent run finishes are not yet routed through it.
-  ([validated by carries every step the merged-PR handler did](libs/assembly-lines/src/merge-line.test.ts#L16), [`merge-step.test.ts:32`](apps/stations/src/work/merge-step/merge-step.test.ts#L32))
+  ([validated by carries every step the merged-PR handler did](libs/assembly-lines/src/merge-line.test.ts#L16), [`merge-step.test.ts:32`](apps/stations/src/merge/merge-step/merge-step.test.ts#L32))
 
 - **FR15 — a subscriber that holds no pool consumes over HTTP.** Registration,
   claim, ack, fail, dead-letter, reap and the orphan report are all reachable
@@ -236,7 +238,7 @@ subscribe" has no expressible meaning on the current substrate.
   for, and a host exposes only what it can actually serve — so a process without
   a code host does not advertise a repo sweep it could only fail, and a port a
   host does not serve fails by name rather than as an undefined call.
-  ([validated by reports nothing to do when no task is waiting](apps/stations/src/work/approval-check/approval-check.test.ts#L47), [`approval-check.test.ts:53`](apps/stations/src/work/approval-check/approval-check.test.ts#L53), [`approval-check.test.ts:61`](apps/stations/src/work/approval-check/approval-check.test.ts#L61), [`approval-check.test.ts:70`](apps/stations/src/work/approval-check/approval-check.test.ts#L70), [`approval-check.test.ts:78`](apps/stations/src/work/approval-check/approval-check.test.ts#L78), [`approval-check.test.ts:87`](apps/stations/src/work/approval-check/approval-check.test.ts#L87), [`service-stations.test.ts:17`](apps/stations/src/events/runner/service-stations.test.ts#L17), [`service-stations.test.ts:27`](apps/stations/src/events/runner/service-stations.test.ts#L27), [`service-stations.test.ts:37`](apps/stations/src/events/runner/service-stations.test.ts#L37), [`service-stations.test.ts:43`](apps/stations/src/events/runner/service-stations.test.ts#L43), [`station.test.ts:5`](apps/stations/src/work/lib/station.test.ts#L5), [`station.test.ts:9`](apps/stations/src/work/lib/station.test.ts#L9))
+  ([`service-stations.test.ts:17`](apps/stations/src/events/runner/service-stations.test.ts#L16), [`service-stations.test.ts:27`](apps/stations/src/events/runner/service-stations.test.ts#L26), [`service-stations.test.ts:37`](apps/stations/src/events/runner/service-stations.test.ts#L36), [`service-stations.test.ts:43`](apps/stations/src/events/runner/service-stations.test.ts#L42), [`station.test.ts:5`](apps/stations/src/work/lib/station.test.ts#L5), [`station.test.ts:9`](apps/stations/src/work/lib/station.test.ts#L9))
 
 > **2026-10-02.** This describes Lore's own Floor (`apps/floor`), which was deleted (`specs/external-floor` FR16.10); it is kept as the record of what the old engine did.
 
@@ -280,7 +282,7 @@ subscribe" has no expressible meaning on the current substrate.
   legitimately send is accepted: a run may carry no branch — every detect-family
   run does — and refusing that would dead-letter the delivery after five silent
   retries rather than letting the station fail on its own terms, recorded.
-  ([validated by claims the published-node event, without which a service-form node never runs](apps/stations/src/events/subscriptions.test.ts#L8), [`subscriptions.test.ts:14`](apps/stations/src/events/subscriptions.test.ts#L14), [`subscriptions.test.ts:26`](apps/stations/src/events/subscriptions.test.ts#L26), [`subscriptions.test.ts:32`](apps/stations/src/events/subscriptions.test.ts#L32), [`subscriptions.test.ts:47`](apps/stations/src/events/subscriptions.test.ts#L47), [`loop-boot.test.ts:19`](apps/stations/src/events/loop-boot.test.ts#L19), [`loop-boot.test.ts:41`](apps/stations/src/events/loop-boot.test.ts#L41), [`loop-boot.test.ts:56`](apps/stations/src/events/loop-boot.test.ts#L56), [`run-node.test.ts:92`](apps/stations/src/events/runner/run-node.test.ts#L92), [`run-node.test.ts:100`](apps/stations/src/events/runner/run-node.test.ts#L100), [`run-node.test.ts:106`](apps/stations/src/events/runner/run-node.test.ts#L106), [`run-node.test.ts:112`](apps/stations/src/events/runner/run-node.test.ts#L112), [`loop-boot.test.ts:19`](apps/stations/src/events/loop-boot.test.ts#L19), [`loop-boot.test.ts:56`](apps/stations/src/events/loop-boot.test.ts#L56), [`loop-boot.test.ts:71`](apps/stations/src/events/loop-boot.test.ts#L71), [`loop-boot.test.ts:90`](apps/stations/src/events/loop-boot.test.ts#L90))
+  ([`subscriptions.test.ts:14`](apps/stations/src/events/subscriptions.test.ts#L7), [`subscriptions.test.ts:26`](apps/stations/src/events/subscriptions.test.ts#L19), [`subscriptions.test.ts:47`](apps/stations/src/events/subscriptions.test.ts#L25), [`loop-boot.test.ts:19`](apps/stations/src/events/loop-boot.test.ts#L19), [`loop-boot.test.ts:41`](apps/stations/src/events/loop-boot.test.ts#L41), [`loop-boot.test.ts:56`](apps/stations/src/events/loop-boot.test.ts#L56), [`loop-boot.test.ts:19`](apps/stations/src/events/loop-boot.test.ts#L19), [`loop-boot.test.ts:56`](apps/stations/src/events/loop-boot.test.ts#L56), [`loop-boot.test.ts:71`](apps/stations/src/events/loop-boot.test.ts#L71), [`loop-boot.test.ts:90`](apps/stations/src/events/loop-boot.test.ts#L90))
 
 - **FR22 — a node published to the service is never also given a pod.** A service
   dispatch records NO agent CR name, because none will exist, and the reaper reads
@@ -298,7 +300,7 @@ subscribe" has no expressible meaning on the current substrate.
   while a slower reconciler masks the gap. And the claim's serial-family exclusion
   survives the wire — a route that parsed the request without reading it handed
   back the very rows the caller asked to be spared.
-  ([validated by maps a handler for each name it subscribes to, so nothing dead-letters on arrival](apps/stations/src/events/subscriptions.test.ts#L53), [`subscriptions.test.ts:62`](apps/stations/src/events/subscriptions.test.ts#L62), [`event-deliveries-roundtrip.test.ts:139`](apps/event-router/src/transport/routes/event-deliveries-roundtrip.test.ts#L139))
+  ([validated by maps a handler for each name it subscribes to, so nothing dead-letters on arrival](apps/stations/src/events/subscriptions.test.ts#L31), [`subscriptions.test.ts:62`](apps/stations/src/events/subscriptions.test.ts#L40), [`event-deliveries-roundtrip.test.ts:139`](apps/event-router/src/transport/routes/event-deliveries-roundtrip.test.ts#L139))
 
 - **FR24 — a subscription set is declared whole, and a pruned bus keeps only
   what is owed.** A subscriber's registration states everything it handles, so a

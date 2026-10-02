@@ -14,7 +14,7 @@ import {
   maybeFlipSpecStatus,
   promoteTrust,
   syncSpecTasksFromMerge,
-} from "../merge-check/merge-check.js";
+} from "../../work/merge-check/merge-check.js";
 import {
   eventReporter,
   memoryLifecycle,

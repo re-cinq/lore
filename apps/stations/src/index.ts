@@ -4,7 +4,6 @@ import {
   onTerminationSignals,
   runEntrypoint,
 } from "@re-cinq/lore-shared/lib/process-entry.js";
-import { loadApprovalConfig } from "@re-cinq/lore-shared";
 import { getPool, initPool } from "@re-cinq/lore-shared/db/pg-pool.js";
 import { Llm } from "@re-cinq/lore-shared/llm/llm.js";
 import { startServer } from "./transport/server.js";
@@ -38,8 +37,6 @@ const PORT = requiredPort(process.env, "PORT");
 // How long shutdown waits for the event queue to drain — long enough for a backlog, short enough not to hold a rollout past its grace period.
 async function main(): Promise<void> {
   initPool();
-  // Module state read by approval-check; the Floor loads the same config for its worker's gate.
-  await loadApprovalConfig(getPool());
   // Service-run stations may call a model (the retrospective's Haiku curation); wiring the UsagePort here makes those land in pipeline.llm_calls like the Floor's own calls.
   Llm.configure({ usage: usage() });
 

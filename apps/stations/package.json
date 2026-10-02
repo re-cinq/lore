@@ -41,8 +41,5 @@
       "default": "./dist/*.js"
     }
   },
-  "types": "./dist/work/index.d.ts",
-  "bin": {
-    "lore-station": "./dist/transport/cli/main.js"
-  }
+  "types": "./dist/work/index.d.ts"
 }

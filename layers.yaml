@@ -92,21 +92,23 @@ layers:
       - "@re-cinq/lore-assembly-lines"
       - "@re-cinq/lore-shared"
     # The stations the external floor dispatches for the feature-planning line,
-    # one folder each — the same claim-your-own-work shape as code-review. `issues`
-    # reaches into `work/` because it wraps the existing issue-filing logic rather
-    # than reimplementing it.
+    # one folder each — the same claim-your-own-work shape as code-review. The
+    # issue-filing logic lives beside its station, in `planning/file-issues`.
     planning:
       - domain
+      - outbound
+      - "@re-cinq/floor-station"
+      - "@re-cinq/lore-assembly-lines"
+      - "@re-cinq/lore-shared"
+    # The stations the external floor dispatches for the merge line: one handle
+    # around the step logic beside it, registered once per step. `work` is
+    # reached for what the merge-check sweep already knows about a merged task.
+    merge:
       - outbound
       - work
       - "@re-cinq/floor-station"
       - "@re-cinq/lore-assembly-lines"
       - "@re-cinq/lore-shared"
-    # The stations the external floor dispatches for the merge line: one handle
-    # around the step logic in `work/merge-step`, registered once per step.
-    merge:
-      - work
-      - "@re-cinq/floor-station"
     # The stations the external floor dispatches for the daily-digest line, one
     # folder each, sharing one composition root.
     digest:
