@@ -50,19 +50,19 @@ Registered in `routeList`
 
 ## Behavior
 
-1. Require the pool, else 503. ([validated by returns 503 when no pool is available](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L149))
+1. Require the pool, else 503. ([validated by returns 503 when no pool is available](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L164))
 2. The task id keys everything this route writes (`llm_calls`, run events,
    turns), so an unknown id is refused with 404 rather than stored
    uncorrelated. Ownership is NOT checked — any write-scoped token may post
    under any existing task id, matching the `/api/task-logs` precedent (which
    checks nothing at all); the guarantee here is only that fabricated ids are
-   refused. ([validated by returns 404 when the task does not exist](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L139), [validated by returns 400 when taskId is not a uuid](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L155))
+   refused. ([validated by returns 404 when the task does not exist](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L154), [validated by returns 400 when taskId is not a uuid](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L170))
 3. Split the body on newlines; a relayable line must parse as a plain JSON
    object and must NOT be an attributed envelope (`source` + `event` keys —
    the double-peel in `unwrapAttribution` would let a forged inner source
    correlate fake turns to a real assembly run) and must NOT be a
    `kind: "file"` event (it drives planning-round settlement and artifact
-   merge). Everything else is counted in `skipped`. ([validated by skips non-JSON lines, file-kind events, and pre-attributed envelopes](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L95), [`task-turns.test.ts:105`](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L113))
+   merge). Everything else is counted in `skipped`. ([validated by skips non-JSON lines, file-kind events, and pre-attributed envelopes](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L110), [`task-turns.test.ts:105`](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L128))
 4. Wrap each survivor as
    `{"source":{"task":<taskId>,"turn_key":<key>},"event":<line>}` — the
    station contract's attribution envelope, raw line embedded verbatim — and
@@ -85,14 +85,14 @@ Registered in `routeList`
    re-inserts `pipeline.llm_calls` cost rows and `agent_run_events` viz rows
    (follow-up #1394), and rows duplicated before #1389 stay until the 30-day
    prune ages them out. ([validated by
-   stamps the same keys when the same body is retried](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L196),
-   [validated by keys byte-identical lines within one POST apart](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L209),
-   [validated by keys byte-identical lines apart under an offset header too](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L229),
-   [validated by keys a line by its x-turn-offset position so a tail-only re-POST reproduces its key](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L216),
-   [validated by keys identical lines under different tasks apart](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L240),
-   [validated by falls back to per-POST occurrence keying when the offset header is not a number](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L251))
-6. Zero survivors → 200 `{ forwarded: 0, skipped }` and stores nothing. ([validated by returns 200 and stores nothing when no line survives filtering](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L121))
-7. Write scope is enforced like every task route. ([validated by returns 403 when the token has task scope but not write](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L166))
+   stamps the same keys when the same body is retried](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L211),
+   [validated by keys byte-identical lines within one POST apart](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L224),
+   [validated by keys byte-identical lines apart under an offset header too](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L244),
+   [validated by keys a line by its x-turn-offset position so a tail-only re-POST reproduces its key](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L231),
+   [validated by keys identical lines under different tasks apart](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L255),
+   [validated by falls back to per-POST occurrence keying when the offset header is not a number](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L266))
+6. Zero survivors → 200 `{ forwarded: 0, skipped }` and stores nothing. ([validated by returns 200 and stores nothing when no line survives filtering](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L136))
+7. Write scope is enforced like every task route. ([validated by returns 403 when the token has task scope but not write](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L181))
 
 ## Producer (mcp-server local runner)
 
@@ -120,7 +120,8 @@ entirely).
    in `x-turn-offset`, advancing it past failed batches too — a batch consumes
    its transcript positions whether or not it relayed, so a later retry of the
    same buffer reproduces the same keys. ([validated by stamps each batch with its cumulative line offset](../../../apps/mcp-server/src/work/pipeline/runner.local.test.ts#L417), [validated by advances the offset past a failed batch so later lines keep their positions](../../../apps/mcp-server/src/work/pipeline/runner.local.test.ts#L429))
-5. `ingestTurns` is a no-op (no fetch) when `LORE_API_URL`/`LORE_INGEST_TOKEN`
+5. *(Added 2026-10-02:)* The server redacts again before it stores. The laptop redacts first, but any write-scope caller can post to this route, so each line passes `redactJsonLine` (`libs/shared/src/lib/redact.ts`) on the way into `pipeline.agent_run_turns`: a secret is replaced by its `[REDACTED:<kind>]` marker, and a line whose JSON the redaction broke is skipped and counted. Lore's own Floor did this in its sink; the step moved here with the write. ([validated by stores a bearer token in a posted line as its REDACTED marker](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L95), [validated by returns a line with no secret unchanged](../../../libs/shared/src/lib/redact.test.ts#L127), [validated by replaces a bearer token inside a JSON line and keeps it parseable](../../../libs/shared/src/lib/redact.test.ts#L133), [validated by returns null when the redaction breaks the line's JSON](../../../libs/shared/src/lib/redact.test.ts#L143))
+6. `ingestTurns` is a no-op (no fetch) when `LORE_API_URL`/`LORE_INGEST_TOKEN`
    are not configured, and warns-and-drops a line whose own bytes exceed the
    relay batch cap without ever fetching it. ([validated by returns without fetching when the API URL or token is not configured](../../../apps/mcp-server/src/work/pipeline/runner.local.test.ts#L443), [validated by warns and drops a line too large to ever fit a relay batch, without fetching it](../../../apps/mcp-server/src/work/pipeline/runner.local.test.ts#L457))
 

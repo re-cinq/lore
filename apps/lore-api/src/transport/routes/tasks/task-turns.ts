@@ -14,6 +14,7 @@ import { z } from "zod";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { rawBody } from "@re-cinq/lore-shared/http/raw-body.js";
+import { redactJsonLine } from "@re-cinq/lore-shared/lib/redact.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
 import { PgAgentRunTurns } from "@re-cinq/lore-shared/project/agent-run-turns/agent-run-turns-pg.js";
 import type { AgentRunTurnInsert } from "@re-cinq/lore-shared/project/agent-run-turns/agent-run-turns-port.js";
@@ -104,7 +105,9 @@ async function storeTurns(
 ): Promise<StoreResult> {
   await enforceTaskExists(pool, taskId);
   const lines = transcriptLines(body.raw);
-  const storable = keyedRelayableLines(taskId, lines, body.offset);
+  const storable = withoutSecrets(
+    keyedRelayableLines(taskId, lines, body.offset),
+  );
 
   await new PgAgentRunTurns(pool).insertBatch(
     storable.map((turn) => turnRow(taskId, turn)),
@@ -116,11 +119,19 @@ async function storeTurns(
   };
 }
 
+type KeyedLine = { line: string; key: string };
+
+/** The laptop redacts before it posts, but any write-scope caller can post here, so the lines are redacted again before they are stored; a line the redaction broke is skipped. */
+function withoutSecrets(turns: KeyedLine[]): KeyedLine[] {
+  return turns.flatMap(({ line, key }) => {
+    const redacted = redactJsonLine(line);
+
+    return redacted === null ? [] : [{ line: redacted, key }];
+  });
+}
+
 /** One row of the turn store. The envelope is the line wrapped with its task and its KEY, and the key is also the row's dedup key, which is what makes a resend idempotent: a retried POST skips the rows already stored. */
-function turnRow(
-  taskId: string,
-  { line, key }: { line: string; key: string },
-): AgentRunTurnInsert {
+function turnRow(taskId: string, { line, key }: KeyedLine): AgentRunTurnInsert {
   return {
     taskId,
     agentCrName: null,
@@ -158,9 +169,9 @@ function keyedRelayableLines(
   taskId: string,
   lines: string[],
   offset: number | null,
-): Array<{ line: string; key: string }> {
+): KeyedLine[] {
   const occurrences = new Map<string, number>();
-  const keyed: Array<{ line: string; key: string }> = [];
+  const keyed: KeyedLine[] = [];
 
   lines.forEach((line, index) => {
     const occurrence = occurrences.get(line) ?? 0;

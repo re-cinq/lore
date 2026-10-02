@@ -92,6 +92,21 @@ describe("POST /api/task-turns/{taskId}", () => {
     );
   });
 
+  it("stores a bearer token in a posted line as its REDACTED marker", async () => {
+    const res = await post(
+      JSON.stringify({
+        type: "assistant",
+        text: "curl -H 'Authorization: Bearer abcdefghijklmnopqrstuvwxyz012345'",
+      }),
+    );
+
+    expect(res.result).toEqual({ forwarded: 1, skipped: 0 });
+    expect(sent()[0].event).toEqual({
+      type: "assistant",
+      text: "curl -H 'Authorization: [REDACTED:bearer-token]'",
+    });
+  });
+
   it("skips non-JSON lines, file-kind events, and pre-attributed envelopes", async () => {
     const good = JSON.stringify({ type: "assistant" });
     const payload = [

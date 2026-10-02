@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { redactSecrets } from "./redact.js";
+import { redactJsonLine, redactSecrets } from "./redact.js";
 
 describe("redactSecrets", () => {
   it("redacts ghp_ tokens", () => {
@@ -120,5 +120,30 @@ describe("redactSecrets", () => {
     expect(redactSecrets(`AGENT_GIT_CREDENTIAL=${credential}`)).toBe(
       "AGENT_GIT_CREDENTIAL=[REDACTED:run-credential]",
     );
+  });
+});
+
+describe("redactJsonLine", () => {
+  it("returns a line with no secret unchanged", () => {
+    const line = JSON.stringify({ type: "assistant", text: "hi" });
+
+    expect(redactJsonLine(line)).toBe(line);
+  });
+
+  it("replaces a bearer token inside a JSON line and keeps it parseable", () => {
+    const line = JSON.stringify({
+      text: "Authorization: Bearer abcdefghijklmnopqrstuvwxyz012345",
+    });
+
+    expect(JSON.parse(redactJsonLine(line) ?? "null")).toEqual({
+      text: "Authorization: [REDACTED:bearer-token]",
+    });
+  });
+
+  it("returns null when the redaction breaks the line's JSON", () => {
+    const line = JSON.stringify({ text: "secret" });
+    const swallowsTheQuote = (text: string) => text.replace('secret"', "x");
+
+    expect(redactJsonLine(line, swallowsTheQuote)).toBeNull();
   });
 });
