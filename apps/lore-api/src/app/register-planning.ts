@@ -31,14 +31,15 @@ export interface RegisteredPlanning {
 export function registerPlanning(
   server: Server,
   getPool: () => Pool | null,
+  floorDeps?: PlanVerbSeams["floorDeps"],
 ): RegisteredPlanning {
   const pool = livePool(getPool);
-  const seams: PlanVerbSeams = {};
+  const seams: PlanVerbSeams = { floorDeps };
 
   const sync = registerPlanningSync(server, {
     store: pgPlanStore(pool),
     authenticator: collabAuthenticator(pool),
-    onApproved: (meta) => startSpecWork(pool, meta, seams),
+    onApproved: (meta) => startSpecWork(meta, seams),
   });
 
   // onApproved reaches the library before the sync it reads the plan through exists, so the seams are filled once it does.
@@ -65,7 +66,6 @@ function livePool(getPool: () => Pool | null): () => Pool {
 
 // Approval ends the plan and starts its spec work on the same planning line — or, with no line waiting, on a fresh one entered at the spec analysis.
 async function startSpecWork(
-  pool: () => Pool,
   meta: Parameters<NonNullable<PlanLifecycleHooks["onApproved"]>>[0],
   seams: PlanVerbSeams,
 ): Promise<void> {

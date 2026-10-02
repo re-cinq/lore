@@ -11,7 +11,7 @@ import {
   LEGACY_TOKEN,
 } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 import { registerBearerScope } from "../../http/bearer-scope.js";
-import type { PlanVerbSeams } from "./plan-verbs-for.js";
+import { planVerbsFor, type PlanVerbSeams } from "./plan-verbs-for.js";
 import {
   planLifecycleRoutes,
   type PlanLifecyclePorts,
@@ -222,5 +222,25 @@ describe("the plan routes on a plan the floor holds", () => {
 
     expect(answer(res)).toEqual({ status: 200, body: { reopened: true } });
     expect(reopened).toEqual([PLAN_ID]);
+  });
+});
+
+describe("the plan verbs on a deployment with no floor", () => {
+  afterEach(() => {
+    process.env = { ...originalEnv };
+  });
+
+  it("answer 503, naming the floor as what is missing", async () => {
+    delete process.env.FLOOR_API_URL;
+
+    await expect(
+      planVerbsFor(
+        { id: PLAN_ID, repo: REPO, title: "Faster checkout", status: "draft" },
+        { livePlan: async () => ({ meta: PLAN_ROW as never, blocks: [] }) },
+      ),
+    ).rejects.toMatchObject({
+      output: { statusCode: 503 },
+      message: "plans need the external floor, and this deployment has none",
+    });
   });
 });

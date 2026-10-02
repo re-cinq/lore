@@ -1,6 +1,7 @@
 import { floorPlanVerbs } from "../../../work/plans/floor-plan-verbs.js";
 import { floorIfConfigured } from "@re-cinq/lore-shared/floor/floor-client.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { projectFor } from "../../../outbound/project-boot.js";
 import {
   type FloorPlanDeps,
@@ -24,7 +25,7 @@ export interface PlanVerbSeams {
   floorDeps?: FloorPlanDeps;
 }
 
-/** The verbs of a plan's planning line. Every planning line runs on the external floor (ADR-049), so a deployment with none has no verbs to offer. */
+/** The verbs of a plan's planning line. Every planning line runs on the external floor (ADR-049), so a deployment with none answers 503. */
 export async function planVerbsFor(
   plan: PlanSubject,
   seams: PlanVerbSeams = {},
@@ -32,7 +33,11 @@ export async function planVerbsFor(
   const { livePlan } = seams;
   const floor: PlanFloor | null = seams.floorDeps?.floor ?? floorIfConfigured();
 
-  enforceTrue(floor, Error, "the plan verbs need the external floor");
+  enforceTrue(
+    floor,
+    apiError(503),
+    "plans need the external floor, and this deployment has none",
+  );
   enforceTrue(
     livePlan,
     Error,
