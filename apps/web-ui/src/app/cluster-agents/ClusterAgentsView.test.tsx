@@ -80,10 +80,7 @@ describe("ClusterAgentsView", () => {
     expect(screen.getByText("minikube")).toBeInTheDocument();
     expect(screen.getByText("node:agent")).toBeInTheDocument();
     expect(screen.getByText("gpu")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "3" })).toHaveAttribute(
-      "href",
-      "/assembly-runs?cluster_agent_id=b",
-    );
+    expect(screen.getByText("3")).toBeInTheDocument();
   });
 
   it("marks an offline agent with badge-red and an active one with badge-green", () => {

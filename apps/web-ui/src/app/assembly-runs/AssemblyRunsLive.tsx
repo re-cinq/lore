@@ -1,0 +1,109 @@
+"use client";
+
+// The run list's container: owns the live channel and the page's reducer, and hands the pure view its runs. A gap in the channel is closed by reloading the page the person is on.
+import { useReducer, useRef, type Dispatch } from "react";
+import type { FloorRunsPage } from "@/lib/api/floor-runs";
+import { floorRunOf } from "@/lib/assembly-run-rows";
+import type { ChannelState } from "@/lib/live-socket/connection-machine";
+import type { RunListFrame } from "@/lib/live-socket/protocol";
+import AssemblyRunListView from "./AssemblyRunListView";
+import {
+  initialRunList,
+  reduceRunList,
+  type RunListAction,
+} from "./run-list-reducer";
+import { loadRunsPageAction } from "./runs-live-actions";
+import { useRunsChannel } from "./useRunsChannel";
+
+interface AssemblyRunsLiveProps {
+  activeStatus?: string;
+  cursor?: string;
+  initial: FloorRunsPage;
+}
+
+export default function AssemblyRunsLive({
+  activeStatus,
+  cursor,
+  initial,
+}: AssemblyRunsLiveProps) {
+  const [state, dispatch] = useReducer(reduceRunList, initial, initialRunList);
+  const reload = usePageReload({ activeStatus, cursor }, dispatch);
+
+  useRunsChannel({
+    runIds: state.runs.map((run) => run.id),
+    onFrame: useFrameHandler({ dispatch, reload, onFirstPage: !cursor }),
+    onConnectionChange: useConnectionChange(dispatch, reload),
+  });
+
+  return (
+    <AssemblyRunListView
+      activeStatus={activeStatus}
+      cursor={cursor}
+      {...state}
+    />
+  );
+}
+
+interface FrameContext {
+  dispatch: Dispatch<RunListAction>;
+  reload: () => void;
+  onFirstPage: boolean;
+}
+
+function useFrameHandler({ dispatch, reload, onFirstPage }: FrameContext) {
+  const handlers: Record<RunListFrame["type"], (frame: RunListFrame) => void> =
+    {
+      run_row: (frame) =>
+        frame.type === "run_row" &&
+        dispatch({ type: "run_row", run: floorRunOf(frame.run) }),
+      // A keyset page does not shift when something starts: only the first page has a new row to show.
+      run_started: () => onFirstPage && reload(),
+      resync: () => reload(),
+    };
+
+  return (frame: RunListFrame) => handlers[frame.type](frame);
+}
+
+/** Reloads the current page; of overlapping reloads only the latest result lands. */
+function usePageReload(
+  query: { activeStatus?: string; cursor?: string },
+  dispatch: Dispatch<RunListAction>,
+): () => void {
+  const latestReload = useRef(0);
+
+  return () => {
+    const ticket = ++latestReload.current;
+
+    void loadRunsPageAction({
+      status: query.activeStatus,
+      cursor: query.cursor,
+    }).then((page) => {
+      if (ticket === latestReload.current) {
+        dispatch({ type: "page_loaded", ...page });
+      }
+    });
+  };
+}
+
+const AWAY_STATES: ReadonlySet<ChannelState> = new Set([
+  "reconnecting",
+  "offline",
+]);
+
+/** Whatever started while the channel was away was missed, so coming back live reloads the page. */
+function useConnectionChange(
+  dispatch: Dispatch<RunListAction>,
+  reload: () => void,
+): (state: ChannelState) => void {
+  const wasAway = useRef(false);
+
+  return (state) => {
+    dispatch({ type: "connection", state });
+    wasAway.current ||= AWAY_STATES.has(state);
+
+    if (state === "live" && wasAway.current) {
+      wasAway.current = false;
+      reload();
+    }
+  };
+}
