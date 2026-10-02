@@ -476,7 +476,7 @@ describe("hybridChunkItems", () => {
     expect(settings).toContain(
       "set_config('hnsw.iterative_scan', 'relaxed_order', true)",
     );
-    expect(settings).toContain("ARRAY[0, 8]");
+    expect(settings).toContain(">= 8");
     expect(release).toHaveBeenCalledOnce();
   });
 
