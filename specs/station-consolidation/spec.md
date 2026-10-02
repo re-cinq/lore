@@ -205,19 +205,6 @@ subscribe" has no expressible meaning on the current substrate.
   when an agent run finishes are not yet routed through it.
   ([`merge-step.test.ts:32`](apps/stations/src/merge/merge-step/merge-step.test.ts#L32))
 
-- **FR15 — a subscriber that holds no pool consumes over HTTP.** Registration,
-  claim, ack, fail, dead-letter, reap and the orphan report are all reachable
-  from a process with no database, carrying the subscriber's declared timeout
-  across the wire, and every one of them requires the same bearer token the rest
-  of the service-to-service surface does. The client and the routes are two
-  halves of one contract written apart, so they are exercised against each other
-  rather than each against its own idea of the other. What the client puts on the
-  wire is checked against the schema the routes parse it with, not against a
-  restatement of it — a field the client stops sending typechecks on both sides
-  and fails only in production, and a value the schema refuses is as broken as a
-  field never sent.
-  ([validated by registers a subscription and claims back the event it asked for](apps/event-router/src/transport/routes/event-deliveries-roundtrip.test.ts#L46), [`event-deliveries-roundtrip.test.ts:59`](apps/event-router/src/transport/routes/event-deliveries-roundtrip.test.ts#L59), [`event-deliveries-roundtrip.test.ts:70`](apps/event-router/src/transport/routes/event-deliveries-roundtrip.test.ts#L70), [`event-deliveries-roundtrip.test.ts:83`](apps/event-router/src/transport/routes/event-deliveries-roundtrip.test.ts#L83), [`event-deliveries-roundtrip.test.ts:96`](apps/event-router/src/transport/routes/event-deliveries-roundtrip.test.ts#L96), [`event-deliveries-roundtrip.test.ts:107`](apps/event-router/src/transport/routes/event-deliveries-roundtrip.test.ts#L107), [`event-deliveries-roundtrip.test.ts:118`](apps/event-router/src/transport/routes/event-deliveries-roundtrip.test.ts#L118), [`event-deliveries-roundtrip.test.ts:126`](apps/event-router/src/transport/routes/event-deliveries-roundtrip.test.ts#L126), [`event-deliveries-http.test.ts:39`](libs/shared/src/outbound/project/events/event-deliveries-http.test.ts#L39), [`event-deliveries-http.test.ts:52`](libs/shared/src/outbound/project/events/event-deliveries-http.test.ts#L52), [`event-deliveries-http.test.ts:67`](libs/shared/src/outbound/project/events/event-deliveries-http.test.ts#L67), [`event-deliveries-http.test.ts:79`](libs/shared/src/outbound/project/events/event-deliveries-http.test.ts#L79), [`event-deliveries-http.test.ts:87`](libs/shared/src/outbound/project/events/event-deliveries-http.test.ts#L87))
-
 - **FR16 — a delivery's identity is not its event's.** Acknowledging, failing and
   dead-lettering address the delivery, while a handler citing the event — one
   handing a large payload onward by reference — is given the event's own id. A
@@ -297,7 +284,7 @@ subscribe" has no expressible meaning on the current substrate.
   while a slower reconciler masks the gap. And the claim's serial-family exclusion
   survives the wire — a route that parsed the request without reading it handed
   back the very rows the caller asked to be spared.
-  ([validated by maps a handler for each name it subscribes to, so nothing dead-letters on arrival](apps/stations/src/events/subscriptions.test.ts#L31), [`subscriptions.test.ts:62`](apps/stations/src/events/subscriptions.test.ts#L40), [`event-deliveries-roundtrip.test.ts:139`](apps/event-router/src/transport/routes/event-deliveries-roundtrip.test.ts#L139))
+  ([validated by maps a handler for each name it subscribes to, so nothing dead-letters on arrival](apps/stations/src/events/subscriptions.test.ts#L31), [`subscriptions.test.ts:62`](apps/stations/src/events/subscriptions.test.ts#L40))
 
 - **FR24 — a subscription set is declared whole, and a pruned bus keeps only
   what is owed.** A subscriber's registration states everything it handles, so a
@@ -387,3 +374,19 @@ subscribe" has no expressible meaning on the current substrate.
 - Whether the periodic reconcilers should remain per-minute once their events are
   subscribed, or drop to a slower cadence appropriate to catching lost webhook
   deliveries rather than to being the primary path.
+
+## Background: retired with the event-router (2026-10-02)
+
+This statement described the HTTP delivery endpoints of the event-router, which was deleted when its work moved into lore-api and the stations service took its own database pool (ADR-044 amendment). It is kept as the record of what the router served.
+
+- **FR15 — a subscriber that holds no pool consumes over HTTP.** Registration,
+  claim, ack, fail, dead-letter, reap and the orphan report are all reachable
+  from a process with no database, carrying the subscriber's declared timeout
+  across the wire, and every one of them requires the same bearer token the rest
+  of the service-to-service surface does. The client and the routes are two
+  halves of one contract written apart, so they are exercised against each other
+  rather than each against its own idea of the other. What the client puts on the
+  wire is checked against the schema the routes parse it with, not against a
+  restatement of it — a field the client stops sending typechecks on both sides
+  and fails only in production, and a value the schema refuses is as broken as a
+  field never sent.

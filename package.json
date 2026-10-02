@@ -6,7 +6,6 @@
   },
   "workspaces": [
     "libs/*",
-    "apps/event-router",
     "apps/lore-api",
     "apps/stations",
     "apps/mcp-server",
@@ -15,7 +14,7 @@
   "scripts": {
     "dev-setup": "bash scripts/dev-setup.sh",
     "start": "bash scripts/dev-local.sh",
-    "build": "npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-assembly-lines && npm run build -w @re-cinq/lore-stations && npm run build -w @re-cinq/lore-server-core && npm run build -w @re-cinq/lore-api && npm run build -w @re-cinq/lore-mcp && npm run build -w @re-cinq/lore-event-router",
+    "build": "npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-assembly-lines && npm run build -w @re-cinq/lore-stations && npm run build -w @re-cinq/lore-server-core && npm run build -w @re-cinq/lore-api && npm run build -w @re-cinq/lore-mcp",
     "typecheck:drift": "tsc -p scripts/type-drift/tsconfig.drift.json",
     "lint": "NODE_OPTIONS=--max-old-space-size=8192 eslint .",
     "dup": "jscpd",

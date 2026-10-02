@@ -265,41 +265,6 @@ describe("mapGitHubEvent — review and comments", () => {
   });
 });
 
-describe("mapGitHubEvent — check fan-out", () => {
-  it("fans out check_suite.completed to one event per backing PR with per-PR dedupe keys", () => {
-    const payload = {
-      ...REPO,
-      action: "completed",
-      check_suite: { pull_requests: [{ number: 1 }, { number: 2 }] },
-    };
-
-    expect(mapGitHubEvent("check_suite", payload, "d8")).toEqual([
-      {
-        eventName: "github.check_suite.completed",
-        source: "github",
-        params: { repo: "re-cinq/lore", pr_number: 1 },
-        dedupeKey: "github:d8:1",
-      },
-      {
-        eventName: "github.check_suite.completed",
-        source: "github",
-        params: { repo: "re-cinq/lore", pr_number: 2 },
-        dedupeKey: "github:d8:2",
-      },
-    ]);
-  });
-
-  it("returns nothing for a check with no backing PRs", () => {
-    expect(
-      mapGitHubEvent(
-        "check_run",
-        { ...REPO, action: "completed", check_run: { pull_requests: [] } },
-        "d9",
-      ),
-    ).toEqual([]);
-  });
-});
-
 describe("mapGitHubEvent — issues.labeled", () => {
   it("carries the label and a trimmed issue snapshot the handler needs", () => {
     const payload = {

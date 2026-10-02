@@ -27,7 +27,7 @@ Beyond context, Lore is an **agent operating system**. It runs background agents
 ## Repository layout
 
 ```
-apps/        services      event-router · lore-api · stations · mcp-server · web-ui
+apps/        services      lore-api · stations · mcp-server · web-ui
              images/tools  lore-code-trace (Go binary) · vscode-extension
 libs/        shared libraries           shared (@re-cinq/lore-shared) · assembly-lines (@re-cinq/lore-assembly-lines) · server-core (@re-cinq/lore-server-core)
 infra/       deploy & runtime           terraform (the `lore-platform` umbrella chart) · compose.yaml · chart-ci-values
@@ -44,12 +44,11 @@ Every app and library documents itself in its own README — the shared code sta
 
 ### Deployables
 
-Six workloads ship as one umbrella Helm chart, `lore-platform`, which spans a namespace per subchart. Each owns one thing, and the boundaries are enforced by credentials rather than convention.
+Five workloads ship as one umbrella Helm chart, `lore-platform`, which spans a namespace per subchart. Each owns one thing, and the boundaries are enforced by credentials rather than convention.
 
 | Deployable | Namespace | What it owns |
 |---|---|---|
-| **event-router** ([`apps/event-router`](apps/event-router/README.md)) | `lore-event-router` | The only writer of `pipeline.events` ([ADR-044](adrs/ADR-044-event-router-owns-the-event-bus.md)). One front door — `POST /api/events` — for every producer, authenticating GitHub by HMAC and everyone else by bearer token, plus the claim/ack/reap endpoints each subscriber (today the stations service) drains its deliveries through. |
-| **lore-api** ([`apps/lore-api`](apps/lore-api/README.md)) | `lore-api` | The remote REST backend (`/api/*`) — hybrid search, agent memory, task CRUD, ingest ([ADR-032](adrs/ADR-032-split-local-remote-api.md)). No MCP. |
+| **lore-api** ([`apps/lore-api`](apps/lore-api/README.md)) | `lore-api` | The remote REST backend (`/api/*`) — hybrid search, agent memory, task CRUD, ingest ([ADR-032](adrs/ADR-032-split-local-remote-api.md)), and the door for GitHub's webhooks (`POST /api/webhook/github`; the public `/api/events` URL is rewritten onto it), which it writes to `pipeline.events` itself ([ADR-044](adrs/ADR-044-event-router-owns-the-event-bus.md)). No MCP. |
 | **stations** ([`apps/stations`](apps/stations/README.md)) | `lore-stations` | Service stations, reached by name over `POST /api/stations/{name}`. Also the scheduler: it emits the `cron.*.tick` events and answers them, drains the PR-lifecycle events, and hosts Lore's stations for the external floor. |
 | **lore-mcp gateway** ([`apps/mcp-server`](apps/mcp-server/README.md)) | `lore-api` | The same MCP adapter served over HTTP, so agent pods get live scoped Lore access for a whole run instead of a one-shot hydration. Also serves the agent-skills registry. |
 | **web-ui** ([`apps/web-ui`](apps/web-ui/README.md)) | `lore-ui` | The Next.js dashboard. Holds no database pool — it reads through lore-api. Its chart also runs the ordered SQL migrations hook on every deploy. |

@@ -5,7 +5,7 @@ set -euo pipefail
 #   Postgres (docker) + shared (tsc --watch) + mcp-server + agent + web-ui.
 # Idempotent — safe to re-run. Ctrl-C tears everything down (concurrently -k).
 #
-# Ports after start: web-ui :3000, mcp-server :3001, skills :3002, event-router :3003,
+# Ports after start: web-ui :3000, mcp-server :3001, skills :3002,
 # stations :3004, agent :8080, Postgres :5432.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -16,14 +16,14 @@ fail() { echo "[lore] ERROR: $*" >&2; exit 1; }
 
 # Kill any stale Lore stack from a previous `npm start`. node --watch children
 # ignore plain SIGTERM and can survive a rough exit, then hold the service ports
-# (web-ui :3000, mcp-server :3001, skills :3002, event-router :3003, stations :3004,
+# (web-ui :3000, mcp-server :3001, skills :3002, stations :3004,
 # agent :8080) so the next run dies
 # with EADDRINUSE. Free those ports here. Postgres :5432 / Dgraph :8081 are
 # docker-managed, so we leave them alone. Idempotent: a no-op when nothing runs.
 free_stale_ports() {
   command -v lsof >/dev/null 2>&1 || { log "lsof not found — skipping stale-instance cleanup"; return 0; }
   local port pids
-  for port in 3000 3001 3002 3003 3004 8080; do
+  for port in 3000 3001 3002 3004 8080; do
     pids="$(lsof -ti "tcp:$port" -sTCP:LISTEN 2>/dev/null || true)"
     [ -n "$pids" ] || continue
     log "Port $port held by a stale instance (PID $(echo "$pids" | tr '\n' ' ')) — stopping it"
@@ -106,7 +106,6 @@ export LORE_AGENT_URL="${LORE_AGENT_URL:-http://localhost:8080}"
 #     Both ends read LORE_AGENT_INTERNAL_TOKEN here, defaulting to the same
 #     LORE_INGEST_TOKEN above so a local run needs one token, not two.
 export LORE_AGENT_INTERNAL_TOKEN="${LORE_AGENT_INTERNAL_TOKEN:-$LORE_INGEST_TOKEN}"
-export EVENT_ROUTER_URL="${EVENT_ROUTER_URL:-http://localhost:3003}"
 export STATIONS_URL="${STATIONS_URL:-http://localhost:3004}"
 
 # Agent conversations (ai-agent-subsystem#188): a run saves its state so a LATER run
@@ -202,8 +201,8 @@ set -m
 # dies with "Settings file not found", which is invisible from the Floor side.
 # LORE_AGENT_SKILLS_DIR is explicit because the gateway otherwise resolves the
 # bundle relative to cwd, and concurrently runs from the repo root.
-names="shared,core,api-tsc,api,mcp-tsc,skills,router-tsc,router,stations-tsc,stations"
-colors="blue,gray,green,greenBright,yellow,white,red,red,redBright,redBright"
+names="shared,core,api-tsc,api,mcp-tsc,skills,stations-tsc,stations"
+colors="blue,gray,green,greenBright,yellow,white,redBright,redBright"
 commands=(
   "npm run dev -w @re-cinq/lore-shared"
   "npm run dev -w @re-cinq/lore-server-core"
@@ -211,8 +210,6 @@ commands=(
   "PORT=3001 npm run start:watch -w @re-cinq/lore-api"
   "npm run dev -w @re-cinq/lore-mcp"
   "LORE_MCP_HTTP=1 LORE_MCP_PORT=3002 LORE_AGENT_SKILLS_DIR=$ROOT/apps/mcp-server/agent-skills npm run start -w @re-cinq/lore-mcp"
-  "npm run dev -w @re-cinq/lore-event-router"
-  "PORT=3003 npm run start:watch -w @re-cinq/lore-event-router"
   "npm run dev -w @re-cinq/lore-stations"
   "PORT=3004 npm run start:watch -w @re-cinq/lore-stations"
 )
