@@ -1,6 +1,7 @@
 "use client";
 
 import { Alert } from "@/components/Alert";
+import MiniPipeline from "@/components/MiniPipeline";
 import PendingActionButton from "@/components/PendingActionButton";
 import type { ImplementationLoop, LoopTicket } from "@/lib/api/backlog";
 import styles from "./ImplementationLoopView.module.scss";
@@ -30,17 +31,6 @@ const TIME_AGO_UNITS: Array<[number, string]> = [
 
 const EMPTY_BACKLOG =
   "The backlog is empty. Label an issue priority:high, priority:medium, or priority:low to queue it.";
-
-/** Tone per node state: unrecognised renders as failed-red so new outcomes are loud. */
-const DOT_STATES = new Set([
-  "success",
-  "running",
-  "waiting",
-  "pending",
-  "changes_requested",
-]);
-
-type PipelineNode = NonNullable<LoopTicket["pipeline"]>[number];
 
 interface LoopViewProps {
   loop: ImplementationLoop;
@@ -194,7 +184,9 @@ function TicketRow({ ticket }: { ticket: LoopTicket }) {
       <TicketStatusCell ticket={ticket} />
       <TicketTitleCell ticket={ticket} />
       <td>
-        <MiniPipeline ticket={ticket} />
+        {ticket.pipeline && ticket.run_id && (
+          <MiniPipeline runId={ticket.run_id} pipeline={ticket.pipeline} />
+        )}
       </td>
       <TicketActionsCell ticket={ticket} />
     </tr>
@@ -256,37 +248,6 @@ function formatTimeAgo(seconds: number, span: number, unit: string): string {
   const n = Math.floor(seconds / span);
 
   return `${n} ${unit}${n === 1 ? "" : "s"} ago`;
-}
-
-function MiniPipeline({ ticket }: { ticket: LoopTicket }) {
-  if (!ticket.pipeline || !ticket.run_id) {
-    return null;
-  }
-
-  return (
-    <a
-      className={styles.miniPipeline}
-      href={`/assembly-runs/${ticket.run_id}`}
-      title="Open the live run"
-      data-testid="mini-pipeline"
-    >
-      {ticket.pipeline.map((node) => (
-        <PipelineDot key={node.node_id} node={node} />
-      ))}
-    </a>
-  );
-}
-
-function PipelineDot({ node }: { node: PipelineNode }) {
-  const state = DOT_STATES.has(node.state) ? node.state : "failed";
-
-  return (
-    <span
-      title={`${node.node_id}: ${node.state}`}
-      data-testid={`mini-node-${node.node_id}`}
-      className={`${styles.dot} ${styles[state as keyof typeof styles]}`}
-    />
-  );
 }
 
 function TicketActionsCell({ ticket }: { ticket: LoopTicket }) {

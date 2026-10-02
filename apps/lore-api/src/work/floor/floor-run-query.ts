@@ -6,6 +6,7 @@ import { floorTaskSubject } from "@re-cinq/lore-shared/floor/floor-task-runs.js"
 import { floorPlanSubject } from "@re-cinq/lore-shared/feature-planning/floor-plan-runs.js";
 import type {
   AssemblyRunQuery,
+  AssemblyRunStatus,
   AssemblyRunSummary,
 } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 
@@ -143,6 +144,21 @@ function opensOf(query: AssemblyRunQuery): boolean[] {
   return [true, false].filter((open) => statusOpenness.includes(open));
 }
 
-function isOpenStatus(status: string): boolean {
+export function isOpenStatus(status: string): boolean {
   return OPEN_STATUSES.includes(status);
+}
+
+/** The floor cannot tell finished from failed, nor queued from running, so a status page is searched for in up to this many floor pages. */
+const STATUS_SEARCH_PAGES = 5;
+
+export function pagesToRead(status: AssemblyRunStatus | undefined): number {
+  return status === undefined ? 1 : STATUS_SEARCH_PAGES;
+}
+
+export function searchEnded(
+  found: number,
+  limit: number,
+  nextCursor: string | null,
+): boolean {
+  return found >= limit || nextCursor === null;
 }

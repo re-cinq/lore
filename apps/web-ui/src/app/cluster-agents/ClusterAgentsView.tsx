@@ -114,7 +114,7 @@ function rosterCells(
     <ClusterTags tags={agent.tags} key="tags" />,
     <ClusterStatus status={agent.status} paused={agent.paused} key="status" />,
     <TimeAgo date={agent.last_seen_at} key="seen" />,
-    <RunningClaims agent={agent} key="claims" />,
+    agent.running_claims,
     <ClusterActions
       agent={agent}
       togglePaused={togglePaused}
@@ -173,19 +173,6 @@ function ClusterStatus({
       </span>
       {paused && <span className="badge badge-gray">paused</span>}
     </>
-  );
-}
-
-/** How many station runs this cluster is holding, linked to them when there are any. A zero is left as plain text: a link to an empty list is a dead end. */
-function RunningClaims({ agent }: { agent: ClusterAgent }) {
-  if (agent.running_claims === 0) {
-    return <>{agent.running_claims}</>;
-  }
-
-  return (
-    <Link href={`/assembly-runs?cluster_agent_id=${agent.id}`}>
-      {agent.running_claims}
-    </Link>
   );
 }
 

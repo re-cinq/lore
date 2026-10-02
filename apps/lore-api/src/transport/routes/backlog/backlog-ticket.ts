@@ -9,6 +9,10 @@ import {
   PIPELINE_TASK_COLUMNS,
 } from "@re-cinq/lore-shared/models/pipeline-task.js";
 import { PRIORITY_LABELS } from "@re-cinq/lore-shared";
+import {
+  miniPipeline,
+  type PipelineNode,
+} from "../../../work/assembly-line-station/mini-pipeline.js";
 import type { Ticket } from "./backlog-schema.js";
 
 // The implementation-loop task fields the backlog view reads, picked from the pipeline.tasks wire contract.
@@ -116,57 +120,19 @@ function runSummary(run: LoopRunRow | undefined): {
 export function pipelineOf(
   run: LoopRunRow | undefined,
   nodeRows: readonly NodeRow[],
-): Array<{ node_id: string; state: string }> | null {
+): PipelineNode[] | null {
   if (!run?.graph?.nodes) {
     return null;
   }
-  const latest = latestVisitByNode(run.id, nodeRows);
-  const { nodes } = run.graph;
+  const visits = nodeRows
+    .filter((row) => row.assembly_run_id === run.id)
+    .map(({ node_id, iteration, outcome }) => ({
+      nodeId: node_id,
+      iteration,
+      outcome,
+    }));
 
-  return nodes.map((node) => nodeState(node, latest.get(node.id)));
-}
-
-/** Latest station-run visit per node in `run`, later iterations winning over earlier ones. */
-function latestVisitByNode(
-  runId: string,
-  nodeRows: readonly NodeRow[],
-): Map<string, NodeRow> {
-  const latest = new Map<string, NodeRow>();
-
-  for (const row of nodeRows) {
-    if (row.assembly_run_id !== runId) {
-      continue;
-    }
-    const prior = latest.get(row.node_id);
-
-    if (!prior || row.iteration >= prior.iteration) {
-      latest.set(row.node_id, row);
-    }
-  }
-
-  return latest;
-}
-
-/** Node types whose open row means "parked", not "working": a person, or a build, owns the next move. Mirrors HUMAN_STATION_TYPES, which lore-api does not depend on. */
-const WAITING_NODE_TYPES = new Set(["pr_review", "ci_check"]);
-
-/** absent = pending, open = running/waiting for a human station. */
-function nodeState(
-  node: { id: string; type: string },
-  visit: NodeRow | undefined,
-): { node_id: string; state: string } {
-  if (!visit) {
-    return { node_id: node.id, state: "pending" };
-  }
-
-  if (visit.outcome === null) {
-    return {
-      node_id: node.id,
-      state: WAITING_NODE_TYPES.has(node.type) ? "waiting" : "running",
-    };
-  }
-
-  return { node_id: node.id, state: visit.outcome };
+  return miniPipeline(run.graph.nodes, visits);
 }
 
 interface RunContext {

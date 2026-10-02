@@ -42,53 +42,6 @@
   margin-bottom: var(--space-6);
 }
 
-.miniPipeline {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  text-decoration: none;
-}
-
-.dot {
-  width: 0.7rem;
-  height: 0.7rem;
-  border-radius: 50%;
-  display: inline-block;
-}
-
-.success {
-  background: var(--success);
-}
-
-.failed {
-  background: var(--danger);
-}
-
-.changes_requested {
-  background: var(--warning);
-}
-
-.running {
-  background: var(--info);
-  animation: miniPulse 1.2s ease-in-out infinite;
-}
-
-.waiting {
-  background: transparent;
-  border: 2px solid var(--info);
-}
-
-.pending {
-  background: transparent;
-  border: 2px solid var(--chart-neutral);
-}
-
-@keyframes miniPulse {
-  50% {
-    opacity: 0.4;
-  }
-}
-
 .ticketTable {
   width: 100%;
   border-collapse: collapse;
