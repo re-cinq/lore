@@ -504,6 +504,14 @@ A satellite must report outcomes without holding the bus-wide credential.
 
 ## FR6 — Standalone satellite chart
 
+> **Removed on 2026-10-02.** The standalone chart
+> (`cluster-agent-standalone-helm`), its render check and
+> `scripts/install-satellite.sh` are deleted, with the central
+> `cluster-agent-helm` and `ai-agents` subcharts: no cluster can be registered
+> as a satellite any more, because nothing gives a cluster agent work since
+> `apps/floor` was deleted. The statements below record how a satellite was
+> installed.
+
 One `helm install` turns any cluster with outbound HTTPS into a Lore
 execution node.
 
