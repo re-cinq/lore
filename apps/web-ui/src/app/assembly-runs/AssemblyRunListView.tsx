@@ -23,23 +23,6 @@ const CONNECTION_BADGES: Record<ChannelState, string> = {
   offline: "badge-red",
 };
 
-export function runsHref(query: {
-  status?: string;
-  cursor?: string | null;
-}): string {
-  const params = new URLSearchParams();
-
-  if (query.status) {
-    params.set("status", query.status);
-  }
-
-  if (query.cursor) {
-    params.set("cursor", query.cursor);
-  }
-
-  return params.size > 0 ? `/assembly-runs?${params}` : "/assembly-runs";
-}
-
 /** The run status vocabulary — one status per run, so filtering is SQL-side. */
 const FILTERS = ["queued", "running", "finished", "failed"] as const;
 
@@ -83,6 +66,20 @@ function PageLinks({
       )}
     </div>
   );
+}
+
+function runsHref(query: { status?: string; cursor?: string | null }): string {
+  const params = new URLSearchParams();
+
+  if (query.status) {
+    params.set("status", query.status);
+  }
+
+  if (query.cursor) {
+    params.set("cursor", query.cursor);
+  }
+
+  return params.size > 0 ? `/assembly-runs?${params}` : "/assembly-runs";
 }
 
 function StatusFilterBar({ activeStatus }: { activeStatus?: string }) {

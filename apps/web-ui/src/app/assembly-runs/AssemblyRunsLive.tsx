@@ -31,8 +31,8 @@ export default function AssemblyRunsLive({
 
   useRunsChannel({
     runIds: state.runs.map((run) => run.id),
-    onFrame: useFrameHandler({ dispatch, reload, onFirstPage: !cursor }),
-    onConnectionChange: useConnectionChange(dispatch, reload),
+    onFrame: frameHandler({ dispatch, reload, onFirstPage: !cursor }),
+    onConnectionChange: connectionChangeHandler(dispatch, reload),
   });
 
   return (
@@ -50,15 +50,21 @@ interface FrameContext {
   onFirstPage: boolean;
 }
 
-function useFrameHandler({ dispatch, reload, onFirstPage }: FrameContext) {
+function frameHandler({ dispatch, reload, onFirstPage }: FrameContext) {
   const handlers: Record<RunListFrame["type"], (frame: RunListFrame) => void> =
     {
-      run_row: (frame) =>
-        frame.type === "run_row" &&
-        dispatch({ type: "run_row", run: floorRunOf(frame.run) }),
+      run_row: (frame) => {
+        if (frame.type === "run_row") {
+          dispatch({ type: "run_row", run: floorRunOf(frame.run) });
+        }
+      },
       // A keyset page does not shift when something starts: only the first page has a new row to show.
-      run_started: () => onFirstPage && reload(),
-      resync: () => reload(),
+      run_started: () => {
+        if (onFirstPage) {
+          reload();
+        }
+      },
+      resync: reload,
     };
 
   return (frame: RunListFrame) => handlers[frame.type](frame);
@@ -86,7 +92,7 @@ function usePageReload(
 }
 
 /** Every `live` reloads the page: a run started before the socket first opened was never announced to this tab, and one started while it was away was missed. */
-function useConnectionChange(
+function connectionChangeHandler(
   dispatch: Dispatch<RunListAction>,
   reload: () => void,
 ): (state: ChannelState) => void {
