@@ -6,7 +6,8 @@ const onboardRepo = vi.fn();
 
 vi.mock("./api/repos", () => ({ onboardRepo }));
 
-const { createOnboardTask } = await import("./onboard");
+const { createOnboardTask, onboardDestination, onboardedParam } =
+  await import("./onboard");
 
 beforeEach(() => {
   onboardRepo.mockReset();
@@ -101,5 +102,38 @@ describe("createOnboardTask", () => {
       message:
         "Onboarding is unavailable: the web UI has no lore-api configured.",
     });
+  });
+});
+
+describe("onboardDestination", () => {
+  it("lands on the queued task when the API named one", () => {
+    expect(onboardDestination("re-cinq/lore", "task-1")).toBe("/tasks/task-1");
+  });
+
+  it("falls back to the home page confirming the repo when there is no id", () => {
+    for (const taskId of [null, ""]) {
+      expect(onboardDestination("re-cinq/lore", taskId)).toBe(
+        "/?onboarded=re-cinq%2Flore",
+      );
+    }
+  });
+});
+
+describe("onboardedParam", () => {
+  it("accepts an owner/name slug", () => {
+    expect(onboardedParam("re-cinq/lore")).toBe("re-cinq/lore");
+  });
+
+  it("ignores an absent, repeated or malformed parameter", () => {
+    for (const value of [
+      undefined,
+      "",
+      "lore",
+      "a/b/c",
+      "<b>/x",
+      ["re-cinq/lore"],
+    ]) {
+      expect(onboardedParam(value)).toBeNull();
+    }
   });
 });

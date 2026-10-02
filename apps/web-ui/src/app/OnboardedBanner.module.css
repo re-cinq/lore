@@ -1,0 +1,12 @@
+.banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  margin: var(--space-4) 0;
+}
+
+.message {
+  color: var(--success);
+  margin: 0;
+}

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
-import { render } from "@testing-library/react";
-import { TranscriptTurnsList } from "./TranscriptView";
+import { render, screen } from "@testing-library/react";
+import { TranscriptEmpty, TranscriptTurnsList } from "./TranscriptView";
 import type { TranscriptEntry } from "@/lib/transcript-entries";
 
 const AT = "2026-09-09T10:00:05.000Z";
@@ -108,5 +108,47 @@ describe("TranscriptTurnsList", () => {
     const row = container.querySelector('[data-entry="turn"]');
 
     expect(row?.firstElementChild?.tagName).toBe("TIME");
+  });
+});
+
+describe("TranscriptEmpty", () => {
+  it("says a running or queued step has no turns yet instead of blaming retention", () => {
+    for (const nodeStatus of ["running", "idle"] as const) {
+      const { unmount } = render(
+        <TranscriptEmpty show node={{ id: "build", status: nodeStatus }} />,
+      );
+
+      expect(
+        screen.getByText("No turns yet: this step is still running or queued."),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/retention horizon/)).not.toBeInTheDocument();
+      unmount();
+    }
+  });
+
+  it("keeps the retention explanation for a finished or unknown step", () => {
+    for (const nodeStatus of ["succeeded", "failed", undefined] as const) {
+      const { unmount } = render(
+        <TranscriptEmpty show node={{ id: "build", status: nodeStatus }} />,
+      );
+
+      expect(
+        screen.getByText(
+          "No stored turns for build. Turns older than the retention horizon are pruned.",
+        ),
+      ).toBeInTheDocument();
+      unmount();
+    }
+  });
+
+  it("renders nothing when hidden", () => {
+    const { container } = render(
+      <TranscriptEmpty
+        show={false}
+        node={{ id: "build", status: "running" }}
+      />,
+    );
+
+    expect(container).toBeEmptyDOMElement();
   });
 });

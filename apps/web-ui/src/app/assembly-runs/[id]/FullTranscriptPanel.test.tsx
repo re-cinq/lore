@@ -229,6 +229,42 @@ describe("FullTranscriptPanel", () => {
     ).toBeTruthy();
   });
 
+  it("says a running or queued node has no turns yet rather than that they were pruned", async () => {
+    stubFetch(turnsResponse([]));
+    const { container } = render(
+      <FullTranscriptPanel
+        runId="run-1"
+        nodeId="implement"
+        nodeStatus="running"
+      />,
+    );
+
+    await openPanel(container);
+
+    expect(
+      await screen.findByText(
+        "No turns yet: this step is still running or queued.",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText(/retention horizon/)).toBeNull();
+  });
+
+  it("keeps the retention explanation for a finished node with no stored turns", async () => {
+    stubFetch(turnsResponse([]));
+    const { container } = render(
+      <FullTranscriptPanel
+        runId="run-1"
+        nodeId="implement"
+        nodeStatus="failed"
+      />,
+    );
+
+    await openPanel(container);
+
+    expect(await screen.findByText(/retention horizon/)).toBeTruthy();
+    expect(screen.queryByText(/No turns yet/)).toBeNull();
+  });
+
   it("surfaces a fetch failure instead of an empty transcript", async () => {
     stubFetch(new Response("{}", { status: 500 }));
     const { container } = render(
