@@ -135,7 +135,7 @@ low-risk reads before touching auth-sensitive writes:
   fallback is preserved inside the scheme: it resolves to all scopes without a DB
   hit, a client token is looked up by sha256 hash, and resolution returns `null`
   when the pool is null, no active row matches, or the lookup throws; an `admin`
-  token satisfies any required scope while a token lacking it is denied. ([validated by `auth.test.ts:43`](apps/lore-api/src/transport/http/auth.test.ts#L43), [validated by `auth.test.ts:52`](apps/lore-api/src/transport/http/auth.test.ts#L52), [validated by `auth.test.ts:70`](apps/lore-api/src/transport/http/auth.test.ts#L70), [validated by `auth.test.ts:77`](apps/lore-api/src/transport/http/auth.test.ts#L77), [validated by `auth.test.ts:94`](apps/lore-api/src/transport/http/auth.test.ts#L94), [validated by `auth.test.ts:101`](apps/lore-api/src/transport/http/auth.test.ts#L101), [validated by `auth.test.ts:115`](apps/lore-api/src/transport/http/auth.test.ts#L115))
+  token satisfies any required scope while a token lacking it is denied. ([validated by `auth.test.ts:43`](apps/lore-api/src/transport/http/auth.test.ts#L78), [validated by `auth.test.ts:52`](apps/lore-api/src/transport/http/auth.test.ts#L87), [validated by `auth.test.ts:70`](apps/lore-api/src/transport/http/auth.test.ts#L105), [validated by `auth.test.ts:77`](apps/lore-api/src/transport/http/auth.test.ts#L112), [validated by `auth.test.ts:94`](apps/lore-api/src/transport/http/auth.test.ts#L129), [validated by `auth.test.ts:101`](apps/lore-api/src/transport/http/auth.test.ts#L136), [validated by `auth.test.ts:115`](apps/lore-api/src/transport/http/auth.test.ts#L150))
 - **Rate limiting** → an `onPreAuth` server extension reusing the exact bucket
   logic; the `webhook`/`task`/`default` bucket selection moves into the ext.
 - **Body cap** → hapi route `payload: { maxBytes: 1_048_576 }`; the two manual
@@ -174,7 +174,7 @@ low-risk reads before touching auth-sensitive writes:
 - **SC-4** Rate limiting still returns `429` + `Retry-After: 60` at the same
   per-bucket thresholds (webhook 30, task 60, default 200 per minute); a bucket
   allows requests up to its limit then blocks, and admits them again once the 60s
-  window slides past. ([validated by `rate-limit.test.ts:53`](apps/lore-api/src/transport/http/rate-limit.test.ts#L50), [validated by `auth.test.ts:17`](apps/lore-api/src/transport/http/auth.test.ts#L17), [validated by `auth.test.ts:24`](apps/lore-api/src/transport/http/auth.test.ts#L24))
+  window slides past. ([validated by `rate-limit.test.ts:53`](apps/lore-api/src/transport/http/rate-limit.test.ts#L52), [validated by `auth.test.ts:17`](apps/lore-api/src/transport/http/auth.test.ts#L22), [validated by `auth.test.ts:24`](apps/lore-api/src/transport/http/auth.test.ts#L29))
 - **SC-5** Each PR in the migration is independently revertable and was merged
   without an API outage (no route 404s introduced mid-migration).
 

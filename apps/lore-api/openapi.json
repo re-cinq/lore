@@ -1699,7 +1699,7 @@
         "summary": "GET /api/cluster-agents/{id}/catalog-events",
         "tags": ["Cluster Agents"],
         "security": [],
-        "x-rate-limit-bucket": "default",
+        "x-rate-limit-bucket": "agent",
         "responses": {
           "200": {
             "description": "The catalog changes this cluster-agent has not applied yet — a full snapshot on first contact, an event tail after — each entry carrying the resolved definition to render, or null to delete",
@@ -1733,7 +1733,7 @@
         "summary": "POST /api/cluster-agents/{id}/catalog-status",
         "tags": ["Cluster Agents"],
         "security": [],
-        "x-rate-limit-bucket": "default",
+        "x-rate-limit-bucket": "agent",
         "responses": {
           "200": {
             "description": "Record what this cluster did with each catalog entry it read — applied, refused (with the reason), skipped or deleted",
@@ -1812,7 +1812,7 @@
         "summary": "POST /api/cluster-agents/{id}/claim",
         "tags": ["Cluster Agents"],
         "security": [],
-        "x-rate-limit-bucket": "default",
+        "x-rate-limit-bucket": "agent",
         "responses": {
           "200": {
             "description": "The claimed station run's identity plus the dispatch spec it was enqueued with; 204 when nothing is claimable",
@@ -1852,7 +1852,7 @@
         "summary": "POST /api/cluster-agents/{id}/heartbeat",
         "tags": ["Cluster Agents"],
         "security": [],
-        "x-rate-limit-bucket": "default",
+        "x-rate-limit-bucket": "agent",
         "responses": {
           "200": {
             "description": "Liveness acknowledgement; last_seen_at was bumped",
@@ -1966,7 +1966,7 @@
         "summary": "POST /api/cluster-agents/{id}/release",
         "tags": ["Cluster Agents"],
         "security": [],
-        "x-rate-limit-bucket": "default",
+        "x-rate-limit-bucket": "agent",
         "responses": {
           "200": {
             "description": "Whether the unlaunched visit went back on the queue, failed because no retry can launch it, or had already settled",
@@ -12702,7 +12702,8 @@
                   "bad_message",
                   "channel_in_use",
                   "too_many_channels",
-                  "unknown_channel"
+                  "unknown_channel",
+                  "rate_limited"
                 ]
               }
             },

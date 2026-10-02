@@ -70,7 +70,7 @@ introduced for this feature must not collide with that name.
 
 Run observability is delivered over Server-Sent Events at
 `GET /api/agent-events/stream/{assemblyLineId}`, with catch-up-then-live
-semantics keyed on a row-id cursor. ([opens a run channel and delivers its snapshot, replay and catchup_complete as frame envelopes](apps/lore-api/src/work/assembly-line-station/live-socket.test.ts#L159), [delivers the run, every node, every task event and the CI check as a snapshot, then the agent replay, then catchup_complete](apps/lore-api/src/work/assembly-line-station/run-stream-session.test.ts#L130), [forwards transcript rows written after catch-up on an agent_event notification, from the feed's cursor](apps/lore-api/src/work/assembly-line-station/run-feed.test.ts#L185))
+semantics keyed on a row-id cursor. ([opens a run channel and delivers its snapshot, replay and catchup_complete as frame envelopes](apps/lore-api/src/work/assembly-line-station/live-socket.test.ts#L164), [delivers the run, every node, every task event and the CI check as a snapshot, then the agent replay, then catchup_complete](apps/lore-api/src/work/assembly-line-station/run-stream-session.test.ts#L130), [forwards transcript rows written after catch-up on an agent_event notification, from the feed's cursor](apps/lore-api/src/work/assembly-line-station/run-feed.test.ts#L185))
 
 The POST handler and the SSE subscribers are joined by an in-process pub/sub. ([delivers a published notification only to subscribers whose filter matches](apps/lore-api/src/work/assembly-line-station/run-notify-hub.test.ts#L73))
 
@@ -294,7 +294,7 @@ frame contract is a generated type, and the drift guard is deleted.
 
 - The endpoint is `GET /api/assembly-runs/{id}/stream` on lore-api, under the
   `read` scope; the Floor's `/api/agent-events/stream/{id}` and its in-process
-  bus are gone, and the browser's proxy talks to one backend. _(Since 2026-09-23 the endpoint is the `run` channel of `/api/ws`, ADR-048.)_ ([opens a run channel and delivers its snapshot, replay and catchup_complete as frame envelopes](apps/lore-api/src/work/assembly-line-station/live-socket.test.ts#L159))
+  bus are gone, and the browser's proxy talks to one backend. _(Since 2026-09-23 the endpoint is the `run` channel of `/api/ws`, ADR-048.)_ ([opens a run channel and delivers its snapshot, replay and catchup_complete as frame envelopes](apps/lore-api/src/work/assembly-line-station/live-socket.test.ts#L164))
 - One connection carries every family the page reads, as a discriminated
   `RunStreamFrame` union published in OpenAPI: `agent_event`, `node_status`,
   `run_status`, `task_event`, `ci_check`, plus `catchup_complete`. ([delivers the run, every node, every task event and the CI check as a snapshot, then the agent replay, then catchup_complete](apps/lore-api/src/work/assembly-line-station/run-stream-session.test.ts#L130))

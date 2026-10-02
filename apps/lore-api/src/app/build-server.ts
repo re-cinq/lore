@@ -7,6 +7,8 @@ import Hapi from "@hapi/hapi";
 import type { ServerRoute } from "@hapi/hapi";
 import { registerRequestTracing } from "@re-cinq/lore-shared/http/tracing.js";
 import { traceHttp } from "@re-cinq/lore-server-core/platform/otel.js";
+import { rateLimit } from "../transport/http/auth.js";
+import { clientAddress } from "../transport/http/client-ip.js";
 import { registerRateLimit } from "../transport/http/rate-limit.js";
 import { registerBearerScope } from "../transport/http/bearer-scope.js";
 import { zodFailAction } from "../transport/http/zod-validate.js";
@@ -19,7 +21,10 @@ import {
   registerPlanning,
   type RegisteredPlanning,
 } from "./register-planning.js";
-import { mountLiveSocket } from "../work/assembly-line-station/live-socket.js";
+import {
+  mountLiveSocket,
+  type LiveSocketLimits,
+} from "../work/assembly-line-station/live-socket.js";
 import { runChannelDepsFromPool } from "../work/assembly-line-station/station-wiring.js";
 
 // `traceHttp` is the metric half the span does not carry — lore-api recorded it per request before the tracing plugin was shared, and still does.
@@ -65,6 +70,16 @@ function registerRoutes(
   return routes;
 }
 
+const LIVE_SOCKET_LIMITS: LiveSocketLimits = {
+  addressOf: (request) =>
+    clientAddress(
+      request.socket.remoteAddress,
+      request.headers["x-forwarded-for"],
+    ),
+  allowUpgrade: (address) => rateLimit("ws", address),
+  allowOpen: (connection) => rateLimit("wsOpen", connection),
+};
+
 function registerLiveSocket(
   server: Hapi.Server,
   getPool: () => Pool | null,
@@ -73,6 +88,7 @@ function registerLiveSocket(
   const liveSocket = mountLiveSocket(server.listener, {
     run: runChannelDepsFromPool(getPool),
     collab,
+    limits: LIVE_SOCKET_LIMITS,
   });
 
   server.ext("onPreStop", () => liveSocket.close());

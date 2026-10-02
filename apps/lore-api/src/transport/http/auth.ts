@@ -5,33 +5,46 @@ import { createHash } from "node:crypto";
 
 // ── Rate limiter (in-memory sliding window) ─────────────────────────
 
-export type RateBucket = "webhook" | "task" | "embed" | "turns" | "default";
+export type RateBucket =
+  | "webhook"
+  | "task"
+  | "embed"
+  | "turns"
+  | "agent"
+  | "ws"
+  | "wsOpen"
+  | "default";
 
 const RATE_LIMITS: Record<RateBucket, number> = {
   webhook: 30,
   task: 60,
   embed: 1200,
   turns: 300,
+  agent: 600,
+  ws: 30,
+  wsOpen: 30,
   default: 200,
 };
 
+const WINDOW_MS = 60_000;
+const MAX_WINDOWS = 20_000;
+const SWEEP_EVERY = 1_000;
+
 const windows = new Map<string, number[]>();
+let sinceSweep = 0;
 
-export function rateLimit(bucket: RateBucket): boolean {
+export function rateWindowCount(): number {
+  return windows.size;
+}
+
+export function rateLimit(
+  bucket: RateBucket,
+  principal = "anonymous",
+): boolean {
   const now = Date.now();
-  const windowMs = 60_000;
-  const key = bucket;
-  let timestamps = windows.get(key);
 
-  if (!timestamps) {
-    timestamps = [];
-    windows.set(key, timestamps);
-  }
-
-  // Evict old entries
-  while (timestamps.length > 0 && timestamps[0] <= now - windowMs) {
-    timestamps.shift();
-  }
+  sweepWhenDue(now);
+  const timestamps = windowFor(`${bucket}|${principal}`, now);
 
   if (timestamps.length >= RATE_LIMITS[bucket]) {
     return false;
@@ -39,6 +52,46 @@ export function rateLimit(bucket: RateBucket): boolean {
   timestamps.push(now);
 
   return true;
+}
+
+function sweepWhenDue(now: number): void {
+  if (++sinceSweep < SWEEP_EVERY && windows.size < MAX_WINDOWS) {
+    return;
+  }
+  sinceSweep = 0;
+  dropIdle(now);
+  dropOldest();
+}
+
+function windowFor(key: string, now: number): number[] {
+  const timestamps = windows.get(key) ?? [];
+
+  windows.set(key, timestamps);
+
+  while (timestamps.length > 0 && timestamps[0] <= now - WINDOW_MS) {
+    timestamps.shift();
+  }
+
+  return timestamps;
+}
+
+function dropIdle(now: number): void {
+  for (const [key, timestamps] of windows) {
+    const last = timestamps.at(-1);
+
+    if (last === undefined || last <= now - WINDOW_MS) {
+      windows.delete(key);
+    }
+  }
+}
+
+function dropOldest(): void {
+  for (const key of windows.keys()) {
+    if (windows.size < MAX_WINDOWS) {
+      return;
+    }
+    windows.delete(key);
+  }
 }
 
 // ── Per-client token auth ───────────────────────────────────────────
