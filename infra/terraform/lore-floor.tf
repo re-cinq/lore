@@ -9,25 +9,24 @@
 
 # The legacy hook URL, kept alive. Every repo onboarded before ADR-044 step 2
 # carries <lore_webhook_hostname>/api/webhook/github, and GitHub does not
-# redeliver what 404s — so that path stays served, by the router: nginx
-# rewrites it to the router's one front door. The alias lives in the ingress rather than as a
-# second route on the router so the router keeps exactly one endpoint.
-# An Ingress can only name a Service in its own namespace, hence the
-# ExternalName hop. lore-api repoints hooks to the canonical URL as it touches
-# them (ensure / the repo page); nothing forces the migration.
-resource "kubernetes_service_v1" "lore_event_router_alias" {
+# redeliver what 404s — so that path stays served, by lore-api, whose own
+# route has that very path (no rewrite). An Ingress can only name a Service in
+# its own namespace, hence the ExternalName hop. lore-api repoints hooks to the
+# canonical URL as it touches them (ensure / the repo page); nothing forces
+# the migration.
+resource "kubernetes_service_v1" "lore_api_webhook_alias_legacy" {
   count = var.lore_webhook_hostname != "" ? 1 : 0
 
   metadata {
-    name      = "lore-event-router"
+    name      = "lore-api-webhook"
     namespace = "lore-floor"
   }
 
   spec {
     type          = "ExternalName"
-    external_name = "lore-event-router.lore-event-router.svc.cluster.local"
+    external_name = "lore-api.lore-api.svc.cluster.local"
     port {
-      port = 8080
+      port = 3000
     }
   }
 
@@ -46,7 +45,6 @@ resource "kubernetes_ingress_v1" "lore_floor_webhook_github" {
       # keeps its name, so cert-manager adopts the certificate already issued.
       "cert-manager.io/cluster-issuer"              = "letsencrypt-prod"
       "external-dns.alpha.kubernetes.io/hostname"   = var.lore_webhook_hostname
-      "nginx.ingress.kubernetes.io/rewrite-target"  = "/api/events"
       "nginx.ingress.kubernetes.io/proxy-body-size" = "25m"
     }
   }
@@ -65,9 +63,9 @@ resource "kubernetes_ingress_v1" "lore_floor_webhook_github" {
           path_type = "Exact"
           backend {
             service {
-              name = "lore-event-router"
+              name = "lore-api-webhook"
               port {
-                number = 8080
+                number = 3000
               }
             }
           }
@@ -76,5 +74,5 @@ resource "kubernetes_ingress_v1" "lore_floor_webhook_github" {
     }
   }
 
-  depends_on = [kubernetes_service_v1.lore_event_router_alias]
+  depends_on = [kubernetes_service_v1.lore_api_webhook_alias_legacy]
 }
