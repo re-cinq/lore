@@ -6,9 +6,9 @@
 | Status  | In Progress                                                          |
 | Created | 2026-06-10                                                           |
 | Owner   | Platform Engineering                                                 |
-| Route   | `POST /api/events` on the event-router (GitHub branch); legacy `POST /api/webhook/github` on the Floor host, rewritten to it by the ingress |
+| Route   | `POST /api/events` on the event-router (GitHub branch), and `POST /api/webhook/github` on lore-api, which takes the door over; the legacy `POST /api/webhook/github` on the Floor host is rewritten to the event-router by the ingress |
 | Auth    | HMAC SHA-256 (`X-Hub-Signature-256: sha256=…`, secret `LORE_WEBHOOK_SECRET`) |
-| Module  | `apps/event-router/src/transport/routes/events.ts` (`eventsRoute`, `fromGitHub`) |
+| Module  | `libs/shared/src/transport/http/github-delivery.ts` (`eventsFromGitHubDelivery`), called by `apps/event-router/src/transport/routes/events.ts` (`eventsRoute`) and `apps/lore-api/src/transport/routes/webhooks/webhook-github.ts` (`githubWebhookRoute`) |
 
 GitHub delivers every subscribed event to the event-router's one front door (ADR-044). The GitHub branch of `POST /api/events` verifies the HMAC over the raw body, maps the delivery to `github.*` events with `mapGitHubEvent`, and queues them on `pipeline.events` — fanning spec-PR merges into tasks, waking the review reactor, re-evaluating auto-merge, and creating tasks from labeled issues happen downstream, in the Floor's event handlers.
 
