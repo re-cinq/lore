@@ -8692,6 +8692,37 @@
         "x-required-scope": "read"
       }
     },
+    "/api/webhook/github": {
+      "post": {
+        "operationId": "post_api_webhook_github",
+        "summary": "POST /api/webhook/github",
+        "tags": ["Webhooks"],
+        "security": [],
+        "x-rate-limit-bucket": "unlimited",
+        "responses": {
+          "202": {
+            "description": "The bus events the delivery was mapped to",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitHubDeliveryCaptured"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "description": "Request body is verified and parsed by the handler (HMAC/form-encoded), not JSON."
+      }
+    },
     "/api/webhook/incident": {
       "post": {
         "operationId": "post_api_webhook_incident",
@@ -11162,6 +11193,22 @@
           }
         },
         "required": ["username", "password"],
+        "additionalProperties": false
+      },
+      "GitHubDeliveryCaptured": {
+        "type": "object",
+        "properties": {
+          "captured": {
+            "type": "number"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["captured", "events"],
         "additionalProperties": false
       },
       "GithubInstallation": {

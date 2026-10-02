@@ -2263,6 +2263,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/webhook/github": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * POST /api/webhook/github
+     * @description Request body is verified and parsed by the handler (HMAC/form-encoded), not JSON.
+     */
+    post: operations["post_api_webhook_github"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/webhook/incident": {
     parameters: {
       query?: never;
@@ -2972,6 +2992,10 @@ export interface components {
     GitCredential: {
       username: string;
       password: string;
+    };
+    GitHubDeliveryCaptured: {
+      captured: number;
+      events: string[];
     };
     GithubInstallation: {
       installation_id: string;
@@ -8907,6 +8931,29 @@ export interface operations {
       403: components["responses"]["Forbidden"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_webhook_github: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The bus events the delivery was mapped to */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["GitHubDeliveryCaptured"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
     };
   };
   post_api_webhook_incident: {
