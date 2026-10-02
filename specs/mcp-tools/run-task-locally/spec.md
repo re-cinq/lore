@@ -115,14 +115,6 @@ commit/push/PR) is exercised only by manual / integration runs. *(untested:
 mutates `~/.lore` at a module-load-fixed path — no IO seam to substitute without
 mocking child_process, which the no-mocks convention forbids.)*
 
-`createPipelineTaskViaApi` returns `null` without fetching when
-`LORE_API_URL`/`LORE_INGEST_TOKEN` are not configured, returns the
-server-issued `task_id` on a successful `POST /api/task`, and falls back to
-`null` when the request throws — the caller then adopts a generated UUID.
-(
-
-)
-
 ## Out of Scope
 
 - Claiming a pre-existing pending task — owned by [`lore_claim_and_run_locally`](../claim-and-run-locally/spec.md).
