@@ -240,4 +240,45 @@ describe("AssemblyRunsLive", () => {
       readsCausedByReconnect: 1,
     });
   }, 10_000);
+
+  it("reads the page twice when run-7, run-8 and run-9 start while it is being read", async () => {
+    renderLive();
+    await openChannel();
+    await waitFor(() => expect(reads()).toBeGreaterThan(0));
+    const pendingReads = holdReadsByHand();
+
+    const readsBeforeBurst = reads();
+
+    await sendFrame({ type: "run_started", run_id: "run-7" });
+    await sendFrame({ type: "run_started", run_id: "run-8" });
+    await sendFrame({ type: "run_started", run_id: "run-9" });
+    await resolveReadsOneByOne(pendingReads);
+
+    await newRunLink();
+    expect({ readsCausedByTheBurst: reads() - readsBeforeBurst }).toEqual({
+      readsCausedByTheBurst: 2,
+    });
+  });
 });
+
+type RunsPage = Awaited<ReturnType<typeof loadRunsPageAction>>;
+
+function holdReadsByHand(): Array<(page: RunsPage) => void> {
+  const pending: Array<(page: RunsPage) => void> = [];
+
+  vi.mocked(loadRunsPageAction).mockImplementation(
+    () => new Promise<RunsPage>((resolve) => pending.push(resolve)),
+  );
+
+  return pending;
+}
+
+async function resolveReadsOneByOne(
+  pending: Array<(page: RunsPage) => void>,
+): Promise<void> {
+  while (pending.length > 0) {
+    const resolveRead = pending.shift();
+
+    await act(async () => resolveRead?.(newerRunPage));
+  }
+}

@@ -70,25 +70,56 @@ function frameHandler({ dispatch, reload, onFirstPage }: FrameContext) {
   return (frame: RunListFrame) => handlers[frame.type](frame);
 }
 
-/** Reloads the current page; of overlapping reloads only the latest result lands. */
+type ReadState = "idle" | "reading" | "stale";
+
+/** Reads the current page one read at a time: a request made during a read owes exactly one more read once it ends, however many came. */
 function usePageReload(
   query: { activeStatus?: string; cursor?: string },
   dispatch: Dispatch<RunListAction>,
 ): () => void {
-  const latestReload = useRef(0);
-
-  return () => {
-    const ticket = ++latestReload.current;
-
-    void loadRunsPageAction({
+  const readState = useRef<ReadState>("idle");
+  const readPage = async () => {
+    const page = await loadRunsPageAction({
       status: query.activeStatus,
       cursor: query.cursor,
-    }).then((page) => {
-      if (ticket === latestReload.current) {
-        dispatch({ type: "page_loaded", ...page });
-      }
     });
+
+    dispatch({ type: "page_loaded", ...page });
   };
+
+  return () => {
+    if (readState.current !== "idle") {
+      readState.current = "stale";
+
+      return;
+    }
+
+    void readWhileAsked(readState, readPage);
+  };
+}
+
+async function readWhileAsked(
+  readState: { current: ReadState },
+  read: () => Promise<void>,
+): Promise<void> {
+  readState.current = "reading";
+
+  try {
+    await read();
+  } finally {
+    if (settle(readState)) {
+      void readWhileAsked(readState, read);
+    }
+  }
+}
+
+/** Back to idle, even when the read rejected; says whether another was asked for meanwhile. */
+function settle(readState: { current: ReadState }): boolean {
+  const isOwed = readState.current === "stale";
+
+  readState.current = "idle";
+
+  return isOwed;
 }
 
 /** Every `live` reloads the page: a run started before the socket first opened was never announced to this tab, and one started while it was away was missed. */
