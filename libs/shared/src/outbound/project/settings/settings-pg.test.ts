@@ -33,6 +33,23 @@ function fakeWriter(
 }
 
 describe("PgSettings", () => {
+  it("reads the org setting slack_users from lore.settings by its key", async () => {
+    const capture: Array<{ text: string; params?: unknown[] }> = [];
+    const store = new PgSettings(fakePool(capture, [{ value: '{"a":"U1"}' }]));
+
+    expect(await store.orgSetting("slack_users")).toBe('{"a":"U1"}');
+    expect(capture[0]).toEqual({
+      text: "SELECT value FROM lore.settings WHERE key = $1",
+      params: ["slack_users"],
+    });
+  });
+
+  it("answers null for an org setting that is not set", async () => {
+    const store = new PgSettings(fakePool([], []));
+
+    expect(await store.orgSetting("slack_users")).toBeNull();
+  });
+
   it("resolves the repo's dark_factory settings from the JSONB row", async () => {
     const capture: Array<{ text: string; params?: unknown[] }> = [];
     const store = new PgSettings(

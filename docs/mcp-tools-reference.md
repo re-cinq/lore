@@ -233,7 +233,7 @@ One-line purpose: register a new server-side pipeline task (backlog by default; 
 | Parameter | Required | Default | Description |
 |---|---|---|---|
 | `description` | yes | — | Primary instruction for the agent; non-empty (whitespace-only rejected); max 32000 chars. |
-| `task_type` | no | `general` | One of `feature-request`, `onboard`, `general`, `runbook`, `implementation`, `gap-fill`, `review`. Unknown values fall back to `general`. |
+| `task_type` | yes | — | One of `feature-request`, `runbook`, `gap-fill`, `review`. There is no default, and an unknown type is refused. To have something implemented, open an issue with a `priority:*` label: the implementation loop picks it up. |
 | `target_repo` | no | auto-detect | Target repo as `owner/repo`; falls back to git remote, then a task-type default. |
 | `priority` | no | `normal` | `normal` = backlog (claimed/run later); `immediate` = GKE agent auto-executes within ~30s. |
 | `group_id` | no | — | Task-group UUID linking this task to others in a multi-repo feature (see `lore_list_task_group`). |
@@ -505,7 +505,7 @@ One-line purpose: start a local 30s background poller that surfaces new `pending
 | Parameter | Required | Default | Description |
 |---|---|---|---|
 | `repos` | no | current repo | List of repos to watch, each `owner/repo`. Defaults to the git-remote-detected repo. |
-| `task_types` | no | `['implementation','general','runbook','gap-fill']` | List of task types to surface. |
+| `task_types` | no | `['runbook','gap-fill']` | List of task types to surface. |
 
 - **Returns:** a watching-confirmation message; `already active` (without spawning a second interval) when a notifier is already running.
 - **Where it runs:** local sandbox; starts a `setInterval` and writes the local cache file (the poll itself reads the API or DB).
@@ -540,7 +540,7 @@ One-line purpose: start a BRAND-NEW ad-hoc task running now as a detached backgr
 | Parameter | Required | Default | Description |
 |---|---|---|---|
 | `description` | yes | — | Free-text instruction for what to implement/do. If it references an `owner/repo` other than the current repo, the call is refused with a wrong-repo warning. |
-| `task_type` | no | `implementation` | One of `implementation`, `general`, `runbook`, `gap-fill`. |
+| `task_type` | no | `local` | One of `local` (free-form work, tracked on this machine only), `runbook`, `gap-fill`. |
 | `model` | no | runner default | Anthropic model id override; falls back to the configured default, then `claude-sonnet-4-6`. |
 
 - **Returns:** immediately with the task id, branch name, worktree path, log file path, and PID. The background process later validates, commits, pushes, and opens a PR.

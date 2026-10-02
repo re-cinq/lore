@@ -1,40 +1,12 @@
-/** Layer-3 handlers for `internal.*` events: mcp-server post-ingest triggers (formerly `/api/trigger/spec-trace` + `/api/trigger/spec-coverage-validate`) and the web-ui settings route's team-change signal. */
+/** Layer-3 handlers for `internal.*` events: mcp-server post-ingest trigger (formerly `/api/trigger/spec-trace`). */
 
 import { createDgraphClient } from "@re-cinq/lore-shared";
-import {
-  chunkSchemaOrOrgShared,
-  ORG_SHARED_SCHEMA,
-} from "@re-cinq/lore-shared/project/chunks/chunk-schema.js";
 import { dispatchSpecTrace } from "../../work/spec-trace/spec-trace-dispatch.js";
 import { projectFor } from "../../outbound/project-boot.js";
 import { insertEvent } from "../../outbound/event-store.js";
-import { getPool } from "../../outbound/db.js";
-import { pipeline, chunks, settings } from "../../outbound/queues.js";
+import { pipeline } from "../../outbound/queues.js";
 import { writeAuditLog } from "../../outbound/audit.js";
 import type { EventHandler } from "../../domain/event-types.js";
-
-/** `internal.repo.team_changed` — relocates legacy `org_shared.chunks` rows immediately (there is no nightly safety net any more) since a team re-point makes them invisible to resolved-schema reads; errors propagate so the event loop's retry/dead-letter can handle them. org_shared → team direction only. */
-export const repoTeamChanged: EventHandler = async (params) => {
-  const { repo } = params as { repo: string };
-  const team = await settings().team(repo);
-  const schema = await chunkSchemaOrOrgShared(getPool(), team);
-
-  if (schema === ORG_SHARED_SCHEMA) {
-    console.log(
-      `[events] team_changed for ${repo}: resolves to org_shared, nothing to relocate`,
-    );
-
-    return;
-  }
-
-  const { moved, dropped } = await chunks().relocateLegacyChunks(schema, repo);
-
-  if (dropped > 0) {
-    console.log(
-      `[events] team_changed for ${repo}: moved ${moved} of ${dropped} legacy org_shared rows into ${schema} (rest were stale duplicates of files already in the target)`,
-    );
-  }
-};
 
 // The Floor never writes dgraph itself (FR6); without LORE_DGRAPH_HTTP there's no graph system, so a miss is a success no-op, not a retry.
 function graphConfigured(repo: string, kind: string): boolean {

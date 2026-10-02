@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createHmac } from "node:crypto";
-import { parseSlashCommand, verifySlackSignature } from "./webhook-slack.js";
+import { verifySlackSignature } from "./webhook-slack.js";
 
 const FIXED_SECONDS_SINCE_EPOCH = 1767225600;
 
@@ -57,93 +57,5 @@ describe("Slack HMAC verification", () => {
     const isReplay = Math.abs(FIXED_SECONDS_SINCE_EPOCH - tenSecondsAgo) > 300;
 
     expect(isReplay).toBe(false);
-  });
-});
-
-describe("Slack command parsing", () => {
-  it("parses /lore implementation add auth", () => {
-    const { taskType, description } = parseSlashCommand(
-      "implementation add auth",
-    );
-
-    expect(taskType).toBe("implementation");
-    expect(description).toBe("add auth");
-  });
-
-  it("defaults to general when no type specified", () => {
-    const { taskType, description } = parseSlashCommand(
-      "what tests do we have",
-    );
-
-    expect(taskType).toBe("general");
-    expect(description).toBe("what tests do we have");
-  });
-
-  it("handles gap-fill type", () => {
-    const { taskType, description } = parseSlashCommand(
-      "gap-fill missing runbook for DB failover",
-    );
-
-    expect(taskType).toBe("gap-fill");
-    expect(description).toBe("missing runbook for DB failover");
-  });
-
-  it("does not match partial type names", () => {
-    const { taskType } = parseSlashCommand("implement something");
-
-    expect(taskType).toBe("general");
-  });
-
-  it("handles single word (no description after type)", () => {
-    const { taskType, description } = parseSlashCommand("implementation");
-
-    expect(taskType).toBe("general");
-    expect(description).toBe("implementation");
-  });
-
-  it("handles empty text", () => {
-    const { taskType, description } = parseSlashCommand("");
-
-    expect(taskType).toBe("general");
-    expect(description).toBe("");
-  });
-
-  it("preserves extra whitespace in description", () => {
-    const { description } = parseSlashCommand("general   hello    world");
-
-    expect(description).toBe("hello world");
-  });
-
-  it("parses ! prefix as immediate priority", () => {
-    const { taskType, description, priority } = parseSlashCommand(
-      "! implementation add caching",
-    );
-
-    expect(priority).toBe("immediate");
-    expect(taskType).toBe("implementation");
-    expect(description).toBe("add caching");
-  });
-
-  it("defaults to normal priority without ! prefix", () => {
-    const { priority } = parseSlashCommand("implementation add caching");
-
-    expect(priority).toBe("normal");
-  });
-
-  it("handles ! with general task (no explicit type)", () => {
-    const { taskType, description, priority } = parseSlashCommand(
-      "! fix the login bug",
-    );
-
-    expect(priority).toBe("immediate");
-    expect(taskType).toBe("general");
-    expect(description).toBe("fix the login bug");
-  });
-
-  it("handles ! alone", () => {
-    const { priority, description } = parseSlashCommand("!");
-
-    expect(priority).toBe("immediate");
-    expect(description).toBe("");
   });
 });

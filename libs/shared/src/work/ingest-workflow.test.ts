@@ -57,8 +57,36 @@ describe("LORE_INGEST_WORKFLOW_CONTENT", () => {
     );
   });
 
-  it("is version 5 — the template that reports a rename as a delete plus an add", () => {
-    expect(LORE_INGEST_WORKFLOW_VERSION).toBe(5);
+  it("is version 6 — the template whose graph job posts specs and ADRs as a delta through lore-code-trace", () => {
+    expect(LORE_INGEST_WORKFLOW_VERSION).toBe(6);
+  });
+
+  it("projects specs and ADRs with lore-code-trace docs --post and no longer posts to ingest-graph", () => {
+    expect(LORE_INGEST_WORKFLOW_CONTENT).toContain(
+      "./lore-code-trace docs --post",
+    );
+    expect(LORE_INGEST_WORKFLOW_CONTENT).not.toContain("ingest-graph");
+  });
+
+  it("checks out the full history for the graph job, since the delta is a diff against the last ingested commit", () => {
+    expect(graphJob()).toContain("fetch-depth: 0");
+  });
+
+  it("verifies the binary against its checksum before making it executable", () => {
+    const job = graphJob();
+
+    expect(job.indexOf("sha256sum -c -")).toBeGreaterThan(-1);
+    expect(job.indexOf("sha256sum -c -")).toBeLessThan(
+      job.indexOf("chmod +x lore-code-trace"),
+    );
+  });
+
+  it("proves the served binary has the docs subcommand before posting", () => {
+    const run = extractRunBlock("Project specs and ADRs into the graph");
+
+    expect(run.indexOf("./lore-code-trace docs |")).toBeLessThan(
+      run.indexOf("./lore-code-trace docs --post"),
+    );
   });
 
   it("lists changed files with --no-renames so a renamed file arrives as a delete plus an add", () => {
@@ -103,7 +131,13 @@ describe("LORE_INGEST_WORKFLOW_CONTENT", () => {
   });
 });
 
-const extractRunBlock = (stepName: string): string => {
+function graphJob(): string {
+  return LORE_INGEST_WORKFLOW_CONTENT.slice(
+    LORE_INGEST_WORKFLOW_CONTENT.indexOf("\n  graph:\n"),
+  );
+}
+
+function extractRunBlock(stepName: string): string {
   const lines = LORE_INGEST_WORKFLOW_CONTENT.split("\n");
   const stepIndex = lines.findIndex(
     (line) => line.trim() === `- name: ${stepName}`,
@@ -137,7 +171,7 @@ const extractRunBlock = (stepName: string): string => {
     .replaceAll("${{ github.repository }}", "re-cinq/example")
     .replaceAll("${{ github.sha }}", "f".repeat(40))
     .replaceAll("${{ matrix.kind }}", "specs");
-};
+}
 
 const curlStub = `#!/usr/bin/env bash
 if [ -n "\${CURL_STUB_ARGS:-}" ]; then printf '%s\\n' "$@" > "\${CURL_STUB_ARGS}"; fi
@@ -165,6 +199,7 @@ const runScript = (script: string, env: Record<string, string>) => {
     workDir,
     result: spawnSync("bash", ["-e", scriptPath], {
       encoding: "utf8",
+      cwd: workDir,
       env: {
         PATH: `${workDir}:${process.env.PATH}`,
         TMPDIR: workDir,
@@ -177,11 +212,43 @@ const runScript = (script: string, env: Record<string, string>) => {
   };
 };
 
-describe.each([
-  ["ingest", "Notify Lore to ingest"],
-  ["graph", "Project ${{ matrix.kind }} into the graph"],
-])("%s run block", (_jobName, stepName) => {
-  const script = extractRunBlock(stepName);
+describe("the graph job's fetch step", () => {
+  const script = extractRunBlock("Fetch lore-code-trace");
+
+  it("exits 1 with ::error when LORE_INGEST_URL is empty", () => {
+    const { result } = runScript(script, { LORE_INGEST_URL: "" });
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("::error::LORE_INGEST_URL");
+  });
+
+  it("exits 1 with ::error when LORE_INGEST_TOKEN is empty", () => {
+    const { result } = runScript(script, { LORE_INGEST_TOKEN: "" });
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("::error::LORE_INGEST_TOKEN");
+  });
+
+  it("exits 0 with ::warning and leaves no binary behind when Lore cannot be reached", () => {
+    const { result, workDir } = runScript(script, { CURL_STUB_EXIT: "22" });
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("::warning::");
+    expect(existsSync(join(workDir, "lore-code-trace"))).toBe(false);
+  });
+
+  it("fails and leaves no executable when the binary does not match its checksum", () => {
+    const { result, workDir } = runScript(script, {
+      CURL_STUB_BODY: "not a checksum list",
+    });
+
+    expect(result.status).not.toBe(0);
+    expect(existsSync(join(workDir, "lore-code-trace"))).toBe(false);
+  });
+});
+
+describe("the ingest job's run block", () => {
+  const script = extractRunBlock("Notify Lore to ingest");
 
   it("exits 1 with ::error when LORE_INGEST_URL is empty", () => {
     const { result } = runScript(script, { LORE_INGEST_URL: "" });

@@ -59,17 +59,15 @@ export async function ensureIssue(
   return createTaskIssue(task, targetRepo, project);
 }
 
-/** Whether the issue-creation gate says to skip, logging why when the skip is worth reporting (a general task's skip isn't — it never files one by design). */
+/** Whether the issue-creation gate says to skip, logging why. */
 function shouldSkipIssue(
   { task, targetRepo, isFeaturePlanningType }: IssueContext,
   gate: { create: boolean; reason: string },
 ): boolean {
-  // A general task never files one, and a feature-planning line files its own.
-  const eligible = task.task_type !== "general" && !isFeaturePlanningType;
-  const skip = !eligible || !gate.create;
-  const skipIsNoteworthy = task.task_type !== "general";
+  // A feature-planning line files its own.
+  const skip = isFeaturePlanningType || !gate.create;
 
-  if (skip && skipIsNoteworthy) {
+  if (skip) {
     console.log(
       `[floor] Skipping issue for ${targetRepo} task ${task.id} (dark-factory: ${gate.reason})`,
     );

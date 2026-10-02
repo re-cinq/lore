@@ -177,12 +177,20 @@ describe("zod schema bounds", () => {
     expect(result.success).toBe(false);
   });
 
-  it("accepts an in-range task description", () => {
+  it("accepts an in-range description for a runbook task", () => {
+    const result = z
+      .object(schemas["lore_create_pipeline_task"])
+      .safeParse({ description: "wire the widget", task_type: "runbook" });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a task that names no task_type, since there is no default type", () => {
     const result = z
       .object(schemas["lore_create_pipeline_task"])
       .safeParse({ description: "wire the widget" });
 
-    expect(result.success).toBe(true);
+    expect(result.success).toBe(false);
   });
 
   it("rejects max_tokens below the 2000 floor", () => {

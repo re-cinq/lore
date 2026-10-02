@@ -70,11 +70,6 @@ describe("deriveDarkFactoryConsole projections", () => {
           created_at: "2026-06-11T11:00:00Z",
         },
         {
-          event_type: "escalation_issued",
-          payload: { reason: "validation failed" },
-          created_at: "2026-06-11T10:00:00Z",
-        },
-        {
           event_type: "lease_expired",
           payload: { previous_holder: "pod-xyz" },
           created_at: "2026-06-11T09:00:00Z",
@@ -89,7 +84,6 @@ describe("deriveDarkFactoryConsole projections", () => {
 
     expect(model.decisions.map((d) => d.summary)).toEqual([
       "Auto-merge: merged",
-      "Escalation: validation failed",
       "Lease takeover (prev pod-xyz)",
       "Graph ingest: 102 validated_by, 3 violated",
     ]);
@@ -120,11 +114,6 @@ describe("deriveDarkFactoryConsole projections", () => {
           created_at: "2026-06-11T11:00:00Z",
         },
         {
-          event_type: "escalation_issued",
-          payload: {},
-          created_at: "2026-06-11T10:00:00Z",
-        },
-        {
           event_type: "lease_expired",
           payload: {},
           created_at: "2026-06-11T09:00:00Z",
@@ -139,7 +128,6 @@ describe("deriveDarkFactoryConsole projections", () => {
 
     expect(model.decisions.map((d) => d.summary)).toEqual([
       "Auto-merge: unknown",
-      "Escalation: needs-human-help",
       "Lease takeover (prev unknown)",
       "Graph ingest: 0 validated_by, 0 violated",
     ]);

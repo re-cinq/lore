@@ -17,8 +17,8 @@ import {
   DIGEST_DRAFT_SOURCE,
   DIGEST_MESSAGE_EVENT,
 } from "@re-cinq/lore-shared/digest/contract.js";
-import { digestDraftOf } from "../../../work/digest/serve-draft.js";
-import { receiveDigestUpload } from "../../../work/digest/deliver-digest.js";
+import { digestDraftOf } from "@re-cinq/lore-shared/digest/serve-draft.js";
+import { receiveDigestUpload } from "@re-cinq/lore-shared/digest/deliver-digest.js";
 import { draftDeps, uploadDeps } from "../../../work/digest/deps.js";
 
 /** A plan outgrows hapi's 1 MB default long before it outgrows a pod. */

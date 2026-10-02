@@ -304,14 +304,13 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
    the `log_path` when provided. ([validated by `log-storage.test.ts:42`](apps/floor/src/events/main-loop/scheduling/log-storage.test.ts#L42), [`job-run.test.ts:31`](apps/floor/src/events/main-loop/scheduling/job-run.test.ts#L31), [`log-storage.test.ts:10`](apps/floor/src/events/main-loop/scheduling/log-storage.test.ts#L10), [`job-run.test.ts:64`](apps/floor/src/events/main-loop/scheduling/job-run.test.ts#L64))
 
 1c. The in-process scheduler clears a job's in-flight marker on every failure
-   path: a rejected `startJobRun` (`pipeline.job_runs` insert failure) is logged
-   without a phantom `failJobRun` call and the job runs again on the next tick
+   path: a rejected run start (`pipeline.job_runs` insert failure) is logged
+   without a phantom failure record and the job runs again on the next tick
    instead of staying wedged for the process lifetime; a handler failure passes
-   its message to `failJobRun` and likewise leaves the job re-eligible; a
-   successful run passes the handler result to `completeJobRun`; and
-   `getJobStatus` reports `idle` plus the in-memory last-attempt timestamp
-   (`null` before the first attempt in this process).
-   ([validated by `scheduler.test.ts:45`](apps/floor/src/events/main-loop/scheduling/scheduler.test.ts#L45), [`scheduler.test.ts:69`](apps/floor/src/events/main-loop/scheduling/scheduler.test.ts#L70), [`scheduler.test.ts:82`](apps/floor/src/events/main-loop/scheduling/scheduler.test.ts#L83), [`scheduler.test.ts:98`](apps/floor/src/events/main-loop/scheduling/scheduler.test.ts#L99), [`scheduler.test.ts:114`](apps/floor/src/events/main-loop/scheduling/scheduler.test.ts#L115), [`scheduler.test.ts:129`](apps/floor/src/events/main-loop/scheduling/scheduler.test.ts#L130))
+   its message to the run's failure and likewise leaves the job re-eligible; a
+   successful run completes with the handler result. Since 2026-10-02 the
+   scheduler is shared code run by the stations service (`specs/external-floor` FR16).
+   ([validated by runs the job again on the next tick after starting its run rejects](libs/shared/src/work/scheduler/cron-scheduler.test.ts#L76), [validated by records no failure when starting the run itself rejects, since there is no row to fail](libs/shared/src/work/scheduler/cron-scheduler.test.ts#L100), [validated by fails the run with the handler's error and leaves the job due again](libs/shared/src/work/scheduler/cron-scheduler.test.ts#L114), [validated by completes the run with the handler result on success](libs/shared/src/work/scheduler/cron-scheduler.test.ts#L61))
 
 2. Ten CronJobs exist, one per batch job, with schedules exactly matching the
    prior in-process schedules.
@@ -346,7 +345,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
    (team schemas ∪ org_shared), not a fixed org_shared: the schema list intersects
    `information_schema` with `lore.repos.team` behind a schema-name injection gate, one grouped
    UNION ALL query spans all schemas, and the active variant gates each repo on a code chunk
-   ingested inside the 7-day activity window. ([validated by `fan-out.test.ts:33`](apps/floor/src/work/detect/fan-out.test.ts#L34), [`fan-out.test.ts:42`](apps/floor/src/work/detect/fan-out.test.ts#L42), [`fan-out.test.ts:87`](apps/floor/src/work/detect/fan-out.test.ts#L87), [`fan-out.test.ts:110`](apps/floor/src/work/detect/fan-out.test.ts#L110), [`fan-out.test.ts:180`](apps/floor/src/work/detect/fan-out.test.ts#L180), [`fan-out.test.ts:215`](apps/floor/src/work/detect/fan-out.test.ts#L215), [`fan-out.test.ts:226`](apps/floor/src/work/detect/fan-out.test.ts#L226), [`fan-out.test.ts:240`](apps/floor/src/work/detect/fan-out.test.ts#L240), [`fan-out.test.ts:248`](apps/floor/src/work/detect/fan-out.test.ts#L248), [`fan-out.test.ts:258`](apps/floor/src/work/detect/fan-out.test.ts#L258), [`fan-out.test.ts:268`](apps/floor/src/work/detect/fan-out.test.ts#L268), [`fan-out.test.ts:282`](apps/floor/src/work/detect/fan-out.test.ts#L282))
+   ingested inside the 7-day activity window. *(Removed 2026-10-02: the fan-out and its four ticks are gone, `specs/external-floor` FR16.6. Kept as the record of what ran.)*
 
 11. `context_reindex` was retired on 2026-09-08 (ADR-019 amendment): the CronJob, the job
    code, its verification / chunker-heal / never-ingested-backfill sweeps and the stale-content

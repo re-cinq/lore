@@ -91,7 +91,6 @@ const EventListSchema = z.object({
 const ActivityCountsSchema = z.object({
   tasks: z.number().nullable(),
   auto_merged: z.number().nullable(),
-  escalations: z.number().nullable(),
 });
 
 const JobRunReadSchema = wireSchema(JobRunSchema, JOB_RUN_COLUMNS);
@@ -103,11 +102,6 @@ const AUTO_MERGED_7D_SQL = `SELECT count(*)::int as c FROM pipeline.audit_log
         WHERE repo = $1
           AND event_type = 'auto_merge_decision'
           AND payload->>'outcome' = 'merged'
-          AND created_at >= now() - interval '7 days'`;
-
-const ESCALATIONS_7D_SQL = `SELECT count(*)::int as c FROM pipeline.audit_log
-        WHERE repo = $1
-          AND event_type = 'escalation_issued'
           AND created_at >= now() - interval '7 days'`;
 
 export function activityRoutes(getPool: () => Pool | null): ServerRoute[] {
@@ -321,12 +315,11 @@ async function serveActivityCounts(
 }
 
 /** Seven-day counters for a repo — the numbers the dashboard tiles read, computed here rather than client-side so every caller counts the same way. */
-/** The three seven-day counters. Auto-merges and escalations are counted from the AUDIT log rather than from task status: a task can be merged by a human after the machine deferred, and only the audit row says which happened. */
+/** The two seven-day counters. Auto-merges are counted from the AUDIT log rather than from task status: a task can be merged by a human after the machine deferred, and only the audit row says which happened. */
 async function sevenDayCounts(pool: Pool, repo: string) {
   return {
     tasks: await countOrNull(pool, TASKS_7D_SQL, [repo]),
     auto_merged: await countOrNull(pool, AUTO_MERGED_7D_SQL, [repo]),
-    escalations: await countOrNull(pool, ESCALATIONS_7D_SQL, [repo]),
   };
 }
 

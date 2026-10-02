@@ -45,13 +45,13 @@ describe("usageResponse", () => {
     });
   });
 
-  it("the builtin catalog's response names implementation but never runbook", async () => {
+  it("the builtin catalog's response names onboard but never runbook", async () => {
     const { usage } = usageResponse(
       stationUsage(await loadBuiltinAssemblyLines()),
     );
     const names = usage.map((entry) => entry.name);
 
-    expect(names).toContain("implementation");
+    expect(names).toContain("onboard");
     expect(names).not.toContain("runbook");
   });
 });

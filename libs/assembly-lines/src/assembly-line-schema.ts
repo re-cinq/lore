@@ -13,7 +13,6 @@ const NodeType = z.enum([
   "issues",
   // One step of the merge line, parameterised by `job_ref` (like `detect`) rather than split into nine node types.
   "merge_step",
-  "escalation_step",
   // Stations worked by a PERSON: dispatch nothing, park the run until `route` reports an outcome over HTTP on the same contract a pod reports over stdout (FR6.40).
   ...HUMAN_STATION_TYPES,
 ]);
@@ -97,7 +96,6 @@ const PRODUCIBLE_OUTCOMES: Record<
   ingest: ["success", "failed"],
   issues: ["success", "changes_requested", "failed"],
   merge_step: ["success", "failed"],
-  escalation_step: ["success", "failed"],
   // accept / merged, refine, and abandoned — a person can do all three.
   feature_review: ["success", "changes_requested", "failed"],
   pr_review: ["success", "changes_requested", "failed"],
@@ -134,8 +132,4 @@ export class AssemblyLineLoadError extends Error {
   }
 }
 
-export const PARAMETERISED_NODE_TYPES = new Set([
-  "detect",
-  "merge_step",
-  "escalation_step",
-]);
+export const PARAMETERISED_NODE_TYPES = new Set(["detect", "merge_step"]);

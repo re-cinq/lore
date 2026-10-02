@@ -81,6 +81,8 @@ const TAG_RULES: Array<[RegExp, string]> = [
   [/^\/api\/review\/start$/, "Tasks"],
   [/\/settings\/dark-factory\b/, "Dark Factory"],
   [/\/(trace|impact)\b/, "Traceability"],
+  // The test links a spec carries are the traceability graph's validated-by edges, read before they are ingested.
+  [/^\/api\/spec-links\b/, "Traceability"],
   [/\/ingest/, "Ingestion"],
   [/^\/api\/embeddings$/, "Ingestion"],
   [/\/events\/\{id\}\/payload$/, "Ingestion"],

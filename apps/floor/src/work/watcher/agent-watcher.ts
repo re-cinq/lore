@@ -4,7 +4,6 @@ import { resultTextFromOutput } from "@re-cinq/lore-assembly-lines";
 import { assemblyLineNames } from "../../domain/assembly-line-names.js";
 import { pipeline, taskStore } from "../../outbound/queues.js";
 import {
-  parseReviewResult,
   decideTokenReclaim,
   runOutcomeFromTaskStatus,
   dispatchFacts,
@@ -14,7 +13,6 @@ import {
 import { type AgentContext } from "./agent-watcher-notify.js";
 import { handleSucceededChanges } from "./agent-watcher-pr-delivery.js";
 import { handleFailure } from "./agent-watcher-failure.js";
-import { handleReviewVerdict } from "./agent-watcher-review.js";
 
 import { cleanupPerTaskToken } from "./per-task-token.js";
 
@@ -98,16 +96,9 @@ async function applyTerminalPhaseEffects(
 
 /** No `status.prUrl` guard: the DB guard in `buildAgentTerminalContext` is the same gate, read from a source that survives the pod. */
 async function applySucceededPhase(ctx: AgentContext): Promise<void> {
+  // A review task changes nothing: its agent posts its verdict on the pull request itself. The fix task this watcher used to file on a request for changes is gone with the `implementation` type (#2328); the code-review-reply line answers the review instead.
   if (ctx.taskType !== "review") {
     await handleSucceededChanges(ctx);
-
-    return;
-  }
-  // Review verdict (parsed from the reported output — Agent has no reviewResult field).
-  const reviewResult = parseReviewResult(ctx.output);
-
-  if (reviewResult) {
-    await handleReviewVerdict(ctx, reviewResult);
   }
 }
 

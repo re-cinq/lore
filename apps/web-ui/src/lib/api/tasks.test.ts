@@ -4,7 +4,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 vi.mock("server-only", () => ({}));
 
 const {
-  createTask,
   getTask,
   cancelTask,
   runTaskNow,
@@ -35,36 +34,6 @@ afterEach(() => {
 const url = () => fetchMock.mock.calls[0][0];
 const init = () => fetchMock.mock.calls[0][1];
 const body = () => JSON.parse(init().body as string);
-
-describe("createTask", () => {
-  it("posts the description and returns the new task id", async () => {
-    fetchMock.mockResolvedValue(
-      new Response(JSON.stringify({ task_id: "t9", status: "pending" })),
-    );
-
-    const result = await createTask({
-      description: "do the thing",
-      taskType: "general",
-      targetRepo: "re-cinq/lore",
-      priority: "immediate",
-    });
-
-    expect(url()).toEqual("http://api:3000/api/task");
-    expect(body()).toEqual({
-      description: "do the thing",
-      task_type: "general",
-      target_repo: "re-cinq/lore",
-      priority: "immediate",
-    });
-    expect(result).toMatchObject({ status: "ok", data: { task_id: "t9" } });
-  });
-
-  it("omits the optional fields it was not given", async () => {
-    await createTask({ description: "bare" });
-
-    expect(body()).toEqual({ description: "bare" });
-  });
-});
 
 describe("getTask", () => {
   it("reads the task by id", async () => {

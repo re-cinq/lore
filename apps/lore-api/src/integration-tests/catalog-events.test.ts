@@ -131,8 +131,8 @@ describe("the catalog-events fan-out, against real Postgres", () => {
     expect(snapshot.mode).toBe("snapshot");
     const byName = new Map(snapshot.entries.map((e) => [e.name, e]));
 
-    expect(byName.get("implementation")?.definition).toMatchObject({
-      name: "implementation",
+    expect(byName.get("runbook")?.definition).toMatchObject({
+      name: "runbook",
       execution_mode: "claude-code",
     });
     expect(byName.get("def-validate")?.definition).toMatchObject({

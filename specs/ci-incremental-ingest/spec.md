@@ -117,7 +117,7 @@ already owns the dgraph egress and the Vertex embed path.
   - A push that changed no file of the kind still posts an empty delta, so the stored commit advances and the next diff stays short. ([validated by TestDocsFlowPostsAnEmptyDeltaWhenNoSpecChangedSoTheStateStillAdvances](apps/lore-code-trace/docs_test.go#L170))
   - A recorded commit the checkout cannot reach gets every file of the kind, with `base_commit` still the observed commit. ([validated by TestDocsFlowSendsFullContentButObservedBaseWhenTheBaseIsUnreachable](apps/lore-code-trace/docs_test.go#L186))
   - A diff that touches `.lore/ingest.yml` gets every file of the kind, because new patterns redefine which files belong to it. ([validated by TestDocsFlowSendsEverySpecWhenTheIngestManifestChanged](apps/lore-code-trace/docs_test.go#L205))
-  - `--force` posts every file of the kind with `force: true`. ([validated by TestDocsFlowForcesEverySpecAndSaysSo](apps/lore-code-trace/docs_test.go#L224), [validated by TestParseArgsReadsTheDocsSubcommandAndItsFlags](apps/lore-code-trace/docs_run_test.go#L243))
+  - `--force` posts every file of the kind with `force: true`. ([validated by TestDocsFlowForcesEverySpecAndSaysSo](apps/lore-code-trace/docs_test.go#L224), [validated by TestParseArgsReadsTheSubcommandsAndTheirFlags](apps/lore-code-trace/docs_run_test.go#L243))
   - A kind's files are the markdown files under its built-in prefixes (`specs/` and `.specify/` for specs, `adrs/` for ADRs). ([validated by TestSelectDocPathsUsesTheKindPrefixesAndMarkdownOnly](apps/lore-code-trace/docs_test.go#L11))
   - A kind declared in `.lore/ingest.yml` is selected by its glob patterns instead, matched as the server's `matchesAnyGlob` matches them. ([validated by TestRunDocsSelectsByTheRepositorysIngestManifest](apps/lore-code-trace/docs_run_test.go#L146), [validated by TestSelectDocPathsLetsDeclaredPatternsReplaceThePrefixes](apps/lore-code-trace/docs_test.go#L31), [validated by TestParseIngestPatternsReadsGlobListsPerKind](apps/lore-code-trace/docs_test.go#L41), [validated by TestGlobMatch](apps/lore-code-trace/glob_test.go#L5))
   - An unparseable `.lore/ingest.yml` fails the run before anything is posted, because falling back to the built-in prefixes would select other files and a full ingest prunes what its selection leaves out. ([validated by TestParseIngestPatternsRefusesAnUnparseableManifest](apps/lore-code-trace/docs_test.go#L55), [validated by TestRunDocsPostsNothingWhenTheIngestManifestDoesNotParse](apps/lore-code-trace/docs_run_test.go#L165))
@@ -135,15 +135,17 @@ already owns the dgraph egress and the Vertex embed path.
   - A forced delta prunes past that refusal. ([validated by prunes 5 of the graph's 6 specs when the delta is forced](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L493))
   - An empty `present` prunes nothing, forced or not: an empty tree is what a failed read looks like, so a kind's last document is removed by a diffed delta that names it as deleted. ([validated by prunes nothing when present is empty, forced or not](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L477))
 
+- **FR10 — the ingest workflow every onboarded repo installs posts docs as a delta.** Version 6 of `LORE_INGEST_WORKFLOW_CONTENT` (`libs/shared/src/work/ingest-workflow.ts`) replaces the `graph` job's `ingest-graph` POST, which started a pod per kind, with FR8's `lore-code-trace docs --post`. ([validated by projects specs and ADRs with lore-code-trace docs --post and no longer posts to ingest-graph](libs/shared/src/work/ingest-workflow.test.ts#L64))
+
 ## Planned (next slices)
 
 The onboarding scaffold and the rollout are follow-up slices, specified here
 so the routes above have their consumer named:
 
-- **FR6 — onboarding scaffolds the incremental flow.** The `onboard` task's
-  generated `lore-tests.yml` / `lore-ingest.yml` workflows and the
-  `LORE_TESTS_INSTRUCTION` prompt teach the handshake — state fetch, diff,
-  JSON POST — instead of the retired chunk-webhook fan-out.
+- **FR6 — onboarding scaffolds the incremental flow for tests.** The `onboard`
+  task's generated `lore-tests.yml` workflow and the `LORE_TESTS_INSTRUCTION`
+  prompt teach the handshake — state fetch, diff, JSON POST — instead of the
+  retired chunk-webhook fan-out. (The docs half shipped as FR10.)
 
 - **FR7 — the pod path retires.** Once onboarded repos post deltas, the
   `internal.ingest.spec_trace` payload-kind fan-out (one ingest assembly line

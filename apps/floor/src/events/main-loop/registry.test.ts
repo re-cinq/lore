@@ -6,7 +6,7 @@ import {
 } from "@re-cinq/lore-shared/project/assembly-runs/run-events.js";
 import { GITHUB_EVENT_NAMES } from "@re-cinq/lore-shared/project/events/github-map.js";
 import { AGENT_EVENT_NAMES } from "@re-cinq/lore-shared/project/events/k8s-map.js";
-import { cronTickEventNames } from "../listeners/cron-emitters.js";
+import { cronTickEventNames } from "@re-cinq/lore-shared/scheduler/cron-emitters.js";
 
 const EXTERNAL_FLOOR_EVENT_NAMES = [
   "github.pull_request.opened",
@@ -17,10 +17,17 @@ const EXTERNAL_FLOOR_EVENT_NAMES = [
   "github.issue_comment.created",
 ];
 
+const STATIONS_EVENT_NAMES = [
+  "github.issues.labeled",
+  "github.repository.renamed",
+];
+
 function producibleEventNames(): string[] {
   return [
     ...GITHUB_EVENT_NAMES.filter(
-      (name) => !EXTERNAL_FLOOR_EVENT_NAMES.includes(name),
+      (name) =>
+        !EXTERNAL_FLOOR_EVENT_NAMES.includes(name) &&
+        !STATIONS_EVENT_NAMES.includes(name),
     ),
     ...AGENT_EVENT_NAMES,
     "internal.ingest.spec_trace",
@@ -48,6 +55,14 @@ describe("buildRegistry", () => {
     ).toEqual([]);
   });
 
+  it("leaves the label and rename events the stations service answers unregistered", () => {
+    const registry = buildRegistry();
+
+    expect(STATIONS_EVENT_NAMES.filter((name) => registry.has(name))).toEqual(
+      [],
+    );
+  });
+
   it("maps every registered name to a defined handler", () => {
     for (const [name, handler] of buildRegistry()) {
       expect(handler, `handler for ${name}`).toBeTypeOf("function");
@@ -61,12 +76,6 @@ describe("buildRegistry", () => {
     expect(registry.get("assembly_line.resume")).toBeUndefined();
     expect(registry.get("assembly_run.start")).toBeTypeOf("function");
     expect(registry.get("assembly_run.resume")).toBeTypeOf("function");
-  });
-
-  it("routes the post-ingest validate event through the detect tick (one substrate, FR5) — same handler serves the weekly cron and the trigger, running in the detect station pod either way", () => {
-    expect(buildRegistry().get("internal.ingest.spec_coverage_validate")).toBe(
-      buildRegistry().get("cron.spec_coverage_validate.tick"),
-    );
   });
 });
 

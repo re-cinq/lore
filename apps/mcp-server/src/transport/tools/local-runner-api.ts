@@ -27,6 +27,22 @@ export async function createPipelineTaskViaApi(
   });
 }
 
+/** Free-form work run on this machine: not a pipeline task type, so nothing is filed for it. */
+export const LOCAL_ONLY_TASK_TYPE = "local";
+
+/** The id a local run goes by: the server's when its task was filed, a generated one for free-form local work and when the API cannot be reached. */
+export async function localTaskId(
+  args: { description: string; task_type: string },
+  repo: string,
+): Promise<string> {
+  const filed =
+    args.task_type === LOCAL_ONLY_TASK_TYPE
+      ? null
+      : await createPipelineTaskViaApi(args.description, args.task_type, repo);
+
+  return filed ?? crypto.randomUUID();
+}
+
 function resolveApiCredentials(): ApiCredentials | null {
   const apiUrl = process.env.LORE_API_URL || "";
   const token = process.env.LORE_INGEST_TOKEN || "";

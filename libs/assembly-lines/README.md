@@ -23,13 +23,10 @@ build time (`loadBuiltinAssemblyLines`):
 
 | Definition | Purpose |
 | --- | --- |
-| `implementation.yaml` | Implement a spec, validate, push, review; feedback loop up to 2 iterations |
-| `general.yaml` | Linear implement → validate → push → review → retrospective for general tasks |
 | `gap-fill.yaml` | Draft missing docs (CLAUDE.md / ADR / runbook), validate, push |
 | `feature-planning.yaml` | One interactive planning round emitting a structured GapResult (no commit/PR) |
 | `ingest.yaml` | Project one `internal.ingest.*` payload into the spec-traceability graph |
 | `merge.yaml` | Everything that must happen once a task's PR merges, one recorded step at a time |
-| `escalation.yaml` | File the `needs-human-help` Issue when a task needs a person |
 | `gap-detect.yaml` | Per-repo documentation-gap detection; files gap-fill tasks |
 | `spec-drift.yaml` | Per-repo spec-drift detection; files gap-fill tasks for drifted specs |
 | `spec-coverage-validate.yaml` | Resolve every inline `([validated by])` link; file spec-link-rot issues |
@@ -46,7 +43,7 @@ reachable (BFS), only the exit node may be terminal, and every **producible
 outcome** of a node must have a matching edge. Cycles are found by **DFS
 coloring**; a back-edge without `iteration_max` is rejected unless a human
 station gates the loop. Nodes carry optional `station_ref` (custom station
-image) and `timeout_minutes`; `detect` / `merge_step` / `escalation_step` nodes
+image) and `timeout_minutes`; `detect` / `merge_step` nodes
 require `job_ref` (one type, many handlers); human stations require `route`.
 
 ## Transition replay (`src/transition.ts`)

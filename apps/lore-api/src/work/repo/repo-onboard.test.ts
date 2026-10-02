@@ -276,4 +276,49 @@ describe("onboardRepo", () => {
     expect(result).toMatchObject({ blocked: "in-flight" });
     expect(createPipelineTask).not.toHaveBeenCalled();
   });
+
+  it("creates task-1 already running and hands o/r, the task and its ticket to the floor", async () => {
+    vi.mocked(ensureLoreWebhook).mockResolvedValue({
+      ok: false,
+      reason: "app_no_webhook_permission",
+    });
+    const { pool, query } = poolWith();
+    const handed: unknown[] = [];
+
+    await onboardRepo(pool, "o/r", {
+      floorStart: (onboarding) => {
+        handed.push(onboarding);
+
+        return Promise.resolve();
+      },
+    });
+    const issued = sqlIssued(query);
+    const claimed = issued.findIndex((sql) =>
+      sql.includes("UPDATE pipeline.tasks"),
+    );
+
+    expect(claimed).toBeGreaterThan(-1);
+    expect(claimed).toBeLessThan(issued.indexOf("COMMIT"));
+    expect(handed).toEqual([
+      {
+        repo: "o/r",
+        taskId: "task-1",
+        ticket: vi.mocked(createPipelineTask).mock.calls[0][1].description,
+      },
+    ]);
+  });
+
+  it("leaves task-1 pending for the old Floor when the deployment has no floor", async () => {
+    vi.mocked(ensureLoreWebhook).mockResolvedValue({
+      ok: false,
+      reason: "app_no_webhook_permission",
+    });
+    const { pool, query } = poolWith();
+
+    await onboardRepo(pool, "o/r", { floorStart: null });
+
+    expect(
+      sqlIssued(query).filter((sql) => sql.includes("UPDATE pipeline.tasks")),
+    ).toEqual([]);
+  });
 });

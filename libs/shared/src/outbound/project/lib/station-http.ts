@@ -242,3 +242,18 @@ export function createStationProject(
 
   return new Project(repo, ports, env as NodeJS.ProcessEnv);
 }
+
+/** Asks lore-api to drop a branch's graph overlay: a process that holds no graph client (the stations service) tells the graph a closed pull request's branch is done. Safe to call twice. */
+export async function dropOverlayOverHttp(
+  target: { repo: string; branch: string },
+  env: StationProjectEnv = process.env,
+  fetchImpl: typeof fetch = fetch,
+): Promise<void> {
+  const baseUrl = env.LORE_API_URL;
+
+  enforceTrue(baseUrl, Error, "dropOverlayOverHttp requires LORE_API_URL");
+  const token = env.LORE_STATION_TOKEN ?? env.LORE_INGEST_TOKEN;
+  const http = makeHttp({ baseUrl, repo: target.repo, token, fetchImpl });
+
+  await http.post("/trace/overlay-drop", { branch: target.branch });
+}

@@ -2,6 +2,7 @@
 
 import { projectFor } from "../../outbound/project-boot.js";
 import { pipeline, taskStore } from "../../outbound/queues.js";
+import { taskHasOpenLine } from "./task-open-line.js";
 import type { StaleTask } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
 
 const STALE_THRESHOLD_HOURS = 6;
@@ -65,11 +66,7 @@ async function sweepStaleTask(
 function productionDeps(): StaleTaskCheckDeps {
   return {
     findStaleRunning: (hours) => pipeline().taskQueue.findStaleRunning(hours),
-    // Deliberately duplicated read; "open = queued or running" is common pattern; one sweep or none
-    hasOpenLine: async (taskId) =>
-      (await pipeline().assemblyRuns.listForTask(taskId)).some(
-        (line) => line.status === "running" || line.status === "queued",
-      ),
+    hasOpenLine: taskHasOpenLine,
     escalate: (task, ageHoursRounded) =>
       escalateStaleTask(task, ageHoursRounded),
   };
