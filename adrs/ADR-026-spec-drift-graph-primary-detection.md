@@ -48,7 +48,7 @@ heuristic only as a de-noised fallback.**
   suppressing forever; a per-run cap bounds the batch.
 - **Self-heal transient infra.** Classify `BackoffLimitExceeded` /
   `CreateContainerConfigError` / image-pull errors as transient
-  ([k8s-pod-failure.ts](../libs/shared/src/outbound/k8s-pod-failure.ts)) and
+  (`k8s-pod-failure.ts`) and
   re-queue a bounded number of times from the watcher
   (agent-watcher.ts — at the
   time of this decision, the since-retired `loretask-watcher`)

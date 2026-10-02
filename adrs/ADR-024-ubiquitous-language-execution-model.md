@@ -121,7 +121,6 @@ and lose the update; no `resourceVersion` ever crosses the wire.
   caller: `listByLabel` follows `continue` to the end and returns the whole
   match. A truncated list is worse than a failed one — it answers, and the
   caller acts on a subset it believes is complete.
-  ([validated by returns every page's items, not just the first](libs/shared/src/outbound/cluster/cluster-agent-client.test.ts#L26), [`cluster-agent-client.test.ts:38`](libs/shared/src/outbound/cluster/cluster-agent-client.test.ts#L38), [`cluster-agent-client.test.ts:52`](libs/shared/src/outbound/cluster/cluster-agent-client.test.ts#L52), [`cluster-agent-client.test.ts:60`](libs/shared/src/outbound/cluster/cluster-agent-client.test.ts#L60))
 - *(Removed 2026-08-30: the status subresource route and `patchAgentStatus` are
   gone — the watcher went cluster-blind and nothing calls it any more. The
   read-modify-write conflict ladder this statement described no longer has
@@ -167,7 +166,7 @@ and lose the update; no `resourceVersion` ever crosses the wire.
 - Every route requires the same bearer token every other service-to-service
   call presents.
 - A CR the controller has not stamped yet reads as Pending rather than absent —
-  the distinction a watcher acts on. ([validated by a CR the controller has not stamped yet maps to Pending, not absence](libs/shared/src/outbound/cluster/agent-node-status.test.ts#L6), [`agent-node-status.test.ts:12`](libs/shared/src/outbound/cluster/agent-node-status.test.ts#L12))
+  the distinction a watcher acts on.
 - An empty minted token is refused where the cause is legible, rather than
   written as a present-but-useless Secret key that fails later inside a pod's
   init container.

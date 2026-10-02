@@ -188,7 +188,7 @@ the decision.
   task ages out on a short cooldown instead of suppressing drift forever; a
   per-run cap bounds the batch; transient infra failures
   (`BackoffLimitExceeded`/`CreateContainerConfigError`) re-queue a bounded number
-  of times ([k8s-pod-failure.ts](../../libs/shared/src/outbound/k8s-pod-failure.ts),
+  of times (`k8s-pod-failure.ts`,
   agent-watcher.ts)
   rather than filing a terminal `lore-failed` issue.
 - **Actionable issue copy**:
@@ -321,7 +321,7 @@ invariant), so the projection is lossless by construction.
 
 18. The issue footer links the `Lore-Task` trailer to the deployed task page when a UI url is set and stays a bare uuid otherwise; graph-detected drifted statements (with their validated-by links) are listed verbatim, and heuristic runs list their missing symbols instead.
 
-19. Transient infra failures (`BackoffLimitExceeded`, `CreateContainerConfigError`) are classified for bounded re-queue; a validation failure is not. ([validated by `classifies BackoffLimitExceeded as transient infra`](libs/shared/src/outbound/k8s-pod-failure.test.ts#L5), [validated by `classifies CreateContainerConfigError as transient infra`](libs/shared/src/outbound/k8s-pod-failure.test.ts#L13), [validated by `does not classify a validation failure as transient infra`](libs/shared/src/outbound/k8s-pod-failure.test.ts#L17))
+19. Transient infra failures (`BackoffLimitExceeded`, `CreateContainerConfigError`) are classified for bounded re-queue; a validation failure is not.
 
 ### Projection, ingest & read units (additional)
 
