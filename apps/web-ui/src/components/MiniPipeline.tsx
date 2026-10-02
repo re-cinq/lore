@@ -1,9 +1,5 @@
+import type { PipelineNode } from "@/lib/assembly-run-rows";
 import styles from "./MiniPipeline.module.scss";
-
-export interface PipelineNode {
-  node_id: string;
-  state: string;
-}
 
 /** Tone per node state: unrecognised renders as failed-red so new outcomes are loud. */
 const DOT_STATES = new Set([

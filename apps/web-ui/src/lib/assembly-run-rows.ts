@@ -11,6 +11,12 @@ export type AssemblyRunRow = Omit<
   graph?: RunGraph | null;
 };
 
+/** One stage of a run as the list draws it: the node and its state. */
+export interface PipelineNode {
+  node_id: string;
+  state: string;
+}
+
 export interface AssemblyRun {
   id: string;
   blueprintName: string;
@@ -34,6 +40,8 @@ export interface AssemblyRun {
   costUsd: number | null;
   /** Which engine walks the run: `floor` for one on the external floor. Optional so test doubles need not set it; the mapper always does. */
   engine?: string;
+  /** The run's stages as the list draws them; optional so test doubles need not set it. */
+  pipeline?: PipelineNode[];
 }
 
 const FLOOR_ENGINE = "floor";
