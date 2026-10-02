@@ -16,9 +16,6 @@
 |------|-----------|
 | Node.js >= 20 | the npm workspaces (`libs/*` and the TypeScript apps) |
 | `docker` + `docker compose` v2 | the Postgres and Dgraph containers |
-| `minikube` | the local Kubernetes cluster that agent runs execute on |
-| `kubectl` | talking to that cluster |
-| `helm` | installing the ai-agent-subsystem chart into it |
 | `claude` | `claude setup-token` mints the agent LLM credential |
 
 Go is needed only if you are working on `apps/lore-code-trace`; nothing in the stack below builds it.
@@ -38,7 +35,6 @@ Interactive by design: it prompts for credentials a machine cannot invent, and t
 - **The agent LLM credential** — runs `claude setup-token` and stores the result as `CLAUDE_CODE_OAUTH_TOKEN`, so laptop runs bill a subscription rather than org API credit. `ANTHROPIC_API_KEY` wins if both are set.
 - **`GITHUB_TOKEN`** — a PAT with `repo` scope; the agent pods clone and push with it. Skipped when the GitHub App triple is configured, since the App outranks the PAT.
 - **`GHCR_USER` + `GHCR_TOKEN`** — a PAT with `read:packages`; `ghcr.io/re-cinq/ai-agent` is a private package.
-- **`LORE_STATION_BACKEND=k8s`** — sends agent runs to minikube pods. Left at the default `inprocess`, no run is ever isolated.
 
 When your `gcloud` login can read GCP Secret Manager it offers — never silently — to import the ghcr pull pair and the GitHub App triple from there, so a deployer mints no new PATs. `lore-anthropic-api-key` is deliberately never imported: it would move a laptop run onto org billing, the exact thing the subscription token avoids.
 
@@ -50,8 +46,7 @@ Runs `scripts/dev-local.sh`, which is unattended and re-runnable:
 
 1. Brings up Postgres (pgvector) and Dgraph from `infra/compose.yaml`, waiting on their healthchecks. Data persists in the git-ignored `.lore-pgdata/` and `.lore-dgraphdata/` bind mounts.
 2. Applies the schemas — `scripts/infra/setup-local-schema.sh` for Postgres, then the two Dgraph schema scripts.
-3. **When `LORE_STATION_BACKEND=k8s`**, runs `scripts/infra/setup-minikube-agents.sh`: starts minikube, installs the ai-agent-subsystem into the `ai-agents` namespace, and writes `.lore-kubeconfig-minikube` — a kubeconfig holding **only** the minikube context. The Floor is pinned to that file so its Agent CR dispatch can never follow a stray `current-context` into a real cluster.
-4. Installs `apps/web-ui` dependencies on first run, builds `libs/shared` → `libs/assembly-lines` → `libs/server-core` → `apps/lore-api` → `apps/mcp-server` → `apps/floor`, then runs everything under `concurrently` with live reload.
+3. Installs `apps/web-ui` dependencies on first run, builds `libs/shared` → `libs/assembly-lines` → `libs/server-core` → `apps/lore-api` → `apps/mcp-server` → `apps/floor`, then runs everything under `concurrently` with live reload.
 
 Ports:
 
@@ -66,11 +61,7 @@ Ports:
 
 Dgraph's HTTP port is published as `:8081` so it never collides with the Floor's `:8080`. The stdio MCP server (`apps/mcp-server`) is built here but launched on demand by Claude Code, not run as a daemon; the `:3002` entry is that same adapter in gateway mode, serving the skills bundle a run pod fetches at startup.
 
-Watch agent runs with:
-
-```bash
-KUBECONFIG=.lore-kubeconfig-minikube kubectl -n ai-agents get agents -w
-```
+Agent runs need a floor: the local stack starts none, so point `FLOOR_API_URL` and `FLOOR_SERVICE_TOKEN` at a running [floor](https://github.com/re-cinq/floor) to execute lines. The minikube path that ran agents through Lore's own cluster agent was removed on 2026-10-02.
 
 On first run, `scripts/infra/setup-local-schema.sh` bootstraps the `lore`/`lore_ui` roles, the pgvector extension, and all schemas by shimming `kubectl` → `docker exec` so the existing `setup-*.sh` scripts run unmodified against the container (no SQL duplication). It then applies the `ui-helm/migrations/*.sql` incremental migrations the same way the GKE Helm hook does — tracked in `lore.schema_migrations`, in filename order, one transaction per file, skipping already-applied ones — so migration-added tables exist locally even though local dev has no Helm hook.
 
@@ -93,9 +84,8 @@ Run `scripts/worktree-bootstrap.sh` once per worktree. A fresh `git worktree` ha
 To re-test this path end to end, tear the local stack down:
 
 ```bash
-minikube delete                                  # removes its own kubectl context, leaves others alone
 docker rm -f lore-postgres lore-dgraph
-rm -f .env.local .lore-kubeconfig-minikube .lore-nextauth-secret
+rm -f .env.local .lore-nextauth-secret
 docker run --rm -v "$PWD:/work" alpine:3.20 \
   sh -c 'rm -rf /work/.lore-pgdata /work/.lore-dgraphdata /work/.lore-archive'
 ```

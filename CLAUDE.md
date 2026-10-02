@@ -67,9 +67,9 @@ clear error messages.
 idempotent — safe to re-run. Prefix output with `[lore]`. Exit 0 on
 success, 1 on failure.
 
-**Helm charts** for K8s deployments. All eight service workloads ship as
-ONE umbrella chart, `lore-platform` (vendoring event-router/cluster-agent/
-lore-api/lore-mcp/stations/ui/lore-db/ai-agents subcharts under `charts/`); one
+**Helm charts** for K8s deployments. All six service workloads ship as
+ONE umbrella chart, `lore-platform` (vendoring event-router/
+lore-api/lore-mcp/stations/ui/lore-db subcharts under `charts/`); one
 `helm_release.lore_platform` deploys them. Every service has a `build-*.yml`
 workflow that builds its image and deploys it into the umbrella release via
 `scripts/ci/deploy-lore-platform.sh`; chart values read `tag: latest` only as a
@@ -116,7 +116,7 @@ status pill — a stale header misreports the org's backlog.
 - `scripts/infra/` — setup-db.sh, reembed.sh, seed-secrets.sh
 - `infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/` — ordered, idempotent `NNNN_*.sql` applied to `lore-db` on every deploy by a `pre-install,pre-upgrade` Helm hook Job (`lore-platform/charts/ui-helm/templates/migrate-{job,configmap}.yaml`), tracked in `lore.schema_migrations`, connecting as `lore` (the DB owner — no superuser needed) via the chart's `dbPasswordSecret`. Runs on both deploy paths (CI `helm upgrade` of the umbrella and terraform `helm_release.lore_platform`). The hook now fires on every umbrella upgrade regardless of which service changed; it is idempotent (skip-if-applied) so re-running on a floor/mcp deploy is a no-op. Baseline schema still comes from `setup-*-schema.sh`; incremental changes go here.
 - `.claude/skills/` — platform skills (lore-help, lore-feature, lore-pr, lore-init, lore-agents, lore-suggest-links, lore-test-commands), installed to `~/.claude/skills` by `install.sh`. **Every skill documents itself**: each `SKILL.md` ends with a `## Help` block fenced by `<!-- lore-help:begin -->` / `<!-- lore-help:end -->` (required `**Summary.**` + `**Usage:**`), which `/lore-help` extracts verbatim to build its index, per-skill detail, and task router — there is no second copy to keep in sync. `scripts/check-skill-help.sh` (the `skill-help` PR check) fails a skill that ships without one. `install.sh` refreshes a changed skill rather than skipping it, and `lore-doctor` fails when an installed skill differs from the checkout — a stale copy would make `/lore-help` describe behaviour that is not installed. See `specs/lore-help/spec.md`
-- `infra/terraform/modules/gke-mcp/lore-platform/` — the single umbrella Helm chart for the service workloads (lore-api/ui/lore-db/ai-agents and the other subcharts under `charts/`); each subchart stamps its own namespace so one release spans them. `infra/terraform/modules/gke-mcp/` also holds the standalone bootstrap root (cluster + node pools)
+- `infra/terraform/modules/gke-mcp/lore-platform/` — the single umbrella Helm chart for the service workloads (lore-api/ui/lore-db and the other subcharts under `charts/`); each subchart stamps its own namespace so one release spans them. `infra/terraform/modules/gke-mcp/` also holds the standalone bootstrap root (cluster + node pools)
 - `specs/` — speckit artifacts (spec, plan, tasks, research, contracts)
 - `specs/assembly-line-run-viz/spec.md` — live assembly-line run observability (Shipped): projects every claude stream-json line POSTed to `POST /api/agent-events` into `pipeline.agent_run_events` (write-time truncation + `file_paths` extraction, correlated to `station_runs` via `source.agent` == `agent_cr_name`, 14-day prune), and since 2026-09-23 (FR7, ADR-048) streams it as the `run` channel of the browser's ONE live WebSocket at `/api/ws` on lore-api (was one SSE connection per run at `GET /api/assembly-runs/{id}/stream`, 2026-09-09) — `agent_event` (cursored by row id, resumed via the open's `after`), `node_status`, `run_status`, `task_event`, `ci_check` (snapshots, re-sent on every open) — fanned out by Postgres `NOTIFY` triggers (migration 0070) into ONE feed per run (`apps/lore-api/src/work/assembly-line-station/run-feed.ts`) that re-reads once and forwards to every registered viewer; the channel opens with a run-bound token minted by `POST /api/assembly-runs/{id}/stream-token` (`lore.live_tokens`, migration 0091). The page (`RunLiveShell` → `RunVisualizationPanel`) renders the DAG with a persistent inspector beside it (auto-selects running → failed → last finished; model badge per agent node from the resolved catalog), the transcript as a terminal session with the task's transitions folded in, a Definition of Done card (implementation-loop FR16) and per-file PR diffs (FR8); the 10 s `router.refresh()`, the Timeline card, the replay scrubber and the Event Timeline card are retired. Adding an unlinked statement REQUIRES flipping its `| Status |` row to `In Progress`, or `eslint .` goes red repo-wide
 - `adrs/` — architecture decision records (MADR format)
@@ -368,15 +368,14 @@ rebuild is the 950 MB step that OOM-killed agent pods on 2026-09-13.
 
 ## GKE Deployment
 
-Eight service workloads on GKE (one umbrella chart, `lore-platform`, spanning a namespace per subchart; the release record itself lives in the `lore-floor` namespace, which is all that is left of the Floor Lore ran itself):
+Six service workloads on GKE (one umbrella chart, `lore-platform`, spanning a namespace per subchart; the release record itself lives in the `lore-floor` namespace, which is all that is left of the Floor Lore ran itself):
 - PostgreSQL + pgvector: `lore-db` namespace
 - event-router (sole writer of `pipeline.events`, ADR-044): `lore-event-router` namespace
-- cluster-agent (the only process holding a Kubernetes client): `lore-cluster-agent` namespace. **Every** cluster-agent registers with lore-api and CLAIMS its work — the platform's own (registered as `central`) exactly as much as a satellite. Dispatch is pull-only, so there is no unregistered mode: the process refuses to boot without `LORE_API_URL`/`LORE_CLUSTER_AGENT_REGISTRATION_TOKEN`/`LORE_CLUSTER_AGENT_NAME`, nothing is ever pushed to it, and the terminal-run handler settles a task from the reported event rather than by reading a CR back (a run may have executed in a cluster the Floor cannot reach)
 - Lore API server (remote REST): `lore-api` namespace
 - lore-mcp gateway (MCP over HTTP for agent pods): `lore-api` namespace
 - stations (service stations, `POST /api/stations/{name}`): `lore-stations` namespace
 - Web UI: `lore-ui` namespace
-- ai-agent-subsystem (agent-cr controller + Agents): `ai-agents` namespace
+- Agents run in pods of the external floor (its own controller and cluster agent, namespace `floor`): Lore's `ai-agents` controller and its cluster agent were removed on 2026-10-02
 
 All secrets managed by External Secrets Operator (ESO) pulling from
 GCP Secret Manager. Single `terraform apply` deploys everything.

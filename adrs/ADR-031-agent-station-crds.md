@@ -139,6 +139,7 @@ short-lived per-task key into `agent-secrets` and removes it on terminal status 
 `@octokit/auth-app` caches installation tokens for up to 59 minutes, so a cached token handed to a
 new pod could expire mid-run — run `d9b207e0`'s `fix-ci` lost a finished commit to exactly that, its
 push rejected with "Bad credentials" 30 minutes in (#2012). ([validated by getInstallationToken for re-cinq/lore asks for a fresh token scoped to lore, never octokit's cached one](libs/shared/src/outbound/project/lib/platform-github.test.ts#L637))
+
 A fresh token still lives one hour, so this is a stopgap: a token broker that mints on demand at
 push time replaces the per-task Secret key.
 
@@ -436,3 +437,15 @@ sits in a Secret at all.
   secret has to be provisioned and a run credential never reuses the ingest
   token itself; without an ingest token lore-api refuses to sign anything rather
   than sign with an empty key. ([validated by derives eef1993b…00f6df from ingest token ingest-token-for-tests, a domain-separated HMAC rather than the token itself](apps/lore-api/src/work/github-credential/run-credential-key.test.ts#L5), [refuses to derive a key when LORE_INGEST_TOKEN is unset, naming the variable](apps/lore-api/src/work/github-credential/run-credential-key.test.ts#L11))
+
+## Amendment (2026-10-02): Lore no longer runs a controller or a cluster agent
+
+The external floor ([ADR-049](ADR-049-external-floor.md)) runs every line and
+installs the ai-agent-subsystem controller itself, in its own namespace. Lore's
+copy of the controller (the `ai-agents` subchart), its cluster agent and the
+standalone satellite chart are removed from the `lore-platform` umbrella. What
+this record decided about the three resource types still describes how the
+floor runs an agent; the catalog sync, the claim loop and the satellite
+registration described in the amendments above no longer have a process
+behind them.
+

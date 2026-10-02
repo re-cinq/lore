@@ -66,12 +66,6 @@ ingestTokenSecret:
   name: lore-ingest-token
   key: token
 
-# The satellite-registration pre-shared token (marked optional in the pod
-# spec — a deployment without the Secret simply refuses registrations).
-clusterAgentRegistrationSecret:
-  name: lore-cluster-agent-registration-token
-  key: token
-
 githubAppSecret:
   name: github-app-credentials
   appIdKey: app-id

@@ -44,18 +44,16 @@ Every app and library documents itself in its own README — the shared code sta
 
 ### Deployables
 
-Eight workloads ship as one umbrella Helm chart, `lore-platform`, which spans a namespace per subchart. Each owns one thing, and the boundaries are enforced by credentials rather than convention.
+Six workloads ship as one umbrella Helm chart, `lore-platform`, which spans a namespace per subchart. Each owns one thing, and the boundaries are enforced by credentials rather than convention.
 
 | Deployable | Namespace | What it owns |
 |---|---|---|
 | **event-router** ([`apps/event-router`](apps/event-router/README.md)) | `lore-event-router` | The only writer of `pipeline.events` ([ADR-044](adrs/ADR-044-event-router-owns-the-event-bus.md)). One front door — `POST /api/events` — for every producer, authenticating GitHub by HMAC and everyone else by bearer token, plus the claim/ack/reap endpoints each subscriber (today the stations service) drains its deliveries through. |
-| **cluster-agent** ([`apps/cluster-agent`](apps/cluster-agent/README.md)) | `lore-cluster-agent` | The only process that talks to this cluster's Kubernetes API. Holds no database; every route under `/api/cluster/*` is a domain operation rather than a Kubernetes verb, so no `resourceVersion` ever crosses the wire. It also PUSHES: a WATCH is the one cluster capability that cannot be a request, so this owns the Agent-CR watch and reports terminal phases to the event-router over HTTP — which is what lets there be more than one execution cluster. |
 | **lore-api** ([`apps/lore-api`](apps/lore-api/README.md)) | `lore-api` | The remote REST backend (`/api/*`) — hybrid search, agent memory, task CRUD, ingest ([ADR-032](adrs/ADR-032-split-local-remote-api.md)). No MCP. |
 | **stations** ([`apps/stations`](apps/stations/README.md)) | `lore-stations` | Service stations, reached by name over `POST /api/stations/{name}`. Also the scheduler: it emits the `cron.*.tick` events and answers them, drains the PR-lifecycle events, and hosts Lore's stations for the external floor. |
 | **lore-mcp gateway** ([`apps/mcp-server`](apps/mcp-server/README.md)) | `lore-api` | The same MCP adapter served over HTTP, so agent pods get live scoped Lore access for a whole run instead of a one-shot hydration. Also serves the agent-skills registry. |
 | **web-ui** ([`apps/web-ui`](apps/web-ui/README.md)) | `lore-ui` | The Next.js dashboard. Holds no database pool — it reads through lore-api. Its chart also runs the ordered SQL migrations hook on every deploy. |
 | **lore-db** ([`charts/lore-db-helm`](infra/terraform/modules/gke-mcp/lore-platform/charts/lore-db-helm/README.md)) | `lore-db` | PostgreSQL + pgvector via CloudNativePG. Schema-per-team isolation. |
-| **ai-agent-subsystem** ([`charts/ai-agents-helm`](infra/terraform/modules/gke-mcp/lore-platform/charts/ai-agents-helm/README.md)) | `ai-agents` | The external controller that turns an `Agent` custom resource into an ephemeral Job pod. |
 
 The assembly-line engine is not one of them: every line runs on the external floor ([re-cinq/floor](https://github.com/re-cinq/floor), [ADR-049](adrs/ADR-049-external-floor.md)), deployed beside the umbrella and reached only through its client. Lore's own Floor (`apps/floor`) was deleted on 2026-10-02.
 

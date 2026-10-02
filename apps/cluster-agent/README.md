@@ -145,10 +145,9 @@ itself without a cluster present.
 ## Deploy
 
 Built into a container via [`Dockerfile`](./Dockerfile); `CMD` runs
-`dist/index.js` on port 8080. Shipped as image
-`ghcr.io/re-cinq/lore-cluster-agent` by
-[`.github/workflows/build-cluster-agent.yml`](../../.github/workflows/build-cluster-agent.yml)
-into the `cluster-agent-helm` subchart of the `lore-platform` umbrella
-([`infra/terraform/modules/gke-mcp/lore-platform/charts/cluster-agent-helm`](../../infra/terraform/modules/gke-mcp/lore-platform/charts/cluster-agent-helm)).
+`dist/index.js` on port 8080. **Not deployed since 2026-10-02**: its build
+workflow and its two charts (`cluster-agent-helm` in the `lore-platform`
+umbrella, and the standalone satellite chart) are deleted, because nothing
+gives it work once `apps/floor` is gone. The app itself is removed next.
 The chart's Role carries the `agents`/`agents/status` and `pods/log` verbs the
 Floor gave up in the cut.
