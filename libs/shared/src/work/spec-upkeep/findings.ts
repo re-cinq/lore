@@ -5,7 +5,7 @@ import {
   decideGraphDrift,
   isAssertionSource,
   type DriftedStatement,
-} from "../detect/spec-drift-rules.js";
+} from "./spec-drift-rules.js";
 
 export interface UpkeepSources {
   /** Every spec path the repository holds. */
