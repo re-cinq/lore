@@ -471,27 +471,28 @@ The system MUST provide observability into context retrieval quality. ([validate
 - FR-8.2: Low-confidence retrievals (score < threshold) tagged as
   gap candidates via OTEL span attributes and Cloud Monitoring
   custom metrics. ([validated by `otel.test.ts:6`](libs/server-core/src/outbound/otel.test.ts#L6), [`otel.test.ts:10`](libs/server-core/src/outbound/otel.test.ts#L10), [`otel.test.ts:14`](libs/server-core/src/outbound/otel.test.ts#L14))
-- See ADR-010 for the autoresearch loop: the low-confidence gap signal
-  (Langfuse trace queries → candidate generation → PromptFoo eval → PR)
-  drives automated context improvement.
+- See ADR-010 for the autoresearch loop that consumed the low-confidence
+  gap signal: it was deleted with Lore's own Floor on 2026-10-02, and the
+  signal itself is still recorded.
 - FR-8.4: `lore_my_usage` tool exposes per-developer token consumption
   (today / 7-day / 30-day) without leaving Claude Code. ([validated by `usage-tools.test.ts:44`](apps/mcp-server/src/transport/tools/usage-tools.test.ts#L44), [`usage-pg.test.ts:144`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L173))
 
 ### FR-9: Context Evaluation (Phase 1)
 
-The system MUST validate context quality via CI.
+The system MUST validate context quality from CI.
 
-- FR-9.1: PromptFoo eval suite with 5-10 test cases per team
-  (stored in `evals/`).
-- FR-9.2: Teams own their eval cases.
-- FR-9.3: Pass threshold: 85% required to merge.
-- FR-9.4: Evals triggered on changes to ADRs, team CLAUDE.md files,
-  root CLAUDE.md, and spec files.
+- See `specs/context-evals` for the rules: a nightly GitHub Actions job has
+  lore-api write a question from each sampled ADR and spec, assemble the
+  context an agent would get, and judge the answer (#2443). The PromptFoo
+  suites per team, their 85%-to-merge gate on pull requests and the nightly
+  `eval_runner` and `context_core_builder` jobs it replaced are gone: the
+  jobs went with Lore's own Floor on 2026-10-02, and migration 0101 dropped
+  `pipeline.eval_runs` and `pipeline.context_core_history`.
 
 ### FR-10: Gap Detection (Phase 2)
 
-- See ADR-010: a weekly job analyzes low-confidence retrievals from the
-  previous week (the autoresearch gap loop).
+- See ADR-010: the weekly autoresearch job that analyzed the previous
+  week's low-confidence retrievals was deleted with Lore's own Floor.
 - Decision: candidate gaps are clustered by embedding similarity.
 - Decision: the agent opens PRs to the context repo with the drafted content,
   assigned to the relevant team.
@@ -1219,12 +1220,10 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   rows per model; `job_runs` inserts a running row returning its id,
   marks it completed/failed with summary/error and log path (defaulting
   the path to null) and selects the most-recent `started_at` for a job
-  (null when never run); `evals` inserts an `eval_runs` row and reads the
-  latest and previous (offset 1) pass_rate per team for the regression
-  check; and `baseline` inserts a JSON-serialized counter snapshot and
+  (null when never run); and `baseline` inserts a JSON-serialized counter snapshot and
   reads windowed PR/median-time-to-merge counters from `pipeline.tasks`
   (defaulting an empty window to zero/null, excluding other repos and
-  out-of-window rows). ([validated by `usage-pg.test.ts:22`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L31), [`usage-pg.test.ts:50`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L79), [`usage-pg.test.ts:114`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L143), [`usage-pg.test.ts:129`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L158), [`usage-pg.test.ts:144`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L173), [`usage-pg.test.ts:160`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L189), [`usage-pg.test.ts:173`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L202), [`usage-pg.test.ts:190`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L219), [`usage-pg.test.ts:206`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L235), [`cost.test.ts:36`](libs/shared/src/outbound/project/cost/cost.test.ts#L36), [`cost.test.ts:60`](libs/shared/src/outbound/project/cost/cost.test.ts#L60), [`cost.test.ts:68`](libs/shared/src/outbound/project/cost/cost.test.ts#L68), [`cost.test.ts:80`](libs/shared/src/outbound/project/cost/cost.test.ts#L80), [`job-runs.test.ts:23`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L23), [`job-runs.test.ts:36`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L36), [`job-runs.test.ts:54`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L54), [`job-runs.test.ts:62`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L62), [`job-runs.test.ts:72`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L72), [`job-runs.test.ts:86`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L86), [`job-runs.test.ts:94`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L94), [`job-runs.test.ts:104`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L104), [`job-runs.test.ts:118`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L118), [`job-runs.test.ts:131`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L131), [`job-runs.test.ts:172`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L172), [`evals.test.ts:23`](libs/shared/src/outbound/project/evals/evals.test.ts#L23), [`evals.test.ts:38`](libs/shared/src/outbound/project/evals/evals.test.ts#L38), [`evals.test.ts:48`](libs/shared/src/outbound/project/evals/evals.test.ts#L48), [`evals.test.ts:59`](libs/shared/src/outbound/project/evals/evals.test.ts#L59), [`evals.test.ts:81`](libs/shared/src/outbound/project/evals/evals.test.ts#L81), [`evals.test.ts:102`](libs/shared/src/outbound/project/evals/evals.test.ts#L102), [`evals.test.ts:123`](libs/shared/src/outbound/project/evals/evals.test.ts#L123))
+  out-of-window rows). ([validated by `usage-pg.test.ts:22`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L31), [`usage-pg.test.ts:50`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L79), [`usage-pg.test.ts:114`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L143), [`usage-pg.test.ts:129`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L158), [`usage-pg.test.ts:144`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L173), [`usage-pg.test.ts:160`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L189), [`usage-pg.test.ts:173`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L202), [`usage-pg.test.ts:190`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L219), [`usage-pg.test.ts:206`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L235), [`cost.test.ts:36`](libs/shared/src/outbound/project/cost/cost.test.ts#L36), [`cost.test.ts:60`](libs/shared/src/outbound/project/cost/cost.test.ts#L60), [`cost.test.ts:68`](libs/shared/src/outbound/project/cost/cost.test.ts#L68), [`cost.test.ts:80`](libs/shared/src/outbound/project/cost/cost.test.ts#L80), [`job-runs.test.ts:23`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L23), [`job-runs.test.ts:36`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L36), [`job-runs.test.ts:54`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L54), [`job-runs.test.ts:62`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L62), [`job-runs.test.ts:72`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L72), [`job-runs.test.ts:86`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L86), [`job-runs.test.ts:94`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L94), [`job-runs.test.ts:104`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L104), [`job-runs.test.ts:118`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L118), [`job-runs.test.ts:131`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L131), [`job-runs.test.ts:172`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L172))
 - FR-20.18a: The in-memory `Usage` double mirrors the Pg write-time
   correlation as its behavioral spec: a seeded task id lands on `task_id`;
   a non-task id that matches a seeded assembly line falls back to
@@ -1399,7 +1398,7 @@ enforced by benchmarking, infrastructure configuration, and review process.
 - PR quality enforcement (template + CI check).
 - Ingestion pipeline (Lore Agent service on GKE).
 - Observability (OpenTelemetry + Cloud Monitoring).
-- Context evaluation (PromptFoo CI gate).
+- Context evaluation (nightly GitHub Actions job that asks lore-api, #2443).
 - Gap detection (automated drafting + PR opening).
 - Live knowledge graph (PostgreSQL entities + edges).
 - Intelligent memory lifecycle (passive capture, decay, consolidation).
@@ -1440,7 +1439,6 @@ enforced by benchmarking, infrastructure configuration, and review process.
 - GitHub organization with Actions, CODEOWNERS, PR template support,
   and GitHub App installation (`GITHUB_APP_ID`, `GITHUB_PRIVATE_KEY`).
 - External Secrets Operator (ESO) pulling from GCP Secret Manager.
-- PromptFoo (Phase 1+, stored in `evals/`).
 - Anthropic API key (for Lore Agent, Phase 1+).
 - Slack bot token (`LORE_SLACK_BOT_TOKEN`) for `/lore` slash command
   and watcher notifications (optional).

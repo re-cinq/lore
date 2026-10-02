@@ -150,7 +150,6 @@ export const MAX_EXPECTS_BASELINE = [
   "libs/shared/src/outbound/project/chunks/chunk-schema.test.ts",
   "libs/shared/src/outbound/project/chunks/chunks.test.ts",
   "libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts",
-  "libs/shared/src/outbound/project/context-core/context-core.test.ts",
   "libs/shared/src/outbound/project/events/drain-loop.test.ts",
   "libs/shared/src/outbound/project/features/features-memory.test.ts",
   "libs/shared/src/outbound/project/features/features-pg.test.ts",

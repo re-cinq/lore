@@ -27,14 +27,14 @@ Registered via `server.tool` ([registration + handler](apps/mcp-server/src/trans
 - **description** (verbatim):
 
 ```text
-Fetches the full stdout/stderr of one scheduled CronJob run (keyed by job_name + run_id), returning {logs, complete:true}. Use for scheduled jobs like context_reindex or spec_test_linker. Instead: lore_get_task_logs for a user-created pipeline task's logs (by UUID).
+Fetches the full stdout/stderr of one scheduled CronJob run (keyed by job_name + run_id), returning {logs, complete:true}. Use for scheduled jobs like daily_digest or spec_upkeep. Instead: lore_get_task_logs for a user-created pipeline task's logs (by UUID).
 ```
 
 ### Input schema (Zod)
 
 | Param | Type | Required | Default | Constraint / notes |
 |-------|------|----------|---------|--------------------|
-| `job_name` | string | yes | — | Scheduled job name, e.g. `context_reindex` or `spec_test_linker`. |
+| `job_name` | string | yes | — | Scheduled job name, e.g. `daily_digest` or `spec_upkeep`. |
 | `run_id` | string | yes | — | Run UUID from `pipeline.job_runs`. |
 
 ## Behavior

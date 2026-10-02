@@ -153,12 +153,14 @@ CI, not by a central team reviewing every change.
 - `teams/<team>/CLAUDE.md`: owned by the respective team.
 - `adrs/`: owned by `@lore/arch-group` + affected team.
 - `runbooks/`: owned by the operating team.
-- PromptFoo evals: each team owns their eval cases. Platform does
-  not own domain knowledge.
-- Pass threshold: `--assert-pass-rate 0.85` required to merge.
+- Context evals: nobody writes or maintains eval cases. A nightly
+  GitHub Actions job asks lore-api to write a question from each
+  sampled document, assemble the context, and judge the answer (#2443).
+- Pass threshold: a repository's nightly run fails when fewer than 85%
+  of its sampled documents are both found and answered.
 
-**Rationale:** Centralised review bottlenecks do not scale. CI eval
-gates provide consistent quality enforcement without requiring a
+**Rationale:** Centralised review bottlenecks do not scale. Nightly
+evals provide consistent quality enforcement without requiring a
 platform team member in every review. Teams know their domain better
 than platform does.
 
@@ -242,7 +244,6 @@ Platform jobs running as Lore Agent tasks:
 | Full re-index | Identifies stale chunks, drafts missing content |
 | Gap detection | Drafts missing context and opens PRs |
 | Spec drift check | Reads code + spec, writes the update needed |
-| Eval runner | Runs PromptFoo nightly, detects regressions, creates tasks |
 | Feature request | Generates spec.md, data-model.md, tasks.md from PM intent |
 | Implementation | Implements from spec on the ai-agent-subsystem (agent-cr Agent) with lint/typecheck gate |
 | Review | Reviews PR against conventions, posts comments, iterates up to 2 rounds |
@@ -373,7 +374,7 @@ tolerance without reinstating continuous polling. See ADR-015.
 | Task tracking | Pipeline tasks via Lore MCP; GitHub Issues for exception surfaces (opt-out per ADR-016) |
 | Feature workflow | Spec Kit (`specify-cli`) |
 | Observability | OpenTelemetry → Cloud Monitoring |
-| CI evals | PromptFoo |
+| Context evals | Nightly GitHub Actions job that asks lore-api (#2443); no stored baseline |
 | Infrastructure | `lore-platform` umbrella Helm chart (floor / lore-api / ui / lore-db / ai-agents subcharts) + CNPG operator + CronJobs (on existing shared GKE cluster `your-gke-cluster`) |
 | Auth | Workload Identity (GKE), Workload Identity Federation (GHA) |
 | Code parsing | web-tree-sitter (TypeScript, Python, Go) |
@@ -426,7 +427,8 @@ Deliverables:
   weekly spec drift (Mon 10 AM), daily importance decay (5 AM),
   daily consolidation (5:30 AM).
 - OpenTelemetry instrumentation built into lore-api → Cloud Monitoring.
-- PromptFoo eval suite + CI gate.
+- PromptFoo eval suite + CI gate (since replaced by the nightly context
+  evals of #2443).
 
 ### Phase 2: Feedback Loop — IMPLEMENTED
 
@@ -496,8 +498,8 @@ Deliverables:
 
 ### Compliance Review
 
-- PromptFoo CI evals enforce principle alignment on every PR that
-  touches context files.
+- Nightly context evals check that Lore returns the right document for
+  a question written from it (#2443).
 - Weekly gap detection surfaces areas where practice diverges from
   stated principles.
 - Phase 0 gate and Phase 1 gate are hard stops — do not proceed
