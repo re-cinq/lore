@@ -195,7 +195,7 @@ describe("AgentList", () => {
     );
 
     expect(queryByText("Edit")).toBeNull();
-    expect(container.querySelectorAll("thead th")).toHaveLength(7);
+    expect(container.querySelectorAll("thead th")).toHaveLength(6);
     expect(getByText(/org-default catalog every repo inherits/)).toBeTruthy();
   });
 
