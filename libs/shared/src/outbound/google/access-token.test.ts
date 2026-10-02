@@ -70,17 +70,28 @@ describe("resolveGoogleProject", () => {
 });
 
 describe("resolveGoogleAccessToken", () => {
-  it("returns the metadata server's token for the pod's identity", async () => {
+  it("returns GOOGLE_ACCESS_TOKEN from the environment without hitting the metadata server", async () => {
+    process.env.GOOGLE_ACCESS_TOKEN = "tok-from-env";
+    const fetchMock = vi.fn();
+
+    vi.stubGlobal("fetch", fetchMock);
+    expect(await resolveGoogleAccessToken()).toBe("tok-from-env");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the metadata server's token for the pod's identity when env is unset", async () => {
     vi.stubGlobal("fetch", metadataAnswering({ token: "tok-from-metadata" }));
 
     expect(await resolveGoogleAccessToken()).toBe("tok-from-metadata");
   });
 
-  it("falls back to GOOGLE_ACCESS_TOKEN when there is no metadata server", async () => {
-    process.env.GOOGLE_ACCESS_TOKEN = "tok-from-env";
-    vi.stubGlobal("fetch", metadataAnswering({}));
+  it("returns an empty token when the metadata server answers without one", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: false, json: async () => ({}) }) as Response),
+    );
 
-    expect(await resolveGoogleAccessToken()).toBe("tok-from-env");
+    expect(await resolveGoogleAccessToken()).toBe("");
   });
 
   it("returns an empty token when neither source has one", async () => {
