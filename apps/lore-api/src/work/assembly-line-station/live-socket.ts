@@ -28,6 +28,8 @@ const MAX_PAYLOAD_BYTES = 4 * 1024 * 1024;
 
 const OPEN = 1;
 
+type ChannelMessage = Exclude<LiveClientMessage, OpenMessage>;
+
 export interface LiveSocketDeps {
   run: RunChannelDeps;
   collab: CollabServer;
@@ -134,11 +136,19 @@ class LiveConnection {
   }
 
   private dispatch(message: LiveClientMessage): void {
+    if (message.type === "open") {
+      return this.open(message);
+    }
+
+    return this.dispatchToChannel(message);
+  }
+
+  private dispatchToChannel(message: ChannelMessage): void {
     switch (message.type) {
-      case "open":
-        return this.open(message);
       case "send":
         return this.forward(message.channel, message.data);
+      case "watch":
+        return this.watch(message.channel, message.runs);
       default:
         return this.close(message.channel);
     }
@@ -153,6 +163,17 @@ class LiveConnection {
       return;
     }
     handle.receive(base64ToBytes(encodedBytes));
+  }
+
+  private watch(channel: string, runIds: readonly string[]): void {
+    const handle = this.registry.get(channel);
+
+    if (!handle) {
+      this.send({ type: "error", channel, code: "unknown_channel" });
+
+      return;
+    }
+    handle.watch?.(runIds);
   }
 
   private close(channel: string): void {
@@ -232,15 +253,31 @@ class LiveConnection {
     message: OpenMessage,
     outlet: ChannelOutlet,
   ): Promise<ChannelHandle | null> {
-    if (message.kind === "plan") {
-      const request = webRequest(this.request);
-
-      return Promise.resolve(
-        openPlanChannel(message.channel, request, outlet, this.deps.collab),
-      );
+    switch (message.kind) {
+      case "plan":
+        return Promise.resolve(
+          openPlanChannel(
+            message.channel,
+            webRequest(this.request),
+            outlet,
+            this.deps.collab,
+          ),
+        );
+      case "runs":
+        return Promise.resolve(this.openRuns(message, outlet));
+      default:
+        return openRunChannel(message, outlet, this.deps.run);
     }
+  }
 
-    return openRunChannel(message, outlet, this.deps.run);
+  /** The runs channel is not served yet: the open is answered as a server close. */
+  private openRuns(
+    message: OpenMessage,
+    outlet: ChannelOutlet,
+  ): ChannelHandle | null {
+    outlet.send({ type: "closed", channel: message.channel, reason: "server" });
+
+    return null;
   }
 
   private outletFor(channel: string): ChannelOutlet {
