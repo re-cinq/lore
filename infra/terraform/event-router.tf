@@ -1,30 +1,36 @@
 # --------------------------------------------------------------------------
-# Lore Event Router — GitHub webhook ingress (ADR-044)
+# The GitHub webhook hostname (lore_event_router_hostname)
 #
-# The workload itself is deployed by the umbrella Helm release
-# (`helm_release.lore_platform` in lore-platform.tf) under the
-# `lore-event-router` subchart, as a ClusterIP Service on :8080 in the
-# lore-event-router namespace. Like every other ingress, the public one lives
-# here.
-#
-# Only GitHub reaches the router from outside. Every other producer (the Floor,
-# lore-api) is an ordinary in-cluster Deployment and uses the ClusterIP via
-# `local.event_router_in_cluster`.
-#
-# CUTOVER (done 2026-09-08): the Floor's /api/webhook/github route is gone, and
-# lore-api installs hooks at <lore_event_router_hostname>/api/events. Repos not
-# yet re-pointed keep delivering to the old URL, which the Floor ingress
-# rewrites onto this Service (see lore-floor.tf) — so a hook is never wrong,
-# only legacy, and GitHub never 404s a delivery it would not redeliver.
-#
-# FOLD INTO LORE-API (2026-10-02): GitHub's deliveries are served by lore-api
-# (`POST /api/webhook/github`). The public URL does not change, so no
-# repository's hook is registered again: this ingress keeps the host and the
-# `/api/events` path, and nginx rewrites it onto lore-api's route. An Ingress
-# can only name a Service in its own namespace, hence the ExternalName hop.
-# The event-router keeps running until its chart is removed; nothing public
-# reaches it any more, and in-cluster callers never used this ingress.
+# Step 1 of moving this ingress out of the event-router's namespace: the
+# certificate for the hostname is issued in the lore-api namespace BEFORE the
+# ingress moves there. An ingress that arrives with no certificate serves
+# nginx's default one for as long as issuance takes, and GitHub does not
+# redeliver a delivery that fails TLS. Step 2 recreates the ingress beside
+# lore-api and removes the event-router namespace.
 # --------------------------------------------------------------------------
+
+resource "kubectl_manifest" "lore_webhook_certificate" {
+  count = var.lore_event_router_hostname != "" ? 1 : 0
+
+  yaml_body = yamlencode({
+    apiVersion = "cert-manager.io/v1"
+    kind       = "Certificate"
+    metadata = {
+      name      = "lore-webhook"
+      namespace = "lore-api"
+    }
+    spec = {
+      secretName = "lore-webhook-tls"
+      dnsNames   = [var.lore_event_router_hostname]
+      issuerRef = {
+        kind = "ClusterIssuer"
+        name = "letsencrypt-prod"
+      }
+    }
+  })
+
+  depends_on = [kubernetes_namespace.lore_api]
+}
 
 resource "kubernetes_service_v1" "lore_api_webhook_alias" {
   count = var.lore_event_router_hostname != "" ? 1 : 0
