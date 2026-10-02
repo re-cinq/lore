@@ -16,7 +16,7 @@ Every session follows an enforced workflow so agents never re-solve a problem th
 
 1. **`lore_assemble_context`** runs first — loads conventions, ADRs, memories, facts, and the knowledge graph in one call.
 2. **`lore_search_memory`** runs before planning or building — checks whether the problem was already solved, using several queries.
-3. **During work** — `lore_search_context`, `lore_query_graph`, and `lore_create_pipeline_task` as needed.
+3. **During work** — `lore_search_context` and `lore_query_graph` as needed.
 4. **Session end** — `lore_write_memory` with a session summary, and `lore_write_episode` for passive fact extraction.
 
 In practice you just talk to Claude and the context appears:
@@ -37,9 +37,9 @@ claude "remember that we decided to use UUIDs for all new tables"
 claude "what uses PostgreSQL in our infrastructure?"
 # → lore_query_graph returns: auth-service, lore-agent, etc.
 
-# Delegate work to the agent pipeline (proxied to GKE)
-claude "create a runbook for database failover in re-cinq/my-service"
-# → lore_create_pipeline_task → agent picks it up → PR created
+# Hand work to an agent: label a ticket; the implementation loop picks it up
+gh issue edit 123 --add-label priority:high
+# → the loop opens a draft PR, works it in TDD rounds, marks it ready for review
 
 # Check task status
 claude "what's the status of my last pipeline task?"
@@ -120,7 +120,6 @@ Filter any repo with `label:lore-managed` to see all Lore activity at a glance.
 | `lore_write_episode` | Memory | Ingest raw text; auto-extracts facts and updates the knowledge graph |
 | `lore_query_graph` | Memory | Query the live knowledge graph for entities and relationships |
 | `lore_agent_stats` | Memory | Health, memory count, episode count, facts, searches, daily breakdown |
-| `lore_create_pipeline_task` | Pipeline | Create a task on GKE. Supports `group_id` for multi-repo coordination |
 | `lore_run_task_locally` | Pipeline | Run a task in the background on your machine (uses your subscription) |
 | `lore_list_local_tasks` | Pipeline | Show running/completed local background tasks |
 | `lore_cancel_local_task` | Pipeline | Cancel a local background task |

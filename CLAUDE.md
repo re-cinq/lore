@@ -15,7 +15,7 @@ PR history, and task state.
   as the shared **`lore-mcp` HTTP gateway** for agent pods: with `LORE_MCP_HTTP=1`
   it mounts the SDK's `StreamableHTTPServerTransport` (`src/server/http-transport.ts`)
   instead of stdio, and `LORE_MCP_SERVER_MODE=agent` (`build-mcp-server.ts`) omits
-  the laptop-only + `lore_create_pipeline_task` tools. Deployed by `charts/lore-mcp-helm`
+  the laptop-only tools. Deployed by `charts/lore-mcp-helm`
   (image `ghcr.io/re-cinq/lore-mcp`) in the `lore-api` namespace; agent recipes reach
   it via a `resources.mcp_servers` entry (ADR-030/031/032). The gateway also serves the
   **agent-skills registry** (`src/server/skills-registry.ts`) at `/skills/<name>.tar.gz`
@@ -284,8 +284,8 @@ Every Claude Code session connected to Lore MUST follow this order:
    descriptions. Never assume "no memory exists" after one search.
 
 3. **During work**: Use `lore_search_context` for patterns and history.
-   Use `lore_query_graph` to understand entity relationships. Use
-   `lore_create_pipeline_task` to delegate work to agents.
+   Use `lore_query_graph` to understand entity relationships. A ticket
+   with a `priority:*` label hands code to the implementation loop.
 
 4. **Before session ends**: Call `lore_write_memory` with a session
    summary of decisions, corrections, and non-obvious learnings.
@@ -430,7 +430,7 @@ up the repo's content. Repos table: lore.repos.
 ## Task Pipeline
 
 Tasks created via UI, MCP, or PR trigger agents on GKE.
-Pipeline tools: lore_create_pipeline_task, lore_get_pipeline_status,
+Pipeline tools: lore_get_pipeline_status,
 lore_list_pipeline_tasks, lore_cancel_task, lore_retry_task, lore_list_task_group,
 lore_get_task_logs, lore_my_usage. Local runner tools: lore_run_task_locally,
 lore_list_local_tasks, lore_cancel_local_task.
@@ -576,7 +576,7 @@ successful merges at current level. Defaults to `implementation`
 for backward compatibility.
 
 **Task groups**: `task_group_id` on pipeline tasks coordinates
-multi-repo features. `lore_create_pipeline_task` accepts `group_id`.
+multi-repo features.
 `lore_list_task_group` tool shows all tasks in a group with completion
 status. When all tasks in a group merge, a summary episode is written.
 

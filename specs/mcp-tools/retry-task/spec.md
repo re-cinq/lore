@@ -87,10 +87,10 @@ A task id with no matching row is rejected with `Task not found`.
 ([validated by `throws task not found when no row matches`](apps/mcp-server/src/work/pipeline/pipeline-crud.test.ts#L158))
 
 The retry action is posted to `/api/task` and the new task is returned
-verbatim. ([validated by `lore_retry_task posts the retry action and returns the new task`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L430))
+verbatim. ([validated by `lore_retry_task posts the retry action and returns the new task`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L318))
 
 An unconfigured API yields the not-configured message rather than a PostgreSQL
-message. ([validated by `every proxied pipeline tool reports a missing API configuration`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L583))
+message. ([validated by `every proxied pipeline tool reports a missing API configuration`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L471))
 
 ## Out of Scope
 

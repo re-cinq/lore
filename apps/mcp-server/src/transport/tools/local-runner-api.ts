@@ -7,78 +7,8 @@ interface ApiCredentials {
   token: string;
 }
 
-/** Registers the task via the API, returning the server-issued id, or null when offline. */
-export async function createPipelineTaskViaApi(
-  description: string,
-  taskType: string,
-  repo: string,
-): Promise<string | null> {
-  const creds = resolveApiCredentials();
-
-  if (!creds) {
-    return null;
-  }
-
-  return postTaskCreate(creds, {
-    description,
-    task_type: taskType,
-    target_repo: repo,
-    created_by: "local-runner",
-  });
-}
-
 /** Free-form work run on this machine: not a pipeline task type, so nothing is filed for it. */
 export const LOCAL_ONLY_TASK_TYPE = "local";
-
-/** The id a local run goes by: the server's when its task was filed, a generated one for free-form local work and when the API cannot be reached. */
-export async function localTaskId(
-  args: { description: string; task_type: string },
-  repo: string,
-): Promise<string> {
-  const filed =
-    args.task_type === LOCAL_ONLY_TASK_TYPE
-      ? null
-      : await createPipelineTaskViaApi(args.description, args.task_type, repo);
-
-  return filed ?? crypto.randomUUID();
-}
-
-function resolveApiCredentials(): ApiCredentials | null {
-  const apiUrl = process.env.LORE_API_URL || "";
-  const token = process.env.LORE_INGEST_TOKEN || "";
-
-  return apiUrl && token ? { apiUrl, token } : null;
-}
-
-async function postTaskCreate(
-  creds: ApiCredentials,
-  body: Record<string, unknown>,
-): Promise<string | null> {
-  try {
-    const resp = await postTask(creds, body);
-    const created = (await resp.json()) as { task_id?: string };
-
-    return created.task_id ?? null;
-  } catch {
-    return null;
-  }
-}
-
-// /api/task is both the create and the claim endpoint — the action is carried in the body, so one poster serves both callers.
-function postTask(
-  creds: ApiCredentials,
-  body: Record<string, unknown>,
-): Promise<Response> {
-  return fetch(`${creds.apiUrl}/api/task`, {
-    signal: AbortSignal.timeout(30_000),
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${creds.token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
-}
 
 // Lore's own /api/task/{id} wire response (mirrors pipeline.tasks columns).
 // eslint-disable-next-line re-lint/no-row-types-outside-models
@@ -164,4 +94,27 @@ export async function claimTaskBestEffort(taskId: string): Promise<void> {
   } catch {
     /* best effort */
   }
+}
+
+function resolveApiCredentials(): ApiCredentials | null {
+  const apiUrl = process.env.LORE_API_URL || "";
+  const token = process.env.LORE_INGEST_TOKEN || "";
+
+  return apiUrl && token ? { apiUrl, token } : null;
+}
+
+// /api/task is both the create and the claim endpoint — the action is carried in the body, so one poster serves both callers.
+function postTask(
+  creds: ApiCredentials,
+  body: Record<string, unknown>,
+): Promise<Response> {
+  return fetch(`${creds.apiUrl}/api/task`, {
+    signal: AbortSignal.timeout(30_000),
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${creds.token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
 }

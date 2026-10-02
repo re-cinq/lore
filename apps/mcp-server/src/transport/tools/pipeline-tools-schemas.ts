@@ -1,48 +1,4 @@
 import { z } from "zod";
-import { MAX_TASK_DESCRIPTION_CHARS } from "@re-cinq/lore-shared";
-
-// Tool input schemas live as data beside their tool: a zod object is a contract, not a step in registering one.
-export const CREATE_PIPELINE_TASK_INPUT = {
-  description: z
-    .string()
-    .min(1)
-    .max(MAX_TASK_DESCRIPTION_CHARS)
-    .refine((v) => v.trim().length > 0, {
-      message: "description cannot be blank",
-    })
-    .describe(
-      `Primary natural-language instruction; be specific. Max ${MAX_TASK_DESCRIPTION_CHARS} chars; non-empty.`,
-    ),
-  task_type: z
-    .string()
-    .describe(
-      "feature-request | runbook | gap-fill | review. Required: there is no default type, and an unknown one is refused. To have something implemented, open an issue with a priority:* label instead and the implementation loop picks it up. 'onboard' is refused here — use lore_onboard_repo, which guards against duplicate onboarding.",
-    ),
-  target_repo: z
-    .string()
-    .optional()
-    .describe("'owner/repo'. Auto-detected from git remote when omitted."),
-  priority: z
-    .enum(["normal", "immediate"])
-    .default("normal")
-    .describe(
-      "'normal' = backlog; 'immediate' = GKE agent auto-executes within ~30s.",
-    ),
-  group_id: z
-    .string()
-    .optional()
-    .describe(
-      "Task-group UUID to link this task into a multi-repo feature rollup (see lore_list_task_group).",
-    ),
-  context: z
-    .object({
-      spec_file: z.boolean().optional(),
-      branch: z.string().optional(),
-      seed_query: z.string().optional(),
-    })
-    .optional()
-    .describe("Optional context for the agent: spec_file, branch, seed_query."),
-};
 
 export const GET_PR_STATUS_INPUT = {
   repo: z.string().describe("'owner/repo'"),
@@ -72,9 +28,7 @@ export const LIST_PIPELINE_TASKS_INPUT = {
 export const LIST_TASK_GROUP_INPUT = {
   group_id: z
     .string()
-    .describe(
-      "Task-group UUID (the value passed as group_id to lore_create_pipeline_task).",
-    ),
+    .describe("Task-group UUID (a plan's spec-tasks share one)."),
 };
 
 export const SYNC_TASKS_INPUT = {

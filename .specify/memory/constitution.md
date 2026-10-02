@@ -133,7 +133,7 @@ MCP tools fall into three categories:
   `lore_search_memory`, `lore_query_graph`, `get_file_pr_history`.
 - Memory operations: `lore_write_memory`, `lore_read_memory`, `lore_delete_memory`,
   `lore_list_memories`, `lore_write_episode`, `lore_agent_stats`.
-- Cluster delegation: `lore_create_pipeline_task`, `lore_get_pipeline_status`,
+- Cluster work: `lore_get_pipeline_status`,
   `lore_list_pipeline_tasks`, `lore_cancel_task`, `lore_retry_task`,
   `lore_list_task_group`, `lore_get_task_logs`, `lore_my_usage`,
   `lore_run_task_locally`, `lore_list_local_tasks`, `lore_cancel_local_task`.
