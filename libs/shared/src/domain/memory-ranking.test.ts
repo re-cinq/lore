@@ -42,6 +42,12 @@ describe("rrfMerge similarity", () => {
     expect(fused).toEqual([expect.objectContaining({ similarity: 0.71 })]);
   });
 
+  it("keeps a negative similarity of -0.1 when it is the only measurement", () => {
+    const fused = rrfMerge([[candidate()], [candidate({ similarity: -0.1 })]]);
+
+    expect(fused[0].similarity).toBe(-0.1);
+  });
+
   it("leaves similarity off an item no leg measured", () => {
     expect(rrfMerge([[candidate()]])[0]).not.toHaveProperty("similarity");
   });

@@ -94,6 +94,46 @@ describe("searchMemories similarity", () => {
   });
 });
 
+describe("searchMemories similarity of an episode", () => {
+  const isVectorFacts = (sql: string) =>
+    /FROM memory\.facts f/.test(sql) && /vec_rank/.test(sql);
+  const isKeywordFacts = (sql: string) =>
+    /FROM memory\.facts f/.test(sql) && /kw_rank/.test(sql);
+  const twentyFacts = Array.from({ length: 20 }, (_, index) => ({
+    ...memory(`fact-${index + 1}`, {
+      vec_rank: String(index + 1),
+      similarity: String(0.8 - index * 0.01),
+    }),
+    source: "fact",
+  }));
+
+  it("bounds a keyword-only episode at 0.61 by a full fact leg that held only facts: the leg ranks both kinds", async () => {
+    const pool = scriptedPool((sql) => {
+      if (isVectorFacts(sql)) {
+        return twentyFacts;
+      }
+
+      return isKeywordFacts(sql)
+        ? [
+            {
+              ...memory("episode-by-word", { kw_rank: "1" }),
+              source: "episode",
+            },
+          ]
+        : [];
+    });
+
+    const results = await searchMemories(pool, "deploy", {
+      passive: true,
+      limit: 30,
+    });
+
+    expect(
+      results.find((result) => result.key === "episode-by-word")?.similarity,
+    ).toBeCloseTo(0.61, 5);
+  });
+});
+
 describe("fetchers.memories similarity", () => {
   it("carries a memory's similarity 0.71 onto its context item, so the relevance cut-off can weigh it", async () => {
     const pool = scriptedPool((sql) =>

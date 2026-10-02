@@ -63,7 +63,10 @@ function keepHigherSimilarity(
   if (ranked.similarity === undefined) {
     return;
   }
-  existing.similarity = Math.max(existing.similarity ?? 0, ranked.similarity);
+  existing.similarity =
+    existing.similarity === undefined
+      ? ranked.similarity
+      : Math.max(existing.similarity, ranked.similarity);
 }
 
 /** A ranked item widened to a search result by attaching its running fusion score. */

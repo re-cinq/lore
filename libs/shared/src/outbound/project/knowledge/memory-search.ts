@@ -200,19 +200,19 @@ const VECTOR_LEG_SIZE = 20;
 
 /** A hit only the keyword leg found was not among its kind's nearest neighbours, so when that vector leg came back full, the hit is at most as similar as the leg's last row. That bound stands in for a similarity nobody measured, which lets the context cut-off drop a memory that matched a common word and nothing else. A leg that came back short measured every embedded row, so a keyword-only hit there has no embedding and stays unmeasured. */
 function boundedBy(
-  vectorLegs: RankedRow[][],
+  [vectorMemories, vectorFacts]: RankedRow[][],
   merged: MemorySearchResult[],
 ): MemorySearchResult[] {
-  const bounds = new Map(
-    vectorLegs.flatMap((leg) =>
-      leg.length >= VECTOR_LEG_SIZE
-        ? leg.map((row) => [row.source, lowestSimilarity(leg)] as const)
-        : [],
-    ),
-  );
+  const factBound = boundOf(vectorFacts);
+  // The fact leg ranks facts and episodes together, so its bound holds for both whichever of them it returned.
+  const bounds: Partial<Record<MemorySearchResult["source"], number>> = {
+    memory: boundOf(vectorMemories),
+    fact: factBound,
+    episode: factBound,
+  };
 
   return merged.map((hit) => {
-    const bound = bounds.get(hit.source);
+    const bound = bounds[hit.source];
 
     return hit.similarity === undefined && bound !== undefined
       ? { ...hit, similarity: bound }
@@ -220,8 +220,15 @@ function boundedBy(
   });
 }
 
-function lowestSimilarity(leg: RankedRow[]): number {
-  return Math.min(...leg.map((row) => row.similarity ?? 0));
+/** The lowest similarity of a leg that came back full; nothing for a short leg, or for one that measured no row. */
+function boundOf(leg: RankedRow[]): number | undefined {
+  const similarities = leg.flatMap((row) =>
+    row.similarity === undefined ? [] : [row.similarity],
+  );
+
+  return leg.length >= VECTOR_LEG_SIZE && similarities.length > 0
+    ? Math.min(...similarities)
+    : undefined;
 }
 
 /** Attempts a query embedding; an unavailable embedding yields no vector hits (keyword search still runs). */
