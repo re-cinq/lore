@@ -385,9 +385,9 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 - A `pr_url` that is not a pull request fails the `post-review` visit. ([validated by throws when the pr_url is not a pull request](apps/stations/src/code-review/post-review/station.test.ts#L177))
 - A verdict that reaches no parseable findings fails the `post-review` visit rather than passing silently — that state is indistinguishable from a clean review at the PR. ([validated by posts nothing for CHANGES_REQUESTED without a findings block](apps/stations/src/code-review/post-review/post-review.test.ts#L294), [validated by throws when the output has no verdict](apps/stations/src/code-review/post-review/station.test.ts#L167))
 - A post that no route can deliver — every review shape and the plain comment refused — fails the `post-review` visit rather than being swallowed. ([validated by throws when every review shape and the plain comment are refused](apps/stations/src/code-review/post-review/station.test.ts#L159))
-- A code-review-refine node emits its reply as a fenced `REVIEW_REPLY` block (the pod has no `gh`) and its answers to the review's line comments as a `REVIEW_THREAD_REPLIES` block; the `post-reply` station posts each answer under the comment it names. ([validated by replies under comment 88 when the run carries review_id 99, the review that comment belongs to](apps/stations/src/code-review/post-reply/station.test.ts#L76), [validated by replies under comments 88 and 89 of review 99 and resolves only T1, the thread of the reply marked resolved](apps/stations/src/code-review/post-reply/post-reply.test.ts#L129))
-- A refine reply that answers no line comment is a plain PR comment. ([validated by comments on PR 412 and produces reply_url when the agent answered no line comment](apps/stations/src/code-review/post-reply/station.test.ts#L56), [validated by comments on PR 412 with the stamped reply when the agent answered no line comment](apps/stations/src/code-review/post-reply/post-reply.test.ts#L114))
-- A refine node that emits no reply block fails the `post-reply` visit rather than passing silently. ([validated by throws when the output has no REVIEW_REPLY block](apps/stations/src/code-review/post-reply/post-reply.test.ts#L312), [validated by rejects when the agent output has no REVIEW_REPLY block](apps/stations/src/code-review/post-reply/station.test.ts#L99))
+- A code-review-refine node emits its reply as a fenced `REVIEW_REPLY` block (the pod has no `gh`) and its answers to the review's line comments as a `REVIEW_THREAD_REPLIES` block; the `post-reply` station posts each answer under the comment it names. ([validated by replies under comment 88 when the run carries review_id 99, the review that comment belongs to](apps/stations/src/code-review/post-reply/station.test.ts#L76), [validated by replies under comments 88 and 89 of review 99 and resolves only T1, the thread of the reply marked resolved](apps/stations/src/code-review/post-reply/post-reply.test.ts#L136))
+- A refine reply that answers no line comment is a plain PR comment. ([validated by comments on PR 412 and produces reply_url when the agent answered no line comment](apps/stations/src/code-review/post-reply/station.test.ts#L56), [validated by comments on PR 412 with the stamped reply when the agent answered no line comment](apps/stations/src/code-review/post-reply/post-reply.test.ts#L121))
+- A refine node that emits no reply block fails the `post-reply` visit rather than passing silently. ([validated by throws when the output has no REVIEW_REPLY block](apps/stations/src/code-review/post-reply/post-reply.test.ts#L319), [validated by rejects when the agent output has no REVIEW_REPLY block](apps/stations/src/code-review/post-reply/station.test.ts#L99))
 - A `code-review-recheck` run's changes-requested verdict is posted by the same station as a formal `REQUEST_CHANGES` review. ([validated by posts one REQUEST_CHANGES review with a rendered comment per commentable finding](apps/stations/src/code-review/post-review/post-review.test.ts#L94), [validated by creates the review, upserts the neutral check and reports success with the summary and url](apps/stations/src/code-review/post-review/station.test.ts#L72))
 - A `code-review-recheck` run's approving verdict is posted by the same station as a formal `APPROVE` review. ([validated by submits an APPROVE review carrying the inline findings for an approved verdict](apps/stations/src/code-review/post-review/post-review.test.ts#L250), [validated by posts a visible APPROVE review for a bare REVIEW_RESULT:APPROVED with no findings block](apps/stations/src/code-review/post-review/post-review.test.ts#L282))
 
@@ -505,38 +505,38 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
   earlier verdict it reads `main...HEAD` as before. The sha and the range are resolved
   together, so a rebase that drops the judged commit names no sha at all rather than
   sending the pod to diff against history the branch no longer has.
-  ([validated by starts a re-check that names sha-old as the last judged commit](libs/shared/src/work/review/floor-review-start.test.ts#L294), [validated by reads the range since the sha the last verdict judged, rather than the whole PR again](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L835))
+  ([validated by starts a re-check that names sha-old as the last judged commit](libs/shared/src/work/review/floor-review-start.test.ts#L294), [validated by reads the range since the sha the last verdict judged, rather than the whole PR again](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L838))
 - *(added 2026-09-25)* The re-check recipe carries the deep review's discipline at its own
   scope: context queried with the PR title and the surface the new commits change, the CI
   verdict read through `lore_get_ci_failures` rather than reasoned about or re-run, each
   diff read once in place, and a `question` when an added spec statement is not what a
   person using that surface would expect.
-  ([validated by reads the range since the sha the last verdict judged, rather than the whole PR again](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L835), [validated by carries the same CI-verdict and read-once rules as the deep review, so a re-check runs no linter either](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L845), [validated by queries context with the PR title and the surface the new commits change](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L856))
+  ([validated by reads the range since the sha the last verdict judged, rather than the whole PR again](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L838), [validated by carries the same CI-verdict and read-once rules as the deep review, so a re-check runs no linter either](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L848), [validated by queries context with the PR title and the surface the new commits change](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L859))
 - *(added 2026-09-25)* A review asked for by hand supersedes the fast pass a push started:
   the open re-check is finished `superseded` before the deep review starts, so one sha
   never collects two verdicts of different depths. ([validated by cancels the open re-check as superseded when a review is forced](libs/shared/src/work/review/floor-review-start.test.ts#L262))
 - Every recipe that asks for a `REVIEW_FINDINGS` block shows a whole finding
   (`path`, `line`, `label`, `decoration`, `subject`) rather than pointing at
   another recipe's schema, so no model has to guess the shape.
-  ([validated by shows a whole finding with path, line, label, decoration and subject in code-review and code-review-recheck, so no model guesses the shape (#2143's recheck lost every finding)](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L874))
+  ([validated by shows a whole finding with path, line, label, decoration and subject in code-review and code-review-recheck, so no model guesses the shape (#2143's recheck lost every finding)](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L877))
 - *(added 2026-09-24)* The deep review reads the change as its user before it reads
   it as its reviewer: for every spec statement the PR adds or changes, one line on
   what a person using that surface sees differently, compared with the statements
   beside it and the page or route that renders it, and a mismatch is a `question`
   finding rather than silence — a spec written in the same PR as its code proves
   nothing about intent (the #2130 replay approved a fresh-run design twice).
-  ([validated by asks, for every spec statement the PR adds or changes, what a person using that surface sees differently, and files a mismatch as a question rather than silence](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L787))
+  ([validated by asks, for every spec statement the PR adds or changes, what a person using that surface sees differently, and files a mismatch as a question rather than silence](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L790))
 - Lint, types, formatting and tests are CI's verdict, read through
   `lore_get_ci_failures`; the review runs no eslint, tsc, formatter, test runner or
-  install. ([validated by names lint, types, formatting and tests as CI's verdict, read through lore_get_ci_failures, so the review spends no commands reproducing them](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L797))
+  install. ([validated by names lint, types, formatting and tests as CI's verdict, read through lore_get_ci_failures, so the review spends no commands reproducing them](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L800))
 - The diff is read once, in place, never dumped to a file and read back.
-  ([validated by reads the diff once in place and never dumps it to a file to re-read](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L807))
+  ([validated by reads the diff once in place and never dumps it to a file to re-read](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L810))
 - Context is queried with the PR title, the spec sections it touches and the surface
   it changes, never with a description of reviewing, which returns the platform
-  overview. ([validated by queries context with the PR's subject, spec and surface, never with a description of reviewing](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L813))
+  overview. ([validated by queries context with the PR's subject, spec and surface, never with a description of reviewing](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L816))
 - `changes_requested` is for a defect in the changed code or a mismatch between what
   the spec says and what a person would expect of its surface; a `question` alone
-  never blocks. ([validated by reserves changes_requested for a defect in the changed code or a mismatch between the spec and what a person would expect, and says a question alone does not block](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L822))
+  never blocks. ([validated by reserves changes_requested for a defect in the changed code or a mismatch between the spec and what a person would expect, and says a question alone does not block](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L825))
 - parses a valid findings block into a ReviewOutput. ([validated by](libs/shared/src/work/review/review-findings.test.ts#L8))
 - returns null when no findings block is present. ([validated by](libs/shared/src/work/review/review-findings.test.ts#L42))
 - returns null when the block is not valid JSON that a quote/newline repair

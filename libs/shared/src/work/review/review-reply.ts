@@ -9,12 +9,12 @@ const threadRepliesSchema = z.array(
     .object({
       comment_id: z.number().int().positive(),
       reply: z.string().trim().min(1),
-      resolved: z.boolean().default(false),
+      resolved: z.boolean().optional(),
     })
     .transform(({ comment_id: commentId, reply, resolved }) => ({
       commentId,
       reply,
-      resolved,
+      resolved: resolved === true,
     })),
 );
 

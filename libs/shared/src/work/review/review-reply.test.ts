@@ -39,7 +39,11 @@ describe("parseThreadReplies", () => {
       ),
     ).toEqual([
       { commentId: 88, reply: "Renamed in a1b2c3d.", resolved: true },
-      { commentId: 89, reply: "It retries once, see retry.ts.", resolved: false },
+      {
+        commentId: 89,
+        reply: "It retries once, see retry.ts.",
+        resolved: false,
+      },
     ]);
   });
 

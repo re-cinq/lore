@@ -80,11 +80,7 @@ export async function postReply(
   const body = parseReviewReply(delivery.replyOutput);
 
   enforceTrue(body, Error, "reply output carries no REVIEW_REPLY block");
-  const [reviewComments, issueComments] = await Promise.all([
-    poster.listComments(prNumber),
-    poster.listIssueComments(prNumber),
-  ]);
-  const onPr = [...reviewComments, ...issueComments].map((c) => c.body);
+  const { reviewComments, onPr } = await commentsOnPr(poster, prNumber);
   const { targets, stray } = threadTargets(
     parseThreadReplies(delivery.replyOutput),
     inlineCommentsOf(reviewComments, delivery.reviewId),
@@ -96,6 +92,22 @@ export async function postReply(
   const commented = await postGeneralReply(delivery, general, onPr);
 
   return threads.posted > 0 || commented ? "posted" : "already_posted";
+}
+
+/** The review comments, and every body already on the pull request: where a visit's markers are looked for. */
+async function commentsOnPr(
+  poster: ReplyPoster,
+  prNumber: number,
+): Promise<{ reviewComments: ReviewComment[]; onPr: string[] }> {
+  const [reviewComments, issueComments] = await Promise.all([
+    poster.listComments(prNumber),
+    poster.listIssueComments(prNumber),
+  ]);
+
+  return {
+    reviewComments,
+    onPr: [...reviewComments, ...issueComments].map((c) => c.body),
+  };
 }
 
 /** Splits the agent's thread replies into those that answer a comment of this review and those that do not; the second kind is posted on the pull request, so nothing the agent wrote is dropped. */
@@ -123,25 +135,28 @@ async function postThreadReplies(
   targets: ThreadTarget[],
   onPr: string[],
 ): Promise<{ posted: number; refused: ThreadReply[] }> {
-  const { poster, prNumber } = delivery;
   const due = targets.filter(
-    ({ reply }) =>
-      !carries(onPr, threadReplyMarker(delivery, reply.commentId)),
+    ({ reply }) => !carries(onPr, threadReplyMarker(delivery, reply.commentId)),
   );
   const results = await Promise.allSettled(
-    due.map(({ reply, threadRoot }) =>
-      poster.replyToReviewComment(
-        prNumber,
-        threadRoot,
-        stampedThreadReply(reply.reply, delivery, reply.commentId),
-      ),
-    ),
+    due.map((target) => postThreadReply(delivery, target)),
   );
   const refused = due
     .filter((_, index) => results[index].status === "rejected")
     .map(({ reply }) => reply);
 
   return { posted: due.length - refused.length, refused };
+}
+
+function postThreadReply(
+  delivery: ReplyDelivery,
+  { reply, threadRoot }: ThreadTarget,
+): Promise<void> {
+  return delivery.poster.replyToReviewComment(
+    delivery.prNumber,
+    threadRoot,
+    stampedThreadReply(reply.reply, delivery, reply.commentId),
+  );
 }
 
 /** The comments whose thread a pushed commit settled and whose reply is on the pull request. */

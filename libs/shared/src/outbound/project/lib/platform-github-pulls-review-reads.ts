@@ -50,8 +50,8 @@ export async function listComments(
   return comments.map(toReviewComment);
 }
 
-/** The `user` parameter is optional here because GitHub returns null for comments from deleted accounts, which octokit's types do not admit. */
-export function toReviewComment(c: {
+/** `user` is optional here because GitHub returns null for comments from deleted accounts, which octokit's types do not admit. */
+interface GitHubReviewComment {
   id: number;
   path: string;
   line?: number | null;
@@ -61,17 +61,23 @@ export function toReviewComment(c: {
   created_at: string;
   pull_request_review_id?: number | null;
   in_reply_to_id?: number | null;
-}): ReviewComment {
+}
+
+export function toReviewComment(c: GitHubReviewComment): ReviewComment {
   return {
     id: c.id,
     path: c.path,
-    line: c.line ?? c.original_line ?? null,
+    line: lineOf(c),
     body: c.body,
     user: c.user?.login ?? "unknown",
     created_at: c.created_at,
     review_id: c.pull_request_review_id ?? null,
     in_reply_to_id: c.in_reply_to_id ?? null,
   };
+}
+
+function lineOf(c: GitHubReviewComment): number | null {
+  return c.line ?? c.original_line ?? null;
 }
 
 /** The reviewThreads GraphQL response — only the fields the mapper reads. */

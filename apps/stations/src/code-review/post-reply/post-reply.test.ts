@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { ReviewComment } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import {
   postReply,
@@ -45,9 +46,11 @@ function fakePoster(existing: Existing = {}) {
   const recorded: Recorded = { replies: [], comments: [], resolved: [] };
   const poster: ReplyPoster = {
     replyToReviewComment: async (prNumber, commentId, body) => {
-      if (existing.refusedCommentIds?.includes(commentId)) {
-        throw new Error("404 Not Found");
-      }
+      enforceTrue(
+        !existing.refusedCommentIds?.includes(commentId),
+        Error,
+        "404 Not Found",
+      );
       recorded.replies.push({ prNumber, commentId, body });
     },
     comment: async (prNumber, body) => {
@@ -107,7 +110,11 @@ function deliveryOf(
 
 const VISIT = { visitId: "v-7", iteration: 2 };
 const stampedDone = stampedReply("Done, renamed.", "v-7", 2);
-const RENAMED = { comment_id: 88, reply: "Renamed in a1b2c3d.", resolved: true };
+const RENAMED = {
+  comment_id: 88,
+  reply: "Renamed in a1b2c3d.",
+  resolved: true,
+};
 const RETRIES = { comment_id: 89, reply: "It retries once, see retry.ts." };
 
 describe("postReply", () => {

@@ -75,11 +75,11 @@ const VERDICT_LINES: readonly string[] = [REVIEW_LINE, RECHECK_LINE];
 
 /** The sha the last posted verdict judged, from runs newest first. Only a review or re-check that settled as `success` posted one: an open, failed or cancelled run judged nothing, and naming its sha would leave its commits unread. */
 export function lastJudgedSha(runs: readonly RunView[]): string | undefined {
-  return runs
-    .filter(
-      (run) => VERDICT_LINES.includes(run.lineId) && run.outcome === "success",
-    )
-    .flatMap(headShaOf)[0];
+  const judged = runs.filter(
+    (run) => VERDICT_LINES.includes(run.lineId) && run.outcome === "success",
+  );
+
+  return judged.flatMap(headShaOf)[0];
 }
 
 export function headShaOf(run: RunView): string[] {

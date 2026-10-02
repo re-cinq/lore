@@ -657,9 +657,12 @@ describe("the floor pipelines shipped in this folder", () => {
     expect({
       answersById: prompt.includes("`inline comment <id> on <path>`"),
       replyBlock: prompt.includes("```REVIEW_REPLY"),
-      threadBlock: ['```REVIEW_THREAD_REPLIES', '"comment_id"', '"reply"', '"resolved"'].every(
-        (part) => prompt.includes(part),
-      ),
+      threadBlock: [
+        "```REVIEW_THREAD_REPLIES",
+        '"comment_id"',
+        '"reply"',
+        '"resolved"',
+      ].every((part) => prompt.includes(part)),
       namesAnIntent: /intent/i.test(prompt),
       postsItself: prompt.includes("post one clarifying question"),
     }).toEqual({
