@@ -22,7 +22,13 @@ import {
   miniPipeline,
   type PipelineNode,
 } from "../assembly-line-station/mini-pipeline.js";
-import { floorRunFilters, matchesFloorQuery } from "./floor-run-query.js";
+import {
+  floorRunFilters,
+  isOpenStatus,
+  matchesFloorQuery,
+  pagesToRead,
+  searchEnded,
+} from "./floor-run-query.js";
 import {
   floorRunToAssemblyRun,
   floorRunToSummary,
@@ -130,15 +136,42 @@ export class FloorRunReader {
     return [];
   }
 
-  /** One page of every run the floor holds, newest first, each with its mini pipeline; the cursor is the floor's own, handed back untouched. */
+  /** One page of the floor's runs, newest first, each with its mini pipeline; the cursor is the floor's own, handed back untouched. A status is searched for through the floor's pages. */
   async page(query: FloorRunPageQuery): Promise<FloorRunPage> {
-    const listed = await this.floor.runs.list(
-      { since: EVERY_RUN_SINCE },
-      {
-        limit: query.limit ?? DEFAULT_PAGE_LIMIT,
-        ...(query.cursor ? { cursor: query.cursor } : {}),
-      },
-    );
+    const { status } = query;
+    const limit = query.limit ?? DEFAULT_PAGE_LIMIT;
+    const runs: FloorRunListing[] = [];
+    let cursor = query.cursor;
+    let nextCursor: string | null = null;
+
+    for (let read = 0; read < pagesToRead(status); read++) {
+      const listed = await this.floorPage(status, limit, cursor);
+
+      runs.push(...listed.runs.filter((run) => hasStatus(run, status)));
+      nextCursor = listed.nextCursor;
+      cursor = nextCursor ?? undefined;
+
+      if (searchEnded(runs.length, limit, nextCursor)) {
+        break;
+      }
+    }
+
+    return { runs, nextCursor };
+  }
+
+  private async floorPage(
+    status: AssemblyRunStatus | undefined,
+    limit: number,
+    cursor: string | undefined,
+  ): Promise<FloorRunPage> {
+    const filter: RunFilter =
+      status === undefined
+        ? { since: EVERY_RUN_SINCE }
+        : { open: isOpenStatus(status) };
+    const listed = await this.floor.runs.list(filter, {
+      limit,
+      ...(cursor ? { cursor } : {}),
+    });
     const runs = await Promise.all(
       listed.items.map((run) => this.listingOf(run)),
     );
@@ -332,6 +365,13 @@ function kindNameOf(body: {
 /** A node may pin its station as `name@hash`. */
 function stationNameOf(stationRef: string): string {
   return stationRef.split("@")[0];
+}
+
+function hasStatus(
+  listing: FloorRunListing,
+  status: AssemblyRunStatus | undefined,
+): boolean {
+  return status === undefined || listing.run.status === status;
 }
 
 function emptyLine(): LineBody {

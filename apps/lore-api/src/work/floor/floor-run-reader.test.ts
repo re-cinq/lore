@@ -48,6 +48,32 @@ function floorWithRunPage(request: FloorRequest): unknown {
     : floorWithOneRun(request);
 }
 
+function floorWithFailedRunOnSecondPage(request: FloorRequest): unknown {
+  const url = new URL(request.path, "http://floor.test");
+
+  if (url.pathname === "/station-runs") {
+    return { items: [] };
+  }
+
+  if (url.pathname !== "/assembly-runs") {
+    return floorWithOneRun(request);
+  }
+
+  return url.searchParams.get("cursor") === "page-2"
+    ? {
+        items: [
+          {
+            ...FINISHED_RUN,
+            id: "run-3",
+            outcome: "failed",
+            finishedAt: "2026-09-30T08:30:00.000Z",
+          },
+        ],
+        nextCursor: null,
+      }
+    : { items: [FINISHED_RUN], nextCursor: "page-2" };
+}
+
 function loopRunsInTwoPages(request: FloorRequest): unknown {
   const url = new URL(request.path, "http://floor.test");
 
@@ -283,6 +309,27 @@ describe("FloorRunReader.page", () => {
         },
       ],
       nextCursor: "cursor-2",
+    });
+  });
+
+  it("reads past a floor page with no failed run and returns run-3 from page-2 with a null cursor for status failed", async () => {
+    const recorded = recordedFloor(floorWithFailedRunOnSecondPage);
+    const floorReader = new FloorRunReader(recorded.floor);
+
+    expect({
+      page: await floorReader.page({ status: "failed" }),
+      asked: recorded.requests
+        .map((request) => request.path)
+        .filter((path) => path.startsWith("/assembly-runs?")),
+    }).toMatchObject({
+      page: {
+        runs: [{ run: { id: "run-3", status: "failed" } }],
+        nextCursor: null,
+      },
+      asked: [
+        "/assembly-runs?open=false&limit=25",
+        "/assembly-runs?open=false&limit=25&cursor=page-2",
+      ],
     });
   });
 });
