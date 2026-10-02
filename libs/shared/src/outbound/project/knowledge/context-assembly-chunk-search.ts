@@ -122,7 +122,7 @@ const VECTOR_SCAN_SETTINGS_SQL = `SELECT set_config('hnsw.ef_search', '${HNSW_EF
        CASE WHEN EXISTS (
               SELECT 1 FROM pg_extension
               WHERE extname = 'vector'
-                AND string_to_array(extversion, '.')::int[] >= ARRAY[0, 8]
+                AND split_part(extversion, '.', 1)::int * 100 + substring(split_part(extversion, '.', 2) from '^[0-9]+')::int >= 8
             )
             THEN set_config('hnsw.iterative_scan', 'relaxed_order', true)
        END`;
