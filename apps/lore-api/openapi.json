@@ -10650,20 +10650,6 @@
                     }
                   ]
                 },
-                "dark_factory_overrides": {
-                  "anyOf": [
-                    {
-                      "type": "object",
-                      "propertyNames": {
-                        "type": "string"
-                      },
-                      "additionalProperties": {}
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
                 "failure_reason": {
                   "type": ["string", "null"]
                 },
@@ -12587,20 +12573,6 @@
                   ]
                 },
                 "context_refs": {
-                  "anyOf": [
-                    {
-                      "type": "object",
-                      "propertyNames": {
-                        "type": "string"
-                      },
-                      "additionalProperties": {}
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "dark_factory_overrides": {
                   "anyOf": [
                     {
                       "type": "object",
@@ -15805,20 +15777,6 @@
               }
             ]
           },
-          "dark_factory_overrides": {
-            "anyOf": [
-              {
-                "type": "object",
-                "propertyNames": {
-                  "type": "string"
-                },
-                "additionalProperties": {}
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "failure_reason": {
             "type": ["string", "null"]
           },
@@ -15926,7 +15884,6 @@
           "review_iteration",
           "context_bundle",
           "context_refs",
-          "dark_factory_overrides",
           "failure_reason",
           "created_by",
           "created_at",

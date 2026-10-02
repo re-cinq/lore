@@ -2842,9 +2842,6 @@ export interface components {
         context_refs?: {
           [key: string]: unknown;
         } | null;
-        dark_factory_overrides?: {
-          [key: string]: unknown;
-        } | null;
         failure_reason?: string | null;
         created_by?: string;
         /** Format: date-time */
@@ -3384,9 +3381,6 @@ export interface components {
           [key: string]: unknown;
         } | null;
         context_refs?: {
-          [key: string]: unknown;
-        } | null;
-        dark_factory_overrides?: {
           [key: string]: unknown;
         } | null;
         failure_reason?: string | null;
@@ -4265,9 +4259,6 @@ export interface components {
         [key: string]: unknown;
       } | null;
       context_refs: {
-        [key: string]: unknown;
-      } | null;
-      dark_factory_overrides: {
         [key: string]: unknown;
       } | null;
       failure_reason: string | null;
