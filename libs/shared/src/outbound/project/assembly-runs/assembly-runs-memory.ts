@@ -246,9 +246,10 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
 
   releaseStationRun(
     nodeRowId: string,
+    agentId: string,
     release: StationRunRelease,
   ): Promise<StationRunReleaseResult> {
-    return this.stationRuns.releaseStationRun(nodeRowId, release);
+    return this.stationRuns.releaseStationRun(nodeRowId, agentId, release);
   }
 
   finishStationRunOnce(

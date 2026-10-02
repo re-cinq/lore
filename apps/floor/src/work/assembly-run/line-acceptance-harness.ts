@@ -199,10 +199,9 @@ export function createLineHarness(
     if (!claimed) {
       return null;
     }
-    const status = await runs.releaseStationRun(
-      claimed.nodeRowId,
-      launchReleaseOf(reason, 3),
-    );
+    const by = (await agents.findByName(name))!.id;
+    const release = launchReleaseOf(reason, 3);
+    const status = await runs.releaseStationRun(claimed.nodeRowId, by, release);
 
     return { assemblyRunId: claimed.assemblyRunId, status };
   }

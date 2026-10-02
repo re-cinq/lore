@@ -10,7 +10,10 @@ import { z } from "zod";
 import type { ClusterAgentsRepository } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-port.js";
 import { PgClusterAgents } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-pg.js";
 import { PgAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-pg.js";
-import type { AssemblyRunsPort } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
+import type {
+  AssemblyRunsPort,
+  StationRunReleaseResult,
+} from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { withPool } from "../with-pool.js";
@@ -40,7 +43,7 @@ export interface ReleaseDeps {
 
 type ReleaseResult =
   | { code: 200; body: z.infer<typeof ReleaseResponse> }
-  | { code: 401 | 403 | 503; body: { error: string } };
+  | { code: 401 | 403 | 409 | 503; body: { error: string } };
 
 export function clusterAgentReleaseRoute(
   getPool: () => Pool | null,
@@ -94,23 +97,37 @@ export async function handleRelease(
     return auth;
   }
 
+  const status = await releaseAndLog(deps, auth.agent, body);
+
+  return status === "not-claimant"
+    ? claimedElsewhere(body.node_row_id)
+    : { code: 200, body: { status } };
+}
+
+function claimedElsewhere(nodeRowId: string): ReleaseResult {
   return {
-    code: 200,
-    body: { status: await releaseAndLog(deps, auth.agent.name, body) },
+    code: 409,
+    body: {
+      error: `station run row ${nodeRowId} is not claimed by this cluster-agent, or is already running`,
+    },
   };
 }
 
 /** Requeues or fails the unlaunched visit and says so out loud: a run that bounces between clusters is only legible if each refusal names the agent, its reason, and what became of the visit. */
 async function releaseAndLog(
   deps: ReleaseDeps,
-  agentName: string,
+  agent: { id: string; name: string },
   body: z.infer<typeof ReleaseBody>,
-): Promise<"requeued" | "failed" | "settled"> {
+): Promise<StationRunReleaseResult> {
   const release = launchReleaseOf(body.reason, deps.maxLaunchAttempts);
-  const status = await deps.runs.releaseStationRun(body.node_row_id, release);
+  const status = await deps.runs.releaseStationRun(
+    body.node_row_id,
+    agent.id,
+    release,
+  );
 
   console.warn(
-    `[lore-api] cluster-agent ${agentName} could not launch station run row ${body.node_row_id} (${status}, ${release.failureClass}): ${body.reason}`,
+    `[lore-api] cluster-agent ${agent.name} could not launch station run row ${body.node_row_id} (${status}, ${release.failureClass}): ${body.reason}`,
   );
 
   return status;

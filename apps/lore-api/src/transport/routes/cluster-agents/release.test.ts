@@ -29,15 +29,20 @@ async function registered() {
 }
 
 function runs(
-  released: Array<{ nodeRowId: string; release: StationRunRelease }>,
+  released: Array<{
+    nodeRowId: string;
+    clusterAgentId?: string;
+    release: StationRunRelease;
+  }>,
   { answer = "requeued" }: RunsAnswer = {},
 ) {
   return {
     releaseStationRun: async (
       nodeRowId: string,
+      clusterAgentId: string,
       release: StationRunRelease,
     ) => {
-      released.push({ nodeRowId, release });
+      released.push({ nodeRowId, clusterAgentId, release });
 
       return answer;
     },
@@ -64,6 +69,7 @@ describe("handleRelease", () => {
     expect(released).toEqual([
       {
         nodeRowId: "412",
+        clusterAgentId: agent.id,
         release: {
           reason: "GitHub not configured",
           failureClass: "unknown",
@@ -115,6 +121,29 @@ describe("handleRelease", () => {
         },
       ),
     ).toEqual({ code: 200, body: { status: "settled" } });
+  });
+
+  it("answers 409 for a visit that is open but not this agent's claim", async () => {
+    const { agents, agent, token } = await registered();
+
+    expect(
+      await handleRelease(
+        {
+          agents,
+          runs: runs([], { answer: "not-claimant" }),
+          maxLaunchAttempts: 3,
+        },
+        token,
+        agent.id,
+        { node_row_id: "412", reason: "boom" },
+      ),
+    ).toEqual({
+      code: 409,
+      body: {
+        error:
+          "station run row 412 is not claimed by this cluster-agent, or is already running",
+      },
+    });
   });
 
   it("refuses a caller presenting no token", async () => {

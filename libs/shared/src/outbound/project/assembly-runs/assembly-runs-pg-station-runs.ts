@@ -196,7 +196,8 @@ export async function requeueStationRun(
 }
 
 /** ONE statement, so a concurrent claim or finish cannot interleave between counting the attempt and choosing to requeue or fail. */
-const RELEASE_SQL = `UPDATE pipeline.station_runs
+const RELEASE_SQL = `WITH released AS (
+     UPDATE pipeline.station_runs
         SET launch_attempts = launch_attempts + 1,
             status = 'queued',
             cluster_agent_id = NULL,
@@ -206,27 +207,48 @@ const RELEASE_SQL = `UPDATE pipeline.station_runs
             failure_class = CASE WHEN $2::boolean OR launch_attempts + 1 >= $3::integer THEN $4::text END,
             failure_detail = CASE WHEN $2::boolean OR launch_attempts + 1 >= $3::integer THEN $5::text END,
             finished_at = CASE WHEN $2::boolean OR launch_attempts + 1 >= $3::integer THEN now() END
-      WHERE id = $1 AND outcome IS NULL
-     RETURNING outcome`;
+      WHERE id = $1
+        AND outcome IS NULL
+        AND status = 'claimed'
+        AND cluster_agent_id = $6
+     RETURNING outcome
+   )
+   SELECT EXISTS (SELECT 1 FROM released) AS released,
+          (SELECT outcome FROM released) AS outcome,
+          EXISTS (
+            SELECT 1 FROM pipeline.station_runs WHERE id = $1 AND outcome IS NULL
+          ) AS open`;
 
 export async function releaseStationRun(
   pool: PgPool,
   nodeRowId: string,
+  clusterAgentId: string,
   release: StationRunRelease,
 ): Promise<StationRunReleaseResult> {
-  const { rows } = await pool.query<{ outcome: string | null }>(RELEASE_SQL, [
+  const { rows } = await pool.query<ReleaseRow>(RELEASE_SQL, [
     nodeRowId,
     release.permanent,
     release.maxAttempts,
     release.failureClass,
     release.reason,
+    clusterAgentId,
   ]);
 
-  if (!rows[0]) {
-    return "settled";
+  return releaseResultOf(rows[0]);
+}
+
+interface ReleaseRow {
+  released: boolean;
+  outcome: string | null;
+  open: boolean;
+}
+
+function releaseResultOf(row: ReleaseRow): StationRunReleaseResult {
+  if (!row.released) {
+    return row.open ? "not-claimant" : "settled";
   }
 
-  return rows[0].outcome === "failed" ? "failed" : "requeued";
+  return row.outcome === "failed" ? "failed" : "requeued";
 }
 
 export async function countOpenClaimsByAgent(
