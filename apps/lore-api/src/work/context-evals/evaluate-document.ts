@@ -47,7 +47,7 @@ interface Verdict {
 }
 
 const QUESTION_SYSTEM =
-  "You write one question to test a search system. Given a document from a software repository, write a single question that a developer who has never seen this document would ask while working, and that this document answers. Ask about what the document decides or requires, not about the document itself. Do not name the document, its number, its title or its file path. The question must stand on its own: name the tool, route, component or rule it asks about, and never write \"this tool\", \"this document\" or \"the above\". Reply with the question only.";
+  'You write one question to test a search system. Given a document from a software repository, write a single question that a developer who has never seen this document would ask while working, and that this document answers. Ask about what the document decides or requires, not about the document itself. Do not name the document, its number, its title or its file path. The question must stand on its own: name the tool, route, component or rule it asks about, and never write "this tool", "this document" or "the above". Reply with the question only.';
 
 const ANSWER_SYSTEM =
   "You answer a developer's question using only the context you are given. The context is a list of <document> blocks, each with a source attribute. If the context does not answer the question, say that it does not; never answer from your own knowledge. List in used_sources the source attribute of every document your answer relied on, and no others.";
