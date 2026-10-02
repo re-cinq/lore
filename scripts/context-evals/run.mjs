@@ -6,7 +6,9 @@ import { pathToFileURL } from "node:url";
 import { ApiRefusal, loreApi } from "./lore-api.mjs";
 import { sampleDocuments } from "./sample.mjs";
 
-const RETRIED = new Set([429, 502, 503, 504]);
+// 500 is in the list because a rate limit of the model reaches the runner as one.
+const RETRIED = new Set([429, 500, 502, 503, 504]);
+const RETRY_AFTER_MS = [5000, 15000];
 
 export async function runEval(run) {
   const { repo, threshold } = run;
@@ -14,7 +16,7 @@ export async function runEval(run) {
   const results = [];
 
   for (const path of await documentsToEvaluate(api, run)) {
-    results.push(await evaluate(api, repo, path));
+    results.push(await evaluate(api, run, path));
   }
   const stats = summarize(results);
 
@@ -27,44 +29,75 @@ export async function runEval(run) {
 }
 
 /** Tonight's window of the repository's documents, or the one document a manual run names: someone checking the ADR they just merged should not have to wait for its night. */
-async function documentsToEvaluate(api, { repo, path, date, sample }) {
-  if (path) {
-    return [path];
+async function documentsToEvaluate(api, run) {
+  if (run.path) {
+    return [run.path];
   }
-  const { documents } = await api.get(
-    `/api/context-evals/documents?repo=${encodeURIComponent(repo)}`,
+  const { documents } = await patiently(run, () =>
+    api.get(
+      `/api/context-evals/documents?repo=${encodeURIComponent(run.repo)}`,
+    ),
   );
 
-  return sampleDocuments(documents, date, sample);
+  return sampleDocuments(documents, run.date, run.sample);
 }
 
-/** One document's verdict; a refusal from lore-api is that document's failure, not the run's, so one bad document cannot hide the other nineteen. */
-async function evaluate(api, repo, path) {
-  const ask = () => api.post("/api/context-evals", { repo, path });
-
+/** One document's verdict. Whatever goes wrong asking for it is that document's failure and not the run's, so one bad document or one dropped connection cannot hide the other nineteen. */
+async function evaluate(api, run, path) {
   try {
-    return await ask().catch((refusal) => {
-      if (RETRIED.has(refusal.status)) {
-        return ask();
-      }
-      throw refusal;
-    });
-  } catch (refusal) {
-    if (!(refusal instanceof ApiRefusal)) {
-      throw refusal;
-    }
-
-    return {
-      path,
-      question: "",
-      found: false,
-      answered: false,
-      useful_share: 0,
-      reason: refusal.message,
-      model: "",
-    };
+    return await patiently(run, () =>
+      api.post("/api/context-evals", { repo: run.repo, path }),
+    );
+  } catch (failure) {
+    return unanswered(path, reasonOf(failure));
   }
 }
+
+/** A refusal that may pass and a connection that failed are asked again, twice, with a wait between; the last failure is thrown. */
+async function patiently({ pause = wait }, call) {
+  let failure;
+
+  for (const delay of [0, ...RETRY_AFTER_MS]) {
+    if (delay > 0) {
+      await pause(delay);
+    }
+
+    try {
+      return await call();
+    } catch (err) {
+      failure = err;
+
+      if (err instanceof ApiRefusal && !RETRIED.has(err.status)) {
+        break;
+      }
+    }
+  }
+
+  throw failure;
+}
+
+function unanswered(path, reason) {
+  return {
+    path,
+    question: "",
+    found: false,
+    answered: false,
+    useful_share: 0,
+    reason,
+    model: "",
+  };
+}
+
+function reasonOf(failure) {
+  if (failure instanceof ApiRefusal) {
+    return failure.message;
+  }
+  const cause = failure.cause ? ` (${failure.cause.message})` : "";
+
+  return `could not reach lore-api: ${failure.message}${cause}`;
+}
+
+const wait = (ms) => new Promise((done) => setTimeout(done, ms));
 
 export function summarize(results) {
   const count = (holds) => results.filter(holds).length;
