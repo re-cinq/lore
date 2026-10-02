@@ -74,7 +74,6 @@ subscribe" has no expressible meaning on the current substrate.
   handler shape, so a folder declaring a cron trigger cannot export a node
   runner. Neither existing signature changes, so every moved station moves
   without an edit.
- 
 
 - **FR4 — drift is a compile error, not a runtime death.** The registry's
   `Record<StationName, StationModule>` makes a missing module fail typechecking;
@@ -83,7 +82,7 @@ subscribe" has no expressible meaning on the current substrate.
   a discovery test asserts the folder listing equals the barrel, that no two
   manifests claim the same name or node type, and that every declared cron
   schedule parses.
- 
+
 
 - **FR5 — untrusted execution decides what may pool, not credentials.** A
   station that executes code it did not author, or walks a working tree it did
@@ -96,7 +95,7 @@ subscribe" has no expressible meaning on the current substrate.
   completion whose output is parsed against a closed action enum — see FR13 for
   why that may pool. Deterministic work over data the platform itself produced
   may pool.
- 
+
 
 - **FR6 — an event is delivered per subscriber.** Each subscribed consumer gets
   its own delivery row for an event, claimed and retried independently, so two
@@ -163,7 +162,7 @@ subscribe" has no expressible meaning on the current substrate.
   deadline was accidentally providing.
 
   *(Removed 2026-10-02: the `backfill-scan` sweep is deleted with the backfill tick, `specs/external-floor` FR16.6.)*
- 
+
 
 - **FR12 — a merged pull request walks an assembly line.** The work that follows
   a merge is a line of recorded steps rather than one function behind swallowing
@@ -238,7 +237,7 @@ subscribe" has no expressible meaning on the current substrate.
   for, and a host exposes only what it can actually serve — so a process without
   a code host does not advertise a repo sweep it could only fail, and a port a
   host does not serve fails by name rather than as an undefined call.
-  ([`service-stations.test.ts:17`](apps/stations/src/events/runner/service-stations.test.ts#L16), [`service-stations.test.ts:27`](apps/stations/src/events/runner/service-stations.test.ts#L26), [`service-stations.test.ts:37`](apps/stations/src/events/runner/service-stations.test.ts#L36), [`service-stations.test.ts:43`](apps/stations/src/events/runner/service-stations.test.ts#L42), [`station.test.ts:5`](apps/stations/src/work/lib/station.test.ts#L5), [`station.test.ts:9`](apps/stations/src/work/lib/station.test.ts#L9))
+  ([validated by `service-stations.test.ts:17`](apps/stations/src/events/runner/service-stations.test.ts#L16), [`service-stations.test.ts:27`](apps/stations/src/events/runner/service-stations.test.ts#L26), [`service-stations.test.ts:37`](apps/stations/src/events/runner/service-stations.test.ts#L36), [`service-stations.test.ts:43`](apps/stations/src/events/runner/service-stations.test.ts#L42), [`station.test.ts:5`](apps/stations/src/work/lib/station.test.ts#L5), [`station.test.ts:9`](apps/stations/src/work/lib/station.test.ts#L9))
 
 > **2026-10-02.** This describes Lore's own Floor (`apps/floor`), which was deleted (`specs/external-floor` FR16.10); it is kept as the record of what the old engine did.
 
@@ -291,7 +290,7 @@ subscribe" has no expressible meaning on the current substrate.
   delivery still queued for it — duplicate issues, duplicate episodes — or, for a
   node type with no seeded recipe, fail on every tick. A service visit is still
   timed out at its budget, so a lost delivery surfaces rather than parking forever.
- 
+
 
 - **FR23 — what a subscriber asks for, it can handle and does receive.** Every
   name a process subscribes to has a handler, derived from the same manifests the
@@ -321,7 +320,7 @@ subscribe" has no expressible meaning on the current substrate.
   its work takes, and a five-minute step left to a sixty-minute default sits
   un-reaped for an hour after it is already lost. A blueprint that does declare a
   budget still wins, so a line may deliberately extend a step.
- 
+
 
 - **FR26 — a subscriber repairs what it was not there to receive.** Fan-out reads
   the subscription set when an event is INSERTED, so an event captured while a
