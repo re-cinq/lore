@@ -576,7 +576,7 @@ that.
   hour, so an agent writing it too makes two writers of one key, alternating,
   with run pods carrying whichever landed before they started. Holding the
   bus-wide token is what says which cluster this is. ([validated by `agent-events-secret.test.ts:65`](apps/cluster-agent/src/events/claim/agent-events-secret.test.ts#L65), [`agent-events-secret.test.ts:69`](apps/cluster-agent/src/events/claim/agent-events-secret.test.ts#L69))
-- The sink is reachable through its own ingress (`lore-agent-events.tf`,
+- _(Retired 2026-10-02: the ingress and its variable are removed with the Floor that served the sink; a satellite reports its terminal outcome only.)_ The sink was reachable through its own ingress (`lore-agent-events.tf`,
   gated on `lore_agent_events_hostname`), not another path on the Floor's
   webhook door: that one carries GitHub's HMAC-verified control-plane
   traffic, this is data-plane telemetry from different callers with a

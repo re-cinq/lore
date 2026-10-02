@@ -48,19 +48,19 @@ Terraform removes the second source of truth, which removes the failure.
 
    | Change | Restart |
    |---|---|
-   | Anthropic key | `lore-floor`, `lore-api`, `lore-stations` |
-   | DB password | `lore-floor`, `lore-api`, `lore-ui` |
-   | Ingest / internal token | `lore-floor`, `lore-api`, `lore-ui` |
-   | Slack credentials | `lore-floor`, `lore-api` |
+   | Anthropic key | `lore-api`, `lore-stations` |
+   | DB password | `lore-api`, `lore-ui`, `lore-stations`, `lore-event-router` |
+   | Ingest / internal token | `lore-api`, `lore-ui`, `lore-stations`, `lore-event-router`, `lore-cluster-agent` |
+   | Slack credentials | `lore-api`, `lore-stations` |
    | OAuth / NextAuth | `lore-ui` |
-   | GitHub App | `lore-floor`, `lore-api` |
+   | GitHub App | `lore-api`, `lore-ui`, `lore-stations`, `lore-cluster-agent` |
    | GHCR pull secret | none — read at image-pull time |
 
    The ai-agents controller needs no restart; agent pods re-read `agent-secrets`
    when they spawn.
 
    ```bash
-   kubectl rollout restart deployment -n lore-floor
+   kubectl rollout restart deployment -n lore-api
    ```
 
 3. **Re-sign anything that holds the other half.** A shared secret is two-sided.
