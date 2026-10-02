@@ -85,24 +85,15 @@ function usePageReload(
   };
 }
 
-const AWAY_STATES: ReadonlySet<ChannelState> = new Set([
-  "reconnecting",
-  "offline",
-]);
-
-/** Whatever started while the channel was away was missed, so coming back live reloads the page. */
+/** Every `live` reloads the page: a run started before the socket first opened was never announced to this tab, and one started while it was away was missed. */
 function useConnectionChange(
   dispatch: Dispatch<RunListAction>,
   reload: () => void,
 ): (state: ChannelState) => void {
-  const wasAway = useRef(false);
-
   return (state) => {
     dispatch({ type: "connection", state });
-    wasAway.current ||= AWAY_STATES.has(state);
 
-    if (state === "live" && wasAway.current) {
-      wasAway.current = false;
+    if (state === "live") {
       reload();
     }
   };
