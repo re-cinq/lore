@@ -29,6 +29,8 @@ export interface MemorySearchResult {
   source: "memory" | "fact" | "episode" | "graph";
   id?: string;
   confidence?: string;
+  /** Cosine similarity to the query, or the most it can be for a hit only the keyword leg found; absent when nothing measured it. */
+  similarity?: number;
 }
 
 // ── Main entry point ────────────────────────────────────────────────
@@ -184,15 +186,42 @@ async function rankedHits(
       vectorSearchBoth(pool, query, scope),
       keywordSearchBoth(pool, query, scope),
     ]);
-  const merged = rrfMerge([
-    vectorMemories,
-    vectorFacts,
-    keywordMemories,
-    keywordFacts,
-  ]);
+  const merged = boundedBy(
+    [vectorMemories, vectorFacts],
+    rrfMerge([vectorMemories, vectorFacts, keywordMemories, keywordFacts]),
+  );
 
   // Confidence breaks ties before the cap, so a stale fact cannot occupy a slot it only narrowly earned; normalising last makes the surviving spread readable.
   return normalizeMemoryScores(diversify(weightByConfidence(merged), limit));
+}
+
+// How many neighbours each vector leg returns (its LIMIT): a full leg is what makes its last similarity a bound.
+const VECTOR_LEG_SIZE = 20;
+
+/** A hit only the keyword leg found was not among its kind's nearest neighbours, so when that vector leg came back full, the hit is at most as similar as the leg's last row. That bound stands in for a similarity nobody measured, which lets the context cut-off drop a memory that matched a common word and nothing else. A leg that came back short measured every embedded row, so a keyword-only hit there has no embedding and stays unmeasured. */
+function boundedBy(
+  vectorLegs: RankedRow[][],
+  merged: MemorySearchResult[],
+): MemorySearchResult[] {
+  const bounds = new Map(
+    vectorLegs.flatMap((leg) =>
+      leg.length >= VECTOR_LEG_SIZE
+        ? leg.map((row) => [row.source, lowestSimilarity(leg)] as const)
+        : [],
+    ),
+  );
+
+  return merged.map((hit) => {
+    const bound = bounds.get(hit.source);
+
+    return hit.similarity === undefined && bound !== undefined
+      ? { ...hit, similarity: bound }
+      : hit;
+  });
+}
+
+function lowestSimilarity(leg: RankedRow[]): number {
+  return Math.min(...leg.map((row) => row.similarity ?? 0));
 }
 
 /** Attempts a query embedding; an unavailable embedding yields no vector hits (keyword search still runs). */

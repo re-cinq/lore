@@ -8,6 +8,8 @@ export interface MemorySearchResult {
   source: "memory" | "fact" | "episode" | "graph";
   id?: string;
   confidence?: string;
+  /** Cosine similarity to the query, when a vector leg measured it. */
+  similarity?: number;
 }
 
 export interface RankedItem {
@@ -17,6 +19,8 @@ export interface RankedItem {
   source: "memory" | "fact" | "episode" | "graph";
   id?: string;
   confidence?: string;
+  /** Cosine similarity to the query, when a vector leg measured it. */
+  similarity?: number;
 }
 
 export const RRF_K = 60;
@@ -44,10 +48,22 @@ function accumulateRank(
 
   if (existing) {
     existing.score += contribution;
+    keepHigherSimilarity(existing, ranked);
 
     return;
   }
   fused.set(dedupeKey, fusedEntry(ranked, contribution));
+}
+
+/** One leg measures an item and another may only find it: the fused entry keeps what was measured. */
+function keepHigherSimilarity(
+  existing: MemorySearchResult,
+  ranked: RankedItem,
+): void {
+  if (ranked.similarity === undefined) {
+    return;
+  }
+  existing.similarity = Math.max(existing.similarity ?? 0, ranked.similarity);
 }
 
 /** A ranked item widened to a search result by attaching its running fusion score. */
@@ -60,6 +76,9 @@ function fusedEntry(ranked: RankedItem, score: number): MemorySearchResult {
     id: ranked.id,
     confidence: ranked.confidence,
     score,
+    ...(ranked.similarity === undefined
+      ? {}
+      : { similarity: ranked.similarity }),
   };
 }
 
