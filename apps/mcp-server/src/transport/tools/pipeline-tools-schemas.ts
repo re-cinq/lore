@@ -28,9 +28,7 @@ export const LIST_PIPELINE_TASKS_INPUT = {
 export const LIST_TASK_GROUP_INPUT = {
   group_id: z
     .string()
-    .describe(
-      "Task-group UUID (a plan's spec-tasks share one).",
-    ),
+    .describe("Task-group UUID (a plan's spec-tasks share one)."),
 };
 
 export const SYNC_TASKS_INPUT = {
