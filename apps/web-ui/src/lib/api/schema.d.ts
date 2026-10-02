@@ -218,8 +218,7 @@ export interface paths {
     /** GET /api/assembly-runs */
     get: operations["get_api_assembly-runs"];
     put?: never;
-    /** POST /api/assembly-runs */
-    post: operations["post_api_assembly-runs"];
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -305,23 +304,6 @@ export interface paths {
     get: operations["get_api_assembly-runs_id_nodes_name_logs"];
     put?: never;
     post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/assembly-runs/{id}/run-station": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** POST /api/assembly-runs/{id}/run-station */
-    post: operations["post_api_assembly-runs_id_run-station"];
     delete?: never;
     options?: never;
     head?: never;
@@ -2613,12 +2595,6 @@ export interface components {
         [key: string]: unknown;
       }[];
     };
-    AssemblyRunStarted: {
-      id: string;
-    };
-    AssemblyRunStationRequested: {
-      id: string;
-    };
     AssemblyRunTokenUsage: {
       input_tokens: number;
       output_tokens: number;
@@ -4866,49 +4842,6 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
-  "post_api_assembly-runs": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          definition: string;
-          repo: string;
-          branch?: string;
-          args?: {
-            [key: string]: unknown;
-          };
-          resume_from?: {
-            run_id: string;
-            node_id: string;
-            iteration?: number;
-          };
-        };
-      };
-    };
-    responses: {
-      /** @description Run started */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["AssemblyRunStarted"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      409: components["responses"]["Conflict"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
   "get_api_assembly-runs_id": {
     parameters: {
       query?: never;
@@ -5039,43 +4972,6 @@ export interface operations {
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
       404: components["responses"]["NotFound"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "post_api_assembly-runs_id_run-station": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          node_id: string;
-          actor: string;
-        };
-      };
-    };
-    responses: {
-      /** @description The station's next iteration was asked for in the same run, which is reopened if it had ended; the Floor launches it */
-      202: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["AssemblyRunStationRequested"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      404: components["responses"]["NotFound"];
-      409: components["responses"]["Conflict"];
-      413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };

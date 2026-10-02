@@ -211,21 +211,12 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
   between them carries one message and holds no business logic. This removes the
   reason four batch jobs live in `apps/floor`: they were there because the Floor's
   image was what the alarm launched, not because the Floor coordinates them.
-- **FR8.1 — `POST /api/assembly-runs` starts one run of a blueprint.** The body is
-  `{ definition, repo, branch?, args? }`; the response is `201` with the minted
-  run id. Before this, `assemblyRuns.start()` was reachable only in-process from
-  the Floor, so anything wanting to start a line had to be the Floor. The write is
-  `start()`'s existing atomic CTE — the `pipeline.assembly_runs` row and its
-  `assembly_run.start` event land together — and the Floor's event loop claims the
-  event and walks the line as it does for every other run. ([validated by `start-run.test.ts:40`](apps/lore-api/src/transport/routes/assembly-lines/start-run.test.ts#L78), [`start-run.test.ts:88`](apps/lore-api/src/transport/routes/assembly-lines/start-run.test.ts#L90), [`start-run.test.ts:108`](apps/lore-api/src/transport/routes/assembly-lines/start-run.test.ts#L110))
-- **FR8.2 — The start endpoint refuses a body it cannot act on.** A missing
-  `definition` or a `repo` that is not `owner/name` is rejected `400` and starts
-  nothing; a run row minted from a malformed body would be walked by the Floor and
-  fail somewhere less legible than the call that made it. ([validated by `start-run.test.ts:85`](apps/lore-api/src/transport/routes/assembly-lines/start-run.test.ts#L123), [`start-run.test.ts:131`](apps/lore-api/src/transport/routes/assembly-lines/start-run.test.ts#L133))
-- **FR8.3 — The endpoint is authenticated.** It is registered on the built server
-  under the `task` bearer scope; an unauthenticated post is rejected `401`. Starting
-  arbitrary assembly lines is a privileged capability — the courier holds a token
-  like any other client. ([validated by `start-run.test.ts:109`](apps/lore-api/src/transport/routes/assembly-lines/start-run.test.ts#L147))
+- **FR8.1 to FR8.3** *(retired 2026-10-02)*: `POST /api/assembly-runs`, the
+  endpoint a courier posted to start a line, is removed. No courier job ever
+  posted to it, and the engine that walked the run it queued is deleted. A
+  scheduled line is started on the external floor by a tick in the stations
+  service (`specs/external-floor` FR7.13, FR16.2); a courier posts a station
+  (FR9).
 
 - **FR9 — A scheduled job with no steps runs in lore-api, not in a line.** The
   assembly-line node types are a closed set (`agent`, `validate`, `gate`,

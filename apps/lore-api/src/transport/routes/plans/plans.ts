@@ -145,7 +145,7 @@ function draftingRoute(
     options: DRAFTING_OPTIONS,
     handler: withPool(getPool, async (pool, request, h) => {
       const plan = await repoPlan(() => pool, request);
-      const verbs = await planVerbsFor(pool, plan, seams);
+      const verbs = await planVerbsFor(plan, seams);
       const body = request.payload as z.infer<typeof DraftingBody>;
 
       return h.response({ task_id: await verbs.draft(plan, body) }).code(202);
@@ -183,7 +183,7 @@ function refineRoute(
     options: REFINE_OPTIONS,
     handler: withPool(getPool, async (pool, request, h) => {
       const plan = await repoPlan(() => pool, request);
-      const verbs = await planVerbsFor(pool, plan, seams);
+      const verbs = await planVerbsFor(plan, seams);
       const refine = request.payload as z.infer<typeof RefineBody>;
 
       await verbs.refine(plan, refine);

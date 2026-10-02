@@ -1,7 +1,5 @@
-import { isFloorEngine } from "@/lib/assembly-run-rows";
 import type { RunLiveState } from "@/lib/run-event-reducer";
 import type { RunVisualizationPanelProps } from "./RunVisualizationPanel";
-import { runStateOf } from "./RunStationButton";
 import type { useRunGraph, useSelectedNode } from "./run-visualization-hooks";
 import { transcriptFeed } from "./run-visualization-selectors";
 
@@ -30,7 +28,7 @@ interface InspectorView {
 export function inspectorProps(view: InspectorView, page: RunDetailPage) {
   return {
     ...pageFacts(page),
-    ...viewFacts(view, page.engine),
+    ...viewFacts(view),
     ...transcriptFeed(view.state, page.taskEvents),
   };
 }
@@ -42,14 +40,12 @@ function pageFacts(page: RunDetailPage) {
     reason: page.reason,
     definition: page.definition,
     engine: page.engine,
-    runState: runStateOf(page.runStatus),
     agentEditHrefs: page.agentEditHrefs,
     nodeModels: page.nodeModels,
   };
 }
 
-function viewFacts(view: InspectorView, engine: string | undefined) {
-  const onFloor = isFloorEngine(engine);
+function viewFacts(view: InspectorView) {
   const { nodes } = view.graph.visibleGraph;
 
   return {
@@ -58,8 +54,6 @@ function viewFacts(view: InspectorView, engine: string | undefined) {
     selectedRows: view.node.selectedRows,
     selectedAttempts: view.node.selectedAttempts,
     nodeInputs: view.node.nodeInputs,
-    retrySource: onFloor ? null : view.graph.retrySource,
-    runActions: !onFloor,
     selectedState: view.node.selected,
     visibleNodeCount: nodes.length,
   };

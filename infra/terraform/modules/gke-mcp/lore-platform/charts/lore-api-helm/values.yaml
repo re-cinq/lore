@@ -93,14 +93,6 @@ slackBotTokenSecret:
   name: lore-slack-credentials
   key: bot-token
 
-# The courier (#1357): CronJobs whose only job is to POST /api/assembly-runs and
-# exit, so a scheduled job runs as an assembly line instead of as code inside a
-# coordinator. Empty by default — an entry is added when its line exists.
-#
-# Each entry: name (k8s suffix), schedule (cron), path (the lore-api path to
-# post to). Optional: body (object -> JSON payload), startingDeadlineSeconds,
-# successfulJobsHistoryLimit, failedJobsHistoryLimit.
-#
 # The external floor engine (its own namespace and Helm release). Off by default:
 # nothing below renders until terraform sets enabled from var.enable_external_floor.
 floor:
