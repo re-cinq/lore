@@ -664,7 +664,7 @@ they are alive.
   `GET /api/cluster-agents/install.sh` serves a runnable installer with the
   same values baked in and shell-quoted, and the Clusters page renders the
   ready-to-paste command from them. The LLM credential and GHCR pull
-  credentials stay deliberately un-baked. ([validated by `install.test.ts:11`](apps/lore-api/src/transport/routes/cluster-agents/install.test.ts#L11), [`install.test.ts:22`](apps/lore-api/src/transport/routes/cluster-agents/install.test.ts#L22), [`install.test.ts:38`](apps/lore-api/src/transport/routes/cluster-agents/install.test.ts#L38), [`install.test.ts:49`](apps/lore-api/src/transport/routes/cluster-agents/install.test.ts#L49), [`install.test.ts:61`](apps/lore-api/src/transport/routes/cluster-agents/install.test.ts#L61), [`install.test.ts:68`](apps/lore-api/src/transport/routes/cluster-agents/install.test.ts#L68))
+  credentials stay deliberately un-baked.
 - The audit log's `cluster_agent_offline` entries surface on the same page,
   so a flapping cluster is diagnosable without database access. ([validated by `audit-read.test.ts:7`](libs/shared/src/outbound/project/audit/audit-read.test.ts#L7), [`audit-read.test.ts:33`](libs/shared/src/outbound/project/audit/audit-read.test.ts#L33))
 

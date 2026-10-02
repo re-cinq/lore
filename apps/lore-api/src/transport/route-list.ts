@@ -74,7 +74,6 @@ import { clusterAgentCatalogStatusRoute } from "./routes/cluster-agents/catalog-
 import { agentDefinitionUsageRoute } from "./routes/agent-definitions/usage.js";
 import { orgAgentDefinitionsRoute } from "./routes/agent-definitions/org-list.js";
 import { orgAgentDefinitionUpdateRoute } from "./routes/agent-definitions/org-update.js";
-import { clusterAgentInstallRoutes } from "./routes/cluster-agents/install.js";
 import { clusterAgentPauseRoute } from "./routes/cluster-agents/pause.js";
 import { clusterAgentRestartRoute } from "./routes/cluster-agents/restart.js";
 import { clusterAgentHeartbeatRoute } from "./routes/cluster-agents/heartbeat.js";
@@ -273,7 +272,6 @@ function clusterAgentRoutes(getPool: PoolGetter): ServerRoute[] {
     clusterAgentRegisterRoute(getPool),
     clusterAgentClaimRoute(getPool),
     clusterAgentCatalogEventsRoute(getPool),
-    ...clusterAgentInstallRoutes(),
     clusterAgentPauseRoute(getPool),
     clusterAgentRestartRoute(getPool),
     clusterAgentHeartbeatRoute(getPool),
