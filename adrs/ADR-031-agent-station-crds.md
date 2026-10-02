@@ -409,7 +409,7 @@ sits in a Secret at all.
 - A run presents a **run credential**, issued at claim time and carried as a CR
   parameter: the station run it belongs to, the one repo it may touch, and an
   expiry, signed with a key only lore-api holds. It is not a GitHub token and
-  grants nothing on GitHub by itself. ([validated by returns the claims of a credential signed with the same key before it expires](libs/shared/src/domain/github-credential/run-credential.test.ts#L12))
+  grants nothing on GitHub by itself.
 - The claim that hands a cluster-agent its station run also hands it that run's
   credential, bound to the run's station-run id and its target repo and valid
   for 24 hours from the claim; the broker's run-closed check ends it sooner.
@@ -422,15 +422,15 @@ sits in a Secret at all.
   other secret. ([validated by redacts a whole run credential as it appears in an agent's printed environment](libs/shared/src/lib/redact.test.ts#L110))
 - A credential signed with any other key is refused as `bad-signature`,
   compared in constant time, so a pod cannot forge one for another repo or
-  another run. ([validated by refuses a credential signed with another key as bad-signature](libs/shared/src/domain/github-credential/run-credential.test.ts#L20))
+  another run.
 - A credential presented at or after its expiry is refused as `expired`, so
-  one that leaks is worthless once its run's time is up. ([validated by refuses a correctly signed credential presented after 18:00 when it expired at 18:00, as expired](libs/shared/src/domain/github-credential/run-credential.test.ts#L28))
+  one that leaks is worthless once its run's time is up.
 - Anything that is not a `v1` credential is refused as `malformed` rather than
-  thrown, so garbage in the header is a clean refusal, never a 500. ([validated by refuses not-a-credential as malformed rather than throwing](libs/shared/src/domain/github-credential/run-credential.test.ts#L36))
+  thrown, so garbage in the header is a clean refusal, never a 500.
 - The broker grants a git credential only for the repo the run credential
-  names, and only while the station run it names is still open. ([validated by grants re-cinq/bowman-ui to the still-open station run its credential names](libs/shared/src/domain/github-credential/grant.test.ts#L11), [refuses the station run that already finished with success as run-closed](libs/shared/src/domain/github-credential/grant.test.ts#L21), [refuses re-cinq/lore to a credential issued for re-cinq/bowman-ui as repo-mismatch](libs/shared/src/domain/github-credential/grant.test.ts#L31))
+  names, and only while the station run it names is still open.
 - The broker looks the station run up by the id its credential names, and
-  both stores answer that lookup the same way. ([validated by findStationRunById returns the open review visit its station run id names](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1364))
+  both stores answer that lookup the same way. ([validated by findStationRunById returns the open review visit its station run id names](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L957))
 - `POST /api/github-credentials` hands an open run a token for its repo in the
   git credential-helper shape (`x-access-token` plus the token), minted at the
   moment git asks.

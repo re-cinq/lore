@@ -3,7 +3,7 @@
 | Field          | Value                                                                 |
 |----------------|-----------------------------------------------------------------------|
 | Feature        | Floor → ai-agent-subsystem cutover (retire LoreTask)                  |
-| Status         | In Progress                                                             |
+| Status         | Retired                                                                 |
 | Created        | 2026-06-25                                                            |
 | Owner          | Platform Engineering                                                  |
 | ADR            | [`ADR-031`](../../adrs/ADR-031-agent-station-crds.md) (supersedes ADR-011 + ADR-030 storage) |
@@ -43,7 +43,7 @@ assembly lines.
 We want all Floor task execution to run on that subsystem and to retire the LoreTask path — without
 losing any of Lore's deterministic guarantees.
 
-- EVERY recipe carries the live Lore MCP entry and pipeline-tool deny *(2026-09-01: the /agents render this was written about is retired — specs/catalog-db-sync FR8.6 — and the guarantee now belongs to the one sync render every cluster applies from)*. It carried NEITHER: a repo that overrode its recipe through `/agents` got a run with no `lore` server, so the agent silently lost the mid-run memory and context access every seeded recipe has, and lost the guard that stops it spawning more pipeline work from inside a run. Injected at CR-render time rather than surfaced as an editable field, because a capability every recipe needs should not depend on each author remembering to add it. The gateway URL comes from the DEPLOY value, never the recipe row — a host stored in the database would outlive the rollout that moved it — so an unset value leaves `mcp_servers` off entirely rather than pointing a pod at something unreachable. The deny is unconditional for the opposite reason: making it depend on deploy config would drop it exactly where the config is wrong. Stations get it too, since a custom station reads and writes through the same API surface. ([validated by renders the full recipe when every per-cluster value is set](../../libs/shared/src/outbound/project/agents/agent-crd.test.ts#L49), [validated by a satellite's empty options omit the mcp/skills/secret blocks, the http sink AND the {context} placeholder](../../libs/shared/src/outbound/project/agents/agent-crd.test.ts#L102))
+- EVERY recipe carries the live Lore MCP entry and pipeline-tool deny *(2026-09-01: the /agents render this was written about is retired — specs/catalog-db-sync FR8.6 — and the guarantee now belongs to the one sync render every cluster applies from)*. It carried NEITHER: a repo that overrode its recipe through `/agents` got a run with no `lore` server, so the agent silently lost the mid-run memory and context access every seeded recipe has, and lost the guard that stops it spawning more pipeline work from inside a run. Injected at CR-render time rather than surfaced as an editable field, because a capability every recipe needs should not depend on each author remembering to add it. The gateway URL comes from the DEPLOY value, never the recipe row — a host stored in the database would outlive the rollout that moved it — so an unset value leaves `mcp_servers` off entirely rather than pointing a pod at something unreachable. The deny is unconditional for the opposite reason: making it depend on deploy config would drop it exactly where the config is wrong. Stations get it too, since a custom station reads and writes through the same API surface.
 - An APPLY replaces nothing it does not render *(the /agents push this named is retired 2026-09-01, specs/catalog-db-sync FR8.6; the merge-onto-live it describes still guards every sync apply)* *(added 2026-08-18, #1301; extended to `spec.resources` 2026-08-28)*: the /agents apply path carries every field the live CR holds that the editor's mapping does not know — `output.watch`, helm's labels and annotations, and the members of `spec.resources` the render omits (`skills`, `skills_source`, `secrets`) — through the replace, with the editor winning only the fields it renders. A plain replace amputated `output.watch` from the feature-planning recipe on 2026-08-13 and silently killed planning-artifact delivery for five days; the same replace stripped `skills_source` from `implementation-tdd` and `spec-write` in 2026-08, and every Claude-agent node cloned from them died at startup with "Settings file not found" — skills config is per-cluster (owned by each cluster's catalog seed), which is exactly why the editor cannot re-render it and must preserve it.
 
 ## Solution
@@ -150,7 +150,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
    name + extraLabels honoured), returns `launched:false` on a 409, runs the Agent on the per-task
    Station the provisioner returns (falling back to the catalog Station, skipping provisioning for a
    repo-less task), and resolves `isActive` by the task-id label (true while any matching Agent is
-   non-terminal, conservatively true when the probe fails). ([`agent-backend.test.ts:47`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L47), [`agent-backend.test.ts:70`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L80), [`agent-backend.test.ts:87`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L129), [`agent-backend.test.ts:97`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L139), [`agent-backend.test.ts:118`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L160), [`agent-backend.test.ts:127`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L169), [`agent-backend.test.ts:136`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L178), [`agent-backend.test.ts:166`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L208), [`agent-backend.test.ts:172`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L214), [`agent-backend.test.ts:178`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L220), [`agent-backend.test.ts:184`](libs/shared/src/outbound/cluster/agent-backend.test.ts#L226))
+   non-terminal, conservatively true when the probe fails).
 
 6. A `Succeeded` `Agent` with pushed changes results in a PR carrying the `Lore-Task` footer; an
    `Agent` with no changes completes the task with no PR.
@@ -168,7 +168,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
    repo (clone URL + branch ref, ref omitted when the spec has no branch + `token_secret`) into the
    renamed-and-task-id-labelled AgentDefinition (catalog recipe preserved, and rejected when the
    catalog row carries no prompt — the clone could not admit), and points the per-task
-   Station's `agentDefRef` at it (template preserved, empty-template fallback). ([`per-task-token.test.ts:57`](libs/shared/src/outbound/cluster/per-task-token.test.ts#L57), [`per-task-token.test.ts:76`](libs/shared/src/outbound/cluster/per-task-token.test.ts#L76), [`per-task-token.test.ts:79`](libs/shared/src/outbound/cluster/per-task-token.test.ts#L79), [`per-task-token.test.ts:92`](libs/shared/src/outbound/cluster/per-task-token.test.ts#L92), [`per-task-token.test.ts:107`](libs/shared/src/outbound/cluster/per-task-token.test.ts#L107), [`per-task-token.test.ts:141`](libs/shared/src/outbound/cluster/per-task-token.test.ts#L141), [`per-task-token.test.ts:147`](libs/shared/src/outbound/cluster/per-task-token.test.ts#L147), [`per-task-token.test.ts:159`](libs/shared/src/outbound/cluster/per-task-token.test.ts#L159), [`per-task-token.test.ts:173`](libs/shared/src/outbound/cluster/per-task-token.test.ts#L173), [`per-task-token.test.ts:191`](libs/shared/src/outbound/cluster/per-task-token.test.ts#L191))
+   Station's `agentDefRef` at it (template preserved, empty-template fallback).
 
 10. Run output reaches the Floor over the public-LB http sink and is recorded in
     `pipeline.llm_calls`, OTEL spans, and the `pipeline.agent_run_turns` transcript (the UI log
@@ -213,7 +213,6 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     Station's definition's model and uses to pick the vendor CLI; a node without one
     names no model and runs its definition's. Before this the field stopped at the
     task spec, so `decompose`'s `model: claude-sonnet-4-6` ran Gemini.
-    ([validated by runs a node that names claude-sonnet-4-6 on it, whatever model its Station's definition carries](libs/shared/src/outbound/cluster/agent-backend.test.ts#L70), [validated by names no model on the Agent when the task names none, so its definition's model runs](libs/shared/src/outbound/cluster/agent-backend.test.ts#L76))
 
 17. `nodeStationSpec` builds the CR spec: stationRef, `parameters.station_input` JSON
     (assembly_line_id/node_id/node_type/repo/branch/task_id/params).
@@ -254,7 +253,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     `ANTHROPIC_API_KEY`, a laptop minikube supplies `CLAUDE_CODE_OAUTH_TOKEN`, and the `claude`
     CLI accepts either from its environment. *(Amended 2026-09-21: this used to be a Helm
     pre-upgrade hook applying a catalog generated from `scripts/task-types.yaml`; it re-seeded
-    on every deploy and reverted `/agents` edits, #2010.)* ([validated by renders the full recipe when every per-cluster value is set](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L49), [renders the exec-vendor shape on the lore-station image with the ingest token](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L301), [a needs_model station additionally carries the cluster's LLM secret](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L330), [a station row without a command falls back to lore-station plus the def-stripped name](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L355), [the legacy llmSecretKey stays the anthropic fallback when no map is given](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L444); implemented by [`agent-crd.ts`](libs/shared/src/outbound/project/agents/agent-crd.ts))
+    on every deploy and reverted `/agents` edits, #2010.)*
 
 21. Custom station images honor [station-contract.md](../6-dark-factory/contracts/station-contract.md).
 
@@ -301,7 +300,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     `<source>/settings.json`. A laptop minikube therefore points the value at the mcp
     adapter running in HTTP-gateway mode on the host
     (`http://host.minikube.internal:3002/skills`, served by `npm start`, handed to the
-    host-run cluster-agent by `dev-local.sh`) rather than leaving it empty ([validated by a satellite's empty options omit the mcp/skills/secret blocks, the http sink AND the {context} placeholder](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L102); implemented by [`agent-crd.ts`](libs/shared/src/outbound/project/agents/agent-crd.ts))
+    host-run cluster-agent by `dev-local.sh`) rather than leaving it empty
 
 27. *(added 2026-08-10)* The agent container MUST run in the cloned repo
     (`/workspace/target`), not the base image's default directory. Left unset, the
@@ -313,7 +312,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     so the run reported success while the round it existed for failed with no result
     posted. Read-only recipes (the review family) opt out via `repo_workdir: false` —
     see statement 31 (#1160)
-    ([validated by renders the full recipe when every per-cluster value is set](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L49), [repo_workdir false omits workingDir for read-only recipes](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L183); implemented by [`agent-crd.ts`](libs/shared/src/outbound/project/agents/agent-crd.ts))
+   
 
 28. *(added 2026-08-10)* A run whose deliverable is a **file** MUST declare it, so the
     artifact can leave the pod. The subsystem streams what an agent *says*
@@ -325,7 +324,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     delivery path. `feature-planning` declares `planning.result` →
     `target/result.json`; the path resolves against `WORKSPACE_DIR`, not the agent's
     cwd. A recipe whose deliverable is its own output declares nothing
-    ([validated by config disallowed_tools append after the pipeline deny and watch rides output](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L126); implemented by [`agent-crd.ts`](libs/shared/src/outbound/project/agents/agent-crd.ts))
+   
 
 29. *(added 2026-08-10)* The Floor MUST project those artifact events off the
     telemetry sink. The sink carries every run's events, so a file event with no name
@@ -350,7 +349,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     declares none keeps the base deny alone. The declared denies are dormant under
     the current `permission_mode: "bypass"` (the CLI skips deny-rule evaluation in
     that mode) and become enforced when the family moves to an enforcing mode
-    ([validated by config disallowed_tools append after the pipeline deny and watch rides output](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L126), [repo_workdir false omits workingDir for read-only recipes](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L183); implemented by [`agent-crd.ts`](libs/shared/src/outbound/project/agents/agent-crd.ts))
+   
 
 32. *(added 2026-08-28)* Every agent run opens with the same instruction in the CR
     parameter the assembled context used to occupy: `CONTEXT_BOOTSTRAP` names
@@ -375,7 +374,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     A satellite renders no `mcp_servers` block — the gateway authenticates with
     `LORE_INGEST_TOKEN` and FR5 keeps that credential central — and telling such a pod
     to call a tool it does not have would burn a turn on a guaranteed failure
-    ([validated by a satellite's empty options omit the mcp/skills/secret blocks, the http sink AND the {context} placeholder](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L102); implemented by [`agent-crd.ts`](libs/shared/src/outbound/project/agents/agent-crd.ts))
+   
 
 34. *(added 2026-08-30)* A recipe MAY declare its own `skills`, and they are APPENDED
     to `lore-context` rather than replacing it. A recipe that named its own would
@@ -391,7 +390,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     one-entry list and a four-entry list survive by the identical path. A recipe MUST NOT name a skill the
     gateway's bundle does not carry: the init fetches it as a 404 and the run
     proceeds without the contract the recipe asked for, which is FR26's failure
-    one level down and just as silent. ([validated by config skills append after lore-context without duplicating it](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L114), [serves every skill the task-type recipes declare, guarding against per-recipe skill drift (specs/floor-on-ai-subsystem FR34)](apps/mcp-server/src/transport/skills-registry.test.ts#L111); implemented by [`agent-crd.ts`](libs/shared/src/outbound/project/agents/agent-crd.ts))
+    one level down and just as silent. ([validated by serves every skill the task-type recipes declare, guarding against per-recipe skill drift (specs/floor-on-ai-subsystem FR34)](apps/mcp-server/src/transport/skills-registry.test.ts#L111); implemented by `agent-crd.ts`)
 
 35. *(added 2026-09-04)* `GET /api/repos/{owner}/{repo}/chunks/{kind}` is the pod-side chunk read
     named by D7: one route dispatching by `{kind}` (`spec`, `code-symbols`, `spec-ingest`,
@@ -422,12 +421,11 @@ These statements pin the deterministic Floor glue that wraps the subsystem.
   ambient default (`KUBECONFIG`, then `~/.kube/config`). In-cluster wins over the override, so a
   stray `LORE_KUBECONFIG` in a pod env can never repoint a deployed process; the override exists so
   a developer's host-run Floor can drive a laptop minikube
-  (`runbooks/floor-assembly-run-minikube-smoke.md`). ([validated by `kube-config.test.ts:24`](libs/shared/src/outbound/kube-config.test.ts#L24), [`kube-config.test.ts:30`](libs/shared/src/outbound/kube-config.test.ts#L30), [`kube-config.test.ts:36`](libs/shared/src/outbound/kube-config.test.ts#L36), [`kube-config.test.ts:40`](libs/shared/src/outbound/kube-config.test.ts#L40), [`kube-config.test.ts:49`](libs/shared/src/outbound/kube-config.test.ts#L49), [`kube-config.test.ts:57`](libs/shared/src/outbound/kube-config.test.ts#L57), [`kube-config.test.ts:65`](libs/shared/src/outbound/kube-config.test.ts#L65), [`kube-config.test.ts:73`](libs/shared/src/outbound/kube-config.test.ts#L73))
+  (`runbooks/floor-assembly-run-minikube-smoke.md`).
 - **One namespace default.** The namespace Agent CRs live in is
   `LORE_AGENTS_NAMESPACE`, falling back to `ai-agents`. The rule is resolved in one place rather than
   at each construction site: it had been restated eight times across the Floor and lore-api, and a
   default written eight times is a default that drifts in seven of them.
-  ([validated by returns ai-agents when LORE_AGENTS_NAMESPACE is unset](libs/shared/src/outbound/kube-config.test.ts#L83), [`kube-config.test.ts:87`](libs/shared/src/outbound/kube-config.test.ts#L87))
 - **Pending-task single-flight.** The Floor worker's `pollWithGuard` claims and processes one task
   per tick, does nothing when there is no runnable task, and skips a concurrent tick while a task is
   still processing (only one claim in flight).
@@ -435,7 +433,7 @@ These statements pin the deterministic Floor glue that wraps the subsystem.
   `kubernetes.agent.{succeeded,failed}` keyed on task-id+phase, and an assembly-line node CR to
   `kubernetes.agent_node.{succeeded,failed}` deduped per CR name (carrying the node iteration) so two
   node CRs of one line dedupe separately (the swallowed-second-node regression); it returns null for a
-  non-terminal phase and when the task-id label is absent. ([validated by `k8s-map.test.ts:39`](libs/shared/src/outbound/project/events/k8s-map.test.ts#L93), [`k8s-map.test.ts:111`](libs/shared/src/outbound/project/events/k8s-map.test.ts#L111), [`k8s-map.test.ts:118`](libs/shared/src/outbound/project/events/k8s-map.test.ts#L118), [`k8s-map.test.ts:139`](libs/shared/src/outbound/project/events/k8s-map.test.ts#L139), [`k8s-map.test.ts:158`](libs/shared/src/outbound/project/events/k8s-map.test.ts#L158), [`k8s-map.test.ts:170`](libs/shared/src/outbound/project/events/k8s-map.test.ts#L170), [`k8s-map.test.ts:179`](libs/shared/src/outbound/project/events/k8s-map.test.ts#L179))
+  non-terminal phase and when the task-id label is absent.
 - **One Project per repo, built once.** `projectFor` is memoized per repo, caching the PROMISE so
   callers racing for the same repo share one build. Every `createProject` constructs a fresh
   `PlatformGitHub` — and with it a fresh Octokit whose `createAppAuth` installation-token cache is
@@ -497,7 +495,7 @@ These statements pin the deterministic Floor glue that wraps the subsystem.
   prompt is rejected outright (the subsystem refuses a promptless AgentDefinition at admission, so
   emitting one only moved the failure to the apply), deadline defaults to 30 and image to
   `node:22-bookworm`, and stdout-only sinks stand in without an events URL. An `execution_mode:"station"` recipe materialises an exec-vendor station (`model:"exec"`,
-  `{station_input}` prompt, `max_turns:1`, `lore-station <type>` command) on its own image. ([validated by renders the exec-vendor shape on the lore-station image with the ingest token](../../libs/shared/src/outbound/project/agents/agent-crd.test.ts#L301), [validated by a station row without a command falls back to lore-station plus the def-stripped name](../../libs/shared/src/outbound/project/agents/agent-crd.test.ts#L355))
+  `{station_input}` prompt, `max_turns:1`, `lore-station <type>` command) on its own image.
 - **CR-watch idempotency.** Event dedupe keys collapse redundant deliveries so a Floor restart replays
   nothing twice: `githubDedupeKey` prefixes the delivery id, `k8sDedupeKey` keys a terminal Agent CR
   on task-id+phase (repeated `MODIFIED` events collapse), `cronDedupeKey` floors the tick to the

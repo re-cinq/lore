@@ -154,18 +154,15 @@ layers:
       - domain
       - lib
       - test-helpers
-      - "@re-cinq/agent-contracts"
       - "@re-cinq/floor-client"
     work:
       - outbound
       - domain
       - lib
       - test-helpers
-      - "@re-cinq/agent-contracts"
       - "@re-cinq/floor-client"
     domain:
       - lib
-      - "@re-cinq/agent-contracts"
     lib: []
     # In-memory doubles and fixtures. A leaf that only tests reach — listed so it
     # has an entry at all, since an unlisted folder may import nothing.

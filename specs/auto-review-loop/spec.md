@@ -414,11 +414,11 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 - throws on unknown ids for markRunning and returns false for finishNodeOnce. ([validated by](libs/shared/src/outbound/project/assembly-runs/assembly-runs.test.ts#L635))
 - getById returns the record and null for unknown ids. ([validated by](libs/shared/src/outbound/project/assembly-runs/assembly-runs.test.ts#L649))
 - listForTask and getById pass through to the port. ([validated by](libs/shared/src/outbound/project/assembly-runs/assembly-runs.test.ts#L823))
-- ensureNodeStart enforces exactly one returned row (invariant names itself). ([validated by](libs/shared/src/outbound/project/assembly-runs/assembly-runs.test.ts#L1000))
-- finishNodeOnce CASes on a null outcome and reports whether it won. ([validated by](libs/shared/src/outbound/project/assembly-runs/assembly-runs.test.ts#L1012))
-- listOpen selects queued and running rows oldest-first. ([validated by](libs/shared/src/outbound/project/assembly-runs/assembly-runs.test.ts#L1069))
-- does not overwrite an already-terminal row (InMemory). ([validated by](libs/shared/src/outbound/project/assembly-runs/assembly-runs.test.ts#L1080))
-- guards the Pg UPDATE on a non-terminal status. ([validated by](libs/shared/src/outbound/project/assembly-runs/assembly-runs.test.ts#L1095))
+- ensureNodeStart enforces exactly one returned row (invariant names itself). ([validated by](libs/shared/src/outbound/project/assembly-runs/assembly-runs.test.ts#L997))
+- finishNodeOnce CASes on a null outcome and reports whether it won. ([validated by](libs/shared/src/outbound/project/assembly-runs/assembly-runs.test.ts#L1009))
+- listOpen selects queued and running rows oldest-first. ([validated by](libs/shared/src/outbound/project/assembly-runs/assembly-runs.test.ts#L1066))
+- does not overwrite an already-terminal row (InMemory). ([validated by](libs/shared/src/outbound/project/assembly-runs/assembly-runs.test.ts#L1077))
+- guards the Pg UPDATE on a non-terminal status. ([validated by](libs/shared/src/outbound/project/assembly-runs/assembly-runs.test.ts#L1092))
 
 ### `libs/shared/src/outbound/project/issues/issues.test.ts`
 

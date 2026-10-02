@@ -10,7 +10,6 @@
  * Generated 2026-09-09 from 417 findings across 222 files.
  */
 export const MAX_EXPECTS_BASELINE = [
-  "apps/lore-api/src/integration-tests/catalog-events.test.ts",
   "apps/lore-api/src/integration-tests/pipeline.test.ts",
   "apps/lore-api/src/transport/http/rate-limit.test.ts",
   "apps/lore-api/src/transport/openapi/build-document.test.ts",
@@ -19,7 +18,6 @@ export const MAX_EXPECTS_BASELINE = [
   "apps/lore-api/src/transport/routes/analytics/credit-ledger.test.ts",
   "apps/lore-api/src/transport/routes/analytics/spend-window.test.ts",
   "apps/lore-api/src/transport/routes/assembly-lines/run-stream.test.ts",
-  "apps/lore-api/src/transport/routes/cluster-agents/register.test.ts",
   "apps/lore-api/src/transport/routes/features/features.test.ts",
   "apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts",
   "apps/lore-api/src/transport/routes/openapi/openapi.test.ts",
@@ -54,7 +52,6 @@ export const MAX_EXPECTS_BASELINE = [
   "apps/web-ui/src/app/assembly-runs/\\[id\\]/use-run-history.test.ts",
   "apps/web-ui/src/app/assembly-runs/create/AssemblyRunCreateView.test.tsx",
   "apps/web-ui/src/app/audit/AuditView.test.tsx",
-  "apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx",
   "apps/web-ui/src/app/episodes/EpisodesView.test.tsx",
   "apps/web-ui/src/app/gaps/GapsView.test.tsx",
   "apps/web-ui/src/app/graph/GraphView.test.tsx",
@@ -141,13 +138,11 @@ export const MAX_EXPECTS_BASELINE = [
   "libs/shared/src/outbound/project/agent-run-events/agent-run-events.test.ts",
   "libs/shared/src/outbound/project/agent-run-turns/agent-run-turns.test.ts",
   "libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts",
-  "libs/shared/src/outbound/project/agents/agent-crd.test.ts",
   "libs/shared/src/outbound/project/agents/agent-defs-pg.test.ts",
   "libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts",
   "libs/shared/src/outbound/project/assembly-runs/assembly-runs.test.ts",
   "libs/shared/src/outbound/project/chunks/chunk-schema.test.ts",
   "libs/shared/src/outbound/project/chunks/chunks.test.ts",
-  "libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts",
   "libs/shared/src/outbound/project/events/drain-loop.test.ts",
   "libs/shared/src/outbound/project/features/features-memory.test.ts",
   "libs/shared/src/outbound/project/features/features-pg.test.ts",
