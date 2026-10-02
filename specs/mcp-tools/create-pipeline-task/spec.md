@@ -3,7 +3,7 @@
 | Field   | Value                          |
 |---------|--------------------------------|
 | Feature | lore_create_pipeline_task MCP Tool  |
-| Status  | In Progress                    |
+| Status  | Retired                        |
 | Created | 2026-06-10                     |
 | Owner   | Platform Engineering           |
 | Tool    | `lore_create_pipeline_task`         |
@@ -11,6 +11,8 @@
 | Scope   | shared                         |
 
 `lore_create_pipeline_task` is the single entry point for delegating work to the Lore pipeline: it validates the description, resolves the repo, enforces the per-repo trust gate, inserts the `pipeline.tasks` row, and tells the caller how the task will be picked up.
+
+> **Retired 2026-10-02.** The tool is removed. `POST /api/task` creates no task from a description (`specs/external-floor` FR16.7), so the tool could only report that refusal. Code reaches an agent through a backlog ticket with a `priority:*` label, a feature through a plan, a review through the pull request. What follows is the record of what the tool did.
 
 ## Problem Statement
 
@@ -106,45 +108,43 @@ retry path, which calls the same shared `createTask`.
 
 An empty or whitespace-only description is rejected by the input schema before
 any insert; a normal description is accepted.
-([validated by `rejects an empty task description`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L164), [validated by `rejects a whitespace-only task description`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L172), [validated by accepts an in-range description for a runbook task](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L180))
+
 
 The target repo defaults to the git remote when `target_repo` is omitted; an
 explicit value wins.
 *(untested: `detectCurrentRepo()` reads the ambient git remote — no deterministic seam without live repo state.)*
 
 A task must name its type: the input schema rejects a call with no `task_type`, and task creation refuses a missing type and the removed `implementation` and `general` types, pointing at the implementation loop, in the Postgres store and the in-memory one alike.
-([validated by rejects a task that names no task_type, since there is no default type](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L188), [validated by answers onboard for a task of type onboard](libs/shared/src/domain/task-types/retired-task-types.test.ts#L5), [validated by refuses a task with no type, pointing at the implementation loop](libs/shared/src/domain/task-types/retired-task-types.test.ts#L9), [validated by refuses the removed %s task type, pointing at the implementation loop](libs/shared/src/domain/task-types/retired-task-types.test.ts#L17), [validated by refuses a task with no type, as the Postgres store does](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L99))
+([validated by answers onboard for a task of type onboard](libs/shared/src/domain/task-types/retired-task-types.test.ts#L5), [validated by refuses a task with no type, pointing at the implementation loop](libs/shared/src/domain/task-types/retired-task-types.test.ts#L9), [validated by refuses the removed %s task type, pointing at the implementation loop](libs/shared/src/domain/task-types/retired-task-types.test.ts#L17), [validated by refuses a task with no type, as the Postgres store does](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L99))
 
 A description over 32000 chars (`MAX_TASK_DESCRIPTION_CHARS`, one shared constant) is rejected by the input schema (and, on the DB
 path, by the shared CRUD).
-([validated by `rejects a task description over 32000 chars`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L156))
+
 
 `task_type: "onboard"` is refused before the local/remote split and the caller is
 pointed at `lore_onboard_repo`, whose transaction holds the duplicate-onboard
-guard. ([validated by `refuses task_type onboard and names lore_onboard_repo instead`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L271))
+guard.
 
 With no `LORE_API_URL`/`LORE_INGEST_TOKEN` configured, the tool returns a
 not-configured message; on success the response names the immediate-priority
 pickup hint; a 401 is reported as a denied error. ([validated by `returns the
 not-configured message when the env is
-unset`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L291), [`reports
-the immediate pickup hint on
-success`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L306), [`reports
+unset`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L187), [`reports
 a denied error on a
-401`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L326))
+401`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L293))
 
 The shared trust gate allows `onboard` at every trust tier — it produces a
 docs-only scaffolding PR and is guarded against duplicates by its own route, so
 restricting it to `full` would only break the reonboard repair path on
 auto-promoted repos — while a genuinely disallowed type is still refused. ([validated by `allows an onboard task at trust level %s`](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L33), [validated by still refuses a spec-task at trust level docs](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L48))
 
-`buildContextBundle` (`apps/lore-api/src/work/pipeline/context-bundle.ts`) assembles this same `context` shape (`pipeline_task_id`, `spec_file`, `seed_query`, `branch`) into the markdown sections handed to an agent: an absent or empty `context` renders an empty string. ([validated by `returns an empty string for no context`](apps/lore-api/src/work/pipeline/context-bundle.test.ts#L14), [`returns an empty string for an empty context object`](apps/lore-api/src/work/pipeline/context-bundle.test.ts#L18))
+`buildContextBundle` (`apps/lore-api/src/work/pipeline/context-bundle.ts`) assembles this same `context` shape (`pipeline_task_id`, `spec_file`, `seed_query`, `branch`) into the markdown sections handed to an agent: an absent or empty `context` renders an empty string.
 
-Each present field renders its own `## <heading>` section — pipeline task, seed query, or branch — when that field is set alone. ([validated by `renders only the pipeline task section when only pipeline_task_id is set`](apps/lore-api/src/work/pipeline/context-bundle.test.ts#L22), [`renders only the seed query section when only seed_query is set`](apps/lore-api/src/work/pipeline/context-bundle.test.ts#L28), [`renders only the branch section when only branch is set`](apps/lore-api/src/work/pipeline/context-bundle.test.ts#L34))
+Each present field renders its own `## <heading>` section — pipeline task, seed query, or branch — when that field is set alone.
 
-Multiple sections join on `\n\n---\n\n` in field order. ([validated by `joins multiple sections with the triple-dash separator in field order`](apps/lore-api/src/work/pipeline/context-bundle.test.ts#L40))
+Multiple sections join on `\n\n---\n\n` in field order.
 
-`spec_file: true` reads `.specify/spec.md` and `.specify/constitution.md` from the process cwd when present, adding no section when neither exists, and labels both files Spec because the ".specify" directory name itself contains "spec". ([validated by `adds no spec section when spec_file is true but no .specify files exist`](apps/lore-api/src/work/pipeline/context-bundle.test.ts#L52), [`labels both files Spec because the .specify directory name itself contains 'spec'`](apps/lore-api/src/work/pipeline/context-bundle.test.ts#L63))
+`spec_file: true` reads `.specify/spec.md` and `.specify/constitution.md` from the process cwd when present, adding no section when neither exists, and labels both files Spec because the ".specify" directory name itself contains "spec".
 
 ## Out of Scope
 

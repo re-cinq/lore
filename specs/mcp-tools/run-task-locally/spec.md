@@ -37,7 +37,6 @@ Starts a brand-new ad-hoc task as a detached background Claude Code process in a
 | Param | Type | Required | Default | Constraint / notes |
 |-------|------|----------|---------|--------------------|
 | `description` | string | yes | — | Free-text instruction for the agent. Must reference the current repo; cross-repo references are refused with a wrong-repo warning. |
-| `task_type` | enum | no | `"local"` | Kind of work: 'local' (free-form work on this machine; it is tracked here only and files no pipeline task), 'runbook' (incident runbook), 'gap-fill' (missing docs). |
 | `model` | string | no | — | Anthropic model id override for the spawned process (e.g. 'claude-opus-4-6'). |
 
 ## Behavior
@@ -48,9 +47,7 @@ Starts a brand-new ad-hoc task as a detached background Claude Code process in a
    that differs from the detected repo and does not mention the detected repo,
    return a `"Warning: This task references … but you're in …"` message with a
    `cd` suggestion — no worktree is created.
-3. **Task id** — generate a UUID. For a pipeline task type (`runbook`, `gap-fill`), when `LORE_API_URL` + `LORE_INGEST_TOKEN` are
-   set, `POST {apiUrl}/api/task` to register the task and adopt the returned
-   `task_id`; any failure falls back to the generated UUID. Free-form `local` work files no pipeline task: the `implementation` and `general` types it used to be filed under are gone (#2328), so it runs under the generated UUID. ([validated by files no pipeline task for free-form local work and runs it under a generated id](apps/mcp-server/src/transport/tools/local-runner-tools.local.test.ts#L182), [validated by files a runbook task and runs it under the server's id task-123](apps/mcp-server/src/transport/tools/local-runner-tools.local.test.ts#L194))
+3. **Task id** — generate a UUID. The run is free-form local work: it files no pipeline task and is tracked on this machine only (`~/.lore/local-tasks.json`). The tool takes no task type since 2026-10-02: the API creates no task from a description, so there is nothing to file a `runbook` or `gap-fill` run under.
 4. Spawn via `spawnLocalTask({taskId, prompt, repo, taskType, model, repoRoot})`
    ([spawn](../../../apps/mcp-server/src/work/pipeline/runner.local.ts#L862)):
    1. `ensureDirs()` for `~/.lore/worktrees` and `~/.lore/task-logs`.
@@ -122,12 +119,9 @@ mocking child_process, which the no-mocks convention forbids.)*
 `LORE_API_URL`/`LORE_INGEST_TOKEN` are not configured, returns the
 server-issued `task_id` on a successful `POST /api/task`, and falls back to
 `null` when the request throws — the caller then adopts a generated UUID.
-([validated by `returns null without fetching when the API URL or token is not
-configured`](../../../apps/mcp-server/src/transport/tools/local-runner-tools.local.test.ts#L15),
-[`returns the server-issued task id on
-success`](../../../apps/mcp-server/src/transport/tools/local-runner-tools.local.test.ts#L30),
-[`returns null when the request
-throws`](../../../apps/mcp-server/src/transport/tools/local-runner-tools.local.test.ts#L49))
+(
+
+)
 
 ## Out of Scope
 
