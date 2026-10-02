@@ -634,6 +634,12 @@ proxy everything else in that cluster reports through.
 
 ## FR7 — Registered-clusters visibility
 
+> **The Clusters page was removed on 2026-10-02.** The `/cluster-agents`
+> page, its Connect panel and its Pause and Restart buttons (FR7, FR9, FR10)
+> are deleted from the web UI: with `apps/floor` gone nothing gives Lore's
+> cluster agent work, and the external floor runs every pod with its own.
+> The statements below record how the page worked.
+
 Operators need to see which clusters exist, what they can run, and whether
 they are alive.
 
@@ -643,16 +649,16 @@ they are alive.
 - A web-ui page renders that list, marking offline agents and linking the
   running-claims count to the assembly-runs list filtered to that agent
   (`/assembly-runs?cluster_agent_id=…`, backed by the port's
-  `clusterAgentId` open-claim filter). ([validated by `assembly-runs.contract.test.ts:1110`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1110), [validated by `ClusterAgentsView.test.tsx:65`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L61), [`ClusterAgentsView.test.tsx:89`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L86), [`ClusterAgentsView.test.tsx:107`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L104), [`cluster-agents.test.ts:29`](apps/web-ui/src/lib/api/cluster-agents.test.ts#L29))
+  `clusterAgentId` open-claim filter). ([validated by `assembly-runs.contract.test.ts:1110`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1110))
 - The app hands out the connect-a-cluster values it already holds (#1572):
   admin-scoped `GET /api/cluster-agents/install-info` answers the central
   URLs and the registration token (or names exactly what is unconfigured),
   `GET /api/cluster-agents/install.sh` serves a runnable installer with the
   same values baked in and shell-quoted, and the Clusters page renders the
   ready-to-paste command from them. The LLM credential and GHCR pull
-  credentials stay deliberately un-baked. ([validated by `install.test.ts:11`](apps/lore-api/src/transport/routes/cluster-agents/install.test.ts#L11), [`install.test.ts:22`](apps/lore-api/src/transport/routes/cluster-agents/install.test.ts#L22), [`install.test.ts:38`](apps/lore-api/src/transport/routes/cluster-agents/install.test.ts#L38), [`install.test.ts:49`](apps/lore-api/src/transport/routes/cluster-agents/install.test.ts#L49), [`install.test.ts:61`](apps/lore-api/src/transport/routes/cluster-agents/install.test.ts#L61), [`install.test.ts:68`](apps/lore-api/src/transport/routes/cluster-agents/install.test.ts#L68), [`ConnectClusterPanel.test.tsx:22`](apps/web-ui/src/app/cluster-agents/ConnectClusterPanel.test.tsx#L22), [`ConnectClusterPanel.test.tsx:35`](apps/web-ui/src/app/cluster-agents/ConnectClusterPanel.test.tsx#L35), [`ConnectClusterPanel.test.tsx:46`](apps/web-ui/src/app/cluster-agents/ConnectClusterPanel.test.tsx#L46))
+  credentials stay deliberately un-baked. ([validated by `install.test.ts:11`](apps/lore-api/src/transport/routes/cluster-agents/install.test.ts#L11), [`install.test.ts:22`](apps/lore-api/src/transport/routes/cluster-agents/install.test.ts#L22), [`install.test.ts:38`](apps/lore-api/src/transport/routes/cluster-agents/install.test.ts#L38), [`install.test.ts:49`](apps/lore-api/src/transport/routes/cluster-agents/install.test.ts#L49), [`install.test.ts:61`](apps/lore-api/src/transport/routes/cluster-agents/install.test.ts#L61), [`install.test.ts:68`](apps/lore-api/src/transport/routes/cluster-agents/install.test.ts#L68))
 - The audit log's `cluster_agent_offline` entries surface on the same page,
-  so a flapping cluster is diagnosable without database access. ([validated by `ClusterAgentsView.test.tsx:126`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L119), [`ClusterAgentsView.test.tsx:144`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L141), [`ClusterAgentsView.test.tsx:190`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L187), [`ClusterAgentsView.test.tsx:207`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L204), [`ClusterAgentsView.test.tsx:211`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L208), [`audit-read.test.ts:7`](libs/shared/src/outbound/project/audit/audit-read.test.ts#L7), [`audit-read.test.ts:33`](libs/shared/src/outbound/project/audit/audit-read.test.ts#L33))
+  so a flapping cluster is diagnosable without database access. ([validated by `audit-read.test.ts:7`](libs/shared/src/outbound/project/audit/audit-read.test.ts#L7), [`audit-read.test.ts:33`](libs/shared/src/outbound/project/audit/audit-read.test.ts#L33))
 
 ## FR9 — Pausing a cluster
 
@@ -682,7 +688,7 @@ nothing matches is a trick that loses the cluster's real tags.
   button takes the agent id as a BOUND parameter of the server action, never
   an inline closure over it: the view is a server component, and React
   refuses to serialize a plain function to a client component — which took
-  the whole page down the first time (fixed the same day). ([validated by `ClusterAgentsView.test.tsx:34`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L34), [validated by `PauseClusterButton.test.tsx:7`](apps/web-ui/src/app/cluster-agents/PauseClusterButton.test.tsx#L7), [`PauseClusterButton.test.tsx:16`](apps/web-ui/src/app/cluster-agents/PauseClusterButton.test.tsx#L16), [`actions.test.ts:23`](apps/web-ui/src/app/cluster-agents/actions.test.ts#L23), [`actions.test.ts:34`](apps/web-ui/src/app/cluster-agents/actions.test.ts#L34))
+  the whole page down the first time (fixed the same day).
 
 ## FR10 — Restarting a cluster
 
@@ -711,7 +717,7 @@ it a Kubernetes client, which ADR-024 deliberately withholds.
   the same way the Pause button is (never an inline closure over a server
   component's prop). A restart kills whatever the process is mid-way through,
   unlike Pause, so the button asks for a second click before it fires and a
-  Cancel backs out without restarting. ([validated by `ClusterAgentsView.test.tsx:170`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L163), [`RestartClusterButton.test.tsx:7`](apps/web-ui/src/app/cluster-agents/RestartClusterButton.test.tsx#L7), [`RestartClusterButton.test.tsx:19`](apps/web-ui/src/app/cluster-agents/RestartClusterButton.test.tsx#L19), [`RestartClusterButton.test.tsx:29`](apps/web-ui/src/app/cluster-agents/RestartClusterButton.test.tsx#L29), [`actions.test.ts:48`](apps/web-ui/src/app/cluster-agents/actions.test.ts#L48), [`actions.test.ts:57`](apps/web-ui/src/app/cluster-agents/actions.test.ts#L57))
+  Cancel backs out without restarting.
 
 ## Data Model
 

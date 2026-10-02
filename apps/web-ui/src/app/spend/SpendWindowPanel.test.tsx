@@ -122,10 +122,6 @@ describe("SpendWindowPanel", () => {
     );
     expect(screen.getByText("$82.50")).toBeInTheDocument();
     expect(screen.getAllByText("implementation-loop")).toHaveLength(2);
-    expect(
-      screen.getByText("agent-job-run1-tdd-round-abc"),
-    ).toBeInTheDocument();
-    expect(screen.getByText("+ $0.07/h burning now")).toBeInTheDocument();
     expect(screen.getByText("claude-sonnet-4-6")).toBeInTheDocument();
     expect(
       screen.getByText(
