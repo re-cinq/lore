@@ -9,7 +9,7 @@ export function sampleDocuments(paths, date, size) {
     return sorted;
   }
   const shuffled = sorted.toSorted(
-    (left, right) => fnv1a(left) - fnv1a(right) || left.localeCompare(right),
+    (left, right) => fnv1a(left) - fnv1a(right) || byCodeUnit(left, right),
   );
   const start = (dayNumber(date) * size) % shuffled.length;
 
@@ -17,6 +17,15 @@ export function sampleDocuments(paths, date, size) {
     { length: size },
     (_, offset) => shuffled[(start + offset) % shuffled.length],
   );
+}
+
+// Not localeCompare: a runner's locale must not change which documents a night picks.
+function byCodeUnit(left, right) {
+  if (left === right) {
+    return 0;
+  }
+
+  return left < right ? -1 : 1;
 }
 
 function dayNumber(date) {

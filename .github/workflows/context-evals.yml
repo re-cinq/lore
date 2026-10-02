@@ -14,6 +14,10 @@ on:
         description: "Evaluate one repository (owner/name). Empty: every onboarded repository."
         required: false
         default: ""
+      path:
+        description: "Evaluate one document of that repository (its path, e.g. adrs/ADR-049-external-floor.md). Empty: tonight's sample."
+        required: false
+        default: ""
       sample:
         description: "Documents per repository"
         required: false
@@ -76,4 +80,5 @@ jobs:
           LORE_INGEST_TOKEN: ${{ secrets.LORE_INGEST_TOKEN }}
           EVAL_REPO: ${{ matrix.repo }}
           EVAL_SAMPLE: ${{ inputs.sample || '20' }}
-        run: node scripts/context-evals/run.mjs --repo "$EVAL_REPO" --sample "$EVAL_SAMPLE"
+          EVAL_PATH: ${{ inputs.path }}
+        run: node scripts/context-evals/run.mjs --repo "$EVAL_REPO" --sample "$EVAL_SAMPLE" ${EVAL_PATH:+--path "$EVAL_PATH"}

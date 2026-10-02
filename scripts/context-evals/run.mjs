@@ -8,14 +8,12 @@ import { sampleDocuments } from "./sample.mjs";
 
 const RETRIED = new Set([429, 502, 503, 504]);
 
-export async function runEval({ env, fetchFn, repo, date, sample, threshold }) {
-  const api = loreApi({ env, fetchFn });
-  const { documents } = await api.get(
-    `/api/context-evals/documents?repo=${encodeURIComponent(repo)}`,
-  );
+export async function runEval(run) {
+  const { repo, threshold } = run;
+  const api = loreApi(run);
   const results = [];
 
-  for (const path of sampleDocuments(documents, date, sample)) {
+  for (const path of await documentsToEvaluate(api, run)) {
     results.push(await evaluate(api, repo, path));
   }
   const stats = summarize(results);
@@ -26,6 +24,18 @@ export async function runEval({ env, fetchFn, repo, date, sample, threshold }) {
     passed: passes(stats, threshold),
     markdown: renderSummary(repo, results, threshold),
   };
+}
+
+/** Tonight's window of the repository's documents, or the one document a manual run names: someone checking the ADR they just merged should not have to wait for its night. */
+async function documentsToEvaluate(api, { repo, path, date, sample }) {
+  if (path) {
+    return [path];
+  }
+  const { documents } = await api.get(
+    `/api/context-evals/documents?repo=${encodeURIComponent(repo)}`,
+  );
+
+  return sampleDocuments(documents, date, sample);
 }
 
 /** One document's verdict; a refusal from lore-api is that document's failure, not the run's, so one bad document cannot hide the other nineteen. */
@@ -119,12 +129,16 @@ function failedTable(failed) {
 
 const percent = (share) => `${Math.round(share * 100)}%`;
 const yesNo = (flag) => (flag ? "yes" : "no");
-const cell = (text) => text.replaceAll("|", "\\|").replaceAll(/\s+/g, " ");
+const cell = (text) =>
+  String(text ?? "")
+    .replaceAll("|", "\\|")
+    .replaceAll(/\s+/g, " ");
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   const { values } = parseArgs({
     options: {
       repo: { type: "string" },
+      path: { type: "string" },
       sample: { type: "string", default: "20" },
       threshold: { type: "string", default: "0.85" },
       date: { type: "string", default: new Date().toISOString().slice(0, 10) },
@@ -133,6 +147,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   const outcome = await runEval({
     env: process.env,
     repo: values.repo,
+    path: values.path,
     date: values.date,
     sample: Number(values.sample),
     threshold: Number(values.threshold),

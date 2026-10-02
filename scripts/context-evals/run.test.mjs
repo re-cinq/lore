@@ -149,6 +149,17 @@ test("asks lore-api a second time when the first answer for a document is a 503"
   assert.equal(outcome.stats.both, 1);
 });
 
+test("evaluates only adrs/ADR-7.md when the run names that document, without listing or sampling", async () => {
+  const api = loreApi({ documents: [ADR(1), ADR(2)] });
+  const outcome = await run(api, { path: ADR(7) });
+
+  assert.deepEqual(
+    api.requests.map((request) => [request.method, request.body?.path]),
+    [["POST", ADR(7)]],
+  );
+  assert.equal(outcome.stats.total, 1);
+});
+
 test("refuses to run without LORE_INGEST_TOKEN, naming it", async () => {
   await assert.rejects(
     run(loreApi({ documents: [] }), { env: { LORE_API_URL: "https://x" } }),
@@ -192,6 +203,16 @@ test("renders the repository's row and lists only the failing document with its 
       "| --- | --- | --- | --- | --- | --- |",
       "| adrs/ADR-2.md | What does adrs/ADR-2.md decide? | yes | no | 50% | Contradicts the ADR. |",
     ],
+  );
+});
+
+test("renders an empty cell for a failing document whose verdict came back without a reason", () => {
+  const { reason, ...withoutReason } = verdict(ADR(1), { answered: false });
+  const markdown = renderSummary("re-cinq/lore", [withoutReason], 0.85);
+
+  assert.match(
+    markdown,
+    /\| adrs\/ADR-1\.md \| What does adrs\/ADR-1\.md decide\? \| yes \| no \| 50% \|  \|/,
   );
 });
 

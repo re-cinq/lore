@@ -49,3 +49,10 @@ test("covers all 50 documents in 3 consecutive nights of 20", () => {
 test("returns no documents for an empty list", () => {
   assert.deepEqual(sampleDocuments([], "2026-10-02", 20), []);
 });
+
+test("orders two documents by code unit, not by locale, so every runner picks the same window", () => {
+  assert.deepEqual(
+    sampleDocuments(["adrs/b.md", "adrs/B.md"], "2026-10-02", 20),
+    ["adrs/B.md", "adrs/b.md"],
+  );
+});
