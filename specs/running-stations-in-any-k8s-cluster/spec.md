@@ -110,7 +110,7 @@ A new `pipeline.cluster_agents` table is the registry of execution clusters.
   lore-api (all `/api/cluster-agents/*` endpoints live in
   `apps/lore-api/src/transport/routes/cluster-agents/`), authenticating with a
   pre-shared registration token (`LORE_CLUSTER_AGENT_REGISTRATION_TOKEN`),
-  and receives a durable id and a per-agent bearer token. ([validated by `register.test.ts:44`](apps/lore-api/src/transport/routes/cluster-agents/register.test.ts#L44), [`register.test.ts:14`](apps/lore-api/src/transport/routes/cluster-agents/register.test.ts#L14), [`register.test.ts:31`](apps/lore-api/src/transport/routes/cluster-agents/register.test.ts#L31), [`registration.test.ts:113`](apps/cluster-agent/src/events/claim/registration.test.ts#L123), [`registration.test.ts:146`](apps/cluster-agent/src/events/claim/registration.test.ts#L156), [`registration.test.ts:81`](apps/cluster-agent/src/events/claim/registration.test.ts#L91), [`registration.test.ts:167`](apps/cluster-agent/src/events/claim/registration.test.ts#L177), [`registration.test.ts:234`](apps/cluster-agent/src/events/claim/registration.test.ts#L244))
+  and receives a durable id and a per-agent bearer token. ([validated by `registration.test.ts:113`](apps/cluster-agent/src/events/claim/registration.test.ts#L123), [`registration.test.ts:146`](apps/cluster-agent/src/events/claim/registration.test.ts#L156), [`registration.test.ts:81`](apps/cluster-agent/src/events/claim/registration.test.ts#L91), [`registration.test.ts:167`](apps/cluster-agent/src/events/claim/registration.test.ts#L177), [`registration.test.ts:234`](apps/cluster-agent/src/events/claim/registration.test.ts#L244))
 - The per-agent token is stored SHA-256-hashed in
   `pipeline.cluster_agents.token_hash`, following the existing
   `pipeline.api_tokens` pattern; every subsequent lore-api call from that
@@ -142,10 +142,10 @@ A new `pipeline.cluster_agents` table is the registry of execution clusters.
   creation, so a rollout silently 401'd every in-flight run's telemetry for the
   rest of its life. The rotation bought no recovery either: a token that does
   not match is rejected `409` either way, so the only case that rotated was the
-  one that needed no new token at all.)* ([validated by `register.test.ts:67`](apps/lore-api/src/transport/routes/cluster-agents/register.test.ts#L67), [`register.test.ts:93`](apps/lore-api/src/transport/routes/cluster-agents/register.test.ts#L93), [`cluster-agents.test.ts:44`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L44), [`cluster-agents.test.ts:48`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L48), [`cluster-agents.test.ts:58`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L58), [`cluster-agents.test.ts:62`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L62), [`registration.test.ts:159`](apps/cluster-agent/src/events/claim/registration.test.ts#L169))
+  one that needed no new token at all.)* ([validated by `cluster-agents.test.ts:44`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L44), [`cluster-agents.test.ts:48`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L48), [`cluster-agents.test.ts:58`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L58), [`cluster-agents.test.ts:62`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L62), [`registration.test.ts:159`](apps/cluster-agent/src/events/claim/registration.test.ts#L169))
 - Two concurrent first registrations of the same name resolve to one
   identity: the insert is conflict-safe, and the loser receives the same
-  `409` as any other taken name — never a 500. ([validated by `register.test.ts:122`](apps/lore-api/src/transport/routes/cluster-agents/register.test.ts#L122), [`cluster-agents.test.ts:120`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L120))
+  `409` as any other taken name — never a 500. ([validated by `cluster-agents.test.ts:120`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L120))
 - Credential handling is uniform across the cluster-agent endpoints: the
   `Authorization` header is parsed by the shared `extractBearer` — anchored
   to the start, scheme case-insensitive per RFC 7235, first value of a
@@ -174,7 +174,7 @@ Capabilities are a flat tag set, matched by inclusion — no scheduler, no
 scoring.
 
 - A cluster-agent declares `tags: text[]` at registration (for example
-  `["node:agent", "node:validate", "gpu"]`). ([validated by `register.test.ts:44`](apps/lore-api/src/transport/routes/cluster-agents/register.test.ts#L44), [`registration.test.ts:92`](apps/cluster-agent/src/events/claim/registration.test.ts#L102), [`registration.test.ts:100`](apps/cluster-agent/src/events/claim/registration.test.ts#L110), [`registration.test.ts:72`](apps/cluster-agent/src/events/claim/registration.test.ts#L72))
+  `["node:agent", "node:validate", "gpu"]`). ([validated by `registration.test.ts:92`](apps/cluster-agent/src/events/claim/registration.test.ts#L102), [`registration.test.ts:100`](apps/cluster-agent/src/events/claim/registration.test.ts#L110), [`registration.test.ts:72`](apps/cluster-agent/src/events/claim/registration.test.ts#L72))
 - Every station run carries `required_tags: text[]`; a cluster-agent may
   claim a run only when `required_tags <@ tags`. The node type's own tag
   (`node:<type>`) is ALWAYS required — a run is claimable only by an agent
@@ -217,7 +217,7 @@ one dispatch mechanism, not a special case plus a remote case.
   configurable interval (default 15 s); the claim is a single
   `SELECT … FOR UPDATE SKIP LOCKED` CTE that sets `status = 'claimed'`,
   `cluster_agent_id`, and `claimed_at` in one statement, so concurrent
-  claimants are safe. ([validated by `claim.test.ts:107`](apps/lore-api/src/transport/routes/cluster-agents/claim.test.ts#L120), [`assembly-runs.contract.test.ts:979`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L979), [`assembly-runs.contract.test.ts:1039`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1039))
+  claimants are safe. ([validated by `assembly-runs.contract.test.ts:979`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L979), [`assembly-runs.contract.test.ts:1039`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1039))
 - The central cluster runs the same claim loop: cluster-agent-helm registers
   it as `central` — the name the Floor reaper resolves CR visibility by —
   with the full tag set, including the central-only tags satellites never
@@ -255,7 +255,7 @@ one dispatch mechanism, not a special case plus a remote case.
   and nothing queued behind it was claimed for hours. A graph run whose visit
   failed this way takes its failed edge on the next reaper tick; a single-CR
   run, which has no watcher event to close it, is ended by that tick with the
-  launch error as its reason. ([validated by requeues a visit whose launch error is not permanent, under a bound of 3 attempts](apps/lore-api/src/transport/routes/cluster-agents/release.test.ts#L48), [validated by fails at once a visit whose installation token was refused, as github-permission](apps/lore-api/src/transport/routes/cluster-agents/release.test.ts#L77), [validated by answers settled for a visit that already reached an outcome](apps/lore-api/src/transport/routes/cluster-agents/release.test.ts#L104), [validated by refuses a caller presenting no token](apps/lore-api/src/transport/routes/cluster-agents/release.test.ts#L120), [validated by refuses a registered agent releasing another agent's claim](apps/lore-api/src/transport/routes/cluster-agents/release.test.ts#L136), [validated by refuses a token no registered agent holds](apps/lore-api/src/transport/routes/cluster-agents/release.test.ts#L152), [validated by a release under the attempt bound requeues the visit on the same row](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1233), [validated by the third release of one visit fails it with the launch error as its detail](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1251), [validated by a permanent release fails the visit on the first attempt with its failure class](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1278), [validated by a released visit is claimed after a fresh visit queued behind it](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1297), [validated by releasing a visit that already reached an outcome answers settled and changes nothing](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1309), [validated by marks an installation token refused for an unreachable repository as a permanent github-permission release](libs/shared/src/outbound/project/assembly-runs/launch-release.test.ts#L5), [validated by marks an unrecognised launch error as a retryable unknown release under the given bound](libs/shared/src/outbound/project/assembly-runs/launch-release.test.ts#L17), [validated by reads 5 from LORE_STATION_LAUNCH_ATTEMPTS and falls back to 3 when it is 0 or unset](libs/shared/src/outbound/project/assembly-runs/launch-release.test.ts#L28), [validated by returns github-permission for an installation token refused for a repository the App cannot reach](libs/shared/src/lib/error-classify.test.ts#L64), [validated by hands the visit back under the per-agent token, naming the cause](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L347), [validated by swallows a refused release rather than ending the loop over it](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L371))
+  launch error as its reason. ([validated by a release under the attempt bound requeues the visit on the same row](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1233), [validated by the third release of one visit fails it with the launch error as its detail](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1251), [validated by a permanent release fails the visit on the first attempt with its failure class](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1278), [validated by a released visit is claimed after a fresh visit queued behind it](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1297), [validated by releasing a visit that already reached an outcome answers settled and changes nothing](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1309), [validated by marks an installation token refused for an unreachable repository as a permanent github-permission release](libs/shared/src/outbound/project/assembly-runs/launch-release.test.ts#L5), [validated by marks an unrecognised launch error as a retryable unknown release under the given bound](libs/shared/src/outbound/project/assembly-runs/launch-release.test.ts#L17), [validated by reads 5 from LORE_STATION_LAUNCH_ATTEMPTS and falls back to 3 when it is 0 or unset](libs/shared/src/outbound/project/assembly-runs/launch-release.test.ts#L28), [validated by returns github-permission for an installation token refused for a repository the App cannot reach](libs/shared/src/lib/error-classify.test.ts#L64), [validated by hands the visit back under the per-agent token, naming the cause](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L347), [validated by swallows a refused release rather than ending the loop over it](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L371))
 - A claim whose CR ALREADY EXISTS is not a fresh launch. A requeued visit
   converges on the name its previous attempt used, and that attempt's CR may
   still be standing — its terminal event has already been consumed, so nothing
@@ -269,7 +269,7 @@ one dispatch mechanism, not a special case plus a remote case.
   issued at registration, like every other lore-api call the agent makes; a
   refused token (401 or 403) is reported as `unauthorized` rather than a bare
   error, so the loop can tell "re-register and retry" apart from every other
-  failure shape. ([validated by `claim.test.ts:50`](apps/lore-api/src/transport/routes/cluster-agents/claim.test.ts#L57), [`claim.test.ts:60`](apps/lore-api/src/transport/routes/cluster-agents/claim.test.ts#L69), [`claim.test.ts:69`](apps/lore-api/src/transport/routes/cluster-agents/claim.test.ts#L78), [`claim-loop.test.ts:121`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L122), [reports unauthorized on a 401](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L210), [`claim-loop.test.ts:188`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L216), [re-registers on unauthorized and keeps polling at the base interval](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L323))
+  failure shape. ([validated by `claim-loop.test.ts:121`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L122), [reports unauthorized on a 401](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L210), [`claim-loop.test.ts:188`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L216), [re-registers on unauthorized and keeps polling at the base interval](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L323))
 - A claim call that fails outright — a non-2xx refusal, an unparseable body, a
   rejected fetch — is never allowed to throw out of the loop; it comes back as
   an `error` outcome the loop logs and continues past, and a launch failure
@@ -277,7 +277,7 @@ one dispatch mechanism, not a special case plus a remote case.
 - A claim request with no matching queued run returns `204`. An idle agent
   backs its polling off (doubling to a 60 s ceiling, resetting on the first
   hit), so a fleet of quiet satellites costs the API a bounded trickle
-  rather than O(N) at the floor interval. ([validated by `claim.test.ts:78`](apps/lore-api/src/transport/routes/cluster-agents/claim.test.ts#L87), [`claim.test.ts:133`](apps/lore-api/src/transport/routes/cluster-agents/claim.test.ts#L167), [`claim-loop.test.ts:61`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L62), [`claim-loop.test.ts:65`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L66), [`claim-loop.test.ts:71`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L72), [`claim-loop.test.ts:79`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L80), [`claim-loop.test.ts:90`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L91), [`claim-loop.test.ts:135`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L136), [holds the base sleep on the first empty, doubles across consecutive ones, and drains straight through a hit](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L309))
+  rather than O(N) at the floor interval. ([validated by `claim-loop.test.ts:61`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L62), [`claim-loop.test.ts:65`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L66), [`claim-loop.test.ts:71`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L72), [`claim-loop.test.ts:79`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L80), [`claim-loop.test.ts:90`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L91), [`claim-loop.test.ts:135`](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L136), [holds the base sleep on the first empty, doubles across consecutive ones, and drains straight through a hit](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L309))
 - A claim that HITS does not sleep before the next poll. The queue has just
   proved it has work, and a fan-out enqueues many visits at once — at the base
   interval a cluster launched one pod every 15 seconds, so ten queued nodes took
@@ -347,7 +347,7 @@ against the central cluster-agent. A satellite's CRs are invisible to that
 pull, so recovery splits by who holds the claim:
 
 - A cluster-agent posts `POST /api/cluster-agents/{id}/heartbeat` every 30 s,
-  bumping `last_seen_at`. ([validated by `cluster-agents.test.ts:166`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L168), [`cluster-agents.test.ts:359`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L359), [`heartbeat.test.ts:22`](apps/lore-api/src/transport/routes/cluster-agents/heartbeat.test.ts#L22), [`heartbeat.test.ts:39`](apps/lore-api/src/transport/routes/cluster-agents/heartbeat.test.ts#L39), [`heartbeat-loop.test.ts:30`](apps/cluster-agent/src/events/claim/heartbeat-loop.test.ts#L30), [`heartbeat-loop.test.ts:34`](apps/cluster-agent/src/events/claim/heartbeat-loop.test.ts#L34), [`heartbeat-loop.test.ts:45`](apps/cluster-agent/src/events/claim/heartbeat-loop.test.ts#L45), [`heartbeat-loop.test.ts:87`](apps/cluster-agent/src/events/claim/heartbeat-loop.test.ts#L87), [`heartbeat-loop.test.ts:63`](apps/cluster-agent/src/events/claim/heartbeat-loop.test.ts#L63))
+  bumping `last_seen_at`. ([validated by `cluster-agents.test.ts:166`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L168), [`cluster-agents.test.ts:359`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L359), [`heartbeat-loop.test.ts:30`](apps/cluster-agent/src/events/claim/heartbeat-loop.test.ts#L30), [`heartbeat-loop.test.ts:34`](apps/cluster-agent/src/events/claim/heartbeat-loop.test.ts#L34), [`heartbeat-loop.test.ts:45`](apps/cluster-agent/src/events/claim/heartbeat-loop.test.ts#L45), [`heartbeat-loop.test.ts:87`](apps/cluster-agent/src/events/claim/heartbeat-loop.test.ts#L87), [`heartbeat-loop.test.ts:63`](apps/cluster-agent/src/events/claim/heartbeat-loop.test.ts#L63))
 - The assembly-run reaper (existing cadence) marks cluster-agents with
   `last_seen_at < now() - 5 minutes` as `offline` — ten missed heartbeats,
   so a transient network blip or one dropped request never requeues live
@@ -653,7 +653,7 @@ they are alive.
 
 - `GET /api/cluster-agents` lists registered agents with `name`, `tags`,
   `status`, `last_seen_at`, and the count of runs each is currently
-  executing. ([validated by `list.test.ts:51`](apps/lore-api/src/transport/routes/cluster-agents/list.test.ts#L51), [`list.test.ts:41`](apps/lore-api/src/transport/routes/cluster-agents/list.test.ts#L41), [`list.test.ts:88`](apps/lore-api/src/transport/routes/cluster-agents/list.test.ts#L88), [`assembly-runs.contract.test.ts:1175`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1175))
+  executing. ([validated by `assembly-runs.contract.test.ts:1175`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1175))
 - A web-ui page renders that list, marking offline agents and linking the
   running-claims count to the assembly-runs list filtered to that agent
   (`/assembly-runs?cluster_agent_id=…`, backed by the port's
@@ -680,17 +680,17 @@ nothing matches is a trick that loses the cluster's real tags.
   is fully alive, keeps heartbeating and finishes what it already claimed —
   it is only passed over when new work is handed out. Conflating them would
   make pausing a cluster look exactly like losing one, and the reaper would
-  pull its live work away. ([validated by `cluster-agents.test.ts:186`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L188), [`cluster-agents.test.ts:209`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L209), [`cluster-agents.test.ts:349`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L349), [`pause.test.ts:45`](apps/lore-api/src/transport/routes/cluster-agents/pause.test.ts#L45))
+  pull its live work away. ([validated by `cluster-agents.test.ts:186`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L188), [`cluster-agents.test.ts:209`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L209), [`cluster-agents.test.ts:349`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L349))
 - `PUT /api/cluster-agents/{id}/paused` flips it, scoped `write` — unlike its
   register/claim/heartbeat siblings this route serves the UI, and the cluster
-  being paused is precisely not the caller. Unknown id answers `404`. ([validated by `pause.test.ts:23`](apps/lore-api/src/transport/routes/cluster-agents/pause.test.ts#L23), [`pause.test.ts:35`](apps/lore-api/src/transport/routes/cluster-agents/pause.test.ts#L35), [`pause.test.ts:53`](apps/lore-api/src/transport/routes/cluster-agents/pause.test.ts#L53))
+  being paused is precisely not the caller. Unknown id answers `404`.
 - A paused agent's claim answers `204` — byte-identical to "nothing queued
   for you", so the switch needs no new client behaviour at all: the
   satellite's existing idle backoff simply keeps polling until an operator
   un-pauses it. The queued run is untouched and another cluster may take it.
   Enforced at the route, which already resolves the agent, rather than in the
   claim SQL: pausing is a fact about the cluster-agent, and the station-run
-  queue has no business knowing about the registry. ([validated by `claim.test.ts:90`](apps/lore-api/src/transport/routes/cluster-agents/claim.test.ts#L99))
+  queue has no business knowing about the registry.
 - The Clusters page carries the switch as a per-row toggle, and shows
   `paused` as a badge beside liveness rather than instead of it. Each row's
   button takes the agent id as a BOUND parameter of the server action, never
@@ -719,7 +719,6 @@ it a Kubernetes client, which ADR-024 deliberately withholds.
   satellite's cluster-agent has no inbound path from lore-api at all. Any
   other registered id is refused `400` before an attempt that would just hang
   or connection-refuse; an unknown id answers `404`.
-  ([validated by `restart.test.ts:23`](apps/lore-api/src/transport/routes/cluster-agents/restart.test.ts#L23), [`restart.test.ts:39`](apps/lore-api/src/transport/routes/cluster-agents/restart.test.ts#L39), [`restart.test.ts:52`](apps/lore-api/src/transport/routes/cluster-agents/restart.test.ts#L52))
 - The Clusters page renders a Restart button only on the row named `central`
   — the one row lore-api can actually reach — bound to that row's agent id
   the same way the Pause button is (never an inline closure over a server
@@ -820,19 +819,19 @@ config flag.
   exercised together against a migrated Postgres — an agent presenting the
   registration token is registered and can then claim with the per-agent token
   it was minted, while a wrong registration token and another agent's per-agent
-  token are both refused. ([validated by refuses registration without the pre-shared token](apps/lore-api/src/integration-tests/cluster-agent-claim.test.ts#L234), [`cluster-agent-claim.test.ts:217`](apps/lore-api/src/integration-tests/cluster-agent-claim.test.ts#L221), [`cluster-agent-claim.test.ts:118`](apps/lore-api/src/integration-tests/cluster-agent-claim.test.ts#L122))
+  token are both refused.
 - FR2: a run requiring `gpu` is never handed to an agent without it; a run
   with empty `required_tags` is claimable by any agent. Asserted against the
   real `required_tags <@ tags` containment as well as the in-memory double,
   because that operator reads correctly in either direction and is wrong in
-  one of them. ([validated by does not hand a run to an agent missing one of its required tags](apps/lore-api/src/integration-tests/cluster-agent-claim.test.ts#L174))
+  one of them.
 - FR3: two agents claiming concurrently never receive the same run; a
   human-station or service-node row is never returned by a claim; the
   minikube acceptance walk ends with a PR authored from a locally executed
   station run. A queued row that has not been armed yet is likewise never
   handed out — the walk writes the row and its dispatch spec in two
   statements, and a claim between them would consume a visit with nothing to
-  launch. ([validated by never hands one visit to two clusters](apps/lore-api/src/integration-tests/cluster-agent-claim.test.ts#L245), [`cluster-agent-claim.test.ts:197`](apps/lore-api/src/integration-tests/cluster-agent-claim.test.ts#L201), [`cluster-agent-claim.test.ts:141`](apps/lore-api/src/integration-tests/cluster-agent-claim.test.ts#L145))
+  launch.
 - FR3 (single-CR): a task type with no assembly line takes the same path. The
   round trip is walked cluster-free through the production functions of all
   three processes — the Floor's launch seam, the claim, the CR the claiming

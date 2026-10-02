@@ -12,11 +12,8 @@ import type {
 
 const OPEN_STATUSES: readonly string[] = ["queued", "running"];
 
-/** One floor list per line and open/finished half the query asks for, plus the lists a task's run may be in under another key; none when the floor holds nothing the query could match (it knows no cluster-agent claim). */
+/** One floor list per line and open/finished half the query asks for, plus the lists a task's run may be in under another key. */
 export function floorRunFilters(query: AssemblyRunQuery): RunFilter[] {
-  if (query.clusterAgentId !== undefined) {
-    return [];
-  }
   const subject = subjectAsked(query);
   const repo =
     query.repo === undefined ? {} : { repo: floorRepoOf(query.repo) };

@@ -97,18 +97,6 @@ const loreOnly: SpendWindow = {
       { blueprint: "implementation-loop", pods: 9, hours: 6.5, est_usd: 0.22 },
     ],
     est_total_usd: 0.22,
-    live_pods: [
-      {
-        name: "agent-job-run1-tdd-round-abc",
-        phase: "Running",
-        started_at: "2026-09-02T11:00:00.000Z",
-        requests: { cpu: "1", memory: "16Gi" },
-        usd_per_hour: 0.07,
-        usd_so_far: 0.07,
-        station_run_id: "sr-1",
-      },
-    ],
-    live_usd_per_hour: 0.07,
   },
   unit_costs: {
     tickets: NO_UNITS,
@@ -181,8 +169,6 @@ const empty: SpendWindow = {
     ...loreOnly.compute,
     pod_hours: [],
     est_total_usd: 0,
-    live_pods: [],
-    live_usd_per_hour: 0,
   },
 };
 

@@ -37,8 +37,6 @@ const RunsQuery = z.object({
   blueprint: z.string().max(200).optional(),
   // A task-centric caller (planning wizard) knows only its task id; draws the newest attempt since a retry mints a fresh row.
   task_id: z.string().max(100).optional(),
-  // Runs with an open station-run claimed by this cluster-agent — the registered-clusters running-claims drill-down (FR7).
-  cluster_agent_id: z.string().uuid().optional(),
   // Browse by SUBJECT across blueprints, so a reader can find "the run for this feature" without resolving via task id + blueprint name (which hid a finalize run from its own page).
   subject_key: z.string().max(200).optional(),
   limit: clampedLimit.default(50),
@@ -159,7 +157,6 @@ async function selectRuns(
     blueprintName: query.blueprint,
     status: query.status ? [query.status as AssemblyRunStatus] : undefined,
     subjectKey: query.subject_key,
-    clusterAgentId: query.cluster_agent_id,
     limit: query.limit,
   });
 }
