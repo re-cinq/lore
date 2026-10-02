@@ -44,7 +44,10 @@ export {
   extractKeyTerms,
   dropSeen,
 } from "./context-assembly-items.js";
-export { hybridChunkItems } from "./context-assembly-chunk-search.js";
+export {
+  hybridChunkItems,
+  hybridChunkSearch,
+} from "./context-assembly-chunk-search.js";
 export { formatCouplingItems } from "./context-assembly-coupling.js";
 export type { FetchStatus, FetchResult, TraceSection, AssemblyTrace };
 

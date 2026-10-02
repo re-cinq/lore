@@ -1,5 +1,6 @@
 import { getQueryEmbedding } from "../../embeddings/embedding-service.js";
 import type { PgPool } from "../../memory-store.js";
+import { runInTransaction } from "../../db/pg-transaction.js";
 import { resolveChunkSchemaForRepo } from "../chunks/chunk-schema.js";
 import type { SourceItem } from "./context-assembly-format.js";
 import { stripCoverageLinks } from "../../../domain/spec-link-strip.js";
@@ -23,6 +24,7 @@ export interface ChunkSearchHit {
   score?: number | string | null;
   repo?: string;
   content_hash?: string | null;
+  vec_rows?: number | string | null;
 }
 
 // The hash travels with the hit so two paths holding one body (a file and its copied twin) collapse to one document.
@@ -44,12 +46,26 @@ interface ChunkQuery {
   limit: number;
 }
 
+export interface ChunkSearchResult {
+  items: SourceItem[];
+  vectorLegRows?: number;
+}
+
 export async function hybridChunkItems(
   pool: PgPool,
   query: string,
   repo: string,
-  { contentTypes, limit }: { contentTypes: string[]; limit: number },
+  options: { contentTypes: string[]; limit: number },
 ): Promise<SourceItem[]> {
+  return (await hybridChunkSearch(pool, query, repo, options)).items;
+}
+
+export async function hybridChunkSearch(
+  pool: PgPool,
+  query: string,
+  repo: string,
+  { contentTypes, limit }: { contentTypes: string[]; limit: number },
+): Promise<ChunkSearchResult> {
   const [embedding, schema] = await Promise.all([
     getQueryEmbedding(query),
     resolveChunkSchemaForRepo(pool, repo),
@@ -60,7 +76,7 @@ export async function hybridChunkItems(
 
   return embedding
     ? hybridRankedItems(pool, schema, embedding, chunkQuery)
-    : keywordRankedItems(pool, schema, chunkQuery);
+    : { items: await keywordRankedItems(pool, schema, chunkQuery) };
 }
 
 async function hybridRankedItems(
@@ -68,17 +84,48 @@ async function hybridRankedItems(
   schema: string,
   embedding: number[],
   chunkQuery: ChunkQuery,
-): Promise<SourceItem[]> {
-  const { rows } = await pool.query<ChunkSearchHit>(hybridSql(schema), [
-    chunkQuery.repo,
-    `[${embedding.join(",")}]`,
-    chunkQuery.contentTypes,
-    chunkQuery.keywordQuery,
-    chunkQuery.limit,
-  ]);
+): Promise<ChunkSearchResult> {
+  const rows = await runHybridQuery(pool, schema, embedding, chunkQuery);
 
-  return toItems(rows, chunkQuery.contentTypes);
+  return {
+    items: toItems(rows, chunkQuery.contentTypes),
+    vectorLegRows: Number(rows[0]?.vec_rows ?? 0),
+  };
 }
+
+function runHybridQuery(
+  pool: PgPool,
+  schema: string,
+  embedding: number[],
+  chunkQuery: ChunkQuery,
+): Promise<ChunkSearchHit[]> {
+  return runInTransaction(pool, async (tx) => {
+    if (tx !== pool) {
+      await tx.query(VECTOR_SCAN_SETTINGS_SQL);
+    }
+
+    const { rows } = await tx.query<ChunkSearchHit>(hybridSql(schema), [
+      chunkQuery.repo,
+      `[${embedding.join(",")}]`,
+      chunkQuery.contentTypes,
+      chunkQuery.keywordQuery,
+      chunkQuery.limit,
+    ]);
+
+    return rows;
+  });
+}
+
+const HNSW_EF_SEARCH = 200;
+
+const VECTOR_SCAN_SETTINGS_SQL = `SELECT set_config('hnsw.ef_search', '${HNSW_EF_SEARCH}', true),
+       CASE WHEN EXISTS (
+              SELECT 1 FROM pg_extension
+              WHERE extname = 'vector'
+                AND string_to_array(extversion, '.')::int[] >= ARRAY[0, 8]
+            )
+            THEN set_config('hnsw.iterative_scan', 'relaxed_order', true)
+       END`;
 
 /** Reciprocal Rank Fusion over the two legs, joined FULL OUTER so a chunk that only one leg finds still scores. The 60 is RRF's usual damping: it stops a single leg's top hit from dominating a chunk both legs rank moderately. */
 function hybridSql(schema: string): string {
@@ -88,7 +135,8 @@ function hybridSql(schema: string): string {
               COALESCE(v.content_type, k.content_type) AS content_type,
               COALESCE(v.ingested_at, k.ingested_at) AS ingested_at,
               COALESCE(v.content_hash, k.content_hash) AS content_hash,
-              (COALESCE(1.0 / (60 + v.r), 0) + COALESCE(1.0 / (60 + k.r), 0)) AS score
+              (COALESCE(1.0 / (60 + v.r), 0) + COALESCE(1.0 / (60 + k.r), 0)) AS score,
+              (SELECT COUNT(*) FROM vec) AS vec_rows
        FROM vec v FULL OUTER JOIN kw k ON v.id = k.id
        ORDER BY score DESC LIMIT $5`;
 }
@@ -98,9 +146,12 @@ function hybridLegsSql(schema: string): string {
   return `WITH vec AS (
          SELECT id, ${HIT_COLUMNS},
                 ROW_NUMBER() OVER (ORDER BY embedding <=> $2::vector) AS r
-         FROM ${schema}.chunks
-         WHERE repo = $1 AND content_type = ANY($3) AND embedding IS NOT NULL
-         LIMIT 20
+         FROM (
+           SELECT * FROM ${schema}.chunks
+           WHERE repo = $1 AND content_type = ANY($3) AND embedding IS NOT NULL
+           ORDER BY embedding <=> $2::vector
+           LIMIT 20
+         ) nearest
        ),
        kw AS (
          SELECT id, ${HIT_COLUMNS},

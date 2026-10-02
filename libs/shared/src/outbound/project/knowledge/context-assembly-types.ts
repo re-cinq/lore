@@ -7,6 +7,7 @@ export type FetchStatus = "ok" | "empty" | "error" | "no-match" | "disabled";
 export interface FetchResult {
   sources: SourceItem[];
   status: FetchStatus;
+  vectorLegRows?: number;
 }
 
 export interface TraceSection {
@@ -20,5 +21,6 @@ export interface TraceSection {
   truncated: boolean;
   included: boolean;
   omitReason?: string;
+  vectorLegRows?: number;
   items: SourceItem[];
 }

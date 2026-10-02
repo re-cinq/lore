@@ -93,20 +93,20 @@ section's budget on whatever was worst rather than on whatever was asked about.
 A statement now scores `signal x share-of-query-terms-it-mentions` and is
 dropped at zero, so an unrelated question gets an empty section rather than
 somebody else's violations.
-([validated by `formats each statement with its signal, ADRs, and tests; violated outscores untested`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L46), [`keeps the auto-merge statement and drops the station one for 'auto-merge squash policy'`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L62), [`returns nothing when no statement shares a term with the query`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L99))
+([validated by `formats each statement with its signal, ADRs, and tests; violated outscores untested`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L47), [`keeps the auto-merge statement and drops the station one for 'auto-merge squash policy'`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L63), [`returns nothing when no statement shares a term with the query`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L100))
 
 The `coupling` source is **fail-soft**: it returns `disabled` (no items) when no
 graph client is wired (`LORE_DGRAPH_HTTP` unset), so the rest of assembly is
 unaffected.
-([validated by `returns disabled when no graph client is wired`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L116))
+([validated by `returns disabled when no graph client is wired`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L117))
 
 When a graph client is present, the source reads the repo's coupled statements
 and projects them into items.
-([validated by `projects coupled statements from the graph into sources`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L123))
+([validated by `projects coupled statements from the graph into sources`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L124))
 
 An empty `GraphContextBlock` projects to an empty item list, contributing nothing
 to the assembly.
-([validated by `returns an empty list for an empty block`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L105))
+([validated by `returns an empty list for an empty block`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L106))
 
 The `coupling` source is wired into the `implementation` and `review` templates;
 the `/api/context` handler constructs the (possibly-null) Dgraph client via

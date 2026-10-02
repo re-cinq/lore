@@ -260,6 +260,13 @@ function buildTraceSection(outcome: SectionFitOutcome): TraceSection {
     truncated: fit.truncated,
     included: fit.included,
     omitReason: fit.omitReason,
+    ...vectorLegTrace(res),
     items: fit.included ? fit.keptItems : deduped,
   };
+}
+
+function vectorLegTrace(res: FetchResult): Pick<TraceSection, "vectorLegRows"> {
+  return res.vectorLegRows === undefined
+    ? {}
+    : { vectorLegRows: res.vectorLegRows };
 }
