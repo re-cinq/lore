@@ -280,7 +280,7 @@ The tool retrieves from all available sources:
   streak. Three failures in a row is *degraded*. A degraded embedder prepends a
   keyword-only warning to the assembled block — the agent reading it should
   know semantic matches and memory search are missing — and the debug trace
-  carries `embedderDegraded`. ([validated by `reports consecutiveFailures 2 and lastStatus 403 after two 403 responses`](libs/shared/src/outbound/embeddings/embedding-service.test.ts#L62), [`embedding-service.test.ts:98`](libs/shared/src/outbound/embeddings/embedding-service.test.ts#L76), [`embedding-service.test.ts:119`](libs/shared/src/outbound/embeddings/embedding-service.test.ts#L97), [`context-freshness.test.ts:7`](libs/shared/src/outbound/project/knowledge/context-freshness.test.ts#L7), [`context-freshness.test.ts:20`](libs/shared/src/outbound/project/knowledge/context-freshness.test.ts#L20))
+  carries `embedderDegraded`. ([validated by `reports consecutiveFailures 2 and lastStatus 403 after two 403 responses`](libs/shared/src/outbound/embeddings/embedding-service.test.ts#L55), [`embedding-service.test.ts:98`](libs/shared/src/outbound/embeddings/embedding-service.test.ts#L69), [`embedding-service.test.ts:119`](libs/shared/src/outbound/embeddings/embedding-service.test.ts#L90), [`context-freshness.test.ts:7`](libs/shared/src/outbound/project/knowledge/context-freshness.test.ts#L7), [`context-freshness.test.ts:20`](libs/shared/src/outbound/project/knowledge/context-freshness.test.ts#L20))
 
 ## Scope Boundaries
 

@@ -195,7 +195,7 @@ async function rankedHits(
   return normalizeMemoryScores(diversify(weightByConfidence(merged), limit));
 }
 
-/** Attempts a query embedding from Vertex AI; unavailable embedding yields no vector hits (keyword search still runs). */
+/** Attempts a query embedding; an unavailable embedding yields no vector hits (keyword search still runs). */
 async function vectorSearchBoth(
   pool: PgPool,
   query: string,
