@@ -87,7 +87,3 @@ resource "kubernetes_namespace" "lore_event_router" {
 resource "kubernetes_namespace" "lore_stations" {
   metadata { name = "lore-stations" }
 }
-
-resource "kubernetes_namespace" "lore_cluster_agent" {
-  metadata { name = "lore-cluster-agent" }
-}
