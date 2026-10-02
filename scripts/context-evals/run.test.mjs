@@ -61,7 +61,7 @@ test("passes re-cinq/lore when all 3 documents are found and answered", async ()
     { passed: outcome.passed, stats: outcome.stats },
     {
       passed: true,
-      stats: { total: 3, found: 3, answered: 3, both: 3, usefulShare: 0.5 },
+      stats: { total: 3, found: 3, answered: 3, usefulShare: 0.5 },
     },
   );
 });
@@ -89,20 +89,72 @@ test("lists the repository's documents and posts each one with the bearer token"
   ]);
 });
 
-test("fails the repository when 8 of 10 documents pass and the bar is 0.85", async () => {
-  const documents = Array.from({ length: 10 }, (_, index) => ADR(index + 1));
+const tenWith = (unanswered) =>
+  loreApi({
+    documents: Array.from({ length: 10 }, (_, index) => ADR(index + 1)),
+    verdicts: Object.fromEntries(
+      unanswered.map((n) => [ADR(n), verdict(ADR(n), { answered: false })]),
+    ),
+  });
+
+test("fails the repository when 8 of 10 documents are answered and the bar is 0.85", async () => {
+  const outcome = await run(tenWith([1, 2]));
+
+  assert.deepEqual(
+    { passed: outcome.passed, answered: outcome.stats.answered },
+    { passed: false, answered: 8 },
+  );
+});
+
+test("passes the repository when 9 of 10 documents are answered: one miss is allowed whatever the size", async () => {
+  const outcome = await run(tenWith([1]));
+
+  assert.equal(outcome.passed, true);
+});
+
+test("passes a repository of 4 documents with 3 answered, and fails it with 2", async () => {
+  const four = (unanswered) =>
+    loreApi({
+      documents: [ADR(1), ADR(2), ADR(3), ADR(4)],
+      verdicts: Object.fromEntries(
+        unanswered.map((n) => [ADR(n), verdict(ADR(n), { answered: false })]),
+      ),
+    });
+
+  assert.deepEqual(
+    [(await run(four([1]))).passed, (await run(four([1, 2]))).passed],
+    [true, false],
+  );
+});
+
+test("passes 17 of 20 answered at the bar of 0.85 and fails 16 of 20", async () => {
+  const twenty = (misses) =>
+    loreApi({
+      documents: Array.from({ length: 20 }, (_, index) => ADR(index + 1)),
+      verdicts: Object.fromEntries(
+        Array.from({ length: misses }, (_, index) => [
+          ADR(index + 1),
+          verdict(ADR(index + 1), { answered: false }),
+        ]),
+      ),
+    });
+
+  assert.deepEqual(
+    [(await run(twenty(3))).passed, (await run(twenty(4))).passed],
+    [true, false],
+  );
+});
+
+test("does not fail a repository for a document that was answered from other documents without being found", async () => {
   const api = loreApi({
-    documents,
-    verdicts: {
-      [ADR(1)]: verdict(ADR(1), { found: false, answered: false }),
-      [ADR(2)]: verdict(ADR(2), { answered: false }),
-    },
+    documents: [ADR(1), ADR(2)],
+    verdicts: { [ADR(1)]: verdict(ADR(1), { found: false }) },
   });
   const outcome = await run(api);
 
   assert.deepEqual(
-    { passed: outcome.passed, both: outcome.stats.both },
-    { passed: false, both: 8 },
+    { passed: outcome.passed, found: outcome.stats.found },
+    { passed: true, found: 1 },
   );
 });
 
@@ -146,7 +198,7 @@ test("asks lore-api a second time when the first answer for a document is a 503"
   };
   const outcome = await run(api, { fetchFn: flaky });
 
-  assert.equal(outcome.stats.both, 1);
+  assert.equal(outcome.stats.answered, 1);
 });
 
 test("evaluates only adrs/ADR-7.md when the run names that document, without listing or sampling", async () => {
@@ -176,20 +228,21 @@ test("refuses to run without LORE_API_URL, naming it", async () => {
   );
 });
 
-test("summarizes 2 results as found 1, answered 1, both 1 and a mean useful share of 0.4", () => {
+test("summarizes 2 results as found 1, answered 1 and a mean useful share of 0.4", () => {
   assert.deepEqual(
     summarize([
       verdict(ADR(1), { useful_share: 0.6 }),
       verdict(ADR(2), { found: false, answered: false, useful_share: 0.2 }),
     ]),
-    { total: 2, found: 1, answered: 1, both: 1, usefulShare: 0.4 },
+    { total: 2, found: 1, answered: 1, usefulShare: 0.4 },
   );
 });
 
-test("renders the repository's row and lists only the failing document with its question and reason", () => {
+test("renders the repository's row and lists the unanswered and the unfound documents, not the clean one", () => {
   const results = [
     verdict(ADR(1)),
     verdict(ADR(2), { answered: false, reason: "Contradicts the ADR." }),
+    verdict(ADR(3), { found: false }),
   ];
   const markdown = renderSummary("re-cinq/lore", results, 0.85);
 
@@ -198,10 +251,11 @@ test("renders the repository's row and lists only the failing document with its 
     [
       "| Repository | Found | Answered | Useful share | Verdict |",
       "| --- | --- | --- | --- | --- |",
-      "| re-cinq/lore | 2 / 2 | 1 / 2 | 50% | **fail** |",
+      "| re-cinq/lore | 2 / 3 | 2 / 3 | 50% | pass |",
       "| Document | Question | Found | Answered | Useful | Why |",
       "| --- | --- | --- | --- | --- | --- |",
       "| adrs/ADR-2.md | What does adrs/ADR-2.md decide? | yes | no | 50% | Contradicts the ADR. |",
+      "| adrs/ADR-3.md | What does adrs/ADR-3.md decide? | no | yes | 50% | Agrees with the document. |",
     ],
   );
 });

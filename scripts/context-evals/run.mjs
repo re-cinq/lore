@@ -1,4 +1,4 @@
-// One repository's nightly context eval (specs/context-evals): pick tonight's documents, have lore-api evaluate each, write the summary, and fail when too few were both found and answered.
+// One repository's nightly context eval (specs/context-evals): pick tonight's documents, have lore-api evaluate each, write the summary, and fail when too few could be answered from what Lore returned.
 
 import { appendFileSync } from "node:fs";
 import { parseArgs } from "node:util";
@@ -74,7 +74,6 @@ export function summarize(results) {
     total: results.length,
     found: count((result) => result.found),
     answered: count((result) => result.answered),
-    both: count(passed),
     usefulShare:
       results.length === 0
         ? 0
@@ -82,12 +81,13 @@ export function summarize(results) {
   };
 }
 
-function passed(result) {
-  return result.found && result.answered;
+/** A repository passes on what could be answered: a question answered correctly from other documents is Lore doing its job, so "found" is reported and gates nothing. One miss is always allowed, or a repository of four documents would turn red on a single one. */
+function passes(stats, threshold) {
+  return stats.total - stats.answered <= allowedMisses(stats.total, threshold);
 }
 
-function passes(stats, threshold) {
-  return stats.total === 0 || stats.both / stats.total >= threshold;
+function allowedMisses(total, threshold) {
+  return Math.max(1, Math.floor(total * (1 - threshold) + 1e-9));
 }
 
 export function renderSummary(repo, results, threshold) {
@@ -96,7 +96,7 @@ export function renderSummary(repo, results, threshold) {
   }
   const stats = summarize(results);
   const verdict = passes(stats, threshold) ? "pass" : "**fail**";
-  const failed = results.filter((result) => !passed(result));
+  const failed = results.filter((result) => !(result.found && result.answered));
 
   return [
     `## Context evals: ${repo}`,
@@ -115,7 +115,7 @@ function failedTable(failed) {
   }
 
   return [
-    "### Documents that failed",
+    "### Documents not answered, or answered without being found",
     "",
     "| Document | Question | Found | Answered | Useful | Why |",
     "| --- | --- | --- | --- | --- | --- |",
@@ -161,7 +161,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
 
   if (!outcome.passed) {
     console.error(
-      `::error::${values.repo}: ${outcome.stats.both} of ${outcome.stats.total} documents were found and answered, below the bar of ${values.threshold}`,
+      `::error::${values.repo}: ${outcome.stats.answered} of ${outcome.stats.total} questions could be answered from what Lore returned, below the bar of ${values.threshold}`,
     );
     process.exitCode = 1;
   }

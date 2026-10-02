@@ -5726,6 +5726,7 @@ export interface operations {
         "application/json": {
           repo: string;
           path: string;
+          question?: string;
         };
       };
     };
