@@ -6392,7 +6392,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The tail of one GitHub Actions job's log, timestamps stripped, optionally filtered to lines containing grep */
+      /** @description The tail of one GitHub Actions job's log, timestamps stripped. With grep, only the lines containing it are kept and the tail is taken from those */
       200: {
         headers: {
           [name: string]: unknown;

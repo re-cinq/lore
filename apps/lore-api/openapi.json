@@ -3989,7 +3989,7 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "The tail of one GitHub Actions job's log, timestamps stripped, optionally filtered to lines containing grep",
+            "description": "The tail of one GitHub Actions job's log, timestamps stripped. With grep, only the lines containing it are kept and the tail is taken from those",
             "content": {
               "application/json": {
                 "schema": {
