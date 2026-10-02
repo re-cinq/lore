@@ -36,16 +36,7 @@ export function dedupeItems(sources: SourceItem[]): SourceItem[] {
 }
 
 function mergeChunksByPath(sources: SourceItem[]): SourceItem[] {
-  const chunksOf = new Map<string, SourceItem[]>();
-
-  for (const it of sources) {
-    if (it.source_path) {
-      chunksOf.set(it.source_path, [
-        ...(chunksOf.get(it.source_path) ?? []),
-        it,
-      ]);
-    }
-  }
+  const chunksOf = chunksByPath(sources);
   const emitted = new Set<string>();
 
   return sources.flatMap((it) => {
@@ -60,6 +51,20 @@ function mergeChunksByPath(sources: SourceItem[]): SourceItem[] {
 
     return [mergedDocument(chunksOf.get(it.source_path) ?? [it])];
   });
+}
+
+function chunksByPath(sources: SourceItem[]): Map<string, SourceItem[]> {
+  const chunksOf = new Map<string, SourceItem[]>();
+
+  for (const it of sources.filter((keyed) => keyed.source_path)) {
+    const path = it.source_path as string;
+    const chunks = chunksOf.get(path) ?? [];
+
+    chunks.push(it);
+    chunksOf.set(path, chunks);
+  }
+
+  return chunksOf;
 }
 
 /** The best chunks of one document as one item: the best chunk's provenance, the texts joined best first so a cap cuts the least relevant. */

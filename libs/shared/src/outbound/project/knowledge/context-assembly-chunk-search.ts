@@ -99,14 +99,14 @@ function hybridSql(schema: string): string {
        ORDER BY score DESC LIMIT $5`;
 }
 
-/** The two independent ranking legs — nearest-neighbour and keyword — as CTEs, each capped at 20 candidates before fusion. */
+/** The two independent ranking legs — nearest-neighbour and keyword — as CTEs, each capped before fusion at 20 candidates, or at as many as the fusion is asked for when that is more, so one leg alone can fill the result. */
 function hybridLegsSql(schema: string): string {
   return `WITH vec AS (
          SELECT id, ${HIT_COLUMNS}, ${SIMILARITY},
                 ROW_NUMBER() OVER (ORDER BY embedding <=> $2::vector) AS r
          FROM ${schema}.chunks
          WHERE repo = $1 AND content_type = ANY($3) AND embedding IS NOT NULL
-         LIMIT 20
+         LIMIT GREATEST(20, $5)
        ),
        kw AS (
          SELECT id, ${HIT_COLUMNS}, ${SIMILARITY},
@@ -114,7 +114,7 @@ function hybridLegsSql(schema: string): string {
          FROM ${schema}.chunks
          WHERE repo = $1 AND content_type = ANY($3)
            AND search_tsv @@ websearch_to_tsquery('english', $4)
-         LIMIT 20
+         LIMIT GREATEST(20, $5)
        )`;
 }
 

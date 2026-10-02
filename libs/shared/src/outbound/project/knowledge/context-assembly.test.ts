@@ -478,6 +478,7 @@ describe("hybridChunkItems", () => {
     });
 
     expect(calls[1].params?.at(-1)).toBe(15);
+    expect(calls[1].text.split("LIMIT GREATEST(20, $5)").length - 1).toBe(2);
   });
 
   it("leaves similarity off an item the keyword-only fallback found", async () => {
