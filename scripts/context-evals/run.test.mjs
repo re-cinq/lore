@@ -45,6 +45,7 @@ function loreApi({ documents, verdicts = {}, failing = {} }) {
 const run = (api, over = {}) =>
   runEval({
     env: ENV,
+    pause: async () => {},
     fetchFn: api.fetchFn,
     repo: "re-cinq/lore",
     date: "2026-10-02",
@@ -220,6 +221,85 @@ test("evaluates only adrs/ADR-7.md when the run names that document, without lis
     [["POST", ADR(7)]],
   );
   assert.equal(outcome.stats.total, 1);
+});
+
+const dropping = (api, times) => {
+  let dropped = 0;
+
+  return async (url, init) => {
+    if (init?.method === "POST" && dropped++ < times) {
+      throw new TypeError("fetch failed", {
+        cause: new Error("read ECONNRESET"),
+      });
+    }
+
+    return api.fetchFn(url, init);
+  };
+};
+
+test("asks again after a dropped connection and still grades the document", async () => {
+  const api = loreApi({ documents: [ADR(1)] });
+  const outcome = await run(api, { fetchFn: dropping(api, 2) });
+
+  assert.equal(outcome.stats.answered, 1);
+});
+
+test("counts a document as not answered, with the reason, when the connection drops on every try, and goes on to the next", async () => {
+  const api = loreApi({ documents: [ADR(1), ADR(2)] });
+  const failing = async (url, init) => {
+    if (init?.method === "POST" && JSON.parse(init.body).path === ADR(1)) {
+      throw new TypeError("fetch failed", {
+        cause: new Error("read ECONNRESET"),
+      });
+    }
+
+    return api.fetchFn(url, init);
+  };
+  const outcome = await run(api, { fetchFn: failing });
+
+  assert.deepEqual(
+    outcome.results.map((result) => [
+      result.path,
+      result.answered,
+      result.reason,
+    ]),
+    [
+      [
+        ADR(1),
+        false,
+        "could not reach lore-api: fetch failed (read ECONNRESET)",
+      ],
+      [ADR(2), true, "Agrees with the document."],
+    ],
+  );
+});
+
+test("asks for the document list again after a dropped connection", async () => {
+  const api = loreApi({ documents: [ADR(1)] });
+  let dropped = false;
+  const flaky = async (url, init) => {
+    if (!init?.method && !dropped) {
+      dropped = true;
+      throw new TypeError("fetch failed");
+    }
+
+    return api.fetchFn(url, init);
+  };
+  const outcome = await run(api, { fetchFn: flaky });
+
+  assert.equal(outcome.stats.total, 1);
+});
+
+test("waits 5, then 15 seconds between its three tries", async () => {
+  const api = loreApi({ documents: [ADR(1)] });
+  const waits = [];
+
+  await run(api, {
+    fetchFn: dropping(api, 2),
+    pause: async (ms) => waits.push(ms),
+  });
+
+  assert.deepEqual(waits, [5000, 15000]);
 });
 
 test("refuses to run without LORE_INGEST_TOKEN, naming it", async () => {
