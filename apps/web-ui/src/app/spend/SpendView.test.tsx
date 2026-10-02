@@ -198,7 +198,6 @@ describe("SpendView", () => {
       "Cost by Repo",
       "Cost by Task Type",
       "Cost by Cluster",
-      "Pods Running Now",
       "Pod-Hours in Interval",
     ]) {
       expect(
@@ -237,21 +236,15 @@ describe("SpendView", () => {
     }).toEqual({ read: num(4200000), write: num(180000) });
   });
 
-  it("renders the Kubernetes estimate card with the live burn rate", () => {
+  it("renders the Kubernetes estimate card", () => {
     render(<SpendView spend={loreOnly} />);
     expect(screen.getByText("Kubernetes (estimated)")).toBeInTheDocument();
-    expect(
-      screen.getByText(`+ ${usd(0.07)}/h burning now`),
-    ).toBeInTheDocument();
   });
 
-  it("renders the assembly-line, live-pod and pod-hours breakdowns with the rate note", () => {
+  it("renders the assembly-line and pod-hours breakdowns with the rate note", () => {
     render(<SpendView spend={loreOnly} />);
     expect(
       within(tableByHeading("LLM by Assembly Line")).getByText(usd(27.47)),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("agent-job-run1-tdd-round-abc"),
     ).toBeInTheDocument();
     expect(screen.getAllByText("implementation-loop")).toHaveLength(2);
     expect(
@@ -309,13 +302,6 @@ describe("SpendView", () => {
     expect(
       screen.queryByRole("heading", { name: "GCP Daily Billed" }),
     ).not.toBeInTheDocument();
-  });
-
-  it("says so when no run pods are live", () => {
-    render(<SpendView spend={empty} />);
-    expect(
-      screen.getByText("No run pods are live right now."),
-    ).toBeInTheDocument();
   });
 
   it("renders cost-by-model rows, including the (non-token) fallback label", () => {

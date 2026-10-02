@@ -3,17 +3,12 @@ import { describe, it, expect, vi } from "vitest";
 import { render } from "@testing-library/react";
 import AgentList from "./AgentList";
 import type { AgentDefinition } from "@/lib/agents-mirror";
-import type {
-  AgentApplyStatus,
-  AgentUsage,
-  AgentUsageRef,
-} from "@/lib/agents-api";
+import type { AgentUsage, AgentUsageRef } from "@/lib/agents-api";
 
 const base = "/repos/re-cinq/lore";
-const usageOf = (
-  refs: Record<string, AgentUsageRef[]>,
-  applied: Record<string, AgentApplyStatus[]> = {},
-): AgentUsage => ({ refs, applied });
+const usageOf = (refs: Record<string, AgentUsageRef[]>): AgentUsage => ({
+  refs,
+});
 const org: AgentDefinition = {
   name: "general",
   model: "claude-sonnet-4-6",
@@ -28,7 +23,7 @@ const org: AgentDefinition = {
 const project: AgentDefinition = { ...org, name: "review", project_id: "p1" };
 
 describe("AgentList", () => {
-  it("renders one table row per definition under the Name/Scope/Model/Timeout/Mode/Used by/Rollout columns", () => {
+  it("renders one table row per definition under the Name/Scope/Model/Timeout/Mode/Used by columns", () => {
     const { container } = render(
       <AgentList base={base} agents={[org, project]} />,
     );
@@ -43,7 +38,6 @@ describe("AgentList", () => {
       "Timeout",
       "Mode",
       "Used by",
-      "Rollout",
       "",
     ]);
     expect(container.querySelectorAll("tbody tr")).toHaveLength(2);
@@ -237,95 +231,5 @@ describe("AgentList", () => {
     );
 
     expect(getByTestId("mode-def-validate").textContent).toEqual("station");
-  });
-});
-
-describe("the Rollout column", () => {
-  const verdict = (over: Partial<AgentApplyStatus> = {}): AgentApplyStatus => ({
-    name: "general",
-    project_id: null,
-    cluster: "central",
-    state: "applied",
-    reason: null,
-    ...over,
-  });
-
-  it("names the cluster and the reason when one refused, so a refusal is not just a count", () => {
-    const { getByTestId } = render(
-      <AgentList
-        base={base}
-        agents={[org]}
-        usage={usageOf(
-          {},
-          {
-            general: [
-              verdict(),
-              verdict({
-                cluster: "satellite-1",
-                state: "refused",
-                reason: "no anthropic credential",
-              }),
-            ],
-          },
-        )}
-      />,
-    );
-
-    expect(getByTestId("rollout-general").textContent).toEqual(
-      "satellite-1: refused — no anthropic credential",
-    );
-  });
-
-  it("summarises the all-applied case by cluster count", () => {
-    const { getByTestId } = render(
-      <AgentList
-        base={base}
-        agents={[org]}
-        usage={usageOf({}, { general: [verdict(), verdict({ cluster: "b" })] })}
-      />,
-    );
-
-    expect(getByTestId("rollout-general").textContent).toEqual(
-      "applied · 2 cluster(s)",
-    );
-  });
-
-  it("says NOT REPORTED rather than claiming success when no cluster has answered", () => {
-    const { getByTestId } = render(
-      <AgentList base={base} agents={[org]} usage={usageOf({}, {})} />,
-    );
-
-    expect(getByTestId("rollout-general").textContent).toEqual("not reported");
-  });
-
-  it("renders a dash when the endpoint itself could not answer — unknown is never a verdict", () => {
-    const { getByTestId } = render(
-      <AgentList base={base} agents={[org]} usage={null} />,
-    );
-
-    expect(getByTestId("rollout-general").textContent).toEqual("—");
-  });
-
-  it("keeps an org default's verdict apart from a repo override's", () => {
-    const project: AgentDefinition = { ...org, project_id: "p-1" };
-    const { getByTestId } = render(
-      <AgentList
-        base={base}
-        agents={[project]}
-        usage={usageOf(
-          {},
-          {
-            general: [
-              verdict({ state: "refused", reason: "org-level problem" }),
-              verdict({ project_id: "p-1", cluster: "central" }),
-            ],
-          },
-        )}
-      />,
-    );
-
-    expect(getByTestId("rollout-general").textContent).toEqual(
-      "applied · 1 cluster(s)",
-    );
   });
 });
