@@ -1290,9 +1290,9 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
 
 ### NFR-1: Security
 
-- No long-lived credentials anywhere in the system. ([validated by `security-posture.test.ts:107`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L107), [`security-posture.test.ts:128`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L128))
-- Workload Identity for all GKE workloads. ([validated by `security-posture.test.ts:99`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L99))
-- Workload Identity Federation for GitHub Actions. ([validated by `security-posture.test.ts:124`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L124), [`security-posture.test.ts:128`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L128))
+- No long-lived credentials anywhere in the system. ([validated by `security-posture.test.ts:75`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L75), [`security-posture.test.ts:96`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L96))
+- Workload Identity for all GKE workloads. ([validated by `security-posture.test.ts:67`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L67))
+- Workload Identity Federation for GitHub Actions. ([validated by `security-posture.test.ts:92`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L92), [`security-posture.test.ts:96`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L96))
 - Schema-per-team isolation in the vector store. ([validated by `chunks.test.ts:166`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L167), [`chunks.test.ts:184`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L185))
 - Secret and PII redaction runs at ingest time and on every memory write:
   `sanitizeContent()` / `redactSecrets()` strip API keys, JWTs, private keys,
@@ -1301,9 +1301,6 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
 - Centralized auth in `routes.ts`: every `/api/*` route enforces bearer
   token validation. Supports legacy single token (`LORE_INGEST_TOKEN`)
   and per-client scoped tokens with SHA-256 hashes. ([validated by `auth.test.ts:56`](apps/lore-api/src/transport/http/auth.test.ts#L56), [`bearer-scope.test.ts:41`](apps/lore-api/src/transport/http/bearer-scope.test.ts#L41), [returns 403 {error:insufficient scope} when the token is not legacy and pool is null](apps/lore-api/src/transport/http/bearer-scope.test.ts#L48), [returns 403 when the DB has no matching token](apps/lore-api/src/transport/http/bearer-scope.test.ts#L59), [grants any scope when the DB token has admin](apps/lore-api/src/transport/http/bearer-scope.test.ts#L87), [returns 403 when the DB token lacks the scope the route needs](apps/lore-api/src/transport/http/bearer-scope.test.ts#L100), [returns 403 when the token lookup query throws](apps/lore-api/src/transport/http/bearer-scope.test.ts#L113), [grants access via the legacy token without hitting the DB](apps/lore-api/src/transport/http/bearer-scope.test.ts#L126))
-- Job pods run as non-root (uid 1000), drop all Linux capabilities,
-  disallow privilege escalation. NetworkPolicy restricts egress to
-  DNS + HTTPS + internal Lore API only. ([validated by `security-posture.test.ts:71`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L71), [`security-posture.test.ts:76`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L76), [`security-posture.test.ts:84`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L84), [`security-posture.test.ts:90`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L90))
 - Rate limiting: 30/min webhooks, 60/min task ops, 200/min other
   (in-memory sliding window). 1 MB body size limit. ([validated by `rate-limit.test.ts:53`](apps/lore-api/src/transport/http/rate-limit.test.ts#L50), [`rate-limit.test.ts:39`](apps/lore-api/src/transport/http/rate-limit.test.ts#L39), [`auth.test.ts:17`](apps/lore-api/src/transport/http/auth.test.ts#L17), [`webhook-incident.test.ts:144`](apps/lore-api/src/transport/routes/webhooks/webhook-incident.test.ts#L144))
 - Decision: Slack indexing is opt-in per channel only and DMs are never indexed; Lore indexes no Slack content today, so there is nothing to test yet.
@@ -1480,6 +1477,12 @@ enforced by benchmarking, infrastructure configuration, and review process.
 ## Background: retired with Lore's own Floor (2026-10-02)
 
 These statements described behaviour of `apps/floor`, the assembly-line engine Lore ran itself. It was deleted on 2026-10-02 (epic #2342, ADR-049): the external floor runs every line now, so the tests that validated these went with the code. They are kept as the record of what the old engine did.
+
+- Job pods run as non-root (uid 1000), drop all Linux capabilities,
+  disallow privilege escalation. NetworkPolicy restricts egress to
+  DNS + HTTPS + internal Lore API only. (Lore's own `ai-agents` chart, which
+  set this, was removed with its cluster agent; agent pods are the external
+  floor's now, and their security context is its chart's to state.)
 
 - FR-7.5: Beyond chunking and embedding, the Lore Agent drafts missing
   content and opens PRs (the gap-detection drafting path, FR-10).

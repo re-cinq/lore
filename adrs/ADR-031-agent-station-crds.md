@@ -436,3 +436,15 @@ sits in a Secret at all.
   secret has to be provisioned and a run credential never reuses the ingest
   token itself; without an ingest token lore-api refuses to sign anything rather
   than sign with an empty key. ([validated by derives eef1993b…00f6df from ingest token ingest-token-for-tests, a domain-separated HMAC rather than the token itself](apps/lore-api/src/work/github-credential/run-credential-key.test.ts#L5), [refuses to derive a key when LORE_INGEST_TOKEN is unset, naming the variable](apps/lore-api/src/work/github-credential/run-credential-key.test.ts#L11))
+
+## Amendment (2026-10-02): Lore no longer runs a controller or a cluster agent
+
+The external floor ([ADR-049](ADR-049-external-floor.md)) runs every line and
+installs the ai-agent-subsystem controller itself, in its own namespace. Lore's
+copy of the controller (the `ai-agents` subchart), its cluster agent and the
+standalone satellite chart are removed from the `lore-platform` umbrella. What
+this record decided about the three resource types still describes how the
+floor runs an agent; the catalog sync, the claim loop and the satellite
+registration described in the amendments above no longer have a process
+behind them.
+

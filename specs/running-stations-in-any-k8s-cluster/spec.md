@@ -495,7 +495,7 @@ A satellite must report outcomes without holding the bus-wide credential.
   tell a rotation from a blip. And the overlap itself is closed at the source:
   both cluster-agent Deployments roll out `Recreate`, since a singleton
   registrant that overlaps its own successor rotates the successor's token.
-  ([validated by re-registers once on a refused credential and the retry then lands](libs/shared/src/outbound/project/events/event-proxy.test.ts#L165), [`event-reporter-http.test.ts:116`](libs/shared/src/outbound/project/events/event-reporter-http.test.ts#L116), [`check-cluster-agent-standalone-render.sh`](scripts/check-cluster-agent-standalone-render.sh#L1))
+  ([validated by re-registers once on a refused credential and the retry then lands](libs/shared/src/outbound/project/events/event-proxy.test.ts#L165), [`event-reporter-http.test.ts:116`](libs/shared/src/outbound/project/events/event-reporter-http.test.ts#L116))
 - Deregistering or rotating a cluster-agent's token immediately invalidates
   its reporting credential — one revocation surface for both claiming and
   reporting. An agent already marked offline still delivers a late terminal
@@ -587,7 +587,7 @@ that.
 - Opting in is per satellite and off by default: `agentEventsUrl` on the
   standalone chart (`--telemetry-url` on the installer) sets both the chart's
   own value and the subchart's, since Helm threads neither into the other.
-  Unset renders no sink at all, which is FR6's guard doing its job. ([validated by `check-cluster-agent-standalone-render.sh`](scripts/check-cluster-agent-standalone-render.sh#L1))
+  Unset renders no sink at all, which is FR6's guard doing its job.
 - A GitHub credential for the cluster-agent's per-task token provisioner is
   optional and chart-managed: `github.token` (a PAT) or the
   `github.app.appId`/`privateKey`/`installationId` triple, mirroring the
@@ -630,7 +630,7 @@ proxy everything else in that cluster reports through.
   default: it mounts the route, creates the Service the pods resolve, and points
   the run-pod egress hole at the cluster-agent instead of the Floor. A chart
   value that silently makes another one required would break every existing
-  satellite on upgrade, so nothing is derived. ([validated by [`check-cluster-agent-standalone-render.sh`](scripts/check-cluster-agent-standalone-render.sh#L1))
+  satellite on upgrade, so nothing is derived.
 
 ## FR7 — Registered-clusters visibility
 

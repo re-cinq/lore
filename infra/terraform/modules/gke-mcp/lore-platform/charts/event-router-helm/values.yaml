@@ -40,12 +40,6 @@ env:
   LORE_DB_NAME: lore
   LORE_DB_USER: lore
   PORT: "8080"
-  # The watch only runs where there are Agent CRs to watch.
-  LORE_STATION_BACKEND: "k8s"
-  LORE_AGENTS_NAMESPACE: ai-agents
-
-# The namespace the watch Role is granted in — must equal env.LORE_AGENTS_NAMESPACE.
-agentsNamespace: ai-agents
 
 dbPasswordSecret:
   name: lore-event-router-db-password
