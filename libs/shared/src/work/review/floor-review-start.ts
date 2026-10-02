@@ -34,6 +34,7 @@ import {
   hasReviewedPr,
   headShaOf,
   isOpen,
+  lastJudgedSha,
   reviewRunsForPr,
 } from "./floor-review-runs.js";
 import { startLine } from "./floor-line-start.js";
@@ -298,7 +299,7 @@ async function judgedRange(
   prNumber: number,
   runs: RunView[],
 ): Promise<{ sinceSha?: string; newCommitMessages: string[] }> {
-  const lastSha = runs.flatMap(headShaOf)[0];
+  const lastSha = lastJudgedSha(runs);
   const commits = lastSha ? await pulls.listCommits(prNumber) : [];
   const judged = commits.findIndex((commit) => commit.sha === lastSha);
 
