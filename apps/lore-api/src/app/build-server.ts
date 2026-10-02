@@ -21,7 +21,10 @@ import {
   type RegisteredPlanning,
 } from "./register-planning.js";
 import { mountLiveSocket } from "../work/assembly-line-station/live-socket.js";
-import { runChannelDepsFromPool } from "../work/assembly-line-station/station-wiring.js";
+import {
+  runChannelDepsFromPool,
+  runsChannelDepsFromPool,
+} from "../work/assembly-line-station/station-wiring.js";
 
 // `traceHttp` is the metric half the span does not carry — lore-api recorded it per request before the tracing plugin was shared, and still does.
 const TRACING = { tracerName: "lore.api.http", observe: traceHttp };
@@ -83,6 +86,7 @@ function registerLiveSocket(
 ): void {
   const liveSocket = mountLiveSocket(server.listener, {
     run: runChannelDepsFromPool(getPool),
+    runs: runsChannelDepsFromPool(getPool),
     collab,
   });
 

@@ -12,6 +12,7 @@ import type {
 } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { FloorRunReader } from "./floor-run-reader.js";
 import { FloorRunRows } from "./floor-run-rows.js";
+import { FloorRunsFeed } from "./floor-runs-feed.js";
 
 export type FloorRunReads = Pick<
   AssemblyRunsPort,
@@ -96,6 +97,18 @@ export function floorRunRows(): FloorRunRows {
   rows ??= new FloorRunRows(floorRunReader());
 
   return rows;
+}
+
+let runsFeed: FloorRunsFeed | undefined;
+
+/** The one feed the process keeps on the floor's run list. */
+export function floorRunsFeed(): FloorRunsFeed {
+  runsFeed ??= new FloorRunsFeed({
+    watchFloor: () => floorClient().runs.watchFloor(),
+    rowOf: (runId) => floorRunRows().row(runId),
+  });
+
+  return runsFeed;
 }
 
 /** The port every run read goes through: Postgres alone on a deployment with no floor. */

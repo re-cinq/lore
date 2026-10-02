@@ -19,6 +19,7 @@ import {
   type ChannelOutlet,
   type RunChannelDeps,
 } from "./run-channel.js";
+import { openRunsChannel, type RunsChannelDeps } from "./runs-channel.js";
 import { urlOf, webRequest } from "./web-request.js";
 
 const PING_MS = 25_000;
@@ -32,6 +33,7 @@ type ChannelMessage = Exclude<LiveClientMessage, OpenMessage>;
 
 export interface LiveSocketDeps {
   run: RunChannelDeps;
+  runs: RunsChannelDeps;
   collab: CollabServer;
   pingMs?: number;
   log?: (message: string) => void;
@@ -264,20 +266,10 @@ class LiveConnection {
           ),
         );
       case "runs":
-        return Promise.resolve(this.openRuns(message, outlet));
+        return openRunsChannel(message, outlet, this.deps.runs);
       default:
         return openRunChannel(message, outlet, this.deps.run);
     }
-  }
-
-  /** The runs channel is not served yet: the open is answered as a server close. */
-  private openRuns(
-    message: OpenMessage,
-    outlet: ChannelOutlet,
-  ): ChannelHandle | null {
-    outlet.send({ type: "closed", channel: message.channel, reason: "server" });
-
-    return null;
   }
 
   private outletFor(channel: string): ChannelOutlet {
