@@ -10,8 +10,7 @@ import {
   githubSignature,
   type GitHubDoor,
 } from "@re-cinq/lore-shared/http/github-delivery.js";
-import { enforceReporterToken } from "./reporter-auth.js";
-import type { ReporterAuthDeps } from "./reporter-auth.js";
+import { enforceBearer } from "@re-cinq/lore-shared/http/bearer.js";
 
 /** Reported-event body: source is closed vocabulary to catch typos as absences. */
 const ReportedEvent = z.object({
@@ -27,8 +26,6 @@ export interface EventsRouteDeps {
   webhookSecret?: string;
   /** The token the reporting branch accepts; absent means it is unconfigured. */
   bearerToken?: string;
-  /** The cluster-agent registry lookup (FR5): bearer token validated against pipeline.cluster_agents.token_hash. */
-  findByTokenHash?: ReporterAuthDeps["findByTokenHash"];
 }
 
 export function eventsRoute(deps: EventsRouteDeps): ServerRoute {
@@ -48,7 +45,7 @@ function captureHandler(deps: EventsRouteDeps): Lifecycle.Method {
     const signature = githubSignature(request.headers);
     const events = signature
       ? eventsFromGitHubDelivery(request.headers, raw, signature, door(deps))
-      : [await fromReporter(raw, request.headers, deps)];
+      : [fromReporter(raw, request.headers, deps)];
 
     for (const event of events) {
       await deps.insert(event);
@@ -67,16 +64,13 @@ function door(deps: EventsRouteDeps): GitHubDoor {
   return { webhookSecret: deps.webhookSecret, service: "event-router" };
 }
 
-/** The reporting branch: validate ingest or per-agent token, return generic shape. */
-async function fromReporter(
+/** The reporting branch: validate the bus-wide token, return generic shape. */
+function fromReporter(
   raw: string,
   headers: Record<string, unknown>,
   deps: EventsRouteDeps,
-): Promise<EventInsert> {
-  await enforceReporterToken(headers, {
-    ingestToken: deps.bearerToken,
-    findByTokenHash: deps.findByTokenHash,
-  });
+): EventInsert {
+  enforceBearer(headers, deps.bearerToken, "event-router");
 
   return parseBody(raw, ReportedEvent, "reportable event");
 }
