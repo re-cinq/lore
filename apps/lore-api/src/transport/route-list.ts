@@ -26,6 +26,7 @@ import { taskViewRoutes } from "./routes/tasks/task-views.js";
 import { assemblyLineRoutes } from "./routes/assembly-lines/assembly-lines.js";
 import { runReadRoute } from "./routes/assembly-lines/run-read.js";
 import { runDodRoute } from "./routes/assembly-lines/run-dod.js";
+import { floorRunsStreamTokenRoute } from "./routes/floor/floor-runs-stream-token.js";
 import { runStreamTokenRoute } from "./routes/assembly-lines/run-stream-token.js";
 import { taskByPrRoute } from "./routes/tasks/task-by-pr.js";
 import {
@@ -197,6 +198,7 @@ function taskRunRoutes(getPool: PoolGetter): ServerRoute[] {
     runReadRoute(getPool),
     runDodRoute(getPool),
     runStreamTokenRoute(getPool),
+    floorRunsStreamTokenRoute(getPool),
     taskByPrRoute(getPool),
     taskLogsGetRoute(getPool),
     jobRunLogsRoute(),
