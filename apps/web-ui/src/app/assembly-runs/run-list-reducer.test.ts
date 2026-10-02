@@ -52,4 +52,47 @@ describe("reduceRunList", () => {
       },
     ]);
   });
+
+  it("replaces run-1 and run-2 and cursor-2 with run-3 and a null cursor for page_loaded of run-3", () => {
+    const state = initialRunList({
+      runs: [run({ id: "run-1" }), run({ id: "run-2" })],
+      nextCursor: "cursor-2",
+    });
+
+    const next = reduceRunList(state, {
+      type: "page_loaded",
+      runs: [run({ id: "run-3" })],
+      nextCursor: null,
+    });
+
+    expect({
+      ids: next.runs.map(({ id }) => id),
+      nextCursor: next.nextCursor,
+    }).toEqual({ ids: ["run-3"], nextCursor: null });
+  });
+
+  it("leaves run-1 and run-2 for a run_row of run-9, which is not on the page", () => {
+    const state = initialRunList({
+      runs: [run({ id: "run-1" }), run({ id: "run-2" })],
+      nextCursor: "cursor-2",
+    });
+
+    const next = reduceRunList(state, {
+      type: "run_row",
+      run: run({ id: "run-9" }),
+    });
+
+    expect(next.runs.map(({ id }) => id)).toEqual(["run-1", "run-2"]);
+  });
+
+  it("sets the connection from connecting to live for a connection action of live", () => {
+    const before = initialRunList({ runs: [], nextCursor: null });
+
+    const after = reduceRunList(before, { type: "connection", state: "live" });
+
+    expect({ before: before.connection, after: after.connection }).toEqual({
+      before: "connecting",
+      after: "live",
+    });
+  });
 });
