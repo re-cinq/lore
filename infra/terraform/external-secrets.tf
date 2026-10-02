@@ -2,188 +2,6 @@
 # ExternalSecret CRs — one per K8s secret per namespace
 # ---------------------------------------------------------------------------
 
-# ===== lore-floor namespace =================================================
-
-resource "kubectl_manifest" "es_agent_github_app" {
-  yaml_body = yamlencode({
-    apiVersion = "external-secrets.io/v1beta1"
-    kind       = "ExternalSecret"
-    metadata = {
-      name      = "github-app-credentials"
-      namespace = "lore-floor"
-    }
-    spec = {
-      refreshInterval = "1h"
-      secretStoreRef = {
-        name = "gcp-secret-manager"
-        kind = "ClusterSecretStore"
-      }
-      target = {
-        name = "github-app-credentials"
-      }
-      data = [
-        {
-          secretKey = "app-id"
-          remoteRef = {
-            key = "lore-github-app-id"
-          }
-        },
-        {
-          secretKey = "private-key"
-          remoteRef = {
-            key = "lore-github-app-private-key"
-          }
-        },
-        {
-          secretKey = "installation-id"
-          remoteRef = {
-            key = "lore-github-app-installation-id"
-          }
-        },
-      ]
-    }
-  })
-
-  depends_on = [kubectl_manifest.cluster_secret_store]
-}
-
-resource "kubectl_manifest" "es_agent_anthropic" {
-  yaml_body = yamlencode({
-    apiVersion = "external-secrets.io/v1beta1"
-    kind       = "ExternalSecret"
-    metadata = {
-      name      = "lore-anthropic-key"
-      namespace = "lore-floor"
-    }
-    spec = {
-      refreshInterval = "1h"
-      secretStoreRef = {
-        name = "gcp-secret-manager"
-        kind = "ClusterSecretStore"
-      }
-      target = {
-        name = "lore-anthropic-key"
-      }
-      data = concat([
-        {
-          secretKey = "anthropic-api-key"
-          remoteRef = {
-            key = "lore-anthropic-api-key"
-          }
-        },
-        ], var.enable_anthropic_admin_key ? [
-        {
-          secretKey = "anthropic-admin-key"
-          remoteRef = {
-            key = "lore-anthropic-admin-api-key"
-          }
-        },
-      ] : [])
-    }
-  })
-
-  depends_on = [kubectl_manifest.cluster_secret_store]
-}
-
-resource "kubectl_manifest" "es_agent_db_password" {
-  yaml_body = yamlencode({
-    apiVersion = "external-secrets.io/v1beta1"
-    kind       = "ExternalSecret"
-    metadata = {
-      name      = "lore-db-password"
-      namespace = "lore-floor"
-    }
-    spec = {
-      refreshInterval = "1h"
-      secretStoreRef = {
-        name = "gcp-secret-manager"
-        kind = "ClusterSecretStore"
-      }
-      target = {
-        name = "lore-db-password"
-      }
-      data = [
-        {
-          secretKey = "password"
-          remoteRef = {
-            key = "lore-db-password"
-          }
-        },
-      ]
-    }
-  })
-
-  depends_on = [kubectl_manifest.cluster_secret_store]
-}
-
-resource "kubectl_manifest" "es_agent_ingest_token" {
-  yaml_body = yamlencode({
-    apiVersion = "external-secrets.io/v1beta1"
-    kind       = "ExternalSecret"
-    metadata = {
-      name      = "lore-ingest-token"
-      namespace = "lore-floor"
-    }
-    spec = {
-      refreshInterval = "1h"
-      secretStoreRef = {
-        name = "gcp-secret-manager"
-        kind = "ClusterSecretStore"
-      }
-      target = {
-        name = "lore-ingest-token"
-      }
-      data = [
-        {
-          secretKey = "token"
-          remoteRef = {
-            key = "lore-ingest-token"
-          }
-        },
-      ]
-    }
-  })
-
-  depends_on = [kubectl_manifest.cluster_secret_store]
-}
-
-resource "kubectl_manifest" "es_agent_ghcr" {
-  yaml_body = yamlencode({
-    apiVersion = "external-secrets.io/v1beta1"
-    kind       = "ExternalSecret"
-    metadata = {
-      name      = "ghcr-pull-secret"
-      namespace = "lore-floor"
-    }
-    spec = {
-      refreshInterval = "1h"
-      secretStoreRef = {
-        name = "gcp-secret-manager"
-        kind = "ClusterSecretStore"
-      }
-      target = {
-        name = "ghcr-pull-secret"
-        template = {
-          type = "kubernetes.io/dockerconfigjson"
-          data = {
-            ".dockerconfigjson" = "{{ .dockerconfigjson }}"
-          }
-        }
-      }
-      data = [
-        {
-          secretKey = "dockerconfigjson"
-          remoteRef = {
-            key = "lore-ghcr-pull-secret"
-          }
-        },
-      ]
-    }
-  })
-
-  depends_on = [kubectl_manifest.cluster_secret_store]
-}
-
 # ===== lore-api namespace ================================================
 
 resource "kubectl_manifest" "es_mcp_anthropic" {
@@ -410,37 +228,6 @@ resource "kubectl_manifest" "es_cluster_agent_registration_token_agent_ns" {
   depends_on = [kubectl_manifest.cluster_secret_store]
 }
 
-resource "kubectl_manifest" "es_agent_internal_token" {
-  yaml_body = yamlencode({
-    apiVersion = "external-secrets.io/v1beta1"
-    kind       = "ExternalSecret"
-    metadata = {
-      name      = "lore-agent-internal-token"
-      namespace = "lore-floor"
-    }
-    spec = {
-      refreshInterval = "1h"
-      secretStoreRef = {
-        name = "gcp-secret-manager"
-        kind = "ClusterSecretStore"
-      }
-      target = {
-        name = "lore-agent-internal-token"
-      }
-      data = [
-        {
-          secretKey = "token"
-          remoteRef = {
-            key = "lore-agent-internal-token"
-          }
-        },
-      ]
-    }
-  })
-
-  depends_on = [kubectl_manifest.cluster_secret_store]
-}
-
 resource "kubectl_manifest" "es_mcp_internal_token" {
   yaml_body = yamlencode({
     apiVersion = "external-secrets.io/v1beta1"
@@ -540,7 +327,7 @@ resource "kubectl_manifest" "es_mcp_ghcr" {
   depends_on = [kubectl_manifest.cluster_secret_store]
 }
 
-# Slack credentials — shared by both lore-api and lore-floor namespaces
+# Slack credentials for the lore-api namespace
 resource "kubectl_manifest" "es_mcp_slack" {
   yaml_body = yamlencode({
     apiVersion = "external-secrets.io/v1beta1"
@@ -565,37 +352,6 @@ resource "kubectl_manifest" "es_mcp_slack" {
             key = "lore-slack-signing-secret"
           }
         },
-        {
-          secretKey = "bot-token"
-          remoteRef = {
-            key = "lore-slack-bot-token"
-          }
-        },
-      ]
-    }
-  })
-
-  depends_on = [kubectl_manifest.cluster_secret_store]
-}
-
-resource "kubectl_manifest" "es_agent_slack" {
-  yaml_body = yamlencode({
-    apiVersion = "external-secrets.io/v1beta1"
-    kind       = "ExternalSecret"
-    metadata = {
-      name      = "lore-slack-credentials"
-      namespace = "lore-floor"
-    }
-    spec = {
-      refreshInterval = "1h"
-      secretStoreRef = {
-        name = "gcp-secret-manager"
-        kind = "ClusterSecretStore"
-      }
-      target = {
-        name = "lore-slack-credentials"
-      }
-      data = [
         {
           secretKey = "bot-token"
           remoteRef = {
@@ -1134,8 +890,8 @@ resource "kubectl_manifest" "es_stations_anthropic_key" {
 
 # The Slack bot token for the stations that post to Slack: the escalation notify
 # step (which posted nothing without it, #2201) and the daily digest once its
-# line runs on the external floor (#2337). Same GSM secret the lore-api and
-# lore-floor namespaces already mirror.
+# line runs on the external floor (#2337). Same GSM secret the lore-api
+# namespace already mirrors.
 resource "kubectl_manifest" "es_stations_slack" {
   yaml_body = yamlencode({
     apiVersion = "external-secrets.io/v1beta1"
@@ -1353,39 +1109,6 @@ resource "kubectl_manifest" "es_floor_service_token_stations" {
     metadata = {
       name      = "floor-service-token"
       namespace = "lore-stations"
-    }
-    spec = {
-      refreshInterval = "1h"
-      secretStoreRef = {
-        name = "gcp-secret-manager"
-        kind = "ClusterSecretStore"
-      }
-      target = {
-        name = "floor-service-token"
-      }
-      data = [
-        {
-          secretKey = "token"
-          remoteRef = {
-            key = "lore-floor-service-token"
-          }
-        },
-      ]
-    }
-  })
-
-  depends_on = [kubectl_manifest.cluster_secret_store]
-}
-
-resource "kubectl_manifest" "es_floor_service_token_lore_floor" {
-  count = var.enable_external_floor ? 1 : 0
-
-  yaml_body = yamlencode({
-    apiVersion = "external-secrets.io/v1beta1"
-    kind       = "ExternalSecret"
-    metadata = {
-      name      = "floor-service-token"
-      namespace = "lore-floor"
     }
     spec = {
       refreshInterval = "1h"
