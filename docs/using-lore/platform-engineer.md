@@ -166,10 +166,6 @@ Under the hood both drive the standalone chart at `infra/terraform/modules/gke-m
 
 **Routing work to it.** A station run is claimable by a satellite when the satellite's `tags` contain every one of the run's `required_tags`: always the node's own type tag (`node:agent`, `node:ingest`, …) plus whatever the assembly-line YAML or the repo's `station_default_tags` add. The type tag is structural — a satellite is claimable only for node types its own tag list names, which is what keeps central-only work (anything needing the bus-wide ingest credential) off satellites by construction rather than by convention. A run whose tags no registered cluster fully carries fails after the 30-minute queue wait, naming the unmatched tags.
 
-**Watching it.** The **Clusters** page in the web UI (`/cluster-agents`) lists every registered agent with its tags, liveness, and running-claims count (the count links to that agent's runs). An agent silent for 5 minutes is marked `offline`; its claims are requeued for another cluster and the event shows in the page's offline-events table.
-
-**Pausing a cluster.** The Clusters page has a **Pause** button per row. A paused cluster keeps heartbeating, stays `active`, and finishes whatever it already claimed — it is simply passed over when new work is handed out, so nothing is yanked away mid-run. Press **Resume** to put it back in the rotation. Use this rather than scaling the deployment to zero: that reads as a dead cluster five minutes later and requeues its live work elsewhere.
-
 **Identity rules worth knowing.** Names are first-come: re-registering an existing name requires the current per-agent token (`409` otherwise), so the shared registration token alone can never take over a live cluster's identity. If a satellite's identity Secret is lost, delete its registry row (or pick a new name) before re-registering. Rotating the registration token invalidates nothing already registered — per-agent tokens are independent.
 
 ## Dark Factory mode
