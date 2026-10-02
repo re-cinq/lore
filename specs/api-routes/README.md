@@ -66,4 +66,3 @@ that's plumbing, not duplication.
 |-------|------|------|---------|
 | `GET /healthz` | [spec](healthz/spec.md) | none | Liveness probe. |
 | `/api/tokens` | [spec](tokens/spec.md) | admin | API token create / list / revoke. |
-| `/api/repos/:o/:r/settings/dark-factory` | [spec](dark-factory-settings/spec.md) | admin + two-key | Dark-factory settings (privileged-field approval ceremony). |

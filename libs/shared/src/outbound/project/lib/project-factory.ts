@@ -96,19 +96,17 @@ interface OutsidePortDeps {
   providers: ReturnType<typeof resolveProjectOptions>["providers"];
 }
 
-/** The ports that reach OUTSIDE this process: GitHub, Slack, git, the test runner, the agent runner. Settings sits here rather than with the stores because it reads the repo through GitHub as well as the database. */
+/** The ports that reach OUTSIDE this process: GitHub, git, the test runner, the agent runner. Settings sits here rather than with the stores because it reads the repo through GitHub as well as the database. */
 async function registerOutsidePorts(
   ports: Map<string, unknown>,
   { pgPool, env, providers }: OutsidePortDeps,
 ): Promise<void> {
   const github = await gitHubPort(env);
-  const [settings, notify, knowledge, git, tests, agents] =
-    await outsideModules();
+  const [settings, knowledge, git, tests, agents] = await outsideModules();
 
   ports.set("github", github);
   ports.set("pulls", github);
   ports.set("settings", new settings.PgSettings(pgPool, github));
-  ports.set("notify", new notify.NotifySlack(pgPool, env));
   ports.set("knowledge", new knowledge.PgKnowledge(pgPool));
   ports.set("git", new git.GitCli(env));
   ports.set("tests", new tests.ExecTestRunner());
@@ -130,7 +128,6 @@ async function gitHubPort(env: NodeJS.ProcessEnv) {
 function outsideModules() {
   return Promise.all([
     import("../settings/settings-pg.js"),
-    import("../notify/notify-slack.js"),
     import("../knowledge/knowledge-pg.js"),
     import("../workspace/git-cli.js"),
     import("../test-runner/test-runner-exec.js"),

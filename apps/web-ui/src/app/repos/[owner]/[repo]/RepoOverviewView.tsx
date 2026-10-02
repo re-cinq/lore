@@ -31,10 +31,8 @@ export interface RepoOverviewViewProps {
   repo: string;
   readme: RepoReadme | null;
   enrollmentChecks: Check[];
-  darkFactoryEnabled: boolean;
   trustLevel: string;
-  darkTasksWeek: number;
-  autoMergedWeek: number;
+  tasksWeek: number;
   recentTasks: RecentTask[];
   /** The 10 most recent event-bus rows for this repo (newest first). */
   latestEvents: RepoEvent[];
@@ -58,7 +56,7 @@ export default function RepoOverviewView(props: RepoOverviewViewProps) {
         reonboardAction={reonboardAction}
         setupWebhookAction={setupWebhookAction}
       />
-      <DarkFactoryCard {...props} />
+      <ActivityCard {...props} />
       <RecentTasks owner={owner} repo={repo} recentTasks={recentTasks} />
       <LatestEvents owner={owner} repo={repo} latestEvents={latestEvents} />
     </div>
@@ -67,24 +65,24 @@ export default function RepoOverviewView(props: RepoOverviewViewProps) {
 
 type RepoLinkProps = Pick<RepoOverviewViewProps, "owner" | "repo">;
 
-type DarkFactoryStatsProps = Pick<
-  RepoOverviewViewProps,
-  "darkFactoryEnabled" | "trustLevel" | "darkTasksWeek" | "autoMergedWeek"
->;
+type ActivityProps = Pick<RepoOverviewViewProps, "trustLevel" | "tasksWeek">;
 
-/** The repo's dark-factory posture at a glance: whether it is on, how far it is trusted, and what the last seven days produced. */
-function DarkFactoryCard(props: DarkFactoryStatsProps & RepoLinkProps) {
-  const { owner, repo } = props;
+/** How far the repo is trusted and how many tasks the last seven days produced. */
+function ActivityCard(props: ActivityProps & RepoLinkProps) {
+  const { owner, repo, trustLevel, tasksWeek } = props;
 
   return (
-    <div className={`spec-card ${styles.dfCard}`}>
-      <div className={styles.dfHead}>
-        <h3 className={styles.dfTitle}>Dark Factory</h3>
+    <div className={`spec-card ${styles.activityCard}`}>
+      <div className={styles.activityHead}>
+        <h3 className={styles.activityTitle}>Activity</h3>
         <Link href={`/repos/${owner}/${repo}/settings`} className="meta">
           configure →
         </Link>
       </div>
-      <DarkFactoryStats {...props} />
+      <div className={styles.stats}>
+        <Stat label="Trust" value={trustLevel} />
+        <Stat label="Tasks (7d)" value={tasksWeek} />
+      </div>
     </div>
   );
 }
@@ -126,60 +124,11 @@ function LatestEvents({
   );
 }
 
-/** The week's dark-factory figures. */
-function DarkFactoryStats(props: DarkFactoryStatsProps) {
-  const { darkFactoryEnabled, trustLevel, darkTasksWeek } = props;
-
-  return (
-    <div className={styles.stats}>
-      <Stat label="Mode" value={<ModeValue enabled={darkFactoryEnabled} />} />
-      <Stat label="Trust" value={trustLevel} />
-      <Stat label="Tasks (7d)" value={darkTasksWeek} />
-      <WeeklyOutcomeStats {...props} />
-    </div>
-  );
-}
-
-/** Whether the repo runs dark. "Off (legacy)" rather than a bare "Off": every repo predates the mode, so off is the inherited state, not a choice someone made. */
-function ModeValue({ enabled }: { enabled: boolean }) {
-  return enabled ? (
-    <span className={styles.success}>Enabled</span>
-  ) : (
-    <span className="meta">Off (legacy)</span>
-  );
-}
-
-/** Auto-merges are toned as success only when NON-ZERO, so a quiet week reads as quiet rather than as good news. */
-function WeeklyOutcomeStats({ autoMergedWeek }: DarkFactoryStatsProps) {
-  return (
-    <Stat
-      label="Auto-merged (7d)"
-      value={autoMergedWeek}
-      tone={tonedWhenNonZero(autoMergedWeek, styles.success)}
-    />
-  );
-}
-
-/** A tone only when the figure is non-zero, so a quiet week reads as quiet rather than as good or bad news. */
-function tonedWhenNonZero(count: number, tone: string): string | undefined {
-  return count > 0 ? tone : undefined;
-}
-
-function Stat({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: ReactNode;
-  tone?: string;
-}) {
+function Stat({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div>
       <div className={`meta ${styles.statLabel}`}>{label}</div>
-      <div className={tone ? `${styles.statValue} ${tone}` : styles.statValue}>
-        {value}
-      </div>
+      <div className={styles.statValue}>{value}</div>
     </div>
   );
 }

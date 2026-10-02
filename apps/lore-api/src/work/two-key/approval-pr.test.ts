@@ -5,7 +5,7 @@ import {
   parsePrRef,
   isCodeowner,
   TwoKeyError,
-} from "./dark-factory-authz.js";
+} from "./approval-pr.js";
 
 const b64 = (text: string) => Buffer.from(text, "utf-8").toString("base64");
 

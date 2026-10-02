@@ -87,9 +87,8 @@ status pill — a stale header misreports the org's backlog.
 ## Key Components
 
 - `apps/mcp-server/` — the MCP server (TypeScript)
-- `apps/lore-api/src/transport/routes.ts` — barrel for the HTTP API layer; the native hapi routes are registered by `apps/lore-api/src/app/build-server.ts`, one folder per endpoint under `apps/lore-api/src/transport/routes/` — e.g. `routes/dark-factory/dark-factory.ts` (GET/PUT `/api/repos/:o/:r/settings/dark-factory`, two-key authZ on privileged fields via `routes/two-key.ts`), `routes/tasks/task-timeline.ts` (`/api/tasks/:uuid/timeline`), `routes/tasks/task-by-pr.ts` (the PR↔task resolver)
-- `apps/lore-api/src/work/dark-factory/dark-factory-settings.ts` — Zod schema + `resolveSettings()` defaults + `twoKeyFieldsTouched()` for the privileged-field gate
-- `apps/lore-api/src/work/dark-factory/dark-factory-authz.ts` — `verifyApproval()` runs the CODEOWNERS-approval-PR ceremony (open PR labeled `dark-factory-approval` by a CODEOWNER of the repo's `CLAUDE.md`)
+- `apps/lore-api/src/transport/routes.ts` — barrel for the HTTP API layer; the native hapi routes are registered by `apps/lore-api/src/app/build-server.ts`, one folder per endpoint under `apps/lore-api/src/transport/routes/` — e.g. `routes/tasks/task-timeline.ts` (`/api/tasks/:uuid/timeline`), `routes/tasks/task-by-pr.ts` (the PR↔task resolver)
+- `apps/lore-api/src/work/two-key/approval-pr.ts` — `verifyApproval()` runs the CODEOWNERS-approval-PR ceremony (open PR labeled `dark-factory-approval` by a CODEOWNER of the repo's `CLAUDE.md`); `routes/two-key.ts` `checkApproval` applies it to agent-definition writes that set `image` (`specs/two-key-approval`)
 - `libs/shared/src/outbound/project/leases/lease-backends.ts` — `DbLeaseBackend` (Postgres CTE-based atomic acquire with takeover detection) + `FileLeaseBackend` (worktree mode under `~/.lore/leases/`) sharing a `LeaseBackend` interface (FR1.6)
 - `libs/assembly-lines/src/transition.ts` — `nextTransition()`: the pure replay that derived the old walk's next step from the persisted `pipeline.station_runs` rows + the definition graph. Its driver was Lore's own Floor (`apps/floor`), deleted on 2026-10-02; the module, the old line files beside it and the node stations under `apps/stations/src/work/` that only that walk dispatched are left to delete in a follow-up (#2342)
 - `libs/assembly-lines/src/loader.ts` — Zod schema for assembly line YAML, cycle detection (DFS coloring; back-edges require `iteration_max`), reachability check; nodes carry optional `station_ref` (custom station image) + `timeout_minutes`, and detect nodes require `job_ref`
@@ -104,7 +103,6 @@ status pill — a stale header misreports the org's backlog.
 - **No escalation line** (deleted 2026-10-01, #2330): the two-node `file-issue → notify` line, its `escalation-step` station and the `escalation_step` node type are gone, having never run in production. The implementation loop comments on its own tickets (`libs/shared/src/work/backlog/loop-run-closed.ts`)
 - `libs/shared/src/domain/models/` — **the single source of truth for every persisted shape** (32 tables, 308 columns). One file per entity: a Zod schema, the type inferred from it, and a `ColumnMap` binding each camelCase field to the snake_case column that stores it. Adapters build their SELECT lists with `selectList()` and map rows with `fromRow()`; API contracts derive their stored fields with `wireSchema()`, so one declaration reaches from the column to the generated web-ui type. `models.test.ts` discovers the folder rather than taking a registry, and FAILS on a table model whose schema will not resolve
 - `libs/shared/src/lib/path-match.ts` — `allPathsMatch()` minimatch wrapper; returns true only when **every** changed path matches at least one allowlist glob
-- `libs/shared/src/outbound/project/notify/notify.ts` — `decideNotify()` filters notifications by `dark_factory.notify` channel list
 - `libs/shared/src/domain/pr-body.ts` — `prFooter()` composes the standard `Lore-Task: <uuid>` (+ optional `Refs #N`) PR-body footer used by every Lore-authored PR
 - `libs/shared/src/domain/commit-trailers.ts` — `formatTrailers()` / `parseTrailers()` / `formatValidatesTrailer()` / `parseValidatesTrailers()` exported via `@re-cinq/lore-shared`. (There is no `lastStageOnBranch()`: the branch-trailer resume it belonged to was retired with the in-process walk, and "where did this run get to" is answered by the `pipeline.station_runs` replay in `libs/assembly-lines/src/transition.ts`.) Trailers are emitted unconditionally on every Lore-authored commit regardless of dark-mode setting (audit substrate for both modes)
 - `libs/shared/src/outbound/project/tasks/task-queue-{port,pg,memory}.ts` — `TaskQueueRepository`: the org-wide (repo-agnostic) `pipeline.tasks` claim/sweep mechanics single-sourced out of Floor — `claimNextPending` (worker poll, immediate-first + 30s grace), `findRecoverable`/`findStaleRunning` (crash-recovery + safety-net sweeps), `findReadySpecTasks`/`countRunningSpecTasksByGroup`/`claimSpecTask` (spec-task DAG dispatch). Pg adapter + InMemory double (the behavioral spec) + colocated tests. Repo-scoped task *record* ops stay on `project.tasks`
@@ -555,11 +553,6 @@ enabled, `lore_assemble_context` searches the linked repos for relevant
 context. Links are bidirectional — adding repo B from repo A's
 settings auto-adds repo A to repo B's list.
 
-**Per-repo customization**: `settings.task_overrides` allows per-repo
-overrides for a task type (`model`, `timeout_minutes`). Lore's own Floor read
-them at task creation; nothing reads them since it was deleted, and an agent's
-model on the external floor is set in its pipeline file.
-
 **Agent definitions** (`lore.agent_definitions`): per-task-type config
 (`prompt`, `model`, `timeout_minutes`, `image`) resolved by name via
 `project.agentDefs.resolve(name)` — `project` row (per-repo override) →
@@ -682,15 +675,12 @@ there would not trigger and is not attempted. Default
 implementation / review / default cap at 8K); the `lore_assemble_context`
 MCP tool's `max_tokens` parameter default is also 8K.
 
-- Every task creates a GitHub Issue on the target repo (`lore-managed` label). Issues get status comments and are closed when the PR is created. **Dark-factory mode (per ADR-016) narrows this**: when `dark_factory.enabled = true`, Issues are created only for approval-gated tasks, on-the-fly escalations (`needs-human-help`), or repos that explicitly opted into `create_issue: always`. The PR remains the canonical artifact; cross-reference is via the `Lore-Task: <uuid>` trailer in the PR body.
+- Every task creates a GitHub Issue on the target repo (`lore-managed` label). Issues get status comments and are closed when the PR is created. The PR remains the canonical artifact; cross-reference is via the `Lore-Task: <uuid>` trailer in the PR body.
 - Optional approval gates: tasks can require a human to add an `approved` label on the GitHub Issue before processing. Configured via settings UI or `lore.settings` table.
 
-**Dark Factory mode** (per-repo, off by default; ADR-016):
-- `lore.repos.settings.dark_factory` block: `enabled`, `create_issue`, `auto_merge.{paths,min_trust,require_*}`, `review`, `notify`. Three files, three jobs: the INPUT-VALIDATION schema for the settings API edge is `apps/lore-api/src/work/dark-factory/dark-factory-settings.ts` (with `resolveSettings()` defaults); the RESOLVER and its plain types are `libs/shared/src/domain/dark-factory-settings.ts`, kept dependency-free because web-ui reaches it by relative path; and the SHAPE is `libs/shared/src/domain/models/dark-factory-settings.ts`, which asserts at compile time that its schema infers exactly those types.
-- **Enablement.** Per-repo `dark_factory.enabled = true` is still stored and guarded by the two-key ceremony below, but nothing reads it to decide a merge: the task types it governed are gone, and the Floor-side auto-merge evaluation was deleted with `apps/floor` on 2026-10-02, never having run for any repository. Merges are made by people, or by the `merge` line on the external floor for a pull request someone merged.
-- Privileged changes (`enabled` toggle, `auto_merge.paths`, downgrade of `require_*` to false) need two-key authorization: admin scope + an open PR labeled `dark-factory-approval` by a CODEOWNER of the repo's `CLAUDE.md` (`dark-factory-authz.ts`).
+**Dark Factory mode is gone** (ADR-016 is the design record). The per-repo `lore.repos.settings.dark_factory` block, the `task_overrides` beside it, the settings route (`/api/repos/:o/:r/settings/dark-factory`), the Dark Factory tab and the notify routing were deleted on 2026-10-02 with `apps/floor`, their only reader; migration 0096 strips the block from every repo. `PUT /api/repos/:o/:r/settings` refuses a patch that carries `dark_factory`. What outlived it:
+- The two-key ceremony (admin scope + an open PR labeled `dark-factory-approval` by a CODEOWNER of the repo's `CLAUDE.md`) guards an agent definition's `image` (`apps/lore-api/src/work/two-key/approval-pr.ts`).
 - Trailers: every Lore-authored commit carries `Lore-Task:` (and the stage trailers where a station writes them), the audit substrate that outlived the branch-as-state resume.
 - The old line definitions at `libs/assembly-lines/src/assembly-lines/*.yaml` are walked by nothing since `apps/floor` was deleted; the lines that run are the floor pipeline files beside them.
 - **Run records.** `pipeline.assembly_runs` and `pipeline.station_runs` hold the runs Lore's own Floor walked, kept as history: the run page reads them through lore-api, with their turns, events and stored node logs (`specs/external-floor` FR16.9). A run on the external floor lives in the floor and is read through `@re-cinq/floor-client`.
-- There is no auto-merge: see Enablement above. `pipeline.audit_log` holds no `auto_merge_decision` row, because none was ever written.
-- Rollout, rollback, pilot procedure, audit-log queries: `runbooks/dark-factory-rollback.md`.
+- There is no auto-merge: merges are made by people, or by the `merge` line on the external floor for a pull request someone merged. `pipeline.audit_log` holds no `auto_merge_decision` row, because none was ever written.

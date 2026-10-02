@@ -135,15 +135,9 @@ All agent API calls also go through **multi-block prompt caching** (ADR-015 + `l
 
 ## Dark Factory mode
 
-Lore can run as a **dark software factory**: autonomous operation as the default, with humans only at intent definition and stage-gate validation. When enabled for a repo:
+There is no Dark Factory mode to switch on. It was a per-repo settings block (`dark_factory`: enabled, issue creation, auto-merge paths, review mode, notify channels) read by the assembly-line engine Lore ran itself. That engine was deleted on 2026-10-02 (ADR-049, epic #2342) and the settings went with it: the settings route, the Dark Factory tab and the stored block. Every assembly line now runs on the external floor, pull requests are merged by people, and no repository ever had the block set.
 
-- **The branch is the durable state.** Every workflow phase commits with `Lore-Stage:` / `Lore-Iteration:` / `Lore-Task:` trailers. A supervisor pod that dies resumes from `git log` on the branch — no DB checkpoints, no parallel ledger.
-- **Assembly lines are declarative YAML graphs.** `libs/assembly-lines/src/assembly-lines/<task-type>.yaml`, with 4 edge conditions (`success | changes_requested | failed | always`) and node types beyond the original four: `agent`, `validate`, `gate`, `retrospective`, `github_action`, `detect`, `comment-triage`, `ingest`, `issues`, plus **human station** types whose worker is a person and whose `route` names the page they act on. Every non-agent node dispatches a `lore-station` pod ([ADR-031](../../adrs/ADR-031-agent-station-crds.md) amendment). Definitions are executed by the Floor today; the local runner spawns Claude Code directly and does not yet load them.
-- **Auto-merge for low-blast-radius outputs.** Path-allowlisted PRs (`specs/`, `adrs/`, `*.md`, `CLAUDE.md`, `.claude/`) on green CI + bot `APPROVED` + repo trust ≥ `min_trust` are squash-merged. Seven distinct deferral outcomes are recorded in `pipeline.audit_log` with the full rule trace.
-- **Issues become an exception surface.** Created only for approval gates, escalations (`needs-human-help`), or repos that explicitly opted into `create_issue: always`. Cross-reference is via the `Lore-Task: <uuid>` trailer in the PR body.
-- **Two-key auth on privileged settings.** Toggling `enabled` or modifying `auto_merge.paths` requires admin scope **and** an open PR labeled `dark-factory-approval` by a CODEOWNER of the affected repo's `CLAUDE.md`.
-
-Enablement is a single per-repo gate (`dark_factory.enabled`, itself a two-key privileged change); the legacy cluster-wide gate went away with the LoreTask path in the ADR-031 cutover. Operators turning it on should read the enablement steps in the [Platform Engineer Guide](../using-lore/platform-engineer.md#dark-factory-mode). The full design is in ADR-016 and `specs/6-dark-factory/`; rollout and rollback live in `runbooks/dark-factory-rollback.md`.
+Two things outlived it. Every Lore-authored commit still carries the `Lore-Task:` trailer. The two-key approval ceremony (admin scope plus an open pull request labeled `dark-factory-approval` by a CODEOWNER) still guards a custom agent image (`specs/two-key-approval`). The design record is ADR-016 and `specs/6-dark-factory/`.
 
 ---
 

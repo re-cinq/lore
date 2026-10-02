@@ -1,6 +1,9 @@
 import type { AgentDefinition } from "./agents-mirror";
 
 // Server-to-server client for the mcp-server agents API — image changes need the CODEOWNERS approval-PR header; admin token never reaches the browser.
+export const DEFAULT_EXECUTION_IMAGE =
+  "ghcr.io/re-cinq/lore-claude-runner:latest";
+
 export type AgentSaveResult =
   | { status: "ok"; agent: AgentDefinition }
   | { status: "two_key_required"; detail: string }
