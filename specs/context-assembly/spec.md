@@ -159,7 +159,7 @@ The tool retrieves from all available sources:
   query matches (`search_tsv @@`), never unmatched chunks ranked by recency: a
   zero `ts_rank` is a score, not a NULL, so without the filter a query matching
   nothing returned the newest chunks of the type, the same three for every
-  question, for the four weeks the vector leg was down (2026-08-13 → 09-09). ([validated by `context-assembly.test.ts:189`](libs/server-core/src/work/context/context-assembly.test.ts#L189), [`uses a vector+keyword RRF query when an embedding is available`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L418), [`keyword-only SQL filters with search_tsv @@ websearch_to_tsquery so non-matching chunks are not returned`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L295))
+  question, for the four weeks the vector leg was down (2026-08-13 → 09-09). ([validated by `context-assembly.test.ts:189`](libs/server-core/src/work/context/context-assembly.test.ts#L189), [`uses a vector+keyword RRF query when an embedding is available`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L419), [`keyword-only SQL filters with search_tsv @@ websearch_to_tsquery so non-matching chunks are not returned`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L296))
 - FR-2.8: **No cross-section duplication.** The `repo`/Conventions source pulls
   only `doc`/`spec` (never `adr`, which is its own section), and chunks sharing a
   `file_path` — or a `content_hash`, a file and its copied twin at another path
@@ -168,7 +168,7 @@ The tool retrieves from all available sources:
 - FR-2.9: **Code retrieval.** A dedicated `code` source retrieves
   `content_type='code'` chunks via the same hybrid ranking, so implementation and
   review tasks receive the actual source files they edit (previously code was
-  never retrieved — the `repo` source excluded it). ([validated by `context-assembly.test.ts:243`](libs/server-core/src/work/context/context-assembly.test.ts#L243), [`context-assembly.test.ts:229`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L229), [`context-assembly.test.ts:376`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L376))
+  never retrieved — the `repo` source excluded it). ([validated by `context-assembly.test.ts:243`](libs/server-core/src/work/context/context-assembly.test.ts#L243), [`context-assembly.test.ts:229`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L230), [`context-assembly.test.ts:376`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L377))
 - FR-2.10: **Keyword leg searches distinctive terms.** A paragraph-length query
   is reduced to its distinctive terms (stopwords + ≤2-char words dropped, capped)
   for the keyword leg, so common filler words don't dominate ranking. The
@@ -184,7 +184,7 @@ The tool retrieves from all available sources:
   highest-priority section only — the same item never appears in two sections
   (e.g. an episode in both Agent Memory and Recent Episodes). Only a section
   that is actually emitted claims its documents: one omitted for budget holds
-  nothing back from the sections after it. ([validated by `context-assembly.test.ts:161`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L161), [`context-assembly.test.ts:174`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L174), [`emits a document in Relevant Code when Conventions was omitted for budget`](libs/shared/src/outbound/project/knowledge/context-assembly-budget.test.ts#L21))
+  nothing back from the sections after it. ([validated by `context-assembly.test.ts:161`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L162), [`context-assembly.test.ts:174`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L175), [`emits a document in Relevant Code when Conventions was omitted for budget`](libs/shared/src/outbound/project/knowledge/context-assembly-budget.test.ts#L21))
 - FR-2.13: **Repo-scoped graph.** The knowledge-graph source returns only
   entities scoped to the queried repo (no NULL-repo globals), so a task never sees
   another repo's entities.
@@ -205,6 +205,15 @@ The tool retrieves from all available sources:
   settings the `cross_repo` section is `disabled` and no chunk query runs; the
   org is never searched. Chunks from a linked repo are not transfer-scored, since
   linking is an explicit opt-in. ([validated by `%s marks cross_repo disabled and never searches chunks without linked repos`](libs/server-core/src/work/context/context-assembly.test.ts#L390))
+- FR-2.19: **The vector leg survives a sparse content type.** HNSW applies the
+  repo/`content_type` filter after the index returns its `hnsw.ef_search`
+  candidates, so a rare type (ADRs, specs) in a large shared schema could leave
+  the vector leg empty and the hybrid silently keyword-only. The hybrid query
+  therefore runs in one transaction after a transaction-local `hnsw.ef_search`
+  of 200 and, on pgvector 0.8+, `hnsw.iterative_scan = relaxed_order`; the
+  vector leg takes its nearest candidates (at least 20) inside the filter, and the number of rows it
+  produced rides the fetch result into the debug trace as `vectorLegRows`, so an
+  underfilled leg reads as `0` instead of vanishing, and is absent on the keyword-only path, where no vector leg ran. The widened scan is transaction-local and never leaks to the pooled connection. ([validated by `runs the hybrid query in one transaction after widening the HNSW scan, guarded to pgvector 0.8+ for iterative scan`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L444), [`reports the vector leg's row count from the fused query, 0 when nothing came back`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L483), [`carries vectorLegRows 0 onto the trace section of a source whose vector leg came back empty`](libs/shared/src/outbound/project/knowledge/context-assembly-budget.test.ts#L41), [`leaves vectorLegRows unset on the keyword-only path`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L518), [`scopes the wide scan to the search's own transaction`](libs/shared/src/outbound/project/knowledge/context-assembly-chunk-search.contract.test.ts#L143), [`the vector leg returns the few adr chunks among thousands of nearer code chunks`](libs/shared/src/outbound/project/knowledge/context-assembly-chunk-search.contract.test.ts#L129))
 
 ### FR-3: Template System
 
@@ -240,12 +249,12 @@ The tool retrieves from all available sources:
 - FR-4.5: **Per-document cap.** When a section has more than one document,
   no single document may exceed half the section budget — so one mega-doc
   (e.g. CLAUDE.md) cannot crowd out several smaller, more-relevant chunks. A
-  lone document keeps the whole budget. ([validated by `context-assembly.test.ts:196`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L196), [`context-assembly.test.ts:212`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L212))
+  lone document keeps the whole budget. ([validated by `context-assembly.test.ts:196`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L197), [`context-assembly.test.ts:212`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L213))
 - FR-4.6: **Minimum document size.** A document that truncation would cut below
   120 tokens is dropped rather than emitted — a one-line stub still costs its
   `<document>` header and tells the reader nothing — and the section is marked
   truncated. Packing continues only when the per-document cap, not the budget,
-  was what bound. ([validated by `keeps 2 of 3 documents and drops the third when it would be cut to 40 tokens`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L222))
+  was what bound. ([validated by `keeps 2 of 3 documents and drops the third when it would be cut to 40 tokens`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L223))
 
 ### FR-5: Output Format
 
@@ -325,7 +334,7 @@ The tool retrieves from all available sources:
   it is embedded at ingest; the stored chunk keeps them for the coverage
   validators. A heavily backfilled statement is mostly test paths — hundreds
   of "test", "lib", "src" tokens that keyword-match every question and spend
-  the embedding window on bookkeeping. ([validated by `returns a Conventions item of 10 tokens for a chunk whose 120-char link group was stripped`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L342), [`spec-link-strip.test.ts:38`](libs/shared/src/domain/spec-link-strip.test.ts#L38), [`spec-link-strip.test.ts:46`](libs/shared/src/domain/spec-link-strip.test.ts#L46), [`spec-link-strip.test.ts:57`](libs/shared/src/domain/spec-link-strip.test.ts#L57), [`spec-link-strip.test.ts:65`](libs/shared/src/domain/spec-link-strip.test.ts#L65), [`ingest.test.ts:201`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L201), [`strips the same 4 fixtures the JS stripper strips, once read as a JS regex`](libs/shared/src/domain/spec-link-strip.test.ts#L74), [`is carried verbatim by migration 0070 and both baseline schema scripts`](libs/shared/src/domain/spec-link-strip.test.ts#L80))
+  the embedding window on bookkeeping. ([validated by `returns a Conventions item of 10 tokens for a chunk whose 120-char link group was stripped`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L343), [`spec-link-strip.test.ts:38`](libs/shared/src/domain/spec-link-strip.test.ts#L38), [`spec-link-strip.test.ts:46`](libs/shared/src/domain/spec-link-strip.test.ts#L46), [`spec-link-strip.test.ts:57`](libs/shared/src/domain/spec-link-strip.test.ts#L57), [`spec-link-strip.test.ts:65`](libs/shared/src/domain/spec-link-strip.test.ts#L65), [`ingest.test.ts:201`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L201), [`strips the same 4 fixtures the JS stripper strips, once read as a JS regex`](libs/shared/src/domain/spec-link-strip.test.ts#L74), [`is carried verbatim by migration 0070 and both baseline schema scripts`](libs/shared/src/domain/spec-link-strip.test.ts#L80))
 ## Success Criteria
 
 1. A single `lore_assemble_context` call replaces 3+ separate MCP
