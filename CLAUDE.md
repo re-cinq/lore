@@ -43,10 +43,7 @@ Embeddings go through the vendor-neutral `EmbeddingProvider`
 (`libs/shared/src/outbound/embeddings/`), chosen by `LORE_EMBEDDING_PROVIDER`;
 the adapter in use is Vertex AI text-embedding-005 (768 dimensions).
 
-**Cluster agents**: Lore Agent service on GKE processes pipeline tasks
-via direct Anthropic API calls (simple tasks) or headless Claude Code
-(complex tasks). Developers delegate through the Lore MCP server,
-never directly.
+**Agents** run in pods of the external floor (ADR-049); Lore holds no Kubernetes client.
 
 **Observability**: OpenTelemetry traces + metrics → Cloud Monitoring.
 Gap signal goes to Graphiti episodes in Phase 3.

@@ -416,7 +416,7 @@ sits in a Secret at all.
 - The cluster-agent passes that credential to the pod as the `git_credential`
   CR parameter, beside `git_credential_url` — the broker on the lore-api it
   claimed from — so a satellite's pod reaches the same broker as a central
-  one. ([validated by hands the pod its run credential and the lore-api broker URL as Agent CR parameters](apps/cluster-agent/src/events/claim/claim-loop.test.ts#L155))
+  one.
 - A run credential that reaches a transcript — an agent printing its environment —
   is redacted whole before storage, payload and signature together, like any
   other secret. ([validated by redacts a whole run credential as it appears in an agent's printed environment](libs/shared/src/lib/redact.test.ts#L110))
