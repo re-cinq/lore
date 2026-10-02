@@ -217,7 +217,7 @@ post-merge ingestion task — could leave three PRs open for one onboarding. ([v
   the unmerged onboarding branch, and a fix PR there would be a second PR
   beside the one onboarding owns. ([validated by offers a fix for an onboarded repo whose workflow is missing or stale, not an aligned one](apps/web-ui/src/lib/workflow-fix.test.ts#L10), [validated by offers no fix for a repo whose onboarding PR has not merged, whatever its workflow status](apps/web-ui/src/lib/workflow-fix.test.ts#L25), [validated by offers nothing for a repo with no status read](apps/web-ui/src/lib/workflow-fix.test.ts#L36))
 - FR-2.5: Tracks the onboarding PR in the pipeline (status: pending
-  until merged). ([validated by `onboard.test.ts:16`](apps/web-ui/src/lib/onboard.test.ts#L16))
+  until merged). ([validated by `onboard.test.ts:16`](apps/web-ui/src/lib/onboard.test.ts#L17))
 - FR-2.6: After merge, the merge-check station flips the repo to onboarded
   and the merged workflows ingest on their own push run — no task follows; re-onboarding creates an onboard task and
   redirects to the new task page (or back to the repo when none is
@@ -292,6 +292,11 @@ post-merge ingestion task — could leave three PRs open for one onboarding. ([v
   task branch is `lore/onboard/<first 8 of the task id>`. Everything else —
   one pull request, the scaffolding rule of FR-2.3, the ticket of FR-2.10,
   the guard, the "already current" ending of FR-2.11 — holds on both. ([validated by puts the needs-attention section in the pull request body, above the footer](apps/stations/src/onboard/open-pr/station.test.ts#L88), [validated by starts a forced review of pull request 42 of re-cinq/app](apps/stations/src/onboard/request-review/station.test.ts#L19), [validated by names the branch lore/onboard/1234abcd for task 1234abcd-…](libs/shared/src/work/onboard/floor-onboard.test.ts#L11))
+
+- FR-2.13: *(added 2026-10-02, #2381)* Submitting the onboarding form gives
+  feedback. The API names the queued onboard task on success, and the user
+  lands on that task's page; should it ever name none they land on the repo's
+  page. A refusal keeps the user on the form with the reason. ([validated by redirects to the queued task's page when the API names one](apps/web-ui/src/app/onboard/page.test.tsx#L55), [validated by redirects to the repo page when there is no task id](apps/web-ui/src/app/onboard/page.test.tsx#L65), [validated by stays on the form with the refusal when onboarding is refused](apps/web-ui/src/app/onboard/page.test.tsx#L74), [validated by rejects a malformed repository without calling the API](apps/web-ui/src/app/onboard/page.test.tsx#L90))
 
 ### FR-3: Repo-Centric UI Layout
 
