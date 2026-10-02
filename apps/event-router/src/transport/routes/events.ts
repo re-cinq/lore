@@ -2,16 +2,14 @@
 
 import { z } from "zod";
 import type { Lifecycle, ServerRoute } from "@hapi/hapi";
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { SOURCES, type EventInsert } from "@re-cinq/lore-shared";
 import { rawBody } from "@re-cinq/lore-shared/http/raw-body.js";
-import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
+import { parseBody } from "@re-cinq/lore-shared/http/json-body.js";
 import {
-  parseBody,
-  parseJsonBody,
-} from "@re-cinq/lore-shared/http/json-body.js";
-import { mapGitHubEvent } from "@re-cinq/lore-shared/project/events/github-map.js";
-import { verifyGitHubSignature } from "@re-cinq/lore-shared/http/github-signature.js";
+  eventsFromGitHubDelivery,
+  githubSignature,
+  type GitHubDoor,
+} from "@re-cinq/lore-shared/http/github-delivery.js";
 import { enforceReporterToken } from "./reporter-auth.js";
 import type { ReporterAuthDeps } from "./reporter-auth.js";
 
@@ -49,7 +47,7 @@ function captureHandler(deps: EventsRouteDeps): Lifecycle.Method {
     const raw = rawBody(request);
     const signature = githubSignature(request.headers);
     const events = signature
-      ? fromGitHub(request.headers, raw, signature, deps)
+      ? eventsFromGitHubDelivery(request.headers, raw, signature, door(deps))
       : [await fromReporter(raw, request.headers, deps)];
 
     for (const event of events) {
@@ -65,50 +63,8 @@ function captureHandler(deps: EventsRouteDeps): Lifecycle.Method {
   };
 }
 
-/** GitHub's signature header (presence selects branch); validity checked by branch itself. */
-function githubSignature(headers: Record<string, unknown>): string | undefined {
-  const sig = headers["x-hub-signature-256"];
-
-  return typeof sig === "string" ? sig : undefined;
-}
-
-/** The GitHub branch: verify over the raw body, then map. */
-function fromGitHub(
-  headers: Record<string, unknown>,
-  raw: string,
-  signature: string,
-  deps: EventsRouteDeps,
-): EventInsert[] {
-  const eventType = headers["x-github-event"] as string | undefined;
-  const deliveryId = (headers["x-github-delivery"] as string | undefined) ?? "";
-
-  return mapGitHubEvent(
-    enforceGitHubDelivery(eventType, raw, signature, deps),
-    parseJsonBody(raw, "webhook body"),
-    deliveryId,
-  );
-}
-
-// The three things that must hold before a GitHub body is trusted. Each error names what to fix, because these are read in a delivery log rather than at a terminal: a 500 for the missing secret (503 would tell GitHub to redeliver, but an unset env var needs a redeploy), a 401 for a mismatch, a 400 for a body with no event type.
-function enforceGitHubDelivery(
-  eventType: string | undefined,
-  raw: string,
-  signature: string,
-  deps: EventsRouteDeps,
-): string {
-  enforceTrue(
-    deps.webhookSecret,
-    apiError(500),
-    "webhook secret not configured — set LORE_WEBHOOK_SECRET on the event-router deployment",
-  );
-  enforceTrue(
-    verifyGitHubSignature(deps.webhookSecret, signature, raw),
-    apiError(401),
-    "signature verification failed — LORE_WEBHOOK_SECRET and the secret on the GitHub webhook do not match",
-  );
-  enforceTrue(eventType, apiError(400), "missing x-github-event header");
-
-  return eventType;
+function door(deps: EventsRouteDeps): GitHubDoor {
+  return { webhookSecret: deps.webhookSecret, service: "event-router" };
 }
 
 /** The reporting branch: validate ingest or per-agent token, return generic shape. */
