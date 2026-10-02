@@ -106,6 +106,7 @@ import { openApiJsonRoute, docsRoute } from "./routes/openapi/openapi.js";
 import { githubCredentialsRoute } from "./routes/github-credentials/github-credentials.js";
 import { floorGitCredentialRoute } from "./routes/floor/git-credential.js";
 import { reviewStartRoute } from "./routes/floor/review-start.js";
+import { floorRunsRoute, floorRunPages } from "./routes/floor/floor-runs.js";
 import { runTurnsRoute, turnPageReader } from "./routes/floor/run-turns.js";
 import { runEventsRoute, eventPageReader } from "./routes/floor/run-events.js";
 import { nodeLogsRoute, nodeLogsReader } from "./routes/floor/node-logs.js";
@@ -141,6 +142,7 @@ function integrationRoutes(getPool: PoolGetter): ServerRoute[] {
     githubCredentialsRoute(getPool),
     floorGitCredentialRoute(),
     reviewStartRoute(),
+    floorRunsRoute(floorRunPages),
     ...runHistoryRoutes(getPool),
     githubInstallationsRoute(getPool),
     githubInstallationsListRoute(getPool),

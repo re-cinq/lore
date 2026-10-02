@@ -11,6 +11,7 @@ import type {
   AssemblyRunSummary,
 } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { FloorRunReader } from "./floor-run-reader.js";
+import { FloorRunRows } from "./floor-run-rows.js";
 
 export type FloorRunReads = Pick<
   AssemblyRunsPort,
@@ -87,6 +88,14 @@ export function floorRunReader(): FloorRunReader {
   reader ??= new FloorRunReader(floorClient());
 
   return reader;
+}
+
+let rows: FloorRunRows | undefined;
+
+export function floorRunRows(): FloorRunRows {
+  rows ??= new FloorRunRows(floorRunReader());
+
+  return rows;
 }
 
 /** The port every run read goes through: Postgres alone on a deployment with no floor. */
