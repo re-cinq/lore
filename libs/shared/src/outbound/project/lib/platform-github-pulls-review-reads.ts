@@ -51,7 +51,7 @@ export async function listComments(
 }
 
 /** The `user` parameter is optional here because GitHub returns null for comments from deleted accounts, which octokit's types do not admit. */
-function toReviewComment(c: {
+export function toReviewComment(c: {
   id: number;
   path: string;
   line?: number | null;
@@ -60,6 +60,7 @@ function toReviewComment(c: {
   user?: { login?: string } | null;
   created_at: string;
   pull_request_review_id?: number | null;
+  in_reply_to_id?: number | null;
 }): ReviewComment {
   return {
     id: c.id,
@@ -69,6 +70,7 @@ function toReviewComment(c: {
     user: c.user?.login ?? "unknown",
     created_at: c.created_at,
     review_id: c.pull_request_review_id ?? null,
+    in_reply_to_id: c.in_reply_to_id ?? null,
   };
 }
 
