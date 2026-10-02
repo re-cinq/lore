@@ -4541,7 +4541,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Every station name a builtin blueprint node dispatches, with the nodes that reference it */
+      /** @description Which lines use each stored definition (none: a floor pipeline carries its agents inline), and what each cluster did with it */
       200: {
         headers: {
           [name: string]: unknown;

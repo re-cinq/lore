@@ -22,7 +22,7 @@ This ADR runs feature planning and finalize as interactive Stations, persists fe
 > **Amendment 2026-08-13 — one line spans the whole feature lifecycle.** The two-definition
 > split described immediately above is gone, and so is the separate decomposition run that
 > [ADR-029](./ADR-029-feature-spec-decomposition.md) introduced.
-> [feature-planning.yaml](../libs/assembly-lines/src/assembly-lines/feature-planning.yaml)
+> feature-planning.yaml
 > is now the whole lifecycle:
 >
 > ```
@@ -34,7 +34,7 @@ This ADR runs feature planning and finalize as interactive Stations, persists fe
 > accepts a round — became a real `wait` node when the finalize line was folded in, and a
 > planning round is now a *resume* of the parked node rather than a new task. The
 > `merged` node applies the same idea to the spec PR: `pr_merged` was a declared but unused
-> `WaitSignal` in [loader.ts](../libs/assembly-lines/src/loader.ts), and using it turns the
+> `WaitSignal` in loader.ts, and using it turns the
 > "wait for a human to merge" gap into a step you can see in the graph. ADR-029 carries the
 > full rationale and the defect that forced it.
 >
