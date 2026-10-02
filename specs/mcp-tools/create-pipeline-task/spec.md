@@ -127,11 +127,7 @@ guard.
 
 With no `LORE_API_URL`/`LORE_INGEST_TOKEN` configured, the tool returns a
 not-configured message; on success the response names the immediate-priority
-pickup hint; a 401 is reported as a denied error. ([validated by `returns the
-not-configured message when the env is
-unset`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L187), [`reports
-a denied error on a
-401`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L293))
+pickup hint; a 401 is reported as a denied error.
 
 The shared trust gate allows `onboard` at every trust tier — it produces a
 docs-only scaffolding PR and is guarded against duplicates by its own route, so
