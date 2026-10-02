@@ -156,3 +156,11 @@ export function toAssemblyRunNode(row: AssemblyRunNodeRow): AssemblyRunNode {
     startedAt: row.started_at,
   };
 }
+
+/** A run row of the floor's run list as lore-api serves it: the list row plus its stages. */
+export type FloorRunRow = components["schemas"]["FloorRunPage"]["runs"][number];
+
+/** A floor run row — from a page or from a live `run_row` frame — as the list draws it, stages included. */
+export function floorRunOf(row: FloorRunRow): AssemblyRun {
+  return { ...toAssemblyRun({ ...row, graph: null }), pipeline: row.pipeline };
+}
