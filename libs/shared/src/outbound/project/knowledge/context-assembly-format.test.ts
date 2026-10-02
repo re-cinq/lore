@@ -34,9 +34,26 @@ describe("dedupeItems", () => {
 
   it("merges the three chunks of adrs/A.md into one document, the best-scoring chunk first", () => {
     const merged = dedupeItems([
-      source({ source_path: "adrs/A.md", text: "## Context", tokens: 5, score: 0.6, similarity: 0.7 }),
-      source({ source_path: "adrs/A.md", text: "## Decision", tokens: 7, score: 0.9, similarity: 0.8 }),
-      source({ source_path: "adrs/A.md", text: "## Consequences", tokens: 4, score: 0.3 }),
+      source({
+        source_path: "adrs/A.md",
+        text: "## Context",
+        tokens: 5,
+        score: 0.6,
+        similarity: 0.7,
+      }),
+      source({
+        source_path: "adrs/A.md",
+        text: "## Decision",
+        tokens: 7,
+        score: 0.9,
+        similarity: 0.8,
+      }),
+      source({
+        source_path: "adrs/A.md",
+        text: "## Consequences",
+        tokens: 4,
+        score: 0.3,
+      }),
     ]);
 
     expect(merged).toEqual([
@@ -53,7 +70,11 @@ describe("dedupeItems", () => {
   it("keeps the best three chunks of a document and leaves the fourth out", () => {
     const [merged] = dedupeItems(
       [0.9, 0.8, 0.7, 0.6].map((score) =>
-        source({ source_path: "specs/a/spec.md", text: `chunk ${score}`, score }),
+        source({
+          source_path: "specs/a/spec.md",
+          text: `chunk ${score}`,
+          score,
+        }),
       ),
     );
 
@@ -67,7 +88,10 @@ describe("dedupeItems", () => {
       source({ source_path: "adrs/A.md", text: "A decision", score: 0.7 }),
     ]);
 
-    expect(ranked.map((it) => it.source_path)).toEqual(["adrs/A.md", "adrs/B.md"]);
+    expect(ranked.map((it) => it.source_path)).toEqual([
+      "adrs/A.md",
+      "adrs/B.md",
+    ]);
   });
 
   it("collapses trace-impact-workflow.ts and its twin sharing content_hash abc123 to one item", () => {
@@ -117,9 +141,11 @@ describe("dedupeItems", () => {
       keyed("a.ts", 0.1),
     ];
 
-    expect(
-      dedupeItems(ranked).map((it) => it.source_path ?? it.text),
-    ).toEqual(["a.ts", "memory", "b.ts"]);
+    expect(dedupeItems(ranked).map((it) => it.source_path ?? it.text)).toEqual([
+      "a.ts",
+      "memory",
+      "b.ts",
+    ]);
   });
 });
 

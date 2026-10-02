@@ -40,7 +40,10 @@ function mergeChunksByPath(sources: SourceItem[]): SourceItem[] {
 
   for (const it of sources) {
     if (it.source_path) {
-      chunksOf.set(it.source_path, [...(chunksOf.get(it.source_path) ?? []), it]);
+      chunksOf.set(it.source_path, [
+        ...(chunksOf.get(it.source_path) ?? []),
+        it,
+      ]);
     }
   }
   const emitted = new Set<string>();
@@ -76,7 +79,9 @@ function mergedDocument(chunks: SourceItem[]): SourceItem {
     ...best[0],
     text: best.map((chunk) => chunk.text).join("\n\n"),
     tokens: best.reduce((sum, chunk) => sum + chunk.tokens, 0),
-    ...(similarities.length > 0 ? { similarity: Math.max(...similarities) } : {}),
+    ...(similarities.length > 0
+      ? { similarity: Math.max(...similarities) }
+      : {}),
   };
 }
 

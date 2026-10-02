@@ -14,7 +14,7 @@ import {
 /** Hybrid RRF retrieval over the repo's resolved chunk schema: pgvector cosine leg + BM25 (ts_rank) leg, same as search_context; degrades to keyword-only with no query embedding. */
 
 /** One hybrid-search HIT, not a chunk row — `score` is a ts_rank/cosine aggregate the query computes, no column holds it (the repo had three types named ChunkRow; this is the one that never described a table). */
-// eslint-disable-next-line re-lint/no-row-types-outside-models -- the search query's own projection: score is computed, content_hash is lifted out of the metadata jsonb
+
 export interface ChunkSearchHit {
   content: string;
   file_path: string;
