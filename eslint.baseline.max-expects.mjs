@@ -39,7 +39,7 @@ export const MAX_EXPECTS_BASELINE = [
   "apps/mcp-server/src/work/pipeline/runner.local.test.ts",
   "apps/mcp-server/src/work/pipeline/tasks-db.test.ts",
   "apps/stations/src/work/escalation-step/escalation-step.test.ts",
-  "apps/stations/src/work/issues/issues.test.ts",
+  "apps/stations/src/planning/file-issues/issues.test.ts",
   "apps/web-ui/src/app/AppShell.test.tsx",
   "apps/web-ui/src/app/HomeView.test.tsx",
   "apps/web-ui/src/app/SidebarNav.test.tsx",

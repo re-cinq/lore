@@ -1,4 +1,4 @@
-// Adapts the floor's Brief into the StationInput runIssuesStation already reads (apps/stations/src/work/issues/), unchanged — see specs/external-floor/spec.md FR8.7.
+// Adapts the floor's Brief into the StationInput runIssuesStation already reads (apps/stations/src/planning/file-issues/), unchanged — see specs/external-floor/spec.md FR8.7.
 
 import {
   defineStation,
@@ -13,10 +13,7 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { parseGitRef } from "@re-cinq/lore-shared/floor/floor-items.js";
 import { specPathOfPlan } from "@re-cinq/lore-shared/feature-planning/spec-plan-path.js";
 import { projectFor } from "../../outbound/project-boot.js";
-import {
-  runIssuesStation,
-  type IssuesStationDeps,
-} from "../../work/issues/issues.js";
+import { runIssuesStation, type IssuesStationDeps } from "./issues.js";
 
 export interface FileIssuesDeps {
   /** The visit's own run, carried on as the spec-task group id — stable across a re-drive of the same run. */

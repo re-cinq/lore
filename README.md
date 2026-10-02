@@ -27,8 +27,8 @@ Beyond context, Lore is an **agent operating system**. It runs background agents
 ## Repository layout
 
 ```
-apps/        services      floor · event-router · cluster-agent · lore-api · stations · mcp-server · web-ui
-             images/tools  lore-station (station pod image) · lore-code-trace (Go binary) · vscode-extension
+apps/        services      event-router · cluster-agent · lore-api · stations · mcp-server · web-ui
+             images/tools  lore-code-trace (Go binary) · vscode-extension
 libs/        shared libraries           shared (@re-cinq/lore-shared) · assembly-lines (@re-cinq/lore-assembly-lines) · server-core (@re-cinq/lore-server-core)
 infra/       deploy & runtime           terraform (the `lore-platform` umbrella chart) · compose.yaml · chart-ci-values
 specs/       speckit specs (spec/plan/tasks/contracts) — first-class, links into code
@@ -59,7 +59,7 @@ Eight workloads ship as one umbrella Helm chart, `lore-platform`, which spans a 
 
 The assembly-line engine is not one of them: every line runs on the external floor ([re-cinq/floor](https://github.com/re-cinq/floor), [ADR-049](adrs/ADR-049-external-floor.md)), deployed beside the umbrella and reached only through its client. Lore's own Floor (`apps/floor`) was deleted on 2026-10-02.
 
-Dgraph — the spec-traceability graph — is deployed alongside the umbrella from terraform rather than as a subchart. `apps/mcp-server` also runs on each developer's laptop over stdio; the `lore-station` pod image (built from [`apps/stations`](apps/stations/README.md)) and [`apps/lore-code-trace`](apps/lore-code-trace/README.md) are an image and a binary, not services.
+Dgraph — the spec-traceability graph — is deployed alongside the umbrella from terraform rather than as a subchart. `apps/mcp-server` also runs on each developer's laptop over stdio; [`apps/lore-code-trace`](apps/lore-code-trace/README.md) is a binary, not a service.
 
 
 ### The context lifecycle
@@ -121,7 +121,7 @@ Lore is modeled as an autonomous software **factory** ("Dark Factory" is a *mode
 | **Floor** | the long-running coordinator runtime: drains the event bus, walks AssemblyRuns, dispatches Stations, reaps leases | 1 → N (per team / cluster / trust tier) |
 | **AssemblyLine** | the authored blueprint — a graph of Stations with distinct responsibilities that hand off / wait on each other | per task type |
 | **AssemblyRun** | one execution of an AssemblyLine, which **clones** the blueprint at start and reads the clone thereafter, so an edit cannot change the graph under a walk in flight | per attempt |
-| **Station** | the unit that runs exactly one piece of work — an Agent pod, a deterministic `lore-station` pod, a **human station** whose worker is a person (it names the page they act on), or a **service station** reached by name over HTTP | per node |
+| **Station** | the unit that runs exactly one piece of work — an Agent pod, a station of the stations service, a **human station** whose worker is a person (it names the page they act on), or a **service station** reached by name over HTTP | per node |
 | **StationRun** | one visit to a Station within an AssemblyRun — a revisit under `iteration_max` is a new StationRun | per visit |
 | **Agent** | a single ephemeral run of the Claude CLI/API + a prompt (context + task) | per Station |
 

@@ -6,6 +6,8 @@
 | Spec    | [spec.md](./spec.md)                   |
 | Created | 2026-09-28                             |
 
+> **Out of date since 2026-10-02.** This plan was written for the engine Lore ran itself: a line file under `libs/assembly-lines/src/assembly-lines/`, node types, and `runtime: service` node stations under `apps/stations/src/work/`. That engine and its node stations are deleted (`specs/external-floor` FR16.10, FR16.12). Before any task of this plan is implemented it has to be re-planned as a floor pipeline file with floor stations (`.lore/assembly-line-guide.md`).
+
 This plan details the implementation of a new `issue-triage` assembly line, driven by GitHub label events, that automatically reproduces bugs in isolated pods, diagnoses root causes, and verifies them against specs before handing off to maintainers.
 
 ## Technical Context
@@ -107,7 +109,7 @@ Four symbols, four files, in sequence:
 
 #### Label creation and `triage_label` service station
 
-The `issues` station (`apps/stations/src/work/issues/`) calls the GitHub API to apply labels and refuses a label that does not exist in the repository. The eight `triage:*` labels must be created in each onboarded repository (onboarding scaffolding or a one-time setup step) before any triage run reaches the `issues` station.
+The `issues` station (`apps/stations/src/planning/file-issues/`) calls the GitHub API to apply labels and refuses a label that does not exist in the repository. The eight `triage:*` labels must be created in each onboarded repository (onboarding scaffolding or a one-time setup step) before any triage run reaches the `issues` station.
 
 `triage_label` is a new `runtime: service` station in `apps/stations/src/work/triage-label/`: it reads the node outcome from its input and calls `project.issues.addLabel(issueNumber, triageLabelForOutcome(outcome))`. Its node type is `triage_label`; it must be added to `NodeType` and `PRODUCIBLE_OUTCOMES` (`["success", "failed"]`) in `libs/assembly-lines/src/assembly-line-schema.ts`. Test: `apps/stations/src/work/triage-label/triage-label.test.ts` (applies the correct label per outcome).
 

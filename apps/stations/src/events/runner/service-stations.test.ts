@@ -4,11 +4,10 @@ import { STATIONS } from "../../work/index.js";
 import type { StationHost } from "../../work/index.js";
 
 const host = {
-  awaitingApproval: async () => [],
-  approvalLabel: () => "approved",
   repoFor: async () => {
     throw new Error("unused");
   },
+  memoryLifecycle: () => ({ expireMemories: async () => 4 }),
 } as unknown as StationHost;
 
 beforeEach(() => resetServiceStations());
@@ -35,9 +34,9 @@ describe("serviceStations", () => {
   });
 
   it("runs a registry station against the host this process supplies", async () => {
-    const run = serviceStations(host).get("approval-check");
+    const run = serviceStations(host).get("memory-ttl");
 
-    expect(await run?.()).toBe("Checked 0 tasks, 0 approved");
+    expect(await run?.()).toBe("Cleaned up 4 expired memories");
   });
 
   it("still answers to merge-check, which has not moved yet", () => {

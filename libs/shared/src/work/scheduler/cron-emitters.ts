@@ -19,7 +19,6 @@ export const CRON_EMITTERS: CronEmitter[] = [
     schedule: "*/2 * * * *",
     note: "resume implementation-loop runs parked at await-pr once the PR is green and thread-clean",
   },
-  { name: "approval_check", schedule: "*/1 * * * *" },
   { name: "spec_task_executor", schedule: "*/1 * * * *" },
   {
     name: "telemetry_prune",
