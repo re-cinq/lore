@@ -430,7 +430,7 @@ sits in a Secret at all.
 - The broker grants a git credential only for the repo the run credential
   names, and only while the station run it names is still open.
 - The broker looks the station run up by the id its credential names, and
-  both stores answer that lookup the same way. ([validated by findStationRunById returns the open review visit its station run id names](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L957))
+  both stores answer that lookup the same way. ([validated by findStationRunById returns the open review visit its station run id names](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L955))
 - `POST /api/github-credentials` hands an open run a token for its repo in the
   git credential-helper shape (`x-access-token` plus the token), minted at the
   moment git asks.
