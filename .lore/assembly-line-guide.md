@@ -56,11 +56,12 @@ and their tests) as a task that comes first.
 - A task that runs a line has a task type: add it to `TaskTypeSchema`
   (`libs/shared/src/domain/models/pipeline-task.ts`) and to a tier in
   `TRUST_LEVELS` (`libs/shared/src/domain/pipeline-task-trust.ts`); a task
-  type no tier lists is refused at creation. Which line a task type walks is
-  decided in `apps/floor/src/work/task/dispatch-agent-cr.ts`
-  (`assemblyLineFor`).
-- GitHub triggers (labels, comments) are mapped in
-  `apps/floor/src/events/handlers/github.ts`.
+  type no tier lists is refused at creation. No task type is created from a
+  description any more: a run is started by code, a tick sweep under
+  `apps/stations/src/work/` or a handler in the stations drain.
+- GitHub triggers (labels, comments, pull-request events) are answered in
+  `apps/stations/src/events/repo-handlers.ts` and
+  `apps/stations/src/events/floor-review-handlers.ts`.
 
 ## GitHub labels
 

@@ -280,7 +280,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
   that pulled the image, requested bumped resources, and exited on
   `Unknown job: autoresearch` — while a dispatch entry with no CronJob would
   simply never run and never say so. A scheduled failure and a silent no-op are
-  both worse than a build error. ([validated by `job-runner.test.ts:72`](apps/floor/src/transport/job-runner.test.ts#L67), [`job-runner.test.ts:83`](apps/floor/src/transport/job-runner.test.ts#L78))
+  both worse than a build error.
 
 ## Acceptance Criteria
 
@@ -288,20 +288,20 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
    the DB pool, logs the job summary, and exits 0 on success / non-zero on error;
    an unknown name exits non-zero. `resolveJob` returns the dispatch handler for a known name and
    null for an unknown or empty name; `runJobByName` invokes the resolved handler and exits 0.
-   ([`job-runner.test.ts:39`](apps/floor/src/transport/job-runner.test.ts#L34), [`job-runner.test.ts:43`](apps/floor/src/transport/job-runner.test.ts#L38), [`job-runner.test.ts:50`](apps/floor/src/transport/job-runner.test.ts#L45), [validated by `resolves %s to a handler function`](apps/floor/src/transport/job-runner.test.ts#L22))
+  
 
 1a. Each runner invocation writes a `pipeline.job_runs` row — `running` on start,
    then `completed` (with `result_summary`) or `failed` (with `error`) — so a
    CronJob run appears in the web-ui `/analytics` view identically to an
    in-process run. `startJobRun` opens a `running` row and returns the run id, `completeJobRun`
    stamps `completed` with the `result_summary`, and `failJobRun` stamps `failed` with the error.
-   ([`job-run.test.ts:6`](apps/floor/src/events/main-loop/scheduling/job-run.test.ts#L6), [`job-run.test.ts:18`](apps/floor/src/events/main-loop/scheduling/job-run.test.ts#L18), [`job-run.test.ts:51`](apps/floor/src/events/main-loop/scheduling/job-run.test.ts#L51))
+  
 
 1b. A completed or failed CronJob run's full output is retained in GCS (redacted,
    CMEK-encrypted) and retrievable via the UI / MCP, referenced by
    `pipeline.job_runs.log_path` — not lost to ephemeral pod stdout. `jobRunLogKey` builds the
    `__job_runs__/<job>/<runId>/output.log` key, and both `completeJobRun` and `failJobRun` persist
-   the `log_path` when provided. ([validated by `log-storage.test.ts:42`](apps/floor/src/events/main-loop/scheduling/log-storage.test.ts#L42), [`job-run.test.ts:31`](apps/floor/src/events/main-loop/scheduling/job-run.test.ts#L31), [`log-storage.test.ts:10`](apps/floor/src/events/main-loop/scheduling/log-storage.test.ts#L10), [`job-run.test.ts:64`](apps/floor/src/events/main-loop/scheduling/job-run.test.ts#L64))
+   the `log_path` when provided.
 
 1c. The in-process scheduler clears a job's in-flight marker on every failure
    path: a rejected run start (`pipeline.job_runs` insert failure) is logged
@@ -327,7 +327,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
    `README.md` naming its runtime/container; `agent` typecheck and `vitest run`
    pass after the move.
 7. `kubectl create job --from=cronjob/<name>` runs a batch job on demand.
-8. No job is scheduled both in-process and as a CronJob in any release. ([validated by `job-runner.test.ts:28`](apps/floor/src/transport/job-runner.test.ts#L28))
+8. No job is scheduled both in-process and as a CronJob in any release.
 
 9. Each migrated batch job is an independently-runnable unit the runner dispatches and whose one-line
    result the run row records: `memory_ttl` soft-deletes expired memories and reports the count,

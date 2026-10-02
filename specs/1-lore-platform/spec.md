@@ -453,11 +453,8 @@ The system MUST ingest content from multiple sources into the vector
 store via the Lore Agent service. ([validated by `content-classify.test.ts:5`](libs/shared/src/domain/content-classify.test.ts#L5))
 
 - FR-7.1: Fast path: on-push to main triggers incremental ingestion
-  via pipeline task. ([validated by `ingest-workflow.test.ts:22`](libs/shared/src/work/ingest-workflow.test.ts#L22), [`ci-ingest.test.ts:79`](apps/floor/src/transport/http/routes/ci-ingest.test.ts#L79))
-- FR-7.2: Retired 2026-09-08 (ADR-019 amendment). There is no nightly
-  full re-index and the job runner no longer dispatches one: merge-time CI
-  ingest (FR-7.1) is the only ingestion path, so a file no merge has
-  touched since onboarding stays unindexed until one does. ([validated by exposes exactly the 2 batch jobs left after detection (ADR-019), the single-op jobs (#1348-1351), the nightly reindex (2026-09-08) and consolidation (2026-10-02) moved off the Floor's CronJobs](apps/floor/src/transport/job-runner.test.ts#L28))
+  via pipeline task. ([validated by `ingest-workflow.test.ts:22`](libs/shared/src/work/ingest-workflow.test.ts#L22))
+- Decision: the nightly full re-index was retired on 2026-09-08 (ADR-019 amendment) and the job runner that could dispatch one went with Lore's own Floor on 2026-10-02; merge-time CI ingest is the only ingestion path, so a file no merge has touched since onboarding stays unindexed until one does
 - FR-7.3: Content types: code (AST-split), pull requests (diff +
   description + comments), ADRs, docs (section-chunked), specs,
   runbooks. ([validated by `chunker.test.ts:6`](libs/shared/src/work/chunker.test.ts#L6), [`chunker.test.ts:172`](libs/shared/src/work/chunker.test.ts#L172), [`content-classify.test.ts:11`](libs/shared/src/domain/content-classify.test.ts#L11))
@@ -587,7 +584,7 @@ ai-agent-subsystem per ADR-031). ([validated by starts code-review when a pull r
   station posts ONE formal PR review — inline comments per finding plus a summary, carrying the verdict as its
   GitHub review event (`APPROVE` / `REQUEST_CHANGES`, always on, no longer a neutral comment). ([validated by posts one REQUEST_CHANGES review with a rendered comment per commentable finding](apps/stations/src/code-review/post-review/post-review.test.ts#L94), [validated by submits an APPROVE review carrying the inline findings for an approved verdict](apps/stations/src/code-review/post-review/post-review.test.ts#L250))
 - FR-13.3: On a formal `APPROVE` the PR becomes eligible for (auto-)merge once the
-  remaining gates pass; auto-merge reads the bot's latest review, so a later push's re-check verdict supersedes the earlier one. ([validated by posts a visible APPROVE review for a bare REVIEW_RESULT:APPROVED with no findings block](apps/stations/src/code-review/post-review/post-review.test.ts#L282), [`auto-merge.test.ts:32`](apps/floor/src/work/merge/auto-merge.test.ts#L32))
+  remaining gates pass; auto-merge reads the bot's latest review, so a later push's re-check verdict supersedes the earlier one. ([validated by posts a visible APPROVE review for a bare REVIEW_RESULT:APPROVED with no findings block](apps/stations/src/code-review/post-review/post-review.test.ts#L282))
 - FR-13.4: When changes are requested, a follow-up round is started on the same
   branch carrying the feedback (the code-review-reply path). ([validated by starts code-review-reply for review 99 with the repository, the pull request and the review, and no intent: the agent reads what each comment asks](libs/shared/src/work/review/floor-review-start.test.ts#L456), [validated by starts code-review-reply for a MEMBER's request-changes review 99](apps/stations/src/events/floor-review-handlers.test.ts#L154))
 - FR-13.5: *(Restated 2026-10-01.)* Nothing files a `needs-human-help` Issue any more: the escalation line that did was deleted (#2330) having never run in production. Where the implementation loop owns the pull request, review threads left unresolved park its ticket with a comment that names why; elsewhere a person reads the review on the pull request. ([validated by labels issue 7 blocked and comments when await-pr ended on unresolved threads](apps/stations/src/code-review/run-settled/loop-closed.test.ts#L274), [validated by labels lore:blocked and comments when await-pr resumed failed](libs/shared/src/work/backlog/loop-run-closed.test.ts#L247))

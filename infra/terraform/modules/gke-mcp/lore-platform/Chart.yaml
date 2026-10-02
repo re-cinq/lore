@@ -10,11 +10,11 @@ description: |
   `helm dependency build` step. Each subchart keeps its own templates, hooks,
   and CRDs unchanged; the only cross-cutting edit is an explicit per-resource
   `namespace:` so this one release can span the platform's namespaces
-  (lore-floor, lore-api, lore-ui, lore-db, ai-agents, lore-event-router,
-  lore-stations).
+  (lore-api, lore-ui, lore-db, ai-agents, lore-event-router, lore-stations).
+  The release record itself lives in the `lore-floor` namespace, which is all
+  that is left of the service of that name.
 
   Values are nested under each subchart's chart name:
-    lore-floor: {...}
     lore-api: {...}
     lore-ui: {...}
     lore-db-helm: {...}
@@ -32,8 +32,6 @@ appVersion: "0.1.0"
 # charts/<dir> whose Chart.yaml name matches). No repository field → no
 # `helm dependency build`/`update` step; the chart renders as-is.
 dependencies:
-  - name: lore-floor
-    version: "0.1.0"
   - name: lore-api
     version: "0.1.0"
   - name: lore-ui

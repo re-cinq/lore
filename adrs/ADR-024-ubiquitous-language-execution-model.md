@@ -189,12 +189,12 @@ scoped settling a run to the one cluster this Floor can reach; it now settles
 from the event's own report, which carries the full status. The distinction
 above still governs the READ surface — the reconcile pass, the reaper's status
 probe, the pod-log reads — where a caller genuinely has to ask.*
-  ([validated by answers 200 with found:false for a missing CR, not 404](apps/cluster-agent/src/transport/routes/cluster/cluster-routes.test.ts#L73), [`k8s-errors.test.ts:28`](apps/cluster-agent/src/lib/k8s-errors.test.ts#L31), [`k8s-errors.test.ts:44`](apps/cluster-agent/src/lib/k8s-errors.test.ts#L47), [`k8s-errors.test.ts:56`](apps/cluster-agent/src/lib/k8s-errors.test.ts#L59), [`kubernetes.test.ts:21`](apps/floor/src/events/handlers/kubernetes.test.ts#L21), [`kubernetes.test.ts:49`](apps/floor/src/events/handlers/kubernetes.test.ts#L49), [`kubernetes.test.ts:55`](apps/floor/src/events/handlers/kubernetes.test.ts#L55))
+  ([validated by answers 200 with found:false for a missing CR, not 404](apps/cluster-agent/src/transport/routes/cluster/cluster-routes.test.ts#L73), [`k8s-errors.test.ts:28`](apps/cluster-agent/src/lib/k8s-errors.test.ts#L31), [`k8s-errors.test.ts:44`](apps/cluster-agent/src/lib/k8s-errors.test.ts#L47), [`k8s-errors.test.ts:56`](apps/cluster-agent/src/lib/k8s-errors.test.ts#L59))
 
 The reconcile pass keeps paging, and its seam narrowed with the cut: it now
 depends on one page-fetch method rather than a slice of a Kubernetes client, so
 a test fakes the thing it actually needs.
-  ([validated by walks every page via the continue token and passes the page limit](apps/floor/src/work/watcher/agent-reconcile.test.ts#L48), [`agent-reconcile.test.ts:71`](apps/floor/src/work/watcher/agent-reconcile.test.ts#L71), [`agent-reconcile.test.ts:84`](apps/floor/src/work/watcher/agent-reconcile.test.ts#L84))
+ 
 
 The Role this service carries also closes two gaps the Floor had been silently
 living with: it never held `delete` on `agents` or `agents/status`, yet issued

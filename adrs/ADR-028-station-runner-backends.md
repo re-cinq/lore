@@ -45,7 +45,7 @@ pod. Prod must keep working unchanged on its K8s cluster.
 - **Selection** — `selectStationBackend(env)`: explicit `LORE_STATION_BACKEND`
   (`k8s` | `docker` | `inprocess`) wins; else default by context —
   `KUBERNETES_SERVICE_HOST` present (in-cluster) → `k8s`, else → `docker`. The
-  composition root ([project-boot.ts](../apps/floor/src/app/project-boot.ts))
+  composition root
   injects the chosen backend.
 - **K8s adapter** — unchanged behavior; `K8sLoreTaskClient` now also `implements
   StationBackend` (launch → existing `createLoreTask`). **Prod is byte-identical.**
@@ -57,7 +57,7 @@ pod. Prod must keep working unchanged on its K8s cluster.
   mounted `~/.claude`. Secrets pass by-reference (`-e NAME`) so they stay out of
   `argv`/`ps`. `buildDockerRunArgs` is a pure, unit-tested function.
 - **Completion without a watcher (local):** `finalizeStationRun`
-  ([finalize-station-run.ts](../apps/floor/src/work/task/finalize-station-run.ts))
+ 
   runs inline off the container exit — opens the PR for the pushed branch / flips
   a finalized feature to `pr-open`. feature-planning self-POSTs its `GapResult`
   (CHANGES=0), so it needs no finalize step. The K8s path keeps using the watcher.

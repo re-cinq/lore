@@ -258,8 +258,8 @@ set -m
 # dies with "Settings file not found", which is invisible from the Floor side.
 # LORE_AGENT_SKILLS_DIR is explicit because the gateway otherwise resolves the
 # bundle relative to cwd, and concurrently runs from the repo root.
-names="shared,core,api-tsc,api,mcp-tsc,skills,agent-tsc,agent,router-tsc,router,stations-tsc,stations"
-colors="blue,gray,green,greenBright,yellow,white,magenta,magentaBright,red,red,redBright,redBright"
+names="shared,core,api-tsc,api,mcp-tsc,skills,router-tsc,router,stations-tsc,stations"
+colors="blue,gray,green,greenBright,yellow,white,red,red,redBright,redBright"
 commands=(
   "npm run dev -w @re-cinq/lore-shared"
   "npm run dev -w @re-cinq/lore-server-core"
@@ -267,8 +267,6 @@ commands=(
   "PORT=3001 npm run start:watch -w @re-cinq/lore-api"
   "npm run dev -w @re-cinq/lore-mcp"
   "LORE_MCP_HTTP=1 LORE_MCP_PORT=3002 LORE_AGENT_SKILLS_DIR=$ROOT/apps/mcp-server/agent-skills npm run start -w @re-cinq/lore-mcp"
-  "npm run dev -w @re-cinq/lore-floor"
-  "PORT=8080 npm run start:watch -w @re-cinq/lore-floor"
   "npm run dev -w @re-cinq/lore-event-router"
   "PORT=3003 npm run start:watch -w @re-cinq/lore-event-router"
   "npm run dev -w @re-cinq/lore-stations"

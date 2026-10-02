@@ -310,38 +310,38 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 
 ### `apps/floor/src/work/assembly-run/pr-check.test.ts`
 
-- returns null when the line carries no pr_number. ([validated by](apps/floor/src/work/assembly-run/pr-check.test.ts#L63))
-- returns null when the line carries no head_sha. ([validated by](apps/floor/src/work/assembly-run/pr-check.test.ts#L69))
-- maps a running line to an in_progress check named lore/<definition>. ([validated by](apps/floor/src/work/assembly-run/pr-check.test.ts#L73))
-- keeps a running line in_progress even when a node already recorded changes_requested. ([validated by](apps/floor/src/work/assembly-run/pr-check.test.ts#L81))
-- maps a changes_requested line outcome to a neutral conclusion. ([validated by](apps/floor/src/work/assembly-run/pr-check.test.ts#L89))
-- maps a completed line whose review node recorded changes_requested to a neutral conclusion — the walk routes `changes_requested → done`, so only the node walk row carries the verdict. ([validated by](apps/floor/src/work/assembly-run/pr-check.test.ts#L98))
-- reads the latest iteration of a node, so a re-reviewed success wins over an earlier changes_requested. ([validated by](apps/floor/src/work/assembly-run/pr-check.test.ts#L107))
-- maps a completed line to a success conclusion. ([validated by](apps/floor/src/work/assembly-run/pr-check.test.ts#L116))
-- maps a failed line to a failure conclusion. ([validated by](apps/floor/src/work/assembly-run/pr-check.test.ts#L122))
-- maps a failed line with a changes_requested node to a failure conclusion. ([validated by](apps/floor/src/work/assembly-run/pr-check.test.ts#L128))
-- maps a pr_closed outcome to a cancelled conclusion. ([validated by](apps/floor/src/work/assembly-run/pr-check.test.ts#L162))
-- maps a pr_closed line with a changes_requested node to a cancelled conclusion. ([validated by](apps/floor/src/work/assembly-run/pr-check.test.ts#L168))
-- adds a details_url to the Lore UI when a uiUrl is given. ([validated by](apps/floor/src/work/assembly-run/pr-check.test.ts#L176))
-- maps an iteration_max outcome to a failure conclusion. ([validated by](apps/floor/src/work/assembly-run/pr-check.test.ts#L184))
-- publishes a code-review-recheck line under the aliased `lore/code-review` check name so a required branch-protection check is refreshed on every push, not stranded under a separate name. ([validated by](apps/floor/src/work/assembly-run/pr-check.test.ts#L195))
+- returns null when the line carries no pr_number.
+- returns null when the line carries no head_sha.
+- maps a running line to an in_progress check named lore/<definition>.
+- keeps a running line in_progress even when a node already recorded changes_requested.
+- maps a changes_requested line outcome to a neutral conclusion.
+- maps a completed line whose review node recorded changes_requested to a neutral conclusion — the walk routes `changes_requested → done`, so only the node walk row carries the verdict.
+- reads the latest iteration of a node, so a re-reviewed success wins over an earlier changes_requested.
+- maps a completed line to a success conclusion.
+- maps a failed line to a failure conclusion.
+- maps a failed line with a changes_requested node to a failure conclusion.
+- maps a pr_closed outcome to a cancelled conclusion.
+- maps a pr_closed line with a changes_requested node to a cancelled conclusion.
+- adds a details_url to the Lore UI when a uiUrl is given.
+- maps an iteration_max outcome to a failure conclusion.
+- publishes a code-review-recheck line under the aliased `lore/code-review` check name so a required branch-protection check is refreshed on every push, not stranded under a separate name.
 
 ### `apps/floor/src/work/assembly-run/advance-line.test.ts`
 
-- A code-review-recheck line opts out of the branch-overlap guard, so a push landing while a review or reply line still holds the PR branch is not silently dropped as `lease_held` (the verdict update always runs). ([validated by does not re-run the inherited node](apps/floor/src/work/assembly-run/advance-line.test.ts#L919))
+- A code-review-recheck line opts out of the branch-overlap guard, so a push landing while a review or reply line still holds the PR branch is not silently dropped as `lease_held` (the verdict update always runs).
 
 ### `apps/floor/src/work/merge/auto-merge.test.ts`
 
-- merges when all gates pass. ([validated by](apps/floor/src/work/merge/auto-merge.test.ts#L32))
-- deferred:dark_mode_off when not enabled (overrides everything). ([validated by](apps/floor/src/work/merge/auto-merge.test.ts#L41))
-- deferred:no_changes for an empty PR before path-allowlist check. ([validated by](apps/floor/src/work/merge/auto-merge.test.ts#L47))
-- deferred:review_in_flight while a code-review line is open. ([validated by](apps/floor/src/work/merge/auto-merge.test.ts#L53))
-- deferred:human_review when human changes requested. ([validated by](apps/floor/src/work/merge/auto-merge.test.ts#L59))
-- deferred:ci_failed when require_green_ci and CI red. ([validated by](apps/floor/src/work/merge/auto-merge.test.ts#L65))
-- deferred:bot_changes_requested when bot did not APPROVE. ([validated by](apps/floor/src/work/merge/auto-merge.test.ts#L82))
-- deferred:trust_too_low when repo has no trust set. ([validated by](apps/floor/src/work/merge/auto-merge.test.ts#L107))
-- reports CI status as failed when CI red. ([validated by](apps/floor/src/work/merge/auto-merge.test.ts#L139))
-- reports bot review as CHANGES_REQUESTED when not approved. ([validated by](apps/floor/src/work/merge/auto-merge.test.ts#L145))
+- merges when all gates pass.
+- deferred:dark_mode_off when not enabled (overrides everything).
+- deferred:no_changes for an empty PR before path-allowlist check.
+- deferred:review_in_flight while a code-review line is open.
+- deferred:human_review when human changes requested.
+- deferred:ci_failed when require_green_ci and CI red.
+- deferred:bot_changes_requested when bot did not APPROVE.
+- deferred:trust_too_low when repo has no trust set.
+- reports CI status as failed when CI red.
+- reports bot review as CHANGES_REQUESTED when not approved.
 
 ### `libs/shared/src/work/review/floor-review-start.test.ts` and `apps/stations/src/events/floor-review-handlers.test.ts`
 

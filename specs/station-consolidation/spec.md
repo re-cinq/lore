@@ -146,7 +146,7 @@ subscribe" has no expressible meaning on the current substrate.
   The event carries the outcome twice — once beside the result and once inside
   it — and the two must agree, since only one of them is checked against the set
   of outcomes a node may produce.
-  ([validated by accepts an outcome on its own, which is all a human station reports](libs/assembly-lines/src/node-result-schema.test.ts#L6), [`node-result-schema.test.ts:12`](libs/assembly-lines/src/node-result-schema.test.ts#L12), [`node-result-schema.test.ts:21`](libs/assembly-lines/src/node-result-schema.test.ts#L21), [`node-result-schema.test.ts:43`](libs/assembly-lines/src/node-result-schema.test.ts#L43), [`node-result-schema.test.ts:47`](libs/assembly-lines/src/node-result-schema.test.ts#L47), [`node-result-schema.test.ts:53`](libs/assembly-lines/src/node-result-schema.test.ts#L53), [`node-result-schema.test.ts:61`](libs/assembly-lines/src/node-result-schema.test.ts#L61), [`node-result-schema.test.ts:75`](libs/assembly-lines/src/node-result-schema.test.ts#L75), [`resume-event-handler.test.ts:109`](apps/floor/src/work/assembly-run/resume-event-handler.test.ts#L109), [`resume-event-handler.test.ts:126`](apps/floor/src/work/assembly-run/resume-event-handler.test.ts#L126), [`resume-event-handler.test.ts:147`](apps/floor/src/work/assembly-run/resume-event-handler.test.ts#L147), [`resume-event-handler.test.ts:155`](apps/floor/src/work/assembly-run/resume-event-handler.test.ts#L155), [`advance-line.test.ts:853`](apps/floor/src/work/assembly-run/advance-line.test.ts#L949), [`advance-line.test.ts:882`](apps/floor/src/work/assembly-run/advance-line.test.ts#L978), [`advance-line.test.ts:921`](apps/floor/src/work/assembly-run/advance-line.test.ts#L1017), [`run-node.test.ts:34`](apps/stations/src/events/runner/run-node.test.ts#L34), [`run-node.test.ts:48`](apps/stations/src/events/runner/run-node.test.ts#L48), [`run-node.test.ts:68`](apps/stations/src/events/runner/run-node.test.ts#L68), [`run-node.test.ts:81`](apps/stations/src/events/runner/run-node.test.ts#L81), [`resume-event-handler.test.ts:170`](apps/floor/src/work/assembly-run/resume-event-handler.test.ts#L170), [`resume-event-handler.test.ts:184`](apps/floor/src/work/assembly-run/resume-event-handler.test.ts#L184))
+  ([validated by accepts an outcome on its own, which is all a human station reports](libs/assembly-lines/src/node-result-schema.test.ts#L6), [`node-result-schema.test.ts:12`](libs/assembly-lines/src/node-result-schema.test.ts#L12), [`node-result-schema.test.ts:21`](libs/assembly-lines/src/node-result-schema.test.ts#L21), [`node-result-schema.test.ts:43`](libs/assembly-lines/src/node-result-schema.test.ts#L43), [`node-result-schema.test.ts:47`](libs/assembly-lines/src/node-result-schema.test.ts#L47), [`node-result-schema.test.ts:53`](libs/assembly-lines/src/node-result-schema.test.ts#L53), [`node-result-schema.test.ts:61`](libs/assembly-lines/src/node-result-schema.test.ts#L61), [`node-result-schema.test.ts:75`](libs/assembly-lines/src/node-result-schema.test.ts#L75), [`run-node.test.ts:34`](apps/stations/src/events/runner/run-node.test.ts#L34), [`run-node.test.ts:48`](apps/stations/src/events/runner/run-node.test.ts#L48), [`run-node.test.ts:68`](apps/stations/src/events/runner/run-node.test.ts#L68), [`run-node.test.ts:81`](apps/stations/src/events/runner/run-node.test.ts#L81))
 
 - **FR11 — detection is short units, not one long one.** No detection work runs
   as a long-lived unit or requires a pod merely to obtain a deadline. Two of the
@@ -238,6 +238,8 @@ subscribe" has no expressible meaning on the current substrate.
   host does not serve fails by name rather than as an undefined call.
   ([validated by reports nothing to do when no task is waiting](apps/stations/src/work/approval-check/approval-check.test.ts#L47), [`approval-check.test.ts:53`](apps/stations/src/work/approval-check/approval-check.test.ts#L53), [`approval-check.test.ts:61`](apps/stations/src/work/approval-check/approval-check.test.ts#L61), [`approval-check.test.ts:70`](apps/stations/src/work/approval-check/approval-check.test.ts#L70), [`approval-check.test.ts:78`](apps/stations/src/work/approval-check/approval-check.test.ts#L78), [`approval-check.test.ts:87`](apps/stations/src/work/approval-check/approval-check.test.ts#L87), [`service-stations.test.ts:17`](apps/stations/src/events/runner/service-stations.test.ts#L17), [`service-stations.test.ts:27`](apps/stations/src/events/runner/service-stations.test.ts#L27), [`service-stations.test.ts:37`](apps/stations/src/events/runner/service-stations.test.ts#L37), [`service-stations.test.ts:43`](apps/stations/src/events/runner/service-stations.test.ts#L43), [`station.test.ts:5`](apps/stations/src/work/lib/station.test.ts#L5), [`station.test.ts:9`](apps/stations/src/work/lib/station.test.ts#L9))
 
+> **2026-10-02.** This describes Lore's own Floor (`apps/floor`), which was deleted (`specs/external-floor` FR16.10); it is kept as the record of what the old engine did.
+
 - **FR18 — a finished run records what it did.** Reaching the exit writes the
   run's episode. This was the terminal station's job and it never ran: every
   blueprint names that station as its EXIT, and the walk finishes AT the exit
@@ -246,7 +248,7 @@ subscribe" has no expressible meaning on the current substrate.
   Exactly one episode is written per run. Three blueprints also carry that
   station MID-graph, where it does dispatch and does write; for those the Floor
   stands down at the exit rather than writing a second.
-  ([validated by writes the run's episode when the line reaches its exit](apps/floor/src/work/assembly-run/advance-line.test.ts#L1054), [`finish-node.test.ts:667`](apps/floor/src/work/assembly-run/finish-node.test.ts#L540), [`finish-node.test.ts:691`](apps/floor/src/work/assembly-run/finish-node.test.ts#L564), [`run-episode.test.ts:8`](apps/floor/src/work/assembly-run/run-episode.test.ts#L8), [`run-episode.test.ts:23`](apps/floor/src/work/assembly-run/run-episode.test.ts#L23), [`run-episode.test.ts:37`](apps/floor/src/work/assembly-run/run-episode.test.ts#L37))
+
 
 - **FR19 — a station that calls a model is given a credential, and says so when
   it cannot.** A station's recipe declares whether it needs the model credential,
@@ -287,7 +289,7 @@ subscribe" has no expressible meaning on the current substrate.
   delivery still queued for it — duplicate issues, duplicate episodes — or, for a
   node type with no seeded recipe, fail on every tick. A service visit is still
   timed out at its budget, so a lost delivery surfaces rather than parking forever.
-  ([validated by waits rather than relaunching it as a pod, since no pod was ever meant to exist](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L944), [`assembly-run-reaper.test.ts:953`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L958), [`assembly-run-reaper.test.ts:967`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L972), [`finish-node.test.ts:715`](apps/floor/src/work/assembly-run/finish-node.test.ts#L588), [`advance-line.test.ts:976`](apps/floor/src/work/assembly-run/advance-line.test.ts#L1072))
+ 
 
 - **FR23 — what a subscriber asks for, it can handle and does receive.** Every
   name a process subscribes to has a handler, derived from the same manifests the
@@ -317,7 +319,7 @@ subscribe" has no expressible meaning on the current substrate.
   its work takes, and a five-minute step left to a sixty-minute default sits
   un-reaped for an hour after it is already lost. A blueprint that does declare a
   budget still wins, so a line may deliberately extend a step.
-  ([validated by takes the station's 5 minutes when the YAML declares no budget](apps/floor/src/work/assembly-run/node-timeout.test.ts#L5), [`node-timeout.test.ts:9`](apps/floor/src/work/assembly-run/node-timeout.test.ts#L9), [`node-timeout.test.ts:13`](apps/floor/src/work/assembly-run/node-timeout.test.ts#L13), [`assembly-run-reaper.test.ts:1150`](apps/floor/src/work/assembly-run/assembly-run-reaper.test.ts#L1156))
+ 
 
 - **FR26 — a subscriber repairs what it was not there to receive.** Fan-out reads
   the subscription set when an event is INSERTED, so an event captured while a

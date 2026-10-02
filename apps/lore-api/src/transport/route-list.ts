@@ -240,7 +240,7 @@ function memoryRoutes(getPool: PoolGetter): ServerRoute[] {
 function ingestRoutes(getPool: PoolGetter): ServerRoute[] {
   return [
     ingestRoute(getPool),
-    ingestGraphRoute(getPool),
+    ingestGraphRoute(),
     ingestStateRoute(getPool),
     ingestDeltaRoute(getPool),
     specLinksParseRoute(),

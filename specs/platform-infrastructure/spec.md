@@ -27,17 +27,17 @@ The readiness probe reports database connectivity: `getHealthStatus()` returns
 `connected:false` with a reason when the query throws; the `/healthz` handler
 returns 200/`ok` when the DB is connected or no DB is configured, and 503/`error`
 only when a configured DB is unreachable — the Floor's own `/healthz` returning
-the `{status:"error", reason:"database connection failed"}` body in that case. ([validated by `healthz.test.ts:12`](libs/server-core/src/outbound/healthz.test.ts#L12), [`healthz.test.ts:20`](libs/server-core/src/outbound/healthz.test.ts#L20), [`healthz.test.ts:38`](libs/server-core/src/outbound/healthz.test.ts#L38), [`healthz.test.ts:57`](libs/server-core/src/outbound/healthz.test.ts#L57), [`healthz.test.ts:70`](libs/server-core/src/outbound/healthz.test.ts#L70), [`healthz.test.ts:93`](libs/server-core/src/outbound/healthz.test.ts#L93), [`health.test.ts:5`](apps/floor/src/transport/http/routes/health.test.ts#L5))
+the `{status:"error", reason:"database connection failed"}` body in that case. ([validated by `healthz.test.ts:12`](libs/server-core/src/outbound/healthz.test.ts#L12), [`healthz.test.ts:20`](libs/server-core/src/outbound/healthz.test.ts#L20), [`healthz.test.ts:38`](libs/server-core/src/outbound/healthz.test.ts#L38), [`healthz.test.ts:57`](libs/server-core/src/outbound/healthz.test.ts#L57), [`healthz.test.ts:70`](libs/server-core/src/outbound/healthz.test.ts#L70), [`healthz.test.ts:93`](libs/server-core/src/outbound/healthz.test.ts#L93))
 
 ### Database pool resilience
 
-Every long-lived `pg` pool (the Floor kernel pool, the lore-api pool, the web-ui
-pool) attaches an `error` listener at construction, so an idle-client failure
+Every long-lived `pg` pool (the shared pool the services build at boot, the
+lore-api pool) attaches an `error` listener at construction, so an idle-client failure
 (backend restart, network blip) is logged with the app's `[db]`/`[lore-api]`
 prefix instead of surfacing as an uncaught exception that kills the process; the
-Floor pool is the test-validated exemplar, and the lore-api and web-ui pools
-attach the identical inline handler at their own construction
-sites. ([validated by `db.test.ts:13`](apps/floor/src/outbound/db.test.ts#L13))
+shared pool builder is the test-validated exemplar, and the lore-api pool
+attaches the identical inline handler at its own construction
+site. ([validated by logs a terminated idle client under the db prefix instead of ending the process](libs/shared/src/outbound/db/pg-pool-idle-error.test.ts#L10))
 
 ### GitHub client
 
@@ -89,9 +89,6 @@ and the `InMemoryResearch` double retains every recorded attempt for assertion.
 `makeGraphLlmCall` returns undefined when `ANTHROPIC_API_KEY` is unset, and
 otherwise returns a caller that routes the prompt through the `Llm` singleton
 under the `graph-extraction` job name. ([validated by `helpers.test.ts:17`](apps/lore-api/src/transport/routes/helpers.test.ts#L13), [`helpers.test.ts:18`](apps/lore-api/src/transport/routes/helpers.test.ts#L18))
-
-`triggerAgentSpecTrace` is a no-op that resolves to undefined when there is no DB
-pool. ([validated by `spec-trace-trigger.test.ts:37`](apps/lore-api/src/transport/routes/spec-trace-trigger.test.ts#L37))
 
 ### Anthropic cost sync window
 
