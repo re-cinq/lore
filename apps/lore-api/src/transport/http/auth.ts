@@ -66,6 +66,7 @@ function sweepWhenDue(now: number): void {
 function windowFor(key: string, now: number): number[] {
   const timestamps = windows.get(key) ?? [];
 
+  windows.delete(key);
   windows.set(key, timestamps);
 
   while (timestamps.length > 0 && timestamps[0] <= now - WINDOW_MS) {
