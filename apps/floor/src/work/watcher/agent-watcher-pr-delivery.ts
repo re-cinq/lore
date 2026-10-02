@@ -6,7 +6,6 @@ import { writeEpisodeWithCuration, errorMessage } from "@re-cinq/lore-shared";
 import { tryAutoMergeForCompletedTask } from "../merge/auto-merge-trigger.js";
 import { prFooter, linkifyMarkdown } from "@re-cinq/lore-shared";
 import { generateArtifactCopy } from "../../outbound/artifact-copy.js";
-import { maybeStartAutoReview } from "./agent-watcher-auto-review.js";
 import {
   decideCiGate,
   taskPageUrl,
@@ -55,7 +54,7 @@ async function computeChangedFileCount(ctx: AgentContext): Promise<number> {
   }
 }
 
-/** Open a PR from the pushed branch and tell everything downstream about it — issue, feature row, CI gate, auto-review. */
+/** Open a PR from the pushed branch and tell everything downstream about it — issue, feature row, CI gate. Its review is the code-review line's, started by the pull request's own webhook. */
 async function deliverPrForTask(
   ctx: AgentContext,
   changedFiles: number,
@@ -73,7 +72,6 @@ async function deliverPrForTask(
     prProject,
   });
   await runAutoMergeGate(ctx, prProject);
-  await maybeStartAutoReview(ctx, pr);
 }
 
 export interface OpenedPr {

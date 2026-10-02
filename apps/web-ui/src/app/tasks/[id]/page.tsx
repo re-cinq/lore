@@ -1,5 +1,5 @@
 export const dynamic = "force-dynamic";
-import { getTask, getTaskRuns, reviseTask } from "@/lib/api/tasks";
+import { getTask, getTaskRuns } from "@/lib/api/tasks";
 import { redirect } from "next/navigation";
 import TaskDetailView, {
   soleRunHref,
@@ -28,29 +28,7 @@ export default async function TaskDetailPage({ params }: TaskDetailPageProps) {
 
   const failedEvent = await readFailedEvent(id);
 
-  return (
-    <TaskDetailView
-      task={task}
-      failedEvent={failedEvent}
-      runs={runs}
-      submitFeedback={submitFeedback}
-    />
-  );
-}
-
-async function submitFeedback(formData: FormData) {
-  "use server";
-  const taskId = formData.get("task_id") as string | null;
-  const feedback = formData.get("feedback") as string | null;
-
-  if (!taskId || !feedback?.trim()) {
-    return;
-  }
-
-  // lore-api queues revision on same branch.
-  await reviseTask(taskId, feedback);
-
-  redirect(`/tasks/${taskId}`);
+  return <TaskDetailView task={task} failedEvent={failedEvent} runs={runs} />;
 }
 
 /** The task, or null when there isn't one. An unreachable lore-api reads the same as a missing task here on purpose: either way this page has nothing to show, and the reader's next move is the same. */

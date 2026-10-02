@@ -148,42 +148,10 @@ export const gapFillDefinition: AssemblyLineDefinition = {
   ],
 };
 
-export const generalDefinition: AssemblyLineDefinition = {
-  name: "general",
-  description:
-    // eslint-disable-next-line re-lint/no-duplicate-code -- the general line's own description and graph; it must stay changeable without touching the implementation line's, which is why both are written out
-    "Linear flow for general tasks — implement, validate, push, review, retrospective. Used when no more specific assembly line applies.",
-  version: 1,
-  entry: "implement",
-  exit: "done",
-  nodes: [
-    { id: "implement", type: "agent" },
-    { id: "validate", type: "validate" },
-    { id: "push", type: "agent" },
-    // eslint-disable-next-line re-lint/no-duplicate-code -- the general line's node list, pinned literally: a shared node table would let a change to one line silently edit the other line's expected graph
-    { id: "review", type: "agent" },
-    { id: "retrospective", type: "retrospective" },
-    { id: "done", type: "retrospective" },
-  ],
-  edges: [
-    { from: "implement", to: "validate", on: "success" },
-    { from: "implement", to: "retrospective", on: "changes_requested" },
-    // eslint-disable-next-line re-lint/no-duplicate-code -- the general line's edges, self-loop included; the implementation line's edges fork from these downstream and each set is asserted verbatim
-    { from: "implement", to: "implement", on: "failed", iteration_max: 1 },
-    { from: "validate", to: "push", on: "success" },
-    { from: "validate", to: "implement", on: "failed", iteration_max: 1 },
-    { from: "push", to: "review", on: "always" },
-    { from: "review", to: "retrospective", on: "success" },
-    { from: "review", to: "retrospective", on: "changes_requested" },
-    { from: "review", to: "retrospective", on: "failed" },
-    { from: "retrospective", to: "done", on: "always" },
-  ],
-};
-
+// The graph of the `implementation` line, deleted on 2026-10-01 (#2328). Kept as a fixture because runs that walked it are still stored with this graph and the run page still draws them.
 export const implementationDefinition: AssemblyLineDefinition = {
   name: "implementation",
   description:
-    // eslint-disable-next-line re-lint/no-duplicate-code -- the implementation line's description and nodes, deliberately its own literal even where it currently reads like the general line's
     "Implement a spec, validate, push, review. On changes_requested, address feedback up to 2 iterations.",
   version: 1,
   entry: "implement",
@@ -193,7 +161,6 @@ export const implementationDefinition: AssemblyLineDefinition = {
     { id: "validate", type: "validate" },
     { id: "push", type: "agent" },
     { id: "review", type: "agent" },
-    // eslint-disable-next-line re-lint/no-duplicate-code -- the implementation line's node list, kept separate so adding a node here cannot move the general line's expected graph
     { id: "address", type: "agent" },
     { id: "retrospective", type: "retrospective" },
     { id: "done", type: "retrospective" },
@@ -201,7 +168,6 @@ export const implementationDefinition: AssemblyLineDefinition = {
   edges: [
     { from: "implement", to: "validate", on: "success" },
     { from: "implement", to: "implement", on: "failed", iteration_max: 1 },
-    // eslint-disable-next-line re-lint/no-duplicate-code -- the implementation line's edges, which fork from the general line's at changes_requested; each fixture states its whole graph rather than a diff
     { from: "implement", to: "retrospective", on: "changes_requested" },
     { from: "validate", to: "push", on: "success" },
     { from: "validate", to: "implement", on: "failed", iteration_max: 1 },
@@ -226,7 +192,6 @@ export const builtinDefinitions: AssemblyLineDefinition[] = [
   featurePlanningDefinition,
   gapDetectDefinition,
   gapFillDefinition,
-  generalDefinition,
   implementationDefinition,
   ingestDefinition,
   specCoverageBackfillDefinition,

@@ -72,13 +72,16 @@ Run observability is delivered over Server-Sent Events at
 `GET /api/agent-events/stream/{assemblyLineId}`, with catch-up-then-live
 semantics keyed on a row-id cursor. ([opens a run channel and delivers its snapshot, replay and catchup_complete as frame envelopes](apps/lore-api/src/work/assembly-line-station/live-socket.test.ts#L159), [delivers the run, every node, every task event and the CI check as a snapshot, then the agent replay, then catchup_complete](apps/lore-api/src/work/assembly-line-station/run-stream-session.test.ts#L130), [forwards transcript rows written after catch-up on an agent_event notification, from the feed's cursor](apps/lore-api/src/work/assembly-line-station/run-feed.test.ts#L185))
 
-The POST handler and the SSE subscribers are joined by an in-process pub/sub. ([delivers a published notification only to subscribers whose filter matches](apps/lore-api/src/work/assembly-line-station/run-notify-hub.test.ts#L73)) A
-subscriber registers against an assembly-line id; the ingest path publishes each
+The POST handler and the SSE subscribers are joined by an in-process pub/sub. ([delivers a published notification only to subscribers whose filter matches](apps/lore-api/src/work/assembly-line-station/run-notify-hub.test.ts#L73))
+
+A subscriber registers against an assembly-line id; the ingest path publishes each
 projected row to matching subscribers after the write commits. ([opens one LISTEN connection on the first subscriber and dispatches its notifications](apps/lore-api/src/work/assembly-line-station/run-notify-hub.test.ts#L142))
 
 Reconnection is lossless by construction rather than by buffering: the browser
 resends `Last-Event-ID`, and the server replays from the database before
-attaching to the live tail. ([handles a notification that arrives during a viewer's catch-up only after it](apps/lore-api/src/work/assembly-line-station/run-feed.test.ts#L256), [`run-event-reducer.test.ts:223`](apps/web-ui/src/lib/run-event-reducer.test.ts#L223)) The bus is therefore best-effort and holds no
+attaching to the live tail. ([handles a notification that arrives during a viewer's catch-up only after it](apps/lore-api/src/work/assembly-line-station/run-feed.test.ts#L256), [`run-event-reducer.test.ts:223`](apps/web-ui/src/lib/run-event-reducer.test.ts#L223))
+
+The bus is therefore best-effort and holds no
 backlog — durability lives in `pipeline.agent_run_events`, not in memory. ([ends every viewer with an error and closes the feed when a read fails](apps/lore-api/src/work/assembly-line-station/run-feed.test.ts#L312))
 
 A subscriber that cannot keep up is disconnected rather than allowed to apply
@@ -268,10 +271,10 @@ wired and closes the older gap on the way past.
 
 #### Decisions
 
-- One nightly `cron.telemetry_prune.tick` reaps both at the same window. ([validated by [prunes both tables at the retention window](apps/floor/src/work/station/log-retention.test.ts#L9), [prunes rows past the retention window and reports the count](libs/shared/src/outbound/project/pod-logs/pod-logs.test.ts#L67))
+- One nightly `cron.telemetry_prune.tick` reaps both at the same window. ([validated by [prunes both tables at the retention window](libs/shared/src/work/housekeeping/telemetry-retention.test.ts#L9), [prunes rows past the retention window and reports the count](libs/shared/src/outbound/project/pod-logs/pod-logs.test.ts#L67))
 - The two sweeps settle independently: one failing must not skip the other,
-  which is how a table quietly outgrows its window. ([validated by [still prunes the other table when one fails](apps/floor/src/work/station/log-retention.test.ts#L17))
-- The window is overridable, so a deployment can keep less. ([validated by [honours an explicit window](apps/floor/src/work/station/log-retention.test.ts#L30))
+  which is how a table quietly outgrows its window. ([validated by [still prunes the other table when one fails](libs/shared/src/work/housekeeping/telemetry-retention.test.ts#L17))
+- The window is overridable, so a deployment can keep less. ([validated by [honours an explicit window](libs/shared/src/work/housekeeping/telemetry-retention.test.ts#L30))
 
 ## Amendment (2026-09-09): the stream moves to lore-api, and the bus becomes Postgres
 

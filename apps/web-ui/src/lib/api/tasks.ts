@@ -15,30 +15,6 @@ export interface TaskLogs {
   totalSize: number;
 }
 
-export type CreatedTask = components["schemas"]["StationTaskCreated"];
-
-/** Queues a task; lore-api RETURNS the new id — pages used to re-read the newest table row instead, which two concurrent submissions could misattribute to a stranger's task. */
-export function createTask(input: {
-  description: string;
-  taskType?: string;
-  targetRepo?: string;
-  priority?: string;
-  createdBy?: string;
-  contextBundle?: Record<string, unknown>;
-}): Promise<ApiResult<CreatedTask>> {
-  return apiFetch("lore-api", "/api/task", {
-    method: "POST",
-    body: {
-      description: input.description,
-      ...(input.taskType ? { task_type: input.taskType } : {}),
-      ...(input.targetRepo ? { target_repo: input.targetRepo } : {}),
-      ...(input.priority ? { priority: input.priority } : {}),
-      ...(input.createdBy ? { created_by: input.createdBy } : {}),
-      ...(input.contextBundle ? { context: input.contextBundle } : {}),
-    },
-  });
-}
-
 export function getTask(id: string): Promise<ApiResult<Task>> {
   return apiFetch("lore-api", `/api/task/${encodeURIComponent(id)}`);
 }
@@ -60,17 +36,6 @@ export function runTaskNow(
   return apiFetch("lore-api", "/api/task", {
     method: "POST",
     body: { action: "run-now", task_id: id },
-  });
-}
-
-/** Queues a revision from human feedback; refuses an unknown id (404) or blank feedback (409) rather than queueing an empty revision. */
-export function reviseTask(
-  id: string,
-  feedback: string,
-): Promise<ApiResult<{ task_id: string; revision_task_id: string }>> {
-  return apiFetch("lore-api", "/api/task", {
-    method: "POST",
-    body: { action: "revise", task_id: id, feedback },
   });
 }
 

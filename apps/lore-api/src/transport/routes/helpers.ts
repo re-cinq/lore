@@ -46,21 +46,3 @@ export async function triggerAgentSpecTrace(
     },
   });
 }
-
-/** Validates inline spec→test links after ingest; no-op without pool. */
-export async function triggerAgentSpecCoverageValidate(
-  pool: Pool | null,
-  repo: string,
-): Promise<void> {
-  if (!pool) {
-    return;
-  }
-  await eventProxyFor(pool).emit({
-    kind: "event",
-    event: {
-      eventName: "internal.ingest.spec_coverage_validate",
-      source: "internal",
-      params: { repo },
-    },
-  });
-}

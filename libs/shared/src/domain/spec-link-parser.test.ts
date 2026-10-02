@@ -4,6 +4,7 @@ import {
   parseCodeLinksInStatement,
   linksForStatements,
   findMisplacedCoverageLinks,
+  testLinksOfDoc,
 } from "./spec-link-parser.js";
 
 describe("parseTestLinksInStatement", () => {
@@ -254,5 +255,53 @@ describe("findMisplacedCoverageLinks", () => {
     );
 
     expect(out).toEqual([]);
+  });
+});
+
+describe("testLinksOfDoc", () => {
+  it("returns the trailing link to apps/x/a.test.ts line 12 with its statement's line 3", () => {
+    const doc = [
+      "# Spec",
+      "",
+      "- Claims a task. ([validated by claims](apps/x/a.test.ts#L12))",
+    ].join("\n");
+
+    expect(testLinksOfDoc("specs/a/spec.md", doc)).toEqual([
+      {
+        label: "validated by claims",
+        path: "apps/x/a.test.ts",
+        line: 12,
+        statementLine: 3,
+        misplaced: false,
+      },
+    ]);
+  });
+
+  it("marks a test link in the middle of a statement as misplaced", () => {
+    const doc =
+      "- Claims a task ([validated by claims](apps/x/a.test.ts#L12)) and releases it.";
+
+    expect(testLinksOfDoc("specs/a/spec.md", doc)).toMatchObject([
+      { path: "apps/x/a.test.ts", line: 12, misplaced: true },
+    ]);
+  });
+
+  it("resolves ../../apps/x/a.test.ts against the folder of specs/a/spec.md", () => {
+    const doc =
+      "- Claims a task. ([validated by claims](../../apps/x/a.test.ts#L12))";
+
+    expect(testLinksOfDoc("specs/a/spec.md", doc)).toMatchObject([
+      { path: "apps/x/a.test.ts" },
+    ]);
+  });
+
+  it("returns nothing for a source file, a URL and the path/to/test.ts placeholder", () => {
+    const doc = [
+      "- Reads the queue. ([implemented by queue](apps/x/queue.ts#L4))",
+      "- Runs in CI. ([validated by ci](https://example.com/a.test.ts#L1))",
+      "- Links look like this. ([validated by name](path/to/test.ts#L42))",
+    ].join("\n");
+
+    expect(testLinksOfDoc("specs/a/spec.md", doc)).toEqual([]);
   });
 });

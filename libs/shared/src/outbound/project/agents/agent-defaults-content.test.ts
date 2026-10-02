@@ -9,7 +9,7 @@ function promptOf(name: string): string {
   return SHIPPED.get(name)?.prompt ?? "";
 }
 
-describe("the implementation-tdd recipe", () => {
+describe("the delivering recipes", () => {
   it("tells every implementing recipe to commit and push, because the next node is another pod (18/18 implementation-loop branches shipped 0 commits, 2026-08-30)", () => {
     for (const name of DELIVERING_PROMPT_REFS) {
       const prompt = promptOf(name);
@@ -55,12 +55,7 @@ describe("the implementation-tdd recipe", () => {
   });
 
   it("tells every recipe that writes tests to run the spec-link re-anchor script after the formatter, when the repository has one", () => {
-    for (const name of [
-      "implementation-tdd",
-      "acceptance-dod",
-      "tdd-round",
-      "pr-ready",
-    ]) {
+    for (const name of ["acceptance-dod", "tdd-round", "pr-ready"]) {
       const prompt = promptOf(name);
 
       expect(prompt, name).toContain("node scripts/spec-links/reanchor.mjs");
@@ -189,14 +184,15 @@ describe("the implementation-tdd recipe", () => {
     expect(ready).toContain("never a comment or blank line");
   });
 
-  it("demands red before green, inline validated-by links, and the status flip, leaving implementation untouched", () => {
-    const tdd = promptOf("implementation-tdd");
-
-    expect(tdd).toContain("failing test");
-    expect(tdd).toContain("Red first");
-    expect(tdd).toContain("validated by");
-    expect(tdd).toContain("| Status |");
-    expect(promptOf("implementation")).not.toContain("Red first");
+  it("has the loop's own recipes demand red before green, inline validated-by links, and the status flip", () => {
+    expect({
+      redFirst: promptOf("acceptance-dod").includes("FAIL right now"),
+      oneRedTest: promptOf("tdd-round").includes(
+        "one failing test for the smallest facet",
+      ),
+      links: promptOf("pr-ready").includes("([validated by name](path#Lnn))"),
+      status: promptOf("pr-ready").includes("`| Status |` header row"),
+    }).toEqual({ redFirst: true, oneRedTest: true, links: true, status: true });
   });
 
   it("has tdd-round ask which tests already cover a symbol before editing it", () => {
@@ -463,16 +459,14 @@ describe("the plan-validate recipe", () => {
   });
 });
 
-describe("the gap-fill and general recipes", () => {
-  it("let a draft that finds the context already current report changes_requested, so a true no-op ends the run without a PR instead of failing an empty branch", () => {
-    for (const name of ["gap-fill", "general"]) {
-      const prompt = promptOf(name);
+describe("the gap-fill recipe", () => {
+  it("lets a draft that finds the context already current report changes_requested, so a true no-op ends the run without a PR instead of failing an empty branch", () => {
+    const prompt = promptOf("gap-fill");
 
-      expect(prompt, name).toContain(
-        'LORE_NODE_RESULT: {"outcome":"changes_requested","extras":{"Lore-Already-Current":',
-      );
-      expect(prompt, name).toContain("Report failure when you are STUCK");
-    }
+    expect(prompt).toContain(
+      'LORE_NODE_RESULT: {"outcome":"changes_requested","extras":{"Lore-Already-Current":',
+    );
+    expect(prompt).toContain("Report failure when you are STUCK");
   });
 });
 

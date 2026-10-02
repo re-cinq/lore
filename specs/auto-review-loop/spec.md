@@ -256,10 +256,9 @@ review:
 
 1. Implementation PR → review LoreTask CR created automatically (when auto_review enabled)
 2. Review Job pod clones repo, reads spec + diff, posts PR comments
-3. Approved: parent task marked as `review/approved` ([validated by `pipeline.test.ts:69`](libs/server-core/src/work/pipeline/pipeline.test.ts#L64), [`pipeline.test.ts:53`](libs/server-core/src/work/pipeline/pipeline.test.ts#L53))
-4. Changes requested (iteration < 2): new implementation LoreTask with feedback, same branch ([validated by `review-feedback.test.ts`](libs/shared/src/work/review-feedback.test.ts), [`pipeline.test.ts:113`](libs/server-core/src/work/pipeline/pipeline.test.ts#L113))
-
-5. Changes requested (iteration >= 2): escalate with `needs-human-review` label ([validated by `pipeline.test.ts:90`](libs/server-core/src/work/pipeline/pipeline.test.ts#L85))
+3. Approved: parent task marked as `review/approved`. _(Retired 2026-10-02 with criteria 4 and 5: the review-result handler that recorded a verdict on the task and queued a follow-up task had no caller left and is deleted. The `code-review` line reviews every pull request and `code-review-reply` answers a request for changes on it; see `specs/external-floor`.)_
+4. Changes requested (iteration < 2): new task with the feedback, same branch. _(Retired.)_
+5. Changes requested (iteration >= 2): escalate with `needs-human-review` label. _(Retired.)_
 6. Review completes in <5 min
 7. Review result visible in pipeline UI
 8. Auto-review is opt-in per repo
@@ -295,9 +294,7 @@ and the webhook/verdict plumbing it rides on.
    `github.pull_request_review_comment.created` with author/id/body; a non-created review comment is
    ignored. ([validated by `github-map.test.ts:187`](libs/shared/src/outbound/project/events/github-map.test.ts#L193), [`github-map.test.ts:214`](libs/shared/src/outbound/project/events/github-map.test.ts#L220), [`github-map.test.ts:246`](libs/shared/src/outbound/project/events/github-map.test.ts#L252))
 
-8. The watcher parses the agent's review verdict from stdout: `REVIEW_RESULT:APPROVED` → `approved`,
-   `CHANGES_REQUESTED` (with trailing feedback) → `changes_requested`, and no marker or absent output
-   → undefined. ([validated by `agent-watcher-logic.test.ts:34`](apps/floor/src/domain/agent-watcher-logic.test.ts#L37), [`agent-watcher-logic.test.ts:43`](apps/floor/src/domain/agent-watcher-logic.test.ts#L42), [`agent-watcher-logic.test.ts:48`](apps/floor/src/domain/agent-watcher-logic.test.ts#L47), [`agent-watcher-logic.test.ts:208`](apps/floor/src/domain/agent-watcher-logic.test.ts#L179))
+8. _(Retired 2026-10-01.)_ The Floor watcher no longer parses a review verdict from an agent's stdout: nothing acts on one since its fix loop was removed (#2328). A review node's verdict is still read by the station contract's `parseReviewVerdict`.
 
 9. The line's `review` recipe posts nothing itself — the pod has no `gh` and no GitHub token — so
    it carries every finding in its `REVIEW_RESULT:CHANGES_REQUESTED:` line. ([validated by reports its findings in the REVIEW_RESULT line instead of posting them with gh, which the pod does not have](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L233))
@@ -408,10 +405,10 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 
 ### `libs/assembly-lines/src/loader.test.ts`
 
-- code-review is a `review → post-review → done` graph with no refine node. ([validated by walks code-review from review through post-review to done, with no refine node](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L74))
-- gap-fill is a linear flow with retrospective + done as exit pair. ([validated by](libs/assembly-lines/src/loader.test.ts#L662))
-- assemblyLinesDir actually exists on disk (sanity check). ([validated by](libs/assembly-lines/src/loader.test.ts#L716))
-- code-review-recheck is a Gemini 3.1 Pro `recheck → post-review → done` graph routing every verdict to `post-review`. ([validated by walks code-review-recheck through recheck, post-review and done on gemini-3.1-pro-preview with edges for changes_requested, failed and success](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L113))
+- code-review is a `review → post-review → done` graph with no refine node. ([validated by walks code-review from review through post-review to done, with no refine node](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L560))
+- gap-fill is a linear flow with retrospective + done as exit pair. ([validated by](libs/assembly-lines/src/loader.test.ts#L659))
+- assemblyLinesDir actually exists on disk (sanity check). ([validated by](libs/assembly-lines/src/loader.test.ts#L700))
+- code-review-recheck is a Gemini 3.1 Pro `recheck → post-review → done` graph routing every verdict to `post-review`. ([validated by walks code-review-recheck through recheck, post-review and done on gemini-3.1-pro-preview with edges for changes_requested, failed and success](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L599))
 
 ### `libs/shared/src/outbound/project/assembly-runs/assembly-runs.test.ts`
 
@@ -510,38 +507,38 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
   earlier verdict it reads `main...HEAD` as before. The sha and the range are resolved
   together, so a rebase that drops the judged commit names no sha at all rather than
   sending the pod to diff against history the branch no longer has.
-  ([validated by starts a re-check that names sha-old as the last judged commit](libs/shared/src/work/review/floor-review-start.test.ts#L287), [validated by reads the range since the sha the last verdict judged, rather than the whole PR again](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L315))
+  ([validated by starts a re-check that names sha-old as the last judged commit](libs/shared/src/work/review/floor-review-start.test.ts#L287), [validated by reads the range since the sha the last verdict judged, rather than the whole PR again](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L801))
 - *(added 2026-09-25)* The re-check recipe carries the deep review's discipline at its own
   scope: context queried with the PR title and the surface the new commits change, the CI
   verdict read through `lore_get_ci_failures` rather than reasoned about or re-run, each
   diff read once in place, and a `question` when an added spec statement is not what a
   person using that surface would expect.
-  ([validated by reads the range since the sha the last verdict judged, rather than the whole PR again](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L315), [validated by carries the same CI-verdict and read-once rules as the deep review, so a re-check runs no linter either](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L325), [validated by queries context with the PR title and the surface the new commits change](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L336))
+  ([validated by reads the range since the sha the last verdict judged, rather than the whole PR again](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L801), [validated by carries the same CI-verdict and read-once rules as the deep review, so a re-check runs no linter either](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L811), [validated by queries context with the PR title and the surface the new commits change](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L822))
 - *(added 2026-09-25)* A review asked for by hand supersedes the fast pass a push started:
   the open re-check is finished `superseded` before the deep review starts, so one sha
   never collects two verdicts of different depths. ([validated by cancels the open re-check as superseded when a review is forced](libs/shared/src/work/review/floor-review-start.test.ts#L255))
 - Every recipe that asks for a `REVIEW_FINDINGS` block shows a whole finding
   (`path`, `line`, `label`, `decoration`, `subject`) rather than pointing at
   another recipe's schema, so no model has to guess the shape.
-  ([validated by shows a whole finding with path, line, label, decoration and subject in code-review and code-review-recheck, so no model guesses the shape (#2143's recheck lost every finding)](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L354))
+  ([validated by shows a whole finding with path, line, label, decoration and subject in code-review and code-review-recheck, so no model guesses the shape (#2143's recheck lost every finding)](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L840))
 - *(added 2026-09-24)* The deep review reads the change as its user before it reads
   it as its reviewer: for every spec statement the PR adds or changes, one line on
   what a person using that surface sees differently, compared with the statements
   beside it and the page or route that renders it, and a mismatch is a `question`
   finding rather than silence — a spec written in the same PR as its code proves
   nothing about intent (the #2130 replay approved a fresh-run design twice).
-  ([validated by asks, for every spec statement the PR adds or changes, what a person using that surface sees differently, and files a mismatch as a question rather than silence](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L267))
+  ([validated by asks, for every spec statement the PR adds or changes, what a person using that surface sees differently, and files a mismatch as a question rather than silence](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L753))
 - Lint, types, formatting and tests are CI's verdict, read through
   `lore_get_ci_failures`; the review runs no eslint, tsc, formatter, test runner or
-  install. ([validated by names lint, types, formatting and tests as CI's verdict, read through lore_get_ci_failures, so the review spends no commands reproducing them](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L277))
+  install. ([validated by names lint, types, formatting and tests as CI's verdict, read through lore_get_ci_failures, so the review spends no commands reproducing them](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L763))
 - The diff is read once, in place, never dumped to a file and read back.
-  ([validated by reads the diff once in place and never dumps it to a file to re-read](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L287))
+  ([validated by reads the diff once in place and never dumps it to a file to re-read](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L773))
 - Context is queried with the PR title, the spec sections it touches and the surface
   it changes, never with a description of reviewing, which returns the platform
-  overview. ([validated by queries context with the PR's subject, spec and surface, never with a description of reviewing](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L293))
+  overview. ([validated by queries context with the PR's subject, spec and surface, never with a description of reviewing](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L779))
 - `changes_requested` is for a defect in the changed code or a mismatch between what
   the spec says and what a person would expect of its surface; a `question` alone
-  never blocks. ([validated by reserves changes_requested for a defect in the changed code or a mismatch between the spec and what a person would expect, and says a question alone does not block](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L302))
+  never blocks. ([validated by reserves changes_requested for a defect in the changed code or a mismatch between the spec and what a person would expect, and says a question alone does not block](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L788))
 - parses a valid findings block into a ReviewOutput. ([validated by](libs/shared/src/work/review/review-findings.test.ts#L8))
 - returns null when no findings block is present. ([validated by](libs/shared/src/work/review/review-findings.test.ts#L42))
 - returns null when the block is not valid JSON that a quote/newline repair

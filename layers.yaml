@@ -162,6 +162,11 @@ layers:
       - outbound
       - code-review
       - planning
+      - merge
+      - digest
+      - onboard
+      - implementation-loop
+      - spec-upkeep
       - "@re-cinq/lore-shared"
     # The stations the external floor dispatches for the code-review lines, one
     # folder each. They claim their own work from the floor's queue, so nothing
@@ -183,6 +188,39 @@ layers:
       - work
       - "@re-cinq/floor-station"
       - "@re-cinq/lore-assembly-lines"
+      - "@re-cinq/lore-shared"
+    # The stations the external floor dispatches for the merge line: one handle
+    # around the step logic in `work/merge-step`, registered once per step.
+    merge:
+      - work
+      - "@re-cinq/floor-station"
+    # The stations the external floor dispatches for the daily-digest line, one
+    # folder each, sharing one composition root.
+    digest:
+      - outbound
+      - "@re-cinq/floor-station"
+      - "@re-cinq/lore-shared"
+    # The stations the external floor dispatches for the onboard line, one
+    # folder each.
+    onboard:
+      - outbound
+      - "@re-cinq/floor-station"
+      - "@re-cinq/lore-shared"
+    # The stations the external floor dispatches for the implementation-loop
+    # line, one folder each.
+    implementation-loop:
+      - domain
+      - outbound
+      - "@re-cinq/floor-station"
+      - "@re-cinq/lore-shared"
+    # The stations the external floor dispatches for the spec-upkeep line, one
+    # folder each. `onboard` is reached for the request-review station, which
+    # this line registers under its own name.
+    spec-upkeep:
+      - domain
+      - outbound
+      - onboard
+      - "@re-cinq/floor-station"
       - "@re-cinq/lore-shared"
     transport:
       - events

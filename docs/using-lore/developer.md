@@ -60,8 +60,8 @@ Add a `lore` label to any Issue on an onboarded repo — or open one with the Lo
 
 The label determines the task type:
 
-- `lore` → general task
-- `lore:implementation` → implementation task (runs on the ai-agent-subsystem)
+- `lore` → the implementation loop's backlog (the issue gets `priority:medium` when it has no priority label), unless the repo sets another default type
+- `lore:implementation` → the implementation loop's backlog as well
 - `lore:review` → review task
 - `lore:runbook` → runbook task
 

@@ -17,7 +17,7 @@ import (
 // straight to lore-api, which projects in-process — no event, no assembly run,
 // no pod.
 
-const ingestKind = "test-report"
+const testReportKind = "test-report"
 
 // ingestDelta is the body of POST /api/repos/{owner}/{repo}/ingest.
 // BaseCommit is the state OBSERVED, sent as an explicit null on a full ingest —
@@ -64,8 +64,8 @@ func repoURL(apiBase, repo, tail string) string {
 // fetchIngestState answers the last-ingested commit for this repo and kind, or
 // nil when there is none — and nil, too, when the route does not exist yet: "no
 // recorded state" and "no state endpoint" both mean diff against nothing.
-func fetchIngestState(ctx context.Context, apiBase, token, repo string, client *http.Client) (*string, error) {
-	q := url.Values{"kind": {ingestKind}}
+func fetchIngestState(ctx context.Context, apiBase, token, repo, kind string, client *http.Client) (*string, error) {
+	q := url.Values{"kind": {kind}}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
 		repoURL(apiBase, repo, "/ingest-state?"+q.Encode()), nil)
 	if err != nil {
@@ -93,7 +93,8 @@ func fetchIngestState(ctx context.Context, apiBase, token, repo string, client *
 	return body.Commit, nil
 }
 
-// postIngestDelta sends one delta under the webhook path's retry policy: a
+// postIngestDelta sends one delta (a test report's or a doc kind's) under the
+// webhook path's retry policy: a
 // transport error, a 5xx or a 429 earns another attempt with the same backoff
 // (ingest is idempotent, so a re-send is always safe), while a 409 comes back
 // typed at once — a lost CAS can only lose again with the same base, the flow
@@ -104,18 +105,26 @@ func fetchIngestState(ctx context.Context, apiBase, token, repo string, client *
 // on exactly the transients this covers — a 502 during a deploy, a connection
 // reset, a client timeout — and because the state advances only with the final
 // chunk, each failure made the NEXT push a full ingest again.
-func postIngestDelta(ctx context.Context, apiBase, token, repo string, d ingestDelta, client *http.Client) error {
+func postIngestDelta(ctx context.Context, apiBase, token, repo string, d any, client *http.Client) error {
 	b, err := json.Marshal(d)
 	if err != nil {
 		return fmt.Errorf("encoding delta: %w", err)
 	}
+	return retryTransient(func() (error, bool) {
+		return sendIngestDelta(ctx, apiBase, token, repo, b, client)
+	})
+}
+
+// retryTransient runs one attempt at a time under the webhook path's budget and
+// backoff. An attempt answers its error and whether another try could help.
+func retryTransient(attempt func() (error, bool)) error {
 	var lastErr error
-	for attempt := 1; attempt <= postAttempts; attempt++ {
-		if attempt > 1 {
-			failed := attempt - 1
+	for n := 1; n <= postAttempts; n++ {
+		if n > 1 {
+			failed := n - 1
 			retrySleep(time.Duration(failed*failed) * 2 * time.Second)
 		}
-		err, retry := sendIngestDelta(ctx, apiBase, token, repo, b, client)
+		err, retry := attempt()
 		if !retry {
 			return err
 		}
@@ -177,12 +186,12 @@ type deltaDeps struct {
 // Otherwise the diff decides. One 409 earns one re-fetch and re-diff; a second
 // fails the step out loud.
 func runDeltaFlow(ctx context.Context, deps deltaDeps, report TestReport) error {
-	for attempt := 0; ; attempt++ {
+	return retryOnceOnStale(func() error {
 		state, err := deps.fetchState(ctx)
 		if err != nil {
 			return err
 		}
-		delta := ingestDelta{Kind: ingestKind, Commit: report.Commit, BaseCommit: state, Report: report}
+		delta := ingestDelta{Kind: testReportKind, Commit: report.Commit, BaseCommit: state, Report: report}
 		if state != nil && deps.reachable(*state) {
 			changed, deleted, err := deps.changedSince(*state)
 			if err != nil {
@@ -191,13 +200,19 @@ func runDeltaFlow(ctx context.Context, deps deltaDeps, report TestReport) error 
 			delta.Report = selectDelta(report, changed)
 			delta.Deleted = deleted
 		}
-		err = postDeltaChunked(ctx, deps, delta)
-		var stale *staleStateError
-		if errors.As(err, &stale) && attempt == 0 {
-			continue
-		}
-		return err
+		return postDeltaChunked(ctx, deps, delta)
+	})
+}
+
+// retryOnceOnStale runs one handshake and, when the server's pointer moved
+// under it, exactly one more: the second run re-fetches the state and re-diffs.
+func retryOnceOnStale(handshake func() error) error {
+	err := handshake()
+	var stale *staleStateError
+	if errors.As(err, &stale) {
+		return handshake()
 	}
+	return err
 }
 
 // postDeltaChunked sends a delta whole when it fits one body, and otherwise

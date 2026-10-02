@@ -52,6 +52,7 @@ import { ingestRoute } from "./routes/ingest/ingest.js";
 import { ingestGraphRoute } from "./routes/ingest/ingest-graph.js";
 import { ingestStateRoute } from "./routes/ingest/ingest-state.js";
 import { ingestDeltaRoute } from "./routes/ingest/ingest-delta.js";
+import { specLinksParseRoute } from "./routes/spec-links/spec-links-parse.js";
 import { eventPayloadRoute } from "./routes/ingest/event-payload.js";
 import { embeddingsRoute } from "./routes/ingest/embeddings.js";
 import { reembedRoute } from "./routes/ingest/reembed.js";
@@ -100,6 +101,7 @@ import { chunksPruneRoute } from "./routes/repos/chunks-prune.js";
 import { stationDataRoutes } from "./routes/repos/station-data.js";
 import { traceAdrsRoute } from "./routes/trace/trace-adrs.js";
 import { traceSpecsRoute } from "./routes/trace/trace-specs.js";
+import { traceOverlayDropRoute } from "./routes/trace/trace-overlay-drop.js";
 import { plansRoutes } from "./routes/plans/plans.js";
 import type { PlanVerbSeams } from "./routes/plans/plan-verbs-for.js";
 import { implementationLoopRoutes } from "./routes/backlog/backlog.js";
@@ -107,9 +109,10 @@ import { openApiJsonRoute, docsRoute } from "./routes/openapi/openapi.js";
 import { githubCredentialsRoute } from "./routes/github-credentials/github-credentials.js";
 import { floorGitCredentialRoute } from "./routes/floor/git-credential.js";
 import { reviewStartRoute } from "./routes/floor/review-start.js";
-import { floorRunTurnsRoute } from "./routes/floor/run-turns.js";
-import { floorRunEventsRoute } from "./routes/floor/run-events.js";
-import { floorNodeLogsRoute } from "./routes/floor/node-logs.js";
+import { runTurnsRoute, turnPageReader } from "./routes/floor/run-turns.js";
+import { runEventsRoute, eventPageReader } from "./routes/floor/run-events.js";
+import { nodeLogsRoute, nodeLogsReader } from "./routes/floor/node-logs.js";
+import { storedRunHistoryOf } from "../work/floor/stored-run-history-pg.js";
 import { githubInstallationsRoute } from "./routes/github-installations/record-installation.js";
 import { githubInstallationsListRoute } from "./routes/github-installations/list-installations.js";
 
@@ -141,9 +144,7 @@ function integrationRoutes(getPool: PoolGetter): ServerRoute[] {
     githubCredentialsRoute(getPool),
     floorGitCredentialRoute(),
     reviewStartRoute(),
-    floorRunTurnsRoute(),
-    floorRunEventsRoute(),
-    floorNodeLogsRoute(),
+    ...runHistoryRoutes(getPool),
     githubInstallationsRoute(getPool),
     githubInstallationsListRoute(getPool),
   ];
@@ -242,6 +243,7 @@ function ingestRoutes(getPool: PoolGetter): ServerRoute[] {
     ingestGraphRoute(getPool),
     ingestStateRoute(getPool),
     ingestDeltaRoute(getPool),
+    specLinksParseRoute(),
     eventPayloadRoute(getPool),
     embeddingsRoute(),
     // The sweep is a write of knowledge (rows leave the store), not a graph read.
@@ -253,7 +255,7 @@ function ingestRoutes(getPool: PoolGetter): ServerRoute[] {
 /** Inbound from other systems, and the credentials that gate them. */
 function webhookRoutes(getPool: PoolGetter): ServerRoute[] {
   return [
-    slackWebhookRoute(getPool),
+    slackWebhookRoute(),
     slackEventsRoute(),
     incidentWebhookRoute(getPool),
     webhookStatusRoute(),
@@ -316,5 +318,17 @@ function traceRoutes(): ServerRoute[] {
     ...stationDataRoutes(),
     traceAdrsRoute(),
     traceSpecsRoute(),
+    traceOverlayDropRoute(),
+  ];
+}
+
+/** A run's turns, events and node logs, answered from Postgres for a run it has and from the external floor otherwise. */
+function runHistoryRoutes(getPool: PoolGetter): ServerRoute[] {
+  const stored = storedRunHistoryOf(getPool);
+
+  return [
+    runTurnsRoute(turnPageReader(stored)),
+    runEventsRoute(eventPageReader(stored)),
+    nodeLogsRoute(nodeLogsReader(stored)),
   ];
 }

@@ -37,7 +37,7 @@ Starts a brand-new ad-hoc task as a detached background Claude Code process in a
 | Param | Type | Required | Default | Constraint / notes |
 |-------|------|----------|---------|--------------------|
 | `description` | string | yes | — | Free-text instruction for the agent. Must reference the current repo; cross-repo references are refused with a wrong-repo warning. |
-| `task_type` | enum | no | `"implementation"` | Kind of work: 'implementation' (code), 'general' (open-ended), 'runbook' (incident runbook), 'gap-fill' (missing docs). |
+| `task_type` | enum | no | `"local"` | Kind of work: 'local' (free-form work on this machine; it is tracked here only and files no pipeline task), 'runbook' (incident runbook), 'gap-fill' (missing docs). |
 | `model` | string | no | — | Anthropic model id override for the spawned process (e.g. 'claude-opus-4-6'). |
 
 ## Behavior
@@ -48,9 +48,9 @@ Starts a brand-new ad-hoc task as a detached background Claude Code process in a
    that differs from the detected repo and does not mention the detected repo,
    return a `"Warning: This task references … but you're in …"` message with a
    `cd` suggestion — no worktree is created.
-3. **Task id** — generate a UUID. When `LORE_API_URL` + `LORE_INGEST_TOKEN` are
+3. **Task id** — generate a UUID. For a pipeline task type (`runbook`, `gap-fill`), when `LORE_API_URL` + `LORE_INGEST_TOKEN` are
    set, `POST {apiUrl}/api/task` to register the task and adopt the returned
-   `task_id`; any failure falls back to the generated UUID.
+   `task_id`; any failure falls back to the generated UUID. Free-form `local` work files no pipeline task: the `implementation` and `general` types it used to be filed under are gone (#2328), so it runs under the generated UUID. ([validated by files no pipeline task for free-form local work and runs it under a generated id](apps/mcp-server/src/transport/tools/local-runner-tools.local.test.ts#L182), [validated by files a runbook task and runs it under the server's id task-123](apps/mcp-server/src/transport/tools/local-runner-tools.local.test.ts#L194))
 4. Spawn via `spawnLocalTask({taskId, prompt, repo, taskType, model, repoRoot})`
    ([spawn](../../../apps/mcp-server/src/work/pipeline/runner.local.ts#L862)):
    1. `ensureDirs()` for `~/.lore/worktrees` and `~/.lore/task-logs`.
@@ -90,16 +90,16 @@ wrong-repo warning, or `"Error: {message}"`. **Never throws**.
 ## Acceptance Criteria
 
 `validateRepoMatch` passes when the cwd repo matches the task's target repo.
-([validated by `passes when cwd repo matches task repo`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L200))
+([validated by `passes when cwd repo matches task repo`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L201))
 
 `validateRepoMatch` throws when the cwd repo differs from the task's target repo.
-([validated by `throws when cwd repo differs from task repo`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L206))
+([validated by `throws when cwd repo differs from task repo`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L207))
 
 The repo-mismatch error names both repos and suggests a `cd`.
-([validated by `error message names both repos and suggests a cd`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L212))
+([validated by `error message names both repos and suggests a cd`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L213))
 
 `validateRepoMatch` passes when the cwd repo cannot be detected (null).
-([validated by `passes when cwd repo cannot be detected (null)`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L223))
+([validated by `passes when cwd repo cannot be detected (null)`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L224))
 
 The `<slug>` segment normalizes the description: lowercased, every run of
 non-alphanumeric characters collapsed to a single dash, truncated to 40 chars,
@@ -107,10 +107,10 @@ with any trailing dash stripped; digits-only and empty inputs are preserved.
 ([validated by `runner.local.test.ts:33`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L33), [validated by `runner.local.test.ts:37`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L37), [validated by `runner.local.test.ts:41`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L41), [validated by `runner.local.test.ts:48`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L48), [validated by `runner.local.test.ts:56`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L56), [validated by `runner.local.test.ts:63`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L63), [validated by `runner.local.test.ts:67`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L67), [validated by `runner.local.test.ts:71`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L71))
 
 The spawned branch follows the `lore/<type>/<slug>-<shortId>` format.
-([validated by `creates lore/<type>/<slug>-<shortId> format`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L177))
+([validated by `creates lore/<type>/<slug>-<shortId> format`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L178))
 
 A short prompt still produces a valid branch name.
-([validated by `handles very short prompts`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L191))
+([validated by `handles very short prompts`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L192))
 
 The end-to-end spawn (worktree creation, `claude` process, `monitorTask` →
 commit/push/PR) is exercised only by manual / integration runs. *(untested:
@@ -123,11 +123,11 @@ mocking child_process, which the no-mocks convention forbids.)*
 server-issued `task_id` on a successful `POST /api/task`, and falls back to
 `null` when the request throws — the caller then adopts a generated UUID.
 ([validated by `returns null without fetching when the API URL or token is not
-configured`](../../../apps/mcp-server/src/transport/tools/local-runner-tools.local.test.ts#L14),
+configured`](../../../apps/mcp-server/src/transport/tools/local-runner-tools.local.test.ts#L15),
 [`returns the server-issued task id on
-success`](../../../apps/mcp-server/src/transport/tools/local-runner-tools.local.test.ts#L29),
+success`](../../../apps/mcp-server/src/transport/tools/local-runner-tools.local.test.ts#L30),
 [`returns null when the request
-throws`](../../../apps/mcp-server/src/transport/tools/local-runner-tools.local.test.ts#L48))
+throws`](../../../apps/mcp-server/src/transport/tools/local-runner-tools.local.test.ts#L49))
 
 ## Out of Scope
 

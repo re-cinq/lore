@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type { AssemblyRun } from "@/lib/assembly-runs";
 import { runStatusVisual } from "@/lib/assembly-run-presenter";
 import AssemblyRunsTable from "./AssemblyRunsTable";
@@ -22,9 +21,6 @@ export default function AssemblyRunListView({
     <div>
       <div className={styles.header}>
         <h1>Assembly Runs</h1>
-        <Link href="/assembly-runs/create">
-          <button>+ Create Task</button>
-        </Link>
       </div>
 
       <StatusFilterBar activeStatus={activeStatus} />

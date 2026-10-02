@@ -105,3 +105,16 @@ describe("InMemorySettings.allRepos", () => {
     expect(await port.allRepos()).toEqual(["re-cinq/lore", "re-cinq/Otto"]);
   });
 });
+
+describe("InMemorySettings org settings", () => {
+  it("answers the seeded slack_users value and null for a key that is not set", async () => {
+    const port = new InMemorySettings();
+
+    port.org.slack_users = '{"a":"U1"}';
+
+    expect([
+      await port.orgSetting("slack_users"),
+      await port.orgSetting("other"),
+    ]).toEqual(['{"a":"U1"}', null]);
+  });
+});

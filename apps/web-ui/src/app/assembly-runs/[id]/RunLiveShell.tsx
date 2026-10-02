@@ -19,6 +19,7 @@ import RunIssueCard from "./RunIssueCard";
 import DefinitionOfDonePanel from "./DefinitionOfDonePanel";
 import { AssemblyRunOptions } from "./AssemblyRunOptions";
 import RunVisualizationPanel from "./RunVisualizationPanel";
+import { waitingOnPerson } from "@/lib/human-station";
 import LlmCallsTable from "@/app/tasks/[id]/LlmCallsTable";
 
 export interface RunLiveShellProps {
@@ -41,7 +42,7 @@ export default function RunLiveShell(props: RunLiveShellProps) {
 
   return (
     <>
-      <AssemblyRunView run={run} />
+      <RunHeader run={run} definition={props.definition} nodes={live.nodes} />
       <RunIssueCard issue={props.issue ?? null} />
       <DefinitionOfDonePanel runId={run.id} refreshKey={dodRefreshKey(live)} />
       <AssemblyRunOptions run={run} />
@@ -52,6 +53,20 @@ export default function RunLiveShell(props: RunLiveShellProps) {
         applyFrame={applyFrame}
       />
     </>
+  );
+}
+
+/** The run's header, reading whose move it is while only people hold the open run. */
+function RunHeader(props: {
+  run: AssemblyRun;
+  definition: RunLiveShellProps["definition"];
+  nodes: readonly AssemblyRunNode[];
+}) {
+  return (
+    <AssemblyRunView
+      run={props.run}
+      waitingOn={waitingOnPerson(props.definition, props.nodes)}
+    />
   );
 }
 

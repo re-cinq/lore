@@ -568,7 +568,7 @@ describe("getNextTransition — a revisit numbers past every prior visit", () =>
   });
 });
 
-describe("an unclaimed node on the real implementation blueprint (2026-08-29 incident replay: validate needed node:validate, the only offering cluster was paused, reaper failed the visit)", () => {
+describe("an unclaimed node on the real onboard blueprint, which keeps the shape of the implementation line this happened on (2026-08-29 incident replay: validate needed node:validate, the only offering cluster was paused, reaper failed the visit)", () => {
   const unclaimedValidate = async (): Promise<NodeVisit[]> => [
     { nodeId: "implement", iteration: 1, outcome: "success" },
     {
@@ -582,7 +582,7 @@ describe("an unclaimed node on the real implementation blueprint (2026-08-29 inc
   ];
 
   const implementationLoop = async (): Promise<AssemblyLine> => {
-    const line = (await loadBuiltinAssemblyLines()).get("implementation");
+    const line = (await loadBuiltinAssemblyLines()).get("onboard");
 
     expect(line).toBeDefined();
 

@@ -80,7 +80,7 @@ one still open. ([validated by `blocks an already-onboarded repo without creatin
 
 The `pr-open` block is self-healing: `lore.repos.onboarding_pr_url` is set when the
 onboarding PR opens and cleared by the Floor's merge-check when that PR is closed
-without merging, so a rejected onboarding does not refuse the repo forever. ([validated by `nulls the onboarding PR url by row id when that PR closed unmerged`](libs/shared/src/outbound/project/settings/settings-pg.test.ts#L89))
+without merging, so a rejected onboarding does not refuse the repo forever. ([validated by `nulls the onboarding PR url by row id when that PR closed unmerged`](libs/shared/src/outbound/project/settings/settings-pg.test.ts#L106))
 
 The web-ui onboard form and the repo-page re-onboard button take the same lock
 through their own mirror of the guard, which decides identically. ([validated by `takes the per-repo advisory lock before reading the guard state`](apps/web-ui/src/lib/onboard.test.ts#L50))
@@ -125,7 +125,7 @@ A `reonboard` submission is queued for an already-onboarded repo but still refus
 
 `onboardRepo` takes one pooled connection and commits both the onboard task and the `lore.repos` row inside the single transaction that holds the lock — a second connection for the task would deadlock the pool once concurrent submissions reach its size, and a task committed outside the transaction would survive the rollback and then block every retry as in-flight. A failing write rolls back, creates nothing, and skips the webhook ensure. ([validated by `commits the task and the repos row on the one locked connection`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L118), [`rolls back and creates nothing when a write fails`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L168))
 
-Onboard tasks are created only here: `POST /api/task` refuses `task_type: "onboard"` and points at this route rather than routing around the guard. ([validated by refuses task_type onboard and points at the guarded onboard route](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L372))
+Onboard tasks are created only here: `POST /api/task` creates no task of any type (since 2026-10-02 it only acts on an existing one). ([validated by creates nothing for a body that names neither a task nor a type](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L263))
 
 ### What the route no longer does
 

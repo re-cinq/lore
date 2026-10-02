@@ -57,7 +57,6 @@ const baseProps = {
   trustLevel: "implementation",
   darkTasksWeek: 0,
   autoMergedWeek: 0,
-  escalationsWeek: 0,
   recentTasks: [] as RecentTask[],
   latestEvents: [] as RepoEvent[],
   reonboardAction: action,
@@ -127,7 +126,6 @@ describe("RepoOverviewView", () => {
         trustLevel="full"
         darkTasksWeek={12}
         autoMergedWeek={3}
-        escalationsWeek={2}
       />,
     );
     const card = screen
@@ -138,7 +136,6 @@ describe("RepoOverviewView", () => {
     expect(within(card).getByText("full")).toBeInTheDocument();
     expect(within(card).getByText("12")).toBeInTheDocument();
     expect(within(card).getByText("3")).toBeInTheDocument();
-    expect(within(card).getByText("2")).toBeInTheDocument();
   });
 
   it("renders a row per recent task with a PR link and a pipeline link", () => {

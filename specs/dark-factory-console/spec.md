@@ -76,7 +76,7 @@ Recent tasks are projected to work items carrying id, type, status, and PR link.
 ([validated by `projects recent tasks to work items with id, type, status, and PR link`](apps/web-ui/src/app/repos/[owner]/[repo]/dark-factory/derive-console.test.ts#L40), [`stringifies the id and passes the rest through`](apps/web-ui/src/app/repos/[owner]/[repo]/dark-factory/page-input.test.ts#L21))
 
 Dark-factory audit events are projected to a decision feed: an
-`auto_merge_decision` summarizes its outcome, an `escalation_issued` its reason,
+`auto_merge_decision` summarizes its outcome,
 a `lease_expired` its previous holder, and a `spec_trace_ingest` its
 validated_by / violated counts; an unrecognized event type falls back to its
 raw event type, and a missing payload field falls back to a placeholder value.

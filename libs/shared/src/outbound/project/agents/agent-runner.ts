@@ -20,14 +20,20 @@ function requireStation(station: StationBackend | undefined): StationBackend {
   return station;
 }
 
-/** What the backend is asked to run. Only the three fields the pipeline itself owns get defaults here — a task type, a description, and the branch its work lands on. */
+/** What the backend is asked to run. A description and the branch the work lands on get defaults here; the task type does not, since it names the recipe the pod runs and there is no stand-in one. */
 function launchSpec(
   { repo, taskId, prompt }: { repo: string; taskId: string; prompt: string },
   runOpts: AgentRunOpts,
 ) {
+  enforceTrue(
+    runOpts.taskType,
+    Error,
+    'agents.run mode "cluster" needs a taskType: it names the recipe the pod runs',
+  );
+
   return {
     taskId,
-    taskType: runOpts.taskType ?? "general",
+    taskType: runOpts.taskType,
     description: runOpts.description ?? "",
     prompt,
     targetRepo: repo,

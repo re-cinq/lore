@@ -27,7 +27,7 @@ func TestFetchIngestStateReturnsTheStoredCommit(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	got, err := fetchIngestState(context.Background(), srv.URL, "tok", "re-cinq/lore", srv.Client())
+	got, err := fetchIngestState(context.Background(), srv.URL, "tok", "re-cinq/lore", testReportKind, srv.Client())
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -42,7 +42,7 @@ func TestFetchIngestStateReadsNullAsNoState(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	got, err := fetchIngestState(context.Background(), srv.URL, "tok", "re-cinq/lore", srv.Client())
+	got, err := fetchIngestState(context.Background(), srv.URL, "tok", "re-cinq/lore", testReportKind, srv.Client())
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -59,7 +59,7 @@ func TestFetchIngestStateTreatsAMissingRouteAsNoState(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	got, err := fetchIngestState(context.Background(), srv.URL, "tok", "re-cinq/lore", srv.Client())
+	got, err := fetchIngestState(context.Background(), srv.URL, "tok", "re-cinq/lore", testReportKind, srv.Client())
 	if err != nil {
 		t.Fatalf("a 404 must not fail the caller, got %v", err)
 	}

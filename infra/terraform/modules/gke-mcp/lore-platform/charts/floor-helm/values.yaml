@@ -160,10 +160,8 @@ cronJobDefaults:
       memory: 512Mi
 
 cronJobs:
-  # Lightweight cleanups (defaults are fine)
-  - name: consolidation
-    job: consolidation
-    schedule: "30 5 * * *"
+  # consolidation left on 2026-10-02: it is a stations sweep with a courier
+  # (stations-helm courierJobs), like the single-operation jobs before it.
   # The detection family (gap_detection / spec_drift / spec_coverage_*) is no
   # longer here: their cron ticks are in-process emitters that fan out per-repo
   # assembly-line runs (ADR-019 amendment).

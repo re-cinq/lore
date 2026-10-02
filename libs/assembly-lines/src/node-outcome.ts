@@ -1,6 +1,12 @@
 // Station contract's outcome parsing (ADR-031 D4/D9): maps a terminal Agent CR status to the node outcome the transition replay routes on. Precedence on Succeeded: LORE_NODE_RESULT → REVIEW_RESULT → success; a CR phase of Failed is a distinct infrastructure failure.
 
 import { classifyError } from "@re-cinq/lore-shared/error-classify.js";
+import {
+  DOD_RESOLVED_PREFIX,
+  dodResolvedReason,
+} from "@re-cinq/lore-shared/dod-verdict.js";
+
+export { dodResolvedReason };
 import type { FailureCategory } from "@re-cinq/lore-shared/error-classify.js";
 import type { NodeResult, StageOutcome } from "./node-types.js";
 
@@ -203,8 +209,6 @@ function withLiftedVerdictDetail(stationResult: NodeResult): NodeResult {
   return failureDetail ? { ...stationResult, failureDetail } : stationResult;
 }
 
-const DOD_RESOLVED_PREFIX = "already resolved: ";
-
 // In precedence order; the blocked verdict carries no prefix because nothing reads it back.
 const LIFTED_VERDICTS: readonly { key: string; prefix: string }[] = [
   { key: "Lore-Dod-Resolved", prefix: DOD_RESOLVED_PREFIX },
@@ -222,15 +226,6 @@ function liftedVerdict(stationResult: NodeResult): string | null {
   }
 
   return null;
-}
-
-// The resolved verdict's reason, read back off a row's failure_detail; null for a blocked verdict or no verdict at all.
-export function dodResolvedReason(
-  failureDetail: string | null | undefined,
-): string | null {
-  return failureDetail?.startsWith(DOD_RESOLVED_PREFIX)
-    ? failureDetail.slice(DOD_RESOLVED_PREFIX.length)
-    : null;
 }
 
 function isVerdictText(verdict: unknown): verdict is string {

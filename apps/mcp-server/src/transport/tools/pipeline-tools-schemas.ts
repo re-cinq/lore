@@ -15,9 +15,8 @@ export const CREATE_PIPELINE_TASK_INPUT = {
     ),
   task_type: z
     .string()
-    .default("general")
     .describe(
-      "feature-request | general | runbook | implementation | gap-fill | review. Unknown values fall back to 'general'. 'onboard' is refused here — use lore_onboard_repo, which guards against duplicate onboarding.",
+      "feature-request | runbook | gap-fill | review. Required: there is no default type, and an unknown one is refused. To have something implemented, open an issue with a priority:* label instead and the implementation loop picks it up. 'onboard' is refused here — use lore_onboard_repo, which guards against duplicate onboarding.",
     ),
   target_repo: z
     .string()

@@ -70,23 +70,3 @@ export function markFailed(
 export function markDead(id: string, error: string): Promise<void> {
   return deliveries().markDead(id, error);
 }
-
-/** Deliveries a crashed claimer left in flight; each row is judged against its own subscriber's declared budget, not one global ceiling. */
-export function reapStuck(): Promise<number> {
-  return deliveries().reapStuck();
-}
-
-/** Delete old terminal deliveries to keep the claim index small. */
-export function pruneHandled(olderThanDays: number): Promise<number> {
-  return deliveries().pruneHandled(olderThanDays);
-}
-
-/** Events captured recently that no subscriber received — the silent case. */
-export function orphanedEvents(withinMinutes: number) {
-  return deliveries().orphanedEvents(withinMinutes);
-}
-
-/** Deliveries a handler recently gave up on — the other silent case. */
-export function deadLettered(withinMinutes: number) {
-  return deliveries().deadLettered(withinMinutes);
-}

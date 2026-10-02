@@ -1766,6 +1766,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/repos/{owner}/{repo}/trace/overlay-drop": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/trace/overlay-drop */
+    post: operations["post_api_repos_owner_repo_trace_overlay-drop"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/repos/{owner}/{repo}/trace/{kind}": {
     parameters: {
       query?: never;
@@ -1897,6 +1914,23 @@ export interface paths {
     /** PUT /api/settings */
     put: operations["put_api_settings"];
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/spec-links/parse": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/spec-links/parse */
+    post: operations["post_api_spec-links_parse"];
     delete?: never;
     options?: never;
     head?: never;
@@ -2945,24 +2979,6 @@ export interface components {
       username: string;
       password: string;
     };
-    FloorNodeLogs: {
-      available: boolean;
-      logs: string | null;
-      phase: string;
-      podName: null;
-      archived: boolean;
-      /** @constant */
-      reason?: "no-records";
-    };
-    FloorRunEvents: {
-      events: {
-        [key: string]: unknown;
-      }[];
-    };
-    FloorRunTurns: {
-      turns: unknown[];
-      hasMore: boolean;
-    };
     GitCredential: {
       username: string;
       password: string;
@@ -3401,6 +3417,15 @@ export interface components {
         [key: string]: unknown;
       }[];
     };
+    NodeLogs: {
+      available: boolean;
+      logs: string | null;
+      phase: string;
+      podName: null;
+      archived: boolean;
+      /** @constant */
+      reason?: "no-records";
+    };
     OnboardResult:
       | {
           repo_id: string;
@@ -3567,6 +3592,9 @@ export interface components {
     OrgSettingsSaved: {
       /** @constant */
       ok: true;
+    };
+    OverlayDrop: {
+      dropped: boolean;
     };
     PipelineAnalytics: {
       [key: string]: unknown;
@@ -3740,7 +3768,6 @@ export interface components {
     RepoActivityCounts: {
       tasks: number | null;
       auto_merged: number | null;
-      escalations: number | null;
     };
     RepoChunkSummary: {
       count: number;
@@ -3941,6 +3968,11 @@ export interface components {
     ReviewStarted: {
       started: string | null;
     };
+    RunEvents: {
+      events: {
+        [key: string]: unknown;
+      }[];
+    };
     RunStreamFrame:
       | {
           /** @constant */
@@ -4049,6 +4081,10 @@ export interface components {
       /** Format: date-time */
       expires_at: string;
     };
+    RunTurns: {
+      turns: unknown[];
+      hasMore: boolean;
+    };
     SearchContextResults: {
       results: {
         content: string;
@@ -4106,6 +4142,16 @@ export interface components {
       blocks?: unknown[];
     };
     SlackEventAck: string;
+    SpecLinksParseResult: {
+      links: {
+        doc_path: string;
+        statement_line: number | null;
+        label: string;
+        path: string;
+        line: number | null;
+        misplaced: boolean;
+      }[];
+    };
     SpecList: {
       specs: {
         [key: string]: unknown;
@@ -5049,13 +5095,13 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description One page of the agent events of a run on the external floor, oldest first; empty for a run the floor does not have */
+      /** @description One page of a run's agent events, oldest first; empty for a run neither Postgres nor the floor has */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["FloorRunEvents"];
+          "application/json": components["schemas"]["RunEvents"];
         };
       };
       401: components["responses"]["Unauthorized"];
@@ -5102,13 +5148,13 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The log the external floor kept for one visit of a run, named floor-<visit id>; 404 for a name of no visit of this run */
+      /** @description One node's log: stored stdout for a node of a run Postgres has, the floor's log for a visit named floor-<visit id>; 404 for a name of no node of this run */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["FloorNodeLogs"];
+          "application/json": components["schemas"]["NodeLogs"];
         };
       };
       401: components["responses"]["Unauthorized"];
@@ -5230,13 +5276,13 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description One page of the turns of a run on the external floor, oldest first; empty for a run the floor does not have */
+      /** @description One page of a run's turns, oldest first; empty for a run neither Postgres nor the floor has */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["FloorRunTurns"];
+          "application/json": components["schemas"]["RunTurns"];
         };
       };
       401: components["responses"]["Unauthorized"];
@@ -7144,6 +7190,8 @@ export interface operations {
             content: string;
           }[];
           deleted?: string[];
+          present?: string[];
+          force?: boolean;
           report?: unknown;
         };
       };
@@ -7988,6 +8036,41 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
+  "post_api_repos_owner_repo_trace_overlay-drop": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          branch: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Whether the graph was asked to drop the branch's overlay; false when no graph is configured */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OverlayDrop"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
   get_api_repos_owner_repo_trace_kind: {
     parameters: {
       query?: never;
@@ -8258,6 +8341,41 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
+  "post_api_spec-links_parse": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          docs: {
+            path: string;
+            content: string;
+          }[];
+        };
+      };
+    };
+    responses: {
+      /** @description The test links the posted specs and ADRs carry */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SpecLinksParseResult"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
   "post_api_spec-tasks_claim": {
     parameters: {
       query?: never;
@@ -8397,18 +8515,11 @@ export interface operations {
           priority?: string;
           pr_url?: string;
           error?: string;
-          description?: string;
-          created_by?: string;
-          feedback?: string;
-          task_type?: string;
-          target_repo?: string;
-          group_id?: string;
-          context?: unknown;
         };
       };
     };
     responses: {
-      /** @description The created task, or the transition's acknowledgement */
+      /** @description The transition's acknowledgement */
       200: {
         headers: {
           [name: string]: unknown;
