@@ -77,11 +77,11 @@ case). **Never throws** — every path returns text.
 
 ## Acceptance Criteria
 
-The `/api/onboard` route returns 503 when the pool is null. ([validated by `onboard.test.ts:42`](apps/lore-api/src/transport/routes/repos/onboard.test.ts#L42))
+The `/api/onboard` route returns 503 when the pool is null. ([validated by `onboard.test.ts:42`](apps/lore-api/src/transport/routes/repos/onboard.test.ts#L43))
 
-The route returns 400 for a malformed (`owner/repo`-less) repo argument. ([validated by `onboard.test.ts:48`](apps/lore-api/src/transport/routes/repos/onboard.test.ts#L48))
+The route returns 400 for a malformed (`owner/repo`-less) repo argument. ([validated by `onboard.test.ts:48`](apps/lore-api/src/transport/routes/repos/onboard.test.ts#L49))
 
-A well-formed repo returns the onboard result on 200. ([validated by `onboard.test.ts:54`](apps/lore-api/src/transport/routes/repos/onboard.test.ts#L54))
+A well-formed repo returns the onboard result on 200. ([validated by `onboard.test.ts:54`](apps/lore-api/src/transport/routes/repos/onboard.test.ts#L55))
 
 A 409 from the route is the guard refusing a duplicate, not an outage: the tool
 returns the refusal body verbatim so the caller keeps `blocked` and the in-flight
