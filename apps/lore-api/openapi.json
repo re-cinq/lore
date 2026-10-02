@@ -2174,6 +2174,117 @@
         "x-required-scope": "read"
       }
     },
+    "/api/floor-runs": {
+      "get": {
+        "operationId": "get_api_floor-runs",
+        "summary": "GET /api/floor-runs",
+        "tags": ["Tasks"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "One page of the external floor's runs, newest first, each with its mini pipeline",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FloorRunPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read"
+      }
+    },
+    "/api/floor-runs/stream-token": {
+      "post": {
+        "operationId": "post_api_floor-runs_stream-token",
+        "summary": "POST /api/floor-runs/stream-token",
+        "tags": ["Tasks"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "A short-lived token that opens the floor run list's channel of the live socket (/api/ws) as one person",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FloorRunsStreamToken"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "write",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "user": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "name": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": ["id", "name"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["user"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/floor/git-credential": {
       "post": {
         "operationId": "post_api_floor_git-credential",
@@ -10835,6 +10946,147 @@
         "required": ["username", "password"],
         "additionalProperties": false
       },
+      "FloorRunPage": {
+        "type": "object",
+        "properties": {
+          "runs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "blueprint_name": {
+                  "type": "string"
+                },
+                "definition_name": {
+                  "type": "string"
+                },
+                "task_id": {
+                  "type": ["string", "null"]
+                },
+                "repo": {
+                  "type": "string"
+                },
+                "branch": {
+                  "type": ["string", "null"]
+                },
+                "subject_key": {
+                  "type": ["string", "null"]
+                },
+                "engine": {
+                  "type": "string"
+                },
+                "graph": {},
+                "status": {
+                  "type": "string"
+                },
+                "outcome": {
+                  "type": ["string", "null"]
+                },
+                "reason": {
+                  "type": ["string", "null"]
+                },
+                "created_at": {
+                  "type": "string"
+                },
+                "started_at": {
+                  "type": ["string", "null"]
+                },
+                "finished_at": {
+                  "type": ["string", "null"]
+                },
+                "args_pr_number": {
+                  "type": ["number", "null"]
+                },
+                "spec_plan_summary": {
+                  "type": ["string", "null"]
+                },
+                "pr_url": {
+                  "type": ["string", "null"]
+                },
+                "task_pr_number": {
+                  "type": ["number", "null"]
+                },
+                "issue_url": {
+                  "type": ["string", "null"]
+                },
+                "issue_number": {
+                  "type": ["number", "null"]
+                },
+                "created_by": {
+                  "type": ["string", "null"]
+                },
+                "cost_usd": {
+                  "type": ["number", "null"]
+                },
+                "pipeline": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "node_id": {
+                        "type": "string"
+                      },
+                      "state": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["node_id", "state"],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "blueprint_name",
+                "definition_name",
+                "task_id",
+                "repo",
+                "branch",
+                "subject_key",
+                "engine",
+                "status",
+                "outcome",
+                "reason",
+                "created_at",
+                "started_at",
+                "finished_at",
+                "args_pr_number",
+                "spec_plan_summary",
+                "pr_url",
+                "task_pr_number",
+                "issue_url",
+                "issue_number",
+                "created_by",
+                "cost_usd",
+                "pipeline"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "next_cursor": {
+            "type": ["string", "null"]
+          }
+        },
+        "required": ["runs", "next_cursor"],
+        "additionalProperties": false
+      },
+      "FloorRunsStreamToken": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["token", "expires_at"],
+        "additionalProperties": false
+      },
       "GitCredential": {
         "type": "object",
         "properties": {
@@ -11639,6 +11891,58 @@
             "properties": {
               "type": {
                 "type": "string",
+                "const": "open"
+              },
+              "channel": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "kind": {
+                "type": "string",
+                "const": "runs"
+              },
+              "subject": {
+                "type": "string",
+                "minLength": 1
+              },
+              "token": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": ["type", "channel", "kind", "subject", "token"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "watch"
+              },
+              "channel": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "runs": {
+                "maxItems": 200,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            },
+            "required": ["type", "channel", "runs"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
                 "const": "send"
               },
               "channel": {
@@ -12073,6 +12377,176 @@
                       }
                     },
                     "required": ["type", "last_id"],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            },
+            "required": ["type", "channel", "frame"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "runs"
+              },
+              "channel": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "frame": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "run_started"
+                      },
+                      "run_id": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["type", "run_id"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "run_row"
+                      },
+                      "run": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "blueprint_name": {
+                            "type": "string"
+                          },
+                          "definition_name": {
+                            "type": "string"
+                          },
+                          "task_id": {
+                            "type": ["string", "null"]
+                          },
+                          "repo": {
+                            "type": "string"
+                          },
+                          "branch": {
+                            "type": ["string", "null"]
+                          },
+                          "subject_key": {
+                            "type": ["string", "null"]
+                          },
+                          "engine": {
+                            "type": "string"
+                          },
+                          "graph": {},
+                          "status": {
+                            "type": "string"
+                          },
+                          "outcome": {
+                            "type": ["string", "null"]
+                          },
+                          "reason": {
+                            "type": ["string", "null"]
+                          },
+                          "created_at": {
+                            "type": "string"
+                          },
+                          "started_at": {
+                            "type": ["string", "null"]
+                          },
+                          "finished_at": {
+                            "type": ["string", "null"]
+                          },
+                          "args_pr_number": {
+                            "type": ["number", "null"]
+                          },
+                          "spec_plan_summary": {
+                            "type": ["string", "null"]
+                          },
+                          "pr_url": {
+                            "type": ["string", "null"]
+                          },
+                          "task_pr_number": {
+                            "type": ["number", "null"]
+                          },
+                          "issue_url": {
+                            "type": ["string", "null"]
+                          },
+                          "issue_number": {
+                            "type": ["number", "null"]
+                          },
+                          "created_by": {
+                            "type": ["string", "null"]
+                          },
+                          "cost_usd": {
+                            "type": ["number", "null"]
+                          },
+                          "pipeline": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "node_id": {
+                                  "type": "string"
+                                },
+                                "state": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": ["node_id", "state"],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "blueprint_name",
+                          "definition_name",
+                          "task_id",
+                          "repo",
+                          "branch",
+                          "subject_key",
+                          "engine",
+                          "status",
+                          "outcome",
+                          "reason",
+                          "created_at",
+                          "started_at",
+                          "finished_at",
+                          "args_pr_number",
+                          "spec_plan_summary",
+                          "pr_url",
+                          "task_pr_number",
+                          "issue_url",
+                          "issue_number",
+                          "created_by",
+                          "cost_usd",
+                          "pipeline"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": ["type", "run"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "resync"
+                      }
+                    },
+                    "required": ["type"],
                     "additionalProperties": false
                   }
                 ]
@@ -14118,6 +14592,160 @@
         },
         "required": ["events"],
         "additionalProperties": false
+      },
+      "RunListFrame": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "run_started"
+              },
+              "run_id": {
+                "type": "string"
+              }
+            },
+            "required": ["type", "run_id"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "run_row"
+              },
+              "run": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "blueprint_name": {
+                    "type": "string"
+                  },
+                  "definition_name": {
+                    "type": "string"
+                  },
+                  "task_id": {
+                    "type": ["string", "null"]
+                  },
+                  "repo": {
+                    "type": "string"
+                  },
+                  "branch": {
+                    "type": ["string", "null"]
+                  },
+                  "subject_key": {
+                    "type": ["string", "null"]
+                  },
+                  "engine": {
+                    "type": "string"
+                  },
+                  "graph": {},
+                  "status": {
+                    "type": "string"
+                  },
+                  "outcome": {
+                    "type": ["string", "null"]
+                  },
+                  "reason": {
+                    "type": ["string", "null"]
+                  },
+                  "created_at": {
+                    "type": "string"
+                  },
+                  "started_at": {
+                    "type": ["string", "null"]
+                  },
+                  "finished_at": {
+                    "type": ["string", "null"]
+                  },
+                  "args_pr_number": {
+                    "type": ["number", "null"]
+                  },
+                  "spec_plan_summary": {
+                    "type": ["string", "null"]
+                  },
+                  "pr_url": {
+                    "type": ["string", "null"]
+                  },
+                  "task_pr_number": {
+                    "type": ["number", "null"]
+                  },
+                  "issue_url": {
+                    "type": ["string", "null"]
+                  },
+                  "issue_number": {
+                    "type": ["number", "null"]
+                  },
+                  "created_by": {
+                    "type": ["string", "null"]
+                  },
+                  "cost_usd": {
+                    "type": ["number", "null"]
+                  },
+                  "pipeline": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "node_id": {
+                          "type": "string"
+                        },
+                        "state": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["node_id", "state"],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "id",
+                  "blueprint_name",
+                  "definition_name",
+                  "task_id",
+                  "repo",
+                  "branch",
+                  "subject_key",
+                  "engine",
+                  "status",
+                  "outcome",
+                  "reason",
+                  "created_at",
+                  "started_at",
+                  "finished_at",
+                  "args_pr_number",
+                  "spec_plan_summary",
+                  "pr_url",
+                  "task_pr_number",
+                  "issue_url",
+                  "issue_number",
+                  "created_by",
+                  "cost_usd",
+                  "pipeline"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": ["type", "run"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "resync"
+              }
+            },
+            "required": ["type"],
+            "additionalProperties": false
+          }
+        ]
       },
       "RunStreamFrame": {
         "oneOf": [
@@ -16417,7 +17045,7 @@
   },
   "x-websocket": {
     "path": "/api/ws",
-    "description": "The browser's one live socket: JSON text frames, client-chosen channel ids; a `run` channel carries RunStreamFrame envelopes, a `plan` channel tunnels the plan collaboration protocol as base64.",
+    "description": "The browser's one live socket: JSON text frames, client-chosen channel ids; a `run` channel carries RunStreamFrame envelopes, a `runs` channel carries the RunListFrame envelopes of the floor's run list, a `plan` channel tunnels the plan collaboration protocol as base64.",
     "client": {
       "$ref": "#/components/schemas/LiveClientMessage"
     },

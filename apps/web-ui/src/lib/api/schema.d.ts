@@ -718,6 +718,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/floor-runs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/floor-runs */
+    get: operations["get_api_floor-runs"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/floor-runs/stream-token": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/floor-runs/stream-token */
+    post: operations["post_api_floor-runs_stream-token"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/floor/git-credential": {
     parameters: {
       query?: never;
@@ -2894,6 +2928,43 @@ export interface components {
       username: string;
       password: string;
     };
+    FloorRunPage: {
+      runs: {
+        id: string;
+        blueprint_name: string;
+        definition_name: string;
+        task_id: string | null;
+        repo: string;
+        branch: string | null;
+        subject_key: string | null;
+        engine: string;
+        graph?: unknown;
+        status: string;
+        outcome: string | null;
+        reason: string | null;
+        created_at: string;
+        started_at: string | null;
+        finished_at: string | null;
+        args_pr_number: number | null;
+        spec_plan_summary: string | null;
+        pr_url: string | null;
+        task_pr_number: number | null;
+        issue_url: string | null;
+        issue_number: number | null;
+        created_by: string | null;
+        cost_usd: number | null;
+        pipeline: {
+          node_id: string;
+          state: string;
+        }[];
+      }[];
+      next_cursor: string | null;
+    };
+    FloorRunsStreamToken: {
+      token: string;
+      /** Format: date-time */
+      expires_at: string;
+    };
     GitCredential: {
       username: string;
       password: string;
@@ -3107,6 +3178,21 @@ export interface components {
         }
       | {
           /** @constant */
+          type: "open";
+          channel: string;
+          /** @constant */
+          kind: "runs";
+          subject: string;
+          token: string;
+        }
+      | {
+          /** @constant */
+          type: "watch";
+          channel: string;
+          runs: string[];
+        }
+      | {
+          /** @constant */
           type: "send";
           channel: string;
           data: string;
@@ -3228,6 +3314,54 @@ export interface components {
                 /** @constant */
                 type: "catchup_complete";
                 last_id: string;
+              };
+        }
+      | {
+          /** @constant */
+          type: "runs";
+          channel: string;
+          frame:
+            | {
+                /** @constant */
+                type: "run_started";
+                run_id: string;
+              }
+            | {
+                /** @constant */
+                type: "run_row";
+                run: {
+                  id: string;
+                  blueprint_name: string;
+                  definition_name: string;
+                  task_id: string | null;
+                  repo: string;
+                  branch: string | null;
+                  subject_key: string | null;
+                  engine: string;
+                  graph?: unknown;
+                  status: string;
+                  outcome: string | null;
+                  reason: string | null;
+                  created_at: string;
+                  started_at: string | null;
+                  finished_at: string | null;
+                  args_pr_number: number | null;
+                  spec_plan_summary: string | null;
+                  pr_url: string | null;
+                  task_pr_number: number | null;
+                  issue_url: string | null;
+                  issue_number: number | null;
+                  created_by: string | null;
+                  cost_usd: number | null;
+                  pipeline: {
+                    node_id: string;
+                    state: string;
+                  }[];
+                };
+              }
+            | {
+                /** @constant */
+                type: "resync";
               };
         }
       | {
@@ -3822,6 +3956,49 @@ export interface components {
         [key: string]: unknown;
       }[];
     };
+    RunListFrame:
+      | {
+          /** @constant */
+          type: "run_started";
+          run_id: string;
+        }
+      | {
+          /** @constant */
+          type: "run_row";
+          run: {
+            id: string;
+            blueprint_name: string;
+            definition_name: string;
+            task_id: string | null;
+            repo: string;
+            branch: string | null;
+            subject_key: string | null;
+            engine: string;
+            graph?: unknown;
+            status: string;
+            outcome: string | null;
+            reason: string | null;
+            created_at: string;
+            started_at: string | null;
+            finished_at: string | null;
+            args_pr_number: number | null;
+            spec_plan_summary: string | null;
+            pr_url: string | null;
+            task_pr_number: number | null;
+            issue_url: string | null;
+            issue_number: number | null;
+            created_by: string | null;
+            cost_usd: number | null;
+            pipeline: {
+              node_id: string;
+              state: string;
+            }[];
+          };
+        }
+      | {
+          /** @constant */
+          type: "resync";
+        };
     RunStreamFrame:
       | {
           /** @constant */
@@ -5624,6 +5801,65 @@ export interface operations {
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_floor-runs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description One page of the external floor's runs, newest first, each with its mini pipeline */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["FloorRunPage"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "post_api_floor-runs_stream-token": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          user: {
+            id: string;
+            name: string;
+          };
+        };
+      };
+    };
+    responses: {
+      /** @description A short-lived token that opens the floor run list's channel of the live socket (/api/ws) as one person */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["FloorRunsStreamToken"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };
