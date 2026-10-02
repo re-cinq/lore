@@ -21,6 +21,7 @@ export interface ChunkSearchHit {
   content_type?: string | null;
   ingested_at?: string | Date | null;
   score?: number | string | null;
+  similarity?: number | string | null;
   repo?: string;
   content_hash?: string | null;
 }
@@ -36,6 +37,9 @@ export interface Incident {
   resolved?: boolean;
   url?: string;
 }
+
+// NULL for a chunk with no embedding: `<=>` against NULL is NULL, so a keyword-only hit carries no similarity rather than a zero.
+const SIMILARITY = "1 - (embedding <=> $2::vector) AS similarity";
 
 interface ChunkQuery {
   repo: string;
@@ -56,7 +60,8 @@ export async function hybridChunkItems(
   ]);
   // Keyword leg searches distinctive terms (OR'd) rather than the whole paragraph, which would AND every filler word.
   const keywordQuery = extractKeyTerms(query).join(" OR ") || query;
-  const chunkQuery = { repo, keywordQuery, contentTypes, limit };
+  // `limit` counts documents and the query returns chunks: a document may bring three (dedupeItems merges them).
+  const chunkQuery = { repo, keywordQuery, contentTypes, limit: limit * 3 };
 
   return embedding
     ? hybridRankedItems(pool, schema, embedding, chunkQuery)
@@ -88,6 +93,7 @@ function hybridSql(schema: string): string {
               COALESCE(v.content_type, k.content_type) AS content_type,
               COALESCE(v.ingested_at, k.ingested_at) AS ingested_at,
               COALESCE(v.content_hash, k.content_hash) AS content_hash,
+              COALESCE(v.similarity, k.similarity) AS similarity,
               (COALESCE(1.0 / (60 + v.r), 0) + COALESCE(1.0 / (60 + k.r), 0)) AS score
        FROM vec v FULL OUTER JOIN kw k ON v.id = k.id
        ORDER BY score DESC LIMIT $5`;
@@ -96,14 +102,14 @@ function hybridSql(schema: string): string {
 /** The two independent ranking legs — nearest-neighbour and keyword — as CTEs, each capped at 20 candidates before fusion. */
 function hybridLegsSql(schema: string): string {
   return `WITH vec AS (
-         SELECT id, ${HIT_COLUMNS},
+         SELECT id, ${HIT_COLUMNS}, ${SIMILARITY},
                 ROW_NUMBER() OVER (ORDER BY embedding <=> $2::vector) AS r
          FROM ${schema}.chunks
          WHERE repo = $1 AND content_type = ANY($3) AND embedding IS NOT NULL
          LIMIT 20
        ),
        kw AS (
-         SELECT id, ${HIT_COLUMNS},
+         SELECT id, ${HIT_COLUMNS}, ${SIMILARITY},
                 ROW_NUMBER() OVER (ORDER BY ts_rank(search_tsv, websearch_to_tsquery('english', $4)) DESC) AS r
          FROM ${schema}.chunks
          WHERE repo = $1 AND content_type = ANY($3)
@@ -121,11 +127,18 @@ function toItems(rows: ChunkSearchHit[], contentTypes: string[]): SourceItem[] {
         source_path: r.file_path,
         content_type: r.content_type ?? contentTypes[0],
         score: toScore(r.score),
+        ...similarityOf(r),
         ingested_at: toIso(r.ingested_at),
         ...(r.content_hash ? { content_hash: r.content_hash } : {}),
       }),
     ),
   );
+}
+
+function similarityOf(hit: ChunkSearchHit): { similarity?: number } {
+  const similarity = toScore(hit.similarity);
+
+  return similarity === undefined ? {} : { similarity };
 }
 
 /** Keyword-only fallback: with no embedding the vector leg has nothing to compare against, so ranking falls back to text relevance alone. */

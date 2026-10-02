@@ -7,6 +7,8 @@ export interface SourceItem {
   content_type?: string;
   repo?: string;
   score?: number;
+  /** Cosine similarity to the question, comparable across sections where `score` is ranked within one; absent on anything a vector search did not measure. */
+  similarity?: number;
   ingested_at?: string;
   content_hash?: string;
 }
@@ -25,12 +27,57 @@ export interface ContextMeta {
   budget: number;
 }
 
-/** Collapse items sharing source_path to one (highest-scoring, then most recently ingested), then items sharing a content_hash — a file and its copied twin at another path are one document. Every survivor keeps its rank: the list arrives score-ordered and leaves that way. */
+// A document is its best few chunks, not its single best: the chunk that matched a question is often the one beside the chunk that answers it (an ADR's Context beside its Decision).
+const CHUNKS_PER_DOCUMENT = 3;
+
+/** One item per document: the chunks sharing a source_path are merged, best first, into one item at the rank of the best; then items sharing a content_hash collapse to one — a file and its copied twin at another path are one document. Every survivor keeps its rank: the list arrives score-ordered and leaves that way. */
 export function dedupeItems(sources: SourceItem[]): SourceItem[] {
-  return collapseBy(
-    collapseBy(sources, (it) => it.source_path),
-    (it) => it.content_hash,
+  return collapseBy(mergeChunksByPath(sources), (it) => it.content_hash);
+}
+
+function mergeChunksByPath(sources: SourceItem[]): SourceItem[] {
+  const chunksOf = new Map<string, SourceItem[]>();
+
+  for (const it of sources) {
+    if (it.source_path) {
+      chunksOf.set(it.source_path, [...(chunksOf.get(it.source_path) ?? []), it]);
+    }
+  }
+  const emitted = new Set<string>();
+
+  return sources.flatMap((it) => {
+    if (!it.source_path) {
+      return [it];
+    }
+
+    if (emitted.has(it.source_path)) {
+      return [];
+    }
+    emitted.add(it.source_path);
+
+    return [mergedDocument(chunksOf.get(it.source_path) ?? [it])];
+  });
+}
+
+/** The best chunks of one document as one item: the best chunk's provenance, the texts joined best first so a cap cuts the least relevant. */
+function mergedDocument(chunks: SourceItem[]): SourceItem {
+  const best = [...chunks]
+    .sort((a, b) => (isBetter(a, b) ? -1 : 1))
+    .slice(0, CHUNKS_PER_DOCUMENT);
+
+  if (best.length === 1) {
+    return best[0];
+  }
+  const similarities = best.flatMap((chunk) =>
+    chunk.similarity === undefined ? [] : [chunk.similarity],
   );
+
+  return {
+    ...best[0],
+    text: best.map((chunk) => chunk.text).join("\n\n"),
+    tokens: best.reduce((sum, chunk) => sum + chunk.tokens, 0),
+    ...(similarities.length > 0 ? { similarity: Math.max(...similarities) } : {}),
+  };
 }
 
 /** One item per key, the better one winning at its own position; items without a key pass through in place. */
