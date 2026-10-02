@@ -140,26 +140,30 @@ interface GenerateRequest {
   prompt: string;
   systemPrompt?: string;
   responseSchema?: Record<string, unknown>;
+  temperature?: number;
 }
 
 /** The generateContent request body. A system instruction and a response schema are both omitted entirely when absent rather than sent empty — Gemini treats a present-but-blank `systemInstruction` as an instruction. */
-function generateBody({
-  systemPrompt,
-  prompt,
+function generateBody(req: GenerateRequest): Record<string, unknown> {
+  const generationConfig = generationConfigOf(req);
+
+  return {
+    ...(req.systemPrompt
+      ? { systemInstruction: { parts: [{ text: req.systemPrompt }] } }
+      : {}),
+    contents: [{ role: "user", parts: [{ text: req.prompt }] }],
+    ...(Object.keys(generationConfig).length > 0 ? { generationConfig } : {}),
+  };
+}
+
+function generationConfigOf({
+  temperature,
   responseSchema,
 }: GenerateRequest): Record<string, unknown> {
   return {
-    ...(systemPrompt
-      ? { systemInstruction: { parts: [{ text: systemPrompt }] } }
-      : {}),
-    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    ...(temperature === undefined ? {} : { temperature }),
     ...(responseSchema
-      ? {
-          generationConfig: {
-            responseMimeType: "application/json",
-            responseSchema,
-          },
-        }
+      ? { responseMimeType: "application/json", responseSchema }
       : {}),
   };
 }
