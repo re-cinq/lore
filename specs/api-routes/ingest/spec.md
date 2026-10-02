@@ -95,7 +95,7 @@ A null pool returns 503 before any parsing. ([validated by `returns 503 when poo
 
 A body whose `files` is not an array returns 400. ([validated by `returns 400 when files is not an array`](apps/lore-api/src/transport/routes/ingest/ingest.test.ts#L48))
 
-A body missing `repo` returns 400 with the verbatim required-fields error. ([validated by `returns 400 when repo is missing`](apps/lore-api/src/transport/routes/ingest/ingest.test.ts#L67))
+A body missing `repo` returns 400 with the verbatim required-fields error. ([validated by `returns 400 when repo is missing`](apps/lore-api/src/transport/routes/ingest/ingest.test.ts#L65))
 
 A batch with an ingested file returns 200 and inserts no event: the link-validation pass an ingest used to ask for was removed on 2026-10-02 (`specs/external-floor` FR16.6). ([validated by returns 200 and inserts no event when a file lands](apps/lore-api/src/transport/routes/ingest/ingest.test.ts#L54))
 
