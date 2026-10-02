@@ -148,42 +148,31 @@ class LiveConnection {
   private dispatchToChannel(message: ChannelMessage): void {
     switch (message.type) {
       case "send":
-        return this.forward(message.channel, message.data);
+        return this.handleOf(message.channel)?.receive(
+          base64ToBytes(message.data),
+        );
       case "watch":
-        return this.watch(message.channel, message.runs);
+        return this.handleOf(message.channel)?.watch?.(message.runs);
       default:
         return this.close(message.channel);
     }
   }
 
-  private forward(channel: string, encodedBytes: string): void {
+  /** The channel's handle, or undefined after telling the client it names no open channel. */
+  private handleOf(channel: string): ChannelHandle | undefined {
     const handle = this.registry.get(channel);
 
     if (!handle) {
       this.send({ type: "error", channel, code: "unknown_channel" });
-
-      return;
     }
-    handle.receive(base64ToBytes(encodedBytes));
-  }
 
-  private watch(channel: string, runIds: readonly string[]): void {
-    const handle = this.registry.get(channel);
-
-    if (!handle) {
-      this.send({ type: "error", channel, code: "unknown_channel" });
-
-      return;
-    }
-    handle.watch?.(runIds);
+    return handle;
   }
 
   private close(channel: string): void {
-    const handle = this.registry.get(channel);
+    const handle = this.handleOf(channel);
 
     if (!handle) {
-      this.send({ type: "error", channel, code: "unknown_channel" });
-
       return;
     }
     this.registry.forget(channel);

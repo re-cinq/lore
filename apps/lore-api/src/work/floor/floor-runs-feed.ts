@@ -22,7 +22,8 @@ export interface FloorRunsFeedDeps {
 
 export class FloorRunsFeed {
   private readonly watched = new Map<RunsViewer, Set<string>>();
-  private readonly reads = new Map<string, "reading" | "dirty">();
+  /** A run whose row is being read; `stale` when it changed again during the read. */
+  private readonly rowReads = new Map<string, "reading" | "stale">();
   private floorWatch: FloorWatch | null = null;
 
   constructor(private readonly deps: FloorRunsFeedDeps) {}
@@ -96,12 +97,12 @@ export class FloorRunsFeed {
   }
 
   private refresh(runId: string): void {
-    if (![...this.watched.values()].some((ids) => ids.has(runId))) {
+    if (!this.isWatched(runId)) {
       return;
     }
 
-    if (this.reads.has(runId)) {
-      this.reads.set(runId, "dirty");
+    if (this.rowReads.has(runId)) {
+      this.rowReads.set(runId, "stale");
 
       return;
     }
@@ -111,16 +112,23 @@ export class FloorRunsFeed {
   /** One read in flight per run; changes that land meanwhile cost exactly one more, so the last state wins. */
   private async readUntilSettled(runId: string): Promise<void> {
     do {
-      this.reads.set(runId, "reading");
+      this.rowReads.set(runId, "reading");
       const row = await this.readRow(runId);
 
-      this.watched.forEach((ids, viewer) => {
-        if (row && ids.has(runId)) {
-          viewer.send({ type: "run_row", run: row });
-        }
-      });
-    } while (this.reads.get(runId) === "dirty");
-    this.reads.delete(runId);
+      this.watched.forEach((_runIds, viewer) => this.sendRow(viewer, row));
+    } while (this.rowReads.get(runId) === "stale");
+    this.rowReads.delete(runId);
+  }
+
+  private isWatched(runId: string): boolean {
+    return [...this.watched.values()].some((runIds) => runIds.has(runId));
+  }
+
+  /** Sent only while the viewer still has the run on its page: a read can outlast the page it was asked for. */
+  private sendRow(viewer: RunsViewer, row: FloorRunRow | null): void {
+    if (row && this.watched.get(viewer)?.has(row.id)) {
+      viewer.send({ type: "run_row", run: row });
+    }
   }
 
   private replaceWatched(viewer: RunsViewer, runIds: readonly string[]): void {
@@ -136,11 +144,7 @@ export class FloorRunsFeed {
   }
 
   private async sendRowTo(viewer: RunsViewer, runId: string): Promise<void> {
-    const row = await this.readRow(runId);
-
-    if (row && this.watched.get(viewer)?.has(runId)) {
-      viewer.send({ type: "run_row", run: row });
-    }
+    this.sendRow(viewer, await this.readRow(runId));
   }
 
   private async readRow(runId: string): Promise<FloorRunRow | null> {
