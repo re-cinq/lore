@@ -1,4 +1,4 @@
-/** GitHub webhook → event mapping: produces zero or more EventInputs per check/PR/review. */
+/** GitHub webhook → event mapping: produces zero or more EventInputs per PR/review/comment. */
 
 import type { EventInsert as EventInput } from "../../events.js";
 import { githubDedupeKey } from "./dedupe.js";
@@ -18,8 +18,6 @@ export const GITHUB_EVENT_NAMES: string[] = [
   ),
   "github.pull_request_review.submitted",
   "github.pull_request_review_comment.created",
-  "github.check_run.completed",
-  "github.check_suite.completed",
   "github.issue_comment.created",
   "github.issues.labeled",
   "github.repository.renamed",
@@ -37,10 +35,6 @@ type EventMapper = (
 const EVENT_MAPPERS: Record<string, EventMapper | undefined> = {
   pull_request: mapPullRequest,
   pull_request_review: mapPullRequestReview,
-  check_run: (payload, repo, key) =>
-    mapCheckCompleted("check_run", payload, repo, key),
-  check_suite: (payload, repo, key) =>
-    mapCheckCompleted("check_suite", payload, repo, key),
   issue_comment: mapIssueComment,
   pull_request_review_comment: mapReviewComment,
   issues: mapIssueLabeled,
@@ -108,26 +102,6 @@ function mapPullRequestReview(
     { repo, pr_number: prNumber, ...reviewFields(payload.review) },
     key,
   );
-}
-
-function mapCheckCompleted(
-  eventType: string,
-  payload: GitHubPayload,
-  repo: string,
-  key: string,
-): EventInput[] {
-  if (payload.action !== "completed") {
-    return [];
-  }
-
-  return checkPullRequests(payload)
-    .filter((pr): pr is { number: number } => typeof pr?.number === "number")
-    .map((pr) => ({
-      eventName: `github.${eventType}.completed`,
-      source: "github" as const,
-      params: { repo, pr_number: pr.number },
-      dedupeKey: `${key}:${pr.number}`,
-    }));
 }
 
 function mapIssueComment(
@@ -269,14 +243,6 @@ function reviewFields(review: SubmittedReview = {}): Record<string, unknown> {
     review_author_association: review.author_association ?? "",
     review_body: review.body ?? "",
   };
-}
-
-function checkPullRequests(
-  payload: GitHubPayload,
-): Array<{ number?: number } | null | undefined> {
-  return (
-    payload.check_run?.pull_requests ?? payload.check_suite?.pull_requests ?? []
-  );
 }
 
 /** Comment identity the code-review reply handler needs — author drives the bot-loop guard; the payload is an untyped webhook body, so a malformed delivery falls back rather than throwing. */

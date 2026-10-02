@@ -83,7 +83,7 @@ All the URL and hostname variables come from `terraform.tfvars`, which Terraform
 loads automatically. On later runs only step 3 is needed.
 
 Every hostname variable defaults to empty, which disables the matching ingress — so
-omitting `lore_event_router_hostname` silently leaves GitHub with nowhere to deliver.
+omitting `lore_event_router_hostname` (the webhook hostname; lore-api serves it) silently leaves GitHub with nowhere to deliver.
 `lore_mcp_url` is what gives agent pods a live MCP endpoint; without it their recipes
 ship without one.
 
@@ -93,9 +93,8 @@ This creates:
 - GCS bucket for task logs (CMEK encrypted, 30-day retention)
 - KMS key ring + crypto key
 - The namespaces, ExternalSecrets, ingresses, the CloudNativePG cluster CR, and the Dgraph StatefulSet
-- **One Helm release, `lore_platform`** — the umbrella chart, whose six vendored
-  subcharts span a namespace each: event-router
-  (`lore-event-router`), Lore API (`lore-api`),
+- **One Helm release, `lore_platform`** — the umbrella chart, whose five vendored
+  subcharts span a namespace each: Lore API (`lore-api`),
   the lore-mcp gateway (also `lore-api`), the stations service (`lore-stations`),
   Web UI (`lore-ui`) and lore-db (`lore-db`). Agents run in pods of the external
   floor, which installs its own agent controller
@@ -133,13 +132,12 @@ gh api repos/OWNER/REPO/hooks --method POST --input - <<EOF
 EOF
 ```
 
-The delivery target is the **event-router**, the only writer of `pipeline.events`
-([ADR-044](../adrs/ADR-044-event-router-owns-the-event-bus.md)); it recognises GitHub by
-the `X-Hub-Signature-256` header and verifies the HMAC over the raw body, so the `secret`
+The hook URL is `https://<lore_event_router_hostname>/api/events`, unchanged. The ingress
+rewrites it onto lore-api's `POST /api/webhook/github`, which writes `pipeline.events`
+itself ([ADR-044](../adrs/ADR-044-event-router-owns-the-event-bus.md), amended 2026-10-02).
+lore-api verifies the HMAC in the `X-Hub-Signature-256` header over the raw body, so the `secret`
 must match the `lore-webhook-secret` value in Secret Manager or every delivery is refused. Existing
-installs may still point at the Floor's `/api/webhook/github` on `lore_webhook_hostname`;
-that route still works and reports through the router, and it is retired only once the
-repos are re-pointed.
+installs that point at `/api/webhook/github` on `lore_webhook_hostname` reach the same route.
 
 ## Step 6: Install on a Developer Laptop
 
@@ -218,8 +216,7 @@ The token is also prompted for interactively on first install. Re-run
 kubectl get deployments -A | grep -E 'lore-'
 
 # Or one namespace at a time (kubectl takes a single -n)
-for ns in lore-api lore-ui lore-db lore-event-router \
-          lore-stations; do
+for ns in lore-api lore-ui lore-db lore-stations; do
   echo "== $ns"; kubectl get deployments -n "$ns"
 done
 

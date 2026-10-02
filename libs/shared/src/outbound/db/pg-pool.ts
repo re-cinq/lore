@@ -1,4 +1,4 @@
-/** Shared Postgres pool builder (dedupes 3 byte-identical copies across floor/event-router/stations); `getPool` throws until `initPool` has run, so repository singletons can stay lazy and still fail loudly. */
+/** Shared Postgres pool builder (dedupes 3 byte-identical copies across floor/stations); `getPool` throws until `initPool` has run, so repository singletons can stay lazy and still fail loudly. */
 
 import pg from "pg";
 import { enforceTrue } from "../../lib/enforce.js";

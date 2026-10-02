@@ -10,11 +10,11 @@ Read it top to bottom for the full picture, or jump to the section you're touchi
 
 How the pieces connect at runtime. The local MCP server proxies every operation to the GKE backend, so all context and memory is org-wide.
 
-Two boundaries are load-bearing and enforced by credentials rather than convention. **`event-router` is the only writer of `pipeline.events`** ([ADR-044](../../adrs/ADR-044-event-router-owns-the-event-bus.md)): every producer reports to its one front door, and each subscriber (today the stations service) claims its deliveries back over HTTP. Lore runs no cluster agent: agents run in pods of the external floor (ADR-049).
+One table, `pipeline.events`, carries every trigger ([ADR-044](../../adrs/ADR-044-event-router-owns-the-event-bus.md)). GitHub's webhooks land on lore-api, which writes the events on its own database pool; the stations service writes its cron ticks the same way and claims its own deliveries from `pipeline.event_deliveries`. The separate event-router service that once owned the table was folded into lore-api on 2026-10-02 (see the amendment in the ADR). Lore runs no cluster agent: agents run in pods of the external floor (ADR-049).
 
 <p align="center"><img src="../../badges/architecture.svg" width="720" alt="System topology: developer machine, the GKE services, GitHub and Slack" /></p>
 
-> **Webhook URL.** GitHub delivers to the event-router's `/api/events`; that is the URL lore-api installs on a repo and classifies against (`LORE_WEBHOOK_URL`). A repository onboarded before 2026-09-08 still delivers to the old `/api/webhook/github` path, which the ingress rewrites onto the router, so GitHub never sees a 404. The diagram above predates the external floor: where it shows a Floor, read the external floor.
+> **Webhook URL.** GitHub delivers to the public `/api/events` URL; that is the URL lore-api installs on a repo and classifies against (`LORE_WEBHOOK_URL`). The ingress rewrites it onto lore-api's `POST /api/webhook/github`, which is the same route a repository onboarded before 2026-09-08 delivers to directly, so GitHub never sees a 404. The diagram above predates the external floor: where it shows a Floor, read the external floor.
 
 ## Task lifecycle
 
@@ -23,7 +23,7 @@ How work goes from asked-for to merged. Lore decides *when* a run starts and wha
 ```mermaid
 flowchart TB
     T1["Ticket with a priority label"] --> TICK["stations: implementation_loop tick<br/>picks one ticket per repo"]
-    T2["Pull request opened / pushed"] --> EV["event-router → pipeline.events →<br/>stations drain"]
+    T2["Pull request opened / pushed"] --> EV["lore-api webhook → pipeline.events →<br/>stations drain"]
     T3["Plan drafted / refined / approved"] --> API["lore-api plan routes"]
     T4["Schedule (digest, spec upkeep)"] --> TICK
     TICK --> START["floor.lines.start(line, subject, items)"]
@@ -80,7 +80,6 @@ Context reaches the stores from CI on every push to `main`, never from a schedul
 | [**Lore API**](../../apps/lore-api/README.md) | The remote REST backend (`/api/*`) on GKE (ADR-032). Hybrid search (vector + BM25), agent memory, task CRUD, the push-triggered ingest API, per-client scoped tokens, rate-limited. |
 | [**MCP Server**](../../apps/mcp-server/README.md) | A thin local stdio adapter that speaks the MCP protocol to Claude Code and proxies every operation to the Lore API via `LORE_API_URL`. Also hosts the local task runner. The same binary runs in-cluster as the **lore-mcp gateway** (`LORE_MCP_HTTP=1`), giving agent pods live scoped Lore access for a whole run rather than a one-shot hydration, and serving the agent-skills registry. |
 | **External floor** | The assembly-line engine ([re-cinq/floor](https://github.com/re-cinq/floor), [ADR-049](../../adrs/ADR-049-external-floor.md)): it walks every line from its pipeline file (`libs/assembly-lines/src/floor-pipelines/*.yaml`) and runs agent stations as `Agent` custom resources. Lore reaches it only through `@re-cinq/floor-client`; lore-api puts the pipeline files to it at boot and mints its git credentials. Lore's own Floor (`apps/floor`) was deleted on 2026-10-02. |
-| [**event-router**](../../apps/event-router/README.md) | The single owner of `pipeline.events` (ADR-044). One front door, `POST /api/events`, takes every producer: GitHub webhooks authenticated by HMAC over the raw body, and cron ticks and internal triggers by bearer token. It also serves the delivery endpoints (`/api/deliveries/*`: subscribe, claim, ack, fail, dead-letter, reap, prune, reconcile) every subscriber drains its own `pipeline.event_deliveries` rows through — no endpoint on that side can write an event, because producing and draining are different privileges. |
 | [**stations (service)**](../../apps/stations/README.md) | Service stations reached by name over `POST /api/stations/{name}` — the sweeps (`merge-check`, `pr-ready-check`, the ticks that start runs, the housekeeping prunes) and Lore's stations for the external floor. It is also the scheduler: it emits the `cron.*.tick` events and answers them, and it drains the PR-lifecycle events that start and cancel runs. |
 | [**Web UI**](../../apps/web-ui/README.md) | Next.js dashboard with GitHub OAuth. Repo-centric view. One-click onboarding. Pipeline monitoring. Analytics dashboard. Global settings. Holds **no** database pool — every read goes through lore-api via typed clients generated from its OpenAPI schema. |
 | **PostgreSQL** | CloudNativePG with pgvector. Schema-per-team isolation. HNSW indexes for vector search, GIN for keyword. |

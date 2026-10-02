@@ -64,8 +64,8 @@ clear error messages.
 idempotent — safe to re-run. Prefix output with `[lore]`. Exit 0 on
 success, 1 on failure.
 
-**Helm charts** for K8s deployments. All six service workloads ship as
-ONE umbrella chart, `lore-platform` (vendoring event-router/
+**Helm charts** for K8s deployments. All five service workloads ship as
+ONE umbrella chart, `lore-platform` (vendoring
 lore-api/lore-mcp/stations/ui/lore-db subcharts under `charts/`); one
 `helm_release.lore_platform` deploys them. Every service has a `build-*.yml`
 workflow that builds its image and deploys it into the umbrella release via
@@ -103,7 +103,7 @@ status pill — a stale header misreports the org's backlog.
 - `libs/shared/src/domain/pr-body.ts` — `prFooter()` composes the standard `Lore-Task: <uuid>` (+ optional `Refs #N`) PR-body footer used by every Lore-authored PR
 - `libs/shared/src/domain/commit-trailers.ts` — `formatTrailers()` / `parseTrailers()` / `formatValidatesTrailer()` / `parseValidatesTrailers()` exported via `@re-cinq/lore-shared`. (There is no `lastStageOnBranch()`: the branch-trailer resume it belonged to was retired with the in-process walk, and nothing replays `pipeline.station_runs` any more: a run's position is the floor's to answer.) Trailers are emitted unconditionally on every Lore-authored commit regardless of dark-mode setting (audit substrate for both modes)
 - `libs/shared/src/outbound/project/tasks/task-queue-{port,pg,memory}.ts` — `TaskQueueRepository`: the org-wide (repo-agnostic) `pipeline.tasks` claim/sweep mechanics single-sourced out of Floor — `claimNextPending` (worker poll, immediate-first + 30s grace), `findRecoverable`/`findStaleRunning` (crash-recovery + safety-net sweeps), `findReadySpecTasks`/`countRunningSpecTasksByGroup`/`claimSpecTask` (spec-task DAG dispatch). Pg adapter + InMemory double (the behavioral spec) + colocated tests. Repo-scoped task *record* ops stay on `project.tasks`
-- `libs/shared/src/outbound/project/events/event-reporter-{port,pg,memory}.ts` — `EventReporter`: the `pipeline.events` PRODUCE side, `insert` only, delegating to the shared `events.ts insertEvent` (idempotent on `dedupe_key`, fans out one `pipeline.event_deliveries` row per subscriber in the same statement). The CONSUME side is `event-deliveries-{port,pg,memory,http}.ts` (`claim` with `FOR UPDATE SKIP LOCKED`, `markDone`/`markFailed`/`markDead`, `reapStuck`, `pruneHandled`), always on the subscriber's own delivery row. `pipeline.events` carries NO status: the legacy `status`/`attempts`/`claimed_at`/`next_attempt_at`/`handled_at`/`error` columns were dropped by migration 0072 after every event ever captured sat at `pending` forever and read as a 104,000-row backlog on 2026-09-09. The consumers are the stations drain (`apps/stations/src/events/`) and the event-router; the Floor's own loop and registry went with `apps/floor`
+- `libs/shared/src/outbound/project/events/event-reporter-{port,pg,memory}.ts` — `EventReporter`: the `pipeline.events` PRODUCE side, `insert` only, delegating to the shared `events.ts insertEvent` (idempotent on `dedupe_key`, fans out one `pipeline.event_deliveries` row per subscriber in the same statement). The CONSUME side is `event-deliveries-{port,pg,memory}.ts` (`claim` with `FOR UPDATE SKIP LOCKED`, `markDone`/`markFailed`/`markDead`, `reapStuck`, `pruneHandled`), always on the subscriber's own delivery row. `pipeline.events` carries NO status: the legacy `status`/`attempts`/`claimed_at`/`next_attempt_at`/`handled_at`/`error` columns were dropped by migration 0072 after every event ever captured sat at `pending` forever and read as a 104,000-row backlog on 2026-09-09. The consumer is the stations drain (`apps/stations/src/events/`); the Floor's own loop and registry went with `apps/floor`
 - `libs/shared/src/outbound/project/agent-run-events/agent-run-events-{port,pg,memory}.ts` — `AgentRunEventsRepository`: the `pipeline.agent_run_events` per-tool-call agent telemetry behind the live run visualization (`specs/assembly-line-run-viz`, ADR-037). Three methods — `insertBatch` (the ingest write, which resolves `agent_cr_name` → `assembly_line_id`/`node_id`/`iteration` against `pipeline.station_runs` at write time via a `LEFT JOIN LATERAL`, newest node wins, and keeps an uncorrelated row rather than dropping it), `listSince` (the SSE catch-up read, scoped to one run and a cursor) and `pruneOld` (the retention reap). `AgentRunEventRow.id` is a string-encoded bigint — it outgrows `Number.MAX_SAFE_INTEGER` and doubles as the SSE `Last-Event-ID` cursor, so it is never narrowed to a JS number. Table + the correlation index come from migration `0031_agent_run_events.sql` (no FKs, deliberately: skip-not-fail ingest must never drop a batch).
 - `libs/shared/src/outbound/project/leases/lease-backends.ts` — `LeaseBackend` gained `reapExpired(cutoff)` (Db DELETE…RETURNING with OTEL span, File scan, `InMemoryLeaseReaper` double) so the lease-reaper goes through `project.leases` instead of a Floor-local repo
 - `apps/web-ui/src/app/tasks/[id]/TimelinePanel.tsx` (+ `TimelineView.tsx`) — client container + pure presentational view for the vertical stage-commit timeline (node-type icons, outcome badges, lease indicator). `TimelinePanel` fetches `/api/tasks/:id/timeline` on mount and re-fetches on the page refresh coordinator's ticks while a non-terminal stage is in flight
@@ -365,10 +365,9 @@ rebuild is the 950 MB step that OOM-killed agent pods on 2026-09-13.
 
 ## GKE Deployment
 
-Six service workloads on GKE (one umbrella chart, `lore-platform`, spanning a namespace per subchart; the release record itself lives in the `lore-floor` namespace, which is all that is left of the Floor Lore ran itself):
+Five service workloads on GKE (one umbrella chart, `lore-platform`, spanning a namespace per subchart; the release record itself lives in the `lore-floor` namespace, which is all that is left of the Floor Lore ran itself):
 - PostgreSQL + pgvector: `lore-db` namespace
-- event-router (sole writer of `pipeline.events`, ADR-044): `lore-event-router` namespace
-- Lore API server (remote REST): `lore-api` namespace
+- Lore API server (remote REST, and the door for GitHub's webhooks): `lore-api` namespace
 - lore-mcp gateway (MCP over HTTP for agent pods): `lore-api` namespace
 - stations (service stations, `POST /api/stations/{name}`): `lore-stations` namespace
 - Web UI: `lore-ui` namespace
@@ -632,10 +631,13 @@ with that task type. The task page's "Give Feedback" form went on 2026-10-02 wit
 feature-request task type.
 
 **Event bus** (ADR-015, ADR-044): every trigger flows through one
-`pipeline.events` table. The **event-router** is its sole writer for what
-comes from outside: the GitHub webhook ingress (`POST /api/events`,
-HMAC-verified, mapped to `github.*` events). The **stations service** emits
-the cron ticks (`cron.<job>.tick`, `libs/shared/src/work/scheduler/`) and
+`pipeline.events` table. What comes from outside arrives on **lore-api**'s
+`POST /api/webhook/github` (HMAC-verified, mapped to `github.*` events); the
+public `/api/events` URL is unchanged, the ingress rewrites it onto that route,
+and lore-api writes `pipeline.events` on its own pool (the event-router that
+once owned this was folded into lore-api on 2026-10-02, ADR-044 amendment). The
+**stations service** writes the cron ticks (`cron.<job>.tick`,
+`libs/shared/src/work/scheduler/`) on its own pool and
 drains its own subscription (`apps/stations/src/events/`): a claim with
 `FOR UPDATE SKIP LOCKED`, dispatch by `event_name`, retry with backoff, then
 dead-letter. It also keeps the bus: the reaper that returns stuck deliveries

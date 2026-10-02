@@ -58,7 +58,7 @@ let usageSingleton: PgUsage | undefined;
 // Per-call `pipeline.llm_calls` cost logging — the transport a service-run station's model call reports through (a pod uses its terminal line instead; `Llm.usageConfigured` avoids double-counting).
 export const usage = (): PgUsage => (usageSingleton ??= new PgUsage(getPool()));
 
-// Stations holds a pool, so it reports its events (ticks, resumes) straight to `pipeline.events` and never through the event-router.
+// Stations holds a pool, so it reports its events (ticks, resumes) straight to `pipeline.events`.
 export const eventProxy = (): EventProxy =>
   (eventProxySingleton ??= localEventProxy({
     local: () => pipelineRepositories().eventReporter,

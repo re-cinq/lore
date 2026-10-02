@@ -3,14 +3,14 @@ name: lore-platform
 description: |
   The Lore platform as a single deployable Helm chart. Aggregates the
   application workloads as vendored subcharts (charts/): lore-api, the lore-mcp
-  gateway, ui, lore-db add-ons, the event-router and the stations service.
+  gateway, ui, lore-db add-ons and the stations service.
 
   Subcharts are vendored (physically present under charts/) rather than pulled
   from a repository, so `helm template`/`helm install` work with no
   `helm dependency build` step. Each subchart keeps its own templates, hooks,
   and CRDs unchanged; the only cross-cutting edit is an explicit per-resource
   `namespace:` so this one release can span the platform's namespaces
-  (lore-api, lore-ui, lore-db, lore-event-router, lore-stations).
+  (lore-api, lore-ui, lore-db, lore-stations).
   The release record itself lives in the `lore-floor` namespace, which is all
   that is left of the service of that name.
 
@@ -18,7 +18,6 @@ description: |
     lore-api: {...}
     lore-ui: {...}
     lore-db-helm: {...}
-    lore-event-router: {...}
     lore-stations: {...}
 
   Cluster, namespaces, ExternalSecrets, ingresses, the CNPG cluster CR, and the
@@ -37,8 +36,6 @@ dependencies:
   - name: lore-db-helm
     version: "0.1.0"
   - name: lore-mcp-gateway
-    version: "0.1.0"
-  - name: lore-event-router
     version: "0.1.0"
   - name: lore-stations
     version: "0.1.0"

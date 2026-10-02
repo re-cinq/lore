@@ -11,7 +11,6 @@ import { parse } from "yaml";
 const UMBRELLA_DEPLOY_WORKFLOWS = [
   ".github/workflows/build-mcp-server.yml",
   ".github/workflows/build-lore-api.yml",
-  ".github/workflows/build-event-router.yml",
   ".github/workflows/build-stations.yml",
   ".github/workflows/build-ui.yml",
 ];

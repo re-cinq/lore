@@ -22,6 +22,15 @@
 
 **Tick → sweep**: the stations service writes a `cron.<name>.tick` event to `pipeline.events` from its own database pool (`libs/shared/src/work/scheduler/cron-emitters.ts`), claims its own delivery, and runs the sweep that declared that tick. **Courier CronJob**: a Kubernetes CronJob that posts `POST /api/stations/<name>` on the stations service and exits ([ADR-019](../../adrs/ADR-019-scheduled-job-runtime-split.md)).
 
+**Running a sweep by hand.** Every sweep whose manifest declares an `http` trigger (the ticks above do) answers `POST /api/stations/<name>` on the stations service, authenticated by `LORE_INGEST_TOKEN` (`apps/stations/src/transport/server.ts` passes it as the route's `bearerToken`). From inside the stations pod, which listens on `:8080`:
+
+```bash
+kubectl exec -n lore-stations deploy/lore-stations -- sh -c \
+  'curl -s -X POST -H "Authorization: Bearer $LORE_INGEST_TOKEN" http://localhost:8080/api/stations/digest-tick'
+```
+
+The station name is the folder under `apps/stations/src/work/` (`digest-tick`, `loop-tick`, `merge-check`, ...). The route reads no body: `runStationHandler` calls the station with `{ trigger: "http", host }` and no event, so a sweep run this way sees empty params. That means the digest tick's `params.force` (skip the due check) and `params.repo` (narrow to one repo), which `dueRepos` reads from the delivered event, cannot be sent over HTTP; a manual run does the normal due check. A second request while the same station is mid-run gets `409`.
+
 What is not on a schedule: reviews and plans start from GitHub and UI events; specs, ADRs and test reports reach the stores from CI on every push to `main`.
 
 Removed with Lore's own Floor on 2026-10-02: the nightly reindex, gap detection, spec drift, spec coverage validate and backfill (the last three are a CI check and the spec-upkeep line now), the approval check, the reapers and reconcilers of the old walk, and the eval and autoresearch jobs.
