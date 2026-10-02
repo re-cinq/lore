@@ -21,6 +21,8 @@ import {
 const ContextEvalBody = z.object({
   repo: repoFullName,
   path: z.string().min(1).max(500),
+  // Pins the question, so a rerun after a fix grades the same one.
+  question: z.string().min(1).max(1000).optional(),
 });
 
 const DocumentEvalSchema = z.object({

@@ -41,8 +41,12 @@ interface Answer {
   used_sources: string[];
 }
 
-interface Verdict {
-  pass: boolean;
+/** What the judge reports; whether that is a pass is decided in code, where a claimed contradiction can be checked against the document. */
+// eslint-disable-next-line re-lint/no-row-types-outside-models -- the judge tool's own output, named for the model that fills it; no table holds it
+export interface Judgement {
+  addresses_question: boolean;
+  /** The sentence of the document the answer contradicts, quoted; empty or absent when it contradicts none. */
+  contradicted_sentence?: string;
   reason: string;
 }
 
@@ -52,9 +56,9 @@ const QUESTION_SYSTEM =
 const ANSWER_SYSTEM =
   "You answer a developer's question using only the context you are given. The context is a list of <document> blocks, each with a source attribute. If the context does not answer the question, say that it does not; never answer from your own knowledge. List in used_sources the source attribute of every document your answer relied on, and no others.";
 
-// The answer is drawn from everything Lore returned, so it may hold true detail the reference never mentions; only a contradiction or a non-answer fails.
+// The answer is drawn from everything Lore returned, so it may hold true detail the reference never mentions. A contradiction has to be quoted, which a "not mentioned" cannot be.
 const JUDGE_SYSTEM =
-  "You grade an answer against a reference document. The answer was written from several documents, so it may contain correct details the reference does not mention: that is never a reason to fail. Pass the answer when it addresses the question and nothing in it contradicts the reference. Fail it only when it contradicts the reference, when it says the context did not contain the answer, or when it does not address what was asked. Give the reason in one sentence, quoting the contradiction when there is one.";
+  "You compare an answer with a reference document. The answer was written from several documents, so it may contain correct details the reference does not mention; an absent detail is not a contradiction. Report two things. addresses_question: false when the answer says the context did not contain the answer or does not address what was asked, true otherwise. contradicted_sentence: when a statement in the answer cannot be true if the reference is true, copy the one sentence of the reference it conflicts with, word for word; when there is no such sentence, leave it empty. Give the reason in one sentence.";
 
 const ANSWER_SCHEMA = {
   type: "object",
@@ -65,19 +69,27 @@ const ANSWER_SCHEMA = {
   required: ["answer", "used_sources"],
 };
 
-const VERDICT_SCHEMA = {
+const JUDGEMENT_SCHEMA = {
   type: "object",
   properties: {
-    pass: { type: "boolean" },
+    addresses_question: { type: "boolean" },
+    contradicted_sentence: { type: "string" },
     reason: { type: "string" },
   },
-  required: ["pass", "reason"],
+  required: ["addresses_question", "contradicted_sentence", "reason"],
 };
+
+export interface EvalTarget {
+  repo: string;
+  path: string;
+  /** Grade this question instead of writing one, so a rerun after a fix measures the same thing. */
+  question?: string;
+}
 
 /** Evaluates one document; null when Lore holds no such document. */
 export async function evaluateDocument(
   deps: EvalDeps,
-  target: { repo: string; path: string },
+  target: EvalTarget,
 ): Promise<DocumentEval | null> {
   const stored = await deps.document(target.repo, target.path);
 
@@ -88,10 +100,10 @@ export async function evaluateDocument(
 
 async function evaluateStored(
   deps: EvalDeps,
-  target: { repo: string; path: string },
+  target: EvalTarget,
   document: string,
 ): Promise<DocumentEval> {
-  const { question, model } = await writeQuestion(deps.llm, document);
+  const { question, model } = await questionFor(deps.llm, target, document);
   const assembled = await deps.assemble(target.repo, question);
   const graded = await gradeAssembled(deps.llm, {
     document,
@@ -103,9 +115,20 @@ async function evaluateStored(
     path: target.path,
     question,
     found: assembled.sources.some((source) => source.path === target.path),
-    model,
     ...graded,
+    model: model || graded.model,
   };
+}
+
+/** The question the caller pinned, or one written from the document. */
+async function questionFor(
+  llm: LlmProvider,
+  target: EvalTarget,
+  document: string,
+): Promise<{ question: string; model: string }> {
+  return target.question
+    ? { question: target.question, model: "" }
+    : writeQuestion(llm, document);
 }
 
 async function writeQuestion(
@@ -125,6 +148,7 @@ interface Graded {
   answered: boolean;
   useful_share: number;
   reason: string;
+  model: string;
 }
 
 interface Attempt {
@@ -140,15 +164,16 @@ async function gradeAssembled(
   const { sources } = attempt.assembled;
 
   if (sources.length === 0) {
-    return { answered: false, useful_share: 0, reason: NO_CONTEXT };
+    return { answered: false, useful_share: 0, reason: NO_CONTEXT, model: "" };
   }
   const answer = await answerFromContext(llm, attempt);
-  const verdict = await judgeAnswer(llm, attempt, answer.answer);
+  const judged = await judgeAnswer(llm, attempt, answer.answer);
 
   return {
-    answered: verdict.pass,
+    answered: passes(judged.judgement, attempt.document),
     useful_share: usefulShare(sources, answer.used_sources),
-    reason: verdict.reason,
+    reason: judged.judgement.reason,
+    model: judged.model,
   };
 }
 
@@ -172,17 +197,32 @@ async function judgeAnswer(
   llm: LlmProvider,
   { document, question }: Attempt,
   answer: string,
-): Promise<Verdict> {
-  const { parsed } = await llm.completeWithTool<Verdict>({
+): Promise<{ judgement: Judgement; model: string }> {
+  const { parsed, model } = await llm.completeWithTool<Judgement>({
     systemPrompt: JUDGE_SYSTEM,
-    prompt: `Reference document:\n\n${document}\n\nQuestion: ${question}\n\nAnswer to grade: ${answer}`,
-    toolName: "verdict",
-    toolDescription: "Whether the answer agrees with the document, and why",
-    toolSchema: VERDICT_SCHEMA,
+    prompt: `Reference document:\n\n${document}\n\nQuestion: ${question}\n\nAnswer to compare: ${answer}`,
+    toolName: "judgement",
+    toolDescription:
+      "Whether the answer addresses the question, and the sentence of the reference it contradicts, if any",
+    toolSchema: JUDGEMENT_SCHEMA,
     jobName: JOB_NAME,
   });
 
-  return parsed;
+  return { judgement: parsed, model };
+}
+
+/** An answer passes when it addresses the question and contradicts nothing the document says. A contradiction counts only when the sentence the judge quotes is in the document: a judge that fails an answer for detail the document lacks has nothing there to quote. */
+export function passes(judgement: Judgement, document: string): boolean {
+  const quoted = flattened(judgement.contradicted_sentence ?? "");
+
+  return (
+    judgement.addresses_question &&
+    !(quoted.length > 0 && flattened(document).includes(quoted))
+  );
+}
+
+function flattened(text: string): string {
+  return text.toLowerCase().replaceAll(/\s+/g, " ").trim();
 }
 
 /** The share of returned tokens that came from sources the answer used, to two decimals; a source the answer names but Lore did not return counts for nothing. */

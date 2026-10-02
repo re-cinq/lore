@@ -21,7 +21,8 @@ const ASSEMBLED: AssembledForEval = {
 const VERDICT = {
   answer: "No. The adapter holds no pool.",
   used_sources: [ADR, "docs/mcp-tools-reference.md"],
-  pass: true,
+  addresses_question: true,
+  contradicted_sentence: "",
   reason: "Agrees with the decision.",
 };
 
@@ -85,7 +86,11 @@ describe("evaluateDocument", () => {
         text: "<context>lint rules</context>",
         sources: [{ path: "eslint.config.mjs", tokens: 400 }],
       },
-      verdict: { used_sources: [], pass: false, reason: "No basis." },
+      verdict: {
+        used_sources: [],
+        addresses_question: false,
+        reason: "No basis.",
+      },
     });
 
     expect(await evaluateDocument(deps, target)).toMatchObject({
@@ -96,9 +101,12 @@ describe("evaluateDocument", () => {
     });
   });
 
-  it("reports answered false with the judge's reason when the judge fails the answer", async () => {
+  it("reports answered false when the judge quotes a sentence of the document the answer contradicts", async () => {
     const { deps } = scenario({
-      verdict: { pass: false, reason: "The ADR rules a direct pool out." },
+      verdict: {
+        contradicted_sentence: "The adapter holds no pool.",
+        reason: "The ADR rules a direct pool out.",
+      },
     });
 
     expect(await evaluateDocument(deps, target)).toMatchObject({
@@ -106,6 +114,58 @@ describe("evaluateDocument", () => {
       answered: false,
       reason: "The ADR rules a direct pool out.",
     });
+  });
+
+  it("reports answered true when the sentence the judge calls contradicted is not in the document", async () => {
+    const { deps } = scenario({
+      verdict: {
+        contradicted_sentence: "The document does not mention Tailwind.",
+        reason: "The answer adds detail the document lacks.",
+      },
+    });
+
+    expect(await evaluateDocument(deps, target)).toMatchObject({
+      answered: true,
+    });
+  });
+
+  it("finds the quoted sentence in the document whatever its line breaks and spacing", async () => {
+    const { deps } = scenario({
+      document: "The adapter\nholds   no pool.",
+      verdict: { contradicted_sentence: "the adapter holds no pool." },
+    });
+
+    expect(await evaluateDocument(deps, target)).toMatchObject({
+      answered: false,
+    });
+  });
+
+  it("reports answered false when the judge says the answer does not address the question", async () => {
+    const { deps } = scenario({
+      verdict: {
+        addresses_question: false,
+        reason: "It says the context does not cover this.",
+      },
+    });
+
+    expect(await evaluateDocument(deps, target)).toMatchObject({
+      answered: false,
+      reason: "It says the context does not cover this.",
+    });
+  });
+
+  it("asks Lore the question the caller pinned and writes none, so a rerun grades the same question", async () => {
+    const { deps, asked, llm } = scenario();
+    const pinned = "Does the MCP adapter hold a database pool?";
+
+    const verdict = await evaluateDocument(deps, {
+      ...target,
+      question: pinned,
+    });
+
+    expect(asked).toEqual([{ repo: "re-cinq/lore", question: pinned }]);
+    expect(verdict?.question).toBe(pinned);
+    expect(llm.calls).toHaveLength(2);
   });
 
   it("counts only sources Lore returned towards the useful share, whatever else the answer names", async () => {

@@ -30,7 +30,8 @@ describe("POST /api/context-evals", () => {
         data: {
           answer: "No.",
           used_sources: [ADR],
-          pass: true,
+          addresses_question: true,
+          contradicted_sentence: "",
           reason: "Agrees with the decision.",
         },
         usage: { model: "gemini-2.5-flash" },
@@ -63,6 +64,19 @@ describe("POST /api/context-evals", () => {
       useful_share: 0.75,
       reason: "Agrees with the decision.",
       model: "gemini-2.5-flash",
+    });
+  });
+
+  it("grades the question the body pins instead of writing one", async () => {
+    const res = await post({
+      repo: "re-cinq/lore",
+      path: ADR,
+      question: "Does the MCP adapter hold a database pool?",
+    });
+
+    expect(JSON.parse(res.payload)).toMatchObject({
+      question: "Does the MCP adapter hold a database pool?",
+      answered: true,
     });
   });
 
