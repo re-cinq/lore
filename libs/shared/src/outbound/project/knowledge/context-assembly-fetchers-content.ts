@@ -84,7 +84,11 @@ function toMemoryItem(
 
   return mkItem(
     `**${result.key}** (${result.source})${tag}${conflict}: ${result.value}`,
-    { source_path: result.key, content_type: result.source },
+    {
+      source_path: result.key,
+      content_type: result.source,
+      ...measured(result),
+    },
   );
 }
 
@@ -111,10 +115,17 @@ async function fetchEpisodes(
   }
 }
 
+function measured(result: MemorySearchResult): { similarity?: number } {
+  return result.similarity === undefined
+    ? {}
+    : { similarity: result.similarity };
+}
+
 function toEpisodeItem(result: MemorySearchResult): SourceItem {
   return mkItem(`**${result.key}**: ${result.value}`, {
     source_path: result.key,
     content_type: "episode",
+    ...measured(result),
   });
 }
 
