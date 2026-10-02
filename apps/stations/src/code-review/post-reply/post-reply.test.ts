@@ -248,6 +248,21 @@ describe("postReply", () => {
     });
   });
 
+  it("skips posting when a thread comment carries marker v-7/2", async () => {
+    const { poster, recorded } = fakePoster({
+      reviewComments: [
+        reviewComment({ id: 120, body: `old\n${replyMarker("v-7", 2)}` }),
+      ],
+    });
+
+    const outcome = await postReply(deliveryOf(poster));
+
+    expect({ outcome, comments: recorded.comments }).toEqual({
+      outcome: "already_posted",
+      comments: [],
+    });
+  });
+
   it("skips posting when a PR comment carries marker v-7/2", async () => {
     const { poster, recorded } = fakePoster({
       issueBodies: [replyMarker("v-7", 2)],
