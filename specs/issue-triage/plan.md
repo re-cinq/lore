@@ -6,6 +6,8 @@
 | Spec    | [spec.md](./spec.md)                   |
 | Created | 2026-09-28                             |
 
+> **Out of date since 2026-10-02.** This plan was written for the engine Lore ran itself: a line file under `libs/assembly-lines/src/assembly-lines/`, node types, and `runtime: service` node stations under `apps/stations/src/work/`. That engine and its node stations are deleted (`specs/external-floor` FR16.10, FR16.12). Before any task of this plan is implemented it has to be re-planned as a floor pipeline file with floor stations (`.lore/assembly-line-guide.md`).
+
 This plan details the implementation of a new `issue-triage` assembly line, driven by GitHub label events, that automatically reproduces bugs in isolated pods, diagnoses root causes, and verifies them against specs before handing off to maintainers.
 
 ## Technical Context
