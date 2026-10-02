@@ -59,13 +59,10 @@ import { embeddingsRoute } from "./routes/ingest/embeddings.js";
 import { reembedRoute } from "./routes/ingest/reembed.js";
 import { onboardRoute } from "./routes/repos/onboard.js";
 import { slackWebhookRoute } from "./routes/webhooks/webhook-slack.js";
+import { githubWebhookRoute } from "./routes/webhooks/webhook-github.js";
 import { slackEventsRoute } from "./routes/webhooks/webhook-slack-events.js";
 import { incidentWebhookRoute } from "./routes/webhooks/webhook-incident.js";
-import {
-  webhookStatusRoute,
-  webhookSecretRoute,
-  webhookEnsureRoute,
-} from "./routes/webhooks/webhook.js";
+import { repoWebhookRoutes } from "./routes/webhooks/webhook.js";
 import { tokensRoute } from "./routes/tokens/tokens.js";
 import { clusterAgentRegisterRoute } from "./routes/cluster-agents/register.js";
 import { clusterAgentClaimRoute } from "./routes/cluster-agents/claim.js";
@@ -257,11 +254,10 @@ function ingestRoutes(getPool: PoolGetter): ServerRoute[] {
 function webhookRoutes(getPool: PoolGetter): ServerRoute[] {
   return [
     slackWebhookRoute(),
+    githubWebhookRoute(getPool),
     slackEventsRoute(),
     incidentWebhookRoute(getPool),
-    webhookStatusRoute(),
-    webhookEnsureRoute(),
-    webhookSecretRoute(),
+    ...repoWebhookRoutes(),
     ...tokensRoute(getPool),
   ];
 }
