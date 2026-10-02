@@ -39,7 +39,9 @@ PR history, and task state.
 **Vector store**: PostgreSQL + pgvector via CloudNativePG on GKE.
 Schema-per-team isolation. HNSW indexes for vector search, GIN for
 BM25 keyword search. Hybrid search via Reciprocal Rank Fusion.
-Embeddings from Vertex AI text-embedding-005 (768 dimensions).
+Embeddings go through the vendor-neutral `EmbeddingProvider`
+(`libs/shared/src/outbound/embeddings/`), chosen by `LORE_EMBEDDING_PROVIDER`;
+the adapter in use is Vertex AI text-embedding-005 (768 dimensions).
 
 **Cluster agents**: Lore Agent service on GKE processes pipeline tasks
 via direct Anthropic API calls (simple tasks) or headless Claude Code
@@ -111,7 +113,7 @@ status pill — a stale header misreports the org's backlog.
 - `apps/lore-api/src/outbound/github-client.ts` — consolidated GitHub auth (App + token fallback)
 - `apps/mcp-server/src/transport/tools/local-runner-tools.local.ts` — local task runner (worktrees, background Claude Code). Guards against pushing to the wrong repo via `validateRepoMatch(taskRepo, cwdRepo)` at spawn time; skips PR creation if `git diff --cached --name-only` is empty after stage. Task state lives in `~/.lore/local-tasks.json` only — never inside the worktree.
 - `scripts/` — install.sh, lore-doctor, lore-init, glue scripts
-- `scripts/infra/` — setup-db.sh, setup-schedulers.sh, generate-embeddings.sh
+- `scripts/infra/` — setup-db.sh, reembed.sh, seed-secrets.sh
 - `infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/` — ordered, idempotent `NNNN_*.sql` applied to `lore-db` on every deploy by a `pre-install,pre-upgrade` Helm hook Job (`lore-platform/charts/ui-helm/templates/migrate-{job,configmap}.yaml`), tracked in `lore.schema_migrations`, connecting as `lore` (the DB owner — no superuser needed) via the chart's `dbPasswordSecret`. Runs on both deploy paths (CI `helm upgrade` of the umbrella and terraform `helm_release.lore_platform`). The hook now fires on every umbrella upgrade regardless of which service changed; it is idempotent (skip-if-applied) so re-running on a floor/mcp deploy is a no-op. Baseline schema still comes from `setup-*-schema.sh`; incremental changes go here.
 - `.claude/skills/` — platform skills (lore-help, lore-feature, lore-pr, lore-init, lore-agents, lore-suggest-links, lore-test-commands), installed to `~/.claude/skills` by `install.sh`. **Every skill documents itself**: each `SKILL.md` ends with a `## Help` block fenced by `<!-- lore-help:begin -->` / `<!-- lore-help:end -->` (required `**Summary.**` + `**Usage:**`), which `/lore-help` extracts verbatim to build its index, per-skill detail, and task router — there is no second copy to keep in sync. `scripts/check-skill-help.sh` (the `skill-help` PR check) fails a skill that ships without one. `install.sh` refreshes a changed skill rather than skipping it, and `lore-doctor` fails when an installed skill differs from the checkout — a stale copy would make `/lore-help` describe behaviour that is not installed. See `specs/lore-help/spec.md`
 - `infra/terraform/modules/gke-mcp/lore-platform/` — the single umbrella Helm chart for the service workloads (lore-api/ui/lore-db/ai-agents and the other subcharts under `charts/`); each subchart stamps its own namespace so one release spans them. `infra/terraform/modules/gke-mcp/` also holds the standalone bootstrap root (cluster + node pools)

@@ -1,15 +1,15 @@
 import { enforceTrue } from "../../lib/enforce.js";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
-  buildVertexUrl,
   getQueryEmbedding,
   getQueryEmbeddings,
-  embeddingBatches,
   embeddingHealth,
   embedderDegraded,
   resetEmbeddingHealth,
 } from "./embedding-service.js";
 import { resetGoogleProjectCache } from "../google/access-token.js";
+import { Embeddings } from "./embeddings.js";
+import { FakeEmbeddingProvider } from "./fake-embedding-provider.js";
 
 const SAVED = { ...process.env };
 
@@ -20,17 +20,10 @@ beforeEach(() => {
   delete process.env.GOOGLE_ACCESS_TOKEN;
 });
 afterEach(() => {
+  Embeddings.reset();
   process.env = { ...SAVED };
   vi.unstubAllGlobals();
   resetGoogleProjectCache();
-});
-
-describe("buildVertexUrl", () => {
-  it("interpolates project and region into the predict endpoint", () => {
-    expect(buildVertexUrl("my-gcp-project", "europe-west1")).toBe(
-      "https://europe-west1-aiplatform.googleapis.com/v1/projects/my-gcp-project/locations/europe-west1/publishers/google/models/text-embedding-005:predict",
-    );
-  });
 });
 
 describe("embeddingHealth", () => {
@@ -140,28 +133,6 @@ describe("getQueryEmbedding project resolution", () => {
   });
 });
 
-describe("embeddingBatches", () => {
-  it("splits 251 short texts into batches of 250 and 1", () => {
-    const texts = Array.from({ length: 251 }, (_, i) => `statement ${i}`);
-
-    expect(embeddingBatches(texts).map((batch) => batch.length)).toEqual([
-      250, 1,
-    ]);
-  });
-
-  it("starts a new batch when the next 8000-char text would pass 50000 chars", () => {
-    const texts = Array.from({ length: 7 }, () => "x".repeat(8000));
-
-    expect(embeddingBatches(texts).map((batch) => batch.length)).toEqual([
-      6, 1,
-    ]);
-  });
-
-  it("returns no batches for no texts", () => {
-    expect(embeddingBatches([])).toEqual([]);
-  });
-});
-
 describe("getQueryEmbeddings", () => {
   const vertexEchoingIndexes = () =>
     vi.fn(async (url: string, init?: RequestInit) => {
@@ -223,5 +194,47 @@ describe("getQueryEmbeddings", () => {
 
     expect(await getQueryEmbeddings([])).toEqual([]);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("getQueryEmbeddings through an installed provider", () => {
+  beforeEach(() => resetEmbeddingHealth());
+
+  it("hands 'a' and 'bbb' to the installed provider in one call and returns its vectors of 1 and 3 in order", async () => {
+    const provider = new FakeEmbeddingProvider();
+
+    Embeddings.setInstance(provider);
+
+    expect(await getQueryEmbeddings(["a", "bbb"])).toEqual([[1], [3]]);
+    expect(provider.calls).toEqual([["a", "bbb"]]);
+  });
+
+  it("returns the installed provider's vector of 2 for the single query 'hi'", async () => {
+    Embeddings.setInstance(new FakeEmbeddingProvider());
+
+    expect(await getQueryEmbedding("hi")).toEqual([2]);
+  });
+
+  it("returns an empty list for no texts without calling the installed provider", async () => {
+    const provider = new FakeEmbeddingProvider();
+
+    Embeddings.setInstance(provider);
+
+    expect(await getQueryEmbeddings([])).toEqual([]);
+    expect(provider.calls).toEqual([]);
+  });
+
+  it("answers null for both texts and records a failure with status null when the provider throws", async () => {
+    Embeddings.setInstance(
+      new FakeEmbeddingProvider(() => {
+        throw new Error("provider down");
+      }),
+    );
+
+    expect(await getQueryEmbeddings(["a", "b"])).toEqual([null, null]);
+    expect(embeddingHealth()).toMatchObject({
+      lastStatus: null,
+      consecutiveFailures: 1,
+    });
   });
 });
