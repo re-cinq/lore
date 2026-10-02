@@ -16,6 +16,15 @@ tagging every station run with the capabilities it requires, and flipping node
 dispatch from a push to the one configured cluster to an atomic pull-based
 claim, the GitLab Runner model applied to AI stations.
 
+> **Retired on 2026-10-02.** Nothing gives a Lore cluster agent work since
+> `apps/floor` was deleted, and the external floor runs every agent pod with
+> its own. lore-api's cluster-agent routes are deleted: register, claim,
+> release, heartbeat, catalog-events, catalog-status, pause, restart, the
+> list and the installer hand-out, with the run-credential route a claim
+> minted a URL for. The charts and the Clusters page went before them. What
+> follows is the record of how the registry, the claim and the satellites
+> worked; the cluster agent's own code is removed next.
+
 ## Problem Statement
 
 Every station run today executes on the single GKE cluster Lore is deployed

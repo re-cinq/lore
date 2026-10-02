@@ -10,6 +10,11 @@
 
 The AgentDefinition/Station CRD catalog the ai-agent-subsystem resolves at dispatch gets one source of truth — `lore.agent_definitions`, whose org rows lore-api seeds from `libs/shared/src/agent-defaults/*.md` (specs/lore-agents FR27) — and one delivery mechanism: an append-only change log every registered cluster-agent tails with its own cursor and applies to its own cluster, replacing both the Helm catalog-seed hook (which could only reach the chart's own cluster) and the single-target HTTP push from lore-api (which never reached a satellite at all).
 
+> **Retired on 2026-10-02.** The catalog is no longer delivered to any
+> cluster: Lore's cluster agent, its sync loop and lore-api's two catalog
+> routes are removed (see Retired mechanisms). The external floor reads its
+> agent definitions from its pipeline files.
+
 ## Problem Statement
 
 Two mechanisms populated the catalog CRDs and neither reached every
@@ -119,9 +124,17 @@ have left nothing at all behind.
 - FR9.2: A batch is written in one statement and read with its cluster's name already joined on, so reporting costs one round trip however many entries it carries and the read needs no second lookup; an empty batch writes nothing. ([validated by writes the whole batch in one UNNEST statement rather than a round trip per entry](../../libs/shared/src/outbound/project/agents/catalog-status.test.ts#L104), [validated by writes nothing at all for an empty batch](../../libs/shared/src/outbound/project/agents/catalog-status.test.ts#L137), [validated by joins the cluster name onto each verdict so the read needs no second lookup](../../libs/shared/src/outbound/project/agents/catalog-status.test.ts#L145))
 - FR9.3: `POST /api/cluster-agents/{id}/catalog-status` records the verdicts under the same per-agent bearer auth as claim and catalog-events — a cluster reports only as itself — and rejects a malformed report whole rather than recording half of it.
 - FR9.4: The sync loop reports one structured verdict per entry it touched — applied, refused with its reason, deleted — in the order it touched them. The report is best-effort and comes AFTER the applies: a cluster that cannot report keeps syncing, because a failed report costs visibility and must never cost delivery. ([validated by reports one structured verdict per entry — applied, refused with its reason, and deleted](../../apps/cluster-agent/src/work/catalog/catalog-sync-loop.test.ts#L557), [validated by a refused status report never fails the sync — visibility must not cost delivery](../../apps/cluster-agent/src/work/catalog/catalog-sync-loop.test.ts#L588), [validated by posts nothing when the batch was empty](../../apps/cluster-agent/src/work/catalog/catalog-sync-loop.test.ts#L605))
-- FR9.5: The verdicts ride the usage endpoint the /agents page already reads, so one fetch answers both "where is this used" and "did it land". Absent verdicts are published as absent, never as success. ([validated by groups reported verdicts by definition name so a refusal is findable](../../apps/web-ui/src/lib/agents-api.test.ts#L173))
 
 ## Retired mechanisms
+
+**The sync itself is gone (2026-10-02).** `GET /api/cluster-agents/{id}/catalog-events`
+and `POST /api/cluster-agents/{id}/catalog-status` are deleted from lore-api
+with the rest of the cluster-agent routes (FR3, FR9.3), because the cluster
+agent that read the one and posted the other no longer runs. FR9.5 had the
+verdicts ride the usage endpoint so the `/agents` page could answer "did it
+land": the usage endpoint no longer carries `applied`, and answers only where
+a definition is used. The statements above record how the fan-out worked;
+`lore.agent_definitions` stays the store the `/agents` pages edit.
 
 **The Rollout column is gone (2026-10-02).** FR9.6 had the `/agents` page
 tell three answers apart per definition: a refusal naming the cluster and

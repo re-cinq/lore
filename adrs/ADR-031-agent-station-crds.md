@@ -392,6 +392,12 @@ controller and network fences, and no recipe.
 
 ## Amendment (2026-09-10): git credentials come from a broker, not the pod
 
+> **Removed on 2026-10-02.** `POST /api/github-credentials` is deleted from
+> lore-api: only a claim by Lore's cluster agent minted its URL, and that
+> agent no longer runs. The floor's pods get their git credential from
+> `POST /api/floor/git-credential`. The decision below is kept as the record
+> of how the broker worked.
+
 D6's per-task token was a copy made at launch: the cluster-agent minted an
 installation token into the shared `agent-secrets` Secret, and the pod read it
 once. Three failures came from that one design — the Secret filling past its
