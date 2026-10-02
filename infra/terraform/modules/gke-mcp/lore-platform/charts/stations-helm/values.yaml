@@ -44,6 +44,10 @@ env:
   LORE_DB_NAME: lore
   LORE_DB_USER: lore
   PORT: "8080"
+  # The bus-prune sweep deletes run transcripts older than this (default 30).
+  # A year: the runs of the engine Lore ran itself get no new turns, and their
+  # run pages are what a walkthrough opens.
+  LORE_AGENT_RUN_TURN_RETENTION_DAYS: "365"
 
 # The external floor engine (its own namespace and Helm release). Off by default;
 # terraform sets enabled from var.enable_external_floor.
