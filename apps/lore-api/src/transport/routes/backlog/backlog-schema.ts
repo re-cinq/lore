@@ -2,13 +2,7 @@
 
 import { z } from "zod";
 import { OkTrue } from "../../http/ok-schema.js";
-
-/** One node of a ticket's run, in graph order — the mini pipeline's dot. */
-export const PipelineNodeSchema = z.object({
-  node_id: z.string(),
-  /** success | failed | changes_requested | running | waiting | pending */
-  state: z.string(),
-});
+import { PipelineNodeSchema } from "../../../work/assembly-line-station/mini-pipeline.js";
 
 export const TicketSchema = z.object({
   issue_number: z.number().int(),

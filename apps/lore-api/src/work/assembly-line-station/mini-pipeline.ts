@@ -1,4 +1,5 @@
 // The mini pipeline: every graph node in definition order, colored by its latest station-run visit.
+import { z } from "zod";
 
 export interface PipelineVisit {
   nodeId: string;
@@ -6,10 +7,14 @@ export interface PipelineVisit {
   outcome: string | null;
 }
 
-export interface PipelineNode {
-  node_id: string;
-  state: string;
-}
+/** One node of a run, in graph order — the mini pipeline's dot. */
+export const PipelineNodeSchema = z.object({
+  node_id: z.string(),
+  /** success | failed | changes_requested | running | waiting | pending */
+  state: z.string(),
+});
+
+export type PipelineNode = z.infer<typeof PipelineNodeSchema>;
 
 export function miniPipeline(
   nodes: readonly { id: string; type: string }[],

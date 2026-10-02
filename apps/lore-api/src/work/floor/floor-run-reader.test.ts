@@ -3,7 +3,12 @@ import { recordedFloor } from "@re-cinq/lore-shared/floor/recorded-floor.js";
 import { FloorRunReader } from "./floor-run-reader.js";
 import type { RunView } from "@re-cinq/floor-client";
 import type { FloorRequest } from "@re-cinq/lore-shared/floor/recorded-floor.js";
-import { FLOOR_RUN, floorWithOneRun, PR_URL } from "./floor-run.fixtures.js";
+import {
+  FLOOR_RUN,
+  floorWithOneRun,
+  floorWithRunPage,
+  PR_URL,
+} from "./floor-run.fixtures.js";
 
 const FINISHED_RUN: RunView = {
   ...FLOOR_RUN,
@@ -38,14 +43,6 @@ function floorWithTwoRuns(request: FloorRequest): unknown {
   }
 
   return floorWithOneRun(request);
-}
-
-function floorWithRunPage(request: FloorRequest): unknown {
-  const url = new URL(request.path, "http://floor.test");
-
-  return url.pathname === "/assembly-runs"
-    ? { items: [FLOOR_RUN], nextCursor: "cursor-2" }
-    : floorWithOneRun(request);
 }
 
 function floorWithFailedRunOnSecondPage(request: FloorRequest): unknown {
