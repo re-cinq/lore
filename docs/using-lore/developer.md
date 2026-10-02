@@ -106,8 +106,6 @@ Every pipeline task opens a GitHub Issue on the target repo labeled `lore-manage
 
 Filter any repo with `label:lore-managed` to see all Lore activity at a glance.
 
-> Under **Dark Factory mode** this narrows: Lore stops opening a status Issue per task, and the PR (carrying a `Lore-Task: <uuid>` trailer) becomes the canonical artifact. See the [Platform Engineer Guide](platform-engineer.md#dark-factory-mode) and the [Architecture](../building-lore/architecture.md#dark-factory-mode) reference.
-
 ## MCP tools available to Claude Code
 
 | Tool | Category | What it does |

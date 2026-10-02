@@ -58,11 +58,11 @@ describe("settings POST", () => {
     });
   });
 
-  it("forwards a privileged-field refusal with its 403 rather than flattening it", async () => {
+  it("forwards a removed dark_factory block's 400 rather than flattening it", async () => {
     putRepoSettings.mockResolvedValue({
       status: "error",
-      message: "privileged dark-factory fields (enabled) are written through …",
-      code: 403,
+      message: "dark_factory settings were removed on 2026-10-02",
+      code: 400,
     });
 
     const res = await POST(
@@ -70,7 +70,7 @@ describe("settings POST", () => {
       { params },
     );
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(400);
   });
 
   it("returns the stored row after a successful write", async () => {

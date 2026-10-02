@@ -329,7 +329,7 @@ export default tseslint.config(
           selector:
             "JSXOpeningElement[name.name='button']:has(JSXAttribute[name.name='type'] > Literal[value='submit']):not(:has(JSXAttribute[name.name='disabled']))",
           message:
-            "A submit button needs pending/disabled feedback so a double-click can't double-submit — use <SubmitButton> from @/components/SubmitButton instead of a bare <button type=\"submit\">.",
+            'A submit button needs pending/disabled feedback so a double-click can\'t double-submit — use <SubmitButton> from @/components/SubmitButton instead of a bare <button type="submit">.',
         },
       ],
     },
@@ -408,7 +408,6 @@ export default tseslint.config(
             // than token similarity, so reporting them here only buries the
             // duplication that is nobody's decision.
             "apps/web-ui/src/lib/agents-mirror.ts",
-            "apps/web-ui/src/lib/dark-factory-resolve.ts",
             "apps/web-ui/src/lib/github.ts",
             "apps/web-ui/src/lib/ingest-workflow.ts",
             "apps/web-ui/src/lib/octokit-retry-policy.ts",

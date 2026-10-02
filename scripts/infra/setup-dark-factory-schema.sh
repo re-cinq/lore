@@ -25,18 +25,6 @@ kubectl exec -n "$NS" "$POD" -- psql -U postgres -d lore -c "
   CREATE INDEX IF NOT EXISTS task_leases_expires_idx
     ON pipeline.task_leases(expires_at);
 
-  -- Pre-feature counter snapshot for SC1/SC4/SC6 deltas (T011b).
-  CREATE TABLE IF NOT EXISTS pipeline.dark_factory_baseline (
-    id            UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-    repo          TEXT         NOT NULL,
-    captured_at   TIMESTAMPTZ  NOT NULL DEFAULT now(),
-    window_start  TIMESTAMPTZ  NOT NULL,
-    window_end    TIMESTAMPTZ  NOT NULL,
-    counters      JSONB        NOT NULL
-  );
-  CREATE INDEX IF NOT EXISTS dark_factory_baseline_repo_idx
-    ON pipeline.dark_factory_baseline(repo, captured_at DESC);
-
   -- Pipeline-side audit log. The existing memory.audit_log is memory-scoped
   -- and lacks task/repo fields needed for dark-factory events. New table
   -- here in the pipeline schema.
