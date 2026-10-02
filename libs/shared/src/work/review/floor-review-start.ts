@@ -176,7 +176,7 @@ async function supersedeAndRecheck(
   return startRecheckLine(deps, target, pr, sinceSha);
 }
 
-/** A submitted request-changes review becomes an `address` work order; the line's own `read-review` station gathers what the review said. */
+/** A submitted request-changes review starts a reply; the line's own `read-review` station gathers what the review said, and the agent decides per comment whether it asks for a change or an answer. */
 export async function startReply(
   deps: ReviewStartDeps,
   input: StartReplyInput,
@@ -193,7 +193,6 @@ export async function startReply(
     startItems: {
       ...(await pullRequestItems(deps, pr!)),
       review_id: valueItem(input.reviewId),
-      intent: valueItem("address"),
     },
   });
 

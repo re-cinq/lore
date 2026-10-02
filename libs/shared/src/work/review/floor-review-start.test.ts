@@ -453,19 +453,21 @@ describe("reviewOrRecheck", () => {
 });
 
 describe("startReply", () => {
-  it("starts code-review-reply for review 99 with the address intent", async () => {
+  it("starts code-review-reply for review 99 with the repository, the pull request and the review, and no intent: the agent reads what each comment asks", async () => {
     const { deps, requests } = scene();
 
     await startReply(deps, { ...TARGET, reviewId: 99, reviewAuthor: "gedaiu" });
+    const { path, body } = started(requests)[0];
+    const { startItems } = body as { startItems: Record<string, unknown> };
 
-    expect(started(requests)[0]).toMatchObject({
+    expect({
+      path,
+      items: Object.keys(startItems),
+      review: startItems.review_id,
+    }).toEqual({
       path: "/assembly-lines/code-review-reply/start",
-      body: {
-        startItems: {
-          review_id: { kind: "value", ref: "99", by: "lore" },
-          intent: { kind: "value", ref: "address", by: "lore" },
-        },
-      },
+      items: ["repo", "pr_url", "review_id"],
+      review: { kind: "value", ref: "99", by: "lore" },
     });
   });
 
