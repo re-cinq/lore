@@ -37,7 +37,7 @@ import { onboardingOf, readRepoRow } from "./backlog-repo.js";
 
 export { pipelineOf } from "./backlog-ticket.js";
 
-// The backlog loop's repo surface (FR10): GET returns toggle/current/queue/recent, PUT flips the toggle. Deliberately not a dark-factory privileged field — the loop never merges, so no CODEOWNER ceremony (FR7).
+// The backlog loop's repo surface (FR10): GET returns toggle/current/queue/recent, PUT flips the toggle. Deliberately not behind the two-key ceremony — the loop never merges, so no CODEOWNER ceremony (FR7).
 
 const PATH = "/api/repos/{owner}/{repo}/implementation-loop";
 
