@@ -135,9 +135,9 @@ describe("the catalog-events fan-out, against real Postgres", () => {
       name: "runbook",
       execution_mode: "claude-code",
     });
-    expect(byName.get("def-validate")?.definition).toMatchObject({
-      execution_mode: "station",
-    });
+    expect(
+      [...byName.keys()].filter((name) => name.startsWith("def-")),
+    ).toEqual([]);
     expect(BigInt(snapshot.cursor)).toBeGreaterThanOrEqual(0n);
   });
 
