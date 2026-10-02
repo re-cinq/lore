@@ -31,7 +31,10 @@ spec:
           # A pod being replaced keeps serving for 10 seconds before it is told
           # to stop. The ingress needs a moment to stop sending it requests;
           # without the wait, a request arriving in that moment hits a closed
-          # port and is answered 502, and GitHub does not retry a webhook.
+          # port and is answered 502. That matters most for GitHub's webhook
+          # deliveries (`POST /api/webhook/github`, which the public webhook
+          # hostnames route here, infra/terraform/event-router.tf): GitHub
+          # does not retry one.
           lifecycle:
             preStop:
               exec:
