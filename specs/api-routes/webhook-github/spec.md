@@ -27,7 +27,7 @@ captured.
 
 ## Interface
 
-Registered on the event-router ([registration](../../../apps/event-router/src/transport/routes/events.ts#L36)).
+Registered on the event-router ([registration](../../../apps/event-router/src/transport/routes/events.ts#L34)).
 
 - **Method + path**: `POST /api/events`. The pre-ADR-044 hook URL,
   `https://<lore_webhook_hostname>/api/webhook/github`, is still served: an
@@ -97,6 +97,8 @@ length-mismatched signature is rejected without throwing. ([validated by accepts
 An unset secret returns 500 — 503 would tell GitHub to redeliver, and no number of redeliveries supplies a missing env var; a missing signature header returns 401; an invalid signature returns 401. Each refusal names what to go and change — the secret to set, the header GitHub must send, or the two secrets that disagree — because these are read in a delivery log, not with the source open. A delivery carrying no `x-github-event` header is a 400. ([validated by returns 400 when a signed delivery carries no x-github-event header](apps/event-router/src/transport/routes/events.test.ts#L67), [`events.test.ts:84`](apps/event-router/src/transport/routes/events.test.ts#L84), [`events.test.ts:118`](apps/event-router/src/transport/routes/events.test.ts#L118), [`events.test.ts:156`](apps/event-router/src/transport/routes/events.test.ts#L156))
 
 A validly-signed delivery answers 202 and QUEUES the mapped events, each carrying the delivery id as its dedupe key — GitHub redelivers on any non-2xx, and without that key a retried delivery would run the whole reaction a second time. ([validated by captures a signed webhook without any bearer token](apps/event-router/src/transport/routes/events.test.ts#L39), [`events.test.ts:99`](apps/event-router/src/transport/routes/events.test.ts#L99), [`events.test.ts:194`](apps/event-router/src/transport/routes/events.test.ts#L194))
+
+The verification and the mapping are one shared function (`eventsFromGitHubDelivery`, `libs/shared/src/transport/http/github-delivery.ts`), so every door GitHub posts to trusts a delivery the same way: a request is a GitHub delivery when it carries the signature header, a signed delivery maps to its events with the delivery id as dedupe key, a ping maps to none, and each refusal (unconfigured secret, mismatched signature, missing event header) names the deployment to fix. ([validated by returns sha256=abc for a request carrying that x-hub-signature-256 header](libs/shared/src/transport/http/github-delivery.test.ts#L16), [returns undefined for a request with no signature header](libs/shared/src/transport/http/github-delivery.test.ts#L22), [maps signed delivery d-1 of a closed pull request to github.pull_request.closed deduped on github:d-1](libs/shared/src/transport/http/github-delivery.test.ts#L28), [maps a signed ping to no events](libs/shared/src/transport/http/github-delivery.test.ts#L51), [refuses a signature that does not match the secret with a 401](libs/shared/src/transport/http/github-delivery.test.ts#L64), [refuses with a 500 naming the lore-api deployment when the webhook secret is not configured](libs/shared/src/transport/http/github-delivery.test.ts#L79), [refuses a signed delivery with no x-github-event header with a 400](libs/shared/src/transport/http/github-delivery.test.ts#L96))
 
 A merged spec PR parses tasks.md and syncs spec-tasks; a non-spec branch, an already-synced spec, and a missing tasks.md each skip with the matching reason; a null pool returns 503.
 
