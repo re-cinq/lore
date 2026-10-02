@@ -12,66 +12,66 @@ How the pieces connect at runtime. The local MCP server proxies every operation 
 
 Two boundaries are load-bearing and enforced by credentials rather than convention. **`event-router` is the only writer of `pipeline.events`** ([ADR-044](../../adrs/ADR-044-event-router-owns-the-event-bus.md)): every producer reports to its one front door, and each subscriber (today the stations service) claims its deliveries back over HTTP. **`cluster-agent` is the only process that talks to this cluster's Kubernetes API** — no other Lore service holds a Kubernetes client.
 
-<p align="center"><img src="../../badges/architecture.svg" width="720" alt="System topology: developer machine, the nine GKE services, GitHub and Slack" /></p>
+<p align="center"><img src="../../badges/architecture.svg" width="720" alt="System topology: developer machine, the GKE services, GitHub and Slack" /></p>
 
-> **Webhook cutover, done (2026-09-08).** GitHub delivers to the event-router's `/api/events`; that is the URL lore-api installs on a repo and classifies against (`LORE_WEBHOOK_URL`). The Floor's `/api/webhook/github` route is gone, but the URL is not: the Floor-host ingress rewrites that exact path onto the router, so a repo onboarded before the cutover keeps delivering until lore-api repoints its hook (ensure / the repo page). Nothing forces the migration and GitHub never sees a 404.
+> **Webhook URL.** GitHub delivers to the event-router's `/api/events`; that is the URL lore-api installs on a repo and classifies against (`LORE_WEBHOOK_URL`). A repository onboarded before 2026-09-08 still delivers to the old `/api/webhook/github` path, which the ingress rewrites onto the router, so GitHub never sees a 404. The diagram above predates the external floor: where it shows a Floor, read the external floor.
 
 ## Task lifecycle
 
-> **Out of date since 2026-10-02.** This section describes Lore's own Floor (`apps/floor`), which is deleted. Every assembly line now runs on the external floor ([ADR-049](../../adrs/ADR-049-external-floor.md), `specs/external-floor`), the cron ticks are emitted and answered by the stations service, and nothing auto-merges. The text below is kept until the section is rewritten (tracked in #2428).
-
-How one pipeline task goes from created to merged. Simple tasks call the Anthropic API inline; code tasks run in isolated Job pods. Note that no step here observes the cluster directly: a pod's completion reaches the Floor as a `kubernetes.agent*` event that the event-router's watch reported, and the Floor's minute-by-minute reconcile pass re-emits anything that watch dropped.
+How work goes from asked-for to merged. Lore decides *when* a run starts and what it is told; the external floor ([re-cinq/floor](https://github.com/re-cinq/floor), [ADR-049](../../adrs/ADR-049-external-floor.md)) walks the run; Lore's stations do the steps that need Lore's data or its GitHub App.
 
 ```mermaid
 flowchart TB
-    START(["Task created<br/>MCP · Web UI · Slack · Issue label"]) --> Q["pipeline.tasks<br/>status = pending"]
-    Q --> W["Floor worker<br/>claims pending tasks"]
-    W --> TYPE{"task_type?"}
-    TYPE -->|"feature-request / onboard"| LLM["Direct Anthropic API<br/>generate spec / docs"]
-    TYPE -->|"implementation / review / general"| CR["Start assembly line:<br/>one Agent CR per node"]
-    CR --> CTRL["agent-controller<br/>(ai-agent-subsystem)"]
-    CTRL --> POD["Agent pod: clone → Claude Code →<br/>commit → push<br/>validate / gate: lore-station pods"]
-    POD --> WATCH["event-router k8s watch →<br/>kubernetes.agent* event →<br/>Floor agent-watcher / node handler"]
-    LLM --> PR["Open PR (GitHub App)"]
-    WATCH --> PR
-    PR --> REVIEW{"auto_review?"}
-    REVIEW -->|"yes"| RR["Review Job →<br/>APPROVED / CHANGES_REQUESTED"]
-    REVIEW -->|"no"| HUMAN["Human review"]
-    RR --> MERGE{"dark-factory<br/>auto-merge gates?"}
-    MERGE -->|"green CI + approved + paths + trust"| SQUASH["Squash-merge"]
-    MERGE -->|"otherwise"| HUMAN
+    T1["Ticket with a priority label"] --> TICK["stations: implementation_loop tick<br/>picks one ticket per repo"]
+    T2["Pull request opened / pushed"] --> EV["event-router → pipeline.events →<br/>stations drain"]
+    T3["Plan drafted / refined / approved"] --> API["lore-api plan routes"]
+    T4["Schedule (digest, spec upkeep)"] --> TICK
+    TICK --> START["floor.lines.start(line, subject, items)"]
+    EV --> START
+    API --> START
+    START --> FLOOR["External floor walks the line<br/>from its pipeline file"]
+    FLOOR --> AG["Agent station: a pod clones the branch,<br/>runs the agent, commits, pushes"]
+    FLOOR --> SVC["Service station: Lore's code in the<br/>stations service (open PR, post review, settle)"]
+    FLOOR --> HUM["Human station: the run parks until a person,<br/>or a sweep on their behalf, reports"]
+    AG --> FLOOR
+    SVC --> FLOOR
+    HUM --> FLOOR
+    FLOOR --> DONE["run-settled station tells Lore:<br/>close the task, comment on the ticket"]
 ```
+
+- **A line is a file.** `libs/assembly-lines/src/floor-pipelines/<name>.yaml` holds the graph, what each station needs and produces, and each agent's model and prompt. lore-api puts the files to the floor at boot; a file's content is its version.
+- **Nothing is created from a description.** `POST /api/task` creates no task, and there is no route that starts a run by name. Code reaches an agent through a backlog ticket, a feature through a plan, a review through its pull request.
+- **CI is the judge.** A line that changes code waits on the pull request's checks at a human station; the `pr-ready-check` sweep reads the verdict and reports it, and a red build goes to a `fix-ci` agent with what failed.
+- **People merge.** Nothing merges a pull request by itself. Once someone has merged one, the `merge` line does the bookkeeping: settle the task, close the issue, feed the memory.
 
 ## Scheduling and ingestion
 
-> **Out of date since 2026-10-02.** This section describes Lore's own Floor (`apps/floor`), which is deleted. Every assembly line now runs on the external floor ([ADR-049](../../adrs/ADR-049-external-floor.md), `specs/external-floor`), the cron ticks are emitted and answered by the stations service, and nothing auto-merges. The text below is kept until the section is rewritten (tracked in #2428).
-
-There are two live scheduling layers (split per ADR-019). Hot-path ticks are emitted in-process inside the Floor; heavy batch jobs run as isolated K8s CronJob pods via `node dist/transport/job-runner.js <job>`. An emitter only writes a `cron.<name>.tick` event — the drain loop dispatches the handler — and a handler is not obliged to do the work itself: `merge_check` and `approval_check` call the **stations** service over HTTP, because scheduling *when* something runs and owning *what* it does are separate concerns ([ADR-044](../../adrs/ADR-044-event-router-owns-the-event-bus.md) amendment). Context reaches the vector store one way: the push-triggered `/api/ingest` doorbell (immediate, changed files only, a rename posted as delete + add). The nightly `context-reindex` crawl was retired (#1880); orphan chunks — paths gone from the tree, or refused by today's classifier — are swept on demand by `POST /api/repos/{owner}/{repo}/chunks/prune` (`scripts/infra/prune-orphan-chunks.sh` posts `git ls-files`).
+The stations service is the scheduler. It emits a `cron.<name>.tick` event per schedule (`libs/shared/src/work/scheduler/cron-emitters.ts`), drains its own deliveries, and runs the sweep that declared that tick. A sweep either does a small data job or starts runs on the external floor. Daily data jobs with nothing to coordinate are Kubernetes CronJobs that post one station and exit ([ADR-019](../../adrs/ADR-019-scheduled-job-runtime-split.md)).
 
 ```mermaid
 flowchart LR
-    subgraph inproc["Cron emitters (Floor · in-process scheduler)"]
+    subgraph ticks["Ticks (stations service)"]
         direction TB
-        J1["merge_check · 1m · approval_check · 1m<br/>(tick only — the work runs in the stations service)"]
-        J4["agent_watcher_reconcile · 1m (k8s-watch safety net)"]
-        J5["spec_task_executor · 1m"]
-        J8["assembly_line_reaper · 1m (walk liveness bound)<br/>lease_reaper · 1m · llm_credit_probe · 5m"]
-        J6["stale_task_check · hourly · events_prune · hourly"]
-        J7["detection family (fan out per-repo assembly lines):<br/>gap-detection · Mon · spec-drift · Mon<br/>spec-coverage validate · daily · backfill · Mon"]
+        J1["merge_check · 1m · pr_ready_check · 2m"]
+        J2["implementation_loop · 5m · spec_task_executor · 1m<br/>(start runs on the floor)"]
+        J3["daily_digest · 15m · spec_upkeep · Mon 10:00 UTC<br/>(start runs on the floor)"]
+        J4["events_prune · hourly · telemetry_prune · daily"]
     end
 
-    subgraph k8scron["K8s CronJobs (ADR-019)"]
+    subgraph k8scron["Courier CronJobs → POST /api/stations/<name>"]
         direction TB
-        C5["memory-ttl / importance-decay / consolidation"]
-        C6["eval-runner · daily · autoresearch · weekly"]
-        C7["context-core-builder · daily · anthropic-cost-sync · daily"]
+        C1["memory-ttl · hourly"]
+        C2["importance-decay · 05:00 · consolidation · 05:30"]
+        C3["anthropic-cost-sync · gcp-cost-sync · daily"]
     end
 
-    PUSH["git push to main<br/>(whitelisted paths incl. specs/**)"] -->|"GitHub Action → POST /api/ingest"| ING["ingestFiles(): classify →<br/>upsert chunks → embed"]
+    PUSH["git push to main"] -->|"lore-ingest.yml → POST /api/ingest"| ING["chunks: classify → upsert → embed"]
     ING --> DB[("{team}.chunks<br/>+ pgvector embeddings")]
+    PUSH -->|"lore-code-trace docs --post"| GRAPH[("Dgraph: specs, ADRs,<br/>statements")]
+    PUSH -->|"lore-code-trace --post"| TESTS[("Dgraph: tests, coverage,<br/>validated_by")]
 ```
 
-The full job registry — every schedule and what it does — is in [Scheduled Jobs](scheduled-jobs.md).
+Context reaches the stores from CI on every push to `main`, never from a schedule: the ingest workflow posts changed files to `/api/ingest`, and the `lore-code-trace` binary posts specs, ADRs and the test report to the traceability graph. The job registry is in [Scheduled Jobs](scheduled-jobs.md).
 
 ## Key components
 
@@ -81,9 +81,9 @@ The full job registry — every schedule and what it does — is in [Scheduled J
 | [**MCP Server**](../../apps/mcp-server/README.md) | A thin local stdio adapter that speaks the MCP protocol to Claude Code and proxies every operation to the Lore API via `LORE_API_URL`. Also hosts the local task runner. The same binary runs in-cluster as the **lore-mcp gateway** (`LORE_MCP_HTTP=1`), giving agent pods live scoped Lore access for a whole run rather than a one-shot hydration, and serving the agent-skills registry. |
 | **External floor** | The assembly-line engine ([re-cinq/floor](https://github.com/re-cinq/floor), [ADR-049](../../adrs/ADR-049-external-floor.md)): it walks every line from its pipeline file (`libs/assembly-lines/src/floor-pipelines/*.yaml`) and runs agent stations as `Agent` custom resources. Lore reaches it only through `@re-cinq/floor-client`; lore-api puts the pipeline files to it at boot and mints its git credentials. Lore's own Floor (`apps/floor`) was deleted on 2026-10-02. |
 | [**event-router**](../../apps/event-router/README.md) | The single owner of `pipeline.events` (ADR-044). One front door, `POST /api/events`, takes every producer: GitHub webhooks authenticated by HMAC over the raw body, and the Kubernetes watch, cron ticks, CI ingest, human-station resumes, and internal ingest triggers by bearer token. It also serves the delivery endpoints (`/api/deliveries/*`: subscribe, claim, ack, fail, dead-letter, reap, prune, reconcile) every subscriber drains its own `pipeline.event_deliveries` rows through — no endpoint on that side can write an event, because producing and draining are different privileges. Holds the streaming Agent-CR watch that turns a terminal CR into a `kubernetes.agent*` event. |
-| [**cluster-agent**](../../apps/cluster-agent/README.md) | The only process that talks to this cluster's Kubernetes API. Holds no database — every caller brings its own state and asks this for cluster operations only. Each `/api/cluster/*` route is a **domain operation, not a Kubernetes verb**: two of the underlying interactions are read-modify-write pairs, so exposing `get` and `replace` separately would invite a caller to split a pair across the network and lose the update. No `resourceVersion` ever crosses the wire, and lists are one apiserver page per call with the caller driving `continue`. |
-| [**stations (service)**](../../apps/stations/README.md) | Service stations reached by name over `POST /api/stations/{name}` — the sweeps (`merge-check`, `pr-ready-check`, `approval-check`, the housekeeping prunes) and Lore's stations for the external floor. It is also the scheduler: it emits the `cron.*.tick` events and answers them, and it drains the PR-lifecycle events that start and cancel runs. |
-| **ai-agent-subsystem** | The external agent-controller (`ai-agents` namespace) watches `Agent` custom resources (→ `Station` PodTemplate → `AgentDefinition` recipe) and stamps an ephemeral Job pod per run. Agent pods clone the target repo, run Claude Code, commit, and push; deterministic nodes (validate/gate/retrospective/detect) run the `lore-station` image via the `exec` vendor. Tasks survive Floor deploys and run in parallel with full isolation. Pods run as non-root with dropped capabilities and an egress-restricted NetworkPolicy. |
+| [**cluster-agent**](../../apps/cluster-agent/README.md) | *Left from the engine Lore ran itself: nothing dispatches work through it since 2026-10-02, and its removal is tracked in #2428. The external floor has its own cluster agent.* The only Lore process that talks to this cluster's Kubernetes API. Holds no database — every caller brings its own state and asks this for cluster operations only. Each `/api/cluster/*` route is a **domain operation, not a Kubernetes verb**: two of the underlying interactions are read-modify-write pairs, so exposing `get` and `replace` separately would invite a caller to split a pair across the network and lose the update. No `resourceVersion` ever crosses the wire, and lists are one apiserver page per call with the caller driving `continue`. |
+| [**stations (service)**](../../apps/stations/README.md) | Service stations reached by name over `POST /api/stations/{name}` — the sweeps (`merge-check`, `pr-ready-check`, the ticks that start runs, the housekeeping prunes) and Lore's stations for the external floor. It is also the scheduler: it emits the `cron.*.tick` events and answers them, and it drains the PR-lifecycle events that start and cancel runs. |
+| **ai-agent-subsystem** | *The `ai-agents` namespace served the engine Lore ran itself and starts no run since 2026-10-02 (#2428); the external floor runs agents through its own controller.* The external agent-controller (`ai-agents` namespace) watches `Agent` custom resources (→ `Station` PodTemplate → `AgentDefinition` recipe) and stamps an ephemeral Job pod per run. Agent pods clone the target repo, run Claude Code, commit, and push; deterministic nodes (validate/gate/retrospective/detect) run the `lore-station` image via the `exec` vendor. Tasks survive Floor deploys and run in parallel with full isolation. Pods run as non-root with dropped capabilities and an egress-restricted NetworkPolicy. |
 | [**Web UI**](../../apps/web-ui/README.md) | Next.js dashboard with GitHub OAuth. Repo-centric view. One-click onboarding. Pipeline monitoring. Analytics dashboard. Global settings. Holds **no** database pool — every read goes through lore-api via typed clients generated from its OpenAPI schema. |
 | **PostgreSQL** | CloudNativePG with pgvector. Schema-per-team isolation. HNSW indexes for vector search, GIN for keyword. |
 | **GitHub App** | Reads repo content for onboarding. Creates branches, commits, and PRs. Sets Actions secrets for ingest automation. |
@@ -118,20 +118,15 @@ Key capabilities:
 
 ## Agent execution modes
 
-> **Out of date since 2026-10-02.** This section describes Lore's own Floor (`apps/floor`), which is deleted. Every assembly line now runs on the external floor ([ADR-049](../../adrs/ADR-049-external-floor.md), `specs/external-floor`), the cron ticks are emitted and answered by the stations service, and nothing auto-merges. The text below is kept until the section is rewritten (tracked in #2428).
-
-The Floor chooses an execution mode from the task type's resolved agent definition (`lore.agent_definitions`, seeded from `libs/shared/src/agent-defaults/`).
-
 | Mode | When | How |
 |------|------|-----|
-| **API call** | Onboarding, feature-request generation, review-reactor fixes | Direct `@anthropic-ai/sdk` call to Claude Haiku. Fast, lightweight. Plain text in, plain text out. |
-| **Claude Code (Agent CR)** | Implementation, refactoring, runbooks, gap-fill, review, complex analysis | Creates an `Agent` CR (or, for task types with a workflow, a Floor-driven assembly line: one CR per node) → the ai-agent-subsystem controller spawns an ephemeral, isolated pod per run. Full tool access, isolated resources, survives Floor deploys. |
-| **Feature request** | PM intent | Fetches repo context, generates spec/data-model/tasks as individual files. Each artifact gets its own focused LLM call. |
-| **Local runner** | Developer says "run locally" | Background `claude --print` in an isolated git worktree on the developer's machine. Uses the Claude Code subscription — zero API cost. Non-blocking; PR created via `gh`. |
+| **Agent station on the external floor** | Every line that needs an agent: code review, the implementation loop, planning and spec writing, onboarding, spec upkeep, the digest | The floor starts one pod per visit from the agent definition in the line's pipeline file (model, image, timeout, prompt). The pod clones the branch it is handed, works, commits and pushes, and reports one of the outcomes its station declares. It reaches Lore's context and memory through the `lore-mcp` gateway for the whole run. |
+| **Direct API call** | Small judgements inside a station: curating an episode, extracting facts, consolidating memories | A call through the `Llm` abstraction (`libs/shared/src/outbound/llm/`), recorded in `pipeline.llm_calls`. |
+| **Local runner** | A developer says "run locally" | Background `claude --print` in an isolated git worktree on the developer's machine, on their own subscription. Tracked on that machine only. |
 
-Every mode includes **deterministic validation** — after the agent edits code, lint and typecheck run as mandatory pipeline stages (detected from `package.json`, `go.mod`, `pyproject.toml`, or `Cargo.toml`). If validation fails, one automatic fix retry runs before escalating to human review. K8s Jobs retry once on transient failures (`backoffLimit: 1`). Failed tasks can be retried via `/lore retry <task_id>`, the `lore_retry_task` MCP tool, or the API.
+An agent that edits code does not run the repository's lint or build in its pod: the pull request's CI is the judge, and the pod reads CI's verdict through `lore_get_ci_failures` instead of reproducing the build.
 
-All agent API calls also go through **multi-block prompt caching** (ADR-015 + `libs/shared/src/outbound/llm/prompt-cache.ts`): the system prompt and tool schemas each carry a `cache_control: {type: "ephemeral"}` breakpoint, so a tool edit doesn't bust the system cache and vice versa. Jobs whose prompts are stable and cluster within an hour (auto-curation, review-reactor fixes, fact extraction, graph extraction — override via `LORE_CACHE_1H_JOBS`) use the 1-hour cache TTL; eligibility is latched at process start to prevent mid-session TTL flips. Each call's log line annotates the cache outcome (`hit` / `first-call` / `break:system` / `break:tools` / `break:ttl(42m)`) for live cost diagnostics.
+All direct API calls go through **multi-block prompt caching** ([ADR-015](../../adrs/ADR-015-webhook-driven-review-reactor.md), `libs/shared/src/outbound/llm/prompt-cache.ts`): the system prompt and the tool schemas each carry a cache breakpoint, so an edit to one does not bust the other, and jobs whose prompts are stable within an hour use the one-hour TTL.
 
 ## Dark Factory mode
 
