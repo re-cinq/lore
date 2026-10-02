@@ -305,3 +305,62 @@ describe("assembleContext — traceable XML output", () => {
     });
   });
 });
+
+describe("assembleContext — linked repos on the shipped templates", () => {
+  const templates = ["default", "implementation", "review"];
+
+  function poolWith(links: string[]) {
+    const queries: string[] = [];
+
+    return {
+      queries,
+      pool: {
+        query: async (sql: string) => {
+          queries.push(sql);
+
+          if (sql.includes("SELECT settings")) {
+            return { rows: [{ settings: { cross_repo_repos: links } }] };
+          }
+
+          return { rows: [] };
+        },
+      } as unknown as Parameters<typeof assembleContext>[0],
+    };
+  }
+
+  it.each(templates)(
+    "%s carries a cross_repo trace section when crossRepo is requested",
+    async (templateName) => {
+      const { pool } = poolWith(["octo/linked"]);
+      const result = await assembleContext(pool, "x", {
+        templateName,
+        repo: "o/r",
+        crossRepo: true,
+        debug: true,
+      });
+
+      expect(
+        result.trace?.sections.find((s) => s.source === "cross_repo"),
+      ).toMatchObject({ header: "Linked Repos", status: "empty" });
+    },
+  );
+
+  it.each(templates)(
+    "%s marks cross_repo disabled and never searches chunks without linked repos",
+    async (templateName) => {
+      const { pool, queries } = poolWith([]);
+      const result = await assembleContext(pool, "x", {
+        templateName,
+        repo: "o/r",
+        crossRepo: true,
+        debug: true,
+      });
+      const section = result.trace?.sections.find(
+        (s) => s.source === "cross_repo",
+      );
+
+      expect(section?.status).toBe("disabled");
+      expect(queries.some((q) => q.includes("repo !="))).toBe(false);
+    },
+  );
+});

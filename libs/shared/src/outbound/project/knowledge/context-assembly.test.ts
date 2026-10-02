@@ -440,49 +440,68 @@ describe("hybridChunkItems", () => {
     expect(calls[1].params).toContainEqual("[0.1,0.2,0.3]");
   });
 
-  it("cross_repo unions linked-repo matches across every provisioned chunk schema", async () => {
-    const portable = "error handling pattern convention gotcha";
-    const { pool, calls } = fakePool(
-      { rows: [{ settings: { cross_repo_repos: ["octo/linked"] } }] },
-      { rows: [{ table_schema: "platform" }] },
-      {
-        rows: [
-          {
-            content: portable,
-            repo: "octo/linked",
-            file_path: "a.md",
-            score: 0.4,
-          },
+  it("cross_repo searches only the linked repos, each in its own chunk schema", async () => {
+    const chunkQueries: Array<{ text: string; params?: unknown[] }> = [];
+    const answers: Array<[string, (params?: unknown[]) => unknown[]]> = [
+      [
+        "SELECT settings",
+        () => [
+          { settings: { cross_repo_repos: ["octo/linked", "octo/other"] } },
         ],
+      ],
+      [
+        "SELECT team",
+        (params) => [{ team: params?.[0] === "octo/linked" ? "alpha" : null }],
+      ],
+      ["information_schema", () => [{ table_schema: "alpha" }]],
+    ];
+    const pool: Parameters<typeof hybridChunkItems>[0] = {
+      async query<T>(text: string, params?: unknown[]) {
+        const answer = answers.find(([marker]) => text.includes(marker));
+
+        if (answer) {
+          return { rows: answer[1](params) as T[] };
+        }
+        chunkQueries.push({ text, params });
+        const own = params?.[0] === "octo/linked";
+        const hit = {
+          content: own ? "config deploy url secret" : "other doc",
+          file_path: "a.md",
+          content_type: "doc",
+          score: own ? 0.9 : 0.4,
+        };
+
+        return { rows: [hit] as T[] };
       },
-    );
+    };
 
     const res = await fetchers.cross_repo(pool, "q", "re-cinq/lore");
 
-    expect(calls[2].text).toContain("FROM platform.chunks");
-    expect(calls[2].text).toContain("FROM org_shared.chunks");
-    expect(calls[2].text).toContain("UNION ALL");
-    expect(calls[2].text).toContain("repo = ANY($1)");
-    expect(calls[2].params).toEqual([["octo/linked"], "q"]);
-    expect(res.status).toBe("ok");
+    expect(
+      chunkQueries.map((c) => [
+        c.params?.[0],
+        /FROM (\w+)\.chunks/.exec(c.text)?.[1],
+      ]),
+    ).toEqual(
+      expect.arrayContaining([
+        ["octo/linked", "alpha"],
+        ["octo/other", "org_shared"],
+      ]),
+    );
+    expect(chunkQueries).toHaveLength(2);
     expect(res.sources[0]).toMatchObject({
       repo: "octo/linked",
-      text: portable,
+      text: "config deploy url secret",
     });
   });
 
-  it("cross_repo without linked repos searches other repos across all schemas", async () => {
-    const { pool, calls } = fakePool(
-      { rows: [{ settings: null }] },
-      { rows: [{ table_schema: "platform" }] },
-      { rows: [] },
-    );
+  it("cross_repo without linked repos is disabled and searches nothing", async () => {
+    const { pool, calls } = fakePool({ rows: [{ settings: null }] });
 
     const res = await fetchers.cross_repo(pool, "q", "re-cinq/lore");
 
-    expect(calls[2].text).toContain("repo != $1");
-    expect(calls[2].params).toEqual(["re-cinq/lore", "q"]);
-    expect(res).toEqual({ sources: [], status: "empty" });
+    expect(calls).toHaveLength(1);
+    expect(res).toEqual({ sources: [], status: "disabled" });
   });
 
   it("normalizes scores so the top result is 1.0 and the rest are fractions", async () => {
@@ -518,5 +537,46 @@ describe("hybridChunkItems", () => {
 
     expect(sources[0].score).toBeCloseTo(1.0);
     expect(sources[1].score).toBeCloseTo(0.5);
+  });
+});
+
+describe("cross_repo merge", () => {
+  it("interleaves linked repos by rank, since each repo's scores are normalized on their own", async () => {
+    const pool: Parameters<typeof hybridChunkItems>[0] = {
+      async query<T>(text: string, params?: unknown[]) {
+        if (text.includes("SELECT settings")) {
+          return {
+            rows: [{ settings: { cross_repo_repos: ["o/a", "o/b"] } }] as T[],
+          };
+        }
+
+        if (
+          text.includes("SELECT team") ||
+          text.includes("information_schema")
+        ) {
+          return { rows: [] as T[] };
+        }
+        const repo = String(params?.[0]);
+
+        return {
+          rows: [1, 2, 3].map((n) => ({
+            content: `${repo} ${n}`,
+            file_path: `${repo}-${n}.md`,
+            content_type: "doc",
+            score: 1 / n,
+          })) as T[],
+        };
+      },
+    };
+
+    const res = await fetchers.cross_repo(pool, "q", "re-cinq/lore");
+
+    expect(res.sources.map((s) => s.text)).toEqual([
+      "o/a 1",
+      "o/b 1",
+      "o/a 2",
+      "o/b 2",
+      "o/a 3",
+    ]);
   });
 });

@@ -176,7 +176,7 @@ The tool retrieves from all available sources:
   keyword legs never disagree about what "distinctive" means. ([validated by `key-terms.test.ts:5`](libs/shared/src/domain/key-terms.test.ts#L5), [`key-terms.test.ts:18`](libs/shared/src/domain/key-terms.test.ts#L18))
 - FR-2.11: **Normalized relevance.** Item scores are rescaled so the top result
   is `1.00` and the rest are proportional fractions — raw RRF/`ts_rank` scores are
-  tiny (~0.02) and unreadable as a relevance signal. ([validated by `context-assembly.test.ts:488`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L488))
+  tiny (~0.02) and unreadable as a relevance signal. ([validated by `context-assembly.test.ts:488`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L507))
 - FR-2.12: **No cross-section duplication.** A document is emitted in its
   highest-priority section only — the same item never appears in two sections
   (e.g. an episode in both Agent Memory and Recent Episodes). Only a section
@@ -191,8 +191,17 @@ The tool retrieves from all available sources:
 - FR-2.15: **Team-schema resolution.** Repo-scoped chunk reads (`repo`, `code`,
   `adrs`, `rules`) resolve the repo's chunk schema — its provisioned team schema,
   else `org_shared` — before querying, matching where reindex actually wrote the
-  repo's chunks; the `cross_repo` source instead UNIONs every provisioned chunk
-  schema plus `org_shared`, since linked repos may live in any team schema. ([validated by `reads from the repo's provisioned team schema instead of org_shared`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L392), [`retrieves chunks bound to the repo + content types (keyword path when no embedding)`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L258), [`cross_repo unions linked-repo matches across every provisioned chunk schema`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L443), [`cross_repo without linked repos searches other repos across all schemas`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L474), [`resolves the repo's team schema when it is provisioned`](libs/shared/src/outbound/project/chunks/chunk-schema.test.ts#L66))
+  repo's chunks; the `cross_repo` source runs that same hybrid search once per repo
+  linked in settings, each in its own chunk schema. ([validated by `reads from the repo's provisioned team schema instead of org_shared`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L392), [`retrieves chunks bound to the repo + content types (keyword path when no embedding)`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L258), [`cross_repo searches only the linked repos, each in its own chunk schema`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L443), [`cross_repo without linked repos is disabled and searches nothing`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L502), [`resolves the repo's team schema when it is provisioned`](libs/shared/src/outbound/project/chunks/chunk-schema.test.ts#L66))
+
+- FR-2.17: **Linked repos reach the context.** The default, implementation and
+  review templates each carry a `Linked Repos` section on the `cross_repo`
+  source, so a request for cross-repo context yields that section in the trace
+  instead of nothing. ([validated by `%s carries a cross_repo trace section when crossRepo is requested`](libs/server-core/src/work/context/context-assembly.test.ts#L331), [validated by `interleaves linked repos by rank, since each repo's scores are normalized on their own`](../../libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L544))
+- FR-2.18: **No linked repos, no cross-repo search.** With no repo linked in
+  settings the `cross_repo` section is `disabled` and no chunk query runs; the
+  org is never searched. Chunks from a linked repo are not transfer-scored, since
+  linking is an explicit opt-in. ([validated by `%s marks cross_repo disabled and never searches chunks without linked repos`](libs/server-core/src/work/context/context-assembly.test.ts#L348))
 
 ### FR-3: Template System
 
