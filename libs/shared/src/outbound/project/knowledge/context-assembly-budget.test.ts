@@ -36,3 +36,20 @@ describe("allocateSections cross-section dedupe", () => {
     });
   });
 });
+
+describe("allocateSections vector leg trace", () => {
+  it("carries vectorLegRows 0 onto the trace section of a source whose vector leg came back empty", () => {
+    const { traceSections } = allocateSections(
+      [
+        {
+          section: { header: "adrs", source: "adrs", priority: 2 },
+          res: { status: "ok", sources: [shared], vectorLegRows: 0 },
+        },
+        fetched("code", 3, 1000),
+      ],
+      400,
+    );
+
+    expect(traceSections.map((t) => t.vectorLegRows)).toEqual([0, undefined]);
+  });
+});

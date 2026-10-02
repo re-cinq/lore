@@ -4,7 +4,8 @@ import type { PgPool } from "../../memory-store.js";
 import type { FetchResult } from "./context-assembly-types.js";
 import { mkItem } from "./context-assembly-items.js";
 import {
-  hybridChunkItems,
+  hybridChunkSearch,
+  type ChunkSearchResult,
   type ChunkSearchHit,
 } from "./context-assembly-chunk-search.js";
 import type {
@@ -191,15 +192,23 @@ async function hybridSource(
   }
 
   try {
-    const sources = await hybridChunkItems(pool, query, repo, {
-      contentTypes,
-      limit,
-    });
-
-    return { sources, status: sources.length > 0 ? "ok" : "empty" };
+    return fetchResultOf(
+      await hybridChunkSearch(pool, query, repo, { contentTypes, limit }),
+    );
   } catch {
     return { sources: [], status: "error" };
   }
+}
+
+function fetchResultOf({
+  items: sources,
+  vectorLegRows,
+}: ChunkSearchResult): FetchResult {
+  return {
+    sources,
+    status: sources.length > 0 ? "ok" : "empty",
+    ...(vectorLegRows === undefined ? {} : { vectorLegRows }),
+  };
 }
 
 const MENTIONS_TESTS_RE =
