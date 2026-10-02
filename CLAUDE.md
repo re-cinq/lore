@@ -148,7 +148,7 @@ status pill — a stale header misreports the org's backlog.
 - `libs/shared/src/outbound/llm/prompt-cache.ts` — `getCacheControl(jobName)` (ephemeral + optional `ttl: "1h"`), `computeCachePrefixHash` (djb2 over system + tool schemas), `analyzeCacheBreak` (in-memory per-job tracker classifying hit / first-call / prompt-changed / ttl-expired)
 - `apps/stations/src/work/consolidation/consolidation.ts` — the nightly fact consolidation (pattern extraction), a stations sweep posted to by a courier; importance decay is its sibling sweep `importance-decay`
 - `libs/server-core/src/outbound/session-tracker.ts` — passive session tracking (tool calls, ring buffer, exit dump)
-- `evals/` — PromptFoo eval configs per team
+- `scripts/context-evals/` + `.github/workflows/context-evals.yml` — the nightly context evals (`specs/context-evals`): for every onboarded repository the runner samples 20 ingested ADRs and specs and posts each to lore-api's `POST /api/context-evals`, which writes a question from the document, assembles the context an agent would get, and reports found, answered and useful share. The job fails a repository under 85% found-and-answered. No question file, no stored baseline, no model key in CI: the model is `Llm.for("eval")` in lore-api (Vertex by chart value)
 
 ## Test Interface (project-test-interface)
 
