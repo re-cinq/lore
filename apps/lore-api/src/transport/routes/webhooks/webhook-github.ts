@@ -28,6 +28,7 @@ const DELIVERY_OPTIONS = zodResponse(
     name: "GitHubDeliveryCaptured",
     status: 202,
     description: "The bus events the delivery was mapped to",
+    errors: [400, 401],
   },
 );
 
