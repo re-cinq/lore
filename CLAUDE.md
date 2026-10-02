@@ -251,8 +251,11 @@ relationships. Updated incrementally on every lore_write_episode call.
 Replaces the static `graphrag/graph.json` for new deployments.
 
 Fact extraction via configurable LLM (`LORE_FACT_LLM` env:
-claude/gemini/ollama) breaks unstructured text into individually
-searchable facts with embeddings.
+claude/gemini/vertex/ollama) breaks unstructured text into individually
+searchable facts with embeddings. Every model call goes through the
+vendor-neutral `LlmProvider` (`libs/shared/src/outbound/llm/`); Vertex is
+one adapter among them, and one use can run on its own vendor through
+`Llm.for(use)` (`LORE_<USE>_LLM_PROVIDER`, `LORE_<USE>_LLM_MODEL`).
 
 Agent ID resolved from: explicit parameter, `LORE_AGENT_ID` env,
 `~/.lore/agent-id` file, or auto-generated UUID.
