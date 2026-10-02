@@ -979,7 +979,10 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   priced at a named default profile), and the pods running RIGHT NOW, each
   priced from its ACTUAL resource requests — requests, because requests
   are what size the nodes the autoscaler bills for — read through the
-  central cluster-agent's `GET /api/cluster/pods`. Bad intervals are a 400
+  central cluster-agent's `GET /api/cluster/pods` _(2026-10-02: the page no
+  longer shows this live half, because Lore's cluster agent runs nothing
+  since `apps/floor` was deleted; the response still carries the field until
+  the route that reads the cluster agent is removed)_. Bad intervals are a 400
   naming the rule (YYYY-MM-DD, from ≤ to, at most 92 days); an unreachable
   cluster-agent degrades to an empty live list, never a failed page; a
   station-run row with no `finished_at` is capped at two hours from its
