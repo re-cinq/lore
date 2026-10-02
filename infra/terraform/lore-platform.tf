@@ -28,11 +28,6 @@ locals {
   # egress policy's RFC1918 except-list.
   lore_mcp_in_cluster = "http://lore-mcp-gateway.lore-api.svc.cluster.local:8080"
 
-  # In-cluster base URL of the event-router (ADR-044). Producers are ordinary
-  # Deployments, not run pods, so the ClusterIP is reachable and no public hop
-  # is involved — only GitHub reaches the router from outside, via its ingress.
-  event_router_in_cluster = "http://lore-event-router.lore-event-router.svc.cluster.local:8080"
-
   # In-cluster base URL of the stations service (ADR-024 service stations). Only
   # the Floor calls it — nothing reaches it from outside, so there is no ingress.
   stations_in_cluster = "http://lore-stations.lore-stations.svc.cluster.local:8080"
@@ -74,9 +69,10 @@ resource "helm_release" "lore_platform" {
         # hits the run-pod egress policy's except-list, so the public host hangs.
         # Empty leaves the fields off entirely rather than pointing a pod at nothing.
         LORE_MCP_URL = var.lore_mcp_url != "" ? "${local.lore_mcp_in_cluster}/mcp" : ""
-        # The canonical repo-hook URL lore-api installs and classifies against
-        # (ADR-044 step 2): the event-router front door. lore_webhook_hostname
-        # still serves the legacy hook alias.
+        # The canonical repo-hook URL lore-api installs and classifies against:
+        # the public webhook hostname, which the ingress rewrites onto this
+        # service's POST /api/webhook/github. lore_webhook_hostname still
+        # serves the legacy hook alias.
         LORE_WEBHOOK_URL = var.lore_event_router_hostname != "" ? "https://${var.lore_event_router_hostname}/api/events" : ""
         LORE_API_URL     = var.lore_api_url
         # /spend's compute ESTIMATE prices pod-hours at these rates. The code
@@ -171,13 +167,6 @@ resource "helm_release" "lore_platform" {
         LORE_DB_NAME = "lore"
         LORE_DB_USER = "lore"
         PORT         = "8080"
-        # This service DRAINS as well as serving: the walk publishes a node whose
-        # station runs here, and without a router to claim it from, the visit
-        # sits open until the reaper times it out. `merge_step` has no pod recipe
-        # to fall back to, so this is a prerequisite rather than a tuning knob.
-        # Unset falls back to the local pool, which is right on a laptop and
-        # wrong here — the fallback logs which way it resolved.
-        EVENT_ROUTER_URL = local.event_router_in_cluster
         # A station reads and writes through the Lore API where it holds no pool.
         # The IN-CLUSTER address, like every other in-cluster caller: the
         # external URL would leave the cluster and come back through the
@@ -201,20 +190,6 @@ resource "helm_release" "lore_platform" {
       anthropicAdminKeySecret = { name = "lore-stations-anthropic-key", key = "anthropic-admin-key" }
       floor                   = { enabled = var.enable_external_floor }
     }
-
-    # ---- Event router (lore-event-router namespace) ----
-    # The one writer of pipeline.events (ADR-044): the GitHub webhook ingress and
-    # the Agent CR watch. Its DB credentials are its own; its ingest token is the
-    # SAME secret every producer presents, so the two ends cannot drift apart.
-    "lore-event-router" = {
-      env = {
-        LORE_DB_HOST = "lore-db-rw.lore-db.svc.cluster.local"
-        LORE_DB_PORT = "5432"
-        LORE_DB_NAME = "lore"
-        LORE_DB_USER = "lore"
-        PORT         = "8080"
-      }
-    }
   })]
 
   depends_on = [
@@ -222,7 +197,6 @@ resource "helm_release" "lore_platform" {
     kubernetes_namespace.lore_api,
     kubernetes_namespace.lore_ui,
     kubernetes_namespace.lore_db,
-    kubernetes_namespace.lore_event_router,
     kubernetes_namespace.lore_stations,
     kubernetes_service_account.lore_ui,
     kubectl_manifest.lore_db_cluster,
