@@ -147,4 +147,4 @@ nodes:
 ```
 
 Builtins resolve to `def-<node type>` (a `lore.agent_definitions` row each cluster-agent renders; first seeded from
-`libs/shared/src/agent-defaults/def-<type>.md`).
+`libs/shared/src/agent-defaults/def-<type>.md`, deleted on 2026-10-02 with the node stations).
