@@ -86,8 +86,11 @@ function passes(stats, threshold) {
   return stats.total - stats.answered <= allowedMisses(stats.total, threshold);
 }
 
+// A run of one document is someone checking that document: it has no miss to spare.
 function allowedMisses(total, threshold) {
-  return Math.max(1, Math.floor(total * (1 - threshold) + 1e-9));
+  return total <= 1
+    ? 0
+    : Math.max(1, Math.floor(total * (1 - threshold) + 1e-9));
 }
 
 export function renderSummary(repo, results, threshold) {

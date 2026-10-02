@@ -145,6 +145,16 @@ test("passes 17 of 20 answered at the bar of 0.85 and fails 16 of 20", async () 
   );
 });
 
+test("fails a run of the one document a person named when that document is not answered", async () => {
+  const api = loreApi({
+    documents: [],
+    verdicts: { [ADR(7)]: verdict(ADR(7), { answered: false }) },
+  });
+  const outcome = await run(api, { path: ADR(7) });
+
+  assert.equal(outcome.passed, false);
+});
+
 test("does not fail a repository for a document that was answered from other documents without being found", async () => {
   const api = loreApi({
     documents: [ADR(1), ADR(2)],
