@@ -82,4 +82,26 @@ describe("turnPageReader", () => {
 
     expect(ids(await read("floor-run", {}))).toEqual(["1", "2", "3"]);
   });
+
+  it.each(["-5", "2.5", "banana"])(
+    "pages a Postgres run at the default limit of 200 for limit %s, which is no page size",
+    async (limit) => {
+      const asked: unknown[] = [];
+      const read = turnPageReader(
+        () =>
+          ({
+            turns: async (...args: unknown[]) => {
+              asked.push(args);
+
+              return [];
+            },
+          }) as never,
+        async () => [],
+      );
+
+      await read("run-1", { limit });
+
+      expect(asked).toEqual([["run-1", "0", 201]]);
+    },
+  );
 });
