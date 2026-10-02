@@ -144,7 +144,7 @@ The tool retrieves from all available sources:
 - FR-2.5: **Graph** — related entities and relationships
   (from `lore_query_graph` logic, 1-hop). The entities looked up are the
   query's three most distinctive terms, not its first three long words —
-  "catalog sync bug: saving" is four long words and no entity. ([validated by `queries the graph for 'settings' and 'lore-api' from 'Add the new settings update for lore-api', not for 'update'`](libs/shared/src/outbound/project/knowledge/context-assembly-fetchers.test.ts#L65))
+  "catalog sync bug: saving" is four long words and no entity. ([validated by `queries the graph for 'settings' and 'lore-api' from 'Add the new settings update for lore-api', not for 'update'`](libs/shared/src/outbound/project/knowledge/context-assembly-fetchers.test.ts#L67))
 - FR-2.5a: **Episodes** — the Recent Episodes section asks memory search for
   episodes as such (`sources: ["episode"]`) rather than filtering them out of
   a mixed top-5, which memories and facts outranked often enough that the

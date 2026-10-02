@@ -43,6 +43,8 @@ export interface MemorySearchOptions {
   actorId?: string;
   /** Keep only these kinds of hit. The legs that cannot produce a requested kind are not run, and the fact legs filter in SQL under their LIMIT, so asking for 5 episodes yields the 5 best episodes rather than whatever episodes survived a mixed top-20. */
   sources?: MemorySearchResult["source"][];
+  /** Read without leaving a trace: no retrieval strengthening and no audit row. For measuring retrieval, where no agent is using what comes back, so nothing should rank higher for having been found. */
+  passive?: boolean;
 }
 
 /** The (agent, pool, invalidated-visibility) scope shared by every memory/fact search call. */
@@ -61,6 +63,7 @@ interface ResolvedSearchOptions {
   includeInvalidated: boolean;
   graphAugmentEnabled: boolean;
   sources?: MemorySearchResult["source"][];
+  passive: boolean;
 }
 
 export async function searchMemories(
@@ -74,19 +77,18 @@ export async function searchMemories(
   const { agent, actor } = searchIdentities(resolved);
   const scope = await resolveScope(pool, agent, resolved);
 
-  if (!scope) {
-    // Pool does not exist — return empty
-    await auditLog(pool, { agentId: actor, query, resultCount: 0 });
+  // No scope means the named pool does not exist: there is nothing to search.
+  const results = scope
+    ? await scopedResults(pool, query, scope, resolved)
+    : [];
 
-    return [];
-  }
-  const results = await scopedResults(pool, query, scope, resolved);
-
-  return finishSearch(pool, results, {
-    agentId: actor,
-    query,
-    latencyMs: Date.now() - searchStartTime,
-  });
+  return resolved.passive
+    ? results
+    : finishSearch(pool, results, {
+        agentId: actor,
+        query,
+        latencyMs: Date.now() - searchStartTime,
+      });
 }
 
 function resolveSearchOptions(
@@ -100,6 +102,7 @@ function resolveSearchOptions(
     includeInvalidated: options.includeInvalidated ?? false,
     graphAugmentEnabled: options.graphAugment ?? false,
     sources: options.sources,
+    passive: options.passive ?? false,
   };
 }
 

@@ -16,6 +16,8 @@ import { ciJobLogRoute } from "./routes/repos/ci-job-log.js";
 import { pullFilesRoute } from "./routes/repos/pull-files.js";
 import { issueRoute } from "./routes/repos/issue.js";
 import { contextRoute } from "./routes/context/context.js";
+import { contextEvalRoute } from "./routes/context-evals/context-evals.js";
+import { contextEvalDocumentsRoute } from "./routes/context-evals/context-eval-documents.js";
 import { chunkBrowseRoutes } from "./routes/context/chunks-browse.js";
 import { graphRoute } from "./routes/graph/graph.js";
 import { getTaskRoute } from "./routes/tasks/get-task.js";
@@ -175,6 +177,8 @@ function repoRoutes(getPool: PoolGetter): ServerRoute[] {
     ciJobLogRoute(),
     issueRoute(),
     contextRoute(getPool),
+    contextEvalRoute(getPool),
+    contextEvalDocumentsRoute(getPool),
     ...chunkBrowseRoutes(getPool),
     graphRoute(getPool),
     onboardRoute(getPool),

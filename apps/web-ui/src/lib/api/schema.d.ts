@@ -633,6 +633,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/context-evals": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/context-evals */
+    post: operations["post_api_context-evals"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/context-evals/documents": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/context-evals/documents */
+    get: operations["get_api_context-evals_documents"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/docs": {
     parameters: {
       query?: never;
@@ -2832,6 +2866,15 @@ export interface components {
       /** @constant */
       ok: true;
     };
+    DocumentEval: {
+      path: string;
+      question: string;
+      found: boolean;
+      answered: boolean;
+      useful_share: number;
+      reason: string;
+      model: string;
+    };
     DodProgress: {
       present: boolean;
       ticketClaim?: string;
@@ -2920,6 +2963,9 @@ export interface components {
         };
     Error: {
       error: string;
+    };
+    EvalDocuments: {
+      documents: string[];
     };
     EventPayload: {
       [key: string]: unknown;
@@ -5662,6 +5708,65 @@ export interface operations {
           "application/json": components["schemas"]["AssembledContext"];
         };
       };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "post_api_context-evals": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          repo: string;
+          path: string;
+        };
+      };
+    };
+    responses: {
+      /** @description One document's context eval */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["DocumentEval"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_context-evals_documents": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The paths a context eval samples from */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["EvalDocuments"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
       429: components["responses"]["RateLimited"];
