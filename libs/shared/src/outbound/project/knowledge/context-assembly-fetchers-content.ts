@@ -7,7 +7,10 @@ import {
   hybridChunkItems,
   type ChunkSearchHit,
 } from "./context-assembly-chunk-search.js";
-import type { SourceFetcher } from "./context-assembly-fetchers-types.js";
+import type {
+  SourceFetcher,
+  SourceReader,
+} from "./context-assembly-fetchers-types.js";
 import type { SourceItem } from "./context-assembly-format.js";
 import type { MemorySearchResult } from "./memory-search.js";
 
@@ -19,10 +22,10 @@ const RECENT_CONFLICTS_SQL = `SELECT new_fact_id FROM memory.fact_conflicts
 async function fetchMemories(
   pool: PgPool,
   query: string,
-  agentId: string | undefined,
+  reader: SourceReader = {},
 ): Promise<FetchResult> {
   try {
-    const results = await searchMemories(pool, query, { agentId, limit: 10 });
+    const results = await searchMemories(pool, query, { ...reader, limit: 10 });
 
     if (results.length === 0) {
       return { sources: [], status: "empty" };
@@ -88,12 +91,12 @@ function toMemoryItem(
 async function fetchEpisodes(
   pool: PgPool,
   query: string,
-  agentId: string | undefined,
+  reader: SourceReader = {},
 ): Promise<FetchResult> {
   try {
     // Asked for as episodes, not filtered out of a mixed top-5 — memories and facts outrank episodes often enough that the post-filter left this section empty on every call.
     const episodes = await searchMemories(pool, query, {
-      agentId,
+      ...reader,
       limit: 5,
       sources: ["episode"],
     });
@@ -225,11 +228,9 @@ export const contentFetchers: Record<string, SourceFetcher> = {
   adrs: (pool, query, repo) =>
     hybridSource(pool, query, repo, { contentTypes: ["adr"], limit: 10 }),
 
-  memories: (pool, query, _repo, agentId) =>
-    fetchMemories(pool, query, agentId),
+  memories: (pool, query, _repo, reader) => fetchMemories(pool, query, reader),
 
-  episodes: (pool, query, _repo, agentId) =>
-    fetchEpisodes(pool, query, agentId),
+  episodes: (pool, query, _repo, reader) => fetchEpisodes(pool, query, reader),
 
   async rules(pool, query, repo): Promise<FetchResult> {
     // Load .claude/rules/*.md files whose filename keyword-matches the query.

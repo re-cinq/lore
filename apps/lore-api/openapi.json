@@ -1928,6 +1928,117 @@
         "x-required-scope": "read"
       }
     },
+    "/api/context-evals": {
+      "post": {
+        "operationId": "post_api_context-evals",
+        "summary": "POST /api/context-evals",
+        "tags": ["Context"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "One document's context eval",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentEval"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "repo": {
+                    "type": "string",
+                    "pattern": "^[^/\\s]+\\/[^/\\s]+$"
+                  },
+                  "path": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                },
+                "required": ["repo", "path"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/context-evals/documents": {
+      "get": {
+        "operationId": "get_api_context-evals_documents",
+        "summary": "GET /api/context-evals/documents",
+        "tags": ["Context"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The paths a context eval samples from",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvalDocuments"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read"
+      }
+    },
     "/api/docs": {
       "get": {
         "operationId": "get_api_docs",
@@ -10599,6 +10710,42 @@
         "required": ["ok"],
         "additionalProperties": false
       },
+      "DocumentEval": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "question": {
+            "type": "string"
+          },
+          "found": {
+            "type": "boolean"
+          },
+          "answered": {
+            "type": "boolean"
+          },
+          "useful_share": {
+            "type": "number"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "question",
+          "found",
+          "answered",
+          "useful_share",
+          "reason",
+          "model"
+        ],
+        "additionalProperties": false
+      },
       "DodProgress": {
         "type": "object",
         "properties": {
@@ -10925,6 +11072,19 @@
           }
         },
         "required": ["error"]
+      },
+      "EvalDocuments": {
+        "type": "object",
+        "properties": {
+          "documents": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["documents"],
+        "additionalProperties": false
       },
       "EventPayload": {
         "type": "object",
