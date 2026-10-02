@@ -69,9 +69,7 @@ function chunksByPath(sources: SourceItem[]): Map<string, SourceItem[]> {
 
 /** The best chunks of one document as one item: the best chunk's provenance, the texts joined best first so a cap cuts the least relevant. */
 function mergedDocument(chunks: SourceItem[]): SourceItem {
-  const best = [...chunks]
-    .sort((a, b) => (isBetter(a, b) ? -1 : 1))
-    .slice(0, CHUNKS_PER_DOCUMENT);
+  const best = [...chunks].sort(bestFirst).slice(0, CHUNKS_PER_DOCUMENT);
 
   if (best.length === 1) {
     return best[0];
@@ -111,6 +109,15 @@ function collapseBy(
 
     return !key || winners.get(key) === it;
   });
+}
+
+/** A consistent order for sort: two chunks neither of which is better stay as they came. */
+function bestFirst(a: SourceItem, b: SourceItem): number {
+  if (isBetter(a, b)) {
+    return -1;
+  }
+
+  return isBetter(b, a) ? 1 : 0;
 }
 
 function isBetter(candidate: SourceItem, current: SourceItem): boolean {

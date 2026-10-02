@@ -81,6 +81,16 @@ describe("dedupeItems", () => {
     expect(merged.text).toBe("chunk 0.9\n\nchunk 0.8\n\nchunk 0.7");
   });
 
+  it("keeps three chunks of equal score in the order they arrived", () => {
+    const [merged] = dedupeItems(
+      ["first", "second", "third"].map((text) =>
+        source({ source_path: "specs/a/spec.md", text, score: 0.5 }),
+      ),
+    );
+
+    expect(merged.text).toBe("first\n\nsecond\n\nthird");
+  });
+
   it("places a merged document where its best chunk ranked", () => {
     const ranked = dedupeItems([
       source({ source_path: "adrs/A.md", text: "A context", score: 0.9 }),
