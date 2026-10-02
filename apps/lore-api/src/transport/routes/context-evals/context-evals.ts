@@ -46,7 +46,8 @@ export function contextEvalRoute(getPool: () => Pool | null): ServerRoute {
     path: "/api/context-evals",
     options: zodResponse(
       {
-        ...bearerScope("read"),
+        // Not `read`: every call spends on three model calls.
+        ...bearerScope("write"),
         validate: { payload: zodValidate(ContextEvalBody) },
       },
       DocumentEvalSchema,

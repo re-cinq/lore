@@ -1972,7 +1972,7 @@
             "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
-        "x-required-scope": "read",
+        "x-required-scope": "write",
         "requestBody": {
           "required": true,
           "content": {

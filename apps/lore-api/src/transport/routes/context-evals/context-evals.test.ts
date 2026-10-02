@@ -12,11 +12,11 @@ import { setEvalDepsForTests } from "./context-evals.js";
 const originalEnv = { ...process.env };
 const ADR = "adrs/ADR-032-split-local-remote-api.md";
 
-const post = (body: unknown, pool: unknown = makePool()) =>
+const post = (body: unknown, pool: unknown = makePool(), headers = AUTH) =>
   buildServer(() => pool as never).inject({
     method: "POST",
     url: "/api/context-evals",
-    headers: AUTH,
+    headers,
     payload: JSON.stringify(body),
   });
 
@@ -81,6 +81,18 @@ describe("POST /api/context-evals", () => {
 
   it("answers 400 for a body with no path", async () => {
     expect((await post({ repo: "re-cinq/lore" })).statusCode).toBe(400);
+  });
+
+  it("answers 403 to a token that holds only the read scope, since every call spends on a model", async () => {
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({ rows: [{ scopes: ["read"] }] });
+    const res = await post({ repo: "re-cinq/lore", path: ADR }, pool, {
+      authorization: "Bearer read-only",
+    });
+
+    expect(res.statusCode).toBe(403);
+    expect(JSON.parse(res.payload)).toEqual({ error: "insufficient scope" });
   });
 
   it("answers 503 when there is no database", async () => {
