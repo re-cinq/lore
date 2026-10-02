@@ -62,12 +62,12 @@ describe("onboard action", () => {
     expect(revalidatePath).toHaveBeenCalledWith("/");
   });
 
-  it("redirects home with the repo to confirm when there is no task id", async () => {
+  it("redirects to the repo page when there is no task id", async () => {
     createOnboardTask.mockResolvedValue({ ok: true, taskId: "" });
     const action = await onboardAction();
 
     await expect(action(null, form("re-cinq/lore"))).rejects.toThrow(
-      "NEXT_REDIRECT:/?onboarded=re-cinq%2Flore",
+      "NEXT_REDIRECT:/repos/re-cinq/lore",
     );
   });
 

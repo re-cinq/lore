@@ -5,7 +5,6 @@ import FixIngestButton, {
 } from "@/components/FixIngestButton";
 import Icon from "@/components/Icon";
 import Link from "next/link";
-import OnboardedBanner from "./OnboardedBanner";
 import styles from "./HomeView.module.css";
 import type { components } from "@/lib/api/schema";
 
@@ -25,7 +24,6 @@ export type Repo = Pick<
 
 export interface HomeViewProps {
   repos: Repo[];
-  onboarded?: string | null;
   ingestStatus: Map<string, IngestWorkflowStatus>;
   misaligned: string[];
   /** Overview action wired to the Fix-ingest button ("actions up"). */
@@ -46,7 +44,6 @@ export default function HomeView(props: HomeViewProps) {
         impactMisaligned={props.impactMisaligned}
         fixTraceImpactWorkflows={props.fixTraceImpactWorkflows}
       />
-      {props.onboarded && <OnboardedBanner fullName={props.onboarded} />}
       <RepoGrid repos={repos} ingestStatus={ingestStatus} />
     </div>
   );

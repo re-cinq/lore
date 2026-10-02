@@ -16,16 +16,11 @@ import {
 } from "@/lib/ingest-status-cache";
 import { fixIngestWorkflows, fixTraceImpactWorkflows } from "./actions";
 import { reposNeedingWorkflowFix } from "@/lib/workflow-fix";
-import { onboardedParam } from "@/lib/onboard";
 import HomeView, { type Repo } from "./HomeView";
 
 const HOME_REPO_LIMIT = 100;
 
-interface HomePageProps {
-  searchParams: Promise<{ onboarded?: string | string[] }>;
-}
-
-export default async function HomePage({ searchParams }: HomePageProps) {
+export default async function HomePage() {
   // Query repos with activity summary, bounded to the most recently onboarded.
   const repoList = reposOrThrow(await listRepos());
   // ONE page only: most recently onboarded repos (unlike pickers).
@@ -38,7 +33,6 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   return (
     <HomeView
       repos={repos}
-      onboarded={onboardedParam((await searchParams).onboarded)}
       ingestStatus={ingestStatus}
       impactMisaligned={impactMisaligned}
       fixTraceImpactWorkflows={fixTraceImpactWorkflows}

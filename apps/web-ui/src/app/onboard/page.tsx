@@ -1,11 +1,7 @@
 export const dynamic = "force-dynamic";
 import { listAllRepos, reposOrThrow } from "@/lib/api/repos";
 import { checkRepoAccess } from "@/lib/github";
-import {
-  createOnboardTask,
-  isRepoSlug,
-  onboardDestination,
-} from "@/lib/onboard";
+import { createOnboardTask, isRepoSlug } from "@/lib/onboard";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import OnboardView, { type OnboardState } from "./OnboardView";
@@ -42,7 +38,11 @@ async function onboardRepo(
   }
 
   revalidatePath("/");
-  redirect(onboardDestination(fullName, outcome.taskId));
+  redirect(
+    outcome.taskId
+      ? `/tasks/${encodeURIComponent(outcome.taskId)}`
+      : `/repos/${fullName}`,
+  );
 }
 
 function invalidSlugState(fullName: string): OnboardState {
