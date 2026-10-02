@@ -47,6 +47,8 @@ export interface Judgement {
   addresses_question: boolean;
   /** The sentence of the document the answer contradicts, quoted; empty or absent when it contradicts none. */
   contradicted_sentence?: string;
+  /** True when the quoted sentence and the answer can both be true at once: two facts about one thing are not a contradiction. */
+  both_can_hold?: boolean;
   reason: string;
 }
 
@@ -58,7 +60,7 @@ const ANSWER_SYSTEM =
 
 // The answer is drawn from everything Lore returned, so it may hold true detail the reference never mentions. A contradiction has to be quoted, which a "not mentioned" cannot be.
 const JUDGE_SYSTEM =
-  "You compare an answer with a reference document. The answer was written from several documents, so it may contain correct details the reference does not mention; an absent detail is not a contradiction. Report two things. addresses_question: false when the answer says the context did not contain the answer or does not address what was asked, true otherwise. contradicted_sentence: when a statement in the answer cannot be true if the reference is true, copy the one sentence of the reference it conflicts with, word for word; when there is no such sentence, leave it empty. Give the reason in one sentence.";
+  "You compare an answer with a reference document. The answer was written from several documents, so it may contain correct details the reference does not mention; an absent detail is not a contradiction. Report three things, then the reason. addresses_question: false when the answer says the context did not contain the answer or does not address what was asked, true otherwise. contradicted_sentence: when a statement in the answer cannot be true if the reference is true, copy the one sentence of the reference it conflicts with, word for word; when there is no such sentence, leave it empty. both_can_hold: true when that sentence and the answer can both be true at the same time, for instance when one states a default and the other a check made at startup, or when the answer simply says more; false only when one of them has to be wrong. Give the reason in one sentence.";
 
 const ANSWER_SCHEMA = {
   type: "object",
@@ -74,9 +76,15 @@ const JUDGEMENT_SCHEMA = {
   properties: {
     addresses_question: { type: "boolean" },
     contradicted_sentence: { type: "string" },
+    both_can_hold: { type: "boolean" },
     reason: { type: "string" },
   },
-  required: ["addresses_question", "contradicted_sentence", "reason"],
+  required: [
+    "addresses_question",
+    "contradicted_sentence",
+    "both_can_hold",
+    "reason",
+  ],
 };
 
 export interface EvalTarget {
@@ -139,6 +147,7 @@ async function writeQuestion(
     systemPrompt: QUESTION_SYSTEM,
     prompt: `Document:\n\n${document}`,
     jobName: JOB_NAME,
+    temperature: 0,
   });
 
   return { question: text.trim(), model };
@@ -188,6 +197,7 @@ async function answerFromContext(
     toolDescription: "The answer and the sources it relied on",
     toolSchema: ANSWER_SCHEMA,
     jobName: JOB_NAME,
+    temperature: 0,
   });
 
   return parsed;
@@ -206,19 +216,22 @@ async function judgeAnswer(
       "Whether the answer addresses the question, and the sentence of the reference it contradicts, if any",
     toolSchema: JUDGEMENT_SCHEMA,
     jobName: JOB_NAME,
+    temperature: 0,
   });
 
   return { judgement: parsed, model };
 }
 
-/** An answer passes when it addresses the question and contradicts nothing the document says. A contradiction counts only when the sentence the judge quotes is in the document: a judge that fails an answer for detail the document lacks has nothing there to quote. */
+/** An answer passes when it addresses the question and contradicts nothing the document says. A contradiction counts only when the sentence the judge quotes is in the document and the judge says the two cannot both hold: a judge that fails an answer for detail the document lacks has nothing there to quote. */
 export function passes(judgement: Judgement, document: string): boolean {
   const quoted = flattened(judgement.contradicted_sentence ?? "");
 
-  return (
-    judgement.addresses_question &&
-    !(quoted.length > 0 && flattened(document).includes(quoted))
-  );
+  const contradicts =
+    quoted.length > 0 &&
+    flattened(document).includes(quoted) &&
+    judgement.both_can_hold !== true;
+
+  return judgement.addresses_question && !contradicts;
 }
 
 function flattened(text: string): string {

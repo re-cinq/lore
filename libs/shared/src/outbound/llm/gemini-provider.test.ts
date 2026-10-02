@@ -80,6 +80,65 @@ describe("GeminiProvider", () => {
     expect(result.model).toBe("gemini-2.5-pro");
   });
 
+  it("sends temperature 0 in generationConfig for a plain call and beside the schema for a tool call", async () => {
+    const bodies: any[] = [];
+    const fetchFn = async (_url: any, init: any) => {
+      bodies.push(JSON.parse(init.body));
+
+      return new Response(
+        JSON.stringify({
+          candidates: [{ content: { parts: [{ text: '{"ok":true}' }] } }],
+        }),
+        { status: 200 },
+      );
+    };
+    const provider = new GeminiProvider({
+      apiKey: "k",
+      fetchFn: fetchFn as typeof fetch,
+    });
+    const toolSchema = { type: "object" };
+
+    await provider.complete({ prompt: "p", temperature: 0 });
+    await provider.completeWithTool({
+      prompt: "p",
+      temperature: 0,
+      toolName: "t",
+      toolDescription: "d",
+      toolSchema,
+    });
+
+    expect(bodies.map((body) => body.generationConfig)).toEqual([
+      { temperature: 0 },
+      {
+        temperature: 0,
+        responseMimeType: "application/json",
+        responseSchema: toolSchema,
+      },
+    ]);
+  });
+
+  it("sends no generationConfig for a plain call that names no temperature", async () => {
+    const bodies: any[] = [];
+    const fetchFn = async (_url: any, init: any) => {
+      bodies.push(JSON.parse(init.body));
+
+      return new Response(
+        JSON.stringify({
+          candidates: [{ content: { parts: [{ text: "ok" }] } }],
+        }),
+        { status: 200 },
+      );
+    };
+    const provider = new GeminiProvider({
+      apiKey: "k",
+      fetchFn: fetchFn as typeof fetch,
+    });
+
+    await provider.complete({ prompt: "p" });
+
+    expect(bodies[0]).not.toHaveProperty("generationConfig");
+  });
+
   it("throws a clear error instead of a JSON.parse crash when candidates carry no content", async () => {
     const fetchFn = async () =>
       new Response(

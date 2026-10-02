@@ -23,6 +23,7 @@ const VERDICT = {
   used_sources: [ADR, "docs/mcp-tools-reference.md"],
   addresses_question: true,
   contradicted_sentence: "",
+  both_can_hold: false,
   reason: "Agrees with the decision.",
 };
 
@@ -114,6 +115,28 @@ describe("evaluateDocument", () => {
       answered: false,
       reason: "The ADR rules a direct pool out.",
     });
+  });
+
+  it("reports answered true when the judge quotes a sentence but says it and the answer can both hold", async () => {
+    const { deps } = scenario({
+      verdict: {
+        contradicted_sentence: "The adapter holds no pool.",
+        both_can_hold: true,
+        reason: "One describes the default, the other the startup check.",
+      },
+    });
+
+    expect(await evaluateDocument(deps, target)).toMatchObject({
+      answered: true,
+    });
+  });
+
+  it("asks the model for all three calls at temperature 0, so a rerun of the same question differs as little as the model allows", async () => {
+    const { deps, llm } = scenario();
+
+    await evaluateDocument(deps, target);
+
+    expect(llm.calls.map((call) => call.temperature)).toEqual([0, 0, 0]);
   });
 
   it("reports answered true when the sentence the judge calls contradicted is not in the document", async () => {
