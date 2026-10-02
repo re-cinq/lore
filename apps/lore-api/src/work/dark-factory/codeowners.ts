@@ -2,7 +2,7 @@ import { minimatch } from "minimatch";
 
 export type CodeownersRow = { pattern: string; owners: string[] };
 
-const APPROVED_PATH = "CLAUDE.md";
+export const APPROVED_PATH = "CLAUDE.md";
 
 export function parseCodeowners(text: string): CodeownersRow[] {
   const out: CodeownersRow[] = [];

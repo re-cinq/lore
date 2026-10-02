@@ -3,6 +3,7 @@ import { Octokit } from "octokit";
 import {
   isCodeowner,
   isTeamOnlyOwners,
+  APPROVED_PATH,
   ownersOfPath,
   parseCodeowners,
   type CodeownersRow,
@@ -46,7 +47,6 @@ const PR_REF_RE = /^([\w.-]+)\/([\w.-]+)#(\d+)$/;
 type PullRequest = Awaited<ReturnType<Octokit["rest"]["pulls"]["get"]>>;
 type IssueEvents = Awaited<ReturnType<Octokit["rest"]["issues"]["listEvents"]>>;
 type LabelEvent = IssueEvents["data"][number];
-const APPROVED_PATH = "CLAUDE.md";
 const EVENTS_PAGE_SIZE = 100;
 
 interface PrLookup {
