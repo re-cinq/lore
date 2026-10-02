@@ -217,15 +217,15 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
   the Floor, so anything wanting to start a line had to be the Floor. The write is
   `start()`'s existing atomic CTE — the `pipeline.assembly_runs` row and its
   `assembly_run.start` event land together — and the Floor's event loop claims the
-  event and walks the line as it does for every other run. ([validated by `start-run.test.ts:40`](apps/lore-api/src/transport/routes/assembly-lines/start-run.test.ts#L78), [`start-run.test.ts:88`](apps/lore-api/src/transport/routes/assembly-lines/start-run.test.ts#L90), [`start-run.test.ts:108`](apps/lore-api/src/transport/routes/assembly-lines/start-run.test.ts#L110))
+  event and walks the line as it does for every other run.
 - **FR8.2 — The start endpoint refuses a body it cannot act on.** A missing
   `definition` or a `repo` that is not `owner/name` is rejected `400` and starts
   nothing; a run row minted from a malformed body would be walked by the Floor and
-  fail somewhere less legible than the call that made it. ([validated by `start-run.test.ts:85`](apps/lore-api/src/transport/routes/assembly-lines/start-run.test.ts#L123), [`start-run.test.ts:131`](apps/lore-api/src/transport/routes/assembly-lines/start-run.test.ts#L133))
+  fail somewhere less legible than the call that made it.
 - **FR8.3 — The endpoint is authenticated.** It is registered on the built server
   under the `task` bearer scope; an unauthenticated post is rejected `401`. Starting
   arbitrary assembly lines is a privileged capability — the courier holds a token
-  like any other client. ([validated by `start-run.test.ts:109`](apps/lore-api/src/transport/routes/assembly-lines/start-run.test.ts#L147))
+  like any other client.
 
 - **FR9 — A scheduled job with no steps runs in lore-api, not in a line.** The
   assembly-line node types are a closed set (`agent`, `validate`, `gate`,

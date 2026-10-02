@@ -69,7 +69,7 @@ async function startSpecWork(
   meta: Parameters<NonNullable<PlanLifecycleHooks["onApproved"]>>[0],
   seams: PlanVerbSeams,
 ): Promise<void> {
-  const verbs = await planVerbsFor(pool(), meta, seams);
+  const verbs = await planVerbsFor(meta, seams);
 
   await verbs.handOverApproved(
     meta,

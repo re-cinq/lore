@@ -187,6 +187,31 @@ describe("the plan routes on a plan the floor holds", () => {
     expect(writes(requests)).toEqual(["/events"]);
   });
 
+  it("answers spec-rework with 409 for a plan with no planning run", async () => {
+    const { server, requests } = subject({ runs: false, status: "approved" });
+
+    const res = await post(server, "spec-rework", { actor: "gedaiu" });
+
+    expect(answer(res)).toEqual({
+      status: 409,
+      body: { error: "the spec PR is not waiting for review" },
+    });
+    expect(writes(requests)).toEqual([]);
+  });
+
+  it("answers validate with 404 for the plan asked for under another repo", async () => {
+    const { server } = subject({ visits: ON_AUTHOR });
+
+    const res = await server.inject({
+      method: "POST",
+      url: `/api/repos/re-cinq/other/plans/${PLAN_ID}/validate`,
+      headers: AUTH,
+      payload: { actor: "gedaiu" },
+    });
+
+    expect(res.statusCode).toBe(404);
+  });
+
   it("reopens an approved plan whose floor run waits on its author when author-waiting is asked", async () => {
     const { server, reopened } = subject({
       visits: ON_AUTHOR,

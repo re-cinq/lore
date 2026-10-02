@@ -248,7 +248,7 @@ async function planWithVerbs(
 ) {
   const plan = await repoPlan(() => pool, request);
 
-  return { plan, verbs: await planVerbsFor(pool, plan, ports) };
+  return { plan, verbs: await planVerbsFor(plan, ports) };
 }
 
 // The plan the path names, only when it belongs to the path's repo.

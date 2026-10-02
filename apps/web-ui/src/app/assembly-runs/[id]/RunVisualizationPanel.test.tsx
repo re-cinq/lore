@@ -775,7 +775,7 @@ describe("a node's input opens its transcript", () => {
   });
 });
 
-describe("retry from node", () => {
+describe("run actions that went with the old engine", () => {
   function retryRow(over: Partial<AssemblyRunNode>): AssemblyRunNode {
     return {
       nodeId: "implement",
@@ -814,104 +814,14 @@ describe("retry from node", () => {
     });
   }
 
-  it("offers Run this station on a node the run never visited, while the run is still live", async () => {
+  it("offers neither retry nor Run this station on a finished run, whichever engine walked it", async () => {
     stubHistory([]);
-
-    useFakeSocket();
-    renderRun("running", [retryRow({ nodeId: "implement", outcome: null })]);
-
-    await settle();
-    await select("validate");
-
-    expect({
-      run: screen.getByRole("button", { name: "Run this station" }) !== null,
-      retry: screen.queryByRole("button", { name: "Retry from this node" }),
-    }).toEqual({ run: true, retry: null });
-  });
-
-  it("offers retry in the node card's header on a finished run, posting the implement fork source", async () => {
-    const fetchMock = stubHistory([]); // eslint-disable-line re-lint/declare-near-use -- the history stub must be installed before the render it serves
-
     useFakeSocket();
 
-    const { container } = renderRun("finished", [
+    renderRun("finished", [
       retryRow({ nodeId: "implement" }),
       retryRow({ nodeId: "validate", outcome: "failed" }),
     ]);
-
-    await settle();
-    await select("validate");
-
-    const button = screen.getByRole("button", {
-      name: "Retry from this node",
-    });
-
-    expect(button.closest("summary")).toBe(
-      container.querySelector("section summary"),
-    );
-
-    await act(async () => {
-      fireEvent.click(button);
-    });
-
-    const rerunCall = fetchMock.mock.calls.find(
-      ([url]) => String(url) === "/api/assembly-runs/rerun",
-    );
-    const body = rerunCall?.[1]?.body as URLSearchParams;
-
-    expect(rerunCall?.[1]).toMatchObject({ method: "POST" });
-    expect(Object.fromEntries(body)).toEqual({
-      run_id: "run-1",
-      node_id: "implement",
-      iteration: "1",
-    });
-  });
-
-  it("offers retry on a looping run's validate node, posting implement@2 as the fork source", async () => {
-    const fetchMock = stubHistory([]);
-
-    useFakeSocket();
-
-    renderRun("failed", [
-      retryRow({ nodeId: "implement", iteration: 1 }),
-      retryRow({ nodeId: "validate", iteration: 1, outcome: "failed" }),
-      retryRow({ nodeId: "implement", iteration: 2 }),
-      retryRow({ nodeId: "validate", iteration: 2, outcome: "failed" }),
-    ]);
-
-    await settle();
-    await select("validate");
-    await act(async () => {
-      fireEvent.click(
-        screen.getByRole("button", { name: "Retry from this node" }),
-      );
-    });
-
-    const rerunCall = fetchMock.mock.calls.find(
-      ([url]) => String(url) === "/api/assembly-runs/rerun",
-    );
-
-    expect(Object.fromEntries(rerunCall?.[1]?.body as URLSearchParams)).toEqual(
-      {
-        run_id: "run-1",
-        node_id: "implement",
-        iteration: "2",
-      },
-    );
-  });
-
-  it("offers neither retry nor Run this station on a finished run on the floor engine", async () => {
-    stubHistory([]);
-    useFakeSocket();
-
-    renderRun(
-      "finished",
-      [
-        retryRow({ nodeId: "implement" }),
-        retryRow({ nodeId: "validate", outcome: "failed" }),
-      ],
-      "floor",
-    );
 
     await settle();
     await select("validate");
@@ -920,39 +830,6 @@ describe("retry from node", () => {
       retry: screen.queryByRole("button", { name: "Retry from this node" }),
       run: screen.queryByRole("button", { name: "Run this station" }),
     }).toEqual({ retry: null, run: null });
-  });
-
-  it("offers no retry while the run is still running", async () => {
-    stubHistory([]);
-    useFakeSocket();
-
-    renderRun("running", [
-      retryRow({ nodeId: "implement" }),
-      retryRow({ nodeId: "validate", outcome: "failed" }),
-    ]);
-
-    await settle();
-    await select("validate");
-
-    expect(
-      screen.queryByRole("button", { name: "Retry from this node" }),
-    ).not.toBeInTheDocument();
-  });
-
-  it("offers no retry on the entry node — there is no prefix to fork from", async () => {
-    stubHistory([]);
-    useFakeSocket();
-
-    renderRun("finished", [
-      retryRow({ nodeId: "implement", outcome: "failed" }),
-    ]);
-
-    await settle();
-    await select("implement");
-
-    expect(
-      screen.queryByRole("button", { name: "Retry from this node" }),
-    ).not.toBeInTheDocument();
   });
 });
 
