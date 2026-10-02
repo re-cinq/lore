@@ -10,6 +10,7 @@ import type {
 } from "@re-cinq/floor-client";
 import type {
   AssemblyRunQuery,
+  AssemblyRunStatus,
   AssemblyRunRecord,
   AssemblyRunSummary,
   StationRunRecord,
@@ -17,6 +18,10 @@ import type {
 import type { AgentRunTurnRow } from "@re-cinq/lore-shared/project/agent-run-turns/agent-run-turns-port.js";
 import type { RunGraph } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import { startValue } from "@re-cinq/lore-shared/review/floor-review-runs.js";
+import {
+  miniPipeline,
+  type PipelineNode,
+} from "../assembly-line-station/mini-pipeline.js";
 import { floorRunFilters, matchesFloorQuery } from "./floor-run-query.js";
 import {
   floorRunToAssemblyRun,
@@ -42,6 +47,26 @@ const DEFAULT_LIST_LIMIT = 50;
 
 /** How many pages a search for a task's run reads before giving up: 500 runs of one line. */
 const TASK_SEARCH_PAGES = 10;
+
+/** The floor wants a filter to list under: since the epoch is every run it holds. */
+const EVERY_RUN_SINCE = new Date(0).toISOString();
+const DEFAULT_PAGE_LIMIT = 25;
+
+export interface FloorRunListing {
+  run: AssemblyRunSummary;
+  pipeline: PipelineNode[];
+}
+
+export interface FloorRunPage {
+  runs: FloorRunListing[];
+  nextCursor: string | null;
+}
+
+export interface FloorRunPageQuery {
+  status?: AssemblyRunStatus;
+  cursor?: string;
+  limit?: number;
+}
 
 export class FloorRunReader {
   /** A line version is its content, so its graph never changes once read. */
@@ -103,6 +128,29 @@ export class FloorRunReader {
     }
 
     return [];
+  }
+
+  /** One page of every run the floor holds, newest first, each with its mini pipeline; the cursor is the floor's own, handed back untouched. */
+  async page(query: FloorRunPageQuery): Promise<FloorRunPage> {
+    const listed = await this.floor.runs.list(
+      { since: EVERY_RUN_SINCE },
+      {
+        limit: query.limit ?? DEFAULT_PAGE_LIMIT,
+        ...(query.cursor ? { cursor: query.cursor } : {}),
+      },
+    );
+    const runs = await Promise.all(
+      listed.items.map((run) => this.listingOf(run)),
+    );
+
+    return { runs, nextCursor: listed.nextCursor };
+  }
+
+  /** One run as the list shows it; null for a run the floor does not hold. */
+  async listing(runId: string): Promise<FloorRunListing | null> {
+    const found = await this.floor.runs.get(runId);
+
+    return found ? this.listingOf(found.run) : null;
   }
 
   async listStationRuns(runId: string): Promise<StationRunRecord[]> {
@@ -175,6 +223,25 @@ export class FloorRunReader {
     ]);
 
     return floorRunToAssemblyRun({ run, visits, graph });
+  }
+
+  private async listingOf(run: RunView): Promise<FloorRunListing> {
+    const [visits, graph] = await Promise.all([
+      this.floor.stationRuns.list({ run: run.id }),
+      this.graphOf(run),
+    ]);
+
+    return {
+      run: floorRunToSummary({ run, visits }),
+      pipeline: miniPipeline(
+        graph.nodes,
+        visits.map((visit) => ({
+          nodeId: visit.nodeId,
+          iteration: visit.iteration,
+          outcome: visit.report?.outcome ?? null,
+        })),
+      ),
+    };
   }
 
   /** A finished run's status reads from its verdict; only an open one needs its visits to tell queued from running. */

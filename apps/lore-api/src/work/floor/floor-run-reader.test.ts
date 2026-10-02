@@ -40,6 +40,14 @@ function floorWithTwoRuns(request: FloorRequest): unknown {
   return floorWithOneRun(request);
 }
 
+function floorWithRunPage(request: FloorRequest): unknown {
+  const url = new URL(request.path, "http://floor.test");
+
+  return url.pathname === "/assembly-runs"
+    ? { items: [FLOOR_RUN], nextCursor: "cursor-2" }
+    : floorWithOneRun(request);
+}
+
 function loopRunsInTwoPages(request: FloorRequest): unknown {
   const url = new URL(request.path, "http://floor.test");
 
@@ -255,5 +263,26 @@ describe("FloorRunReader.listSummaries", () => {
     expect(recorded.requests.map((request) => request.path)).toEqual([
       "/costs?run=run-1&group=run",
     ]);
+  });
+});
+
+describe("FloorRunReader.page", () => {
+  it("lists run-1 as running with review running and done pending, and hands back cursor-2, when no status is asked", async () => {
+    const floorReader = new FloorRunReader(
+      recordedFloor(floorWithRunPage).floor,
+    );
+
+    expect(await floorReader.page({})).toMatchObject({
+      runs: [
+        {
+          run: { id: "run-1", status: "running" },
+          pipeline: [
+            { node_id: "review", state: "running" },
+            { node_id: "done", state: "pending" },
+          ],
+        },
+      ],
+      nextCursor: "cursor-2",
+    });
   });
 });
