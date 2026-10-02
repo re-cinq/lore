@@ -339,7 +339,18 @@ describe("rate-limit ext", () => {
         ws.once("error", () => {});
       });
 
-    it("refuses upgrades from an address past 30 attempts a minute with 429", async () => {
+    it("admits every upgrade when no trusted client address is known, since the ingress would make the whole org one address", async () => {
+      const statuses: number[] = [];
+
+      for (let i = 0; i < 35; i++) {
+        statuses.push(await upgrade());
+      }
+
+      expect(statuses.every((status) => status === 101)).toBe(true);
+    });
+
+    it("refuses upgrades from a trusted client address past 30 attempts a minute with 429", async () => {
+      process.env.LORE_TRUSTED_PROXY_HOPS = "1";
       const statuses: number[] = [];
 
       for (let i = 0; i < 31; i++) {

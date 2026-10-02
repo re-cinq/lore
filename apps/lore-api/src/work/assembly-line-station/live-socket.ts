@@ -34,7 +34,7 @@ const MAX_SOCKETS_PER_ADDRESS = 20;
 let connectionSeq = 0;
 
 export interface LiveSocketLimits {
-  addressOf(request: IncomingMessage): string;
+  addressOf(request: IncomingMessage): string | undefined;
   allowUpgrade(address: string): boolean;
   allowOpen(connection: string): boolean;
 }
@@ -78,7 +78,7 @@ export function mountLiveSocket(
   };
 }
 
-/** Another mount (the plans library's) shares the listener, so a foreign path is its business and is left untouched; for ours, who may hold a socket: a global ceiling, a per-address cap on open sockets, and the address's upgrade-attempt rate. */
+/** Another mount (the plans library's) shares the listener; a foreign path is its business and is left untouched. */
 class UpgradeGate {
   private readonly held = new Map<string, number>();
 
@@ -110,15 +110,11 @@ class UpgradeGate {
     });
   };
 
-  private addressOf(request: IncomingMessage): string {
-    return (
-      this.deps.limits?.addressOf(request) ??
-      request.socket.remoteAddress ??
-      "unknown"
-    );
+  private addressOf(request: IncomingMessage): string | undefined {
+    return this.deps.limits?.addressOf(request);
   }
 
-  private refusal(address: string): string | null {
+  private refusal(address: string | undefined): string | null {
     if (this.sockets.clients.size >= (this.deps.maxSockets ?? MAX_SOCKETS)) {
       return "503 Service Unavailable";
     }
@@ -126,11 +122,17 @@ class UpgradeGate {
     return this.crowded(address) ? "429 Too Many Requests" : null;
   }
 
-  private admit(address: string): void {
+  private admit(address: string | undefined): void {
+    if (address === undefined) {
+      return;
+    }
     this.held.set(address, (this.held.get(address) ?? 0) + 1);
   }
 
-  private release(address: string): void {
+  private release(address: string | undefined): void {
+    if (address === undefined) {
+      return;
+    }
     const remaining = (this.held.get(address) ?? 0) - 1;
 
     if (remaining > 0) {
@@ -141,7 +143,10 @@ class UpgradeGate {
     this.held.delete(address);
   }
 
-  private crowded(address: string): boolean {
+  private crowded(address: string | undefined): boolean {
+    if (address === undefined) {
+      return false;
+    }
     const cap = this.deps.maxSocketsPerAddress ?? MAX_SOCKETS_PER_ADDRESS;
 
     return (

@@ -24,3 +24,12 @@ function trustedHops(): number {
 
   return Number.isInteger(hops) && hops > 0 ? hops : 0;
 }
+
+export function trustedClientAddress(
+  remoteAddress: string | undefined,
+  forwardedFor: string | string[] | undefined,
+): string | undefined {
+  return trustedHops() > 0
+    ? clientAddress(remoteAddress, forwardedFor)
+    : undefined;
+}

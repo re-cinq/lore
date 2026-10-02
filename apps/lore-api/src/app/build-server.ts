@@ -8,7 +8,7 @@ import type { ServerRoute } from "@hapi/hapi";
 import { registerRequestTracing } from "@re-cinq/lore-shared/http/tracing.js";
 import { traceHttp } from "@re-cinq/lore-server-core/platform/otel.js";
 import { rateLimit } from "../transport/http/auth.js";
-import { clientAddress } from "../transport/http/client-ip.js";
+import { trustedClientAddress } from "../transport/http/client-ip.js";
 import { registerRateLimit } from "../transport/http/rate-limit.js";
 import { registerBearerScope } from "../transport/http/bearer-scope.js";
 import { zodFailAction } from "../transport/http/zod-validate.js";
@@ -72,7 +72,7 @@ function registerRoutes(
 
 const LIVE_SOCKET_LIMITS: LiveSocketLimits = {
   addressOf: (request) =>
-    clientAddress(
+    trustedClientAddress(
       request.socket.remoteAddress,
       request.headers["x-forwarded-for"],
     ),

@@ -367,12 +367,16 @@ describe("the live socket", () => {
     });
   };
 
-  const allowing = (upgrades: number, opens: number): LiveSocketLimits => {
+  const allowing = (
+    upgrades: number,
+    opens: number,
+    address: string | null = "caller",
+  ): LiveSocketLimits => {
     let upgradesLeft = upgrades;
     let opensLeft = opens;
 
     return {
-      addressOf: () => "caller",
+      addressOf: () => address ?? undefined,
       allowUpgrade: () => upgradesLeft-- > 0,
       allowOpen: () => opensLeft-- > 0,
     };
@@ -398,7 +402,7 @@ describe("the live socket", () => {
   });
 
   it("caps the sockets one address holds open and admits another once one closes", async () => {
-    remount({ maxSocketsPerAddress: 2 });
+    remount({ maxSocketsPerAddress: 2, limits: allowing(99, 0) });
     const held = [await connect(), await connect()];
     const refused = await upgradeStatus();
 
@@ -410,15 +414,33 @@ describe("the live socket", () => {
     expect({ refused, admitted }).toEqual({ refused: 429, admitted: 101 });
   });
 
+  it("applies neither the per-address cap nor the upgrade rate when no trusted client address is known", async () => {
+    remount({
+      maxSocketsPerAddress: 1,
+      limits: allowing(0, 0, null),
+    });
+    const statuses = [
+      await upgradeStatus(),
+      await upgradeStatus(),
+      await upgradeStatus(),
+    ];
+
+    expect(statuses).toEqual([101, 101, 101]);
+  });
+
   it("answers an open the limiter denies with a rate_limited error and opens no channel", async () => {
     remount({ limits: allowing(5, 1) });
     const c = await connect();
 
     openRun(c, "a");
     openRun(c, "b");
-    const replies = [await c.next(), await c.next()];
+    let reply = await c.next();
 
-    expect(replies).toContainEqual({
+    while (reply.type !== "error") {
+      reply = await c.next();
+    }
+
+    expect(reply).toEqual({
       type: "error",
       channel: "b",
       code: "rate_limited",
