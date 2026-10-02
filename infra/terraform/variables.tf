@@ -116,12 +116,6 @@ variable "lore_event_router_hostname" {
   default     = ""
 }
 
-variable "lore_agent_events_hostname" {
-  description = "Hostname for the Floor's agent-telemetry ingress (POST /api/agent-events), which registered SATELLITE clusters report run telemetry to with their own per-agent token. Empty disables the ingress and leaves the sink cluster-internal, which is exactly the behaviour before satellites existed — central-cluster pods reach it over in-cluster DNS either way."
-  type        = string
-  default     = ""
-}
-
 # Gates the Headlamp cluster dashboard and its Google sign-in proxy (headlamp.tf).
 # The cluster is GKE Autopilot, which cannot run Rancher — Rancher writes into
 # kube-system to install, and an Autopilot cluster cannot even be registered into a

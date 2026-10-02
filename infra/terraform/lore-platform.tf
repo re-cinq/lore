@@ -4,8 +4,9 @@
 # Replaces the former per-service releases (lore-floor, lore-mcp, lore-ui,
 # lore-db extras, ai-agents). The umbrella chart vendors them as subcharts and
 # stamps each resource with its own namespace, so this single release spans
-# lore-floor / lore-api / lore-ui / lore-db / ai-agents. The release record
-# lives in the `lore-floor` home namespace.
+# lore-api / lore-ui / lore-db / ai-agents and the others. The release record
+# lives in the `lore-floor` home namespace, which is all that is left of the
+# Floor Lore ran itself (deleted 2026-10-02).
 #
 # Deploy ownership: Terraform owns config (the `values` below); CI owns image
 # tags. `reuse_values = true` means a `terraform apply` MERGES this config on
@@ -14,7 +15,7 @@
 # <svc>.image.tag=<sha> --reset-then-reuse-values`).
 #
 # Values are nested under each subchart's chart name:
-#   lore-floor / lore-api / lore-ui / lore-db-helm / ai-agents
+#   lore-api / lore-ui / lore-db-helm / ai-agents / ...
 # Cluster, namespaces, ESO ExternalSecrets, the 2 ingresses, the CNPG cluster
 # CR, and Dgraph remain Terraform-owned (see the other *.tf files).
 # --------------------------------------------------------------------------
@@ -57,50 +58,6 @@ resource "helm_release" "lore_platform" {
   reuse_values = true
 
   values = [yamlencode({
-    # ---- Floor (lore-floor namespace) ----
-    "lore-floor" = {
-      gcpProject = var.project_id
-      floor      = { enabled = var.enable_external_floor }
-      env = {
-        LORE_DB_HOST     = "lore-db-rw.lore-db.svc.cluster.local"
-        LORE_DB_PORT     = "5432"
-        LORE_DB_NAME     = "lore"
-        LORE_DB_USER     = "lore"
-        LORE_DGRAPH_HTTP = local.dgraph_http_url
-        ANTHROPIC_MODEL  = "claude-haiku-4-5-20251001"
-        PORT             = "8080"
-        LORE_INGEST_URL  = var.lore_api_url
-        LORE_LOG_BUCKET  = "lore-task-logs-${var.project_id}"
-        # Web-UI base: the "Lore review has started — <id>" comment (loreTaskRef)
-        # links the run id to /assembly-lines/<id>, which the resolver renders.
-        LORE_UI_URL = var.lore_ui_url
-        # Where this Floor REPORTS events (ADR-044). Unset would silently fall
-        # back to writing pipeline.events directly, which is right on a laptop
-        # and wrong here — the fallback logs which way it resolved.
-        EVENT_ROUTER_URL = local.event_router_in_cluster
-        # Where the Floor RUNS a station (ADR-024). It keeps the schedule and the
-        # job_runs row; the work is over there.
-        STATIONS_URL = local.stations_in_cluster
-        # The Floor performs no Kubernetes operation itself any more; it asks
-        # the cluster agent (ADR-024).
-        CLUSTER_AGENT_URL = local.cluster_agent_in_cluster
-        # Where the Floor writes a planning agent's result into its plan
-        # (ADR-047); lore-api hosts plans.
-        LORE_API_URL = local.lore_api_in_cluster
-      }
-      dbPasswordSecret        = { name = "lore-db-password", key = "password" }
-      anthropicKeySecret      = { name = "lore-anthropic-key", key = "anthropic-api-key" }
-      anthropicAdminKeySecret = { name = "lore-anthropic-key", key = "anthropic-admin-key" }
-      githubAppSecret = {
-        name              = "github-app-credentials"
-        appIdKey          = "app-id"
-        privateKeyKey     = "private-key"
-        installationIdKey = "installation-id"
-      }
-      ingestTokenSecret   = { name = "lore-ingest-token", key = "token" }
-      internalTokenSecret = { name = "lore-agent-internal-token", key = "token" }
-    }
-
     # ---- Lore API (lore-api namespace) ----
     "lore-api" = {
       replicaCount = 1
@@ -115,7 +72,6 @@ resource "helm_release" "lore_platform" {
         LORE_DB_NAME     = "lore"
         LORE_DB_USER     = "lore"
         LORE_DGRAPH_HTTP = local.dgraph_http_url
-        LORE_AGENT_URL   = "http://lore-floor.lore-floor.svc.cluster.local:8080"
         # The /agents editor's catalog saves land through the cluster agent —
         # lore-api holds no Kubernetes client (ADR-024).
         CLUSTER_AGENT_URL = local.cluster_agent_in_cluster
@@ -127,12 +83,9 @@ resource "helm_release" "lore_platform" {
         # hits the run-pod egress policy's except-list, so the public host hangs.
         # Empty leaves the fields off entirely rather than pointing a pod at nothing.
         LORE_MCP_URL = var.lore_mcp_url != "" ? "${local.lore_mcp_in_cluster}/mcp" : ""
-        # LORE_AGENT_EVENTS_URL was read by the code and set NOWHERE, so the http sink
-        # never materialised on a UI-authored recipe.
-        LORE_AGENT_EVENTS_URL = "http://lore-floor.lore-floor.svc.cluster.local:8080/api/agent-events"
         # The canonical repo-hook URL lore-api installs and classifies against
         # (ADR-044 step 2): the event-router front door. lore_webhook_hostname
-        # still serves /api/webhook/ci-ingest|ci-tests and the legacy hook alias.
+        # still serves the legacy hook alias.
         LORE_WEBHOOK_URL = var.lore_event_router_hostname != "" ? "https://${var.lore_event_router_hostname}/api/events" : ""
         # The connect-a-cluster hand-out (#1572): lore-api serves its own
         # public URL + the event-router front door to satellite installers.

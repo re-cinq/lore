@@ -93,8 +93,8 @@ This creates:
 - GCS bucket for task logs (CMEK encrypted, 30-day retention)
 - KMS key ring + crypto key
 - The namespaces, ExternalSecrets, ingresses, the CloudNativePG cluster CR, and the Dgraph StatefulSet
-- **One Helm release, `lore_platform`** — the umbrella chart, whose nine vendored
-  subcharts span a namespace each: Floor (`lore-floor`), event-router
+- **One Helm release, `lore_platform`** — the umbrella chart, whose eight vendored
+  subcharts span a namespace each: event-router
   (`lore-event-router`), cluster-agent (`lore-cluster-agent`), Lore API (`lore-api`),
   the lore-mcp gateway (also `lore-api`), the stations service (`lore-stations`),
   Web UI (`lore-ui`), lore-db (`lore-db`), and the ai-agent-subsystem — the
@@ -218,7 +218,7 @@ The token is also prompted for interactively on first install. Re-run
 kubectl get deployments -A | grep -E 'lore-|ai-agents'
 
 # Or one namespace at a time (kubectl takes a single -n)
-for ns in lore-floor lore-api lore-ui lore-db lore-event-router \
+for ns in lore-api lore-ui lore-db lore-event-router \
           lore-stations lore-cluster-agent ai-agents; do
   echo "== $ns"; kubectl get deployments -n "$ns"
 done
