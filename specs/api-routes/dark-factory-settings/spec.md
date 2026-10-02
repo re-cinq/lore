@@ -118,23 +118,25 @@ in; method resolved inside)
 ### Two-key verification (`verifyApproval`, dark-factory-authz.ts)
 
 1. Parse `prRef` as `owner/repo#N` — malformed → `TwoKeyError(invalid_pr_ref)`.
-   ([validated by `dark-factory-authz.test.ts:63`](apps/lore-api/src/work/dark-factory/dark-factory-authz.test.ts#L63), [`dark-factory-authz.test.ts:67`](apps/lore-api/src/work/dark-factory/dark-factory-authz.test.ts#L67))
+   ([validated by `dark-factory-authz.test.ts:63`](apps/lore-api/src/work/dark-factory/dark-factory-authz.test.ts#L96), [`dark-factory-authz.test.ts:67`](apps/lore-api/src/work/dark-factory/dark-factory-authz.test.ts#L100))
 2. PR repo must equal `targetRepo` → else `TwoKeyError(wrong_repo)`.
-   ([validated by `dark-factory-authz.test.ts:78`](apps/lore-api/src/work/dark-factory/dark-factory-authz.test.ts#L78))
+   ([validated by `dark-factory-authz.test.ts:78`](apps/lore-api/src/work/dark-factory/dark-factory-authz.test.ts#L111))
 3. `pulls.get` — 404 → `pr_not_found`; other error → `github_api`.
-   ([validated by `dark-factory-authz.test.ts:91`](apps/lore-api/src/work/dark-factory/dark-factory-authz.test.ts#L91), [`dark-factory-authz.test.ts:101`](apps/lore-api/src/work/dark-factory/dark-factory-authz.test.ts#L101))
+   ([validated by `dark-factory-authz.test.ts:91`](apps/lore-api/src/work/dark-factory/dark-factory-authz.test.ts#L124), [`dark-factory-authz.test.ts:101`](apps/lore-api/src/work/dark-factory/dark-factory-authz.test.ts#L134))
 4. PR state must be `open` → else `pr_state`.
-   ([validated by `dark-factory-authz.test.ts:116`](apps/lore-api/src/work/dark-factory/dark-factory-authz.test.ts#L116))
-5. `issues.listEvents` → find the `labeled` event whose label is
-   `dark-factory-approval`; none → `label_missing`. `approver = event.actor.login`.
-   ([validated by `dark-factory-authz.test.ts:129`](apps/lore-api/src/work/dark-factory/dark-factory-authz.test.ts#L129), [`dark-factory-authz.test.ts:144`](apps/lore-api/src/work/dark-factory/dark-factory-authz.test.ts#L144), [`dark-factory-authz.test.ts:159`](apps/lore-api/src/work/dark-factory/dark-factory-authz.test.ts#L159))
+   ([validated by `dark-factory-authz.test.ts:116`](apps/lore-api/src/work/dark-factory/dark-factory-authz.test.ts#L149))
+5. The PR must currently carry the `dark-factory-approval` label → else
+   `label_missing`. `issues.listEvents` (paginated) names the label's most recent applier.
+   ([validated by `dark-factory-authz.test.ts:129`](apps/lore-api/src/work/dark-factory/dark-factory-authz.test.ts#L162), [`dark-factory-authz.test.ts:144`](apps/lore-api/src/work/dark-factory/dark-factory-authz.test.ts#L177), [`dark-factory-authz.test.ts:159`](apps/lore-api/src/work/dark-factory/dark-factory-authz.test.ts#L192))
 6. Fetch CODEOWNERS (`.github/CODEOWNERS`, `CODEOWNERS`, `docs/CODEOWNERS` in
-   order). `isCodeowner(approver, …)` must be true; else `approver_not_codeowner`
-   (or `team_membership_unresolved` when CODEOWNERS lists only `@org/team`
-   handles).
-   ([validated by `dark-factory-authz.test.ts:189`](apps/lore-api/src/work/dark-factory/dark-factory-authz.test.ts#L189), [`dark-factory-authz.test.ts:205`](apps/lore-api/src/work/dark-factory/dark-factory-authz.test.ts#L205), [`dark-factory-authz.test.ts:221`](apps/lore-api/src/work/dark-factory/dark-factory-authz.test.ts#L221), [`dark-factory-authz.test.ts:237`](apps/lore-api/src/work/dark-factory/dark-factory-authz.test.ts#L237))
+   order). The approver is that applier when they own `CLAUDE.md`, otherwise a
+   `CLAUDE.md` owner whose latest decisive review (`pulls.listReviews`, paginated;
+   a later changes-requested or dismissed review cancels an approval) is APPROVED;
+   neither → `approver_not_codeowner` (or `team_membership_unresolved` when
+   CODEOWNERS lists only `@org/team` handles).
+   ([validated by `dark-factory-authz.test.ts:189`](apps/lore-api/src/work/dark-factory/dark-factory-authz.test.ts#L222), [`dark-factory-authz.test.ts:205`](apps/lore-api/src/work/dark-factory/dark-factory-authz.test.ts#L238), [`dark-factory-authz.test.ts:221`](apps/lore-api/src/work/dark-factory/dark-factory-authz.test.ts#L254), [`dark-factory-authz.test.ts:237`](apps/lore-api/src/work/dark-factory/dark-factory-authz.test.ts#L492))
 7. Success → `{ prRef, approver, prUrl }`.
-   ([validated by `dark-factory-authz.test.ts:174`](apps/lore-api/src/work/dark-factory/dark-factory-authz.test.ts#L174))
+   ([validated by `dark-factory-authz.test.ts:174`](apps/lore-api/src/work/dark-factory/dark-factory-authz.test.ts#L207))
 
 ## Response strings (verbatim)
 
