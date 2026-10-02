@@ -392,6 +392,12 @@ controller and network fences, and no recipe.
 
 ## Amendment (2026-09-10): git credentials come from a broker, not the pod
 
+> **Removed on 2026-10-02.** `POST /api/github-credentials` is deleted from
+> lore-api: only a claim by Lore's cluster agent minted its URL, and that
+> agent no longer runs. The floor's pods get their git credential from
+> `POST /api/floor/git-credential`. The decision below is kept as the record
+> of how the broker worked.
+
 D6's per-task token was a copy made at launch: the cluster-agent minted an
 installation token into the shared `agent-secrets` Secret, and the pod read it
 once. Three failures came from that one design — the Secret filling past its
@@ -406,7 +412,7 @@ sits in a Secret at all.
   grants nothing on GitHub by itself. ([validated by returns the claims of a credential signed with the same key before it expires](libs/shared/src/domain/github-credential/run-credential.test.ts#L12))
 - The claim that hands a cluster-agent its station run also hands it that run's
   credential, bound to the run's station-run id and its target repo and valid
-  for 24 hours from the claim; the broker's run-closed check ends it sooner. ([validated by issues a run credential for re-cinq/lore bound to the claimed station run, expiring 24h after the claim](apps/lore-api/src/transport/routes/cluster-agents/claim.test.ts#L151))
+  for 24 hours from the claim; the broker's run-closed check ends it sooner.
 - The cluster-agent passes that credential to the pod as the `git_credential`
   CR parameter, beside `git_credential_url` — the broker on the lore-api it
   claimed from — so a satellite's pod reaches the same broker as a central
@@ -427,16 +433,16 @@ sits in a Secret at all.
   both stores answer that lookup the same way. ([validated by findStationRunById returns the open review visit its station run id names](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L1364))
 - `POST /api/github-credentials` hands an open run a token for its repo in the
   git credential-helper shape (`x-access-token` plus the token), minted at the
-  moment git asks. ([validated by hands the open fix-ci visit a fresh token for re-cinq/bowman-ui as the git username/password pair](apps/lore-api/src/transport/routes/github-credentials/github-credentials.test.ts#L50))
+  moment git asks.
 - A credential the broker cannot verify gets a 401 naming why, and a verified
-  one whose run has closed gets a 403; in neither case is a token minted. ([validated by refuses a credential signed with another key with 401 bad-signature and mints nothing](apps/lore-api/src/transport/routes/github-credentials/github-credentials.test.ts#L62), [refuses the fix-ci visit that already finished with 403 run-closed and mints nothing](apps/lore-api/src/transport/routes/github-credentials/github-credentials.test.ts#L71))
+  one whose run has closed gets a 403; in neither case is a token minted.
 - The route is served for real: over HTTP against Postgres, the bearer, the body
   and the station-run lookup are wired end to end, and a forged credential is
-  refused with a 401 before GitHub is ever called. ([validated by refuses a credential signed with another key with 401 bad-signature over HTTP](apps/lore-api/src/integration-tests/github-credentials.test.ts#L48))
+  refused with a 401 before GitHub is ever called.
 - The signing key is an HMAC of the ingest token under a fixed label, so no new
   secret has to be provisioned and a run credential never reuses the ingest
   token itself; without an ingest token lore-api refuses to sign anything rather
-  than sign with an empty key. ([validated by derives eef1993b…00f6df from ingest token ingest-token-for-tests, a domain-separated HMAC rather than the token itself](apps/lore-api/src/work/github-credential/run-credential-key.test.ts#L5), [refuses to derive a key when LORE_INGEST_TOKEN is unset, naming the variable](apps/lore-api/src/work/github-credential/run-credential-key.test.ts#L11))
+  than sign with an empty key.
 
 ## Amendment (2026-10-02): Lore no longer runs a controller or a cluster agent
 

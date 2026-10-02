@@ -64,18 +64,9 @@ import { slackEventsRoute } from "./routes/webhooks/webhook-slack-events.js";
 import { incidentWebhookRoute } from "./routes/webhooks/webhook-incident.js";
 import { repoWebhookRoutes } from "./routes/webhooks/webhook.js";
 import { tokensRoute } from "./routes/tokens/tokens.js";
-import { clusterAgentRegisterRoute } from "./routes/cluster-agents/register.js";
-import { clusterAgentClaimRoute } from "./routes/cluster-agents/claim.js";
-import { clusterAgentCatalogEventsRoute } from "./routes/cluster-agents/catalog-events.js";
-import { clusterAgentCatalogStatusRoute } from "./routes/cluster-agents/catalog-status.js";
 import { agentDefinitionUsageRoute } from "./routes/agent-definitions/usage.js";
 import { orgAgentDefinitionsRoute } from "./routes/agent-definitions/org-list.js";
 import { orgAgentDefinitionUpdateRoute } from "./routes/agent-definitions/org-update.js";
-import { clusterAgentPauseRoute } from "./routes/cluster-agents/pause.js";
-import { clusterAgentRestartRoute } from "./routes/cluster-agents/restart.js";
-import { clusterAgentHeartbeatRoute } from "./routes/cluster-agents/heartbeat.js";
-import { clusterAgentReleaseRoute } from "./routes/cluster-agents/release.js";
-import { clusterAgentListRoute } from "./routes/cluster-agents/list.js";
 import {
   agentsGetRoute,
   agentsPostRoute,
@@ -102,7 +93,6 @@ import { plansRoutes } from "./routes/plans/plans.js";
 import type { PlanVerbSeams } from "./routes/plans/plan-verbs-for.js";
 import { implementationLoopRoutes } from "./routes/backlog/backlog.js";
 import { openApiJsonRoute, docsRoute } from "./routes/openapi/openapi.js";
-import { githubCredentialsRoute } from "./routes/github-credentials/github-credentials.js";
 import { floorGitCredentialRoute } from "./routes/floor/git-credential.js";
 import { reviewStartRoute } from "./routes/floor/review-start.js";
 import { floorRunsRoute, floorRunPages } from "./routes/floor/floor-runs.js";
@@ -127,7 +117,6 @@ export function routeList(
     ...memoryRoutes(getPool),
     ...ingestRoutes(getPool),
     ...webhookRoutes(getPool),
-    ...clusterAgentRoutes(getPool),
     ...integrationRoutes(getPool),
     ...agentDefinitionRoutes(getPool),
     ...analyticsRoutes(getPool),
@@ -135,10 +124,9 @@ export function routeList(
   ];
 }
 
-/** What the platform lends the GitHub App and the floor: credentials, the installations, and the review the run page starts. */
+/** What the platform lends the GitHub App and the floor: the floor's git credential, the installations, and the review the run page starts. */
 function integrationRoutes(getPool: PoolGetter): ServerRoute[] {
   return [
-    githubCredentialsRoute(getPool),
     floorGitCredentialRoute(),
     reviewStartRoute(),
     floorRunsRoute(floorRunPages),
@@ -262,26 +250,11 @@ function webhookRoutes(getPool: PoolGetter): ServerRoute[] {
   ];
 }
 
-/** The pull-only dispatch surface: a cluster agent registers, claims, heartbeats and releases through here. */
-function clusterAgentRoutes(getPool: PoolGetter): ServerRoute[] {
-  return [
-    clusterAgentRegisterRoute(getPool),
-    clusterAgentClaimRoute(getPool),
-    clusterAgentCatalogEventsRoute(getPool),
-    clusterAgentPauseRoute(getPool),
-    clusterAgentRestartRoute(getPool),
-    clusterAgentHeartbeatRoute(getPool),
-    clusterAgentReleaseRoute(getPool),
-    clusterAgentListRoute(getPool),
-    clusterAgentCatalogStatusRoute(getPool),
-  ];
-}
-
 /** The recipes a run resolves by name, read and edited here. */
 function agentDefinitionRoutes(getPool: PoolGetter): ServerRoute[] {
   return [
     agentsGetRoute(getPool),
-    agentDefinitionUsageRoute(getPool),
+    agentDefinitionUsageRoute(),
     orgAgentDefinitionsRoute(getPool),
     orgAgentDefinitionUpdateRoute(getPool),
     agentsPostRoute(getPool),
