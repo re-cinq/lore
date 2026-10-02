@@ -2,8 +2,6 @@ import { enforceTrue } from "../../lib/enforce.js";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   buildVertexUrl,
-  resolveVertexProject,
-  resetVertexProjectCache,
   getQueryEmbedding,
   getQueryEmbeddings,
   embeddingBatches,
@@ -11,11 +9,12 @@ import {
   embedderDegraded,
   resetEmbeddingHealth,
 } from "./embedding-service.js";
+import { resetGoogleProjectCache } from "../google/access-token.js";
 
 const SAVED = { ...process.env };
 
 beforeEach(() => {
-  resetVertexProjectCache();
+  resetGoogleProjectCache();
   delete process.env.GCP_PROJECT;
   delete process.env.GOOGLE_CLOUD_PROJECT;
   delete process.env.GOOGLE_ACCESS_TOKEN;
@@ -23,7 +22,7 @@ beforeEach(() => {
 afterEach(() => {
   process.env = { ...SAVED };
   vi.unstubAllGlobals();
-  resetVertexProjectCache();
+  resetGoogleProjectCache();
 });
 
 describe("buildVertexUrl", () => {
@@ -31,29 +30,6 @@ describe("buildVertexUrl", () => {
     expect(buildVertexUrl("my-gcp-project", "europe-west1")).toBe(
       "https://europe-west1-aiplatform.googleapis.com/v1/projects/my-gcp-project/locations/europe-west1/publishers/google/models/text-embedding-005:predict",
     );
-  });
-});
-
-describe("resolveVertexProject", () => {
-  it("returns GCP_PROJECT from the environment without hitting the metadata server", async () => {
-    process.env.GCP_PROJECT = "proj-from-env";
-    const fetchMock = vi.fn();
-
-    vi.stubGlobal("fetch", fetchMock);
-    expect(await resolveVertexProject()).toBe("proj-from-env");
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it("falls back to the GKE metadata server project-id when env is unset", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (url: string) =>
-        url.includes("/project/project-id")
-          ? ({ ok: true, text: async () => "proj-from-metadata\n" } as Response)
-          : ({ ok: false } as Response),
-      ),
-    );
-    expect(await resolveVertexProject()).toBe("proj-from-metadata");
   });
 });
 

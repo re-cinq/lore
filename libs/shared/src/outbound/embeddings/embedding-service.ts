@@ -1,5 +1,10 @@
 // Vertex AI text-embedding-005 via plain fetch (we run CNPG, not managed AlloyDB, so no embedding() function); degrades to null when no credential/project is available so callers fall back to keyword-only search.
 
+import {
+  resolveGoogleAccessToken,
+  resolveGoogleProject,
+} from "../google/access-token.js";
+
 const VERTEX_REGION = process.env.GCP_REGION || "europe-west1";
 const VERTEX_MODEL = "text-embedding-005";
 
@@ -40,9 +45,6 @@ export function embeddingHealth(): EmbeddingHealth {
 export function resetEmbeddingHealth(): void {
   health = { ...HEALTHY };
 }
-
-// Resolved at call time (env, then GKE metadata server) — resolving once at module load left it "" in agent/CronJob pods, producing a malformed URL instead of degrading to null.
-let cachedProject: string | null = null;
 
 export async function getQueryEmbedding(
   query: string,
@@ -104,7 +106,7 @@ export async function getQueryEmbeddings(
 async function embedWithCredentials(
   texts: string[],
 ): Promise<Array<number[] | null>> {
-  const token = await resolveAccessToken();
+  const token = await resolveGoogleAccessToken();
   const project = token ? await resolveProjectOrWarn() : "";
 
   if (!token || !project) {
@@ -121,25 +123,8 @@ async function embedWithCredentials(
   return vectors;
 }
 
-async function resolveAccessToken(): Promise<string> {
-  try {
-    const metaRes = await fetch(
-      "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token",
-      {
-        signal: AbortSignal.timeout(30_000),
-        headers: { "Metadata-Flavor": "Google" },
-      },
-    );
-    const metaJson = (await metaRes.json()) as { access_token: string };
-
-    return metaJson.access_token;
-  } catch {
-    return process.env.GOOGLE_ACCESS_TOKEN || "";
-  }
-}
-
 async function resolveProjectOrWarn(): Promise<string> {
-  const project = await resolveVertexProject();
+  const project = await resolveGoogleProject();
 
   if (!project) {
     console.error(
@@ -148,48 +133,6 @@ async function resolveProjectOrWarn(): Promise<string> {
   }
 
   return project;
-}
-
-export async function resolveVertexProject(): Promise<string> {
-  if (cachedProject !== null) {
-    return cachedProject;
-  }
-  const fromEnv = fromEnvProject();
-
-  if (fromEnv) {
-    return (cachedProject = fromEnv);
-  }
-
-  return (cachedProject = await fetchMetadataProject());
-}
-
-function fromEnvProject(): string {
-  return process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || "";
-}
-
-async function fetchMetadataProject(): Promise<string> {
-  try {
-    const res = await fetch(
-      "http://metadata.google.internal/computeMetadata/v1/project/project-id",
-      {
-        signal: AbortSignal.timeout(30_000),
-        headers: { "Metadata-Flavor": "Google" },
-      },
-    );
-
-    if (!res.ok) {
-      return "";
-    }
-
-    return (await res.text()).trim();
-  } catch {
-    return "";
-  }
-}
-
-/** Reset the process-cached project resolution — for tests. */
-export function resetVertexProjectCache(): void {
-  cachedProject = null;
 }
 
 async function fetchVertexEmbeddings(

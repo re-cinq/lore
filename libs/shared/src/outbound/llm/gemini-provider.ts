@@ -28,11 +28,23 @@ interface GeminiResponse {
   usageMetadata?: GeminiUsageMetadata;
 }
 
+/** Where one generateContent call goes and what authenticates it. */
+export interface GenerateTarget {
+  url: string;
+  headers: Record<string, string>;
+}
+
+/** Names the target for a model at call time, so a credential is read when it is needed and never at boot. */
+export type GenerateEndpoint = (model: string) => Promise<GenerateTarget>;
+
 export interface GeminiProviderOptions {
   model?: string;
   apiKey?: string;
   usage?: UsagePort;
   fetchFn?: typeof fetch;
+  /** The Gemini API by key unless another host serves the same body (Vertex). */
+  endpoint?: GenerateEndpoint;
+  vendor?: string;
 }
 
 interface GeminiCallMetrics {
@@ -153,23 +165,37 @@ function generateBody({
 }
 
 function generateInit(
-  apiKey: string,
+  headers: Record<string, string>,
   body: Record<string, unknown>,
 ): RequestInit {
   return {
     method: "POST",
-    headers: {
-      "x-goog-api-key": apiKey,
-      "Content-Type": "application/json",
-    },
+    headers: { ...headers, "Content-Type": "application/json" },
     body: JSON.stringify(body),
   };
 }
 
-export class GeminiProvider implements LlmProvider {
-  readonly vendor = "gemini";
+function apiKeyEndpoint(configuredKey?: string): GenerateEndpoint {
+  return async (model) => {
+    const apiKey = configuredKey ?? process.env.GEMINI_API_KEY;
 
-  constructor(private readonly opts: GeminiProviderOptions = {}) {}
+    enforceTrue(apiKey, Error, "GEMINI_API_KEY not set");
+
+    return {
+      url: `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+      headers: { "x-goog-api-key": apiKey },
+    };
+  };
+}
+
+export class GeminiProvider implements LlmProvider {
+  readonly vendor: string;
+  private readonly endpoint: GenerateEndpoint;
+
+  constructor(private readonly opts: GeminiProviderOptions = {}) {
+    this.vendor = opts.vendor ?? "gemini";
+    this.endpoint = opts.endpoint ?? apiKeyEndpoint(opts.apiKey);
+  }
 
   private get model(): string {
     return this.opts.model || DEFAULT_MODEL;
@@ -209,14 +235,9 @@ export class GeminiProvider implements LlmProvider {
     model: string,
     req: GenerateRequest,
   ): Promise<GeminiResponse> {
-    const apiKey = this.opts.apiKey ?? process.env.GEMINI_API_KEY;
-
-    enforceTrue(apiKey, Error, "GEMINI_API_KEY not set");
+    const { url, headers } = await this.endpoint(model);
     const doFetch = this.opts.fetchFn ?? fetch;
-    const res = await doFetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-      generateInit(apiKey, generateBody(req)),
-    );
+    const res = await doFetch(url, generateInit(headers, generateBody(req)));
 
     if (!res.ok) {
       throw new Error(`Gemini API error: ${res.status} ${res.statusText}`);
