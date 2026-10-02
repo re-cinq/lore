@@ -201,7 +201,7 @@ conversation continuity, the shared view components — still runs, now for plan
 ### FR-13: Failure Visibility
 
 - FR-13.1: A planning round is finished only when its GapResult actually landed. A line that ends without one — whatever its outcome — marks the iteration `failed` and restores the feature per the same rule the synchronous path uses, instead of leaving the round `running` and the wizard spinning forever. A round that did post its result is left untouched.
-- FR-13.4: A per-task GitHub token that mints empty MUST fail at the mint, naming the repo and the App variables to check. An empty token writes a present-but-useless Secret key, so the pod starts and then dies in its init container on `git clone` with GitHub's deliberately uninformative "Repository not found" — a cause visible only in pod logs. ([validated by GithubTokenMinter throws naming the repo and the App vars when the token comes back empty](apps/cluster-agent/src/outbound/kube-token-provisioner.test.ts#L19), [`kube-token-provisioner.test.ts:11`](apps/cluster-agent/src/outbound/kube-token-provisioner.test.ts#L11), [impl](apps/cluster-agent/src/outbound/kube-token-provisioner.ts))
+- FR-13.4: A per-task GitHub token that mints empty MUST fail at the mint, naming the repo and the App variables to check. An empty token writes a present-but-useless Secret key, so the pod starts and then dies in its init container on `git clone` with GitHub's deliberately uninformative "Repository not found" — a cause visible only in pod logs.
 
 ### Scenario 6: A merged spec decomposes into stories + tasks
 

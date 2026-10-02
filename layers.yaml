@@ -16,58 +16,8 @@
 # npm and `node:` specifiers are never governed; package.json owns those.
 
 layers:
-  apps/cluster-agent:
-    ".":
-      - transport
-      - events
-      - work
-      - outbound
-      - "@re-cinq/lore-shared"
-    transport:
-      - domain
-      - outbound
-      - lib
-      - "@re-cinq/agent-contracts"
-      - "@re-cinq/lore-shared"
-    # `listeners/` (the Agent-CR watch) and `claim/` (registration, heartbeat,
-    # the claim loop) — both are how work arrives, so both are this tier.
-    events:
-      - work
-      - domain
-      - outbound
-      - lib
-      - "@re-cinq/agent-contracts"
-      - "@re-cinq/lore-shared"
-    work:
-      - domain
-      - outbound
-      - lib
-      - "@re-cinq/agent-contracts"
-      - "@re-cinq/lore-shared"
-    # Shared is listed because the CR contracts reference shared's pod/agent TYPES.
-    # A package is not a tier above, so this is not an upward edge — but it is the
-    # edge that closes properly only once libs/shared is itself tiered.
-    domain:
-      - "@re-cinq/agent-contracts"
-      - "@re-cinq/lore-shared"
-    outbound:
-      - domain
-      - lib
-      - "@re-cinq/agent-contracts"
-      - "@re-cinq/lore-shared"
-    lib:
-      - "@re-cinq/lore-shared"
-    # A suite whose subject IS the collaboration between two tiers has to see
-    # both; the repo already treats `integration-tests` as that place.
-    integration-tests:
-      - work
-      - domain
-      - outbound
-      - "@re-cinq/agent-contracts"
-      - "@re-cinq/lore-shared"
-
   # The pooled station service. `kernel` reaches `delivery` and `stations` today,
-  # the same substrate-imports-upward shape as cluster-agent.
+  # the same substrate-imports-upward shape.
   apps/stations:
     ".":
       - transport

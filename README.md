@@ -27,7 +27,7 @@ Beyond context, Lore is an **agent operating system**. It runs background agents
 ## Repository layout
 
 ```
-apps/        services      event-router · cluster-agent · lore-api · stations · mcp-server · web-ui
+apps/        services      event-router · lore-api · stations · mcp-server · web-ui
              images/tools  lore-code-trace (Go binary) · vscode-extension
 libs/        shared libraries           shared (@re-cinq/lore-shared) · assembly-lines (@re-cinq/lore-assembly-lines) · server-core (@re-cinq/lore-server-core)
 infra/       deploy & runtime           terraform (the `lore-platform` umbrella chart) · compose.yaml · chart-ci-values

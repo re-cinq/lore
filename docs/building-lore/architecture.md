@@ -10,7 +10,7 @@ Read it top to bottom for the full picture, or jump to the section you're touchi
 
 How the pieces connect at runtime. The local MCP server proxies every operation to the GKE backend, so all context and memory is org-wide.
 
-Two boundaries are load-bearing and enforced by credentials rather than convention. **`event-router` is the only writer of `pipeline.events`** ([ADR-044](../../adrs/ADR-044-event-router-owns-the-event-bus.md)): every producer reports to its one front door, and each subscriber (today the stations service) claims its deliveries back over HTTP. **`cluster-agent` is the only Lore process that talks to this cluster's Kubernetes API**; nothing dispatches work through it since the engine Lore ran itself was deleted, and its removal is tracked in #2428.
+Two boundaries are load-bearing and enforced by credentials rather than convention. **`event-router` is the only writer of `pipeline.events`** ([ADR-044](../../adrs/ADR-044-event-router-owns-the-event-bus.md)): every producer reports to its one front door, and each subscriber (today the stations service) claims its deliveries back over HTTP. Lore runs no cluster agent: agents run in pods of the external floor (ADR-049).
 
 <p align="center"><img src="../../badges/architecture.svg" width="720" alt="System topology: developer machine, the GKE services, GitHub and Slack" /></p>
 

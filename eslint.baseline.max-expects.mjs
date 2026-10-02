@@ -10,8 +10,6 @@
  * Generated 2026-09-09 from 417 findings across 222 files.
  */
 export const MAX_EXPECTS_BASELINE = [
-  "apps/cluster-agent/src/events/claim/claim-loop.test.ts",
-  "apps/cluster-agent/src/work/catalog/catalog-sync-loop.test.ts",
   "apps/lore-api/src/integration-tests/catalog-events.test.ts",
   "apps/lore-api/src/integration-tests/pipeline.test.ts",
   "apps/lore-api/src/transport/http/rate-limit.test.ts",
