@@ -125,8 +125,9 @@ a debugging affordance rather than a fault-tolerance one.
 
 The fork stopped being programmatic-only: the run page's node inspector offers
 "Retry from this node" on a terminal run, and the click travels
-web-ui → lore-api `POST /api/assembly-runs` → the FR1 `resumeFrom` start. ([offers retry in the node card's header on a finished run, posting the implement fork source](apps/web-ui/src/app/assembly-runs/[id]/RunVisualizationPanel.test.tsx#L832), [`start-run.test.ts:163`](apps/lore-api/src/transport/routes/assembly-lines/start-run.test.ts#L165)) The
-retried node is never named on the wire — the button names the fork SOURCE (the
+web-ui → lore-api `POST /api/assembly-runs` → the FR1 `resumeFrom` start. ([offers retry in the node card's header on a finished run, posting the implement fork source](apps/web-ui/src/app/assembly-runs/[id]/RunVisualizationPanel.test.tsx#L832), [`start-run.test.ts:163`](apps/lore-api/src/transport/routes/assembly-lines/start-run.test.ts#L165))
+
+The retried node is never named on the wire — the button names the fork SOURCE (the
 kept prefix's last visit) and the walk replays the retried node as its
 successor, so the HTTP surface adds no second routing rule. ([validated by `retry-resume.test.ts:11`](apps/web-ui/src/app/assembly-runs/[id]/retry-resume.test.ts#L11), [offers retry in the node card's header on a finished run, posting the implement fork source](apps/web-ui/src/app/assembly-runs/[id]/RunVisualizationPanel.test.tsx#L832))
 

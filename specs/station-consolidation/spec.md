@@ -246,7 +246,7 @@ subscribe" has no expressible meaning on the current substrate.
   Exactly one episode is written per run. Three blueprints also carry that
   station MID-graph, where it does dispatch and does write; for those the Floor
   stands down at the exit rather than writing a second.
- 
+
 
 - **FR19 — a station that calls a model is given a credential, and says so when
   it cannot.** A station's recipe declares whether it needs the model credential,
