@@ -79,7 +79,6 @@ import { clusterAgentRestartRoute } from "./routes/cluster-agents/restart.js";
 import { clusterAgentHeartbeatRoute } from "./routes/cluster-agents/heartbeat.js";
 import { clusterAgentReleaseRoute } from "./routes/cluster-agents/release.js";
 import { clusterAgentListRoute } from "./routes/cluster-agents/list.js";
-import { darkFactoryRoute } from "./routes/dark-factory/dark-factory.js";
 import {
   agentsGetRoute,
   agentsPostRoute,
@@ -178,7 +177,6 @@ function repoRoutes(getPool: PoolGetter): ServerRoute[] {
     ...chunkBrowseRoutes(getPool),
     graphRoute(getPool),
     onboardRoute(getPool),
-    ...darkFactoryRoute(getPool),
   ];
 }
 

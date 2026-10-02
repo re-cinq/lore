@@ -1680,24 +1680,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/repos/{owner}/{repo}/settings/dark-factory": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/repos/{owner}/{repo}/settings/dark-factory */
-    get: operations["get_api_repos_owner_repo_settings_dark-factory"];
-    /** PUT /api/repos/{owner}/{repo}/settings/dark-factory */
-    put: operations["put_api_repos_owner_repo_settings_dark-factory"];
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   "/api/repos/{owner}/{repo}/tasks": {
     parameters: {
       query?: never;
@@ -2840,46 +2822,6 @@ export interface components {
       /** @constant */
       ok: true;
     };
-    DarkFactorySettings: {
-      enabled: boolean;
-      /** @enum {string} */
-      create_issue: "never" | "on_gate" | "always";
-      auto_merge: {
-        paths: string[];
-        /** @enum {string} */
-        min_trust: "docs" | "tests" | "implementation" | "full";
-        require_green_ci: boolean;
-        require_bot_approval: boolean;
-      };
-      /** @enum {string} */
-      review: "trust_based" | "always" | "never";
-      notify: ("escalation" | "watched" | "all")[];
-    };
-    DarkFactorySettingsApplied: {
-      /** @constant */
-      ok: true;
-      applied: {
-        enabled: boolean;
-        /** @enum {string} */
-        create_issue: "never" | "on_gate" | "always";
-        auto_merge: {
-          paths: string[];
-          /** @enum {string} */
-          min_trust: "docs" | "tests" | "implementation" | "full";
-          require_green_ci: boolean;
-          require_bot_approval: boolean;
-        };
-        /** @enum {string} */
-        review: "trust_based" | "always" | "never";
-        notify: ("escalation" | "watched" | "all")[];
-      };
-      ceremony: {
-        /** @enum {string} */
-        tier: "two_key" | "admin";
-        pr_ref?: string;
-        approver?: string;
-      };
-    };
     DodProgress: {
       present: boolean;
       ticketClaim?: string;
@@ -3694,24 +3636,6 @@ export interface components {
       onboarding_pr_merged: boolean;
       settings:
         | ({
-            dark_factory?: {
-              enabled?: boolean;
-              /** @enum {string} */
-              create_issue?: "never" | "on_gate" | "always";
-              auto_merge?: {
-                paths?: string[];
-                /** @enum {string} */
-                min_trust?: "docs" | "tests" | "implementation" | "full";
-                require_green_ci?: boolean;
-                require_bot_approval?: boolean;
-              };
-              /** @enum {string} */
-              review?: "trust_based" | "always" | "never";
-              notify?: ("escalation" | "watched" | "all")[];
-              execution?: {
-                image?: string;
-              };
-            };
             trust?: {
               /** @enum {string} */
               level?: "docs" | "tests" | "implementation" | "full";
@@ -3721,19 +3645,6 @@ export interface components {
               [key: string]: unknown;
             };
             task_types?: string[];
-            task_overrides?: {
-              [key: string]: {
-                model?: string;
-                timeout_minutes?: number;
-                system_prompt_suffix?: string;
-                review_required?: boolean;
-                execution?: {
-                  image?: string;
-                };
-              } & {
-                [key: string]: unknown;
-              };
-            };
             auto_review?: boolean;
             implementation_loop?: {
               enabled?: boolean;
@@ -3767,7 +3678,6 @@ export interface components {
     };
     RepoActivityCounts: {
       tasks: number | null;
-      auto_merged: number | null;
     };
     RepoChunkSummary: {
       count: number;
@@ -3830,24 +3740,6 @@ export interface components {
         onboarding_pr_merged: boolean;
         settings:
           | ({
-              dark_factory?: {
-                enabled?: boolean;
-                /** @enum {string} */
-                create_issue?: "never" | "on_gate" | "always";
-                auto_merge?: {
-                  paths?: string[];
-                  /** @enum {string} */
-                  min_trust?: "docs" | "tests" | "implementation" | "full";
-                  require_green_ci?: boolean;
-                  require_bot_approval?: boolean;
-                };
-                /** @enum {string} */
-                review?: "trust_based" | "always" | "never";
-                notify?: ("escalation" | "watched" | "all")[];
-                execution?: {
-                  image?: string;
-                };
-              };
               trust?: {
                 /** @enum {string} */
                 level?: "docs" | "tests" | "implementation" | "full";
@@ -3857,19 +3749,6 @@ export interface components {
                 [key: string]: unknown;
               };
               task_types?: string[];
-              task_overrides?: {
-                [key: string]: {
-                  model?: string;
-                  timeout_minutes?: number;
-                  system_prompt_suffix?: string;
-                  review_required?: boolean;
-                  execution?: {
-                    image?: string;
-                  };
-                } & {
-                  [key: string]: unknown;
-                };
-              };
               auto_review?: boolean;
               implementation_loop?: {
                 enabled?: boolean;
@@ -7809,84 +7688,6 @@ export interface operations {
       400: components["responses"]["BadRequest"];
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
-      413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "get_api_repos_owner_repo_settings_dark-factory": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        owner: string;
-        repo: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Every dark-factory knob, resolved */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["DarkFactorySettings"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "put_api_repos_owner_repo_settings_dark-factory": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        owner: string;
-        repo: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          enabled?: boolean;
-          /** @enum {string} */
-          create_issue?: "never" | "on_gate" | "always";
-          auto_merge?: {
-            paths?: string[];
-            /** @enum {string} */
-            min_trust?: "docs" | "tests" | "implementation" | "full";
-            require_green_ci?: boolean;
-            require_bot_approval?: boolean;
-          };
-          /** @enum {string} */
-          review?: "trust_based" | "always" | "never";
-          notify?: ("escalation" | "watched" | "all")[];
-          execution?: {
-            image?: string;
-          };
-        };
-      };
-    };
-    responses: {
-      /** @description What the write applied, and under whose authority */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["DarkFactorySettingsApplied"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      409: components["responses"]["Conflict"];
       413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];

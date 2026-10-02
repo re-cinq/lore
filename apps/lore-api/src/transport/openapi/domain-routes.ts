@@ -2,16 +2,12 @@
 
 import type { ZodType } from "zod";
 import { AgentInputSchema } from "../../work/agents/agents-schema.js";
-import { DarkFactorySettingsSchema } from "../../work/dark-factory/dark-factory-settings.js";
 
 /** Concrete verbs for method:"*" routes (currently empty: split routes to per-verb + 405 fallback). */
 export const WILDCARD_METHODS: Record<string, string[]> = {};
 
 /** Paths where wildcard route exists ONLY to answer 405; undeclaredWildcards() fails if not listed. */
-export const METHOD_NOT_ALLOWED_FALLBACKS: string[] = [
-  "/api/tokens",
-  "/api/repos/{owner}/{repo}/settings/dark-factory",
-];
+export const METHOD_NOT_ALLOWED_FALLBACKS: string[] = ["/api/tokens"];
 
 /** How a domain-validated write route's request body is documented. */
 export type DomainBody =
@@ -29,11 +25,6 @@ export const DOMAIN_BODIES: Record<string, DomainBody> = {
   },
   "PUT /api/agent-definitions/{name}": {
     schema: AgentInputSchema,
-  },
-
-  // dark-factory — likewise (dark-factory-settings.ts).
-  "PUT /api/repos/{owner}/{repo}/settings/dark-factory": {
-    schema: DarkFactorySettingsSchema,
   },
 
   // tokens — a plain TS interface + residual checks; no single zod schema.

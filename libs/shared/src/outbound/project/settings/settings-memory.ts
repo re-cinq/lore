@@ -1,9 +1,4 @@
 import { randomUUID } from "node:crypto";
-import {
-  resolveDarkFactorySettings,
-  type DarkFactorySettings,
-  type ResolvedDarkFactorySettings,
-} from "../../../domain/dark-factory-settings.js";
 import type {
   SettingsPort,
   OnboardedRepo,
@@ -99,27 +94,6 @@ export class InMemorySettings implements SettingsPort {
 
   private row(repo: string): SeedRepo | undefined {
     return this.repos.find((r) => r.full_name === repo);
-  }
-
-  async resolve(repo: string): Promise<ResolvedDarkFactorySettings> {
-    return resolveDarkFactorySettings(this.darkFactory(repo));
-  }
-
-  async resolveOrNull(
-    repo: string,
-  ): Promise<ResolvedDarkFactorySettings | null> {
-    if (!this.row(repo)) {
-      return null;
-    }
-
-    return resolveDarkFactorySettings(this.darkFactory(repo));
-  }
-
-  private darkFactory(repo: string): DarkFactorySettings | undefined {
-    const settings = this.row(repo)?.settings as
-      { dark_factory?: DarkFactorySettings } | undefined;
-
-    return settings?.dark_factory;
   }
 
   async setRepoVariable(

@@ -30,10 +30,6 @@ export const CATEGORY_ORDER: Array<{ name: string; description: string }> = [
     description: "Spec-traceability queries and change impact.",
   },
   {
-    name: "Dark Factory",
-    description: "Autonomous-mode (dark factory) settings.",
-  },
-  {
     name: "Webhooks",
     description: "Inbound webhooks and per-repo webhook configuration.",
   },
@@ -79,7 +75,6 @@ const TAG_RULES: Array<[RegExp, string]> = [
   [/^\/api\/floor\/git-credential$/, "Cluster Agents"],
   // A review started by hand is a run started, the same as any other.
   [/^\/api\/review\/start$/, "Tasks"],
-  [/\/settings\/dark-factory\b/, "Dark Factory"],
   [/\/(trace|impact)\b/, "Traceability"],
   // The test links a spec carries are the traceability graph's validated-by edges, read before they are ingested.
   [/^\/api\/spec-links\b/, "Traceability"],

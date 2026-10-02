@@ -1,9 +1,8 @@
 # Agent instructions
 
-## Commit hygiene (dark-factory branches)
+## Commit hygiene (Lore-managed branches)
 
-When working on a Lore-managed branch in this repo (or any onboarded repo that
-has `dark_factory.enabled = true`), every commit you author must carry the
+When working on a Lore-managed branch in this repo or any onboarded repo, every commit you author must carry the
 structured trailer block at the end of the commit message body:
 
 ```

@@ -180,11 +180,9 @@ Under the hood both drive the standalone chart at `infra/terraform/modules/gke-m
 
 ## Dark Factory mode
 
-Dark Factory mode lets a repo run autonomously by default, with humans only at intent definition and stage-gate validation. Enabling it for a repo is a single per-repo switch — `lore.repos.settings.dark_factory.enabled = true` via the settings UI / API. Toggling it is a privileged change guarded by two-key authorization: admin scope **plus** an open PR labeled `dark-factory-approval` by a CODEOWNER of the repo's `CLAUDE.md`.
+There is no Dark Factory mode to switch on. It was a per-repo settings block (`dark_factory`: enabled, issue creation, auto-merge paths, review mode, notify channels) read by the assembly-line engine Lore ran itself. That engine was deleted on 2026-10-02 (ADR-049, epic #2342) and the settings went with it: the settings route, the Dark Factory tab and the stored block. Every assembly line now runs on the external floor, pull requests are merged by people, and no repository ever had the block set.
 
-All tasks execute on the ai-agent-subsystem (`Agent` CRs in the `ai-agents` namespace) regardless of mode; the legacy LoreTask path and its `LORE_DARK_FACTORY_CLUSTER_ENABLED` cluster gate were removed in the ADR-031 cutover. The setting defaults to **off**, so there's no behavior change for existing repos.
-
-Rollout, rollback, the pilot procedure, and audit-log queries live in `runbooks/dark-factory-rollback.md`. For the full design — branch-as-state, auto-merge gates, two-key authorization — see the [Architecture reference](../building-lore/architecture.md#dark-factory-mode), ADR-016, and `specs/6-dark-factory/`.
+Two things outlived it. Every Lore-authored commit still carries the `Lore-Task:` trailer. The two-key approval ceremony (admin scope plus an open pull request labeled `dark-factory-approval` by a CODEOWNER) still guards a custom agent image (`specs/two-key-approval`). The design record is ADR-016 and `specs/6-dark-factory/`.
 
 ---
 

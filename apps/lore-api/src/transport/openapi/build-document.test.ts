@@ -55,11 +55,10 @@ describe("generateOpenApi — coverage", () => {
     );
   });
 
-  it("records the lifted domain schemas (agents, dark-factory)", () => {
+  it("records the lifted agent-definitions domain schema", () => {
     expect(coverage.lifted).toEqual(
       expect.arrayContaining([
         "POST /api/repos/{owner}/{repo}/agent-definitions",
-        "PUT /api/repos/{owner}/{repo}/settings/dark-factory",
       ]),
     );
   });
@@ -104,11 +103,6 @@ describe("generateOpenApi — methods, scope, security", () => {
       "get",
       "post",
     ]);
-    expect(
-      Object.keys(
-        document.paths["/api/repos/{owner}/{repo}/settings/dark-factory"],
-      ).sort(),
-    ).toEqual(["get", "put"]);
   });
 
   it("merges verbs at a shared path and normalizes the optional param", () => {
@@ -159,7 +153,6 @@ describe("generateOpenApi — tag grouping", () => {
       "Cluster Agents",
       "Ingestion",
       "Traceability",
-      "Dark Factory",
       "Webhooks",
       "Analytics",
       "Tokens",
@@ -180,10 +173,6 @@ describe("generateOpenApi — tag grouping", () => {
     expect(
       document.paths["/api/repos/{owner}/{repo}/agent-definitions"].post.tags,
     ).toEqual(["Agents"]);
-    expect(
-      document.paths["/api/repos/{owner}/{repo}/settings/dark-factory"].get
-        .tags,
-    ).toEqual(["Dark Factory"]);
     expect(
       document.paths["/api/repos/{owner}/{repo}/ingest-graph"].post.tags,
     ).toEqual(["Ingestion"]);

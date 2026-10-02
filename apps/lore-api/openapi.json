@@ -48,10 +48,6 @@
       "description": "Spec-traceability queries and change impact."
     },
     {
-      "name": "Dark Factory",
-      "description": "Autonomous-mode (dark factory) settings."
-    },
-    {
       "name": "Webhooks",
       "description": "Inbound webhooks and per-repo webhook configuration."
     },
@@ -6600,190 +6596,6 @@
         }
       }
     },
-    "/api/repos/{owner}/{repo}/settings/dark-factory": {
-      "get": {
-        "operationId": "get_api_repos_owner_repo_settings_dark-factory",
-        "summary": "GET /api/repos/{owner}/{repo}/settings/dark-factory",
-        "tags": ["Dark Factory"],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "x-rate-limit-bucket": "default",
-        "responses": {
-          "200": {
-            "description": "Every dark-factory knob, resolved",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DarkFactorySettings"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          },
-          "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
-          }
-        },
-        "x-required-scope": "admin",
-        "parameters": [
-          {
-            "name": "owner",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "repo",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ]
-      },
-      "put": {
-        "operationId": "put_api_repos_owner_repo_settings_dark-factory",
-        "summary": "PUT /api/repos/{owner}/{repo}/settings/dark-factory",
-        "tags": ["Dark Factory"],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "x-rate-limit-bucket": "default",
-        "responses": {
-          "200": {
-            "description": "What the write applied, and under whose authority",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DarkFactorySettingsApplied"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "409": {
-            "$ref": "#/components/responses/Conflict"
-          },
-          "413": {
-            "$ref": "#/components/responses/PayloadTooLarge"
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          },
-          "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
-          }
-        },
-        "x-required-scope": "admin",
-        "parameters": [
-          {
-            "name": "owner",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "repo",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "enabled": {
-                    "type": "boolean"
-                  },
-                  "create_issue": {
-                    "type": "string",
-                    "enum": ["never", "on_gate", "always"]
-                  },
-                  "auto_merge": {
-                    "type": "object",
-                    "properties": {
-                      "paths": {
-                        "maxItems": 32,
-                        "type": "array",
-                        "items": {
-                          "type": "string"
-                        }
-                      },
-                      "min_trust": {
-                        "type": "string",
-                        "enum": ["docs", "tests", "implementation", "full"]
-                      },
-                      "require_green_ci": {
-                        "type": "boolean"
-                      },
-                      "require_bot_approval": {
-                        "type": "boolean"
-                      }
-                    },
-                    "additionalProperties": false
-                  },
-                  "review": {
-                    "type": "string",
-                    "enum": ["trust_based", "always", "never"]
-                  },
-                  "notify": {
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "enum": ["escalation", "watched", "all"]
-                    }
-                  },
-                  "execution": {
-                    "type": "object",
-                    "properties": {
-                      "image": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 256
-                      }
-                    },
-                    "additionalProperties": false
-                  }
-                },
-                "additionalProperties": false
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/repos/{owner}/{repo}/tasks": {
       "post": {
         "operationId": "post_api_repos_owner_repo_tasks",
@@ -10882,152 +10694,6 @@
         "required": ["ok"],
         "additionalProperties": false
       },
-      "DarkFactorySettings": {
-        "type": "object",
-        "properties": {
-          "enabled": {
-            "type": "boolean"
-          },
-          "create_issue": {
-            "type": "string",
-            "enum": ["never", "on_gate", "always"]
-          },
-          "auto_merge": {
-            "type": "object",
-            "properties": {
-              "paths": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "min_trust": {
-                "type": "string",
-                "enum": ["docs", "tests", "implementation", "full"]
-              },
-              "require_green_ci": {
-                "type": "boolean"
-              },
-              "require_bot_approval": {
-                "type": "boolean"
-              }
-            },
-            "required": [
-              "paths",
-              "min_trust",
-              "require_green_ci",
-              "require_bot_approval"
-            ],
-            "additionalProperties": false
-          },
-          "review": {
-            "type": "string",
-            "enum": ["trust_based", "always", "never"]
-          },
-          "notify": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "enum": ["escalation", "watched", "all"]
-            }
-          }
-        },
-        "required": [
-          "enabled",
-          "create_issue",
-          "auto_merge",
-          "review",
-          "notify"
-        ],
-        "additionalProperties": false
-      },
-      "DarkFactorySettingsApplied": {
-        "type": "object",
-        "properties": {
-          "ok": {
-            "type": "boolean",
-            "const": true
-          },
-          "applied": {
-            "type": "object",
-            "properties": {
-              "enabled": {
-                "type": "boolean"
-              },
-              "create_issue": {
-                "type": "string",
-                "enum": ["never", "on_gate", "always"]
-              },
-              "auto_merge": {
-                "type": "object",
-                "properties": {
-                  "paths": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  },
-                  "min_trust": {
-                    "type": "string",
-                    "enum": ["docs", "tests", "implementation", "full"]
-                  },
-                  "require_green_ci": {
-                    "type": "boolean"
-                  },
-                  "require_bot_approval": {
-                    "type": "boolean"
-                  }
-                },
-                "required": [
-                  "paths",
-                  "min_trust",
-                  "require_green_ci",
-                  "require_bot_approval"
-                ],
-                "additionalProperties": false
-              },
-              "review": {
-                "type": "string",
-                "enum": ["trust_based", "always", "never"]
-              },
-              "notify": {
-                "type": "array",
-                "items": {
-                  "type": "string",
-                  "enum": ["escalation", "watched", "all"]
-                }
-              }
-            },
-            "required": [
-              "enabled",
-              "create_issue",
-              "auto_merge",
-              "review",
-              "notify"
-            ],
-            "additionalProperties": false
-          },
-          "ceremony": {
-            "type": "object",
-            "properties": {
-              "tier": {
-                "type": "string",
-                "enum": ["two_key", "admin"]
-              },
-              "pr_ref": {
-                "type": "string"
-              },
-              "approver": {
-                "type": "string"
-              }
-            },
-            "required": ["tier"],
-            "additionalProperties": false
-          }
-        },
-        "required": ["ok", "applied", "ceremony"],
-        "additionalProperties": false
-      },
       "DodProgress": {
         "type": "object",
         "properties": {
@@ -13924,61 +13590,6 @@
               {
                 "type": "object",
                 "properties": {
-                  "dark_factory": {
-                    "type": "object",
-                    "properties": {
-                      "enabled": {
-                        "type": "boolean"
-                      },
-                      "create_issue": {
-                        "type": "string",
-                        "enum": ["never", "on_gate", "always"]
-                      },
-                      "auto_merge": {
-                        "type": "object",
-                        "properties": {
-                          "paths": {
-                            "type": "array",
-                            "items": {
-                              "type": "string"
-                            }
-                          },
-                          "min_trust": {
-                            "type": "string",
-                            "enum": ["docs", "tests", "implementation", "full"]
-                          },
-                          "require_green_ci": {
-                            "type": "boolean"
-                          },
-                          "require_bot_approval": {
-                            "type": "boolean"
-                          }
-                        },
-                        "additionalProperties": false
-                      },
-                      "review": {
-                        "type": "string",
-                        "enum": ["trust_based", "always", "never"]
-                      },
-                      "notify": {
-                        "type": "array",
-                        "items": {
-                          "type": "string",
-                          "enum": ["escalation", "watched", "all"]
-                        }
-                      },
-                      "execution": {
-                        "type": "object",
-                        "properties": {
-                          "image": {
-                            "type": "string"
-                          }
-                        },
-                        "additionalProperties": false
-                      }
-                    },
-                    "additionalProperties": false
-                  },
                   "trust": {
                     "type": "object",
                     "properties": {
@@ -13999,39 +13610,6 @@
                     "type": "array",
                     "items": {
                       "type": "string"
-                    }
-                  },
-                  "task_overrides": {
-                    "type": "object",
-                    "propertyNames": {
-                      "type": "string"
-                    },
-                    "additionalProperties": {
-                      "type": "object",
-                      "properties": {
-                        "model": {
-                          "type": "string"
-                        },
-                        "timeout_minutes": {
-                          "type": "number"
-                        },
-                        "system_prompt_suffix": {
-                          "type": "string"
-                        },
-                        "review_required": {
-                          "type": "boolean"
-                        },
-                        "execution": {
-                          "type": "object",
-                          "properties": {
-                            "image": {
-                              "type": "string"
-                            }
-                          },
-                          "additionalProperties": false
-                        }
-                      },
-                      "additionalProperties": {}
                     }
                   },
                   "auto_review": {
@@ -14163,12 +13741,9 @@
         "properties": {
           "tasks": {
             "type": ["number", "null"]
-          },
-          "auto_merged": {
-            "type": ["number", "null"]
           }
         },
-        "required": ["tasks", "auto_merged"],
+        "required": ["tasks"],
         "additionalProperties": false
       },
       "RepoChunkSummary": {
@@ -14382,66 +13957,6 @@
                     {
                       "type": "object",
                       "properties": {
-                        "dark_factory": {
-                          "type": "object",
-                          "properties": {
-                            "enabled": {
-                              "type": "boolean"
-                            },
-                            "create_issue": {
-                              "type": "string",
-                              "enum": ["never", "on_gate", "always"]
-                            },
-                            "auto_merge": {
-                              "type": "object",
-                              "properties": {
-                                "paths": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "string"
-                                  }
-                                },
-                                "min_trust": {
-                                  "type": "string",
-                                  "enum": [
-                                    "docs",
-                                    "tests",
-                                    "implementation",
-                                    "full"
-                                  ]
-                                },
-                                "require_green_ci": {
-                                  "type": "boolean"
-                                },
-                                "require_bot_approval": {
-                                  "type": "boolean"
-                                }
-                              },
-                              "additionalProperties": false
-                            },
-                            "review": {
-                              "type": "string",
-                              "enum": ["trust_based", "always", "never"]
-                            },
-                            "notify": {
-                              "type": "array",
-                              "items": {
-                                "type": "string",
-                                "enum": ["escalation", "watched", "all"]
-                              }
-                            },
-                            "execution": {
-                              "type": "object",
-                              "properties": {
-                                "image": {
-                                  "type": "string"
-                                }
-                              },
-                              "additionalProperties": false
-                            }
-                          },
-                          "additionalProperties": false
-                        },
                         "trust": {
                           "type": "object",
                           "properties": {
@@ -14467,39 +13982,6 @@
                           "type": "array",
                           "items": {
                             "type": "string"
-                          }
-                        },
-                        "task_overrides": {
-                          "type": "object",
-                          "propertyNames": {
-                            "type": "string"
-                          },
-                          "additionalProperties": {
-                            "type": "object",
-                            "properties": {
-                              "model": {
-                                "type": "string"
-                              },
-                              "timeout_minutes": {
-                                "type": "number"
-                              },
-                              "system_prompt_suffix": {
-                                "type": "string"
-                              },
-                              "review_required": {
-                                "type": "boolean"
-                              },
-                              "execution": {
-                                "type": "object",
-                                "properties": {
-                                  "image": {
-                                    "type": "string"
-                                  }
-                                },
-                                "additionalProperties": false
-                              }
-                            },
-                            "additionalProperties": {}
                           }
                         },
                         "auto_review": {
