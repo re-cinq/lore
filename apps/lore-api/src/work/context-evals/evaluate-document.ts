@@ -47,13 +47,14 @@ interface Verdict {
 }
 
 const QUESTION_SYSTEM =
-  "You write one question to test a search system. Given a document from a software repository, write a single question that a developer who has never seen this document would ask while working, and that this document answers. Ask about what the document decides or requires, not about the document itself. Do not name the document, its number, its title or its file path. Reply with the question only.";
+  "You write one question to test a search system. Given a document from a software repository, write a single question that a developer who has never seen this document would ask while working, and that this document answers. Ask about what the document decides or requires, not about the document itself. Do not name the document, its number, its title or its file path. The question must stand on its own: name the tool, route, component or rule it asks about, and never write \"this tool\", \"this document\" or \"the above\". Reply with the question only.";
 
 const ANSWER_SYSTEM =
   "You answer a developer's question using only the context you are given. The context is a list of <document> blocks, each with a source attribute. If the context does not answer the question, say that it does not; never answer from your own knowledge. List in used_sources the source attribute of every document your answer relied on, and no others.";
 
+// The answer is drawn from everything Lore returned, so it may hold true detail the reference never mentions; only a contradiction or a non-answer fails.
 const JUDGE_SYSTEM =
-  "You grade an answer against a reference document. Pass the answer only when what it states agrees with the document and it actually answers the question. Fail an answer that contradicts the document, that says the context did not contain the answer, or that is too vague to act on. Give the reason in one sentence.";
+  "You grade an answer against a reference document. The answer was written from several documents, so it may contain correct details the reference does not mention: that is never a reason to fail. Pass the answer when it addresses the question and nothing in it contradicts the reference. Fail it only when it contradicts the reference, when it says the context did not contain the answer, or when it does not address what was asked. Give the reason in one sentence, quoting the contradiction when there is one.";
 
 const ANSWER_SCHEMA = {
   type: "object",
