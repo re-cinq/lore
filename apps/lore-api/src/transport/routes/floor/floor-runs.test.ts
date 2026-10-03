@@ -33,4 +33,25 @@ describe("GET /api/floor-runs", () => {
       asked: [{ status: "failed", cursor: "page-2", limit: 10 }],
     });
   });
+
+  it("asks for the running runs of re-cinq/lore and refuses 400 a repo that is not owner/name", async () => {
+    const asked: unknown[] = [];
+    const server = serve(async (query) => {
+      asked.push(query);
+
+      return { runs: [], next_cursor: null };
+    });
+    const first = await server.inject(
+      "/api/floor-runs?repo=re-cinq/lore&status=running",
+    );
+    const second = await server.inject("/api/floor-runs?repo=not-a-repo");
+
+    expect({
+      statuses: [first.statusCode, second.statusCode],
+      asked,
+    }).toEqual({
+      statuses: [200, 400],
+      asked: [{ repo: "re-cinq/lore", status: "running" }],
+    });
+  });
 });

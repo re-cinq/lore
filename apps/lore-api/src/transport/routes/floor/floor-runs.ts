@@ -6,6 +6,7 @@ import { AssemblyRunStatusSchema } from "@re-cinq/lore-shared/models/assembly-ru
 import { floorRunRows } from "../../../work/floor/floor-backed-runs.js";
 import type { FloorRunPageQuery } from "../../../work/floor/floor-run-reader.js";
 import { FloorRunPageSchema } from "../../../work/floor/floor-run-rows.js";
+import { repoFullName } from "../common-schemas.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
@@ -14,6 +15,7 @@ const MAX_LIMIT = 100;
 
 const FloorRunsQuery = z.object({
   status: AssemblyRunStatusSchema.optional(),
+  repo: repoFullName.optional(),
   cursor: z.string().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(MAX_LIMIT).optional(), // eslint-disable-line re-lint/max-member-chain -- pipeline over a value already in hand
 });
