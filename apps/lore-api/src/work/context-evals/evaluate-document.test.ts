@@ -199,7 +199,10 @@ describe("evaluateDocument", () => {
     });
 
     expect(asked).toEqual([{ repo: "re-cinq/lore", question: pinned }]);
-    expect(verdict?.question).toBe(pinned);
+    expect(verdict).toMatchObject({
+      question: pinned,
+      model: "gemini-2.5-flash",
+    });
     expect(llm.calls).toHaveLength(2);
   });
 

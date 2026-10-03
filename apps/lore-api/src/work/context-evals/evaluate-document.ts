@@ -113,7 +113,7 @@ async function evaluateStored(
   target: EvalTarget,
   document: string,
 ): Promise<DocumentEval> {
-  const { question, model } = await questionFor(deps.llm, target, document);
+  const question = await questionFor(deps.llm, target, document);
   const assembled = await deps.assemble(target.repo, question);
   const graded = await gradeAssembled(deps, {
     document,
@@ -126,7 +126,6 @@ async function evaluateStored(
     question,
     found: assembled.sources.some((source) => source.path === target.path),
     ...graded,
-    model: model || graded.model,
   };
 }
 
@@ -135,24 +134,22 @@ async function questionFor(
   llm: LlmProvider,
   target: EvalTarget,
   document: string,
-): Promise<{ question: string; model: string }> {
-  return target.question
-    ? { question: target.question, model: "" }
-    : writeQuestion(llm, document);
+): Promise<string> {
+  return target.question ?? writeQuestion(llm, document);
 }
 
 async function writeQuestion(
   llm: LlmProvider,
   document: string,
-): Promise<{ question: string; model: string }> {
-  const { text, model } = await llm.complete({
+): Promise<string> {
+  const { text } = await llm.complete({
     systemPrompt: QUESTION_SYSTEM,
     prompt: `Document:\n\n${document}`,
     jobName: JOB_NAME,
     temperature: 0,
   });
 
-  return { question: text.trim(), model };
+  return text.trim();
 }
 
 interface Graded {
@@ -177,22 +174,23 @@ async function gradeAssembled(
   if (sources.length === 0) {
     return { answered: false, useful_share: 0, reason: NO_CONTEXT, model: "" };
   }
-  const answer = await answerFromContext(deps.llm, attempt);
+  const { parsed: answer, model } = await answerFromContext(deps.llm, attempt);
   const judged = await judgeAnswer(deps, attempt, answer.answer);
 
+  // The model reported is the one that answered: the question's is the same, and the judge's may be another.
   return {
     answered: passes(judged.judgement, attempt.document),
     useful_share: usefulShare(sources, answer.used_sources),
     reason: judged.judgement.reason,
-    model: judged.model,
+    model,
   };
 }
 
 async function answerFromContext(
   llm: LlmProvider,
   { question, assembled }: Attempt,
-): Promise<Answer> {
-  const { parsed } = await llm.completeWithTool<Answer>({
+): Promise<{ parsed: Answer; model: string }> {
+  const { parsed, model } = await llm.completeWithTool<Answer>({
     systemPrompt: ANSWER_SYSTEM,
     prompt: `Context:\n\n${assembled.text}\n\nQuestion: ${question}`,
     toolName: "answer",
@@ -202,15 +200,15 @@ async function answerFromContext(
     temperature: 0,
   });
 
-  return parsed;
+  return { parsed, model };
 }
 
 async function judgeAnswer(
   { llm, judgeModel }: EvalDeps,
   { document, question }: Attempt,
   answer: string,
-): Promise<{ judgement: Judgement; model: string }> {
-  const { parsed, model } = await llm.completeWithTool<Judgement>({
+): Promise<{ judgement: Judgement }> {
+  const { parsed } = await llm.completeWithTool<Judgement>({
     ...(judgeModel ? { model: judgeModel } : {}),
     systemPrompt: JUDGE_SYSTEM,
     prompt: `Reference document:\n\n${document}\n\nQuestion: ${question}\n\nAnswer to compare: ${answer}`,
@@ -222,7 +220,7 @@ async function judgeAnswer(
     temperature: 0,
   });
 
-  return { judgement: parsed, model };
+  return { judgement: parsed };
 }
 
 /** An answer passes when it addresses the question and contradicts nothing the document says. A contradiction counts only when the sentence the judge quotes is in the document and the judge says the two cannot both hold: a judge that fails an answer for detail the document lacks has nothing there to quote. */
