@@ -29,7 +29,7 @@ The nightly job is a GitHub Actions workflow, not a job in the cluster: the runn
 - FR1.7 — A document Lore does not hold evaluates to nothing and costs no model call. ([validated by returns null and calls no model for a document Lore does not hold](apps/lore-api/src/work/context-evals/evaluate-document.test.ts#L231))
 - FR1.8 — Every model call carries the job name `context-evals`, which is what files its cost under that name in `pipeline.llm_calls`. ([validated by tags all three model calls with the job name context-evals](apps/lore-api/src/work/context-evals/evaluate-document.test.ts#L238))
 - FR1.8a — All three model calls are made at temperature 0, so a rerun of the same question differs as little as the model allows. Measured on 113 pinned questions run twice: five verdicts differed. ([validated by asks the model for all three calls at temperature 0, so a rerun of the same question differs as little as the model allows](apps/lore-api/src/work/context-evals/evaluate-document.test.ts#L146))
-- FR1.8b — The verdict may be asked of a stronger model than the one that writes the question and answers: `judgeModel` names it for the judging call alone (the chart sets `LORE_EVAL_JUDGE_MODEL=gemini-2.5-pro`), and the other two calls keep the provider's default. ([validated by asks the judge model gemini-2.5-pro for the verdict alone, and the default model for the question and the answer](apps/lore-api/src/work/context-evals/evaluate-document.test.ts#L134))
+- FR1.8b — The verdict may be asked of a stronger model than the one that writes the question and answers: `judgeModel` names it for the judging call alone (`LORE_EVAL_JUDGE_MODEL`; the chart leaves it unset, since `gemini-2.5-pro` judged a full run on 2026-10-03 and changed no repository's verdict), and the other two calls keep the provider's default. ([validated by asks the judge model gemini-2.5-pro for the verdict alone, and the default model for the question and the answer](apps/lore-api/src/work/context-evals/evaluate-document.test.ts#L134))
 - FR1.9 — The model is shown at most 12,000 characters of a document. ([validated by shows the model at most 12000 characters of a longer document](apps/lore-api/src/work/context-evals/evaluate-document.test.ts#L250))
 
 ## The documents
@@ -63,7 +63,7 @@ The nightly job is a GitHub Actions workflow, not a job in the cluster: the runn
 
 ## The model
 
-Decision: the eval's model calls go through `Llm.for("eval")` (`specs/shared-utilities`, FR — Llm.for), so the vendor is configuration. The lore-api chart sets `LORE_EVAL_LLM_PROVIDER=vertex`, `LORE_EVAL_LLM_MODEL=gemini-2.5-flash` and, for the verdict alone, `LORE_EVAL_JUDGE_MODEL=gemini-2.5-pro`; Vertex is reached under the pod's own Google identity and no model key is stored. Writing a question and judging an answer against its document are easy tasks, so the cheapest model that judges reliably is the right one.
+Decision: the eval's model calls go through `Llm.for("eval")` (`specs/shared-utilities`, FR — Llm.for), so the vendor is configuration. The lore-api chart sets `LORE_EVAL_LLM_PROVIDER=vertex`, and `LORE_EVAL_LLM_MODEL=gemini-2.5-flash`; Vertex is reached under the pod's own Google identity and no model key is stored. Writing a question and judging an answer against its document are easy tasks, so the cheapest model that judges reliably is the right one.
 
 ## Open Questions
 
