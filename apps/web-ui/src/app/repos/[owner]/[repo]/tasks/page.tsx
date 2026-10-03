@@ -15,7 +15,7 @@ export default async function RepoTasks({
   const repo = `${owner}/${name}`;
   const [initial, earlierRuns] = await Promise.all([
     getFloorRuns({ repo, status, cursor }),
-    fetchAssemblyRuns({ repo, engine: "lore", limit: 100 }),
+    fetchAssemblyRuns({ repo, engine: "lore", status, limit: 100 }),
   ]);
   const view = { repo, activeStatus: status, cursor, initial, earlierRuns };
 
