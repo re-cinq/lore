@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { IssueRef } from "../../outbound/project/lib/github-port.js";
-import { orderBacklog, selectNextIssue } from "./select-next-issue.js";
+import { heldBacklog, orderBacklog, selectNextIssue } from "./select-next-issue.js";
 
 function issue(overrides: Partial<IssueRef> & { number: number }): IssueRef {
   return {
@@ -141,5 +141,38 @@ describe("orderBacklog", () => {
     ];
 
     expect(orderBacklog(issues).map((i) => i.number)).toEqual([4, 3, 1]);
+  });
+});
+
+describe("heldBacklog", () => {
+  it("returns the lore:blocked #2 and the two-priority #3, oldest first, and not the queued #1", () => {
+    const issues = [
+      issue({ number: 1, labels: ["priority:high"] }),
+      issue({
+        number: 3,
+        labels: ["priority:high", "priority:low"],
+        createdAt: "2026-08-03T00:00:00Z",
+      }),
+      issue({
+        number: 2,
+        labels: ["priority:low", "lore:blocked"],
+        createdAt: "2026-08-02T00:00:00Z",
+      }),
+    ];
+
+    expect(heldBacklog(issues).map((held) => held.number)).toEqual([2, 3]);
+  });
+
+  it("leaves out a closed lore:blocked issue and an open one with no priority label", () => {
+    const issues = [
+      issue({
+        number: 4,
+        state: "closed",
+        labels: ["priority:high", "lore:blocked"],
+      }),
+      issue({ number: 5, labels: ["lore:blocked"] }),
+    ];
+
+    expect(heldBacklog(issues)).toEqual([]);
   });
 });
