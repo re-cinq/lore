@@ -111,7 +111,7 @@ variable "lore_webhook_hostname" {
 }
 
 variable "lore_event_router_hostname" {
-  description = "Hostname for the event-router ingress: the canonical GitHub webhook URL (ADR-044), which LORE_WEBHOOK_URL on lore-api and the legacy alias on lore_webhook_hostname both resolve to. Empty disables the ingress."
+  description = "Hostname of the GitHub webhook URL (`/api/events`), served by lore-api since 2026-10-02 (ADR-044 amendment); LORE_WEBHOOK_URL on lore-api and the legacy alias on lore_webhook_hostname both resolve to it. Empty disables the ingress."
   type        = string
   default     = ""
 }
