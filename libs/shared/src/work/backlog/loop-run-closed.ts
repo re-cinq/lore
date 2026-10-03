@@ -40,6 +40,8 @@ export interface LoopRunClosedDeps {
   comment(repo: string, issueNumber: number, body: string): Promise<void>;
   closeIssue(repo: string, issueNumber: number): Promise<void>;
   closePr(repo: string, prNumber: number): Promise<void>;
+  /** Stores why the ticket was parked or deferred on its task: the issue comment says it on GitHub, and the backlog page reads it from here. */
+  recordWhy(taskId: string, why: string): Promise<void>;
   /** Re-arm: emit `cron.implementation_loop.tick` scoped to the repo, so the next ticket starts in seconds, not at the next 5-minute safety tick. */
   emitTick(repo: string): Promise<void>;
   /** How many EARLIER runs on this branch since `since` ended on an infrastructure failure — the deferral count a new failure adds one to. `excludeRunId` is the run that just closed: it is already `failed` in the table, so a count that kept it would report every first failure as the second. */
@@ -89,14 +91,18 @@ async function settleIssue(
     return;
   }
 
-  if (verdict.deferral) {
-    await commentDeferral(run, verdict.deferral, deps);
+  if (verdict.resolved) {
+    await closeResolvedIssue(run, verdict.resolved, deps);
 
     return;
   }
 
-  if (verdict.resolved) {
-    await closeResolvedIssue(run, verdict.resolved, deps);
+  if (run.taskId) {
+    await deps.recordWhy(run.taskId, verdict.why);
+  }
+
+  if (verdict.deferral) {
+    await commentDeferral(run, verdict.deferral, deps);
 
     return;
   }
