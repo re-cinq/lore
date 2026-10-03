@@ -1,7 +1,7 @@
 "use client";
 
 // The run list's container: owns the live channel and the page's reducer, and hands the pure view its runs. A gap in the channel is closed by reloading the page the person is on.
-import { useReducer, useRef, type Dispatch } from "react";
+import { useReducer, useRef, type Dispatch, type ReactNode } from "react";
 import type { FloorRunsPage } from "@/lib/api/floor-runs";
 import { floorRunOf } from "@/lib/assembly-run-rows";
 import type { ChannelState } from "@/lib/live-socket/connection-machine";
@@ -19,15 +19,16 @@ interface AssemblyRunsLiveProps {
   activeStatus?: string;
   cursor?: string;
   initial: FloorRunsPage;
+  /** `owner/name` of the one repository the list is scoped to. */
+  repo?: string;
+  basePath?: string;
+  heading?: ReactNode;
 }
 
-export default function AssemblyRunsLive({
-  activeStatus,
-  cursor,
-  initial,
-}: AssemblyRunsLiveProps) {
+export default function AssemblyRunsLive(props: AssemblyRunsLiveProps) {
+  const { activeStatus, cursor, initial, repo } = props;
   const [state, dispatch] = useReducer(reduceRunList, initial, initialRunList);
-  const reload = usePageReload({ activeStatus, cursor }, dispatch);
+  const reload = usePageReload({ repo, activeStatus, cursor }, dispatch);
 
   useRunsChannel({
     runIds: state.runs.map((run) => run.id),
@@ -39,6 +40,8 @@ export default function AssemblyRunsLive({
     <AssemblyRunListView
       activeStatus={activeStatus}
       cursor={cursor}
+      basePath={props.basePath}
+      heading={props.heading}
       {...state}
     />
   );
@@ -74,15 +77,13 @@ type ReadState = "idle" | "reading" | "stale";
 
 /** Reads the current page one read at a time: a request made during a read owes exactly one more read once it ends, however many came. */
 function usePageReload(
-  query: { activeStatus?: string; cursor?: string },
+  query: { repo?: string; activeStatus?: string; cursor?: string },
   dispatch: Dispatch<RunListAction>,
 ): () => void {
   const readState = useRef<ReadState>("idle");
   const readPage = async () => {
-    const page = await loadRunsPageAction({
-      status: query.activeStatus,
-      cursor: query.cursor,
-    });
+    const { repo, activeStatus: status, cursor } = query;
+    const page = await loadRunsPageAction({ repo, status, cursor });
 
     dispatch({ type: "page_loaded", ...page });
   };

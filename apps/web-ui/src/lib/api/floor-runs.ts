@@ -14,11 +14,16 @@ export interface FloorRunsPage {
 export type FloorRunsStreamToken =
   components["schemas"]["FloorRunsStreamToken"];
 
-/** One page of the floor's runs as the list draws them; an unreachable lore-api answers an empty page rather than taking the list down. */
-export async function getFloorRuns(query: {
+export interface FloorRunsQuery {
+  repo?: string;
   status?: string;
   cursor?: string;
-}): Promise<FloorRunsPage> {
+}
+
+/** One page of the floor's runs as the list draws them, a repository's when one is named; an unreachable lore-api answers an empty page rather than taking the list down. */
+export async function getFloorRuns(
+  query: FloorRunsQuery,
+): Promise<FloorRunsPage> {
   const result = await apiFetch<components["schemas"]["FloorRunPage"]>(
     "lore-api",
     floorRunsPath(query),
@@ -33,9 +38,9 @@ export async function getFloorRuns(query: {
   return { runs: runs.map(floorRunOf), nextCursor };
 }
 
-const QUERY_KEYS = ["status", "cursor"] as const;
+const QUERY_KEYS = ["repo", "status", "cursor"] as const;
 
-function floorRunsPath(query: { status?: string; cursor?: string }): string {
+function floorRunsPath(query: FloorRunsQuery): string {
   const params = new URLSearchParams();
 
   for (const key of QUERY_KEYS) {

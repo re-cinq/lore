@@ -74,4 +74,17 @@ describe("getFloorRuns", () => {
       },
     });
   });
+
+  it("asks for repo re-cinq/lore, status running and cursor page-2 in that order", async () => {
+    await getFloorRuns({
+      repo: "re-cinq/lore",
+      status: "running",
+      cursor: "page-2",
+    });
+    const asked = new URL(String(fetchMock.mock.calls[0][0]));
+
+    expect(`${asked.pathname}${asked.search}`).toEqual(
+      "/api/floor-runs?repo=re-cinq%2Flore&status=running&cursor=page-2",
+    );
+  });
 });

@@ -259,6 +259,18 @@ describe("AssemblyRunsLive", () => {
       readsCausedByTheBurst: 2,
     });
   });
+
+  it("asks for re-cinq/lore in the read made when the channel goes live on a repository page", async () => {
+    renderLive({ repo: "re-cinq/lore" });
+    await openChannel();
+
+    await waitFor(() => expect(reads()).toBeGreaterThan(0));
+    expect(askedAt(0)).toEqual({
+      repo: "re-cinq/lore",
+      status: undefined,
+      cursor: undefined,
+    });
+  });
 });
 
 type RunsPage = Awaited<ReturnType<typeof loadRunsPageAction>>;

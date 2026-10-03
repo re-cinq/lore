@@ -145,6 +145,30 @@ export function isOpenStatus(status: string): boolean {
   return OPEN_STATUSES.includes(status);
 }
 
+/** The floor wants a filter to list under: since the epoch is every run it holds, asked only when neither a repository nor an open/settled half narrows the list. */
+const EVERY_RUN_SINCE = new Date(0).toISOString();
+
+export function floorPageFilter(query: {
+  repo?: string;
+  status?: AssemblyRunStatus;
+}): RunFilter {
+  const { repo, status } = query;
+
+  if (repo !== undefined && status !== undefined) {
+    return { repo: floorRepoOf(repo), open: isOpenStatus(status) };
+  }
+
+  if (repo !== undefined) {
+    return { repo: floorRepoOf(repo) };
+  }
+
+  if (status !== undefined) {
+    return { open: isOpenStatus(status) };
+  }
+
+  return { since: EVERY_RUN_SINCE };
+}
+
 /** The floor cannot tell finished from failed, nor queued from running, so a status page is searched for in up to this many floor pages. */
 const STATUS_SEARCH_PAGES = 5;
 

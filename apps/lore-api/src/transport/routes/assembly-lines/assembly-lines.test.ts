@@ -409,6 +409,49 @@ describe("assembly-line reads", () => {
         definition_name: "code-review",
       });
     });
+
+    it("lists the Postgres run and not the floor's for engine=lore, both without it", async () => {
+      let tick = 0;
+      const clock = () => new Date(Date.UTC(2026, 9, 3, 12, 0, tick++));
+      const local = new InMemoryAssemblyRuns(clock);
+      const floorBacked = new InMemoryAssemblyRuns(clock);
+
+      await local.start({ blueprintName: "local-1", repo: "re-cinq/lore" });
+      await floorBacked.start({
+        blueprintName: "local-1",
+        repo: "re-cinq/lore",
+      });
+      await floorBacked.start({
+        blueprintName: "floor-1",
+        repo: "re-cinq/lore",
+      });
+      const pool = makePool();
+      const server = Hapi.server();
+
+      server.auth.scheme("stub", () => ({
+        authenticate: (_r, h) => h.authenticated({ credentials: {} }),
+      }));
+      server.auth.strategy("bearer-scope", "stub");
+      server.auth.default("bearer-scope");
+      pool.query.mockResolvedValue({ rows: [] });
+      server.route(assemblyLineRoutes(() => pool as never, floorBacked, local));
+      const names = async (url: string) =>
+        (
+          (await server.inject(url)).result as {
+            runs: Array<{ blueprint_name: string }>;
+          }
+        ).runs.map((run) => run.blueprint_name);
+
+      expect({
+        withEngine: await names(
+          "/api/assembly-runs?repo=re-cinq/lore&engine=lore",
+        ),
+        without: await names("/api/assembly-runs?repo=re-cinq/lore"),
+      }).toEqual({
+        withEngine: ["local-1"],
+        without: ["floor-1", "local-1"],
+      });
+    });
   });
 
   describe("GET /api/assembly-lines/{id}", () => {

@@ -102,3 +102,29 @@ describe("AssemblyRunListView paging and columns", () => {
     expect(screen.getByRole("columnheader", { name: "Stages" })).toBeVisible();
   });
 });
+
+describe("AssemblyRunListView under another base path", () => {
+  it("points the Running filter, Newest and Older links under the repository's tab", () => {
+    render(
+      <AssemblyRunListView
+        basePath="/repos/re-cinq/lore/tasks"
+        activeStatus="failed"
+        cursor="page-2"
+        nextCursor="page-3"
+        runs={[]}
+      />,
+    );
+
+    expect({
+      running: screen
+        .getByRole("link", { name: "Running" })
+        .getAttribute("href"),
+      newest: screen.getByRole("link", { name: "Newest" }).getAttribute("href"),
+      older: screen.getByRole("link", { name: "Older" }).getAttribute("href"),
+    }).toEqual({
+      running: "/repos/re-cinq/lore/tasks?status=running",
+      newest: "/repos/re-cinq/lore/tasks?status=failed",
+      older: "/repos/re-cinq/lore/tasks?status=failed&cursor=page-3",
+    });
+  });
+});

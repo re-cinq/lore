@@ -5,6 +5,7 @@ import {
   getFloorRuns,
   mintRunsStreamToken,
   type FloorRunsPage,
+  type FloorRunsQuery,
 } from "@/lib/api/floor-runs";
 import { planUserOf, type PlanSession } from "@/lib/plan-user";
 import { getSession } from "@/lib/session";
@@ -24,9 +25,8 @@ export async function openRunsChannelAction(): Promise<RunsChannelGrant> {
     : { error: "Could not open the run list." };
 }
 
-export async function loadRunsPageAction(query: {
-  status?: string;
-  cursor?: string;
-}): Promise<FloorRunsPage> {
+export async function loadRunsPageAction(
+  query: FloorRunsQuery,
+): Promise<FloorRunsPage> {
   return getFloorRuns(query);
 }

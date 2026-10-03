@@ -24,7 +24,7 @@ import {
 } from "../assembly-line-station/mini-pipeline.js";
 import {
   floorRunFilters,
-  isOpenStatus,
+  floorPageFilter,
   matchesFloorQuery,
   pagesToRead,
   searchEnded,
@@ -54,8 +54,6 @@ const DEFAULT_LIST_LIMIT = 50;
 /** How many pages a search for a task's run reads before giving up: 500 runs of one line. */
 const TASK_SEARCH_PAGES = 10;
 
-/** The floor wants a filter to list under: since the epoch is every run it holds. */
-const EVERY_RUN_SINCE = new Date(0).toISOString();
 const DEFAULT_PAGE_LIMIT = 25;
 
 export interface FloorRunListing {
@@ -69,6 +67,7 @@ export interface FloorRunPage {
 }
 
 export interface FloorRunPageQuery {
+  repo?: string;
   status?: AssemblyRunStatus;
   cursor?: string;
   limit?: number;
@@ -136,7 +135,7 @@ export class FloorRunReader {
     return [];
   }
 
-  /** One page of the floor's runs, newest first, each with its mini pipeline; the cursor is the floor's own, handed back untouched. A status is searched for through the floor's pages. */
+  /** One page of the floor's runs, newest first (of one repository when asked), each with its mini pipeline; the cursor is the floor's own, handed back untouched. A status is searched for through the floor's pages. */
   async page(query: FloorRunPageQuery): Promise<FloorRunPage> {
     const { status } = query;
     const limit = query.limit ?? DEFAULT_PAGE_LIMIT;
@@ -145,7 +144,7 @@ export class FloorRunReader {
     let nextCursor: string | null = null;
 
     for (let read = 0; read < pagesToRead(status); read++) {
-      const listed = await this.floorPage(status, limit, cursor);
+      const listed = await this.floorPage(query, limit, cursor);
 
       runs.push(...listed.runs.filter((run) => hasStatus(run, status)));
       nextCursor = listed.nextCursor;
@@ -160,15 +159,11 @@ export class FloorRunReader {
   }
 
   private async floorPage(
-    status: AssemblyRunStatus | undefined,
+    query: FloorRunPageQuery,
     limit: number,
     cursor: string | undefined,
   ): Promise<FloorRunPage> {
-    const filter: RunFilter =
-      status === undefined
-        ? { since: EVERY_RUN_SINCE }
-        : { open: isOpenStatus(status) };
-    const listed = await this.floor.runs.list(filter, {
+    const listed = await this.floor.runs.list(floorPageFilter(query), {
       limit,
       ...(cursor ? { cursor } : {}),
     });

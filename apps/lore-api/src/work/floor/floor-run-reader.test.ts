@@ -329,4 +329,21 @@ describe("FloorRunReader.page", () => {
       ],
     });
   });
+
+  it("asks the floor for github.com/re-cinq/lore without since for repo Re-Cinq/Lore, and adds open=true for status running", async () => {
+    const recorded = recordedFloor(floorWithRunPage);
+    const floorReader = new FloorRunReader(recorded.floor);
+
+    await floorReader.page({ repo: "Re-Cinq/Lore" });
+    const plainRequests = recorded.requests.length;
+
+    await floorReader.page({ repo: "Re-Cinq/Lore", status: "running" });
+
+    expect(
+      [0, plainRequests].map((first) => recorded.requests[first].path),
+    ).toEqual([
+      "/assembly-runs?repo=github.com%2Fre-cinq%2Flore&limit=25",
+      "/assembly-runs?repo=github.com%2Fre-cinq%2Flore&open=true&limit=25",
+    ]);
+  });
 });
