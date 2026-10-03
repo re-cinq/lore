@@ -210,7 +210,7 @@ async function handleMcpPost(
   let transport = sessionId ? ctx.sessions.get(sessionId) : undefined;
 
   if (!transport && !isInitializeRequest(body)) {
-    jsonRpcError(res, 400, "No valid session — send initialize first");
+    rejectMissingSession(res, sessionId);
 
     return;
   }
@@ -219,6 +219,18 @@ async function handleMcpPost(
     transport = newSession(ctx.opts, ctx.sessions);
   }
   await transport.handleRequest(req, res, body);
+}
+
+function rejectMissingSession(
+  res: ServerResponse,
+  sessionId: string | undefined,
+): void {
+  if (sessionId) {
+    jsonRpcError(res, 404, "Session not found");
+
+    return;
+  }
+  jsonRpcError(res, 400, "No valid session — send initialize first");
 }
 
 // A new McpServer + transport per MCP session (an McpServer binds to one transport), tracked by the session id the transport mints on initialize.
@@ -280,7 +292,13 @@ async function handleMcpSession(
   const transport = sessionId ? sessions.get(sessionId) : undefined;
 
   if (!transport) {
-    jsonRpcError(res, 400, "Unknown or missing session");
+    const unknown = Boolean(sessionId);
+
+    jsonRpcError(
+      res,
+      unknown ? 404 : 400,
+      unknown ? "Session not found" : "Unknown or missing session",
+    );
 
     return;
   }
@@ -311,7 +329,10 @@ function jsonRpcError(res: ServerResponse, status: number, message: string) {
   res.end(
     JSON.stringify({
       jsonrpc: "2.0",
-      error: { code: status === 401 ? -32001 : -32000, message },
+      error: {
+        code: status === 401 || status === 404 ? -32001 : -32000,
+        message,
+      },
       id: null,
     }),
   );
