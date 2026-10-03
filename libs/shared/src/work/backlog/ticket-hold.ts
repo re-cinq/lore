@@ -95,7 +95,8 @@ function waitsOnBlockers({ openBlockers }: TicketHoldInput): TicketHold | null {
     return null;
   }
   const blockers = openBlockers.map((n) => `#${n}`).join(", ");
-  const stillOpen = openBlockers.length === 1 ? "is still open" : "are still open";
+  const stillOpen =
+    openBlockers.length === 1 ? "is still open" : "are still open";
 
   return {
     kind: "waits_on_blockers",
@@ -112,7 +113,9 @@ function failed({ lastAttempt }: TicketHoldInput): TicketHold | null {
 
   return {
     kind: "failed",
-    message: why ? `The last attempt failed: ${why}.` : "The last attempt failed.",
+    message: why
+      ? `The last attempt failed: ${why}.`
+      : "The last attempt failed.",
     fix: failedFix(why ?? ""),
   };
 }
@@ -129,5 +132,7 @@ function failedFix(why: string): string {
     return "Nothing to do: the cluster failed, not the ticket, and the loop picks it again on its next tick.";
   }
 
-  return category === "unknown" ? "Open the run to see where it stopped." : hint;
+  return category === "unknown"
+    ? "Open the run to see where it stopped."
+    : hint;
 }

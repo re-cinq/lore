@@ -2786,7 +2786,17 @@ export interface components {
         pr_url: string | null;
         state: string;
         created_at: string | null;
-        error: string | null;
+        hold: {
+          /** @enum {string} */
+          kind:
+            | "text_too_long"
+            | "waits_on_blockers"
+            | "two_priorities"
+            | "parked"
+            | "failed";
+          message: string;
+          fix: string;
+        } | null;
         run_id: string | null;
         pipeline:
           | {
@@ -2794,7 +2804,6 @@ export interface components {
               state: string;
             }[]
           | null;
-        text_too_long: boolean;
       } | null;
       current_run_id: string | null;
       next: {
@@ -2805,7 +2814,17 @@ export interface components {
         pr_url: string | null;
         state: string;
         created_at: string | null;
-        error: string | null;
+        hold: {
+          /** @enum {string} */
+          kind:
+            | "text_too_long"
+            | "waits_on_blockers"
+            | "two_priorities"
+            | "parked"
+            | "failed";
+          message: string;
+          fix: string;
+        } | null;
         run_id: string | null;
         pipeline:
           | {
@@ -2813,7 +2832,33 @@ export interface components {
               state: string;
             }[]
           | null;
-        text_too_long: boolean;
+      }[];
+      parked: {
+        issue_number: number;
+        issue_url: string | null;
+        title: string;
+        priority: string | null;
+        pr_url: string | null;
+        state: string;
+        created_at: string | null;
+        hold: {
+          /** @enum {string} */
+          kind:
+            | "text_too_long"
+            | "waits_on_blockers"
+            | "two_priorities"
+            | "parked"
+            | "failed";
+          message: string;
+          fix: string;
+        } | null;
+        run_id: string | null;
+        pipeline:
+          | {
+              node_id: string;
+              state: string;
+            }[]
+          | null;
       }[];
       recent: {
         issue_number: number;
@@ -2823,7 +2868,17 @@ export interface components {
         pr_url: string | null;
         state: string;
         created_at: string | null;
-        error: string | null;
+        hold: {
+          /** @enum {string} */
+          kind:
+            | "text_too_long"
+            | "waits_on_blockers"
+            | "two_priorities"
+            | "parked"
+            | "failed";
+          message: string;
+          fix: string;
+        } | null;
         run_id: string | null;
         pipeline:
           | {
@@ -2831,7 +2886,6 @@ export interface components {
               state: string;
             }[]
           | null;
-        text_too_long: boolean;
       }[];
     };
     ImplementationLoopToggle: {

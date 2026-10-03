@@ -18,6 +18,7 @@ const STATUS_TONE: Record<string, "success" | "danger" | "info" | "neutral"> = {
   pending: "neutral",
   queued: "neutral",
   failed: "danger",
+  parked: "danger",
   cancelled: "neutral",
 };
 
@@ -103,9 +104,11 @@ interface LoopSectionProps {
   heading: string;
   tickets: ImplementationLoop["next"];
   emptyText: string;
+  /** What holds the whole section, said once above its rows. */
+  notice?: string;
 }
 
-/** The three stages of the backlog, in the order a ticket moves through them. */
+/** The stages of the backlog, in the order a ticket moves through them. Parked shows only when something is parked. */
 function backlogStages(loop: ImplementationLoop): LoopSectionProps[] {
   return [
     {
@@ -113,11 +116,10 @@ function backlogStages(loop: ImplementationLoop): LoopSectionProps[] {
       tickets: loop.current ? [loop.current] : [],
       emptyText: "No ticket is being worked right now.",
     },
-    {
-      heading: queueHeading(loop),
-      tickets: loop.next,
-      emptyText: EMPTY_BACKLOG,
-    },
+    { ...queueSection(loop), tickets: loop.next, emptyText: EMPTY_BACKLOG },
+    ...(loop.parked.length > 0
+      ? [{ heading: "Parked", tickets: loop.parked, emptyText: "" }]
+      : []),
     {
       heading: "Recently addressed",
       tickets: loop.recent,
@@ -126,18 +128,38 @@ function backlogStages(loop: ImplementationLoop): LoopSectionProps[] {
   ];
 }
 
-/** The queue's heading. While the repo is not onboarded the loop will not start on it, and "Next up" read as if it were about to. */
-function queueHeading(loop: ImplementationLoop): string {
-  return loop.enabled && !loop.onboarding.merged
-    ? "Waiting for onboarding"
-    : "Next up";
+/** The queue's heading, and what holds all of it. "Next up" read as about to start while the loop was off or the repo not onboarded; onboarding has its own banner, so only the switched-off loop needs the notice. */
+function queueSection(
+  loop: ImplementationLoop,
+): Pick<LoopSectionProps, "heading" | "notice"> {
+  if (!loop.enabled) {
+    return {
+      heading: "Paused: the loop is switched off",
+      notice:
+        "Nothing is picked until the loop is enabled. Use Enable loop above.",
+    };
+  }
+
+  return {
+    heading: loop.onboarding.merged ? "Next up" : "Waiting for onboarding",
+  };
 }
 
 /** One stage of the backlog. Each empty text says what would put a ticket here rather than just "none", because an empty section usually means the reader has something to do. */
-function LoopSection({ heading, tickets, emptyText }: LoopSectionProps) {
+function LoopSection(props: LoopSectionProps) {
+  const { heading, tickets, emptyText, notice } = props;
+
   return (
     <section className={styles.section}>
       <h2>{heading}</h2>
+      {notice && (
+        <p
+          className={`meta ${styles.sectionNotice}`}
+          data-testid="section-notice"
+        >
+          {notice}
+        </p>
+      )}
       <TicketTable tickets={tickets} emptyText={emptyText} />
     </section>
   );

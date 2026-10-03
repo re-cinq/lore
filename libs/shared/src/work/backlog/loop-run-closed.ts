@@ -97,6 +97,15 @@ async function settleIssue(
     return;
   }
 
+  await holdTicket(run, verdict, deps);
+}
+
+/** The ticket stays open and unworked: its task keeps why, and the issue is either deferred to the next tick or parked for a human. */
+async function holdTicket(
+  run: ClosedLoopRun,
+  verdict: ParkVerdict,
+  deps: LoopRunClosedDeps,
+): Promise<void> {
   if (run.taskId) {
     await deps.recordWhy(run.taskId, verdict.why);
   }

@@ -12,10 +12,9 @@ const ticket = (over: Partial<LoopTicket> = {}): LoopTicket => ({
   pr_url: null,
   state: "queued",
   created_at: "2026-08-01T00:00:00Z",
-  error: null,
+  hold: null,
   run_id: null,
   pipeline: null,
-  text_too_long: false,
   ...over,
 });
 
@@ -30,6 +29,7 @@ function renderView(loop: Partial<ImplementationLoop> = {}) {
         current: null,
         current_run_id: null,
         next: [],
+        parked: [],
         recent: [],
         ...loop,
       }}
@@ -120,29 +120,32 @@ describe("ImplementationLoopView", () => {
     );
   });
 
-  it("shows the run's error message on a failed ticket row", () => {
+  it("shows why the failed #7 failed and how to fix it on its row", () => {
     const { getByTestId } = renderView({
       recent: [
         ticket({
           state: "failed",
           run_id: "run-9",
-          error:
-            "AssemblyLine implementation-loop: edge validate->implement exceeded iteration_max 1",
+          hold: {
+            kind: "failed",
+            message: "The last attempt failed: the run ended failed: 403.",
+            fix: "Check the Lore GitHub App's repository permissions.",
+          },
         }),
       ],
     });
 
-    expect(getByTestId("ticket-error-7").textContent).toContain(
-      "edge validate->implement exceeded iteration_max 1",
+    expect(getByTestId("ticket-hold-7").textContent).toEqual(
+      "The last attempt failed: the run ended failed: 403.Fix: Check the Lore GitHub App's repository permissions.",
     );
   });
 
-  it("renders no error line when the run has none", () => {
+  it("renders no hold on a running ticket nothing holds", () => {
     const { queryByTestId } = renderView({
       current: ticket({ state: "running", run_id: "run-9" }),
     });
 
-    expect(queryByTestId("ticket-error-7")).toBeNull();
+    expect(queryByTestId("ticket-hold-7")).toBeNull();
   });
 
   it("badges an unknown task status in the danger tone", () => {
@@ -326,25 +329,91 @@ describe("ImplementationLoopView when the repo is not onboarded", () => {
   });
 });
 
-describe("ImplementationLoopView with a queued ticket whose text is too long", () => {
-  it("pills #7 with text too long and a hint to shorten the issue, and leaves #8 unpilled", () => {
-    const { getAllByTestId } = renderView({
+describe("ImplementationLoopView with tickets the loop is not working", () => {
+  const blockers = {
+    kind: "waits_on_blockers" as const,
+    message: "Waits on #12, which is still open.",
+    fix: "Close them, or remove the blocked-by link if it no longer applies.",
+  };
+  const parked = {
+    kind: "parked" as const,
+    message: "The loop parked this ticket: it asks for a decision.",
+    fix: "Fix what it names, then remove the lore:blocked label to re-queue it.",
+  };
+
+  it("pills the queued #7 waits on blockers with its reason and fix, and leaves #8 bare", () => {
+    const { getAllByTestId, getByTestId, queryByTestId } = renderView({
       next: [
-        ticket({ text_too_long: true }),
+        ticket({ hold: blockers }),
         ticket({ issue_number: 8, title: "Short issue" }),
       ],
     });
 
     expect(
-      getAllByTestId("ticket-text-too-long").map((pill) => ({
-        text: pill.textContent,
-        hint: pill.getAttribute("title"),
-      })),
-    ).toEqual([
-      {
-        text: "text too long",
-        hint: "The issue's title and body are longer than a task description may be, so the loop will not pick it. Shorten the issue text to queue it.",
-      },
-    ]);
+      getAllByTestId("ticket-hold-kind").map((pill) => pill.textContent),
+    ).toEqual(["waits on blockers"]);
+    expect(getByTestId("ticket-hold-7").textContent).toEqual(
+      "Waits on #12, which is still open.Fix: Close them, or remove the blocked-by link if it no longer applies.",
+    );
+    expect(queryByTestId("ticket-hold-8")).toBeNull();
+  });
+
+  it("words the text_too_long pill as text too long", () => {
+    const { getByTestId } = renderView({
+      next: [
+        ticket({
+          hold: {
+            kind: "text_too_long",
+            message: "The issue's title and body are longer than allowed.",
+            fix: "Shorten the issue text.",
+          },
+        }),
+      ],
+    });
+
+    expect(getByTestId("ticket-hold-kind").textContent).toEqual(
+      "text too long",
+    );
+  });
+
+  it("lists the parked #7 under a Parked heading, badged parked once, with its reason and fix", () => {
+    const { getByRole, getByTestId, queryByTestId } = renderView({
+      parked: [ticket({ state: "parked", hold: parked })],
+    });
+
+    expect(getByRole("heading", { name: "Parked" })).toBeTruthy();
+    expect(getByTestId("ticket-status").textContent).toEqual("parked");
+    expect(queryByTestId("ticket-hold-kind")).toBeNull();
+    expect(getByTestId("ticket-hold-7").textContent).toEqual(
+      "The loop parked this ticket: it asks for a decision.Fix: Fix what it names, then remove the lore:blocked label to re-queue it.",
+    );
+  });
+
+  it("shows no Parked heading when nothing is parked", () => {
+    const { queryByRole } = renderView();
+
+    expect(queryByRole("heading", { name: "Parked" })).toBeNull();
+  });
+
+  it("heads the queue Paused and says to enable the loop while it is switched off", () => {
+    const { getByRole, getByTestId, queryByRole } = renderView({
+      enabled: false,
+      next: [ticket()],
+    });
+
+    expect(
+      getByRole("heading", { name: "Paused: the loop is switched off" }),
+    ).toBeTruthy();
+    expect(queryByRole("heading", { name: "Next up" })).toBeNull();
+    expect(getByTestId("section-notice").textContent).toEqual(
+      "Nothing is picked until the loop is enabled. Use Enable loop above.",
+    );
+  });
+
+  it("heads the queue Next up with no notice while the loop is on", () => {
+    const { getByRole, queryByTestId } = renderView({ enabled: true });
+
+    expect(getByRole("heading", { name: "Next up" })).toBeTruthy();
+    expect(queryByTestId("section-notice")).toBeNull();
   });
 });

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { IssueRef } from "../../outbound/project/lib/github-port.js";
-import { heldBacklog, orderBacklog, selectNextIssue } from "./select-next-issue.js";
+import {
+  heldBacklog,
+  orderBacklog,
+  selectNextIssue,
+} from "./select-next-issue.js";
 
 function issue(overrides: Partial<IssueRef> & { number: number }): IssueRef {
   return {

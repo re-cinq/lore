@@ -29,9 +29,9 @@ describe("ticketHold", () => {
   });
 
   it("says one blocker #12 in the singular", () => {
-    expect(
-      ticketHold({ issue: queued, openBlockers: [12] })?.message,
-    ).toEqual("Waits on #12, which is still open.");
+    expect(ticketHold({ issue: queued, openBlockers: [12] })?.message).toEqual(
+      "Waits on #12, which is still open.",
+    );
   });
 
   it("returns two_priorities for priority:high plus priority:low", () => {
@@ -73,13 +73,13 @@ describe("ticketHold", () => {
       why: "the run ended failed: 403 Forbidden",
     };
 
-    expect(ticketHold({ issue: queued, openBlockers: [], lastAttempt })).toEqual(
-      {
-        kind: "failed",
-        message: "The last attempt failed: the run ended failed: 403 Forbidden.",
-        fix: "Check the Lore GitHub App's repository permissions and that it is installed on the target repo.",
-      },
-    );
+    expect(
+      ticketHold({ issue: queued, openBlockers: [], lastAttempt }),
+    ).toEqual({
+      kind: "failed",
+      message: "The last attempt failed: the run ended failed: 403 Forbidden.",
+      fix: "Check the Lore GitHub App's repository permissions and that it is installed on the target repo.",
+    });
   });
 
   it("tells the reader an unclaimed attempt needs nothing from them", () => {
@@ -125,8 +125,8 @@ describe("ticketHold", () => {
     const issue = { ...queued, body: "x".repeat(MAX_TASK_DESCRIPTION_CHARS) };
     const lastAttempt = { status: "failed", why: "the run ended error" };
 
-    expect(ticketHold({ issue, openBlockers: [12], lastAttempt })?.kind).toEqual(
-      "text_too_long",
-    );
+    expect(
+      ticketHold({ issue, openBlockers: [12], lastAttempt })?.kind,
+    ).toEqual("text_too_long");
   });
 });
