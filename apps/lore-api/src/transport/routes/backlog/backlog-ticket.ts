@@ -8,7 +8,8 @@ import {
   PipelineTaskSchema,
   PIPELINE_TASK_COLUMNS,
 } from "@re-cinq/lore-shared/models/pipeline-task.js";
-import { PRIORITY_LABELS, ticketHold } from "@re-cinq/lore-shared";
+import { PRIORITY_LABELS } from "@re-cinq/lore-shared";
+import { ticketHold } from "@re-cinq/lore-shared/backlog/ticket-hold.js";
 import {
   miniPipeline,
   type PipelineNode,
@@ -81,7 +82,7 @@ export function taskTicket(
   return {
     ...ticketIssueFields(row, issue_number, issue),
     ...ticketTaskFields(row),
-    hold: ticketHold({ issue, openBlockers: [], lastAttempt }),
+    hold: ticketHold({ issue, openBlockers: [], lastAttempt, picked: true }),
     run_id: run?.id ?? null,
     pipeline: pipelineOf(run, nodeRows),
   };

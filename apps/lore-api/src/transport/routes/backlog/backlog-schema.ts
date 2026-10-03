@@ -1,7 +1,7 @@
 // Contracts for the implementation-loop repo surface (FR10); the named ImplementationLoop component is what web-ui aliases from generated schema.d.ts — keep it stable.
 
 import { z } from "zod";
-import { TICKET_HOLD_KINDS } from "@re-cinq/lore-shared";
+import { TICKET_HOLD_KINDS } from "@re-cinq/lore-shared/backlog/ticket-hold.js";
 import { OkTrue } from "../../http/ok-schema.js";
 import { PipelineNodeSchema } from "../../../work/assembly-line-station/mini-pipeline.js";
 

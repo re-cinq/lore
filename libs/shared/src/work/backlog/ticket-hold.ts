@@ -35,14 +35,23 @@ export interface TicketHoldInput {
   /** Numbers of the open issues linked as blocking this one. */
   openBlockers: readonly number[];
   lastAttempt?: LastAttempt;
+  /** A task already took the ticket, so what would stop the picker no longer says anything about it. */
+  picked?: boolean;
 }
 
 /** The first thing holding a ticket, or null when nothing does. What the ticket itself must change comes before what happened to its last attempt. */
 export function ticketHold(input: TicketHoldInput): TicketHold | null {
-  return HOLDS.flatMap((holdOf) => holdOf(input) ?? []).at(0) ?? null;
+  const holds = input.picked ? ATTEMPT_HOLDS : QUEUE_HOLDS;
+
+  return holds.flatMap((holdOf) => holdOf(input) ?? []).at(0) ?? null;
 }
 
-const HOLDS: ReadonlyArray<(input: TicketHoldInput) => TicketHold | null> = [
+type HoldOf = (input: TicketHoldInput) => TicketHold | null;
+
+/** What can hold a ticket a task took: only how its attempt ended. */
+const ATTEMPT_HOLDS: readonly HoldOf[] = [parked, failed];
+
+const QUEUE_HOLDS: readonly HoldOf[] = [
   parked,
   twoPriorities,
   textTooLong,

@@ -129,4 +129,32 @@ describe("ticketHold", () => {
       ticketHold({ issue, openBlockers: [12], lastAttempt })?.kind,
     ).toEqual("text_too_long");
   });
+
+  it("holds nothing on a picked ticket whose body grew past the limit and gained a second priority", () => {
+    const issue = {
+      ...queued,
+      labels: ["priority:high", "priority:low"],
+      body: "x".repeat(MAX_TASK_DESCRIPTION_CHARS),
+    };
+    const lastAttempt = { status: "running", why: null };
+
+    expect(
+      ticketHold({ issue, openBlockers: [], lastAttempt, picked: true }),
+    ).toBeNull();
+  });
+
+  it("still holds a picked ticket that was parked or whose attempt failed", () => {
+    const blocked = { ...queued, labels: ["priority:high", "lore:blocked"] };
+    const failedAttempt = { status: "failed", why: null };
+
+    expect([
+      ticketHold({ issue: blocked, openBlockers: [], picked: true })?.kind,
+      ticketHold({
+        issue: queued,
+        openBlockers: [],
+        lastAttempt: failedAttempt,
+        picked: true,
+      })?.kind,
+    ]).toEqual(["parked", "failed"]);
+  });
 });
