@@ -10517,8 +10517,35 @@
                   "created_at": {
                     "type": ["string", "null"]
                   },
-                  "error": {
-                    "type": ["string", "null"]
+                  "hold": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "text_too_long",
+                              "waits_on_blockers",
+                              "two_priorities",
+                              "parked",
+                              "failed"
+                            ]
+                          },
+                          "message": {
+                            "type": "string"
+                          },
+                          "fix": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["kind", "message", "fix"],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "run_id": {
                     "type": ["string", "null"]
@@ -10545,9 +10572,6 @@
                         "type": "null"
                       }
                     ]
-                  },
-                  "text_too_long": {
-                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -10558,10 +10582,9 @@
                   "pr_url",
                   "state",
                   "created_at",
-                  "error",
+                  "hold",
                   "run_id",
-                  "pipeline",
-                  "text_too_long"
+                  "pipeline"
                 ],
                 "additionalProperties": false
               },
@@ -10601,8 +10624,35 @@
                 "created_at": {
                   "type": ["string", "null"]
                 },
-                "error": {
-                  "type": ["string", "null"]
+                "hold": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "text_too_long",
+                            "waits_on_blockers",
+                            "two_priorities",
+                            "parked",
+                            "failed"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fix": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["kind", "message", "fix"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
                 "run_id": {
                   "type": ["string", "null"]
@@ -10629,9 +10679,6 @@
                       "type": "null"
                     }
                   ]
-                },
-                "text_too_long": {
-                  "type": "boolean"
                 }
               },
               "required": [
@@ -10642,10 +10689,109 @@
                 "pr_url",
                 "state",
                 "created_at",
-                "error",
+                "hold",
                 "run_id",
-                "pipeline",
-                "text_too_long"
+                "pipeline"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "parked": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "issue_number": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "issue_url": {
+                  "type": ["string", "null"]
+                },
+                "title": {
+                  "type": "string"
+                },
+                "priority": {
+                  "type": ["string", "null"]
+                },
+                "pr_url": {
+                  "type": ["string", "null"]
+                },
+                "state": {
+                  "type": "string"
+                },
+                "created_at": {
+                  "type": ["string", "null"]
+                },
+                "hold": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "text_too_long",
+                            "waits_on_blockers",
+                            "two_priorities",
+                            "parked",
+                            "failed"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fix": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["kind", "message", "fix"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "run_id": {
+                  "type": ["string", "null"]
+                },
+                "pipeline": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "node_id": {
+                            "type": "string"
+                          },
+                          "state": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["node_id", "state"],
+                        "additionalProperties": false
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "issue_number",
+                "issue_url",
+                "title",
+                "priority",
+                "pr_url",
+                "state",
+                "created_at",
+                "hold",
+                "run_id",
+                "pipeline"
               ],
               "additionalProperties": false
             }
@@ -10678,8 +10824,35 @@
                 "created_at": {
                   "type": ["string", "null"]
                 },
-                "error": {
-                  "type": ["string", "null"]
+                "hold": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "text_too_long",
+                            "waits_on_blockers",
+                            "two_priorities",
+                            "parked",
+                            "failed"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fix": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["kind", "message", "fix"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
                 "run_id": {
                   "type": ["string", "null"]
@@ -10706,9 +10879,6 @@
                       "type": "null"
                     }
                   ]
-                },
-                "text_too_long": {
-                  "type": "boolean"
                 }
               },
               "required": [
@@ -10719,10 +10889,9 @@
                 "pr_url",
                 "state",
                 "created_at",
-                "error",
+                "hold",
                 "run_id",
-                "pipeline",
-                "text_too_long"
+                "pipeline"
               ],
               "additionalProperties": false
             }
@@ -10734,6 +10903,7 @@
           "current",
           "current_run_id",
           "next",
+          "parked",
           "recent"
         ],
         "additionalProperties": false

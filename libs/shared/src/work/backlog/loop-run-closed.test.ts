@@ -80,7 +80,11 @@ function deps(
   const ticks: string[] = [];
   const closedIssues: number[] = [];
   const closedPrs: number[] = [];
+  const whys: Array<{ taskId: string; why: string }> = [];
   const d: LoopRunClosedDeps = {
+    recordWhy: async (taskId, why) => {
+      whys.push({ taskId, why });
+    },
     getTaskIssueNumber: async () => 7,
     listStationRuns: async () => rows,
     priorInfraFailures: async () => priorInfraFailures,
@@ -102,7 +106,7 @@ function deps(
     },
   };
 
-  return { d, labeled, comments, ticks, closedIssues, closedPrs };
+  return { d, labeled, comments, ticks, closedIssues, closedPrs, whys };
 }
 
 const resolvedWalk: Row[] = [
@@ -116,6 +120,54 @@ const resolvedWalk: Row[] = [
 ];
 
 describe("handleLoopRunClosed", () => {
+  it("stores the parking reason on task-1, so the backlog page can say it", async () => {
+    const { d, whys } = deps([
+      {
+        nodeId: "dod",
+        iteration: 1,
+        outcome: "changes_requested",
+        failureDetail: "the ticket asks for a decision, not a behaviour",
+      },
+      { nodeId: "retrospective", iteration: 1, outcome: "success" },
+    ]);
+
+    await handleLoopRunClosed(run(), "completed", undefined, d);
+
+    expect(whys).toEqual([
+      {
+        taskId: "task-1",
+        why: "the definition-of-done step could not express this ticket as acceptance tests: the ticket asks for a decision, not a behaviour",
+      },
+    ]);
+  });
+
+  it("stores the reason of a deferred infrastructure failure on task-1", async () => {
+    const { d, whys } = deps([
+      {
+        nodeId: "dod",
+        iteration: 1,
+        outcome: "failed",
+        failureClass: "unclaimed",
+      },
+    ]);
+
+    await handleLoopRunClosed(run(), "failed", "unclaimed: no worker", d);
+
+    expect(whys).toEqual([
+      { taskId: "task-1", why: "the run ended failed: unclaimed: no worker" },
+    ]);
+  });
+
+  it("stores nothing for a ticket that reached review or was already resolved", async () => {
+    const reviewed = deps(walkEndingAtReview("success"));
+    const resolved = deps(resolvedWalk);
+
+    await handleLoopRunClosed(run(), "completed", undefined, reviewed.d);
+    await handleLoopRunClosed(run(), "completed", undefined, resolved.d);
+
+    expect([reviewed.whys, resolved.whys]).toEqual([[], []]);
+  });
+
   it("re-arms the repo after a completed ticket without touching the issue", async () => {
     const { d, labeled, comments, ticks } = deps(walkEndingAtReview("success"));
 
