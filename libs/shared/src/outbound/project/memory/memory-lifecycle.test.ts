@@ -618,3 +618,34 @@ describe("deleteOldestInvalidatedFacts is scoped to one agent (regression: a glo
     expect(sql).not.toMatch(/WHERE\s+agent_id\s*=/);
   });
 });
+
+describe("deleteOldestInvalidatedFacts removes the rows that reference a fact before the fact (regression: the bare delete raised 23503 on fact_conflicts and aborted the decay run, #2366)", () => {
+  it("deletes conflict rows on either side and clears invalidated_by in the one statement that deletes the facts", async () => {
+    let sql = "";
+    const pool = {
+      query: async (text: string) => {
+        sql = text;
+
+        return { rows: [{ id: "f1" }] };
+      },
+    };
+
+    const deleted = await new PgMemoryLifecycle(
+      pool as never,
+    ).deleteOldestInvalidatedFacts("over-cap", 5, 30);
+
+    expect({
+      deleted,
+      conflicts: sql.includes("DELETE FROM memory.fact_conflicts"),
+      bothSides:
+        sql.includes("old_fact_id IN (SELECT id FROM oldest)") &&
+        sql.includes("new_fact_id IN (SELECT id FROM oldest)"),
+      clearsRefs: sql.includes("SET invalidated_by = NULL"),
+    }).toEqual({
+      deleted: 1,
+      conflicts: true,
+      bothSides: true,
+      clearsRefs: true,
+    });
+  });
+});
