@@ -22,3 +22,7 @@
 .emptyCell {
   text-align: center;
 }
+
+.earlier {
+  margin-top: var(--space-5);
+}

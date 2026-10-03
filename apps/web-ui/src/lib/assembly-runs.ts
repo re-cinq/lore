@@ -18,6 +18,8 @@ export interface AssemblyRunFilter {
   /** What the run works on, e.g. `plan:<id>`. */
   subjectKey?: string;
   blueprint?: string;
+  /** `lore`: only the runs Lore's own engine walked (Postgres). */
+  engine?: "lore";
   limit?: number;
 }
 
@@ -57,6 +59,7 @@ function assemblyRunFilterParams(opts: AssemblyRunFilter): URLSearchParams {
     ["repo", opts.repo],
     ["subject_key", opts.subjectKey],
     ["blueprint", opts.blueprint],
+    ["engine", opts.engine],
   ];
 
   filters
