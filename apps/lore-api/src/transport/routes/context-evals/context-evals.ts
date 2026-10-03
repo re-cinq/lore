@@ -83,10 +83,11 @@ const serveContextEval: PooledHandler = async (
   return h.response(verdict);
 };
 
-/** The model evals run on is their own (`LORE_EVAL_LLM_PROVIDER`), so they can sit on another vendor than every other call. */
+/** The model evals run on is their own (`LORE_EVAL_LLM_PROVIDER`), so they can sit on another vendor than every other call; the verdict may be asked of a stronger one (`LORE_EVAL_JUDGE_MODEL`). */
 function evalDeps(pool: Pool): EvalDeps {
   return {
     llm: Llm.for("eval"),
+    judgeModel: process.env.LORE_EVAL_JUDGE_MODEL,
     document: (repo, path) => documentText(pool, repo, path),
     assemble: (repo, question) => assembleForEval(pool, repo, question),
   };

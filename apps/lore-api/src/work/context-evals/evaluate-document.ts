@@ -19,6 +19,8 @@ export interface AssembledForEval {
 
 export interface EvalDeps {
   llm: LlmProvider;
+  /** The model the verdict is asked of, when it should be a stronger one than the model that writes and answers; the provider's default otherwise. */
+  judgeModel?: string;
   /** The ingested text of one document; null when Lore does not hold it. */
   document(repo: string, path: string): Promise<string | null>;
   /** What an agent asking `question` about `repo` would be handed. */
@@ -113,7 +115,7 @@ async function evaluateStored(
 ): Promise<DocumentEval> {
   const { question, model } = await questionFor(deps.llm, target, document);
   const assembled = await deps.assemble(target.repo, question);
-  const graded = await gradeAssembled(deps.llm, {
+  const graded = await gradeAssembled(deps, {
     document,
     question,
     assembled,
@@ -167,7 +169,7 @@ interface Attempt {
 }
 
 async function gradeAssembled(
-  llm: LlmProvider,
+  deps: EvalDeps,
   attempt: Attempt,
 ): Promise<Graded> {
   const { sources } = attempt.assembled;
@@ -175,8 +177,8 @@ async function gradeAssembled(
   if (sources.length === 0) {
     return { answered: false, useful_share: 0, reason: NO_CONTEXT, model: "" };
   }
-  const answer = await answerFromContext(llm, attempt);
-  const judged = await judgeAnswer(llm, attempt, answer.answer);
+  const answer = await answerFromContext(deps.llm, attempt);
+  const judged = await judgeAnswer(deps, attempt, answer.answer);
 
   return {
     answered: passes(judged.judgement, attempt.document),
@@ -204,11 +206,12 @@ async function answerFromContext(
 }
 
 async function judgeAnswer(
-  llm: LlmProvider,
+  { llm, judgeModel }: EvalDeps,
   { document, question }: Attempt,
   answer: string,
 ): Promise<{ judgement: Judgement; model: string }> {
   const { parsed, model } = await llm.completeWithTool<Judgement>({
+    ...(judgeModel ? { model: judgeModel } : {}),
     systemPrompt: JUDGE_SYSTEM,
     prompt: `Reference document:\n\n${document}\n\nQuestion: ${question}\n\nAnswer to compare: ${answer}`,
     toolName: "judgement",
