@@ -131,6 +131,18 @@ describe("evaluateDocument", () => {
     });
   });
 
+  it("asks the judge model gemini-2.5-pro for the verdict alone, and the default model for the question and the answer", async () => {
+    const { deps, llm } = scenario();
+
+    await evaluateDocument({ ...deps, judgeModel: "gemini-2.5-pro" }, target);
+
+    expect(llm.calls.map((call) => call.model)).toEqual([
+      undefined,
+      undefined,
+      "gemini-2.5-pro",
+    ]);
+  });
+
   it("asks the model for all three calls at temperature 0, so a rerun of the same question differs as little as the model allows", async () => {
     const { deps, llm } = scenario();
 
@@ -187,7 +199,10 @@ describe("evaluateDocument", () => {
     });
 
     expect(asked).toEqual([{ repo: "re-cinq/lore", question: pinned }]);
-    expect(verdict?.question).toBe(pinned);
+    expect(verdict).toMatchObject({
+      question: pinned,
+      model: "gemini-2.5-flash",
+    });
     expect(llm.calls).toHaveLength(2);
   });
 

@@ -57,6 +57,9 @@ env:
   # vendor for evals only; every other model call keeps the process-wide one.
   LORE_EVAL_LLM_PROVIDER: vertex
   LORE_EVAL_LLM_MODEL: gemini-2.5-flash
+  # The verdict alone goes to a stronger model: a flash judge held lists to be
+  # exhaustive and failed answers for detail a document does not mention.
+  LORE_EVAL_JUDGE_MODEL: gemini-2.5-pro
 
 dbPasswordSecret:
   name: lore-api-db-password
