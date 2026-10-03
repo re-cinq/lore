@@ -29,13 +29,27 @@ const GITHUB_ANSWERS: Record<number, () => PullFileChange[]> = {
   },
 };
 
+const GHOST = "re-cinq/ghost";
+
+const fakeSettings = (repo: string) => ({
+  record: async () => (repo === GHOST ? null : { fullName: repo }),
+});
+
+const githubReads = vi.fn();
+
 const fakePulls = {
-  listFileChanges: async (number: number): Promise<PullFileChange[]> =>
-    (GITHUB_ANSWERS[number] ?? (() => FILES))(),
+  listFileChanges: async (number: number): Promise<PullFileChange[]> => {
+    githubReads();
+
+    return (GITHUB_ANSWERS[number] ?? (() => FILES))();
+  },
 };
 
 vi.mock("../../../outbound/project-boot.js", () => ({
-  projectFor: async () => ({ pulls: fakePulls }),
+  projectFor: async (repo: string) => ({
+    pulls: fakePulls,
+    settings: fakeSettings(repo),
+  }),
 }));
 
 import { buildServer } from "../../../app/build-server.js";
@@ -46,10 +60,14 @@ import {
 } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
 const originalEnv = { ...process.env };
-const get = (number: string, headers: Record<string, string> = AUTH) =>
+const get = (
+  number: string,
+  headers: Record<string, string> = AUTH,
+  repo = "re-cinq/lore",
+) =>
   buildServer(() => null).inject({
     method: "GET",
-    url: `/api/repos/re-cinq/lore/pulls/${number}/files`,
+    url: `/api/repos/${repo}/pulls/${number}/files`,
     headers,
   });
 
@@ -60,6 +78,7 @@ describe("GET /api/repos/{owner}/{repo}/pulls/{number}/files", () => {
   });
   afterEach(() => {
     process.env = { ...originalEnv };
+    githubReads.mockClear();
   });
 
   it("returns 401 without a bearer token", async () => {
@@ -91,5 +110,17 @@ describe("GET /api/repos/{owner}/{repo}/pulls/{number}/files", () => {
     const res = await get("424");
 
     expect(res.statusCode).toBe(424);
+  });
+
+  it("returns 404 without reading GitHub for a repo that is not onboarded", async () => {
+    const res = await get("7", AUTH, GHOST);
+
+    expect({
+      status: res.statusCode,
+      reads: githubReads.mock.calls.length,
+    }).toEqual({
+      status: 404,
+      reads: 0,
+    });
   });
 });
