@@ -39,9 +39,7 @@ export interface TicketHoldInput {
 
 /** The first thing holding a ticket, or null when nothing does. What the ticket itself must change comes before what happened to its last attempt. */
 export function ticketHold(input: TicketHoldInput): TicketHold | null {
-  return (
-    HOLDS.flatMap((holdOf) => holdOf(input) ?? []).at(0) ?? null // eslint-disable-line re-lint/max-member-chain -- pipeline over a constant list
-  );
+  return HOLDS.flatMap((holdOf) => holdOf(input) ?? []).at(0) ?? null;
 }
 
 const HOLDS: ReadonlyArray<(input: TicketHoldInput) => TicketHold | null> = [
