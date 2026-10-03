@@ -336,6 +336,7 @@ describe("FloorRunReader.page", () => {
 
     await floorReader.page({ repo: "Re-Cinq/Lore" });
     const plainRequests = recorded.requests.length;
+
     await floorReader.page({ repo: "Re-Cinq/Lore", status: "running" });
 
     expect(
