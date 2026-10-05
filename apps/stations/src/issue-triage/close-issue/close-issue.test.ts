@@ -39,11 +39,13 @@ function scene() {
             comment: (number: number, body: string) => {
               order.push("comment");
               commented.push({ number, body });
+
               return Promise.resolve();
             },
             close: (number: number) => {
               order.push("close");
               closed.push({ number });
+
               return Promise.resolve();
             },
           }),
