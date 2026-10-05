@@ -224,7 +224,7 @@ container:
   this pod (`npm run build`, `tsc -b`, a `tsc` without `--noEmit`):
   CI's build step proves compilation, and the build is the 950 MB
   step that OOM-kills a 1Gi pod.
-- When the work is done, `git add` what you changed and commit it
+- When the work is done, `git -C /workspace/target add` what you changed and commit it
   with a short, factual message. Then push it:
   `git -C /workspace/target push origin HEAD`. The clone carries its
   own credentials, so a plain push authenticates; you need no token
