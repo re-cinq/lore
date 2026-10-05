@@ -26,6 +26,7 @@ export const TaskTypeSchema = z.enum([
   "feature-request",
   "onboard",
   "spec-task",
+  "issue-triage",
 ]);
 
 export const PipelineTaskSchema = z.object({

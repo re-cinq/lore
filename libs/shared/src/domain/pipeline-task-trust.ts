@@ -58,6 +58,7 @@ export const TRUST_LEVELS: Record<string, string[] | undefined> = {
     "implementation-loop",
     "feature-request",
     SPEC_TASK,
+    "issue-triage",
     ...FEATURE_PLANNING,
   ],
   full: [

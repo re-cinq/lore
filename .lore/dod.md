@@ -6,20 +6,20 @@
 
 ## Done when these pass
 
-- [ ] **TaskTypeSchema accepts 'issue-triage' without a validation error** — `TaskTypeSchema.safeParse('issue-triage').success` is `true`
+- [x] **TaskTypeSchema accepts 'issue-triage' without a validation error** — `TaskTypeSchema.safeParse('issue-triage').success` is `true`
   `libs/shared/src/domain/pipeline-tasks.trust.test.ts`
 
-- [ ] **TRUST_LEVELS maps 'issue-triage' to the implementation tier** — `TRUST_LEVELS['implementation']` contains `'issue-triage'`
+- [x] **TRUST_LEVELS maps 'issue-triage' to the implementation tier** — `TRUST_LEVELS['implementation']` contains `'issue-triage'`
   `libs/shared/src/domain/pipeline-tasks.trust.test.ts`
 
-- [ ] **createTask allows an issue-triage task at trust level implementation** — `createTask` resolves (does not throw) when `taskType: 'issue-triage'` and the pool reports trust level `implementation`
+- [x] **createTask allows an issue-triage task at trust level implementation** — `createTask` resolves (does not throw) when `taskType: 'issue-triage'` and the pool reports trust level `implementation`
   `libs/shared/src/domain/pipeline-tasks.trust.test.ts`
 
 ## Facets
 
-- [ ] Add `'issue-triage'` to the `z.enum([...])` in `TaskTypeSchema` in `libs/shared/src/domain/models/pipeline-task.ts`
-- [ ] Add `'issue-triage'` to the `implementation` tier array in `TRUST_LEVELS` in `libs/shared/src/domain/pipeline-task-trust.ts`
-- [ ] Run the test file and confirm all 17 tests pass
+- [x] Add `'issue-triage'` to the `z.enum([...])` in `TaskTypeSchema` in `libs/shared/src/domain/models/pipeline-task.ts`
+- [x] Add `'issue-triage'` to the `implementation` tier array in `TRUST_LEVELS` in `libs/shared/src/domain/pipeline-task-trust.ts`
+- [x] Run the test file and confirm all 17 tests pass
 
 ## Out of scope
 
