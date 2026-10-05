@@ -105,7 +105,7 @@ describe("createPlanAction", () => {
     ]);
   });
 
-  it("seeds the Markdown description '## Why\\r\\n…\\r\\n\\r\\n- Mobile drops off' as the one string the plan reads its blocks from", async () => {
+  it("seeds a Markdown description with a heading, CRLF line breaks and a list as the one string the plan reads its blocks from", async () => {
     const description = "## Why\r\nCheckout is slow.\r\n\r\n- Mobile drops off";
 
     await expect(
