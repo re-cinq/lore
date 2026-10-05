@@ -75,6 +75,10 @@ resource "helm_release" "lore_platform" {
         # serves the legacy hook alias.
         LORE_WEBHOOK_URL = var.lore_event_router_hostname != "" ? "https://${var.lore_event_router_hostname}/api/events" : ""
         LORE_API_URL     = var.lore_api_url
+        # The web UI's base address: a spec statement cites the plan block it
+        # came from under the plan's page there, and a review's start comment
+        # links the plan. The stations already read it.
+        LORE_UI_URL = var.lore_ui_url
         # /spend's compute ESTIMATE prices pod-hours at these rates. The code
         # defaults to an e2 on-demand ballpark ($0.022/cpu-h), but this platform
         # runs on GKE AUTOPILOT, which bills the pod's own requests at roughly
