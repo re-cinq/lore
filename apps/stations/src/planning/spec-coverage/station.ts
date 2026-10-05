@@ -18,24 +18,11 @@ import {
 } from "@re-cinq/lore-shared/feature-planning/plan-coverage.js";
 import { specPathsOfPlan } from "@re-cinq/lore-shared/feature-planning/spec-plan-path.js";
 import { parseGitRef } from "@re-cinq/lore-shared/floor/floor-items.js";
-import { floorClient } from "@re-cinq/lore-shared/floor/floor-client.js";
-import { projectFor } from "../../outbound/project-boot.js";
-
-export interface RunVisit {
-  nodeId: string;
-  report: { outcome: string } | null;
-}
-
-export interface SpecCoverageDeps {
-  /** A spec file as it stands on the branch the writer pushed; null when the branch has no such file. */
-  readSpec(repo: string, path: string, ref: string): Promise<string | null>;
-  /** Every visit of the run this visit belongs to, oldest first. */
-  visitsOf(visitId: string): Promise<RunVisit[]>;
-}
+import { coverageDeps, type CoverageDeps } from "../coverage-deps.js";
 
 const SUCCESS: Report = { outcome: "success" };
 
-export function specCoverageHandle(deps: SpecCoverageDeps): Handle {
+export function specCoverageHandle(deps: CoverageDeps): Handle {
   return async (brief, tools) => {
     // A deployment that names no web UI hands the run no blocks to cite, so there is nothing to count.
     if (!brief.needs.plan_blocks) {
@@ -55,7 +42,7 @@ export function specCoverageHandle(deps: SpecCoverageDeps): Handle {
 }
 
 async function coverageOnBranch(
-  deps: SpecCoverageDeps,
+  deps: CoverageDeps,
   brief: Brief,
   tools: Tools,
 ): Promise<PlanCoverage> {
@@ -82,7 +69,7 @@ async function readJson<T>(tools: Tools, need: string): Promise<T> {
 
 /** Every block cited, or the budget spent, lets the spec PR open; otherwise the writer goes round again. */
 async function verdict(
-  deps: SpecCoverageDeps,
+  deps: CoverageDeps,
   visitId: string,
   coverage: PlanCoverage,
 ): Promise<Report> {
@@ -97,16 +84,6 @@ async function verdict(
   return spent < COVERAGE_ROUNDS ? { outcome: "changes_requested" } : SUCCESS;
 }
 
-const productionDeps: SpecCoverageDeps = {
-  readSpec: async (repo, path, ref) =>
-    (await projectFor(repo)).repo.read(path, ref),
-  visitsOf: async (visitId) => {
-    const visit = await floorClient().stationRuns.get(visitId);
-
-    return visit ? floorClient().stationRuns.list({ run: visit.runId }) : [];
-  },
-};
-
 export function startSpecCoverageStation(): RunningStation {
-  return defineStation("spec-coverage", specCoverageHandle(productionDeps));
+  return defineStation("spec-coverage", specCoverageHandle(coverageDeps));
 }

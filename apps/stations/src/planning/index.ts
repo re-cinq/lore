@@ -4,6 +4,7 @@ import { startPlanPassEndStation } from "./plan-pass-end/station.js";
 import { startOpenSpecPrStation } from "./open-spec-pr/station.js";
 import { startSpecCoverageStation } from "./spec-coverage/station.js";
 import { startFileIssuesStation } from "./file-issues/station.js";
+import { startIssueCoverageStation } from "./issue-coverage/station.js";
 
 export function startPlanningStations(): RunningStation[] {
   return [
@@ -11,5 +12,6 @@ export function startPlanningStations(): RunningStation[] {
     startSpecCoverageStation(),
     startOpenSpecPrStation(),
     startFileIssuesStation(),
+    startIssueCoverageStation(),
   ];
 }
