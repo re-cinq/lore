@@ -154,9 +154,7 @@ export async function refinePlanAction(
   }
   const asked = await askRefine(fullName, planId, refine);
 
-  return asked.status === "ok"
-    ? {}
-    : { error: "The planning agent is still working on this plan." };
+  return asked.status === "ok" ? {} : { error: refusalOf(asked) };
 }
 
 /** A fresh draft for a plan whose planning run failed or never started — the run page cannot retry a run that failed on its first node. */
@@ -169,7 +167,10 @@ export async function draftAgainAction(
   if ("error" in allowed) {
     return allowed;
   }
-  const started = await startDrafting(fullName, planId, "", allowed.user.id);
+  const started = await startDrafting(fullName, planId, {
+    known: "",
+    createdBy: allowed.user.id,
+  });
 
   return started.status === "ok"
     ? {}

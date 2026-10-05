@@ -1,12 +1,17 @@
 import type { PipelineRepositories } from "@re-cinq/lore-shared";
+import type { AssemblyRunQuery } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import type { Project } from "@re-cinq/lore-shared";
 import { REVIEW_DEFINITIONS } from "@re-cinq/lore-shared/review/review-definitions.js";
+import { floorIfConfigured } from "@re-cinq/lore-shared/floor/floor-client.js";
+import { openFloorReviewCount } from "@re-cinq/lore-shared/review/floor-review-runs.js";
 import {
   parkedHumanNode,
   type ParkedTarget,
 } from "@re-cinq/lore-shared/project/assembly-runs/parked-node.js";
+import { floorCiWaitSweep } from "./floor-ci-wait.js";
 import { ciReportForRun, prReportForRun } from "./park-readers.js";
 import {
+  CI_WAIT_BLUEPRINTS,
   LOOP_BLUEPRINT,
   type LoopRunSlice,
   type ParkedReport,
@@ -34,11 +39,18 @@ interface ParkedVerdict {
 
 /** The two parks, each with the reader that judges it. Ordered CI-first only for determinism: a run holds one open row, so at most one ever matches. */
 const PARK_KINDS = [
-  { type: CI_STATION_TYPE, fallbackNodeId: CI_NODE, read: ciReportForRun },
+  {
+    type: CI_STATION_TYPE,
+    fallbackNodeId: CI_NODE,
+    read: ciReportForRun,
+    lines: CI_WAIT_BLUEPRINTS,
+  },
+  // Only the loop's pr_review park is this sweep's: another line's (feature-planning's `merged`) is resumed by the PR's own webhook, and judging it green here would advance a plan nobody merged.
   {
     type: AWAIT_STATION_TYPE,
     fallbackNodeId: AWAIT_NODE,
     read: prReportForRun,
+    lines: [LOOP_BLUEPRINT],
   },
 ] as const;
 
@@ -54,25 +66,65 @@ const OPEN_RUN_STATUS = ["queued", "running"] as const;
 
 /** Production entry — the manifest's run. Deps bound to the stations kernel. */
 export async function prReadyCheckJob(): Promise<string> {
+  const { projectFor } = await import("../../outbound/project-boot.js");
+  const { projectOf, hasCiHistory } = sweepRepoCache(projectFor);
+  const deps: PrReadyCheckDeps = {
+    ...(await runSideDeps()),
+    ...prReads(projectOf),
+    hasCiHistory,
+  };
+  const summaries = [
+    await prReadyCheckSweep(deps),
+    ...(await floorSummary(deps, projectOf)),
+  ];
+
+  return summaries.join("; ");
+}
+
+/** The run reads and the report, bound to this process's queues. */
+async function runSideDeps(): Promise<
+  Pick<
+    PrReadyCheckDeps,
+    "listOpenLoopRuns" | "listStationRuns" | "countOpenReviewRuns" | "report"
+  >
+> {
   const { pipeline, eventProxy } = await import("../../outbound/queues.js");
   const { queuedReporter } =
     await import("@re-cinq/lore-shared/project/events/event-proxy.js");
-  const { projectFor } = await import("../../outbound/project-boot.js");
   const { reportToParkedNode } =
     await import("@re-cinq/lore-shared/project/assembly-runs/parked-node.js");
-  const { projectOf, hasCiHistory } = sweepRepoCache(projectFor);
 
-  return prReadyCheckSweep({
+  return {
     ...runReads(pipeline),
-    ...prReads(projectOf),
-    hasCiHistory,
     // Reported through the queue rather than inserted directly, and the sweep resolves whether or not delivery lands — a router blip must not cost the run its resume.
     report: (target, outcome, args) =>
       reportToParkedNode(queuedReporter(eventProxy()), target, {
         outcome,
         args,
       }),
-  });
+  };
+}
+
+/** The runs the external floor holds parked on CI, judged by the same reader; nothing on a deployment with no floor. */
+async function floorSummary(
+  deps: PrReadyCheckDeps,
+  projectOf: (repo: string) => Promise<Pick<Project, "pulls">>,
+): Promise<string[]> {
+  const floor = floorIfConfigured();
+
+  if (!floor) {
+    return [];
+  }
+
+  return [
+    await floorCiWaitSweep({
+      floor,
+      judge: (run) => ciReportForRun(run, deps),
+      judgePr: (run) => prReportForRun(run, deps),
+      prState: async (repo, prNumber) =>
+        (await (await projectOf(repo)).pulls.get(prNumber))?.state ?? null,
+    }),
+  ];
 }
 
 /** Both caches hold REPO facts across one sweep: a sweep reads many PRs of the same repo, so the facade is built once and CI history is asked once rather than per PR. */
@@ -134,27 +186,44 @@ function runReads(
   return {
     listOpenLoopRuns: () =>
       pipeline().assemblyRuns.list({
-        blueprintName: LOOP_BLUEPRINT,
+        blueprintName: CI_WAIT_BLUEPRINTS,
         status: OPEN_RUN_STATUS,
       }),
     listStationRuns: (runId) => pipeline().assemblyRuns.listStationRuns(runId),
-    countOpenReviewRuns: openReviewRunCounter(pipeline),
+    countOpenReviewRuns: openReviewRunCounter(pipeline, floorReviewCount),
   };
 }
 
-/** How many reviews of this PR are still running. This is what keeps a PR parked while a review of it is in flight — resuming then would judge CI that the review is about to invalidate. */
-function openReviewRunCounter(
-  pipeline: () => Pick<PipelineRepositories, "assemblyRuns">,
-) {
-  return async (repo: string, number: number) =>
-    (
-      await pipeline().assemblyRuns.listSummaries({
+/** The one read the count makes of Postgres; only how many rows answer matters. */
+interface OpenRunLister {
+  listSummaries(query: AssemblyRunQuery): Promise<readonly unknown[]>;
+}
+
+/** How many review-family runs a pull request has open somewhere Lore cannot count in Postgres. */
+export type OpenReviewCount = (repo: string, number: number) => Promise<number>;
+
+/** The reviews the external floor is running for this pull request. */
+const floorReviewCount: OpenReviewCount = (repo, prNumber) =>
+  openFloorReviewCount(floorIfConfigured(), { repo, prNumber });
+
+/** How many reviews of this PR are still running. This is what keeps a PR parked while a review of it is in flight — resuming then would judge CI that the review is about to invalidate. The review lines run on the external floor, so its open runs count beside whatever Postgres still holds. */
+export function openReviewRunCounter(
+  pipeline: () => { assemblyRuns: OpenRunLister },
+  onFloor: OpenReviewCount,
+): OpenReviewCount {
+  return async (repo, number) => {
+    const [local, floor] = await Promise.all([
+      pipeline().assemblyRuns.listSummaries({
         repo,
         blueprintName: REVIEW_DEFINITIONS,
         status: OPEN_RUN_STATUS,
         prNumber: number,
-      })
-    ).length;
+      }),
+      onFloor(repo, number),
+    ]);
+
+    return local.length + floor;
+  };
 }
 
 /** The sweep's reads that go to the pull request itself. */
@@ -185,7 +254,7 @@ function prReads(
   };
 }
 
-/** Resume implementation-loop await-pr nodes whose PR has settled: green CI or unresolved threads with no review run open (specs/implementation-loop FR4). */
+/** Resume runs parked on their PR: an `await-ci` of any line in {@link CI_WAIT_BLUEPRINTS} once the judged sha has a verdict, and an implementation-loop `await-pr` once the PR has settled — green CI, or unresolved threads with no review run open (specs/implementation-loop FR4). */
 export async function prReadyCheckSweep(
   deps: PrReadyCheckDeps,
 ): Promise<string> {
@@ -246,8 +315,11 @@ async function parkedAt(
   read: (typeof PARK_KINDS)[number]["read"];
 } | null> {
   const rows = await deps.listStationRuns(run.id);
+  const kinds = PARK_KINDS.filter((kind) =>
+    (kind.lines as readonly string[]).includes(run.blueprintName),
+  );
 
-  for (const kind of PARK_KINDS) {
+  for (const kind of kinds) {
     const parked = parkedHumanNode(run.status, rows, run.graph, kind);
 
     if (parked) {

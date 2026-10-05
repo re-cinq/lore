@@ -51,7 +51,7 @@ describe("POST /api/ingest", () => {
     expect(res.statusCode).toBe(400);
   });
 
-  it("returns 200 and inserts a spec-coverage-validate event when a file lands", async () => {
+  it("returns 200 and inserts no event when a file lands", async () => {
     vi.mocked(ingestFiles).mockResolvedValue({
       results: [{ status: "ingested" }],
     } as any);
@@ -59,9 +59,7 @@ describe("POST /api/ingest", () => {
     const res = await post({ files: ["a.ts"], repo: "o/r" }, pool);
 
     expect(res.statusCode).toBe(200);
-    expect(insertCalls(pool)[0]?.[1]?.[0]).toBe(
-      "internal.ingest.spec_coverage_validate",
-    );
+    expect(insertCalls(pool)).toEqual([]);
   });
 
   it("returns 400 when repo is missing", async () => {
@@ -70,38 +68,11 @@ describe("POST /api/ingest", () => {
     expect(res.statusCode).toBe(400);
   });
 
-  it("treats a deleted status as a landed file and inserts the event", async () => {
-    vi.mocked(ingestFiles).mockResolvedValue({
-      results: [{ status: "deleted" }],
-    } as any);
-    const pool = makePool();
-    const res = await post({ files: ["a.ts"], repo: "o/r" }, pool);
+  it("returns 200 when the result has no results array", async () => {
+    vi.mocked(ingestFiles).mockResolvedValue({} as any);
+    const res = await post({ files: ["a.ts"], repo: "o/r" }, makePool());
 
     expect(res.statusCode).toBe(200);
-    expect(insertCalls(pool)[0]?.[1]?.[0]).toBe(
-      "internal.ingest.spec_coverage_validate",
-    );
-  });
-
-  it("does not insert an event when nothing landed", async () => {
-    vi.mocked(ingestFiles).mockResolvedValue({
-      results: [{ status: "skipped" }],
-    } as any);
-    const pool = makePool();
-
-    await post({ files: ["a.ts"], repo: "o/r" }, pool);
-    expect(insertCalls(pool)).toHaveLength(0);
-  });
-
-  it("does not fire the trigger when the result has no results array", async () => {
-    process.env.LORE_AGENT_URL = "http://agent:8080";
-    process.env.LORE_AGENT_INTERNAL_TOKEN = "tok";
-    const fetchMock = vi.fn();
-
-    globalThis.fetch = fetchMock as typeof fetch;
-    vi.mocked(ingestFiles).mockResolvedValue({} as any);
-    await post({ files: ["a.ts"], repo: "o/r" }, makePool());
-    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("returns 500 when ingestFiles throws", async () => {

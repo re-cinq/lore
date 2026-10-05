@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { enforceTrue } from "../../../lib/enforce.js";
 import type { PipelineTask } from "../../../domain/types.js";
 import { enforceDescriptionFits } from "../../../domain/task-description.js";
+import { namedTaskType } from "../../../domain/task-types/retired-task-types.js";
 import {
   enforceTrustAllowsTaskType,
   type CreateTaskInput,
@@ -178,7 +179,7 @@ export class InMemoryTaskStore implements TaskStorePort {
 
   async create(input: CreateTaskInput): Promise<CreatedTask> {
     const fields: CreateFields = {
-      taskType: input.taskType ?? "general",
+      taskType: namedTaskType(input.taskType),
       repo: input.targetRepo,
       createdBy: input.createdBy ?? "ui",
       priority: input.priority === "immediate" ? "immediate" : "normal",

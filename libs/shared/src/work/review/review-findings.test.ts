@@ -269,3 +269,36 @@ describe("the other findings schema this repo defines", () => {
     ).toEqual(["Leading newline.", "e.g. foo is wrong. Fix it."]);
   });
 });
+
+describe("a decoration the contract does not name", () => {
+  const withDecoration = (decoration: string) =>
+    [
+      "```REVIEW_FINDINGS",
+      JSON.stringify({
+        verdict: "changes_requested",
+        findings: [
+          {
+            path: "a.ts",
+            line: 1,
+            label: "question",
+            decoration,
+            subject: "why",
+          },
+        ],
+      }),
+      "```",
+    ].join("\n");
+
+  it("keeps the finding and drops the decoration none", () => {
+    expect(parseReviewFindings(withDecoration("none"))?.findings).toEqual([
+      { path: "a.ts", line: 1, label: "question", subject: "why" },
+    ]);
+  });
+
+  it("keeps the decoration non-blocking as written", () => {
+    expect(
+      parseReviewFindings(withDecoration("non-blocking"))?.findings[0]
+        .decoration,
+    ).toBe("non-blocking");
+  });
+});

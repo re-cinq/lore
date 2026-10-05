@@ -5,7 +5,7 @@ import type { Pool } from "pg";
 import { z } from "zod";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
-import { PgAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-pg.js";
+import { runsReadingFloor } from "../../../work/floor/floor-backed-runs.js";
 import type { AssemblyRunsPort } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
@@ -13,7 +13,7 @@ import { zodValidate } from "../../http/zod-validate.js";
 import { withPool } from "../with-pool.js";
 import { mintLiveToken } from "../../../work/assembly-line-station/live-tokens.js";
 
-const StreamTokenBody = z.object({
+export const StreamTokenBody = z.object({
   user: z.object({ id: z.string().min(1), name: z.string().min(1) }),
 });
 
@@ -61,7 +61,7 @@ export function runStreamTokenRoute(
 
 function pgDeps(pool: Pool): RunStreamTokenDeps {
   return {
-    runs: new PgAssemblyRuns(pool),
+    runs: runsReadingFloor(pool),
     mint: (runId, user) =>
       mintLiveToken(() => pool, { kind: "run", subject: runId, user }),
   };

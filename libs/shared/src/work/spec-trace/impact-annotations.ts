@@ -7,6 +7,7 @@ import type {
   ImpactReport,
   OrphanStatement,
 } from "./impact-types.js";
+import { statementProse } from "./impact-render.js";
 import { parseRanges } from "../../domain/spec-trace/line-range.js";
 
 export function buildImpactAnnotations(
@@ -25,20 +26,29 @@ function statementAnnotation(
 ): ImpactAnnotation {
   const file = changed.find((c) => c.path === stmt.changedFile);
   const [start, end] = file?.ranges[0] ?? [1, 1];
-  const test = stmt.tests.at(0);
-  const coverage = test ? ` Covered by test ${test.file}:${test.line}.` : "";
 
   return {
     path: stmt.changedFile,
     start_line: start,
     end_line: end,
     annotation_level: stmt.indirect ? "notice" : "warning",
-    title: `Lore: coupled to ${stmt.specTitle}`,
-    message: `⚠ Coupled to Spec "${stmt.specTitle}"${sectionLabel(stmt.section)} — "${stmt.statementText}".${coverage} Verify this still holds. → ${stmt.statementAnchor}`,
+    title: "Lore: coupled spec statement",
+    message: statementReference(stmt),
   };
 }
 
-const sectionLabel = (section?: string) => (section ? ` ${section}` : "");
+/** Where the statement is defined, then the statement itself: enough to find it, and its tests from there. */
+function statementReference(statement: {
+  specPath: string;
+  section?: string;
+  statementText: string;
+}): string {
+  const definedIn = [statement.specPath, statement.section]
+    .filter(Boolean)
+    .join(" › ");
+
+  return `${definedIn}\n"${statementProse(statement.statementText)}"`;
+}
 
 function orphanAnnotation(orphan: OrphanStatement): ImpactAnnotation {
   const coveredByParts = orphan.wasCoveredBy.split(":");
@@ -51,7 +61,7 @@ function orphanAnnotation(orphan: OrphanStatement): ImpactAnnotation {
     start_line: start,
     end_line: end,
     annotation_level: "notice",
-    title: `Lore: coverage removed for ${orphan.specTitle}`,
-    message: `ℹ Removes the only coverage for Spec "${orphan.specTitle}" — "${orphan.statementText}". No test now exercises it.`,
+    title: "Lore: only coverage removed",
+    message: `Removes the only coverage for:\n${statementReference(orphan)}`,
   };
 }

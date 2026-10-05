@@ -76,7 +76,7 @@ export function useRunStream(input: RunStreamInput): RunStreamWiring {
     history,
   );
 
-  return runStreamWiring(history, { mode, fallbackPollActive });
+  return runStreamWiring(history, { mode, fallbackPollActive, runStatus });
 }
 
 export function useRunHistory(runId: string, dispatch: HistoryDispatch) {
@@ -129,6 +129,7 @@ function runStreamWiring(
   chip: {
     mode: ReturnType<typeof resolveStreamMode>;
     fallbackPollActive: boolean;
+    runStatus: string;
   },
 ): RunStreamWiring {
   return {

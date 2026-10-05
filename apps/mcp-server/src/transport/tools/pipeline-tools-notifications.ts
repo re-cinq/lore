@@ -9,12 +9,7 @@ import {
 } from "./pipeline-tools-schemas.js";
 
 // The types a developer can actually pick up locally — a surfaced task nobody can run is noise on the statusline.
-const LOCALLY_RUNNABLE_TASK_TYPES = [
-  "implementation",
-  "general",
-  "runbook",
-  "gap-fill",
-];
+const LOCALLY_RUNNABLE_TASK_TYPES = ["runbook", "gap-fill"];
 
 export function registerPipelineNotificationTools(server: McpServer) {
   registerListPendingTasksTool(server);

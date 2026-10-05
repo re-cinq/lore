@@ -1,11 +1,17 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { createHash } from "node:crypto";
 import type { Server } from "@hapi/hapi";
 import pg from "pg";
 import { buildServer } from "../app/build-server.js";
 import { restoreEnv } from "./restore-env.js";
 import { collabAuthenticator } from "../work/plans/collab-tokens.js";
-import { setPipelinePool } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
+import {
+  planRun,
+  planVisit,
+  recordedPlanFloor,
+  type PlanFloorScene,
+} from "@re-cinq/lore-shared/floor/recorded-plan-floor.js";
+import { specBranchOf } from "../work/plans/spec-branch.js";
 
 const TOKEN = "test-plan-routes-token";
 const READ_TOKEN = "test-plan-routes-read-token";
@@ -17,9 +23,30 @@ const NEW_PLAN = {
   createdBy: "ana",
 };
 
+const SUCCESS = { outcome: "success" };
+const ON_AUTHOR = [
+  planVisit("analyze", SUCCESS),
+  planVisit("plan-pass-end", SUCCESS),
+  planVisit("author", null),
+];
+const WHILE_ANALYZING = [
+  planVisit("author", SUCCESS),
+  planVisit("analyze", null),
+];
+
 describe("/api/plans on lore-api", () => {
   let pool: pg.Pool;
   let server: Server;
+  let recorded = recordedPlanFloor();
+
+  const onFloor = (scene: PlanFloorScene) => {
+    recorded = recordedPlanFloor(scene);
+  };
+
+  const floorWrites = () =>
+    recorded.requests
+      .filter((request) => request.method === "POST")
+      .map((request) => request.path);
   const prevToken = process.env.LORE_INGEST_TOKEN;
 
   const createPlan = async () =>
@@ -59,26 +86,25 @@ describe("/api/plans on lore-api", () => {
        VALUES ('plan-routes-read', $1, '{read}', 'test') ON CONFLICT (token_hash) DO NOTHING`,
       [createHash("sha256").update(READ_TOKEN).digest("hex")],
     );
-    setPipelinePool(pool);
-    server = buildServer(() => pool);
+    server = buildServer(() => pool, 0, {
+      get floor() {
+        return recorded.floor;
+      },
+      specBranch: async (plan) => specBranchOf(plan),
+      baseBranch: () => Promise.resolve("main"),
+      specPrState: () => Promise.resolve(null),
+      pulls: {
+        listReviewThreads: async () => [],
+        listComments: async () => [],
+        listReviews: async () => [],
+      },
+    });
   });
 
+  beforeEach(() => onFloor({}));
+
   afterAll(async () => {
-    await pool.query(
-      "DELETE FROM pipeline.station_runs WHERE assembly_run_id IN (SELECT id FROM pipeline.assembly_runs WHERE repo = $1)",
-      [REPO],
-    );
-    await pool.query("DELETE FROM pipeline.assembly_runs WHERE repo = $1", [
-      REPO,
-    ]);
     await pool.query("DELETE FROM lore.plans WHERE repo = $1", [REPO]);
-    await pool.query(
-      "DELETE FROM pipeline.task_events WHERE task_id IN (SELECT id FROM pipeline.tasks WHERE target_repo = $1)",
-      [REPO],
-    );
-    await pool.query("DELETE FROM pipeline.tasks WHERE target_repo = $1", [
-      REPO,
-    ]);
     await pool.query(
       "DELETE FROM pipeline.api_tokens WHERE name = 'plan-routes-read'",
     );
@@ -175,7 +201,7 @@ describe("/api/plans on lore-api", () => {
     expect(minted.status).toBe(404);
   });
 
-  it("starts the planning agent's draft of Ana's plan as a feature-planning task", async () => {
+  it("starts the planning agent's draft of Ana's plan as a feature-planning run on the floor", async () => {
     const planId = await createPlan();
     const started = await call(
       "POST",
@@ -186,23 +212,17 @@ describe("/api/plans on lore-api", () => {
         createdBy: "ana",
       },
     );
-    const { rows } = await pool.query(
-      "SELECT task_type, created_by, context_bundle FROM pipeline.tasks WHERE id = $1",
-      [(started.body as { task_id: string }).task_id],
-    );
 
-    expect({ status: started.status, task: rows[0] }).toMatchObject({
-      status: 202,
-      task: {
-        task_type: "feature-planning",
-        created_by: "ana",
-        context_bundle: { plan_id: planId },
-      },
+    expect({ started, writes: floorWrites() }).toEqual({
+      started: { status: 202, body: { task_id: "run-new" } },
+      writes: ["/blobs", "/assembly-lines/feature-planning/start"],
     });
   });
 
-  it("answers 409 to a Refine while no planning line waits on the plan", async () => {
+  it("answers 409 to a Refine while the planning agent is still working on the plan", async () => {
     const planId = await createPlan();
+
+    onFloor({ runs: [planRun()], visits: { "run-open": WHILE_ANALYZING } });
     const refused = await call(
       "POST",
       `/api/repos/${REPO}/plans/${planId}/refine`,
@@ -253,7 +273,7 @@ describe("/api/plans on lore-api", () => {
     });
   });
 
-  it("starts a fresh spec pass at analyse-specs for Ana's approved plan whose line is not running", async () => {
+  it("starts a fresh spec pass on the floor for Ana's approved plan whose line is not running", async () => {
     const planId = await approvedPlan();
     const started = await call(
       "POST",
@@ -261,23 +281,10 @@ describe("/api/plans on lore-api", () => {
       TOKEN,
       { createdBy: "ana" },
     );
-    const { rows } = await pool.query(
-      "SELECT task_type, context_bundle FROM pipeline.tasks WHERE id = $1",
-      [(started.body as { task_id: string }).task_id],
-    );
 
-    expect({ status: started.status, task: rows[0] }).toMatchObject({
-      status: 202,
-      task: {
-        task_type: "feature-planning",
-        context_bundle: {
-          plan_id: planId,
-          line_args: {
-            entry_node: "analyse-specs",
-            plan_title: "Faster checkout",
-          },
-        },
-      },
+    expect({ started, writes: floorWrites() }).toEqual({
+      started: { status: 202, body: { task_id: "run-new" } },
+      writes: ["/blobs", "/assembly-lines/feature-planning/start"],
     });
   });
 
@@ -341,24 +348,10 @@ describe("/api/plans on lore-api", () => {
     });
   });
 
-  const lineParkedOnAuthor = async (planId: string) => {
-    const run = await pool.query<{ id: string }>(
-      `INSERT INTO pipeline.assembly_runs (blueprint_name, repo, args, status, subject_key)
-       VALUES ('feature-planning', $1, '{}'::jsonb, 'running', $2) RETURNING id`,
-      [REPO, `plan:${planId}`],
-    );
-
-    await pool.query(
-      `INSERT INTO pipeline.station_runs (assembly_run_id, node_id, iteration, started_at)
-       VALUES ($1, 'author', 1, now())`,
-      [run.rows[0].id],
-    );
-  };
-
   it("reopens Ana's approved plan when its planning line waits on the author, and leaves it be once reopened", async () => {
     const planId = await approvedPlan();
 
-    await lineParkedOnAuthor(planId);
+    onFloor({ runs: [planRun()], visits: { "run-open": ON_AUTHOR } });
     const opened = await call(
       "POST",
       `/api/repos/${REPO}/plans/${planId}/author-waiting`,
@@ -458,6 +451,45 @@ describe("/api/plans on lore-api", () => {
       status: written.status,
       last: after.includes('Finding 99999: "p95" is 450 ms.'),
     }).toEqual({ bytes: true, status: 200, last: true });
+  });
+
+  it("reads the planning agent's paragraph '### Why\\r\\n- Checkout p95 is 450 ms.' into a heading and a bullet in Ana's live plan", async () => {
+    const planId = await createPlan();
+    const edited = await call(
+      "POST",
+      `/api/plans/${planId}/agent-edits`,
+      TOKEN,
+      {
+        actor: "planning-agent",
+        ops: [
+          {
+            op: "append-to-section",
+            slot: "intent",
+            paragraphs: ["### Why\r\n- Checkout p95 is 450 ms."],
+          },
+        ],
+      },
+    );
+    const { body } = await call(
+      "GET",
+      `/api/plans/${planId}/agent-view`,
+      READ_TOKEN,
+    );
+    const { sections } = body as {
+      sections: { slot: string; blocks: { type: string; text: string }[] }[];
+    };
+    const intent = sections.find((section) => section.slot === "intent");
+
+    expect({
+      status: edited.status,
+      intent: intent?.blocks.map(({ type, text }) => ({ type, text })),
+    }).toEqual({
+      status: 200,
+      intent: [
+        { type: "heading", text: "Why" },
+        { type: "bulletListItem", text: "Checkout p95 is 450 ms." },
+      ],
+    });
   });
 
   it("answers 400 to a plan.md whose only change names no section of Ana's plan", async () => {

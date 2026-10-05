@@ -15,12 +15,11 @@
 # Usage: deploy-lore-platform.sh <subchart> <image_tag> <deployment> <namespace> [image_repo] [values_overlay]
 #   e.g. deploy-lore-platform.sh lore-api 5d270e9 lore-api lore-api
 # An image_tag of "-" deploys the chart as checked out with no image override —
-# for subcharts whose images are digest-pinned in values.yaml (ai-agents).
+# for subcharts whose images are digest-pinned in values.yaml.
 # `values_overlay` (a YAML/JSON file) is passed with -f AFTER the reused values,
-# so its keys win over the release's stored user-supplied values. The release
-# carries a full legacy ai-agents block that would otherwise shadow every
-# values.yaml edit under --reset-then-reuse-values (2026-07-16: a memory-limit
-# bump deployed green and changed nothing).
+# so its keys win over the release's stored user-supplied values, which would
+# otherwise shadow every values.yaml edit under --reset-then-reuse-values
+# (2026-07-16: a memory-limit bump deployed green and changed nothing).
 set -euo pipefail
 
 SUBCHART="${1:?subchart values key, e.g. lore-floor}"

@@ -19,3 +19,13 @@ export function decideRetry(state: {
 
   return { kind: "retry", backoffSeconds };
 }
+
+/** A handler that knows its failure outlasts the default budget (a rollout, say) says so with a numeric `maxAttempts` on the error it throws. */
+export function retryBudgetOf(err: unknown): number | undefined {
+  const budget =
+    typeof err === "object" && err !== null && "maxAttempts" in err
+      ? err.maxAttempts
+      : undefined;
+
+  return typeof budget === "number" ? budget : undefined;
+}

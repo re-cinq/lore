@@ -12,7 +12,7 @@ The on-disk format for assembly line graphs. Loaded by the Floor (`libs/assembly
 ```ts
 const NodeType = z.enum([
   "agent", "validate", "gate", "retrospective", "github_action", "detect",
-  "comment-triage", "ingest",
+  "ingest",
 ]);
 const EdgeCondition = z.enum(["success", "changes_requested", "failed", "always"]);
 
@@ -65,7 +65,7 @@ const AssemblyLineSchema = z.object({
 ## Builtin definitions
 
 `libs/assembly-lines/src/assembly-lines/` currently holds: `implementation`, `general`, `gap-fill`,
-the PR-review choreography lines (`code-review`, `code-review-reply`, `comment-triage`), the
+the PR-review choreography lines (`code-review`, `code-review-reply`), the
 feature-planning pair (`feature-planning`, `feature-finalize`), the detection family (`spec-drift`,
 `gap-detect`, `spec-coverage-validate`, `spec-coverage-backfill`), and `ingest`. The examples below
 are excerpts of the real files — when they drift, the YAML wins.

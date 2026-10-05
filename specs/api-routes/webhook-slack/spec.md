@@ -10,18 +10,18 @@
 | Auth    | HMAC SHA-256 (`X-Slack-Signature: v0=…` over `v0:{ts}:{body}`, secret `LORE_SLACK_SIGNING_SECRET`) + 5-min replay window |
 | Module  | `mcp-server/src/api/routes/webhooks.ts` (`handleSlackWebhook`)       |
 
-POST /api/webhook/slack receives the signed `/lore` slash command from Slack, verifies it, maps the channel to a repo, and creates a pipeline task so developers can dispatch work without leaving the channel.
+POST /api/webhook/slack receives the signed `/lore` slash command from Slack and verifies it. Since 2026-10-02 the command creates no task (`specs/external-floor` FR16.7): it retries a failed one, and answers anything else with where that work goes now.
 
 ## Problem Statement
 
-Developers invoke `/lore [task_type] <description>` from Slack to create
-pipeline tasks without leaving the channel. Slack delivers the command as a
-URL-encoded form body signed with HMAC-SHA256 over `v0:{timestamp}:{rawBody}`.
-The endpoint verifies the signature and a 5-minute replay window (Slack's
-own scheme — not a bearer token; the router exempts `/api/webhook/*`), answers
-the one-time `url_verification` challenge, parses the command, maps the Slack
-channel to a repo via `lore.repos.settings.slack_channel_id`, and creates a
-task. All replies are Slack message JSON (`response_type` + `text`).
+Developers invoked `/lore [task_type] <description>` from Slack to create
+pipeline tasks without leaving the channel. Lore no longer runs a typed task
+from a description, so the command keeps one verb, `/lore retry <task_id>`.
+Slack delivers the command as a URL-encoded form body signed with HMAC-SHA256
+over `v0:{timestamp}:{rawBody}`. The endpoint verifies the signature and a
+5-minute replay window (Slack's own scheme — not a bearer token; the router
+exempts `/api/webhook/*`) and answers the one-time `url_verification` challenge.
+All replies are Slack message JSON (`response_type` + `text`).
 
 ## Interface
 
@@ -42,7 +42,7 @@ Registered in the route table ([registration](../../../apps/lore-api/src/app/bui
 - **Response**:
   - `url_verification` → `200 text/plain` echoing `challenge` (or empty).
   - All command replies → `200 application/json` `{response_type, text}` with
-    `response_type` `in_channel` (success/retry) or `ephemeral` (usage/errors/no-repo).
+    `response_type` `in_channel` (retry) or `ephemeral` (usage, errors, and the "no typed task" answer).
   - Auth failures → plaintext `401`/`503` (`writeHead(code).end("…")`).
 
 ## Behavior
@@ -55,27 +55,13 @@ Registered in the route table ([registration](../../../apps/lore-api/src/app/bui
 3. **Parse** the body as `URLSearchParams`. `type === "url_verification"` →
    `200 text/plain` `challenge` (or `""`).
 4. **Empty command** — trimmed `text` empty → `200 {response_type:"ephemeral", text: usage help}`
-   (the `/lore [task_type] <description>` usage string verbatim, listing
-   `general, implementation, runbook, gap-fill, review`, the `!` immediate prefix,
-   and `retry <task_id>`).
-5. **Priority** — split on whitespace; a leading `!` sets `priority="immediate"`
-   and is stripped, else `priority="normal"`.
-6. **Retry** — `words[0] === "retry" && words[1]` → dynamic-import `retryTask`,
+   (how to retry a task, and that code is implemented from an issue with a `priority:*` label).
+5. **Retry** — `words[0] === "retry" && words[1]` → dynamic-import `retryTask`,
    on success `200 {response_type:"in_channel", text:"Retrying task …\nNew task: …"}`,
    on failure `200 {response_type:"ephemeral", text:"Retry failed: …"}`.
-7. **Type parse** — if `words.length > 1` and `words[0]` is in
-   `[general, implementation, runbook, gap-fill, review, feature-request]`, use
-   it as `taskType` and the rest as `description`; otherwise `taskType="general"`
-   and the whole text is the description.
-8. **Channel→repo** — when a pool exists, `SELECT full_name FROM lore.repos
-   WHERE settings->>'slack_channel_id' = $channelId` (query error → empty repo).
-   No repo (or null pool) → `200 {response_type:"ephemeral", text:"No repo mapped to this channel. …"}`.
-9. **Create task** — `createTask(description, taskType, targetRepo,
-   "slack:{userName}", {slack_channel_id, slack_user}, priority)`. Success →
-   `200 {response_type:"in_channel", text: confirmation}` (includes repo,
-   description, type, the `| Priority: \`immediate\`` suffix when immediate, the
-   task id, and a backlog/pick-up note). Failure →
-   `200 {response_type:"ephemeral", text:"Failed to create task: …"}`.
+6. **Anything else** — `200 {response_type:"ephemeral", text}` saying that Lore no longer runs
+   typed tasks and where that work goes: an issue with a `priority:*` label, a plan, or the
+   review every pull request already gets. No repo is looked up and nothing is created.
 
 **Env vars**: `LORE_SLACK_SIGNING_SECRET` (required for signature verification).
 
@@ -91,38 +77,30 @@ Registered in the route table ([registration](../../../apps/lore-api/src/app/bui
 | Empty command | 200 | `{response_type:"ephemeral", text:"Usage: …"}` |
 | Retry success | 200 | `{response_type:"in_channel", text:"Retrying task \`…\`\nNew task: \`…\`"}` |
 | Retry failure | 200 | `{response_type:"ephemeral", text:"Retry failed: …"}` |
-| No repo mapped / null pool | 200 | `{response_type:"ephemeral", text:"No repo mapped to this channel. Set \`slack_channel_id\` in repo settings."}` |
-| Task created | 200 | `{response_type:"in_channel", text:"Task created on \`{repo}\`: …"}` |
-| createTask failed | 200 | `{response_type:"ephemeral", text:"Failed to create task: …"}` |
+| Anything else | 200 | `{response_type:"ephemeral", text:"Lore no longer runs typed tasks, …"}` |
 
 ## Dependencies & side effects
 
 - `verifySlackSignature` (pure HMAC compare).
-- `createTask` (`pipeline.tasks` insert) and dynamically-imported `retryTask`.
-- DB: `lore.repos.settings` read for the channel→repo mapping.
+- Dynamically-imported `retryTask`.
 - Env: `LORE_SLACK_SIGNING_SECRET`.
 
 ## Acceptance Criteria
 
 A valid `v0=` signature over `v0:{ts}:{body}` verifies; a mismatched timestamp or a length-mismatched signature is rejected without throwing. ([validated by `returns true for a matching v0 signature`](apps/lore-api/src/transport/routes/webhooks/webhook-signature.test.ts#L16), [`returns false when the timestamp differs`](apps/lore-api/src/transport/routes/webhooks/webhook-signature.test.ts#L20), [`returns false on a length mismatch without throwing`](apps/lore-api/src/transport/routes/webhooks/webhook-signature.test.ts#L24), [`slack-webhook.test.ts:10`](apps/lore-api/src/transport/routes/webhooks/slack-webhook.test.ts#L10), [`slack-webhook.test.ts:22`](apps/lore-api/src/transport/routes/webhooks/slack-webhook.test.ts#L22), [`slack-webhook.test.ts:31`](apps/lore-api/src/transport/routes/webhooks/slack-webhook.test.ts#L31), [`slack-webhook.test.ts:48`](apps/lore-api/src/transport/routes/webhooks/slack-webhook.test.ts#L48), [`slack-webhook.test.ts:55`](apps/lore-api/src/transport/routes/webhooks/slack-webhook.test.ts#L55))
 
-An unset secret returns 503; missing signature headers, a stale timestamp, and an invalid signature each return 401. ([validated by `returns 503 when the signing secret is unset`](apps/lore-api/src/transport/routes/webhooks/webhook-slack.test.ts#L62), [`returns 401 when signature headers are missing`](apps/lore-api/src/transport/routes/webhooks/webhook-slack.test.ts#L69), [`returns 401 when the timestamp is too old`](apps/lore-api/src/transport/routes/webhooks/webhook-slack.test.ts#L79), [`returns 401 on an invalid signature`](apps/lore-api/src/transport/routes/webhooks/webhook-slack.test.ts#L88))
+An unset secret returns 503; missing signature headers, a stale timestamp, and an invalid signature each return 401. ([validated by `returns 503 when the signing secret is unset`](apps/lore-api/src/transport/routes/webhooks/webhook-slack.test.ts#L61), [`returns 401 when signature headers are missing`](apps/lore-api/src/transport/routes/webhooks/webhook-slack.test.ts#L68), [`returns 401 when the timestamp is too old`](apps/lore-api/src/transport/routes/webhooks/webhook-slack.test.ts#L78), [`returns 401 on an invalid signature`](apps/lore-api/src/transport/routes/webhooks/webhook-slack.test.ts#L87))
 
-The url_verification handshake echoes the challenge, and an absent challenge yields an empty body. ([validated by `answers the url_verification challenge`](apps/lore-api/src/transport/routes/webhooks/webhook-slack.test.ts#L94), [`answers url_verification with an empty challenge when absent`](apps/lore-api/src/transport/routes/webhooks/webhook-slack.test.ts#L101), [`webhook-slack.test.ts:94`](apps/lore-api/src/transport/routes/webhooks/webhook-slack.test.ts#L94))
+The url_verification handshake echoes the challenge, and an absent challenge yields an empty body. ([validated by `answers the url_verification challenge`](apps/lore-api/src/transport/routes/webhooks/webhook-slack.test.ts#L93), [`answers url_verification with an empty challenge when absent`](apps/lore-api/src/transport/routes/webhooks/webhook-slack.test.ts#L100), [`webhook-slack.test.ts:94`](apps/lore-api/src/transport/routes/webhooks/webhook-slack.test.ts#L93))
 
-An empty command returns the ephemeral usage help. ([validated by `returns usage help when text is empty`](apps/lore-api/src/transport/routes/webhooks/webhook-slack.test.ts#L108))
+An empty command returns the ephemeral usage help. ([validated by `returns usage help when text is empty`](apps/lore-api/src/transport/routes/webhooks/webhook-slack.test.ts#L107))
 
-`retry <id>` retries the task and reports the new id; a failing retry reports it ephemerally; a bare `retry` with no id is treated as a general-task description. ([validated by `retries a task`](apps/lore-api/src/transport/routes/webhooks/webhook-slack.test.ts#L114), [`reports a failed retry`](apps/lore-api/src/transport/routes/webhooks/webhook-slack.test.ts#L122), [`treats a bare retry with no task id as a general-task description`](apps/lore-api/src/transport/routes/webhooks/webhook-slack.test.ts#L225))
+`retry <id>` retries the task and reports the new id; a failing retry reports it ephemerally. ([validated by `retries a task`](apps/lore-api/src/transport/routes/webhooks/webhook-slack.test.ts#L113), [`reports a failed retry`](apps/lore-api/src/transport/routes/webhooks/webhook-slack.test.ts#L121))
 
-An unmapped channel, a null pool, an absent `channel_id`, and a failing channel lookup all return the "No repo mapped" ephemeral message. ([validated by `returns the no-repo message when the channel is unmapped`](apps/lore-api/src/transport/routes/webhooks/webhook-slack.test.ts#L135), [`returns the no-repo message when pool is null`](apps/lore-api/src/transport/routes/webhooks/webhook-slack.test.ts#L148), [`defaults the channel id to empty and returns the no-repo message when channel_id is absent`](apps/lore-api/src/transport/routes/webhooks/webhook-slack.test.ts#L129), [`falls through to no-repo when the channel query throws`](apps/lore-api/src/transport/routes/webhooks/webhook-slack.test.ts#L158))
-
-A `! implementation …` command creates an immediate implementation task with the exact createTask arguments; a `! …` with no known type creates an immediate general task; a normal-priority command reports the backlog; a createTask failure is reported ephemerally. ([validated by `creates an immediate task with a known type`](apps/lore-api/src/transport/routes/webhooks/webhook-slack.test.ts#L171), [`creates an immediate general-typed task when no known type follows the bang`](apps/lore-api/src/transport/routes/webhooks/webhook-slack.test.ts#L247), [`creates a normal-priority task and reports the backlog`](apps/lore-api/src/transport/routes/webhooks/webhook-slack.test.ts#L197), [`reports a failed task creation`](apps/lore-api/src/transport/routes/webhooks/webhook-slack.test.ts#L211))
-
-The pure command parser extracts the type, defaults to general, handles the `!` prefix, and does not match partial type names. ([validated by `parses /lore implementation add auth`](apps/lore-api/src/transport/routes/webhooks/slack-webhook.test.ts#L64), [`defaults to general when no type specified`](apps/lore-api/src/transport/routes/webhooks/slack-webhook.test.ts#L73), [`parses ! prefix as immediate priority`](apps/lore-api/src/transport/routes/webhooks/slack-webhook.test.ts#L117), [`does not match partial type names`](apps/lore-api/src/transport/routes/webhooks/slack-webhook.test.ts#L91), [`slack-webhook.test.ts:82`](apps/lore-api/src/transport/routes/webhooks/slack-webhook.test.ts#L82), [`slack-webhook.test.ts:97`](apps/lore-api/src/transport/routes/webhooks/slack-webhook.test.ts#L97), [`slack-webhook.test.ts:104`](apps/lore-api/src/transport/routes/webhooks/slack-webhook.test.ts#L104), [`slack-webhook.test.ts:111`](apps/lore-api/src/transport/routes/webhooks/slack-webhook.test.ts#L111), [`slack-webhook.test.ts:127`](apps/lore-api/src/transport/routes/webhooks/slack-webhook.test.ts#L127), [`slack-webhook.test.ts:133`](apps/lore-api/src/transport/routes/webhooks/slack-webhook.test.ts#L133), [`slack-webhook.test.ts:143`](apps/lore-api/src/transport/routes/webhooks/slack-webhook.test.ts#L143))
+Any other command, a bare `retry` with no id included, creates no task and answers ephemerally with where that work goes now. ([validated by creates no task for /lore %s and says where that work goes now](apps/lore-api/src/transport/routes/webhooks/webhook-slack.test.ts#L128))
 
 ## Out of Scope
 
-- The pipeline task lifecycle after creation (claim/run/PR).
 - Slack app manifest / slash-command registration (`scripts/slack-app-manifest.yaml`).
 - The agent posting PR/issue links back to the channel.
 - The bearer-scope auth path (webhooks are HMAC-only and auth-exempt at the router).

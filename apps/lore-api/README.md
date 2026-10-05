@@ -41,7 +41,7 @@ spec describes exactly what runs.
   route list at request time.
 - **`GET /api/docs`** (read scope) — a Redoc reference page with the document
   inlined, operations grouped into sidebar categories by resource (Context, Memory,
-  Tasks, Repositories, Features, Agents, Ingestion, Traceability, Dark Factory,
+  Tasks, Repositories, Features, Agents, Ingestion, Traceability,
   Webhooks, Tokens, Meta).
 
 Both routes require a `read`-scoped bearer, so a browser cannot load `/api/docs`
@@ -62,9 +62,9 @@ src/
     routes/            native hapi routes, one folder per domain:
                        infra (healthz, dist) · repos · context · graph
                        tasks (get/list/by-pr/timeline/logs/post) · memory
-                       ingest · webhooks · tokens · dark-factory
+                       ingest · webhooks · tokens
                        agent-definitions · impact · trace · features · openapi
-  features/          domain logic (webhook, dark-factory, agents, ...)
+  features/          domain logic (webhook, two-key, agents, ...)
   platform/          otel, db, github-client, project-boot
   integration-tests/ real-server + real-proxy round-trip (Postgres-backed)
 ```
