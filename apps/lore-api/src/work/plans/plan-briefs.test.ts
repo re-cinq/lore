@@ -21,18 +21,52 @@ describe("plan briefs", () => {
     );
   });
 
-  it("asks to refine the Intent section by its slot marker, to add the sections a settled answer asks for, and to follow one into the sections it makes wrong", () => {
+  it("asks to refine the Intent section of the live plan by its slot marker, to add the sections a settled answer asks for, to follow one into the sections it makes wrong, and to contradict nothing, since its edits land unreviewed", () => {
     const request = {
       slot: "intent",
       title: "Intent",
       baseHash: "3f9a",
-      inputs: { answered: [] },
+      inputs: { answered: [], resolved: [] },
       uses: { questions: [], comments: [] },
     };
 
     expect(refineBrief(PLAN, request)).toEqual(
-      'Refine the section "Intent" (<!-- slot:intent -->) of plan.md for "Faster checkout", building on its answered questions and resolved comments. Where a settled answer asks for structure the plan lacks — a section per item, say — add those sections as new `## Title` headings with no marker, placed after this one, rather than writing them into this section. Change another existing section ONLY where one of those settled answers makes what it says wrong. A section you touch is proposed on its own, for a person to accept or refuse; a section you add is written straight in. Leave every other section exactly as it is.',
+      'Refine the section "Intent" (<!-- slot:intent -->) of the live plan "Faster checkout", building on its answered questions and resolved comments. Where a settled answer asks for structure the plan lacks — a section per item, say — add those sections with `add-section`, placed after this one, rather than writing them into this section. Change another existing section ONLY where one of those settled answers makes what it says wrong. Your edits land in the live plan as you make them, and nobody accepts them first: never write a claim that another section or a settled answer contradicts, and ask with `add-question` where you disagree with one. Leave every other section exactly as it is.',
     );
+  });
+
+  it("lists answered question q-target and resolved thread c1 by id, each on one line, to write into Intent or ask about", () => {
+    const request = {
+      slot: "intent",
+      title: "Intent",
+      baseHash: "3f9a",
+      inputs: {
+        answered: [
+          {
+            questionId: "q-target",
+            question: "Which number do we stop at?",
+            answer: "300 ms",
+          },
+        ],
+        resolved: [
+          {
+            commentId: "c1",
+            said: [
+              { author: "Ben", text: "Keep the cache\n- under a minute." },
+            ],
+          },
+        ],
+      },
+      uses: { questions: ["q-target"], comments: ["c1"] },
+    };
+
+    expect(refineBrief(PLAN, request).split("\n\n").slice(1)).toEqual([
+      [
+        "Write each of these into the section. One you cannot use, ask about with `add-question` rather than leave out: a refine that ends without them still marks them used.",
+        '- Answered q-target: "Which number do we stop at?" — 300 ms',
+        '- Resolved thread c1: Ben: "Keep the cache - under a minute."',
+      ].join("\n"),
+    ]);
   });
 
   it("briefs a spec pass after spec PR #7 merged as an amendment of what is on main", () => {
