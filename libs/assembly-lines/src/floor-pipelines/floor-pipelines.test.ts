@@ -776,24 +776,6 @@ describe("the feature-planning pipeline", () => {
     });
   });
 
-  it("gives feature-decompose the approved plan as plan.md and the spec plan as spec-plan.json, and names both in its prompt", () => {
-    const decompose =
-      pipelineOf("feature-planning").stations["feature-decompose"];
-    const prompt = promptOnOneLine("feature-decompose");
-
-    expect({
-      planMd: needOf(decompose, "plan_md"),
-      specPlan: needOf(decompose, "spec_plan"),
-      namesPlan: prompt.includes("{plan_md_path}"),
-      namesSpecPlan: prompt.includes("{spec_plan_path}"),
-    }).toEqual({
-      planMd: { name: "plan_md", kind: "file", path: "plan.md" },
-      specPlan: { name: "spec_plan", kind: "file", path: "spec-plan.json" },
-      namesPlan: true,
-      namesSpecPlan: true,
-    });
-  });
-
   it("has the validation read the live plan through lore_plan_read rather than a plan.md snapshot", () => {
     const { stations } = pipelineOf("feature-planning");
 
@@ -822,6 +804,24 @@ describe("the feature-planning pipeline", () => {
         ),
       ),
     ).toEqual(agents.map(() => true));
+  });
+
+  it("gives feature-decompose the approved plan as plan.md and the spec_path value, and names both in its prompt", () => {
+    const decompose =
+      pipelineOf("feature-planning").stations["feature-decompose"];
+    const prompt = promptOnOneLine("feature-decompose");
+
+    expect({
+      planMd: needOf(decompose, "plan_md"),
+      specPath: needOf(decompose, "spec_path"),
+      namesPlan: prompt.includes("{plan_md_path}"),
+      namesSpecPath: prompt.includes("{spec_path}"),
+    }).toEqual({
+      planMd: { name: "plan_md", kind: "file", path: "plan.md" },
+      specPath: { name: "spec_path", kind: "value" },
+      namesPlan: true,
+      namesSpecPath: true,
+    });
   });
 });
 
