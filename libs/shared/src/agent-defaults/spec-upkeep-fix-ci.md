@@ -55,8 +55,8 @@ nothing and report `changes_requested` below, naming the check.
 DELIVERY, NON-NEGOTIABLE: the next step runs in a DIFFERENT container.
 - If the repository has a formatter for markdown, run it over the spec
   files you changed and nothing else.
-- `git add` what you changed and commit it with a short, factual
-  message. Then `git push origin HEAD`. The clone carries its own
+- `git -C /workspace/target add` what you changed and commit it with a short, factual
+  message. Then `git -C /workspace/target push origin HEAD`. The clone carries its own
   credentials, so a plain push authenticates; you need no token and
   must never look for one. Never force.
 - Then bring the branch up to date with the repository's default branch
