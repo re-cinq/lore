@@ -50,6 +50,13 @@ describe("approvalDecisionOf", () => {
       { kind: "refused", reason: "the specs are being written" },
     ]);
   });
+
+  it("refuses with 'still refining' while plan-findings writes the validator's findings, which come before any spec work", () => {
+    expect(approvalDecisionOf(lineOn("plan-findings"))).toEqual({
+      kind: "refused",
+      reason: "the planning agent is still refining a section",
+    });
+  });
 });
 
 describe("reopenTargetOf", () => {

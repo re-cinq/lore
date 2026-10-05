@@ -21,8 +21,13 @@ export function refineRefusal(
 
 const OPEN_STATUSES = new Set(["queued", "running", "open"]);
 const SUCCESS_OUTCOMES = new Set(["completed", "success"]);
-// The nodes before the author: the agent drafting, the pass settling, the validate station run by hand.
-const DRAFTING_NODES = new Set(["analyze", "plan-pass-end", "validate"]);
+// The nodes before the author: the agent drafting, the pass settling, the validate station run by hand and the findings it delivers.
+const DRAFTING_NODES = new Set([
+  "analyze",
+  "plan-pass-end",
+  "validate",
+  "plan-findings",
+]);
 
 function draftRefusal(line: RefinableLine | null): string {
   if (!line) {

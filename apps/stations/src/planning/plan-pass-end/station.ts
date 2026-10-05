@@ -7,8 +7,7 @@ import {
   type RunningStation,
 } from "@re-cinq/floor-station";
 import { floorClient } from "@re-cinq/lore-shared/floor/floor-client.js";
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { bearerJsonHeaders } from "@re-cinq/lore-shared/project/lib/http-auth.js";
+import { requestPlan } from "../plan-api.js";
 
 interface RefineRequest {
   slot: string;
@@ -130,35 +129,7 @@ async function postToPlan(
   verb: "refine-failed" | "refine-done",
   body: object,
 ): Promise<void> {
-  const res = await fetch(`${requiredApiUrl()}/api/plans/${planId}/${verb}`, {
-    method: "POST",
-    signal: AbortSignal.timeout(30_000),
-    headers: bearerJsonHeaders(stationToken()),
-    body: JSON.stringify(body),
-  });
-
-  enforceTrue(
-    res.ok,
-    Error,
-    `${verb} post for plan ${planId} failed: ${res.status}`,
-  );
-}
-
-// LORE_API_URL unset is a hard failure, not a silent skip: posting this one call is this station's whole job.
-function requiredApiUrl(): string {
-  const baseUrl = process.env.LORE_API_URL;
-
-  enforceTrue(
-    baseUrl,
-    Error,
-    "plan-pass-end requires LORE_API_URL to settle a refine",
-  );
-
-  return baseUrl;
-}
-
-function stationToken(): string | undefined {
-  return process.env.LORE_STATION_TOKEN ?? process.env.LORE_INGEST_TOKEN;
+  await requestPlan(`${planId}/${verb}`, { method: "POST", body });
 }
 
 export function startPlanPassEndStation(): RunningStation {
