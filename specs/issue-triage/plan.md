@@ -28,7 +28,7 @@ This plan details the implementation of a new `issue-triage` assembly line on th
 
 ### Trigger wiring
 
-The trigger relies on the existing `github.issues.labeled` webhook ingress. The stations drain handler `issueLabeled` in `apps/stations/src/events/repo-handlers.ts` currently calls `dispatchLabeledIssue` (from `@re-cinq/lore-shared/backlog/label-dispatch.js`) which handles the `lore` label for implementation dispatch. This handler is extended to also detect `lore:triage` and `triage: needs-triage` labels, and when either matches, calls `floor.lines.start('issue-triage', {repo, issue_url, issue_number})` via `@re-cinq/floor-client` (`libs/shared/src/outbound/floor/floor-client.ts`).
+The trigger relies on the existing `github.issues.labeled` webhook ingress. The stations drain handler `issueLabeled` in `apps/stations/src/events/repo-handlers.ts` currently calls `dispatchLabeledIssue` (from `libs/shared/src/work/backlog/label-dispatch.ts`) which handles the `lore` label for implementation dispatch. This handler is extended to also detect `lore:triage` and `triage: needs-triage` labels, and when either matches, calls `floorClient().lines.start('issue-triage', {repo, issue_url, issue_number})` via `libs/shared/src/outbound/floor/floor-client.ts`.
 
 ### Batch processing
 
@@ -79,7 +79,7 @@ One `.md` file per agent definition in `libs/shared/src/agent-defaults/`:
 
 ### Custom node outcomes
 
-On the external floor, custom outcomes are declared in the `stations` block of the pipeline YAML (the `outcomes:` field under each station entry). The floor's own loader validates that every declared outcome has an edge and routes `on: <outcome>` edges by exact string match. No changes to `libs/assembly-lines/src/assembly-line-schema.ts`, `transition.ts`, or `node-outcome.ts` are needed.
+On the external floor, custom outcomes are declared in the `stations` block of the pipeline YAML (the `outcomes:` field under each station entry). The floor's own loader validates that every declared outcome has an edge and routes `on: <outcome>` edges by exact string match. No Lore-side changes are needed.
 
 ### Task type registration
 
@@ -88,7 +88,7 @@ Two files, in sequence:
 1. Add `"issue-triage"` to `TaskTypeSchema` in `libs/shared/src/domain/models/pipeline-task.ts`.
 2. Add an `"issue-triage"` entry to `TRUST_LEVELS` in `libs/shared/src/domain/pipeline-task-trust.ts` (tier: `implementation`).
 
-Dispatch is through the stations drain handler via `floor.lines.start` — there is no `assemblyLineFor` mapping on the external floor. The pipeline name is added to the pinned list in `apps/lore-api/src/work/floor/seed-floor-pipelines.test.ts`.
+Dispatch is through the stations drain handler via `floorClient().lines.start` — no extra routing in Lore is needed. The pipeline name is added to the pinned list in `apps/lore-api/src/work/floor/seed-floor-pipelines.test.ts`.
 
 ### Label creation and `triage_label` service station
 
@@ -104,7 +104,7 @@ The eight `triage:*` labels must be created in each onboarded repository (as a o
 
 `human-gate` is declared in the pipeline YAML's `stations` block as `kind: human` with `route: '{args.issue_url}'` — the GitHub issue page where a maintainer acts by applying `lore:implementation`.
 
-Handler fix in `apps/stations/src/events/repo-handlers.ts`: before the `alreadyWorkingOnIssue` guard runs, check whether a `lore:implementation` label event is arriving on an issue whose `issue-triage` run is currently parked at `human-gate`. If so: call `reportToVisit` via `libs/shared/src/outbound/floor/floor-report.ts` to report success to the parked visit, end the triage run, then fall through to dispatch the implementation task. Without this fix, the parked triage task makes the handler answer "Already being worked on" and the handoff is lost.
+Handler fix in `apps/stations/src/events/repo-handlers.ts`: before the `activeTaskByIssue` active-task check in `libs/shared/src/work/backlog/label-dispatch.ts` runs, check whether a `lore:implementation` label event is arriving on an issue whose `issue-triage` run is currently parked at `human-gate`. If so: call `reportToVisit` via `libs/shared/src/outbound/floor/floor-report.ts` to report success to the parked visit, end the triage run, then fall through to dispatch the implementation task. Without this fix, the parked triage task makes the handler answer "Already being worked on" and the handoff is lost.
 
 ## Failure Edges & Rollback
 
