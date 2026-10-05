@@ -11,6 +11,7 @@ export interface CloseIssueDeps {
 const productionDeps: CloseIssueDeps = {
   issues: async (repo) => {
     const { projectFor } = await import("../../outbound/project-boot.js");
+
     return (await projectFor(repo)).issues;
   },
 };
