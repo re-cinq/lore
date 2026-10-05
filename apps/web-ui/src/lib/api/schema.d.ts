@@ -7081,6 +7081,7 @@ export interface operations {
         "application/json": {
           known: string;
           createdBy: string;
+          storyIssue?: number;
         };
       };
     };

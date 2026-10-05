@@ -9,6 +9,7 @@ import {
 import type { PullRef } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import { parseGitRef } from "@re-cinq/lore-shared/floor/floor-items.js";
 import { ensurePull } from "@re-cinq/lore-shared/project/pulls/ensure-pull.js";
+import { specPathOfPlan } from "@re-cinq/lore-shared/feature-planning/spec-plan-path.js";
 import { projectFor } from "../../outbound/project-boot.js";
 
 export interface OpenSpecPrProject {
@@ -31,14 +32,15 @@ const productionDeps: OpenSpecPrDeps = {
 };
 
 export function openSpecPrHandle(deps: OpenSpecPrDeps): Handle {
-  return async (brief) => {
+  return async (brief, tools) => {
     const { repo, branch } = parseGitRef(brief.needs.target);
 
     try {
       const project = await deps.project(repo);
       const pr = await ensurePr(project.pulls, branch, brief.needs.plan_title);
+      const specPlan = await tools.read("spec_plan");
 
-      return reported(pr.url);
+      return reported(pr.url, specPathOfPlan(specPlan.toString("utf8")));
     } catch (err) {
       return { outcome: "failed", error: (err as Error).message };
     }
@@ -73,8 +75,12 @@ const TITLE_PREFIX = "spec: ";
 // The cap the Floor's own spec-PR titles used, so a long plan title does not fill a reader's list.
 const TITLE_MAX = 70;
 
-function reported(prUrl: string): Report {
-  return { outcome: "success", produced: { pr_url: prUrl } };
+/** The spec the plan's spec-tasks belong to rides the run's bag from here, so the stations after the merge read it rather than derive it again; a plan naming none produces none. */
+function reported(prUrl: string, specPath: string | undefined): Report {
+  return {
+    outcome: "success",
+    produced: { pr_url: prUrl, ...(specPath ? { spec_path: specPath } : {}) },
+  };
 }
 
 export function startOpenSpecPrStation(): RunningStation {

@@ -156,6 +156,7 @@ function draftingRoute(
 const DraftingBody = z.object({
   known: z.string(),
   createdBy: z.string().min(1),
+  storyIssue: z.number().int().positive().optional(),
 });
 
 const DraftingSchema = z.object({ task_id: z.string() });

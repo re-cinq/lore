@@ -793,3 +793,58 @@ describe("floorPlanVerbs", () => {
     expect(reopened).toEqual(["p1"]);
   });
 });
+
+function startedStoryIssue(requests: FloorRequest[]): string | undefined {
+  const body = posts(requests).at(-1)?.body as {
+    startItems?: { story_issue?: { ref?: string } };
+  };
+
+  return body?.startItems?.story_issue?.ref;
+}
+
+describe("the user story a planning run carries", () => {
+  it("starts the run with story_issue 42 when the draft names issue 42", async () => {
+    const { deps, requests } = scene(NO_RUN);
+
+    await startFloorDrafting(deps, {
+      plan: DRAFT,
+      planMarkdown: MARKDOWN,
+      brief: BRIEF,
+      storyIssue: 42,
+    });
+
+    expect(startedStoryIssue(requests)).toBe("42");
+  });
+
+  it("carries story_issue 42 over from the finished run when a later round names no story", async () => {
+    const storied = planRun({
+      outcome: "failed",
+      finishedAt: "2026-10-01T10:00:00.000Z",
+      startItems: {
+        ...FINISHED.startItems,
+        story_issue: { kind: "value", ref: "42", by: "lore" },
+      },
+    });
+    const { deps, requests } = scene({ runs: [storied] });
+
+    await startFloorDrafting(deps, {
+      plan: DRAFT,
+      planMarkdown: MARKDOWN,
+      brief: BRIEF,
+    });
+
+    expect(startedStoryIssue(requests)).toBe("42");
+  });
+
+  it("starts the run with no story_issue when neither the draft nor an earlier run names a story", async () => {
+    const { deps, requests } = scene({ runs: [FINISHED] });
+
+    await startFloorDrafting(deps, {
+      plan: DRAFT,
+      planMarkdown: MARKDOWN,
+      brief: BRIEF,
+    });
+
+    expect(startedStoryIssue(requests)).toBeUndefined();
+  });
+});

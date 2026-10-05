@@ -146,6 +146,34 @@ describe("the plan routes on a plan the floor holds", () => {
     ]);
   });
 
+  it("starts the run with story_issue 42 when drafting names user story 42", async () => {
+    const { server, requests } = subject({ runs: false });
+
+    const res = await post(server, "drafting", {
+      known: "Slow.",
+      createdBy: "ana",
+      storyIssue: 42,
+    });
+
+    expect(answer(res)).toEqual({ status: 202, body: { task_id: "run-new" } });
+    expect(requests.at(-1)?.body).toMatchObject({
+      startItems: { story_issue: { kind: "value", ref: "42" } },
+    });
+  });
+
+  it("answers drafting with 400 and starts nothing when the user story is issue 0", async () => {
+    const { server, requests } = subject({ runs: false });
+
+    const res = await post(server, "drafting", {
+      known: "Slow.",
+      createdBy: "ana",
+      storyIssue: 0,
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(writes(requests)).toEqual([]);
+  });
+
   it("answers refine with 202 and reports the section on the author visit", async () => {
     const { server, requests } = subject({ visits: ON_AUTHOR });
 

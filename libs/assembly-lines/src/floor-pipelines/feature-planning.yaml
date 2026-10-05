@@ -328,8 +328,16 @@ stations:
       - name: plan_title
         kind: value
         optional: true
+      # Which spec the plan's spec-tasks belong to: spec-plan.json's first
+      # create or update. Read here once and put in the run's bag as spec_path,
+      # so the stations after the merge read it rather than derive it again.
+      - name: spec_plan
+        kind: file
     produces:
       - name: pr_url
+        kind: value
+      # Produced only when the spec plan names a spec.
+      - name: spec_path
         kind: value
   spec-pr-merged:
     kind: human
@@ -368,10 +376,11 @@ stations:
         access: read
       - name: decomposition
         kind: file
-      # For the spec_path it derives — the decomposition names stories and tasks,
-      # not which spec they belong to; that is spec-plan.json's creates/updates.
-      - name: spec_plan
-        kind: file
+      # The decomposition names stories and tasks, not which spec they belong
+      # to: open-spec-pr put that in the bag. A plan naming no spec has none.
+      - name: spec_path
+        kind: value
+        optional: true
       - name: plan_id
         kind: value
       - name: plan_title

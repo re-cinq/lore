@@ -1,7 +1,12 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { createPlan, seedPlan, startDrafting } from "@/lib/api/plans";
+import {
+  createPlan,
+  seedPlan,
+  startDrafting,
+  type DraftingRequest,
+} from "@/lib/api/plans";
 import type { ApiResult } from "@/lib/api/result";
 import {
   newPlanInput,
@@ -21,7 +26,7 @@ export async function createPlanAction(
   _prev: CreatePlanState | null,
   formData: FormData,
 ): Promise<CreatePlanState> {
-  const request = await planRequest(formData);
+  const request = await planRequest(formData, fullName);
 
   if ("error" in request) {
     return request;
@@ -52,16 +57,28 @@ async function createSeededPlan(
   const { id } = created.data.meta;
 
   await seedIntent(id, user.id, input.description);
-  await startDrafting(fullName, id, input.description, user.id);
+  await startDrafting(fullName, id, draftingRequestOf(input, user));
 
   return { id };
+}
+
+function draftingRequestOf(
+  { description, storyIssue }: NewPlanInput,
+  user: PlanUser,
+): DraftingRequest {
+  return {
+    known: description,
+    createdBy: user.id,
+    ...(storyIssue ? { storyIssue } : {}),
+  };
 }
 
 // A valid form from a signed-in person, or what is wrong with it.
 async function planRequest(
   formData: FormData,
+  fullName: string,
 ): Promise<{ input: NewPlanInput; user: PlanUser } | { error: string }> {
-  const input = newPlanInput(formData);
+  const input = newPlanInput(formData, fullName);
   const user = planUserOf((await getSession()) as PlanSession | null);
 
   if ("error" in input) {

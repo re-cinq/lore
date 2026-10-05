@@ -25,11 +25,6 @@ const DECOMPOSITION = JSON.stringify({
   ],
 });
 
-const SPEC_PLAN = JSON.stringify({
-  creates: [{ path: "specs/widget/spec.md" }],
-  updates: [],
-});
-
 const LABELS = ["area:web-ui", "area:floor", "lore-managed", "user-story"];
 
 function brief(needs: Partial<Record<string, string>> = {}) {
@@ -47,7 +42,6 @@ function brief(needs: Partial<Record<string, string>> = {}) {
 function tools(content: Partial<Record<string, string>> = {}): Tools {
   const files: Record<string, string> = {
     decomposition: DECOMPOSITION,
-    spec_plan: SPEC_PLAN,
     ...content,
   };
 
@@ -107,11 +101,14 @@ function scene(project: ReturnType<typeof fakeProject>["project"]) {
 }
 
 describe("fileIssuesHandle", () => {
-  it("parses repo and branch from target, and stamps the spec-task with the plan id and the spec_path spec_plan's first create names", async () => {
+  it("parses repo and branch from target, and stamps the spec-task with the plan id and the spec_path specs/widget/spec.md the bag carries", async () => {
     const fake = fakeProject(LABELS);
     const handle = scene(fake.project);
 
-    const result = await handle(brief(), tools());
+    const result = await handle(
+      brief({ spec_path: "specs/widget/spec.md" }),
+      tools(),
+    );
 
     expect(result).toEqual({ outcome: "success" });
     expect(fake.tasks[0]).toMatchObject({
