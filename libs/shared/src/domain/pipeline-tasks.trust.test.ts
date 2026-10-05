@@ -1,5 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { createTask } from "./pipeline-tasks.js";
+import { TaskTypeSchema } from "./models/pipeline-task.js";
+import { TRUST_LEVELS } from "./pipeline-task-trust.js";
 import type { PgPool } from "./memory-store-types.js";
 
 function poolWithTrust(level: string | null) {
@@ -188,5 +190,30 @@ describe("spec-task trust", () => {
         targetRepo: "o/r",
       }),
     ).rejects.toThrow(/not allowed at trust level "tests"/);
+  });
+});
+
+// specs/issue-triage/spec.md FR13
+describe("issue-triage task type registration", () => {
+  it("TaskTypeSchema accepts 'issue-triage' without a validation error", () => {
+    const result = TaskTypeSchema.safeParse("issue-triage");
+
+    expect(result.success).toBe(true);
+  });
+
+  it("TRUST_LEVELS maps 'issue-triage' to the implementation tier", () => {
+    expect(TRUST_LEVELS["implementation"]).toContain("issue-triage");
+  });
+
+  it("createTask allows an issue-triage task at trust level implementation", async () => {
+    const { pool } = poolWithTrust("implementation");
+
+    const result = await createTask(pool, {
+      description: "triage issue #42",
+      taskType: "issue-triage",
+      targetRepo: "o/r",
+    });
+
+    expect(result).toMatchObject({ task_id: "task-1" });
   });
 });
