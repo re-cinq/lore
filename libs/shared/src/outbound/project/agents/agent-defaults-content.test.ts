@@ -539,7 +539,9 @@ describe("the planning recipes check a plan against what the platform has (issue
 
     expect({
       heading: prompt.includes('lists task ids under "Not on main"'),
-      fromCode: prompt.includes("rewrite that task from the code on the branch"),
+      fromCode: prompt.includes(
+        "rewrite that task from the code on the branch",
+      ),
       dropQuote: prompt.includes(
         "drop a plan quote that names something the code lacks",
       ),
