@@ -60,6 +60,7 @@ function issueLabeled(deps: RepoEventDeps): EventHandler {
 
     if ((TRIAGE_TRIGGER_LABELS as readonly string[]).includes(label)) {
       await deps.startIssueTriage(repo, issue.number, issue.html_url ?? "");
+
       return;
     }
 
@@ -67,9 +68,13 @@ function issueLabeled(deps: RepoEventDeps): EventHandler {
       label === "lore:implementation"
         ? await deps.findParkedTriageVisit(repo, issue.number)
         : null;
-    if (visitId) await deps.reportTriageGate(visitId);
+
+    if (visitId) {
+      await deps.reportTriageGate(visitId);
+    }
 
     const labeled: LabeledIssue = { repo, label, issue };
+
     await dispatchLabeledIssue(await deps.labelDispatch(repo), labeled);
   };
 }
