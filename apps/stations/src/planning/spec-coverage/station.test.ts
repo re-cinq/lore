@@ -31,6 +31,13 @@ const CITES_BOTH = [
   `- SC-001: Drop-off stays under 5%. ([from plan](${PLAN_URL}#k-1))`,
 ].join("\n");
 const CITES_ONE = CITES_BOTH.split("\n").slice(0, 3).join("\n");
+const HANDLER_PATH = "libs/shared/src/work/backlog/label-dispatch.ts";
+const HANDLER =
+  "const working = await deps.activeTaskByIssue(repo, issue.number);";
+const NAMES_A_GONE_GUARD = [
+  CITES_BOTH,
+  `- FR-002: Checked before the \`alreadyWorkingOnIssue\` guard in \`${HANDLER_PATH}\`. ([from plan](${PLAN_URL}#b-why))`,
+].join("\n");
 
 const NEEDS = {
   target: "https://github.com/re-cinq/lore@lore/feature-planning/p1",
@@ -62,8 +69,9 @@ function scene(spec: string, visits: RunVisit[] = []) {
     readSpec: async (repo, path, ref) => {
       reads.push(`${repo}:${path}@${ref}`);
 
-      return path === SPEC_PATH ? spec : null;
+      return { [SPEC_PATH]: spec, [HANDLER_PATH]: HANDLER }[path] ?? null;
     },
+    listTree: async () => [SPEC_PATH, HANDLER_PATH],
     visitsOf: async () => [
       ...visits,
       { nodeId: "spec-coverage", report: null },
@@ -117,6 +125,19 @@ describe("specCoverageHandle", () => {
       report,
       namesKpi: produced.plan_coverage?.includes(`cite ${PLAN_URL}#k-1`),
     }).toEqual({ report: { outcome: "success" }, namesKpi: true });
+  });
+
+  it("sends the writer back naming alreadyWorkingOnIssue, absent from the file its statement names, with activeTaskByIssue as the hint", async () => {
+    const { handle, tools, produced } = scene(NAMES_A_GONE_GUARD);
+
+    const report = await handle(brief(), tools);
+
+    expect({
+      report,
+      namesGuard: produced.plan_coverage?.includes(
+        "`alreadyWorkingOnIssue` (line 5) is not in the files the line names; closest: `activeTaskByIssue`",
+      ),
+    }).toEqual({ report: { outcome: "changes_requested" }, namesGuard: true });
   });
 
   it("reports success and produces nothing when the run carries no citable blocks", async () => {
