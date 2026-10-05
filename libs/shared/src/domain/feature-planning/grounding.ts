@@ -6,6 +6,8 @@ export interface GroundingInput {
   tree: readonly string[];
   /** The contents of the files the text names, keyed by path. */
   files: Readonly<Record<string, string>>;
+  /** Paths another artifact of the same plan says the feature adds (`declaredNewPaths`). */
+  added?: readonly string[];
 }
 
 export interface GroundingFinding {
@@ -25,13 +27,18 @@ interface Retired {
 const RETIRED: readonly Retired[] = [
   {
     name: "apps/floor",
-    isNamed: (line) => /`apps\/floor(\/[^`]*)?`/.test(line),
+    isNamed: (line) => /(^|[\s(`])apps\/floor(\/|`|\s|$)/.test(line),
     hint: "deleted 2026-10-02; lines run on the external floor, Lore's steps are stations in apps/stations",
   },
   {
     name: "Event Router",
     isNamed: (line) => /event[- ]router/i.test(line),
     hint: "folded into lore-api on 2026-10-02 (ADR-044 amendment)",
+  },
+  {
+    name: "pipeline.station_runs",
+    isNamed: (line) => /pipeline\.station_runs/.test(line),
+    hint: "holds only the runs Lore's own engine walked; a run on the external floor is read through floor-client",
   },
   {
     name: "Floor coordinator",
@@ -43,28 +50,100 @@ const RETIRED: readonly Retired[] = [
 const BACKTICKED = /`([^`\n]+)`/g;
 const PATH = /^[\w.@-]+(\/[\w.@[\]-]+)+\/?$/;
 const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
-const ADDS = /\b(add|adds|added|create|creates|new)\b/i;
+const ADDS =
+  /\b(add|adds|added|create|creates|new|ship|ships|implement|implements)\b|\bMUST be (defined|implemented|added|created|shipped)\b/i;
+const FILES_TOUCHED = /files touched|project structure/i;
+const HEADING = /^#{1,6}\s/;
+/** A repository path written without backticks, as a plan quote loses them. */
+const BARE_PATH =
+  /(?<![\w/`])(?:apps|libs|specs|scripts|infra|adrs|charts|docs)\/[\w.@[\]/-]*\.[A-Za-z]{1,5}\b/g;
 
 export function groundingFindings(input: GroundingInput): GroundingFinding[] {
   const lines = input.text.split("\n");
+  const newPaths = addedPaths(
+    [...declaredPaths(lines), ...(input.added ?? [])],
+    input.tree,
+  );
 
-  return lines.flatMap((line, index) => lineFindings(input, line, index + 1));
+  return lines.flatMap((line, index) =>
+    lineFindings({ ...input, newPaths }, line, index + 1),
+  );
+}
+
+interface LineContext extends GroundingInput {
+  /** The paths the plan says the feature adds, wherever it says so. */
+  newPaths: ReadonlySet<string>;
+}
+
+/** A path counts as the feature's own new file when any line says it adds it, or a files-touched list names it; a file added in a folder main lacks adds that folder too. */
+function addedPaths(
+  declared: readonly string[],
+  tree: readonly string[],
+): Set<string> {
+  const newFolders = declared
+    .map(folderOf)
+    .filter((folder) => folder !== "" && !onTree(tree, folder));
+
+  return new Set([...declared, ...newFolders]);
+}
+
+/** The paths a text says the feature adds, for grounding the plan's other artifacts. */
+export function declaredNewPaths(text: string): string[] {
+  return declaredPaths(text.split("\n"));
+}
+
+function declaredPaths(lines: readonly string[]): string[] {
+  const declared = new Set<string>();
+  let inFilesTouched = false;
+
+  for (const line of lines) {
+    inFilesTouched = HEADING.test(line)
+      ? FILES_TOUCHED.test(line)
+      : inFilesTouched || FILES_TOUCHED.test(line);
+
+    if (inFilesTouched || ADDS.test(line)) {
+      pathsOn(line).forEach((path) => declared.add(path));
+    }
+  }
+
+  return [...declared];
+}
+
+/** `a/b/c.ts` is in `a/b/`; a folder path is its own folder. */
+function folderOf(path: string): string {
+  return path.endsWith("/") ? path : path.slice(0, path.lastIndexOf("/") + 1);
 }
 
 function lineFindings(
-  input: GroundingInput,
+  context: LineContext,
   line: string,
   lineNumber: number,
 ): GroundingFinding[] {
   const names = [...new Set(backticked(line))];
-  const paths = names.map(withoutAnchor).filter((name) => PATH.test(name));
+  const paths = pathsOn(line);
+  const missing = missingPaths(context, paths);
+  const namesNewFile = paths.some(
+    (path) => isAdded(context.newPaths, path) && !onTree(context.tree, path),
+  );
   const found: Omit<GroundingFinding, "line">[] = [
     ...retiredNamed(line),
-    ...missingPaths(input.tree, paths, line),
-    ...missingIdentifiers(names, filesNamed(input.files, paths)),
+    ...missing,
+    ...(namesNewFile
+      ? []
+      : missingIdentifiers(names, filesNamed(context.files, paths))),
   ];
 
   return found.map((finding) => ({ ...finding, line: lineNumber }));
+}
+
+/** Every path a line names, in backticks or bare, anchors dropped. */
+function pathsOn(line: string): string[] {
+  const quoted = backticked(line)
+    .map(withoutAnchor)
+    .filter((name) => PATH.test(name));
+  const bare = line.replace(BACKTICKED, " ").match(BARE_PATH) ?? [];
+
+  return [...new Set([...quoted, ...bare])];
 }
 
 function retiredNamed(line: string): Omit<GroundingFinding, "line">[] {
@@ -86,23 +165,27 @@ function withoutAnchor(name: string): string {
   return name.replace(/(:\d+|#L\d+(-L?\d+)?)$/, "");
 }
 
-/** A retired path is reported as retired, not as missing. */
+/** A retired path is reported as retired, and a path the feature adds is not missing. */
 function missingPaths(
-  tree: readonly string[],
+  { tree, newPaths }: LineContext,
   paths: readonly string[],
-  line: string,
 ): Omit<GroundingFinding, "line">[] {
-  if (ADDS.test(line)) {
-    return [];
-  }
-
-  return [...new Set(paths)]
+  return paths
     .filter(
       (path) =>
         !onTree(tree, path) &&
+        !isAdded(newPaths, path) &&
         !RETIRED.some((entry) => entry.isNamed(`\`${path}\``)),
     )
     .map((name) => ({ name, kind: "path" }));
+}
+
+/** Added itself, or inside a folder the text adds. */
+function isAdded(added: ReadonlySet<string>, path: string): boolean {
+  return [...added].some(
+    (entry) =>
+      entry === path || (entry.endsWith("/") && path.startsWith(entry)),
+  );
 }
 
 function onTree(tree: readonly string[], path: string): boolean {
@@ -176,13 +259,9 @@ function camelParts(name: string): string[] {
     .filter(Boolean);
 }
 
-/** Every path the text names in backticks, anchors dropped: the files whose contents its identifiers are checked against. */
+/** Every path the text names, in backticks or bare, anchors dropped: the files whose contents its identifiers are checked against. */
 export function namedPaths(text: string): string[] {
-  const paths = backticked(text)
-    .map(withoutAnchor)
-    .filter((name) => PATH.test(name));
-
-  return [...new Set(paths)];
+  return [...new Set(text.split("\n").flatMap(pathsOn))];
 }
 
 export interface GroundedFile {
