@@ -33,7 +33,7 @@ function decomposition(...specLines: number[][]): string {
 }
 
 const NEEDS = {
-  target: "github.com/re-cinq/lore@main",
+  target: "https://github.com/re-cinq/lore@main",
   decomposition: "blob://decomposition",
   spec_path: SPEC_PATH,
 };

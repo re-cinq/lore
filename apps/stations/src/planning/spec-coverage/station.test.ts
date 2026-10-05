@@ -33,7 +33,7 @@ const CITES_BOTH = [
 const CITES_ONE = CITES_BOTH.split("\n").slice(0, 3).join("\n");
 
 const NEEDS = {
-  target: "github.com/re-cinq/lore@lore/feature-planning/p1",
+  target: "https://github.com/re-cinq/lore@lore/feature-planning/p1",
   spec_plan: "blob://spec-plan",
   plan_blocks: "blob://plan-blocks",
 };

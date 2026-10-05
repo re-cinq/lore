@@ -21,7 +21,7 @@ function brief(needs: Record<string, string> = {}) {
     visitId: "visit-open-pr",
     iteration: 1,
     needs: {
-      target: `github.com/re-cinq/app@${BRANCH}`,
+      target: `https://github.com/re-cinq/app@${BRANCH}`,
       task_id: "task-1",
       ...needs,
     },
@@ -33,15 +33,17 @@ function scene(
 ) {
   const opened: PullDraft[] = [];
   const handle = openLoopPrHandle({
-    pulls: () =>
-      Promise.resolve({
-        list: () => Promise.resolve([]),
-        open: (_branch, pr) => {
-          opened.push(pr);
+    pulls: (repo) =>
+      repo !== "re-cinq/app"
+        ? Promise.reject(new Error(`Not Found: ${repo}`))
+        : Promise.resolve({
+            list: () => Promise.resolve([]),
+            open: (_branch, pr) => {
+              opened.push(pr);
 
-          return open(pr);
-        },
-      }),
+              return open(pr);
+            },
+          }),
   });
 
   return { handle, opened };
