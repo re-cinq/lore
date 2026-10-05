@@ -200,6 +200,7 @@ describe("the floor pipelines shipped in this folder", () => {
       openSpecPrProduces: [
         { name: "pr_url", kind: "value" },
         { name: "spec_path", kind: "value" },
+        { name: "issue_coverage", kind: "file" },
       ],
       issuesReads: { name: "spec_path", kind: "value", optional: true },
       issuesReadsPlan: undefined,

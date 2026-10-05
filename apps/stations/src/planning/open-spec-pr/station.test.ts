@@ -183,6 +183,26 @@ describe("openSpecPrHandle", () => {
     });
   });
 
+  it("produces an empty issue_coverage, so the decompose after this spec merges is not briefed with what an earlier decomposition missed", async () => {
+    const produced: Record<string, string> = {};
+    const handle = scene({
+      pulls: {
+        update: () => Promise.reject(new Error("unused")),
+        list: () => Promise.resolve([pullRef()]),
+        open: () => Promise.reject(new Error("unused")),
+      },
+    });
+
+    await handle(brief(), {
+      ...TOOLS,
+      produce: async (name, bytes) => {
+        produced[name] = bytes.toString();
+      },
+    });
+
+    expect(produced).toEqual({ issue_coverage: "" });
+  });
+
   it("adds the plan coverage to the body of the PR it opens when the run carries one", async () => {
     const bodies: string[] = [];
     const handle = scene({

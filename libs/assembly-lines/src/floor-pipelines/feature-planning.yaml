@@ -419,6 +419,10 @@ stations:
       # Produced only when the spec plan names a spec.
       - name: spec_path
         kind: value
+      # Emptied on every spec PR, so the decompose after its merge starts a
+      # fresh decomposition rather than a coverage round of an earlier one.
+      - name: issue_coverage
+        kind: file
   spec-pr-merged:
     kind: human
     outcomes:
