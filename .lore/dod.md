@@ -6,18 +6,18 @@
 
 ## Done when these pass
 
-- [ ] **maps outcome `<outcome>` to label `triage: <outcome>` and calls addLabel** — eight parametric cases: each of the eight triage outcomes maps to its `triage:*` label and `project.issues.addLabel` is called with the correct issue number and label name
+- [x] **maps outcome `<outcome>` to label `triage: <outcome>` and calls addLabel** — eight parametric cases: each of the eight triage outcomes maps to its `triage:*` label and `project.issues.addLabel` is called with the correct issue number and label name
   `apps/stations/src/work/triage-label/triage-label.test.ts`
 
-- [ ] **fails when addLabel throws, so the walk can route to a failure edge** — when `project.issues.addLabel` rejects, the station returns `outcome: "failed"` rather than throwing
+- [x] **fails when addLabel throws, so the walk can route to a failure edge** — when `project.issues.addLabel` rejects, the station returns `outcome: "failed"` rather than throwing
   `apps/stations/src/work/triage-label/triage-label.test.ts`
 
 ## Facets
 
-- [ ] Create `apps/stations/src/work/triage-label/triage-label.ts` exporting `runTriageLabelStation(input, deps)` and `triageLabelForOutcome(outcome)`
-- [ ] Create `apps/stations/src/work/triage-label/manifest.ts` exporting the `NodeStationModule` with `name: "triage-label"`, `runtime: "service"`, `outcomes: ["success", "failed"]`
-- [ ] Add `"triage-label": triageLabel` to `apps/stations/src/work/registry.ts` (including `STATION_NAMES` and `STATIONS`)
-- [ ] Add traceability parenthetical to FR7 in `specs/issue-triage/spec.md`
+- [x] Create `apps/stations/src/work/triage-label/triage-label.ts` exporting `runTriageLabelStation(input, deps)` and `triageLabelForOutcome(outcome)`
+- [x] Create `apps/stations/src/work/triage-label/manifest.ts` exporting the `NodeStationModule` with `name: "triage-label"`, `runtime: "service"`, `outcomes: ["success", "failed"]`
+- [x] Add `"triage-label": triageLabel` to `apps/stations/src/work/registry.ts` (including `STATION_NAMES` and `STATIONS`)
+- [x] Add traceability parenthetical to FR14 in `specs/issue-triage/spec.md` (already present; FR7 reference in DoD was a numbering error)
 
 ## Out of scope
 

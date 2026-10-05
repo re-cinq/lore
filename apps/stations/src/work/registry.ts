@@ -14,6 +14,7 @@ import { telemetryPrune } from "./telemetry-prune/manifest.js";
 import { gcpCostSync } from "./gcp-cost-sync/manifest.js";
 import { consolidationStation } from "./consolidation/manifest.js";
 import { prReadyCheck } from "./pr-ready-check/manifest.js";
+import { triageLabel } from "./triage-label/manifest.js";
 
 /** The single list. A folder missing from it fails the registry's own test. */
 export const STATION_NAMES = [
@@ -30,6 +31,7 @@ export const STATION_NAMES = [
   "spec-task-tick",
   "spec-upkeep-tick",
   "telemetry-prune",
+  "triage-label",
 ] as const;
 
 export type StationName = (typeof STATION_NAMES)[number];
@@ -48,4 +50,5 @@ export const STATIONS: Record<StationName, StationModule> = {
   "spec-task-tick": specTaskTickStation,
   "spec-upkeep-tick": specUpkeepTickStation,
   "telemetry-prune": telemetryPrune,
+  "triage-label": triageLabel,
 };
