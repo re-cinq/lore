@@ -1,6 +1,5 @@
 | Feature | Issue Triage Assembly Line             |
 | ------- | -------------------------------------- |
-| Branch  | issue-triage                           |
 | Status  | Draft                                  |
 | Created | 2026-09-28                             |
 | Owner   | Lore Platform Team                     |
@@ -117,7 +116,7 @@ After successful diagnosis and verification, the bot waits for human approval be
 - **SC-010**: Backlog trend (open issues over time and median issue age) decreases. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/3b3a67af-17b6-498b-b780-6738a0092603#kpi_64298868-f15c-4165-ada9-74adcd517533))
 - **SC-011**: LLM tokens/cost per issue decreases. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/3b3a67af-17b6-498b-b780-6738a0092603#kpi_2c2109cb-6896-4b40-b1d4-24111687a2f3))
 - **SC-012**: Docs/tests added as a result of bot failures increases. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/3b3a67af-17b6-498b-b780-6738a0092603#kpi_3a9c25ef-9fab-4689-aa4d-b60889f75551))
-- **SC-013**: Reporter response latency (time spent in `fix pending`) decreases. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/3b3a67af-17b6-498b-b780-6738a0092603#kpi_1c9e9282-1268-4eab-a9fb-0fca1e066b2b))
+- **SC-013**: Reporter response latency (time an issue spends parked at `human-gate`, labeled `triage: diagnosed` awaiting `lore:implementation`) decreases; for the triage line this is the `fix pending` equivalent from the plan's KPI rationale, measured as the interval from the `triage: diagnosed` label being applied to the `lore:implementation` label triggering the handoff, computable from `pipeline.station_runs`. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/3b3a67af-17b6-498b-b780-6738a0092603#kpi_1c9e9282-1268-4eab-a9fb-0fca1e066b2b))
 
 **Dropped from the plan's KPIs**: Human rework per bot PR — explicitly dropped because it measures implementation-loop/fix work which is out of scope for the triage line. Bot PR merge rate — not in the plan's KPIs; dropped.
 
