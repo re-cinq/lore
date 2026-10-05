@@ -6,7 +6,7 @@ import TaskWithoutRun from "./TaskWithoutRun";
 const task = { status: "failed", target_repo: "re-cinq/lore" };
 
 describe("TaskWithoutRun", () => {
-  it("says the failed task has no run, why it failed, and links its repository", () => {
+  it("says the failed task has no run and why it failed", () => {
     render(
       <TaskWithoutRun
         task={{ ...task, failure_reason: "the floor refused the start" }}
@@ -18,6 +18,11 @@ describe("TaskWithoutRun", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Failed")).toBeInTheDocument();
     expect(screen.getByText("the floor refused the start")).toBeInTheDocument();
+  });
+
+  it("links the task's repository", () => {
+    render(<TaskWithoutRun task={{ ...task, failure_reason: null }} />);
+
     expect(screen.getByRole("link", { name: "re-cinq/lore" })).toHaveAttribute(
       "href",
       "/repos/re-cinq/lore",
