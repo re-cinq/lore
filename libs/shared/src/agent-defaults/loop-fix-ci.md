@@ -129,7 +129,7 @@ DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
   the build is the 950 MB step that OOM-killed run abac6ee9 while it
   rebuilt libs/shared for a test that never needed it.
 - When the work is done, `git -C /workspace/target add` what you changed and commit it with a
-  short, factual message. Then `git push origin HEAD`. The clone carries
+  short, factual message. Then `git -C /workspace/target push origin HEAD`. The clone carries
   its own credentials, so a plain push authenticates; you need no token
   and must never look for one.
 - Then bring the branch up to date with its base — `git fetch origin main`
