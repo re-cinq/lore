@@ -9,8 +9,9 @@ export function floorRepoOf(repo: string): string {
   return `${GITHUB_HOST}/${repo.toLowerCase()}`;
 }
 
+// A station is handed a git need as the floor's clone url, `https://github.com/owner/name`, not as the item's `github.com/owner/name`.
 export function loreRepoOf(floorRepo: string): string {
-  return floorRepo.replace(`${GITHUB_HOST}/`, "");
+  return floorRepo.replace(/^https:\/\//, "").replace(`${GITHUB_HOST}/`, "");
 }
 
 export function pullRequestUrl(repo: string, prNumber: number): string {
