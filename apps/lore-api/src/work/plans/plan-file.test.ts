@@ -8,6 +8,7 @@ import {
 import {
   applyPlanFile,
   planMarkdown,
+  planSnapshot,
   type PlanFilePorts,
 } from "./plan-file.js";
 
@@ -53,6 +54,48 @@ describe("planMarkdown", () => {
       intent: markdown.includes("## What we want and why <!-- slot:intent -->"),
       prose: markdown.includes("Checkout is slow."),
     }).toEqual({ intent: true, prose: true });
+  });
+});
+
+describe("planSnapshot", () => {
+  const PLAN = { id: "p1", repo: "re-cinq/lore" };
+  const PLAN_URL = "https://lore.example/repos/re-cinq/lore/plans/p1";
+
+  it("reads plan p1 once into its plan.md and the blocks a spec cites under its page", async () => {
+    const reads: string[] = [];
+    const { ports } = recordingPorts();
+    const snapshot = await planSnapshot(
+      PLAN,
+      { livePlan: (planId) => (reads.push(planId), ports.livePlan(planId)) },
+      "https://lore.example",
+    );
+
+    expect({
+      reads,
+      planMarkdown: snapshot.planMarkdown,
+      cited: snapshot.citablePlan?.blocks.map((block) => ({
+        slot: block.slot,
+        text: block.text,
+        link: block.link === `${PLAN_URL}#${block.id}`,
+      })),
+    }).toEqual({
+      reads: ["p1"],
+      planMarkdown: PLAN_MD,
+      cited: [
+        { slot: "intent", text: "Checkout is slow.", link: true },
+        { slot: "scope", text: "Only the web checkout.", link: true },
+      ],
+    });
+  });
+
+  it("leaves the citable blocks out when the deployment names no web UI", async () => {
+    const snapshot = await planSnapshot(
+      PLAN,
+      recordingPorts().ports,
+      undefined,
+    );
+
+    expect(snapshot).toEqual({ planMarkdown: PLAN_MD });
   });
 });
 
