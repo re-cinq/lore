@@ -15,10 +15,11 @@ export * from "./assembly-run-rows";
 export interface AssemblyRunFilter {
   status?: string;
   repo?: string;
-  clusterAgentId?: string;
   /** What the run works on, e.g. `plan:<id>`. */
   subjectKey?: string;
   blueprint?: string;
+  /** `lore`: only the runs Lore's own engine walked (Postgres). */
+  engine?: "lore";
   limit?: number;
 }
 
@@ -56,9 +57,9 @@ function assemblyRunFilterParams(opts: AssemblyRunFilter): URLSearchParams {
   const filters: Array<[string, string | undefined]> = [
     ["status", opts.status],
     ["repo", opts.repo],
-    ["cluster_agent_id", opts.clusterAgentId],
     ["subject_key", opts.subjectKey],
     ["blueprint", opts.blueprint],
+    ["engine", opts.engine],
   ];
 
   filters

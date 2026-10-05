@@ -14,6 +14,7 @@ import type {
 import { bearerScope } from "../../http/bearer-scope.js";
 import { INGEST_DELTA_KINDS } from "./ingest-kinds.js";
 import { defaultDeps, type IngestDeltaDeps } from "./ingest-delta-deps.js";
+import { applyDocDelta } from "./ingest-doc-delta.js";
 import {
   advanceStoredCommit,
   storedCommit,
@@ -40,6 +41,10 @@ const IngestDeltaBody = z.object({
     .optional(),
   /** Paths deleted (or renamed away) since base_commit. */
   deleted: z.array(z.string()).optional(),
+  /** Every path of the kind the tree holds, sent with a FULL doc ingest's last chunk: with no diff to name what went away, whatever the graph holds beyond this list is pruned. */
+  present: z.array(z.string()).optional(),
+  /** Re-project doc files whose content hash is unchanged, and prune past the suspicious-tree fuse. */
+  force: z.boolean().optional(),
   /** The incremental test report (`test-report` kind only). */
   report: z.unknown().optional(),
 });
@@ -231,60 +236,6 @@ async function applyTestReportDelta(
   }
 
   return { test_chunks: testChunks, pruned_test_files: prunedTestFiles };
-}
-
-async function applyDocDelta(
-  deps: IngestDeltaDeps,
-  repo: string,
-  body: IngestDeltaBody,
-): Promise<{ projected: number; deleted: number }> {
-  const { project, remove } = docFunctions(deps, body.kind);
-  const projected = await projectFiles(project, repo, body.files);
-  const deleted = await removeFiles(remove, repo, body.deleted);
-
-  return { projected, deleted };
-}
-
-function docFunctions(
-  deps: IngestDeltaDeps,
-  kind: string,
-): {
-  project: IngestDeltaDeps["projectSpec"];
-  remove: IngestDeltaDeps["deleteSpec"];
-} {
-  return kind === "specs"
-    ? { project: deps.projectSpec, remove: deps.deleteSpec }
-    : { project: deps.projectAdr, remove: deps.deleteAdr };
-}
-
-async function projectFiles(
-  project: IngestDeltaDeps["projectSpec"],
-  repo: string,
-  files: IngestDeltaBody["files"],
-): Promise<number> {
-  let projected = 0;
-
-  for (const file of files ?? []) {
-    const outcome = await project(repo, file.path, file.content);
-
-    if (outcome.projected) {
-      projected += 1;
-    }
-  }
-
-  return projected;
-}
-
-async function removeFiles(
-  remove: IngestDeltaDeps["deleteSpec"],
-  repo: string,
-  paths: IngestDeltaBody["deleted"],
-): Promise<number> {
-  for (const path of paths ?? []) {
-    await remove(repo, path);
-  }
-
-  return paths?.length ?? 0;
 }
 
 /** What this delta did to the STORED commit, once its chunks have been projected. A partial upload projects its share but must NOT advance the commit — the next chunk still needs the same base — and an unmigrated `ingest_state` is not a failure either, because the graph has already absorbed the delta. Only a commit that moved under us is a conflict. */

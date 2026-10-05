@@ -167,7 +167,10 @@ export async function draftAgainAction(
   if ("error" in allowed) {
     return allowed;
   }
-  const started = await startDrafting(fullName, planId, "", allowed.user.id);
+  const started = await startDrafting(fullName, planId, {
+    known: "",
+    createdBy: allowed.user.id,
+  });
 
   return started.status === "ok"
     ? {}

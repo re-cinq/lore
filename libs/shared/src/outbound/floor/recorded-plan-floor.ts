@@ -109,9 +109,11 @@ const startedOf: Answer = (_url, scene) => {
 function runsAsked(url: URL, scene: PlanFloorScene): RunView[] {
   const { searchParams } = url;
   const openOnly = searchParams.get("open") === "true";
+  const line = searchParams.get("line");
   const limit = Number(searchParams.get("limit") ?? Infinity);
 
   return (scene.runs ?? [])
     .filter((run) => !openOnly || run.finishedAt === null)
+    .filter((run) => line === null || run.lineId === line)
     .slice(0, limit);
 }

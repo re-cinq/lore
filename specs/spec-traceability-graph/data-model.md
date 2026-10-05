@@ -241,7 +241,7 @@ The schema declares `CodeChunk.references` and `CodeChunk.imports` as reversible
 
 `lore-query-trace` routes a `callers_of` query to a callers endpoint rather than the trace/document endpoint. ([validated by routes a callers_of query to a callers endpoint rather than the document endpoint](libs/server-core/src/work/spec-trace/query-trace.test.ts#L286))
 
-Statements reached via `~CodeChunk.references` are annotated `indirect` and rendered at `notice` annotation level rather than `warning` in the PR diff comment. ([validated by renders indirect statements as notice-level rather than warning so they appear in a quieter PR section](libs/shared/src/work/spec-trace/trace-impact.test.ts#L126), [validated by surfaces a caller statement as indirect when only the callee chunk is changed](libs/shared/src/work/spec-trace/trace-impact.test.ts#L474))
+Statements reached via `~CodeChunk.references` are annotated `indirect` and rendered at `notice` annotation level rather than `warning` in the PR diff comment. ([validated by renders indirect statements as notice-level rather than warning so they appear in a quieter PR section](libs/shared/src/work/spec-trace/trace-impact.test.ts#L153), [validated by surfaces a caller statement as indirect when only the callee chunk is changed](libs/shared/src/work/spec-trace/trace-impact.test.ts#L502))
 
 The reference extractor identifies imported symbols that are actually called in a TypeScript/JavaScript source file and returns their names paired with the module path they were imported from. ([validated by returns imported symbol names and their source paths when those symbols are called in a TypeScript source file](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L5), [validated by omits imported symbols that are never called in the file](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L28), [validated by returns an empty array for a file with no import declarations](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L44))
 
@@ -359,17 +359,18 @@ nothing. ([validated by replaces main's answer for the file when the overlay cov
 
 ### Ending a branch's overlay
 
-The Floor never writes Dgraph itself, so a closing PR does not delete its
-branch's overlay directly: the Floor emits the same `internal.ingest.spec_trace`
-event a test report rides, with kind `overlay-drop` naming the PR's repo and
-head branch, and the ingest station performs the delete. ([validated by asks the ingest to drop the feat/x overlay when the merged feat/x PR closes](apps/floor/src/work/assembly-run/drop-overlay.test.ts#L18))
+The stations service answers a closing PR and holds no graph client, so it does
+not delete the branch's overlay itself: it asks lore-api, which does
+(`POST /api/repos/{owner}/{repo}/trace/overlay-drop`). Until 2026-10-02 the old
+Floor sent the drop through the `ingest` assembly line as a pod per drop. ([validated by drops the graph overlay of branch feat/x when its pull request closes](apps/stations/src/events/repo-handlers.test.ts#L80), [validated by posts branch feat/x to /trace/overlay-drop of o/r](libs/shared/src/outbound/project/lib/station-http.test.ts#L250), [validated by drops the overlay of branch lore/implementation-loop/issue-7 for o/r and answers dropped](apps/lore-api/src/transport/routes/trace/trace-overlay-drop.test.ts#L40), [validated by answers dropped false and writes nothing when no graph is configured](apps/lore-api/src/transport/routes/trace/trace-overlay-drop.test.ts#L57), [validated by answers 400 when no branch is named](apps/lore-api/src/transport/routes/trace/trace-overlay-drop.test.ts#L50))
 
 The drop follows the PR, not a run: review, triage and reply runs all work on
 the PR's head branch, so the first of them to finish would otherwise wipe an
 overlay the implementation loop is still writing. A PR closed without merging
-drops its overlay the same way. ([validated by asks for the same drop when the feat/x PR closes unmerged](apps/floor/src/work/assembly-run/drop-overlay.test.ts#L39))
+drops its overlay the same way, and the stations service claims the close
+whether or not an external floor is configured. ([validated by claims only the closed pull request, for its overlay drop, when no floor is configured](apps/stations/src/events/subscriptions.test.ts#L60))
 
-A closed PR that names no head branch asks for nothing. ([validated by asks for nothing when the closed PR names no head branch](apps/floor/src/work/assembly-run/drop-overlay.test.ts#L50))
+A closed PR that names no head branch asks for nothing. ([validated by drops nothing for a closed pull request that names no head branch](apps/stations/src/events/repo-handlers.test.ts#L92))
 
 The drop can still be missed — a branch that never opened a PR, a lost event —
 so a retention sweep reaps every overlay a repo has not restamped since a
@@ -454,7 +455,7 @@ episode carries the lesson in prose. ([validated by drops a failure older than t
 
 The Floor never writes Dgraph itself, so a settled node emits an ingest event
 carrying its outcome, and the graph decides from that outcome whether to project
-a failure or resolve earlier ones. ([validated by carries the settled node and its outcome on the ingest lane](apps/floor/src/work/assembly-run/node-outcome-event.test.ts#L38))
+a failure or resolve earlier ones.
 
 The event takes the node's IDENTITY from its station-run row and its VERDICT
 from the delivery. It cannot take the verdict from the row: the row is read
@@ -462,19 +463,19 @@ BEFORE the finish writes the outcome onto it, so its failure fields are still
 empty at that moment. Reading them there would have projected every failure with
 no detail, and a failure with no detail names no file, and a failure that names
 no file is not projected at all — the whole feature would have been silently
-inert. ([validated by takes identity from the row and the failure from the verdict](apps/floor/src/work/assembly-run/node-outcome-event.test.ts#L38), [validated by hands the graph the delivery's failure detail, not the row read before the finish wrote it](apps/floor/src/work/assembly-run/finish-node.test.ts#L633))
+inert.
 
 A verdict that names no failure carries nulls rather than omitting the fields, so
-a resolve is distinguishable from a malformed record. ([validated by carries nulls for a verdict that names no failure](apps/floor/src/work/assembly-run/node-outcome-event.test.ts#L71))
+a resolve is distinguishable from a malformed record.
 
 A success and a failure on the same station run are keyed separately, so
-recording one never suppresses the other. ([validated by keys a success separately from the failure on the same station run](apps/floor/src/work/assembly-run/node-outcome-event.test.ts#L85))
+recording one never suppresses the other.
 
 A run with a repo is recorded; a run without one is not, because its files
-belong to nothing. ([validated by records for a run that names a repo](apps/floor/src/work/assembly-run/node-outcome-event.test.ts#L18), [validated by refuses for a run with no repo, whose files belong to nothing](apps/floor/src/work/assembly-run/node-outcome-event.test.ts#L24))
+belong to nothing.
 
 An ingest run's own node outcomes are never recorded: recording one starts
-another ingest run, whose outcome would start the next, forever. ([validated by refuses for an ingest run, whose recorded outcome would start another ingest run](apps/floor/src/work/assembly-run/node-outcome-event.test.ts#L30))
+another ingest run, whose outcome would start the next, forever.
 
 The ingest lane records a failed node against the file its output named. ([validated by records a failed node against the file its output named](libs/shared/src/work/spec-trace/ingest-failure-kind.test.ts#L49))
 

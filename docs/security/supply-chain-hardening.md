@@ -13,7 +13,7 @@ those; the workspace libraries build via explicit `npm run build` steps, which
 the flag does not affect.
 
 Covered: `pr-checks.yml`, `test-integration.yml`, `lore-tests.yml`,
-`context-evals.yml` (pinned global `promptfoo`), and the `floor`/`lore-api`/
+and the `floor`/`lore-api`/
 `lore-station`/`web-ui` Dockerfiles. The local installer path
 (`scripts/install.sh`, `scripts/worktree-bootstrap.sh`) is hardened the same way.
 

@@ -130,11 +130,13 @@ nothing.
 
 ### Observability
 
+> **2026-10-02.** This describes Lore's own Floor (`apps/floor`), which was deleted (`specs/external-floor` FR16.10); it is kept as the record of what the old engine did.
+
 `ingestSpecTrace` returns the real `{validatedBy, violated, coverageNodes,
 coversEdges}`, and the agent's spec-trace trigger surfaces it as a one-line log
 plus a `spec_trace_ingest` audit row per ingest — replacing the fire-and-forget
 discard — so a run's real graph effect is observable.
-([validated by `spec-trace-audit.test.ts:33`](apps/floor/src/work/spec-trace/spec-trace-audit.test.ts#L33), [validated by `spec-trace-audit:50`](apps/floor/src/work/spec-trace/spec-trace-audit.test.ts#L50), [validated by `spec-trace-audit:58`](apps/floor/src/work/spec-trace/spec-trace-audit.test.ts#L58), [validated by `spec-trace-audit:74`](apps/floor/src/work/spec-trace/spec-trace-audit.test.ts#L74))
+
 
 ## Out of Scope
 

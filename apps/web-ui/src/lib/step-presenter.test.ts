@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { stepViews } from "./step-presenter";
-import { implementationDefinition } from "./definition-fixtures";
+import {
+  featurePlanningDefinition,
+  implementationDefinition,
+} from "./definition-fixtures";
 import type { AssemblyRunNode } from "./assembly-runs";
 
 const node = (over: Partial<AssemblyRunNode> = {}): AssemblyRunNode => ({
@@ -35,6 +38,22 @@ describe("stepViews", () => {
         node({ outcome: "implement-failed" }),
       ])[0],
     ).toMatchObject({ tone: "err", label: "Failed" });
+  });
+
+  it("labels an open visit of the author station Waiting for you, not Running", () => {
+    expect(
+      stepViews(featurePlanningDefinition, [
+        node({ nodeId: "author", iteration: 2, outcome: null }),
+      ])[0],
+    ).toMatchObject({ tone: "waiting", label: "Waiting for you" });
+  });
+
+  it("labels a reported visit of the author station by its outcome", () => {
+    expect(
+      stepViews(featurePlanningDefinition, [
+        node({ nodeId: "author", outcome: "changes_requested" }),
+      ])[0],
+    ).toMatchObject({ tone: "warn", label: "Changes requested" });
   });
 
   it("labels a null outcome Running", () => {

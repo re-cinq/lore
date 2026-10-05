@@ -58,6 +58,11 @@ A spec written from a plan carries the whole plan and nothing beyond it:
   author.
 - No requirement appears that neither the plan nor the analysis change-set
   calls for.
+- Every statement that specifies a block of the plan cites it in its one
+  trailing link group, beside any test links:
+  `([from plan](<plan page>#<block id>), [validated by …](path/to/test.ts#L42))`.
+  The planning line counts the blocks no statement cites and sends the writer
+  back with them, then lists what is still uncited in the spec PR's body.
 
 ## The three-artifact feature directory (spec-kit)
 

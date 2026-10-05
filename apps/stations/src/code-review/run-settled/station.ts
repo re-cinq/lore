@@ -11,6 +11,10 @@ import { parsePullRequestUrl } from "@re-cinq/lore-shared/floor/floor-items.js";
 import type { CheckRunInput } from "@re-cinq/lore-shared/project/lib/github-port.js";
 import type { PullRef } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import { projectFor } from "../../outbound/project-boot.js";
+import { taskStore } from "../../outbound/queues.js";
+import { settlingLoopTickets } from "./loop-closed.js";
+import { loopClosedDeps } from "./loop-closed-deps.js";
+import { settlingTasks, type SettleTaskDeps } from "./settle-task.js";
 import { budgetSkipBody } from "@re-cinq/lore-shared/review/review-summary.js";
 import type { ReviewPoster } from "../post-review/post-review.js";
 import {
@@ -131,6 +135,32 @@ const productionDeps: RunSettledDeps = {
   },
 };
 
+const taskDeps: SettleTaskDeps = {
+  run: productionDeps.run,
+  settle: async ({ taskId, runId, outcome, status, failureReason }) => {
+    const won = await taskStore().setStatusIf(
+      taskId,
+      "running",
+      status,
+      failureReason ? { failure_reason: failureReason } : {},
+    );
+
+    if (won) {
+      await taskStore().recordEvent(taskId, "running", status, {
+        floor_run_id: runId,
+        outcome,
+      });
+    }
+  },
+};
+
 export function startRunSettledStation(): RunningStation {
-  return defineStation("run-settled", runSettledHandle(productionDeps));
+  return defineStation(
+    "run-settled",
+    // The task first: the loop's re-armed tick must find it settled.
+    settlingTasks(
+      taskDeps,
+      settlingLoopTickets(loopClosedDeps, runSettledHandle(productionDeps)),
+    ),
+  );
 }

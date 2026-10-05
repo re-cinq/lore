@@ -41,7 +41,9 @@ describe("fetchers.episodes", () => {
         : [],
     );
 
-    const res = await fetchers.episodes(pool, "deploy", undefined, "a1");
+    const res = await fetchers.episodes(pool, "deploy", undefined, {
+      agentId: "a1",
+    });
 
     expect({
       status: res.status,

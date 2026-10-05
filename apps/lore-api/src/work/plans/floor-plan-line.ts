@@ -17,6 +17,7 @@ import { reportToVisit } from "@re-cinq/lore-shared/floor/floor-report.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { PLANNING_DEFINITION } from "@re-cinq/lore-shared/project/plans/plan-run.js";
+import type { CitablePlan } from "@re-cinq/lore-shared/feature-planning/plan-coverage.js";
 import { startLine } from "@re-cinq/lore-shared/review/floor-line-start.js";
 import {
   openPrBrief,
@@ -36,6 +37,7 @@ import {
 } from "./planning-line.js";
 import { endedInFailure, refineRefusal } from "./refine-refusal.js";
 import { type SpecReviewReads } from "./spec-rework.js";
+import { storeCitable, storeMarkdown } from "./plan-blobs.js";
 
 /** What a report that answers no section produces for `refine`. The floor's bag only ever takes a key, never drops one, so a round that said nothing about `refine` would leave the last Refine's section standing: a later failed draft would then tell a section nobody asked about. The Postgres path said `refine: null` for the same reason. */
 const NO_REFINE = "";
@@ -60,8 +62,12 @@ export interface FloorPlanDeps {
 export interface FloorPlanMarkdown {
   plan: PlanSubject;
   planMarkdown: string;
+  /** The blocks a spec statement must cite, read from the same plan as the markdown; absent where the deployment names no web UI to link them under. */
+  citablePlan?: CitablePlan;
   /** What this round asks for, as the agent is told it: the draft's own brief, the section a Refine names, or which spec pass this is. Reading the plan cannot tell an agent which of its sections a person just clicked. */
   brief: string;
+  /** The issue number of the user story this plan answers, when the request names one; a round that names none keeps the one its plan's last run carried. */
+  storyIssue?: number;
 }
 
 export interface FloorRefineInput extends FloorPlanMarkdown {
@@ -71,7 +77,7 @@ export interface FloorRefineInput extends FloorPlanMarkdown {
 /** Drafts the plan: a run waiting on its author goes back to the agent with the edited plan and no section (a draft answers none); otherwise a run starts, or joins the one already open. The run's id either way. */
 export async function startFloorDrafting(
   deps: FloorPlanDeps,
-  { plan, planMarkdown, brief }: FloorPlanMarkdown,
+  { plan, planMarkdown, brief, storyIssue }: FloorPlanMarkdown,
 ): Promise<string> {
   const line = await floorPlanLineState(deps.floor, keyOf(plan));
   const planMd = await storeMarkdown(deps.floor, planMarkdown);
@@ -85,7 +91,7 @@ export async function startFloorDrafting(
     return line.lineId;
   }
 
-  return startPlanRun(deps, { plan, planMd, brief });
+  return startPlanRun(deps, line, { plan, planMd, brief, storyIssue });
 }
 
 /** Sends one section back to the agent while the run waits on its author; at any other moment it is refused with the reason, so the editor withdraws the ask and the page says why. The refine value is what `plan-pass-end` reads back. */
@@ -122,7 +128,7 @@ async function startRefineRound(
   );
   const planMd = await storeMarkdown(deps.floor, planMarkdown);
 
-  await startPlanRun(deps, {
+  await startPlanRun(deps, line, {
     plan,
     planMd,
     brief,
@@ -164,18 +170,13 @@ export async function approveFloorPlan(
   const decision = approvalDecisionOf(line);
 
   if (line?.parkedAuthor) {
-    await reportApproved(
-      deps,
-      line.parkedAuthor,
-      input.planMarkdown,
-      input.brief,
-    );
+    await reportApproved(deps, line.parkedAuthor, input);
 
     return decision;
   }
 
   if (decision.kind === "start-spec-work") {
-    await startSpecPass(deps, input);
+    await startSpecPass(deps, line, input);
   }
 
   return decision;
@@ -191,7 +192,7 @@ export async function startFloorSpecWork(
   enforceTrue(input.plan.status === "approved", apiError(409), NOT_APPROVED);
   enforceTrue(!line || line.open === null, apiError(409), SPEC_WORK_RUNNING);
 
-  return startSpecPass(deps, await amended(deps, input, line));
+  return startSpecPass(deps, line, await amended(deps, input, line));
 }
 
 /** A pass over specs an earlier one already wrote is briefed as the amendment it is: onto the branch of a spec PR still open, or onto what reached main. A plan reaching its specs for the first time keeps the approved brief it came with. */
@@ -248,29 +249,16 @@ export function keyOf(plan: PlanRef): { repo: string; planId: string } {
   return { repo: plan.repo, planId: plan.id };
 }
 
-/** The plan as a blob the run's agents download as plan.md; the hash is what a report or a start carries. */
-async function storeMarkdown(
-  floor: Pick<PlanFloor, "blobs">,
-  planMarkdown: string,
-): Promise<string> {
-  const stored = await floor.blobs.put(
-    new TextEncoder().encode(planMarkdown),
-    "text/markdown",
-  );
-
-  return stored.hash;
-}
-
 async function reportApproved(
   deps: FloorPlanDeps,
   author: ParkedVisit,
-  planMarkdown: string,
-  brief: string,
+  { planMarkdown, citablePlan, brief }: FloorPlanMarkdown,
 ): Promise<void> {
   await reportToVisit(deps.floor.events, author.visitId, {
     outcome: "success",
     produced: {
       plan_md: await storeMarkdown(deps.floor, planMarkdown),
+      ...(await storeCitable(deps.floor, citablePlan)),
       description: brief,
       refine: NO_REFINE,
     },
@@ -279,41 +267,57 @@ async function reportApproved(
 
 async function startSpecPass(
   deps: FloorPlanDeps,
-  { plan, planMarkdown, brief }: FloorPlanMarkdown,
+  line: FloorPlanLine | null,
+  { plan, planMarkdown, citablePlan, brief }: FloorPlanMarkdown,
 ): Promise<string> {
   const planMd = await storeMarkdown(deps.floor, planMarkdown);
+  const { plan_blocks: planBlocks } = await storeCitable(
+    deps.floor,
+    citablePlan,
+  );
 
-  return startPlanRun(deps, { plan, planMd, brief, entry: SPEC_WORK_ENTRY });
+  return startPlanRun(deps, line, {
+    plan,
+    planMd,
+    planBlocks,
+    brief,
+    entry: SPEC_WORK_ENTRY,
+  });
 }
 
 interface PlanRunStart {
   plan: PlanRef;
   planMd: string;
+  /** The citable blocks' blob, on a spec pass whose plan came with them. */
+  planBlocks?: string;
   brief: string;
   /** The section this round answers, for a Refine that had no round waiting to take it. */
   refine?: string;
   entry?: string;
+  storyIssue?: number;
 }
 
 // A start that names an entry skips the nodes before it: the plan is settled, so the run opens at the spec analysis.
 async function startPlanRun(
   deps: FloorPlanDeps,
+  previous: FloorPlanLine | null,
   start: PlanRunStart,
 ): Promise<string> {
   const { plan, entry } = start;
+  const storyIssue = start.storyIssue ?? previous?.storyIssue ?? undefined;
   const started = await startLine(deps.floor.lines, PLANNING_DEFINITION, {
     repo: floorRepoOf(plan.repo),
-    startItems: await startItemsOf(deps, start),
+    startItems: await startItemsOf(deps, { ...start, storyIssue }),
     ...(entry ? { entry } : {}),
   });
 
   return started.run.id;
 }
 
-/** What a planning run is started with: the spec branch to write on, the base the nodes after the merge read, the plan and this round's brief. */
+/** What a planning run is started with: the spec branch to write on, the base the nodes after the merge read, the plan, this round's brief and the user story it answers, when it names one. */
 async function startItemsOf(
   deps: FloorPlanDeps,
-  { plan, planMd, brief, refine }: PlanRunStart,
+  { plan, planMd, planBlocks, brief, refine, storyIssue }: PlanRunStart,
 ): Promise<Record<string, ReturnType<typeof valueItem>>> {
   const [branch, base] = await Promise.all([
     deps.specBranch(plan),
@@ -327,7 +331,9 @@ async function startItemsOf(
     plan_id: valueItem(plan.id),
     plan_title: valueItem(plan.title),
     plan_md: fileItem(planMd),
+    ...(planBlocks ? { plan_blocks: fileItem(planBlocks) } : {}),
     description: valueItem(brief),
     refine: valueItem(refine ?? NO_REFINE),
+    ...(storyIssue ? { story_issue: valueItem(String(storyIssue)) } : {}),
   };
 }

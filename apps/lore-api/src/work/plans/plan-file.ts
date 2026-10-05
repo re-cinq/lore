@@ -18,6 +18,11 @@ import type {
 import type { LivePlan } from "../../outbound/plans/live-plan.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
+import {
+  citablePlan,
+  type CitablePlan,
+} from "@re-cinq/lore-shared/feature-planning/plan-coverage.js";
+import { planUrlOf } from "@re-cinq/lore-shared/feature-planning/plan-url.js";
 
 export interface PlanFilePorts {
   /** The plan as it stands in its live document, which people may be editing right now. */
@@ -53,6 +58,27 @@ export async function planMarkdown(
   const { meta, blocks } = await ports.livePlan(planId);
 
   return planToMarkdown(blocks, templateFor(meta.type));
+}
+
+export interface PlanSnapshot {
+  planMarkdown: string;
+  /** Absent where the deployment names no web UI: a citation needs the plan's page to point at. */
+  citablePlan?: CitablePlan;
+}
+
+/** The plan a spec pass is handed, read once so plan.md and the blocks its spec must cite are the same plan. */
+export async function planSnapshot(
+  plan: { id: string; repo: string },
+  ports: Pick<PlanFilePorts, "livePlan">,
+  uiUrl: string | undefined,
+): Promise<PlanSnapshot> {
+  const { meta, blocks } = await ports.livePlan(plan.id);
+  const planMarkdown = planToMarkdown(blocks, templateFor(meta.type));
+  const planUrl = planUrlOf(uiUrl, plan.repo, plan.id);
+
+  return planUrl
+    ? { planMarkdown, citablePlan: citablePlan(readView(blocks), planUrl) }
+    : { planMarkdown };
 }
 
 export async function planAgentView(

@@ -71,5 +71,6 @@ function agentEventFrames(
     visitId: frame.visitId,
     nodeId: frame.nodeId,
     iteration: frame.iteration,
+    seq: frame.seq,
   }).map(agentEventFrame);
 }

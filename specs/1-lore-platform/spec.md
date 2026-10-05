@@ -238,14 +238,14 @@ system is performing.
   targeted memory throughout the run — the only context path, since nothing is
   fetched before the pod starts. A shared `lore-mcp`
   gateway serves those tools over MCP-over-HTTP at a public `:443` host (the
-  agent-pod NetworkPolicy allows only public `:443` egress). ([validated by renders the full recipe when every per-cluster value is set](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L49))
+  agent-pod NetworkPolicy allows only public `:443` egress).
 - The gateway reads each request body defensively: it JSON-parses the body
   (an empty body carries no payload), caps it at 1 MB (`413` over the cap) so an
   authenticated-but-rogue pod cannot exhaust gateway memory, and returns `400`
   for a malformed body rather than a `500`. ([validated by `http-transport.test.ts:11`](apps/mcp-server/src/transport/http-transport.test.ts#L11), [`http-transport.test.ts:15`](apps/mcp-server/src/transport/http-transport.test.ts#L15), [`http-transport.test.ts:19`](apps/mcp-server/src/transport/http-transport.test.ts#L19), [`http-transport.test.ts:25`](apps/mcp-server/src/transport/http-transport.test.ts#L25))
 - When no gateway URL is configured (the default, and every cluster before the
   gateway is deployed), the rendered agent recipes omit the `mcp_servers` block
-  entirely — no empty-`url` MCP entry lands in any recipe CRD. ([validated by a satellite's empty options omit the mcp/skills/secret blocks, the http sink AND the {context} placeholder](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L102))
+  entirely — no empty-`url` MCP entry lands in any recipe CRD.
 - The gateway also serves an **agent-skills registry** at `/skills` (unauthenticated —
   skills are org conventions, not secrets): `GET /skills/settings.json` returns the org
   session settings/hooks, and `GET /skills/<name>.tar.gz` streams a gzip tarball of the
@@ -288,7 +288,7 @@ system is performing.
   policy an implementation pod runs is unchanged. The same guard reaches a Gemini pod
   through its own vendor bundle, whose `BeforeTool` hook on `run_shell_command` wraps the
   script and reports a refusal the way gemini-cli reads one, as a `block` decision on
-  stdout rather than an exit code. ([validated by is wired as the Bash PreToolUse hook in the settings every pod fetches, at the path the lore-context tarball unpacks to](apps/mcp-server/src/transport/guard-tests.test.ts#L62), [validated by](apps/mcp-server/src/transport/guard-tests.test.ts#L274), [validated by](apps/mcp-server/src/transport/guard-tests.test.ts#L284), [validated by](apps/mcp-server/src/transport/guard-tests.test.ts#L290), [validated by](apps/mcp-server/src/transport/guard-tests.test.ts#L294), [validated by](apps/mcp-server/src/transport/guard-tests.test.ts#L317), [validated by](apps/mcp-server/src/transport/skills-registry-hooks.test.ts#L60), [refuses a bare suite run with the reason the agent needs](apps/mcp-server/src/transport/guard-tests.test.ts#L92), [refuses every unscoped runner spelling under the default policy](apps/mcp-server/src/transport/guard-tests.test.ts#L101), [lets a runner through when it names files, a workspace, a Go package or a subdirectory](apps/mcp-server/src/transport/guard-tests.test.ts#L151), [ignores commands that are not test runners, installs included, under the default policy](apps/mcp-server/src/transport/guard-tests.test.ts#L175), [refuses named tests, installs and builds alike under policy none](apps/mcp-server/src/transport/guard-tests.test.ts#L190), [stands down under policy any and on an event with no command](apps/mcp-server/src/transport/guard-tests.test.ts#L215), [counts a dot-relative subdirectory as scoped but never the repo root, whether spelled `.`, `./` or absolute](apps/mcp-server/src/transport/guard-tests.test.ts#L225), [sees through a shell wrapper, a quoted command and a direct node_modules binary](apps/mcp-server/src/transport/guard-tests.test.ts#L122), [refuses a runner whose scope is only vouched for by a comment, a neighbouring command, an --exclude or a watch flag](apps/mcp-server/src/transport/guard-tests.test.ts#L137), [blocks every Bash call when the recipe declares a policy but the guard script is gone, and stands down when none was declared](apps/mcp-server/src/transport/guard-tests.test.ts#L240), [inherits config.test_policy from the layer below when a row sets config for another reason, so a review recipe stays at none](libs/shared/src/outbound/project/agents/agent-defs-port.test.ts#L61), [maps a declared policy onto the LORE_TEST_POLICY env the pod's guard reads, and an unknown one onto nothing](libs/shared/src/domain/task-types/test-policy.test.ts#L5), [declares none on every read-only review recipe, so a review pod cannot run tests, installs or builds at all](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L233), [lists general and review sorted by name, review carrying test_policy none on config](libs/shared/src/outbound/project/agents/agent-defs-files.test.ts#L46), [config test_policy rides the CR as LORE_TEST_POLICY, and an unknown value rides nothing](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L487), [config test_policy rides the CR as LORE_TEST_POLICY, and an unknown value rides nothing](libs/shared/src/outbound/project/agents/agent-crd.test.ts#L487))
+  stdout rather than an exit code. ([validated by is wired as the Bash PreToolUse hook in the settings every pod fetches, at the path the lore-context tarball unpacks to](apps/mcp-server/src/transport/guard-tests.test.ts#L61), [validated by](apps/mcp-server/src/transport/guard-tests.test.ts#L274), [validated by](apps/mcp-server/src/transport/guard-tests.test.ts#L284), [validated by](apps/mcp-server/src/transport/guard-tests.test.ts#L290), [validated by](apps/mcp-server/src/transport/guard-tests.test.ts#L294), [validated by](apps/mcp-server/src/transport/guard-tests.test.ts#L317), [validated by](apps/mcp-server/src/transport/skills-registry-hooks.test.ts#L60), [refuses a bare suite run with the reason the agent needs](apps/mcp-server/src/transport/guard-tests.test.ts#L91), [refuses every unscoped runner spelling under the default policy](apps/mcp-server/src/transport/guard-tests.test.ts#L100), [lets a runner through when it names files, a workspace, a Go package or a subdirectory](apps/mcp-server/src/transport/guard-tests.test.ts#L150), [ignores commands that are not test runners, installs included, under the default policy](apps/mcp-server/src/transport/guard-tests.test.ts#L174), [refuses named tests, installs and builds alike under policy none](apps/mcp-server/src/transport/guard-tests.test.ts#L189), [stands down under policy any and on an event with no command](apps/mcp-server/src/transport/guard-tests.test.ts#L214), [counts a dot-relative subdirectory as scoped but never the repo root, whether spelled `.`, `./` or absolute](apps/mcp-server/src/transport/guard-tests.test.ts#L224), [sees through a shell wrapper, a quoted command and a direct node_modules binary](apps/mcp-server/src/transport/guard-tests.test.ts#L121), [refuses a runner whose scope is only vouched for by a comment, a neighbouring command, an --exclude or a watch flag](apps/mcp-server/src/transport/guard-tests.test.ts#L136), [blocks every Bash call when the recipe declares a policy but the guard script is gone, and stands down when none was declared](apps/mcp-server/src/transport/guard-tests.test.ts#L239), [inherits config.test_policy from the layer below when a row sets config for another reason, so a review recipe stays at none](libs/shared/src/outbound/project/agents/agent-defs-port.test.ts#L61), [maps a declared policy onto the LORE_TEST_POLICY env the pod's guard reads, and an unknown one onto nothing](libs/shared/src/domain/task-types/test-policy.test.ts#L5), [declares none on every read-only review recipe, so a review pod cannot run tests, installs or builds at all](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L236), [lists general and review sorted by name, review carrying test_policy none on config](libs/shared/src/outbound/project/agents/agent-defs-files.test.ts#L46))
 - The gateway's top-level router tries `/healthz`, then `/skills/*`, before
   falling through to `/mcp`: a non-`/mcp` path 404s, an `/mcp` request missing
   the configured bearer token 401s, and on `/mcp` itself POST mints or resumes
@@ -298,7 +298,7 @@ system is performing.
 - Developer can check task status and retrieve results without
   leaving Claude Code.
 - The pipeline task is visible in the shared task tracker — no
-  duplicate work. ([validated by `AssemblyRunListView.test.tsx:14`](apps/web-ui/src/app/assembly-runs/AssemblyRunListView.test.tsx#L14))
+  duplicate work. ([validated by renders the heading and offers no way to create a task](apps/web-ui/src/app/assembly-runs/AssemblyRunListView.test.tsx#L15))
 - Watcher posts the PR link and any Slack notifications on completion.
 
 **Scenario 8 — Automated Gap Detection (Phase 2)**
@@ -453,19 +453,14 @@ The system MUST ingest content from multiple sources into the vector
 store via the Lore Agent service. ([validated by `content-classify.test.ts:5`](libs/shared/src/domain/content-classify.test.ts#L5))
 
 - FR-7.1: Fast path: on-push to main triggers incremental ingestion
-  via pipeline task. ([validated by `ingest-workflow.test.ts:22`](libs/shared/src/work/ingest-workflow.test.ts#L22), [`ci-ingest.test.ts:79`](apps/floor/src/transport/http/routes/ci-ingest.test.ts#L79))
-- FR-7.2: Retired 2026-09-08 (ADR-019 amendment). There is no nightly
-  full re-index and the job runner no longer dispatches one: merge-time CI
-  ingest (FR-7.1) is the only ingestion path, so a file no merge has
-  touched since onboarding stays unindexed until one does. ([validated by exposes exactly the 3 batch jobs left after detection (ADR-019), the single-op jobs (#1348-1351) and the nightly reindex (2026-09-08) moved off K8s CronJobs](apps/floor/src/transport/job-runner.test.ts#L28))
+  via pipeline task. ([validated by `ingest-workflow.test.ts:22`](libs/shared/src/work/ingest-workflow.test.ts#L22))
+- Decision: the nightly full re-index was retired on 2026-09-08 (ADR-019 amendment) and the job runner that could dispatch one went with Lore's own Floor on 2026-10-02; merge-time CI ingest is the only ingestion path, so a file no merge has touched since onboarding stays unindexed until one does
 - FR-7.3: Content types: code (AST-split), pull requests (diff +
   description + comments), ADRs, docs (section-chunked), specs,
   runbooks. ([validated by `chunker.test.ts:6`](libs/shared/src/work/chunker.test.ts#L6), [`chunker.test.ts:172`](libs/shared/src/work/chunker.test.ts#L172), [`content-classify.test.ts:11`](libs/shared/src/domain/content-classify.test.ts#L11))
 - FR-7.4: Secret and credential redaction runs at ingest time via
   `redactSecrets()`; matched secrets are stripped before content is
   embedded and made searchable. ([validated by `redact.test.ts:5`](libs/shared/src/lib/redact.test.ts#L5), [`redact.test.ts:30`](libs/shared/src/lib/redact.test.ts#L30))
-- FR-7.5: Beyond chunking and embedding, the Lore Agent drafts missing
-  content and opens PRs (the gap-detection drafting path, FR-10). ([validated by `gap-detect.test.ts:123`](libs/shared/src/work/detect/gap-detect.test.ts#L124))
 
 ### FR-8: Observability (Phase 1)
 
@@ -476,55 +471,42 @@ The system MUST provide observability into context retrieval quality. ([validate
 - FR-8.2: Low-confidence retrievals (score < threshold) tagged as
   gap candidates via OTEL span attributes and Cloud Monitoring
   custom metrics. ([validated by `otel.test.ts:6`](libs/server-core/src/outbound/otel.test.ts#L6), [`otel.test.ts:10`](libs/server-core/src/outbound/otel.test.ts#L10), [`otel.test.ts:14`](libs/server-core/src/outbound/otel.test.ts#L14))
-- See ADR-010 for the autoresearch loop: the low-confidence gap signal
-  (Langfuse trace queries → candidate generation → PromptFoo eval → PR)
-  drives automated context improvement.
+- See ADR-010 for the autoresearch loop that consumed the low-confidence
+  gap signal: it was deleted with Lore's own Floor on 2026-10-02, and the
+  signal itself is still recorded.
 - FR-8.4: `lore_my_usage` tool exposes per-developer token consumption
   (today / 7-day / 30-day) without leaving Claude Code. ([validated by `usage-tools.test.ts:44`](apps/mcp-server/src/transport/tools/usage-tools.test.ts#L44), [`usage-pg.test.ts:144`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L173))
 
 ### FR-9: Context Evaluation (Phase 1)
 
-The system MUST validate context quality via CI.
+The system MUST validate context quality from CI.
 
-- FR-9.1: PromptFoo eval suite with 5-10 test cases per team
-  (stored in `evals/`).
-- FR-9.2: Teams own their eval cases.
-- FR-9.3: Pass threshold: 85% required to merge.
-- FR-9.4: Evals triggered on changes to ADRs, team CLAUDE.md files,
-  root CLAUDE.md, and spec files.
+- See `specs/context-evals` for the rules: a nightly GitHub Actions job has
+  lore-api write a question from each sampled ADR and spec, assemble the
+  context an agent would get, and judge the answer (#2443). The PromptFoo
+  suites per team, their 85%-to-merge gate on pull requests and the nightly
+  `eval_runner` and `context_core_builder` jobs it replaced are gone: the
+  jobs went with Lore's own Floor on 2026-10-02, and migration 0101 dropped
+  `pipeline.eval_runs` and `pipeline.context_core_history`.
 
 ### FR-10: Gap Detection (Phase 2)
 
-The system MUST automatically identify and address knowledge gaps. ([validated by `gap-detect.test.ts:105`](libs/shared/src/work/detect/gap-detect.test.ts#L106))
-
-- See ADR-010: a weekly job analyzes low-confidence retrievals from the
-  previous week (the autoresearch gap loop).
+- See ADR-010: the weekly autoresearch job that analyzed the previous
+  week's low-confidence retrievals was deleted with Lore's own Floor.
 - Decision: candidate gaps are clustered by embedding similarity.
-- FR-10.3: For a repo missing a documentation kind (CLAUDE.md, ADRs, or
-  specs), the `gap-detect` job drafts the missing content as a `gap-fill`
-  task. ([validated by `gap-detect.test.ts:123`](libs/shared/src/work/detect/gap-detect.test.ts#L124))
 - Decision: the agent opens PRs to the context repo with the drafted content,
   assigned to the relevant team.
 - Decision: human review is required before any auto-drafted content is merged.
-- FR-10.6: The per-repo `gap-detect` job skips repos that are not
-  onboarded. ([validated by `gap-detect.test.ts:105`](libs/shared/src/work/detect/gap-detect.test.ts#L106))
-- FR-10.7: It checks the repo's resolved-schema chunks for a CLAUDE.md
-  doc chunk, ADR chunks, and spec chunks — filing a `gap-fill` task per
-  missing kind, and none when all are present.
-  ([validated by `gap-detect.test.ts:114`](libs/shared/src/work/detect/gap-detect.test.ts#L115), [`gap-detect.test.ts:123`](libs/shared/src/work/detect/gap-detect.test.ts#L124))
-- FR-10.9: An in-flight or failed matching `gap-fill` task suppresses a
-  duplicate filing. ([validated by `gap-detect.test.ts:175`](libs/shared/src/work/detect/gap-detect.test.ts#L136))
+ 
 - FR-10.10 *(added 2026-09-28)*: The `gap-fill` draft is a delivering recipe: it
   commits and pushes what it wrote, because the validate and push nodes after it
   are other pods with fresh clones, and a draft that finds the context already
   current reports `changes_requested` naming the file or commit that already
   does the work, lifted into the row's `failure_detail` as `already current: …`,
-  so the run ends without a pull request instead of validating an empty branch. Neither the
-  `gap-fill` nor the `general` recipe said push after their lines moved to a pod
-  per node, so 17 of 36 gap-fill branches carried zero commits (2026-08-15 to
+  so the run ends without a pull request instead of validating an empty branch. The `gap-fill` recipe did not say push after its line moved to a pod per node (nor did the `general` recipe, deleted with its line on 2026-10-01), so 17 of 36 gap-fill branches carried zero commits (2026-08-15 to
   2026-09-25): validate diffed nothing, ran the checks unscoped over the whole
   tree, and was OOM-killed in its 1Gi pod, or passed and the push found nothing,
-  so no PR could open. ([validated by let a draft that finds the context already current report changes_requested, so a true no-op ends the run without a PR instead of failing an empty branch](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L457), [validated by counts gap-fill and general as delivering, since validate and push after them are other pods (17 of 36 gap-fill branches shipped 0 commits between 2026-08-15 and 2026-09-25)](libs/shared/src/domain/task-types/delivering-recipes.test.ts#L13), [validated by lifts a draft's already-current reason into the row, so a run that opened no PR says what already did the work](libs/assembly-lines/src/node-outcome.test.ts#L142))
+  so no PR could open. ([validated by lets a draft that finds the context already current report changes_requested, so a true no-op ends the run without a PR instead of failing an empty branch](libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L442), [validated by counts gap-fill as delivering, since validate and push after it are other pods (17 of 36 gap-fill branches shipped 0 commits between 2026-08-15 and 2026-09-25)](libs/shared/src/domain/task-types/delivering-recipes.test.ts#L13))
 
 ### FR-11: Live Knowledge Graph (Phase 1+)
 
@@ -542,7 +524,7 @@ live knowledge graph. ([validated by `graph.test.ts:47`](libs/server-core/src/wo
 - FR-11.4: Facts carry temporal validity (`valid_from`/`valid_to`),
   confidence tiers (`verified` / `observed` / `inferred` / `stale`),
   and retrieval metadata (`retrieval_count`, `last_retrieved_at`,
-  `half_life_days`). ([validated by `facts.test.ts:96`](libs/server-core/src/work/memory/facts.test.ts#L71), [`memory-ranking.test.ts:225`](libs/shared/src/domain/memory-ranking.test.ts#L225))
+  `half_life_days`). ([validated by `facts.test.ts:96`](libs/server-core/src/work/memory/facts.test.ts#L71), [`memory-ranking.test.ts:225`](libs/shared/src/domain/memory-ranking.test.ts#L251))
 - FR-11.5: Contradiction detection: when a new fact has cosine
   similarity ≥ 0.92 to an existing one, the old fact is invalidated
   and a conflict record written to `memory.fact_conflicts`. Context
@@ -561,7 +543,7 @@ cooperation. ([validated by `session-tracker.test.ts:193`](libs/server-core/src/
 - FR-12.2: Daily job at 5 AM scores memories 0-10 using half-life
   decay (`strength = 0.5^(age / half_life_days)`). Evicts
   lowest-scoring memories when agent exceeds 500 entries. Cleans
-  invalidated facts older than 30 days beyond the 2000 cap. ([validated by `memory-ranking.test.ts:206`](libs/shared/src/domain/memory-ranking.test.ts#L206))
+  invalidated facts older than 30 days beyond the 2000 cap. ([validated by `memory-ranking.test.ts:206`](libs/shared/src/domain/memory-ranking.test.ts#L232))
 - FR-12.3: Daily job at 5:30 AM groups recent facts (7-day lookback)
   by repo and calls Haiku to extract 1-3 higher-level patterns per
   repo. Stored as `consolidated/{repo}/{timestamp}` memories.
@@ -584,21 +566,20 @@ ai-agent-subsystem per ADR-031). ([validated by starts code-review when a pull r
 
 - FR-13.1: After an implementation PR is created, an auto-review is started on
   the ai-agent-subsystem when `auto_review` is enabled on the repo (ADR-031
-  retired the loretask-watcher). ([validated by `auto-review-enabled.test.ts:5`](libs/shared/src/work/review/auto-review-enabled.test.ts#L5), [[starts code-review when a pull request opens in a repository with auto_review on](apps/stations/src/events/floor-review-handlers.test.ts#L92), [starts code-review for a pull request no review has run on](libs/shared/src/work/review/floor-review-start.test.ts#L277))
+  retired the loretask-watcher). ([validated by `auto-review-enabled.test.ts:5`](libs/shared/src/work/review/auto-review-enabled.test.ts#L5), [[starts code-review when a pull request opens in a repository with auto_review on](apps/stations/src/events/floor-review-handlers.test.ts#L92), [starts code-review for a pull request no review has run on](libs/shared/src/work/review/floor-review-start.test.ts#L284))
 - FR-13.2: The review agent reads spec + conventions and the `post-review`
   station posts ONE formal PR review — inline comments per finding plus a summary, carrying the verdict as its
   GitHub review event (`APPROVE` / `REQUEST_CHANGES`, always on, no longer a neutral comment). ([validated by posts one REQUEST_CHANGES review with a rendered comment per commentable finding](apps/stations/src/code-review/post-review/post-review.test.ts#L94), [validated by submits an APPROVE review carrying the inline findings for an approved verdict](apps/stations/src/code-review/post-review/post-review.test.ts#L250))
 - FR-13.3: On a formal `APPROVE` the PR becomes eligible for (auto-)merge once the
-  remaining gates pass; auto-merge reads the bot's latest review, so a later push's re-check verdict supersedes the earlier one. ([validated by posts a visible APPROVE review for a bare REVIEW_RESULT:APPROVED with no findings block](apps/stations/src/code-review/post-review/post-review.test.ts#L282), [`auto-merge.test.ts:32`](apps/floor/src/work/merge/auto-merge.test.ts#L32))
+  remaining gates pass; auto-merge reads the bot's latest review, so a later push's re-check verdict supersedes the earlier one. ([validated by posts a visible APPROVE review for a bare REVIEW_RESULT:APPROVED with no findings block](apps/stations/src/code-review/post-review/post-review.test.ts#L282))
 - FR-13.4: When changes are requested, a follow-up round is started on the same
-  branch carrying the feedback (the code-review-reply path). ([validated by starts code-review-reply for review 99 with the address intent](libs/shared/src/work/review/floor-review-start.test.ts#L377), [validated by starts code-review-reply for a MEMBER's request-changes review 99](apps/stations/src/events/floor-review-handlers.test.ts#L154))
-- FR-13.5: After further iterations the loop escalates to human review via a
-  `needs-human-help` Issue, with no further autonomous iterations. ([validated by opens the issue and carries its url forward for the notify step](apps/stations/src/work/escalation-step/escalation-step.test.ts#L27), [`escalation-line.test.ts:37`](libs/assembly-lines/src/escalation-line.test.ts#L37))
+  branch carrying the feedback (the code-review-reply path). ([validated by starts code-review-reply for review 99 with the repository, the pull request and the review, and no intent: the agent reads what each comment asks](libs/shared/src/work/review/floor-review-start.test.ts#L456), [validated by starts code-review-reply for a MEMBER's request-changes review 99](apps/stations/src/events/floor-review-handlers.test.ts#L154))
+- FR-13.5: *(Restated 2026-10-01.)* Nothing files a `needs-human-help` Issue any more: the escalation line that did was deleted (#2330) having never run in production. Where the implementation loop owns the pull request, review threads left unresolved park its ticket with a comment that names why; elsewhere a person reads the review on the pull request. ([validated by labels issue 7 blocked and comments when await-pr ended on unresolved threads](apps/stations/src/code-review/run-settled/loop-closed.test.ts#L279), [validated by labels lore:blocked and comments when await-pr resumed failed](libs/shared/src/work/backlog/loop-run-closed.test.ts#L299))
 - FR-13.6: The primary trigger is GitHub webhooks (ADR-015): the stations
   service turns qualifying `pull_request`, `pull_request_review`, and PR
   `issue_comment` events into calls that start or reply on a code-review
   pipeline of the external floor (`apps/stations/src/events/floor-review-handlers.ts`);
-  bot-authored events are skipped as a loop guard. ([validated by starts code-review when a pull request opens in a repository with auto_review on](apps/stations/src/events/floor-review-handlers.test.ts#L92), [validated by starts nothing when the lore bot comments @lore review](apps/stations/src/events/floor-review-handlers.test.ts#L143), [validated by starts no reply for a review the lore bot submitted](libs/shared/src/work/review/floor-review-start.test.ts#L393))
+  bot-authored events are skipped as a loop guard. ([validated by starts code-review when a pull request opens in a repository with auto_review on](apps/stations/src/events/floor-review-handlers.test.ts#L92), [validated by starts nothing when the lore bot comments @lore review](apps/stations/src/events/floor-review-handlers.test.ts#L143), [validated by starts no reply for a review the lore bot submitted](libs/shared/src/work/review/floor-review-start.test.ts#L474))
 - FR-13.7: **Safety-net cron** fires at `7 7-17 * * 1-5` (UTC,
   Mon-Fri) to catch dropped webhook deliveries. Cron-triggered runs
   are gated by `isBusinessHours()` (default: Europe/Berlin, 09:00-18:00
@@ -611,8 +592,8 @@ ai-agent-subsystem per ADR-031). ([validated by starts code-review when a pull r
 
 The system MUST detect when specifications diverge from implementation. ([validated by `chunks.test.ts:203`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L204), [`chunks.test.ts:225`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L226))
 
-- FR-14.1: Weekly job reads spec assertions and checks against
-  current code via AST analysis. ([validated by `fan-out.test.ts:41`](apps/floor/src/work/detect/fan-out.test.ts#L42))
+- FR-14.1: *(Since 2026-10-02.)* A weekly line reads each spec's statements from the traceability graph and
+  finds those whose bound test fails. It is the `spec-upkeep` line on the external floor (`specs/external-floor` FR14); the per-repo `spec-drift` fan-out on Lore's own Floor that did this before is gone. ([validated by finds the statement of specs/cart/spec.md whose bound test fails, with its section and the test](libs/shared/src/work/spec-upkeep/findings.test.ts#L65))
 - Decision: divergence above 20% of a spec's assertions triggers a `gap-fill`
   pipeline task for the owning team.
 - FR-14.3: Test files and generated files are excluded. ([validated by `chunks.test.ts:681`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L713), [`chunks.test.ts:714`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L746))
@@ -632,12 +613,11 @@ reliability. ([validated by `pipeline-tasks.trust.test.ts:33`](libs/shared/src/d
 - FR-15.1: `settings.trust.level` controls which task types are
   allowed: `docs` (gap-fill/runbook/onboard + feature-planning
   per ADR-027), `tests` (+review),
-  `implementation` (+implementation/feature-request/general, and
-  `spec-task` — the issues station's filings, which no tier listed, so
+  `implementation` (+implementation-loop/feature-request, and `spec-task` — the issues station's filings, which no tier listed, so
   every one was refused until 2026-09-29),
   `full` (all). `onboard` is allowed at every tier — it produces a
   docs-only scaffolding PR and duplicate protection lives in its own
-  route's guard, not the trust ladder. ([validated by `allows an onboard task at trust level %s`](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L33), [`still refuses an implementation task at trust level docs`](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L48), [validated by allows a spec-task at trust level implementation](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L171), [validated by allows a spec-task at trust level full](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L177), [validated by refuses a spec-task at trust level tests](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L181))
+  route's guard, not the trust ladder. ([validated by `allows an onboard task at trust level %s`](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L33), [validated by still refuses a spec-task at trust level docs](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L48), [validated by allows a spec-task at trust level implementation](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L171), [validated by allows a spec-task at trust level full](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L177), [validated by refuses a spec-task at trust level tests](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L181))
 - FR-15.2: Trust auto-promotes after 3 successful merges at the current level
   (overridable per repo via `auto_promote_threshold`), climbing
   `docs → tests → implementation → full` and resetting the merge counter on
@@ -715,121 +695,31 @@ non-terminal states and resolve them without manual intervention. ([validated by
 
 ### FR-19: Task Detail UI (Phase 1)
 
-The web UI MUST present a per-task detail view at `/tasks/[id]` that is
-the task's lifecycle shell — metadata, PR status, failure reason, the
-cancel/revision controls, and the list of run attempts — while all
-execution detail (per-node timeline, transcript, pod logs, event
-history, LLM-call ledger) lives on the run detail page at
-`/assembly-runs/[id]` (issue #1608: task = the request, run = one
-attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L109), [`TaskDetailView.test.tsx:316`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L316))
+_(Rewritten 2026-10-05.)_ A task has no page of its own: the run detail
+page at `/assembly-runs/[id]` is where a task is read, and the
+`/tasks/[id]` lifecycle shell, which only forwarded to a run Postgres
+held and so opened empty for a task whose run is on the external floor,
+is deleted. ([validated by links to no task page](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunView.test.tsx#L76))
 
-- FR-19.1: The detail heading reads `Task: <description>` with the
-  description truncated to 80 characters, and the view shows the task
-  type, target repo, creator, and a sentence-cased status badge.
-  Priority renders as a red badge when `immediate` and falls back to a
-  plain `normal` meta label when empty. ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L109), [`TaskDetailView.test.tsx:128`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L128), [`TaskDetailView.test.tsx:136`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L136), [`TaskDetailView.test.tsx:148`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L148), [`TaskDetailView.test.tsx:155`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L155))
-- FR-19.2: The agent row, failure row, and review-iterations row each
-  render only when their value is present (agent assigned, failure
-  reason set, review iteration greater than zero) and are omitted
-  otherwise. ([validated by `TaskDetailView.test.tsx:209`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L207), [`TaskDetailView.test.tsx:213`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L213), [`TaskDetailView.test.tsx:235`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L235), [`TaskDetailView.test.tsx:241`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L241), [`TaskDetailView.test.tsx:247`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L247))
-- FR-19.3: The view lists the task's run attempts under a "Runs"
-  heading, each linking to its run detail at `/assembly-runs/<run-id>`
-  with a status-classed badge showing the run's outcome (falling back
-  to its status) and its start time, and omits the section entirely
-  when the task has no runs. ([validated by `TaskDetailView.test.tsx:54`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L54), [`TaskDetailView.test.tsx:75`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L75), [`TaskDetailView.test.tsx:101`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L101))
-- FR-19.3a: When the task has exactly one run attempt, the page
-  redirects straight to that run's detail page — the run page links
-  back via "View task →"; with zero or several attempts the lifecycle
-  shell renders with its runs list. ([validated by `TaskDetailView.test.tsx:340`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L338), [`TaskDetailView.test.tsx:344`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L344), [`TaskDetailView.test.tsx:348`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L348))
-- FR-19.4: In-flight controls follow actions-up: a "Run Now" form
-  posting to `/api/tasks/<id>/run-now` appears only for pending
-  normal-priority tasks; a "Cancel Task" control appears for
-  non-terminal tasks and is hidden once merged or completed; the
+- FR-19.1: `/assembly-runs/<id>` given a task id redirects to the task's
+  newest run, so every link that knows only a task (a repository's recent
+  tasks, the backlog's onboarding banner, the bounce after a cancel) points
+  there. lore-api's `GET /api/assembly-runs?task_id=` answers the run from
+  Postgres when it holds one and from the external floor otherwise. ([validated by returns the floor's run for a task Postgres holds no run of](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L187))
+- FR-19.2: A task nothing ran for says so: the heading "This task has no
+  run", its sentence-cased status badge, its failure reason when it has
+  one, and a link to its repository. ([validated by says the failed task has no run and why it failed](apps/web-ui/src/app/assembly-runs/[id]/TaskWithoutRun.test.tsx#L9), [validated by links the task's repository](apps/web-ui/src/app/assembly-runs/[id]/TaskWithoutRun.test.tsx#L23), [validated by shows no reason for a task that has none](apps/web-ui/src/app/assembly-runs/[id]/TaskWithoutRun.test.tsx#L32))
+- FR-19.4: The run header offers "Cancel Task" while the run is open and
+  has a task, and not on a finished run or a run with no task; the
   confirm-gated `CancelTaskButton` shows only its trigger until clicked,
   then reveals a form posting to `/api/tasks/<id>/cancel` that "Keep
-  task" backs out of; and a "Give Feedback" form wired to the injected
-  server action (with a hidden `task_id`) shows only for a task that has
-  a PR and is not cancelled. ([validated by `TaskDetailView.test.tsx:162`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L162), [`TaskDetailView.test.tsx:173`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L173), [`TaskDetailView.test.tsx:180`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L180), [`TaskDetailView.test.tsx:187`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L187), [`TaskDetailView.test.tsx:200`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L200), [`TaskDetailView.test.tsx:275`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L275), [`TaskDetailView.test.tsx:296`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L296), [`TaskDetailView.test.tsx:303`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L303), [`CancelTaskButton.test.tsx:7`](apps/web-ui/src/app/tasks/[id]/CancelTaskButton.test.tsx#L7), [`CancelTaskButton.test.tsx:17`](apps/web-ui/src/app/tasks/[id]/CancelTaskButton.test.tsx#L17), [`CancelTaskButton.test.tsx:30`](apps/web-ui/src/app/tasks/[id]/CancelTaskButton.test.tsx#L30))
-- FR-19.5: When a failed task carries a failed-event with metadata, the
-  view renders a "Failure" panel surfacing the error; absent that
-  metadata no panel is shown. ([validated by `TaskDetailView.test.tsx:254`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L252), [`TaskDetailView.test.tsx:268`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L268))
-- FR-19.6: _(Restated 2026-09-09.)_ The run detail page renders the task's status transitions inside the selected node's transcript rather than as a separate Event Timeline card: each transition that fell inside that node's visits reads as a `· task From → To` system line in the conversation, with its metadata folded behind the line and the from-status omitted on the first transition; a run with no backing task shows the note that no status history is available. ([validated by `transcript-entries.test.ts:116`](apps/web-ui/src/lib/transcript-entries.test.ts#L117), [`transcript-entries.test.ts:141`](apps/web-ui/src/lib/transcript-entries.test.ts#L142), [`TranscriptView.test.tsx:56`](apps/web-ui/src/app/assembly-runs/[id]/TranscriptView.test.tsx#L56), [adds a task transition the stream reports to the selected node's transcript](apps/web-ui/src/app/assembly-runs/[id]/RunLiveShell.test.tsx#L138))
+  task" backs out of. There is no "Run Now": no task is created pending. ([validated by offers to cancel the task of a running run](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunView.test.tsx#L57), [validated by offers no cancel on %s](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunView.test.tsx#L67), [`CancelTaskButton.test.tsx:7`](apps/web-ui/src/app/assembly-runs/[id]/CancelTaskButton.test.tsx#L7), [`CancelTaskButton.test.tsx:17`](apps/web-ui/src/app/assembly-runs/[id]/CancelTaskButton.test.tsx#L17), [`CancelTaskButton.test.tsx:30`](apps/web-ui/src/app/assembly-runs/[id]/CancelTaskButton.test.tsx#L30))
+- FR-19.6: _(Restated 2026-09-09.)_ The run detail page renders the task's status transitions inside the selected node's transcript rather than as a separate Event Timeline card: each transition that fell inside that node's visits reads as a `· task From → To` system line in the conversation, with its metadata folded behind the line and the from-status omitted on the first transition; a run with no backing task shows the note that no status history is available. ([validated by `transcript-entries.test.ts:116`](apps/web-ui/src/lib/transcript-entries.test.ts#L117), [`transcript-entries.test.ts:141`](apps/web-ui/src/lib/transcript-entries.test.ts#L142), [`TranscriptView.test.tsx:56`](apps/web-ui/src/app/assembly-runs/[id]/TranscriptView.test.tsx#L56), [adds a task transition the stream reports to the selected node's transcript](apps/web-ui/src/app/assembly-runs/[id]/RunLiveShell.test.tsx#L162))
 - FR-19.7: The run detail page renders the task's LLM-call table: one
   row per call with the model, `input / output` token counts, duration,
   and a status badge (red with the error text on failure), and an
   empty-state note in place of the table when there are none; the section
-  is a collapsible card titled LLM Calls. ([validated by `LlmCallsTable.test.tsx:25`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L25), [`LlmCallsTable.test.tsx:33`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L33), [`LlmCallsTable.test.tsx:41`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L41), [`LlmCallsTable.test.tsx:19`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L19), [`LlmCallsTable.test.tsx:53`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L53), [`LlmCallsTable.test.tsx:65`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L65))
-- FR-19.10: The pure PR status card shows a loading placeholder until
-  details arrive, an "unavailable" fallback with a "View on GitHub" link
-  when only an error is present, keeps the loaded details on screen even
-  when a later error arrives, renders the computed-status pill (mapped
-  colour, muted fallback for an unknown status) with a PR link, omits
-  the checks row when there are no checks and otherwise counts passing
-  (success / skipped), failing (failure / timed_out), and pending (any
-  non-completed) checks — showing no counts when every check is
-  zero-bucketed — and lists approvers and change-requesters (or both),
-  omitting the reviews row when there are neither. ([validated by `PRStatusCard.test.tsx:44`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L42), [`PRStatusCard.test.tsx:51`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L51), [`PRStatusCard.test.tsx:68`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L68), [`PRStatusCard.test.tsx:81`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L81), [`PRStatusCard.test.tsx:104`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L104), [`PRStatusCard.test.tsx:118`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L118), [`PRStatusCard.test.tsx:134`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L134), [`PRStatusCard.test.tsx:146`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L146), [`PRStatusCard.test.tsx:167`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L167), [`PRStatusCard.test.tsx:186`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L186), [`PRStatusCard.test.tsx:203`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L203), [`PRStatusCard.test.tsx:223`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L223), [`PRStatusCard.test.tsx:240`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L240), [`PRStatusCard.test.tsx:252`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L252), [`PRStatusCard.test.tsx:286`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L286))
-- FR-19.11: The PR status container fetches `/api/tasks/<id>/pr-status`
-  and renders the card, surfaces the unavailable fallback on an error
-  payload or a rejected fetch, refetches when the task id changes, does
-  not fetch after unmount, keeps the loaded details when a later
-  refresh fails, and reports inactive after a failed refresh so the
-  coordinator stops re-fetching it. ([validated by `PRStatusPanel.test.tsx:84`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L79), [`PRStatusPanel.test.tsx:92`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L92), [`PRStatusPanel.test.tsx:105`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L105), [`PRStatusPanel.test.tsx:121`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L121), [`PRStatusPanel.test.tsx:137`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L137), [`PRStatusPanel.test.tsx:163`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L163), [`PRStatusPanel.test.tsx:191`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L191))
-
-- FR-19.12: The task-refresh presenter makes every scheduling decision
-  as pure functions: the live run is the newest non-terminal
-  `pipeline.assembly_lines` attempt (empty, all-terminal, and unsorted
-  inputs handled; `queued` counts as live; `created_at` sorts correctly
-  whether it arrives as a string or a Date); the refresh driver is
-  `idle` with no active panel, `poll` without a live run, without
-  EventSource, or after the stream gives up, and `stream` otherwise;
-  the interval is null when idle, a 30-second heartbeat on a live
-  stream, and the 10-second coordinated cadence otherwise (including
-  while the stream is still connecting or reconnecting);
-  event-triggered refreshes wait out the remainder of the 3-second
-  window (zero delay at or past the boundary); the stream cursor folds
-  numerically (ids past MAX_SAFE_INTEGER compare correctly, non-numeric
-  candidates keep the cursor); and the runs check stays active while a
-  run is attached (so its terminality is re-read, task status
-  regardless) or, unattached, while the task status can still mint a
-  run — never with no active panel. ([returns null for an empty run list](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L25), [returns null when every run is finished or failed](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L29), [returns the only running run's id](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L38), [returns the newest non-terminal run from an unsorted list](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L47), [accepts a queued run as live](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L69), [sorts rows whose created_at is a Date object](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L73), [returns idle when no panel is active even with a live run](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L92), [returns poll when there is no live run](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L103), [returns poll when EventSource is unavailable](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L114), [returns poll once the stream has given up](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L125), [returns stream for a live run with EventSource available](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L136), [returns null for the idle driver](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L149), [returns the heartbeat cadence for a live stream](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L153), [returns the coordinated cadence for a stream still connecting](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L157), [returns the coordinated cadence for a reconnecting stream](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L161), [returns the coordinated cadence for the poll driver](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L167), [returns the remaining window when the last refresh was 1s ago](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L173), [returns 0 exactly at the min gap](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L179), [returns 0 when the gap exceeds the minimum](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L185), [returns 10 over 9 despite lexicographic order](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L191), [keeps the current cursor when the candidate is smaller](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L195), [keeps the current cursor for a non-numeric candidate](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L199), [handles ids beyond Number.MAX_SAFE_INTEGER](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L203), [returns true for a pending task with active panels and no run](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L211), [returns true while a run is attached so its terminality is re-checked](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L221), [returns true for an attached run even on a terminal task status](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L231), [returns false for a terminal task status with no attached run](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L241), [returns false when no panel is active](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L251))
-- FR-19.13: The task-refresh provider is the page's single scheduler:
-  it never ticks with no active panel, stops when the last panel goes
-  inactive or on unmount, and a panel without a provider ancestor never
-  auto-refreshes; a tick refreshes active panels and skips inactive
-  ones; a running run at mount opens exactly one EventSource on the
-  run's stream proxy — none when every run is terminal or no panel is
-  active, and the socket closes when the page goes idle;
-  catchup-complete flips the `live` flag panels render from; the
-  catch-up replay burst triggers no immediate refresh wave, an event
-  past the window refreshes at once, and a burst inside it coalesces
-  into one trailing refresh at the window boundary; the interval slows
-  to the heartbeat while the stream is live and returns to coordinated
-  polling after the stream's bounded give-up; a run minted after mount
-  is discovered via `/api/tasks/<id>/runs` on poll ticks and attaches
-  the stream — never for a terminal task status with nothing attached,
-  and a discovery response with no live run keeps polling; and the
-  attached run's recorded status is re-checked on ticks, detaching a
-  finished run back to coordinated polling and attaching a retry's
-  fresh run in its place. ([never ticks when no panel is active](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L160), [ticks the active panel and skips the inactive one on the same interval](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L170), [stops ticking after the last panel goes inactive](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L190), [never auto-refreshes without a provider ancestor](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L219), [never auto-refreshes without a provider ancestor](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L219), [opens one run channel on the tab's socket for a running run](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L231), [opens no channel when every run is terminal](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L245), [opens no channel when no panel is active](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L256), [closes the channel when the last panel goes inactive](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L267), [reports live to panels once the server opens the channel](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L286), [does not refresh on the catch-up replay burst at mount](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L303), [refreshes immediately past the gap and coalesces a burst into one trailing refresh](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L324), [slows the interval to the heartbeat cadence while the stream is live](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L348), [falls back to coordinated polling after the socket gives up](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L366), [discovers a run minted after mount and opens its channel](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L396), [detaches and returns to coordinated polling when the attached run turns terminal](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L423), [attaches a retry's fresh run in place of a finished one](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L453), [does not discover for a task in a terminal status](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L487), [keeps polling when the discovery response has no live run](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L506), [stops ticking after unmount](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L206))
-- FR-19.14: `GET /api/tasks/[id]/runs` serves the task's per-attempt
-  run rows newest first, behind the timeline route's auth ladder (401
-  without a session, 404 for an unknown task, 403 without repo access),
-  returning an empty list on pre-0025 databases, exporting
-  `force-dynamic`, and mapping a thrown lookup to a 500. The rows come
-  from lore-api's `GET /api/tasks/{id}/runs`, not from
-  `pipeline.assembly_lines` directly: the repo this route authorizes
-  against and the runs it returns must be read through one source, or
-  the two can disagree about which task they describe. ([validated by `route.test.ts:34`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L34), [`route.test.ts:39`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L39), [`route.test.ts:48`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L48), [`route.test.ts:61`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L61), [`route.test.ts:77`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L77), [`route.test.ts:102`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L102), [`route.test.ts:110`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L110), [`route.test.ts:118`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L118), [`route.test.ts:127`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L127))
-
-- FR-19.15: lore-api serves those rows at `GET /api/tasks/{id}/runs`,
-  under the `read` scope: 503 without a pool, 404 for a task that does
-  not exist, the run rows newest first, and an empty list — not a 500 —
-  when the database predates migration 0025 and has no
-  `pipeline.assembly_lines` table. The 404 comes before the run query
-  deliberately: an unknown id and a task with no runs both answered
-  `{runs: []}` before, which reads as "nothing started yet" for a task
-  that never existed. ([validated by `task-runs.test.ts:30`](apps/lore-api/src/transport/routes/tasks/task-runs.test.ts#L30), [`task-runs.test.ts:36`](apps/lore-api/src/transport/routes/tasks/task-runs.test.ts#L36), [`task-runs.test.ts:46`](apps/lore-api/src/transport/routes/tasks/task-runs.test.ts#L46), [`task-runs.test.ts:72`](apps/lore-api/src/transport/routes/tasks/task-runs.test.ts#L72))
+  is a collapsible card titled LLM Calls. ([validated by `LlmCallsTable.test.tsx:25`](apps/web-ui/src/app/assembly-runs/[id]/LlmCallsTable.test.tsx#L25), [`LlmCallsTable.test.tsx:33`](apps/web-ui/src/app/assembly-runs/[id]/LlmCallsTable.test.tsx#L33), [`LlmCallsTable.test.tsx:41`](apps/web-ui/src/app/assembly-runs/[id]/LlmCallsTable.test.tsx#L41), [`LlmCallsTable.test.tsx:19`](apps/web-ui/src/app/assembly-runs/[id]/LlmCallsTable.test.tsx#L19), [`LlmCallsTable.test.tsx:53`](apps/web-ui/src/app/assembly-runs/[id]/LlmCallsTable.test.tsx#L53), [`LlmCallsTable.test.tsx:65`](apps/web-ui/src/app/assembly-runs/[id]/LlmCallsTable.test.tsx#L65))
 - FR-19.16: The two task transitions the UI offers are shared seams in
   `libs/shared`, not route-local SQL. `escalateTask` (run-now) refuses an
   unknown id and anything past `pending`, sets `priority = 'immediate'`,
@@ -864,7 +754,7 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   not go down over an unmigrated cluster. Token usage reads
   `pipeline.agent_run_turns`, not `llm_calls`: the cost table is
   authoritative but a row lands only when a run ENDS, which is the
-  moment the card showing the number disappears. ([validated by `assembly-lines.test.ts:86`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L86), [`assembly-lines.test.ts:90`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L90), [`assembly-lines.test.ts:106`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L106), [`assembly-lines.test.ts:153`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L153), [`assembly-lines.test.ts:169`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L169), [`assembly-lines.test.ts:223`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L223), [`assembly-lines.test.ts:397`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L433), [`assembly-lines.test.ts:410`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L446), [`assembly-lines.test.ts:418`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L454), [`assembly-lines.test.ts:430`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L466), [`assembly-lines.test.ts:223`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L223), [`assembly-lines.test.ts:490`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L526), [`assembly-lines.test.ts:508`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L544), [`assembly-lines.test.ts:518`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L554))
+  moment the card showing the number disappears. ([validated by `assembly-lines.test.ts:86`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L87), [`assembly-lines.test.ts:90`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L91), [`assembly-lines.test.ts:106`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L107), [`assembly-lines.test.ts:153`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L154), [`assembly-lines.test.ts:169`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L170), [`assembly-lines.test.ts:223`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L243), [`assembly-lines.test.ts:397`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L496), [`assembly-lines.test.ts:410`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L509), [`assembly-lines.test.ts:418`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L517), [`assembly-lines.test.ts:430`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L529), [`assembly-lines.test.ts:223`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L243), [`assembly-lines.test.ts:490`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L589), [`assembly-lines.test.ts:508`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L607), [`assembly-lines.test.ts:518`](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.test.ts#L617))
 
 - FR-19.20: lore-api serves the activity reads the audit, gaps, events,
   job-run and repo-overview views need, all under the `read` scope:
@@ -875,7 +765,7 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   `GET /api/repos/{owner}/{repo}/activity-counts` (7-day tasks,
   auto-merges and escalations). A count the database cannot answer is
   NULL, never zero: an unmigrated cluster must not render as "nothing
-  happened", and no dashboard figure may take its page down. ([validated by `activity.test.ts:31`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L31), [`activity.test.ts:35`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L35), [`activity.test.ts:49`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L49), [`activity.test.ts:60`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L60), [`activity.test.ts:70`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L70), [`activity.test.ts:83`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L83), [`activity.test.ts:111`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L111), [`activity.test.ts:115`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L115), [`activity.test.ts:129`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L129), [`activity.test.ts:142`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L142), [`activity.test.ts:152`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L152), [`activity.test.ts:165`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L165))
+  happened", and no dashboard figure may take its page down. ([validated by `activity.test.ts:31`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L31), [`activity.test.ts:35`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L35), [`activity.test.ts:49`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L49), [`activity.test.ts:60`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L60), [`activity.test.ts:70`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L70), [`activity.test.ts:83`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L83), [`activity.test.ts:111`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L111), [`activity.test.ts:115`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L115), [`activity.test.ts:129`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L129), [`activity.test.ts:142`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L142), [`activity.test.ts:152`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L152), [`activity.test.ts:165`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L162))
 - The `status` an event shows on the repo page is the Floor's DELIVERY of
   it, read from `pipeline.event_deliveries`, and an event no subscriber
   ever received reads `undelivered` — `pipeline.events` itself carries no
@@ -927,19 +817,9 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   availability is decided by the `as_of` STAMP rather than a row count:
   only the stamp separates "synced, nothing owed" from "never synced",
   and the view hides the section for the second instead of showing a
-  confident zero. ([validated by [`spend.test.ts:30`](apps/lore-api/src/transport/routes/analytics/spend.test.ts#L30), [`spend.test.ts:34`](apps/lore-api/src/transport/routes/analytics/spend.test.ts#L34), [`spend.test.ts:46`](apps/lore-api/src/transport/routes/analytics/spend.test.ts#L46), [`spend-window.test.ts:145`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L197), [`spend-window.test.ts:339`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L421), [`spend-window.test.ts:360`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L442), [`spend-window.test.ts:378`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L460))
+  confident zero. ([validated by [`spend.test.ts:30`](apps/lore-api/src/transport/routes/analytics/spend.test.ts#L30), [`spend.test.ts:34`](apps/lore-api/src/transport/routes/analytics/spend.test.ts#L34), [`spend.test.ts:46`](apps/lore-api/src/transport/routes/analytics/spend.test.ts#L46), [`spend-window.test.ts:145`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L196), [`spend-window.test.ts:339`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L384), [`spend-window.test.ts:360`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L405), [`spend-window.test.ts:378`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L423))
 
-- FR-19.24: `reviseTask` is the human feedback loop as ONE seam: it
-  queues a follow-up task on the parent's branch and PR at immediate
-  priority (a person is waiting), records the request on the parent
-  naming the revision it spawned, and parks the parent at
-  `revision-requested`. A feature-request revises as a feature-request
-  and everything else as an implementation. It refuses an unknown id and
-  refuses blank feedback rather than queueing an empty revision. The web
-  UI reaches it through `POST /api/task` with `action: "revise"`; the
-  three writes were previously three separate statements in a server
-  action, where a dropped event left a parent pointing at a revision the
-  timeline could not explain. ([validated by [`pipeline-tasks.escalate.test.ts:116`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L116), [`pipeline-tasks.escalate.test.ts:125`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L125), [`pipeline-tasks.escalate.test.ts:145`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L145), [`pipeline-tasks.escalate.test.ts:160`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L160), [`pipeline-tasks.escalate.test.ts:172`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L172), [`pipeline-tasks.escalate.test.ts:192`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L192), [`pipeline-tasks.escalate.test.ts:204`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L204), [`pipeline-tasks.escalate.test.ts:212`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L212))
+- FR-19.24: *(Rewritten 2026-10-02.)* A task is not revised by queueing another task. `POST /api/task` with `action: "revise"` answers `409` and points at a review that requests changes on the pull request, which the `code-review-reply` line answers there. The `reviseTask` seam that queued a follow-up feature-request task on the parent's branch is deleted with the last task type it ran as (`specs/external-floor` FR16.7). ([validated by queues no revision of task t1 and points at a review on its pull request](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L175))
 
 - FR-19.25: lore-api serves the org-wide `lore.settings` under the
   `admin` scope — `GET /api/settings` (the entries plus the repo count
@@ -973,12 +853,12 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   screen reads nothing a person typed in. Anthropic's Admin API still exposes
   no credit balance, so what is LEFT stays unfetchable by construction — the
   page reports what was spent, not what remains. The `pipeline.credit_ledger`
-  table (migration 0045) is dropped by migration 0080. ([validated by carries no budget block and never reads a credit ledger](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L342))
+  table (migration 0045) is dropped by migration 0080. ([validated by carries no budget block and never reads a credit ledger](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L341))
 
 - FR-19.28: Retired 2026-09-09 with FR-19.27. `/spend` renders no balance
   section, credits card, or top-up form, and with them went the page's one
   em dash placeholder: every figure left is Lore-computed or vendor-billed, so
-  the page is complete on Lore data alone. ([validated by carries no balance section, credits card or top-up form](apps/web-ui/src/app/spend/SpendView.test.tsx#L211), [`SpendView.test.tsx:338`](apps/web-ui/src/app/spend/SpendView.test.tsx#L365))
+  the page is complete on Lore data alone. ([validated by carries no balance section, credits card or top-up form](apps/web-ui/src/app/spend/SpendView.test.tsx#L196), [`SpendView.test.tsx:338`](apps/web-ui/src/app/spend/SpendView.test.tsx#L337))
 
 - FR-19.29: `/spend` attributes Lore-computed spend to the execution
   cluster that ran each call, so a satellite cluster's burn is legible
@@ -993,7 +873,7 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   a deployment predating the station and cluster-agent tables renders
   nothing instead of 500-ing the whole page. The table always renders — an empty
   window shows an empty-state row rather than a blank table.
-  ([validated by [`spend-window.test.ts:145`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L197), [`spend-window.test.ts:413`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L495), [`SpendView.test.tsx:461`](apps/web-ui/src/app/spend/SpendView.test.tsx#L488), [`SpendView.test.tsx:451`](apps/web-ui/src/app/spend/SpendView.test.tsx#L478), [`spend-window.test.ts:427`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L509)])
+  ([validated by [`spend-window.test.ts:145`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L196), [`spend-window.test.ts:413`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L458), [`SpendView.test.tsx:461`](apps/web-ui/src/app/spend/SpendView.test.tsx#L460), [`SpendView.test.tsx:451`](apps/web-ui/src/app/spend/SpendView.test.tsx#L450), [`spend-window.test.ts:427`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L472)])
 
 - **FR-19f — Interval-scoped spend, with the Kubernetes half** _(added
   2026-09-02)_. The spend page carries a date-interval selector — presets
@@ -1005,22 +885,21 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   sink writes cost rows within seconds of each model call) with its
   by-assembly-line, by-repo, by-model, by-kind, daily, by-task-type and
   by-cluster breakdowns, the interval-scoped Anthropic billed figures with
-  their unbilled remainder, plus the Kubernetes compute ESTIMATE. That estimate has two halves, and both
-  say what they assumed: interval pod-hours from `station_runs` (rows that
-  named an Agent CR were pods; a run's size is not recorded, so hours are
-  priced at a named default profile), and the pods running RIGHT NOW, each
-  priced from its ACTUAL resource requests — requests, because requests
-  are what size the nodes the autoscaler bills for — read through the
-  central cluster-agent's `GET /api/cluster/pods`. Bad intervals are a 400
-  naming the rule (YYYY-MM-DD, from ≤ to, at most 92 days); an unreachable
-  cluster-agent degrades to an empty live list, never a failed page; a
+  their unbilled remainder, plus the Kubernetes compute ESTIMATE: interval pod-hours from `station_runs`
+  (rows that named an Agent CR were pods; a run's size is not recorded, so
+  hours are priced at a named default profile), which says what it assumed
+  _(2026-10-02: the second half of the estimate, the pods running RIGHT NOW
+  priced from their ACTUAL resource requests and read through the central
+  cluster-agent, was removed with Lore's own cluster agent, along with the
+  response's `live_pods` and `live_usd_per_hour`)_. Bad intervals are a 400
+  naming the rule (YYYY-MM-DD, from ≤ to, at most 92 days); a
   station-run row with no `finished_at` is capped at two hours from its
   start, never billed as still running — a stale row riding `now()` once
   claimed 8,606 pod-hours for pods that ran minutes; rates
   are env-overridable and echoed in the response so the UI labels the
   number as the estimate it is — Google's invoice lags a day and stays the
   truth.
-  ([validated by windows the metered llm spend and prices pod-hours at the assumed profile](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L166), [prices each live pod from its ACTUAL requests](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L352), [`spend-window.test.ts:294`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L376), [caps a never-finished station-run row at 2 hours](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L396), [`spend-window.test.ts:327`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L409), [carries every interval-scoped breakdown the merged spend page renders](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L197), [`spend-window.test.ts:245`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L327), [`SpendView.test.tsx:213`](apps/web-ui/src/app/spend/SpendView.test.tsx#L240), [`SpendView.test.tsx:221`](apps/web-ui/src/app/spend/SpendView.test.tsx#L248), [`SpendView.test.tsx:288`](apps/web-ui/src/app/spend/SpendView.test.tsx#L315), [`compute-cost.test.ts:12`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L12), [`compute-cost.test.ts:25`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L25), [`compute-cost.test.ts:34`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L34), [`compute-cost.test.ts:40`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L40), [`compute-cost.test.ts:47`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L47), [`compute-cost.test.ts:56`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L56), [`compute-cost.test.ts:65`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L65), [`compute-cost.test.ts:75`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L75), [`compute-cost.test.ts:82`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L82), [`compute-cost.test.ts:89`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L89), [lists the running pods with their requests](apps/cluster-agent/src/transport/routes/cluster/cluster-routes.test.ts#L154), [fetches the default 7-day window and renders the whole spend view from it](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L114), [`SpendWindowPanel.test.tsx:125`](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L141), [`SpendWindowPanel.test.tsx:140`](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L156), [`SpendWindowPanel.test.tsx:156`](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L172), [`SpendWindowPanel.test.tsx:177`](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L193), [`spend-window-presets.test.ts:7`](apps/web-ui/src/app/spend/spend-window-presets.test.ts#L7), [`spend-window-presets.test.ts:14`](apps/web-ui/src/app/spend/spend-window-presets.test.ts#L14), [`spend-window-presets.test.ts:25`](apps/web-ui/src/app/spend/spend-window-presets.test.ts#L25), [`spend-window-presets.test.ts:34`](apps/web-ui/src/app/spend/spend-window-presets.test.ts#L34), [`SpendWindowPanel.test.tsx:193`](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L209)])
+  ([validated by windows the metered llm spend and prices pod-hours at the assumed profile](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L165), [`spend-window.test.ts:294`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L351), [caps a never-finished station-run row at 2 hours](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L371), [carries every interval-scoped breakdown the merged spend page renders](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L196), [`spend-window.test.ts:245`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L326), [`SpendView.test.tsx:213`](apps/web-ui/src/app/spend/SpendView.test.tsx#L225), [`SpendView.test.tsx:221`](apps/web-ui/src/app/spend/SpendView.test.tsx#L230), [`compute-cost.test.ts:12`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L12), [`compute-cost.test.ts:25`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L25), [`compute-cost.test.ts:34`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L34), [`compute-cost.test.ts:40`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L40), [`compute-cost.test.ts:47`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L47), [`compute-cost.test.ts:56`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L56), [`compute-cost.test.ts:65`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L65), [`compute-cost.test.ts:75`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L75), [`compute-cost.test.ts:82`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L82), [`compute-cost.test.ts:89`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L89), [fetches the default 7-day window and renders the whole spend view from it](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L102), [`SpendWindowPanel.test.tsx:125`](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L125), [`SpendWindowPanel.test.tsx:140`](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L140), [`SpendWindowPanel.test.tsx:156`](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L156), [`SpendWindowPanel.test.tsx:177`](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L177), [`spend-window-presets.test.ts:7`](apps/web-ui/src/app/spend/spend-window-presets.test.ts#L7), [`spend-window-presets.test.ts:14`](apps/web-ui/src/app/spend/spend-window-presets.test.ts#L14), [`spend-window-presets.test.ts:25`](apps/web-ui/src/app/spend/spend-window-presets.test.ts#L25), [`spend-window-presets.test.ts:34`](apps/web-ui/src/app/spend/spend-window-presets.test.ts#L34), [`SpendWindowPanel.test.tsx:193`](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L193)])
 
 - **FR-19g — Whose invoice, and what a run costs** _(added 2026-09-03)_.
   `pipeline.llm_calls` prices every model call Lore sees, whoever bills it, so
@@ -1037,7 +916,7 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   by-assembly-line table also carries cost PER RUN, the figure that says whether
   a model or prompt change paid off — a total hides it behind however many runs
   the interval happened to contain.
-  ([validated by [`spend-window.test.ts:398`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L480), [`vendor-split.test.ts:5`](apps/lore-api/src/work/analytics/vendor-split.test.ts#L5), [`vendor-split.test.ts:19`](apps/lore-api/src/work/analytics/vendor-split.test.ts#L19), [`vendor-split.test.ts:25`](apps/lore-api/src/work/analytics/vendor-split.test.ts#L25), [`model-vendor.test.ts:5`](libs/shared/src/outbound/llm/model-vendor.test.ts#L5), [`model-vendor.test.ts:17`](libs/shared/src/outbound/llm/model-vendor.test.ts#L17), [`model-vendor.test.ts:21`](libs/shared/src/outbound/llm/model-vendor.test.ts#L21), [`model-vendor.test.ts:11`](libs/shared/src/outbound/llm/model-vendor.test.ts#L11), [`model-vendor.test.ts:25`](libs/shared/src/outbound/llm/model-vendor.test.ts#L25), [`model-vendor.test.ts:31`](libs/shared/src/outbound/llm/model-vendor.test.ts#L31), [`SpendView.test.tsx:473`](apps/web-ui/src/app/spend/SpendView.test.tsx#L500), [`SpendView.test.tsx:480`](apps/web-ui/src/app/spend/SpendView.test.tsx#L507), [`SpendView.test.tsx:493`](apps/web-ui/src/app/spend/SpendView.test.tsx#L520))
+  ([validated by [`spend-window.test.ts:398`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L443), [`vendor-split.test.ts:5`](apps/lore-api/src/work/analytics/vendor-split.test.ts#L5), [`vendor-split.test.ts:19`](apps/lore-api/src/work/analytics/vendor-split.test.ts#L19), [`vendor-split.test.ts:25`](apps/lore-api/src/work/analytics/vendor-split.test.ts#L25), [`model-vendor.test.ts:5`](libs/shared/src/outbound/llm/model-vendor.test.ts#L5), [`model-vendor.test.ts:17`](libs/shared/src/outbound/llm/model-vendor.test.ts#L17), [`model-vendor.test.ts:21`](libs/shared/src/outbound/llm/model-vendor.test.ts#L21), [`model-vendor.test.ts:11`](libs/shared/src/outbound/llm/model-vendor.test.ts#L11), [`model-vendor.test.ts:25`](libs/shared/src/outbound/llm/model-vendor.test.ts#L25), [`model-vendor.test.ts:31`](libs/shared/src/outbound/llm/model-vendor.test.ts#L31), [`SpendView.test.tsx:473`](apps/web-ui/src/app/spend/SpendView.test.tsx#L472), [`SpendView.test.tsx:480`](apps/web-ui/src/app/spend/SpendView.test.tsx#L479), [`SpendView.test.tsx:493`](apps/web-ui/src/app/spend/SpendView.test.tsx#L492))
 
 - **FR-19h — Reading the spend page at a glance** _(added 2026-09-09)_.
   The page groups its figures into three labelled bands — Lore-computed LLM
@@ -1060,7 +939,7 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   tables. The bar geometry is pure and scale-free: both widths are fractions
   of the larger of the pair, a pair with no spend renders flat rather than
   dividing by zero, and a comparison with no billed side is not drawn at all.
-  ([validated by [groups the page into labelled estimate and billed sections](apps/web-ui/src/app/spend/SpendView.test.tsx#L535), [`SpendView.test.tsx:522`](apps/web-ui/src/app/spend/SpendView.test.tsx#L561), [`SpendView.test.tsx:530`](apps/web-ui/src/app/spend/SpendView.test.tsx#L569), [`SpendView.test.tsx:537`](apps/web-ui/src/app/spend/SpendView.test.tsx#L576), [folds the deeper LLM breakdowns behind a disclosure](apps/web-ui/src/app/spend/SpendView.test.tsx#L582), [labels an estimate section with an estimate pill](apps/web-ui/src/app/spend/SpendSection.test.tsx#L7), [`SpendSection.test.tsx:25`](apps/web-ui/src/app/spend/SpendSection.test.tsx#L25), [`SpendSection.test.tsx:36`](apps/web-ui/src/app/spend/SpendSection.test.tsx#L36), [shows the label and both figures for a comparable pair](apps/web-ui/src/app/spend/SpendCompareBars.test.tsx#L15), [`SpendCompareBars.test.tsx:23`](apps/web-ui/src/app/spend/SpendCompareBars.test.tsx#L23), [`SpendCompareBars.test.tsx:29`](apps/web-ui/src/app/spend/SpendCompareBars.test.tsx#L29), [`SpendCompareBars.test.tsx:39`](apps/web-ui/src/app/spend/SpendCompareBars.test.tsx#L39), [scales both values to the larger of the two](apps/web-ui/src/app/spend/spend-chart-geometry.test.ts#L5), [`spend-chart-geometry.test.ts:12`](apps/web-ui/src/app/spend/spend-chart-geometry.test.ts#L12), [takes the Anthropic vendor row when the split names one](apps/web-ui/src/app/spend/SpendView.test.tsx#L598), [is zero when the split names other vendors but no Anthropic](apps/web-ui/src/app/spend/SpendView.test.tsx#L612), [`SpendView.test.tsx:581`](apps/web-ui/src/app/spend/SpendView.test.tsx#L620), [counts the no-cluster bucket as the org API key](apps/web-ui/src/app/spend/SpendBillingSource.test.tsx#L16), [`SpendBillingSource.test.tsx:23`](apps/web-ui/src/app/spend/SpendBillingSource.test.tsx#L23), [`SpendBillingSource.test.tsx:30`](apps/web-ui/src/app/spend/SpendBillingSource.test.tsx#L30), [shows the org API-key row with its cost](apps/web-ui/src/app/spend/SpendBillingSource.test.tsx#L43), [`SpendBillingSource.test.tsx:50`](apps/web-ui/src/app/spend/SpendBillingSource.test.tsx#L50), [`SpendBillingSource.test.tsx:57`](apps/web-ui/src/app/spend/SpendBillingSource.test.tsx#L57), [`SpendBillingSource.test.tsx:65`](apps/web-ui/src/app/spend/SpendBillingSource.test.tsx#L65)])
+  ([validated by [groups the page into labelled estimate and billed sections](apps/web-ui/src/app/spend/SpendView.test.tsx#L507), [`SpendView.test.tsx:522`](apps/web-ui/src/app/spend/SpendView.test.tsx#L533), [`SpendView.test.tsx:530`](apps/web-ui/src/app/spend/SpendView.test.tsx#L541), [`SpendView.test.tsx:537`](apps/web-ui/src/app/spend/SpendView.test.tsx#L548), [folds the deeper LLM breakdowns behind a disclosure](apps/web-ui/src/app/spend/SpendView.test.tsx#L554), [labels an estimate section with an estimate pill](apps/web-ui/src/app/spend/SpendSection.test.tsx#L7), [`SpendSection.test.tsx:25`](apps/web-ui/src/app/spend/SpendSection.test.tsx#L25), [`SpendSection.test.tsx:36`](apps/web-ui/src/app/spend/SpendSection.test.tsx#L36), [shows the label and both figures for a comparable pair](apps/web-ui/src/app/spend/SpendCompareBars.test.tsx#L15), [`SpendCompareBars.test.tsx:23`](apps/web-ui/src/app/spend/SpendCompareBars.test.tsx#L23), [`SpendCompareBars.test.tsx:29`](apps/web-ui/src/app/spend/SpendCompareBars.test.tsx#L29), [`SpendCompareBars.test.tsx:39`](apps/web-ui/src/app/spend/SpendCompareBars.test.tsx#L39), [scales both values to the larger of the two](apps/web-ui/src/app/spend/spend-chart-geometry.test.ts#L5), [`spend-chart-geometry.test.ts:12`](apps/web-ui/src/app/spend/spend-chart-geometry.test.ts#L12), [takes the Anthropic vendor row when the split names one](apps/web-ui/src/app/spend/SpendView.test.tsx#L570), [is zero when the split names other vendors but no Anthropic](apps/web-ui/src/app/spend/SpendView.test.tsx#L584), [`SpendView.test.tsx:581`](apps/web-ui/src/app/spend/SpendView.test.tsx#L592), [counts the no-cluster bucket as the org API key](apps/web-ui/src/app/spend/SpendBillingSource.test.tsx#L16), [`SpendBillingSource.test.tsx:23`](apps/web-ui/src/app/spend/SpendBillingSource.test.tsx#L23), [`SpendBillingSource.test.tsx:30`](apps/web-ui/src/app/spend/SpendBillingSource.test.tsx#L30), [shows the org API-key row with its cost](apps/web-ui/src/app/spend/SpendBillingSource.test.tsx#L43), [`SpendBillingSource.test.tsx:50`](apps/web-ui/src/app/spend/SpendBillingSource.test.tsx#L50), [`SpendBillingSource.test.tsx:57`](apps/web-ui/src/app/spend/SpendBillingSource.test.tsx#L57), [`SpendBillingSource.test.tsx:65`](apps/web-ui/src/app/spend/SpendBillingSource.test.tsx#L65)])
 
 - **FR-19i — What a unit of work costs** _(added 2026-09-22, #2116)_.
   `GET /api/analytics/spend-window` also answers what one ticket, one PR's
@@ -1072,7 +951,7 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   the run's own `args.description` when it has no task — and it sums
   every run of the ticket; the tickets carry their count, total, average and
   median (computed in SQL with `percentile_cont`), plus the five dearest and
-  five cheapest, each linked to its Issue. ([validated by sums 4 tickets to 8.25 USD with a 1 USD median, keyed by issue url, loop branch, then description](apps/lore-api/src/integration-tests/spend-unit-costs.test.ts#L68), [carries what a ticket, a PR review and a node visit cost, lore issue 1648 dearest at 70.27 USD](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L260))
+  five cheapest, each linked to its Issue. ([validated by sums 4 tickets to 8.25 USD with a 1 USD median, keyed by issue url, loop branch, then description](apps/lore-api/src/integration-tests/spend-unit-costs.test.ts#L68), [carries what a ticket, a PR review and a node visit cost, lore issue 1648 dearest at 70.27 USD](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L259))
 
 - **FR-19i.1** A PR review is keyed by repo plus `args.pr_number` and covers every
   `code-review`, `code-review-recheck` and `code-review-reply` run of that
@@ -1086,7 +965,7 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
 
 - **FR-19i.3** The metered totals carry the window's prompt-cache reads and writes
   (FR5.1d of the dark-factory spec) beside the uncached input, since a
-  Claude run reads most of its input from the cache. ([validated by totals 10 calls' 9000 cache-read and 400 cache-write tokens](apps/lore-api/src/integration-tests/spend-unit-costs.test.ts#L196), [carries 9000000 cache-read and 250000 cache-write tokens beside the metered totals](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L251))
+  Claude run reads most of its input from the cache. ([validated by totals 10 calls' 9000 cache-read and 400 cache-write tokens](apps/lore-api/src/integration-tests/spend-unit-costs.test.ts#L196), [carries 9000000 cache-read and 250000 cache-write tokens beside the metered totals](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L250))
 
 - **FR-19i.4** `/spend` renders the unit costs in their own "Cost per unit
   of work" band, pilled as an estimate since they are summed from the same
@@ -1096,7 +975,7 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   link — the review cost per line and per model, and the per-node table with
   visits, total, cost per visit and models. Each table says so when the
   window holds nothing for it. The headline cards carry the cache-read and
-  cache-write token totals beside the input and output tokens. ([validated by shows 71 tickets at 872 USD total, 12.28 average and 5.99 median](apps/web-ui/src/app/spend/SpendUnitCosts.test.tsx#L94), [links the dearest ticket lore 1648 to its issue](apps/web-ui/src/app/spend/SpendUnitCosts.test.tsx#L102), [names a ticket known only by its description without a link](apps/web-ui/src/app/spend/SpendUnitCosts.test.tsx#L115), [shows the review line averages: 1.18 per review, 0.19 per recheck](apps/web-ui/src/app/spend/SpendUnitCosts.test.tsx#L126), [links the dearest PR bowman-ui 127 to its pull request](apps/web-ui/src/app/spend/SpendUnitCosts.test.tsx#L135), [lists review cost by model, gemini-3.1-pro-preview at 39.20](apps/web-ui/src/app/spend/SpendUnitCosts.test.tsx#L148), [shows tdd-round at 10 visits, 1.40 per visit, on its two models](apps/web-ui/src/app/spend/SpendUnitCosts.test.tsx#L156), [says so when the window holds no tickets, reviews or node visits](apps/web-ui/src/app/spend/SpendUnitCosts.test.tsx#L164), [gives the cost per ticket, PR review and node its own estimate section](apps/web-ui/src/app/spend/SpendView.test.tsx#L549), [headlines 4200000 cache-read and 180000 cache-write tokens beside the input tokens](apps/web-ui/src/app/spend/SpendView.test.tsx#L229))
+  cache-write token totals beside the input and output tokens. ([validated by shows 71 tickets at 872 USD total, 12.28 average and 5.99 median](apps/web-ui/src/app/spend/SpendUnitCosts.test.tsx#L94), [links the dearest ticket lore 1648 to its issue](apps/web-ui/src/app/spend/SpendUnitCosts.test.tsx#L102), [names a ticket known only by its description without a link](apps/web-ui/src/app/spend/SpendUnitCosts.test.tsx#L115), [shows the review line averages: 1.18 per review, 0.19 per recheck](apps/web-ui/src/app/spend/SpendUnitCosts.test.tsx#L126), [links the dearest PR bowman-ui 127 to its pull request](apps/web-ui/src/app/spend/SpendUnitCosts.test.tsx#L135), [lists review cost by model, gemini-3.1-pro-preview at 39.20](apps/web-ui/src/app/spend/SpendUnitCosts.test.tsx#L148), [shows tdd-round at 10 visits, 1.40 per visit, on its two models](apps/web-ui/src/app/spend/SpendUnitCosts.test.tsx#L156), [says so when the window holds no tickets, reviews or node visits](apps/web-ui/src/app/spend/SpendUnitCosts.test.tsx#L164), [gives the cost per ticket, PR review and node its own estimate section](apps/web-ui/src/app/spend/SpendView.test.tsx#L521), [headlines 4200000 cache-read and 180000 cache-write tokens beside the input tokens](apps/web-ui/src/app/spend/SpendView.test.tsx#L214))
 
 ### FR-20: Project Facade Ports (Phase 1)
 
@@ -1143,15 +1022,18 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   The executor alone dispatches spec-tasks: the generic claim never takes
   one, since it holds no recipe for them and ignores their dependencies —
   on 2026-09-29 it grabbed the tasks the executor was holding back, filed an
-  Issue for each and failed them all. Before an agent runs, the executor
+  Issue for each and failed them all. Before a task's run starts, the executor
   creates the task's branch off the default branch when it is missing (the
-  pod checks it out) and points the agent at the feature's spec.md, plan.md
-  and tasks.md. It admits ready spec-tasks against what their group already
+  pod checks it out) and points the agents at the feature's spec.md, plan.md
+  and tasks.md. Since 2026-10-01 that run is an `implementation-loop` run on
+  the external floor, started by the stations service
+  (`specs/external-floor` FR15); the single `implementation` agent it used
+  to dispatch is gone. It admits ready spec-tasks against what their group already
   runs *(added 2026-09-29)*: at most 3 at once, and never two together where
   either is not parallelizable (tasks.md's missing `[P]`) or both edit the
   same `file_path` — the issue-triage plan's eight tasks on one YAML ran
   three at a time and opened PRs that could only conflict.
-  ([validated by admits one of T003 and T004 when both edit issue-triage.yaml, the first in order](apps/floor/src/work/task/spec-task-admission.test.ts#L24), [validated by holds T004 back while T003, running in its group, edits the same file](apps/floor/src/work/task/spec-task-admission.test.ts#L38), [validated by runs T002 and T010 side by side when both are parallelizable and touch different files](apps/floor/src/work/task/spec-task-admission.test.ts#L47), [validated by runs a task that is not parallelizable alone in its group](apps/floor/src/work/task/spec-task-admission.test.ts#L64), [validated by holds every task of a group back while a non-parallelizable sibling runs](apps/floor/src/work/task/spec-task-admission.test.ts#L81), [validated by caps a group at 3 running tasks](apps/floor/src/work/task/spec-task-admission.test.ts#L96), [validated by leaves another group's running work out of the decision](apps/floor/src/work/task/spec-task-admission.test.ts#L111), [validated by PgTaskQueue reads each running or queued grouped spec-task's file and whether it is parallelizable](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L605), [validated by InMemory lists running and queued spec-tasks of a group, treating one with no parallelizable mark as not parallelizable](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L619), [validated by `task-queue.test.ts:366`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L394), [`task-queue.test.ts:375`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L403), [`task-queue.test.ts:390`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L418), [`task-queue.test.ts:405`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L433), [`task-queue.test.ts:447`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L475), [`task-queue.test.ts:469`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L497), [`task-queue.test.ts:479`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L507), [`task-queue.test.ts:494`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L522), [`task-queue.test.ts:530`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L530, [validated by leaves spec-tasks to the spec-task executor](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L33), [validated by claims the gap-fill behind an older pending spec-task, which only the spec-task executor may take](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L289), [validated by creates T001's branch off main before running its agent on it](apps/floor/src/work/task/spec-task-executor.test.ts#L56), [validated by leaves an existing branch alone, so a re-dispatched task keeps its commits](apps/floor/src/work/task/spec-task-executor.test.ts#L64), [validated by points the agent at the feature's spec-kit artifacts: spec.md, plan.md and tasks.md](apps/floor/src/work/task/spec-task-executor.test.ts#L72)))
+  ([validated by admits one of T003 and T004 when both edit issue-triage.yaml, the first in order](libs/shared/src/work/spec-task/spec-task-admission.test.ts#L24), [validated by holds T004 back while T003, running in its group, edits the same file](libs/shared/src/work/spec-task/spec-task-admission.test.ts#L38), [validated by runs T002 and T010 side by side when both are parallelizable and touch different files](libs/shared/src/work/spec-task/spec-task-admission.test.ts#L47), [validated by runs a task that is not parallelizable alone in its group](libs/shared/src/work/spec-task/spec-task-admission.test.ts#L64), [validated by holds every task of a group back while a non-parallelizable sibling runs](libs/shared/src/work/spec-task/spec-task-admission.test.ts#L81), [validated by caps a group at 3 running tasks](libs/shared/src/work/spec-task/spec-task-admission.test.ts#L96), [validated by leaves another group's running work out of the decision](libs/shared/src/work/spec-task/spec-task-admission.test.ts#L111), [validated by PgTaskQueue reads each running or queued grouped spec-task's file and whether it is parallelizable](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L605), [validated by InMemory lists running and queued spec-tasks of a group, treating one with no parallelizable mark as not parallelizable](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L619), [validated by `task-queue.test.ts:366`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L394), [`task-queue.test.ts:375`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L403), [`task-queue.test.ts:390`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L418), [`task-queue.test.ts:405`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L433), [`task-queue.test.ts:447`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L475), [`task-queue.test.ts:469`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L497), [`task-queue.test.ts:479`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L507), [`task-queue.test.ts:494`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L522), [`task-queue.test.ts:530`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L530, [validated by leaves spec-tasks to the spec-task executor](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L33), [validated by claims the gap-fill behind an older pending spec-task, which only the spec-task executor may take](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L289), [validated by claims T001, makes its branch, then starts an implementation-loop run for it](libs/shared/src/work/spec-task/spec-task-executor.test.ts#L80), [validated by creates nothing when lore/x exists](libs/shared/src/outbound/project/repo/ensure-branch.test.ts#L34), [validated by points the agents at the feature's spec-kit artifacts: spec.md, plan.md and tasks.md](libs/shared/src/work/spec-task/spec-task-executor.test.ts#L138)))
 - FR-20.3: The repo-scoped `TaskStore` port queries pending statuses,
   transitions a cancel to `cancelled`, writes `setStatus` (status +
   updated_at + only allowlisted extra columns), reads-old-then-writes-new
@@ -1171,7 +1053,7 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   state guards; `transition` keeps `claimed_by` via COALESCE; and the
   dedup reads (`findOpenLike` with LIKE-wildcard semantics,
   `driftTasksForSpec` keyed on the bundle's spec_path), `list` paging, and
-  `getWithEvents` mirror the SQL. ([validated by `task-store-memory.test.ts:38`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L38), [`task-store-memory.test.ts:48`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L48), [`task-store-memory.test.ts:69`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L69), [`task-store-memory.test.ts:90`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L90), [`task-store-memory.test.ts:100`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L100), [`task-store-memory.test.ts:125`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L125), [`task-store-memory.test.ts:137`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L137), [`task-store-memory.test.ts:149`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L149), [`task-store-memory.test.ts:157`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L157), [`task-store-memory.test.ts:171`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L171), [`task-store-memory.test.ts:194`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L194), [`task-store-memory.test.ts:226`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L212), [`task-store-memory.test.ts:274`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L260), [`task-store-memory.test.ts:362`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L294), [`task-store-memory.test.ts:376`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L308), [`task-store-memory.test.ts:392`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L324))
+  `getWithEvents` mirror the SQL. ([validated by `task-store-memory.test.ts:38`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L38), [`task-store-memory.test.ts:48`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L48), [`task-store-memory.test.ts:69`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L70), [`task-store-memory.test.ts:90`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L91), [`task-store-memory.test.ts:100`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L109), [`task-store-memory.test.ts:125`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L134), [`task-store-memory.test.ts:137`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L146), [`task-store-memory.test.ts:149`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L158), [`task-store-memory.test.ts:157`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L166), [`task-store-memory.test.ts:171`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L180), [`task-store-memory.test.ts:194`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L203), [`task-store-memory.test.ts:226`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L221), [`task-store-memory.test.ts:274`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L269), [`task-store-memory.test.ts:362`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L303), [`task-store-memory.test.ts:376`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L317), [`task-store-memory.test.ts:392`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L333))
 - FR-20.4: The task-list surface returns the repo's pending tasks as
   typed `Task` wrappers and reflects the new status after `cancel()`.
   ([validated by `task-list.test.ts:114`](libs/shared/src/outbound/project/tasks/task-list.test.ts#L101), [`task-list.test.ts:126`](libs/shared/src/outbound/project/tasks/task-list.test.ts#L118))
@@ -1197,15 +1079,6 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   chunks with embeddings) from the repo-scoped API with a bearer token,
   maps `hasChunk` to its query endpoint, and throws
   on a non-ok response and on the Floor-only write surface. ([validated by `chunks-http.test.ts:28`](libs/shared/src/outbound/project/chunks/chunks-http.test.ts#L28), [`chunks-http.test.ts:43`](libs/shared/src/outbound/project/chunks/chunks-http.test.ts#L43), [`chunks-http.test.ts:60`](libs/shared/src/outbound/project/chunks/chunks-http.test.ts#L57), [`chunks-http.test.ts:94`](libs/shared/src/outbound/project/chunks/chunks-http.test.ts#L91))
-- FR-20.10: The `AgentRunner` port launches a Station via the injected
-  `StationBackend` in cluster mode (passing the execution image, throwing
-  when no provider is supplied) and calls the injected `LlmPort` in
-  direct mode; agent execution refuses LOCAL mode on the shared server
-  (`LORE_DB_HOST` set) yet allows cluster mode there. ([validated by `agent-runner.test.ts:33`](libs/shared/src/outbound/project/agents/agent-runner.test.ts#L27), [`agent-runner.test.ts:135`](libs/shared/src/outbound/project/agents/agent-runner.test.ts#L135), [`agent-runner.test.ts:15`](libs/shared/src/outbound/project/agents/agent-runner.test.ts#L15), [`agent-runner.test.ts:90`](libs/shared/src/outbound/project/agents/agent-runner.test.ts#L90), [`agent-runner.test.ts:110`](libs/shared/src/outbound/project/agents/agent-runner.test.ts#L110), [`agent-runner.test.ts:150`](libs/shared/src/outbound/project/agents/agent-runner.test.ts#L150), [`agents.test.ts:16`](libs/shared/src/outbound/project/agents/agents.test.ts#L16), [`agents.test.ts:28`](libs/shared/src/outbound/project/agents/agents.test.ts#L28))
-- FR-20.11: The station-mode selector honours explicit `k8s`/`docker`
-  overrides and the `inprocess` escape hatch, defaults to `k8s`
-  in-cluster and `docker` off-cluster, and ignores an unrecognized value
-  falling back to context. ([validated by `station-port.test.ts:5`](libs/shared/src/outbound/project/agents/station-port.test.ts#L5), [`station-port.test.ts:9`](libs/shared/src/outbound/project/agents/station-port.test.ts#L9), [`station-port.test.ts:18`](libs/shared/src/outbound/project/agents/station-port.test.ts#L18), [`station-port.test.ts:24`](libs/shared/src/outbound/project/agents/station-port.test.ts#L24), [`station-port.test.ts:30`](libs/shared/src/outbound/project/agents/station-port.test.ts#L30), [`station-port.test.ts:34`](libs/shared/src/outbound/project/agents/station-port.test.ts#L34))
 - FR-20.12: The `AgentDefs` port resolves an agent definition through
   three layers (yaml base → org row → project row), inheriting nullable
   fields upward and letting each higher layer override, returning null
@@ -1216,7 +1089,7 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   unknown name; the facade
   lists and delegates create/delete with the bound repo; and the HTTP
   adapter resolves/lists via the bearer-authed API (null on 404).
-  ([validated by returns the org row as stored when no project row exists](libs/shared/src/outbound/project/agents/agent-defs-port.test.ts#L17), [returns null when every layer is null](libs/shared/src/outbound/project/agents/agent-defs-port.test.ts#L21), [inherits a nullable field from org when the project row leaves it null](libs/shared/src/outbound/project/agents/agent-defs-port.test.ts#L50), [merges a project row's model over the org default, inheriting its prompt and timeout](libs/shared/src/outbound/project/agents/agent-defs-pg.test.ts#L51), [returns null when no agent of that name exists in the database](libs/shared/src/outbound/project/agents/agent-defs-pg.test.ts#L67), [binds the agent name and repo on resolve](libs/shared/src/outbound/project/agents/agent-defs-pg.test.ts#L73), [qualifies selected columns so the lore.repos JOIN is not ambiguous](libs/shared/src/outbound/project/agents/agent-defs-pg.test.ts#L82), [creates a project row scoped to the repo and returns the definition](libs/shared/src/outbound/project/agents/agent-defs-pg.test.ts#L93), [`agent-defs.test.ts:55`](libs/shared/src/outbound/project/agents/agent-defs.test.ts#L55), [`agent-defs.test.ts:63`](libs/shared/src/outbound/project/agents/agent-defs.test.ts#L63), [`agent-defs-http.test.ts:56`](libs/shared/src/outbound/project/agents/agent-defs-http.test.ts#L56), [`agent-defs-http.test.ts:65`](libs/shared/src/outbound/project/agents/agent-defs-http.test.ts#L65), [`agent-defs-http.test.ts:71`](libs/shared/src/outbound/project/agents/agent-defs-http.test.ts#L71), [validated by returns null for an agent with no file](libs/shared/src/outbound/project/agents/agent-defs-files.test.ts#L40), [validated by lists general and review sorted by name, review carrying test_policy none on config](libs/shared/src/outbound/project/agents/agent-defs-files.test.ts#L46))
+  ([validated by returns the org row as stored when no project row exists](libs/shared/src/outbound/project/agents/agent-defs-port.test.ts#L17), [returns null when every layer is null](libs/shared/src/outbound/project/agents/agent-defs-port.test.ts#L21), [inherits a nullable field from org when the project row leaves it null](libs/shared/src/outbound/project/agents/agent-defs-port.test.ts#L50), [merges a project row's model over the org default, inheriting its prompt and timeout](libs/shared/src/outbound/project/agents/agent-defs-pg.test.ts#L47), [returns null when no agent of that name exists in the database](libs/shared/src/outbound/project/agents/agent-defs-pg.test.ts#L63), [binds the agent name and repo on resolve](libs/shared/src/outbound/project/agents/agent-defs-pg.test.ts#L69), [qualifies selected columns so the lore.repos JOIN is not ambiguous](libs/shared/src/outbound/project/agents/agent-defs-pg.test.ts#L78), [creates a project row scoped to the repo and returns the definition](libs/shared/src/outbound/project/agents/agent-defs-pg.test.ts#L89), [`agent-defs.test.ts:55`](libs/shared/src/outbound/project/agents/agent-defs.test.ts#L55), [`agent-defs.test.ts:63`](libs/shared/src/outbound/project/agents/agent-defs.test.ts#L63), [`agent-defs-http.test.ts:56`](libs/shared/src/outbound/project/agents/agent-defs-http.test.ts#L56), [`agent-defs-http.test.ts:65`](libs/shared/src/outbound/project/agents/agent-defs-http.test.ts#L65), [`agent-defs-http.test.ts:71`](libs/shared/src/outbound/project/agents/agent-defs-http.test.ts#L71), [validated by returns null for an agent with no file](libs/shared/src/outbound/project/agents/agent-defs-files.test.ts#L40), [validated by lists general and review sorted by name, review carrying test_policy none on config](libs/shared/src/outbound/project/agents/agent-defs-files.test.ts#L46))
 - FR-20.13: The `Workspace`/`Git` ports carry the installation token as a
   base64 `x-access-token` `http.extraheader` override (honouring a
   non-default host, never embedding the raw token in the args or
@@ -1249,12 +1122,10 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   rows per model; `job_runs` inserts a running row returning its id,
   marks it completed/failed with summary/error and log path (defaulting
   the path to null) and selects the most-recent `started_at` for a job
-  (null when never run); `evals` inserts an `eval_runs` row and reads the
-  latest and previous (offset 1) pass_rate per team for the regression
-  check; and `baseline` inserts a JSON-serialized counter snapshot and
+  (null when never run); and `baseline` inserts a JSON-serialized counter snapshot and
   reads windowed PR/median-time-to-merge counters from `pipeline.tasks`
   (defaulting an empty window to zero/null, excluding other repos and
-  out-of-window rows). ([validated by `usage-pg.test.ts:22`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L31), [`usage-pg.test.ts:50`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L79), [`usage-pg.test.ts:114`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L143), [`usage-pg.test.ts:129`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L158), [`usage-pg.test.ts:144`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L173), [`usage-pg.test.ts:160`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L189), [`usage-pg.test.ts:173`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L202), [`usage-pg.test.ts:190`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L219), [`usage-pg.test.ts:206`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L235), [`cost.test.ts:36`](libs/shared/src/outbound/project/cost/cost.test.ts#L36), [`cost.test.ts:60`](libs/shared/src/outbound/project/cost/cost.test.ts#L60), [`cost.test.ts:68`](libs/shared/src/outbound/project/cost/cost.test.ts#L68), [`cost.test.ts:80`](libs/shared/src/outbound/project/cost/cost.test.ts#L80), [`job-runs.test.ts:23`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L23), [`job-runs.test.ts:36`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L36), [`job-runs.test.ts:54`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L54), [`job-runs.test.ts:62`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L62), [`job-runs.test.ts:72`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L72), [`job-runs.test.ts:86`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L86), [`job-runs.test.ts:94`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L94), [`job-runs.test.ts:104`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L104), [`job-runs.test.ts:118`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L118), [`job-runs.test.ts:131`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L131), [`job-runs.test.ts:172`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L172), [`evals.test.ts:23`](libs/shared/src/outbound/project/evals/evals.test.ts#L23), [`evals.test.ts:38`](libs/shared/src/outbound/project/evals/evals.test.ts#L38), [`evals.test.ts:48`](libs/shared/src/outbound/project/evals/evals.test.ts#L48), [`evals.test.ts:59`](libs/shared/src/outbound/project/evals/evals.test.ts#L59), [`evals.test.ts:81`](libs/shared/src/outbound/project/evals/evals.test.ts#L81), [`evals.test.ts:102`](libs/shared/src/outbound/project/evals/evals.test.ts#L102), [`evals.test.ts:123`](libs/shared/src/outbound/project/evals/evals.test.ts#L123), [`baseline.test.ts:23`](libs/shared/src/outbound/project/baseline/baseline.test.ts#L23), [`baseline.test.ts:46`](libs/shared/src/outbound/project/baseline/baseline.test.ts#L46), [`baseline.test.ts:64`](libs/shared/src/outbound/project/baseline/baseline.test.ts#L64), [`baseline.test.ts:78`](libs/shared/src/outbound/project/baseline/baseline.test.ts#L78), [`baseline.test.ts:92`](libs/shared/src/outbound/project/baseline/baseline.test.ts#L92), [`baseline.test.ts:125`](libs/shared/src/outbound/project/baseline/baseline.test.ts#L125))
+  out-of-window rows). ([validated by `usage-pg.test.ts:22`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L31), [`usage-pg.test.ts:50`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L79), [`usage-pg.test.ts:114`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L143), [`usage-pg.test.ts:129`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L158), [`usage-pg.test.ts:144`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L173), [`usage-pg.test.ts:160`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L189), [`usage-pg.test.ts:173`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L202), [`usage-pg.test.ts:190`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L219), [`usage-pg.test.ts:206`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L235), [`cost.test.ts:36`](libs/shared/src/outbound/project/cost/cost.test.ts#L36), [`cost.test.ts:60`](libs/shared/src/outbound/project/cost/cost.test.ts#L60), [`cost.test.ts:68`](libs/shared/src/outbound/project/cost/cost.test.ts#L68), [`cost.test.ts:80`](libs/shared/src/outbound/project/cost/cost.test.ts#L80), [`job-runs.test.ts:23`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L23), [`job-runs.test.ts:36`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L36), [`job-runs.test.ts:54`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L54), [`job-runs.test.ts:62`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L62), [`job-runs.test.ts:72`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L72), [`job-runs.test.ts:86`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L86), [`job-runs.test.ts:94`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L94), [`job-runs.test.ts:104`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L104), [`job-runs.test.ts:118`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L118), [`job-runs.test.ts:131`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L131), [`job-runs.test.ts:172`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L172))
 - FR-20.18a: The in-memory `Usage` double mirrors the Pg write-time
   correlation as its behavioral spec: a seeded task id lands on `task_id`;
   a non-task id that matches a seeded assembly line falls back to
@@ -1302,26 +1173,25 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
     the team value (settings-only patches and same-value writes emit
     nothing), and a failed event insert degrades to the nightly relocation
     instead of failing the settings write that already happened. It REFUSES
-    a patch touching a privileged dark-factory field (403, writing nothing
-    at all) rather than merging it: that JSONB shares a column with the
-    fields the CODEOWNER-approval ceremony guards, so a blanket merge here
-    would be a way around that ceremony. The web-ui route forwards to it,
+    a patch carrying a `dark_factory` block (400, writing nothing at all):
+    those settings were removed on 2026-10-02 and nothing reads them. The
+    web-ui route forwards to it,
     normalizing a cleared team to null, and passes the refusal through
-    with its status ([validated by forwards a team change to lore-api](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L32), [`route.test.ts:43`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L43), [`route.test.ts:51`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L51), [`route.test.ts:61`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L61), [`route.test.ts:76`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L76), [`repo-settings.test.ts:31`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L31), [`repo-settings.test.ts:35`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L35), [`repo-settings.test.ts:43`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L43), [`repo-settings.test.ts:43`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L43), [`repo-settings.test.ts:66`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L66), [`repo-settings.test.ts:83`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L83), [`repo-settings.test.ts:97`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L97), [`repo-settings.test.ts:115`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L115), [`repo-settings.test.ts:130`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L130), [`repo-settings.test.ts:146`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L146), [`repo-settings.test.ts:169`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L169), [`repo-settings.test.ts:202`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L202), [`repo-settings.test.ts:66`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L66), [`repo-settings.test.ts:83`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L83), [`repo-settings.test.ts:97`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L97), [`repo-settings.test.ts:115`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L115), [`repo-settings.test.ts:130`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L130), [`repo-settings.test.ts:146`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L146), [`repo-settings.test.ts:169`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L169), [`repo-settings.test.ts:202`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L202), [`repo-settings.test.ts:202`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L202), [`repo-settings.test.ts:202`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L202), [`repo-settings.test.ts:186`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L186), [`repo-settings.test.ts:216`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L286), [`repos.test.ts:128`](apps/web-ui/src/lib/api/repos.test.ts#L128))
-  - The Floor's `team_changed` handler re-reads the team from `lore.repos`
+    with its status ([validated by forwards a team change to lore-api](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L32), [`route.test.ts:43`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L43), [`route.test.ts:51`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L51), [`route.test.ts:61`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L61), [`route.test.ts:76`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L76), [`repo-settings.test.ts:31`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L31), [`repo-settings.test.ts:35`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L35), [`repo-settings.test.ts:43`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L43), [`repo-settings.test.ts:43`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L43), [`repo-settings.test.ts:66`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L66), [`repo-settings.test.ts:146`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L88), [`repo-settings.test.ts:169`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L111), [`repo-settings.test.ts:66`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L66), [`repo-settings.test.ts:146`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L88), [`repo-settings.test.ts:169`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L111), [`repo-settings.test.ts:186`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L128), [`repo-settings.test.ts:216`](apps/lore-api/src/transport/routes/repos/repo-settings.test.ts#L214), [`repos.test.ts:128`](apps/web-ui/src/lib/api/repos.test.ts#L128))
+  - The `team_changed` handler, in the stations service since 2026-10-02, re-reads the team from `lore.repos`
     rather than trusting the event payload, resolves it through the uncached
     single-sourced `chunkSchemaOrOrgShared` (never the per-repo memoized
     resolver, which would serve the pre-change schema for its TTL), no-ops
     when resolution falls back to `org_shared`, and lets a relocation error
-    propagate so the event loop retries the idempotent move ([validated by `repo-team-changed.test.ts:48`](apps/floor/src/events/handlers/repo-team-changed.test.ts#L48), [`repo-team-changed.test.ts:67`](apps/floor/src/events/handlers/repo-team-changed.test.ts#L67), [`repo-team-changed.test.ts:82`](apps/floor/src/events/handlers/repo-team-changed.test.ts#L82), [`repo-team-changed.test.ts:90`](apps/floor/src/events/handlers/repo-team-changed.test.ts#L90), [`repo-team-changed.test.ts:103`](apps/floor/src/events/handlers/repo-team-changed.test.ts#L103))
+    propagate so the event loop retries the idempotent move ([validated by moves re-cinq/lore's legacy org_shared rows into platform, the schema its team resolves to](apps/stations/src/events/team-changed.test.ts#L26), [relocates nothing for a repository whose team resolves to org_shared](apps/stations/src/events/team-changed.test.ts#L37), [hands a cleared team to the resolver as null instead of deciding here](apps/stations/src/events/team-changed.test.ts#L48), [says there was nothing to move when the repository had no legacy rows](apps/stations/src/events/team-changed.test.ts#L56), [throws connection reset when the move fails, so the delivery is retried](apps/stations/src/events/team-changed.test.ts#L66))
 
 ## Non-Functional Requirements
 
 ### NFR-1: Security
 
-- No long-lived credentials anywhere in the system. ([validated by `security-posture.test.ts:107`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L107), [`security-posture.test.ts:128`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L128))
-- Workload Identity for all GKE workloads. ([validated by `security-posture.test.ts:99`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L99))
-- Workload Identity Federation for GitHub Actions. ([validated by `security-posture.test.ts:124`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L124), [`security-posture.test.ts:128`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L128))
+- No long-lived credentials anywhere in the system. ([validated by `security-posture.test.ts:75`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L75), [`security-posture.test.ts:96`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L96))
+- Workload Identity for all GKE workloads. ([validated by `security-posture.test.ts:67`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L67))
+- Workload Identity Federation for GitHub Actions. ([validated by `security-posture.test.ts:92`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L92), [`security-posture.test.ts:96`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L96))
 - Schema-per-team isolation in the vector store. ([validated by `chunks.test.ts:166`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L167), [`chunks.test.ts:184`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L185))
 - Secret and PII redaction runs at ingest time and on every memory write:
   `sanitizeContent()` / `redactSecrets()` strip API keys, JWTs, private keys,
@@ -1329,13 +1199,10 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   database. ([validated by `redact.test.ts:5`](libs/shared/src/lib/redact.test.ts#L5), [`redact.test.ts:78`](libs/shared/src/lib/redact.test.ts#L78))
 - Centralized auth in `routes.ts`: every `/api/*` route enforces bearer
   token validation. Supports legacy single token (`LORE_INGEST_TOKEN`)
-  and per-client scoped tokens with SHA-256 hashes. ([validated by `auth.test.ts:56`](apps/lore-api/src/transport/http/auth.test.ts#L56), [`bearer-scope.test.ts:41`](apps/lore-api/src/transport/http/bearer-scope.test.ts#L41))
-- Job pods run as non-root (uid 1000), drop all Linux capabilities,
-  disallow privilege escalation. NetworkPolicy restricts egress to
-  DNS + HTTPS + internal Lore API only. ([validated by `security-posture.test.ts:71`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L71), [`security-posture.test.ts:76`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L76), [`security-posture.test.ts:84`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L84), [`security-posture.test.ts:90`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L90))
+  and per-client scoped tokens with SHA-256 hashes. ([validated by `auth.test.ts:56`](apps/lore-api/src/transport/http/auth.test.ts#L56), [`bearer-scope.test.ts:41`](apps/lore-api/src/transport/http/bearer-scope.test.ts#L41), [returns 403 {error:insufficient scope} when the token is not legacy and pool is null](apps/lore-api/src/transport/http/bearer-scope.test.ts#L48), [returns 403 when the DB has no matching token](apps/lore-api/src/transport/http/bearer-scope.test.ts#L59), [grants any scope when the DB token has admin](apps/lore-api/src/transport/http/bearer-scope.test.ts#L87), [returns 403 when the DB token lacks the scope the route needs](apps/lore-api/src/transport/http/bearer-scope.test.ts#L100), [returns 403 when the token lookup query throws](apps/lore-api/src/transport/http/bearer-scope.test.ts#L113), [grants access via the legacy token without hitting the DB](apps/lore-api/src/transport/http/bearer-scope.test.ts#L126))
 - Rate limiting: 30/min webhooks, 60/min task ops, 200/min other
-  (in-memory sliding window). 1 MB body size limit. ([validated by `rate-limit.test.ts:53`](apps/lore-api/src/transport/http/rate-limit.test.ts#L50), [`rate-limit.test.ts:39`](apps/lore-api/src/transport/http/rate-limit.test.ts#L39), [`auth.test.ts:17`](apps/lore-api/src/transport/http/auth.test.ts#L17), [`webhook-incident.test.ts:144`](apps/lore-api/src/transport/routes/webhooks/webhook-incident.test.ts#L144))
-- Slack indexing opt-in per channel only; DMs never indexed. ([validated by `notify-slack.test.ts:10`](libs/shared/src/outbound/project/notify/notify-slack.test.ts#L11), [`notify-decision.test.ts:30`](libs/shared/src/outbound/project/notify/notify-decision.test.ts#L30))
+  (in-memory sliding window). 1 MB body size limit. ([validated by `rate-limit.test.ts:53`](apps/lore-api/src/transport/http/rate-limit.test.ts#L52), [`rate-limit.test.ts:39`](apps/lore-api/src/transport/http/rate-limit.test.ts#L39), [`auth.test.ts:17`](apps/lore-api/src/transport/http/auth.test.ts#L17), [`webhook-incident.test.ts:144`](apps/lore-api/src/transport/routes/webhooks/webhook-incident.test.ts#L144))
+- Decision: Slack indexing is opt-in per channel only and DMs are never indexed; Lore indexes no Slack content today, so there is nothing to test yet.
 
 ### NFR-2: Reliability & Freshness
 
@@ -1430,7 +1297,7 @@ enforced by benchmarking, infrastructure configuration, and review process.
 - PR quality enforcement (template + CI check).
 - Ingestion pipeline (Lore Agent service on GKE).
 - Observability (OpenTelemetry + Cloud Monitoring).
-- Context evaluation (PromptFoo CI gate).
+- Context evaluation (nightly GitHub Actions job that asks lore-api, #2443).
 - Gap detection (automated drafting + PR opening).
 - Live knowledge graph (PostgreSQL entities + edges).
 - Intelligent memory lifecycle (passive capture, decay, consolidation).
@@ -1471,7 +1338,6 @@ enforced by benchmarking, infrastructure configuration, and review process.
 - GitHub organization with Actions, CODEOWNERS, PR template support,
   and GitHub App installation (`GITHUB_APP_ID`, `GITHUB_PRIVATE_KEY`).
 - External Secrets Operator (ESO) pulling from GCP Secret Manager.
-- PromptFoo (Phase 1+, stored in `evals/`).
 - Anthropic API key (for Lore Agent, Phase 1+).
 - Slack bot token (`LORE_SLACK_BOT_TOKEN`) for `/lore` slash command
   and watcher notifications (optional).
@@ -1506,3 +1372,43 @@ enforced by benchmarking, infrastructure configuration, and review process.
 7. No long-lived credentials exist anywhere in the deployed system.
 8. Pilot team (platform engineering) completes a full feature loop
    naturally before infrastructure investment begins.
+
+## Background: retired with Lore's own Floor (2026-10-02)
+
+These statements described behaviour of `apps/floor`, the assembly-line engine Lore ran itself. It was deleted on 2026-10-02 (epic #2342, ADR-049): the external floor runs every line now, so the tests that validated these went with the code. They are kept as the record of what the old engine did.
+
+- Job pods run as non-root (uid 1000), drop all Linux capabilities,
+  disallow privilege escalation. NetworkPolicy restricts egress to
+  DNS + HTTPS + internal Lore API only. (Lore's own `ai-agents` chart, which
+  set this, was removed with its cluster agent; agent pods are the external
+  floor's now, and their security context is its chart's to state.)
+
+- FR-7.5: Beyond chunking and embedding, the Lore Agent drafts missing
+  content and opens PRs (the gap-detection drafting path, FR-10).
+
+The system MUST automatically identify and address knowledge gaps.
+
+- FR-10.3: For a repo missing a documentation kind (CLAUDE.md, ADRs, or
+  specs), the `gap-detect` job drafts the missing content as a `gap-fill`
+  task.
+
+- FR-10.6: The per-repo `gap-detect` job skips repos that are not
+  onboarded.
+
+- FR-10.7: It checks the repo's resolved-schema chunks for a CLAUDE.md
+  doc chunk, ADR chunks, and spec chunks — filing a `gap-fill` task per
+  missing kind, and none when all are present.
+
+- FR-10.9: An in-flight or failed matching `gap-fill` task suppresses a
+  duplicate filing.
+
+- FR-20.10: The `AgentRunner` port launches a Station via the injected
+  `StationBackend` in cluster mode (passing the execution image, throwing
+  when no provider is supplied) and calls the injected `LlmPort` in
+  direct mode; agent execution refuses LOCAL mode on the shared server
+  (`LORE_DB_HOST` set) yet allows cluster mode there. A cluster run must name its task type: it names the recipe the pod runs, and no recipe stands in for a missing one since `general` was deleted (#2329).
+
+- FR-20.11: The station-mode selector honours explicit `k8s`/`docker`
+  overrides and the `inprocess` escape hatch, defaults to `k8s`
+  in-cluster and `docker` off-cluster, and ignores an unrecognized value
+  falling back to context.

@@ -115,15 +115,17 @@ function specPrFactsOf(pr: PrStatus | null): SpecPrFacts {
 function planRunOf(
   run: AssemblyRun,
 ): Omit<PlanRun, "nodes" | "prTitle" | "prUnresolvedThreads"> {
-  const { id, status, outcome, reason, prUrl, prNumber } = run;
+  const { id, status, outcome, reason, issueUrl, issueNumber } = run;
 
   return {
     id,
     status,
     outcome,
     reason,
-    prUrl,
-    prNumber,
+    issueUrl,
+    issueNumber,
+    prUrl: run.prUrl,
+    prNumber: run.prNumber,
     specPlanSummary: run.specPlanSummary ?? null,
   };
 }

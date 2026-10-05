@@ -2,8 +2,15 @@ import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { pipelineOf, readPipelineFile } from "@re-cinq/floor-pipeline";
 import {
+  fileOf,
+  pipelineOf,
+  readPipelineFile,
+  writePipelineFile,
+} from "@re-cinq/floor-pipeline";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import {
+  pipelineOfText,
   seedFloorPipelines,
   withEnvironment,
   type SeedDeps,
@@ -100,16 +107,21 @@ describe("seedFloorPipelines", () => {
 
 describe("the pipeline files shipped in libs/assembly-lines", () => {
   const pipelines = realFiles().map((file) =>
-    pipelineOf(readPipelineFile(withEnvironment(file.text, FIXED_ENV))),
+    pipelineOfText(file.text, FIXED_ENV),
   );
 
-  it("declare the lines code-review, code-review-recheck, code-review-reply, feature-planning and lore-run-settled", () => {
+  it("declare the lines code-review, code-review-recheck, code-review-reply, daily-digest, feature-planning, implementation-loop, lore-run-settled, merge, onboard and spec-upkeep", () => {
     expect(pipelines.map((pipeline) => pipeline.line?.id).sort()).toEqual([
       "code-review",
       "code-review-recheck",
       "code-review-reply",
+      "daily-digest",
       "feature-planning",
+      "implementation-loop",
       "lore-run-settled",
+      "merge",
+      "onboard",
+      "spec-upkeep",
     ]);
   });
 
@@ -121,5 +133,18 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
       );
 
     expect(prompts.every((prompt) => prompt.length > 0)).toBe(true);
+  });
+
+  it("put feature-planning exactly as a file carrying the same prompts inline would, trailing newline included", () => {
+    const featurePlanning = pipelines.find(
+      (pipeline) => pipeline.line?.id === "feature-planning",
+    );
+
+    enforceTrue(featurePlanning, Error, "no feature-planning pipeline");
+    const inline = pipelineOf(
+      readPipelineFile(writePipelineFile(fileOf(featurePlanning))),
+    );
+
+    expect(featurePlanning).toEqual(inline);
   });
 });

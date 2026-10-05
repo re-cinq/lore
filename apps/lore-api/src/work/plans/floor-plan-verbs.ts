@@ -20,22 +20,25 @@ import {
   type FloorPlanDeps,
   type FloorPlanMarkdown,
 } from "./floor-plan-line.js";
+import type { PlanSnapshot } from "./plan-file.js";
 
-/** The plan routes' verbs over the floor; the plan's markdown is read from where the live plan is, for the verbs that hand it to the run. */
+type SnapshotOf = (plan: PlanSubject) => Promise<PlanSnapshot>;
+
+/** The plan routes' verbs over the floor; the plan is read from where the live plan is, for the verbs that hand it to the run. */
 export function floorPlanVerbs(
   deps: FloorPlanDeps,
-  markdownOf: (planId: string) => Promise<string>,
+  snapshotOf: SnapshotOf,
 ): PlanVerbs {
-  return { ...markdownVerbs(deps, markdownOf), ...lineVerbs(deps) };
+  return { ...markdownVerbs(deps, snapshotOf), ...lineVerbs(deps) };
 }
 
 function markdownVerbs(
   deps: FloorPlanDeps,
-  markdownOf: (planId: string) => Promise<string>,
+  snapshotOf: SnapshotOf,
 ): PlanContentVerbs {
   const briefed = async (plan: PlanSubject, brief: string) => ({
     plan,
-    planMarkdown: await markdownOf(plan.id),
+    ...(await snapshotOf(plan)),
     brief,
   });
 
@@ -49,10 +52,10 @@ function draftingVerbs(
 ): Pick<PlanContentVerbs, "draft" | "refine"> {
   return {
     draft: async (plan, request) =>
-      startFloorDrafting(
-        deps,
-        await briefed(plan, draftBrief(plan, request.known)),
-      ),
+      startFloorDrafting(deps, {
+        ...(await briefed(plan, draftBrief(plan, request.known))),
+        storyIssue: request.storyIssue,
+      }),
     refine: async (plan, refine) =>
       askFloorRefine(deps, {
         ...(await briefed(plan, refineBrief(plan, refine))),

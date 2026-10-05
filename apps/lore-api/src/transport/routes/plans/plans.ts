@@ -145,7 +145,7 @@ function draftingRoute(
     options: DRAFTING_OPTIONS,
     handler: withPool(getPool, async (pool, request, h) => {
       const plan = await repoPlan(() => pool, request);
-      const verbs = await planVerbsFor(pool, plan, seams);
+      const verbs = await planVerbsFor(plan, seams);
       const body = request.payload as z.infer<typeof DraftingBody>;
 
       return h.response({ task_id: await verbs.draft(plan, body) }).code(202);
@@ -156,6 +156,7 @@ function draftingRoute(
 const DraftingBody = z.object({
   known: z.string(),
   createdBy: z.string().min(1),
+  storyIssue: z.number().int().positive().optional(),
 });
 
 const DraftingSchema = z.object({ task_id: z.string() });
@@ -183,7 +184,7 @@ function refineRoute(
     options: REFINE_OPTIONS,
     handler: withPool(getPool, async (pool, request, h) => {
       const plan = await repoPlan(() => pool, request);
-      const verbs = await planVerbsFor(pool, plan, seams);
+      const verbs = await planVerbsFor(plan, seams);
       const refine = request.payload as z.infer<typeof RefineBody>;
 
       await verbs.refine(plan, refine);

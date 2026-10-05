@@ -1,0 +1,294 @@
+# A repository's weekly spec upkeep (specs/external-floor FR14, specs/spec-test-coverage).
+# Two stations read the traceability graph: one finds statements that drifted
+# from the code, one finds testable statements no test is linked to. One agent
+# fixes the drift first and adds the links second, as two commits, and Lore
+# opens one pull request. The run then waits for that pull request's CI, sends
+# a red build back to an agent at most twice, and asks the code-review line for
+# a review. It never merges.
+#
+# Started per repository by the stations service's weekly tick, keyed on the
+# run's day. When both detectors find nothing the run ends before the agent:
+# no branch, no pod, no pull request.
+line:
+  id: spec-upkeep
+  entry: detect-drift
+  exit: done
+  args:
+    repo:
+      kind: git
+    upkeep:
+      kind: value
+      subject: true
+  nodes:
+    - id: detect-drift
+      station: spec-upkeep-detect-drift
+      bind:
+        target: repo
+    - id: detect-unlinked
+      station: spec-upkeep-detect-unlinked
+      bind:
+        target: repo
+    - id: update-specs
+      station: spec-upkeep-update-specs
+      bind:
+        target: repo
+    - id: open-pr
+      station: spec-upkeep-open-pr
+      bind:
+        target: repo
+    # Nobody answers this by hand: Lore's pr-ready-check sweep reads the build
+    # and reports to the visit once CI has a verdict.
+    - id: await-ci
+      station: spec-upkeep-await-ci
+      route: "{args.pr_url}"
+    - id: fix-ci
+      station: spec-upkeep-fix-ci
+      bind:
+        target: repo
+    - id: request-review
+      station: spec-upkeep-request-review
+    - id: done
+  edges:
+    - from: detect-drift
+      to: detect-unlinked
+      on: success
+    - from: detect-drift
+      to: detect-drift
+      on: failed
+      iteration_max: 1
+    - from: detect-unlinked
+      to: update-specs
+      on: success
+    # Neither detector found anything: the specs need nothing this week.
+    - from: detect-unlinked
+      to: done
+      on: nothing
+    - from: detect-unlinked
+      to: detect-unlinked
+      on: failed
+      iteration_max: 1
+    - from: update-specs
+      to: open-pr
+      on: success
+    # The agent acted on nothing. open-pr then finds no commit on the branch
+    # and ends the run; the two are one path so there is one place that decides.
+    - from: update-specs
+      to: open-pr
+      on: changes_requested
+    - from: update-specs
+      to: update-specs
+      on: failed
+      iteration_max: 1
+    - from: open-pr
+      to: await-ci
+      on: success
+    - from: open-pr
+      to: done
+      on: nothing
+    - from: open-pr
+      to: open-pr
+      on: failed
+      iteration_max: 1
+    - from: await-ci
+      to: request-review
+      on: success
+    # A red build, and a red build on a sha already reported red: both go to
+    # fix-ci, twice at most each. The CI link check is the judge of the links.
+    - from: await-ci
+      to: fix-ci
+      on: changes_requested
+      iteration_max: 2
+    - from: await-ci
+      to: fix-ci
+      on: failed
+      iteration_max: 2
+    - from: fix-ci
+      to: await-ci
+      on: success
+    - from: fix-ci
+      to: await-ci
+      on: changes_requested
+    - from: fix-ci
+      to: fix-ci
+      on: failed
+      iteration_max: 1
+    - from: request-review
+      to: done
+      on: success
+    - from: request-review
+      to: request-review
+      on: failed
+      iteration_max: 1
+stations:
+  spec-upkeep-detect-drift:
+    kind: service
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: read
+    produces:
+      - name: drift
+        kind: file
+      - name: drift_count
+        kind: value
+  spec-upkeep-detect-unlinked:
+    kind: service
+    outcomes:
+      - success
+      - nothing
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: read
+      - name: drift_count
+        kind: value
+    produces:
+      - name: unlinked
+        kind: file
+      - name: unlinked_count
+        kind: value
+  spec-upkeep-update-specs:
+    kind: agent
+    agent_definition: spec-upkeep-update-specs
+    conversation: new
+    outcomes:
+      - success
+      - changes_requested
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: write
+      - name: drift
+        kind: file
+        path: drift.md
+      - name: unlinked
+        kind: file
+        path: unlinked.md
+    produces:
+      - name: pr_body
+        kind: file
+        path: pr-body.md
+  spec-upkeep-open-pr:
+    kind: service
+    outcomes:
+      - success
+      - nothing
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: read
+      # Absent when the agent wrote no description.
+      - name: pr_body
+        kind: file
+        optional: true
+    produces:
+      - name: pr_url
+        kind: value
+  spec-upkeep-await-ci:
+    kind: human
+    outcomes:
+      - success
+      - changes_requested
+      - failed
+    needs: []
+    # Written only on a red report: the sha the build judged, the checks that
+    # failed and what they printed, and the same as one file for the repair.
+    produces:
+      - name: ci_feedback_sha
+        kind: value
+      - name: ci_failed_checks
+        kind: value
+      - name: ci_failure_summary
+        kind: value
+      - name: round_brief
+        kind: file
+  spec-upkeep-fix-ci:
+    kind: agent
+    agent_definition: spec-upkeep-fix-ci
+    conversation: new
+    outcomes:
+      - success
+      - changes_requested
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: write
+      - name: round_brief
+        kind: file
+        path: round-brief.md
+        optional: true
+    produces:
+      - name: ci_fixed
+        kind: value
+      - name: ci_blocked
+        kind: value
+  spec-upkeep-request-review:
+    kind: service
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: pr_url
+        kind: value
+    produces: []
+agent_definitions:
+  spec-upkeep-update-specs:
+    settings:
+      model: claude-sonnet-4-6
+      image: ${LORE_AGENT_IMAGE}
+      timeout_minutes: 30
+      config:
+        pod_resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+            ephemeral-storage: 2Gi
+          limits:
+            memory: 2Gi
+            ephemeral-storage: 4Gi
+        skills:
+          - lore-context
+        skills_source: ${LORE_SKILLS_URL}
+        mcp_servers:
+          - name: lore
+            transport: http
+            url: ${LORE_MCP_URL}
+            headers_secret: lore-mcp-auth
+        env:
+          LORE_TEST_POLICY: none
+  spec-upkeep-fix-ci:
+    settings:
+      model: claude-sonnet-4-6
+      image: ${LORE_AGENT_IMAGE}
+      timeout_minutes: 30
+      config:
+        pod_resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+            ephemeral-storage: 2Gi
+          limits:
+            memory: 2Gi
+            ephemeral-storage: 4Gi
+        skills:
+          - lore-context
+        skills_source: ${LORE_SKILLS_URL}
+        mcp_servers:
+          - name: lore
+            transport: http
+            url: ${LORE_MCP_URL}
+            headers_secret: lore-mcp-auth
+        env:
+          LORE_TEST_POLICY: none

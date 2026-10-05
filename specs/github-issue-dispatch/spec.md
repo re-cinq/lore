@@ -45,29 +45,16 @@ Issue gets comment: "Working on this → PR #N"
 
 **1. Webhook endpoint** (`mcp-server/src/index.ts`)
 
-HTTP ingress: the GitHub branch of `POST /api/events` on the event-router (ADR-044)
+HTTP ingress: lore-api's `POST /api/webhook/github`, which the public `/api/events` URL is rewritten onto (ADR-044, amended 2026-10-02)
 - Validates GitHub webhook signature (HMAC SHA-256)
-- Handles `issues` event with action `labeled` ([validated by `github-map.test.ts:298`](libs/shared/src/outbound/project/events/github-map.test.ts#L304))
+- Handles `issues` event with action `labeled` ([validated by `github-map.test.ts:298`](libs/shared/src/outbound/project/events/github-map.test.ts#L269))
 - The event mapper is a guard at the door: it returns nothing when the `repository` is missing or the
-  event type is unhandled. ([validated by `github-map.test.ts:362`](libs/shared/src/outbound/project/events/github-map.test.ts#L368), [`github-map.test.ts:372`](libs/shared/src/outbound/project/events/github-map.test.ts#L378))
-- If label name is `lore` (configurable):
-  - Extract: issue title, body, repo full_name, issue number
-  - Determine task type from issue labels, from the SAME table onboarding seeds the
-    repo's labels from — a label a repo is given and a label this reader understands
-    are one declaration, or a seeded label dispatches as the repo's default type
-    instead of the one it names, and a task type removed from `task-types.yaml`
-    leaves a label behind that creates tasks no handler serves:
-    - `lore:implementation` → implementation
-    - `lore:review` → review
-    - `lore:runbook` → runbook
-    - `lore:triage` → issue-triage (`apps/floor/src/events/handlers/github.ts` + `libs/shared/src/domain/task-types/dispatch-labels.ts`)
-    - `triage: needs-triage` → issue-triage (`apps/floor/src/events/handlers/github.ts` + `libs/shared/src/domain/task-types/dispatch-labels.ts`)
-    - `lore` (alone) → the repo's `dispatch_default_type` (general by default)
-    ([validated by reads implementation off a lore:implementation label](libs/shared/src/domain/task-types/dispatch-labels.test.ts#L5), [`dispatch-labels.test.ts:11`](libs/shared/src/domain/task-types/dispatch-labels.test.ts#L11), [`dispatch-labels.test.ts:16`](libs/shared/src/domain/task-types/dispatch-labels.test.ts#L16), [`dispatch-labels.test.ts:22`](libs/shared/src/domain/task-types/dispatch-labels.test.ts#L22))
-  - *(Planned — `specs/issue-triage`, not yet implemented:)* `lore:triage` and `triage: needs-triage` → issue-triage.
-  - Create pipeline task with issue context
-  - Comment on issue: "Lore agent is working on this. Task: `{id}`"
-  - Add `lore-managed` label to the issue
+  event type is unhandled. ([validated by `github-map.test.ts:362`](libs/shared/src/outbound/project/events/github-map.test.ts#L333), [`github-map.test.ts:372`](libs/shared/src/outbound/project/events/github-map.test.ts#L343))
+- If label name is `lore` (configurable through the repository's `dispatch_label` setting):
+  - *(Since 2026-10-02.)* The Issue becomes no task: it joins the repository's backlog, where the implementation loop picks it up. It gets `priority:medium` when it carries no priority label, and a comment saying it is queued, or that the loop is switched off for the repository and nothing picks it up until it is switched on. A label other than the dispatch label does nothing, and an Issue a task still holds is answered with that task's id instead of being queued. The handler runs in the stations service (`apps/stations/src/events/repo-handlers.ts`, `libs/shared/src/work/backlog/label-dispatch.ts`). ([validated by queues issue 7 at priority:medium when it is labelled lore](libs/shared/src/work/backlog/label-dispatch.test.ts#L32), [validated by does nothing for a label that is not the repository's dispatch label](libs/shared/src/work/backlog/label-dispatch.test.ts#L61), [validated by answers to the label a repository configured as its dispatch label, here agent](libs/shared/src/work/backlog/label-dispatch.test.ts#L73), [validated by says issue 7 is already being worked on by task t-1 and queues nothing](libs/shared/src/work/backlog/label-dispatch.test.ts#L89), [validated by labels issue 7 priority:medium and says the loop picks it up, when it carries no priority](libs/shared/src/work/backlog/queue-ticket.test.ts#L24), [validated by leaves the priority:high of issue 7 as it is](libs/shared/src/work/backlog/queue-ticket.test.ts#L38), [validated by queues issue 7 and says nothing will pick it up while the loop is off for acme/widgets](libs/shared/src/work/backlog/queue-ticket.test.ts#L51), [validated by queues issue 7 of acme/widgets in the loop's backlog when it is labelled lore](apps/stations/src/events/repo-handlers.test.ts#L57))
+  - *(Since 2026-10-02.)* The seeded `lore:implementation` label asks for the same thing by itself, whatever the repository's dispatch label is: a label whose description says "implement this ticket" must not be one that does nothing. ([validated by queues issue 7 when it is labelled lore:implementation, the label onboarding seeds](libs/shared/src/work/backlog/label-dispatch.test.ts#L47))
+  - The label used to name a task type (`lore:implementation`, `lore:review`, `lore:runbook`, and the repository's `dispatch_default_type` for a bare `lore`). Those task types are gone, so the labels name nothing: onboarding seeds only `lore:implementation`, kept as the label that says "implement this". ([validated by seeds only lore:implementation, the label that means the loop's backlog](libs/shared/src/domain/task-types/dispatch-labels.test.ts#L5))
+  - When the label applied is `lore:triage` or `triage: needs-triage`, the `github.issues.labeled` handler in `apps/stations/src/events/repo-handlers.ts` calls `floor.lines.start('issue-triage', {repo, issue_url, issue_number})` via `@re-cinq/floor-client`; subsequent state transitions are driven by the `triage:*` label taxonomy applied by the `triage_label` service station at each node outcome (see `specs/issue-triage`). ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/3b3a67af-17b6-498b-b780-6738a0092603#p_eaf2b9b6-9ef7-4279-8f67-a27a29202e24))
 
 **2. Task context enrichment**
 
@@ -87,7 +74,7 @@ For webhook-dispatched tasks, the originating issue IS the task's issue
 **3. Webhook registration**
 
 During `lore_onboard_repo`, configure the GitHub webhook on the target repo:
-- URL: `https://LORE_EVENTS_DOMAIN/api/events` (the event-router front door)
+- URL: `https://LORE_EVENTS_DOMAIN/api/events` (the public URL the ingress rewrites onto lore-api's `POST /api/webhook/github`)
 - Events: `issues`
 - Secret: from `LORE_WEBHOOK_SECRET` env var
 - Content type: `application/json`
@@ -110,12 +97,11 @@ If exists, skip and comment "Already being worked on: task `{id}`"
 Per-repo setting in `lore.repos.settings`:
 ```json
 {
-  "dispatch_label": "lore",
-  "dispatch_default_type": "implementation"
+  "dispatch_label": "lore"
 }
 ```
 
-Defaults: label=`lore`, type=`general`.
+Default: label=`lore`. The seeded `lore:implementation` label asks for the same thing whatever the setting says. There is no dispatch type any more: the Issue joins the implementation loop's backlog.
 
 ### Webhook Payload (issues.labeled)
 
@@ -151,16 +137,16 @@ Defaults: label=`lore`, type=`general`.
 2. Task type determined from `lore:*` label variants
 3. Agent works on the task, creates PR linked to the issue
 4. Issue gets comment with task ID and PR link; `loreTaskRef` links the task uuid to its deployed
-   assembly-line page and trims a trailing slash on the UI url. ([validated by `task-ref.test.ts:11`](apps/floor/src/domain/task-ref.test.ts#L11))
+   assembly-line page and trims a trailing slash on the UI url.
 
 5. Duplicate issues (same issue, active task) are skipped ([validated by `webhook.test.ts:43`](apps/lore-api/src/integration-tests/webhook.test.ts#L42))
 
 6. Works on any onboarded repo with webhook configured
 
-7. The GitHub branch of `POST /api/events` is a signed door: `verifyGitHubSignature` rejects a
+7. The GitHub webhook door (`POST /api/webhook/github` on lore-api) is signed: `verifyGitHubSignature` rejects a
    signature computed with a different secret (accepting only one over the same secret + raw body),
    and the route returns 202 capturing `{captured:0, events:[]}` for a validly-signed event that maps
    to no work; `parseJsonBody` returns the typed object and throws a 400 on a
    malformed body, naming the ingress that was parsing it and quoting the parser's own
    objection — five routes parse bodies this way, and a bare "invalid JSON" said a body
-   was rejected without saying which ingress rejected it or where the body went wrong. ([validated by `events.test.ts:118`](apps/event-router/src/transport/routes/events.test.ts#L118), [`events.test.ts:99`](apps/event-router/src/transport/routes/events.test.ts#L99), [`raw-body.test.ts:6`](apps/floor/src/transport/http/raw-body.test.ts#L6), [`raw-body.test.ts:12`](apps/floor/src/transport/http/raw-body.test.ts#L12))
+   was rejected without saying which ingress rejected it or where the body went wrong. ([validated by refuses a signature that does not match the secret with a 401](libs/shared/src/transport/http/github-delivery.test.ts#L64), [maps a signed ping to no events](libs/shared/src/transport/http/github-delivery.test.ts#L51), [answers 400 for a signed body that is not JSON](apps/lore-api/src/transport/routes/webhooks/webhook-github.test.ts#L151))

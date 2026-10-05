@@ -2,188 +2,6 @@
 # ExternalSecret CRs — one per K8s secret per namespace
 # ---------------------------------------------------------------------------
 
-# ===== lore-floor namespace =================================================
-
-resource "kubectl_manifest" "es_agent_github_app" {
-  yaml_body = yamlencode({
-    apiVersion = "external-secrets.io/v1beta1"
-    kind       = "ExternalSecret"
-    metadata = {
-      name      = "github-app-credentials"
-      namespace = "lore-floor"
-    }
-    spec = {
-      refreshInterval = "1h"
-      secretStoreRef = {
-        name = "gcp-secret-manager"
-        kind = "ClusterSecretStore"
-      }
-      target = {
-        name = "github-app-credentials"
-      }
-      data = [
-        {
-          secretKey = "app-id"
-          remoteRef = {
-            key = "lore-github-app-id"
-          }
-        },
-        {
-          secretKey = "private-key"
-          remoteRef = {
-            key = "lore-github-app-private-key"
-          }
-        },
-        {
-          secretKey = "installation-id"
-          remoteRef = {
-            key = "lore-github-app-installation-id"
-          }
-        },
-      ]
-    }
-  })
-
-  depends_on = [kubectl_manifest.cluster_secret_store]
-}
-
-resource "kubectl_manifest" "es_agent_anthropic" {
-  yaml_body = yamlencode({
-    apiVersion = "external-secrets.io/v1beta1"
-    kind       = "ExternalSecret"
-    metadata = {
-      name      = "lore-anthropic-key"
-      namespace = "lore-floor"
-    }
-    spec = {
-      refreshInterval = "1h"
-      secretStoreRef = {
-        name = "gcp-secret-manager"
-        kind = "ClusterSecretStore"
-      }
-      target = {
-        name = "lore-anthropic-key"
-      }
-      data = concat([
-        {
-          secretKey = "anthropic-api-key"
-          remoteRef = {
-            key = "lore-anthropic-api-key"
-          }
-        },
-        ], var.enable_anthropic_admin_key ? [
-        {
-          secretKey = "anthropic-admin-key"
-          remoteRef = {
-            key = "lore-anthropic-admin-api-key"
-          }
-        },
-      ] : [])
-    }
-  })
-
-  depends_on = [kubectl_manifest.cluster_secret_store]
-}
-
-resource "kubectl_manifest" "es_agent_db_password" {
-  yaml_body = yamlencode({
-    apiVersion = "external-secrets.io/v1beta1"
-    kind       = "ExternalSecret"
-    metadata = {
-      name      = "lore-db-password"
-      namespace = "lore-floor"
-    }
-    spec = {
-      refreshInterval = "1h"
-      secretStoreRef = {
-        name = "gcp-secret-manager"
-        kind = "ClusterSecretStore"
-      }
-      target = {
-        name = "lore-db-password"
-      }
-      data = [
-        {
-          secretKey = "password"
-          remoteRef = {
-            key = "lore-db-password"
-          }
-        },
-      ]
-    }
-  })
-
-  depends_on = [kubectl_manifest.cluster_secret_store]
-}
-
-resource "kubectl_manifest" "es_agent_ingest_token" {
-  yaml_body = yamlencode({
-    apiVersion = "external-secrets.io/v1beta1"
-    kind       = "ExternalSecret"
-    metadata = {
-      name      = "lore-ingest-token"
-      namespace = "lore-floor"
-    }
-    spec = {
-      refreshInterval = "1h"
-      secretStoreRef = {
-        name = "gcp-secret-manager"
-        kind = "ClusterSecretStore"
-      }
-      target = {
-        name = "lore-ingest-token"
-      }
-      data = [
-        {
-          secretKey = "token"
-          remoteRef = {
-            key = "lore-ingest-token"
-          }
-        },
-      ]
-    }
-  })
-
-  depends_on = [kubectl_manifest.cluster_secret_store]
-}
-
-resource "kubectl_manifest" "es_agent_ghcr" {
-  yaml_body = yamlencode({
-    apiVersion = "external-secrets.io/v1beta1"
-    kind       = "ExternalSecret"
-    metadata = {
-      name      = "ghcr-pull-secret"
-      namespace = "lore-floor"
-    }
-    spec = {
-      refreshInterval = "1h"
-      secretStoreRef = {
-        name = "gcp-secret-manager"
-        kind = "ClusterSecretStore"
-      }
-      target = {
-        name = "ghcr-pull-secret"
-        template = {
-          type = "kubernetes.io/dockerconfigjson"
-          data = {
-            ".dockerconfigjson" = "{{ .dockerconfigjson }}"
-          }
-        }
-      }
-      data = [
-        {
-          secretKey = "dockerconfigjson"
-          remoteRef = {
-            key = "lore-ghcr-pull-secret"
-          }
-        },
-      ]
-    }
-  })
-
-  depends_on = [kubectl_manifest.cluster_secret_store]
-}
-
 # ===== lore-api namespace ================================================
 
 resource "kubectl_manifest" "es_mcp_anthropic" {
@@ -329,118 +147,6 @@ resource "kubectl_manifest" "es_mcp_ingest_token" {
   depends_on = [kubectl_manifest.cluster_secret_store]
 }
 
-# Unconditional since 2026-08-29: every cluster-agent registers, so the token is
-# a platform secret rather than a feature gate.
-#
-# `moved` is load-bearing. Dropping `count` renames the address from
-# `...[0]` to `...`, and without these blocks terraform plans a
-# destroy-then-create. ESO's default creationPolicy is Owner, so the destroy
-# takes the mirrored Kubernetes Secret with it — and with `optional: true` now
-# gone from both consumers, any pod restart inside that window is a
-# CreateContainerConfigError.
-moved {
-  from = kubectl_manifest.es_cluster_agent_registration_token[0]
-  to   = kubectl_manifest.es_cluster_agent_registration_token
-}
-
-moved {
-  from = kubectl_manifest.es_cluster_agent_registration_token_agent_ns[0]
-  to   = kubectl_manifest.es_cluster_agent_registration_token_agent_ns
-}
-
-resource "kubectl_manifest" "es_cluster_agent_registration_token" {
-  yaml_body = yamlencode({
-    apiVersion = "external-secrets.io/v1beta1"
-    kind       = "ExternalSecret"
-    metadata = {
-      name      = "lore-cluster-agent-registration-token"
-      namespace = "lore-api"
-    }
-    spec = {
-      refreshInterval = "1h"
-      secretStoreRef = {
-        name = "gcp-secret-manager"
-        kind = "ClusterSecretStore"
-      }
-      target = {
-        name = "lore-cluster-agent-registration-token"
-      }
-      data = [
-        {
-          secretKey = "token"
-          remoteRef = {
-            key = "lore-cluster-agent-registration-token"
-          }
-        },
-      ]
-    }
-  })
-
-  depends_on = [kubectl_manifest.cluster_secret_store]
-}
-
-resource "kubectl_manifest" "es_cluster_agent_registration_token_agent_ns" {
-  yaml_body = yamlencode({
-    apiVersion = "external-secrets.io/v1beta1"
-    kind       = "ExternalSecret"
-    metadata = {
-      name      = "lore-cluster-agent-registration-token"
-      namespace = "lore-cluster-agent"
-    }
-    spec = {
-      refreshInterval = "1h"
-      secretStoreRef = {
-        name = "gcp-secret-manager"
-        kind = "ClusterSecretStore"
-      }
-      target = {
-        name = "lore-cluster-agent-registration-token"
-      }
-      data = [
-        {
-          secretKey = "token"
-          remoteRef = {
-            key = "lore-cluster-agent-registration-token"
-          }
-        },
-      ]
-    }
-  })
-
-  depends_on = [kubectl_manifest.cluster_secret_store]
-}
-
-resource "kubectl_manifest" "es_agent_internal_token" {
-  yaml_body = yamlencode({
-    apiVersion = "external-secrets.io/v1beta1"
-    kind       = "ExternalSecret"
-    metadata = {
-      name      = "lore-agent-internal-token"
-      namespace = "lore-floor"
-    }
-    spec = {
-      refreshInterval = "1h"
-      secretStoreRef = {
-        name = "gcp-secret-manager"
-        kind = "ClusterSecretStore"
-      }
-      target = {
-        name = "lore-agent-internal-token"
-      }
-      data = [
-        {
-          secretKey = "token"
-          remoteRef = {
-            key = "lore-agent-internal-token"
-          }
-        },
-      ]
-    }
-  })
-
-  depends_on = [kubectl_manifest.cluster_secret_store]
-}
-
 resource "kubectl_manifest" "es_mcp_internal_token" {
   yaml_body = yamlencode({
     apiVersion = "external-secrets.io/v1beta1"
@@ -540,7 +246,7 @@ resource "kubectl_manifest" "es_mcp_ghcr" {
   depends_on = [kubectl_manifest.cluster_secret_store]
 }
 
-# Slack credentials — shared by both lore-api and lore-floor namespaces
+# Slack credentials for the lore-api namespace
 resource "kubectl_manifest" "es_mcp_slack" {
   yaml_body = yamlencode({
     apiVersion = "external-secrets.io/v1beta1"
@@ -565,37 +271,6 @@ resource "kubectl_manifest" "es_mcp_slack" {
             key = "lore-slack-signing-secret"
           }
         },
-        {
-          secretKey = "bot-token"
-          remoteRef = {
-            key = "lore-slack-bot-token"
-          }
-        },
-      ]
-    }
-  })
-
-  depends_on = [kubectl_manifest.cluster_secret_store]
-}
-
-resource "kubectl_manifest" "es_agent_slack" {
-  yaml_body = yamlencode({
-    apiVersion = "external-secrets.io/v1beta1"
-    kind       = "ExternalSecret"
-    metadata = {
-      name      = "lore-slack-credentials"
-      namespace = "lore-floor"
-    }
-    spec = {
-      refreshInterval = "1h"
-      secretStoreRef = {
-        name = "gcp-secret-manager"
-        kind = "ClusterSecretStore"
-      }
-      target = {
-        name = "lore-slack-credentials"
-      }
-      data = [
         {
           secretKey = "bot-token"
           remoteRef = {
@@ -835,111 +510,6 @@ resource "kubectl_manifest" "es_ui_ghcr" {
 }
 
 # --------------------------------------------------------------------------
-# Event router (lore-event-router namespace) — ADR-044
-#
-# Three secrets, all materialized from the SAME GCP secrets the other services
-# already read. None is new material: the router verifies the same GitHub
-# webhook HMAC the Floor verifies today, and accepts the same internal token
-# every producer already presents. Sharing the remoteRef is the point — a
-# router and a producer holding different tokens would refuse every report,
-# and a router and GitHub holding different webhook secrets would refuse every
-# delivery.
-# --------------------------------------------------------------------------
-
-resource "kubectl_manifest" "es_event_router_db_password" {
-  yaml_body = yamlencode({
-    apiVersion = "external-secrets.io/v1beta1"
-    kind       = "ExternalSecret"
-    metadata = {
-      name      = "lore-event-router-db-password"
-      namespace = "lore-event-router"
-    }
-    spec = {
-      refreshInterval = "1h"
-      secretStoreRef = {
-        name = "gcp-secret-manager"
-        kind = "ClusterSecretStore"
-      }
-      target = {
-        name = "lore-event-router-db-password"
-      }
-      data = [
-        {
-          secretKey = "password"
-          remoteRef = {
-            key = "lore-db-password"
-          }
-        },
-      ]
-    }
-  })
-
-  depends_on = [kubectl_manifest.cluster_secret_store]
-}
-
-resource "kubectl_manifest" "es_event_router_webhook_secret" {
-  yaml_body = yamlencode({
-    apiVersion = "external-secrets.io/v1beta1"
-    kind       = "ExternalSecret"
-    metadata = {
-      name      = "lore-event-router-webhook"
-      namespace = "lore-event-router"
-    }
-    spec = {
-      refreshInterval = "1h"
-      secretStoreRef = {
-        name = "gcp-secret-manager"
-        kind = "ClusterSecretStore"
-      }
-      target = {
-        name = "lore-event-router-webhook"
-      }
-      data = [
-        {
-          secretKey = "webhook-secret"
-          remoteRef = {
-            key = "lore-webhook-secret"
-          }
-        },
-      ]
-    }
-  })
-
-  depends_on = [kubectl_manifest.cluster_secret_store]
-}
-
-resource "kubectl_manifest" "es_event_router_internal_token" {
-  yaml_body = yamlencode({
-    apiVersion = "external-secrets.io/v1beta1"
-    kind       = "ExternalSecret"
-    metadata = {
-      name      = "lore-agent-internal-token"
-      namespace = "lore-event-router"
-    }
-    spec = {
-      refreshInterval = "1h"
-      secretStoreRef = {
-        name = "gcp-secret-manager"
-        kind = "ClusterSecretStore"
-      }
-      target = {
-        name = "lore-agent-internal-token"
-      }
-      data = [
-        {
-          secretKey = "token"
-          remoteRef = {
-            key = "lore-agent-internal-token"
-          }
-        },
-      ]
-    }
-  })
-
-  depends_on = [kubectl_manifest.cluster_secret_store]
-}
-
-# --------------------------------------------------------------------------
 # Stations (lore-stations namespace) — ADR-024 service stations
 #
 # All materialized from the SAME GCP secrets the other services read. The
@@ -1132,25 +702,17 @@ resource "kubectl_manifest" "es_stations_anthropic_key" {
   depends_on = [kubectl_manifest.cluster_secret_store]
 }
 
-# --------------------------------------------------------------------------
-# Cluster agent (lore-cluster-agent namespace) — ADR-024
-#
-# No database credential: this service holds no pool. It DOES hold the GitHub
-# App triple, because it mints the per-task installation token itself so no
-# token crosses the network — the trade recorded in the ADR is that the App
-# private key now lives here as well as on the Floor.
-#
-# The ingest token must match the Floor's and lore-api's, or every call they
-# make is refused 401.
-# --------------------------------------------------------------------------
-
-resource "kubectl_manifest" "es_cluster_agent_internal_token" {
+# The Slack bot token for the stations that post to Slack: the escalation notify
+# step (which posted nothing without it, #2201) and the daily digest once its
+# line runs on the external floor (#2337). Same GSM secret the lore-api
+# namespace already mirrors.
+resource "kubectl_manifest" "es_stations_slack" {
   yaml_body = yamlencode({
     apiVersion = "external-secrets.io/v1beta1"
     kind       = "ExternalSecret"
     metadata = {
-      name      = "lore-agent-internal-token"
-      namespace = "lore-cluster-agent"
+      name      = "lore-stations-slack"
+      namespace = "lore-stations"
     }
     spec = {
       refreshInterval = "1h"
@@ -1159,56 +721,13 @@ resource "kubectl_manifest" "es_cluster_agent_internal_token" {
         kind = "ClusterSecretStore"
       }
       target = {
-        name = "lore-agent-internal-token"
+        name = "lore-stations-slack"
       }
       data = [
         {
-          secretKey = "token"
+          secretKey = "bot-token"
           remoteRef = {
-            key = "lore-agent-internal-token"
-          }
-        },
-      ]
-    }
-  })
-
-  depends_on = [kubectl_manifest.cluster_secret_store]
-}
-
-resource "kubectl_manifest" "es_cluster_agent_github_app" {
-  yaml_body = yamlencode({
-    apiVersion = "external-secrets.io/v1beta1"
-    kind       = "ExternalSecret"
-    metadata = {
-      name      = "lore-cluster-agent-github-app"
-      namespace = "lore-cluster-agent"
-    }
-    spec = {
-      refreshInterval = "1h"
-      secretStoreRef = {
-        name = "gcp-secret-manager"
-        kind = "ClusterSecretStore"
-      }
-      target = {
-        name = "lore-cluster-agent-github-app"
-      }
-      data = [
-        {
-          secretKey = "app-id"
-          remoteRef = {
-            key = "lore-github-app-id"
-          }
-        },
-        {
-          secretKey = "private-key"
-          remoteRef = {
-            key = "lore-github-app-private-key"
-          }
-        },
-        {
-          secretKey = "installation-id"
-          remoteRef = {
-            key = "lore-github-app-installation-id"
+            key = "lore-slack-bot-token"
           }
         },
       ]
@@ -1342,39 +861,6 @@ resource "kubectl_manifest" "es_floor_service_token_stations" {
   depends_on = [kubectl_manifest.cluster_secret_store]
 }
 
-resource "kubectl_manifest" "es_floor_service_token_lore_floor" {
-  count = var.enable_external_floor ? 1 : 0
-
-  yaml_body = yamlencode({
-    apiVersion = "external-secrets.io/v1beta1"
-    kind       = "ExternalSecret"
-    metadata = {
-      name      = "floor-service-token"
-      namespace = "lore-floor"
-    }
-    spec = {
-      refreshInterval = "1h"
-      secretStoreRef = {
-        name = "gcp-secret-manager"
-        kind = "ClusterSecretStore"
-      }
-      target = {
-        name = "floor-service-token"
-      }
-      data = [
-        {
-          secretKey = "token"
-          remoteRef = {
-            key = "lore-floor-service-token"
-          }
-        },
-      ]
-    }
-  })
-
-  depends_on = [kubectl_manifest.cluster_secret_store]
-}
-
 resource "kubectl_manifest" "es_floor_git_credential_token" {
   count = var.enable_external_floor ? 1 : 0
 
@@ -1410,7 +896,7 @@ resource "kubectl_manifest" "es_floor_git_credential_token" {
 
 # The floor's agent pods read header secrets from `agent-secrets` in namespace
 # `floor`, a Secret its own Helm release owns; Merge adds only the key the Lore
-# MCP gateway needs (the bare `Bearer <token>` credential, as in ai-agents.tf).
+# MCP gateway needs (the bare `Bearer <token>` credential).
 resource "kubectl_manifest" "es_floor_agent_secrets" {
   count = var.enable_external_floor ? 1 : 0
 

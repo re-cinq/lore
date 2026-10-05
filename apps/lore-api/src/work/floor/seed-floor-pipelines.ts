@@ -8,6 +8,7 @@ import {
   type Pipeline,
   type Put,
 } from "@re-cinq/floor-pipeline";
+import { withAgentPrompts } from "@re-cinq/lore-shared/project/agents/agent-prompts.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 
 export interface PipelineText {
@@ -37,16 +38,23 @@ export function withEnvironment(
   });
 }
 
+/** A shipped pipeline file as the floor is given it: the environment filled in, and each agent's prompt read from its agent-defaults .md. */
+export function pipelineOfText(
+  yamlText: string,
+  env: Record<string, string | undefined>,
+): Pipeline {
+  return pipelineOf(
+    withAgentPrompts(readPipelineFile(withEnvironment(yamlText, env))),
+  );
+}
+
 /** Puts every shipped pipeline, every time. A version is its content, so a definition the floor already holds is left exactly as it is and an edit made on the floor since stays the latest; only a file that CHANGED here becomes a new version. Answers what changed, as `kind/id`. */
 export async function seedFloorPipelines(deps: SeedDeps): Promise<string[]> {
   const files = await deps.files();
   const changed: string[] = [];
 
   for (const file of files) {
-    const pipeline = pipelineOf(
-      readPipelineFile(withEnvironment(file.text, deps.env)),
-    );
-    const puts = await deps.importPipeline(pipeline);
+    const puts = await deps.importPipeline(pipelineOfText(file.text, deps.env));
 
     changed.push(...puts.filter((put) => put.changed).map(putName));
   }

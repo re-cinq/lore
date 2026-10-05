@@ -59,8 +59,6 @@ export type TaskStatus =
   | "awaiting_approval";
 
 export type TaskType =
-  | "general"
-  | "implementation"
   | "runbook"
   | "gap-fill"
   | "review"

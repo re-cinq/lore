@@ -1,8 +1,9 @@
-// Command lore-code-trace is the portable CI test-ingestion orchestrator: it reads
-// a repo's .lore/test-commands.yml, runs the list + per-file run commands, and
-// (with --post) sends the report to Lore's Floor ci-tests hook. It is a faithful
+// Command lore-code-trace is the portable CI ingestion orchestrator. With no
+// subcommand it reads a repo's .lore/test-commands.yml, runs the list + per-file
+// run commands, and (with --post) sends the report to Lore; it is a faithful
 // port of the TS buildTestReport/run-tests CLI so any onboarded repo runs one
-// blessed binary instead of drifting inlined bash.
+// blessed binary instead of drifting inlined bash. `docs` sends the repo's
+// changed specs and ADRs instead (docs_run.go).
 package main
 
 import (
@@ -35,23 +36,67 @@ const (
 	runConcurrency  = 4
 )
 
-func main() {
-	args := os.Args[1:]
-	post := false
-	for _, a := range args {
-		if a == "--post" {
-			post = true
+// invocation is the command line, read once: `docs` ingests specs and ADRs,
+// `links` checks their test links, and no subcommand runs the tests and ingests
+// their report.
+type invocation struct {
+	docs  bool
+	links bool
+	post  bool
+	force bool
+	all   bool
+	base  string
+}
+
+func parseArgs(args []string) (invocation, error) {
+	parsed := invocation{}
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "docs":
+			parsed.docs = true
+		case "links":
+			parsed.links = true
+		case "--post":
+			parsed.post = true
+		case "--force":
+			parsed.force = true
+		case "--all":
+			parsed.all = true
+		case "--base":
+			if i+1 == len(args) {
+				return invocation{}, fmt.Errorf("--base needs the name of the branch the change targets")
+			}
+			i++
+			parsed.base = args[i]
 		}
 	}
+	return parsed, nil
+}
+
+func main() {
 	wd, err := os.Getwd()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "lore-code-trace:", err)
 		os.Exit(1)
 	}
-	if err := run(wd, post, os.Stdout); err != nil {
+	parsed, err := parseArgs(os.Args[1:])
+	if err == nil {
+		err = dispatch(parsed, wd)
+	}
+	if err != nil {
 		fmt.Fprintln(os.Stderr, "lore-code-trace:", err)
 		os.Exit(1)
 	}
+}
+
+func dispatch(parsed invocation, wd string) error {
+	if parsed.docs {
+		return runDocs(wd, docsOptions{post: parsed.post, force: parsed.force}, os.Stdout)
+	}
+	if parsed.links {
+		return runLinks(wd, linksOptions{all: parsed.all, base: parsed.base}, os.Stdout)
+	}
+	return run(wd, parsed.post, os.Stdout)
 }
 
 func run(startDir string, post bool, stdout io.Writer) error {
@@ -108,7 +153,7 @@ func run(startDir string, post bool, stdout io.Writer) error {
 	if apiBase := strings.TrimRight(os.Getenv("LORE_API_URL"), "/"); apiBase != "" {
 		err := runDeltaFlow(ctx, deltaDeps{
 			fetchState: func(ctx context.Context) (*string, error) {
-				return fetchIngestState(ctx, apiBase, token, repo, deltaClient)
+				return fetchIngestState(ctx, apiBase, token, repo, testReportKind, deltaClient)
 			},
 			reachable:    func(sha string) bool { return commitReachable(root, sha) },
 			changedSince: func(base string) ([]string, []string, error) { return changedSince(root, base) },
