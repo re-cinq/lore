@@ -20,7 +20,7 @@
 - [x] Extend `RepoEventDeps` with `startIssueTriage`, `findParkedTriageVisit`, and `reportTriageGate`.
 - [x] In `issueLabeled`, detect `lore:triage` / `triage: needs-triage` labels and call `deps.startIssueTriage`.
 - [x] In `issueLabeled`, for `lore:implementation`, call `deps.findParkedTriageVisit`; if found call `deps.reportTriageGate` BEFORE delegating to `dispatchLabeledIssue`.
-- [ ] Wire the three new deps in the station's composition root.
+- [x] Wire the three new deps in the station's composition root.
 
 ## Out of scope
 

@@ -63,12 +63,11 @@ function issueLabeled(deps: RepoEventDeps): EventHandler {
       return;
     }
 
-    if (label === "lore:implementation") {
-      const visitId = await deps.findParkedTriageVisit(repo, issue.number);
-      if (visitId) {
-        await deps.reportTriageGate(visitId);
-      }
-    }
+    const visitId =
+      label === "lore:implementation"
+        ? await deps.findParkedTriageVisit(repo, issue.number)
+        : null;
+    if (visitId) await deps.reportTriageGate(visitId);
 
     const labeled: LabeledIssue = { repo, label, issue };
     await dispatchLabeledIssue(await deps.labelDispatch(repo), labeled);
