@@ -16,6 +16,7 @@ import {
   type StationProject,
 } from "./plan-issue-filing.js";
 import { specSlugOf } from "./spec-task-inputs.js";
+import { planUrlOf } from "@re-cinq/lore-shared/feature-planning/plan-url.js";
 
 export interface IssuesStationDeps {
   /** Injectable project for tests; defaults to the pod's HTTP facade. */
@@ -108,19 +109,19 @@ function storyInput(
     repo: input.repo,
     stories: decomposition.stories,
     ...(planTitle ? { planTitle } : {}),
-    ...planUrlOf(uiUrl, input.repo, planId),
+    ...storyPlanUrl(uiUrl, input.repo, planId),
     ...(specSlug ? { specSlug } : {}),
   };
 }
 
-function planUrlOf(
+function storyPlanUrl(
   uiUrl: string | undefined,
   repo: string,
   planId: string | undefined,
 ): { planUrl?: string } {
-  return uiUrl && planId
-    ? { planUrl: `${uiUrl.replace(/\/+$/, "")}/repos/${repo}/plans/${planId}` }
-    : {};
+  const planUrl = planId ? planUrlOf(uiUrl, repo, planId) : undefined;
+
+  return planUrl ? { planUrl } : {};
 }
 
 function filed(storyNumber: number, taskCount: number): NodeResult {
