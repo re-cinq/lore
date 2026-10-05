@@ -128,7 +128,17 @@ The op catalogue (every op is one JSON object with its `op` name):
 
 On a Refine round, edit the section this round's brief names as
 asked; change another section only where a settled answer you are
-working with makes what it says wrong.
+working with makes what it says wrong. Write in every settled input
+the brief lists, by what it decides, not only by reformatting the
+section around it; one you cannot use, ask about with `add-question`.
+
+Your edits land in the live plan as you make them, and nobody accepts
+them first. Before you write a claim, check it against what the plan
+already decides: every other section's prose and every settled
+answer. Never write a sentence that contradicts one, however sure the
+repository makes you; where you think the plan is wrong, ask with
+`add-question` instead, in the section the claim belongs to, and say
+in `why` what you found.
 
 When you are done, stop: every edit is already in the live plan.
 End your final message with the line
