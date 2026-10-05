@@ -76,7 +76,7 @@ Enqueues a new server-side pipeline task and returns its UUID and a pickup hint.
    non-trust query errors are swallowed). Then `INSERT INTO pipeline.tasks
    (description, task_type, target_repo, created_by, context_bundle, priority[, task_group_id])
    … RETURNING id, status, priority, created_at`, optional `UPDATE … SET context_refs`,
-   then `recordEvent(pool, id, null, "pending", {created_by, priority})`. ([validated by `inserts task_group_id grp-1 as the seventh insert parameter`](../../../libs/shared/src/domain/pipeline-tasks.trust.test.ts#L88), [validated by `inserts six parameters and no task_group_id column without a group id`](../../../libs/shared/src/domain/pipeline-tasks.trust.test.ts#L106))
+   then `recordEvent(pool, id, null, "pending", {created_by, priority})`. ([validated by `inserts task_group_id grp-1 as the seventh insert parameter`](../../../libs/shared/src/domain/pipeline-tasks.trust.test.ts#L90), [validated by `inserts six parameters and no task_group_id column without a group id`](../../../libs/shared/src/domain/pipeline-tasks.trust.test.ts#L108))
 5. **Success message** — both transports return:
    `"Task created: {task_id}\nType: {type}\nPriority: {priority}\nRepo: {repo|'default'}\n\n{pickupMsg}"`
    where `pickupMsg` is *"The GKE agent will pick this up within 30 seconds."*
@@ -132,7 +132,7 @@ pickup hint; a 401 is reported as a denied error.
 The shared trust gate allows `onboard` at every trust tier — it produces a
 docs-only scaffolding PR and is guarded against duplicates by its own route, so
 restricting it to `full` would only break the reonboard repair path on
-auto-promoted repos — while a genuinely disallowed type is still refused. ([validated by `allows an onboard task at trust level %s`](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L33), [validated by still refuses a spec-task at trust level docs](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L48))
+auto-promoted repos — while a genuinely disallowed type is still refused. ([validated by `allows an onboard task at trust level %s`](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L35), [validated by still refuses a spec-task at trust level docs](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L50))
 
 `buildContextBundle` (`apps/lore-api/src/work/pipeline/context-bundle.ts`) assembles this same `context` shape (`pipeline_task_id`, `spec_file`, `seed_query`, `branch`) into the markdown sections handed to an agent: an absent or empty `context` renders an empty string.
 

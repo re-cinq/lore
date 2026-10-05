@@ -608,7 +608,7 @@ The system MUST detect when specifications diverge from implementation. ([valida
 ### FR-15: Progressive Trust (Phase 1)
 
 The system MUST gate task types per-repo based on demonstrated
-reliability. ([validated by `pipeline-tasks.trust.test.ts:33`](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L33))
+reliability. ([validated by `pipeline-tasks.trust.test.ts:33`](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L35))
 
 - FR-15.1: `settings.trust.level` controls which task types are
   allowed: `docs` (gap-fill/runbook/onboard + feature-planning
@@ -617,7 +617,7 @@ reliability. ([validated by `pipeline-tasks.trust.test.ts:33`](libs/shared/src/d
   every one was refused until 2026-09-29),
   `full` (all). `onboard` is allowed at every tier — it produces a
   docs-only scaffolding PR and duplicate protection lives in its own
-  route's guard, not the trust ladder. ([validated by `allows an onboard task at trust level %s`](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L33), [validated by still refuses a spec-task at trust level docs](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L48), [validated by allows a spec-task at trust level implementation](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L171), [validated by allows a spec-task at trust level full](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L177), [validated by refuses a spec-task at trust level tests](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L181))
+  route's guard, not the trust ladder. ([validated by `allows an onboard task at trust level %s`](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L35), [validated by still refuses a spec-task at trust level docs](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L50), [validated by allows a spec-task at trust level implementation](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L173), [validated by allows a spec-task at trust level full](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L179), [validated by refuses a spec-task at trust level tests](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L183))
 - FR-15.2: Trust auto-promotes after 3 successful merges at the current level
   (overridable per repo via `auto_promote_threshold`), climbing
   `docs → tests → implementation → full` and resetting the merge counter on
