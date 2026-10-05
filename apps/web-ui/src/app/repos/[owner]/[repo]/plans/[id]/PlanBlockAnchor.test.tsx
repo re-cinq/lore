@@ -49,4 +49,23 @@ describe("PlanBlockAnchor", () => {
 
     expect(scrolled).toEqual([]);
   });
+
+  it("scrolls to block b-7 when the editor rendered it before the page looked", async () => {
+    window.history.replaceState(null, "", "/repos/o/r/plans/p1#b-7");
+    editorRenders("b-7");
+
+    render(<PlanBlockAnchor />);
+
+    await waitFor(() => expect(scrolled).toEqual(["b-7"]));
+  });
+
+  it("renders without scrolling when the address ends in a malformed escape like #%E0%A4%A", async () => {
+    window.history.replaceState(null, "", "/repos/o/r/plans/p1#%E0%A4%A");
+
+    render(<PlanBlockAnchor />);
+    editorRenders("b-7");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(scrolled).toEqual([]);
+  });
 });
