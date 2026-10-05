@@ -301,7 +301,7 @@ describe("ImplementationLoopView when the repo is not onboarded", () => {
 
     expect(
       getByRole("link", { name: "Onboarding is running" }).getAttribute("href"),
-    ).toBe("/tasks/t3");
+    ).toBe("/assembly-runs/t3");
     expect(queryByRole("button", { name: "Retry onboarding" })).toBeNull();
   });
 

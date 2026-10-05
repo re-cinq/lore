@@ -146,10 +146,10 @@ function CreateFirstTaskPrompt({ owner, repo }: RepoLinkProps) {
   );
 }
 
-/** One task row. The description is truncated because this table is a glance at what the repo has been doing — the task page is where a description is read in full. */
+/** One task row. The description is truncated because this table is a glance at what the repo has been doing — the link is to the task's run, which the run page resolves from the task id. */
 function taskCells(task: RepoOverviewViewProps["recentTasks"][number]) {
   return [
-    <Link href={`/tasks/${task.id}`} key="task">
+    <Link href={`/assembly-runs/${task.id}`} key="task">
       {task.description.substring(0, 60)}...
     </Link>,
     <span className={`op-badge op-${task.status}`} key="status">

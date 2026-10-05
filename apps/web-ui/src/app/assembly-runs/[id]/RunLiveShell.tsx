@@ -20,7 +20,7 @@ import DefinitionOfDonePanel from "./DefinitionOfDonePanel";
 import { AssemblyRunOptions } from "./AssemblyRunOptions";
 import RunVisualizationPanel from "./RunVisualizationPanel";
 import { waitingOnPerson } from "@/lib/human-station";
-import LlmCallsTable from "@/app/tasks/[id]/LlmCallsTable";
+import LlmCallsTable from "./LlmCallsTable";
 
 export interface RunLiveShellProps {
   run: AssemblyRun;
