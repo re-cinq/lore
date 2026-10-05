@@ -6,20 +6,20 @@
 
 ## Done when these pass
 
-- [ ] **lore:triage label starts an issue-triage floor run** — `repoEventHandlers` calls `deps.startIssueTriage(repo, issueNumber, issueUrl)` when the applied label is `lore:triage`.
+- [x] **lore:triage label starts an issue-triage floor run** — `repoEventHandlers` calls `deps.startIssueTriage(repo, issueNumber, issueUrl)` when the applied label is `lore:triage`.
   `apps/stations/src/events/repo-handlers.test.ts`
 
-- [ ] **triage: needs-triage label also starts an issue-triage floor run** — same handler, same behavior for the alternative triage trigger label.
+- [x] **triage: needs-triage label also starts an issue-triage floor run** — same handler, same behavior for the alternative triage trigger label.
   `apps/stations/src/events/repo-handlers.test.ts`
 
-- [ ] **lore:implementation resumes the parked visit before activeTaskByIssue fires** — `deps.reportTriageGate(visitId)` is called for the parked human-gate visit before the `activeTaskByIssue` check in `dispatchLabeledIssue`, so the run advances rather than being blocked as 'already being worked on'.
+- [x] **lore:implementation resumes the parked visit before activeTaskByIssue fires** — `deps.reportTriageGate(visitId)` is called for the parked human-gate visit before the `activeTaskByIssue` check in `dispatchLabeledIssue`, so the run advances rather than being blocked as 'already being worked on'.
   `apps/stations/src/events/repo-handlers.test.ts`
 
 ## Facets
 
-- [ ] Extend `RepoEventDeps` with `startIssueTriage`, `findParkedTriageVisit`, and `reportTriageGate`.
-- [ ] In `issueLabeled`, detect `lore:triage` / `triage: needs-triage` labels and call `deps.startIssueTriage`.
-- [ ] In `issueLabeled`, for `lore:implementation`, call `deps.findParkedTriageVisit`; if found call `deps.reportTriageGate` BEFORE delegating to `dispatchLabeledIssue`.
+- [x] Extend `RepoEventDeps` with `startIssueTriage`, `findParkedTriageVisit`, and `reportTriageGate`.
+- [x] In `issueLabeled`, detect `lore:triage` / `triage: needs-triage` labels and call `deps.startIssueTriage`.
+- [x] In `issueLabeled`, for `lore:implementation`, call `deps.findParkedTriageVisit`; if found call `deps.reportTriageGate` BEFORE delegating to `dispatchLabeledIssue`.
 - [ ] Wire the three new deps in the station's composition root.
 
 ## Out of scope

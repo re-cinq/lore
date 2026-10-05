@@ -15,6 +15,19 @@ export interface RepoEventDeps {
   dropOverlay(repo: string, branch: string): Promise<void>;
   /** A team change moves the repository's stored context into the team's schema, where reads now look; answers what it did. */
   relocateChunks(repo: string): Promise<string>;
+  /** Starts an issue-triage floor run for the given issue (FR7). */
+  startIssueTriage(
+    repo: string,
+    issueNumber: number,
+    issueUrl: string,
+  ): Promise<string>;
+  /** Returns the visit-id of the issue-triage run parked at human-gate for this issue, or null (FR16). */
+  findParkedTriageVisit(
+    repo: string,
+    issueNumber: number,
+  ): Promise<string | null>;
+  /** Reports success to a parked human-gate visit so the triage run advances (FR16). */
+  reportTriageGate(visitId: string): Promise<void>;
 }
 
 export const REPO_EVENTS: readonly string[] = [
@@ -35,11 +48,30 @@ export function repoEventHandlers(
   ]);
 }
 
+const TRIAGE_TRIGGER_LABELS = ["lore:triage", "triage: needs-triage"] as const;
+
 function issueLabeled(deps: RepoEventDeps): EventHandler {
   return async (params) => {
-    const labeled = params as unknown as LabeledIssue;
+    const { repo, label, issue } = params as unknown as {
+      repo: string;
+      label: string;
+      issue: { number: number; html_url?: string; labels: readonly string[] };
+    };
 
-    await dispatchLabeledIssue(await deps.labelDispatch(labeled.repo), labeled);
+    if ((TRIAGE_TRIGGER_LABELS as readonly string[]).includes(label)) {
+      await deps.startIssueTriage(repo, issue.number, issue.html_url ?? "");
+      return;
+    }
+
+    if (label === "lore:implementation") {
+      const visitId = await deps.findParkedTriageVisit(repo, issue.number);
+      if (visitId) {
+        await deps.reportTriageGate(visitId);
+      }
+    }
+
+    const labeled: LabeledIssue = { repo, label, issue };
+    await dispatchLabeledIssue(await deps.labelDispatch(repo), labeled);
   };
 }
 
