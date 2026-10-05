@@ -108,6 +108,19 @@ describe("coverageBrief", () => {
     );
   });
 
+  it("keeps a block whose text spans two lines on one list line", () => {
+    const twoLines = {
+      ...blocks[0],
+      text: "Members pay\n  in their currency.",
+    };
+
+    expect(
+      coverageBrief({ total: 1, cited: 0, missing: [twoLines] }).split("\n")[4],
+    ).toBe(
+      `- intent (paragraph): Members pay in their currency. — cite ${PLAN_URL}#b-why`,
+    );
+  });
+
   it("says every block is cited when none is missing", () => {
     expect(coverageBrief({ total: 3, cited: 3, missing: [] })).toBe(
       "## Plan coverage\n\n3 of 3 plan blocks are cited by a spec statement.\n",

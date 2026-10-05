@@ -111,8 +111,11 @@ export function coverageBrief({ total, cited, missing }: PlanCoverage): string {
   ].join("\n");
 }
 
+// The whole text, on one line: a line break inside it would end the list item, and the writer needs every word of what it must specify.
 function missingLine(block: CitableBlock): string {
-  return `- ${block.slot} (${block.kind}): ${block.text} — cite ${block.link}`;
+  const text = block.text.replace(/\s+/g, " ").trim();
+
+  return `- ${block.slot} (${block.kind}): ${text} — cite ${block.link}`;
 }
 
 /** How many times the coverage check may send the spec writer back before the spec PR opens with its gaps listed; the feature-planning line's `spec-coverage → write` edge carries the same budget as its backstop. */
