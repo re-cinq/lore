@@ -23,9 +23,11 @@ export async function runTriageLabelStation(
   const { outcome, issue_number } = input.params;
   const label = triageLabelForOutcome(outcome);
   const issueNumber = Number(issue_number);
+  const { issues } = deps.project;
 
   try {
-    await deps.project.issues.addLabel(issueNumber, label);
+    await issues.addLabel(issueNumber, label);
+
     return { outcome: "success" };
   } catch {
     return { outcome: "failed" };
