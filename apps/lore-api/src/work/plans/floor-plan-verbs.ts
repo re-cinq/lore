@@ -49,10 +49,10 @@ function draftingVerbs(
 ): Pick<PlanContentVerbs, "draft" | "refine"> {
   return {
     draft: async (plan, request) =>
-      startFloorDrafting(
-        deps,
-        await briefed(plan, draftBrief(plan, request.known)),
-      ),
+      startFloorDrafting(deps, {
+        ...(await briefed(plan, draftBrief(plan, request.known))),
+        storyUrl: request.storyUrl,
+      }),
     refine: async (plan, refine) =>
       askFloorRefine(deps, {
         ...(await briefed(plan, refineBrief(plan, refine))),

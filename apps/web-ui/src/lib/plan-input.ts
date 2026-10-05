@@ -5,6 +5,8 @@ export interface NewPlanInput {
   title: string;
   type: PlanKind;
   description: string;
+  /** The user story the plan answers; empty when the author names none. */
+  storyUrl: string;
 }
 
 const isPlanKind = (type: string): type is PlanKind =>
@@ -24,7 +26,12 @@ export function newPlanInput(
     return { error: `Unknown plan type ${type}.` };
   }
 
-  return { title, type, description: field(formData, "description") };
+  return {
+    title,
+    type,
+    description: field(formData, "description"),
+    storyUrl: field(formData, "storyUrl"),
+  };
 }
 
 /** The description's paragraphs, as the plan's intent section holds them. */

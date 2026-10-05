@@ -10,7 +10,7 @@ const form = (fields: Record<string, string>) => {
 };
 
 describe("newPlanInput", () => {
-  it("reads a performance plan titled Faster checkout with its description", () => {
+  it("reads a performance plan titled Faster checkout with its description and no user story", () => {
     expect(
       newPlanInput(
         form({
@@ -23,7 +23,20 @@ describe("newPlanInput", () => {
       title: "Faster checkout",
       type: "performance",
       description: "p95 is 450 ms",
+      storyUrl: "",
     });
+  });
+
+  it("reads user story re-cinq/lore#42 trimmed", () => {
+    expect(
+      newPlanInput(
+        form({
+          title: "Faster checkout",
+          type: "feature",
+          storyUrl: " https://github.com/re-cinq/lore/issues/42 ",
+        }),
+      ),
+    ).toMatchObject({ storyUrl: "https://github.com/re-cinq/lore/issues/42" });
   });
 
   it("asks for a title when the title is blank", () => {

@@ -62,6 +62,8 @@ export interface FloorPlanMarkdown {
   planMarkdown: string;
   /** What this round asks for, as the agent is told it: the draft's own brief, the section a Refine names, or which spec pass this is. Reading the plan cannot tell an agent which of its sections a person just clicked. */
   brief: string;
+  /** The user story this plan answers, when the request names one; a round that names none keeps the one its plan's last run carried. */
+  storyUrl?: string;
 }
 
 export interface FloorRefineInput extends FloorPlanMarkdown {
@@ -71,7 +73,7 @@ export interface FloorRefineInput extends FloorPlanMarkdown {
 /** Drafts the plan: a run waiting on its author goes back to the agent with the edited plan and no section (a draft answers none); otherwise a run starts, or joins the one already open. The run's id either way. */
 export async function startFloorDrafting(
   deps: FloorPlanDeps,
-  { plan, planMarkdown, brief }: FloorPlanMarkdown,
+  { plan, planMarkdown, brief, storyUrl }: FloorPlanMarkdown,
 ): Promise<string> {
   const line = await floorPlanLineState(deps.floor, keyOf(plan));
   const planMd = await storeMarkdown(deps.floor, planMarkdown);
@@ -85,7 +87,7 @@ export async function startFloorDrafting(
     return line.lineId;
   }
 
-  return startPlanRun(deps, { plan, planMd, brief });
+  return startPlanRun(deps, line, { plan, planMd, brief, storyUrl });
 }
 
 /** Sends one section back to the agent while the run waits on its author; at any other moment it is refused with the reason, so the editor withdraws the ask and the page says why. The refine value is what `plan-pass-end` reads back. */
@@ -122,7 +124,7 @@ async function startRefineRound(
   );
   const planMd = await storeMarkdown(deps.floor, planMarkdown);
 
-  await startPlanRun(deps, {
+  await startPlanRun(deps, line, {
     plan,
     planMd,
     brief,
@@ -175,7 +177,7 @@ export async function approveFloorPlan(
   }
 
   if (decision.kind === "start-spec-work") {
-    await startSpecPass(deps, input);
+    await startSpecPass(deps, line, input);
   }
 
   return decision;
@@ -191,7 +193,7 @@ export async function startFloorSpecWork(
   enforceTrue(input.plan.status === "approved", apiError(409), NOT_APPROVED);
   enforceTrue(!line || line.open === null, apiError(409), SPEC_WORK_RUNNING);
 
-  return startSpecPass(deps, await amended(deps, input, line));
+  return startSpecPass(deps, line, await amended(deps, input, line));
 }
 
 /** A pass over specs an earlier one already wrote is briefed as the amendment it is: onto the branch of a spec PR still open, or onto what reached main. A plan reaching its specs for the first time keeps the approved brief it came with. */
@@ -279,11 +281,17 @@ async function reportApproved(
 
 async function startSpecPass(
   deps: FloorPlanDeps,
+  line: FloorPlanLine | null,
   { plan, planMarkdown, brief }: FloorPlanMarkdown,
 ): Promise<string> {
   const planMd = await storeMarkdown(deps.floor, planMarkdown);
 
-  return startPlanRun(deps, { plan, planMd, brief, entry: SPEC_WORK_ENTRY });
+  return startPlanRun(deps, line, {
+    plan,
+    planMd,
+    brief,
+    entry: SPEC_WORK_ENTRY,
+  });
 }
 
 interface PlanRunStart {
@@ -293,27 +301,30 @@ interface PlanRunStart {
   /** The section this round answers, for a Refine that had no round waiting to take it. */
   refine?: string;
   entry?: string;
+  storyUrl?: string;
 }
 
 // A start that names an entry skips the nodes before it: the plan is settled, so the run opens at the spec analysis.
 async function startPlanRun(
   deps: FloorPlanDeps,
+  previous: FloorPlanLine | null,
   start: PlanRunStart,
 ): Promise<string> {
   const { plan, entry } = start;
+  const storyUrl = start.storyUrl ?? previous?.storyUrl ?? undefined;
   const started = await startLine(deps.floor.lines, PLANNING_DEFINITION, {
     repo: floorRepoOf(plan.repo),
-    startItems: await startItemsOf(deps, start),
+    startItems: await startItemsOf(deps, { ...start, storyUrl }),
     ...(entry ? { entry } : {}),
   });
 
   return started.run.id;
 }
 
-/** What a planning run is started with: the spec branch to write on, the base the nodes after the merge read, the plan and this round's brief. */
+/** What a planning run is started with: the spec branch to write on, the base the nodes after the merge read, the plan, this round's brief and the user story it answers, when it names one. */
 async function startItemsOf(
   deps: FloorPlanDeps,
-  { plan, planMd, brief, refine }: PlanRunStart,
+  { plan, planMd, brief, refine, storyUrl }: PlanRunStart,
 ): Promise<Record<string, ReturnType<typeof valueItem>>> {
   const [branch, base] = await Promise.all([
     deps.specBranch(plan),
@@ -329,5 +340,6 @@ async function startItemsOf(
     plan_md: fileItem(planMd),
     description: valueItem(brief),
     refine: valueItem(refine ?? NO_REFINE),
+    ...(storyUrl ? { issue_url: valueItem(storyUrl) } : {}),
   };
 }

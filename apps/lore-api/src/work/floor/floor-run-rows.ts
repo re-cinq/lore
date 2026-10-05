@@ -29,21 +29,30 @@ export type FloorRunSource = Pick<
   "page" | "listing" | "costsByRun"
 >;
 
-/** What a floor run joins beyond itself: its pull request is its own start item and its cost is the floor's sum. */
+const ISSUE_NUMBER = /\/issues\/(\d+)\/?$/;
+
+/** What a floor run joins beyond itself: its pull request and its issue are its own start items and its cost is the floor's sum. */
 export function floorEnrichmentOf(
   run: AssemblyRunSummary,
   costUsd: number | undefined,
 ): RunEnrichment {
-  const prUrl = run.args["pr_url"];
+  const issueUrl = stringArg(run, "issue_url");
+  const issueDigits = issueUrl ? ISSUE_NUMBER.exec(issueUrl)?.[1] : undefined;
 
   return {
-    pr_url: typeof prUrl === "string" ? prUrl : null,
+    pr_url: stringArg(run, "pr_url"),
     task_pr_number: null,
-    issue_url: null,
-    issue_number: null,
+    issue_url: issueUrl,
+    issue_number: issueDigits ? Number(issueDigits) : null,
     created_by: null,
     cost_usd: costUsd ?? null,
   };
+}
+
+function stringArg(run: AssemblyRunSummary, name: string): string | null {
+  const value = run.args[name];
+
+  return typeof value === "string" ? value : null;
 }
 
 function wireRow(

@@ -146,6 +146,35 @@ describe("the plan routes on a plan the floor holds", () => {
     ]);
   });
 
+  it("starts the run with issue_url re-cinq/lore#42 when drafting names that user story", async () => {
+    const { server, requests } = subject({ runs: false });
+    const storyUrl = "https://github.com/re-cinq/lore/issues/42";
+
+    const res = await post(server, "drafting", {
+      known: "Slow.",
+      createdBy: "ana",
+      storyUrl,
+    });
+
+    expect(answer(res)).toEqual({ status: 202, body: { task_id: "run-new" } });
+    expect(requests.at(-1)?.body).toMatchObject({
+      startItems: { issue_url: { kind: "value", ref: storyUrl } },
+    });
+  });
+
+  it("answers drafting with 400 and starts nothing when the user story is not-a-url", async () => {
+    const { server, requests } = subject({ runs: false });
+
+    const res = await post(server, "drafting", {
+      known: "Slow.",
+      createdBy: "ana",
+      storyUrl: "not-a-url",
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(writes(requests)).toEqual([]);
+  });
+
   it("answers refine with 202 and reports the section on the author visit", async () => {
     const { server, requests } = subject({ visits: ON_AUTHOR });
 

@@ -793,3 +793,60 @@ describe("floorPlanVerbs", () => {
     expect(reopened).toEqual(["p1"]);
   });
 });
+
+const STORY_URL = "https://github.com/re-cinq/lore/issues/42";
+
+function startedIssueUrl(requests: FloorRequest[]): string | undefined {
+  const body = posts(requests).at(-1)?.body as {
+    startItems?: { issue_url?: { ref?: string } };
+  };
+
+  return body?.startItems?.issue_url?.ref;
+}
+
+describe("the user story a planning run carries", () => {
+  it("starts the run with issue_url re-cinq/lore#42 when the draft names that story", async () => {
+    const { deps, requests } = scene(NO_RUN);
+
+    await startFloorDrafting(deps, {
+      plan: DRAFT,
+      planMarkdown: MARKDOWN,
+      brief: BRIEF,
+      storyUrl: STORY_URL,
+    });
+
+    expect(startedIssueUrl(requests)).toBe(STORY_URL);
+  });
+
+  it("carries issue_url re-cinq/lore#42 over from the finished run when a later round names no story", async () => {
+    const storied = planRun({
+      outcome: "failed",
+      finishedAt: "2026-10-01T10:00:00.000Z",
+      startItems: {
+        ...FINISHED.startItems,
+        issue_url: { kind: "value", ref: STORY_URL, by: "lore" },
+      },
+    });
+    const { deps, requests } = scene({ runs: [storied] });
+
+    await startFloorDrafting(deps, {
+      plan: DRAFT,
+      planMarkdown: MARKDOWN,
+      brief: BRIEF,
+    });
+
+    expect(startedIssueUrl(requests)).toBe(STORY_URL);
+  });
+
+  it("starts the run with no issue_url when neither the draft nor an earlier run names a story", async () => {
+    const { deps, requests } = scene({ runs: [FINISHED] });
+
+    await startFloorDrafting(deps, {
+      plan: DRAFT,
+      planMarkdown: MARKDOWN,
+      brief: BRIEF,
+    });
+
+    expect(startedIssueUrl(requests)).toBeUndefined();
+  });
+});

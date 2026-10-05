@@ -30,7 +30,7 @@ export default function NewPlanView({ action }: { action: CreateAction }) {
   );
 }
 
-/** Title and template are required; the description seeds the plan's intent. */
+/** Title and template are required; the description seeds the plan's intent, and the user story is carried on its planning run. */
 function PlanFields() {
   return (
     <>
@@ -47,7 +47,21 @@ function PlanFields() {
           placeholder="What should change, for whom, and why? It becomes the plan's intent."
         />
       </label>
+      <StoryField />
     </>
+  );
+}
+
+function StoryField() {
+  return (
+    <label>
+      User story
+      <input
+        name="storyUrl"
+        type="url"
+        placeholder="https://github.com/owner/repo/issues/123"
+      />
+    </label>
   );
 }
 

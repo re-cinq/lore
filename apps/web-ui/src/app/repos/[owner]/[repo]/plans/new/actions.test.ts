@@ -105,6 +105,27 @@ describe("createPlanAction", () => {
     ]);
   });
 
+  it("asks for the draft with user story re-cinq/lore#42 when the form names it", async () => {
+    const storyUrl = "https://github.com/re-cinq/lore/issues/42";
+
+    await expect(
+      createPlanAction(
+        "re-cinq/lore",
+        null,
+        form({
+          title: "Faster checkout",
+          type: "feature",
+          description: "",
+          storyUrl,
+        }),
+      ),
+    ).rejects.toThrow(new Error("redirect /repos/re-cinq/lore/plans/p1"));
+    expect(calls().at(-1)).toEqual({
+      url: "http://api:3000/api/repos/re-cinq/lore/plans/p1/drafting",
+      body: { known: "", createdBy: "gedaiu", storyUrl },
+    });
+  });
+
   it("leaves the template's intent alone when the description is empty", async () => {
     await expect(
       createPlanAction(

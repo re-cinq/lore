@@ -30,6 +30,8 @@ export interface FloorPlanLine extends Omit<
 > {
   parkedAuthor: ParkedVisit | null;
   parkedMerged: ParkedVisit | null;
+  /** The user story the run was started for, as its `issue_url` start item; null when it names none. */
+  storyUrl: string | null;
 }
 
 export interface PlanKey {
@@ -109,6 +111,7 @@ export function planLineOf(run: RunView, visits: VisitView[]): FloorPlanLine {
     parkedAuthor: open ? parkedVisit(visits, AUTHOR_NODE) : null,
     parkedMerged: open ? parkedVisit(visits, MERGED_NODE) : null,
     merged: visits.some(mergedSucceeded),
+    storyUrl: startValue(run, "issue_url") ?? null,
   };
 }
 

@@ -32,7 +32,7 @@ export default function PlanDetailView({
 
   return (
     <div>
-      <PlanHeader meta={meta} deletePlan={deletePlan} />
+      <PlanHeader meta={meta} run={run} deletePlan={deletePlan} />
       <PlanRunPanel {...card} />
       <PlanBody meta={meta} run={run} user={user} state={state} {...actions} />
     </div>
@@ -98,15 +98,16 @@ function specPrOf(run: PlanRun | null): typeof NO_PR {
   return { prUrl, prNumber, prTitle, prUnresolvedThreads };
 }
 
-type PlanHeaderProps = Pick<PlanDetailViewProps, "meta" | "deletePlan">;
+type PlanHeaderProps = Pick<PlanDetailViewProps, "meta" | "run" | "deletePlan">;
 
-function PlanHeader({ meta, deletePlan }: PlanHeaderProps) {
+function PlanHeader({ meta, run, deletePlan }: PlanHeaderProps) {
   return (
     <div className={styles.header}>
       <p className="meta">
         {meta.type} plan · version {meta.version} · by {meta.createdBy}
         {meta.approval &&
           ` · approved by ${meta.approval.approvedBy} on ${approvedOn(meta.approval.approvedAt)}`}
+        {run?.issueUrl && <UserStoryLink run={run} />}
       </p>
       <div className={styles.headerActions}>
         <PlanStatusBadge status={meta.status} />
@@ -117,6 +118,17 @@ function PlanHeader({ meta, deletePlan }: PlanHeaderProps) {
         />
       </div>
     </div>
+  );
+}
+
+function UserStoryLink({ run }: { run: PlanRun }) {
+  return (
+    <>
+      {" · "}
+      <a href={run.issueUrl ?? undefined} target="_blank" rel="noreferrer">
+        User story{run.issueNumber === null ? "" : ` #${run.issueNumber}`}
+      </a>
+    </>
   );
 }
 

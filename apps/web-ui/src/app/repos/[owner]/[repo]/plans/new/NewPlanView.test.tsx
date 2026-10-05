@@ -24,4 +24,14 @@ describe("NewPlanView", () => {
       ],
     });
   });
+
+  it("asks for an optional user story URL", () => {
+    render(<NewPlanView action={async () => ({})} />);
+    const story = screen.getByRole("textbox", { name: "User story" });
+
+    expect({
+      type: story.getAttribute("type"),
+      required: (story as HTMLInputElement).required,
+    }).toEqual({ type: "url", required: false });
+  });
 });

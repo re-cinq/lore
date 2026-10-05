@@ -5581,6 +5581,10 @@
                   "createdBy": {
                     "type": "string",
                     "minLength": 1
+                  },
+                  "storyUrl": {
+                    "type": "string",
+                    "format": "uri"
                   }
                 },
                 "required": ["known", "createdBy"],
