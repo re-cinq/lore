@@ -72,7 +72,8 @@ Never repeat one already marked `resolved`.
 
 ## Your deliverable
 
-The file `plan-validation.json`, written to the current directory:
+The file `plan-validation.json`, written at exactly `{plan_validation_path}`
+(your session starts in `/`, which is not where it is collected):
 
     {
       "findings": [
@@ -89,7 +90,7 @@ The file `plan-validation.json`, written to the current directory:
 Write `{"findings": []}` when the plan is clean. After EVERY write,
 validate it:
 
-    node -e 'JSON.parse(require("fs").readFileSync("plan-validation.json"))'
+    node -e 'JSON.parse(require("fs").readFileSync("{plan_validation_path}"))'
 
 (jq is not installed in this pod.) If it throws, fix the file and
 re-run until it exits silently.

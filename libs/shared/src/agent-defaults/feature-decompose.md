@@ -37,7 +37,7 @@ gateway has no checkout to detect it from.
 
 Read the specs, their plan.md and tasks.md, and the approved plan
 before you write anything. Then emit JSON only. Write that JSON to
-`decomposition.json` in the current directory; the file is the
+`decomposition.json` at exactly `{decomposition_path}`; the file is the
 deliverable:
 
 {
