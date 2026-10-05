@@ -209,6 +209,29 @@ describe("runIssuesStation citing the spec", () => {
     );
   });
 
+  it("links FR1 at the branch spec/x it read the spec at when the decomposition names no commit", async () => {
+    const fake = fakeProject(LABELS, [], { "specs/live/spec.md": SPEC });
+    const { spec_commit: _none, ...uncommitted } =
+      JSON.parse(CITING_DECOMPOSITION);
+
+    await runIssuesStation(
+      input({
+        feature_decomposition: JSON.stringify(uncommitted),
+        spec_path: "specs/live/",
+      }),
+      { project: fake.project },
+    );
+
+    expect({
+      reads: fake.reads,
+      linksBranch: fake.bodies
+        .get(102)
+        ?.includes(
+          "(https://github.com/re-cinq/lore/blob/spec/x/specs/live/spec.md#L7)",
+        ),
+    }).toEqual({ reads: ["specs/live/spec.md@spec/x"], linksBranch: true });
+  });
+
   it("files the issues without a spec section when spec_path names no file on the branch", async () => {
     const fake = fakeProject(LABELS);
 

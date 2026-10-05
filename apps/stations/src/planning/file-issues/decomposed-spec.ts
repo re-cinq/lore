@@ -31,12 +31,13 @@ export async function decomposedSpec(
     return undefined;
   }
   const file = specFileOf(specPath);
-  const text = await read(file, commit ?? branch);
+  const ref = commit ?? branch;
+  const text = await read(file, ref);
 
   return text === null
     ? undefined
     : {
         parts: specParts(text),
-        linkOf: (line) => statementLink({ repo, file, commit, line }),
+        linkOf: (line) => statementLink({ repo, file, ref, line }),
       };
 }

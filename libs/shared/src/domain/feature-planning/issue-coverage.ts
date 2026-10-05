@@ -98,18 +98,18 @@ export function specFileOf(specPath: string): string {
 export interface StatementLinkInput {
   repo: string;
   file: string;
-  /** The commit the decomposition read; the default branch's head when it named none. */
-  commit?: string;
+  /** The commit or branch the spec was read at, so the line is the one decompose saw. */
+  ref: string;
   line: number;
 }
 
 export function statementLink({
   repo,
   file,
-  commit,
+  ref,
   line,
 }: StatementLinkInput): string {
-  return `https://github.com/${repo}/blob/${commit ?? "HEAD"}/${file}#L${line}`;
+  return `https://github.com/${repo}/blob/${ref}/${file}#L${line}`;
 }
 
 /** The coverage as the story issue shows it and decompose's next round reads it. */

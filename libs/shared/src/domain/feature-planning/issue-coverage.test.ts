@@ -79,7 +79,7 @@ describe("issueCoverage", () => {
 
 describe("issueCoverageBrief", () => {
   const link = (line: number) =>
-    statementLink({ repo: "o/r", file: "specs/f/spec.md", line });
+    statementLink({ repo: "o/r", file: "specs/f/spec.md", ref: "main", line });
 
   it("names each statement no task covers with its line and link", () => {
     const coverage = issueCoverage(specParts(SPEC), [
@@ -92,7 +92,7 @@ describe("issueCoverageBrief", () => {
         "",
         "3 of 4 testable spec statements have a task. Not covered yet:",
         "",
-        "- line 10: FR3 — The story lists every task. — https://github.com/o/r/blob/HEAD/specs/f/spec.md#L10",
+        "- line 10: FR3 — The story lists every task. — https://github.com/o/r/blob/main/specs/f/spec.md#L10",
         "",
       ].join("\n"),
     );
@@ -113,7 +113,7 @@ describe("statementLink", () => {
       statementLink({
         repo: "o/r",
         file: "specs/f/spec.md",
-        commit: "abc123",
+        ref: "abc123",
         line: 42,
       }),
     ).toBe("https://github.com/o/r/blob/abc123/specs/f/spec.md#L42");
