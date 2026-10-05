@@ -33,6 +33,7 @@ before you write anything. Then emit JSON only. Write that JSON to
 deliverable:
 
 {
+  "spec_commit": "<the commit you read the spec at: git -C /workspace/target rev-parse HEAD>",
   "stories": [
     {
       "title": "<short user-facing story title>",
@@ -51,12 +52,29 @@ deliverable:
           "changes": "<what to change, file by file, precisely enough to start coding>",
           "acceptance_criteria": ["<observable outcome that proves it done>", "..."],
           "test_plan": "<which tests to write or run, and what they show>",
-          "references": ["specs/<slug>/spec.md#<section>", "specs/<slug>/plan.md#<section>"]
+          "references": ["specs/<slug>/spec.md#<section>", "specs/<slug>/plan.md#<section>"],
+          "spec_lines": [42, 57]
         }
       ]
     }
   ]
 }
+
+## A later round
+
+`/workspace/decomposition.json`, when it exists, is the decomposition
+you wrote on an earlier visit, and its tasks are already filed as
+issues, matched by task id. Start from it: keep every task that is
+still the same work, with its id, so its issue is rewritten rather
+than closed and filed again.
+
+When `/workspace/issue-coverage.md` lists statements under "Not
+covered yet", this round is for exactly those: each is named by its
+line at the `spec_commit` in `/workspace/decomposition.json`. Keep
+that `spec_commit` and every task as it is, and either add the line
+to the `spec_lines` of the task that already implements the
+statement, or add a task for it with the next free id. Change nothing
+else.
 
 Rules:
 - **When `tasks.md` exists beside the spec** (`specs/<slug>/tasks.md`,
@@ -98,6 +116,14 @@ Rules:
   and tasks.md, and take `context` from the approved plan too — never
   leave a developer to rediscover what the spec or the plan already
   settled.
+- **Every task names the spec statements it implements** in
+  `spec_lines`: the line of spec.md, at `spec_commit`, where each
+  statement begins (a list item's first line, a paragraph's first
+  line). Its issue quotes each one as a link to that line, and the
+  line counts how many of spec.md's testable statements some task
+  names: every statement outside the intro and the narrative sections
+  (Background, Rationale, Problem Statement, Open Questions). Name
+  every testable statement in at least one task.
 - Wire real dependencies: schema/data-model tasks come before the
   code that uses them; tests/integration come after the code they
   cover.

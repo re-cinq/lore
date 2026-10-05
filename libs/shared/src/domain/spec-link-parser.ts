@@ -128,6 +128,15 @@ export function trailingLinkHrefs(statement: string): string[] {
   return trailingLinkMatches(statement).map((match) => match[2].trim());
 }
 
+/** The statement as a reader quotes it: its trailing link group, when it has one, cut off. */
+export function withoutTrailingLinkGroup(statement: string): string {
+  const span = findTrailingParenSpan(statement);
+
+  return span && trailingLinkMatches(statement).length > 0
+    ? statement.slice(0, span.open).trimEnd()
+    : statement;
+}
+
 function parseLinksInStatement(
   statement: string,
   keepPath: (path: string) => boolean,

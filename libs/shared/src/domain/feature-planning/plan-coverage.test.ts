@@ -148,6 +148,17 @@ describe("coverageRoundsSpent", () => {
       visit("spec-coverage", null),
     ];
 
-    expect(coverageRoundsSpent(visits)).toBe(1);
+    expect(coverageRoundsSpent(visits, "spec-coverage")).toBe(1);
+  });
+
+  it("counts only the handbacks of the coverage check it names: 2 of issue-coverage beside 1 of spec-coverage", () => {
+    const visits = [
+      visit("spec-coverage", "changes_requested"),
+      visit("issue-coverage", "changes_requested"),
+      visit("decompose"),
+      visit("issue-coverage", "changes_requested"),
+    ];
+
+    expect(coverageRoundsSpent(visits, "issue-coverage")).toBe(2);
   });
 });

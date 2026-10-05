@@ -102,6 +102,10 @@
       "types": "./dist/domain/feature-planning/plan-coverage.d.ts",
       "default": "./dist/domain/feature-planning/plan-coverage.js"
     },
+    "./feature-planning/issue-coverage.js": {
+      "types": "./dist/domain/feature-planning/issue-coverage.d.ts",
+      "default": "./dist/domain/feature-planning/issue-coverage.js"
+    },
     "./feature-planning/plan-url.js": {
       "types": "./dist/domain/feature-planning/plan-url.d.ts",
       "default": "./dist/domain/feature-planning/plan-url.js"

@@ -20,6 +20,9 @@ import {
 import { eventLine } from "@re-cinq/lore-assembly-lines";
 import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
 import { taskInput, type FiledIssue } from "./spec-task-inputs.js";
+import { partsNamed } from "@re-cinq/lore-shared/feature-planning/issue-coverage.js";
+import type { SpecStatementLink } from "@re-cinq/lore-shared/feature-planning/issue-bodies.js";
+import type { DecomposedSpec } from "./decomposed-spec.js";
 
 export type StationProject = ReturnType<typeof createStationProject>;
 export type ProceedWork = Extract<
@@ -32,6 +35,8 @@ export interface FilingContext {
   story: StoryIssueInput;
   /** The plan the markers name; without one every run files afresh. */
   planId?: string;
+  /** The spec the tasks name statements of; without one the issues cite none. */
+  spec?: DecomposedSpec;
 }
 
 // Lore-filed issues of either state: a closed task issue still counts as filed, so a rerun doesn't file it again.
@@ -183,11 +188,24 @@ function taskBody({ task }: PlannedTask, filing: FiledTasks): string {
       repo: context.input.repo,
       storyNumber,
       task,
+      specStatements: statementsCited(context.spec, task.spec_lines ?? []),
       // A dependency with no issue yet (tasks.md out of order, first run) is named by its task id rather than dropped.
       dependsOn: task.depends_on.map((id) => taskIssues.get(id)?.number ?? id),
     }),
     context.planId && taskMarker(context.planId, task.id),
   );
+}
+
+function statementsCited(
+  spec: DecomposedSpec | undefined,
+  lines: readonly number[],
+): SpecStatementLink[] {
+  return spec
+    ? partsNamed(spec.parts, lines).map(({ line, text }) => ({
+        text,
+        link: spec.linkOf(line),
+      }))
+    : [];
 }
 
 async function closeDropped(
