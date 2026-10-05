@@ -927,6 +927,40 @@ describe("the feature-planning pipeline", () => {
       namesSpecPath: true,
     });
   });
+
+  it("gives feature-decompose every spec the plan touched as spec-plan.json and the citable plan blocks, and names both in its prompt", () => {
+    const decompose =
+      pipelineOf("feature-planning").stations["feature-decompose"];
+    const prompt = promptOnOneLine("feature-decompose");
+
+    expect({
+      specPlan: needOf(decompose, "spec_plan"),
+      blocks: needOf(decompose, "plan_blocks"),
+      named: [
+        prompt.includes("{spec_plan_path}"),
+        prompt.includes("/workspace/plan-blocks.json"),
+      ],
+    }).toEqual({
+      specPlan: { name: "spec_plan", kind: "file", path: "spec-plan.json" },
+      blocks: {
+        name: "plan_blocks",
+        kind: "file",
+        path: "plan-blocks.json",
+        optional: true,
+      },
+      named: [true, true],
+    });
+  });
+
+  it("gives the issues station the approved plan as an optional plan_md, to fold into the story issue", () => {
+    const issues = pipelineOf("feature-planning").stations["issues"];
+
+    expect(needOf(issues, "plan_md")).toEqual({
+      name: "plan_md",
+      kind: "file",
+      optional: true,
+    });
+  });
 });
 
 describe("the code-review recipe reads the change as its user first", () => {

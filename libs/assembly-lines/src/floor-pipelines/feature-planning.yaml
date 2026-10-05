@@ -462,6 +462,16 @@ stations:
         kind: file
         path: issue-coverage.md
         optional: true
+      # Every spec the plan created or updated: spec_path is only the first.
+      - name: spec_plan
+        kind: file
+        path: spec-plan.json
+      # The approved plan's blocks with the link each is cited by; absent without
+      # a web UI address to link to.
+      - name: plan_blocks
+        kind: file
+        path: plan-blocks.json
+        optional: true
     produces:
       - name: decomposition
         kind: file
@@ -488,6 +498,11 @@ stations:
         kind: value
       - name: plan_title
         kind: value
+        optional: true
+      # Folded into the story issue: the plan lives in Lore, not in the
+      # repository the issues are filed on.
+      - name: plan_md
+        kind: file
         optional: true
     produces: []
   issue-coverage:
