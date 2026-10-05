@@ -5,6 +5,7 @@ import {
   linksForStatements,
   findMisplacedCoverageLinks,
   testLinksOfDoc,
+  withoutTrailingLinkGroup,
 } from "./spec-link-parser.js";
 
 describe("parseTestLinksInStatement", () => {
@@ -311,5 +312,21 @@ describe("testLinksOfDoc", () => {
     ].join("\n");
 
     expect(testLinksOfDoc("specs/a/spec.md", doc)).toEqual([]);
+  });
+});
+
+describe("withoutTrailingLinkGroup", () => {
+  it("cuts a from-plan and validated-by group off the statement", () => {
+    expect(
+      withoutTrailingLinkGroup(
+        "The run settles once. ([from plan](https://lore.example/p#b-1), [validated by settles](a.test.ts#L3))",
+      ),
+    ).toBe("The run settles once.");
+  });
+
+  it("keeps a closing parenthetical that holds no link", () => {
+    expect(withoutTrailingLinkGroup("The run settles (once).")).toBe(
+      "The run settles (once).",
+    );
   });
 });

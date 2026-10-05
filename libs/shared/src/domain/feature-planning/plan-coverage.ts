@@ -118,7 +118,7 @@ function missingLine({ slot, kind, text, link }: CitableBlock): string {
   return `- ${slot} (${kind}): ${oneLine} — cite ${link}`;
 }
 
-/** How many times the coverage check may send the spec writer back before the spec PR opens with its gaps listed; the feature-planning line's `spec-coverage → write` edge carries the same budget as its backstop. */
+/** How many times a coverage check may send its agent back before the line goes on with the gaps listed: the spec writer before the spec PR opens, decompose before the run settles. The feature-planning line's `spec-coverage → write` and `issue-coverage → decompose` edges carry the same budget as their backstop. */
 export const COVERAGE_ROUNDS = 3;
 
 interface Visit {
@@ -129,19 +129,19 @@ interface Visit {
 // A person acting grants a fresh budget, the same way the floor's own iteration_max counts only the visits since one did.
 const HUMAN_NODES = new Set(["author", "merged"]);
 
-/** The coverage handbacks spent since a person last acted on the run, oldest visit first. */
-export function coverageRoundsSpent(visits: Visit[]): number {
+/** The handbacks the coverage check at `coverageNode` spent since a person last acted on the run, oldest visit first. */
+export function coverageRoundsSpent(
+  visits: Visit[],
+  coverageNode: string,
+): number {
   const lastHuman = visits.findLastIndex((visit) =>
     HUMAN_NODES.has(visit.nodeId),
   );
   const sinceLastHuman = visits.slice(lastHuman + 1);
 
-  return sinceLastHuman.filter(isCoverageHandback).length;
-}
-
-function isCoverageHandback(visit: Visit): boolean {
-  return (
-    visit.nodeId === "spec-coverage" &&
-    visit.report?.outcome === "changes_requested"
-  );
+  return sinceLastHuman.filter(
+    (visit) =>
+      visit.nodeId === coverageNode &&
+      visit.report?.outcome === "changes_requested",
+  ).length;
 }

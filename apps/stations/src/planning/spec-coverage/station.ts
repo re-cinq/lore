@@ -89,7 +89,10 @@ async function verdict(
   if (coverage.missing.length === 0) {
     return SUCCESS;
   }
-  const spent = coverageRoundsSpent(await deps.visitsOf(visitId));
+  const spent = coverageRoundsSpent(
+    await deps.visitsOf(visitId),
+    "spec-coverage",
+  );
 
   return spent < COVERAGE_ROUNDS ? { outcome: "changes_requested" } : SUCCESS;
 }
