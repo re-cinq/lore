@@ -158,4 +158,22 @@ describe("fileIssuesHandle", () => {
       error: "github unreachable",
     });
   });
+  it("stamps the spec-task with spec_path specs/legacy/spec.md derived from the spec_plan of a run started before open-spec-pr produced spec_path", async () => {
+    const fake = fakeProject(LABELS);
+    const handle = scene(fake.project);
+
+    const result = await handle(
+      brief({ spec_plan: "file://spec-plan.json" }),
+      tools({
+        spec_plan: JSON.stringify({
+          creates: [{ path: "specs/legacy/spec.md" }],
+        }),
+      }),
+    );
+
+    expect(result).toEqual({ outcome: "success" });
+    expect(fake.tasks[0]).toMatchObject({
+      contextBundle: { spec_path: "specs/legacy/spec.md" },
+    });
+  });
 });
