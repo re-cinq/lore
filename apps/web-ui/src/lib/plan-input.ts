@@ -90,14 +90,6 @@ function withStory(
   return "error" in read ? read : { ...input, storyIssue: read.issue };
 }
 
-/** The description's paragraphs, as the plan's intent section holds them. */
-export function paragraphsOf(text: string): string[] {
-  return text
-    .split(/\n\s*\n/)
-    .map((paragraph) => paragraph.trim())
-    .filter(Boolean);
-}
-
 function field(formData: FormData, key: string): string {
   const raw = formData.get(key);
 

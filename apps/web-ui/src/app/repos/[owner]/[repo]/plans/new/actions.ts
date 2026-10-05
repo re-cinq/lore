@@ -8,11 +8,7 @@ import {
   type DraftingRequest,
 } from "@/lib/api/plans";
 import type { ApiResult } from "@/lib/api/result";
-import {
-  newPlanInput,
-  paragraphsOf,
-  type NewPlanInput,
-} from "@/lib/plan-input";
+import { newPlanInput, type NewPlanInput } from "@/lib/plan-input";
 import { planUserOf, type PlanSession, type PlanUser } from "@/lib/plan-user";
 import { getSession } from "@/lib/session";
 
@@ -88,16 +84,14 @@ async function planRequest(
   return user ? { input, user } : { error: "Sign in to create a plan." };
 }
 
-// What the author already knew becomes the plan's intent; an empty description leaves the template's own.
+// What the author already knew becomes the plan's intent, sent whole: the plan reads its Markdown into headings, lists and paragraphs. An empty description leaves the template's own.
 async function seedIntent(
   planId: string,
   actor: string,
   description: string,
 ): Promise<void> {
-  const intent = paragraphsOf(description);
-
-  if (intent.length > 0) {
-    await seedPlan(planId, actor, intent);
+  if (description) {
+    await seedPlan(planId, actor, [description]);
   }
 }
 

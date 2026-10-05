@@ -453,6 +453,45 @@ describe("/api/plans on lore-api", () => {
     }).toEqual({ bytes: true, status: 200, last: true });
   });
 
+  it("reads the planning agent's paragraph '### Why\\r\\n- Checkout p95 is 450 ms.' into a heading and a bullet in Ana's live plan", async () => {
+    const planId = await createPlan();
+    const edited = await call(
+      "POST",
+      `/api/plans/${planId}/agent-edits`,
+      TOKEN,
+      {
+        actor: "planning-agent",
+        ops: [
+          {
+            op: "append-to-section",
+            slot: "intent",
+            paragraphs: ["### Why\r\n- Checkout p95 is 450 ms."],
+          },
+        ],
+      },
+    );
+    const { body } = await call(
+      "GET",
+      `/api/plans/${planId}/agent-view`,
+      READ_TOKEN,
+    );
+    const { sections } = body as {
+      sections: { slot: string; blocks: { type: string; text: string }[] }[];
+    };
+    const intent = sections.find((section) => section.slot === "intent");
+
+    expect({
+      status: edited.status,
+      intent: intent?.blocks.map(({ type, text }) => ({ type, text })),
+    }).toEqual({
+      status: 200,
+      intent: [
+        { type: "heading", text: "Why" },
+        { type: "bulletListItem", text: "Checkout p95 is 450 ms." },
+      ],
+    });
+  });
+
   it("answers 400 to a plan.md whose only change names no section of Ana's plan", async () => {
     const planId = await createPlan();
     const markdown = `${await planMd(planId)}\n## Rollout <!-- slot:custom-nowhere -->\n\nWaves.\n`;
