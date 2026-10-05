@@ -1,6 +1,7 @@
 import type { PlanMeta } from "@re-cinq/planning-document";
 import { Alert } from "@/components/Alert";
 import ConfirmedActionButton from "@/components/ConfirmedActionButton";
+import Icon from "@/components/Icon";
 import { planPageState, type PlanPageState } from "@/lib/plan-page-state";
 import type { PlanUser } from "@/lib/plan-user";
 import DraftingPlan from "./DraftingPlan";
@@ -125,8 +126,13 @@ function UserStoryLink({ run }: { run: PlanRun }) {
   return (
     <>
       {" · "}
-      <a href={run.issueUrl ?? undefined} target="_blank" rel="noreferrer">
+      <a
+        href={run.issueUrl ?? undefined}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
         User story{run.issueNumber === null ? "" : ` #${run.issueNumber}`}
+        <Icon name="external" size={14} inline />
       </a>
     </>
   );

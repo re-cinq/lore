@@ -26,7 +26,7 @@ export async function createPlanAction(
   _prev: CreatePlanState | null,
   formData: FormData,
 ): Promise<CreatePlanState> {
-  const request = await planRequest(formData);
+  const request = await planRequest(formData, fullName);
 
   if ("error" in request) {
     return request;
@@ -76,8 +76,9 @@ function draftingRequestOf(
 // A valid form from a signed-in person, or what is wrong with it.
 async function planRequest(
   formData: FormData,
+  fullName: string,
 ): Promise<{ input: NewPlanInput; user: PlanUser } | { error: string }> {
-  const input = newPlanInput(formData);
+  const input = newPlanInput(formData, fullName);
   const user = planUserOf((await getSession()) as PlanSession | null);
 
   if ("error" in input) {

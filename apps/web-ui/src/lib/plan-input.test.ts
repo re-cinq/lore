@@ -1,6 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { newPlanInput, paragraphsOf, storyIssueOf } from "./plan-input";
 
+const STORY_REFUSED =
+  "The user story must be a GitHub issue URL or its number.";
+
+const REPO = "re-cinq/lore";
+
 const form = (fields: Record<string, string>) => {
   const formData = new FormData();
 
@@ -18,6 +23,7 @@ describe("newPlanInput", () => {
           type: "performance",
           description: "p95 is 450 ms",
         }),
+        REPO,
       ),
     ).toEqual({
       title: "Faster checkout",
@@ -34,6 +40,7 @@ describe("newPlanInput", () => {
           type: "feature",
           story: " https://github.com/re-cinq/lore/issues/42 ",
         }),
+        REPO,
       ),
     ).toMatchObject({ storyIssue: 42 });
   });
@@ -42,15 +49,17 @@ describe("newPlanInput", () => {
     expect(
       newPlanInput(
         form({ title: "Faster checkout", type: "feature", story: "nope" }),
+        REPO,
       ),
-    ).toEqual({
-      error: "The user story must be a GitHub issue URL or its number.",
-    });
+    ).toEqual({ error: STORY_REFUSED });
   });
 
   it("asks for a title when the title is blank", () => {
     expect(
-      newPlanInput(form({ title: "  ", type: "feature", description: "" })),
+      newPlanInput(
+        form({ title: "  ", type: "feature", description: "" }),
+        REPO,
+      ),
     ).toEqual({
       error: "A plan needs a title.",
     });
@@ -60,6 +69,7 @@ describe("newPlanInput", () => {
     expect(
       newPlanInput(
         form({ title: "Faster checkout", type: "saga", description: "" }),
+        REPO,
       ),
     ).toEqual({
       error: "Unknown plan type saga.",
@@ -78,17 +88,33 @@ describe("paragraphsOf", () => {
 describe("storyIssueOf", () => {
   it("reads 42 from the bare number 42, #42 and the issue URL re-cinq/lore/issues/42/", () => {
     expect(
-      ["42", "#42", "https://github.com/re-cinq/lore/issues/42/"].map(
-        storyIssueOf,
+      ["42", "#42", "https://github.com/re-cinq/lore/issues/42/"].map((story) =>
+        storyIssueOf(story, REPO),
       ),
-    ).toEqual([42, 42, 42]);
+    ).toEqual([{ issue: 42 }, { issue: 42 }, { issue: 42 }]);
   });
 
-  it("reads nothing from a blank story, 0, a pull request URL or a word", () => {
+  it("reads 42 from the issue URL Re-Cinq/Lore/issues/42, the repo named in another case", () => {
     expect(
-      ["", "0", "https://github.com/re-cinq/lore/pull/42", "story"].map(
-        storyIssueOf,
+      storyIssueOf("https://github.com/Re-Cinq/Lore/issues/42", REPO),
+    ).toEqual({ issue: 42 });
+  });
+
+  it("refuses issue 42 of other/repo for a plan of re-cinq/lore", () => {
+    expect(
+      storyIssueOf("https://github.com/other/repo/issues/42", REPO),
+    ).toEqual({ error: "The user story must be an issue of re-cinq/lore." });
+  });
+
+  it("reads nothing from 0, a pull request URL or a word", () => {
+    expect(
+      ["0", "https://github.com/re-cinq/lore/pull/42", "story"].map((story) =>
+        storyIssueOf(story, REPO),
       ),
-    ).toEqual([null, null, null, null]);
+    ).toEqual([
+      { error: STORY_REFUSED },
+      { error: STORY_REFUSED },
+      { error: STORY_REFUSED },
+    ]);
   });
 });

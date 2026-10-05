@@ -10,24 +10,53 @@ export interface NewPlanInput {
 }
 
 const STORY_ISSUE =
-  /^(?:#?(\d+)|https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/issues\/(\d+)\/?)$/;
+  /^(?:#?(?<bare>\d+)|https:\/\/github\.com\/(?<urlRepo>[^/\s]+\/[^/\s]+)\/issues\/(?<url>\d+)\/?)$/;
 
 const STORY_REFUSED =
   "The user story must be a GitHub issue URL or its number.";
 
-/** The issue number a user story names, as a GitHub issue URL, `#N` or a bare number; null for anything else. */
-export function storyIssueOf(text: string): number | null {
-  const match = STORY_ISSUE.exec(text.trim());
-  const issue = Number(match?.[1] ?? match?.[2] ?? 0);
+export type StoryIssue = { issue: number } | { error: string };
 
-  return issue > 0 ? issue : null;
+/** The issue number a user story names, as `#N`, a bare number or an issue URL of the plan's own repo. The run keeps only the number, so an issue of another repo would be linked as that number of this one: it is refused. */
+export function storyIssueOf(text: string, repo: string): StoryIssue {
+  const { issue, urlRepo } = storyPartsOf(text);
+
+  if (issue <= 0) {
+    return { error: STORY_REFUSED };
+  }
+
+  return isOtherRepo(urlRepo, repo)
+    ? { error: `The user story must be an issue of ${repo}.` }
+    : { issue };
+}
+
+interface StoryGroups {
+  bare?: string;
+  url?: string;
+  urlRepo?: string;
+}
+
+// The issue number a story names, 0 for none, and the repo its URL names.
+function storyPartsOf(text: string): { issue: number; urlRepo?: string } {
+  const groups: StoryGroups = STORY_ISSUE.exec(text.trim())?.groups ?? {};
+
+  return {
+    issue: Number(groups.bare ?? groups.url ?? 0),
+    urlRepo: groups.urlRepo,
+  };
+}
+
+function isOtherRepo(urlRepo: string | undefined, repo: string): boolean {
+  return urlRepo !== undefined && urlRepo.toLowerCase() !== repo.toLowerCase();
 }
 
 const isPlanKind = (type: string): type is PlanKind =>
   (PLAN_KINDS as readonly string[]).includes(type);
 
+/** The new-plan form of a plan of `repo` (owner/name), or what is wrong with it. */
 export function newPlanInput(
   formData: FormData,
+  repo: string,
 ): NewPlanInput | { error: string } {
   const title = field(formData, "title");
   const type = field(formData, "type");
@@ -43,6 +72,7 @@ export function newPlanInput(
   return withStory(
     { title, type, description: field(formData, "description") },
     field(formData, "story"),
+    repo,
   );
 }
 
@@ -50,13 +80,14 @@ export function newPlanInput(
 function withStory(
   input: NewPlanInput,
   story: string,
+  repo: string,
 ): NewPlanInput | { error: string } {
   if (!story) {
     return input;
   }
-  const storyIssue = storyIssueOf(story);
+  const read = storyIssueOf(story, repo);
 
-  return storyIssue ? { ...input, storyIssue } : { error: STORY_REFUSED };
+  return "error" in read ? read : { ...input, storyIssue: read.issue };
 }
 
 /** The description's paragraphs, as the plan's intent section holds them. */

@@ -63,6 +63,23 @@ describe("createPlanAction", () => {
     });
   });
 
+  it("refuses user story other/repo#42 for a re-cinq/lore plan and creates nothing", async () => {
+    const result = await createPlanAction(
+      "re-cinq/lore",
+      null,
+      form({
+        title: "Faster checkout",
+        type: "feature",
+        story: "https://github.com/other/repo/issues/42",
+      }),
+    );
+
+    expect({ result, fetched: fetchMock.mock.calls.length }).toEqual({
+      result: { error: "The user story must be an issue of re-cinq/lore." },
+      fetched: 0,
+    });
+  });
+
   it("creates gedaiu's feature plan, seeds its intent, and opens it", async () => {
     await expect(
       createPlanAction(
