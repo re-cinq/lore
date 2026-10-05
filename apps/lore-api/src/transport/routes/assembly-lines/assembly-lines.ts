@@ -156,7 +156,7 @@ async function selectRuns(
   query: RunsQuery,
 ): Promise<Awaited<ReturnType<AssemblyRunsPort["listSummaries"]>>> {
   if (query.task_id) {
-    return await port.list({ taskId: query.task_id, limit: query.limit });
+    return await runsOfTask(port, query.task_id, query.limit);
   }
 
   return await port.listSummaries({
@@ -166,6 +166,19 @@ async function selectRuns(
     subjectKey: query.subject_key,
     limit: query.limit,
   });
+}
+
+/** Postgres holds the full record of a run Lore's own engine walked; a task with none there has its run on the floor, which only the summaries read reaches. */
+async function runsOfTask(
+  port: AssemblyRunsPort,
+  taskId: string,
+  limit: number,
+): Promise<Awaited<ReturnType<AssemblyRunsPort["listSummaries"]>>> {
+  const walkedHere = await port.list({ taskId, limit });
+
+  return walkedHere.length > 0
+    ? walkedHere
+    : await port.listSummaries({ taskId, limit });
 }
 
 function runNodesRoute(
