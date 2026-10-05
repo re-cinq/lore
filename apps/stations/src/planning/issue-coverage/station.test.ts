@@ -174,6 +174,37 @@ describe("issueCoverageHandle", () => {
     });
   });
 
+  it("reports success when T002 names the pipeline file T001 adds", async () => {
+    const { handle, tools } = scene(
+      JSON.stringify({
+        spec_commit: "abc123",
+        stories: [
+          {
+            title: "Triage",
+            tasks: [
+              {
+                id: "T001",
+                description:
+                  "Add `libs/assembly-lines/src/floor-pipelines/issue-triage.yaml`.",
+                spec_lines: [7],
+              },
+              {
+                id: "T002",
+                description:
+                  "Wire reproduce into `libs/assembly-lines/src/floor-pipelines/issue-triage.yaml`.",
+                spec_lines: [8],
+              },
+            ],
+          },
+        ],
+      }),
+    );
+
+    const report = await handle(brief(), tools);
+
+    expect(report).toEqual({ outcome: "success" });
+  });
+
   it("reports success and produces nothing when the run names no spec", async () => {
     const { handle, tools, produced } = scene(decomposition([7]));
     const { spec_path: _none, ...withoutSpec } = NEEDS;
