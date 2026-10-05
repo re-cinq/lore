@@ -23,7 +23,6 @@ import { graphRoute } from "./routes/graph/graph.js";
 import { getTaskRoute } from "./routes/tasks/get-task.js";
 import { listTasksRoute } from "./routes/tasks/list-tasks.js";
 import { timelineRoute } from "./routes/tasks/task-timeline.js";
-import { taskRunsRoute } from "./routes/tasks/task-runs.js";
 import { taskViewRoutes } from "./routes/tasks/task-views.js";
 import { assemblyLineRoutes } from "./routes/assembly-lines/assembly-lines.js";
 import { runReadRoute } from "./routes/assembly-lines/run-read.js";
@@ -180,7 +179,6 @@ function taskRunRoutes(getPool: PoolGetter): ServerRoute[] {
     getTaskRoute(),
     listTasksRoute(),
     timelineRoute(getPool),
-    taskRunsRoute(getPool),
     ...taskViewRoutes(getPool),
     ...assemblyLineRoutes(getPool),
     runReadRoute(getPool),
