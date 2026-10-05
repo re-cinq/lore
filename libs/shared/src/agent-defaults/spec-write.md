@@ -197,8 +197,18 @@ When `/workspace/plan-coverage.md` exists and lists blocks under "Not
 cited yet", the specs on THIS branch already exist and left those
 blocks uncited. For each listed block, either add the statement that
 specifies it, or add its link to the statement that already says
-what it says. Change nothing else, then format, commit and push as
-below. A file that lists no block needs nothing from you.
+what it says.
+
+When it also lists names under "Not on main", a statement names a
+path, function or component that the code on this branch does not
+have: the plan described code that has since moved or gone. For each
+listed name, read the file it names, or search the clone, and rewrite
+the statement from what the code says now; a retired component is
+replaced by what its line says took its work. Never keep a name the
+code does not have, unless the statement says this feature adds it.
+
+Change nothing else, then format, commit and push as below. A file
+that lists neither blocks nor names needs nothing from you.
 
 ## When the spec review sent this back
 

@@ -522,6 +522,32 @@ describe("the planning recipes check a plan against what the platform has (issue
     }).toEqual({ named: true, missing: [] });
   });
 
+  it("has spec-write rewrite every statement listed under Not on main from the code on its branch", () => {
+    const prompt = promptOnOneLine("spec-write");
+
+    expect({
+      heading: prompt.includes('lists names under "Not on main"'),
+      fromCode: prompt.includes(
+        "read the file it names, or search the clone, and rewrite the statement from what the code says",
+      ),
+      neverKeep: prompt.includes("Never keep a name the code does not have"),
+    }).toEqual({ heading: true, fromCode: true, neverKeep: true });
+  });
+
+  it("has feature-decompose rewrite each task listed under Not on main from the code and drop the plan quotes naming what is gone", () => {
+    const prompt = promptOnOneLine("feature-decompose");
+
+    expect({
+      heading: prompt.includes('lists task ids under "Not on main"'),
+      fromCode: prompt.includes(
+        "rewrite that task from the code on the branch",
+      ),
+      dropQuote: prompt.includes(
+        "drop a plan quote that names something the code lacks",
+      ),
+    }).toEqual({ heading: true, fromCode: true, dropQuote: true });
+  });
+
   it("has feature-decompose read the spec its spec_path value names beside the approved plan, and take context from that plan", () => {
     const prompt = promptOnOneLine("feature-decompose");
 

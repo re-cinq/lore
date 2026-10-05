@@ -86,6 +86,10 @@
       "types": "./dist/lib/error-classify.d.ts",
       "default": "./dist/lib/error-classify.js"
     },
+    "./feature-planning/grounding.js": {
+      "types": "./dist/domain/feature-planning/grounding.d.ts",
+      "default": "./dist/domain/feature-planning/grounding.js"
+    },
     "./feature-planning/decomposition-result.js": {
       "types": "./dist/domain/feature-planning/decomposition-result.d.ts",
       "default": "./dist/domain/feature-planning/decomposition-result.js"
