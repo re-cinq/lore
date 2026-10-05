@@ -5,6 +5,7 @@ describe("triage-reproduce recipe (specs/issue-triage/spec.md#FR12)", () => {
   it("triage-reproduce has timeout_minutes 15 and documents all four LORE_NODE_RESULT outcomes", () => {
     const def = loadAgentDefaults().find((d) => d.name === "triage-reproduce");
     const prompt = def?.prompt ?? "";
+
     expect({
       timeout: def?.timeout_minutes,
       hasPrompt: prompt.length > 0,
