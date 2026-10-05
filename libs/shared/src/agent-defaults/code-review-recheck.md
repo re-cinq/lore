@@ -1,32 +1,7 @@
 ---
-# The code-review-recheck line's node — the FAST re-check run on every new push
-# after the first full review. Same REVIEW_FINDINGS contract (the node emits
-# findings and never posts or commits; the Floor submits the verdict), but a
-# tighter scope, so the PR's formal APPROVE / REQUEST_CHANGES tracks
-# the fixes as the author iterates. The scope is the point: on 2026-09-25 a
-# re-check that re-read the whole PR spent 59 commands and 6m28s on it.
+# The code-review-recheck line's `code-review-recheck` agent; the floor pipeline file fills its prompt from this body.
 timeout_minutes: 10
-review_required: false
-execution_mode: claude-code
-# The pod's Bash hook refuses every test runner, install and build here: CI is the judge and the disk is 1Gi.
-test_policy: none
 model: gemini-3.1-pro-preview
-# Read-only recipe (#1160): see the `review` recipe's note.
-repo_workdir: false
-disallowed_tools:
-  - Bash(npm:*)
-  - Bash(npx:*)
-  - Bash(yarn:*)
-  - Bash(pnpm:*)
-  - Bash(bun:*)
-  - Bash(pip:*)
-  - Bash(pip3:*)
-  - Bash(uv:*)
-  - Bash(cargo:*)
-  - Bash(go:*)
-  - Bash(make:*)
-  - Bash(bash:*)
-  - Bash(sh:*)
 ---
 {description}
 
@@ -40,14 +15,16 @@ over the network (this is a private repo; the pod has neither `gh` nor a
 GitHub token in the shell).
 
 Scope: your instruction above names the sha the last verdict judged. Read
-`git -C /workspace/target diff <that sha>..HEAD` and judge that range. Read
-the wider `main...HEAD` diff only for the context a hunk needs. When no sha
+`git -C /workspace/target diff --no-ext-diff <that sha>..HEAD` and judge that
+range. Read the wider `main...HEAD` diff only for the context a hunk needs. When no sha
 is named, read `main...HEAD`. Read each diff once, in place — never dump it
 to a file to read it back.
 
 Context: query `lore_assemble_context` with the PR title and the surface
 these commits change, not "PR review conventions" — that returns the
 platform overview. Then read the CI verdict with `lore_get_ci_failures`.
+Pass `repo` (the owner/name your task names above) on every `lore_*` call:
+the server has no checkout to detect it from.
 
 Re-assess against the repo's conventions (CLAUDE.md), ADRs, and specs:
 confirm the prior concerns are resolved and flag only NEW significant issues
@@ -92,3 +69,5 @@ blocking. Each finding is an object with these fields — `label` is one of
 Then output exactly one of:
 - REVIEW_RESULT:APPROVED
 - REVIEW_RESULT:CHANGES_REQUESTED:<one-line summary>
+
+`/workspace/issue.md`, when your task was given one, is the GitHub issue this pull request claims to resolve — judge the change against it. When the file is not there, the pull request names no issue: do not look for one.

@@ -1,8 +1,6 @@
 export const dynamic = "force-dynamic";
-import { floorPagedJsonRoute } from "@/lib/floor-proxy";
+import { runPagedJsonRoute } from "@/lib/floor-proxy";
+import { turnsUpstream } from "@/lib/run-read-upstream";
 
-// Sibling of ./events: proxies UNTRUNCATED turns to the Floor's /api/agent-turns/{id} (#1148) for the on-demand full-transcript view; same 401→404→403 auth ladder.
-export const GET = floorPagedJsonRoute(
-  "agent-turns",
-  "assembly-line-run-turns",
-);
+// Sibling of ./events: proxies UNTRUNCATED turns (#1148) for the on-demand full-transcript view; same 401→404→403 auth ladder. lore-api answers for a run of either engine.
+export const GET = runPagedJsonRoute("assembly-line-run-turns", turnsUpstream);

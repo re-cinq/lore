@@ -91,7 +91,6 @@ export async function hybridSearch(
   // Unknown schema falls back to org_shared; provisioned team schemas read directly.
   const resolvedSchema = await chunkSchemaOrOrgShared(getPool(), schema);
 
-  // Get query embedding from Vertex AI
   const embedding = await getQueryEmbedding(query);
 
   if (!embedding) {

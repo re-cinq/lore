@@ -1,130 +1,255 @@
-// specs/issue-triage/spec.md#86 (FR7) and #87 (FR8)
-
-import { describe, it, expect } from "vitest";
+// specs/issue-triage/spec.md#FR7 and #FR16
+import { describe, expect, it } from "vitest";
 import {
-  createLabeledIssueHandler,
-  type LabeledIssueDeps,
+  REPO_EVENTS,
+  repoEventHandlers,
+  type RepoEventDeps,
 } from "./repo-handlers.js";
 
-type StartCall = { blueprintName: string; args: Record<string, unknown> };
-type ReportTarget = { lineId: string; nodeId: string; iteration: number };
-
-const testIssue = (number: number) => ({
-  number,
-  title: `Issue ${number}`,
-  body: "body text",
-  html_url: `https://github.com/acme/widgets/issues/${number}`,
-  labels: [] as string[],
-});
-
-function makeDeps(overrides: Partial<LabeledIssueDeps> = {}): {
-  deps: LabeledIssueDeps;
-  started: StartCall[];
-  reported: ReportTarget[];
-  activeCalls: string[];
-} {
-  const started: StartCall[] = [];
-  const reported: ReportTarget[] = [];
-  const activeCalls: string[] = [];
-
-  const base: LabeledIssueDeps = {
-    startLine: async (blueprintName, opts) => {
-      started.push({ blueprintName, args: opts.args });
-      return "run-abc123";
-    },
-    findParkedTriage: async (_repo, _issueNumber) => null,
-    reportToVisit: async (target, _outcome) => {
-      reported.push(target);
-    },
-    activeTaskByIssue: async (_repo, _issueNumber) => {
-      activeCalls.push("activeTaskByIssue");
-      return null;
-    },
-    dispatchImplementation: async (_repo, _issue) => {},
-  };
-
-  return { deps: { ...base, ...overrides }, started, reported, activeCalls };
+/** Extended deps the ticket's implementation will add to RepoEventDeps for triage label dispatch (FR7, FR16). */
+interface TriageRepoEventDeps extends RepoEventDeps {
+  /** Starts a floor run for the issue-triage line (FR7). */
+  startIssueTriage(
+    repo: string,
+    issueNumber: number,
+    issueUrl: string,
+  ): Promise<string>;
+  /** Returns the floor visit-id of the issue-triage run parked at human-gate, or null (FR16). */
+  findParkedTriageVisit(
+    repo: string,
+    issueNumber: number,
+  ): Promise<string | null>;
+  /** Reports success to the parked human-gate visit so the triage run advances (FR16). */
+  reportTriageGate(visitId: string): Promise<void>;
 }
 
-describe("createLabeledIssueHandler", () => {
-  it("lore:triage label starts an issue-triage floor run with repo, issue_url, and issue_number args", // specs/issue-triage/spec.md#86
-  async () => {
-    const { deps, started } = makeDeps();
-    const handler = createLabeledIssueHandler(deps);
-    const issue = testIssue(42);
+function triageScene(over: Partial<TriageRepoEventDeps> = {}) {
+  const started: Array<{
+    repo: string;
+    issueNumber: number;
+    issueUrl: string;
+  }> = [];
+  const reported: string[] = [];
+  const callOrder: string[] = [];
 
-    await handler({
+  const deps: TriageRepoEventDeps = {
+    labelDispatch: () =>
+      Promise.resolve({
+        rawSettings: () => Promise.resolve({}),
+        activeTaskByIssue: () => {
+          callOrder.push("activeTaskByIssue");
+
+          return Promise.resolve(null);
+        },
+        addLabel: () => Promise.resolve(),
+        comment: () => Promise.resolve(),
+      }),
+    renameRepo: () => Promise.resolve("renamed"),
+    dropOverlay: () => Promise.resolve(),
+    relocateChunks: () => Promise.resolve("moved 0 of 0"),
+    startIssueTriage: (repo, issueNumber, issueUrl) => {
+      callOrder.push("startIssueTriage");
+      started.push({ repo, issueNumber, issueUrl });
+
+      return Promise.resolve("run-1");
+    },
+    findParkedTriageVisit: () => {
+      callOrder.push("findParkedTriageVisit");
+
+      return Promise.resolve(null);
+    },
+    reportTriageGate: (visitId) => {
+      callOrder.push("reportTriageGate");
+      reported.push(visitId);
+
+      return Promise.resolve();
+    },
+    ...over,
+  };
+  const handlers = repoEventHandlers(deps as RepoEventDeps);
+  const fire = (eventName: string, params: Record<string, unknown>) =>
+    handlers.get(eventName)!(params);
+
+  return { fire, started, reported, callOrder };
+}
+
+function scene() {
+  const steps: string[] = [];
+  const deps: RepoEventDeps = {
+    labelDispatch: () =>
+      Promise.resolve({
+        rawSettings: () =>
+          Promise.resolve({ implementation_loop: { enabled: true } }),
+        activeTaskByIssue: () => Promise.resolve(null),
+        addLabel: (issueNumber, label) => {
+          steps.push(`label #${issueNumber} ${label}`);
+
+          return Promise.resolve();
+        },
+        comment: (issueNumber) => {
+          steps.push(`comment #${issueNumber}`);
+
+          return Promise.resolve();
+        },
+      }),
+    renameRepo: (from, to) => {
+      steps.push(`rename ${from} to ${to}`);
+
+      return Promise.resolve("renamed");
+    },
+    dropOverlay: (repo, branch) => {
+      steps.push(`drop ${repo} ${branch}`);
+
+      return Promise.resolve();
+    },
+    relocateChunks: (repo) => {
+      steps.push(`relocate ${repo}`);
+
+      return Promise.resolve("moved 5 of 7");
+    },
+  };
+  const handlers = repoEventHandlers(deps);
+  const fire = (eventName: string, params: Record<string, unknown>) =>
+    handlers.get(eventName)!(params);
+
+  return { fire, steps, handlers };
+}
+
+describe("repoEventHandlers", () => {
+  it("answers exactly the label, rename, pull-request-closed and team-changed events", () => {
+    expect([...scene().handlers.keys()].sort()).toEqual(
+      [...REPO_EVENTS].sort(),
+    );
+  });
+
+  it("queues issue 7 of acme/widgets in the loop's backlog when it is labelled lore", async () => {
+    const { fire, steps } = scene();
+
+    await fire("github.issues.labeled", {
+      repo: "acme/widgets",
+      label: "lore",
+      issue: { number: 7, labels: ["lore"] },
+    });
+
+    expect(steps).toEqual(["label #7 priority:medium", "comment #7"]);
+  });
+
+  it("renames the repository row from acme/gadgets to acme/widgets", async () => {
+    const { fire, steps } = scene();
+
+    await fire("github.repository.renamed", {
+      from: "acme/gadgets",
+      to: "acme/widgets",
+    });
+
+    expect(steps).toEqual(["rename acme/gadgets to acme/widgets"]);
+  });
+
+  it("drops the graph overlay of branch feat/x when its pull request closes", async () => {
+    const { fire, steps } = scene();
+
+    await fire("github.pull_request.closed", {
+      repo: "acme/widgets",
+      branch: "feat/x",
+      merged: false,
+    });
+
+    expect(steps).toEqual(["drop acme/widgets feat/x"]);
+  });
+
+  it("drops nothing for a closed pull request that names no head branch", async () => {
+    const { fire, steps } = scene();
+
+    await fire("github.pull_request.closed", { repo: "acme/widgets" });
+
+    expect(steps).toEqual([]);
+  });
+
+  it("relocates acme/widgets's context when its team changes", async () => {
+    const { fire, steps } = scene();
+
+    await fire("internal.repo.team_changed", { repo: "acme/widgets" });
+
+    expect(steps).toEqual(["relocate acme/widgets"]);
+  });
+});
+
+describe("repoEventHandlers — issue-triage label dispatch (T006)", () => {
+  it("lore:triage label starts an issue-triage floor run with repo, issue_number, and issue_url args", async () => { // specs/issue-triage/spec.md#FR7
+    const { fire, started } = triageScene();
+
+    await fire("github.issues.labeled", {
       repo: "acme/widgets",
       label: "lore:triage",
-      issue: { ...issue, labels: ["lore:triage"] },
+      issue: {
+        number: 7,
+        html_url: "https://github.com/acme/widgets/issues/7",
+        labels: ["lore:triage"],
+      },
     });
 
     expect(started).toHaveLength(1);
-    expect(started[0].blueprintName).toBe("issue-triage");
-    expect(started[0].args).toMatchObject({
-      repo: "acme/widgets",
-      issue_url: issue.html_url,
-      issue_number: 42,
-    });
+    expect(started[0]).toMatchObject({ repo: "acme/widgets", issueNumber: 7 });
   });
 
-  it("triage: needs-triage label also starts an issue-triage floor run", // specs/issue-triage/spec.md#86
-  async () => {
-    const { deps, started } = makeDeps();
-    const handler = createLabeledIssueHandler(deps);
-    const issue = testIssue(7);
+  it("triage: needs-triage label also starts an issue-triage floor run", async () => { // specs/issue-triage/spec.md#FR7
+    const { fire, started } = triageScene();
 
-    await handler({
+    await fire("github.issues.labeled", {
       repo: "acme/widgets",
       label: "triage: needs-triage",
-      issue: { ...issue, labels: ["triage: needs-triage"] },
+      issue: {
+        number: 42,
+        html_url: "https://github.com/acme/widgets/issues/42",
+        labels: ["triage: needs-triage"],
+      },
     });
 
     expect(started).toHaveLength(1);
-    expect(started[0].blueprintName).toBe("issue-triage");
+    expect(started[0]).toMatchObject({ issueNumber: 42 });
   });
 
-  it("lore:implementation on a parked triage run resumes via reportToVisit before activeTaskByIssue fires", // specs/issue-triage/spec.md#87
-  async () => {
+  it("lore:implementation on a parked triage run reports to the human-gate visit before activeTaskByIssue fires", async () => { // specs/issue-triage/spec.md#FR16
     const callOrder: string[] = [];
-    const parked: ReportTarget = {
-      lineId: "line-001",
-      nodeId: "human-gate",
-      iteration: 1,
-    };
+    const reported: string[] = [];
+    const { fire } = triageScene({
+      findParkedTriageVisit: () => {
+        callOrder.push("findParkedTriageVisit");
 
-    const { deps, reported, activeCalls } = makeDeps({
-      findParkedTriage: async (_repo, _issueNumber) => {
-        callOrder.push("findParked");
-        return parked;
+        return Promise.resolve("visit-abc");
       },
-      reportToVisit: async (target, _outcome) => {
-        callOrder.push("reportToVisit");
-        reported.push(target);
+      reportTriageGate: (visitId) => {
+        callOrder.push("reportTriageGate");
+        reported.push(visitId);
+
+        return Promise.resolve();
       },
-      activeTaskByIssue: async (_repo, _issueNumber) => {
-        callOrder.push("activeTaskByIssue");
-        activeCalls.push("activeTaskByIssue");
-        return null;
-      },
+      labelDispatch: () =>
+        Promise.resolve({
+          rawSettings: () => Promise.resolve({}),
+          activeTaskByIssue: () => {
+            callOrder.push("activeTaskByIssue");
+
+            return Promise.resolve(null);
+          },
+          addLabel: () => Promise.resolve(),
+          comment: () => Promise.resolve(),
+        }),
     });
 
-    const handler = createLabeledIssueHandler(deps);
-    const issue = testIssue(99);
-
-    await handler({
+    await fire("github.issues.labeled", {
       repo: "acme/widgets",
       label: "lore:implementation",
-      issue: { ...issue, labels: ["lore:implementation"] },
+      issue: {
+        number: 99,
+        html_url: "https://github.com/acme/widgets/issues/99",
+        labels: ["lore:implementation"],
+      },
     });
 
     expect(reported).toHaveLength(1);
-    expect(reported[0]).toMatchObject({
-      lineId: "line-001",
-      nodeId: "human-gate",
-      iteration: 1,
-    });
-    const reportIdx = callOrder.indexOf("reportToVisit");
+    expect(reported[0]).toBe("visit-abc");
+    const reportIdx = callOrder.indexOf("reportTriageGate");
     const activeIdx = callOrder.indexOf("activeTaskByIssue");
 
     expect(reportIdx).toBeGreaterThanOrEqual(0);

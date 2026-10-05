@@ -212,7 +212,7 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
       current_run_id: "run-42",
       current: {
         created_at: "2026-08-26T06:00:00.000Z",
-        error: "edge validate->implement exceeded iteration_max 1",
+        hold: null,
         issue_number: 7,
         issue_url: "https://gh/i/7",
         title: "Ticket 7",
@@ -225,12 +225,11 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
           { node_id: "validate", state: "running" },
           { node_id: "await-pr", state: "pending" },
         ],
-        text_too_long: false,
       },
       next: [
         {
           created_at: "2026-08-03T00:00:00.000Z",
-          error: null,
+          hold: null,
           issue_number: 8,
           issue_url: "https://gh/i/8",
           title: "Ticket 8",
@@ -239,11 +238,10 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
           state: "queued",
           run_id: null,
           pipeline: null,
-          text_too_long: false,
         },
         {
           created_at: "2026-08-02T00:00:00.000Z",
-          error: null,
+          hold: null,
           issue_number: 9,
           issue_url: "https://gh/i/9",
           title: "Ticket 9",
@@ -252,13 +250,13 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
           state: "queued",
           run_id: null,
           pipeline: null,
-          text_too_long: false,
         },
       ],
+      parked: [],
       recent: [
         {
           created_at: "2026-08-26T06:00:00.000Z",
-          error: null,
+          hold: null,
           issue_number: 5,
           issue_url: "https://gh/i/5",
           title: "Ticket 5",
@@ -267,7 +265,6 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
           state: "completed",
           run_id: null,
           pipeline: null,
-          text_too_long: false,
         },
       ],
     });
@@ -612,7 +609,7 @@ describe("GET on a repo with no loop tasks yet", () => {
 });
 
 describe("GET with a queued ticket whose text is too long", () => {
-  it("marks #4 with a 32000-char body text_too_long and #6 not", async () => {
+  it("holds #4 with a 32000-char body as text_too_long and #6 not at all", async () => {
     process.env.LORE_INGEST_TOKEN = LEGACY_TOKEN;
     const pool = makePool();
 
@@ -641,9 +638,121 @@ describe("GET with a queued ticket whose text is too long", () => {
 
     expect(JSON.parse(res.payload)).toMatchObject({
       next: [
-        { issue_number: 4, text_too_long: true },
-        { issue_number: 6, text_too_long: false },
+        { issue_number: 4, hold: { kind: "text_too_long" } },
+        { issue_number: 6, hold: null },
       ],
+    });
+  });
+});
+
+describe("GET with tickets the loop is not working", () => {
+  const enabledRepo = {
+    rows: [{ settings: { implementation_loop: { enabled: true } } }],
+  };
+  const taskRow = (issue: number, status: string, failureReason: string) => ({
+    id: `task-${issue}`,
+    created_at: "2026-08-26T06:00:00.000Z",
+    status,
+    description: `Ticket ${issue}`,
+    issue_number: issue,
+    issue_url: `https://gh/i/${issue}`,
+    pr_url: `https://gh/pr/${issue}0`,
+    failure_reason: failureReason,
+  });
+
+  async function read(tasks: unknown[], issues: Record<string, unknown>) {
+    process.env.LORE_INGEST_TOKEN = LEGACY_TOKEN;
+    const pool = makePool();
+
+    pool.query
+      .mockResolvedValueOnce(enabledRepo)
+      .mockResolvedValueOnce({ rows: tasks })
+      .mockResolvedValue({ rows: [] });
+    vi.mocked(projectFor).mockResolvedValue({ issues } as never);
+
+    const res = await buildServer(() => pool as never).inject({
+      method: "GET",
+      url: "/api/repos/re-cinq/lore/implementation-loop",
+      headers: AUTH,
+    });
+
+    return JSON.parse(res.payload);
+  }
+
+  it("lists the lore:blocked #2 as parked with the reason its task stored, and keeps it out of the queue", async () => {
+    const why =
+      "the definition-of-done step could not express this ticket as acceptance tests: it asks for a decision";
+    const loop = await read([taskRow(2, "completed", why)], {
+      list: async () => [
+        openIssue(2, ["priority:high", "lore:blocked"], "2026-08-01T00:00:00Z"),
+      ],
+    });
+
+    expect(loop).toMatchObject({
+      next: [],
+      parked: [
+        {
+          issue_number: 2,
+          state: "parked",
+          pr_url: "https://gh/pr/20",
+          hold: {
+            kind: "parked",
+            message: `The loop parked this ticket: ${why}.`,
+            fix: "Fix what it names, then remove the lore:blocked label to re-queue it.",
+          },
+        },
+      ],
+    });
+  });
+
+  it("holds the queued #4 on its open blocker #12 and asks GitHub about no ticket without a blocked-by link", async () => {
+    const asked: number[] = [];
+    const loop = await read([], {
+      list: async () => [
+        {
+          ...openIssue(4, ["priority:high"], "2026-08-01T00:00:00Z"),
+          blockedByCount: 1,
+        },
+        openIssue(6, ["priority:high"], "2026-08-02T00:00:00Z"),
+      ],
+      openBlockers: async (issueNumber: number) => {
+        asked.push(issueNumber);
+
+        return [12];
+      },
+    });
+
+    expect(asked).toEqual([4]);
+    expect(loop.next).toMatchObject([
+      {
+        issue_number: 4,
+        hold: {
+          kind: "waits_on_blockers",
+          message: "Waits on #12, which is still open.",
+        },
+      },
+      { issue_number: 6, hold: null },
+    ]);
+  });
+
+  it("holds the re-queued #5 on why its last attempt failed, read from the task", async () => {
+    const loop = await read(
+      [taskRow(5, "failed", "the run ended failed: 403 Forbidden")],
+      {
+        list: async () => [
+          openIssue(5, ["priority:high"], "2026-08-01T00:00:00Z"),
+        ],
+      },
+    );
+    const hold = {
+      kind: "failed",
+      message: "The last attempt failed: the run ended failed: 403 Forbidden.",
+      fix: "Check the Lore GitHub App's repository permissions and that it is installed on the target repo.",
+    };
+
+    expect(loop).toMatchObject({
+      next: [{ issue_number: 5, state: "queued", hold }],
+      recent: [{ issue_number: 5, state: "failed", hold }],
     });
   });
 });

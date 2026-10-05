@@ -1,8 +1,10 @@
 # Contract: Station images
 
+> **Retired 2026-10-02.** This contract was between Lore's own Floor and the pods it dispatched. The Floor, the builtin stations that implemented the contract and their `lore-station` image are deleted (`specs/external-floor` FR16.10, FR16.12). A station of a line on the external floor is written with `@re-cinq/floor-station`. What follows is the record of the old contract.
+
 How a container becomes an assembly-line **station** — a pod that runs exactly one
 non-agent node (validate, detect, gate, retrospective, github_action,
-comment-triage, ingest, or a custom type) dispatched by the Floor as an Agent CR
+ingest, or a custom type) dispatched by the Floor as an Agent CR
 on the ai-agent-subsystem (ADR-031 amendment). The builtin stations implement this contract in
 `apps/lore-station/` (image `ghcr.io/re-cinq/lore-station`); any external image
 honoring it plugs in the same way.
@@ -79,11 +81,11 @@ terminal detection keys on it, and its `result` text lands in
   is for a station that printed no marker at all (#1469).
 - `extras`: optional string→string map returned to the Floor alongside the
   outcome (stage commits were retired with the in-process walk — extras are NOT
-  persisted as trailers). Specific keys drive routing: e.g. the comment-triage
-  station's `action` selects the follow-up line. Keep it under ~1 KB total; long
+  persisted as trailers). Specific keys drive routing: e.g. the `issues`
+  station's `Lore-Issues-Objection`. Keep it under ~1 KB total; long
   detail belongs in the log lines, not extras.
-- LLM usage (stations that make their own model calls, e.g. comment-triage or
-  the spec-coverage-backfill judge): captured automatically — `runStation`
+- LLM usage (stations that make their own model calls, e.g. the
+  spec-coverage-backfill judge): captured automatically — `runStation`
   wraps the process-wide `Llm` in a usage-tracking decorator, sums every call
   the runner makes, and `resultLine` lifts the total onto the terminal line as
   the claude-style envelope fields the `/api/agent-events` cost sink reads
@@ -147,4 +149,4 @@ nodes:
 ```
 
 Builtins resolve to `def-<node type>` (a `lore.agent_definitions` row each cluster-agent renders; first seeded from
-`libs/shared/src/agent-defaults/def-<type>.md`).
+`libs/shared/src/agent-defaults/def-<type>.md`, deleted on 2026-10-02 with the node stations).

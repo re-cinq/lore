@@ -8,7 +8,6 @@ export {
   setTaskStatus,
   cancelTask as cancelPipelineTask,
   escalateTask as escalatePipelineTask,
-  reviseTask as revisePipelineTask,
   markTaskMerged,
   type TaskListRow,
 } from "./domain/pipeline-tasks.js";
@@ -25,38 +24,7 @@ export * from "./work/chunker-symbols.js";
 export * from "./work/chunker-ast.js";
 export * from "./work/chunk-primitives.js";
 export { redactSecrets } from "./lib/redact.js";
-export {
-  tokenSecretKey,
-  perTaskName,
-  needsToken,
-  catalogLookupName,
-  injectRepoToken,
-  perTaskStation,
-} from "./outbound/cluster/per-task-token.js";
-export { preserveUnownedFields } from "./outbound/cluster/preserve-unowned.js";
-export { AGENT_MAX_TURNS } from "./outbound/cluster/agent-limits.js";
 export { CONTEXT_BOOTSTRAP } from "./domain/agents/recipe-prompt.js";
-export type { AgentNodeStatus } from "./outbound/cluster/agent-node-status.js";
-export { statusFromAgentCr } from "./outbound/cluster/agent-node-status.js";
-export type {
-  AgentApi,
-  AgentLister,
-  AgentStatusReader,
-  TokenProvisioner,
-  TokenCleanup,
-} from "./outbound/cluster/cluster-ports.js";
-export type {
-  AgentPodInfo,
-  PodSummary,
-  RunningPodInfo,
-  PodLogSource,
-} from "./outbound/cluster/pod-logs-port.js";
-export {
-  ClusterAgentClient,
-  HttpAgentApi,
-  HttpPodLogSource,
-  HttpTokenCleanup,
-} from "./outbound/cluster/cluster-agent-client.js";
 export {
   writeEpisode,
   writeEpisodeWithCuration,
@@ -122,22 +90,7 @@ export {
   serializeStationInput,
   type StationInput,
 } from "./domain/station-input.js";
-export {
-  resolveDarkFactorySettings,
-  resolveExecutionImage,
-  trustMeets,
-  DEFAULT_AUTO_MERGE_PATHS,
-  DEFAULT_EXECUTION_IMAGE,
-  type DarkFactorySettings,
-  type DarkFactoryAutoMerge,
-  type DarkFactoryExecution,
-  type ExecutionImageSettings,
-  type ResolvedDarkFactorySettings,
-  type TrustLevel,
-  type ReviewMode,
-  type CreateIssueMode,
-  type NotifyChannel,
-} from "./domain/dark-factory-settings.js";
+export type { TrustLevel } from "./domain/models/repo-settings.js";
 export * from "./domain/dod/index.js";
 export type {
   PipelineTask,
@@ -241,20 +194,9 @@ export {
   type StepFailure,
   type ClassifiedFailure,
 } from "./lib/error-classify.js";
-export {
-  isTransientInfraFailure,
-  MAX_INFRA_RETRIES,
-} from "./outbound/k8s-pod-failure.js";
 export { isBusinessHours } from "./lib/business-hours.js";
-export { isAlreadyExistsError } from "./outbound/k8s-errors.js";
-export {
-  agentsNamespace,
-  kubeConfigSource,
-  loadKube,
-  type KubeConfigSource,
-  type KubeConfigLoader,
-} from "./outbound/kube-config.js";
 export { prFooter } from "./domain/pr-body.js";
+export { clampPrTitle } from "./domain/pr-title.js";
 export {
   ciConclusionOf,
   ciJudgedSha,
@@ -285,10 +227,6 @@ export {
   type LeasePool,
   type AcquireResult,
 } from "./outbound/project/leases/lease-backends.js";
-export {
-  buildReviewFixDescription,
-  formatReviewFeedback,
-} from "./work/review-feedback.js";
 // Deterministic repo validation (lint/typecheck), relocated from mcp-server for the BYO toolchain sidecar (ADR-025).
 export {
   detectTooling,

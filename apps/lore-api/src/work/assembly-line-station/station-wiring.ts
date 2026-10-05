@@ -2,7 +2,19 @@
 
 import type { Pool } from "pg";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { PgAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-pg.js";
+import {
+  floorClient,
+  floorConfigured,
+} from "@re-cinq/lore-shared/floor/floor-client.js";
+import {
+  floorRunsFeed,
+  runsOnFloor,
+  runsReadingFloor,
+} from "../floor/floor-backed-runs.js";
+import {
+  FloorRunFeeds,
+  type FloorRunFeedDeps,
+} from "../floor/floor-run-feed.js";
 import { PgAgentRunEvents } from "@re-cinq/lore-shared/project/agent-run-events/agent-run-events-pg.js";
 import { PgTaskEvents } from "@re-cinq/lore-shared/project/task-events/task-events-pg.js";
 import { fetchPrStatus } from "../../outbound/github-client.js";
@@ -10,6 +22,7 @@ import { liveTokenVerifier } from "./live-tokens.js";
 import { RunFeedRegistry } from "./run-feed.js";
 import { pgRunNotifier } from "./run-notify-hub.js";
 import type { RunChannelDeps } from "./run-channel.js";
+import type { RunsChannelDeps } from "./runs-channel.js";
 
 /** Run-channel dependencies bound to whatever pool exists when a channel opens; without one the open fails, which the socket reports as a server close. */
 export function runChannelDepsFromPool(
@@ -23,6 +36,18 @@ export function runChannelDepsFromPool(
     feeds: {
       join: (run, sink, after) => resolve().feeds.join(run, sink, after),
     },
+  };
+}
+
+/** The runs channel's dependencies: the same verifier as the run channel's, and the process's one feed on the floor where a floor is configured. */
+export function runsChannelDepsFromPool(
+  getPool: () => Pool | null,
+): RunsChannelDeps {
+  const resolve = boundOnce(getPool);
+
+  return {
+    verifyToken: (token, claim) => resolve().verifyToken(token, claim),
+    feed: floorConfigured() ? floorRunsFeed() : null,
   };
 }
 
@@ -44,17 +69,36 @@ function boundOnce(getPool: () => Pool | null): () => RunChannelDeps {
 }
 
 function bind(pool: Pool): RunChannelDeps {
-  const runs = new PgAssemblyRuns(pool);
+  const runs = runsReadingFloor(pool);
+  const local = new RunFeedRegistry({
+    runs,
+    events: new PgAgentRunEvents(pool),
+    taskEvents: new PgTaskEvents(pool),
+    prStatus: fetchPrStatus,
+    notifier: pgRunNotifier(),
+  });
 
   return {
     verifyToken: liveTokenVerifier(() => pool),
     runs,
-    feeds: new RunFeedRegistry({
-      runs,
-      events: new PgAgentRunEvents(pool),
-      taskEvents: new PgTaskEvents(pool),
-      prStatus: fetchPrStatus,
-      notifier: pgRunNotifier(),
-    }),
+    feeds: feedsByEngine(local, floorFeeds(runs)),
   };
+}
+
+/** A run is followed where it runs: the floor's own journal for a floor run, Postgres for every other. */
+export function feedsByEngine(
+  local: RunChannelDeps["feeds"],
+  floor: RunChannelDeps["feeds"],
+): RunChannelDeps["feeds"] {
+  return {
+    join: (run, sink, after) =>
+      (runsOnFloor(run) ? floor : local).join(run, sink, after),
+  };
+}
+
+function floorFeeds(runs: FloorRunFeedDeps["runs"]): RunChannelDeps["feeds"] {
+  return new FloorRunFeeds({
+    watch: (runId, options) => floorClient().runs.watch(runId, options),
+    runs,
+  });
 }

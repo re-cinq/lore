@@ -10,7 +10,7 @@
 | Auth scope | `write`                                         |
 | Module     | `mcp-server/src/api/routes/ingest.ts` (`handleIngest`) |
 
-POST /api/ingest chunks, embeds, and writes a batch of a repo's files at a given commit into the per-team vector store, reports per-file outcomes, and asynchronously triggers spec-coverage re-validation once a batch lands.
+POST /api/ingest chunks, embeds, and writes a batch of a repo's files at a given commit into the per-team vector store, reports per-file outcomes, and reconciles the repo's orphaned chunks once a batch lands.
 
 ## Problem Statement
 
@@ -63,22 +63,21 @@ JSON body:
 7. **Landed gate** — compute `landed`: true iff `result.results` is an array and
    at least one entry has `status === "ingested"` or `status === "deleted"`.
    A missing/non-array `results` → `landed = false`.
-8. **Fan-out (fire-and-forget, only when `landed`)**:
-   - `void triggerAgentSpecCoverageValidate(repo)` — POSTs `{repo}` to the agent
-     at `${LORE_AGENT_URL}/api/trigger/spec-coverage-validate` with
-     `Authorization: Bearer ${LORE_AGENT_INTERNAL_TOKEN}`. No-op (warn) when
-     either env var is unset.
+8. **After a landed batch (fire-and-forget)**: the repo's orphaned chunks are
+   reconciled. No event is inserted: the link-validation pass this step used to
+   ask for was removed on 2026-10-02 (`specs/external-floor` FR16.6).
    This runs after the 200 has already been written. **Spec/ADR graph
-   re-projection is no longer fired here** — it is CI-driven via the repo's
-   `lore-ingest.yml` (per-kind jobs POST to `/api/repos/:o/:r/ingest-graph`,
-   which fires the spec-trace trigger; see [ADR-023](../../../adrs/ADR-023-test-run-trace-binding.md)).
+   re-projection is no longer fired here** — it is CI-driven: the repo's
+   `lore-ingest.yml` runs `lore-code-trace docs --post`, which posts the specs and ADRs
+   to the graph itself. The older `/api/repos/:o/:r/ingest-graph` trigger answers `410`
+   since Lore's own Floor, which ran its projection, was deleted (`specs/external-floor` FR16.10; see [ADR-023](../../../adrs/ADR-023-test-run-trace-binding.md)).
 9. **Catch** — log `[ingest] API error: <message>` and write 500
    `{ error: err.message }`.
 
 ## Output
 
 - **Success**: 200, body = the `ingestFiles` result (shape owned by the ingest
-  engine). Fan-out triggers fire asynchronously after the response.
+  engine). The orphan reconcile runs asynchronously after the response.
 - **Validation failure**: 400, `{ error: "required: files (array of paths or {path,content}), repo (string)" }`.
 - **Engine / parse error**: 500, `{ error: "<message>" }`.
 - **No DB**: 503, `{ error: "database not available" }`.
@@ -87,9 +86,7 @@ JSON body:
 
 - `ingestFiles` (`features/spec-trace/ingest.ts`) — chunk/embed/persist; reads &
   writes `{team_schema}.chunks` (and `org_shared.chunks`).
-- `triggerAgentSpecCoverageValidate` (`routes/helpers.ts`) — fan-out HTTP POST to
-  the agent service.
-- Env: `LORE_AGENT_URL`, `LORE_AGENT_INTERNAL_TOKEN` (fan-out only); auth env
+- Env: auth env
   `LORE_INGEST_TOKEN`, `pipeline.api_tokens` (dispatcher).
 
 ## Acceptance Criteria
@@ -98,19 +95,14 @@ A null pool returns 503 before any parsing. ([validated by `returns 503 when poo
 
 A body whose `files` is not an array returns 400. ([validated by `returns 400 when files is not an array`](apps/lore-api/src/transport/routes/ingest/ingest.test.ts#L48))
 
-A body missing `repo` returns 400 with the verbatim required-fields error. ([validated by `returns 400 when repo is missing`](apps/lore-api/src/transport/routes/ingest/ingest.test.ts#L67))
+A body missing `repo` returns 400 with the verbatim required-fields error. ([validated by `returns 400 when repo is missing`](apps/lore-api/src/transport/routes/ingest/ingest.test.ts#L65))
 
-A batch with an ingested file returns 200 and fires the spec-coverage-validate trigger. ([validated by `returns 200 and inserts a spec-coverage-validate event when a file lands`](apps/lore-api/src/transport/routes/ingest/ingest.test.ts#L54))
+A batch with an ingested file returns 200 and inserts no event: the link-validation pass an ingest used to ask for was removed on 2026-10-02 (`specs/external-floor` FR16.6). ([validated by returns 200 and inserts no event when a file lands](apps/lore-api/src/transport/routes/ingest/ingest.test.ts#L54))
 
-A `deleted` status counts as a landed file and fires the trigger. ([validated by `treats a deleted status as a landed file and inserts the event`](apps/lore-api/src/transport/routes/ingest/ingest.test.ts#L73))
+A result with no `results` array still answers 200. ([validated by returns 200 when the result has no results array](apps/lore-api/src/transport/routes/ingest/ingest.test.ts#L71))
 
-An all-skipped batch fires no trigger. ([validated by `does not insert an event when nothing landed`](apps/lore-api/src/transport/routes/ingest/ingest.test.ts#L86))
+A throwing `ingestFiles` returns 500 with the error message. ([validated by `returns 500 when ingestFiles throws`](apps/lore-api/src/transport/routes/ingest/ingest.test.ts#L78))
 
-A result with no `results` array fires no trigger. ([validated by `does not fire the trigger when the result has no results array`](apps/lore-api/src/transport/routes/ingest/ingest.test.ts#L96))
-
-A throwing `ingestFiles` returns 500 with the error message. ([validated by `returns 500 when ingestFiles throws`](apps/lore-api/src/transport/routes/ingest/ingest.test.ts#L107))
-
-The post-200 spec-coverage-validate fan-out is resilient: it is a no-op when there is no pool and swallows insert errors so a flaky DB never breaks the already-written ingest response. ([validated by `spec-coverage-validate-trigger.test.ts:32`](apps/lore-api/src/transport/routes/spec-coverage-validate-trigger.test.ts#L32), [validated by `spec-coverage-validate-trigger.test.ts:38`](apps/lore-api/src/transport/routes/spec-coverage-validate-trigger.test.ts#L38))
 
 The route is registered as an exact `POST /api/ingest` match. ([implemented by](../../../apps/lore-api/src/app/build-server.ts#L100), [implemented by](../../../apps/lore-api/src/transport/routes/ingest/ingest.ts#L21))
 
@@ -175,7 +167,7 @@ The first row the embedder answers with no vector stops the batch (`stopped: tru
 ## Out of Scope
 
 - The chunking/embedding/persistence engine internals (`ingestFiles`).
-- The spec-traceability graph projection — CI-driven via `/api/repos/:o/:r/ingest-graph`
-  and the spec-trace trigger (ADR-023), not this route.
+- The spec-traceability graph projection — CI-driven via `lore-code-trace docs --post`
+  (ADR-023), not this route.
 - The agent-side spec-coverage-validate pass.
 - Bearer-token validation mechanics (owned by `auth.ts`).

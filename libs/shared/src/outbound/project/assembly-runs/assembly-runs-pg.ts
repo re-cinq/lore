@@ -1,16 +1,11 @@
 import type { RunGraph } from "../../../domain/run-graph.js";
-import type {
-  AssemblyRunQuery,
-  StationRunRelease,
-  StationRunReleaseResult,
-} from "./assembly-runs-port.js";
+import type { AssemblyRunQuery } from "./assembly-runs-port.js";
 import type { PgPool } from "../../memory-store.js";
 import type {
   AssemblyRunsPort,
   AssemblyRunStartInput,
   StationRunFailure,
   StationRunStartInput,
-  ClaimedStationRun,
   AssemblyRunRecord,
   AssemblyRunSummary,
   StationRunRecord,
@@ -65,39 +60,6 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
       commitSha,
       failure,
     });
-  }
-
-  async enqueueStationRunDispatch(
-    nodeRowId: string,
-    dispatchSpec: unknown,
-  ): Promise<void> {
-    return stationRuns.enqueueStationRunDispatch(
-      this.pool,
-      nodeRowId,
-      dispatchSpec,
-    );
-  }
-
-  async claimNextStationRun(claimant: {
-    clusterAgentId: string;
-    tags: string[];
-  }): Promise<ClaimedStationRun | null> {
-    return stationRuns.claimNextStationRun(this.pool, claimant);
-  }
-
-  async requeueStationRun(nodeRowId: string): Promise<boolean> {
-    return stationRuns.requeueStationRun(this.pool, nodeRowId);
-  }
-
-  async releaseStationRun(
-    nodeRowId: string,
-    release: StationRunRelease,
-  ): Promise<StationRunReleaseResult> {
-    return stationRuns.releaseStationRun(this.pool, nodeRowId, release);
-  }
-
-  async countOpenClaimsByAgent(): Promise<Record<string, number>> {
-    return stationRuns.countOpenClaimsByAgent(this.pool);
   }
 
   async listStationRuns(assemblyRunId: string): Promise<StationRunRecord[]> {

@@ -5,7 +5,6 @@ as subcharts under `charts/`:
 
 | Subchart (value key) | Namespace    | Workload |
 |----------------------|--------------|----------|
-| `lore-floor`         | `lore-floor` | Floor coordinator + 8 cron jobs |
 | `lore-api`           | `lore-api`   | Lore REST API server |
 | `lore-ui`            | `lore-ui`    | Next.js web UI (+ DB migrate hook) |
 | `lore-db-helm`       | `lore-db`    | CNPG ownership-reconciler hook |

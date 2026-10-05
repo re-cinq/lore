@@ -148,7 +148,6 @@ describe("fetchAgentUsage", () => {
           },
         ],
       },
-      applied: {},
     });
   });
 
@@ -171,32 +170,7 @@ describe("fetchAgentUsage", () => {
 
   it("an ok response with no usage key is a known-empty envelope, not unknown", async () => {
     mockFetch(200, {});
-    expect(await fetchAgentUsage()).toEqual({ refs: {}, applied: {} });
-  });
-
-  it("groups reported verdicts by definition name so a refusal is findable", async () => {
-    mockFetch(200, {
-      usage: [],
-      applied: [
-        {
-          name: "review",
-          project_id: null,
-          cluster: "satellite-1",
-          state: "refused",
-          reason: "no anthropic credential",
-        },
-      ],
-    });
-
-    expect((await fetchAgentUsage())?.applied.review).toEqual([
-      {
-        name: "review",
-        project_id: null,
-        cluster: "satellite-1",
-        state: "refused",
-        reason: "no anthropic credential",
-      },
-    ]);
+    expect(await fetchAgentUsage()).toEqual({ refs: {} });
   });
 });
 

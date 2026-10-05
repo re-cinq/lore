@@ -27,6 +27,32 @@ describe("rrfMerge", () => {
   });
 });
 
+describe("rrfMerge similarity", () => {
+  const candidate = (over: Partial<RankedItem> = {}): RankedItem => ({
+    key: "k",
+    value: "v",
+    agent_id: "a",
+    source: "memory",
+    ...over,
+  });
+
+  it("keeps the similarity 0.71 of the leg that measured an item the other leg also found", () => {
+    const fused = rrfMerge([[candidate({ similarity: 0.71 })], [candidate()]]);
+
+    expect(fused).toEqual([expect.objectContaining({ similarity: 0.71 })]);
+  });
+
+  it("keeps a negative similarity of -0.1 when it is the only measurement", () => {
+    const fused = rrfMerge([[candidate()], [candidate({ similarity: -0.1 })]]);
+
+    expect(fused[0].similarity).toBe(-0.1);
+  });
+
+  it("leaves similarity off an item no leg measured", () => {
+    expect(rrfMerge([[candidate()]])[0]).not.toHaveProperty("similarity");
+  });
+});
+
 describe("computeTransferScore", () => {
   it("returns 0.5 for neutral text with no portable or local keywords", () => {
     expect(computeTransferScore("the server processes requests")).toBe(0.5);

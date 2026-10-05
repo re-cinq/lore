@@ -70,15 +70,18 @@ introduced for this feature must not collide with that name.
 
 Run observability is delivered over Server-Sent Events at
 `GET /api/agent-events/stream/{assemblyLineId}`, with catch-up-then-live
-semantics keyed on a row-id cursor. ([opens a run channel and delivers its snapshot, replay and catchup_complete as frame envelopes](apps/lore-api/src/work/assembly-line-station/live-socket.test.ts#L159), [delivers the run, every node, every task event and the CI check as a snapshot, then the agent replay, then catchup_complete](apps/lore-api/src/work/assembly-line-station/run-stream-session.test.ts#L130), [forwards transcript rows written after catch-up on an agent_event notification, from the feed's cursor](apps/lore-api/src/work/assembly-line-station/run-feed.test.ts#L185))
+semantics keyed on a row-id cursor. ([opens a run channel and delivers its snapshot, replay and catchup_complete as frame envelopes](apps/lore-api/src/work/assembly-line-station/live-socket.test.ts#L123), [delivers the run, every node, every task event and the CI check as a snapshot, then the agent replay, then catchup_complete](apps/lore-api/src/work/assembly-line-station/run-stream-session.test.ts#L130), [forwards transcript rows written after catch-up on an agent_event notification, from the feed's cursor](apps/lore-api/src/work/assembly-line-station/run-feed.test.ts#L185))
 
-The POST handler and the SSE subscribers are joined by an in-process pub/sub. ([delivers a published notification only to subscribers whose filter matches](apps/lore-api/src/work/assembly-line-station/run-notify-hub.test.ts#L73)) A
-subscriber registers against an assembly-line id; the ingest path publishes each
+The POST handler and the SSE subscribers are joined by an in-process pub/sub. ([delivers a published notification only to subscribers whose filter matches](apps/lore-api/src/work/assembly-line-station/run-notify-hub.test.ts#L73))
+
+A subscriber registers against an assembly-line id; the ingest path publishes each
 projected row to matching subscribers after the write commits. ([opens one LISTEN connection on the first subscriber and dispatches its notifications](apps/lore-api/src/work/assembly-line-station/run-notify-hub.test.ts#L142))
 
 Reconnection is lossless by construction rather than by buffering: the browser
 resends `Last-Event-ID`, and the server replays from the database before
-attaching to the live tail. ([handles a notification that arrives during a viewer's catch-up only after it](apps/lore-api/src/work/assembly-line-station/run-feed.test.ts#L256), [`run-event-reducer.test.ts:223`](apps/web-ui/src/lib/run-event-reducer.test.ts#L223)) The bus is therefore best-effort and holds no
+attaching to the live tail. ([handles a notification that arrives during a viewer's catch-up only after it](apps/lore-api/src/work/assembly-line-station/run-feed.test.ts#L256), [`run-event-reducer.test.ts:223`](apps/web-ui/src/lib/run-event-reducer.test.ts#L223))
+
+The bus is therefore best-effort and holds no
 backlog — durability lives in `pipeline.agent_run_events`, not in memory. ([ends every viewer with an error and closes the feed when a read fails](apps/lore-api/src/work/assembly-line-station/run-feed.test.ts#L312))
 
 A subscriber that cannot keep up is disconnected rather than allowed to apply
@@ -132,7 +135,7 @@ resource name and stops being an identity. The pod is deliberately NOT required
 to echo the id back: the Floor already knows it at write time, so the correlation
 improves without a change in the external ai-agent-subsystem repo.
 
-**Amendment 2026-08-17 — the producer STATES the identity; the join is the fallback.** Amendment 2 above concluded that the pod need not echo the id back, "because the Floor already knows it at write time". That is the part that does not hold: the Floor does not know it, it *infers* it, from the same `agent_cr_name` lateral whose tie-break Amendment 2 called a guess wearing a join's clothing. Stamping `station_run_id` onto the CR moved which id the guess produces, not whether it is a guess. The concrete cost is an invariant no write path can enforce — nothing may ever copy a node row with its `agent_cr_name` intact, or the copy silently steals the original's late-arriving cost and telemetry rows; fork-and-rerun hit exactly that and had to null the column on copy, and every future feature touching node rows has to remember the same rule unaided. So the event carries the identity: `source.assembly_run` / `node` / `iteration` / `station_run`, declared in ONE place (`libs/shared/.../run-identity/carried-run-identity.ts`) because it crosses a process boundary into an externally-built image. A stated identity is authoritative and is taken WHOLE — a per-column fallback would pair a stated run with an inferred node, a row wrong in a way no reader can detect — and the CR-name join is consulted only for events that state nothing. This half ships READERS-FIRST: every sink accepts the field before any producer emits it, so the ai-agent-subsystem change can land on its own schedule, and until it does every envelope parses to null and the join stays in charge. ([validated by reads the identity a producer stamped into the attribution](libs/shared/src/outbound/project/run-identity/carried-run-identity.test.ts#L12), [`carried-run-identity.test.ts:21`](libs/shared/src/outbound/project/run-identity/carried-run-identity.test.ts#L21), [`carried-run-identity.test.ts:31`](libs/shared/src/outbound/project/run-identity/carried-run-identity.test.ts#L31), [`carried-run-identity.test.ts:35`](libs/shared/src/outbound/project/run-identity/carried-run-identity.test.ts#L35), [`carried-run-identity.test.ts:47`](libs/shared/src/outbound/project/run-identity/carried-run-identity.test.ts#L47), [`carried-run-identity.test.ts:52`](libs/shared/src/outbound/project/run-identity/carried-run-identity.test.ts#L52), [`agent-run-events.test.ts:61`](libs/shared/src/outbound/project/agent-run-events/agent-run-events.test.ts#L61), [`agent-run-events.test.ts:91`](libs/shared/src/outbound/project/agent-run-events/agent-run-events.test.ts#L91), [`agent-run-events.test.ts:392`](libs/shared/src/outbound/project/agent-run-events/agent-run-events.test.ts#L392), [`agent-run-events.test.ts:415`](libs/shared/src/outbound/project/agent-run-events/agent-run-events.test.ts#L415), [`agent-run-turns.test.ts:63`](libs/shared/src/outbound/project/agent-run-turns/agent-run-turns.test.ts#L63), [`agent-run-turns.test.ts:316`](libs/shared/src/outbound/project/agent-run-turns/agent-run-turns.test.ts#L316), [`usage-memory.test.ts:49`](libs/shared/src/outbound/project/usage/usage-memory.test.ts#L49), [`usage-memory.test.ts:71`](libs/shared/src/outbound/project/usage/usage-memory.test.ts#L71), [`usage-pg.test.ts:77`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L106), [`usage-pg.test.ts:100`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L129), [`agent-run-turns.test.ts:29`](apps/floor/src/work/agent/agent-run-turns.test.ts#L29), [`agent-run-turns.test.ts:50`](apps/floor/src/work/agent/agent-run-turns.test.ts#L50); implemented by [`carried-run-identity.ts:29`](libs/shared/src/outbound/project/run-identity/carried-run-identity.ts#L29), [`agent-run-events-pg.ts:93`](libs/shared/src/outbound/project/agent-run-events/agent-run-events-pg.ts#L94), [`usage-pg.ts:33`](libs/shared/src/outbound/project/usage/usage-pg.ts#L33))
+**Amendment 2026-08-17 — the producer STATES the identity; the join is the fallback.** Amendment 2 above concluded that the pod need not echo the id back, "because the Floor already knows it at write time". That is the part that does not hold: the Floor does not know it, it *infers* it, from the same `agent_cr_name` lateral whose tie-break Amendment 2 called a guess wearing a join's clothing. Stamping `station_run_id` onto the CR moved which id the guess produces, not whether it is a guess. The concrete cost is an invariant no write path can enforce — nothing may ever copy a node row with its `agent_cr_name` intact, or the copy silently steals the original's late-arriving cost and telemetry rows; fork-and-rerun hit exactly that and had to null the column on copy, and every future feature touching node rows has to remember the same rule unaided. So the event carries the identity: `source.assembly_run` / `node` / `iteration` / `station_run`, declared in ONE place (`libs/shared/.../run-identity/carried-run-identity.ts`) because it crosses a process boundary into an externally-built image. A stated identity is authoritative and is taken WHOLE — a per-column fallback would pair a stated run with an inferred node, a row wrong in a way no reader can detect — and the CR-name join is consulted only for events that state nothing. This half ships READERS-FIRST: every sink accepts the field before any producer emits it, so the ai-agent-subsystem change can land on its own schedule, and until it does every envelope parses to null and the join stays in charge. ([validated by reads the identity a producer stamped into the attribution](libs/shared/src/outbound/project/run-identity/carried-run-identity.test.ts#L12), [`carried-run-identity.test.ts:21`](libs/shared/src/outbound/project/run-identity/carried-run-identity.test.ts#L21), [`carried-run-identity.test.ts:31`](libs/shared/src/outbound/project/run-identity/carried-run-identity.test.ts#L31), [`carried-run-identity.test.ts:35`](libs/shared/src/outbound/project/run-identity/carried-run-identity.test.ts#L35), [`carried-run-identity.test.ts:47`](libs/shared/src/outbound/project/run-identity/carried-run-identity.test.ts#L47), [`carried-run-identity.test.ts:52`](libs/shared/src/outbound/project/run-identity/carried-run-identity.test.ts#L52), [`agent-run-events.test.ts:61`](libs/shared/src/outbound/project/agent-run-events/agent-run-events.test.ts#L61), [`agent-run-events.test.ts:91`](libs/shared/src/outbound/project/agent-run-events/agent-run-events.test.ts#L91), [`agent-run-events.test.ts:392`](libs/shared/src/outbound/project/agent-run-events/agent-run-events.test.ts#L392), [`agent-run-events.test.ts:415`](libs/shared/src/outbound/project/agent-run-events/agent-run-events.test.ts#L415), [`agent-run-turns.test.ts:63`](libs/shared/src/outbound/project/agent-run-turns/agent-run-turns.test.ts#L63), [`agent-run-turns.test.ts:316`](libs/shared/src/outbound/project/agent-run-turns/agent-run-turns.test.ts#L316), [`usage-memory.test.ts:49`](libs/shared/src/outbound/project/usage/usage-memory.test.ts#L49), [`usage-memory.test.ts:71`](libs/shared/src/outbound/project/usage/usage-memory.test.ts#L71), [`usage-pg.test.ts:77`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L106), [`usage-pg.test.ts:100`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L129), `agent-run-turns.test.ts:50`; implemented by [`carried-run-identity.ts:29`](libs/shared/src/outbound/project/run-identity/carried-run-identity.ts#L29), [`agent-run-events-pg.ts:93`](libs/shared/src/outbound/project/agent-run-events/agent-run-events-pg.ts#L94), [`usage-pg.ts:33`](libs/shared/src/outbound/project/usage/usage-pg.ts#L33))
 
 Cross-references: ADR-015 (webhook-driven review reactor) and its event-bus
 amendment own Floor-internal triggering through `pipeline.events`; this ADR owns
@@ -182,7 +185,7 @@ that works for a cluster reporting inward.
   missing the identity a chunk is keyed by, or a chunk of the wrong shape, is
   dropped rather than thrown on. A handler that throws sends the delivery round
   the retry ladder to a dead letter, and a malformed event is just as malformed
-  on the fifth attempt. ([validated by [reads a well-formed event into chunks ready to store](apps/floor/src/work/station/pod-log-ingest.test.ts#L16), [returns nothing for an event missing the identity](apps/floor/src/work/station/pod-log-ingest.test.ts#L35), [drops a chunk whose seq or lines are the wrong shape](apps/floor/src/work/station/pod-log-ingest.test.ts#L44), [stores what the event carried](apps/floor/src/work/station/pod-log-ingest.test.ts#L58), [stores nothing for a malformed event](apps/floor/src/work/station/pod-log-ingest.test.ts#L69))
+  on the fifth attempt. ([validated by reads a well-formed event into chunks ready to store)
 
 ### The producer
 
@@ -216,21 +219,21 @@ exercise, so it is stated here rather than linked.
 
 - Lines are batched to a chunk by count OR byte cap, whichever comes first, so
   one chunk's cost to the bus is bounded ahead of time rather than by how
-  talkative a pod turned out to be. ([validated by [holds lines until the line count is reached](apps/cluster-agent/src/work/inputs/pod-log-batching.test.ts#L34), [flushes early once accumulated bytes reach the cap](apps/cluster-agent/src/work/inputs/pod-log-batching.test.ts#L40), [keeps a partial batch pending](apps/cluster-agent/src/work/inputs/pod-log-batching.test.ts#L46), [starts the next batch empty](apps/cluster-agent/src/work/inputs/pod-log-batching.test.ts#L55))
+  talkative a pod turned out to be.
 - A single line longer than the byte cap flushes ALONE rather than wedging a
   batch that can never satisfy its own limit. The cap bounds this process's
-  memory; it cannot bound what the pod chose to write. ([validated by [flushes a single line that alone exceeds the byte cap](apps/cluster-agent/src/work/inputs/pod-log-batching.test.ts#L61))
+  memory; it cannot bound what the pod chose to write.
 - A partial batch is flushed on an idle timer, so a pod that goes quiet
-  mid-chunk does not strand its last lines. ([validated by [flushes what is pending](apps/cluster-agent/src/work/inputs/pod-log-batching.test.ts#L72), [flushes nothing when nothing is pending](apps/cluster-agent/src/work/inputs/pod-log-batching.test.ts#L78))
+  mid-chunk does not strand its last lines.
 - The flush at END of stream also carries the fragment held back for want of a
   newline. A chunk boundary can split a line, so the tail of every write waits
   for the rest of its line — and when the stream ends that rest never comes. A
   pod that dies mid-write ends exactly there, so the line dropped was its last
-  one, which is the line the log was being read for. ([validated by [emits the held-back partial line a stream ended without a newline](apps/cluster-agent/src/work/inputs/pod-log-batching.test.ts#L244), [`pod-log-batching.test.ts:253`](apps/cluster-agent/src/work/inputs/pod-log-batching.test.ts#L253), [`pod-log-batching.test.ts:260`](apps/cluster-agent/src/work/inputs/pod-log-batching.test.ts#L260))
+  one, which is the line the log was being read for.
 - Each chunk is one event, deduped on `(pod, seq)` — never on the job. Both pods
   of a retried node start at seq 1, and a job-keyed dedupe would drop the
   retry's first chunk as a duplicate of the original's, the same trap the
-  table's unique index avoids. ([validated by [carries the identity a chunk is keyed by](apps/cluster-agent/src/work/inputs/pod-log-batching.test.ts#L84), [dedupes on the POD, not the job](apps/cluster-agent/src/work/inputs/pod-log-batching.test.ts#L104))
+  table's unique index avoids.
 - Discovery follows only agents that are running AND have a Job, and never one
   it is already following. Discovery re-runs on a timer over the same agents, so
   without that last check each tick opens another stream on the same pod and
@@ -239,7 +242,7 @@ exercise, so it is stated here rather than linked.
   reason: a pass that outlives the 15-second interval overlaps its successor, and
   both read the following-set before either has added to it — so the check above
   holds only within a pass, and the live set is re-read again before a stream is
-  opened. ([validated by [follows a running agent that has a pod to follow](apps/cluster-agent/src/work/inputs/pod-log-batching.test.ts#L117), [skips a terminal agent](apps/cluster-agent/src/work/inputs/pod-log-batching.test.ts#L125), [skips an agent with no job yet](apps/cluster-agent/src/work/inputs/pod-log-batching.test.ts#L134), [skips a CR carrying no metadata or status yet](apps/cluster-agent/src/work/inputs/pod-log-batching.test.ts#L138), [skips one already being followed](apps/cluster-agent/src/work/inputs/pod-log-batching.test.ts#L147))
+  opened.
 - Discovery holds NOTHING between pages. Every Agent CR carries its run's whole
   transcript in `status.output`, so the paged walk exists to keep them out of
   memory — and accumulating the pages into one array put them right back. At 130
@@ -247,14 +250,14 @@ exercise, so it is stated here rather than linked.
   cluster-agent was OOM-killed seven seconds into every boot for twenty-one
   hours, which stopped its Agent-CR watch, which left every finished run in that
   cluster with nobody to report it. Each page is reduced to the names a stream
-  needs and dropped, so the caller cannot retain a CR it was never handed. ([validated by [keeps only the three fields a stream needs, not the CR it read them from](apps/cluster-agent/src/work/inputs/pod-log-batching.test.ts#L274), [`pod-log-batching.test.ts:280`](apps/cluster-agent/src/work/inputs/pod-log-batching.test.ts#L280))
+  needs and dropped, so the caller cannot retain a CR it was never handed.
 - The stream NAMES its container. An empty container name makes the log request
   a `400 Error occurred in log request`, and an agent pod has two containers
   (`init` and `agent`) so there is no implicit choice for the apiserver to make.
   Found on the first pilot run, which retried a 400 every fifteen seconds and
   streamed nothing. The name is read off the pod — first container, the workload
   rather than a sidecar — so it stays correct for a station pod or a renamed
-  image, and the newest pod wins so a retried node streams its current attempt. ([validated by [names the container to stream](apps/cluster-agent/src/work/inputs/pod-log-batching.test.ts#L160), [takes the newest pod](apps/cluster-agent/src/work/inputs/pod-log-batching.test.ts#L168), [takes the FIRST container](apps/cluster-agent/src/work/inputs/pod-log-batching.test.ts#L177), [orders by a Date timestamp too](apps/cluster-agent/src/work/inputs/pod-log-batching.test.ts#L184), [sorts a pod carrying no timestamp last](apps/cluster-agent/src/work/inputs/pod-log-batching.test.ts#L205), [returns null when there is no pod yet](apps/cluster-agent/src/work/inputs/pod-log-batching.test.ts#L223), [returns null for a pod with no name or no container](apps/cluster-agent/src/work/inputs/pod-log-batching.test.ts#L227))
+  image, and the newest pod wins so a retried node streams its current attempt.
 
 ### The retention window now has a caller
 
@@ -268,10 +271,10 @@ wired and closes the older gap on the way past.
 
 #### Decisions
 
-- One nightly `cron.telemetry_prune.tick` reaps both at the same window. ([validated by [prunes both tables at the retention window](apps/floor/src/work/station/log-retention.test.ts#L9), [prunes rows past the retention window and reports the count](libs/shared/src/outbound/project/pod-logs/pod-logs.test.ts#L67))
+- One nightly `cron.telemetry_prune.tick` reaps both at the same window. ([validated by [prunes both tables at the retention window](libs/shared/src/work/housekeeping/telemetry-retention.test.ts#L9), [prunes rows past the retention window and reports the count](libs/shared/src/outbound/project/pod-logs/pod-logs.test.ts#L67))
 - The two sweeps settle independently: one failing must not skip the other,
-  which is how a table quietly outgrows its window. ([validated by [still prunes the other table when one fails](apps/floor/src/work/station/log-retention.test.ts#L17))
-- The window is overridable, so a deployment can keep less. ([validated by [honours an explicit window](apps/floor/src/work/station/log-retention.test.ts#L30))
+  which is how a table quietly outgrows its window. ([validated by [still prunes the other table when one fails](libs/shared/src/work/housekeeping/telemetry-retention.test.ts#L17))
+- The window is overridable, so a deployment can keep less. ([validated by [honours an explicit window](libs/shared/src/work/housekeeping/telemetry-retention.test.ts#L30))
 
 ## Amendment (2026-09-09): the stream moves to lore-api, and the bus becomes Postgres
 
@@ -291,7 +294,7 @@ frame contract is a generated type, and the drift guard is deleted.
 
 - The endpoint is `GET /api/assembly-runs/{id}/stream` on lore-api, under the
   `read` scope; the Floor's `/api/agent-events/stream/{id}` and its in-process
-  bus are gone, and the browser's proxy talks to one backend. _(Since 2026-09-23 the endpoint is the `run` channel of `/api/ws`, ADR-048.)_ ([opens a run channel and delivers its snapshot, replay and catchup_complete as frame envelopes](apps/lore-api/src/work/assembly-line-station/live-socket.test.ts#L159))
+  bus are gone, and the browser's proxy talks to one backend. _(Since 2026-09-23 the endpoint is the `run` channel of `/api/ws`, ADR-048.)_ ([opens a run channel and delivers its snapshot, replay and catchup_complete as frame envelopes](apps/lore-api/src/work/assembly-line-station/live-socket.test.ts#L123))
 - One connection carries every family the page reads, as a discriminated
   `RunStreamFrame` union published in OpenAPI: `agent_event`, `node_status`,
   `run_status`, `task_event`, `ci_check`, plus `catchup_complete`. ([delivers the run, every node, every task event and the CI check as a snapshot, then the agent replay, then catchup_complete](apps/lore-api/src/work/assembly-line-station/run-stream-session.test.ts#L130))

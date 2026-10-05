@@ -11,6 +11,12 @@ export type AssemblyRunRow = Omit<
   graph?: RunGraph | null;
 };
 
+/** One stage of a run as the list draws it: the node and its state. */
+export interface PipelineNode {
+  node_id: string;
+  state: string;
+}
+
 export interface AssemblyRun {
   id: string;
   blueprintName: string;
@@ -32,6 +38,17 @@ export interface AssemblyRun {
   issueNumber: number | null;
   createdBy: string | null;
   costUsd: number | null;
+  /** Which engine walks the run: `floor` for one on the external floor. Optional so test doubles need not set it; the mapper always does. */
+  engine?: string;
+  /** The run's stages as the list draws them; optional so test doubles need not set it. */
+  pipeline?: PipelineNode[];
+}
+
+const FLOOR_ENGINE = "floor";
+
+/** True for a run the external floor walks: the run page may read and watch it, but only the floor can re-run it. */
+export function isFloorEngine(engine: string | undefined): boolean {
+  return engine === FLOOR_ENGINE;
 }
 
 export type AssemblyRunNodeRow =
@@ -75,6 +92,7 @@ export function durationSeconds(
 export function toAssemblyRun(row: AssemblyRunRow): AssemblyRun {
   return {
     id: row.id,
+    engine: row.engine,
     blueprintName: row.blueprint_name,
     graph: row.graph ?? null,
     taskId: row.task_id,
@@ -137,4 +155,12 @@ export function toAssemblyRunNode(row: AssemblyRunNodeRow): AssemblyRunNode {
     durationSeconds: durationSeconds(row.started_at, row.finished_at),
     startedAt: row.started_at,
   };
+}
+
+/** A run row of the floor's run list as lore-api serves it: the list row plus its stages. */
+export type FloorRunRow = components["schemas"]["FloorRunPage"]["runs"][number];
+
+/** A floor run row — from a page or from a live `run_row` frame — as the list draws it, stages included. */
+export function floorRunOf(row: FloorRunRow): AssemblyRun {
+  return { ...toAssemblyRun({ ...row, graph: null }), pipeline: row.pipeline };
 }

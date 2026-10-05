@@ -73,15 +73,12 @@ ones:
 - **`business-hours.ts`** — the IANA-TZ-aware gate for safety crons.
 - **`test-command-manifest.ts`** — the `.lore/test-commands.yml` schema and
   resolver (project-test-interface).
-- **`dark-factory-settings.ts`** — the dependency-free settings resolver
-  (web-ui reaches it by relative path; the input-validation schema lives in
-  lore-api, the shape in `models/`).
 - **`repo-validation/`** — deterministic lint/typecheck detection for
   Node/Go/Python/Rust.
 
 Also here: `http/` (bearer/HMAC/raw-body helpers), `db/pg-pool.ts`,
 `cluster/` (the cluster-agent client + ports), `escalation/`,
-`feature-planning/`, `review/`, and the memory/embedding stores.
+`feature-planning/`, `review/` (the review lines' agent prompts now live in `libs/assembly-lines/src/floor-pipelines/`), and the memory/embedding stores.
 
 ## Testing
 

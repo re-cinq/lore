@@ -2,4 +2,3 @@
 
 export * from "./lib/station.js";
 export { STATIONS, STATION_NAMES, type StationName } from "./registry.js";
-export { nodeStationFor } from "./node-station-lookup.js";

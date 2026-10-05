@@ -226,4 +226,27 @@ describe("PlanOutlineActions", () => {
       },
     );
   });
+
+  it("shows why lore-api refused a Refine as an alert at the top of the outline's actions", () => {
+    const refusal =
+      "The planning line has ended, so no agent is waiting to refine this plan; edit the section by hand.";
+    const { container } = render(
+      <PlanOutlineActions
+        state="writing"
+        canApprove
+        prUrl={null}
+        prNumber={null}
+        prTitle={null}
+        prUnresolvedThreads={null}
+        refusal={refusal}
+        {...actions}
+      />,
+    );
+    const first = container.firstElementChild?.firstElementChild;
+
+    expect({
+      role: first?.getAttribute("role"),
+      text: first?.textContent,
+    }).toEqual({ role: "alert", text: refusal });
+  });
 });

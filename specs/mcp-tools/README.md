@@ -63,7 +63,7 @@ tool's spec + this section together are sufficient to recreate the handler.
 ## Pipeline (`pipeline-tools.ts`)
 | Tool | Spec | Purpose | Scope |
 |------|------|---------|-------|
-| `lore_create_pipeline_task` | [spec](create-pipeline-task/spec.md) | Create a pipeline task. | shared |
+| ~~`lore_create_pipeline_task`~~ | [spec](create-pipeline-task/spec.md) | Removed 2026-10-02: the API creates no task from a description. | — |
 | `lore_get_pipeline_status` | [spec](get-pipeline-status/spec.md) | Get one task's status. | shared |
 | `lore_list_pipeline_tasks` | [spec](list-pipeline-tasks/spec.md) | List pipeline tasks. | shared |
 | `lore_cancel_task` | [spec](cancel-task/spec.md) | Cancel a task. | shared |

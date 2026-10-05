@@ -1,58 +1,69 @@
 ---
-# The code-review-reply line's node — intent-aware, thread-targeted. Started by
-# the comment-triage router (address|answer) or a submitted review (address).
-timeout_minutes: 20
+# The code-review-reply line's `code-review-refine` agent; the floor pipeline file fills its prompt from this body.
+timeout_minutes: 60
 review_required: false
 execution_mode: claude-code
-# The pod's Bash hook refuses every test runner, install and build here: CI is the judge and the disk is 1Gi.
-test_policy: none
-model: gemini-3.1-pro-preview
-# Commits via `git -C /workspace/target` like before workingDir existed; the
-# install ban still applies — its commits are validated by the PR's CI (#1160).
-repo_workdir: false
-disallowed_tools:
-  - Bash(npm:*)
-  - Bash(npx:*)
-  - Bash(yarn:*)
-  - Bash(pnpm:*)
-  - Bash(bun:*)
-  - Bash(pip:*)
-  - Bash(pip3:*)
-  - Bash(uv:*)
-  - Bash(cargo:*)
-  - Bash(go:*)
-  - Bash(make:*)
-  - Bash(bash:*)
-  - Bash(sh:*)
+model: claude-sonnet-4-6
 ---
 {description}
 
-The PR branch is checked out at /workspace/target and the task line above
-states the intent and the thread. Do NOT use `gh` and do NOT touch the
-network (the pod has neither `gh` nor a GitHub token in the shell) — read
-and commit locally, and let Lore post your reply.
-- intent = address: implement the requested fix under /workspace/target
-  and commit it to the checked-out PR branch, e.g.
+The text above is a review that asked for changes on this pull request:
+what the reviewer wrote, then each comment they left on a line, as
+`inline comment <id> on <path>`. The PR branch is checked out at
+/workspace/target. Do NOT use `gh` (the pod has neither `gh` nor a GitHub
+token in the shell) — read and commit locally, and let Lore post your
+replies.
+
+Take the comments one at a time:
+- A comment that asks for a change: make it under /workspace/target and
+  commit it to the checked-out PR branch, e.g.
   `git -C /workspace/target commit -am "<message>"`.
-- intent = answer: do NOT change code.
-The human's comment is quoted in the task above — act on that.
+- A comment that asks a question: answer it from the code. Do NOT change
+  code for it.
+- A comment you cannot act on without guessing: do NOT invent work. Your
+  reply to that comment is the one question you need answered.
 
 Do NOT install dependencies or run builds or tests (`npm ci` and friends)
-— the pod has a 1Gi disk budget and exceeding it evicts the pod, taking
-your commit with it. Commit the change and let the PR's CI validate it.
+— the pod's disk is small and exceeding it evicts the pod, taking your
+commit with it. Commit the change and let the PR's CI validate it.
 The pod's Bash hook refuses test, build and install commands outright.
 
-Emit your reply as a fenced block; Lore posts it in-thread for you:
+Nobody pushes your commit for you. Once every change is committed, push:
+`git -C /workspace/target push origin HEAD`
+That one command may use the network, and git is already authenticated for this repository. Push nothing else, and never force. If the push is refused, say so in your reply and output REVIEW_RESULT:CHANGES_REQUESTED:the fix could not be pushed.
+
+Then emit two fenced blocks. Lore posts the first on the pull request and
+each entry of the second under the comment it names:
 
 ```REVIEW_REPLY
-<short markdown reply>
+<short markdown: what you changed and pushed, and what is still open>
 ```
 
-If the task does not state a concrete requested change and you cannot
-find one in the thread, do NOT guess or invent work: post one clarifying
-question in the review thread and output
-REVIEW_RESULT:CHANGES_REQUESTED:needs clarification.
+```REVIEW_THREAD_REPLIES
+[
+  {
+    "comment_id": 1234567,
+    "reply": "Renamed to `retryBudget` in a1b2c3d.",
+    "resolved": true
+  },
+  {
+    "comment_id": 1234568,
+    "reply": "It retries once: `post-review` sends a failed visit back to the agent.",
+    "resolved": false
+  }
+]
+```
+
+`comment_id` is the id from `inline comment <id>` above, one entry per
+comment. Set `resolved` to true only when a commit you pushed does what
+the comment asked; an answer or a question leaves it false, and the
+reviewer closes the thread. A review with no line comments gets an empty
+list.
 
 Then output exactly one of:
 - REVIEW_RESULT:APPROVED
 - REVIEW_RESULT:CHANGES_REQUESTED:<one-line summary of what remains>
+Use CHANGES_REQUESTED when any comment is left unanswered or waits on
+your question.
+
+`/workspace/issue.md`, when your task was given one, is the GitHub issue this pull request claims to resolve — judge the change against it. When the file is not there, the pull request names no issue: do not look for one.
