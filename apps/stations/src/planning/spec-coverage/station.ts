@@ -18,13 +18,12 @@ import {
 } from "@re-cinq/lore-shared/feature-planning/plan-coverage.js";
 import {
   groundingBrief,
-  groundingFindings,
-  namedPaths,
   type GroundedFile,
 } from "@re-cinq/lore-shared/feature-planning/grounding.js";
 import { specPathsOfPlan } from "@re-cinq/lore-shared/feature-planning/spec-plan-path.js";
 import { parseGitRef } from "@re-cinq/lore-shared/floor/floor-items.js";
 import { coverageDeps, type CoverageDeps } from "../coverage-deps.js";
+import { findingsIn, groundedText } from "../grounded-text.js";
 
 const SUCCESS: Report = { outcome: "success" };
 
@@ -69,7 +68,7 @@ async function coverageOnBranch(
   ]);
   const specs = await specsOnBranch(specPlan.toString("utf8"), read);
 
-  const grounded = specs.map((spec) => groundedSpec(spec, tree, read));
+  const grounded = specs.map((spec) => groundedText(spec, tree, read));
   const texts = specs.map((spec) => spec.text);
 
   return {
@@ -98,36 +97,11 @@ async function specsOnBranch(
   return specs.filter((spec): spec is SpecFile => spec.text !== null);
 }
 
-/** One spec's findings, its identifiers checked against the files on the tree it names. */
-async function groundedSpec(
-  spec: SpecFile,
-  tree: readonly string[],
-  read: (path: string) => Promise<string | null>,
-): Promise<GroundedFile> {
-  const named = namedPaths(spec.text).filter((path) => tree.includes(path));
-  const contents = await Promise.all(named.map(read));
-  const files = Object.fromEntries(
-    named.flatMap((path, index) => {
-      const content = contents[index];
-
-      return content === null ? [] : [[path, content]];
-    }),
-  );
-
-  return {
-    path: spec.path,
-    findings: groundingFindings({ text: spec.text, tree, files }),
-  };
-}
-
 function gapsIn(
   coverage: PlanCoverage,
   grounded: readonly GroundedFile[],
 ): number {
-  return (
-    coverage.missing.length +
-    grounded.reduce((sum, spec) => sum + spec.findings.length, 0)
-  );
+  return coverage.missing.length + findingsIn(grounded);
 }
 
 async function readJson<T>(tools: Tools, need: string): Promise<T> {

@@ -15,12 +15,16 @@ import {
 import {
   issueCoverage,
   issueCoverageBrief,
-  type IssueCoverage,
 } from "@re-cinq/lore-shared/feature-planning/issue-coverage.js";
 import {
   parseDecomposition,
+  type DecompTask,
   type DecompositionResult,
 } from "@re-cinq/lore-shared/feature-planning/decomposition-result.js";
+import {
+  groundingBrief,
+  type GroundedFile,
+} from "@re-cinq/lore-shared/feature-planning/grounding.js";
 import { parseModelJson } from "@re-cinq/lore-shared/feature-planning/model-json.js";
 import { parseGitRef } from "@re-cinq/lore-shared/floor/floor-items.js";
 import {
@@ -28,6 +32,7 @@ import {
   type DecomposedSpec,
 } from "../file-issues/decomposed-spec.js";
 import { coverageDeps, type CoverageDeps } from "../coverage-deps.js";
+import { findingsIn, groundedText } from "../grounded-text.js";
 
 const SUCCESS: Report = { outcome: "success" };
 
@@ -42,31 +47,82 @@ export function issueCoverageHandle(deps: CoverageDeps): Handle {
       }
       await tools.produce("issue_coverage", coverage.brief);
 
-      return await verdict(deps, brief.visitId, coverage.counted);
+      return await verdict(deps, brief.visitId, coverage.gaps);
     } catch (err) {
       return { outcome: "failed", error: (err as Error).message };
     }
   };
 }
 
+interface CountedDecomposition {
+  /** Statements no task names, plus names the tasks give that are not on main. */
+  gaps: number;
+  brief: string;
+}
+
 async function coverageOfDecomposition(
   deps: CoverageDeps,
   brief: Brief,
   tools: Tools,
-): Promise<{ counted: IssueCoverage; brief: string } | undefined> {
+): Promise<CountedDecomposition | undefined> {
   const { repo, branch } = parseGitRef(brief.needs.target);
   const decomposition = await decompositionOf(tools);
-  const spec = await decomposedSpec(
-    (path, ref) => deps.readSpec(repo, path, ref),
-    {
-      repo,
-      branch,
-      specPath: brief.needs.spec_path,
-      commit: decomposition.spec_commit,
-    },
+  const spec = await specOf(deps, brief, decomposition);
+
+  if (!spec) {
+    return undefined;
+  }
+  const tree = await deps.listTree(repo, branch);
+  const grounded = await groundedTasks(decomposition, tree, (path) =>
+    deps.readSpec(repo, path, branch),
   );
 
-  return spec && countedIn(spec, decomposition);
+  return countedIn(spec, decomposition, grounded);
+}
+
+/** The spec at the commit the decomposition read, or at the branch when it names none. */
+function specOf(
+  deps: CoverageDeps,
+  brief: Brief,
+  decomposition: DecompositionResult,
+): Promise<DecomposedSpec | undefined> {
+  const { repo, branch } = parseGitRef(brief.needs.target);
+
+  return decomposedSpec((path, ref) => deps.readSpec(repo, path, ref), {
+    repo,
+    branch,
+    specPath: brief.needs.spec_path,
+    commit: decomposition.spec_commit,
+  });
+}
+
+/** Each task's text, the plan it quotes first, grounded on the base branch. */
+function groundedTasks(
+  decomposition: DecompositionResult,
+  tree: readonly string[],
+  read: (path: string) => Promise<string | null>,
+): Promise<GroundedFile[]> {
+  const tasks = decomposition.stories.flatMap((story) => story.tasks);
+
+  return Promise.all(
+    tasks.map((task) =>
+      groundedText({ path: task.id, text: taskText(task) }, tree, read),
+    ),
+  );
+}
+
+function taskText(task: DecompTask): string {
+  return [
+    task.changes,
+    ...(task.plan_quotes ?? []),
+    task.context,
+    ...(task.acceptance_criteria ?? []),
+    task.test_plan,
+    task.title,
+    task.description,
+  ]
+    .filter((part): part is string => Boolean(part))
+    .join("\n");
 }
 
 async function decompositionOf(tools: Tools): Promise<DecompositionResult> {
@@ -78,22 +134,26 @@ async function decompositionOf(tools: Tools): Promise<DecompositionResult> {
 function countedIn(
   spec: DecomposedSpec,
   decomposition: DecompositionResult,
-): { counted: IssueCoverage; brief: string } {
+  grounded: readonly GroundedFile[],
+): CountedDecomposition {
   const counted = issueCoverage(
     spec.parts,
     decomposition.stories.flatMap((story) => story.tasks),
   );
 
-  return { counted, brief: issueCoverageBrief(counted, spec.linkOf) };
+  return {
+    gaps: counted.missing.length + findingsIn(grounded),
+    brief: issueCoverageBrief(counted, spec.linkOf) + groundingBrief(grounded),
+  };
 }
 
-/** Every statement named, or the budget spent, settles the run; otherwise decompose goes round again. */
+/** Every statement named and every name on main, or the budget spent, settles the run; otherwise decompose goes round again. */
 async function verdict(
   deps: CoverageDeps,
   visitId: string,
-  coverage: IssueCoverage,
+  gaps: number,
 ): Promise<Report> {
-  if (coverage.missing.length === 0) {
+  if (gaps === 0) {
     return SUCCESS;
   }
   const spent = coverageRoundsSpent(
