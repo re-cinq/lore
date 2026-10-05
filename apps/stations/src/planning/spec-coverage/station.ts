@@ -23,7 +23,7 @@ import {
 import { specPathsOfPlan } from "@re-cinq/lore-shared/feature-planning/spec-plan-path.js";
 import { parseGitRef } from "@re-cinq/lore-shared/floor/floor-items.js";
 import { coverageDeps, type CoverageDeps } from "../coverage-deps.js";
-import { findingsIn, groundedText } from "../grounded-text.js";
+import { addedAcross, findingsIn, groundedText } from "../grounded-text.js";
 
 const SUCCESS: Report = { outcome: "success" };
 
@@ -68,13 +68,26 @@ async function coverageOnBranch(
   ]);
   const specs = await specsOnBranch(specPlan.toString("utf8"), read);
 
-  const grounded = specs.map((spec) => groundedText(spec, tree, read));
+  const grounded = groundedSpecs(specs, tree, read);
   const texts = specs.map((spec) => spec.text);
 
   return {
     coverage: planCoverage(citable.blocks, texts),
-    grounded: await Promise.all(grounded),
+    grounded: await grounded,
   };
+}
+
+/** Each spec grounded, what any of them says the feature adds counting for all. */
+function groundedSpecs(
+  specs: readonly SpecFile[],
+  tree: readonly string[],
+  read: (path: string) => Promise<string | null>,
+): Promise<GroundedFile[]> {
+  const added = addedAcross(specs);
+
+  return Promise.all(
+    specs.map((spec) => groundedText(spec, tree, read, added)),
+  );
 }
 
 interface SpecFile {
