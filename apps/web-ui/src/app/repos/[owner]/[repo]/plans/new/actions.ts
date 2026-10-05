@@ -62,15 +62,14 @@ async function createSeededPlan(
   return { id };
 }
 
-// A blank user story is left out, so lore-api never sees an empty URL.
 function draftingRequestOf(
-  { description, storyUrl }: NewPlanInput,
+  { description, storyIssue }: NewPlanInput,
   user: PlanUser,
 ): DraftingRequest {
   return {
     known: description,
     createdBy: user.id,
-    ...(storyUrl ? { storyUrl } : {}),
+    ...(storyIssue ? { storyIssue } : {}),
   };
 }
 

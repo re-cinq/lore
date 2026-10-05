@@ -50,12 +50,11 @@ const PLANNING_RUN: AssemblyRunSummary = {
 };
 
 describe("floorEnrichmentOf", () => {
-  it("answers issue 42 from the run's issue_url start item", () => {
-    const issueUrl = "https://github.com/re-cinq/lore/issues/42";
-    const run = { ...PLANNING_RUN, args: { issue_url: issueUrl } };
+  it("answers issue 42 of re-cinq/lore from the run's story_issue start item", () => {
+    const run = { ...PLANNING_RUN, args: { story_issue: "42" } };
 
     expect(floorEnrichmentOf(run, undefined)).toMatchObject({
-      issue_url: issueUrl,
+      issue_url: "https://github.com/re-cinq/lore/issues/42",
       issue_number: 42,
     });
   });

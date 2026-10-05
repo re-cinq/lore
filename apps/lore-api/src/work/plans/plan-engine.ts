@@ -8,8 +8,8 @@ export type PlanSubject = PlanRef & { status: string };
 export interface DraftingRequest {
   known: string;
   createdBy: string;
-  /** The user story the plan answers, carried on its planning run. */
-  storyUrl?: string;
+  /** The issue number of the user story the plan answers, carried on its planning run. */
+  storyIssue?: number;
 }
 
 /** What the plan routes ask of a plan's planning line, the same whichever engine holds it. Each verb answers what its route answers: a run or task id, or nothing. */

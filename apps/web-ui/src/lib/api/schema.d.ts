@@ -7081,8 +7081,7 @@ export interface operations {
         "application/json": {
           known: string;
           createdBy: string;
-          /** Format: uri */
-          storyUrl?: string;
+          storyIssue?: number;
         };
       };
     };

@@ -5,8 +5,22 @@ export interface NewPlanInput {
   title: string;
   type: PlanKind;
   description: string;
-  /** The user story the plan answers; empty when the author names none. */
-  storyUrl: string;
+  /** The issue number of the user story the plan answers, when the author names one. */
+  storyIssue?: number;
+}
+
+const STORY_ISSUE =
+  /^(?:#?(\d+)|https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/issues\/(\d+)\/?)$/;
+
+const STORY_REFUSED =
+  "The user story must be a GitHub issue URL or its number.";
+
+/** The issue number a user story names, as a GitHub issue URL, `#N` or a bare number; null for anything else. */
+export function storyIssueOf(text: string): number | null {
+  const match = STORY_ISSUE.exec(text.trim());
+  const issue = Number(match?.[1] ?? match?.[2] ?? 0);
+
+  return issue > 0 ? issue : null;
 }
 
 const isPlanKind = (type: string): type is PlanKind =>
@@ -26,12 +40,23 @@ export function newPlanInput(
     return { error: `Unknown plan type ${type}.` };
   }
 
-  return {
-    title,
-    type,
-    description: field(formData, "description"),
-    storyUrl: field(formData, "storyUrl"),
-  };
+  return withStory(
+    { title, type, description: field(formData, "description") },
+    field(formData, "story"),
+  );
+}
+
+// A blank story is no story; one that names no issue is refused rather than dropped.
+function withStory(
+  input: NewPlanInput,
+  story: string,
+): NewPlanInput | { error: string } {
+  if (!story) {
+    return input;
+  }
+  const storyIssue = storyIssueOf(story);
+
+  return storyIssue ? { ...input, storyIssue } : { error: STORY_REFUSED };
 }
 
 /** The description's paragraphs, as the plan's intent section holds them. */

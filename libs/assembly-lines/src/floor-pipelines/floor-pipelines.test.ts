@@ -183,6 +183,27 @@ describe("the floor pipelines shipped in this folder", () => {
     ]);
   });
 
+  it("has open-spec-pr read the spec plan and produce spec_path as a value beside pr_url, which issues takes as an optional value instead of the spec plan", () => {
+    const { stations } = pipelineOf("feature-planning");
+    const openSpecPr = stations["open-spec-pr"];
+    const issues = stations["issues"];
+
+    expect({
+      openSpecPrReads: needOf(openSpecPr, "spec_plan")?.kind,
+      openSpecPrProduces: openSpecPr.produces,
+      issuesReads: needOf(issues, "spec_path"),
+      issuesReadsPlan: needOf(issues, "spec_plan"),
+    }).toEqual({
+      openSpecPrReads: "file",
+      openSpecPrProduces: [
+        { name: "pr_url", kind: "value" },
+        { name: "spec_path", kind: "value" },
+      ],
+      issuesReads: { name: "spec_path", kind: "value", optional: true },
+      issuesReadsPlan: undefined,
+    });
+  });
+
   it("makes both loop waits human stations that produce the three CI values and the round brief as a file", () => {
     const { stations } = pipelineOf("implementation-loop");
     const waits = ["loop-await-ci", "loop-await-pr"].map((name) => ({

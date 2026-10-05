@@ -51,7 +51,7 @@ function draftingVerbs(
     draft: async (plan, request) =>
       startFloorDrafting(deps, {
         ...(await briefed(plan, draftBrief(plan, request.known))),
-        storyUrl: request.storyUrl,
+        storyIssue: request.storyIssue,
       }),
     refine: async (plan, refine) =>
       askFloorRefine(deps, {

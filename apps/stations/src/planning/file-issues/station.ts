@@ -11,7 +11,6 @@ import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
 import { floorClient } from "@re-cinq/lore-shared/floor/floor-client.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { parseGitRef } from "@re-cinq/lore-shared/floor/floor-items.js";
-import { specPathOfPlan } from "@re-cinq/lore-shared/feature-planning/spec-plan-path.js";
 import { projectFor } from "../../outbound/project-boot.js";
 import { runIssuesStation, type IssuesStationDeps } from "./issues.js";
 
@@ -59,9 +58,8 @@ async function stationInputOf(
   deps: FileIssuesDeps,
   { repo, branch, brief, tools }: TargetBrief,
 ): Promise<StationInput> {
-  const [decomposition, specPlan, runId] = await Promise.all([
+  const [decomposition, runId] = await Promise.all([
     textOf(tools, "decomposition"),
-    textOf(tools, "spec_plan"),
     groupingRunOf(deps, brief.visitId),
   ]);
 
@@ -72,7 +70,7 @@ async function stationInputOf(
     repo,
     branch,
     task_id: null,
-    params: paramsOf(brief.needs, decomposition, specPlan),
+    params: paramsOf(brief.needs, decomposition),
   };
 }
 
@@ -95,15 +93,12 @@ async function groupingRunOf(
 function paramsOf(
   needs: Record<string, string>,
   decomposition: string,
-  specPlan: string,
 ): Record<string, string> {
-  const specPath = specPathOfPlan(specPlan);
-
   return {
     feature_decomposition: decomposition,
     plan_id: needs.plan_id,
     ...(needs.plan_title ? { plan_title: needs.plan_title } : {}),
-    ...(specPath ? { spec_path: specPath } : {}),
+    ...(needs.spec_path ? { spec_path: needs.spec_path } : {}),
   };
 }
 

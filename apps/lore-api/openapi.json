@@ -5582,9 +5582,10 @@
                     "type": "string",
                     "minLength": 1
                   },
-                  "storyUrl": {
-                    "type": "string",
-                    "format": "uri"
+                  "storyIssue": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
                   }
                 },
                 "required": ["known", "createdBy"],

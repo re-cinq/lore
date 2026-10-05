@@ -105,9 +105,7 @@ describe("createPlanAction", () => {
     ]);
   });
 
-  it("asks for the draft with user story re-cinq/lore#42 when the form names it", async () => {
-    const storyUrl = "https://github.com/re-cinq/lore/issues/42";
-
+  it("asks for the draft with user story 42 when the form names re-cinq/lore issue 42", async () => {
     await expect(
       createPlanAction(
         "re-cinq/lore",
@@ -116,13 +114,13 @@ describe("createPlanAction", () => {
           title: "Faster checkout",
           type: "feature",
           description: "",
-          storyUrl,
+          story: "https://github.com/re-cinq/lore/issues/42",
         }),
       ),
     ).rejects.toThrow(new Error("redirect /repos/re-cinq/lore/plans/p1"));
     expect(calls().at(-1)).toEqual({
       url: "http://api:3000/api/repos/re-cinq/lore/plans/p1/drafting",
-      body: { known: "", createdBy: "gedaiu", storyUrl },
+      body: { known: "", createdBy: "gedaiu", storyIssue: 42 },
     });
   });
 

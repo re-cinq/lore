@@ -29,21 +29,20 @@ export type FloorRunSource = Pick<
   "page" | "listing" | "costsByRun"
 >;
 
-const ISSUE_NUMBER = /\/issues\/(\d+)\/?$/;
-
-/** What a floor run joins beyond itself: its pull request and its issue are its own start items and its cost is the floor's sum. */
+/** What a floor run joins beyond itself: its pull request and its user story's issue number are its own start items and its cost is the floor's sum. */
 export function floorEnrichmentOf(
   run: AssemblyRunSummary,
   costUsd: number | undefined,
 ): RunEnrichment {
-  const issueUrl = stringArg(run, "issue_url");
-  const issueDigits = issueUrl ? ISSUE_NUMBER.exec(issueUrl)?.[1] : undefined;
+  const storyIssue = stringArg(run, "story_issue");
 
   return {
     pr_url: stringArg(run, "pr_url"),
     task_pr_number: null,
-    issue_url: issueUrl,
-    issue_number: issueDigits ? Number(issueDigits) : null,
+    issue_url: storyIssue
+      ? `https://github.com/${run.repo}/issues/${storyIssue}`
+      : null,
+    issue_number: storyIssue ? Number(storyIssue) : null,
     created_by: null,
     cost_usd: costUsd ?? null,
   };

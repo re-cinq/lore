@@ -150,4 +150,31 @@ describe("openSpecPrHandle", () => {
       error: "GitHub is down",
     });
   });
+
+  it("produces spec_path specs/widget/spec.md beside the PR url, from the first spec spec_plan creates", async () => {
+    const handle = scene({
+      pulls: {
+        list: () => Promise.resolve([pullRef()]),
+        open: () => Promise.reject(new Error("unused")),
+      },
+    });
+    const specPlan = JSON.stringify({
+      creates: [{ path: "specs/widget/spec.md" }],
+      updates: [],
+    });
+
+    expect(
+      await handle(brief(), {
+        ...TOOLS,
+        read: (need) =>
+          Promise.resolve(Buffer.from(need === "spec_plan" ? specPlan : "")),
+      }),
+    ).toEqual({
+      outcome: "success",
+      produced: {
+        pr_url: "https://github.com/re-cinq/lore/pull/42",
+        spec_path: "specs/widget/spec.md",
+      },
+    });
+  });
 });

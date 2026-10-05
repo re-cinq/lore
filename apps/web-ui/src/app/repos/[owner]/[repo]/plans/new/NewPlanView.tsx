@@ -56,11 +56,7 @@ function StoryField() {
   return (
     <label>
       User story
-      <input
-        name="storyUrl"
-        type="url"
-        placeholder="https://github.com/owner/repo/issues/123"
-      />
+      <input name="story" placeholder="An issue URL, or its number: 123" />
     </label>
   );
 }

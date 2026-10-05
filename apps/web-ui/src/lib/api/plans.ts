@@ -148,7 +148,7 @@ export function seedPlan(
 export interface DraftingRequest {
   known: string;
   createdBy: string;
-  storyUrl?: string;
+  storyIssue?: number;
 }
 
 /** Starts the planning agent's first draft of the plan. */
