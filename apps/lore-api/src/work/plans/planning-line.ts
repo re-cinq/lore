@@ -49,7 +49,12 @@ function refusalFor(open: string): string {
   return PLANNING_NODES.has(open) ? STILL_REFINING : WRITING_SPECS;
 }
 
-const PLANNING_NODES = new Set(["analyze", "plan-pass-end", "validate"]);
+const PLANNING_NODES = new Set([
+  "analyze",
+  "plan-pass-end",
+  "validate",
+  "plan-findings",
+]);
 
 /** A line for `reopenTargetOf`, whichever engine read it: the park it may report to is typed by that engine. */
 export interface ReopenableLine<Parked extends ParkedTarget> extends Pick<
