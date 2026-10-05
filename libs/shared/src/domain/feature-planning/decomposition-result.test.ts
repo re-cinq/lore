@@ -209,4 +209,25 @@ describe("parseDecomposition", () => {
       "phase",
     ]);
   });
+
+  it("keeps the plan passages a task quotes, a single string as a one-item list", () => {
+    const [task] = parseDecomposition({
+      stories: [
+        {
+          title: "S",
+          tasks: [
+            {
+              id: "T001",
+              description: "Add the reproduce node",
+              plan_quotes: "Reproduction runs before any diagnosis.",
+            },
+          ],
+        },
+      ],
+    }).stories[0].tasks;
+
+    expect(task).toMatchObject({
+      plan_quotes: ["Reproduction runs before any diagnosis."],
+    });
+  });
 });

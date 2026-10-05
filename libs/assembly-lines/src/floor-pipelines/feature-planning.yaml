@@ -26,12 +26,19 @@ line:
     - id: author
       station: plan-author
     # No inbound edge — the plan page's own Validate button fires this event while
-    # the line waits on `author`; every outcome hands straight back to the author.
+    # the line waits on `author`; every outcome goes through plan-findings back to
+    # the author. It reads `base`, cloned as the default branch stands when the
+    # visit opens: `repo` is the spec branch, cut from main when the run started
+    # and untouched until `write` pushes, so a Validate days later read deleted code.
     - id: validate
       station: plan-validate
       start: manual.plan.validate
       bind:
-        target: repo
+        target: base
+    # Writes the validator's findings into the plan, or a blocker when the visit
+    # delivered none. See the plan-findings station.
+    - id: plan-findings
+      station: plan-findings
     - id: analyse-specs
       station: spec-analysis
       bind:
@@ -115,9 +122,14 @@ line:
       to: done
       on: failed
     # Validate reports only `success` in practice (the findings are the delivery,
-    # not the outcome) but a pod can still fail outright, so `always` catches both
-    # and hands the plan straight back to the people reading it.
+    # not the outcome) but a pod can still fail outright, so `always` catches both.
+    # plan-findings tells the two apart by whether the visit produced its file.
     - from: validate
+      to: plan-findings
+      on: always
+    # A visit that delivered nothing has already put a blocker on the plan, so
+    # either way the plan goes back to the people reading it.
+    - from: plan-findings
       to: author
       on: always
     - from: analyse-specs
@@ -306,6 +318,20 @@ stations:
       - name: plan_validation
         kind: file
         path: plan-validation.json
+  plan-findings:
+    kind: service
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: plan_id
+        kind: value
+      # Optional: a visit that wrote nothing leaves the bag without one, or with
+      # an earlier visit's, which the station refuses to read as this one's.
+      - name: plan_validation
+        kind: file
+        optional: true
+    produces: []
   spec-analysis:
     kind: agent
     agent_definition: spec-analysis
@@ -462,6 +488,16 @@ stations:
         kind: file
         path: issue-coverage.md
         optional: true
+      # Every spec the plan created or updated: spec_path is only the first.
+      - name: spec_plan
+        kind: file
+        path: spec-plan.json
+      # The approved plan's blocks with the link each is cited by; absent without
+      # a web UI address to link to.
+      - name: plan_blocks
+        kind: file
+        path: plan-blocks.json
+        optional: true
     produces:
       - name: decomposition
         kind: file
@@ -488,6 +524,11 @@ stations:
         kind: value
       - name: plan_title
         kind: value
+        optional: true
+      # Folded into the story issue: the plan lives in Lore, not in the
+      # repository the issues are filed on.
+      - name: plan_md
+        kind: file
         optional: true
     produces: []
   issue-coverage:

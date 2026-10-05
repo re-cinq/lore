@@ -6,7 +6,9 @@ import { detectDriftHandle } from "./station.js";
 const BRIEF = {
   visitId: "visit-drift",
   iteration: 1,
-  needs: { target: "github.com/acme/widgets@lore/spec-upkeep/2026-10-05" },
+  needs: {
+    target: "https://github.com/acme/widgets@lore/spec-upkeep/2026-10-05",
+  },
 };
 
 const DRIFTED: DriftedSpec = {

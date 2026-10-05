@@ -25,13 +25,13 @@ detect it from.
 
 ## Your deliverable
 
-The file `spec-plan.json`, written to the current directory. Nothing
+The file `spec-plan.json`, written at exactly `{spec_plan_path}`. Nothing
 you print is read except the outcome line below; the FILE is the
 deliverable, and a run that ends without a valid one has failed.
 
 After EVERY write, run:
 
-    jq empty spec-plan.json
+    jq empty {spec_plan_path}
 
 If it prints anything the file is invalid — fix it and re-run until
 it exits silently.

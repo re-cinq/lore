@@ -36,7 +36,7 @@ function scene(found: UnlinkedSpec[] | Error, driftCount = "0") {
         visitId: "visit-unlinked",
         iteration: 1,
         needs: {
-          target: "github.com/acme/widgets@lore/spec-upkeep/2026-10-05",
+          target: "https://github.com/acme/widgets@lore/spec-upkeep/2026-10-05",
           drift_count: driftCount,
         },
       },

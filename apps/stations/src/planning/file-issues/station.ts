@@ -59,9 +59,10 @@ async function stationInputOf(
   deps: FileIssuesDeps,
   { repo, branch, brief, tools }: TargetBrief,
 ): Promise<StationInput> {
-  const [decomposition, specPath, runId] = await Promise.all([
+  const [decomposition, specPath, planMarkdown, runId] = await Promise.all([
     textOf(tools, "decomposition"),
     specPathOf(brief.needs, tools),
+    planMarkdownOf(brief.needs, tools),
     groupingRunOf(deps, brief.visitId),
   ]);
 
@@ -72,7 +73,7 @@ async function stationInputOf(
     repo,
     branch,
     task_id: null,
-    params: paramsOf(brief.needs, decomposition, specPath),
+    params: paramsOf(brief.needs, { decomposition, specPath, planMarkdown }),
   };
 }
 
@@ -86,6 +87,14 @@ async function specPathOf(
   }
 
   return specPathOfPlan(await textOf(tools, "spec_plan"));
+}
+
+// A run started before the line declared plan_md files its story without the plan.
+async function planMarkdownOf(
+  needs: Record<string, string>,
+  tools: Parameters<Handle>[1],
+): Promise<string | undefined> {
+  return needs.plan_md ? textOf(tools, "plan_md") : undefined;
 }
 
 /** The run's id is the spec-tasks' group id, and the merge-check reads that group to flip the spec's status. A visit id would differ on every re-drive, so the tasks would land in a group nobody counts: better to fail here than to file them wrong. */
@@ -104,16 +113,22 @@ async function groupingRunOf(
   return runId;
 }
 
+interface ReadNeeds {
+  decomposition: string;
+  specPath: string | undefined;
+  planMarkdown: string | undefined;
+}
+
 function paramsOf(
   needs: Record<string, string>,
-  decomposition: string,
-  specPath: string | undefined,
+  { decomposition, specPath, planMarkdown }: ReadNeeds,
 ): Record<string, string> {
   return {
     feature_decomposition: decomposition,
     plan_id: needs.plan_id,
     ...(needs.plan_title ? { plan_title: needs.plan_title } : {}),
     ...(specPath ? { spec_path: specPath } : {}),
+    ...(planMarkdown ? { plan_md: planMarkdown } : {}),
   };
 }
 

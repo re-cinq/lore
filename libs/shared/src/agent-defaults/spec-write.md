@@ -239,7 +239,7 @@ plan artifact. For each item decide:
 - A review body with no single comment id is answered the same way,
   by the review's id.
 
-Always write `spec-review-result.json` to the current directory on
+Always write `spec-review-result.json` at exactly `{spec_review_path}` on
 every pass of this recipe:
 
     {"plan_questions": [ {"slot": "...", "question": "...", "why": "...", "comment_id": 0} ],

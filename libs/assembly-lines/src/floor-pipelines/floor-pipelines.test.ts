@@ -27,6 +27,7 @@ interface Need {
 
 interface Station {
   kind: string;
+  agent_definition?: string;
   outcomes: string[];
   needs: Need[];
   produces: Array<{ name: string; kind: string; path?: string }>;
@@ -52,7 +53,7 @@ interface Pipeline {
     start?: { on: string[] };
     files?: Record<string, string>;
     args: Record<string, Arg>;
-    nodes: { id: string; station?: string }[];
+    nodes: { id: string; station?: string; bind?: Record<string, string> }[];
     edges: Edge[];
   };
   stations: Record<string, Station>;
@@ -750,6 +751,7 @@ describe("the feature-planning pipeline", () => {
         "issues",
         "merged",
         "open-spec-pr",
+        "plan-findings",
         "plan-pass-end",
         "spec-coverage",
         "validate",
@@ -880,6 +882,38 @@ describe("the feature-planning pipeline", () => {
     });
   });
 
+  it("has validate read the default branch as it stands when the visit opens, not the spec branch cut when the run started", () => {
+    const { line } = pipelineOf("feature-planning");
+
+    expect(line.nodes.find((node) => node.id === "validate")?.bind).toEqual({
+      target: "base",
+    });
+  });
+
+  it("hands every validate visit to plan-findings, which writes the findings into the plan before the author waits again", () => {
+    const { line, stations } = pipelineOf("feature-planning");
+
+    expect({
+      fromValidate: edgesOn(line, "validate"),
+      fromFindings: edgesOn(line, "plan-findings"),
+      station: line.nodes.find((node) => node.id === "plan-findings")?.station,
+      findings: stations["plan-findings"],
+    }).toEqual({
+      fromValidate: [{ from: "validate", to: "plan-findings", on: "always" }],
+      fromFindings: [{ from: "plan-findings", to: "author", on: "always" }],
+      station: "plan-findings",
+      findings: {
+        kind: "service",
+        outcomes: ["success", "failed"],
+        needs: [
+          { name: "plan_id", kind: "value" },
+          { name: "plan_validation", kind: "file", optional: true },
+        ],
+        produces: [],
+      },
+    });
+  });
+
   it("has the validation read the live plan through lore_plan_read rather than a plan.md snapshot", () => {
     const { stations } = pipelineOf("feature-planning");
 
@@ -925,6 +959,40 @@ describe("the feature-planning pipeline", () => {
       specPath: { name: "spec_path", kind: "value" },
       namesPlan: true,
       namesSpecPath: true,
+    });
+  });
+
+  it("gives feature-decompose every spec the plan touched as spec-plan.json and the citable plan blocks, and names both in its prompt", () => {
+    const decompose =
+      pipelineOf("feature-planning").stations["feature-decompose"];
+    const prompt = promptOnOneLine("feature-decompose");
+
+    expect({
+      specPlan: needOf(decompose, "spec_plan"),
+      blocks: needOf(decompose, "plan_blocks"),
+      named: [
+        prompt.includes("{spec_plan_path}"),
+        prompt.includes("/workspace/plan-blocks.json"),
+      ],
+    }).toEqual({
+      specPlan: { name: "spec_plan", kind: "file", path: "spec-plan.json" },
+      blocks: {
+        name: "plan_blocks",
+        kind: "file",
+        path: "plan-blocks.json",
+        optional: true,
+      },
+      named: [true, true],
+    });
+  });
+
+  it("gives the issues station the approved plan as an optional plan_md, to fold into the story issue", () => {
+    const issues = pipelineOf("feature-planning").stations["issues"];
+
+    expect(needOf(issues, "plan_md")).toEqual({
+      name: "plan_md",
+      kind: "file",
+      optional: true,
     });
   });
 });
@@ -1230,5 +1298,30 @@ describe("the files the floor agents produce", () => {
       .filter((entry) => entry.includes(":target/"));
 
     expect(insideClone).toEqual([]);
+  });
+
+  it("names every agent's produced file by its path placeholder and never the current directory, which is the root in the pod", () => {
+    const agentStations = [...PIPELINES.values()]
+      .flatMap((pipeline) => Object.values(pipeline.stations))
+      .filter((station) => station.kind === "agent");
+    const unnamed = agentStations.flatMap((station) =>
+      station.produces
+        .filter((output) => output.path !== undefined)
+        .filter(
+          (output) =>
+            !promptOnOneLine(station.agent_definition ?? "").includes(
+              `{${output.name}_path}`,
+            ),
+        )
+        .map((output) => `${station.agent_definition}:${output.name}`),
+    );
+    const sayCurrentDirectory = agentStations
+      .map((station) => station.agent_definition ?? "")
+      .filter((name) => promptOnOneLine(name).includes("current directory"));
+
+    expect({ unnamed, sayCurrentDirectory }).toEqual({
+      unnamed: [],
+      sayCurrentDirectory: [],
+    });
   });
 });

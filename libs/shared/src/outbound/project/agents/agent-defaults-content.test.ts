@@ -267,6 +267,26 @@ describe("the feature-planning recipe", () => {
     }).toEqual({ onlyQuestions: true, noRestating: true });
   });
 
+  it("tells the planning agent its edits land unreviewed, so it checks each claim against the plan's other sections and settled answers and asks rather than contradict one", () => {
+    const prompt = promptOnOneLine("plan-analyze");
+
+    expect({
+      unreviewed: prompt.includes("nobody accepts them first"),
+      checkFirst: prompt.includes(
+        "check it against what the plan already decides",
+      ),
+      askInstead: prompt.includes("ask with `add-question` instead"),
+      everyInput: prompt.includes(
+        "Write in every settled input the brief lists",
+      ),
+    }).toEqual({
+      unreviewed: true,
+      checkFirst: true,
+      askInstead: true,
+      everyInput: true,
+    });
+  });
+
   it("edits the live plan through lore_plan_read and lore_plan_edit instead of uploading a file", () => {
     const prompt = promptOnOneLine("plan-analyze");
 
@@ -532,5 +552,15 @@ describe("the planning recipes check a plan against what the platform has (issue
       keepsIds: true,
       onlyListed: true,
     });
+  });
+
+  it("has feature-decompose read every spec spec-plan.json names, cite the plan blocks, and quote the plan on every task", () => {
+    const prompt = promptOnOneLine("feature-decompose");
+
+    expect({
+      everySpec: prompt.includes("Read every spec it names"),
+      cites: prompt.includes("copied exactly as the file gives it"),
+      quotes: prompt.includes("`plan_quotes`"),
+    }).toEqual({ everySpec: true, cites: true, quotes: true });
   });
 });

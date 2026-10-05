@@ -12,6 +12,8 @@ export interface StoryIssueInput {
   planUrl?: string;
   /** `specs/<slug>/`, where the spec-kit set lives. */
   specSlug?: string;
+  /** The approved plan as Markdown, folded into the story so it reads without the plan page. */
+  planMarkdown?: string;
   stories: readonly UserStory[];
   /** Task id → filed issue number, once the task issues exist. */
   taskIssues?: ReadonlyMap<string, number>;
@@ -19,20 +21,43 @@ export interface StoryIssueInput {
   coverage?: string;
 }
 
+// GitHub refuses an issue body longer than this.
+const GITHUB_BODY_LIMIT = 65_536;
+
 export function storyIssueBody(input: StoryIssueInput): string {
-  const header = [
-    planLine(input),
-    ...specLine(input),
-    "",
+  const links = [planLine(input), ...specLine(input), ""];
+  const stories = [
     "Each task below is its own sub-issue of this story.",
     "",
-  ];
-
-  return [
-    ...header,
     ...input.stories.flatMap((story) => storySection(story, input.taskIssues)),
     ...(input.coverage ? [input.coverage] : []),
-  ].join("\n");
+  ];
+  const room = GITHUB_BODY_LIMIT - [...links, ...stories].join("\n").length - 1;
+
+  return [...links, ...planFold(input, room), ...stories].join("\n");
+}
+
+const FOLD_OPEN = "<details><summary>The approved plan</summary>";
+const FOLD_CLOSE = "</details>";
+
+// The plan is cut short rather than the stories: the plan page holds the rest, the stories are what this issue tracks.
+function planFold(
+  { planMarkdown, planUrl }: StoryIssueInput,
+  room: number,
+): string[] {
+  if (!planMarkdown) {
+    return [];
+  }
+  const fold = (text: string) => [FOLD_OPEN, "", text, "", FOLD_CLOSE, ""];
+  const whole = fold(planMarkdown);
+
+  if (whole.join("\n").length + 1 <= room) {
+    return whole;
+  }
+  const pointer = `\n\n*The plan continues on ${planUrl ? `[its page](${planUrl})` : "its page"}.*`;
+  const kept = room - fold(pointer).join("\n").length - 1;
+
+  return kept > 0 ? fold(planMarkdown.slice(0, kept) + pointer) : [];
 }
 
 function planLine({ planTitle, planUrl, stories }: StoryIssueInput): string {
@@ -107,6 +132,7 @@ export function taskIssueBody({
     ...dependencyLine(dependsOn),
     ...implementsSection(specStatements),
     ...section("Context", task.context),
+    ...quotes("From the plan", task.plan_quotes),
     ...section("What to change", task.changes ?? task.description),
     ...(task.file_path ? [`Target file: \`${task.file_path}\``, ""] : []),
     ...checklist("## Acceptance criteria", task.acceptance_criteria ?? []),
@@ -150,6 +176,23 @@ function quoted(text: string): string {
 
 function section(heading: string, text: string | undefined): string[] {
   return text ? [`## ${heading}`, "", text, ""] : [];
+}
+
+function quotes(heading: string, passages: readonly string[] = []): string[] {
+  return passages.length
+    ? [
+        `## ${heading}`,
+        "",
+        ...passages.flatMap((passage) => [blockquote(passage), ""]),
+      ]
+    : [];
+}
+
+function blockquote(passage: string): string {
+  return passage
+    .split("\n")
+    .map((line) => (line ? `> ${line}` : ">"))
+    .join("\n");
 }
 
 function checklist(heading: string, criteria: readonly string[]): string[] {

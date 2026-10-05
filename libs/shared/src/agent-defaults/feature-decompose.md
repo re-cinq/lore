@@ -22,14 +22,22 @@ gateway has no checkout to detect it from.
   plan.md and tasks.md when they exist, or the spec file itself.
   That spec.md is "the spec" below. Do not search the clone for
   another one.
+- **Every spec the plan touched** is listed in `{spec_plan_path}`:
+  each `path` under `creates` and `updates`, the first being
+  `{spec_path}`. Read every spec it names, with its plan.md and
+  tasks.md, under /workspace/target. A plan that updates an existing
+  spec has work in it too.
 - **The approved plan** is at `{plan_md_path}`. It is the PLANNING
   DOCUMENT its people approved, outside the clone. Do not confuse it
   with `specs/<slug>/plan.md` inside the clone, the implementation
   plan artifact.
+- **The plan's blocks**, when `/workspace/plan-blocks.json` exists:
+  every block of the approved plan with its `text` and the `link`
+  that cites it.
 
-Read the spec, its plan.md and tasks.md, and the approved plan
+Read the specs, their plan.md and tasks.md, and the approved plan
 before you write anything. Then emit JSON only. Write that JSON to
-`decomposition.json` in the current directory; the file is the
+`decomposition.json` at exactly `{decomposition_path}`; the file is the
 deliverable:
 
 {
@@ -53,7 +61,8 @@ deliverable:
           "acceptance_criteria": ["<observable outcome that proves it done>", "..."],
           "test_plan": "<which tests to write or run, and what they show>",
           "references": ["specs/<slug>/spec.md#<section>", "specs/<slug>/plan.md#<section>"],
-          "spec_lines": [42, 57]
+          "spec_lines": [42, 57],
+          "plan_quotes": ["<a passage of the approved plan this task comes from, as written>"]
         }
       ]
     }
@@ -124,6 +133,17 @@ Rules:
   names: every statement outside the intro and the narrative sections
   (Background, Rationale, Problem Statement, Open Questions). Name
   every testable statement in at least one task.
+- **Quote the plan the task comes from.** The issue is all the
+  developer reads, and the approved plan is not in the repository, so
+  a link to it is not enough. `plan_quotes` holds the passages of the
+  approved plan the task comes from, copied as written, never
+  paraphrased: a paragraph or two, never a whole section. A user
+  story's task carries at least one; a Setup and foundation or Polish
+  task quotes what it serves, or leaves the list out.
+- **Cite the plan's blocks.** When `/workspace/plan-blocks.json`
+  exists, add to `references` the `link` of every block a task's
+  `plan_quotes` come from, copied exactly as the file gives it. Never
+  shorten one or make one up.
 - Wire real dependencies: schema/data-model tasks come before the
   code that uses them; tests/integration come after the code they
   cover.
