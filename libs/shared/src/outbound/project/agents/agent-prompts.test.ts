@@ -63,3 +63,11 @@ describe("shippedAgentPrompts", () => {
     );
   });
 });
+
+describe("withAgentPrompts on an empty agent_definitions key", () => {
+  it("leaves a pipeline whose agent_definitions key is empty (null) as it is", () => {
+    const pipeline = { line: { id: "merge" }, agent_definitions: null };
+
+    expect(withAgentPrompts(pipeline, new Map())).toEqual(pipeline);
+  });
+});

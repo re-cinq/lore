@@ -7,7 +7,7 @@ type Fields = Record<string, unknown>;
 
 export interface PipelineDocument {
   line?: unknown;
-  agent_definitions?: Record<string, Fields>;
+  agent_definitions?: Record<string, Fields> | null;
 }
 
 export type AgentPrompts = ReadonlyMap<string, string | null>;
@@ -24,7 +24,7 @@ export function withAgentPrompts<Document extends PipelineDocument>(
 ): Document {
   const definitions = document.agent_definitions;
 
-  if (definitions === undefined) {
+  if (!definitions) {
     return document;
   }
 
