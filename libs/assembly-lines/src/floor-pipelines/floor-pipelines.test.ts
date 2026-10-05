@@ -777,7 +777,8 @@ describe("the feature-planning pipeline", () => {
   });
 
   it("gives feature-decompose the approved plan as plan.md and the spec plan as spec-plan.json, and names both in its prompt", () => {
-    const decompose = pipelineOf("feature-planning").stations["feature-decompose"];
+    const decompose =
+      pipelineOf("feature-planning").stations["feature-decompose"];
     const prompt = promptOnOneLine("feature-decompose");
 
     expect({
