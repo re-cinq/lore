@@ -7,12 +7,15 @@ test_policy: none
 model: claude-sonnet-4-6
 skills:
   - tdd-loop
-watch:
-  event: pr.description
-  path: pr-body.md
 ---
 The ticket below is finished on this branch, behind a DRAFT pull request.
 Your job is to write the description a human will read.
+
+The ticket's branch is checked out with write access at /workspace/target.
+Run every command from inside it (`cd /workspace/target` first). The ticket
+is at `{ticket_path}`: read it before anything else. Pass `repo` (the
+owner/name your task names above) on every `lore_*` call: the gateway has
+no checkout to detect it from.
 
 YOU DO NOT NEED TO PROVE IT. CI is the judge of this branch, it is green
 on the commit that brought you here, and that is why you are running at
@@ -22,7 +25,7 @@ test, build and install commands here. Read `.lore/dod.md`'s "Done when
 these pass" list for what the
 ticket meant by done, and read the diff for what actually landed.
 
-WRITE `../pr-body.md`. Prose, not a template. What the ticket
+WRITE `{pr_body_path}`. Prose, not a template. What the ticket
 asked for, what changed and why that shape, which acceptance tests define
 done, and anything a reviewer would otherwise have to ask. No checklists,
 no emoji, no "Summary/Changes/Testing" headings, no restating the diff.
@@ -37,9 +40,9 @@ THEN TITLE IT. One line, imperative, under 70 characters, naming what
 this branch DID — not the ticket, not the branch, no `fix:` prefix. The
 pull request opened under the ticket's title before any code existed;
 you have read the finished branch, so you get to rename it. You report
-it in `"Lore-Pr-Title"` on the final line below and Lore renames the
+it in `"pr_title"` on the final line below and Lore renames the
 pull request when it takes it out of draft. Do not repeat it as a
-heading in `../pr-body.md` — a description that opens by restating
+heading in `{pr_body_path}` — a description that opens by restating
 its own title wastes the first line a reviewer reads.
 
 THEN JUDGE COVERAGE. Re-read the ticket (title and body) against the
@@ -93,8 +96,8 @@ DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
   SOURCE, so nothing needs building for a test to see your change, and
   the build is the 950 MB step that OOM-killed run abac6ee9 while it
   rebuilt libs/shared for a test that never needed it.
-- When the work is done, `git add` what you changed and commit it with a
-  short, factual message. Then `git push origin HEAD`. The clone carries
+- When the work is done, `git -C /workspace/target add` what you changed and commit it with a
+  short, factual message. Then `git -C /workspace/target push origin HEAD`. The clone carries
   its own credentials, so a plain push authenticates; you need no token
   and must never look for one.
 - Then bring the branch up to date with its base — `git fetch origin main`
@@ -112,18 +115,16 @@ DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
   with the line `LORE_NODE_RESULT: {"outcome":"failed"}` so the line does
   not validate an empty branch.
 - Do not mark the pull request ready and do not edit it: you have no `gh`
-  and no GitHub token. Lore reads `../pr-body.md`, updates the pull
+  and no GitHub token. Lore reads `{pr_body_path}`, updates the pull
   request with it, and takes it out of draft — which is what starts the
   code review.
 
 Print exactly one of these as the last line of your final message:
-- `../pr-body.md` is written, and the
+- `{pr_body_path}` is written, and the
   `.lore/dod.md` removal plus any link fixes are committed and pushed.
-  Set `"Lore-Pr-Title"` to the title you wrote above, and
-  `"Lore-Issue-Coverage"` to `"full"` when the branch resolves everything
+  Set `"pr_title"` to the title you wrote above, and
+  `"issue_coverage"` to `"full"` when the branch resolves everything
   the ticket reports, `"partial"` when it resolves only part:
-  LORE_NODE_RESULT: {"outcome":"success","extras":{"Lore-Pr-Ready":"green","Lore-Pr-Title":"<the title>","Lore-Issue-Coverage":"full"}}
+  LORE_NODE_RESULT: {"outcome":"success","extras":{"pr_ready":"green","pr_title":"<the title>","issue_coverage":"full"}}
 - You could not write or push the paperwork:
-  LORE_NODE_RESULT: {"outcome":"failed","extras":{"Lore-Pr-Blocked":"<one line: what stopped you>"}}
-
-Ticket: {description}
+  LORE_NODE_RESULT: {"outcome":"failed","extras":{"pr_blocked":"<one line: what stopped you>"}}
