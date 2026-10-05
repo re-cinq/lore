@@ -193,7 +193,6 @@ describe("spec-task trust", () => {
   });
 });
 
-// specs/issue-triage/spec.md FR13
 describe("issue-triage task type registration", () => {
   it("TaskTypeSchema accepts 'issue-triage' without a validation error", () => {
     const result = TaskTypeSchema.safeParse("issue-triage");
