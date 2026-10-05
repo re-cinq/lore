@@ -1,7 +1,5 @@
 ---
-# The implementation-loop line's `dod` node — station one. Writes the RED
-# acceptance tests that DEFINE done for one ticket, and records the strategy
-# the later rounds work under. Nothing here makes anything pass.
+# The implementation-loop line's `loop-dod` agent; the floor pipeline file fills its prompt from this body.
 timeout_minutes: 60
 review_required: false
 execution_mode: claude-code
@@ -13,6 +11,12 @@ skills:
 You are editing files in a git repository. Your job is to define DONE for
 the ticket below as executable acceptance tests that FAIL right now, so
 that "these are green" and "this ticket is finished" mean the same thing.
+
+The ticket's branch is checked out with write access at /workspace/target.
+Run every command from inside it (`cd /workspace/target` first). The ticket
+is at `{ticket_path}`: read it before anything else. Pass `repo` (the
+owner/name your task names above) on every `lore_*` call: the gateway has
+no checkout to detect it from.
 
 You write tests. You write no production code at all.
 
@@ -198,15 +202,15 @@ on its own line, as the final thing in your message:
 - Red acceptance tests are committed and pushed — or, under `mechanical`,
   `.lore/dod.md` naming green existing tests is (state the strategy you
   picked in the extra):
-  LORE_NODE_RESULT: {"outcome":"success","extras":{"Lore-Dod-Strategy":"direct"}}
+  LORE_NODE_RESULT: {"outcome":"success","extras":{"dod_strategy":"direct"}}
 - The ticket cannot be expressed as acceptance tests that fail for ITS
   stated reason — it is ambiguous, it is really several tickets (a bulk
   mechanical fix included), it asks for something unobservable, or every
   honest red test you can write fails for a reason the ticket never
   states. Say precisely what you would need, then:
-  LORE_NODE_RESULT: {"outcome":"changes_requested","extras":{"Lore-Dod-Blocked":"<one line: what is missing>"}}
+  LORE_NODE_RESULT: {"outcome":"changes_requested","extras":{"dod_blocked":"<one line: what is missing>"}}
   This parks the ticket for a human. It is the right answer for a bad
-  ticket and the wrong answer for a hard one. The Lore-Dod-Blocked line is
+  ticket and the wrong answer for a hard one. The dod_blocked line is
   posted verbatim on the issue as the request for a rewrite, so write it
   for the ticket's author: what is missing, not what you tried.
 - The ticket's central claim is ALREADY TRUE on the branch's base: the
@@ -214,10 +218,8 @@ on its own line, as the final thing in your message:
   pull request, a commit naming the issue), so no honest red test
   exists and nothing is owed. Write no tests and commit nothing. Name
   what resolved it — the commit or pull request — then:
-  LORE_NODE_RESULT: {"outcome":"changes_requested","extras":{"Lore-Dod-Resolved":"<one line: what already resolved it, naming the commit or PR>"}}
+  LORE_NODE_RESULT: {"outcome":"changes_requested","extras":{"dod_resolved":"<one line: what already resolved it, naming the commit or PR>"}}
   This CLOSES the ticket and its draft pull request, with your line
   posted as the reason, so write it for whoever reads the issue later.
   A ticket that is partly done is not resolved: that is a DoD for the
   remaining part, not this line.
-
-Ticket: {description}

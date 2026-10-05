@@ -14,7 +14,9 @@ describe("the delivering recipes", () => {
     for (const name of DELIVERING_PROMPT_REFS) {
       const prompt = promptOf(name);
 
-      expect(prompt, name).toContain("git push origin HEAD");
+      expect(prompt, name).toMatch(
+        /git (-C \/workspace\/target )?push origin HEAD/,
+      );
       expect(prompt, name).toContain("dies with it");
       expect(prompt, name).not.toContain("Do not commit or push");
     }
@@ -33,7 +35,12 @@ describe("the delivering recipes", () => {
   });
 
   it("tells the loop's own recipes that CI judges the branch, so none re-runs the suite in a pod", () => {
-    for (const name of ["acceptance-dod", "tdd-round", "fix-ci", "pr-ready"]) {
+    for (const name of [
+      "loop-dod",
+      "loop-tdd-round",
+      "loop-fix-ci",
+      "loop-pr-ready",
+    ]) {
       const prompt = promptOf(name);
 
       expect(prompt, name).toContain("CI is the judge of this branch");
@@ -41,7 +48,7 @@ describe("the delivering recipes", () => {
   });
 
   it("tells fix-ci to run only the checks the CI report named", () => {
-    expect(promptOf("fix-ci")).toContain("run ONLY that");
+    expect(promptOf("loop-fix-ci")).toContain("run ONLY that");
   });
 
   it("tells every delivering recipe not to typecheck or build in the pod: CI's build step proves compilation, tests read source, and tsc on libs/shared peaks near 950 MB against 1Gi", () => {
@@ -55,7 +62,7 @@ describe("the delivering recipes", () => {
   });
 
   it("tells every recipe that writes tests to run the spec-link re-anchor script after the formatter, when the repository has one", () => {
-    for (const name of ["acceptance-dod", "tdd-round", "pr-ready"]) {
+    for (const name of ["loop-dod", "loop-tdd-round", "loop-pr-ready"]) {
       const prompt = promptOf(name);
 
       expect(prompt, name).toContain("node scripts/spec-links/reanchor.mjs");
@@ -81,7 +88,7 @@ describe("the delivering recipes", () => {
 
   it("tells every implementing recipe but tdd-round and fix-ci to report failure when it delivered nothing", () => {
     const oneShot = DELIVERING_PROMPT_REFS.filter(
-      (n) => n !== "tdd-round" && n !== "fix-ci",
+      (n) => n !== "loop-tdd-round" && n !== "loop-fix-ci",
     );
 
     for (const name of oneShot) {
@@ -92,10 +99,10 @@ describe("the delivering recipes", () => {
   });
 
   it("lets a round that found the work already done report success, since failure would strand the branch", () => {
-    const round = SHIPPED.get("tdd-round");
+    const round = SHIPPED.get("loop-tdd-round");
 
     expect(round?.prompt).toContain(
-      'LORE_NODE_RESULT: {"outcome":"success","extras":{"Lore-Tdd-Next":"acceptance green"}}',
+      'LORE_NODE_RESULT: {"outcome":"success","extras":{"tdd_next":"acceptance green"}}',
     );
     expect(round?.prompt).toContain(
       "Report failure when you are STUCK, never when you are FINISHED",
@@ -103,7 +110,7 @@ describe("the delivering recipes", () => {
   });
 
   it("holds the DoD to the ticket's own claim — scope fidelity, not reinterpretation (bowman-ui #11, #1745)", () => {
-    const dod = promptOf("acceptance-dod");
+    const dod = promptOf("loop-dod");
 
     expect(dod).toContain("SCOPE FIDELITY");
     expect(dod).toContain("central claim");
@@ -112,8 +119,8 @@ describe("the delivering recipes", () => {
   });
 
   it("bans acceptance tests whose subject is the repository's own source text (bowman-ui #8/#9/#10, #1743)", () => {
-    const dod = promptOf("acceptance-dod");
-    const round = promptOf("tdd-round");
+    const dod = promptOf("loop-dod");
+    const round = promptOf("loop-tdd-round");
 
     expect(dod).toContain("real entry point");
     expect(dod).toContain("own source text");
@@ -122,31 +129,29 @@ describe("the delivering recipes", () => {
   });
 
   it("asks the definition of done to open with the ticket claim as a blockquote", () => {
-    expect(promptOf("acceptance-dod")).toContain(
+    expect(promptOf("loop-dod")).toContain(
       "> <the ticket's central claim, quoted verbatim>",
     );
   });
 
   it("tells the definition-of-done step its verdict is posted on the issue", () => {
-    expect(promptOf("acceptance-dod")).toContain(
-      "posted verbatim on the issue",
-    );
+    expect(promptOf("loop-dod")).toContain("posted verbatim on the issue");
   });
 
   it("asks the definition of done for task-list checkboxes, so a round's progress renders", () => {
-    const dod = promptOf("acceptance-dod");
+    const dod = promptOf("loop-dod");
 
     expect(dod).toContain("## Done when these pass");
     expect(dod).toContain("- [ ] **<test name>**");
   });
 
   it("tells a round to tick the facet it closed rather than append to a log", () => {
-    expect(promptOf("tdd-round")).toContain("`- [ ]` becomes `- [x]`");
+    expect(promptOf("loop-tdd-round")).toContain("`- [ ]` becomes `- [x]`");
   });
 
   it("offers a mechanical strategy so a trivial ticket owes no new permanent test (#1744)", () => {
-    const dod = promptOf("acceptance-dod");
-    const round = promptOf("tdd-round");
+    const dod = promptOf("loop-dod");
+    const round = promptOf("loop-tdd-round");
 
     expect(dod).toContain("`mechanical`");
     expect(dod).toContain("EXISTING tests");
@@ -154,18 +159,18 @@ describe("the delivering recipes", () => {
   });
 
   it("has pr-ready report issue coverage, and leaves the footer to the Floor", () => {
-    const ready = promptOf("pr-ready");
+    const ready = promptOf("loop-pr-ready");
 
-    expect(ready).toContain('"Lore-Issue-Coverage"');
+    expect(ready).toContain('"issue_coverage"');
     expect(ready).toContain("Refs");
     expect(ready).not.toContain("Closes #");
   });
 
   it("writes the PR description beside the clone, where Lore reads it and git never sees it", () => {
-    const ready = promptOnOneLine("pr-ready");
+    const ready = promptOnOneLine("loop-pr-ready");
 
     expect({
-      namesBodyBesideClone: ready.includes("`../pr-body.md`"),
+      namesBodyBesideClone: ready.includes("WRITE `{pr_body_path}`"),
       saysOutsideGit: ready.includes("beside the clone, outside git"),
       namesOldInCloneBody: ready.includes(".lore/pr-body.md"),
       pushesEverything: ready.includes("and all of it is pushed"),
@@ -178,7 +183,7 @@ describe("the delivering recipes", () => {
   });
 
   it("has pr-ready rewrite stale spec prose and point anchors at assertions", () => {
-    const ready = promptOf("pr-ready");
+    const ready = promptOf("loop-pr-ready");
 
     expect(ready).toContain("rewrite the sentence");
     expect(ready).toContain("never a comment or blank line");
@@ -186,24 +191,26 @@ describe("the delivering recipes", () => {
 
   it("has the loop's own recipes demand red before green, inline validated-by links, and the status flip", () => {
     expect({
-      redFirst: promptOf("acceptance-dod").includes("FAIL right now"),
-      oneRedTest: promptOf("tdd-round").includes(
+      redFirst: promptOf("loop-dod").includes("FAIL right now"),
+      oneRedTest: promptOf("loop-tdd-round").includes(
         "one failing test for the smallest facet",
       ),
-      links: promptOf("pr-ready").includes("([validated by name](path#Lnn))"),
-      status: promptOf("pr-ready").includes("`| Status |` header row"),
+      links: promptOf("loop-pr-ready").includes(
+        "([validated by name](path#Lnn))",
+      ),
+      status: promptOf("loop-pr-ready").includes("`| Status |` header row"),
     }).toEqual({ redFirst: true, oneRedTest: true, links: true, status: true });
   });
 
   it("has tdd-round ask which tests already cover a symbol before editing it", () => {
-    const round = promptOf("tdd-round");
+    const round = promptOf("loop-tdd-round");
 
     expect(round).toContain("tests_covering");
     expect(round).toContain("REGRESSION");
   });
 
   it("has fix-ci ask what failed on a path before it reads any file", () => {
-    const fix = promptOf("fix-ci");
+    const fix = promptOf("loop-fix-ci");
 
     expect(fix).toContain("failures_touching");
     expect(fix).toContain("still open");
@@ -212,13 +219,13 @@ describe("the delivering recipes", () => {
 
 describe("the fix-ci recipe and a named failed step", () => {
   it("tells fix-ci to run only the failed step's command when the CI report names one", () => {
-    expect(promptOf("fix-ci")).toContain("run only that step's command");
+    expect(promptOf("loop-fix-ci")).toContain("run only that step's command");
   });
 });
 
 describe("the fix-ci recipe when the branch moved", () => {
   it("tells fix-ci to change nothing and report success when commits CI has not judged sit on top of the reported sha", () => {
-    const fix = promptOf("fix-ci");
+    const fix = promptOf("loop-fix-ci");
 
     expect(fix).toContain("..HEAD");
     expect(fix).toContain("the branch moved after CI judged it");
@@ -227,7 +234,7 @@ describe("the fix-ci recipe when the branch moved", () => {
 
 describe("test_policy", () => {
   it("declares none on every read-only review recipe, so a review pod cannot run tests, installs or builds at all", () => {
-    const readOnly = ["review", "pr-ready"];
+    const readOnly = ["code-review", "loop-pr-ready"];
 
     expect(
       readOnly.map((name) => SHIPPED.get(name)?.config?.test_policy),
@@ -237,7 +244,7 @@ describe("test_policy", () => {
 
 describe("the feature-planning recipe", () => {
   it("tells the planning agent to gather from lore_assemble_context and the lore_query_graph knowledge graph before it writes", () => {
-    const prompt = promptOf("feature-planning");
+    const prompt = promptOf("plan-analyze");
     const gather = prompt.indexOf("## Gather before you write");
 
     expect({
@@ -250,24 +257,19 @@ describe("the feature-planning recipe", () => {
   });
 
   it("tells the planning agent that Open questions holds only questions, so it never restates its questions there as a list", () => {
-    const prompt = promptOf("feature-planning");
+    const prompt = promptOnOneLine("plan-analyze");
 
     expect({
       onlyQuestions: prompt.includes(
-        "only when it belongs to no other section. That section holds only",
+        "only when it belongs to no other section. That section holds only questions",
       ),
-      noRestating: prompt.includes("Never list or restate questions"),
+      noRestating: prompt.includes("never a list, a paragraph, or a copy"),
     }).toEqual({ onlyQuestions: true, noRestating: true });
   });
 
   it("edits the live plan through lore_plan_read and lore_plan_edit instead of uploading a file", () => {
-    const config = SHIPPED.get("feature-planning")?.config;
-    const prompt = promptOnOneLine("feature-planning");
+    const prompt = promptOnOneLine("plan-analyze");
 
-    expect(config).toMatchObject({
-      inputs: [{ path: "plan.md", source: "plan" }],
-    });
-    expect(config?.watch).toBeUndefined();
     expect({
       read: prompt.includes("lore_plan_read"),
       edit: prompt.includes("lore_plan_edit"),
@@ -293,7 +295,7 @@ describe("the feature-planning recipe", () => {
     const prompt = promptOnOneLine("spec-write");
 
     expect({
-      slot: promptOf("spec-write").includes("{spec_plan}"),
+      slot: promptOf("spec-write").includes("{spec_plan_path}"),
       amendInPlace: prompt.includes(
         "amend that statement rather than adding a rival beside it",
       ),
@@ -328,7 +330,7 @@ describe("the feature-planning recipe", () => {
         "zero `[NEEDS CLARIFICATION` strings remain in any committed file",
       ),
       planNamingSplit: prompt.includes(
-        "TWO DIFFERENT FILES ARE CALLED plan.md",
+        "Never confuse `{plan_md_path}` (the approved PLANNING DOCUMENT",
       ),
     }).toEqual({
       specTemplate: true,
@@ -363,20 +365,15 @@ describe("the feature-planning recipe", () => {
     const prompt = promptOnOneLine("spec-write");
 
     expect({
-      watch: SHIPPED.get("spec-write")?.config?.watch,
       addressed: prompt.includes('"action": "addressed"'),
       toPlan: prompt.includes("change NOTHING for it"),
       neverAnswer: prompt.includes("Never answer for the plan's people"),
-      always: prompt.includes("Always write `../spec-review-result.json`"),
+      always: prompt.includes("Always write `spec-review-result.json`"),
       empty: prompt.includes('{"plan_questions": [], "replies": []}'),
       noChangeIsSuccess: prompt.includes(
         'the specs are right as they stand — `spec-review-result.json` is your delivery, so end with `LORE_NODE_RESULT: {"outcome":"success"}`',
       ),
     }).toEqual({
-      watch: {
-        event: "spec.review.result",
-        path: "spec-review-result.json",
-      },
       addressed: true,
       toPlan: true,
       neverAnswer: true,
@@ -384,27 +381,6 @@ describe("the feature-planning recipe", () => {
       empty: true,
       noChangeIsSuccess: true,
     });
-  });
-
-  it("gives spec-analysis, spec-write and feature-decompose the approved plan as plan.md rather than in their prompt", () => {
-    expect(
-      ["spec-analysis", "spec-write", "feature-decompose"].map(
-        (name) => SHIPPED.get(name)?.config?.inputs,
-      ),
-    ).toEqual([
-      [{ path: "plan.md", source: "plan" }],
-      [{ path: "plan.md", source: "plan" }],
-      [{ path: "plan.md", source: "plan" }],
-    ]);
-  });
-
-  it("writes every watched artifact outside the clone, never under target/", () => {
-    const watchedInsideClone = [...SHIPPED.entries()]
-      .filter(([, def]) => def.config?.watch)
-      .map(([name, def]) => [name, def.config?.watch?.path])
-      .filter(([, path]) => path?.startsWith("target/"));
-
-    expect(watchedInsideClone).toEqual([]);
   });
 });
 
@@ -417,9 +393,8 @@ describe("the plan-validate recipe", () => {
     const prompt = promptOnOneLine("plan-validate");
 
     expect({
-      config: SHIPPED.get("plan-validate")?.config,
-      readsPlan: prompt.includes("../plan.md"),
-      writesValidation: prompt.includes("../plan-validation.json"),
+      readsPlan: prompt.includes("`lore_plan_read {plan_id}`"),
+      writesValidation: prompt.includes("`plan-validation.json`"),
       neverEdits: prompt.includes("Never edit the plan"),
       standingFindingById: prompt.includes("by its id"),
       fixedTextNamesStrings: prompt.includes("names its strings"),
@@ -429,13 +404,6 @@ describe("the plan-validate recipe", () => {
       severity: prompt.includes("severity"),
       success: prompt.includes('LORE_NODE_RESULT: {"outcome":"success"}'),
     }).toEqual({
-      config: {
-        inputs: [{ path: "plan.md", source: "plan" }],
-        watch: {
-          event: "plan.validation.result",
-          path: "plan-validation.json",
-        },
-      },
       readsPlan: true,
       writesValidation: true,
       neverEdits: true,
@@ -538,7 +506,7 @@ describe("the planning recipes check a plan against what the platform has (issue
     const prompt = promptOnOneLine("feature-decompose");
 
     expect({
-      spec: prompt.includes("the run's `spec_path` value names"),
+      spec: prompt.includes("The spec** this plan writes is `{spec_path}`"),
       noSearch: prompt.includes("Do not search the clone for another one"),
       context: prompt.includes("take `context` from the approved plan too"),
     }).toEqual({ spec: true, noSearch: true, context: true });

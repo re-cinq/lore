@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { describe, it, expect } from "vitest";
 import { parse } from "yaml";
+import { withAgentPrompts } from "@re-cinq/lore-shared/project/agents/agent-prompts.js";
 
 interface Arg {
   kind: string;
@@ -1070,8 +1071,10 @@ function loadPipelines(): Map<string, Pipeline> {
   const folder = new URL("./", import.meta.url);
   const pipelines = readdirSync(folder)
     .filter((file) => file.endsWith(".yaml"))
-    .map(
-      (file) => parse(readFileSync(new URL(file, folder), "utf8")) as Pipeline,
+    .map((file) =>
+      withAgentPrompts(
+        parse(readFileSync(new URL(file, folder), "utf8")) as Pipeline,
+      ),
     );
 
   return new Map(pipelines.map((pipeline) => [pipeline.line.id, pipeline]));
@@ -1112,3 +1115,17 @@ function settingsOf(name: string): AgentSettings {
 function promptOnOneLine(name: string): string {
   return settingsOf(name).prompt.replace(/\s+/g, " ");
 }
+
+describe("the files the floor agents produce", () => {
+  it("lists no agent file under the target/ clone, so no git add in it can commit one", () => {
+    const insideClone = [...PIPELINES.values()]
+      .flatMap((pipeline) => Object.entries(pipeline.stations))
+      .filter(([, station]) => station.kind === "agent")
+      .flatMap(([name, station]) =>
+        station.produces.map((output) => `${name}:${output.path ?? ""}`),
+      )
+      .filter((entry) => entry.includes(":target/"));
+
+    expect(insideClone).toEqual([]);
+  });
+});

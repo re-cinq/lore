@@ -1,8 +1,5 @@
 ---
-# The implementation-loop line's `tdd-round` node. ONE red-green-refactor
-# round per visit, then the node ends. The LINE loops it; the recipe never
-# loops itself. Each visit starts a fresh conversation and re-reads the branch,
-# which is what keeps a round's prompt bounded however many rounds precede it.
+# The implementation-loop line's `loop-tdd-round` agent; the floor pipeline file fills its prompt from this body.
 timeout_minutes: 60
 review_required: false
 execution_mode: claude-code
@@ -13,6 +10,12 @@ skills:
 You are editing files in a git repository, mid-way through a ticket that
 is already defined by RED acceptance tests. You perform exactly ONE
 red-green-refactor round and then stop. Not two. Not "while I'm here".
+
+The ticket's branch is checked out with write access at /workspace/target.
+Run every command from inside it (`cd /workspace/target` first). The ticket
+is at `{ticket_path}`: read it before anything else. Pass `repo` (the
+owner/name your task names above) on every `lore_*` call: the gateway has
+no checkout to detect it from.
 
 START by reading `.lore/dod.md` on this branch. Its "Done when these pass"
 list is the bar; its Facets checklist is where the last round got to. It
@@ -93,7 +96,9 @@ RULES:
 - Commit when the test YOU wrote is green. Acceptance tests may still be
   red — that is the ordinary state mid-ticket, and the next round takes
   the next facet.
-- If a `CI reported failures` section is appended below, it is the verdict
+- If `/workspace/round-brief.md` exists, read it before `.lore/dod.md`. Its
+  `The previous round reported` section is where the last round stopped.
+  Its `CI reported failures` section is the verdict
   on the previous push, and it outranks `.lore/dod.md`: a red build means
   the ticket is NOT done, however many facets are ticked. Every finding
   it lists — each `path:line message` — is work this round owes before
@@ -151,14 +156,14 @@ own line, as the final thing in your message. You are NOT deciding whether
 the ticket is done — the build decides that, after your push. You are
 reporting whether this round delivered anything.
 - You committed and pushed a round:
-  LORE_NODE_RESULT: {"outcome":"success","extras":{"Lore-Tdd-Done":"<the facet you closed>","Lore-Tdd-Next":"<the facet the next round takes, or 'acceptance green'>"}}
+  LORE_NODE_RESULT: {"outcome":"success","extras":{"tdd_done":"<the facet you closed>","tdd_next":"<the facet the next round takes, or 'acceptance green'>"}}
   This is the ordinary outcome, whether or not acceptance tests remain
   red. CI reads the branch next and sends you back if there is more.
 - You wrote nothing because there was nothing left to write — every facet
   in `.lore/dod.md` is closed, its acceptance tests pass, AND no
-  `CI reported failures` section is appended (a red verdict IS something
+  `CI reported failures` section is in the round brief (a red verdict IS something
   left to write; fix its findings and report the line above instead):
-  LORE_NODE_RESULT: {"outcome":"success","extras":{"Lore-Tdd-Next":"acceptance green"}}
+  LORE_NODE_RESULT: {"outcome":"success","extras":{"tdd_next":"acceptance green"}}
   SUCCESS, not failure. The branch is already pushed; the build judges it
   next, and a green one sends the ticket to review. Reporting failure for
   a round that found the work already done ENDS THE TICKET and strands its
@@ -166,8 +171,6 @@ reporting whether this round delivered anything.
   implementation complete and all four facets checked off.
 - You cannot name a next facet, or the bar will not go green: say exactly
   what blocks you, then:
-  LORE_NODE_RESULT: {"outcome":"failed","extras":{"Lore-Tdd-Blocked":"<one line: what blocks you>"}}
+  LORE_NODE_RESULT: {"outcome":"failed","extras":{"tdd_blocked":"<one line: what blocks you>"}}
   "This is hard" is not stuck; "there is no facet I can express as a test"
   is. Report failure when you are STUCK, never when you are FINISHED.
-
-Ticket: {description}

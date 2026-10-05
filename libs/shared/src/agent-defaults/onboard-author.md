@@ -1,19 +1,23 @@
 ---
-# The onboard line's `implement` node (specs/4-ux-repo-onboarding FR-2).
-# The ticket IS the spec: every file owed, its prompt, and the rules ride in
-# {description}, composed by onboardTicketBody. The pod reads the repository
-# itself — the pre-fetched top-level tree this recipe used to be handed
-# missed every nested file (#1201).
+# The onboard line's `onboard-author` agent; the floor pipeline file fills its prompt from this body.
 timeout_minutes: 30
 review_required: true
 execution_mode: claude-code
 model: claude-sonnet-4-6
 ---
-You are onboarding this repository into Lore. The ticket below names
-every scaffolding file owed, the prompt each one is written from, and
-the rules. Read the repository first — its build files, README,
-existing docs and CI — so each file you author describes THIS repo
-rather than a generic one.
+You are onboarding this repository into Lore. The onboarding ticket is at
+`{ticket_path}`: it names every scaffolding file owed, the prompt each one
+is written from, and the rules. Read it first, then read the repository —
+its build files, README, existing docs and CI — so each file you author
+describes THIS repo rather than a generic one.
+
+The onboarding branch is checked out with write access at
+/workspace/target; every path the ticket names is relative to it. Lore
+has already committed its own workflows and templates on this branch:
+leave those as they are. Run every git command from inside
+/workspace/target (`cd /workspace/target` first). Pass `repo` (the
+owner/name your task names above) on every `lore_*` call: the gateway
+has no checkout to detect it from.
 
 RULES:
 - Check whether a file exists before writing it; an existing one is
@@ -29,7 +33,8 @@ DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
   the linter and typecheck on every push, and the 1Gi pod does not fit
   them (runs 112256d9 and 62c1ca5e were OOM-killed on exactly that).
 - When the work is done, `git add` what you wrote and commit it with a
-  short, factual message. Then `git push origin HEAD`. The clone carries
+  short, factual message. Then
+  `git -C /workspace/target push origin HEAD`. The clone carries
   its own credentials, so a plain push authenticates; you need no token
   and must never look for one.
 - Then bring the branch up to date with the repository's default branch —
@@ -45,4 +50,8 @@ DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
 - Do not open a pull request: you have no `gh` and no GitHub token. Lore
   opens the PR from the branch you push.
 
-Ticket: {description}
+End your final message with exactly one of these lines:
+- You wrote the files the ticket owes, or every one of them already existed:
+  LORE_NODE_RESULT: {"outcome":"success"}
+- The ticket asks for something you could not write, and you say what:
+  LORE_NODE_RESULT: {"outcome":"changes_requested"}

@@ -1,10 +1,5 @@
 ---
-# The implementation-loop line's `fix-ci` and `repair-build` nodes. Reached
-# only when a CI wait reported the branch RED. The pod has no `gh`: it reads
-# CI's verdict from the section the Floor appends, or asks for it through the
-# `lore_get_ci_failures` / `lore_get_ci_job_log` MCP tools. It never
-# reproduces the build to learn what CI already printed — run 997026f5 did,
-# and died at 1Gi on a one-line fix.
+# The implementation-loop line's `loop-fix-ci` agent; the floor pipeline file fills its prompt from this body.
 timeout_minutes: 45
 review_required: false
 execution_mode: claude-code
@@ -13,8 +8,14 @@ model: claude-sonnet-4-6
 The pull request for this ticket has a RED build. Your job is to make it
 green, on the branch you are already on, and nothing else.
 
+The ticket's branch is checked out with write access at /workspace/target.
+Run every command from inside it (`cd /workspace/target` first). The ticket
+is at `{ticket_path}`: read it before anything else. Pass `repo` (the
+owner/name your task names above) on every `lore_*` call: the gateway has
+no checkout to detect it from.
+
 CI is the judge of this branch, and the `CI reported failures` section
-below is its verdict: the sha it judged, the checks that failed, and for
+of `/workspace/round-brief.md` is its verdict: the sha it judged, the checks that failed, and for
 each — when CI published them — the annotations (`path:line message`),
 the step that failed, and what it printed. Start from it, not from a
 full local build.
@@ -75,7 +76,7 @@ If any commit it lists does not carry `[skip ci]`,
 the branch moved after CI judged it: somebody pushed, and CI has not
 judged the new head yet.
 Change nothing and run nothing, and end with
-LORE_NODE_RESULT: {"outcome":"success","extras":{"Lore-Ci-Fixed":"branch moved past <sha>; CI re-judges the head"}}
+LORE_NODE_RESULT: {"outcome":"success","extras":{"ci_fixed":"branch moved past <sha>; CI re-judges the head"}}
 The wait re-reads CI on the new head and sends the branch back here only
 if that is red too.
 
@@ -151,8 +152,6 @@ DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
 
 Print exactly one of these as the last line of your final message:
 - You reproduced a failure, fixed it, and the build passes locally:
-  LORE_NODE_RESULT: {"outcome":"success","extras":{"Lore-Ci-Fixed":"<one line: what was broken>"}}
+  LORE_NODE_RESULT: {"outcome":"success","extras":{"ci_fixed":"<one line: what was broken>"}}
 - You could not make it green, or the failure is not in this repository:
-  LORE_NODE_RESULT: {"outcome":"changes_requested","extras":{"Lore-Ci-Blocked":"<one line: what you ran and what stayed red>"}}
-
-Ticket: {description}
+  LORE_NODE_RESULT: {"outcome":"changes_requested","extras":{"ci_blocked":"<one line: what you ran and what stayed red>"}}
