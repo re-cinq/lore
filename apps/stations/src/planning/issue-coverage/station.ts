@@ -17,10 +17,16 @@ import {
   issueCoverageBrief,
   type IssueCoverage,
 } from "@re-cinq/lore-shared/feature-planning/issue-coverage.js";
-import { parseDecomposition } from "@re-cinq/lore-shared/feature-planning/decomposition-result.js";
+import {
+  parseDecomposition,
+  type DecompositionResult,
+} from "@re-cinq/lore-shared/feature-planning/decomposition-result.js";
 import { parseModelJson } from "@re-cinq/lore-shared/feature-planning/model-json.js";
 import { parseGitRef } from "@re-cinq/lore-shared/floor/floor-items.js";
-import { decomposedSpec } from "../file-issues/decomposed-spec.js";
+import {
+  decomposedSpec,
+  type DecomposedSpec,
+} from "../file-issues/decomposed-spec.js";
 import { coverageDeps, type CoverageDeps } from "../coverage-deps.js";
 
 const SUCCESS: Report = { outcome: "success" };
@@ -49,9 +55,7 @@ async function coverageOfDecomposition(
   tools: Tools,
 ): Promise<{ counted: IssueCoverage; brief: string } | undefined> {
   const { repo, branch } = parseGitRef(brief.needs.target);
-  const decomposition = parseDecomposition(
-    parseModelJson((await tools.read("decomposition")).toString("utf8")),
-  );
+  const decomposition = await decompositionOf(tools);
   const spec = await decomposedSpec(
     (path, ref) => deps.readSpec(repo, path, ref),
     {
@@ -62,9 +66,19 @@ async function coverageOfDecomposition(
     },
   );
 
-  if (!spec) {
-    return undefined;
-  }
+  return spec && countedIn(spec, decomposition);
+}
+
+async function decompositionOf(tools: Tools): Promise<DecompositionResult> {
+  const raw = (await tools.read("decomposition")).toString("utf8");
+
+  return parseDecomposition(parseModelJson(raw));
+}
+
+function countedIn(
+  spec: DecomposedSpec,
+  decomposition: DecompositionResult,
+): { counted: IssueCoverage; brief: string } {
   const counted = issueCoverage(
     spec.parts,
     decomposition.stories.flatMap((story) => story.tasks),

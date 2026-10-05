@@ -48,18 +48,9 @@ export async function runIssuesStation(
     return rework(work.objection);
   }
 
-  const spec = await decomposedSpec(
-    (path, ref) => project.repo.read(path, ref),
-    {
-      repo: input.repo,
-      branch: input.branch,
-      specPath: input.params.spec_path,
-      commit: decomposition.spec_commit,
-    },
-  );
   const context = filingContext(input, decomposition, {
     uiUrl: deps.uiUrl,
-    spec,
+    spec: await specOfRun(project, input, decomposition),
   });
 
   return filed(await filePlanIssues(project, work, context), work.tasks.length);
@@ -75,6 +66,19 @@ async function planWork(
     await project.issues.listLabels(),
     input.params.plan_title,
   );
+}
+
+function specOfRun(
+  project: StationProject,
+  input: StationInput,
+  decomposition: DecompositionResult,
+): Promise<DecomposedSpec | undefined> {
+  return decomposedSpec((path, ref) => project.repo.read(path, ref), {
+    repo: input.repo,
+    branch: input.branch,
+    specPath: input.params.spec_path,
+    commit: decomposition.spec_commit,
+  });
 }
 
 // A run reaching this node with no decomposition is a WIRING failure, not a bad decomposition — so it fails rather than routing to rework, which would ask the agent to fix something it did nothing wrong about.

@@ -100,7 +100,7 @@ export function taskIssueBody({
   storyNumber,
   task,
   dependsOn,
-  specStatements = [],
+  specStatements,
 }: TaskIssueInput): string {
   return [
     ...(storyNumber === undefined ? [] : [`Part of #${storyNumber}.`, ""]),
@@ -123,8 +123,10 @@ function dependencyLine(dependsOn: readonly (number | string)[]): string[] {
   return named.length ? [`**Depends on:** ${named.join(", ")}`, ""] : [];
 }
 
-function implementsSection(statements: readonly SpecStatementLink[]): string[] {
-  return statements.length
+function implementsSection(
+  statements: readonly SpecStatementLink[] | undefined,
+): string[] {
+  return statements?.length
     ? [
         "## Implements",
         "",
