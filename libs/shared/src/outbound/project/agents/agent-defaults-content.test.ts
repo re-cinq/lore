@@ -533,4 +533,14 @@ describe("the planning recipes check a plan against what the platform has (issue
       missing: paths.filter((p) => !existsSync(`${root}${p}`)),
     }).toEqual({ named: true, missing: [] });
   });
+
+  it("has feature-decompose read the spec its spec_path value names beside the approved plan, and take context from that plan", () => {
+    const prompt = promptOnOneLine("feature-decompose");
+
+    expect({
+      spec: prompt.includes("the run's `spec_path` value names"),
+      noSearch: prompt.includes("Do not search the clone for another one"),
+      context: prompt.includes("take `context` from the approved plan too"),
+    }).toEqual({ spec: true, noSearch: true, context: true });
+  });
 });
