@@ -9,25 +9,25 @@ import {
 export interface RepoEventDeps {
   /** The ports a labelled Issue of this repository is dispatched through. */
   labelDispatch(repo: string): Promise<LabelDispatchDeps>;
-  /** The `lore.repos` row follows the new name, so runs stop minting installation tokens for a name GitHub no longer serves (#2040). */
-  renameRepo(from: string, to: string): Promise<string>;
-  /** Tells the graph a branch is done: every run on a pull request's head branch shares one overlay, so it goes when the pull request closes, merged or not (#1769). */
-  dropOverlay(repo: string, branch: string): Promise<void>;
-  /** A team change moves the repository's stored context into the team's schema, where reads now look; answers what it did. */
-  relocateChunks(repo: string): Promise<string>;
   /** Starts an issue-triage floor run for the given issue (FR7). */
   startIssueTriage(
     repo: string,
     issueNumber: number,
     issueUrl: string,
   ): Promise<string>;
+  /** The `lore.repos` row follows the new name, so runs stop minting installation tokens for a name GitHub no longer serves (#2040). */
+  renameRepo(from: string, to: string): Promise<string>;
   /** Returns the visit-id of the issue-triage run parked at human-gate for this issue, or null (FR16). */
   findParkedTriageVisit(
     repo: string,
     issueNumber: number,
   ): Promise<string | null>;
+  /** Tells the graph a branch is done: every run on a pull request's head branch shares one overlay, so it goes when the pull request closes, merged or not (#1769). */
+  dropOverlay(repo: string, branch: string): Promise<void>;
   /** Reports success to a parked human-gate visit so the triage run advances (FR16). */
   reportTriageGate(visitId: string): Promise<void>;
+  /** A team change moves the repository's stored context into the team's schema, where reads now look; answers what it did. */
+  relocateChunks(repo: string): Promise<string>;
 }
 
 export const REPO_EVENTS: readonly string[] = [

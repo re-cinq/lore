@@ -242,13 +242,11 @@ describe("repoEventHandlers — issue-triage label dispatch (T006)", () => {
       },
     });
 
-    expect(reported).toHaveLength(1);
-    expect(reported[0]).toBe("visit-abc");
+    expect(reported).toEqual(["visit-abc"]);
     const reportIdx = callOrder.indexOf("reportTriageGate");
     const activeIdx = callOrder.indexOf("activeTaskByIssue");
 
     expect(reportIdx).toBeGreaterThanOrEqual(0);
-    expect(activeIdx).toBeGreaterThanOrEqual(0);
     expect(reportIdx).toBeLessThan(activeIdx);
   });
 });
