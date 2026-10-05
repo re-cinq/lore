@@ -50,13 +50,15 @@ export function repoEventHandlers(
 
 const TRIAGE_TRIGGER_LABELS = ["lore:triage", "triage: needs-triage"] as const;
 
+type LabeledIssueParams = {
+  repo: string;
+  label: string;
+  issue: { number: number; html_url?: string; labels: readonly string[] };
+};
+
 function issueLabeled(deps: RepoEventDeps): EventHandler {
   return async (params) => {
-    const { repo, label, issue } = params as unknown as {
-      repo: string;
-      label: string;
-      issue: { number: number; html_url?: string; labels: readonly string[] };
-    };
+    const { repo, label, issue } = params as unknown as LabeledIssueParams;
 
     if ((TRIAGE_TRIGGER_LABELS as readonly string[]).includes(label)) {
       await deps.startIssueTriage(repo, issue.number, issue.html_url ?? "");
