@@ -1,4 +1,3 @@
-// specs/issue-triage/spec.md FR12
 import { describe, it, expect } from "vitest";
 import { loadAgentDefaults } from "@re-cinq/lore-shared/project/agents/agent-defaults-files.js";
 

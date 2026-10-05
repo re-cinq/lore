@@ -1,9 +1,12 @@
-// specs/issue-triage/spec.md FR12
 import { describe, it, expect } from "vitest";
 import { loadAgentDefaults } from "@re-cinq/lore-shared/project/agents/agent-defaults-files.js";
 
 function recipe(name: string) {
   return loadAgentDefaults().find((def) => def.name === name);
+}
+
+function promptFor(name: string): string {
+  return recipe(name)?.prompt ?? "";
 }
 
 describe("triage agent recipes (specs/issue-triage/spec.md FR12)", () => {
@@ -12,33 +15,21 @@ describe("triage agent recipes (specs/issue-triage/spec.md FR12)", () => {
     const diagnose = recipe("triage-diagnose");
     const verify = recipe("triage-verify");
 
-    expect({
-      reproduceDefined: !!reproduce,
-      reproduceTimeout: reproduce?.timeout_minutes,
-      reproduceHasPrompt: (reproduce?.prompt?.length ?? 0) > 0,
-      diagnoseDefined: !!diagnose,
-      diagnoseTimeout: diagnose?.timeout_minutes,
-      diagnoseHasPrompt: (diagnose?.prompt?.length ?? 0) > 0,
-      verifyDefined: !!verify,
-      verifyTimeout: verify?.timeout_minutes,
-      verifyHasPrompt: (verify?.prompt?.length ?? 0) > 0,
-    }).toEqual({
-      reproduceDefined: true,
-      reproduceTimeout: 15,
-      reproduceHasPrompt: true,
-      diagnoseDefined: true,
-      diagnoseTimeout: 10,
-      diagnoseHasPrompt: true,
-      verifyDefined: true,
-      verifyTimeout: 10,
-      verifyHasPrompt: true,
-    });
+    expect(reproduce).toBeDefined();
+    expect(reproduce!.timeout_minutes).toBe(15);
+    expect(reproduce!.prompt).toBeTruthy();
+    expect(diagnose).toBeDefined();
+    expect(diagnose!.timeout_minutes).toBe(10);
+    expect(diagnose!.prompt).toBeTruthy();
+    expect(verify).toBeDefined();
+    expect(verify!.timeout_minutes).toBe(10);
+    expect(verify!.prompt).toBeTruthy();
   });
 
   it("each recipe documents every LORE_NODE_RESULT outcome it can emit", () => {
-    const reproduce = recipe("triage-reproduce")?.prompt ?? "";
-    const diagnose = recipe("triage-diagnose")?.prompt ?? "";
-    const verify = recipe("triage-verify")?.prompt ?? "";
+    const reproduce = promptFor("triage-reproduce");
+    const diagnose = promptFor("triage-diagnose");
+    const verify = promptFor("triage-verify");
 
     expect({
       reproduce: {
@@ -59,7 +50,7 @@ describe("triage agent recipes (specs/issue-triage/spec.md FR12)", () => {
         success: verify.includes("LORE_NODE_RESULT: success"),
         obsolete: verify.includes("LORE_NODE_RESULT: obsolete"),
         largeIssue: verify.includes("LORE_NODE_RESULT: large-issue"),
-        notActionable: verify.includes("LORE_NODE_RESULT: not-actionable"),
+        actionable: !verify.includes("LORE_NODE_RESULT: not-actionable"),
       },
     }).toEqual({
       reproduce: {
@@ -76,7 +67,7 @@ describe("triage agent recipes (specs/issue-triage/spec.md FR12)", () => {
         success: true,
         obsolete: true,
         largeIssue: true,
-        notActionable: true,
+        actionable: false,
       },
     });
   });
